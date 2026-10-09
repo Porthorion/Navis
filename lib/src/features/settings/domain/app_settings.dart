@@ -19,28 +19,6 @@ double sanitizeDesktopLastAudibleVolume(double? value) {
 }
 
 @immutable
-class CustomVoyageServer {
-  const new({required this.label, required this.url});
-
-  final String label;
-  final String url;
-
-  Map<String, Object> toJson() => <String, Object>{'label': label, 'url': url};
-
-  static CustomVoyageServer? fromJson(Object? raw) {
-    if (raw is! Map) {
-      return null;
-    }
-    final label = raw['label']?.toString().trim() ?? '';
-    final url = raw['url']?.toString().trim() ?? '';
-    if (url.isEmpty) {
-      return null;
-    }
-    return CustomVoyageServer(label: label.isEmpty ? url : label, url: url);
-  }
-}
-
-@immutable
 class AppSettingsModel {
   const new({
     required this.wifiMaxBitRate,
@@ -71,9 +49,6 @@ class AppSettingsModel {
     required this.dynamicAlbumColorEnabled,
     required this.updateCheckEnabled,
     required this.updateChannel,
-    required this.audioMuseServerUrl,
-    required this.audioMuseApiKey,
-    required this.audioMuseEnabled,
     required this.syncIntervalMinutes,
     this.backgroundSyncUnmeteredOnly = true,
     required this.useLrclib,
@@ -113,12 +88,6 @@ class AppSettingsModel {
     this.externalIntegrationsEnabled = true,
     this.disabledIntegrations = '[]',
     this.integrationsNoticeDismissed = false,
-    this.customVoyageServers = const <CustomVoyageServer>[],
-    this.groupListeningEnabled = false,
-    this.voyageServerUrl,
-    this.voyageDisplayName,
-    this.voyageDeviceLabel,
-    this.voyageAutoFollowHost = true,
   });
 
   const new defaults()
@@ -150,9 +119,6 @@ class AppSettingsModel {
       dynamicAlbumColorEnabled = false,
       updateCheckEnabled = true,
       updateChannel = 'stable',
-      audioMuseServerUrl = null,
-      audioMuseApiKey = null,
-      audioMuseEnabled = false,
       syncIntervalMinutes = 60,
       backgroundSyncUnmeteredOnly = true,
       useLrclib = true,
@@ -191,13 +157,7 @@ class AppSettingsModel {
       listenBrainzUserName = null,
       externalIntegrationsEnabled = true,
       disabledIntegrations = '[]',
-      integrationsNoticeDismissed = false,
-      customVoyageServers = const <CustomVoyageServer>[],
-      groupListeningEnabled = false,
-      voyageServerUrl = null,
-      voyageDisplayName = null,
-      voyageDeviceLabel = null,
-      voyageAutoFollowHost = true;
+      integrationsNoticeDismissed = false;
 
   final int? wifiMaxBitRate;
   final String? wifiFormat;
@@ -229,9 +189,6 @@ class AppSettingsModel {
   final bool dynamicAlbumColorEnabled;
   final bool updateCheckEnabled;
   final String updateChannel;
-  final String? audioMuseServerUrl;
-  final String? audioMuseApiKey;
-  final bool audioMuseEnabled;
   final int syncIntervalMinutes;
 
   /// When true, automatic/background library sync waits for an unmetered
@@ -342,25 +299,6 @@ class AppSettingsModel {
   /// Whether the one-time Integrations notice on Home was dismissed.
   final bool integrationsNoticeDismissed;
 
-  /// Legacy retired Listen Together data retained for schema compatibility.
-  /// Runtime settings always expose this as empty.
-  final List<CustomVoyageServer> customVoyageServers;
-
-  /// Legacy retired Listen Together flag. Runtime settings always expose false.
-  final bool groupListeningEnabled;
-
-  /// Legacy retired Voyage base URL. Runtime settings always expose null.
-  final String? voyageServerUrl;
-
-  /// Legacy retired display name. Runtime settings always expose null.
-  final String? voyageDisplayName;
-
-  /// Legacy retired device label. Runtime settings always expose null.
-  final String? voyageDeviceLabel;
-
-  /// Legacy retired follow-host setting. Runtime settings expose the default.
-  final bool voyageAutoFollowHost;
-
   AppSettingsModel copyWith({
     int? wifiMaxBitRate,
     String? wifiFormat,
@@ -390,9 +328,6 @@ class AppSettingsModel {
     bool? dynamicAlbumColorEnabled,
     bool? updateCheckEnabled,
     String? updateChannel,
-    String? audioMuseServerUrl,
-    String? audioMuseApiKey,
-    bool? audioMuseEnabled,
     int? syncIntervalMinutes,
     bool? backgroundSyncUnmeteredOnly,
     bool? useLrclib,
@@ -433,12 +368,6 @@ class AppSettingsModel {
     bool? externalIntegrationsEnabled,
     String? disabledIntegrations,
     bool? integrationsNoticeDismissed,
-    List<CustomVoyageServer>? customVoyageServers,
-    bool? groupListeningEnabled,
-    String? voyageServerUrl,
-    String? voyageDisplayName,
-    String? voyageDeviceLabel,
-    bool? voyageAutoFollowHost,
     bool clearWifiBitRate = false,
     bool clearWifiFormat = false,
     bool clearCellularBitRate = false,
@@ -446,17 +375,12 @@ class AppSettingsModel {
     bool clearColorSchemeSeed = false,
     bool clearAppLocale = false,
     bool clearCustomDownloadFolderPath = false,
-    bool clearAudioMuseServerUrl = false,
-    bool clearAudioMuseApiKey = false,
     bool clearAlbumGridDensity = false,
     bool clearHomeSectionOrder = false,
     bool clearHomeSectionsHidden = false,
     bool clearLibraryPageOrder = false,
     bool clearLastFmApiKey = false,
     bool clearListenBrainzUserName = false,
-    bool clearVoyageServerUrl = false,
-    bool clearVoyageDisplayName = false,
-    bool clearVoyageDeviceLabel = false,
   }) {
     return AppSettingsModel(
       wifiMaxBitRate: clearWifiBitRate
@@ -501,13 +425,6 @@ class AppSettingsModel {
           dynamicAlbumColorEnabled ?? this.dynamicAlbumColorEnabled,
       updateCheckEnabled: updateCheckEnabled ?? this.updateCheckEnabled,
       updateChannel: updateChannel ?? this.updateChannel,
-      audioMuseServerUrl: clearAudioMuseServerUrl
-          ? null
-          : audioMuseServerUrl ?? this.audioMuseServerUrl,
-      audioMuseApiKey: clearAudioMuseApiKey
-          ? null
-          : audioMuseApiKey ?? this.audioMuseApiKey,
-      audioMuseEnabled: audioMuseEnabled ?? this.audioMuseEnabled,
       syncIntervalMinutes: syncIntervalMinutes ?? this.syncIntervalMinutes,
       backgroundSyncUnmeteredOnly:
           backgroundSyncUnmeteredOnly ?? this.backgroundSyncUnmeteredOnly,
@@ -575,21 +492,6 @@ class AppSettingsModel {
       disabledIntegrations: disabledIntegrations ?? this.disabledIntegrations,
       integrationsNoticeDismissed:
           integrationsNoticeDismissed ?? this.integrationsNoticeDismissed,
-      customVoyageServers:
-          customVoyageServers ??
-          List<CustomVoyageServer>.from(this.customVoyageServers),
-      groupListeningEnabled:
-          groupListeningEnabled ?? this.groupListeningEnabled,
-      voyageServerUrl: clearVoyageServerUrl
-          ? null
-          : voyageServerUrl ?? this.voyageServerUrl,
-      voyageDisplayName: clearVoyageDisplayName
-          ? null
-          : voyageDisplayName ?? this.voyageDisplayName,
-      voyageDeviceLabel: clearVoyageDeviceLabel
-          ? null
-          : voyageDeviceLabel ?? this.voyageDeviceLabel,
-      voyageAutoFollowHost: voyageAutoFollowHost ?? this.voyageAutoFollowHost,
     );
   }
 }

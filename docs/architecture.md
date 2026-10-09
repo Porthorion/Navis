@@ -25,10 +25,13 @@ Located in `lib/src/providers/app_providers.dart`:
   interactive vs hard probe eligibility)
 
 - **Android background sync**
-  - `androidBackgroundSyncSchedulerProvider` and
-    `androidBackgroundSyncReconcilerProvider` own only native WorkManager
-    scheduling reconciliation; sync domain logic remains in the library
-    planner/coordinator.
+  - `androidBackgroundSyncReconcilerProvider` owns native WorkManager
+    scheduling reconciliation and constructs its scheduler directly; sync domain
+    logic remains in the library planner/coordinator.
+  - Foreground and worker staleness use the same configured interval minus
+    a 5% tolerance clamped to 10–120 seconds; manual-only uses 24 hours.
+    Worker terminal status records duration, including cancellation and
+    bootstrap failures.
   - `navisBackgroundSyncEntrypoint` is a retained, UI-free headless Dart
     entrypoint. It loads the active encrypted credentials and builds only the
     database/API/sync pipeline through `LibrarySyncExecutionBootstrap`, the
@@ -82,7 +85,9 @@ Located in `lib/src/providers/app_providers.dart`:
     component during playback bootstrap, then delegates browse requests to the
     shared `NavisAudioHandler`.
   - `AutoMediaTreeService` builds the local database-backed browse tree. Its
-    four root tabs are Liked, Recent, Playlists, and Library. Liked exposes
+    four root tabs are Liked, Recent, Playlists, and Library, stored once per
+    service instance. Collection projections cap browse lists and liked songs
+    at 500 items; album and playlist tracks remain uncapped. Liked exposes
     quick-play actions plus liked songs/albums; Library contains Downloads
     when available, followed by Albums and Artists.
   - Song browse IDs are opaque and retain album, playlist, liked, recent,
@@ -117,12 +122,9 @@ Located in `lib/src/providers/app_providers.dart`:
 
 **queue_provider.dart**:
 - `queueProvider` - Current play queue controller
-- `currentQueueSongIdProvider` - Currently playing song ID
-- `playNextProvider` - Add song to play next
 - `reorderQueueProvider` - Reorder queue items
 
-**player_providers.dart** (re-exports):
-- Re-exports queue providers for convenience
+**providers/app_providers.dart** (player state):
 - `lyricsProvider` - Lyrics for a song
 - `playerStateProvider` - Playback state
 
@@ -131,7 +133,7 @@ Located in `lib/src/providers/app_providers.dart`:
 **library_sync_provider.dart**:
 - `librarySyncEngineProvider` - Sync engine instance
 - `librarySyncControllerProvider` - Sync state and controls
-- `syncStaleAfterProvider` - Sync staleness threshold
+- `syncStaleAfterForInterval` - Shared foreground/worker staleness function
 - `library_sync_operation_ledger` retains the last 50 safe aggregate catalog
   promotions and confirmed starred-absence removals per server. The entry is
   committed with the mutation and contains only reason, timestamp and
@@ -146,8 +148,9 @@ Located in `lib/src/providers/app_providers.dart`:
   reconnect, resume, and UI reconstruction only ask whether the deadline is
   due. They do not create independent periodic schedules. Manual checks and
   repairs bypass this automatic deadline. Engine progress and results never
-  carry it: the controller keeps it on progress frames and, after every
-  catalog run, reloads both `next_automatic_check_at` and the failure
+  carry it: one controller helper persists schedule changes and updates
+  session-matching status; the controller keeps it on progress frames and,
+  after every catalog run, reloads both `next_automatic_check_at` and the failure
   cooldown (`next_eligible_at`) from the persisted row, so status shows the
   deadlines the timer and circuit will use. A check that stops at its time,
   entity, page, request, or byte budget is a successful bounded check: its
@@ -163,17 +166,29 @@ Located in `lib/src/providers/app_providers.dart`:
   cancelling an active check invalidates a stronger repair waiting behind it.
   That waiting command cannot start after cancellation; a later explicit command
   is admitted as new intent. Only still-queued durable work is marked cancelled.
-- Schema v71 adds a typed, redacted sync lifecycle beside the retained
-  compatibility work mirror: `library_sync_run_request`,
-  `library_sync_run_attempt`, `library_sync_run_outcome`,
-  `library_sync_provider_profile`, and `library_sync_repair_session`.
-  `SyncRunRequest` records a versioned origin, intent, target kind, priority,
-  resumption provenance, and metered grant. The scheduler resolves it once
-  into immutable `SyncExecutionPlan` endpoint/page/hydration/byte/concurrency
-  limits before dispatch. Terminal history retains only enums, aggregate
-  counts, and timestamps for 90 days; a target key is cleared on completion,
+- Schema 43 (Navis 1.0.0) is the supported upgrade floor. Older test-era
+  databases drop all user tables, indexes, views, and triggers with foreign
+  keys disabled, then run the same creation and defaults as a fresh install.
+  Schema 43 and later preserve data through an ordered migration-step table.
+- Schema v71 adds redacted sync diagnostics history alongside the durable
+  `library_sync_work` queue: `library_sync_run_request`,
+  `library_sync_run_attempt`, and `library_sync_run_outcome`. Schema v93
+  drops the write-only `library_sync_provider_profile` and
+  `library_sync_repair_session` observations; operational provider/candidate
+  state remains in `library_sync_state`; the mobile-data grant stays in memory.
+  The immutable `LibrarySyncRequest` carries origin, intent, target, and an
+  ephemeral metered grant. The scheduler resolves it into immutable
+  `SyncExecutionPlan` endpoint/page/hydration/byte/concurrency limits before
+  dispatch. History records the contract version and target-derived intent;
+  the legacy grant, priority, target identifier, and resumption columns remain
+  neutral. Consent is never restored from a history row or durable work.
+  Terminal history retains only enums, aggregate counts, and timestamps for
+  90 days; a target key is cleared on completion,
   so neither diagnostics nor Settings history retains IDs, titles, URLs,
   credentials, or filesystem paths.
+  Pre-v71 work is no longer imported into typed run history. Startup still
+  resumes interrupted work and typed attempts independently; the persisted
+  legacy origin/reason enum indices and planner-version column remain stable.
 - Schema v77 adds nullable, versioned attempt telemetry. Existing attempts retain
   unknown (`null`) evidence. The coordinator checkpoints safe counters and a
   bounded phase/transport timeline every five seconds, on phase changes, and at
@@ -283,12 +298,11 @@ Located in `lib/src/providers/app_providers.dart`:
   long-lived network usage meter directly. It must not read through a disposed
   provider `Ref` when connectivity rebuilds the Subsonic client mid-request.
 
-**library_providers.dart**:
-- Artist, album, song, and album-list providers shared by Library presentation
-  screens.
+**Library providers**:
+- Artist, album, and song providers shared by Library presentation screens
+  live in `lib/src/providers/app_providers.dart`.
 - Route-local state and scroll/section coordination remain in the dedicated
-  presentation providers beside their owning screens; do not recreate this
-  former planned-file boundary in `app_providers.dart`.
+  presentation providers beside their owning screens.
 
 #### Auth Feature (`lib/src/features/auth/presentation/`)
 
@@ -302,7 +316,7 @@ Located in `lib/src/providers/app_providers.dart`:
   `retryNow()` backs the shell offline banner's Retry (see "Offline banner
   and the top inset")
 
-#### Retired Listen Together Feature (`lib/src/features/group_listening/`)
+#### Retired Listen Together Feature
 
 Listen Together / Voyage is retired for now. There are no active Listen
 Together UI entry points and no active Voyage HTTP, websocket, session,
@@ -529,6 +543,14 @@ copying a secure token, making mixed local/remote rows available to app-owned
 screenshots. The override never runs in primary-certification mode and neither
 the API response nor runtime evidence exposes the cached username.
 
+Sync diagnostics expose terminal `durableRuns` history through
+`GET /v1/sync/ledger`, with request/attempt IDs, typed origin/intent/target/plan,
+safe outcomes and aggregate counts. `GET /v1/sync/attempts` supplies redacted
+endpoint telemetry. This history is a diagnostics record; `library_sync_work`
+remains the durable scheduling queue. Action diagnostics wait for the controller
+request to settle before correlating newly completed history rows, including
+companion auxiliary work.
+
 Authentication lifecycle diagnostics use bounded `GET /v1/session/status`
 plus clone-only initial-sync retry/mobile/cancel, sign-out, and
 `reset-initial-state` actions. The reset endpoint invokes production
@@ -539,27 +561,25 @@ its credential from a mode-600 diagnostics file, and exercises offline
 recovery, safe promotion, screenshots, restart, real playback-to-sign-out
 teardown, and setup cancellation. Clone-mode credential writes and clears stay
 in memory, so these destructive actions can never clear or replace device
-secure storage. With `passive=1`, `GET /v1/session/status`,
-`POST /v1/session/sign-out` and `POST /v1/session/reset-initial-state`
-report the session without instantiating the legacy diagnostics setup
-controller. That controller starts its own setup run whenever the session
-needs one, which would mask the route-owned controller. Clone-only
-`GET`/`POST /v1/presentation/library-rebuild` reports the route-owned
+secure storage. `GET /v1/session/status` reports the route-owned initial-login
+rebuild controller when mounted, falling back to the session phase and catalog
+sync status when no controller exists. Observation never instantiates a rebuild.
+The initial-sync retry/mobile/cancel routes act on that same mounted controller
+and return conflict when it is inactive. Cancel uses `cancelAndSignOut`, keeping
+local data just as the screen does; there is no second setup state machine.
+Clone-only `GET`/`POST /v1/presentation/library-rebuild` reports the route-owned
 full-screen rebuild controller for a given `reason`, and can `retry` or press
 its `cancelAndSignOut`. It reports `inactive` rather than instantiating an
 unmounted controller, because instantiation starts a rebuild. The
 `existing-catalog` mode uses these to verify keep-data sign-out, cancellation
-and wipe sign-out followed by a new sign-in in the same process. The legacy
-diagnostics setup controller follows the same session scoping. It starts setup
-only once the phase requires it, never while the phase is still loading. A
-non-passive session call activates it with a lasting subscription. Riverpod
-pauses a provider that is only read, and a paused provider would miss a
-sign-out or sign-in between two requests.
+and wipe sign-out followed by a new sign-in in the same process. The mounted
+rebuild controller watches session identity, so a new session starts a new visit
+and supersedes the old run.
 
 Clone-only `POST /v1/session/connect` validates and saves a server session
-through the production connection service but does not instantiate the legacy
-initial-sync controller merely to build its response. The required rebuild
-screen owns the interactive first-sync request; the library controller coalesces
+through the production connection service without starting a rebuild merely to
+build its response. The required rebuild screen owns the interactive first-sync
+request; the library controller coalesces
 any overlapping automatic pass. Observing a newly connected session must not
 upgrade it into an interactive Repair Library request.
 
@@ -752,7 +772,6 @@ Reusable UI components used across features:
 
 - **Actions**
   - `star_button.dart` - Star/unstar action
-  - `cache_badge.dart` - Cache status indicator
   - `context_menu.dart` - Bottom sheet context menu
 
 ### Hero Animation Pattern
@@ -945,10 +964,18 @@ the router: timestamp and catalog-state updates during ordinary sync may
 briefly re-evaluate session readiness, but they must preserve the current
 location.
 
-The cache-renewal gate observes a durable cache-system marker alongside the
-authentication phase. An authenticated profile with an older marker is routed
-to the mandatory full-screen cache rebuild before onboarding or the normal
-shell. It clears only recoverable library and rolling-cache data, preserves
+`CacheSystemUpgradeService` derives the cache epoch from `PackageInfo.version`
+as `major * 1000 + minor` (1.4.3 → 1004), ignoring patch and build numbers.
+The cache-renewal gate waits for package metadata and the durable cache-system
+marker alongside the authentication phase. A committed profile with any different
+epoch (including newer or legacy 0–3 markers) is routed to
+`/library-rebuild?reason=cache-upgrade` before onboarding or the normal shell.
+A never-synced profile adopts the epoch and continues initial setup, using the
+same usable-catalog evidence as initial-login routing. Validated initial
+catalog readiness stamps the epoch in its readiness transaction. Package-info
+errors or a five-second metadata timeout are logged and skip renewal without
+changing the stored marker; unreadable stored markers keep it pending.
+The rebuild clears only recoverable library and rolling-cache data, preserves
 permanent downloads, performs a full catalog scan, and records the new marker
 only after that scan promotes successfully. A failed or cancelled rebuild, or
 an unreadable marker, keeps the renewal pending until it can be resolved.
@@ -1844,8 +1871,7 @@ reads "Not Found".
   add `?name=` and `&artist=` (`AppRoutes.detailNameParam` /
   `detailArtistParam`). Every link to an artist or album that may not be
   stored passes them: search results, song menus (library, album, playlist,
-  search), album artist links, the artist and album menus, AudioMuse album
-  chips, Fans Also Like, Missing Albums and New Releases. Library lists and
+  search), album artist links, the artist and album menus, Fans Also Like, Missing Albums and New Releases. Library lists and
   Now Playing links open stored entities only.
 - A page showing its entity carries `detailPageShownKey`, which the
   diagnostics release-card control reads.
@@ -2172,14 +2198,16 @@ generic server results to it.
 A mix starts from the song its caller chose, which need not be the one
 playing (Android Auto starts mixes from browsed songs): the first refill uses
 the requested seed and later refills follow the current song. Starting a mix
-keeps only the seed in the queue, so the first refill treats only the seed as
-already queued; songs from an earlier mix still behind it are fair
-recommendations again. Similarity endpoints know only server ids, so a remote
+keeps only the seed in the queue, clearing deferred played history and upcoming
+songs even when the player already holds only the seed, so the first refill
+treats only the seed as already queued; songs from an earlier mix still behind
+it are fair recommendations again. Similarity endpoints know only server ids, so a remote
 seed (an Octo-Fiesta `ext-` id) mixes from the library copy `getSong` maps it
-to, when the server has one: Server Mix asks for that copy before reporting
-unsupported, and Same Vibes looks it up (even while the remote seed plays) for
-its server fallback. Neither mode queues the copy or the remote original right
-behind the seed. A remote seed
+to, when the server has one. `RecommendationService.libraryCopyId` owns that
+lookup for both recommendations and the Server Mix seed-availability provider.
+Server Mix asks for that copy before reporting unsupported, and Same Vibes looks
+it up (even while the remote seed plays) for its server fallback. Neither mode
+queues the copy or the remote original right behind the seed. A remote seed
 without a library copy never borrows the similar songs of an unrelated queue
 neighbour. Same Vibes tells queued and merged songs apart by one identity,
 `sameVibesCanonicalSongKey` (`normalizeMetadata` artist and
@@ -2193,6 +2221,9 @@ familiar anchors, and fills remaining positions from eligible local songs.
 Home captures Liked only and Downloaded only at start. Offline playback uses
 verified permanent downloads and, unless Downloaded only is selected, valid
 rolling cache files. Android Auto starts the same policy without Home filters.
+The audio handler requires Personal Radio and preferred-mix callbacks at
+construction so these actions also work before the Flutter shell registers
+its callbacks.
 The Home action awaits an actual queue insertion before opening Now Playing.
 
 `RecommendationSessionCoordinator` owns one generation and cancellation token
@@ -2211,6 +2242,11 @@ queue commits attempt to restore the previous queue and play state. Persisted
 recommendation tracks restore as an ordinary queue after restart, without
 restarting refills.
 
+Background refills retry with backoff. After five consecutive failed refills
+Same Vibes, Server Mix and Personal Radio stop refilling and the session stays
+at `retryExhausted`; later playback snapshots, a cleared error notice or an
+expired backoff never resume it. Only starting the mix again re-arms refills.
+
 ## Data Flow
 
 ### Playback Flow
@@ -2218,12 +2254,42 @@ restarting refills.
 1. User taps album/track → `QueueController.replace()`
 2. Queue controller calls `NavisAudioHandler.replaceQueue()`
 3. Audio handler resolves sources via `PlaybackSourceResolver`
-4. Source resolver checks: permanent cache → rolling cache → stream
+4. Source resolver checks: completed permanent download → eligible rolling cache
+   → stream. Permanent downloads always win regardless of streaming quality,
+   Cached First, or network settings. Rolling entries retain profile matching
+   unless Cached First, cellular cache preference, or offline playback applies.
 5. Audio handler updates structural state through `playbackSnapshotProvider`
    plus lightweight timeline updates through `positionStream` and the
    track-keyed `bufferStateStream`
 6. UI reacts to structural snapshots without rebuilding for routine position
    or buffer ticks; timeline widgets subscribe to the lightweight streams
+
+`NavisAudioHandler` keeps its fields, public API and audio-service overrides in
+`navis_audio_handler.dart`. Private helpers are grouped in part files using
+private extensions on the handler within the same library:
+
+| Concern | Part file |
+|---|---|
+| Crossfade decks | `navis_audio_handler_crossfade.dart` |
+| Android Auto loading and browse refresh | `navis_audio_handler_android_auto.dart` |
+| Persistence and restore | `navis_audio_handler_persistence.dart` |
+| Released queue window | `navis_audio_handler_queue_window.dart` |
+| Queue loading and source preparation | `navis_audio_handler_queue_loading.dart` |
+| Queue edits and identity aliases | `navis_audio_handler_queue_editing.dart` |
+| Transport and navigation | `navis_audio_handler_navigation.dart` |
+| Seek and stall recovery | `navis_audio_handler_recovery.dart` |
+| Rolling-cache observation and sidecar activity | `navis_audio_handler_cache.dart` |
+| Radio metadata setup and mix dispatch | `navis_audio_handler_radio.dart` |
+| Startup and native queue diagnostics | `navis_audio_handler_diagnostics.dart` |
+| Media-session state, listeners and sound application | `navis_audio_handler_media_session.dart` |
+
+Helpers that directly reference class static members remain in the class, as do
+source-guarded player construction and initialization. Subscription cleanup
+also stays in the class so the analyzer can track cancellation of its fields.
+
+`StreamingQuality` belongs to the player domain. The composition root selects
+the active profile and injects it into the source resolver; the resolver does
+not import application providers for the value type.
 
 Artist Play, Shuffle, and Add to Queue share `ArtistPlaybackController` and
 `ArtistPlaybackResolver`. A transactional DAO snapshot applies the same primary
@@ -2483,7 +2549,11 @@ libmpv. Ordinary direct HTTPS playback bypasses just_audio's request-header
 proxy on desktop and passes the Navis user agent to media-kit. A completed
 sidecar file is registered once and remains the authoritative cache byte and
 track total. `rollingCacheActivityProvider` reports the in-progress write so
-Cache & Storage does not look idle before registration. Every desktop source is
+Cache & Storage does not look idle before registration. Desktop partial-byte
+diagnostics read the active sidecar attempt's received byte count, including
+its generation-specific partial write. A generation-scoped terminal callback
+clears activity on success, cancellation, or failure; an older attempt finishing
+cleanup cannot clear a newer attempt's activity. Every desktop source is
 a direct stream, so the resolver attaches the sidecar path even when a caller
 asks for no lock caching (seek recovery, crossfade decks, songs whose
 lock-cached start failed); otherwise a recovery reload cancelled the download
@@ -2521,7 +2591,9 @@ Remote stream recovery is generation- and song-scoped. A failed remote source
 receives one retry at its current (or user-requested seek) position: a
 lock-cached source rebuilds as a direct stream, while a direct stream reloads
 at that position. A second failure marks the song failed and advances to the
-next playable queue item when available. Seek recovery also detects a remote
+next playable queue item when available, retaining the latest Play/Pause
+intent. A failed retry yields to a newer transport command or selection before
+advancing. Seek recovery also detects a remote
 seek that landed correctly but remains buffering. Background phase-2 queue
 fill failures never reload or clear the active start item. Loading an uncached
 remote (external) song has `NavisPlaybackTimeouts.remoteLoad` (45 s) rather
@@ -2529,7 +2601,9 @@ than the 12 s load deadline: the server fetches the whole file before it sends
 the first byte, which on a first play routinely took longer, and the abandoned
 load left the song idle even after its sidecar download finished. Before the
 player opens such a song, the handler warms the stream with a two-byte request
-and waits (cancelled by any newer command) until the server answers, because
+and waits (cancelled by any newer command) until the first response bytes
+arrive. It then cancels the probe body even when the server ignores Range,
+rather than downloading the whole song before playback. This is needed because
 the players give up on a silent connection long before the server has the file
 (ExoPlayer after 8 s, also through the lock-cache proxy) and the server answers
 at once afterwards.
@@ -2542,9 +2616,28 @@ songs other than the current and next ones are cancelled
 just_audio) and their partial files discarded; desktop already keeps a single
 sidecar download.
 
+The mobile lock-cache proxy rejects a ranged response with an unknown content
+length with HTTP 500 and closes it. It cannot construct a valid `Content-Range`
+without the end byte; returning an error lets ordinary remote-source recovery
+retry with direct streaming instead of leaving the native request unanswered.
+Sized ranges and reads from the completed cache file keep their normal responses.
+
 Album-style queue replacement is lazy: the active transport queue prepares the
-tapped song first, then fills the remaining sources in phase 2. While phase 2
-is loading, `PlaybackSnapshot.queueSongIds` can represent the pending logical
+tapped song first, then fills the remaining sources in phase 2. ID and supplied-row
+inputs share one replacement lifecycle for admission, lane execution, early logical
+persistence, fill, completion and timeout advance. The ID adapter canonicalizes
+identities before Match Flow expansion and reads rows inside the lane. The row
+adapter rereads local retired identities and local Match Flow expansions; mixed
+queues containing external rows retain every supplied row and bypass expansion.
+Replacement row resolution checks cancellation before either loading or clearing
+the queue; empty-result clears retain generation ownership across native awaits.
+Timeout recovery retains the adapter's IDs or rows in play order without reshuffling.
+Advancement follows the next resolved occurrence mapped back to its input position,
+preserving duplicate occurrences when rows are missing during resolution.
+Eager queue loading and saved-queue restoration keep their separate contracts.
+If library rows are missing during ID resolution, Match Flow expansion, or a canonical
+reread, the selected occurrence is remapped past those missing rows; duplicate
+song occurrences keep their relative position. While phase 2 is loading, `PlaybackSnapshot.queueSongIds` can represent the pending logical
 queue rather than the prepared transport queue, with
 `hasPendingLogicalQueue == true`. Queue UIs should display those IDs but avoid
 remove, reorder, or play-index actions until the transport queue catches up.
@@ -2565,10 +2658,16 @@ head + materialised + tail, so a logical index is the native index plus the
 head's length; snapshots, persistence and every index-based API (jumps,
 remove, reorder, insert runs, merges) use logical indices, while
 `playbackState.queueIndex` stays native, paired with the materialised `queue`
-that MPRIS, SMTC and Android media sessions see. Replacing, restoring, or
-rebuilding a queue longer than 256 songs materialises 32 songs before and 32
-after the start song; earlier songs go to the head and later ones to the
-tail. When fewer than 12 materialised songs remain after the current one, one
+that MPRIS, SMTC and Android media sessions see. Skip capabilities compare
+the logical index with the logical length, so Next is unavailable at the end
+even when played history has been released. System queue skips,
+removals and inserts convert materialised positions to logical positions at the
+handler boundary, after the projection wrapper adds its queue-window offset.
+System remove-at and insert commands use the logical queue edit API; inserting
+into an empty queue loads the supplied song through the ordinary add path.
+Replacing, restoring, or rebuilding a queue longer than 256 songs materialises
+32 songs before and 32 after the start song; earlier songs go to the head and
+later ones to the tail. When fewer than 12 materialised songs remain after the current one, one
 page of 32 is released with a single `addAudioSources` append; once more than
 48 played songs (`behind` 32 + `trimSlack` 16) pile up in a long queue, the
 oldest beyond 32 move to the head with one range removal. Releases and trims
@@ -2582,8 +2681,10 @@ reorders and inserts entirely inside the head or tail are Dart-only; a
 reorder reaching into the head releases it first. Songs that cannot be
 resolved when released are dropped, except that a song that is only
 unplayable for now (offline without a cached copy, or no server session)
-stays deferred with every song after it and the release backs off and
-retries. Shuffled queues defer like any other (see Shuffle below).
+stays deferred with the songs farther from the window: following songs in
+the tail or earlier songs in the head. Tail releases back off and retry; a
+backward jump can release the playable head suffix and leaves unavailable
+history queued for a later attempt. Shuffled queues defer like any other (see Shuffle below).
 Repeat-all stays off natively while anything is deferred on either side, so
 the player never wraps early; the reported repeat mode is the user's, and at
 the end of the last song Navis wraps to the first itself.
@@ -2779,7 +2880,15 @@ cost to the materialised part of a queue.
 A saved queue larger than 64 songs is restored the same way at startup: the
 current song is prepared at its saved position first, and the rest is filled
 in the queue lane, so handler readiness and media-session Play do not wait for
-every source. A restore timeout keeps the saved queue instead of deleting it.
+every source. A startup, deferred-retry or post-radio restore timeout keeps the
+saved queue instead of deleting it. Radio Stop returns after stopping the stream; its
+background restore and the restore after radio failure share this preservation
+policy. Before releasing the lane it cancels the restore token,
+retires its load generation, and replaces the native player, so a late native
+load or its inner deadline cannot change a newer selection. Eager restores
+(up to 64 songs) carry the same cancellation ownership through source
+preparation and native apply; late completions and failures cannot pause
+playback, publish metadata, or clear saved state.
 Permanent-download pruning and orphan rolling-file cleanup still run before
 readiness because they guard partial-file ownership.
 
@@ -2798,13 +2907,17 @@ when those songs change, and maps system queue indices (`skipToQueueItem`,
 queue. audio_service sends the whole list over the platform channel on every
 queue change, and on Android the platform thread is the UI thread. Linux MPRIS
 keeps the spec's track-time
-Position and publishes Rate on every speed change. Windows SMTC has no rate,
+Position and publishes Rate on every speed change. Interface-specific property
+descriptors generate MPRIS introspection and individual/bulk reads; method and
+property-write dispatch remain separate. Windows SMTC has no rate,
 so `WindowsSmtcBridge` publishes its timeline in real listening time and
 converts SMTC seek and skip requests back to track time.
 
 A scrobble and play-history session belongs to the playing queue entry: songs
 inserted, released, or moved before it shift its index without starting a new
-session, and neither does refreshing its metadata in place.
+session, and neither does refreshing its metadata in place. Disposing the
+scrobble service disables timer scheduling before cancellation; in-flight
+flushes and database timer-sync results cannot recreate timers afterwards.
 
 Queue replacement prefetches lyrics only for the selected song and the next
 two; batched artist admits prefetch none. `lyricsProvider` watches just the playing item's lookup metadata, so a
@@ -2816,6 +2929,13 @@ handler then records source resolution, selected-source apply, player readiness,
 and the first advancing position. `GET /v1/playback/status` exposes the latest
 16 attempts as `startupAttempts` for authenticated diagnostics; those entries
 contain elapsed milliseconds and source kind but no song ID, title, or URL.
+
+The handler owns audio-session interruptions and noisy-route pauses; all native
+players disable just_audio automatic interruption handling. An interruption
+resumes only if its captured transport generation is still current, so a user
+Pause or new selection during it is retained. System media-button toggles also
+use the interrupted play intent, so Pause during focus loss cannot become Play.
+Ducking and volume restoration have the same handler owner.
 
 Playback commands use prioritized intent. Play and pause bypass seek and queue
 fill work, seeks are last-write-wins, and later seeks, skips, selections, or
@@ -2925,6 +3045,9 @@ off for embedding clients.
 Other processes never receive a credential-bearing URL either. The stream URL
 is not a `MediaItem` extra (audio_service copies every String extra into the
 Android session metadata); the desktop sidecar cache keeps it in the handler.
+Radio URLs likewise remain in handler-owned station state, including after
+now-playing metadata refreshes; radio startup failure messages contain only
+the stream host.
 Cover art reaches the system as a local file: `PlaybackArtCache` caches the
 current cover on Android, Linux and Windows (`artCacheFile` extra), MPRIS
 publishes it as `file://` and SMTC loads it with `StorageFile`. The Windows
@@ -2971,9 +3094,12 @@ for 30 s is abandoned. The app itself keeps the HTTP `artUri`.
 
 The snapshot stored on the handler still receives every timeline update, but
 the broadcast snapshot stream emits only structural changes. Linux MPRIS reads
-position from `positionStream`; Windows SMTC coalesces routine timeline updates
-to about one per second and sends track changes and seek discontinuities
-immediately. The Windows runner assigns `com.navis.app.navis` before Flutter
+position from `positionStream` and detects seek discontinuities there, including
+while paused, emitting `Seeked` in track-time microseconds. Same-track checks
+prevent track changes from being reported as seeks; MPRIS commands suppress
+automatic detection while seeking and emit one explicit signal. Windows SMTC
+coalesces routine timeline updates to about one per second and sends track
+changes and seek discontinuities immediately. The Windows runner assigns `com.navis.app.navis` before Flutter
 creates a window; the owned Rust adapter uses manual SMTC, retains and revokes
 WinRT event tokens, converts incoming seek requests from 100 ns ticks to the
 Dart stream's milliseconds, serializes complete state writes, and omits unusable
@@ -2988,8 +3114,11 @@ the same partial cache file. Queue edits do not wait for a fade, so the deck
 is checked by content, not length: before a fade the deck is loaded unless it
 holds exactly the materialised queue (song ids, canonical ids matching); an
 edit that lands while it loads makes it load once more, and a second change
-degrades that transition to gapless (`prewarm_failed`). The incoming deck must
-still hold the queue, at the next song, when the fade starts, and still hold
+degrades that transition to gapless (`prewarm_failed`). Prewarming has the
+load deadline; a timeout retires only the inactive deck so a late native load
+cannot take over, while the active queue keeps playing sequentially. The
+incoming deck must still hold the queue, at the next song, when the fade
+starts, and still hold
 the queue at the hand-over; otherwise the fade is cancelled and the active
 player, which holds the queue, continues gaplessly (`deck_mismatch`). No fade
 starts while a queue load is in progress, and a song whose transition could
@@ -3007,6 +3136,25 @@ source's `MediaItem` tag, or for an Android lock-cached stream, which is built
 before its `MediaItem` and carries no tag, from its stream URL's `id`
 (`navisNativeSourceSongId`).
 
+Windows and Linux playback wrappers share a private base that delegates the
+playback, startup-observer and batch-editor contracts without wrapping streams.
+Each public wrapper owns its platform bridge. Teardown begins delegate cleanup
+immediately, disposes the bridge, then awaits handler disposal.
+
+On Android and iOS, audio_service is initialized once per process with a
+`SwitchAudioHandler`. Each session attaches a new real-time projection and
+playback handler to that registration. Teardown switches the service to an idle
+handler and closes the old projection's subscriptions and streams, so reconnecting
+in the same process can bootstrap playback again.
+Session teardown also clears the abandoned bootstrap future and attempt gate.
+Saving an authenticated session restarts an existing bootstrap controller; a
+normal playback request can also initialize a fresh handler without a forced
+retry. The stopped bootstrap state remains failed until either request.
+
+Handler teardown starts full cleanup synchronously through `beginTeardown`;
+`disposeHandler` awaits the same cached future, including decks, artwork,
+sidecar, subscriptions, browse notifications and owned stream controllers.
+
 Startup waits for cache maintenance before restoring or synthesizing a queue,
 so stale partial-file cleanup cannot race a new lock-cache download. If the OS
 sends duplicate Play requests while the queue is empty, both await the same
@@ -3018,6 +3166,9 @@ keyboard, headset, or an external media session. Successful manual changes use
 a 220 ms clean artwork handoff: the previous cover drops away, the new cover
 settles without lateral travel, and metadata fades upward only after artwork
 settles. Automatic advances use a short non-directional focus fade.
+Previous restarts the first queue song even within three seconds when there
+is no previous entry; Repeat All retains its wrap to the last entry. Both
+in-app navigation and the previous-action rules restart at that edge.
 Restart-current and unavailable-edge requests retain the same artwork and use
 one small dynamic-color edge pulse rather than a floating icon; no UI animation
 delays audio transport. Reduced motion applies direct state changes with
@@ -3026,40 +3177,76 @@ states without starting audio or modifying a queue.
 
 ### Sync Flow
 
-1. Callers submit a versioned `SyncRunRequest`; the current
-   `LibrarySyncRequest` remains a one-release compatibility adapter at the
-   outer boundary. The request distinguishes automatic catalog checks, manual
-   catalog checks, Repair Library, target hydration, and auxiliary refreshes.
+1. Callers submit a `LibrarySyncRequest` through the coordinator-facing
+   `LibrarySyncEngine.requestSync` interface. This immutable request carries
+   origin, intent, target, and an ephemeral network grant shared by
+   planning, admission, and execution. Priority, coalescing identity, interaction
+   policy, circuit probing, and diagnostics-history intent derive from those
+   fields; the durable contract version is stamped at history insertion.
+   The request distinguishes automatic catalog checks, manual catalog checks,
+   Repair Library, target hydration, and auxiliary refreshes.
    `LibrarySyncPlanner` selects the smallest safe plan: probe, targeted
    hydration, delta reconciliation, catalog snapshot, compatibility audit, or
    full repair. The scheduler admits one immutable `SyncExecutionPlan` per
    run, including its endpoint allowlist and data/concurrency budget.
-2. `AdaptiveLibrarySyncCoordinator` serializes runs, persists the typed
-   request/attempt/outcome lifecycle and the chosen plan, mirrors legacy work
-   during the compatibility release, restores interrupted attempts, and
-   persists provider-profile and repair-session observations. It still uses a
-   compatibility executor adapter internally; execution receives the selected
-   immutable plan rather than reconstructing the operation from display text
-   or checkpoints. The coordinator deduplicates durable work, measures
+2. `AdaptiveLibrarySyncCoordinator` serializes runs. The `library_sync_work`
+   table is the durable queue for deduplication, cooldowns, checkpoints, and
+   resume; the run request/attempt/outcome tables are diagnostics history,
+   retaining the chosen plan and redacted terminal result alongside the work
+   queue. The coordinator restores interrupted attempts. Its
+   `SyncPlanExecutor` receives the selected immutable plan directly through
+   `executeSyncPlan`. `DriftLibrarySyncEngine` implements only that executor
+   contract: catalog execution requires a plan, whose kind and request intent
+   determine repair, discovery, audit, or hydration continuation. Freshness
+   gating belongs to the coordinator, and catalog runs never absorb auxiliary
+   refreshes. Recovery and execution share lease acquisition, write fencing,
+   and release; execution alone adds the periodic heartbeat. Endpoint aliases
+   live on `SyncEndpoint`. One `LibrarySyncPlanKind` selects planning and
+   execution budgets; only the diagnostics-history boundary maps its durable
+   work names to the older stored plan indices and diagnostics labels.
+   Planning derives conditional-index support directly from the active server
+   capabilities JSON, without a state-table provider-profile mirror. A backend
+   fingerprint change discards the old Navis sync capabilities, durable work,
+   and candidate state while preserving provider capability metadata. Replanning
+   to another coalescing key completes the superseded request as `skipped`;
+   terminal completion is idempotent for shared waiters. Execution requests
+   retain their ephemeral network grant. Durable inserts stamp the contract
+   version and leave the legacy grant, priority, target identifier, and resume
+   lineage columns at neutral values; no persisted coalescing key restores
+   network consent.
+   The coordinator deduplicates durable work, measures
    requests/bytes, and owns cooldown/circuit policy. Targeted work
-   and provider profile, deduplicates durable work, restores interrupted work,
-   measures requests/bytes, and owns cooldown/circuit policy. Targeted work
    keys are namespaced by entity kind, so equal server IDs in different
    domains remain independent. The coordinator removes that namespace before
-   passing an entity ID to a hydrator or server endpoint. Automatic broad work
-   defers while Navis is backgrounded or playing; an explicit user refresh may
-   resume queued broad work in the foreground, including during playback.
+   passing an entity ID to a hydrator or server endpoint. Sync work
+   uses one pure `librarySyncWorkAllowed` gate at planning, work selection,
+   admission, and live request boundaries. Automatic broad work defers while
+   Navis is backgrounded or playing. Queued manual discovery retains its
+   explicit intent when an automatic foreground pass resumes it, including
+   during playback. Its durable checkpoint restores intent, never a network
+   grant: metered admission needs permission from the current request. The
+   constrained Android background executor may run while hidden when playback
+   is idle. An explicit user refresh may resume queued broad work in the
+   foreground, including during playback. Explicit catalog and auxiliary work
+   continues if the app is then hidden, including with current mobile-data
+   grants. Automatic visibility/playback gates and the idle-only hidden Android
+   worker limit still apply. Interactive entity hydration can
+   run during foreground playback; hidden foreground execution defers it,
+   retaining the former request-scope visibility limit. Engine checkpoints
+   use the admitted request scope's live policy, so a paused queue's current
+   song ID cannot veto an otherwise eligible automatic pass.
    `LibrarySyncController` also coalesces overlapping app-level requests onto
    one terminal result, so setup, startup, user, and reconnect callers cannot
-   mistake an in-flight state for a failed sync. Pending durable work resumes
-   only through the configured automatic interval or an explicit action; there
+   mistake an in-flight state for a failed sync. One startup task owns the pass
+   through session resets; epoch checks reject stale completion, and engine
+   readiness schedules a successor only after that task drains. Pending durable
+   work resumes only through the configured automatic interval or an explicit action; there
    is no short continuation timer. A queued full repair is the exception: it
    remains resumable but dormant until an explicit Repair Library action, never
-   a startup, reconnect, resume, or periodic pass. Resume re-arms the periodic
-   timer and submits at most its one staleness check; it never also schedules a
-   startup pass. A startup or
-   periodic caller also treats a not-yet-constructed credential-backed engine
-   as pending rather than failure, then restarts its startup pass once the
+   a startup, reconnect, resume, periodic pass, or Check for updates. Resume
+   re-arms the periodic timer for at most one due staleness check; it never
+   also schedules a startup pass. A startup or periodic caller also treats a
+   not-yet-constructed credential-backed engine as pending rather than failure, then restarts its startup pass once the
    engine is available. When an explicit Check for updates reaches a deliberate
    page, entity, request, byte, or duration limit after doing work, it returns
    `partial` and preserves its checkpoint for the next pass. The same limit on
@@ -3083,9 +3270,9 @@ states without starting audio or modifying a queue.
    ordinary Check for updates inspects one bounded 50-album newest page and
    hydrates at most three changed albums; it never runs an artist sweep or
    bulk-song index. Remaining work
-   waits for an unmetered connection or the user's one-time mobile-data consent
-   for broad discovery. Discrepant on-server albums use ordinary song
-   hydration and identity/cache reconciliation, so a new album does not wait
+   waits for an unmetered connection, the user disabling the unmetered-only
+   setting, or one-time mobile-data consent for broad discovery. Discrepant
+   on-server albums use ordinary song hydration and identity/cache reconciliation, so a new album does not wait
    behind a large rotating artist audit.
    The long-lived engine reads this policy directly from the root provider
    container at operation time; provider-local reads can retain the policy from
@@ -3100,9 +3287,12 @@ states without starting audio or modifying a queue.
    response's actual count rather than treating a short page as completion,
    since compatible servers can silently cap the requested result size.
    When a completed bulk index omits a stable tail because of that cap, a later
-   repair can carry forward locally verified songs only when the candidate's
-   core album metadata and expected song count exactly match. New, changed, or
-   incomplete albums remain on the authoritative `getAlbum` fallback.
+   catalog snapshot can carry forward locally verified songs only when its plan
+   permits the bulk-song endpoint and the candidate's core album metadata and
+   expected song count exactly match. Explicit Repair Library always hydrates
+   the remaining albums authoritatively instead of carrying their songs forward.
+   New, changed, or incomplete albums remain on the authoritative `getAlbum`
+   fallback.
    Hydration progress advances only after an album has been written and marked
    hydrated; albums merely observed in a bulk search page are not presented as
    complete. Library shows hydration progress only while a run is active.
@@ -3146,12 +3336,18 @@ states without starting audio or modifying a queue.
    active playback, an explicit repair remains bounded at four to eight Wi-Fi
    workers rather than falling to the ordinary two-worker interactive cap, so a
    server search-result window cannot turn the repair tail into a serial crawl.
+   Concurrency backs off by two workers after a batch with a 429/5xx, timeout,
+   connection error, or transport retry.
    Multi-album detail batches yield during song-row conversion while keeping
    reconciliation and identity matching on the complete fetched batch.
 6. The transport interceptor owns at most one immediate idempotent retry and
    honors `Retry-After`. Durable work owns later attempts with exponential
-   cooldown. Three consecutive failures open the endpoint circuit; user,
-   reconnect, and resume triggers may probe it early. The cooldown is exposed
+   cooldown. Three consecutive failures open the endpoint circuit; user and
+   interaction requests may probe it early. The request contract retains resume
+   and reconnect origins that also allow an early probe, but the foreground
+   controller currently submits startup, reconnect, and scheduled checks with
+   the timer origin. Resume only re-arms the periodic timer. These automatic
+   passes respect the circuit cooldown. The cooldown is exposed
    as `LibrarySyncState.nextRetryAt`, populated from persisted state at launch
    and reloaded from it after every catalog run. Sync Settings renders it
    separately from `nextAutomaticCheckAt`, so a normal interval and a
@@ -3238,16 +3434,22 @@ states without starting audio or modifying a queue.
    from that row, as Artist Top Tracks does; off, only that song. Before
    1.4.1 Play and Shuffle skipped remote matches and taps always played one
    song (single-song taps came from commit `a8b639af`).
-9. Metered automation is a true hard probe: one conditional `getIndexes`
-   request with retries disabled. Interactive artist/album/playlist hydration
-   remains allowed with 16 MiB/response and 32 MiB/interaction budgets.
+9. With **Background Sync Only on Unmetered Networks** enabled and no broad
+   mobile-data grant, fresh metered automation is a hard probe: one conditional
+   `getIndexes` request with retries disabled. Turning that setting off permits
+   ordinary automatic delta work on cellular or metered Wi-Fi. A current bounded
+   mobile-data grant also permits queued automatic delta work; fresh automatic
+   planning with only that bounded grant still selects a probe. Automatic
+   playback and visibility limits remain in force. Interactive artist/album/playlist
+   hydration remains allowed with 16 MiB/response and 32 MiB/interaction budgets.
    Enumeration, audits, starred and playlist-header sync, pending broad
    hydration, and Repair Library stay deferred unless the user grants an
-   ephemeral one-time mobile-data override. Live network policy is re-checked
-   at page and hydration boundaries; unmetered-to-metered transitions
-   checkpoint and return `deferred`. Cancellation returns work to the queue.
+   ephemeral one-time mobile-data override or disables the unmetered-only
+   setting. Live network policy is re-checked at page and hydration boundaries;
+   a transition to a restricted metered connection without a current grant
+   checkpoints and returns `deferred`. Cancellation returns work to the queue.
 10. Starred content and playlist headers are independent auxiliary targets.
-    Typed catalog checks and repairs do not update them as incidental work;
+    Catalog checks and repairs do not update them as incidental executor work;
     their user-facing states are **Updating liked items** and
     **Updating playlists**, not catalog-sync progress. A scheduled catalog
     check drains each due target (12 hours), preserving its separate playback,
@@ -3258,33 +3460,45 @@ states without starting audio or modifying a queue.
     and backoff control freshness independently; a failed auxiliary target
     neither repeats a committed catalog nor suppresses the other target. The
     auxiliary freshness clock is the single
-    `library_sync_state.lastAuxiliarySyncedAt` column: the typed coordinator
-    advances it from completed starred/playlist-header work rows, the legacy
-    combined-run path advances it through a monotonic
-    `markAuxiliarySyncedAt` writer, and the retired per-server
-    capabilities-JSON timestamp is no longer read or written. The
-    catalog circuit breaker does not suppress these independent endpoints.
+    `library_sync_state.lastAuxiliarySyncedAt` column: the coordinator
+    advances it from completed starred/playlist-header work rows, independently
+    of catalog execution. The retired per-server capabilities-JSON timestamp
+    is no longer read or written. The catalog circuit breaker does not
+    suppress these independent endpoints.
     Genres are not synchronized: there is no genre target, endpoint or stored
     genre data (see "Genres are not a Navis concept").
     Starred reconciliation
     excludes queued local star/unstar actions until they reach the server.
+    Favorites, ratings, artwork revisions, and identity reference updates
+    announce update-only Drift writes, avoiding delete-cascade invalidation
+    of dependent tables.
     Playlist headers upsert without replacing parent rows, so an unchanged
     header refresh cannot cascade-delete cached membership. The authoritative
     header list prunes confirmed server deletions and queues new, count-changed,
     or metadata-changed playlist contents for resumable targeted hydration.
     Explicit favorites include referenced external/provisional identities while
-    ordinary library enumeration remains canonical. Membership in a starred
-    snapshot counts as a favorite even when its optional timestamp is absent.
+    ordinary library enumeration remains canonical. Best-effort detail
+    hydration of incomplete starred songs stops at the first non-successful
+    album result and shares the outer run’s cancellation and transport state;
+    cancellation still terminates the enclosing sync. Targeted operations share
+    one terminal-state runner that clears active hydration on every result.
+    Album and playlist budget or incomplete-detail stops retain one pending
+    hydration. Auxiliary policy and response-budget stops report deferred;
+    malformed or incomplete auxiliary snapshots still fail.
+    Membership in a starred snapshot counts as a favorite even when its optional
+    timestamp is absent.
     Eligible automatic catalog checks inspect at most two newest-album pages
     each configured due interval, even with an unchanged artist cursor; manual
     checks inspect at most five. A recorded discovery-debt streak
     (`libraryDiscoveryDebtStreak`, persisted per server when a check hits its
     page cap without ever reaching known, unchanged content) keeps the probe
-    on schedule and widens the automatic window to five pages until known
-    content is reached; a streak past the escalation threshold
+    on schedule and widens the admitted automatic delta-reconciliation budget
+    to five pages until known content is reached, retaining the same request,
+    byte, duration, and hydration limits; a streak past the escalation threshold
     (`discoveryDebtEscalationStreak`) hands deep discovery to a queued delta
     reconciliation. Automatic discovery defers during playback or
-    hidden foreground execution, and metered automation remains a hard probe.
+    hidden foreground execution; fresh metered automation without background
+    permission or a broad grant remains a hard probe.
     Reliable providers also run a weekly rotating audit;
     incompatible providers use one bounded daily partition, never a periodic
     full scan.
@@ -3357,7 +3571,10 @@ contract.
   `serverDeletedAt` marker keeps them out of normal Play All, shuffle, and
   download selection while review entries in `library_recovery_review` keep
   them recoverable; the legacy `removeServerSongsForPromotion` contract is now
-  `retainOrRemoveServerSongs`. An isolated media-fetch 404/410 during a
+  `retainOrRemoveServerSongs`. Album deletion and detail reconciliation use
+  that same chunked retention path. Retained rows keep their cache files; only
+  removed rows release file paths, which the caller deletes after its outer
+  transaction commits. An isolated media-fetch 404/410 during a
   download records `suspectedMissing` on rows still reading as present —
   suspicion never hides content or advances toward confirmed absence.
   Promotion rewrites re-observed rows with cleared absence markers, and bulk
@@ -3380,16 +3597,25 @@ contract.
   they are relinked by the promoting sync rather than the next one. `remapSongIdentity` merges user state
   with local precedence (a carried like keeps its original timestamp and is
   re-queued to the server through `star_sync_queue`), transfers absence
-  evidence, local mutation journals, and writes both the legacy and the typed
-  profile-scoped alias tables (`entity_identity_aliases`). Cache and download
-  ownership validation is storage-kind aware: Android SAF content URIs are
-  validated through the platform bridge, never `File.exists()`.
+  evidence and local mutation journals. If the canonical song already has a
+  download-queue entry, remapping discards the old identity’s queue entries and
+  keeps the canonical entry intact; otherwise it moves the old entries. It
+  writes the typed `entity_identity_aliases` table, shared across profiles.
+  Schema 94 imports legacy song aliases as authoritative over typed song
+  conflicts, keeps the newest remaining alias per entity type and old ID,
+  clears song alias profile ownership, enforces that key, and removes the
+  legacy song alias table; sign-out and data reset clear
+  typed aliases. Cache and download ownership validation is storage-kind aware: Android SAF content URIs are
+  validated through the platform bridge, never `File.exists()`. Identity
+  remapping preserves every cache-row column, including storage kind; rolling
+  cache pruning also recognizes content URIs even on legacy filesystem rows.
 - **Album/artist relinking.** Candidate staging tables carry
   `release_mbid`/`artist_mbid` (schema 80) promoted from OpenSubsonic
   `musicBrainzId` fields; `EntityIdentityReconciler` runs inside the
   promotion transaction after rows are preserved and before stale-row
   deletion, and maps albums/artists only from a unique stable MBID on both
   sides or an unambiguous song-membership mapping with compatible metadata.
+  Song, album and artist MBIDs share whitespace trimming and case normalization.
   `remapAlbumIdentity`/`remapArtistIdentity` move song and album references,
   transfer star queue entries, absence evidence, and local mutations, merge
   favorites and ratings with local precedence, and record typed aliases.
@@ -3408,10 +3634,11 @@ contract.
   and Remove from Liked are unchanged. Sync evidence never overwrites a user
   disposition.
 - **Repair sessions.** Ordinary Repair Library runs non-blocking from Sync
-  Settings. The coordinator owns an in-memory repair session whose
-  mobile-data grant is applied at admission — before planning or durable work
-  is joined — and survives retries and reconnects within the run. The grant is
-  never persisted: completion, cancellation, sign-out, account change, and app
+  Settings. The settings action and authenticated diagnostics `/v1/sync/repair`
+  route both enter through `LibrarySyncController.repairLibrary`. The coordinator
+  owns an in-memory repair session whose mobile-data grant is applied at
+  admission — before planning or durable work is joined — and survives retries
+  and reconnects within the run. The grant is never persisted: completion, cancellation, sign-out, account change, and app
   restart all clear it. The blocking rebuild screen remains only for initial
   login, destructive cache reset, cache upgrade, and playback recovery, where
   no usable catalog exists.
@@ -3436,8 +3663,9 @@ contract.
   evicts a corrupt or invalid cache entry exactly once per key for a single
   bounded refetch, and coalesces one entity-metadata refresh per missing
   cover reference (cooldown per cover identity per session) routed through
-  the sync engine's targeted hydration so widgets retry the resulting cover
-  identity. A server cover whose load times out is also retried by
+  the sync controller's deduplicated targeted requests under the coordinator
+  lease so widgets retry the resulting cover identity. A server cover whose
+  load times out is also retried by
   `CoverArtImage` itself, once per cache key after
   `kCoverArtTimeoutRetryDelay`, instead of keeping its placeholder until the
   page is reopened; a second timeout keeps the placeholder (external artwork
@@ -3452,14 +3680,19 @@ contract.
    sidecar download fills the rolling cache: each uncached track is fetched
    twice (a FLAC is typically 25–50 MB, and transcoding runs twice on the
    server). This is a deliberate cost of seekable desktop playback.
-2. On completion → `RollingCacheManager.registerTrack()`. A small file that
+2. After flushing and publishing the complete file →
+   `RollingCacheManager.registerTrack()`. The mobile lock-cache source emits
+   100% only after closing its write sink and renaming `.part` into place.
+   A small file that
    holds a Subsonic error document is deleted instead of registered: Navidrome
    answers a stream it cannot serve with HTTP 200 and that document, and
    playback prefers the rolling cache over streaming, so keeping it would fail
    the song until eviction. Startup pruning removes such entries left by older
    builds, and the desktop sidecar refuses HTML, JSON and XML responses before
    writing anything.
-3. Cache manager reads the current budget and enforces it via LRU eviction
+3. Rolling registration checks and writes under one database transaction,
+   so a concurrent permanent download cannot be downgraded to rolling.
+   Cache manager reads the current budget and enforces it via LRU eviction
 4. User pins content → Download to permanent cache (see **Download quality,
    concurrency and artwork** below)
 5. Permanent download completion and rolling→permanent promotion pre-cache
@@ -3556,11 +3789,16 @@ contract.
 8. Eviction removes orphan MIME sidecars and garbage-collects unreferenced
    provisional metadata while preserving active partial files and recent
    unowned audio files
-9. Playback prefers permanent → rolling → stream
-10. A profile migrated before library-cache-system version 2 must clear recoverable
-   rolling cache and library metadata once before using the current contract.
-   The upgrade prompt can be dismissed, but returns on the next launch until a
-   successful reset and committed full catalog scan. **Repair Library** is the
+9. Playback prefers completed permanent downloads unconditionally → eligible
+   rolling cache → stream. Only rolling entries are filtered by the active
+   streaming profile; Cached First, cellular cache preference, and offline
+   playback permit any completed rolling profile.
+10. Every app major/minor version change renews committed library and recoverable
+   rolling-cache metadata through the mandatory full-screen rebuild. Patch
+   releases keep the same epoch; legacy cache markers also require renewal.
+   Fresh profiles without a committed catalog adopt the current epoch without
+   a reset, and first setup stamps it when catalog readiness is recorded.
+   **Repair Library** is the
    non-destructive server-catalog reconciliation: its candidate remains hidden
    until atomic promotion, and it preserves downloads, rolling cache, artwork,
    and the visible catalog until then. **Reset Caches & Rebuild Library** is
@@ -3571,7 +3809,8 @@ contract.
    their metered confirmations, history origins, and full-screen progress
    states stay distinct even though both can collect a catalog. Choosing reset enters the
    shared full-screen required-library-rebuild route, which is also used for a
-   first login, Repair Library, Settings cache reset, and playback recovery. It blocks ordinary
+   first login, cache upgrade, Settings cache reset, and playback recovery; ordinary
+   Repair Library runs in the background from Sync Settings. It blocks ordinary
    navigation until the catalog is committed, keeps users in place with retry,
    metered-data, and sign-out recovery options on failure, and only then opens
    Home. `LibraryCacheResetService` deliberately preserves permanent downloads
@@ -3969,11 +4208,18 @@ age-based verification still covers song-only metadata changes.
 ### Sync cancellation drain
 
 `LibrarySyncController.cancelAndWait` drains startup work, the engine, automatic
-check completion (including its durable next-deadline write), and timer-arm tasks
-before returning. Cancellation suppresses automatic rearming until the session's
-existing restart path enables it again. Diagnostics shutdown and sign-out use
-this barrier before database disposal; synchronous provider disposal alone
-cannot await these owners.
+check completion (including its durable next-deadline write), timer-arm and
+schedule-reset tasks, persisted-state loading, and Android schedule reconciliation
+before returning. Cancellation suppresses automatic rearming and Android
+reconciliation until the session's existing restart path enables them again.
+Sign-out then cancels native Android work before clearing server data and
+credentials. The drained controller forgets its scheduled profile, so the later
+config-null notification does not launch a second cancellation status write.
+Sync-state upserts, including automatic deadlines and Android worker/scheduler
+observations, select an existing server parent in the same SQL statement; a late
+write for a deleted server is a no-op. Diagnostics shutdown and sign-out use this
+barrier before database disposal or profile deletion; synchronous provider
+disposal alone cannot await these owners.
 
 ### Android SAF availability during service-first playback
 

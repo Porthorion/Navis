@@ -3531,7 +3531,8 @@ class LockCachingAudioSource extends StreamAudioSource {
           : (sourceLength == 0)
               ? 100
               : (100 * _progress ~/ sourceLength);
-      updateProgress(newPercentProgress);
+      // Navis: 100% means the cache file has been flushed and published.
+      updateProgress(min(newPercentProgress, 99));
       sink.add(data);
       final readyRequests = _requests
           .where((request) =>
@@ -3638,15 +3639,15 @@ class LockCachingAudioSource extends StreamAudioSource {
       }
     }, onDone: () async {
       _abortDownload = null;
-      if (sourceLength == null) {
-        updateProgress(100);
-      }
       for (var cacheResponse in inProgressResponses) {
         if (!cacheResponse.controller.isClosed) {
           cacheResponse.controller.close();
         }
       }
+      await sink.flush();
+      await sink.close();
       (await _partialCacheFile).renameSync(cacheFile.path);
+      updateProgress(100);
       await subscription.cancel();
       httpClient.close();
       _downloading = false;
@@ -3800,6 +3801,13 @@ _ProxyHandler _proxyHandlerForSource(StreamAudioSource source) {
       sourceResponse =
           await source.request(rangeRequest?.start, rangeRequest?.endEx);
       stream = sourceResponse.stream;
+      // Navis: an open-ended range on a chunked source has no end byte.
+      if (rangeRequest != null &&
+          sourceResponse.offset != null &&
+          sourceResponse.contentLength == null) {
+        await stream.listen((_) {}, onError: (Object _) {}).cancel();
+        throw StateError('Cannot serve a byte range with an unknown length');
+      }
     } catch (e, st) {
       // ignore: avoid_print
       print('Proxy request failed: $e\n$st');

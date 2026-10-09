@@ -24,16 +24,10 @@ mixin _$LibrarySyncDaoMixin on DatabaseAccessor<NavisDatabase> {
       attachedDatabase.librarySyncRunAttemptTable;
   $LibrarySyncRunOutcomeTableTable get librarySyncRunOutcomeTable =>
       attachedDatabase.librarySyncRunOutcomeTable;
-  $LibrarySyncProviderProfileTableTable get librarySyncProviderProfileTable =>
-      attachedDatabase.librarySyncProviderProfileTable;
-  $LibrarySyncRepairSessionTableTable get librarySyncRepairSessionTable =>
-      attachedDatabase.librarySyncRepairSessionTable;
   $LibraryScanObservationTableTable get libraryScanObservationTable =>
       attachedDatabase.libraryScanObservationTable;
   $LibraryRecoveryReviewTableTable get libraryRecoveryReviewTable =>
       attachedDatabase.libraryRecoveryReviewTable;
-  $EntityIdentityAliasTableTable get entityIdentityAliasTable =>
-      attachedDatabase.entityIdentityAliasTable;
   LibrarySyncDaoManager get managers => LibrarySyncDaoManager(this);
 }
 
@@ -97,18 +91,6 @@ class LibrarySyncDaoManager {
         _db.attachedDatabase,
         _db.librarySyncRunOutcomeTable,
       );
-  $$LibrarySyncProviderProfileTableTableTableManager
-  get librarySyncProviderProfileTable =>
-      $$LibrarySyncProviderProfileTableTableTableManager(
-        _db.attachedDatabase,
-        _db.librarySyncProviderProfileTable,
-      );
-  $$LibrarySyncRepairSessionTableTableTableManager
-  get librarySyncRepairSessionTable =>
-      $$LibrarySyncRepairSessionTableTableTableManager(
-        _db.attachedDatabase,
-        _db.librarySyncRepairSessionTable,
-      );
   $$LibraryScanObservationTableTableTableManager
   get libraryScanObservationTable =>
       $$LibraryScanObservationTableTableTableManager(
@@ -120,10 +102,5 @@ class LibrarySyncDaoManager {
       $$LibraryRecoveryReviewTableTableTableManager(
         _db.attachedDatabase,
         _db.libraryRecoveryReviewTable,
-      );
-  $$EntityIdentityAliasTableTableTableManager get entityIdentityAliasTable =>
-      $$EntityIdentityAliasTableTableTableManager(
-        _db.attachedDatabase,
-        _db.entityIdentityAliasTable,
       );
 }

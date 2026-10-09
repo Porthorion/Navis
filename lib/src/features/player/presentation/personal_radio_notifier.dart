@@ -177,7 +177,8 @@ class PersonalRadioNotifier extends Notifier<PersonalRadioState> {
         issue: RecommendationIssue.networkFailure,
       );
     } finally {
-      _starting = false;
+      // A newer start (after stop) owns the flag now.
+      if (identical(_session, session)) _starting = false;
     }
   }
 
@@ -301,7 +302,8 @@ class PersonalRadioNotifier extends Notifier<PersonalRadioState> {
         _scheduleRetry(session, RecommendationIssue.networkFailure);
       }
     } finally {
-      _refilling = false;
+      // A refill of a newer session owns the flag now.
+      if (identical(_session, session)) _refilling = false;
     }
   }
 

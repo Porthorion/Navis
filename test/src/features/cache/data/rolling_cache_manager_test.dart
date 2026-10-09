@@ -126,38 +126,27 @@ void main() {
       final file2 = await _writeFile(tempDir, 'song-2.mp3', 100);
       final file3 = await _writeFile(tempDir, 'song-3.mp3', 100);
 
-      await database.cacheDao.upsertCachedTrack(
-        CachedTracksTableCompanion.insert(
-          songId: 'song-1',
-          filePath: file1.path,
-          fileSize: 100,
-          format: 'mp3',
-          cacheType: CacheType.rolling,
-          downloadStatus: DownloadStatus.complete,
-          lastAccessedAt: DateTime.now().subtract(const Duration(hours: 3)),
-        ),
+      await _seedCachedTrack(
+        database,
+        'song-1',
+        file1.path,
+        100,
+        lastAccessedAt: DateTime.now().subtract(const Duration(hours: 3)),
       );
-      await database.cacheDao.upsertCachedTrack(
-        CachedTracksTableCompanion.insert(
-          songId: 'song-2',
-          filePath: file2.path,
-          fileSize: 100,
-          format: 'mp3',
-          cacheType: CacheType.rolling,
-          downloadStatus: DownloadStatus.complete,
-          lastAccessedAt: DateTime.now().subtract(const Duration(hours: 2)),
-        ),
+      await _seedCachedTrack(
+        database,
+        'song-2',
+        file2.path,
+        100,
+        lastAccessedAt: DateTime.now().subtract(const Duration(hours: 2)),
       );
-      await database.cacheDao.upsertCachedTrack(
-        CachedTracksTableCompanion.insert(
-          songId: 'song-3',
-          filePath: file3.path,
-          fileSize: 100,
-          format: 'mp3',
-          cacheType: CacheType.permanent,
-          downloadStatus: DownloadStatus.complete,
-          lastAccessedAt: DateTime.now().subtract(const Duration(hours: 1)),
-        ),
+      await _seedCachedTrack(
+        database,
+        'song-3',
+        file3.path,
+        100,
+        cacheType: CacheType.permanent,
+        lastAccessedAt: DateTime.now().subtract(const Duration(hours: 1)),
       );
 
       await manager.enforceBudget(maxBytes: 150);
@@ -176,28 +165,13 @@ void main() {
       await _insertSong(database, 'song-2');
       final keepFile = await _writeFile(tempDir, 'song-2.mp3', 32);
 
-      await database.cacheDao.upsertCachedTrack(
-        CachedTracksTableCompanion.insert(
-          songId: 'song-1',
-          filePath: p.join(tempDir.path, 'missing.mp3'),
-          fileSize: 50,
-          format: 'mp3',
-          cacheType: CacheType.rolling,
-          downloadStatus: DownloadStatus.complete,
-          lastAccessedAt: DateTime.now(),
-        ),
+      await _seedCachedTrack(
+        database,
+        'song-1',
+        p.join(tempDir.path, 'missing.mp3'),
+        50,
       );
-      await database.cacheDao.upsertCachedTrack(
-        CachedTracksTableCompanion.insert(
-          songId: 'song-2',
-          filePath: keepFile.path,
-          fileSize: 32,
-          format: 'mp3',
-          cacheType: CacheType.rolling,
-          downloadStatus: DownloadStatus.complete,
-          lastAccessedAt: DateTime.now(),
-        ),
-      );
+      await _seedCachedTrack(database, 'song-2', keepFile.path, 32);
 
       await manager.pruneMissingFiles();
 
@@ -233,16 +207,12 @@ void main() {
       await poisoned.writeAsString(_errorDocuments.first);
       final audio = await _writeFile(tempDir, 'audio.flac', 32);
       for (final (songId, file) in [('poisoned', poisoned), ('audio', audio)]) {
-        await database.cacheDao.upsertCachedTrack(
-          CachedTracksTableCompanion.insert(
-            songId: songId,
-            filePath: file.path,
-            fileSize: file.lengthSync(),
-            format: 'flac',
-            cacheType: CacheType.rolling,
-            downloadStatus: DownloadStatus.complete,
-            lastAccessedAt: DateTime.now(),
-          ),
+        await _seedCachedTrack(
+          database,
+          songId,
+          file.path,
+          file.lengthSync(),
+          format: 'flac',
         );
       }
 
@@ -259,16 +229,12 @@ void main() {
       final file = await _writeFile(tempDir, 'song-1.mp3', 24);
       final oldDate = DateTime.now().subtract(const Duration(days: 2));
 
-      await database.cacheDao.upsertCachedTrack(
-        CachedTracksTableCompanion.insert(
-          songId: 'song-1',
-          filePath: file.path,
-          fileSize: 24,
-          format: 'mp3',
-          cacheType: CacheType.rolling,
-          downloadStatus: DownloadStatus.complete,
-          lastAccessedAt: oldDate,
-        ),
+      await _seedCachedTrack(
+        database,
+        'song-1',
+        file.path,
+        24,
+        lastAccessedAt: oldDate,
       );
 
       await manager.touchTrack('song-1');
@@ -293,16 +259,11 @@ void main() {
         final retainedSidecar = File('${retainedAudio.path}.mime')
           ..writeAsStringSync('audio/mpeg');
         await _insertSong(database, 'retained-song');
-        await database.cacheDao.upsertCachedTrack(
-          CachedTracksTableCompanion.insert(
-            songId: 'retained-song',
-            filePath: retainedAudio.path,
-            fileSize: 1,
-            format: 'mp3',
-            cacheType: CacheType.rolling,
-            downloadStatus: DownloadStatus.complete,
-            lastAccessedAt: DateTime.now(),
-          ),
+        await _seedCachedTrack(
+          database,
+          'retained-song',
+          retainedAudio.path,
+          1,
         );
 
         await manager.cleanupOrphanedRollingFiles();
@@ -351,17 +312,7 @@ void main() {
           ),
         ]);
         final file = await _writeFile(tempDir, 'remote.mp3', 100);
-        await database.cacheDao.upsertCachedTrack(
-          CachedTracksTableCompanion.insert(
-            songId: 'remote-song',
-            filePath: file.path,
-            fileSize: 100,
-            format: 'mp3',
-            cacheType: CacheType.rolling,
-            downloadStatus: DownloadStatus.complete,
-            lastAccessedAt: DateTime.now(),
-          ),
-        );
+        await _seedCachedTrack(database, 'remote-song', file.path, 100);
 
         await manager.enforceBudget(maxBytes: 1);
 
@@ -397,4 +348,26 @@ Future<File> _writeFile(Directory dir, String name, int size) async {
   final file = File(p.join(dir.path, name));
   await file.writeAsBytes(List<int>.filled(size, 7));
   return file;
+}
+
+Future<void> _seedCachedTrack(
+  NavisDatabase database,
+  String songId,
+  String filePath,
+  int fileSize, {
+  String format = 'mp3',
+  CacheType cacheType = CacheType.rolling,
+  DateTime? lastAccessedAt,
+}) {
+  return database.cacheDao.upsertCachedTrack(
+    CachedTracksTableCompanion.insert(
+      songId: songId,
+      filePath: filePath,
+      fileSize: fileSize,
+      format: format,
+      cacheType: cacheType,
+      downloadStatus: DownloadStatus.complete,
+      lastAccessedAt: lastAccessedAt ?? DateTime.now(),
+    ),
+  );
 }

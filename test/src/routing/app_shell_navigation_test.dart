@@ -44,6 +44,7 @@ import 'package:navis/src/routing/navigation_service.dart';
 import 'package:navis/src/utils/connectivity.dart';
 import 'package:flutter_riverpod/misc.dart' show Override;
 
+import '../../helpers/library_copy_api.dart';
 import '../../helpers/test_database.dart';
 import '../../helpers/test_theme.dart';
 
@@ -51,14 +52,7 @@ import 'package:navis/src/features/home/presentation/home_screen.dart';
 import 'package:navis/src/routing/app_routes.dart';
 import 'package:navis/src/features/settings/presentation/settings_screen.dart';
 
-class _StaticReachabilityController extends ServerReachabilityController {
-  new(this._state);
-
-  final ServerReachabilityState _state;
-
-  @override
-  ServerReachabilityState build() => _state;
-}
+import '../../helpers/reachability_fakes.dart';
 
 class _StaticLibrarySyncController extends LibrarySyncController {
   @override
@@ -192,7 +186,7 @@ List<Override> _authenticatedShellOverrides({
       ),
     ),
     serverReachabilityControllerProvider.overrideWith(
-      () => _StaticReachabilityController(
+      () => StaticReachabilityController(
         ServerReachabilityState(status: reachability),
       ),
     ),
@@ -205,7 +199,6 @@ List<Override> _authenticatedShellOverrides({
     homeRecentlyAddedProvider.overrideWithValue(const AsyncData(<Album>[])),
     homeFrequentAlbumsProvider.overrideWithValue(const AsyncData(<Album>[])),
     homeRandomAlbumsProvider.overrideWithValue(const AsyncData(<Album>[])),
-    homeStarredSongsProvider.overrideWithValue(const AsyncData(<Song>[])),
     listenBrainzDiscoverStreamProvider.overrideWithValue(
       const AsyncData(<ListenBrainzDiscoverPlaylist>[]),
     ),
@@ -1008,6 +1001,87 @@ void main() {
     expect(find.text('Nothing playing'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
+
+  testWidgets(
+    'desktop Server Mix button accepts a remote song with a library copy',
+    (tester) async {
+      tester.view.devicePixelRatio = 1;
+      tester.view.physicalSize = const Size(1008, 640);
+      addTearDown(() {
+        tester.view.resetPhysicalSize();
+        tester.view.resetDevicePixelRatio();
+      });
+      final container = _createContainerWithDatabase(
+        overrides: <Override>[
+          ..._authenticatedShellOverrides(
+            desktopRuntime: true,
+            playback: _activePlayback.copyWith(currentSongId: 'ext-remote-1'),
+          ),
+          preferredMixModeProvider.overrideWithValue(
+            PreferredMixMode.legacyInstantMix,
+          ),
+          subsonicApiProvider.overrideWithValue(
+            LibraryCopyApiClient(const {'ext-remote-1': 'copy-1'}),
+          ),
+        ],
+      );
+      await tester.pumpWidget(
+        UncontrolledProviderScope(container: container, child: testNavisApp),
+      );
+      await tester.pumpAndSettle();
+
+      final direct = find.byKey(
+        const ValueKey<String>('desktopPlayerInstantMixButton'),
+      );
+      final button = direct.evaluate().first.widget is IconButton
+          ? tester.widget<IconButton>(direct)
+          : desktopActionButton(tester, 'desktopPlayerInstantMixButton');
+      expect(button.onPressed, isNotNull);
+      expect(
+        button.tooltip,
+        isNot('Instant Mix requires a locally scanned track.'),
+      );
+      expect(tester.takeException(), isNull);
+    },
+  );
+
+  testWidgets(
+    'desktop Server Mix button is disabled for a remote song without a library copy',
+    (tester) async {
+      tester.view.devicePixelRatio = 1;
+      tester.view.physicalSize = const Size(1008, 640);
+      addTearDown(() {
+        tester.view.resetPhysicalSize();
+        tester.view.resetDevicePixelRatio();
+      });
+      final container = _createContainerWithDatabase(
+        overrides: <Override>[
+          ..._authenticatedShellOverrides(
+            desktopRuntime: true,
+            playback: _activePlayback.copyWith(currentSongId: 'ext-remote-1'),
+          ),
+          preferredMixModeProvider.overrideWithValue(
+            PreferredMixMode.legacyInstantMix,
+          ),
+          subsonicApiProvider.overrideWithValue(LibraryCopyApiClient(const {})),
+        ],
+      );
+      await tester.pumpWidget(
+        UncontrolledProviderScope(container: container, child: testNavisApp),
+      );
+      await tester.pumpAndSettle();
+
+      final direct = find.byKey(
+        const ValueKey<String>('desktopPlayerInstantMixButton'),
+      );
+      final button = direct.evaluate().first.widget is IconButton
+          ? tester.widget<IconButton>(direct)
+          : desktopActionButton(tester, 'desktopPlayerInstantMixButton');
+      expect(button.onPressed, isNull);
+      expect(button.tooltip, 'Instant Mix requires a locally scanned track.');
+      expect(tester.takeException(), isNull);
+    },
+  );
 
   testWidgets('800x600 active Desktop View player golden', (tester) async {
     tester.view.devicePixelRatio = 1;
@@ -2015,6 +2089,31 @@ void main() {
       expect(find.byType(TabBar), findsOneWidget);
     },
   );
+
+  testWidgets('phone MiniPlayerStrip rendering is pinned', (tester) async {
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(390, 844);
+    addTearDown(() {
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+    });
+
+    final container = _createContainerWithDatabase(
+      overrides: _authenticatedShellOverrides(),
+    );
+
+    await tester.pumpWidget(
+      UncontrolledProviderScope(container: container, child: testNavisApp),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.byType(NavigationBar), findsOneWidget);
+    await expectLater(
+      find.byKey(const ValueKey<String>('appShellScaffold')),
+      matchesGoldenFile('goldens/phone_mini_player_strip_390x844.png'),
+    );
+    await tester.pump(const Duration(milliseconds: 201));
+  });
 
   testWidgets('expanded player uses bottom-sheet mode on phone', (
     tester,

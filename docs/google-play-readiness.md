@@ -72,7 +72,7 @@ non-Android assets.
 
 - Listen Together / Voyage is not exposed in the Play build.
 - There is no `NAVIS_VOYAGE_SERVERS` build-time configuration.
-- Legacy stored Voyage settings are ignored and saved back as disabled.
+- Legacy stored Voyage columns are ignored: the app no longer reads or writes them, and the schema migration resets them on upgrade.
 
 ## Play Console Work
 

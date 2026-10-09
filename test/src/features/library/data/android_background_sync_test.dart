@@ -1,10 +1,16 @@
+import 'dart:async';
+
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:navis/src/database/navis_database.dart';
 import 'package:navis/src/features/auth/domain/server_config.dart';
+import 'package:navis/src/features/auth/data/sign_out_service.dart';
+import 'package:navis/src/features/auth/data/server_config_repository.dart';
 import 'package:navis/src/features/library/data/android_background_sync.dart';
 
 import '../../../../helpers/test_database.dart';
+import '../../../../helpers/library_sync_fakes.dart'
+    show FakeSyncCredentialStore;
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -15,6 +21,62 @@ void main() {
     TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
         .setMockMethodCallHandler(channel, null);
   });
+
+  test(
+    'late Android cancellation status is a no-op after a sign-out wipe',
+    () async {
+      final database = createTestDatabase();
+      addTearDown(database.close);
+      await database.serverDao.saveServer(
+        ServerConfigTableCompanion.insert(
+          url: 'https://music.example.test',
+          username: 'listener',
+          apiVersion: '1.16.1',
+        ),
+      );
+      final entered = Completer<void>();
+      final release = Completer<void>();
+      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+          .setMockMethodCallHandler(channel, (call) async {
+            expect(call.method, 'cancel');
+            entered.complete();
+            await release.future;
+            return <String, Object>{'available': true, 'state': 'cancelled'};
+          });
+      final reconciler = AndroidBackgroundSyncReconciler(
+        database: database,
+        scheduler: AndroidBackgroundSyncScheduler(
+          channel: channel,
+          supported: true,
+        ),
+      );
+      final cancellation = reconciler.cancelFor(
+        const ServerConfigModel(
+          id: 1,
+          url: 'https://music.example.test',
+          username: 'listener',
+          password: 'unused',
+          apiVersion: '1.16.1',
+        ),
+      );
+      final completed = expectLater(cancellation, completes);
+      await entered.future;
+      await SessionLifecycleService(
+        serverConfigRepository: ServerConfigRepository(
+          database,
+          credentials: FakeSyncCredentialStore(),
+        ),
+        database: database,
+      ).signOut(wipeLocalData: true);
+      release.complete();
+      await completed;
+      expect(
+        await database.select(database.librarySyncStateTable).get(),
+        isEmpty,
+      );
+    },
+    skip: !sqliteAvailable,
+  );
 
   test('profile key is stable across harmless server URL normalization', () {
     final left = ServerConfigModel(

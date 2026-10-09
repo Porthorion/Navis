@@ -16,10 +16,6 @@ void main() {
         pending.copyWith(pendingSeekPosition: null).pendingSeekPosition,
         isNull,
       );
-      expect(
-        pending.clearRadioStation().pendingSeekPosition,
-        const Duration(seconds: 90),
-      );
     });
 
     test('idle snapshot defaults isCurrentSongLiked to false', () {

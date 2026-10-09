@@ -29,7 +29,7 @@ class PlaybackArtCache {
   new({
     NetworkUsageReporter? reportNetworkUsage,
     this._readPermanentArtwork,
-    this.bodyIdleTimeout = const Duration(seconds: 30),
+    Duration bodyIdleTimeout = const Duration(seconds: 30),
     CoverArtHttpFileService? fileService,
   }) : _fileService =
            fileService ??
@@ -49,10 +49,6 @@ class PlaybackArtCache {
 
   static const Duration _connectionTimeout = Duration(seconds: 10);
   static const Duration _responseTimeout = Duration(seconds: 15);
-
-  /// A body that stops arriving for this long is abandoned; it would
-  /// otherwise keep this cover pending for the rest of the session.
-  final Duration bodyIdleTimeout;
 
   /// The durable cover of a downloaded song, used before any network fetch
   /// so downloaded music shows its cover offline (Bluetooth/AVRCP, Android

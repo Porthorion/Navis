@@ -315,16 +315,6 @@ class SubsonicApiClient {
     return ScanStatus.fromJson(node);
   }
 
-  Future<List<Song>> getNowPlaying({CancelToken? cancelToken}) async {
-    final root = await _readRoot(
-      '/rest/getNowPlaying.view',
-      cancelToken: cancelToken,
-    );
-    return _asMapList(_asMap(root['nowPlaying'])['entry'])
-        .map(Song.fromJson)
-        .toList(growable: false);
-  }
-
   /// Returns songs from Navidrome's optional `getInstantMix` endpoint.
   Future<List<Song>> getInstantMix(
     String seedSongId, {

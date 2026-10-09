@@ -52,11 +52,226 @@ void main() {
     await tempDirectory.delete(recursive: true);
   });
 
+  test(
+    'typed song readers select the newest alias before filtering by time',
+    () async {
+      await database.customStatement(
+        'DROP INDEX idx_entity_identity_aliases_kind_old',
+      );
+      final earlier = DateTime.utc(2026, 1, 1);
+      final later = DateTime.utc(2026, 1, 2);
+      for (final (kind, target, time) in [
+        ('song', 'earlier', later),
+        ('album', 'album-target', later),
+        ('song', 'server-song', earlier),
+      ]) {
+        await database
+            .into(database.entityIdentityAliasTable)
+            .insert(
+              EntityIdentityAliasTableCompanion.insert(
+                entityType: kind,
+                oldId: 'remote-song',
+                newId: target,
+                matchReason: 'recordingMbid',
+                matchedAt: time,
+              ),
+            );
+      }
+      expect(
+        (await database.songIdentityDao.getAliases()).single.canonicalSongId,
+        'server-song',
+      );
+      expect(
+        await database.songIdentityDao.resolveCanonicalId('remote-song'),
+        'server-song',
+      );
+      expect(
+        await database.songIdentityDao.getAliasesMatchedSince(later),
+        isEmpty,
+      );
+      expect(
+        await database.songIdentityDao.getAliasesMatchedSince(earlier),
+        hasLength(1),
+      );
+    },
+    skip: !sqliteAvailable,
+  );
+
+  test('repeated missing-song remaps update one cross-profile alias', () async {
+    await database.songIdentityDao.remapSongIdentity(
+      oldSongId: 'remote-song',
+      canonicalSongId: 'server-song',
+      matchReason: 'recordingMbid',
+    );
+    await database.songIdentityDao.remapSongIdentity(
+      oldSongId: 'remote-song',
+      canonicalSongId: 'server-song',
+      matchReason: 'metadata',
+    );
+    final aliases = await database
+        .select(database.entityIdentityAliasTable)
+        .get();
+    expect(aliases, hasLength(1));
+    expect(aliases.single.serverId, isNull);
+    expect(aliases.single.matchReason, 'metadata');
+    expect(
+      await database.songIdentityDao.remapAlbumIdentity(
+        oldAlbumId: 'gone',
+        canonicalAlbumId: 'album',
+        matchReason: 'releaseMbid',
+      ),
+      isFalse,
+    );
+    expect(
+      await database.songIdentityDao.remapArtistIdentity(
+        oldArtistId: 'gone',
+        canonicalArtistId: 'artist',
+        matchReason: 'artistMbid',
+      ),
+      isFalse,
+    );
+    expect(
+      await database.select(database.entityIdentityAliasTable).get(),
+      hasLength(1),
+    );
+  }, skip: !sqliteAvailable);
+
+  test(
+    'colliding history, lyrics and match references keep canonical values',
+    () async {
+      final playedAt = DateTime.utc(2026, 1, 1);
+      for (final id in ['remote-song', 'server-song']) {
+        await database
+            .into(database.playHistoryTable)
+            .insert(
+              PlayHistoryTableCompanion.insert(songId: id, playedAt: playedAt),
+            );
+        await database
+            .into(database.externalLyricsCacheTable)
+            .insert(
+              ExternalLyricsCacheTableCompanion.insert(
+                songId: id,
+                source: 'server',
+                plainLyrics: Value(id),
+                fetchedAt: playedAt,
+              ),
+            );
+      }
+      await database
+          .into(database.matchFlowsTable)
+          .insert(
+            MatchFlowsTableCompanion.insert(
+              id: 'flow',
+              name: 'Flow',
+              createdAt: playedAt,
+              updatedAt: playedAt,
+            ),
+          );
+      for (final (id, order) in [('server-song', 1), ('remote-song', 2)]) {
+        await database
+            .into(database.matchFlowSongsTable)
+            .insert(
+              MatchFlowSongsTableCompanion.insert(
+                flowId: 'flow',
+                songId: id,
+                sortOrder: order,
+                addedAt: playedAt,
+              ),
+            );
+      }
+      await database.songIdentityDao.remapSongIdentity(
+        oldSongId: 'remote-song',
+        canonicalSongId: 'server-song',
+        matchReason: 'recordingMbid',
+      );
+      expect(
+        await database.select(database.playHistoryTable).get(),
+        hasLength(1),
+      );
+      expect(
+        (await database.select(database.externalLyricsCacheTable).get())
+            .single
+            .plainLyrics,
+        'server-song',
+      );
+      expect(
+        (await database.select(database.matchFlowSongsTable).get())
+            .single
+            .sortOrder,
+        1,
+      );
+    },
+    skip: !sqliteAvailable,
+  );
+
+  test('remap preserves every permanent SAF download column', () async {
+    await database.cacheDao.upsertCachedTrack(
+      CachedTracksTableCompanion.insert(
+        songId: 'remote-song',
+        filePath: 'content://downloads/document/track',
+        storageKind: const Value('androidSaf'),
+        fileSize: 8192,
+        format: 'flac',
+        bitRate: const Value(900),
+        lastAccessedAt: DateTime.utc(2026, 1, 2),
+        cacheType: CacheType.permanent,
+        downloadStatus: DownloadStatus.complete,
+      ),
+    );
+    final original = await database.cacheDao.getCachedTrack('remote-song');
+    await database.songIdentityDao.remapSongIdentity(
+      oldSongId: 'remote-song',
+      canonicalSongId: 'server-song',
+      matchReason: 'recordingMbid',
+    );
+    expect(
+      await database.cacheDao.getCachedTrack('server-song'),
+      original!.copyWith(songId: 'server-song'),
+    );
+    expect(await database.cacheDao.getCachedTrack('remote-song'), isNull);
+  }, skip: !sqliteAvailable);
+
+  test('remap keeps the existing canonical download queue row', () async {
+    final addedAt = DateTime.utc(2026);
+    await database
+        .into(database.downloadQueueTable)
+        .insert(
+          DownloadQueueTableCompanion.insert(
+            songId: const Value('remote-song'),
+            status: DownloadStatus.queued,
+            addedAt: addedAt,
+            priority: const Value(3),
+            retryCount: const Value(2),
+          ),
+        );
+    await database
+        .into(database.downloadQueueTable)
+        .insert(
+          DownloadQueueTableCompanion.insert(
+            songId: const Value('server-song'),
+            status: DownloadStatus.downloading,
+            addedAt: addedAt,
+            progress: const Value(0.5),
+            quality: const Value('lossless'),
+          ),
+        );
+    final canonical =
+        (await database.select(database.downloadQueueTable).get()).last;
+    await database.songIdentityDao.remapSongIdentity(
+      oldSongId: 'remote-song',
+      canonicalSongId: 'server-song',
+      matchReason: 'recordingMbid',
+    );
+    expect(await database.select(database.downloadQueueTable).get(), [
+      canonical,
+    ]);
+  }, skip: !sqliteAvailable);
+
   test('notifies playback before deleting a provisional identity', () async {
     var callbackObservedProvisionalRow = false;
     final canonical = await database.libraryDao.getSongById('server-song');
 
-    final summary = await SongIdentityReconciler(
+    final session = await SongIdentityReconciler(
       database.songIdentityDao,
       onBeforeRemap: (aliases) async {
         expect(aliases, <String, String>{'remote-song': 'server-song'});
@@ -64,7 +279,10 @@ void main() {
             await database.libraryDao.getSongById('remote-song') != null;
       },
       readActiveSongId: () => 'remote-song',
-    ).reconcileCanonicalSongs(<SongsTableData>[canonical!]);
+    ).startSession();
+    await session.reconcile(<SongsTableData>[canonical!]);
+    await session.finalize();
+    final summary = session.summary;
 
     expect(callbackObservedProvisionalRow, isTrue);
     expect(summary.aliases, hasLength(1));
@@ -74,14 +292,13 @@ void main() {
   test('aborts identity deletion when playback handoff fails', () async {
     final canonical = await database.libraryDao.getSongById('server-song');
 
-    await expectLater(
-      SongIdentityReconciler(
-        database.songIdentityDao,
-        onBeforeRemap: (_) =>
-            Future<void>.error(StateError('playback handoff failed')),
-      ).reconcileCanonicalSongs(<SongsTableData>[canonical!]),
-      throwsStateError,
-    );
+    final session = await SongIdentityReconciler(
+      database.songIdentityDao,
+      onBeforeRemap: (_) =>
+          Future<void>.error(StateError('playback handoff failed')),
+    ).startSession();
+    await session.reconcile(<SongsTableData>[canonical!]);
+    await expectLater(session.finalize(), throwsStateError);
 
     expect(await database.libraryDao.getSongById('remote-song'), isNotNull);
     expect(await database.songIdentityDao.getAliases(), isEmpty);

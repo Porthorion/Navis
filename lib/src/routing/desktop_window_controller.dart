@@ -280,7 +280,6 @@ class DesktopWindowController extends ChangeNotifier
 
   static const Size normalMinSize = kDesktopMiniPlayerMinimumSize;
   static const Size miniDefaultSize = kDesktopMiniPlayerDefaultSize;
-  static const Size miniMinSize = kDesktopMiniPlayerMinimumSize;
   static const Duration resizeSettleInterval = Duration(milliseconds: 400);
   static const Duration _persistDebounceInterval = Duration(milliseconds: 450);
 
@@ -307,7 +306,6 @@ class DesktopWindowController extends ChangeNotifier
   bool _lastPersistenceCompleted = false;
 
   bool get desktopRuntime => _desktopRuntime;
-  bool get isInitialized => _isInitialized;
   bool get isApplyingMode => _isApplyingMode;
   DesktopWindowMode get mode => _mode;
   bool get isMiniPlayerMode => _mode == DesktopWindowMode.miniPlayer;
@@ -529,8 +527,6 @@ class DesktopWindowController extends ChangeNotifier
       notifyListeners();
     }
   }
-
-  Future<void> toggleMiniPlayerMode() => setMiniPlayerMode(!isMiniPlayerMode);
 
   // Keep the existing method and callback call contract for callers.
   // ignore: avoid_positional_boolean_parameters

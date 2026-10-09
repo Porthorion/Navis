@@ -5,7 +5,6 @@ import 'package:drift/drift.dart' show Value;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:navis/src/database/navis_database.dart';
 import 'package:navis/src/api/sync_request_scope.dart';
-import 'package:navis/src/features/auth/data/secure_credential_store.dart';
 import 'package:navis/src/features/auth/data/server_config_repository.dart';
 import 'package:navis/src/features/auth/domain/server_config.dart';
 import 'package:navis/src/features/library/data/adaptive_library_sync_coordinator.dart';
@@ -15,26 +14,15 @@ import 'package:navis/src/features/library/domain/library_sync_state.dart';
 import 'package:navis/src/features/library/domain/sync_run_contract.dart';
 import 'package:navis/src/utils/connectivity.dart';
 
+import '../../../../helpers/library_sync_fakes.dart';
+import '../../../../helpers/stub_library_sync_engine.dart';
 import '../../../../helpers/test_database.dart';
 
-class _MemoryCredentialStore implements SecureCredentialStore {
-  String? password;
-
-  @override
-  Future<void> clearPassword() async => password = null;
-
-  @override
-  Future<String?> readPassword() async => password;
-
-  @override
-  Future<void> savePassword(String value) async => password = value;
-}
-
-class _ProbeLibrarySyncEngine
-    implements LibrarySyncEngine, TargetedLibrarySyncExecutor {
+class _ProbeLibrarySyncEngine implements SyncPlanExecutor {
+  int cancelCalls = 0;
   int probeCalls = 0;
   int forceFullSyncCalls = 0;
-  int syncIfStaleCalls = 0;
+  final plans = <SyncExecutionPlan>[];
   int syncNowCalls = 0;
   int hydrateAlbumCalls = 0;
   bool probeIndexChanged = false;
@@ -51,92 +39,44 @@ class _ProbeLibrarySyncEngine
       );
 
   @override
-  Future<LibrarySyncState> requestSync(
-    LibrarySyncRequest request, {
-    Iterable<String> priorityAlbumIds = const <String>[],
-    LibrarySyncProgressCallback? onProgress,
-  }) async => _idle();
+  void cancelSync() {
+    cancelCalls++;
+  }
 
   @override
-  Future<LibrarySyncState> continueVerification({
-    Iterable<String> priorityAlbumIds = const <String>[],
-    LibrarySyncProgressCallback? onProgress,
-  }) async => _idle();
-
-  @override
-  Future<LibrarySyncState> forceFullSync({
+  Future<LibrarySyncState> executeSyncPlan(
+    SyncExecutionPlan plan, {
     Iterable<String> priorityAlbumIds = const <String>[],
     LibrarySyncProgressCallback? onProgress,
   }) async {
-    forceFullSyncCalls++;
+    plans.add(plan);
+    switch (plan.kind) {
+      case LibrarySyncPlanKind.probe:
+        probeCalls++;
+        return LibrarySyncState(
+          status: LibrarySyncStatus.succeeded,
+          stage: LibrarySyncStage.completed,
+          metadataReady: true,
+          completedAt: DateTime.utc(2026, 8, 4),
+          probeIndexChanged: probeIndexChanged,
+          probeIndexesUnsupported: probeIndexesUnsupported,
+          updatesAvailable: probeIndexChanged || probeIndexesUnsupported,
+          apiRequests: 1,
+        );
+      case LibrarySyncPlanKind.catalogSnapshot:
+      case LibrarySyncPlanKind.fullRepair:
+        forceFullSyncCalls++;
+      case LibrarySyncPlanKind.deltaReconcile:
+        syncNowCalls++;
+      case LibrarySyncPlanKind.targetedHydration:
+        if (plan.request.target.kind == LibrarySyncTargetKind.album) {
+          hydrateAlbumCalls++;
+        }
+      case LibrarySyncPlanKind.compatibilityAudit:
+        break;
+    }
     return _idle();
   }
-
-  @override
-  Future<LibrarySyncState> syncIfStale({
-    Iterable<String> priorityAlbumIds = const <String>[],
-    LibrarySyncProgressCallback? onProgress,
-  }) async {
-    syncIfStaleCalls++;
-    return _idle();
-  }
-
-  @override
-  Future<LibrarySyncState> syncNow({
-    Iterable<String> priorityAlbumIds = const <String>[],
-    LibrarySyncProgressCallback? onProgress,
-  }) async {
-    syncNowCalls++;
-    return _idle();
-  }
-
-  @override
-  Future<LibrarySyncState> probeCatalog({
-    LibrarySyncProgressCallback? onProgress,
-  }) async {
-    probeCalls++;
-    return LibrarySyncState(
-      status: LibrarySyncStatus.succeeded,
-      stage: LibrarySyncStage.completed,
-      metadataReady: true,
-      completedAt: DateTime.utc(2026, 8, 4),
-      probeIndexChanged: probeIndexChanged,
-      probeIndexesUnsupported: probeIndexesUnsupported,
-      updatesAvailable: probeIndexChanged || probeIndexesUnsupported,
-      apiRequests: 1,
-    );
-  }
-
-  @override
-  Future<LibrarySyncState> hydrateAlbum(
-    String albumId, {
-    LibrarySyncProgressCallback? onProgress,
-  }) async {
-    hydrateAlbumCalls++;
-    return _idle();
-  }
-
-  @override
-  Future<LibrarySyncState> hydrateArtist(
-    String artistId, {
-    LibrarySyncProgressCallback? onProgress,
-  }) async => _idle();
-
-  @override
-  Future<LibrarySyncState> hydratePlaylist(
-    String playlistId, {
-    LibrarySyncProgressCallback? onProgress,
-  }) async => _idle();
-
-  @override
-  Future<LibrarySyncState> syncPlaylistHeaders({
-    LibrarySyncProgressCallback? onProgress,
-  }) async => _idle();
-
-  @override
-  Future<LibrarySyncState> syncStarredContent({
-    LibrarySyncProgressCallback? onProgress,
-  }) async => _idle();
 }
 
 class _BlockingCatalogEngine extends _ProbeLibrarySyncEngine {
@@ -144,7 +84,8 @@ class _BlockingCatalogEngine extends _ProbeLibrarySyncEngine {
   final release = Completer<void>();
 
   @override
-  Future<LibrarySyncState> forceFullSync({
+  Future<LibrarySyncState> executeSyncPlan(
+    SyncExecutionPlan plan, {
     Iterable<String> priorityAlbumIds = const <String>[],
     LibrarySyncProgressCallback? onProgress,
   }) async {
@@ -152,7 +93,8 @@ class _BlockingCatalogEngine extends _ProbeLibrarySyncEngine {
       entered.complete();
       await release.future;
     }
-    return await super.forceFullSync(
+    return await super.executeSyncPlan(
+      plan,
       priorityAlbumIds: priorityAlbumIds,
       onProgress: onProgress,
     );
@@ -161,7 +103,8 @@ class _BlockingCatalogEngine extends _ProbeLibrarySyncEngine {
 
 class _ThrowingTransportEngine extends _ProbeLibrarySyncEngine {
   @override
-  Future<LibrarySyncState> forceFullSync({
+  Future<LibrarySyncState> executeSyncPlan(
+    SyncExecutionPlan plan, {
     Iterable<String> priorityAlbumIds = const <String>[],
     LibrarySyncProgressCallback? onProgress,
   }) async {
@@ -178,114 +121,39 @@ class _ThrowingTransportEngine extends _ProbeLibrarySyncEngine {
   }
 }
 
-class _CompletedCatalogWithPendingAlbumEngine
-    implements LibrarySyncEngine, TargetedLibrarySyncExecutor {
-  final List<String> targetedCalls = <String>[];
-  int syncIfStaleCalls = 0;
+/// Completes catalog plans with one pending album and targeted plans cleanly.
+StubSyncPlanExecutor _completedCatalogWithPendingAlbumExecutor() =>
+    StubSyncPlanExecutor((plan, {onProgress}) async {
+      final targeted = plan.kind == LibrarySyncPlanKind.targetedHydration;
+      return LibrarySyncState(
+        status: LibrarySyncStatus.succeeded,
+        stage: LibrarySyncStage.completed,
+        metadataReady: true,
+        pendingHydrationCount: targeted ? 0 : 1,
+        completedAt: DateTime.utc(2026, 8, 4),
+      );
+    });
 
-  LibrarySyncState _result() => LibrarySyncState(
-    status: LibrarySyncStatus.succeeded,
-    stage: LibrarySyncStage.completed,
-    metadataReady: true,
-    pendingHydrationCount: 1,
-    completedAt: DateTime.utc(2026, 8, 4),
-  );
-
-  LibrarySyncState _targetResult() => LibrarySyncState(
-    status: LibrarySyncStatus.succeeded,
-    stage: LibrarySyncStage.completed,
-    metadataReady: true,
-    completedAt: DateTime.utc(2026, 8, 4),
-  );
-
-  @override
-  Future<LibrarySyncState> requestSync(
-    LibrarySyncRequest request, {
-    Iterable<String> priorityAlbumIds = const <String>[],
-    LibrarySyncProgressCallback? onProgress,
-  }) async => _result();
-
-  @override
-  Future<LibrarySyncState> continueVerification({
-    Iterable<String> priorityAlbumIds = const <String>[],
-    LibrarySyncProgressCallback? onProgress,
-  }) async => _result();
-
-  @override
-  Future<LibrarySyncState> forceFullSync({
-    Iterable<String> priorityAlbumIds = const <String>[],
-    LibrarySyncProgressCallback? onProgress,
-  }) async => _result();
-
-  @override
-  Future<LibrarySyncState> syncIfStale({
-    Iterable<String> priorityAlbumIds = const <String>[],
-    LibrarySyncProgressCallback? onProgress,
-  }) async {
-    syncIfStaleCalls++;
-    return _result();
-  }
-
-  @override
-  Future<LibrarySyncState> syncNow({
-    Iterable<String> priorityAlbumIds = const <String>[],
-    LibrarySyncProgressCallback? onProgress,
-  }) async => _result();
-
-  @override
-  Future<LibrarySyncState> hydrateAlbum(
-    String albumId, {
-    LibrarySyncProgressCallback? onProgress,
-  }) async {
-    targetedCalls.add('album:$albumId');
-    return _targetResult();
-  }
-
-  @override
-  Future<LibrarySyncState> hydrateArtist(
-    String artistId, {
-    LibrarySyncProgressCallback? onProgress,
-  }) async {
-    targetedCalls.add('artist:$artistId');
-    return _targetResult();
-  }
-
-  @override
-  Future<LibrarySyncState> hydratePlaylist(
-    String playlistId, {
-    LibrarySyncProgressCallback? onProgress,
-  }) async {
-    targetedCalls.add('playlist:$playlistId');
-    return _targetResult();
-  }
-
-  @override
-  Future<LibrarySyncState> syncPlaylistHeaders({
-    LibrarySyncProgressCallback? onProgress,
-  }) async => _targetResult();
-
-  @override
-  Future<LibrarySyncState> syncStarredContent({
-    LibrarySyncProgressCallback? onProgress,
-  }) async => _targetResult();
-
-  @override
-  Future<LibrarySyncState> probeCatalog({
-    LibrarySyncProgressCallback? onProgress,
-  }) async => _result();
-}
+/// The `kind:id` of each entity-targeted hydration plan the executor ran.
+List<String> _targetedCalls(StubSyncPlanExecutor executor) => [
+  for (final plan in executor.plans)
+    if (plan.kind == LibrarySyncPlanKind.targetedHydration &&
+        plan.request.target.kind != LibrarySyncTargetKind.starred &&
+        plan.request.target.kind != LibrarySyncTargetKind.playlistHeaders)
+      '${plan.request.target.kind.name}:${plan.request.target.entityId}',
+];
 
 void main() {
   late NavisDatabase database;
   late ServerConfigRepository repository;
   late AdaptiveLibrarySyncCoordinator coordinator;
-  late _CompletedCatalogWithPendingAlbumEngine executor;
+  late StubSyncPlanExecutor executor;
 
   setUp(() async {
     database = createTestDatabase();
     repository = ServerConfigRepository(
       database,
-      credentials: _MemoryCredentialStore(),
+      credentials: FakeSyncCredentialStore(),
     );
     await repository.save(
       const ServerConfigModel(
@@ -295,7 +163,7 @@ void main() {
         apiVersion: '1.16.1',
       ),
     );
-    executor = _CompletedCatalogWithPendingAlbumEngine();
+    executor = _completedCatalogWithPendingAlbumExecutor();
     coordinator = AdaptiveLibrarySyncCoordinator(
       executor: executor,
       database: database,
@@ -320,7 +188,12 @@ void main() {
       readHasActivePlayback: () => false,
       now: () => DateTime.utc(2026, 8, 4),
     );
-    final active = serial.requestSync(const LibrarySyncRequest.repair());
+    final active = serial.requestSync(
+      const LibrarySyncRequest(
+        origin: SyncRunOrigin.settingsRepair,
+        intent: SyncRunIntent.repairLibrary,
+      ),
+    );
     await blocking.entered.future;
     final queued = serial.requestSync(
       const LibrarySyncRequest.checkForUpdates(),
@@ -355,10 +228,331 @@ void main() {
   }, skip: !sqliteAvailable);
 
   test(
+    'automatic discovery widens its admitted window only while debt remains',
+    () async {
+      var timestamp = DateTime.utc(2026, 8, 4);
+      final recordingExecutor = StubSyncPlanExecutor((
+        plan, {
+        onProgress,
+      }) async {
+        expect(
+          SyncRequestScope.current!.maxNewestPages,
+          plan.budget.maxNewestPages,
+        );
+        return LibrarySyncState(
+          status: LibrarySyncStatus.succeeded,
+          stage: LibrarySyncStage.completed,
+          metadataReady: true,
+          completedAt: timestamp,
+        );
+      });
+      final sync = AdaptiveLibrarySyncCoordinator(
+        executor: recordingExecutor,
+        database: database,
+        serverConfigRepository: repository,
+        networkType: NetworkType.wifi,
+        staleAfter: const Duration(hours: 1),
+        readHasActivePlayback: () => false,
+        now: () => timestamp,
+      );
+      await database.librarySyncDao.writeState(
+        LibrarySyncStateTableCompanion(
+          serverId: const Value(1),
+          currentGeneration: const Value(1),
+          lastAuditAt: Value(timestamp),
+        ),
+      );
+
+      for (final (debt, expectedPages) in [
+        ('0', 2),
+        ('1', 5),
+        ('2', 5),
+        ('0', 2),
+      ]) {
+        await repository.updateCapabilitiesJson(
+          jsonEncode({
+            'navis': {
+              'libraryIndexesCursor': DateTime.utc(
+                2026,
+                8,
+                1,
+              ).toIso8601String(),
+              'libraryDiscoveryDebtStreak': debt,
+            },
+          }),
+        );
+        final result = await sync.requestSync(
+          const LibrarySyncRequest.automatic(),
+        );
+        expect(result.planKind, LibrarySyncPlanKind.deltaReconcile);
+        final catalogPlan = recordingExecutor.plans.lastWhere(
+          (plan) => plan.request.target.kind == LibrarySyncTargetKind.catalog,
+        );
+        expect(catalogPlan.budget.maxNewestPages, expectedPages);
+        expect(catalogPlan.budget.maxAlbumHydrations, 32);
+        expect(catalogPlan.budget.maxRequests, 96);
+        timestamp = timestamp.add(const Duration(hours: 2));
+      }
+    },
+    skip: !sqliteAvailable,
+  );
+
+  test(
+    'discovery debt does not expand restricted metered automatic work',
+    () async {
+      await repository.updateCapabilitiesJson(
+        jsonEncode({
+          'navis': {'libraryDiscoveryDebtStreak': '2'},
+        }),
+      );
+      await database.librarySyncDao.writeState(
+        const LibrarySyncStateTableCompanion(
+          serverId: Value(1),
+          currentGeneration: Value(1),
+        ),
+      );
+      final sync = AdaptiveLibrarySyncCoordinator(
+        executor: executor,
+        database: database,
+        serverConfigRepository: repository,
+        networkType: NetworkType.cellular,
+        staleAfter: const Duration(hours: 1),
+        readHasActivePlayback: () => false,
+        now: () => DateTime.utc(2026, 8, 4),
+      );
+      final result = await sync.requestSync(
+        const LibrarySyncRequest.automatic(),
+      );
+      expect(result.planKind, LibrarySyncPlanKind.probe);
+      expect(executor.plans, hasLength(1));
+      expect(executor.plans.single.kind, LibrarySyncPlanKind.probe);
+      expect(executor.plans.single.budget.maxNewestPages, 0);
+      expect(executor.plans.single.budget.maxRequests, 1);
+    },
+    skip: !sqliteAvailable,
+  );
+
+  test('missing session fails without executing a plan', () async {
+    await repository.signOutKeepData();
+    final progress = <LibrarySyncState>[];
+    final result = await coordinator.requestSync(
+      const LibrarySyncRequest.checkForUpdates(),
+      onProgress: progress.add,
+    );
+    expect(result.status, LibrarySyncStatus.failed);
+    expect(result.errorMessage, 'No authenticated server session.');
+    expect(progress, [result]);
+    expect(executor.plans, isEmpty);
+    expect(
+      await database.select(database.librarySyncRunRequestTable).get(),
+      isEmpty,
+    );
+  }, skip: !sqliteAvailable);
+
+  test('cancellation reaches the plan executor', () async {
+    final delegate = _ProbeLibrarySyncEngine();
+    final sync = AdaptiveLibrarySyncCoordinator(
+      executor: delegate,
+      database: database,
+      serverConfigRepository: repository,
+      networkType: NetworkType.wifi,
+      staleAfter: const Duration(hours: 1),
+      readHasActivePlayback: () => false,
+    );
+    await sync.cancelAndWait();
+    expect(delegate.cancelCalls, 1);
+  }, skip: !sqliteAvailable);
+
+  test(
+    'replanning to another target retires the original queued request',
+    () async {
+      final blocking = _BlockingCatalogEngine();
+      final serial = AdaptiveLibrarySyncCoordinator(
+        executor: blocking,
+        database: database,
+        serverConfigRepository: repository,
+        networkType: NetworkType.wifi,
+        staleAfter: const Duration(hours: 1),
+        readHasActivePlayback: () => false,
+        now: () => DateTime.utc(2026, 8, 4),
+      );
+      final active = serial.requestSync(
+        const LibrarySyncRequest(
+          origin: SyncRunOrigin.settingsRepair,
+          intent: SyncRunIntent.repairLibrary,
+        ),
+      );
+      await blocking.entered.future;
+      final waiting = serial.requestSync(const LibrarySyncRequest.automatic());
+      LibrarySyncRunRequestTableData? original;
+      for (var i = 0; i < 100; i++) {
+        final rows = await database
+            .select(database.librarySyncRunRequestTable)
+            .get();
+        final queued = rows.where((row) => row.status == 0);
+        if (queued.isNotEmpty) {
+          original = queued.first;
+          break;
+        }
+        await Future<void>.delayed(Duration.zero);
+      }
+      expect(original, isNotNull);
+      await database.librarySyncDao.enqueueWork(
+        serverId: 1,
+        kind: LibrarySyncPlanKind.targetedHydration.name,
+        entityId: 'album:a',
+        priority: 100,
+        workClass: 'interactive',
+        checkpointJson: '{"targetKind":"album"}',
+      );
+      blocking.release.complete();
+      await active;
+      final result = await waiting;
+      expect(result.runRequestId, isNot(original!.id));
+      final rows = await database
+          .select(database.librarySyncRunRequestTable)
+          .get();
+      expect(rows.where((row) => row.status != 2), isEmpty);
+      final history = await database.librarySyncDao.getRecentSyncRunHistory(1);
+      final retired = history.where((entry) => entry.requestId == original!.id);
+      expect(retired, hasLength(1));
+      expect(retired.single.outcome, SyncRunOutcomeKind.skipped);
+    },
+    skip: !sqliteAvailable,
+  );
+
+  for (final (capabilities, mirrored, expected) in [
+    (
+      jsonEncode({
+        'navis': {'libraryIndexesUnsupportedAt': '2026-08-01'},
+      }),
+      'reliable',
+      LibrarySyncPlanKind.compatibilityAudit,
+    ),
+    (
+      jsonEncode({
+        'navis': {'libraryIndexesCursor': '2026-08-01T00:00:00Z'},
+      }),
+      'unsupported',
+      LibrarySyncPlanKind.probe,
+    ),
+    ('malformed', 'unsupported', LibrarySyncPlanKind.probe),
+    (
+      jsonEncode({
+        'navis': {'libraryIndexesCursor': 'invalid'},
+      }),
+      'unsupported',
+      LibrarySyncPlanKind.probe,
+    ),
+  ]) {
+    test(
+      'planning reads capabilities instead of mirrored $mirrored: $capabilities',
+      () async {
+        await repository.updateCapabilitiesJson(capabilities);
+        await database.librarySyncDao.writeState(
+          LibrarySyncStateTableCompanion(
+            serverId: const Value(1),
+            currentGeneration: const Value(1),
+            providerFingerprint: const Value(
+              'https://music.example.test|1.16.1',
+            ),
+            conditionalIndexesMode: Value(mirrored),
+            lastCheckedAt: Value(DateTime.utc(2026, 8, 4)),
+            lastAuditAt: Value(DateTime.utc(2026, 8, 2)),
+          ),
+        );
+        final result = await coordinator.requestSync(
+          const LibrarySyncRequest.automatic(),
+        );
+        expect(result.planKind, expected);
+        expect(
+          (await database.librarySyncDao.getOrCreateState(1))
+              .conditionalIndexesMode,
+          mirrored,
+        );
+      },
+      skip: !sqliteAvailable,
+    );
+  }
+
+  test(
+    'backend changes clear sync capabilities and preserve provider metadata',
+    () async {
+      await repository.updateCapabilitiesJson(
+        jsonEncode({
+          'provider': {'supportsScanStatus': true},
+          'navis': {
+            'libraryIndexesUnsupportedAt': '2026-08-01',
+            'libraryIndexesCursor': '2026-08-01T00:00:00Z',
+            'bulkSongSearchWildcardQuery': '',
+            'libraryPendingIndexesArtistIds': '["stale"]',
+          },
+        }),
+      );
+      await database.librarySyncDao.writeState(
+        LibrarySyncStateTableCompanion(
+          serverId: const Value(1),
+          providerFingerprint: const Value('previous-backend'),
+          currentGeneration: const Value(1),
+          candidateGeneration: const Value(2),
+          candidateStatus: const Value('collecting'),
+          lastCheckedAt: Value(DateTime.utc(2026, 8, 4)),
+          lastAuditAt: Value(DateTime.utc(2026, 8, 2)),
+        ),
+      );
+      await database.librarySyncDao.enqueueWork(
+        serverId: 1,
+        kind: LibrarySyncPlanKind.catalogSnapshot.name,
+        priority: 1,
+      );
+      const otherCapabilities =
+          '{"navis":{"libraryIndexesCursor":"other-server"}}';
+      final otherServer = await database
+          .into(database.serverConfigTable)
+          .insert(
+            ServerConfigTableCompanion.insert(
+              url: 'https://other.example.test',
+              username: 'listener',
+              apiVersion: '1.16.1',
+              isAuthenticated: const Value(false),
+              capabilities: const Value(otherCapabilities),
+            ),
+          );
+      final result = await coordinator.requestSync(
+        const LibrarySyncRequest.automatic(),
+      );
+      expect(result.planKind, LibrarySyncPlanKind.probe);
+      final root = jsonDecode(
+        (await repository.getActiveServer())!.capabilitiesJson!,
+      ) as Map;
+      expect(root.containsKey('navis'), isFalse);
+      expect(root['provider'], {'supportsScanStatus': true});
+      final other = await (database.select(
+        database.serverConfigTable,
+      )..where((row) => row.id.equals(otherServer))).getSingle();
+      expect(other.capabilities, otherCapabilities);
+      final state = await database.librarySyncDao.getOrCreateState(1);
+      expect(state.candidateGeneration, isNull);
+      expect(state.candidateStatus, isNull);
+      expect(
+        await database.librarySyncDao.getWork(
+          serverId: 1,
+          kind: LibrarySyncPlanKind.catalogSnapshot.name,
+        ),
+        isNull,
+      );
+    },
+    skip: !sqliteAvailable,
+  );
+
+  test(
     'a promoted catalog task completes before remaining album hydration',
     () async {
       final result = await coordinator.requestSync(
-        const LibrarySyncRequest.repair(),
+        const LibrarySyncRequest(
+          origin: SyncRunOrigin.settingsRepair,
+          intent: SyncRunIntent.repairLibrary,
+        ),
       );
       final work = await database.librarySyncDao.getWork(
         serverId: 1,
@@ -398,7 +592,12 @@ void main() {
         readHasActivePlayback: () => false,
       );
       await expectLater(
-        failing.requestSync(const LibrarySyncRequest.repair()),
+        failing.requestSync(
+          const LibrarySyncRequest(
+            origin: SyncRunOrigin.settingsRepair,
+            intent: SyncRunIntent.repairLibrary,
+          ),
+        ),
         throwsStateError,
       );
       final history = (await database.librarySyncDao.getRecentSyncRunHistory(1))
@@ -434,7 +633,6 @@ void main() {
 
       expect(result.status, LibrarySyncStatus.deferred);
       expect(result.planReason, 'endpointCircuitOpen');
-      expect(executor.syncIfStaleCalls, 0);
       final history = await database.librarySyncDao.getRecentSyncRunHistory(1);
       final deferred = history.where(
         (run) => run.reason == SyncSafeReason.cooldown,
@@ -505,27 +703,64 @@ void main() {
     );
   }, skip: !sqliteAvailable);
 
+  test(
+    'repair and cache reset keep their admitted and recorded origins',
+    () async {
+      for (final (request, origin) in [
+        (
+          const LibrarySyncRequest(
+            origin: SyncRunOrigin.settingsRepair,
+            intent: SyncRunIntent.repairLibrary,
+          ),
+          SyncRunOrigin.settingsRepair,
+        ),
+        (const LibrarySyncRequest.cacheReset(), SyncRunOrigin.cacheReset),
+      ]) {
+        await coordinator.requestSync(request);
+        final catalogPlan = executor.plans.lastWhere(
+          (plan) => plan.request.target.kind == LibrarySyncTargetKind.catalog,
+        );
+        expect(catalogPlan.kind, LibrarySyncPlanKind.fullRepair);
+        expect(catalogPlan.request.origin, origin);
+        expect(catalogPlan.request.intent, SyncRunIntent.repairLibrary);
+        final history = await database.librarySyncDao.getRecentSyncRunHistory(
+          1,
+        );
+        expect(
+          history
+              .where(
+                (entry) => entry.targetKind == LibrarySyncTargetKind.catalog,
+              )
+              .first
+              .origin,
+          origin,
+        );
+      }
+    },
+    skip: !sqliteAvailable,
+  );
+
   test('same-ID targeted work remains distinct by entity type', () async {
     const sharedId = 'shared-id';
     await coordinator.requestSync(
       const LibrarySyncRequest(
-        trigger: LibrarySyncTrigger.interaction,
-        intent: LibrarySyncIntent.checkForUpdates,
+        intent: SyncRunIntent.manualCatalogCheck,
         target: LibrarySyncTarget.artist(sharedId),
+        origin: SyncRunOrigin.interaction,
       ),
     );
     await coordinator.requestSync(
       const LibrarySyncRequest(
-        trigger: LibrarySyncTrigger.interaction,
-        intent: LibrarySyncIntent.checkForUpdates,
+        intent: SyncRunIntent.manualCatalogCheck,
         target: LibrarySyncTarget.album(sharedId),
+        origin: SyncRunOrigin.interaction,
       ),
     );
     await coordinator.requestSync(
       const LibrarySyncRequest(
-        trigger: LibrarySyncTrigger.interaction,
-        intent: LibrarySyncIntent.checkForUpdates,
+        intent: SyncRunIntent.manualCatalogCheck,
         target: LibrarySyncTarget.playlist(sharedId),
+        origin: SyncRunOrigin.interaction,
       ),
     );
 
@@ -548,7 +783,7 @@ void main() {
     expect(albumWork, isNotNull);
     expect(artistWork?.id, isNot(albumWork?.id));
     expect(
-      executor.targetedCalls,
+      _targetedCalls(executor),
       containsAll(<String>[
         'artist:$sharedId',
         'album:$sharedId',
@@ -556,7 +791,7 @@ void main() {
       ]),
     );
     expect(
-      executor.targetedCalls,
+      _targetedCalls(executor),
       isNot(contains('playlist:playlist:$sharedId')),
     );
   }, skip: !sqliteAvailable);
@@ -574,9 +809,9 @@ void main() {
 
       final result = await coordinator.requestSync(
         const LibrarySyncRequest(
-          trigger: LibrarySyncTrigger.interaction,
-          intent: LibrarySyncIntent.checkForUpdates,
+          intent: SyncRunIntent.manualCatalogCheck,
           target: LibrarySyncTarget.album('album-with-cooldown'),
+          origin: SyncRunOrigin.interaction,
         ),
       );
 
@@ -588,7 +823,7 @@ void main() {
   );
 
   test(
-    'metered automatic catalog runs a hard probe instead of syncIfStale',
+    'metered automatic catalog runs a hard probe without executing broad plans',
     () async {
       await repository.save(
         ServerConfigModel(
@@ -632,7 +867,9 @@ void main() {
 
       expect(result.planKind, LibrarySyncPlanKind.probe);
       expect(probeEngine.probeCalls, 1);
-      expect(probeEngine.syncIfStaleCalls, 0);
+      expect(probeEngine.plans.map((plan) => plan.kind), [
+        LibrarySyncPlanKind.probe,
+      ]);
       expect(probeEngine.syncNowCalls, 0);
       expect(result.updatesAvailable, isTrue);
       final followUp = await database.librarySyncDao.getWork(
@@ -674,7 +911,9 @@ void main() {
         now: () => DateTime.utc(2026, 8, 4),
       );
 
-      final result = await manualCoordinator.syncNow();
+      final result = await manualCoordinator.requestSync(
+        const LibrarySyncRequest.checkForUpdates(),
+      );
 
       expect(probeEngine.probeCalls, 0);
       expect(probeEngine.syncNowCalls, 1);
@@ -716,7 +955,9 @@ void main() {
       workClass: 'interactive',
     );
 
-    final result = await manualCoordinator.syncNow();
+    final result = await manualCoordinator.requestSync(
+      const LibrarySyncRequest.checkForUpdates(),
+    );
 
     expect(result.planKind, LibrarySyncPlanKind.deltaReconcile);
     expect(probeEngine.syncNowCalls, 1);
@@ -808,7 +1049,9 @@ void main() {
         now: () => DateTime.utc(2026, 8, 4),
       );
 
-      final result = await offlineCoordinator.syncNow();
+      final result = await offlineCoordinator.requestSync(
+        const LibrarySyncRequest.checkForUpdates(),
+      );
 
       expect(result.status, LibrarySyncStatus.deferred);
       expect(result.planKind, LibrarySyncPlanKind.deltaReconcile);
@@ -823,6 +1066,13 @@ void main() {
         'queued',
       );
 
+      final queuedWork = await database.librarySyncDao.getWork(
+        serverId: 1,
+        kind: 'deltaReconcile',
+      );
+      expect(queuedWork?.checkpointJson, '{"intent":"checkForUpdates"}');
+      expect(queuedWork?.priority, 60);
+
       final onlineCoordinator = AdaptiveLibrarySyncCoordinator(
         executor: probeEngine,
         database: database,
@@ -833,7 +1083,9 @@ void main() {
         readIsForeground: () => true,
         now: () => DateTime.utc(2026, 8, 4),
       );
-      final resumed = await onlineCoordinator.syncIfStale();
+      final resumed = await onlineCoordinator.requestSync(
+        const LibrarySyncRequest.automatic(),
+      );
 
       expect(resumed.status, LibrarySyncStatus.succeeded);
       expect(resumed.planKind, LibrarySyncPlanKind.deltaReconcile);
@@ -841,6 +1093,58 @@ void main() {
     },
     skip: !sqliteAvailable,
   );
+
+  for (final (name, network, foreground, playing, worker, resumes) in [
+    ('foreground playback', NetworkType.wifi, true, true, false, true),
+    ('offline', NetworkType.offline, true, false, false, false),
+    ('metered', NetworkType.cellular, true, false, false, false),
+    ('hidden', NetworkType.wifi, false, false, false, true),
+    ('hidden playback', NetworkType.wifi, false, true, false, true),
+    ('idle worker', NetworkType.wifi, false, false, true, true),
+    ('playing worker', NetworkType.wifi, false, true, true, false),
+  ]) {
+    test(
+      'queued explicit discovery resumes only when eligible: $name',
+      () async {
+        await database.librarySyncDao.writeState(
+          const LibrarySyncStateTableCompanion(
+            serverId: Value(1),
+            currentGeneration: Value(1),
+          ),
+        );
+        await database.librarySyncDao.enqueueWork(
+          serverId: 1,
+          kind: LibrarySyncPlanKind.deltaReconcile.name,
+          priority: 60,
+          checkpointJson: jsonEncode({'intent': 'checkForUpdates'}),
+        );
+        final probeEngine = _ProbeLibrarySyncEngine();
+        final guarded = AdaptiveLibrarySyncCoordinator(
+          executor: probeEngine,
+          database: database,
+          serverConfigRepository: repository,
+          networkType: network,
+          staleAfter: const Duration(hours: 1),
+          readIsForeground: () => foreground,
+          readHasActivePlayback: () => playing,
+          isBackgroundExecution: worker,
+          now: () => DateTime.utc(2026, 8, 4),
+        );
+
+        await guarded.requestSync(const LibrarySyncRequest.automatic());
+
+        expect(probeEngine.syncNowCalls, resumes ? 1 : 0);
+        expect(
+          (await database.librarySyncDao.getWork(
+            serverId: 1,
+            kind: LibrarySyncPlanKind.deltaReconcile.name,
+          ))?.status,
+          resumes ? 'completed' : 'queued',
+        );
+      },
+      skip: !sqliteAvailable,
+    );
+  }
 
   test('manual cellular refresh runs bounded discovery before a broad-data override', () async {
     await database.librarySyncDao.writeState(
@@ -867,15 +1171,19 @@ void main() {
       now: () => DateTime.utc(2026, 8, 4),
     );
 
-    final discoveryResult = await meteredCoordinator.syncNow();
+    final discoveryResult = await meteredCoordinator.requestSync(
+      const LibrarySyncRequest.checkForUpdates(),
+    );
 
     expect(discoveryResult.planKind, LibrarySyncPlanKind.deltaReconcile);
     expect(discoveryResult.planReason, 'manualMeteredLimitedDiscovery');
     expect(probeEngine.probeCalls, 0);
     expect(probeEngine.syncNowCalls, 1);
 
-    final broadResult = await meteredCoordinator.syncNow(
-      allowMeteredBroadOverride: true,
+    final broadResult = await meteredCoordinator.requestSync(
+      const LibrarySyncRequest.checkForUpdates(
+        grant: SyncNetworkGrant.broadMeteredOnce,
+      ),
     );
 
     expect(broadResult.planKind, LibrarySyncPlanKind.deltaReconcile);
@@ -914,7 +1222,9 @@ void main() {
         now: () => DateTime.utc(2026, 8, 4),
       );
 
-      final result = await coordinator.syncNow();
+      final result = await coordinator.requestSync(
+        const LibrarySyncRequest.checkForUpdates(),
+      );
 
       expect(result.planKind, LibrarySyncPlanKind.deltaReconcile);
       expect(result.planReason, 'manualMeteredLimitedDiscovery');
@@ -950,7 +1260,9 @@ void main() {
         priority: 50,
       );
 
-      final result = await activePlaybackCoordinator.syncNow();
+      final result = await activePlaybackCoordinator.requestSync(
+        const LibrarySyncRequest.checkForUpdates(),
+      );
 
       expect(result.status, LibrarySyncStatus.succeeded);
       expect(result.planReason, 'resumeDeltaReconcile');
@@ -985,7 +1297,9 @@ void main() {
         priority: 80,
       );
 
-      final result = await automaticCoordinator.syncIfStale();
+      final result = await automaticCoordinator.requestSync(
+        const LibrarySyncRequest.automatic(),
+      );
 
       expect(result.status, isNot(LibrarySyncStatus.failed));
       expect(probeEngine.forceFullSyncCalls, 0);
@@ -999,6 +1313,78 @@ void main() {
     },
     skip: !sqliteAvailable,
   );
+
+  test('manual discovery leaves a queued full repair dormant', () async {
+    await database.librarySyncDao.writeState(
+      const LibrarySyncStateTableCompanion(
+        serverId: Value(1),
+        currentGeneration: Value(1),
+      ),
+    );
+    await database.librarySyncDao.enqueueWork(
+      serverId: 1,
+      kind: LibrarySyncPlanKind.fullRepair.name,
+      priority: 80,
+    );
+    final probeEngine = _ProbeLibrarySyncEngine();
+    final guarded = AdaptiveLibrarySyncCoordinator(
+      executor: probeEngine,
+      database: database,
+      serverConfigRepository: repository,
+      networkType: NetworkType.wifi,
+      staleAfter: const Duration(hours: 1),
+      readHasActivePlayback: () => false,
+      now: () => DateTime.utc(2026, 8, 4),
+    );
+    final result = await guarded.requestSync(
+      const LibrarySyncRequest.checkForUpdates(),
+    );
+    expect(result.planKind, LibrarySyncPlanKind.deltaReconcile);
+    expect(probeEngine.forceFullSyncCalls, 0);
+    expect(
+      (await database.librarySyncDao.getWork(
+        serverId: 1,
+        kind: LibrarySyncPlanKind.fullRepair.name,
+      ))?.status,
+      'queued',
+    );
+  }, skip: !sqliteAvailable);
+
+  for (final (name, foreground, playing, worker, allowed) in [
+    ('foreground playback', true, true, false, true),
+    ('hidden', false, false, false, false),
+    ('hidden playback', false, true, false, false),
+    ('idle worker', false, false, true, true),
+    ('playing worker', false, true, true, false),
+  ]) {
+    test('interactive hydration retains visibility limits: $name', () async {
+      final probeEngine = _ProbeLibrarySyncEngine();
+      final guarded = AdaptiveLibrarySyncCoordinator(
+        executor: probeEngine,
+        database: database,
+        serverConfigRepository: repository,
+        networkType: NetworkType.wifi,
+        staleAfter: const Duration(hours: 1),
+        readIsForeground: () => foreground,
+        readHasActivePlayback: () => playing,
+        isBackgroundExecution: worker,
+        now: () => DateTime.utc(2026, 8, 4),
+      );
+      final result = await guarded.requestSync(
+        const LibrarySyncRequest(
+          intent: SyncRunIntent.automaticCatalogCheck,
+          target: LibrarySyncTarget.album('album-1'),
+          origin: SyncRunOrigin.interaction,
+        ),
+      );
+
+      expect(
+        result.status,
+        allowed ? LibrarySyncStatus.succeeded : LibrarySyncStatus.deferred,
+      );
+      expect(probeEngine.hydrateAlbumCalls, allowed ? 1 : 0);
+    }, skip: !sqliteAvailable);
+  }
 
   test('interactive album hydration is allowed on metered networks', () async {
     final probeEngine = _ProbeLibrarySyncEngine();
@@ -1020,9 +1406,9 @@ void main() {
 
     await meteredCoordinator.requestSync(
       const LibrarySyncRequest(
-        trigger: LibrarySyncTrigger.interaction,
-        intent: LibrarySyncIntent.checkForUpdates,
+        intent: SyncRunIntent.manualCatalogCheck,
         target: LibrarySyncTarget.album('album-1'),
+        origin: SyncRunOrigin.interaction,
       ),
     );
 
@@ -1063,7 +1449,12 @@ void main() {
       ),
     );
 
-    await failingCoordinator.requestSync(const LibrarySyncRequest.repair());
+    await failingCoordinator.requestSync(
+      const LibrarySyncRequest(
+        origin: SyncRunOrigin.settingsRepair,
+        intent: SyncRunIntent.repairLibrary,
+      ),
+    );
 
     final persisted = await database.librarySyncDao.getOrCreateState(1);
     expect(persisted.endpointFailureJson, contains('collectingCandidate'));
@@ -1084,7 +1475,10 @@ void main() {
       );
 
       final result = await meteredCoordinator.requestSync(
-        const LibrarySyncRequest.repair(),
+        const LibrarySyncRequest(
+          origin: SyncRunOrigin.settingsRepair,
+          intent: SyncRunIntent.repairLibrary,
+        ),
       );
 
       expect(result.status, LibrarySyncStatus.deferred);
@@ -1116,13 +1510,19 @@ void main() {
 
       // A retry-style re-entry without the request-level flag keeps the grant.
       final first = await meteredCoordinator.requestSync(
-        const LibrarySyncRequest.repair(),
+        const LibrarySyncRequest(
+          origin: SyncRunOrigin.settingsRepair,
+          intent: SyncRunIntent.repairLibrary,
+        ),
       );
       expect(first.planReason, isNot('waitingForMobileConsent'));
 
       meteredCoordinator.endRepairSession();
       final afterClear = await meteredCoordinator.requestSync(
-        const LibrarySyncRequest.repair(),
+        const LibrarySyncRequest(
+          origin: SyncRunOrigin.settingsRepair,
+          intent: SyncRunIntent.repairLibrary,
+        ),
       );
       expect(afterClear.planReason, 'waitingForMobileConsent');
     },

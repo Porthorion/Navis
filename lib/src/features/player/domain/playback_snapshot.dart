@@ -89,26 +89,6 @@ class RadioStationMetadata {
   final String? nowPlayingTitle;
   final String? nowPlayingArtist;
   final String? nowPlayingArtUrl;
-
-  RadioStationMetadata copyWith({
-    String? stationId,
-    String? stationName,
-    String? streamUrl,
-    String? homePageUrl,
-    String? nowPlayingTitle,
-    String? nowPlayingArtist,
-    String? nowPlayingArtUrl,
-  }) {
-    return RadioStationMetadata(
-      stationId: stationId ?? this.stationId,
-      stationName: stationName ?? this.stationName,
-      streamUrl: streamUrl ?? this.streamUrl,
-      homePageUrl: homePageUrl ?? this.homePageUrl,
-      nowPlayingTitle: nowPlayingTitle ?? this.nowPlayingTitle,
-      nowPlayingArtist: nowPlayingArtist ?? this.nowPlayingArtist,
-      nowPlayingArtUrl: nowPlayingArtUrl ?? this.nowPlayingArtUrl,
-    );
-  }
 }
 
 @immutable
@@ -242,29 +222,6 @@ class PlaybackSnapshot {
           : pendingSeekPosition as Duration?,
       loadingSongId: loadingSongId ?? this.loadingSongId,
       lastFailedSongId: lastFailedSongId ?? this.lastFailedSongId,
-    );
-  }
-
-  /// Returns a copy with radioStation explicitly set to null.
-  PlaybackSnapshot clearRadioStation() {
-    return PlaybackSnapshot(
-      queueSongIds: queueSongIds,
-      currentSongId: currentSongId,
-      currentIndex: currentIndex,
-      playing: playing,
-      processingState: processingState,
-      position: position,
-      duration: duration,
-      bufferedPosition: bufferedPosition,
-      shuffleMode: shuffleMode,
-      repeatMode: repeatMode,
-      isCurrentSongLiked: isCurrentSongLiked,
-      isLoading: isLoading,
-      hasPendingLogicalQueue: hasPendingLogicalQueue,
-      pendingQueueIndex: pendingQueueIndex,
-      pendingSeekPosition: pendingSeekPosition,
-      loadingSongId: loadingSongId,
-      lastFailedSongId: lastFailedSongId,
     );
   }
 }

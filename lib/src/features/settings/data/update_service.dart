@@ -80,14 +80,6 @@ class UpdateService {
     return filePath;
   }
 
-  /// Backward-compatible alias used by Android callers.
-  Future<String> downloadApk(
-    UpdateInfo info, {
-    void Function(double progress)? onProgress,
-    CancelToken? cancelToken,
-  }) =>
-      downloadArtifact(info, onProgress: onProgress, cancelToken: cancelToken);
-
   // ---------------------------------------------------------------------------
   // Android install
   // ---------------------------------------------------------------------------
@@ -100,20 +92,6 @@ class UpdateService {
     }
     AppLogger.info('Requesting APK install for $filePath');
     await _channel.invokeMethod<bool>('installApk', {'filePath': filePath});
-  }
-
-  /// Convenience: download then install (Android only).
-  Future<void> downloadAndInstall(
-    UpdateInfo info, {
-    void Function(double progress)? onProgress,
-    CancelToken? cancelToken,
-  }) async {
-    final path = await downloadArtifact(
-      info,
-      onProgress: onProgress,
-      cancelToken: cancelToken,
-    );
-    await installApk(path);
   }
 
   /// Opens the Google Play listing for Navis, falling back to [fallbackUrl]

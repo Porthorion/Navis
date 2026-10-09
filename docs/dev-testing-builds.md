@@ -42,7 +42,6 @@ the existing local Navis profile:
 ./tool/dev_app.sh run -d linux --first-setup
 ./tool/dev_app.sh run -d linux --bad-cache
 ./tool/dev_app.sh run -d linux --force-setup
-./tool/dev_app.sh run -d linux --repair-library
 ./tool/dev_app.sh run -d linux --manual-cache-reset
 ./tool/dev_app.sh run -d linux --playback-recovery
 ./tool/dev_app.sh run -d linux --partial-album
@@ -55,7 +54,7 @@ keeps the saved account, and reopens the full-screen first build followed by
 onboarding. `--bad-cache` removes the cache-layout version marker so the
 production mandatory cache-upgrade route performs its reset and rebuild.
 `--force-setup` reopens the first-time customization page on an already usable
-catalog. The three repair commands enter their corresponding full-screen
+catalog. The two cache-reset commands and playback recovery enter their corresponding full-screen
 rebuild routes. `--partial-album` and `--server-error` use a local Subsonic
 fixture for reproducible incomplete album detail and initial catalog failure;
 both begin at first setup. `--fresh-login` starts with an empty local profile

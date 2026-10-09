@@ -1,5 +1,7 @@
 import 'dart:math' as math;
 
+import 'package:flutter/foundation.dart';
+
 import 'package:navis/src/utils/metadata_normalization.dart';
 
 class LrclibMatchCandidate {
@@ -26,6 +28,7 @@ class LrclibMatchScore {
   /// result over a different version of the same song.
   final bool sameEdition;
 
+  @visibleForTesting
   bool passes([double threshold = 0.7]) => value >= threshold;
 }
 

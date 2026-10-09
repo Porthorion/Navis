@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:drift/drift.dart' show Value;
 import 'package:flutter/widgets.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:navis/src/database/navis_database.dart';
@@ -11,6 +12,7 @@ import 'package:navis/src/features/auth/presentation/server_config_provider.dart
 import 'package:navis/src/features/auth/presentation/session_route_provider.dart';
 import 'package:navis/src/features/auth/presentation/server_reachability_provider.dart';
 import 'package:navis/src/features/library/data/library_sync_engine.dart';
+import 'package:navis/src/features/library/data/android_background_sync.dart';
 import 'package:navis/src/features/library/domain/library_sync_request.dart';
 import 'package:navis/src/features/library/domain/library_sync_state.dart';
 import 'package:navis/src/features/library/presentation/library_sync_provider.dart';
@@ -19,8 +21,10 @@ import 'package:navis/src/utils/connectivity.dart';
 import 'package:flutter_riverpod/misc.dart' show Override;
 
 import '../../../../helpers/test_database.dart';
+import '../../../../helpers/reachability_fakes.dart';
+import '../../../../helpers/stub_library_sync_engine.dart';
 
-// Test overrides for @visibleForTesting providers.
+// Deterministic manual-only and short automatic schedules.
 final _manualSyncInterval = syncIntervalMinutesProvider.overrideWithValue(0);
 final _shortSyncInterval = syncIntervalDurationProvider.overrideWithValue(
   const Duration(milliseconds: 10),
@@ -56,13 +60,49 @@ Future<ServerConfigModel> _saveAuthenticatedServer(
   );
 }
 
-class _StaticReachabilityController extends ServerReachabilityController {
-  new(this._state);
+const _exampleServer = ServerConfigModel(
+  url: 'https://example.com',
+  username: 'alice',
+  password: 'secret',
+  apiVersion: '1.16.1',
+);
 
-  final ServerReachabilityState _state;
+/// A completed, successful sync with no other detail.
+const _succeeded = LibrarySyncState(
+  status: LibrarySyncStatus.succeeded,
+  stage: LibrarySyncStage.completed,
+);
 
-  @override
-  ServerReachabilityState build() => _state;
+final _hourlyInterval = <Override>[
+  syncIntervalMinutesProvider.overrideWithValue(60),
+  syncIntervalDurationProvider.overrideWithValue(const Duration(hours: 1)),
+];
+
+/// A container wired to [engine] with a static reachability state. Without
+/// [database] none is overridden, without [server] nobody is signed in, and
+/// [interval] defaults to manual-only syncing.
+ProviderContainer _container(
+  LibrarySyncEngine engine, {
+  NavisDatabase? database,
+  ServerConfigModel? server,
+  ServerReachabilityStatus reachability = ServerReachabilityStatus.online,
+  List<Override> interval = const <Override>[],
+  List<Override> extra = const <Override>[],
+}) {
+  return ProviderContainer(
+    overrides: [
+      if (interval.isEmpty) _manualSyncInterval else ...interval,
+      if (database != null) navisDatabaseProvider.overrideWithValue(database),
+      serverConfigStateProvider.overrideWithValue(AsyncData(server)),
+      serverReachabilityControllerProvider.overrideWith(
+        () => StaticReachabilityController(
+          ServerReachabilityState(status: reachability),
+        ),
+      ),
+      librarySyncEngineProvider.overrideWithValue(engine),
+      ...extra,
+    ],
+  );
 }
 
 class _MutableReachabilityController extends ServerReachabilityController {
@@ -105,97 +145,129 @@ final _serverConfigSource =
       _ServerConfigSource.new,
     );
 
-class _FakeLibrarySyncEngine extends LibrarySyncEngine {
-  new(this._handlerIfStale, this._handlerNow, {this.requestHandler});
+Matcher _catalogRequest(SyncRunOrigin origin, SyncRunIntent intent) =>
+    isA<LibrarySyncRequest>()
+        .having((request) => request.origin, 'origin', origin)
+        .having((request) => request.intent, 'intent', intent)
+        .having(
+          (request) => request.target.kind,
+          'target',
+          LibrarySyncTargetKind.catalog,
+        );
 
-  final Future<LibrarySyncState> Function({
-    LibrarySyncProgressCallback? onProgress,
-  })
-  _handlerIfStale;
-  final Future<LibrarySyncState> Function({
-    bool forceFull,
-    LibrarySyncProgressCallback? onProgress,
-  })
-  _handlerNow;
-  final Future<LibrarySyncState> Function(
-    LibrarySyncRequest request, {
-    LibrarySyncProgressCallback? onProgress,
-  })?
-  requestHandler;
-
-  int staleCalls = 0;
-  int nowCalls = 0;
-  int continuationCalls = 0;
-  final List<bool> forceFullCalls = <bool>[];
-
-  @override
-  Future<LibrarySyncState> requestSync(
-    LibrarySyncRequest request, {
-    Iterable<String> priorityAlbumIds = const <String>[],
-    LibrarySyncProgressCallback? onProgress,
-  }) {
-    final handler = requestHandler;
-    if (handler != null) {
-      return handler(request, onProgress: onProgress);
-    }
-    return super.requestSync(
-      request,
-      priorityAlbumIds: priorityAlbumIds,
-      onProgress: onProgress,
-    );
-  }
-
-  @override
-  Future<LibrarySyncState> syncIfStale({
-    Iterable<String> priorityAlbumIds = const <String>[],
-    LibrarySyncProgressCallback? onProgress,
-  }) {
-    staleCalls++;
-    return _handlerIfStale(onProgress: onProgress);
-  }
-
-  @override
-  Future<LibrarySyncState> syncNow({
-    Iterable<String> priorityAlbumIds = const <String>[],
-    LibrarySyncProgressCallback? onProgress,
-  }) {
-    nowCalls++;
-    forceFullCalls.add(false);
-    return _handlerNow(forceFull: false, onProgress: onProgress);
-  }
-
-  @override
-  Future<LibrarySyncState> continueVerification({
-    Iterable<String> priorityAlbumIds = const <String>[],
-    LibrarySyncProgressCallback? onProgress,
-  }) {
-    continuationCalls++;
-    return _handlerNow(forceFull: false, onProgress: onProgress);
-  }
-
-  @override
-  Future<LibrarySyncState> forceFullSync({
-    Iterable<String> priorityAlbumIds = const <String>[],
-    LibrarySyncProgressCallback? onProgress,
-  }) {
-    nowCalls++;
-    forceFullCalls.add(true);
-    return _handlerNow(forceFull: true, onProgress: onProgress);
-  }
-
-  @override
-  Future<LibrarySyncState> probeCatalog({
-    LibrarySyncProgressCallback? onProgress,
-  }) {
-    nowCalls++;
-    return _handlerNow(forceFull: false, onProgress: onProgress);
-  }
-}
+final _automaticRequest = _catalogRequest(
+  SyncRunOrigin.timer,
+  SyncRunIntent.automaticCatalogCheck,
+);
+final _manualRequest = _catalogRequest(
+  SyncRunOrigin.libraryPullToRefresh,
+  SyncRunIntent.manualCatalogCheck,
+);
+final _repairRequest = _catalogRequest(
+  SyncRunOrigin.settingsRepair,
+  SyncRunIntent.repairLibrary,
+);
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
+  for (final kind in [
+    LibrarySyncTargetKind.album,
+    LibrarySyncTargetKind.artist,
+  ]) {
+    test('missing $kind cover requests one controller target', () async {
+      final database = createTestDatabase();
+      addTearDown(database.close);
+      if (kind == LibrarySyncTargetKind.album) {
+        await database
+            .into(database.albumsTable)
+            .insert(
+              AlbumsTableCompanion.insert(
+                id: 'entity',
+                name: 'Album',
+                coverArt: const Value('missing-cover'),
+              ),
+            );
+      } else {
+        await database
+            .into(database.artistsTable)
+            .insert(
+              ArtistsTableCompanion.insert(
+                id: 'entity',
+                name: 'Artist',
+                coverArt: const Value('missing-cover'),
+              ),
+            );
+      }
+      final requests = <LibrarySyncRequest>[];
+      final engine = StubLibrarySyncEngine((request, {onProgress}) async {
+        if (request.target.kind != LibrarySyncTargetKind.catalog) {
+          requests.add(request);
+          return const LibrarySyncState(
+            status: LibrarySyncStatus.succeeded,
+            stage: LibrarySyncStage.completed,
+          );
+        }
+        return const LibrarySyncState.idle();
+      });
+      final container = ProviderContainer(
+        overrides: [
+          navisDatabaseProvider.overrideWithValue(database),
+          serverConfigStateProvider.overrideWithValue(const AsyncData(null)),
+          librarySyncEngineProvider.overrideWithValue(engine),
+          _manualSyncInterval,
+        ],
+      );
+      addTearDown(container.dispose);
+      final recovery = container.read(coverArtRecoveryProvider);
+      await Future.wait([
+        recovery.handleMissingCover('missing-cover'),
+        recovery.handleMissingCover('missing-cover'),
+      ]);
+      await recovery.handleMissingCover('missing-cover');
+      expect(requests, hasLength(1));
+      expect(requests.single.target.kind, kind);
+      expect(requests.single.target.entityId, 'entity');
+      expect(requests.single.origin, SyncRunOrigin.interaction);
+    });
+  }
+
   group('librarySyncControllerProvider', () {
+    test(
+      'repair and cache reset submit distinct origins with the same grant',
+      () async {
+        final database = createTestDatabase();
+        addTearDown(database.close);
+        final engine = StubLibrarySyncEngine.returning(_succeeded);
+        final container = _container(
+          engine,
+          database: database,
+          reachability: ServerReachabilityStatus.checking,
+        );
+        addTearDown(container.dispose);
+        final controller = container.read(
+          librarySyncControllerProvider.notifier,
+        );
+
+        await controller.repairLibrary(allowMeteredBroadOverride: true);
+        await controller.resetCachesAndRebuildLibrary(
+          allowMeteredBroadOverride: true,
+        );
+
+        expect(engine.requests, [
+          _repairRequest,
+          _catalogRequest(
+            SyncRunOrigin.cacheReset,
+            SyncRunIntent.repairLibrary,
+          ),
+        ]);
+        expect(engine.requests.map((request) => request.grant), [
+          SyncNetworkGrant.broadMeteredOnce,
+          SyncNetworkGrant.broadMeteredOnce,
+        ]);
+      },
+    );
+
     test(
       'setup defers startup and automatic schedules until readiness',
       () async {
@@ -205,28 +277,14 @@ void main() {
           database,
           setupPending: true,
         );
-        final engine = _FakeLibrarySyncEngine(
-          ({onProgress}) async => const LibrarySyncState.idle(),
-          ({forceFull = false, onProgress}) async =>
-              const LibrarySyncState.idle(),
+        final engine = StubLibrarySyncEngine.returning(
+          const LibrarySyncState.idle(),
         );
-        final container = ProviderContainer(
-          overrides: [
-            navisDatabaseProvider.overrideWithValue(database),
-            serverConfigStateProvider.overrideWithValue(AsyncData(config)),
-            serverReachabilityControllerProvider.overrideWith(
-              () => _StaticReachabilityController(
-                const ServerReachabilityState(
-                  status: ServerReachabilityStatus.online,
-                ),
-              ),
-            ),
-            librarySyncEngineProvider.overrideWithValue(engine),
-            syncIntervalMinutesProvider.overrideWithValue(60),
-            syncIntervalDurationProvider.overrideWithValue(
-              const Duration(hours: 1),
-            ),
-          ],
+        final container = _container(
+          engine,
+          database: database,
+          server: config,
+          interval: _hourlyInterval,
         );
         addTearDown(container.dispose);
         container.listen(librarySyncControllerProvider, (_, _) {});
@@ -240,8 +298,8 @@ void main() {
         );
         await controller.syncIfStale();
         await Future<void>.delayed(const Duration(milliseconds: 30));
-        expect(engine.nowCalls, 0);
-        expect(engine.staleCalls, 0);
+        expect(engine.explicitCatalogRequests, isEmpty);
+        expect(engine.automaticRequests, isEmpty);
         expect(
           (await database.librarySyncDao.getOrCreateState(config.id!))
               .nextAutomaticCheckAt,
@@ -259,10 +317,7 @@ void main() {
           await recordInitialCatalogReadiness(
             database: database,
             serverId: config.id!,
-            result: const LibrarySyncState(
-              status: LibrarySyncStatus.succeeded,
-              stage: LibrarySyncStage.completed,
-            ),
+            result: _succeeded,
             syncModelVersion: currentLibrarySyncModelVersion,
           ),
           isTrue,
@@ -281,8 +336,8 @@ void main() {
           deadline.difference(resumedAt.add(const Duration(hours: 1))).abs(),
           lessThan(const Duration(seconds: 2)),
         );
-        expect(engine.forceFullCalls, isEmpty);
-        expect(engine.staleCalls, 0);
+        expect(engine.explicitCatalogRequests, isEmpty);
+        expect(engine.automaticRequests, isEmpty);
       },
     );
 
@@ -296,30 +351,22 @@ void main() {
         final manualResult = Completer<LibrarySyncState>();
         final enteredAutomatic = Completer<void>();
         final enteredManual = Completer<void>();
-        final engine = _FakeLibrarySyncEngine(
-          ({onProgress}) {
+        final engine = StubLibrarySyncEngine((request, {onProgress}) async {
+          if (request.isAutomatic) {
             enteredAutomatic.complete();
-            return automaticResult.future;
-          },
-          ({forceFull = false, onProgress}) {
-            enteredManual.complete();
-            return manualResult.future;
-          },
-        );
-        final container = ProviderContainer(
-          overrides: [
-            navisDatabaseProvider.overrideWithValue(database),
-            serverConfigStateProvider.overrideWithValue(AsyncData(config)),
-            serverReachabilityControllerProvider.overrideWith(
-              () => _StaticReachabilityController(
-                const ServerReachabilityState(
-                  status: ServerReachabilityStatus.offline,
-                ),
-              ),
-            ),
-            librarySyncEngineProvider.overrideWithValue(engine),
+            return await automaticResult.future;
+          }
+          enteredManual.complete();
+          return await manualResult.future;
+        });
+        final container = _container(
+          engine,
+          database: database,
+          server: config,
+          reachability: ServerReachabilityStatus.offline,
+          interval: _hourlyInterval,
+          extra: [
             requiredLibrarySyncModelVersionProvider.overrideWithValue(null),
-            syncIntervalMinutesProvider.overrideWithValue(60),
           ],
         );
         addTearDown(container.dispose);
@@ -336,21 +383,11 @@ void main() {
           (_) => finished = true,
         );
         final manual = controller.syncNow();
-        automaticResult.complete(
-          const LibrarySyncState(
-            status: LibrarySyncStatus.succeeded,
-            stage: LibrarySyncStage.completed,
-          ),
-        );
+        automaticResult.complete(_succeeded);
         await enteredManual.future;
         await Future<void>.delayed(Duration.zero);
         expect(finished, isFalse);
-        manualResult.complete(
-          const LibrarySyncState(
-            status: LibrarySyncStatus.succeeded,
-            stage: LibrarySyncStage.completed,
-          ),
-        );
+        manualResult.complete(_succeeded);
         await Future.wait([automatic, manual]);
         await waiting;
         expect(finished, isTrue);
@@ -365,21 +402,14 @@ void main() {
         addTearDown(database.close);
         final failure = Completer<LibrarySyncState>();
         final entered = Completer<void>();
-        final engine = _FakeLibrarySyncEngine(
-          ({onProgress}) async => const LibrarySyncState.idle(),
-          ({forceFull = false, onProgress}) {
-            entered.complete();
-            return failure.future;
-          },
-        );
-        final container = ProviderContainer(
-          overrides: [
-            _manualSyncInterval,
-            navisDatabaseProvider.overrideWithValue(database),
-            serverConfigStateProvider.overrideWithValue(const AsyncData(null)),
-            librarySyncEngineProvider.overrideWithValue(engine),
-          ],
-        );
+        final engine = StubLibrarySyncEngine((request, {onProgress}) async {
+          if (request.isAutomatic) {
+            return const LibrarySyncState.idle();
+          }
+          entered.complete();
+          return await failure.future;
+        });
+        final container = _container(engine, database: database);
         addTearDown(container.dispose);
         container.listen(librarySyncControllerProvider, (_, _) {});
         final controller = container.read(
@@ -401,13 +431,8 @@ void main() {
       () async {
         final database = createTestDatabase();
         addTearDown(database.close);
-        final engine = _FakeLibrarySyncEngine(
-          ({onProgress}) async => LibrarySyncState(
-            status: LibrarySyncStatus.succeeded,
-            stage: LibrarySyncStage.completed,
-            completedAt: DateTime.now(),
-          ),
-          ({forceFull = false, onProgress}) async => LibrarySyncState(
+        final engine = StubLibrarySyncEngine.returning(
+          LibrarySyncState(
             status: LibrarySyncStatus.succeeded,
             stage: LibrarySyncStage.completed,
             completedAt: DateTime.now(),
@@ -432,7 +457,7 @@ void main() {
               ),
             ),
             serverReachabilityControllerProvider.overrideWith(
-              () => _StaticReachabilityController(
+              () => StaticReachabilityController(
                 const ServerReachabilityState(
                   status: ServerReachabilityStatus.online,
                 ),
@@ -457,11 +482,88 @@ void main() {
         expect(container.read(librarySyncEngineProvider), same(engine));
         await Future<void>.delayed(const Duration(milliseconds: 100));
 
-        expect(engine.nowCalls, 1);
+        expect(engine.explicitCatalogRequests, [_repairRequest]);
         expect(
           container.read(librarySyncControllerProvider).status,
           LibrarySyncStatus.succeeded,
         );
+      },
+    );
+
+    test(
+      'session reset waits for startup before retrying a ready engine',
+      () async {
+        final database = createTestDatabase();
+        addTearDown(database.close);
+        final enteredFirst = Completer<void>();
+        final firstResult = Completer<LibrarySyncState>();
+        final enteredSecond = Completer<void>();
+        final firstEngine = StubLibrarySyncEngine((
+          request, {
+          onProgress,
+        }) async {
+          enteredFirst.complete();
+          return await firstResult.future;
+        });
+        final secondEngine = StubLibrarySyncEngine((
+          request, {
+          onProgress,
+        }) async {
+          enteredSecond.complete();
+          return _succeeded;
+        });
+        final engineState =
+            NotifierProvider<_MutableLibrarySyncEngine, LibrarySyncEngine?>(
+              _MutableLibrarySyncEngine.new,
+            );
+        final container = ProviderContainer(
+          overrides: [
+            _manualSyncInterval,
+            navisDatabaseProvider.overrideWithValue(database),
+            serverReachabilityControllerProvider.overrideWith(
+              () => StaticReachabilityController(
+                const ServerReachabilityState(
+                  status: ServerReachabilityStatus.online,
+                ),
+              ),
+            ),
+            requiredLibrarySyncModelVersionProvider.overrideWithValue(null),
+            serverConfigStateProvider.overrideWith(
+              (ref) => ref.watch(_serverConfigSource),
+            ),
+            librarySyncEngineProvider.overrideWith(
+              (ref) => ref.watch(engineState),
+            ),
+          ],
+        );
+        addTearDown(container.dispose);
+        container.read(engineState.notifier).replace(firstEngine);
+        final source = container.read(_serverConfigSource.notifier);
+        source.set(const AsyncData(_exampleServer));
+        container.listen(librarySyncControllerProvider, (_, _) {});
+        await enteredFirst.future.timeout(const Duration(seconds: 5));
+
+        source.set(const AsyncData(null));
+        expect(container.read(serverConfigStateProvider).value, isNull);
+        final nextServer = _exampleServer.copyWith(username: 'bob');
+        source.set(AsyncData(nextServer));
+        expect(container.read(serverConfigStateProvider).value, nextServer);
+        container.read(engineState.notifier).replace(secondEngine);
+        expect(container.read(librarySyncEngineProvider), same(secondEngine));
+        await Future<void>.delayed(Duration.zero);
+        expect(firstEngine.requests, [_automaticRequest]);
+        expect(secondEngine.requests, isEmpty);
+
+        firstResult.complete(_succeeded);
+        await enteredSecond.future.timeout(const Duration(seconds: 5));
+        await container
+            .read(librarySyncControllerProvider.notifier)
+            .waitForActiveCatalogSync();
+        await Future<void>.delayed(Duration.zero);
+        source.set(AsyncData(nextServer.copyWith(lastSynced: DateTime.now())));
+        await Future<void>.delayed(const Duration(milliseconds: 20));
+        expect(firstEngine.requests, [_automaticRequest]);
+        expect(secondEngine.requests, [_automaticRequest]);
       },
     );
 
@@ -471,52 +573,26 @@ void main() {
       await database.appSettingsDao.setLastFullSyncAppBuild(
         currentLibrarySyncModelVersion,
       );
-      final engine = _FakeLibrarySyncEngine(
-        ({onProgress}) async {
-          final state = LibrarySyncState(
-            status: LibrarySyncStatus.succeeded,
-            stage: LibrarySyncStage.completed,
-            completedAt: DateTime.now(),
-            lastSyncedAt: DateTime.now(),
-          );
-          onProgress?.call(state);
-          return state;
-        },
-        ({forceFull = false, onProgress}) async {
-          final state = LibrarySyncState(
-            status: LibrarySyncStatus.succeeded,
-            stage: LibrarySyncStage.completed,
-            completedAt: DateTime.now(),
-            lastSyncedAt: DateTime.now(),
-          );
-          onProgress?.call(state);
-          return state;
-        },
-      );
-      final container = ProviderContainer(
-        overrides: [
-          _manualSyncInterval,
-          serverConfigStateProvider.overrideWithValue(
-            AsyncData(
-              ServerConfigModel(
-                url: 'https://example.com',
-                username: 'alice',
-                password: 'secret',
-                apiVersion: '1.16.1',
-                lastSynced: DateTime.now().subtract(const Duration(days: 1)),
-              ),
-            ),
-          ),
-          serverReachabilityControllerProvider.overrideWith(
-            () => _StaticReachabilityController(
-              const ServerReachabilityState(
-                status: ServerReachabilityStatus.online,
-              ),
-            ),
-          ),
-          navisDatabaseProvider.overrideWithValue(database),
-          librarySyncEngineProvider.overrideWithValue(engine),
-        ],
+      final engine = StubLibrarySyncEngine((request, {onProgress}) async {
+        final state = LibrarySyncState(
+          status: LibrarySyncStatus.succeeded,
+          stage: LibrarySyncStage.completed,
+          completedAt: DateTime.now(),
+          lastSyncedAt: DateTime.now(),
+        );
+        onProgress?.call(state);
+        return state;
+      });
+      final container = _container(
+        engine,
+        database: database,
+        server: ServerConfigModel(
+          url: 'https://example.com',
+          username: 'alice',
+          password: 'secret',
+          apiVersion: '1.16.1',
+          lastSynced: DateTime.now().subtract(const Duration(days: 1)),
+        ),
       );
       addTearDown(container.dispose);
 
@@ -524,8 +600,8 @@ void main() {
       await Future<void>.delayed(const Duration(milliseconds: 20));
       container.read(librarySyncControllerProvider);
 
-      expect(engine.staleCalls, 1);
-      expect(engine.nowCalls, 0);
+      expect(engine.automaticRequests, [_automaticRequest]);
+      expect(engine.explicitCatalogRequests, isEmpty);
     });
 
     test('automatic checks honor a persisted deadline and manual checks leave it unchanged', () async {
@@ -544,31 +620,22 @@ void main() {
           nextEligibleAt: Value(retryAt),
         ),
       );
-      final engine = _FakeLibrarySyncEngine(
-        ({onProgress}) async => const LibrarySyncState(
-          status: LibrarySyncStatus.succeeded,
-          stage: LibrarySyncStage.completed,
-        ),
-        ({forceFull = false, onProgress}) async => LibrarySyncState(
+      final engine = StubLibrarySyncEngine((request, {onProgress}) async {
+        if (request.isAutomatic) {
+          return _succeeded;
+        }
+        return LibrarySyncState(
           status: LibrarySyncStatus.succeeded,
           stage: LibrarySyncStage.completed,
           completedAt: DateTime.now(),
-        ),
-      );
-      final container = ProviderContainer(
-        overrides: [
-          _manualSyncInterval,
+        );
+      });
+      final container = _container(
+        engine,
+        database: database,
+        server: config,
+        extra: [
           requiredLibrarySyncModelVersionProvider.overrideWithValue(null),
-          serverConfigStateProvider.overrideWithValue(AsyncData(config)),
-          serverReachabilityControllerProvider.overrideWith(
-            () => _StaticReachabilityController(
-              const ServerReachabilityState(
-                status: ServerReachabilityStatus.online,
-              ),
-            ),
-          ),
-          navisDatabaseProvider.overrideWithValue(database),
-          librarySyncEngineProvider.overrideWithValue(engine),
         ],
       );
       addTearDown(container.dispose);
@@ -576,7 +643,7 @@ void main() {
       final controller = container.read(librarySyncControllerProvider.notifier);
       await Future<void>.delayed(const Duration(milliseconds: 20));
       await controller.syncIfStale();
-      expect(engine.staleCalls, 0);
+      expect(engine.automaticRequests, isEmpty);
       expect(
         container
             .read(librarySyncControllerProvider)
@@ -590,7 +657,7 @@ void main() {
       final persisted = await database.librarySyncDao.getOrCreateState(
         config.id!,
       );
-      expect(engine.nowCalls, 1);
+      expect(engine.explicitCatalogRequests, [_manualRequest]);
       expect(
         persisted.nextAutomaticCheckAt!.difference(deadline).abs(),
         lessThan(const Duration(seconds: 1)),
@@ -617,37 +684,30 @@ void main() {
             const Duration(minutes: 1),
           ),
         );
-        final engine = _FakeLibrarySyncEngine(
-          ({onProgress}) async => LibrarySyncState(
-            status: LibrarySyncStatus.succeeded,
-            stage: LibrarySyncStage.completed,
-            completedAt: DateTime.now(),
-          ),
-          ({forceFull = false, onProgress}) async => const LibrarySyncState(
-            status: LibrarySyncStatus.succeeded,
-            stage: LibrarySyncStage.completed,
-          ),
-        );
+        final engine = StubLibrarySyncEngine((request, {onProgress}) async {
+          if (request.isAutomatic) {
+            return LibrarySyncState(
+              status: LibrarySyncStatus.succeeded,
+              stage: LibrarySyncStage.completed,
+              completedAt: DateTime.now(),
+            );
+          }
+          return _succeeded;
+        });
         final startedAt = DateTime.now();
-        final container = ProviderContainer(
-          overrides: [
-            syncIntervalMinutesProvider.overrideWithValue(60),
-            syncIntervalDurationProvider.overrideWithValue(
-              const Duration(hours: 1),
-            ),
-            serverConfigStateProvider.overrideWithValue(AsyncData(config)),
-            serverReachabilityControllerProvider.overrideWith(
-              () => _StaticReachabilityController(
-                const ServerReachabilityState(
-                  status: ServerReachabilityStatus.offline,
-                ),
-              ),
-            ),
-            navisDatabaseProvider.overrideWithValue(database),
-            librarySyncEngineProvider.overrideWithValue(engine),
-          ],
+        final container = _container(
+          engine,
+          database: database,
+          server: config,
+          reachability: ServerReachabilityStatus.offline,
+          interval: _hourlyInterval,
         );
         addTearDown(container.dispose);
+        addTearDown(
+          () => container
+              .read(librarySyncControllerProvider.notifier)
+              .cancelAndWait(),
+        );
 
         final result = await container
             .read(librarySyncControllerProvider.notifier)
@@ -657,7 +717,7 @@ void main() {
         );
 
         expect(result.status, LibrarySyncStatus.succeeded);
-        expect(engine.staleCalls, 1);
+        expect(engine.automaticRequests, [_automaticRequest]);
         expect(persisted.nextAutomaticCheckAt, isNotNull);
         expect(persisted.nextAutomaticCheckAt!.isAfter(startedAt), isTrue);
         expect(
@@ -681,31 +741,19 @@ void main() {
         );
         final automaticResult = Completer<LibrarySyncState>();
         final enteredEngine = Completer<void>();
-        final engine = _FakeLibrarySyncEngine(
-          ({onProgress}) {
+        final engine = StubLibrarySyncEngine((request, {onProgress}) async {
+          if (request.isAutomatic) {
             enteredEngine.complete();
-            return automaticResult.future;
-          },
-          ({forceFull = false, onProgress}) async =>
-              const LibrarySyncState.idle(),
-        );
-        final container = ProviderContainer(
-          overrides: [
-            syncIntervalMinutesProvider.overrideWithValue(60),
-            syncIntervalDurationProvider.overrideWithValue(
-              const Duration(hours: 1),
-            ),
-            serverConfigStateProvider.overrideWithValue(AsyncData(config)),
-            serverReachabilityControllerProvider.overrideWith(
-              () => _StaticReachabilityController(
-                const ServerReachabilityState(
-                  status: ServerReachabilityStatus.offline,
-                ),
-              ),
-            ),
-            navisDatabaseProvider.overrideWithValue(database),
-            librarySyncEngineProvider.overrideWithValue(engine),
-          ],
+            return await automaticResult.future;
+          }
+          return const LibrarySyncState.idle();
+        });
+        final container = _container(
+          engine,
+          database: database,
+          server: config,
+          reachability: ServerReachabilityStatus.offline,
+          interval: _hourlyInterval,
         );
         addTearDown(container.dispose);
         final notifier = container.read(librarySyncControllerProvider.notifier);
@@ -752,34 +800,23 @@ void main() {
           kind: LibrarySyncPlanKind.deltaReconcile.name,
           priority: 60,
         );
-        final engine = _FakeLibrarySyncEngine(
-          ({onProgress}) async => LibrarySyncState(
-            status: LibrarySyncStatus.succeeded,
-            stage: LibrarySyncStage.completed,
-            completedAt: DateTime.now(),
-          ),
-          ({forceFull = false, onProgress}) async => const LibrarySyncState(
-            status: LibrarySyncStatus.succeeded,
-            stage: LibrarySyncStage.completed,
-          ),
-        );
-        final container = ProviderContainer(
-          overrides: [
-            syncIntervalMinutesProvider.overrideWithValue(60),
-            syncIntervalDurationProvider.overrideWithValue(
-              const Duration(hours: 1),
-            ),
+        final engine = StubLibrarySyncEngine((request, {onProgress}) async {
+          if (request.isAutomatic) {
+            return LibrarySyncState(
+              status: LibrarySyncStatus.succeeded,
+              stage: LibrarySyncStage.completed,
+              completedAt: DateTime.now(),
+            );
+          }
+          return _succeeded;
+        });
+        final container = _container(
+          engine,
+          database: database,
+          server: config,
+          interval: _hourlyInterval,
+          extra: [
             requiredLibrarySyncModelVersionProvider.overrideWithValue(null),
-            serverConfigStateProvider.overrideWithValue(AsyncData(config)),
-            serverReachabilityControllerProvider.overrideWith(
-              () => _StaticReachabilityController(
-                const ServerReachabilityState(
-                  status: ServerReachabilityStatus.online,
-                ),
-              ),
-            ),
-            navisDatabaseProvider.overrideWithValue(database),
-            librarySyncEngineProvider.overrideWithValue(engine),
           ],
         );
         addTearDown(container.dispose);
@@ -787,7 +824,7 @@ void main() {
         container.read(librarySyncControllerProvider);
         await Future<void>.delayed(const Duration(milliseconds: 50));
 
-        expect(engine.staleCalls, 1);
+        expect(engine.automaticRequests, [_automaticRequest]);
         final persisted = await database.librarySyncDao.getOrCreateState(
           config.id!,
         );
@@ -813,8 +850,8 @@ void main() {
         kind: LibrarySyncPlanKind.deltaReconcile.name,
         priority: 60,
       );
-      final engine = _FakeLibrarySyncEngine(
-        ({onProgress}) async {
+      final engine = StubLibrarySyncEngine((request, {onProgress}) async {
+        if (request.isAutomatic) {
           // Engine frames and results never carry the automatic deadline.
           onProgress?.call(
             const LibrarySyncState(
@@ -831,27 +868,16 @@ void main() {
             failureCategory: 'entityBudget',
             completedAt: DateTime.now(),
           );
-        },
-        ({forceFull = false, onProgress}) async =>
-            const LibrarySyncState.idle(),
-      );
-      final container = ProviderContainer(
-        overrides: [
-          syncIntervalMinutesProvider.overrideWithValue(60),
-          syncIntervalDurationProvider.overrideWithValue(
-            const Duration(hours: 1),
-          ),
+        }
+        return const LibrarySyncState.idle();
+      });
+      final container = _container(
+        engine,
+        database: database,
+        server: config,
+        interval: _hourlyInterval,
+        extra: [
           requiredLibrarySyncModelVersionProvider.overrideWithValue(null),
-          serverConfigStateProvider.overrideWithValue(AsyncData(config)),
-          serverReachabilityControllerProvider.overrideWith(
-            () => _StaticReachabilityController(
-              const ServerReachabilityState(
-                status: ServerReachabilityStatus.online,
-              ),
-            ),
-          ),
-          navisDatabaseProvider.overrideWithValue(database),
-          librarySyncEngineProvider.overrideWithValue(engine),
         ],
       );
       addTearDown(container.dispose);
@@ -859,7 +885,7 @@ void main() {
       container.read(librarySyncControllerProvider);
       await Future<void>.delayed(const Duration(milliseconds: 50));
 
-      expect(engine.staleCalls, 1);
+      expect(engine.automaticRequests, [_automaticRequest]);
       final status = container.read(librarySyncControllerProvider);
       final persisted = await database.librarySyncDao.getOrCreateState(
         config.id!,
@@ -892,46 +918,36 @@ void main() {
             nextEligibleAt: Value(retryAt),
           ),
         );
-        final engine = _FakeLibrarySyncEngine(
-          ({onProgress}) async => const LibrarySyncState.idle(),
-          ({forceFull = false, onProgress}) async {
-            for (final stage in <LibrarySyncStage>[
-              LibrarySyncStage.collectingCandidate,
-              LibrarySyncStage.applyingCandidate,
-            ]) {
-              onProgress?.call(
-                LibrarySyncState(
-                  status: LibrarySyncStatus.running,
-                  stage: stage,
-                  planKind: LibrarySyncPlanKind.fullRepair,
-                ),
-              );
-            }
-            return LibrarySyncState(
-              status: LibrarySyncStatus.succeeded,
-              stage: LibrarySyncStage.completed,
-              planKind: LibrarySyncPlanKind.fullRepair,
-              completedAt: DateTime.now(),
-            );
-          },
-        );
-        final container = ProviderContainer(
-          overrides: [
-            syncIntervalMinutesProvider.overrideWithValue(60),
-            syncIntervalDurationProvider.overrideWithValue(
-              const Duration(hours: 1),
-            ),
-            requiredLibrarySyncModelVersionProvider.overrideWithValue(null),
-            serverConfigStateProvider.overrideWithValue(AsyncData(config)),
-            serverReachabilityControllerProvider.overrideWith(
-              () => _StaticReachabilityController(
-                const ServerReachabilityState(
-                  status: ServerReachabilityStatus.online,
-                ),
+        final engine = StubLibrarySyncEngine((request, {onProgress}) async {
+          if (request.isAutomatic) {
+            return const LibrarySyncState.idle();
+          }
+          for (final stage in <LibrarySyncStage>[
+            LibrarySyncStage.collectingCandidate,
+            LibrarySyncStage.applyingCandidate,
+          ]) {
+            onProgress?.call(
+              LibrarySyncState(
+                status: LibrarySyncStatus.running,
+                stage: stage,
+                planKind: LibrarySyncPlanKind.fullRepair,
               ),
-            ),
-            navisDatabaseProvider.overrideWithValue(database),
-            librarySyncEngineProvider.overrideWithValue(engine),
+            );
+          }
+          return LibrarySyncState(
+            status: LibrarySyncStatus.succeeded,
+            stage: LibrarySyncStage.completed,
+            planKind: LibrarySyncPlanKind.fullRepair,
+            completedAt: DateTime.now(),
+          );
+        });
+        final container = _container(
+          engine,
+          database: database,
+          server: config,
+          interval: _hourlyInterval,
+          extra: [
+            requiredLibrarySyncModelVersionProvider.overrideWithValue(null),
           ],
         );
         addTearDown(container.dispose);
@@ -939,7 +955,7 @@ void main() {
           librarySyncControllerProvider.notifier,
         );
         await Future<void>.delayed(const Duration(milliseconds: 50));
-        expect(engine.staleCalls, 0);
+        expect(engine.automaticRequests, isEmpty);
         expect(
           container.read(librarySyncControllerProvider).nextAutomaticCheckAt,
           isNotNull,
@@ -952,7 +968,7 @@ void main() {
         );
         await controller.repairLibrary();
 
-        expect(engine.forceFullCalls, <bool>[true]);
+        expect(engine.explicitCatalogRequests, [_repairRequest]);
         expect(
           published.where((value) => value.status == LibrarySyncStatus.running),
           isNotEmpty,
@@ -985,44 +1001,34 @@ void main() {
           const Duration(milliseconds: 1500),
         ),
       );
-      final engine = _FakeLibrarySyncEngine(
-        ({onProgress}) async => LibrarySyncState(
-          status: LibrarySyncStatus.succeeded,
-          stage: LibrarySyncStage.completed,
-          completedAt: DateTime.now(),
-        ),
-        ({forceFull = false, onProgress}) async => const LibrarySyncState(
-          status: LibrarySyncStatus.succeeded,
-          stage: LibrarySyncStage.completed,
-        ),
-      );
-      final container = ProviderContainer(
-        overrides: [
-          syncIntervalMinutesProvider.overrideWithValue(60),
-          syncIntervalDurationProvider.overrideWithValue(
-            const Duration(hours: 1),
-          ),
+      final engine = StubLibrarySyncEngine((request, {onProgress}) async {
+        if (request.isAutomatic) {
+          return LibrarySyncState(
+            status: LibrarySyncStatus.succeeded,
+            stage: LibrarySyncStage.completed,
+            completedAt: DateTime.now(),
+          );
+        }
+        return _succeeded;
+      });
+      final container = _container(
+        engine,
+        database: database,
+        server: config,
+        reachability: ServerReachabilityStatus.offline,
+        interval: _hourlyInterval,
+        extra: [
           requiredLibrarySyncModelVersionProvider.overrideWithValue(null),
-          serverConfigStateProvider.overrideWithValue(AsyncData(config)),
-          serverReachabilityControllerProvider.overrideWith(
-            () => _StaticReachabilityController(
-              const ServerReachabilityState(
-                status: ServerReachabilityStatus.offline,
-              ),
-            ),
-          ),
-          navisDatabaseProvider.overrideWithValue(database),
-          librarySyncEngineProvider.overrideWithValue(engine),
         ],
       );
       addTearDown(container.dispose);
 
       container.read(librarySyncControllerProvider);
       await Future<void>.delayed(const Duration(milliseconds: 300));
-      expect(engine.staleCalls, 0);
+      expect(engine.automaticRequests, isEmpty);
 
       await Future<void>.delayed(const Duration(milliseconds: 1500));
-      expect(engine.staleCalls, 1);
+      expect(engine.automaticRequests, [_automaticRequest]);
       final persisted = await database.librarySyncDao.getOrCreateState(
         config.id!,
       );
@@ -1034,6 +1040,85 @@ void main() {
         isTrue,
       );
     });
+
+    test('cancelAndWait drains Android reconciliation before a wipe', () async {
+      final database = createTestDatabase();
+      addTearDown(database.close);
+      final config = await _saveAuthenticatedServer(database);
+      const channel = MethodChannel('com.navis.app/background_sync');
+      final entered = Completer<void>();
+      final release = Completer<void>();
+      final methods = <String>[];
+      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+          .setMockMethodCallHandler(channel, (call) async {
+            methods.add(call.method);
+            if (call.method == 'configurePeriodic') {
+              entered.complete();
+              await release.future;
+            }
+            return <String, Object>{
+              'available': true,
+              'state': call.method == 'cancel' ? 'cancelled' : 'scheduled',
+            };
+          });
+      addTearDown(() {
+        TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+            .setMockMethodCallHandler(channel, null);
+      });
+      final reconciler = AndroidBackgroundSyncReconciler(
+        database: database,
+        scheduler: AndroidBackgroundSyncScheduler(
+          channel: channel,
+          supported: true,
+        ),
+      );
+      final engine = StubLibrarySyncEngine(
+        (request, {onProgress}) async => _succeeded,
+      );
+      final container = ProviderContainer(
+        overrides: [
+          navisDatabaseProvider.overrideWithValue(database),
+          librarySyncEngineProvider.overrideWithValue(engine),
+          serverReachabilityControllerProvider.overrideWith(
+            () => StaticReachabilityController(
+              const ServerReachabilityState(
+                status: ServerReachabilityStatus.offline,
+              ),
+            ),
+          ),
+          ..._hourlyInterval,
+          serverConfigStateProvider.overrideWith(
+            (ref) => ref.watch(_serverConfigSource),
+          ),
+          androidBackgroundSyncAvailableProvider.overrideWithValue(true),
+          androidBackgroundSyncReconcilerProvider.overrideWithValue(reconciler),
+          backgroundSyncUnmeteredOnlyProvider.overrideWithValue(true),
+        ],
+      );
+      addTearDown(container.dispose);
+      container.read(_serverConfigSource.notifier).set(AsyncData(config));
+      final controller = container.read(librarySyncControllerProvider.notifier);
+      await entered.future;
+      var drained = false;
+      final cancellation = controller.cancelAndWait().then(
+        (_) => drained = true,
+      );
+      await Future<void>.delayed(Duration.zero);
+      final drainedBeforeRelease = drained;
+      release.complete();
+      await cancellation;
+      expect(drainedBeforeRelease, isFalse);
+      await reconciler.cancelFor(config);
+      await database.serverDao.clearServer();
+      container.read(_serverConfigSource.notifier).set(const AsyncData(null));
+      await container.pump();
+      await Future<void>.delayed(const Duration(milliseconds: 20));
+      expect(methods.where((method) => method == 'cancel'), hasLength(1));
+      expect(
+        await database.select(database.librarySyncStateTable).get(),
+        isEmpty,
+      );
+    }, skip: !sqliteAvailable);
 
     test('cancelAndWait drains an active automatic check and its durable completion', () async {
       final database = createTestDatabase();
@@ -1047,31 +1132,19 @@ void main() {
       );
       final entered = Completer<void>();
       final completion = Completer<LibrarySyncState>();
-      final engine = _FakeLibrarySyncEngine(
-        ({onProgress}) {
+      final engine = StubLibrarySyncEngine((request, {onProgress}) async {
+        if (request.isAutomatic) {
           entered.complete();
-          return completion.future;
-        },
-        ({forceFull = false, onProgress}) async =>
-            const LibrarySyncState.idle(),
-      );
-      final container = ProviderContainer(
-        overrides: [
-          syncIntervalMinutesProvider.overrideWithValue(60),
-          syncIntervalDurationProvider.overrideWithValue(
-            const Duration(hours: 1),
-          ),
-          serverConfigStateProvider.overrideWithValue(AsyncData(config)),
-          serverReachabilityControllerProvider.overrideWith(
-            () => _StaticReachabilityController(
-              const ServerReachabilityState(
-                status: ServerReachabilityStatus.offline,
-              ),
-            ),
-          ),
-          navisDatabaseProvider.overrideWithValue(database),
-          librarySyncEngineProvider.overrideWithValue(engine),
-        ],
+          return await completion.future;
+        }
+        return const LibrarySyncState.idle();
+      });
+      final container = _container(
+        engine,
+        database: database,
+        server: config,
+        reachability: ServerReachabilityStatus.offline,
+        interval: _hourlyInterval,
       );
       addTearDown(container.dispose);
       final controller = container.read(librarySyncControllerProvider.notifier);
@@ -1098,7 +1171,7 @@ void main() {
       expect(persisted.nextAutomaticCheckAt!.isAfter(DateTime.now()), isTrue);
       expect(drained, isTrue);
       await Future<void>.delayed(const Duration(milliseconds: 20));
-      expect(engine.staleCalls, 1);
+      expect(engine.automaticRequests, [_automaticRequest]);
     });
 
     test(
@@ -1110,13 +1183,12 @@ void main() {
           currentLibrarySyncModelVersion,
         );
         final startupResult = Completer<LibrarySyncState>();
-        final engine = _FakeLibrarySyncEngine(
-          ({onProgress}) => startupResult.future,
-          ({forceFull = false, onProgress}) async => const LibrarySyncState(
-            status: LibrarySyncStatus.succeeded,
-            stage: LibrarySyncStage.completed,
-          ),
-        );
+        final engine = StubLibrarySyncEngine((request, {onProgress}) async {
+          if (request.isAutomatic) {
+            return await startupResult.future;
+          }
+          return _succeeded;
+        });
         final container = ProviderContainer(
           overrides: [
             _manualSyncInterval,
@@ -1146,7 +1218,7 @@ void main() {
 
         container.read(librarySyncControllerProvider);
         await Future<void>.delayed(Duration.zero);
-        expect(engine.staleCalls, 1);
+        expect(engine.automaticRequests, [_automaticRequest]);
         var cancellationCompleted = false;
         final cancellation = container
             .read(librarySyncControllerProvider.notifier)
@@ -1170,44 +1242,32 @@ void main() {
         await Future<void>.delayed(const Duration(milliseconds: 10));
 
         expect(cancellationCompleted, isTrue);
-        expect(engine.staleCalls, 1);
+        expect(engine.automaticRequests, [_automaticRequest]);
       },
     );
 
     test('syncNow transitions through running to succeeded state', () async {
       final completer = Completer<LibrarySyncState>();
-      final engine = _FakeLibrarySyncEngine(
-        ({onProgress}) async {
+      final engine = StubLibrarySyncEngine((request, {onProgress}) async {
+        if (request.isAutomatic) {
           return const LibrarySyncState(
             status: LibrarySyncStatus.skipped,
             stage: LibrarySyncStage.completed,
           );
-        },
-        ({forceFull = false, onProgress}) async {
-          onProgress?.call(
-            LibrarySyncState(
-              status: LibrarySyncStatus.running,
-              stage: LibrarySyncStage.fetchingArtists,
-              startedAt: DateTime.now(),
-            ),
-          );
-          return await completer.future;
-        },
-      );
-
-      final container = ProviderContainer(
-        overrides: [
-          _manualSyncInterval,
-          serverConfigStateProvider.overrideWithValue(const AsyncData(null)),
-          serverReachabilityControllerProvider.overrideWith(
-            () => _StaticReachabilityController(
-              const ServerReachabilityState(
-                status: ServerReachabilityStatus.checking,
-              ),
-            ),
+        }
+        onProgress?.call(
+          LibrarySyncState(
+            status: LibrarySyncStatus.running,
+            stage: LibrarySyncStage.fetchingArtists,
+            startedAt: DateTime.now(),
           ),
-          librarySyncEngineProvider.overrideWithValue(engine),
-        ],
+        );
+        return await completer.future;
+      });
+
+      final container = _container(
+        engine,
+        reachability: ServerReachabilityStatus.checking,
       );
       addTearDown(container.dispose);
 
@@ -1233,30 +1293,22 @@ void main() {
       final finalState = container.read(librarySyncControllerProvider);
       expect(finalState.status, LibrarySyncStatus.succeeded);
       expect(finalState.stage, LibrarySyncStage.completed);
-      expect(engine.forceFullCalls.last, isFalse);
+      expect(engine.explicitCatalogRequests.last, _manualRequest);
     });
 
     test(
       'cancellation prevents a queued stronger repair from starting',
       () async {
         final active = Completer<LibrarySyncState>();
-        final engine = _FakeLibrarySyncEngine(
-          ({onProgress}) async => const LibrarySyncState.idle(),
-          ({forceFull = false, onProgress}) => active.future,
-        );
-        final container = ProviderContainer(
-          overrides: [
-            _manualSyncInterval,
-            serverConfigStateProvider.overrideWithValue(const AsyncData(null)),
-            serverReachabilityControllerProvider.overrideWith(
-              () => _StaticReachabilityController(
-                const ServerReachabilityState(
-                  status: ServerReachabilityStatus.checking,
-                ),
-              ),
-            ),
-            librarySyncEngineProvider.overrideWithValue(engine),
-          ],
+        final engine = StubLibrarySyncEngine((request, {onProgress}) async {
+          if (request.isAutomatic) {
+            return const LibrarySyncState.idle();
+          }
+          return await active.future;
+        });
+        final container = _container(
+          engine,
+          reachability: ServerReachabilityStatus.checking,
         );
         addTearDown(container.dispose);
         final controller = container.read(
@@ -1274,43 +1326,36 @@ void main() {
         );
         await check;
         expect((await repair).status, LibrarySyncStatus.cancelled);
-        expect(engine.forceFullCalls, [false]);
+        expect(engine.explicitCatalogRequests, [_manualRequest]);
         // A subsequent explicit command is new intent and remains allowed.
         await controller.repairLibrary();
-        expect(engine.forceFullCalls, [false, true]);
+        expect(engine.explicitCatalogRequests, [
+          _manualRequest,
+          _repairRequest,
+        ]);
       },
     );
 
     test('overlapping sync callers await one terminal result', () async {
       final completer = Completer<LibrarySyncState>();
-      final engine = _FakeLibrarySyncEngine(
-        ({onProgress}) async => const LibrarySyncState(
-          status: LibrarySyncStatus.skipped,
-          stage: LibrarySyncStage.completed,
-        ),
-        ({forceFull = false, onProgress}) async {
-          onProgress?.call(
-            const LibrarySyncState(
-              status: LibrarySyncStatus.running,
-              stage: LibrarySyncStage.collectingCandidate,
-            ),
+      final engine = StubLibrarySyncEngine((request, {onProgress}) async {
+        if (request.isAutomatic) {
+          return const LibrarySyncState(
+            status: LibrarySyncStatus.skipped,
+            stage: LibrarySyncStage.completed,
           );
-          return await completer.future;
-        },
-      );
-      final container = ProviderContainer(
-        overrides: [
-          _manualSyncInterval,
-          serverConfigStateProvider.overrideWithValue(const AsyncData(null)),
-          serverReachabilityControllerProvider.overrideWith(
-            () => _StaticReachabilityController(
-              const ServerReachabilityState(
-                status: ServerReachabilityStatus.checking,
-              ),
-            ),
+        }
+        onProgress?.call(
+          const LibrarySyncState(
+            status: LibrarySyncStatus.running,
+            stage: LibrarySyncStage.collectingCandidate,
           ),
-          librarySyncEngineProvider.overrideWithValue(engine),
-        ],
+        );
+        return await completer.future;
+      });
+      final container = _container(
+        engine,
+        reachability: ServerReachabilityStatus.checking,
       );
       addTearDown(container.dispose);
 
@@ -1319,14 +1364,11 @@ void main() {
       final second = notifier.syncIfStale();
       await Future<void>.delayed(Duration.zero);
 
-      expect(engine.nowCalls, 1);
-      expect(engine.staleCalls, 0);
+      expect(engine.explicitCatalogRequests, [_manualRequest]);
+      expect(engine.automaticRequests, isEmpty);
       expect(container.read(librarySyncControllerProvider).isRunning, isTrue);
 
-      const completed = LibrarySyncState(
-        status: LibrarySyncStatus.succeeded,
-        stage: LibrarySyncStage.completed,
-      );
+      const completed = _succeeded;
       completer.complete(completed);
 
       expect(await first, completed);
@@ -1347,23 +1389,15 @@ void main() {
           completedAt: DateTime.now(),
           planKind: LibrarySyncPlanKind.deltaReconcile,
         );
-        final engine = _FakeLibrarySyncEngine(
-          ({onProgress}) => automaticCompletion.future,
-          ({forceFull = false, onProgress}) async => manualResult,
-        );
-        final container = ProviderContainer(
-          overrides: [
-            _manualSyncInterval,
-            serverConfigStateProvider.overrideWithValue(const AsyncData(null)),
-            serverReachabilityControllerProvider.overrideWith(
-              () => _StaticReachabilityController(
-                const ServerReachabilityState(
-                  status: ServerReachabilityStatus.checking,
-                ),
-              ),
-            ),
-            librarySyncEngineProvider.overrideWithValue(engine),
-          ],
+        final engine = StubLibrarySyncEngine((request, {onProgress}) async {
+          if (request.isAutomatic) {
+            return await automaticCompletion.future;
+          }
+          return manualResult;
+        });
+        final container = _container(
+          engine,
+          reachability: ServerReachabilityStatus.checking,
         );
         addTearDown(container.dispose);
 
@@ -1372,8 +1406,8 @@ void main() {
         final manual = notifier.syncNow();
         await Future<void>.delayed(Duration.zero);
 
-        expect(engine.staleCalls, 1);
-        expect(engine.nowCalls, 0);
+        expect(engine.automaticRequests, [_automaticRequest]);
+        expect(engine.explicitCatalogRequests, isEmpty);
 
         automaticCompletion.complete(
           const LibrarySyncState(
@@ -1384,7 +1418,7 @@ void main() {
         await automatic;
 
         expect(await manual, same(manualResult));
-        expect(engine.nowCalls, 1);
+        expect(engine.explicitCatalogRequests, [_manualRequest]);
         expect(
           container.read(librarySyncControllerProvider).planKind,
           LibrarySyncPlanKind.deltaReconcile,
@@ -1403,16 +1437,8 @@ void main() {
           completedAt: DateTime.now(),
           planKind: LibrarySyncPlanKind.deltaReconcile,
         );
-        final engine = _FakeLibrarySyncEngine(
-          ({onProgress}) async => const LibrarySyncState(
-            status: LibrarySyncStatus.skipped,
-            stage: LibrarySyncStage.completed,
-          ),
-          ({forceFull = false, onProgress}) async {
-            onProgress?.call(catalogResult);
-            return catalogResult;
-          },
-          requestHandler: (request, {onProgress}) {
+        final engine = StubLibrarySyncEngine((request, {onProgress}) async {
+          if (request.target.kind != LibrarySyncTargetKind.catalog) {
             expect(request.target.kind, LibrarySyncTargetKind.album);
             targetRequests++;
             onProgress?.call(
@@ -1422,22 +1448,20 @@ void main() {
                 planKind: LibrarySyncPlanKind.targetedHydration,
               ),
             );
-            return targetCompletion.future;
-          },
-        );
-        final container = ProviderContainer(
-          overrides: [
-            _manualSyncInterval,
-            serverConfigStateProvider.overrideWithValue(const AsyncData(null)),
-            serverReachabilityControllerProvider.overrideWith(
-              () => _StaticReachabilityController(
-                const ServerReachabilityState(
-                  status: ServerReachabilityStatus.checking,
-                ),
-              ),
-            ),
-            librarySyncEngineProvider.overrideWithValue(engine),
-          ],
+            return await targetCompletion.future;
+          }
+          if (request.isAutomatic) {
+            return const LibrarySyncState(
+              status: LibrarySyncStatus.skipped,
+              stage: LibrarySyncStage.completed,
+            );
+          }
+          onProgress?.call(catalogResult);
+          return catalogResult;
+        });
+        final container = _container(
+          engine,
+          reachability: ServerReachabilityStatus.checking,
         );
         addTearDown(container.dispose);
 
@@ -1458,7 +1482,7 @@ void main() {
 
         final refreshed = await notifier.syncNow();
         expect(refreshed, same(catalogResult));
-        expect(engine.nowCalls, 1);
+        expect(engine.explicitCatalogRequests, [_manualRequest]);
         expect(
           container.read(librarySyncControllerProvider).planKind,
           LibrarySyncPlanKind.deltaReconcile,
@@ -1520,16 +1544,8 @@ void main() {
           ),
         ]);
         final requestedArtistIds = <String>[];
-        final engine = _FakeLibrarySyncEngine(
-          ({onProgress}) async => const LibrarySyncState(
-            status: LibrarySyncStatus.skipped,
-            stage: LibrarySyncStage.completed,
-          ),
-          ({forceFull = false, onProgress}) async => const LibrarySyncState(
-            status: LibrarySyncStatus.skipped,
-            stage: LibrarySyncStage.completed,
-          ),
-          requestHandler: (request, {onProgress}) async {
+        final engine = StubLibrarySyncEngine((request, {onProgress}) async {
+          if (request.target.kind != LibrarySyncTargetKind.catalog) {
             expect(request.target.kind, LibrarySyncTargetKind.artist);
             requestedArtistIds.add(request.target.entityId!);
             return LibrarySyncState(
@@ -1537,22 +1553,16 @@ void main() {
               stage: LibrarySyncStage.completed,
               completedAt: DateTime.now(),
             );
-          },
-        );
-        final container = ProviderContainer(
-          overrides: [
-            _manualSyncInterval,
-            navisDatabaseProvider.overrideWithValue(database),
-            serverConfigStateProvider.overrideWithValue(const AsyncData(null)),
-            serverReachabilityControllerProvider.overrideWith(
-              () => _StaticReachabilityController(
-                const ServerReachabilityState(
-                  status: ServerReachabilityStatus.checking,
-                ),
-              ),
-            ),
-            librarySyncEngineProvider.overrideWithValue(engine),
-          ],
+          }
+          return const LibrarySyncState(
+            status: LibrarySyncStatus.skipped,
+            stage: LibrarySyncStage.completed,
+          );
+        });
+        final container = _container(
+          engine,
+          database: database,
+          reachability: ServerReachabilityStatus.checking,
         );
         addTearDown(container.dispose);
 
@@ -1639,20 +1649,16 @@ void main() {
         ServerReachabilityStatus reachability = ServerReachabilityStatus.online,
         Override? serverConfig,
       }) {
-        final engine = _FakeLibrarySyncEngine(
-          ({onProgress}) async => const LibrarySyncState(
-            status: LibrarySyncStatus.skipped,
-            stage: LibrarySyncStage.completed,
-          ),
-          ({forceFull = false, onProgress}) async => const LibrarySyncState(
-            status: LibrarySyncStatus.skipped,
-            stage: LibrarySyncStage.completed,
-          ),
-          requestHandler: (request, {onProgress}) {
+        final engine = StubLibrarySyncEngine((request, {onProgress}) async {
+          if (request.target.kind != LibrarySyncTargetKind.catalog) {
             requestedArtistIds.add(request.target.entityId!);
-            return nextResult();
-          },
-        );
+            return await nextResult();
+          }
+          return const LibrarySyncState(
+            status: LibrarySyncStatus.skipped,
+            stage: LibrarySyncStage.completed,
+          );
+        });
         final container = ProviderContainer(
           overrides: [
             _manualSyncInterval,
@@ -1796,21 +1802,23 @@ void main() {
       );
 
       test('opening without an engine does not use up the open', () async {
-        final engine = _FakeLibrarySyncEngine(
-          ({onProgress}) async => const LibrarySyncState(
-            status: LibrarySyncStatus.skipped,
-            stage: LibrarySyncStage.completed,
-          ),
-          ({forceFull = false, onProgress}) async => LibrarySyncState(
+        final engine = StubLibrarySyncEngine((request, {onProgress}) async {
+          if (request.target.kind != LibrarySyncTargetKind.catalog) {
+            requestedArtistIds.add(request.target.entityId!);
+            return await nextResult();
+          }
+          if (request.isAutomatic) {
+            return const LibrarySyncState(
+              status: LibrarySyncStatus.skipped,
+              stage: LibrarySyncStage.completed,
+            );
+          }
+          return LibrarySyncState(
             status: LibrarySyncStatus.succeeded,
             stage: LibrarySyncStage.completed,
             completedAt: DateTime.now(),
-          ),
-          requestHandler: (request, {onProgress}) {
-            requestedArtistIds.add(request.target.entityId!);
-            return nextResult();
-          },
-        );
+          );
+        });
         final engineState =
             NotifierProvider<_MutableLibrarySyncEngine, LibrarySyncEngine?>(
               _MutableLibrarySyncEngine.new,
@@ -1821,7 +1829,7 @@ void main() {
             navisDatabaseProvider.overrideWithValue(database),
             serverConfigStateProvider.overrideWithValue(const AsyncData(null)),
             serverReachabilityControllerProvider.overrideWith(
-              () => _StaticReachabilityController(
+              () => StaticReachabilityController(
                 const ServerReachabilityState(
                   status: ServerReachabilityStatus.online,
                 ),
@@ -2096,12 +2104,14 @@ void main() {
       'forceFullSync becomes visibly preparing before engine planning',
       () async {
         final completer = Completer<LibrarySyncState>();
-        final engine = _FakeLibrarySyncEngine(
-          ({onProgress}) async => const LibrarySyncState(
-            status: LibrarySyncStatus.skipped,
-            stage: LibrarySyncStage.completed,
-          ),
-          ({forceFull = false, onProgress}) async => await (forceFull
+        final engine = StubLibrarySyncEngine((request, {onProgress}) async {
+          if (request.isAutomatic) {
+            return const LibrarySyncState(
+              status: LibrarySyncStatus.skipped,
+              stage: LibrarySyncStage.completed,
+            );
+          }
+          return await ((request.intent == SyncRunIntent.repairLibrary)
               ? completer.future
               : const LibrarySyncState(
                   status: LibrarySyncStatus.succeeded,
@@ -2111,21 +2121,11 @@ void main() {
                   apiRequests: 9,
                   endpointRequests: {'getAlbum': 9},
                   lastRunBytes: 1024,
-                )),
-        );
-        final container = ProviderContainer(
-          overrides: [
-            _manualSyncInterval,
-            serverConfigStateProvider.overrideWithValue(const AsyncData(null)),
-            serverReachabilityControllerProvider.overrideWith(
-              () => _StaticReachabilityController(
-                const ServerReachabilityState(
-                  status: ServerReachabilityStatus.checking,
-                ),
-              ),
-            ),
-            librarySyncEngineProvider.overrideWithValue(engine),
-          ],
+                ));
+        });
+        final container = _container(
+          engine,
+          reachability: ServerReachabilityStatus.checking,
         );
         addTearDown(container.dispose);
 
@@ -2159,43 +2159,31 @@ void main() {
     );
 
     test('syncNow transitions through running to failed state', () async {
-      final engine = _FakeLibrarySyncEngine(
-        ({onProgress}) async {
+      final engine = StubLibrarySyncEngine((request, {onProgress}) async {
+        if (request.isAutomatic) {
           return const LibrarySyncState(
             status: LibrarySyncStatus.skipped,
             stage: LibrarySyncStage.completed,
           );
-        },
-        ({forceFull = false, onProgress}) async {
-          onProgress?.call(
-            LibrarySyncState(
-              status: LibrarySyncStatus.running,
-              stage: LibrarySyncStage.fetchingAlbums,
-              startedAt: DateTime.now(),
-            ),
-          );
-          return LibrarySyncState(
-            status: LibrarySyncStatus.failed,
-            stage: LibrarySyncStage.completed,
-            completedAt: DateTime.now(),
-            errorMessage: 'Sync failed.',
-          );
-        },
-      );
-
-      final container = ProviderContainer(
-        overrides: [
-          _manualSyncInterval,
-          serverConfigStateProvider.overrideWithValue(const AsyncData(null)),
-          serverReachabilityControllerProvider.overrideWith(
-            () => _StaticReachabilityController(
-              const ServerReachabilityState(
-                status: ServerReachabilityStatus.checking,
-              ),
-            ),
+        }
+        onProgress?.call(
+          LibrarySyncState(
+            status: LibrarySyncStatus.running,
+            stage: LibrarySyncStage.fetchingAlbums,
+            startedAt: DateTime.now(),
           ),
-          librarySyncEngineProvider.overrideWithValue(engine),
-        ],
+        );
+        return LibrarySyncState(
+          status: LibrarySyncStatus.failed,
+          stage: LibrarySyncStage.completed,
+          completedAt: DateTime.now(),
+          errorMessage: 'Sync failed.',
+        );
+      });
+
+      final container = _container(
+        engine,
+        reachability: ServerReachabilityStatus.checking,
       );
       addTearDown(container.dispose);
 
@@ -2204,7 +2192,7 @@ void main() {
       final finalState = container.read(librarySyncControllerProvider);
       expect(finalState.status, LibrarySyncStatus.failed);
       expect(finalState.errorMessage, 'Sync failed.');
-      expect(engine.forceFullCalls.last, isFalse);
+      expect(engine.explicitCatalogRequests.last, _manualRequest);
     });
 
     test(
@@ -2215,20 +2203,7 @@ void main() {
         await database.appSettingsDao.setLastFullSyncAppBuild(
           currentLibrarySyncModelVersion,
         );
-        final engine = _FakeLibrarySyncEngine(
-          ({onProgress}) async {
-            return const LibrarySyncState(
-              status: LibrarySyncStatus.succeeded,
-              stage: LibrarySyncStage.completed,
-            );
-          },
-          ({forceFull = false, onProgress}) async {
-            return const LibrarySyncState(
-              status: LibrarySyncStatus.succeeded,
-              stage: LibrarySyncStage.completed,
-            );
-          },
-        );
+        final engine = StubLibrarySyncEngine.returning(_succeeded);
         late _MutableReachabilityController reachability;
 
         final container = ProviderContainer(
@@ -2259,12 +2234,12 @@ void main() {
 
         container.read(librarySyncControllerProvider);
         await Future<void>.delayed(const Duration(milliseconds: 20));
-        expect(engine.staleCalls, 0);
+        expect(engine.automaticRequests, isEmpty);
 
         reachability.setStatus(ServerReachabilityStatus.online);
         await Future<void>.delayed(const Duration(milliseconds: 20));
 
-        expect(engine.staleCalls, 1);
+        expect(engine.automaticRequests, [_automaticRequest]);
       },
     );
 
@@ -2274,48 +2249,29 @@ void main() {
         final database = createTestDatabase();
         addTearDown(database.close);
         var networkType = NetworkType.cellular;
-        final engine = _FakeLibrarySyncEngine(
-          ({onProgress}) async {
+        final engine = StubLibrarySyncEngine((request, {onProgress}) async {
+          if (request.isAutomatic) {
             return const LibrarySyncState(
               status: LibrarySyncStatus.skipped,
               stage: LibrarySyncStage.completed,
             );
-          },
-          ({forceFull = false, onProgress}) async {
-            return LibrarySyncState(
-              status: LibrarySyncStatus.succeeded,
-              stage: LibrarySyncStage.completed,
-              completedAt: DateTime.now(),
-            );
-          },
-        );
+          }
+          return LibrarySyncState(
+            status: LibrarySyncStatus.succeeded,
+            stage: LibrarySyncStage.completed,
+            completedAt: DateTime.now(),
+          );
+        });
 
-        final container = ProviderContainer(
-          overrides: [
-            _manualSyncInterval,
+        final container = _container(
+          engine,
+          database: database,
+          server: _exampleServer,
+          extra: [
             networkTypeProvider.overrideWith((ref) => networkType),
-            serverConfigStateProvider.overrideWithValue(
-              const AsyncData(
-                ServerConfigModel(
-                  url: 'https://example.com',
-                  username: 'alice',
-                  password: 'secret',
-                  apiVersion: '1.16.1',
-                ),
-              ),
-            ),
-            serverReachabilityControllerProvider.overrideWith(
-              () => _StaticReachabilityController(
-                const ServerReachabilityState(
-                  status: ServerReachabilityStatus.online,
-                ),
-              ),
-            ),
-            navisDatabaseProvider.overrideWithValue(database),
             requiredLibrarySyncModelVersionProvider.overrideWithValue(
               'model-v2',
             ),
-            librarySyncEngineProvider.overrideWithValue(engine),
           ],
         );
         addTearDown(container.dispose);
@@ -2323,8 +2279,8 @@ void main() {
         container.read(librarySyncControllerProvider);
         await Future<void>.delayed(const Duration(milliseconds: 20));
 
-        expect(engine.staleCalls, 1);
-        expect(engine.nowCalls, 0);
+        expect(engine.automaticRequests, [_automaticRequest]);
+        expect(engine.explicitCatalogRequests, isEmpty);
         expect(await database.appSettingsDao.getLastFullSyncAppBuild(), isNull);
 
         networkType = NetworkType.wifi;
@@ -2332,8 +2288,8 @@ void main() {
         expect(container.read(networkTypeProvider), NetworkType.wifi);
         await Future<void>.delayed(const Duration(milliseconds: 20));
 
-        expect(engine.nowCalls, 1);
-        expect(engine.forceFullCalls.single, isTrue);
+        expect(engine.explicitCatalogRequests, [_repairRequest]);
+        expect(engine.explicitCatalogRequests.single, _repairRequest);
         expect(
           await database.appSettingsDao.getLastFullSyncAppBuild(),
           'model-v2',
@@ -2346,54 +2302,35 @@ void main() {
       () async {
         final database = createTestDatabase();
         addTearDown(database.close);
-        final engine = _FakeLibrarySyncEngine(
-          ({onProgress}) async => const LibrarySyncState(
-            status: LibrarySyncStatus.skipped,
-            stage: LibrarySyncStage.completed,
-          ),
-          ({forceFull = false, onProgress}) async {
-            expect(forceFull, isTrue);
-            return LibrarySyncState(
-              status: LibrarySyncStatus.partial,
+        final engine = StubLibrarySyncEngine((request, {onProgress}) async {
+          if (request.isAutomatic) {
+            return const LibrarySyncState(
+              status: LibrarySyncStatus.skipped,
               stage: LibrarySyncStage.completed,
-              mode: LibrarySyncMode.forceFull,
-              metadataReady: true,
-              pendingHydrationCount: 1,
-              completedAt: DateTime.now(),
             );
-          },
-        );
-        final container = ProviderContainer(
-          overrides: [
-            _manualSyncInterval,
-            networkTypeProvider.overrideWithValue(NetworkType.wifi),
-            serverConfigStateProvider.overrideWithValue(
-              const AsyncData(
-                ServerConfigModel(
-                  url: 'https://example.com',
-                  username: 'alice',
-                  password: 'secret',
-                  apiVersion: '1.16.1',
-                ),
-              ),
-            ),
-            serverReachabilityControllerProvider.overrideWith(
-              () => _StaticReachabilityController(
-                const ServerReachabilityState(
-                  status: ServerReachabilityStatus.online,
-                ),
-              ),
-            ),
-            navisDatabaseProvider.overrideWithValue(database),
-            librarySyncEngineProvider.overrideWithValue(engine),
-          ],
+          }
+          expect(request.intent, SyncRunIntent.repairLibrary);
+          return LibrarySyncState(
+            status: LibrarySyncStatus.partial,
+            stage: LibrarySyncStage.completed,
+            mode: LibrarySyncMode.forceFull,
+            metadataReady: true,
+            pendingHydrationCount: 1,
+            completedAt: DateTime.now(),
+          );
+        });
+        final container = _container(
+          engine,
+          database: database,
+          server: _exampleServer,
+          extra: [networkTypeProvider.overrideWithValue(NetworkType.wifi)],
         );
         addTearDown(container.dispose);
 
         container.read(librarySyncControllerProvider);
         await Future<void>.delayed(const Duration(milliseconds: 20));
 
-        expect(engine.forceFullCalls, <bool>[true]);
+        expect(engine.explicitCatalogRequests, [_repairRequest]);
         expect(
           await database.appSettingsDao.getLastFullSyncAppBuild(),
           currentLibrarySyncModelVersion,
@@ -2407,49 +2344,32 @@ void main() {
         final database = createTestDatabase();
         addTearDown(database.close);
         await database.appSettingsDao.setLastFullSyncAppBuild('56');
-        final engine = _FakeLibrarySyncEngine(
-          ({onProgress}) async => const LibrarySyncState(
-            status: LibrarySyncStatus.skipped,
-            stage: LibrarySyncStage.completed,
-          ),
-          ({forceFull = false, onProgress}) async => LibrarySyncState(
+        final engine = StubLibrarySyncEngine((request, {onProgress}) async {
+          if (request.isAutomatic) {
+            return const LibrarySyncState(
+              status: LibrarySyncStatus.skipped,
+              stage: LibrarySyncStage.completed,
+            );
+          }
+          return LibrarySyncState(
             status: LibrarySyncStatus.succeeded,
             stage: LibrarySyncStage.completed,
             mode: LibrarySyncMode.forceFull,
             completedAt: DateTime.now(),
-          ),
-        );
-        final container = ProviderContainer(
-          overrides: [
-            _manualSyncInterval,
-            networkTypeProvider.overrideWithValue(NetworkType.wifi),
-            serverConfigStateProvider.overrideWithValue(
-              const AsyncData(
-                ServerConfigModel(
-                  url: 'https://example.com',
-                  username: 'alice',
-                  password: 'secret',
-                  apiVersion: '1.16.1',
-                ),
-              ),
-            ),
-            serverReachabilityControllerProvider.overrideWith(
-              () => _StaticReachabilityController(
-                const ServerReachabilityState(
-                  status: ServerReachabilityStatus.online,
-                ),
-              ),
-            ),
-            navisDatabaseProvider.overrideWithValue(database),
-            librarySyncEngineProvider.overrideWithValue(engine),
-          ],
+          );
+        });
+        final container = _container(
+          engine,
+          database: database,
+          server: _exampleServer,
+          extra: [networkTypeProvider.overrideWithValue(NetworkType.wifi)],
         );
         addTearDown(container.dispose);
 
         container.read(librarySyncControllerProvider);
         await Future<void>.delayed(const Duration(milliseconds: 20));
 
-        expect(engine.forceFullCalls, <bool>[true]);
+        expect(engine.explicitCatalogRequests, [_repairRequest]);
         expect(
           await database.appSettingsDao.getLastFullSyncAppBuild(),
           currentLibrarySyncModelVersion,
@@ -2465,48 +2385,30 @@ void main() {
         // The previous release's model version: this startup must schedule
         // exactly one recovery reconciliation.
         await database.appSettingsDao.setLastFullSyncAppBuild('57');
-        var forceFullCalls = 0;
+        final repairRequests = <LibrarySyncRequest>[];
         var forcedStatus = LibrarySyncStatus.failed;
-        LibrarySyncEngine buildEngine() => _FakeLibrarySyncEngine(
-          ({onProgress}) async => const LibrarySyncState(
-            status: LibrarySyncStatus.skipped,
-            stage: LibrarySyncStage.completed,
-          ),
-          ({forceFull = false, onProgress}) async {
-            forceFullCalls++;
-            return LibrarySyncState(
-              status: forcedStatus,
-              stage: LibrarySyncStage.completed,
-              mode: LibrarySyncMode.forceFull,
-              completedAt: DateTime.now(),
-            );
-          },
-        );
+        LibrarySyncEngine buildEngine() =>
+            StubLibrarySyncEngine((request, {onProgress}) async {
+              if (request.isAutomatic) {
+                return const LibrarySyncState(
+                  status: LibrarySyncStatus.skipped,
+                  stage: LibrarySyncStage.completed,
+                );
+              }
+              repairRequests.add(request);
+              return LibrarySyncState(
+                status: forcedStatus,
+                stage: LibrarySyncStage.completed,
+                mode: LibrarySyncMode.forceFull,
+                completedAt: DateTime.now(),
+              );
+            });
         ProviderContainer buildContainer(LibrarySyncEngine engine) {
-          return ProviderContainer(
-            overrides: [
-              _manualSyncInterval,
-              networkTypeProvider.overrideWithValue(NetworkType.wifi),
-              serverConfigStateProvider.overrideWithValue(
-                const AsyncData(
-                  ServerConfigModel(
-                    url: 'https://example.com',
-                    username: 'alice',
-                    password: 'secret',
-                    apiVersion: '1.16.1',
-                  ),
-                ),
-              ),
-              serverReachabilityControllerProvider.overrideWith(
-                () => _StaticReachabilityController(
-                  const ServerReachabilityState(
-                    status: ServerReachabilityStatus.online,
-                  ),
-                ),
-              ),
-              navisDatabaseProvider.overrideWithValue(database),
-              librarySyncEngineProvider.overrideWithValue(engine),
-            ],
+          return _container(
+            engine,
+            database: database,
+            server: _exampleServer,
+            extra: [networkTypeProvider.overrideWithValue(NetworkType.wifi)],
           );
         }
 
@@ -2516,7 +2418,7 @@ void main() {
         addTearDown(failedContainer.dispose);
         failedContainer.read(librarySyncControllerProvider);
         await Future<void>.delayed(const Duration(milliseconds: 20));
-        expect(forceFullCalls, 1);
+        expect(repairRequests, [_repairRequest]);
         expect(await database.appSettingsDao.getLastFullSyncAppBuild(), '57');
         failedContainer.dispose();
 
@@ -2527,7 +2429,7 @@ void main() {
         forcedStatus = LibrarySyncStatus.succeeded;
         recoveredContainer.read(librarySyncControllerProvider);
         await Future<void>.delayed(const Duration(milliseconds: 20));
-        expect(forceFullCalls, 2);
+        expect(repairRequests, [_repairRequest, _repairRequest]);
         expect(
           await database.appSettingsDao.getLastFullSyncAppBuild(),
           currentLibrarySyncModelVersion,
@@ -2537,41 +2439,18 @@ void main() {
     );
 
     test('unauthenticated state does not trigger startup sync', () async {
-      final engine = _FakeLibrarySyncEngine(
-        ({onProgress}) async {
-          return const LibrarySyncState(
-            status: LibrarySyncStatus.succeeded,
-            stage: LibrarySyncStage.completed,
-          );
-        },
-        ({forceFull = false, onProgress}) async {
-          return const LibrarySyncState(
-            status: LibrarySyncStatus.succeeded,
-            stage: LibrarySyncStage.completed,
-          );
-        },
-      );
-      final container = ProviderContainer(
-        overrides: [
-          _manualSyncInterval,
-          serverConfigStateProvider.overrideWithValue(const AsyncData(null)),
-          serverReachabilityControllerProvider.overrideWith(
-            () => _StaticReachabilityController(
-              const ServerReachabilityState(
-                status: ServerReachabilityStatus.checking,
-              ),
-            ),
-          ),
-          librarySyncEngineProvider.overrideWithValue(engine),
-        ],
+      final engine = StubLibrarySyncEngine.returning(_succeeded);
+      final container = _container(
+        engine,
+        reachability: ServerReachabilityStatus.checking,
       );
       addTearDown(container.dispose);
 
       container.read(librarySyncControllerProvider);
       await Future<void>.delayed(const Duration(milliseconds: 20));
 
-      expect(engine.staleCalls, 0);
-      expect(engine.nowCalls, 0);
+      expect(engine.automaticRequests, isEmpty);
+      expect(engine.explicitCatalogRequests, isEmpty);
     });
 
     test('sync does not auto-retry on resume after failure', () async {
@@ -2579,44 +2458,32 @@ void main() {
       binding.handleAppLifecycleStateChanged(AppLifecycleState.inactive);
 
       var attempt = 0;
-      final engine = _FakeLibrarySyncEngine(
-        ({onProgress}) async {
+      final engine = StubLibrarySyncEngine((request, {onProgress}) async {
+        if (request.isAutomatic) {
           return const LibrarySyncState(
             status: LibrarySyncStatus.skipped,
             stage: LibrarySyncStage.completed,
           );
-        },
-        ({forceFull = false, onProgress}) async {
-          attempt++;
-          if (attempt == 1) {
-            return LibrarySyncState(
-              status: LibrarySyncStatus.failed,
-              stage: LibrarySyncStage.fetchingAlbums,
-              errorMessage: 'Transient background failure',
-              completedAt: DateTime.now(),
-            );
-          }
+        }
+        attempt++;
+        if (attempt == 1) {
           return LibrarySyncState(
-            status: LibrarySyncStatus.succeeded,
-            stage: LibrarySyncStage.completed,
+            status: LibrarySyncStatus.failed,
+            stage: LibrarySyncStage.fetchingAlbums,
+            errorMessage: 'Transient background failure',
             completedAt: DateTime.now(),
           );
-        },
-      );
+        }
+        return LibrarySyncState(
+          status: LibrarySyncStatus.succeeded,
+          stage: LibrarySyncStage.completed,
+          completedAt: DateTime.now(),
+        );
+      });
 
-      final container = ProviderContainer(
-        overrides: [
-          _manualSyncInterval,
-          serverConfigStateProvider.overrideWithValue(const AsyncData(null)),
-          serverReachabilityControllerProvider.overrideWith(
-            () => _StaticReachabilityController(
-              const ServerReachabilityState(
-                status: ServerReachabilityStatus.checking,
-              ),
-            ),
-          ),
-          librarySyncEngineProvider.overrideWithValue(engine),
-        ],
+      final container = _container(
+        engine,
+        reachability: ServerReachabilityStatus.checking,
       );
       addTearDown(() async {
         container.dispose();
@@ -2627,13 +2494,13 @@ void main() {
           .read(librarySyncControllerProvider.notifier)
           .syncNow();
       await Future<void>.delayed(const Duration(milliseconds: 10));
-      expect(engine.nowCalls, 1);
+      expect(engine.explicitCatalogRequests, [_manualRequest]);
 
       binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
       await future;
 
       final finalState = container.read(librarySyncControllerProvider);
-      expect(engine.nowCalls, 1);
+      expect(engine.explicitCatalogRequests, [_manualRequest]);
       expect(finalState.status, LibrarySyncStatus.failed);
     });
 
@@ -2641,21 +2508,16 @@ void main() {
       final binding = TestWidgetsFlutterBinding.ensureInitialized();
       binding.handleAppLifecycleStateChanged(AppLifecycleState.inactive);
 
-      final engine = _FakeLibrarySyncEngine(
-        ({onProgress}) async {
+      final engine = StubLibrarySyncEngine((request, {onProgress}) async {
+        if (request.isAutomatic) {
           return LibrarySyncState(
             status: LibrarySyncStatus.succeeded,
             stage: LibrarySyncStage.completed,
             completedAt: DateTime.now(),
           );
-        },
-        ({forceFull = false, onProgress}) async {
-          return const LibrarySyncState(
-            status: LibrarySyncStatus.succeeded,
-            stage: LibrarySyncStage.completed,
-          );
-        },
-      );
+        }
+        return _succeeded;
+      });
 
       final container = ProviderContainer(
         overrides: [
@@ -2663,7 +2525,7 @@ void main() {
           syncIntervalMinutesProvider.overrideWithValue(1),
           serverConfigStateProvider.overrideWithValue(const AsyncData(null)),
           serverReachabilityControllerProvider.overrideWith(
-            () => _StaticReachabilityController(
+            () => StaticReachabilityController(
               const ServerReachabilityState(
                 status: ServerReachabilityStatus.checking,
               ),
@@ -2680,63 +2542,44 @@ void main() {
       container.read(librarySyncControllerProvider);
       await Future<void>.delayed(const Duration(milliseconds: 35));
 
-      expect(engine.staleCalls, 0);
+      expect(engine.automaticRequests, isEmpty);
     });
 
     test(
       'syncIfStale keeps a failed sync visible after a no-op pass',
       () async {
         var syncNowAttempts = 0;
-        final engine = _FakeLibrarySyncEngine(
-          ({onProgress}) async {
+        final engine = StubLibrarySyncEngine((request, {onProgress}) async {
+          if (request.isAutomatic) {
             return const LibrarySyncState(
               status: LibrarySyncStatus.skipped,
               stage: LibrarySyncStage.completed,
             );
-          },
-          ({forceFull = false, onProgress}) async {
-            syncNowAttempts++;
-            if (syncNowAttempts == 1) {
-              return LibrarySyncState(
-                status: LibrarySyncStatus.failed,
-                stage: LibrarySyncStage.completed,
-                completedAt: DateTime.now(),
-                errorMessage: 'Sync failed.',
-              );
-            }
+          }
+          syncNowAttempts++;
+          if (syncNowAttempts == 1) {
             return LibrarySyncState(
-              status: LibrarySyncStatus.succeeded,
+              status: LibrarySyncStatus.failed,
               stage: LibrarySyncStage.completed,
               completedAt: DateTime.now(),
+              errorMessage: 'Sync failed.',
             );
-          },
-        );
+          }
+          return LibrarySyncState(
+            status: LibrarySyncStatus.succeeded,
+            stage: LibrarySyncStage.completed,
+            completedAt: DateTime.now(),
+          );
+        });
         final database = createTestDatabase();
         addTearDown(database.close);
 
-        final container = ProviderContainer(
-          overrides: [
-            _manualSyncInterval,
-            serverConfigStateProvider.overrideWithValue(
-              const AsyncData(
-                ServerConfigModel(
-                  url: 'https://example.com',
-                  username: 'alice',
-                  password: 'secret',
-                  apiVersion: '1.16.1',
-                ),
-              ),
-            ),
-            serverReachabilityControllerProvider.overrideWith(
-              () => _StaticReachabilityController(
-                const ServerReachabilityState(
-                  status: ServerReachabilityStatus.online,
-                ),
-              ),
-            ),
+        final container = _container(
+          engine,
+          database: database,
+          server: _exampleServer,
+          extra: [
             requiredLibrarySyncModelVersionProvider.overrideWithValue(null),
-            navisDatabaseProvider.overrideWithValue(database),
-            librarySyncEngineProvider.overrideWithValue(engine),
           ],
         );
         addTearDown(container.dispose);
@@ -2751,7 +2594,7 @@ void main() {
         await notifier.syncIfStale();
 
         expect(syncNowAttempts, 1);
-        expect(engine.staleCalls, 1);
+        expect(engine.automaticRequests, [_automaticRequest]);
         expect(
           container.read(librarySyncControllerProvider).status,
           LibrarySyncStatus.failed,
@@ -2763,52 +2606,33 @@ void main() {
       'manual-only mode leaves pending hydration for the next explicit action',
       () async {
         var boundedPass = 0;
-        final engine = _FakeLibrarySyncEngine(
-          ({onProgress}) async {
+        final engine = StubLibrarySyncEngine((request, {onProgress}) async {
+          if (request.isAutomatic) {
             return const LibrarySyncState(
               status: LibrarySyncStatus.skipped,
               stage: LibrarySyncStage.completed,
             );
-          },
-          ({forceFull = false, onProgress}) async {
-            boundedPass++;
-            return LibrarySyncState(
-              status: LibrarySyncStatus.succeeded,
-              stage: LibrarySyncStage.completed,
-              completedAt: DateTime.now(),
-              pendingHydrationCount: boundedPass == 1 ? 2 : 0,
-              freshness: boundedPass == 1
-                  ? LibrarySyncFreshness.verificationPending
-                  : LibrarySyncFreshness.current,
-            );
-          },
-        );
+          }
+          boundedPass++;
+          return LibrarySyncState(
+            status: LibrarySyncStatus.succeeded,
+            stage: LibrarySyncStage.completed,
+            completedAt: DateTime.now(),
+            pendingHydrationCount: boundedPass == 1 ? 2 : 0,
+            freshness: boundedPass == 1
+                ? LibrarySyncFreshness.verificationPending
+                : LibrarySyncFreshness.current,
+          );
+        });
         final database = createTestDatabase();
         addTearDown(database.close);
-        final container = ProviderContainer(
-          overrides: [
-            _manualSyncInterval,
+        final container = _container(
+          engine,
+          database: database,
+          server: _exampleServer,
+          extra: [
             requiredLibrarySyncModelVersionProvider.overrideWithValue(null),
-            serverConfigStateProvider.overrideWithValue(
-              const AsyncData(
-                ServerConfigModel(
-                  url: 'https://example.com',
-                  username: 'alice',
-                  password: 'secret',
-                  apiVersion: '1.16.1',
-                ),
-              ),
-            ),
-            serverReachabilityControllerProvider.overrideWith(
-              () => _StaticReachabilityController(
-                const ServerReachabilityState(
-                  status: ServerReachabilityStatus.online,
-                ),
-              ),
-            ),
             networkTypeProvider.overrideWithValue(NetworkType.wifi),
-            navisDatabaseProvider.overrideWithValue(database),
-            librarySyncEngineProvider.overrideWithValue(engine),
           ],
         );
         addTearDown(container.dispose);
@@ -2818,8 +2642,7 @@ void main() {
         await notifier.syncNow();
         await Future<void>.delayed(const Duration(milliseconds: 30));
 
-        expect(engine.nowCalls, 1);
-        expect(engine.continuationCalls, 0);
+        expect(engine.explicitCatalogRequests, [_manualRequest]);
         expect(
           container.read(librarySyncControllerProvider).freshness,
           LibrarySyncFreshness.verificationPending,

@@ -178,13 +178,11 @@ void main() {
         .read(equalizerProvider)
         .requireValue
         .configuration;
-    controller.beginGesture();
-    final edits = [
-      for (final gain in [-1.0, -2.0, -3.0])
-        controller.setConfiguration(initial.copyWith(preampDb: gain)),
-    ];
-    controller.endGesture();
-    await Future.wait(edits);
+    final token = controller.beginGraphEdit();
+    for (final gain in [-1.0, -2.0, -3.0]) {
+      controller.updateGraphEdit(token, initial.copyWith(preampDb: gain));
+    }
+    await controller.endGraphEdit(token);
     await controller.undo();
     expect(
       container.read(equalizerProvider).requireValue.configuration.preampDb,
@@ -227,11 +225,11 @@ void main() {
           .read(equalizerProvider)
           .requireValue
           .configuration;
-      controller.beginGesture();
-      await controller.setConfiguration(initial.copyWith(preampDb: -1));
-      await controller.setConfiguration(initial.copyWith(preampDb: -2));
-      await controller.setConfiguration(initial.copyWith(preampDb: -3));
-      controller.endGesture();
+      final token = controller.beginGraphEdit();
+      controller.updateGraphEdit(token, initial.copyWith(preampDb: -1));
+      controller.updateGraphEdit(token, initial.copyWith(preampDb: -2));
+      controller.updateGraphEdit(token, initial.copyWith(preampDb: -3));
+      await controller.endGraphEdit(token);
       await controller.changeMode(EqMode.advanced);
       expect(controller.canUndo, isFalse);
       await controller.changeMode(EqMode.simple);

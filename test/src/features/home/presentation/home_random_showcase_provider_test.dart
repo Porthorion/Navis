@@ -163,8 +163,6 @@ class _FakeListenBrainzApiClient extends ListenBrainzApiClient {
   final Map<String, Completer<ListenBrainzPlaylist>> detailCompleters;
   final Completer<List<ListenBrainzPlaylist>>? recommendationCompleter;
   final List<String> detailStarts = <String>[];
-  int createdForCalls = 0;
-  int userPlaylistCalls = 0;
   int recommendationPlaylistCalls = 0;
   int validationCalls = 0;
 
@@ -176,27 +174,6 @@ class _FakeListenBrainzApiClient extends ListenBrainzApiClient {
   }) async {
     validationCalls++;
     return const ListenBrainzTokenDetails(valid: true, userName: 'alice');
-  }
-
-  @override
-  Future<List<ListenBrainzPlaylist>> getCreatedForPlaylists({
-    required String userName,
-    int count = 100,
-    int offset = 0,
-  }) async {
-    createdForCalls++;
-    return createdForPlaylists;
-  }
-
-  @override
-  Future<List<ListenBrainzPlaylist>> getUserPlaylists({
-    required String userName,
-    String? userToken,
-    int count = 100,
-    int offset = 0,
-  }) async {
-    userPlaylistCalls++;
-    return userPlaylists;
   }
 
   @override
@@ -2288,8 +2265,6 @@ void main() {
       await _listenBrainzStreamSettled(container);
 
       expect(result, hasLength(3));
-      expect(fakeListenBrainz.createdForCalls, 0);
-      expect(fakeListenBrainz.userPlaylistCalls, 0);
       expect(fakeListenBrainz.recommendationPlaylistCalls, 1);
       expect(
         result[0].listenBrainz.playlist!.displayTitle,

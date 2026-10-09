@@ -12,33 +12,26 @@ import 'package:navis/src/features/player/domain/playback_snapshot.dart';
 
 void main() {
   group('NavisAudioHandler fallback helpers', () {
-    test('notification controls are stable and ordered', () {
-      final pausedControls = navisNotificationControls(isPlaying: false);
-      final playingControls = navisNotificationControls(isPlaying: true);
-
-      expect(pausedControls.length, 3);
-      expect(playingControls.length, 3);
-
-      expect(pausedControls[0].action, MediaAction.skipToPrevious);
-      expect(pausedControls[1].action, MediaAction.play);
-      expect(pausedControls[2].action, MediaAction.skipToNext);
-
-      expect(playingControls[0].action, MediaAction.skipToPrevious);
-      expect(playingControls[1].action, MediaAction.pause);
-      expect(playingControls[2].action, MediaAction.skipToNext);
-    });
-
-    test('instant mix control is removed; controls always have 3 items', () {
-      final pausedControls = navisNotificationControls(isPlaying: false);
-      final playingControls = navisNotificationControls(isPlaying: true);
-
-      expect(pausedControls.length, 3);
-      expect(playingControls.length, 3);
-    });
-
-    test('notification compact indices align to transport controls', () {
-      expect(navisNotificationCompactActionIndices, const <int>[0, 1, 2]);
-    });
+    for (final (playing, transportAction) in [
+      (false, MediaAction.play),
+      (true, MediaAction.pause),
+    ]) {
+      test('notification controls are ordered (playing=$playing)', () {
+        final capabilities = navisOsControlCapabilities(
+          queueLength: 3,
+          currentIndex: 1,
+          isRadioMode: false,
+          duration: const Duration(minutes: 3),
+          processingState: AudioProcessingState.ready,
+          playing: playing,
+        );
+        expect(
+          navisNotificationControls(capabilities: capabilities)
+              .map((control) => control.action),
+          [MediaAction.skipToPrevious, transportAction, MediaAction.skipToNext],
+        );
+      });
+    }
 
     group('OS media control capabilities', () {
       test('idle exposes no transport controls', () {
@@ -53,66 +46,98 @@ void main() {
         expect(capabilities.canSkipNext, isFalse);
         expect(capabilities.canSkipPrevious, isFalse);
         expect(capabilities.isLive, isFalse);
-        expect(
-          navisNotificationControls(
-            isPlaying: false,
-            capabilities: capabilities,
-          ),
-          isEmpty,
-        );
+        expect(navisNotificationControls(capabilities: capabilities), isEmpty);
       });
 
-      test('loading queue disables play until ready', () {
-        final capabilities = navisOsControlCapabilities(
-          queueLength: 1,
-          currentIndex: 0,
-          isRadioMode: false,
-          duration: const Duration(minutes: 3),
-          processingState: AudioProcessingState.loading,
-          playing: false,
-        );
+      void capabilityCase(
+        String name, {
+        int queueLength = 1,
+        int? currentIndex = 0,
+        bool isRadio = false,
+        Duration duration = const Duration(minutes: 4),
+        AudioProcessingState state = AudioProcessingState.ready,
+        bool playing = false,
+        Set<String> yes = const <String>{},
+        Set<String> no = const <String>{},
+      }) {
+        test(name, () {
+          final capabilities = navisOsControlCapabilities(
+            queueLength: queueLength,
+            currentIndex: currentIndex,
+            isRadioMode: isRadio,
+            duration: duration,
+            processingState: state,
+            playing: playing,
+          );
+          final actual = <String, bool>{
+            'play': capabilities.canPlay,
+            'pause': capabilities.canPause,
+            'stop': capabilities.canStop,
+            'seek': capabilities.canSeek,
+            'next': capabilities.canSkipNext,
+            'previous': capabilities.canSkipPrevious,
+            'live': capabilities.isLive,
+          };
+          for (final (flags, expected) in [(yes, true), (no, false)]) {
+            for (final flag in flags) {
+              expect(actual[flag], expected, reason: flag);
+            }
+          }
+        });
+      }
 
-        expect(capabilities.canPlay, isFalse);
-        expect(capabilities.canPause, isFalse);
-        expect(capabilities.canStop, isTrue);
-        expect(capabilities.canSeek, isTrue);
-      });
-
-      test('radio is live and not seekable or skippable', () {
-        final capabilities = navisOsControlCapabilities(
-          queueLength: 0,
-          currentIndex: null,
-          isRadioMode: true,
-          duration: Duration.zero,
-          processingState: AudioProcessingState.ready,
-          playing: true,
-        );
-
-        expect(capabilities.isLive, isTrue);
-        expect(capabilities.canPause, isTrue);
-        expect(capabilities.canStop, isTrue);
-        expect(capabilities.canSeek, isFalse);
-        expect(capabilities.canSkipNext, isFalse);
-        expect(capabilities.canSkipPrevious, isFalse);
-      });
-
-      test('single-track queue exposes previous to restart current track', () {
-        final capabilities = navisOsControlCapabilities(
-          queueLength: 1,
-          currentIndex: 0,
-          isRadioMode: false,
-          duration: const Duration(minutes: 4),
-          processingState: AudioProcessingState.ready,
-          playing: false,
-        );
-
-        expect(capabilities.canPlay, isTrue);
-        expect(capabilities.canPause, isFalse);
-        expect(capabilities.canStop, isTrue);
-        expect(capabilities.canSeek, isTrue);
-        expect(capabilities.canSkipNext, isFalse);
-        expect(capabilities.canSkipPrevious, isTrue);
-      });
+      capabilityCase(
+        'loading queue disables play until ready',
+        duration: const Duration(minutes: 3),
+        state: AudioProcessingState.loading,
+        yes: {'stop', 'seek'},
+        no: {'play', 'pause'},
+      );
+      capabilityCase(
+        'radio is live and not seekable or skippable',
+        queueLength: 0,
+        currentIndex: null,
+        isRadio: true,
+        duration: Duration.zero,
+        playing: true,
+        yes: {'live', 'pause', 'stop'},
+        no: {'seek', 'next', 'previous'},
+      );
+      capabilityCase(
+        'single-track queue exposes previous to restart current track',
+        yes: {'play', 'stop', 'seek', 'previous'},
+        no: {'pause', 'next'},
+      );
+      capabilityCase(
+        'middle queue position exposes both skip directions',
+        queueLength: 3,
+        currentIndex: 1,
+        playing: true,
+        yes: {'previous', 'next'},
+      );
+      capabilityCase(
+        'last queue position exposes only previous',
+        queueLength: 3,
+        currentIndex: 2,
+        playing: true,
+        yes: {'previous'},
+        no: {'next'},
+      );
+      capabilityCase(
+        'completed playback can be played again and seeked',
+        queueLength: 2,
+        currentIndex: 1,
+        state: AudioProcessingState.completed,
+        yes: {'play', 'seek', 'stop'},
+        no: {'pause'},
+      );
+      capabilityCase(
+        'unknown duration media is treated as non-seekable live media',
+        duration: Duration.zero,
+        playing: true,
+        yes: {'live'},
+        no: {'seek'},
+      );
 
       test('paused restored queue advertises Auto playback entry points', () {
         final capabilities = navisOsControlCapabilities(
@@ -133,46 +158,6 @@ void main() {
         expect(actions, contains(MediaAction.prepare));
         expect(actions, contains(MediaAction.prepareFromMediaId));
         expect(actions, contains(MediaAction.prepareFromSearch));
-      });
-
-      test('middle and edge queue positions expose valid skip directions', () {
-        final middle = navisOsControlCapabilities(
-          queueLength: 3,
-          currentIndex: 1,
-          isRadioMode: false,
-          duration: const Duration(minutes: 4),
-          processingState: AudioProcessingState.ready,
-          playing: true,
-        );
-        expect(middle.canSkipPrevious, isTrue);
-        expect(middle.canSkipNext, isTrue);
-
-        final end = navisOsControlCapabilities(
-          queueLength: 3,
-          currentIndex: 2,
-          isRadioMode: false,
-          duration: const Duration(minutes: 4),
-          processingState: AudioProcessingState.ready,
-          playing: true,
-        );
-        expect(end.canSkipPrevious, isTrue);
-        expect(end.canSkipNext, isFalse);
-      });
-
-      test('completed playback can be played again and seeked', () {
-        final capabilities = navisOsControlCapabilities(
-          queueLength: 2,
-          currentIndex: 1,
-          isRadioMode: false,
-          duration: const Duration(minutes: 4),
-          processingState: AudioProcessingState.completed,
-          playing: false,
-        );
-
-        expect(capabilities.canPlay, isTrue);
-        expect(capabilities.canPause, isFalse);
-        expect(capabilities.canSeek, isTrue);
-        expect(capabilities.canStop, isTrue);
       });
 
       test('completed queue insertion resumes from inserted item', () {
@@ -211,150 +196,80 @@ void main() {
           isNull,
         );
       });
-
-      test('unknown duration media is treated as non-seekable live media', () {
-        final capabilities = navisOsControlCapabilities(
-          queueLength: 1,
-          currentIndex: 0,
-          isRadioMode: false,
-          duration: Duration.zero,
-          processingState: AudioProcessingState.ready,
-          playing: true,
-        );
-
-        expect(capabilities.canSeek, isFalse);
-        expect(capabilities.isLive, isTrue);
-      });
     });
 
     group('Android Auto search request parsing', () {
-      test('empty query without extras requests instant radio', () {
-        final request = navisAndroidAutoSearchRequest('');
-        expect(request.type, NavisAndroidAutoSearchType.empty);
-        expect(request.term, isEmpty);
-      });
+      void searchCase(
+        String name,
+        String query,
+        NavisAndroidAutoSearchType type, {
+        Map<String, Object?>? extras,
+        String? term,
+      }) {
+        test(name, () {
+          final request = navisAndroidAutoSearchRequest(query, extras);
+          expect(request.type, type);
+          if (term != null) expect(request.term, term);
+        });
+      }
 
-      test('artist focus uses the artist extra', () {
-        final request = navisAndroidAutoSearchRequest('', {
+      searchCase(
+        'empty query without extras requests instant radio',
+        '',
+        NavisAndroidAutoSearchType.empty,
+        term: '',
+      );
+      searchCase(
+        'artist focus uses the artist extra',
+        '',
+        NavisAndroidAutoSearchType.artist,
+        extras: {
           AndroidAutoConstants.mediaFocusKey:
               AndroidAutoConstants.mediaFocusArtist,
           AndroidAutoConstants.mediaArtistKey: 'Nina Simone',
-        });
-        expect(request.type, NavisAndroidAutoSearchType.artist);
-        expect(request.term, 'Nina Simone');
-      });
-
-      test('album focus falls back to query when album extra is absent', () {
-        final request = navisAndroidAutoSearchRequest('Blue', {
+        },
+        term: 'Nina Simone',
+      );
+      searchCase(
+        'album focus falls back to query when album extra is absent',
+        'Blue',
+        NavisAndroidAutoSearchType.album,
+        extras: {
           AndroidAutoConstants.mediaFocusKey:
               AndroidAutoConstants.mediaFocusAlbum,
-        });
-        expect(request.type, NavisAndroidAutoSearchType.album);
-        expect(request.term, 'Blue');
-      });
-
-      test('playlist and title extras use their scoped searches', () {
-        expect(
-          navisAndroidAutoSearchRequest('', {
-            AndroidAutoConstants.mediaPlaylistKey: 'Road',
-          }).type,
-          NavisAndroidAutoSearchType.playlist,
-        );
-        expect(
-          navisAndroidAutoSearchRequest('', {
-            AndroidAutoConstants.mediaTitleKey: 'Feeling Good',
-          }).type,
-          NavisAndroidAutoSearchType.title,
-        );
-      });
-
-      test('a genre voice intent is only a raw-query search', () {
-        // Genres are not a Navis concept: the platform genre focus and extra
-        // are ignored and the spoken query is searched as typed.
-        final request = navisAndroidAutoSearchRequest('jazz music', {
+        },
+        term: 'Blue',
+      );
+      searchCase(
+        'playlist extra uses its scoped search',
+        '',
+        NavisAndroidAutoSearchType.playlist,
+        extras: {AndroidAutoConstants.mediaPlaylistKey: 'Road'},
+      );
+      searchCase(
+        'title extra uses its scoped search',
+        '',
+        NavisAndroidAutoSearchType.title,
+        extras: {AndroidAutoConstants.mediaTitleKey: 'Feeling Good'},
+      );
+      // Genres are not a Navis concept: the platform genre focus and extra are
+      // ignored and the spoken query is searched as typed.
+      searchCase(
+        'a genre voice intent is only a raw-query search',
+        'jazz music',
+        NavisAndroidAutoSearchType.general,
+        extras: {
           AndroidAutoConstants.mediaFocusKey: 'vnd.android.cursor.item/genre',
           'android.intent.extra.genre': 'Jazz',
-        });
-        expect(request.type, NavisAndroidAutoSearchType.general);
-        expect(request.term, 'jazz music');
-      });
-
-      test('plain query uses general search', () {
-        final request = navisAndroidAutoSearchRequest('Queen');
-        expect(request.type, NavisAndroidAutoSearchType.general);
-        expect(request.term, 'Queen');
-      });
-    });
-
-    group('Android Auto resume source selection', () {
-      test('keeps active queue before any fallback', () {
-        expect(
-          navisChooseAutoResumeSource(
-            hasActiveQueue: true,
-            hasPersistedQueue: true,
-            hasRecentSongs: true,
-            hasLikedSongs: true,
-            canUseRandomFallback: true,
-          ),
-          NavisAutoResumeSource.activeQueue,
-        );
-      });
-
-      test('prefers persisted, recent, liked, then random fallback', () {
-        expect(
-          navisChooseAutoResumeSource(
-            hasActiveQueue: false,
-            hasPersistedQueue: true,
-            hasRecentSongs: true,
-            hasLikedSongs: true,
-            canUseRandomFallback: true,
-          ),
-          NavisAutoResumeSource.persistedQueue,
-        );
-        expect(
-          navisChooseAutoResumeSource(
-            hasActiveQueue: false,
-            hasPersistedQueue: false,
-            hasRecentSongs: true,
-            hasLikedSongs: true,
-            canUseRandomFallback: true,
-          ),
-          NavisAutoResumeSource.recentSong,
-        );
-        expect(
-          navisChooseAutoResumeSource(
-            hasActiveQueue: false,
-            hasPersistedQueue: false,
-            hasRecentSongs: false,
-            hasLikedSongs: true,
-            canUseRandomFallback: true,
-          ),
-          NavisAutoResumeSource.likedSong,
-        );
-        expect(
-          navisChooseAutoResumeSource(
-            hasActiveQueue: false,
-            hasPersistedQueue: false,
-            hasRecentSongs: false,
-            hasLikedSongs: false,
-            canUseRandomFallback: true,
-          ),
-          NavisAutoResumeSource.randomFallback,
-        );
-      });
-
-      test('returns none when no Navis source is available', () {
-        expect(
-          navisChooseAutoResumeSource(
-            hasActiveQueue: false,
-            hasPersistedQueue: false,
-            hasRecentSongs: false,
-            hasLikedSongs: false,
-            canUseRandomFallback: false,
-          ),
-          NavisAutoResumeSource.none,
-        );
-      });
+        },
+        term: 'jazz music',
+      );
+      searchCase(
+        'plain query uses general search',
+        'Queen',
+        NavisAndroidAutoSearchType.general,
+        term: 'Queen',
+      );
     });
 
     test('Android Auto playback failures expose a recoverable error state', () {
@@ -386,12 +301,6 @@ void main() {
         const Duration(milliseconds: 1),
       );
       expect(navisSanitizeSeekPosition(Duration.zero), Duration.zero);
-    });
-
-    test('playback speed normalize helper clamps to supported range', () {
-      expect(navisNormalizePlaybackSpeed(0.25), 0.25);
-      expect(navisNormalizePlaybackSpeed(1.25), 1.25);
-      expect(navisNormalizePlaybackSpeed(2.5), 2.5);
     });
 
     test('position-only playback changes are not structural changes', () {
@@ -427,78 +336,6 @@ void main() {
       );
     });
 
-    test('seek recovery helper detects lock-cached seek failures', () {
-      // Snap-to-zero: seek to 48s, land at 250ms.
-      expect(
-        navisShouldRecoverSeekToDirectStream(
-          sourceKind: 'lockCachedStream',
-          requestedPosition: const Duration(seconds: 48),
-          actualPosition: const Duration(milliseconds: 250),
-        ),
-        isTrue,
-      );
-
-      // Snap-to-buffer-boundary: seek to 60s, land at 8s (buffer boundary).
-      expect(
-        navisShouldRecoverSeekToDirectStream(
-          sourceKind: 'lockCachedStream',
-          requestedPosition: const Duration(seconds: 60),
-          actualPosition: const Duration(seconds: 8),
-        ),
-        isTrue,
-      );
-
-      // Non-remote source: never recover.
-      expect(
-        navisShouldRecoverSeekToDirectStream(
-          sourceKind: 'file',
-          requestedPosition: const Duration(seconds: 48),
-          actualPosition: const Duration(milliseconds: 250),
-        ),
-        isFalse,
-      );
-
-      // Direct stream undershoot: recover (desktop/media_kit can no-op).
-      expect(
-        navisShouldRecoverSeekToDirectStream(
-          sourceKind: 'directStream',
-          requestedPosition: const Duration(seconds: 48),
-          actualPosition: const Duration(milliseconds: 250),
-        ),
-        isTrue,
-      );
-
-      // Small seek target (≤ 2s): never recover.
-      expect(
-        navisShouldRecoverSeekToDirectStream(
-          sourceKind: 'lockCachedStream',
-          requestedPosition: const Duration(seconds: 1),
-          actualPosition: const Duration(milliseconds: 250),
-        ),
-        isFalse,
-      );
-
-      // Successful seek that landed within 2s of target: no recovery.
-      expect(
-        navisShouldRecoverSeekToDirectStream(
-          sourceKind: 'lockCachedStream',
-          requestedPosition: const Duration(seconds: 30),
-          actualPosition: const Duration(milliseconds: 29500),
-        ),
-        isFalse,
-      );
-
-      // Backward no-op: staying above the requested target needs recovery.
-      expect(
-        navisShouldRecoverSeekToDirectStream(
-          sourceKind: 'lockCachedStream',
-          requestedPosition: const Duration(seconds: 30),
-          actualPosition: const Duration(seconds: 32),
-        ),
-        isTrue,
-      );
-    });
-
     test('remote playback stall watcher only tracks remote loading states', () {
       expect(
         navisShouldWatchRemotePlaybackForStall(
@@ -529,45 +366,6 @@ void main() {
         isFalse,
       );
     });
-
-    test(
-      'buffered seek recovery keeps a correctly landed remote seek safe',
-      () {
-        expect(
-          navisShouldRecoverBufferedSeek(
-            sourceKind: PlaybackSourceKind.directStream.name,
-            processingState: AudioProcessingState.buffering,
-            requestedPosition: const Duration(seconds: 120),
-            actualPosition: const Duration(seconds: 120),
-            isCurrentTransportIntent: true,
-            isCurrentSong: true,
-          ),
-          isTrue,
-        );
-        expect(
-          navisShouldRecoverBufferedSeek(
-            sourceKind: PlaybackSourceKind.directStream.name,
-            processingState: AudioProcessingState.ready,
-            requestedPosition: const Duration(seconds: 120),
-            actualPosition: const Duration(seconds: 120),
-            isCurrentTransportIntent: true,
-            isCurrentSong: true,
-          ),
-          isFalse,
-        );
-        expect(
-          navisShouldRecoverBufferedSeek(
-            sourceKind: PlaybackSourceKind.directStream.name,
-            processingState: AudioProcessingState.buffering,
-            requestedPosition: const Duration(seconds: 120),
-            actualPosition: const Duration(seconds: 120),
-            isCurrentTransportIntent: false,
-            isCurrentSong: true,
-          ),
-          isFalse,
-        );
-      },
-    );
 
     test('remote playback retries exactly once before skipping', () {
       expect(navisShouldRetryRemotePlayback(alreadyRetried: false), isTrue);
@@ -652,114 +450,6 @@ void main() {
         isTrue,
       );
     });
-
-    test('crossfade handoff seek helper seeks on index mismatch', () {
-      expect(
-        navisShouldSeekCrossfadeHandoff(
-          handoffTargetIndex: 6,
-          currentIndex: 5,
-          jumpDelta: const Duration(milliseconds: 50),
-          seekCorrectionThreshold: const Duration(milliseconds: 750),
-        ),
-        isTrue,
-      );
-    });
-
-    test('crossfade handoff seek helper seeks on large position delta', () {
-      expect(
-        navisShouldSeekCrossfadeHandoff(
-          handoffTargetIndex: 6,
-          currentIndex: 6,
-          jumpDelta: const Duration(seconds: 2),
-          seekCorrectionThreshold: const Duration(milliseconds: 750),
-        ),
-        isTrue,
-      );
-    });
-
-    test('crossfade handoff seek helper skips seek when index and delta are stable', () {
-      expect(
-        navisShouldSeekCrossfadeHandoff(
-          handoffTargetIndex: 6,
-          currentIndex: 6,
-          jumpDelta: const Duration(milliseconds: 200),
-          seekCorrectionThreshold: const Duration(milliseconds: 750),
-        ),
-        isFalse,
-      );
-    });
-
-    test(
-      'android crossfade fallback helper avoids regular CD-quality FLAC',
-      () {
-        expect(
-          navisShouldUseAndroidSequentialCrossfadeFallback(
-            isAndroidRuntime: true,
-            format: 'flac',
-            sampleRate: 44100,
-          ),
-          isFalse,
-        );
-        expect(
-          navisShouldUseAndroidSequentialCrossfadeFallback(
-            isAndroidRuntime: true,
-            format: 'audio/flac',
-            sampleRate: 44100,
-          ),
-          isFalse,
-        );
-      },
-    );
-
-    test(
-      'android crossfade fallback helper enables for high sample-rate audio',
-      () {
-        expect(
-          navisShouldUseAndroidSequentialCrossfadeFallback(
-            isAndroidRuntime: true,
-            format: 'mp3',
-            sampleRate: 96000,
-          ),
-          isTrue,
-        );
-      },
-    );
-
-    test(
-      'android crossfade fallback helper enables for high-rate lossless audio',
-      () {
-        expect(
-          navisShouldUseAndroidSequentialCrossfadeFallback(
-            isAndroidRuntime: true,
-            format: 'flac',
-            sampleRate: 96000,
-          ),
-          isTrue,
-        );
-      },
-    );
-
-    test(
-      'android crossfade fallback helper stays off for regular lossy audio',
-      () {
-        expect(
-          navisShouldUseAndroidSequentialCrossfadeFallback(
-            isAndroidRuntime: true,
-            format: 'mp3',
-            sampleRate: 44100,
-          ),
-          isFalse,
-        );
-        expect(
-          navisShouldUseAndroidSequentialCrossfadeFallback(
-            isAndroidRuntime: false,
-            format: 'flac',
-            sampleRate: 96000,
-          ),
-          isFalse,
-        );
-      },
-    );
 
     test('skip helper enforces queue bounds for next and previous', () {
       expect(
@@ -912,68 +602,70 @@ void main() {
     });
 
     group('previous track action helper', () {
-      test('no current index returns none', () {
-        expect(
-          navisResolvePreviousTrackAction(
-            queueLength: 1,
-            currentIndex: null,
-            position: Duration.zero,
-          ),
-          NavisPreviousTrackAction.none,
-        );
-      });
+      void previousCase(
+        String name,
+        int queueLength,
+        int? currentIndex,
+        Duration position,
+        NavisPreviousTrackAction expected,
+      ) {
+        test(name, () {
+          expect(
+            navisResolvePreviousTrackAction(
+              queueLength: queueLength,
+              currentIndex: currentIndex,
+              position: position,
+            ),
+            expected,
+          );
+        });
+      }
 
-      test('first or single track restarts current', () {
-        expect(
-          navisResolvePreviousTrackAction(
-            queueLength: 1,
-            currentIndex: 0,
-            position: Duration.zero,
-          ),
-          NavisPreviousTrackAction.restartCurrent,
-        );
-        expect(
-          navisResolvePreviousTrackAction(
-            queueLength: 3,
-            currentIndex: 0,
-            position: const Duration(seconds: 1),
-          ),
-          NavisPreviousTrackAction.restartCurrent,
-        );
-      });
-
-      test('previous exists and position above threshold restarts current', () {
-        expect(
-          navisResolvePreviousTrackAction(
-            queueLength: 3,
-            currentIndex: 1,
-            position: const Duration(seconds: 3, milliseconds: 1),
-          ),
-          NavisPreviousTrackAction.restartCurrent,
-        );
-      });
-
-      test('previous exists and position at or below threshold skips back', () {
-        expect(
-          navisResolvePreviousTrackAction(
-            queueLength: 3,
-            currentIndex: 1,
-            position: const Duration(seconds: 3),
-          ),
-          NavisPreviousTrackAction.skipToPrevious,
-        );
-      });
-
-      test('no previous item restarts at or below threshold', () {
-        expect(
-          navisResolvePreviousTrackAction(
-            queueLength: 2,
-            currentIndex: 0,
-            position: navisPreviousTrackRestartThreshold,
-          ),
-          NavisPreviousTrackAction.restartCurrent,
-        );
-      });
+      const none = NavisPreviousTrackAction.none;
+      const restart = NavisPreviousTrackAction.restartCurrent;
+      const back = NavisPreviousTrackAction.skipToPrevious;
+      previousCase(
+        'no current index returns none',
+        1,
+        null,
+        Duration.zero,
+        none,
+      );
+      previousCase(
+        'single track restarts current',
+        1,
+        0,
+        Duration.zero,
+        restart,
+      );
+      previousCase(
+        'first track of a longer queue restarts current',
+        3,
+        0,
+        const Duration(seconds: 1),
+        restart,
+      );
+      previousCase(
+        'previous exists and position above threshold restarts current',
+        3,
+        1,
+        const Duration(seconds: 3, milliseconds: 1),
+        restart,
+      );
+      previousCase(
+        'previous exists and position at or below threshold skips back',
+        3,
+        1,
+        const Duration(seconds: 3),
+        back,
+      );
+      previousCase(
+        'no previous item restarts at or below threshold',
+        2,
+        0,
+        navisPreviousTrackRestartThreshold,
+        restart,
+      );
     });
 
     test('resolved playback extras preserve transcode metadata', () {

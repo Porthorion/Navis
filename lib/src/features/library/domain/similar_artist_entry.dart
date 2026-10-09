@@ -29,8 +29,6 @@ class SimilarArtistEntry {
 
   /// A photo outside the server (Deezer), for artists not in the library.
   final String? imageUrl;
-
-  bool get isInLibrary => libraryArtistId != null;
 }
 
 /// Deezer's related artists as "Fans Also Like" entries: artists in the

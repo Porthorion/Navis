@@ -6,12 +6,11 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:navis/src/api/models/models.dart';
 import 'package:navis/src/database/navis_database.dart';
 import 'package:navis/src/database/tables/schema_enums.dart';
-import 'package:navis/src/features/auth/data/server_config_repository.dart';
-import 'package:navis/src/features/auth/domain/server_config.dart';
-import 'package:navis/src/features/library/data/library_sync_engine.dart';
+import 'package:navis/src/features/library/domain/library_sync_request.dart';
 import 'package:navis/src/features/library/domain/library_sync_state.dart';
 
 import '../../../../helpers/library_sync_fakes.dart';
+import '../../../../helpers/library_sync_plan.dart';
 import '../../../../helpers/test_database.dart';
 
 /// Characterization golden for catalog promotion and identity repair.
@@ -36,30 +35,33 @@ void main() {
     addTearDown(database.close);
     final files = await Directory.systemTemp.createTemp('navis_sync_golden_');
     addTearDown(() => files.delete(recursive: true));
-    final repository = ServerConfigRepository(
-      database,
-      credentials: FakeSyncCredentialStore(),
-    );
-    await repository.save(
-      ServerConfigModel(
-        url: 'https://example.com',
-        username: 'alice',
-        password: 'secret',
-        apiVersion: '1.16.1',
-      ),
-    );
+    final repository = await seedSyncSession(database);
     final api = FakeLibrarySyncApi();
-    final engine = DriftLibrarySyncEngine(
+    final engine = serialDriftEngine(
       api: api,
       database: database,
-      serverConfigRepository: repository,
-      fallbackArtistConcurrency: 1,
-      wifiAlbumConcurrency: 1,
-      cellularAlbumConcurrency: 1,
-      otherAlbumConcurrency: 1,
-      writeChunkSize: 4,
-      isolateThreshold: 1000,
+      repository: repository,
     );
+    Future<LibrarySyncState> runRepair() async {
+      final result = await engine.executeSyncPlan(
+        syncPlanForTest(LibrarySyncPlanKind.fullRepair),
+      );
+      // Explicit repairs refresh both companions independently of the catalog.
+      await engine.executeSyncPlan(
+        syncPlanForTest(
+          LibrarySyncPlanKind.targetedHydration,
+          target: const LibrarySyncTarget.starred(),
+        ),
+      );
+      await engine.executeSyncPlan(
+        syncPlanForTest(
+          LibrarySyncPlanKind.targetedHydration,
+          target: const LibrarySyncTarget.playlistHeaders(),
+        ),
+      );
+      return result;
+    }
+
     final starred = DateTime.utc(2026, 1, 2);
 
     Song song(
@@ -157,7 +159,7 @@ void main() {
         ]),
       ],
     );
-    final first = await engine.forceFullSync();
+    final first = await runRepair();
 
     // --- User state kept locally. ----------------------------------------
     Future<void> cache(String songId, CacheType type) async {
@@ -217,13 +219,15 @@ void main() {
         ]),
       ],
     );
-    final second = await engine.forceFullSync();
+    final second = await runRepair();
     final afterSecond = await _snapshot(database, files);
-    final third = await engine.forceFullSync();
+    final third = await runRepair();
     final afterThird = await _snapshot(database, files);
     // One more sync settles what the rebuild left provisional.
-    final fourth = await engine.forceFullSync();
+    final fourth = await runRepair();
     final afterFourth = await _snapshot(database, files);
+    // Settling is idempotent, so it is asserted equal rather than stored.
+    expect(afterFourth, afterThird);
 
     final actual = const JsonEncoder.withIndent('  ').convert(<String, Object?>{
       'runs': <String>[
@@ -232,7 +236,6 @@ void main() {
       ],
       'afterRebuildSync': afterSecond,
       'afterFollowingSync': afterThird,
-      'afterSettlingSync': afterFourth,
     });
     final golden = File(goldenPath);
     if (Platform.environment['NAVIS_UPDATE_SYNC_GOLDENS'] == '1') {
@@ -269,8 +272,8 @@ Future<Map<String, Object?>> _snapshot(
       'starred IS NOT NULL AS starred, user_rating FROM songs ORDER BY id',
     ),
     'songAliases': await rows(
-      'SELECT old_song_id, canonical_song_id, match_reason '
-      'FROM song_identity_aliases ORDER BY old_song_id',
+      'SELECT old_id AS old_song_id, new_id AS canonical_song_id, match_reason '
+      "FROM entity_identity_aliases WHERE entity_type = 'song' ORDER BY old_id",
     ),
     'entityAliases': await rows(
       'SELECT entity_type, old_id, new_id, match_reason '

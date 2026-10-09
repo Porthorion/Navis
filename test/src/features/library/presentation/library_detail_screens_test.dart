@@ -946,16 +946,6 @@ void main() {
                 ),
               ),
             ),
-            songsByArtistProvider('artist-phone').overrideWithValue(
-              const AsyncData(<SongsTableData>[
-                SongsTableData(
-                  isProvisional: false,
-                  isExternal: false,
-                  id: 'phone-song',
-                  title: 'Phone Song',
-                ),
-              ]),
-            ),
             artistAlbumSectionsProvider('artist-phone')
                 .overrideWithValue(const AsyncData(ArtistAlbumSections())),
             artistInfoProvider('artist-phone')
@@ -989,8 +979,6 @@ void main() {
                 .overrideWithValue(const AsyncLoading()),
             artistAlbumSectionsProvider('artist-loading')
                 .overrideWithValue(const AsyncLoading()),
-            songsByArtistProvider('artist-loading')
-                .overrideWithValue(const AsyncLoading()),
             artistInfoProvider('artist-loading')
                 .overrideWithValue(const AsyncLoading()),
           ],
@@ -1021,8 +1009,6 @@ void main() {
               artistByIdProvider('artist-loading')
                   .overrideWithValue(const AsyncLoading()),
               artistAlbumSectionsProvider('artist-loading')
-                  .overrideWithValue(const AsyncLoading()),
-              songsByArtistProvider('artist-loading')
                   .overrideWithValue(const AsyncLoading()),
               artistInfoProvider('artist-loading')
                   .overrideWithValue(const AsyncLoading()),

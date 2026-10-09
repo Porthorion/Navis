@@ -2,19 +2,17 @@ import 'dart:convert';
 
 import 'package:drift/drift.dart';
 import 'package:navis/src/database/navis_database.dart';
+import 'package:navis/src/database/database_utils.dart';
 import 'package:navis/src/database/tables/library_sync_state_table.dart';
 import 'package:navis/src/database/tables/library_sync_work_table.dart';
 import 'package:navis/src/database/tables/library_sync_local_mutations_table.dart';
 import 'package:navis/src/database/tables/library_sync_operation_ledger_table.dart';
 import 'package:navis/src/database/tables/library_sync_execution_lease_table.dart';
-import 'package:navis/src/database/tables/library_sync_provider_profile_table.dart';
-import 'package:navis/src/database/tables/library_sync_repair_session_table.dart';
 import 'package:navis/src/database/tables/library_sync_run_attempt_table.dart';
 import 'package:navis/src/database/tables/library_sync_run_outcome_table.dart';
 import 'package:navis/src/database/tables/library_sync_run_request_table.dart';
 import 'package:navis/src/database/tables/library_scan_observation_table.dart';
 import 'package:navis/src/database/tables/library_recovery_review_table.dart';
-import 'package:navis/src/database/tables/entity_identity_aliases_table.dart';
 import 'package:navis/src/database/tables/starred_absence_candidates_table.dart';
 import 'package:navis/src/features/library/domain/library_sync_request.dart';
 import 'package:navis/src/features/library/domain/sync_run_contract.dart';
@@ -44,7 +42,7 @@ class LibrarySyncRunHistoryEntry {
   final DateTime? startedAt;
   final SyncRunIntent intent;
   final LibrarySyncTargetKind targetKind;
-  final SyncExecutionPlanKind planKind;
+  final String planKind;
   final SyncRunOutcomeKind outcome;
   final SyncSafeReason reason;
   final int requestCount;
@@ -63,11 +61,8 @@ class LibrarySyncRunHistoryEntry {
     LibrarySyncRunRequestTable,
     LibrarySyncRunAttemptTable,
     LibrarySyncRunOutcomeTable,
-    LibrarySyncProviderProfileTable,
-    LibrarySyncRepairSessionTable,
     LibraryScanObservationTable,
     LibraryRecoveryReviewTable,
-    EntityIdentityAliasTable,
   ],
 )
 class LibrarySyncDao extends DatabaseAccessor<NavisDatabase>
@@ -81,10 +76,10 @@ class LibrarySyncDao extends DatabaseAccessor<NavisDatabase>
   static const int _attemptRecovered = 1;
   static const int _attemptTerminal = 2;
 
-  /// Persists a typed request before legacy work is enqueued. Equivalent
+  /// Records a request before durable work is enqueued. Equivalent
   /// active requests share this durable identity, but terminal requests are
   /// retained as independent history entries.
-  Future<LibrarySyncRunRequestTableData> enqueueSyncRun({
+  Future<({int id})> enqueueSyncRun({
     required int serverId,
     required SyncExecutionPlan plan,
     DateTime? now,
@@ -103,31 +98,35 @@ class LibrarySyncDao extends DatabaseAccessor<NavisDatabase>
               ..limit(1))
             .getSingleOrNull();
     if (active != null) {
-      return active;
+      return (id: active.id);
     }
     final id = await into(librarySyncRunRequestTable).insert(
       LibrarySyncRunRequestTableCompanion.insert(
         serverId: serverId,
-        contractVersion: request.contractVersion,
+        contractVersion: LibrarySyncRequest.currentContractVersion,
         origin: request.origin.index,
-        intent: request.intent.index,
+        intent: request.runHistoryIntent.index,
         targetKind: request.target.kind.index,
-        targetKey: Value(librarySyncTargetWorkKey(request.target)),
-        networkGrant: request.networkGrant.index,
-        planKind: plan.kind.index,
-        priority: request.priority,
+        targetKey: const Value(''),
+        networkGrant: SyncNetworkGrant.none.index,
+        // Historical plan indices predate the durable work-kind names.
+        planKind: switch (plan.kind) {
+          LibrarySyncPlanKind.probe => 0,
+          LibrarySyncPlanKind.deltaReconcile => 1,
+          LibrarySyncPlanKind.fullRepair => 2,
+          LibrarySyncPlanKind.targetedHydration =>
+            request.runHistoryIntent == SyncRunIntent.auxiliaryRefresh ? 4 : 3,
+          LibrarySyncPlanKind.catalogSnapshot => 5,
+          LibrarySyncPlanKind.compatibilityAudit => 6,
+        },
+        priority: 0,
         coalescingKey: request.coalescingKey,
         status: const Value(_runQueued),
-        resumedFromRequestId: request.resumedFromRequestId == null
-            ? const Value(null)
-            : Value(request.resumedFromRequestId),
         createdAt: timestamp,
         updatedAt: timestamp,
       ),
     );
-    return await (select(
-      librarySyncRunRequestTable,
-    )..where((table) => table.id.equals(id))).getSingle();
+    return (id: id);
   }
 
   Future<LibrarySyncRunAttemptTableData> beginSyncRunAttempt({
@@ -158,9 +157,10 @@ class LibrarySyncDao extends DatabaseAccessor<NavisDatabase>
     });
   }
 
-  /// Completes a request with a redacted, typed result. A target identifier is
-  /// cleared from the request at this boundary, so durable history can explain
-  /// a run without retaining private library metadata.
+  /// Completes a request once with a redacted, typed result.
+  ///
+  /// Shared waiters cannot duplicate outcomes or overwrite an executed result.
+  /// Legacy target identifiers are cleared at this boundary.
   Future<void> completeSyncRun({
     required int requestId,
     required SyncRunOutcome outcome,
@@ -169,6 +169,20 @@ class LibrarySyncDao extends DatabaseAccessor<NavisDatabase>
   }) async {
     final timestamp = (now ?? DateTime.now()).toUtc();
     await transaction(() async {
+      final changed =
+          await (update(librarySyncRunRequestTable)..where(
+                (table) =>
+                    table.id.equals(requestId) &
+                    table.status.isNotValue(_runTerminal),
+              ))
+              .write(
+                LibrarySyncRunRequestTableCompanion(
+                  status: const Value(_runTerminal),
+                  targetKey: const Value(''),
+                  updatedAt: Value(timestamp),
+                ),
+              );
+      if (changed == 0) return;
       if (attemptId != null) {
         await (update(
           librarySyncRunAttemptTable,
@@ -182,21 +196,12 @@ class LibrarySyncDao extends DatabaseAccessor<NavisDatabase>
       await into(librarySyncRunOutcomeTable).insert(
         LibrarySyncRunOutcomeTableCompanion.insert(
           requestId: requestId,
-          attemptId: attemptId == null ? const Value(null) : Value(attemptId),
+          attemptId: Value(attemptId),
           outcomeKind: outcome.kind.index,
           safeReason: outcome.reason.index,
           requestCount: Value(outcome.requestCount),
           byteCount: Value(outcome.byteCount),
           completedAt: timestamp,
-        ),
-      );
-      await (update(
-        librarySyncRunRequestTable,
-      )..where((table) => table.id.equals(requestId))).write(
-        LibrarySyncRunRequestTableCompanion(
-          status: const Value(_runTerminal),
-          targetKey: const Value(''),
-          updatedAt: Value(timestamp),
         ),
       );
     });
@@ -321,8 +326,19 @@ class LibrarySyncDao extends DatabaseAccessor<NavisDatabase>
                 .values[row.readTable(librarySyncRunRequestTable).intent],
             targetKind: LibrarySyncTargetKind
                 .values[row.readTable(librarySyncRunRequestTable).targetKind],
-            planKind: SyncExecutionPlanKind
-                .values[row.readTable(librarySyncRunRequestTable).planKind],
+            // Diagnostics consumers retain the names of historical plan indices.
+            planKind: switch (row
+                .readTable(librarySyncRunRequestTable)
+                .planKind) {
+              0 => 'automaticProbe',
+              1 => 'manualCatalogDiscovery',
+              2 => 'repairLibrary',
+              3 => 'targetHydration',
+              4 => 'auxiliaryRefresh',
+              5 => 'catalogSnapshot',
+              6 => 'compatibilityAudit',
+              _ => throw StateError('Unknown sync history plan kind'),
+            },
             outcome: SyncRunOutcomeKind
                 .values[row.readTable(librarySyncRunOutcomeTable).outcomeKind],
             reason: SyncSafeReason
@@ -408,296 +424,6 @@ class LibrarySyncDao extends DatabaseAccessor<NavisDatabase>
         },
     ];
   }
-
-  Future<void> writeSyncProviderProfile({
-    required int serverId,
-    String? providerFingerprint,
-    required int conditionalIndexesMode,
-    required int bulkSongSearchMode,
-    required int safePageSize,
-    DateTime? observedAt,
-  }) {
-    return into(librarySyncProviderProfileTable).insertOnConflictUpdate(
-      LibrarySyncProviderProfileTableCompanion(
-        serverId: Value(serverId),
-        providerFingerprint: Value(providerFingerprint),
-        conditionalIndexesMode: Value(conditionalIndexesMode),
-        bulkSongSearchMode: Value(bulkSongSearchMode),
-        safePageSize: Value(safePageSize),
-        observedAt: Value(observedAt?.toUtc()),
-      ),
-    );
-  }
-
-  Future<void> writeRepairSession({
-    required int serverId,
-    required int generation,
-    required int phase,
-    String? deletionFingerprint,
-    required int deletionCount,
-    required DateTime startedAt,
-    DateTime? now,
-  }) {
-    final timestamp = (now ?? DateTime.now()).toUtc();
-    return into(librarySyncRepairSessionTable).insertOnConflictUpdate(
-      LibrarySyncRepairSessionTableCompanion(
-        serverId: Value(serverId),
-        generation: Value(generation),
-        phase: Value(phase),
-        deletionFingerprint: Value(deletionFingerprint),
-        deletionCount: Value(deletionCount),
-        startedAt: Value(startedAt.toUtc()),
-        updatedAt: Value(timestamp),
-      ),
-    );
-  }
-
-  /// Imports pre-v71 work exactly once without changing the legacy rows. This
-  /// is a compatibility migration, so parsing is confined here; the typed
-  /// scheduler never uses JSON checkpoints as its normal control protocol.
-  Future<void> migrateLegacySyncWork(int serverId, {DateTime? now}) async {
-    final timestamp = (now ?? DateTime.now()).toUtc();
-    final state = await getOrCreateState(serverId);
-    if (state.plannerVersion >= 3) {
-      return;
-    }
-    final legacyRows = await (select(
-      librarySyncWorkTable,
-    )..where((table) => table.serverId.equals(serverId))).get();
-    for (final row in legacyRows) {
-      final planKind = LibrarySyncPlanKind.values.where(
-        (kind) => kind.name == row.kind,
-      );
-      if (planKind.isEmpty) {
-        await _recordAmbiguousLegacyWork(serverId, row, timestamp);
-        continue;
-      }
-      final target = _legacyTargetFromWork(row);
-      final intent = _legacyIntentFromWork(row, target);
-      final request = SyncRunRequest(
-        contractVersion: SyncRunRequest.currentContractVersion,
-        origin: SyncRunOrigin.legacyRecovery,
-        intent: intent,
-        target: target,
-        networkGrant: SyncNetworkGrant.none,
-        priority: row.priority,
-      );
-      final plan = SyncExecutionPlan(
-        request: request,
-        kind: syncExecutionPlanKindFromLegacy(planKind.first, request),
-        reason: SyncSafeReason.none,
-        budget: const SyncExecutionBudget(
-          allowedEndpoints: <SyncEndpoint>{},
-          maxNewestPages: 0,
-          maxAlbumHydrations: 0,
-          maxResponseBytes: null,
-          maxTotalBytes: null,
-          maxConcurrency: 1,
-        ),
-      );
-      final durable = await enqueueSyncRun(
-        serverId: serverId,
-        plan: plan,
-        now: row.createdAt,
-      );
-      switch (row.status) {
-        case 'completed':
-          await completeSyncRun(
-            requestId: durable.id,
-            outcome: const SyncRunOutcome(
-              kind: SyncRunOutcomeKind.completed,
-              reason: SyncSafeReason.none,
-            ),
-            now: row.updatedAt,
-          );
-        case 'cancelled':
-          await completeSyncRun(
-            requestId: durable.id,
-            outcome: const SyncRunOutcome(
-              kind: SyncRunOutcomeKind.cancelled,
-              reason: SyncSafeReason.cancellation,
-            ),
-            now: row.updatedAt,
-          );
-        case 'awaitingConfirmation':
-          await completeSyncRun(
-            requestId: durable.id,
-            outcome: const SyncRunOutcome(
-              kind: SyncRunOutcomeKind.awaitingConfirmation,
-              reason: SyncSafeReason.confirmationRequired,
-            ),
-            now: row.updatedAt,
-          );
-        case 'running':
-          await _recoverLegacyRunningRequest(durable.id, timestamp);
-        case 'queued' || 'failed':
-          break;
-        default:
-          await completeSyncRun(
-            requestId: durable.id,
-            outcome: const SyncRunOutcome(
-              kind: SyncRunOutcomeKind.cancelled,
-              reason: SyncSafeReason.legacyAmbiguous,
-            ),
-            now: row.updatedAt,
-          );
-      }
-    }
-    final generation = state.candidateGeneration;
-    final candidateStatus = state.candidateStatus;
-    if (generation != null && candidateStatus != null) {
-      await writeRepairSession(
-        serverId: serverId,
-        generation: generation,
-        phase: _legacyRepairPhase(candidateStatus),
-        deletionFingerprint: state.deletionCandidateFingerprint,
-        deletionCount: state.deletionCandidateCount,
-        startedAt: state.candidateStartedAt ?? timestamp,
-        now: timestamp,
-      );
-    }
-    await writeState(
-      LibrarySyncStateTableCompanion(
-        serverId: Value(serverId),
-        plannerVersion: const Value(3),
-      ),
-    );
-  }
-
-  Future<void> _recordAmbiguousLegacyWork(
-    int serverId,
-    LibrarySyncWorkTableData row,
-    DateTime now,
-  ) async {
-    const request = SyncRunRequest(
-      contractVersion: SyncRunRequest.currentContractVersion,
-      origin: SyncRunOrigin.legacyRecovery,
-      intent: SyncRunIntent.automaticCatalogCheck,
-      target: LibrarySyncTarget.catalog(),
-      networkGrant: SyncNetworkGrant.none,
-      priority: 0,
-    );
-    const plan = SyncExecutionPlan(
-      request: request,
-      kind: SyncExecutionPlanKind.automaticProbe,
-      reason: SyncSafeReason.legacyAmbiguous,
-      budget: SyncExecutionBudget(
-        allowedEndpoints: <SyncEndpoint>{},
-        maxNewestPages: 0,
-        maxAlbumHydrations: 0,
-        maxResponseBytes: null,
-        maxTotalBytes: null,
-        maxConcurrency: 1,
-      ),
-    );
-    final durable = await enqueueSyncRun(
-      serverId: serverId,
-      plan: plan,
-      now: now,
-    );
-    await completeSyncRun(
-      requestId: durable.id,
-      outcome: const SyncRunOutcome(
-        kind: SyncRunOutcomeKind.cancelled,
-        reason: SyncSafeReason.legacyAmbiguous,
-      ),
-      now: now,
-    );
-  }
-
-  Future<void> _recoverLegacyRunningRequest(int requestId, DateTime now) async {
-    final attempt = await beginSyncRunAttempt(
-      requestId: requestId,
-      androidWorker: false,
-      now: now,
-    );
-    await (update(
-      librarySyncRunAttemptTable,
-    )..where((table) => table.id.equals(attempt.id))).write(
-      const LibrarySyncRunAttemptTableCompanion(
-        status: Value(_attemptRecovered),
-      ),
-    );
-    await (update(
-      librarySyncRunRequestTable,
-    )..where((table) => table.id.equals(requestId))).write(
-      LibrarySyncRunRequestTableCompanion(
-        status: const Value(_runQueued),
-        updatedAt: Value(now),
-      ),
-    );
-  }
-
-  SyncRunIntent _legacyIntentFromWork(
-    LibrarySyncWorkTableData work,
-    LibrarySyncTarget target,
-  ) {
-    if (work.kind == LibrarySyncPlanKind.fullRepair.name) {
-      return SyncRunIntent.repairLibrary;
-    }
-    if (target.kind == LibrarySyncTargetKind.starred ||
-        target.kind == LibrarySyncTargetKind.playlistHeaders) {
-      return SyncRunIntent.auxiliaryRefresh;
-    }
-    if (target.kind != LibrarySyncTargetKind.catalog) {
-      return SyncRunIntent.targetHydration;
-    }
-    try {
-      final decoded = jsonDecode(work.checkpointJson ?? '');
-      if (decoded is Map &&
-          decoded['intent'] == LibrarySyncIntent.checkForUpdates.name) {
-        return SyncRunIntent.manualCatalogCheck;
-      }
-    } on FormatException {
-      // The request is still safe to represent as automatic recovery.
-    }
-    return SyncRunIntent.automaticCatalogCheck;
-  }
-
-  LibrarySyncTarget _legacyTargetFromWork(LibrarySyncWorkTableData work) {
-    try {
-      final decoded = jsonDecode(work.checkpointJson ?? '');
-      if (decoded is Map && decoded['targetKind'] is String) {
-        final matching = LibrarySyncTargetKind.values.where(
-          (kind) => kind.name == decoded['targetKind'],
-        );
-        if (matching.isNotEmpty) {
-          final kind = matching.first;
-          final requiresId =
-              kind == LibrarySyncTargetKind.artist ||
-              kind == LibrarySyncTargetKind.album ||
-              kind == LibrarySyncTargetKind.playlist;
-          return LibrarySyncTarget(
-            kind,
-            entityId: requiresId
-                ? librarySyncTargetEntityIdFromWorkKey(kind, work.entityId)
-                : null,
-          );
-        }
-      }
-    } on FormatException {
-      // A legacy target row falls back to the existing album-key convention.
-    }
-    if (work.kind == LibrarySyncPlanKind.targetedHydration.name &&
-        work.entityId.isNotEmpty) {
-      return LibrarySyncTarget.album(
-        librarySyncTargetEntityIdFromWorkKey(
-          LibrarySyncTargetKind.album,
-          work.entityId,
-        ),
-      );
-    }
-    return const LibrarySyncTarget.catalog();
-  }
-
-  int _legacyRepairPhase(String status) => switch (status) {
-    'collecting' => 0,
-    'validating' => 1,
-    'awaitingDeletionConfirmation' => 2,
-    'ready' => 3,
-    'applying' => 4,
-    _ => 0,
-  };
 
   /// Attempts to acquire the server's broad-sync lease.
   ///
@@ -803,11 +529,9 @@ class LibrarySyncDao extends DatabaseAccessor<NavisDatabase>
     required bool enabled,
     DateTime? now,
   }) async {
-    await getOrCreateState(serverId);
-    await (update(
-      librarySyncStateTable,
-    )..where((table) => table.serverId.equals(serverId))).write(
+    await writeState(
       LibrarySyncStateTableCompanion(
+        serverId: Value(serverId),
         androidBackgroundSyncEnabled: Value(enabled),
         androidScheduleReconciledAt: Value((now ?? DateTime.now()).toUtc()),
       ),
@@ -832,45 +556,27 @@ class LibrarySyncDao extends DatabaseAccessor<NavisDatabase>
     String? workerResult,
     String? workerStopReason,
   }) async {
-    await getOrCreateState(serverId);
-    await (update(
-      librarySyncStateTable,
-    )..where((table) => table.serverId.equals(serverId))).write(
+    await writeState(
       LibrarySyncStateTableCompanion(
-        androidScheduleReconciledAt: scheduleReconciledAt == null
-            ? const Value.absent()
-            : Value(scheduleReconciledAt.toUtc()),
+        serverId: Value(serverId),
+        androidScheduleReconciledAt: Value.absentIfNull(
+          scheduleReconciledAt?.toUtc(),
+        ),
         androidRequestedIntervalMinutes: clearRequestedIntervalMinutes
             ? const Value(null)
-            : requestedIntervalMinutes == null
-            ? const Value.absent()
-            : Value(requestedIntervalMinutes),
+            : Value.absentIfNull(requestedIntervalMinutes),
         androidWorkId: clearWorkId
             ? const Value(null)
-            : workId == null
-            ? const Value.absent()
-            : Value(workId),
-        androidWorkState: workState == null
-            ? const Value.absent()
-            : Value(workState),
-        androidWorkAttemptCount: attemptCount == null
-            ? const Value.absent()
-            : Value(attemptCount),
-        androidWorkerStartedAt: workerStartedAt == null
-            ? const Value.absent()
-            : Value(workerStartedAt.toUtc()),
-        androidWorkerCompletedAt: workerCompletedAt == null
-            ? const Value.absent()
-            : Value(workerCompletedAt.toUtc()),
-        androidWorkerDurationMs: workerDurationMs == null
-            ? const Value.absent()
-            : Value(workerDurationMs),
-        androidWorkerResult: workerResult == null
-            ? const Value.absent()
-            : Value(workerResult),
-        androidWorkerStopReason: workerStopReason == null
-            ? const Value.absent()
-            : Value(workerStopReason),
+            : Value.absentIfNull(workId),
+        androidWorkState: Value.absentIfNull(workState),
+        androidWorkAttemptCount: Value.absentIfNull(attemptCount),
+        androidWorkerStartedAt: Value.absentIfNull(workerStartedAt?.toUtc()),
+        androidWorkerCompletedAt: Value.absentIfNull(
+          workerCompletedAt?.toUtc(),
+        ),
+        androidWorkerDurationMs: Value.absentIfNull(workerDurationMs),
+        androidWorkerResult: Value.absentIfNull(workerResult),
+        androidWorkerStopReason: Value.absentIfNull(workerStopReason),
       ),
     );
   }
@@ -916,34 +622,26 @@ class LibrarySyncDao extends DatabaseAccessor<NavisDatabase>
   }
 
   Future<List<LibrarySyncOperationLedgerTableData>>
-  getRecentOperationLedgerEntries(int serverId, {int limit = 50}) {
-    final safeLimit = limit.clamp(1, 50);
-    return (select(librarySyncOperationLedgerTable)
-          ..where((table) => table.serverId.equals(serverId))
-          ..orderBy([
-            (table) => OrderingTerm.desc(table.occurredAt),
-            (table) => OrderingTerm.desc(table.id),
-          ])
-          ..limit(safeLimit))
-        .get();
-  }
+  getRecentOperationLedgerEntries(int serverId, {int limit = 50}) =>
+      _recentOperationLedgerQuery(serverId, limit).get();
 
   /// Emits the newest safe operation summaries for one retained server.
-  ///
-  /// The Settings screen uses this rather than controller state so a catalog
-  /// change remains explainable after an app restart or a later no-op check.
   Stream<List<LibrarySyncOperationLedgerTableData>>
-  watchRecentOperationLedgerEntries(int serverId, {int limit = 50}) {
-    final safeLimit = limit.clamp(1, 50);
-    return (select(librarySyncOperationLedgerTable)
-          ..where((table) => table.serverId.equals(serverId))
-          ..orderBy([
-            (table) => OrderingTerm.desc(table.occurredAt),
-            (table) => OrderingTerm.desc(table.id),
-          ])
-          ..limit(safeLimit))
-        .watch();
-  }
+  watchRecentOperationLedgerEntries(int serverId, {int limit = 50}) =>
+      _recentOperationLedgerQuery(serverId, limit).watch();
+
+  SimpleSelectStatement<
+    LibrarySyncOperationLedgerTable,
+    LibrarySyncOperationLedgerTableData
+  >
+  _recentOperationLedgerQuery(int serverId, int limit) =>
+      select(librarySyncOperationLedgerTable)
+        ..where((table) => table.serverId.equals(serverId))
+        ..orderBy([
+          (table) => OrderingTerm.desc(table.occurredAt),
+          (table) => OrderingTerm.desc(table.id),
+        ])
+        ..limit(limit.clamp(1, 50));
 
   /// Records absent locally-starred IDs and returns only those observed absent
   /// by two independent successful server snapshots.
@@ -1002,7 +700,7 @@ class LibrarySyncDao extends DatabaseAccessor<NavisDatabase>
     required String entityType,
     required Set<String> ids,
   }) async {
-    for (final chunk in _idChunks(ids)) {
+    for (final chunk in chunked(ids.toList(growable: false), 500)) {
       await (delete(starredAbsenceCandidatesTable)..where(
             (table) =>
                 table.serverId.equals(serverId) &
@@ -1013,34 +711,10 @@ class LibrarySyncDao extends DatabaseAccessor<NavisDatabase>
     }
   }
 
-  Iterable<List<String>> _idChunks(Set<String> ids) sync* {
-    final values = ids.toList(growable: false);
-    for (var offset = 0; offset < values.length; offset += 500) {
-      final end = (offset + 500).clamp(0, values.length);
-      yield values.sublist(offset, end);
-    }
-  }
-
   Future<void> clearWorkForServer(int serverId) {
     return (delete(
       librarySyncWorkTable,
     )..where((table) => table.serverId.equals(serverId))).go();
-  }
-
-  Future<void> discardPendingSessionWork(int serverId) async {
-    await transaction(() async {
-      await clearWorkForServer(serverId);
-      await (update(
-        librarySyncStateTable,
-      )..where((table) => table.serverId.equals(serverId))).write(
-        const LibrarySyncStateTableCompanion(
-          candidateGeneration: Value(null),
-          candidateStatus: Value(null),
-          candidateStartedAt: Value(null),
-          candidateCarriedForwardCount: Value(0),
-        ),
-      );
-    });
   }
 
   Future<void> discardAllPendingSessionWork() async {
@@ -1155,62 +829,40 @@ class LibrarySyncDao extends DatabaseAccessor<NavisDatabase>
     return result;
   }
 
-  Future<void> pruneLocalStarMutationsBefore(
-    DateTime cutoff, {
-    Map<String, Set<String>> exclude = const <String, Set<String>>{},
-  }) => pruneLocalMutationsBefore(cutoff, operation: 'star', exclude: exclude);
-
-  Future<void> pruneLocalMutationsBefore(
-    DateTime cutoff, {
-    required String operation,
-    Map<String, Set<String>> exclude = const <String, Set<String>>{},
-  }) async {
-    for (final entityType in const <String>['artist', 'album', 'song']) {
-      final protectedIds = exclude[entityType] ?? const <String>{};
-      await (delete(librarySyncLocalMutationsTable)..where(
-            (table) =>
-                table.operation.equals(operation) &
-                table.entityType.equals(entityType) &
-                table.createdAt.isSmallerThanValue(cutoff) &
-                (protectedIds.isEmpty
-                    ? const Constant(true)
-                    : table.entityId.isNotIn(protectedIds)),
-          ))
-          .go();
-    }
+  /// Reads state for an existing profile without racing its deletion between
+  /// row creation and selection.
+  Future<LibrarySyncStateTableData> getOrCreateState(int serverId) {
+    return transaction(() async {
+      final servers = attachedDatabase.serverConfigTable;
+      await into(librarySyncStateTable).insertFromSelect(
+        selectOnly(servers)
+          ..addColumns([servers.id])
+          ..where(servers.id.equals(serverId)),
+        columns: {librarySyncStateTable.serverId: servers.id},
+        mode: InsertMode.insertOrIgnore,
+      );
+      return await (select(
+        librarySyncStateTable,
+      )..where((table) => table.serverId.equals(serverId))).getSingle();
+    });
   }
 
-  Future<LibrarySyncStateTableData> getOrCreateState(int serverId) async {
-    await into(librarySyncStateTable).insert(
-      LibrarySyncStateTableCompanion.insert(serverId: Value(serverId)),
-      mode: InsertMode.insertOrIgnore,
-    );
-    return await (select(
-      librarySyncStateTable,
-    )..where((table) => table.serverId.equals(serverId))).getSingle();
-  }
-
+  /// Ignores state writes arriving after their server profile was deleted.
   Future<void> writeState(LibrarySyncStateTableCompanion state) {
-    return into(librarySyncStateTable).insertOnConflictUpdate(state);
-  }
-
-  /// Advances the auxiliary-freshness timestamp without regressing it. The
-  /// typed coordinator writes this column from completed starred and
-  /// playlist-header work rows; a legacy combined run may finish auxiliary
-  /// work out of band, so the later observation must win.
-  Future<void> markAuxiliarySyncedAt({
-    required int serverId,
-    required DateTime syncedAt,
-  }) async {
-    final persisted = await getOrCreateState(serverId);
-    final stored = persisted.lastAuxiliarySyncedAt;
-    if (stored != null && !syncedAt.isAfter(stored)) {
-      return;
-    }
-    await (update(
-      librarySyncStateTable,
-    )..where((table) => table.serverId.equals(serverId))).write(
-      LibrarySyncStateTableCompanion(lastAuxiliarySyncedAt: Value(syncedAt)),
+    final values = state.toColumns(true);
+    final servers = attachedDatabase.serverConfigTable;
+    final source = selectOnly(servers)
+      ..addColumns(values.values)
+      ..where(servers.id.equals(state.serverId.value));
+    // The parent check and upsert share one SQL statement, including across
+    // foreground and headless connections racing a profile deletion.
+    return into(librarySyncStateTable).insertFromSelect(
+      source,
+      columns: {
+        for (final column in librarySyncStateTable.$columns)
+          if (values[column.$name] != null) column: values[column.$name]!,
+      },
+      onConflict: DoUpdate((_) => state),
     );
   }
 
@@ -1218,14 +870,11 @@ class LibrarySyncDao extends DatabaseAccessor<NavisDatabase>
     required int serverId,
     required DateTime? nextAutomaticCheckAt,
   }) async {
-    // A newly authenticated server may not have run a sync yet. Persist the
-    // per-server row first so configuring its schedule is never a silent
-    // zero-row update.
-    await getOrCreateState(serverId);
-    await (update(
-      librarySyncStateTable,
-    )..where((table) => table.serverId.equals(serverId))).write(
+    // A newly authenticated server may not have run a sync yet. Upsert its
+    // deadline without recreating a profile deleted during teardown.
+    await writeState(
       LibrarySyncStateTableCompanion(
+        serverId: Value(serverId),
         nextAutomaticCheckAt: Value(nextAutomaticCheckAt),
       ),
     );
@@ -1415,135 +1064,103 @@ class LibrarySyncDao extends DatabaseAccessor<NavisDatabase>
     );
   }
 
-  Future<int> countPendingWork(int serverId) async {
-    final countExpression = librarySyncWorkTable.id.count();
-    final query = selectOnly(librarySyncWorkTable)
-      ..addColumns([countExpression])
-      ..where(
-        librarySyncWorkTable.serverId.equals(serverId) &
-            librarySyncWorkTable.status.isIn(const <String>[
-              'queued',
-              'running',
-              'failed',
-            ]),
-      );
-    final row = await query.getSingle();
-    final resolvedCount = row.read(countExpression) ?? 0;
-    return resolvedCount;
+  Future<int> countPendingWork(int serverId) =>
+      _pendingWorkQuery(serverId).getSingle();
+
+  /// Emits backlog changes without waiting for the next sync run.
+  Stream<int> watchPendingWork(int serverId) =>
+      _pendingWorkQuery(serverId).watchSingle();
+
+  Selectable<int> _pendingWorkQuery(int serverId) {
+    final count = librarySyncWorkTable.id.count();
+    return (selectOnly(librarySyncWorkTable)
+          ..addColumns([count])
+          ..where(
+            librarySyncWorkTable.serverId.equals(serverId) &
+                librarySyncWorkTable.status.isIn(const <String>[
+                  'queued',
+                  'running',
+                  'failed',
+                ]),
+          ))
+        .map((row) => row.read(count) ?? 0);
   }
 
-  /// Live variant of [countPendingWork] so the UI can reflect backlog
-  /// changes without waiting for the next sync run.
-  Stream<int> watchPendingWork(int serverId) {
-    final countExpression = librarySyncWorkTable.id.count();
-    final query = selectOnly(librarySyncWorkTable)
-      ..addColumns([countExpression])
-      ..where(
-        librarySyncWorkTable.serverId.equals(serverId) &
-            librarySyncWorkTable.status.isIn(const <String>[
-              'queued',
-              'running',
-              'failed',
-            ]),
-      );
-    return query.watchSingle().map((row) => row.read(countExpression) ?? 0);
-  }
+  Future<void> _writeWork(
+    Expression<bool> Function(LibrarySyncWorkTable) where, {
+    required String status,
+    DateTime? now,
+    Value<String?> checkpointJson = const Value.absent(),
+    Value<DateTime?> notBefore = const Value.absent(),
+    Value<String?> lastErrorType = const Value.absent(),
+    Value<int> attemptCount = const Value.absent(),
+  }) => (update(librarySyncWorkTable)..where(where)).write(
+    LibrarySyncWorkTableCompanion(
+      status: Value(status),
+      updatedAt: Value(now ?? DateTime.now()),
+      checkpointJson: checkpointJson,
+      notBefore: notBefore,
+      lastErrorType: lastErrorType,
+      attemptCount: attemptCount,
+    ),
+  );
 
-  Future<void> markRunning(int id, {DateTime? now}) {
-    return (update(
-      librarySyncWorkTable,
-    )..where((table) => table.id.equals(id))).write(
-      LibrarySyncWorkTableCompanion(
-        status: const Value('running'),
-        updatedAt: Value(now ?? DateTime.now()),
-      ),
-    );
-  }
+  Future<void> markRunning(int id, {DateTime? now}) =>
+      _writeWork((table) => table.id.equals(id), status: 'running', now: now);
 
-  Future<void> requeue(int id, {DateTime? now}) {
-    return (update(
-      librarySyncWorkTable,
-    )..where((table) => table.id.equals(id))).write(
-      LibrarySyncWorkTableCompanion(
-        status: const Value('queued'),
-        notBefore: const Value(null),
-        lastErrorType: const Value(null),
-        updatedAt: Value(now ?? DateTime.now()),
-      ),
-    );
-  }
+  Future<void> requeue(int id, {DateTime? now}) => _writeWork(
+    (table) => table.id.equals(id),
+    status: 'queued',
+    now: now,
+    notBefore: const Value(null),
+    lastErrorType: const Value(null),
+  );
 
   Future<void> markCompleted(
     int id, {
     DateTime? now,
     bool preserveCheckpoint = false,
-  }) {
-    return (update(
-      librarySyncWorkTable,
-    )..where((table) => table.id.equals(id))).write(
-      LibrarySyncWorkTableCompanion(
-        status: const Value('completed'),
-        checkpointJson: preserveCheckpoint
-            ? const Value.absent()
-            : const Value(null),
+  }) => _writeWork(
+    (table) => table.id.equals(id),
+    status: 'completed',
+    now: now,
+    checkpointJson: preserveCheckpoint
+        ? const Value.absent()
+        : const Value(null),
+    notBefore: const Value(null),
+    lastErrorType: const Value(null),
+  );
+
+  Future<void> completeRunningCatalogWork(int serverId, {DateTime? now}) =>
+      _writeWork(
+        (table) =>
+            table.serverId.equals(serverId) &
+            table.kind.isIn(const <String>['fullRepair', 'catalogSnapshot']) &
+            table.status.equals('running'),
+        status: 'completed',
+        now: now,
+        checkpointJson: const Value(null),
         notBefore: const Value(null),
         lastErrorType: const Value(null),
-        updatedAt: Value(now ?? DateTime.now()),
-      ),
-    );
-  }
+      );
 
-  Future<void> completeRunningCatalogWork(int serverId, {DateTime? now}) {
-    return (update(librarySyncWorkTable)..where(
-          (table) =>
-              table.serverId.equals(serverId) &
-              table.kind.isIn(const <String>['fullRepair', 'catalogSnapshot']) &
-              table.status.equals('running'),
-        ))
-        .write(
-          LibrarySyncWorkTableCompanion(
-            status: const Value('completed'),
-            checkpointJson: const Value(null),
-            notBefore: const Value(null),
-            lastErrorType: const Value(null),
-            updatedAt: Value(now ?? DateTime.now()),
-          ),
-        );
-  }
+  /// Cancellation remains terminal until an explicit action reactivates the row.
+  Future<void> markCancelled(int id, {DateTime? now}) => _writeWork(
+    (table) => table.id.equals(id),
+    status: 'cancelled',
+    now: now,
+    notBefore: const Value(null),
+    lastErrorType: const Value('cancelled'),
+  );
 
-  Future<void> markCancelled(int id, {DateTime? now}) {
-    return (update(
-      librarySyncWorkTable,
-    )..where((table) => table.id.equals(id))).write(
-      LibrarySyncWorkTableCompanion(
-        // Cancellation is a user-visible terminal transition. Re-queueing it
-        // here lets the next lifecycle event restart work the user just
-        // stopped, which is both surprising and indistinguishable from an
-        // automatic-sync loop. Explicit actions may reactivate this row.
-        status: const Value('cancelled'),
-        notBefore: const Value(null),
-        lastErrorType: const Value('cancelled'),
-        updatedAt: Value(now ?? DateTime.now()),
-      ),
-    );
-  }
-
-  /// Stops automatic retries until an explicit user action reactivates it.
-  ///
-  /// The candidate checkpoint is deliberately retained so Repair Library can
-  /// present a concrete confirmation instead of rebuilding the same snapshot.
-  Future<void> markAwaitingConfirmation(int id, {DateTime? now}) {
-    return (update(
-      librarySyncWorkTable,
-    )..where((table) => table.id.equals(id))).write(
-      LibrarySyncWorkTableCompanion(
-        status: const Value('awaitingConfirmation'),
-        notBefore: const Value(null),
-        lastErrorType: const Value(null),
-        updatedAt: Value(now ?? DateTime.now()),
-      ),
-    );
-  }
+  /// Retains the candidate checkpoint and stops retries until explicit confirmation.
+  Future<void> markAwaitingConfirmation(int id, {DateTime? now}) => _writeWork(
+    (table) => table.id.equals(id),
+    status: 'awaitingConfirmation',
+    now: now,
+    notBefore: const Value(null),
+    lastErrorType: const Value(null),
+  );
 
   Future<void> markFailed(
     int id, {
@@ -1557,31 +1174,23 @@ class LibrarySyncDao extends DatabaseAccessor<NavisDatabase>
     if (row == null) {
       return;
     }
-    await (update(
-      librarySyncWorkTable,
-    )..where((table) => table.id.equals(id))).write(
-      LibrarySyncWorkTableCompanion(
-        status: const Value('failed'),
-        attemptCount: Value(row.attemptCount + 1),
-        notBefore: Value(notBefore),
-        lastErrorType: Value(errorType),
-        updatedAt: Value(now ?? DateTime.now()),
-      ),
+    await _writeWork(
+      (table) => table.id.equals(id),
+      status: 'failed',
+      attemptCount: Value(row.attemptCount + 1),
+      notBefore: Value(notBefore),
+      lastErrorType: Value(errorType),
+      now: now,
     );
   }
 
-  Future<void> resetInterruptedWork(int serverId, {DateTime? now}) {
-    return (update(librarySyncWorkTable)..where(
-          (table) =>
-              table.serverId.equals(serverId) & table.status.equals('running'),
-        ))
-        .write(
-          LibrarySyncWorkTableCompanion(
-            status: const Value('queued'),
-            updatedAt: Value(now ?? DateTime.now()),
-          ),
-        );
-  }
+  Future<void> resetInterruptedWork(int serverId, {DateTime? now}) =>
+      _writeWork(
+        (table) =>
+            table.serverId.equals(serverId) & table.status.equals('running'),
+        status: 'queued',
+        now: now,
+      );
 
   Future<void> deleteEntityWork({
     required int serverId,
@@ -1751,13 +1360,11 @@ class LibrarySyncDao extends DatabaseAccessor<NavisDatabase>
     await (update(
       libraryRecoveryReviewTable,
     )..where((table) => table.id.equals(existing.id))).write(
-      LibraryRecoveryReviewTableCompanion(
-        savedTitle: Value(savedTitle),
-        savedSubtitle: Value(savedSubtitle),
-        reason: Value(reason),
-        evidenceGeneration: Value(evidenceGeneration),
-        candidateJson: Value(candidateJson),
-        updatedAt: Value(now),
+      companion.copyWith(
+        serverId: const Value.absent(),
+        entityType: const Value.absent(),
+        oldId: const Value.absent(),
+        createdAt: const Value.absent(),
       ),
     );
   }
@@ -1805,17 +1412,6 @@ class LibrarySyncDao extends DatabaseAccessor<NavisDatabase>
         );
       }
     });
-  }
-
-  Future<List<LibraryRecoveryReviewTableData>> getPendingRecoveryReview(
-    int serverId,
-  ) {
-    return (select(libraryRecoveryReviewTable)..where(
-          (table) =>
-              table.serverId.equals(serverId) &
-              table.disposition.equals('pending'),
-        ))
-        .get();
   }
 
   /// Review entries awaiting a decision, oldest first.

@@ -47,10 +47,6 @@ class RecommendationQueueResult {
   int get count => insertedIds.length;
 }
 
-final currentQueueSongIdProvider = Provider<String?>((ref) {
-  return ref.watch(currentSongProvider);
-});
-
 final lyricsPrewarmProvider = Provider<Future<void> Function(String)>((ref) {
   return (songId) => ref.read(lyricsProvider(songId).future).then<void>((_) {});
 });
@@ -342,61 +338,10 @@ class QueueController extends Notifier<List<String>> {
     return await add(song.id);
   }
 
-  /// Like [add], but accepts multiple [Song] API model objects and queues
-  /// them in one call after persisting all rows locally.
-  Future<void> addWithSongs(
-    List<Song> songs, {
-    bool expandMatchFlows = true,
-  }) async {
-    if (songs.isEmpty) {
-      return;
-    }
-    await _ensureSongsInDatabase(songs);
-    final ids = songs
-        .map((song) => song.id.trim())
-        .where((id) => id.isNotEmpty)
-        .toList(growable: false);
-    if (ids.isEmpty) {
-      return;
-    }
-    final handler = _requireHandler();
-    await handler.addToQueue(ids, expandMatchFlows: expandMatchFlows);
-    _prewarmLyricsForIds(ids);
-  }
-
-  /// Like [playNext], but accepts multiple [Song] API model objects and
-  /// inserts them after the current item in one call after persisting all rows
-  /// locally.
-  Future<void> playNextWithSongs(
-    List<Song> songs, {
-    bool expandMatchFlows = true,
-  }) async {
-    final normalizedSongs = songs
-        .map((song) {
-          final id = song.id.trim();
-          return id.isEmpty ? null : song.copyWith(id: id);
-        })
-        .nonNulls
-        .toList(growable: false);
-    if (normalizedSongs.isEmpty) {
-      return;
-    }
-    await _ensureSongsInDatabase(normalizedSongs);
-    final ids = normalizedSongs.map((song) => song.id).toList(growable: false);
-    final handler = _requireHandler();
-    await handler.playNext(ids, expandMatchFlows: expandMatchFlows);
-    _prewarmLyricsForIds(ids);
-  }
-
   /// Like [playNext], but accepts a [Song] API model object.
   Future<void> playNextWithSong(Song song) async {
     await _ensureSongsInDatabase(<Song>[song]);
     return await playNext(song.id);
-  }
-
-  /// Persists [Song] rows locally so [NavisAudioHandler] can resolve them.
-  Future<void> persistSongsForPlayback(List<Song> songs) async {
-    await _ensureSongsInDatabase(songs);
   }
 
   Future<void> retainCurrentAsQueue(String id) async {
@@ -408,16 +353,6 @@ class QueueController extends Notifier<List<String>> {
     await handler.retainCurrentSongAsQueue(normalizedId);
     _prewarmLyricsForIds(<String>[normalizedId], priorityId: normalizedId);
   }
-
-  /// Appends mix/refill tracks to the bottom of the queue. Persists metadata
-  /// first, then delegates to the audio handler.
-  Future<int> appendMixTracks(
-    List<Song> songs, {
-    bool expandMatchFlows = false,
-  }) async => (await appendRecommendationTracks(
-    songs,
-    expandMatchFlows: expandMatchFlows,
-  )).count;
 
   /// Serializes recommendation appends and checks session ownership again
   /// immediately before the handler's queue operation.
@@ -757,10 +692,6 @@ ValueKey<(String, int)> queueRowKey(List<String> queueIds, int index) {
 final queueProvider = NotifierProvider<QueueController, List<String>>(
   QueueController.new,
 );
-
-final playNextProvider = Provider<Future<void> Function(String)>((ref) {
-  return (songId) => ref.read(queueProvider.notifier).playNext(songId);
-});
 
 final reorderQueueProvider = Provider<Future<void> Function(int, int)>((ref) {
   return (oldIndex, newIndex) =>

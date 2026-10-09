@@ -6,10 +6,24 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:navis/src/database/navis_database.dart';
 import 'package:navis/src/features/auth/domain/server_config.dart';
 import 'package:navis/src/features/library/data/android_background_sync_entrypoint.dart';
+import 'package:navis/src/features/library/domain/library_sync_request.dart';
 
 import '../../../../helpers/test_database.dart';
 
 void main() {
+  for (final entry in <int, Duration>{
+    -1: const Duration(hours: 24),
+    0: const Duration(hours: 24),
+    1: const Duration(seconds: 50),
+    10: const Duration(seconds: 570),
+    40: const Duration(seconds: 2280),
+    60: const Duration(seconds: 3480),
+  }.entries) {
+    test('shared staleness for ${entry.key} minutes', () {
+      expect(syncStaleAfterForInterval(entry.key), entry.value);
+    });
+  }
+
   test(
     'worker defers setup even after an unready catalog was published',
     () async {

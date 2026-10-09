@@ -119,8 +119,6 @@ class EqController extends AsyncNotifier<EqState> {
   int _refreshAttempts = 0;
   final _undo = <String, List<EqConfiguration>>{};
   final _redo = <String, List<EqConfiguration>>{};
-  EqConfiguration? _gestureStart;
-  String? _gestureKey;
   int _previewToken = 0;
   int _previewRevision = 0;
   _GraphEdit? _graphEdit;
@@ -261,24 +259,6 @@ class EqController extends AsyncNotifier<EqState> {
       '${state.requireValue.workspaceId}:${state.requireValue.configuration.mode.name}';
   bool get canUndo => _undo[_historyKey]?.isNotEmpty ?? false;
   bool get canRedo => _redo[_historyKey]?.isNotEmpty ?? false;
-  void beginGesture() {
-    _gestureStart = state.requireValue.configuration;
-    _gestureKey = _historyKey;
-  }
-
-  void endGesture() {
-    final start = _gestureStart;
-    if (start != null &&
-        _gestureKey == _historyKey &&
-        !sameEqCurve(start, state.requireValue.configuration)) {
-      _record(start);
-      state = AsyncData(
-        state.requireValue.copyWith(failure: state.requireValue.failure),
-      );
-    }
-    _gestureStart = null;
-    _gestureKey = null;
-  }
 
   void _record(EqConfiguration configuration) {
     final history = _undo.putIfAbsent(_historyKey, () => []);
@@ -392,7 +372,6 @@ class EqController extends AsyncNotifier<EqState> {
     final id = presetId ?? previous.selectedPresetId;
     if (recordUndo &&
         _graphEdit == null &&
-        _gestureStart == null &&
         configuration.mode == previous.configuration.mode &&
         !sameEqCurve(configuration, previous.configuration)) {
       _record(previous.configuration);

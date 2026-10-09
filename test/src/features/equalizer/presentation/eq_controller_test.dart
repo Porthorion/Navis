@@ -135,7 +135,13 @@ void main() {
       await controller.reset();
       state = container.read(equalizerProvider).requireValue;
       expect(state.configuration.enabled, isFalse);
-      expect(state.configuration.isFlat, isTrue);
+      expect(
+        sameEqCurve(
+          state.configuration,
+          EqConfiguration.flat(mode: state.configuration.mode),
+        ),
+        isTrue,
+      );
       expect(state.presets.single.name, 'headphones');
       container.invalidate(equalizerProvider);
       final restored = await container.read(equalizerProvider.future);

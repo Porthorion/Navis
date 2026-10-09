@@ -42,17 +42,12 @@ import '../../../../helpers/test_theme.dart';
 import 'package:navis/src/routing/library_section_navigation_scope.dart';
 
 class _FakeLibrarySyncController extends LibrarySyncController {
-  new(
-    this._initialState, {
-    this.onSyncNow,
-    this.onCancel,
-    this.onTargetIfStale,
-  });
+  new(this._initialState, {this.onSyncNow, this.onCancel, this.onTarget});
 
   final LibrarySyncState _initialState;
   final VoidCallback? onSyncNow;
   final VoidCallback? onCancel;
-  final void Function(LibrarySyncTarget target)? onTargetIfStale;
+  final void Function(LibrarySyncTarget target)? onTarget;
 
   @override
   LibrarySyncState build() => _initialState;
@@ -69,10 +64,8 @@ class _FakeLibrarySyncController extends LibrarySyncController {
   }
 
   @override
-  Future<LibrarySyncState> requestTargetIfStale(
-    LibrarySyncTarget target,
-  ) async {
-    onTargetIfStale?.call(target);
+  Future<LibrarySyncState> requestTarget(LibrarySyncTarget target) async {
+    onTarget?.call(target);
     return _initialState;
   }
 
@@ -1065,9 +1058,6 @@ void main() {
             pagedAlbumsProvider.overrideWith(
               (ref, request) => Stream.value(const <AlbumsTableData>[]),
             ),
-            songsBySortProvider.overrideWith(
-              (ref, sort) => Stream.value(const <SongsTableData>[]),
-            ),
           ],
         );
 
@@ -1110,9 +1100,6 @@ void main() {
           pagedAlbumsProvider.overrideWith(
             (ref, request) => Stream.value(const <AlbumsTableData>[]),
           ),
-          songsBySortProvider.overrideWith(
-            (ref, sort) => Stream.value(const <SongsTableData>[]),
-          ),
         ],
       );
 
@@ -1151,9 +1138,6 @@ void main() {
             albumCountProvider.overrideWithValue(const AsyncData(0)),
             pagedAlbumsProvider.overrideWith(
               (ref, request) => Stream.value(const <AlbumsTableData>[]),
-            ),
-            songsBySortProvider.overrideWith(
-              (ref, sort) => Stream.value(const <SongsTableData>[]),
             ),
           ],
         );
@@ -1194,9 +1178,6 @@ void main() {
             albumCountProvider.overrideWithValue(const AsyncData(0)),
             pagedAlbumsProvider.overrideWith(
               (ref, request) => Stream.value(const <AlbumsTableData>[]),
-            ),
-            songsBySortProvider.overrideWith(
-              (ref, sort) => Stream.value(const <SongsTableData>[]),
             ),
           ],
         );
@@ -1251,9 +1232,6 @@ void main() {
             pagedAlbumsProvider.overrideWith(
               (ref, request) => Stream.value(const <AlbumsTableData>[]),
             ),
-            songsBySortProvider.overrideWith(
-              (ref, sort) => Stream.value(const <SongsTableData>[]),
-            ),
           ],
         );
 
@@ -1290,9 +1268,6 @@ void main() {
             albumCountProvider.overrideWithValue(const AsyncData(0)),
             pagedAlbumsProvider.overrideWith(
               (ref, request) => Stream.value(const <AlbumsTableData>[]),
-            ),
-            songsBySortProvider.overrideWith(
-              (ref, sort) => Stream.value(const <SongsTableData>[]),
             ),
           ],
           settle: false,
@@ -1414,9 +1389,6 @@ void main() {
             pagedAlbumsProvider.overrideWith(
               (ref, request) => Stream.value(const <AlbumsTableData>[]),
             ),
-            songsBySortProvider.overrideWith(
-              (ref, sort) => Stream.value(const <SongsTableData>[]),
-            ),
           ],
         );
         await _switchToArtistsTab(tester);
@@ -1465,9 +1437,6 @@ void main() {
             albumCountProvider.overrideWithValue(const AsyncData(0)),
             pagedAlbumsProvider.overrideWith(
               (ref, request) => Stream.value(const <AlbumsTableData>[]),
-            ),
-            songsBySortProvider.overrideWith(
-              (ref, sort) => Stream.value(const <SongsTableData>[]),
             ),
           ],
         );
@@ -1523,9 +1492,6 @@ void main() {
             albumCountProvider.overrideWithValue(const AsyncData(0)),
             pagedAlbumsProvider.overrideWith(
               (ref, request) => Stream.value(const <AlbumsTableData>[]),
-            ),
-            songsBySortProvider.overrideWith(
-              (ref, sort) => Stream.value(const <SongsTableData>[]),
             ),
           ],
         );
@@ -2259,7 +2225,7 @@ void main() {
             librarySyncControllerProvider.overrideWith(
               () => _FakeLibrarySyncController(
                 const LibrarySyncState.idle(),
-                onTargetIfStale: staleTargetRequests.add,
+                onTarget: staleTargetRequests.add,
               ),
             ),
             artistsProvider.overrideWithValue(

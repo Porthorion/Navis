@@ -28,9 +28,6 @@ import 'package:navis/src/utils/app_logger.dart';
 /// Maximum number of items returned per browse level.
 const int _kMaxBrowseItems = 500;
 
-/// How long the root-node cache is considered fresh.
-const Duration _kRootCacheTtl = Duration(seconds: 30);
-
 /// Cover-art size used for browse-tree thumbnails (smaller than playback art).
 const int _kBrowseArtSize = 256;
 
@@ -70,11 +67,6 @@ class AutoMediaTreeService {
   final Duration _remoteSearchTimeout;
   final Future<Set<String>> Function() _readDownloadedSongIds;
 
-  // ── Root cache ────────────────────────────────────────────────────────────
-
-  List<MediaItem>? _cachedRootChildren;
-  DateTime? _rootCacheTimestamp;
-
   // ── getChildren ───────────────────────────────────────────────────────────
 
   /// Returns the children of [parentMediaId] as a flat list of [MediaItem]s.
@@ -105,7 +97,7 @@ class AutoMediaTreeService {
 
   Future<List<MediaItem>> _getChildrenImpl(String parentMediaId) async {
     return await (switch (parentMediaId) {
-      AutoMediaRoot.root => _getRootChildren(),
+      AutoMediaRoot.root => _rootChildren,
       AutoMediaRoot.playlists => _getPlaylists(),
       AutoMediaRoot.artists => _getArtists(),
       AutoMediaRoot.albums => _getAlbums(),
@@ -122,73 +114,57 @@ class AutoMediaTreeService {
     });
   }
 
-  Future<List<MediaItem>> _getRootChildren() async {
-    final now = DateTime.now();
-    if (_cachedRootChildren != null &&
-        _rootCacheTimestamp != null &&
-        now.difference(_rootCacheTimestamp!) < _kRootCacheTtl) {
-      return _cachedRootChildren!;
-    }
-
-    final children = <MediaItem>[
-      _browsableItem(
-        id: AutoMediaRoot.liked,
-        title: 'Liked',
-        extras: AutoContentStyle.listBrowsableListPlayable,
-      ),
-      _browsableItem(
-        id: AutoMediaRoot.recent,
-        title: 'Recent',
-        extras: AutoContentStyle.listBrowsableListPlayable,
-      ),
-      _browsableItem(
-        id: AutoMediaRoot.playlists,
-        title: 'Playlists',
-        extras: AutoContentStyle.listBrowsableListPlayable,
-      ),
-      _browsableItem(
-        id: AutoMediaRoot.library,
-        title: 'Library',
-        extras: AutoContentStyle.listBrowsableListPlayable,
-      ),
-    ];
-
-    _cachedRootChildren = children;
-    _rootCacheTimestamp = now;
-    return children;
-  }
+  late final _rootChildren = <MediaItem>[
+    _browsableItem(
+      id: AutoMediaRoot.liked,
+      title: 'Liked',
+      extras: AutoContentStyle.listBrowsableListPlayable,
+    ),
+    _browsableItem(
+      id: AutoMediaRoot.recent,
+      title: 'Recent',
+      extras: AutoContentStyle.listBrowsableListPlayable,
+    ),
+    _browsableItem(
+      id: AutoMediaRoot.playlists,
+      title: 'Playlists',
+      extras: AutoContentStyle.listBrowsableListPlayable,
+    ),
+    _browsableItem(
+      id: AutoMediaRoot.library,
+      title: 'Library',
+      extras: AutoContentStyle.listBrowsableListPlayable,
+    ),
+  ];
 
   Future<List<MediaItem>> _getPlaylists() async {
     final playlists = await _playlistDao.watchPlaylists().first;
-    final items = playlists
-        .take(_kMaxBrowseItems)
-        .map(_playlistToMediaItem)
-        .toList(growable: false);
-    return items.isEmpty
-        ? _emptyItems(AutoMediaRoot.playlists, 'No playlists')
-        : items;
+    return _projectBrowse(
+      playlists,
+      _playlistToMediaItem,
+      AutoMediaRoot.playlists,
+      'No playlists',
+    );
   }
 
   Future<List<MediaItem>> _getArtists() async {
     final artists = await _libraryDao.watchArtists().first;
-    final items = artists
-        .take(_kMaxBrowseItems)
-        .map(_artistToMediaItem)
-        .toList(growable: false);
-    return items.isEmpty
-        ? _emptyItems(AutoMediaRoot.artists, 'No artists')
-        : items;
+    return _projectBrowse(
+      artists,
+      _artistToMediaItem,
+      AutoMediaRoot.artists,
+      'No artists',
+    );
   }
 
   Future<List<MediaItem>> _getAlbums() async {
     final albums = await _libraryDao.watchAllAlbums().first;
-    final items = albums
-        .take(_kMaxBrowseItems)
-        .map(_albumToMediaItem)
-        .toList(growable: false);
-    return items.isEmpty
-        ? _emptyItems(AutoMediaRoot.albums, 'No albums')
-        : items;
+    return _projectBrowse(
+      albums,
+      _albumToMediaItem,
+      AutoMediaRoot.albums,
+      'No albums',
+    );
   }
 
   Future<List<MediaItem>> _getLibraryChildren() async {
@@ -254,32 +230,23 @@ class AutoMediaTreeService {
 
   Future<List<MediaItem>> _getLikedSongs() async {
     final songs = await _libraryDao.watchAllStarredSongs().first;
-    final downloadedSongIds = await _readDownloadedSongIdsSafe();
-    final items = songs
-        .take(_kMaxBrowseItems)
-        .map(
-          (song) => _songToMediaItem(
-            song,
-            downloadedSongIds: downloadedSongIds,
-            contextType: AutoMediaContextType.liked,
-            contextId: AutoMediaRoot.likedSongs,
-          ),
-        )
-        .toList(growable: false);
-    return items.isEmpty
-        ? _emptyItems(AutoMediaRoot.likedSongs, 'No liked songs')
-        : items;
+    return await _projectSongs(
+      songs.take(_kMaxBrowseItems),
+      AutoMediaRoot.likedSongs,
+      'No liked songs',
+      contextType: AutoMediaContextType.liked,
+      contextId: AutoMediaRoot.likedSongs,
+    );
   }
 
   Future<List<MediaItem>> _getLikedAlbums() async {
     final albums = await _libraryDao.watchLikedAlbums().first;
-    final items = albums
-        .take(_kMaxBrowseItems)
-        .map(_albumToMediaItem)
-        .toList(growable: false);
-    return items.isEmpty
-        ? _emptyItems(AutoMediaRoot.likedAlbums, 'No liked albums')
-        : items;
+    return _projectBrowse(
+      albums,
+      _albumToMediaItem,
+      AutoMediaRoot.likedAlbums,
+      'No liked albums',
+    );
   }
 
   Future<List<MediaItem>> _getRecentChildren() async {
@@ -342,19 +309,14 @@ class AutoMediaTreeService {
       onlyIds: downloadedSongIds,
       limit: _kMaxBrowseItems,
     );
-    final items = songs
-        .map(
-          (song) => _songToMediaItem(
-            song,
-            downloadedSongIds: downloadedSongIds,
-            contextType: AutoMediaContextType.downloads,
-            contextId: AutoMediaRoot.downloads,
-          ),
-        )
-        .toList(growable: false);
-    return items.isEmpty
-        ? _emptyItems(AutoMediaRoot.downloads, 'No downloads')
-        : items;
+    return await _projectSongs(
+      songs,
+      AutoMediaRoot.downloads,
+      'No downloads',
+      contextType: AutoMediaContextType.downloads,
+      contextId: AutoMediaRoot.downloads,
+      downloadedSongIds: downloadedSongIds,
+    );
   }
 
   Future<List<MediaItem>> _getResumableQueueFallback({
@@ -392,45 +354,34 @@ class AutoMediaTreeService {
 
   Future<List<MediaItem>> _getArtistAlbums(String artistId) async {
     final albums = await _libraryDao.watchAlbumsByArtist(artistId).first;
-    final items = albums
-        .take(_kMaxBrowseItems)
-        .map(_albumToMediaItem)
-        .toList(growable: false);
-    return items.isEmpty ? _emptyItems('artist/$artistId', 'No albums') : items;
+    return _projectBrowse(
+      albums,
+      _albumToMediaItem,
+      'artist/$artistId',
+      'No albums',
+    );
   }
 
   Future<List<MediaItem>> _getAlbumSongs(String albumId) async {
     final songs = await _libraryDao.watchSongsByAlbum(albumId).first;
-    final downloadedSongIds = await _readDownloadedSongIdsSafe();
-    final items = songs
-        .map(
-          (song) => _songToMediaItem(
-            song,
-            downloadedSongIds: downloadedSongIds,
-            contextType: AutoMediaContextType.album,
-            contextId: albumId,
-          ),
-        )
-        .toList(growable: false);
-    return items.isEmpty ? _emptyItems('album/$albumId', 'No songs') : items;
+    return await _projectSongs(
+      songs,
+      'album/$albumId',
+      'No songs',
+      contextType: AutoMediaContextType.album,
+      contextId: albumId,
+    );
   }
 
   Future<List<MediaItem>> _getPlaylistSongs(String playlistId) async {
     final songs = await _playlistDao.watchPlaylistSongs(playlistId).first;
-    final downloadedSongIds = await _readDownloadedSongIdsSafe();
-    final items = songs
-        .map(
-          (song) => _songToMediaItem(
-            song,
-            downloadedSongIds: downloadedSongIds,
-            contextType: AutoMediaContextType.playlist,
-            contextId: playlistId,
-          ),
-        )
-        .toList(growable: false);
-    return items.isEmpty
-        ? _emptyItems('playlist/$playlistId', 'No songs')
-        : items;
+    return await _projectSongs(
+      songs,
+      'playlist/$playlistId',
+      'No songs',
+      contextType: AutoMediaContextType.playlist,
+      contextId: playlistId,
+    );
   }
 
   // ── getMediaItem ──────────────────────────────────────────────────────────
@@ -711,6 +662,41 @@ class AutoMediaTreeService {
     ];
 
     return items.isEmpty ? _emptyItems('search', 'No results') : items;
+  }
+
+  List<MediaItem> _projectBrowse<T>(
+    Iterable<T> rows,
+    MediaItem Function(T) mapper,
+    String parentId,
+    String emptyMessage,
+  ) {
+    final items = rows
+        .take(_kMaxBrowseItems)
+        .map(mapper)
+        .toList(growable: false);
+    return items.isEmpty ? _emptyItems(parentId, emptyMessage) : items;
+  }
+
+  Future<List<MediaItem>> _projectSongs(
+    Iterable<SongsTableData> songs,
+    String parentId,
+    String emptyMessage, {
+    required AutoMediaContextType contextType,
+    required String contextId,
+    Set<String>? downloadedSongIds,
+  }) async {
+    final downloads = downloadedSongIds ?? await _readDownloadedSongIdsSafe();
+    final items = songs
+        .map(
+          (song) => _songToMediaItem(
+            song,
+            downloadedSongIds: downloads,
+            contextType: contextType,
+            contextId: contextId,
+          ),
+        )
+        .toList(growable: false);
+    return items.isEmpty ? _emptyItems(parentId, emptyMessage) : items;
   }
 
   // ── Helpers ───────────────────────────────────────────────────────────────

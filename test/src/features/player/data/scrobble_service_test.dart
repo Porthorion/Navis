@@ -1,5 +1,9 @@
 import 'package:dio/dio.dart';
-import 'package:drift/native.dart';
+
+import 'dart:async';
+
+import 'package:mocktail/mocktail.dart';
+import 'package:navis/src/database/daos/scrobble_dao.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:navis/src/api/subsonic_api_client.dart';
 import 'package:navis/src/api/subsonic_auth_interceptor.dart';
@@ -24,6 +28,8 @@ class _FakeSubsonicApiClient extends SubsonicApiClient {
   final List<({String songId, bool submission, DateTime? time})> calls =
       <({String songId, bool submission, DateTime? time})>[];
   Exception? nextError;
+  Completer<void>? gate;
+  Completer<void>? entered;
 
   @override
   Future<void> scrobble(
@@ -33,12 +39,16 @@ class _FakeSubsonicApiClient extends SubsonicApiClient {
     CancelToken? cancelToken,
   }) async {
     calls.add((songId: id, submission: submission, time: time));
+    entered?.complete();
+    await gate?.future;
     final error = nextError;
     if (error != null) {
       throw error;
     }
   }
 }
+
+class _MockScrobbleDao extends Mock implements ScrobbleDao;
 
 void main() {
   group('DriftScrobbleService', () {
@@ -49,7 +59,7 @@ void main() {
     late bool reachable;
 
     setUp(() async {
-      database = NavisDatabase(NativeDatabase.memory());
+      database = createTestDatabase();
       apiClient = _FakeSubsonicApiClient();
       now = DateTime.utc(2026, 1, 1, 0, 0, 0);
       scrobbleEnabled = true;
@@ -63,6 +73,109 @@ void main() {
     tearDown(() async {
       await database.close();
     });
+
+    test('disposing during a flush cannot restart dispatch timers', () async {
+      final timers = <Timer>[];
+      final service = DriftScrobbleService(
+        dao: database.scrobbleDao,
+        readApiClient: () => apiClient,
+        readScrobbleEnabled: () => true,
+        readReachable: () => true,
+        now: () => now,
+      );
+      addTearDown(() async {
+        await service.dispose();
+        for (final timer in timers) {
+          timer.cancel();
+        }
+      });
+      final gate = Completer<void>();
+      final entered = Completer<void>();
+      apiClient
+        ..gate = gate
+        ..entered = entered
+        ..nextError = Exception('fixture failure');
+      await runZoned(
+        () async {
+          await service.enqueueSubmission(
+            songId: 'song-1',
+            sessionKey: 'in-flight',
+          );
+          service.start();
+          final flush = service.flushDue();
+          await entered.future;
+          await service.dispose();
+          gate.complete();
+          await flush;
+          expect(timers.where((timer) => timer.isActive), isEmpty);
+        },
+        zoneSpecification: ZoneSpecification(
+          createPeriodicTimer: (self, parent, zone, duration, callback) {
+            final timer = parent.createPeriodicTimer(zone, duration, callback);
+            timers.add(timer);
+            return timer;
+          },
+        ),
+      );
+    }, skip: !sqliteAvailable);
+
+    for (final locked in [false, true]) {
+      test(
+        'disposing during timer sync cannot schedule timers (locked=$locked)',
+        () async {
+          final dao = _MockScrobbleDao();
+          final count = Completer<int>();
+          final entered = Completer<void>();
+          when(dao.countEntries).thenAnswer((_) {
+            entered.complete();
+            return count.future;
+          });
+          final timers = <Timer>[];
+          final service = DriftScrobbleService(
+            dao: dao,
+            readApiClient: () => null,
+            readScrobbleEnabled: () => true,
+            readReachable: () => false,
+          );
+          addTearDown(() async {
+            await service.dispose();
+            for (final timer in timers) {
+              timer.cancel();
+            }
+          });
+          await runZoned(
+            () async {
+              service.start();
+              await entered.future;
+              await service.dispose();
+              if (locked) {
+                count.completeError(StateError('database is locked'));
+              } else {
+                count.complete(1);
+              }
+              await pumpEventQueue();
+              expect(timers.where((timer) => timer.isActive), isEmpty);
+            },
+            zoneSpecification: ZoneSpecification(
+              createTimer: (self, parent, zone, duration, callback) {
+                final timer = parent.createTimer(zone, duration, callback);
+                timers.add(timer);
+                return timer;
+              },
+              createPeriodicTimer: (self, parent, zone, duration, callback) {
+                final timer = parent.createPeriodicTimer(
+                  zone,
+                  duration,
+                  callback,
+                );
+                timers.add(timer);
+                return timer;
+              },
+            ),
+          );
+        },
+      );
+    }
 
     test('flushDue delivers due events and removes them', () async {
       final service = DriftScrobbleService(

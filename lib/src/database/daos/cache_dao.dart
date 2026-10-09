@@ -54,17 +54,17 @@ class CacheDao extends DatabaseAccessor<NavisDatabase>
   /// Like [upsertCachedTrack] but never downgrades a [CacheType.permanent]
   /// entry to [CacheType.rolling]. Use this when the rolling cache registers a
   /// playback write so that already-downloaded tracks keep their status.
-  Future<void> upsertRollingCachedTrack(
-    CachedTracksTableCompanion companion,
-  ) async {
-    final existing = await getCachedTrack(companion.songId.value);
-    if (existing != null && existing.cacheType == CacheType.permanent) {
-      // Already permanently downloaded — just update the access time.
-      await touchTrack(companion.songId.value);
-      return;
-    }
-    await into(cachedTracksTable).insertOnConflictUpdate(companion);
-  }
+  Future<void> upsertRollingCachedTrack(CachedTracksTableCompanion companion) =>
+      transaction(() async {
+        // Keep the eligibility read and write under the same writer lock.
+        final existing = await getCachedTrack(companion.songId.value);
+        if (existing != null && existing.cacheType == CacheType.permanent) {
+          // Already permanently downloaded — just update the access time.
+          await touchTrack(companion.songId.value);
+          return;
+        }
+        await into(cachedTracksTable).insertOnConflictUpdate(companion);
+      });
 
   Future<List<CachedTracksTableData>> getCachedTracks() {
     final query = select(cachedTracksTable);
@@ -128,17 +128,6 @@ class CacheDao extends DatabaseAccessor<NavisDatabase>
     );
   }
 
-  Future<void> updateCacheType(String songId, CacheType cacheType) {
-    return (update(
-      cachedTracksTable,
-    )..where((table) => table.songId.equals(songId))).write(
-      CachedTracksTableCompanion(
-        cacheType: Value(cacheType),
-        lastAccessedAt: Value(DateTime.now()),
-      ),
-    );
-  }
-
   Future<void> removeCachedTrack(String songId) {
     return (delete(
       cachedTracksTable,
@@ -173,17 +162,7 @@ class CacheDao extends DatabaseAccessor<NavisDatabase>
           row.songId,
     ];
     if (outside.isEmpty) return 0;
-    await transaction(() async {
-      for (var start = 0; start < outside.length; start += 500) {
-        final batch = outside.sublist(
-          start,
-          start + 500 < outside.length ? start + 500 : outside.length,
-        );
-        await (delete(
-          cachedTracksTable,
-        )..where((t) => t.songId.isIn(batch))).go();
-      }
-    });
+    await deleteCachedTracksBySongIds(outside);
     return outside.length;
   }
 
@@ -191,19 +170,6 @@ class CacheDao extends DatabaseAccessor<NavisDatabase>
     final query = select(cachedTracksTable)
       ..where((t) => t.cacheType.equals(CacheType.permanent.name));
     return query.get();
-  }
-
-  /// Return a map of songId → CacheType for all cached tracks.
-  ///
-  /// Used for efficient batch dedup checks during album/playlist enqueue.
-  Future<Map<String, CacheType>> getCacheTypesForSongIds(
-    Iterable<String> songIds,
-  ) async {
-    final ids = songIds.where((id) => id.trim().isNotEmpty).toList();
-    if (ids.isEmpty) return {};
-    final query = select(cachedTracksTable)..where((t) => t.songId.isIn(ids));
-    final rows = await query.get();
-    return {for (final r in rows) r.songId: r.cacheType};
   }
 
   /// Return full cache rows keyed by songId.
@@ -218,10 +184,6 @@ class CacheDao extends DatabaseAccessor<NavisDatabase>
     final query = select(cachedTracksTable)..where((t) => t.songId.isIn(ids));
     final rows = await query.get();
     return {for (final r in rows) r.songId: r};
-  }
-
-  Future<void> clearCachedTracks() {
-    return delete(cachedTracksTable).go();
   }
 
   Future<List<ListenBrainzWeeklyCacheTableData>>

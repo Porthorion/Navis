@@ -71,41 +71,23 @@ class _DesktopPlayerBarState extends ConsumerState<_DesktopPlayerBar> {
     final canSeek = !playback.isRadioMode && durationMs > 0;
     final sliderMax = canSeek ? durationMs.toDouble() : 1.0;
 
-    final preferredMixMode = ref.watch(preferredMixModeProvider);
-    final instantMix = ref.watch(instantMixProvider);
-    final sameVibes = ref.watch(sameVibesProvider);
-    final mixActive = preferredMixMode == PreferredMixMode.legacyInstantMix
-        ? instantMix.active
-        : sameVibes.active;
-    final mixLoading = preferredMixMode == PreferredMixMode.legacyInstantMix
-        ? (instantMix.refilling && instantMix.active)
-        : (sameVibes.refilling && sameVibes.active);
+    final mix = ref.watch(preferredMixViewProvider);
+    final mixActive = mix.active;
+    final mixLoading = mix.loading;
     final mixSeedSongId = playback.currentSongId;
     final canToggleMix =
         mixSeedSongId != null && mixSeedSongId.trim().isNotEmpty;
-    final isRemoteSeedId =
-        mixSeedSongId != null && !isServerAddressableSongId(mixSeedSongId);
-    final canToggleLegacyMix =
+    final mixSeedUnavailable =
         canToggleMix &&
-        !(isRemoteSeedId &&
-            preferredMixMode == PreferredMixMode.legacyInstantMix);
+        mix.legacyMode &&
+        !serverMixSeedAvailable(ref, mixSeedSongId);
+    final canToggleLegacyMix = canToggleMix && !mixSeedUnavailable;
 
     final repeatMode = playback.repeatMode;
-    String repeatTooltip;
-    IconData repeatIcon;
-    switch (repeatMode) {
-      case AudioServiceRepeatMode.one:
-        repeatTooltip = l10n.nowPlayingRepeatOne;
-        repeatIcon = Icons.repeat_one;
-      case AudioServiceRepeatMode.all:
-      case AudioServiceRepeatMode.group:
-        repeatTooltip = l10n.nowPlayingRepeatAll;
-        repeatIcon = Icons.repeat;
-      case AudioServiceRepeatMode.none:
-        repeatTooltip = l10n.nowPlayingRepeatOff;
-        repeatIcon = Icons.repeat;
-    }
-    final isRepeatActive = repeatMode != AudioServiceRepeatMode.none;
+    final repeat = repeatPresentation(repeatMode, l10n);
+    final repeatTooltip = repeat.tooltip;
+    final repeatIcon = repeat.icon;
+    final isRepeatActive = repeat.active;
     final barColor = Color.alphaBlend(
       colors.primary.withValues(alpha: 0.024),
       colors.surfaceContainerLow,
@@ -159,18 +141,6 @@ class _DesktopPlayerBarState extends ConsumerState<_DesktopPlayerBar> {
                   padding: EdgeInsets.zero,
                   tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                 );
-                Future<void> togglePlayPause() async {
-                  final handler = ref.read(audioHandlerProvider);
-                  if (handler == null) {
-                    return;
-                  }
-                  if (isPlaying) {
-                    await handler.pause();
-                  } else {
-                    await handler.play();
-                  }
-                }
-
                 Future<void> skipForwardOrStopRadio() async {
                   final handler = ref.read(audioHandlerProvider);
                   if (handler == null) {
@@ -279,24 +249,15 @@ class _DesktopPlayerBarState extends ConsumerState<_DesktopPlayerBar> {
                       color: colors.onSurfaceVariant,
                     ),
                   );
-                } else if (widget.coverArtId == null ||
-                    widget.coverArtId!.trim().isEmpty) {
-                  coverArtWidget = _MiniRemoteArt(
-                    artUrl: widget.coverArtUrl,
-                    colorScheme: colors,
-                    size: compactLayout ? 42 : 48,
-                  );
                 } else {
-                  coverArtWidget = CoverArtImage(
+                  coverArtWidget = _miniPlayerArtwork(
+                    isRadio: false,
+                    radioArtUrl: null,
                     coverArtId: widget.coverArtId,
-                    size: kCoverArtStandardSize,
-                    width: compactLayout ? 42 : 48,
-                    height: compactLayout ? 42 : 48,
-                    shape: ArtworkShapeRole.cover,
-                    loadPriority: CoverArtLoadPriority.critical,
+                    coverArtUrl: widget.coverArtUrl,
                     isExternalSource: widget.isExternalSource,
-                    remoteSourceIndicatorPolicy:
-                        RemoteSourceIndicatorPolicy.hidden,
+                    size: compactLayout ? 42 : 48,
+                    colorScheme: colors,
                   );
                 }
 
@@ -724,7 +685,9 @@ class _DesktopPlayerBarState extends ConsumerState<_DesktopPlayerBar> {
                                           key: const ValueKey<String>(
                                             'desktopPlayerInstantMixButton',
                                           ),
-                                          tooltip: canToggleLegacyMix
+                                          tooltip: mixSeedUnavailable
+                                              ? l10n.remoteSourceInstantMixUnavailable
+                                              : canToggleMix
                                               ? l10n.nowPlayingInstantMixLabel
                                               : l10n.desktopPlaybackUnavailableTooltip,
                                           iconSize: controlIconSize,
@@ -823,7 +786,12 @@ class _DesktopPlayerBarState extends ConsumerState<_DesktopPlayerBar> {
                                         ),
                                         onPressed:
                                             hasPlayback || hasResumableQueue
-                                            ? () => unawaited(togglePlayPause())
+                                            ? () => unawaited(
+                                                togglePlayPause(
+                                                  ref,
+                                                  isPlaying: isPlaying,
+                                                ),
+                                              )
                                             : null,
                                         icon: _remoteLoadingPlayPauseIcon(
                                           isExternalSource:
@@ -898,28 +866,11 @@ class _DesktopPlayerBarState extends ConsumerState<_DesktopPlayerBar> {
                                                   final handler = ref.read(
                                                     audioHandlerProvider,
                                                   );
-                                                  final next =
-                                                      switch (repeatMode) {
-                                                        AudioServiceRepeatMode
-                                                            .none =>
-                                                          AudioServiceRepeatMode
-                                                              .all,
-                                                        AudioServiceRepeatMode
-                                                            .all =>
-                                                          AudioServiceRepeatMode
-                                                              .one,
-                                                        AudioServiceRepeatMode
-                                                            .one =>
-                                                          AudioServiceRepeatMode
-                                                              .none,
-                                                        AudioServiceRepeatMode
-                                                            .group =>
-                                                          AudioServiceRepeatMode
-                                                              .none,
-                                                      };
                                                   unawaited(
                                                     handler?.setRepeatMode(
-                                                      next,
+                                                      nextRepeatMode(
+                                                        repeatMode,
+                                                      ),
                                                     ),
                                                   );
                                                 },

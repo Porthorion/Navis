@@ -12,15 +12,6 @@ String formatBytes(int bytes) {
   return '${gb.toStringAsFixed(2)} GB';
 }
 
-/// Format a playback speed multiplier without unnecessary trailing zeroes.
-String formatPlaybackSpeed(double speed) {
-  final normalized = speed.toStringAsFixed(2);
-  final trimmed = normalized
-      .replaceFirst(RegExp(r'0+$'), '')
-      .replaceFirst(RegExp(r'\.$'), '');
-  return '$trimmed×';
-}
-
 /// Formats a duration as `m:ss`.
 ///
 /// When [showHours] is true, durations of at least one hour are formatted as

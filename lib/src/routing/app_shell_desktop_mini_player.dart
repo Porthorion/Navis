@@ -269,43 +269,20 @@ class _DesktopMiniPlayerTightPlaybackState
         ? l10n.miniPlayerUnknownArtist
         : songArtist!.trim();
 
-    Widget artwork;
-    if ((coverArtId ?? '').trim().isNotEmpty) {
-      artwork = CoverArtImage(
-        coverArtId: coverArtId,
-        size: kCoverArtStandardSize,
-        width: 156,
-        height: 156,
-        shape: ArtworkShapeRole.cover,
-        loadPriority: CoverArtLoadPriority.critical,
-        isExternalSource: isExternalSource,
-        remoteSourceIndicatorPolicy: RemoteSourceIndicatorPolicy.hidden,
-      );
-    } else {
-      artwork = _MiniRemoteArt(
-        artUrl: coverArtUrl,
-        colorScheme: colors,
-        size: 156,
-      );
-    }
-
-    Future<void> playPause() async {
-      final handler = ref.read(audioHandlerProvider);
-      if (playback.playing) {
-        await handler?.pause();
-      } else {
-        await handler?.play();
-      }
-    }
+    final artwork = _miniPlayerArtwork(
+      isRadio: false,
+      radioArtUrl: null,
+      coverArtId: coverArtId,
+      coverArtUrl: coverArtUrl,
+      isExternalSource: isExternalSource,
+      size: 156,
+      colorScheme: colors,
+    );
 
     final shuffleOn = playback.shuffleMode == AudioServiceShuffleMode.all;
-    final repeatActive = playback.repeatMode != AudioServiceRepeatMode.none;
-    final repeatLabel = switch (playback.repeatMode) {
-      AudioServiceRepeatMode.one => l10n.nowPlayingRepeatOne,
-      AudioServiceRepeatMode.all ||
-      AudioServiceRepeatMode.group => l10n.nowPlayingRepeatAll,
-      AudioServiceRepeatMode.none => l10n.nowPlayingRepeatOff,
-    };
+    final repeat = repeatPresentation(playback.repeatMode, l10n);
+    final repeatActive = repeat.active;
+    final repeatLabel = repeat.tooltip;
     final eqSupported = ref.watch(eqCapabilitiesProvider).supported;
 
     void handleSecondaryAction(
@@ -327,13 +304,9 @@ class _DesktopMiniPlayerTightPlaybackState
             ),
           );
         case _DesktopMiniPlayerAction.repeat:
-          final next = switch (playback.repeatMode) {
-            AudioServiceRepeatMode.none => AudioServiceRepeatMode.all,
-            AudioServiceRepeatMode.all => AudioServiceRepeatMode.one,
-            AudioServiceRepeatMode.one => AudioServiceRepeatMode.none,
-            AudioServiceRepeatMode.group => AudioServiceRepeatMode.none,
-          };
-          unawaited(handler?.setRepeatMode(next));
+          unawaited(
+            handler?.setRepeatMode(nextRepeatMode(playback.repeatMode)),
+          );
         case _DesktopMiniPlayerAction.queue:
           Navigator.of(
             context,
@@ -361,7 +334,8 @@ class _DesktopMiniPlayerTightPlaybackState
           tooltip: playback.playing
               ? l10n.nowPlayingPause
               : l10n.nowPlayingPlay,
-          onPressed: () => unawaited(playPause()),
+          onPressed: () =>
+              unawaited(togglePlayPause(ref, isPlaying: playback.playing)),
           icon: _remoteLoadingPlayPauseIcon(
             isExternalSource: isExternalSource,
             playback: playback,
@@ -402,9 +376,7 @@ class _DesktopMiniPlayerTightPlaybackState
                     _miniPlayerMenuItem(
                       context,
                       action: _DesktopMiniPlayerAction.repeat,
-                      icon: playback.repeatMode == AudioServiceRepeatMode.one
-                          ? Icons.repeat_one
-                          : Icons.repeat,
+                      icon: repeat.icon,
                       label: repeatLabel,
                       active: repeatActive,
                     ),

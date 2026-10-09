@@ -25,10 +25,6 @@ import 'package:navis/src/database/daos/match_flow_dao.dart';
 import 'package:navis/src/database/daos/network_usage_dao.dart';
 import 'package:navis/src/database/navis_database.dart';
 import 'package:navis/src/database/tables/schema_enums.dart';
-import 'package:navis/src/features/audiomuse/data/audiomuse_api_client.dart';
-import 'package:navis/src/features/audiomuse/data/audiomuse_repository.dart';
-import 'package:navis/src/features/audiomuse/domain/audiomuse_models.dart';
-import 'package:navis/src/features/auth/domain/server_config.dart';
 import 'package:navis/src/features/auth/presentation/server_config_provider.dart';
 import 'package:navis/src/features/cache/data/rolling_cache_manager.dart';
 import 'package:navis/src/features/downloads/data/android_saf_storage.dart';
@@ -50,7 +46,7 @@ import 'package:navis/src/features/integrations/data/integration_json_cache.dart
 import 'package:navis/src/features/integrations/domain/integration_artwork.dart';
 import 'package:navis/src/features/integrations/domain/integration_feature.dart';
 import 'package:navis/src/features/library/data/annotation_sync_dispatcher.dart';
-import 'package:navis/src/features/library/data/library_sync_engine.dart';
+import 'package:navis/src/features/library/domain/library_sync_request.dart';
 import 'package:navis/src/features/library/presentation/artist_deezer_providers.dart';
 import 'package:navis/src/features/library/presentation/artist_top_tracks_provider.dart';
 import 'package:navis/src/features/library/presentation/library_browse_models.dart';
@@ -64,6 +60,7 @@ import 'package:navis/src/features/player/data/playback_source_resolver.dart';
 import 'package:navis/src/features/player/data/scrobble_service.dart';
 import 'package:navis/src/features/player/domain/lyrics_resolution.dart';
 import 'package:navis/src/features/player/domain/playback_snapshot.dart';
+import 'package:navis/src/features/player/domain/streaming_quality.dart';
 import 'package:navis/src/features/player/presentation/instant_mix_notifier.dart';
 import 'package:navis/src/features/player/presentation/personal_radio_notifier.dart';
 import 'package:navis/src/features/player/presentation/playback_adjustment_controller.dart';
@@ -154,16 +151,12 @@ final coverArtLoadCoordinatorProvider = Provider<CoverArtLoadCoordinator>((
 
 /// Cover art recovery orchestration (plan F6/F7): targeted eviction of
 /// corrupt entries and one coalesced entity-metadata refresh per missing
-/// cover reference, routed into the sync engine's targeted hydration.
+/// cover reference, routed through the sync controller's targeted requests.
 final coverArtRecoveryProvider = Provider<CoverArtRecoveryCoordinator>((ref) {
   return CoverArtRecoveryCoordinator(
     refreshEntityForCover: (coverArtId) async {
       final database = ref.read(navisDatabaseProvider);
-      final engineOrNull = ref.read(librarySyncEngineProvider);
-      if (engineOrNull == null) {
-        return;
-      }
-      final engine = engineOrNull as TargetedLibrarySyncExecutor;
+      final controller = ref.read(librarySyncControllerProvider.notifier);
       // Route by which entity currently owns this cover reference: the
       // refresh may change the cover ID or bump its revision, after which
       // widgets retry the resulting cover identity.
@@ -174,7 +167,9 @@ final coverArtRecoveryProvider = Provider<CoverArtRecoveryCoordinator>((ref) {
           )
           .getSingleOrNull();
       if (albumRow != null) {
-        await engine.hydrateAlbum(albumRow.read<String>('id'));
+        await controller.requestTarget(
+          LibrarySyncTarget.album(albumRow.read<String>('id')),
+        );
         return;
       }
       final artistRow = await database
@@ -184,7 +179,9 @@ final coverArtRecoveryProvider = Provider<CoverArtRecoveryCoordinator>((ref) {
           )
           .getSingleOrNull();
       if (artistRow != null) {
-        await engine.hydrateArtist(artistRow.read<String>('id'));
+        await controller.requestTarget(
+          LibrarySyncTarget.artist(artistRow.read<String>('id')),
+        );
         return;
       }
       final songAlbumRow = await database
@@ -195,7 +192,9 @@ final coverArtRecoveryProvider = Provider<CoverArtRecoveryCoordinator>((ref) {
           )
           .getSingleOrNull();
       if (songAlbumRow != null) {
-        await engine.hydrateAlbum(songAlbumRow.read<String>('album_id'));
+        await controller.requestTarget(
+          LibrarySyncTarget.album(songAlbumRow.read<String>('album_id')),
+        );
       }
     },
   );
@@ -432,19 +431,6 @@ final networkUsageTotalProvider = StreamProvider.family<NetworkUsageTotal, int>(
   },
 );
 
-final networkUsageSessionTotalsProvider =
-    Provider<List<NetworkUsageSessionTotal>>((ref) {
-      return ref.watch(networkUsageMeterProvider).sessionTotals;
-    });
-
-class StreamingQuality {
-  const new({required this.label, this.maxBitRate, this.format});
-
-  final String label;
-  final int? maxBitRate;
-  final String? format;
-}
-
 final eqRepositoryProvider = Provider<EqRepository>(
   (ref) => EqRepository(ref.watch(navisDatabaseProvider).eqDao),
 );
@@ -538,13 +524,6 @@ final likedQueueEnabledProvider = Provider<bool>((ref) {
       ref.watch(appSettingsProvider).asData?.value ??
       const AppSettingsModel.defaults();
   return settings.likedQueueEnabled;
-});
-
-final matchFlowEnabledProvider = Provider<bool>((ref) {
-  final settings =
-      ref.watch(appSettingsProvider).asData?.value ??
-      const AppSettingsModel.defaults();
-  return settings.matchFlowEnabled;
 });
 
 final matchFlowDaoProvider = Provider<MatchFlowDao>((ref) {
@@ -1443,6 +1422,9 @@ class AudioBootstrapController extends Notifier<AudioBootstrapState> {
       }
     }
     await ref.read(audioHandlerStateProvider.notifier).clearHandler();
+    // Session retirement is not a startup failure; the next request may rebuild.
+    _inFlight = null;
+    _didAttempt = false;
     state = AudioBootstrapState.failed(
       'Playback initialization was stopped.',
       attempt: _activeAttempt,
@@ -1653,12 +1635,6 @@ final artistByIdProvider = StreamProvider.autoDispose
       return dao.watchArtistById(artistId);
     });
 
-final albumsByArtistProvider =
-    StreamProvider.family<List<AlbumsTableData>, String>((ref, artistId) {
-      final dao = ref.watch(navisDatabaseProvider).libraryDao;
-      return dao.watchAlbumsByArtist(artistId);
-    });
-
 // Auto-disposed: a visited artist's album watch must not keep re-running on
 // every library write after the page closes.
 final artistAlbumSectionsProvider = StreamProvider.autoDispose
@@ -1717,7 +1693,6 @@ final albumProvider = StreamProvider.autoDispose.family<AlbumWithSongs?, String>
 });
 
 typedef AlbumPageRequest = ({AlbumSortOrder sort, int limit});
-typedef LikedAlbumPageRequest = ({AlbumSortOrder sort, int limit});
 typedef AlbumListRequest = ({AlbumSortOrder sort, bool likedOnly});
 typedef AlbumYearSectionsRequest = ({bool likedOnly, bool downloadedOnly});
 
@@ -1728,30 +1703,12 @@ final albumCountProvider = StreamProvider<int>((ref) {
   return dao.watchAlbumCount();
 });
 
-final likedAlbumCountProvider = StreamProvider<int>((ref) {
-  final dao = ref.watch(navisDatabaseProvider).libraryDao;
-  return dao.watchAlbumCount(likedOnly: true);
-});
-
 // Each page request (limit 60, 120, ...) is its own instance; auto-dispose
 // frees earlier limits once the grid watches the next one.
 final pagedAlbumsProvider = StreamProvider.autoDispose
     .family<List<AlbumsTableData>, AlbumPageRequest>((ref, request) {
       final dao = ref.watch(navisDatabaseProvider).libraryDao;
       return dao.watchAlbumsPage(sort: request.sort, limit: request.limit);
-    });
-
-final likedPagedAlbumsProvider =
-    StreamProvider.family<List<AlbumsTableData>, LikedAlbumPageRequest>((
-      ref,
-      request,
-    ) {
-      final dao = ref.watch(navisDatabaseProvider).libraryDao;
-      return dao.watchAlbumsPage(
-        sort: request.sort,
-        limit: request.limit,
-        likedOnly: true,
-      );
     });
 
 final sortedAlbumsProvider =
@@ -1777,19 +1734,6 @@ final likedAlbumsRecentProvider = StreamProvider<List<AlbumsTableData>>((ref) {
   return dao.watchRecentlyLikedAlbums(limit: null);
 });
 
-final albumListProvider = StreamProvider.family<List<AlbumsTableData>, String>((
-  ref,
-  type,
-) {
-  final dao = ref.watch(navisDatabaseProvider).libraryDao;
-  return dao.watchAllAlbums();
-});
-
-final songsProvider = StreamProvider<List<SongsTableData>>((ref) {
-  final dao = ref.watch(navisDatabaseProvider).libraryDao;
-  return dao.watchSongsSorted(SongSortOrder.newest);
-});
-
 final likedSongsProvider = StreamProvider<List<SongsTableData>>((ref) {
   final dao = ref.watch(navisDatabaseProvider).libraryDao;
   return dao.watchAllStarredSongs();
@@ -1799,12 +1743,6 @@ final likedAlbumSongsProvider = StreamProvider<List<SongsTableData>>((ref) {
   final dao = ref.watch(navisDatabaseProvider).libraryDao;
   return dao.watchSongsFromLikedAlbums();
 });
-
-final songsBySortProvider =
-    StreamProvider.family<List<SongsTableData>, SongSortOrder>((ref, sort) {
-      final dao = ref.watch(navisDatabaseProvider).libraryDao;
-      return dao.watchSongsSorted(sort);
-    });
 
 // Per-song and per-list families are auto-disposed: rows are created while
 // scrolling long lists, and each instance holds a live database watch.
@@ -1835,12 +1773,6 @@ final albumRatingProvider = StreamProvider.family<int?, String>((ref, albumId) {
   final dao = ref.watch(navisDatabaseProvider).libraryDao;
   return dao.watchAlbumRating(albumId);
 });
-
-final songsByArtistProvider =
-    StreamProvider.family<List<SongsTableData>, String>((ref, artistId) {
-      final dao = ref.watch(navisDatabaseProvider).libraryDao;
-      return dao.watchSongsByArtist(artistId);
-    });
 
 final albumYearSectionsProvider =
     StreamProvider.family<List<AlbumYearSection>, AlbumYearSectionsRequest>((
@@ -1932,20 +1864,6 @@ final radioStationsProvider = FutureProvider<List<InternetRadioStation>>((
   return await api.getInternetRadioStations();
 });
 
-final searchResultsProvider = FutureProvider.autoDispose
-    .family<SearchResult3, String>((ref, query) async {
-      if (query.trim().isEmpty) {
-        return const SearchResult3();
-      }
-
-      final api = ref.watch(subsonicApiProvider);
-      if (api == null) {
-        return const SearchResult3();
-      }
-
-      return await api.search3(query: query);
-    });
-
 class AudioHandlerStateController extends Notifier<NavisPlaybackHandler?> {
   NavisPlaybackHandler? _currentHandler;
 
@@ -2006,13 +1924,13 @@ final rollingCacheBudgetBytesProvider = Provider<int>((ref) {
 
 final rollingCacheManagerProvider = Provider<RollingCacheManager>((ref) {
   final database = ref.watch(navisDatabaseProvider);
-  const safStorage = AndroidSafStorage();
   return DriftRollingCacheManager(
     cacheDao: database.cacheDao,
     songIdentityDao: database.songIdentityDao,
-    entryExists: (entry) => entry.storageKind == 'androidSaf'
-        ? safStorage.exists(entry.filePath)
-        : Future<bool>.value(File(entry.filePath).existsSync()),
+    entryExists: (entry) => storedAudioExists(
+      locator: entry.filePath,
+      storageKind: entry.storageKind,
+    ),
   );
 });
 
@@ -2073,35 +1991,11 @@ final radioStreamErrorProvider = StreamProvider<void>((ref) {
   return handler.radioStreamErrorStream;
 });
 
-/// Emits an event whenever a playback source load fails or times out.
-final playbackLoadFailureProvider = StreamProvider<PlaybackLoadFailure>((ref) {
-  final handler = ref.watch(audioHandlerProvider);
-  if (handler == null) {
-    return const Stream<PlaybackLoadFailure>.empty();
-  }
-  return handler.loadFailureStream;
-});
-
 /// Songs the handler dropped from the queue after accepting them. A plain
 /// stream, so a subscriber receives every event even while no widget listens.
 final queueSongsDroppedProvider = Provider<Stream<QueueSongsDropped>>((ref) {
   final handler = ref.watch(audioHandlerProvider);
   return handler?.droppedSongsStream ?? const Stream<QueueSongsDropped>.empty();
-});
-
-/// Whether the player is currently playing audio.
-final isPlayingProvider = Provider<bool>((ref) {
-  return ref.watch(playerStateProvider.select((s) => s.playing));
-});
-
-/// The song ID of the currently playing track, or null.
-final currentSongProvider = Provider<String?>((ref) {
-  return ref.watch(playerStateProvider.select((s) => s.currentSongId));
-});
-
-/// The index of the currently playing track within the queue, or null.
-final currentIndexProvider = Provider<int?>((ref) {
-  return ref.watch(playerStateProvider.select((s) => s.currentIndex));
 });
 
 /// The station ID currently playing, or null when not in radio mode.
@@ -2207,10 +2101,6 @@ class PlaybackVolumeController extends Notifier<double> {
     await handler?.setVolume(state);
     await _persistCurrentVolume(throwOnFailure: throwOnPersistenceFailure);
     return state;
-  }
-
-  Future<void> flushPersistence({bool throwOnFailure = false}) {
-    return _persistCurrentVolume(throwOnFailure: throwOnFailure);
   }
 
   void _schedulePersistence() {
@@ -2415,25 +2305,6 @@ final artistInfoProvider = FutureProvider.family<ArtistInfo?, String>((
   return await api.getArtistInfo2(artistId);
 });
 
-final downloadProgressProvider = Provider.autoDispose.family<double?, String>((
-  ref,
-  songId,
-) {
-  // Derived from the shared queue stream rather than one database watch per
-  // song.
-  return ref.watch(
-    downloadQueueProvider.select((queue) {
-      for (final item
-          in queue.asData?.value ?? const <DownloadQueueTableData>[]) {
-        if (item.songId == songId) {
-          return item.progress;
-        }
-      }
-      return null;
-    }),
-  );
-});
-
 final downloadQueueProvider = StreamProvider<List<DownloadQueueTableData>>((
   ref,
 ) {
@@ -2636,11 +2507,6 @@ final downloadServiceProvider = Provider<DownloadService>((ref) {
   return service;
 });
 
-final connectivityHintProvider = Provider<String>((ref) {
-  final network = ref.watch(networkTypeProvider);
-  return network.name;
-});
-
 /// Whether downloads should only proceed on Wi-Fi.
 final wifiOnlyDownloadsProvider = Provider<bool>((ref) {
   final settings =
@@ -2758,14 +2624,6 @@ final homeRecommendationsAutoAdvanceProvider = Provider<bool>((ref) {
           settings.asData?.value.homeRecommendationsAutoAdvance ?? false,
     ),
   );
-});
-
-/// Legacy album grid density, retained for compatibility during migration.
-final albumGridDensityProvider = Provider<int?>((ref) {
-  final settings =
-      ref.watch(appSettingsProvider).asData?.value ??
-      const AppSettingsModel.defaults();
-  return settings.albumGridDensity;
 });
 
 /// Shape preset for cover art in library / carousel cards.
@@ -2972,132 +2830,6 @@ final updateProvider = FutureProvider.autoDispose<UpdateInfo?>((ref) async {
     forceCheck: forceCheck,
   );
 });
-
-Future<void> seedDefaultServerConfig(Ref ref) async {
-  final notifier = ref.read(serverConfigProvider.notifier);
-  await notifier.save(
-    const ServerConfigModel(
-      url: 'http://localhost:4533',
-      username: 'demo',
-      password: 'demo',
-      apiVersion: '1.16.1',
-    ),
-  );
-}
-
-// ---------------------------------------------------------------------------
-// Smart Queue — AudioMuse plugin detection
-// ---------------------------------------------------------------------------
-
-/// Capabilities are refreshed for the authenticated client session. Saved
-/// capability JSON remains a fallback for offline use and older installs.
-final currentServerCapabilitiesProvider = FutureProvider<ServerCapabilities>((
-  ref,
-) async {
-  final api = ref.watch(subsonicApiProvider);
-  if (api == null) return const ServerCapabilities();
-  try {
-    return await api.getOpenSubsonicExtensions();
-  } on Object {
-    final saved = ref
-        .read(serverConfigStateProvider)
-        .asData
-        ?.value
-        ?.capabilitiesJson;
-    if (saved == null || saved.isEmpty) return const ServerCapabilities();
-    try {
-      return ServerCapabilities.fromJson(
-        jsonDecode(saved) as Map<String, dynamic>,
-      );
-    } on Object {
-      return const ServerCapabilities();
-    }
-  }
-});
-
-/// Sonic support is signaled by the OpenSubsonic extension, not by a
-/// successful generic similarity request.
-final smartQueueAvailableProvider = FutureProvider<bool>((ref) async {
-  final capabilities = await ref.watch(
-    currentServerCapabilitiesProvider.future,
-  );
-  return capabilities.extensions.any(
-    (extension) => extension.name == 'sonicSimilarity',
-  );
-});
-
-// ---------------------------------------------------------------------------
-// AudioMuse AI providers (direct API — disabled)
-// ---------------------------------------------------------------------------
-
-/// Whether AudioMuse AI integration is enabled and configured in settings.
-///
-/// **Disabled** — the AudioMuse Navidrome plugin already provides
-/// AI-powered similar songs and artists transparently through the
-/// standard Subsonic API (`getSimilarSongs2`, `getArtistInfo2`).
-/// Direct client-to-AudioMuse communication is unnecessary and blocked
-/// by the Authentik reverse-proxy. Re-enable once a viable internal
-/// route is available.
-final audioMuseAvailableProvider = Provider<bool>((ref) {
-  // Original gate (kept for future re-enablement):
-  // final settings =
-  //     ref.watch(appSettingsProvider).asData?.value ??
-  //     const AppSettingsModel.defaults();
-  // return settings.audioMuseEnabled &&
-  //     (settings.audioMuseServerUrl?.trim().isNotEmpty ?? false);
-  return false;
-});
-
-/// The current AudioMuse configuration extracted from app settings.
-final audioMuseConfigProvider = Provider<AudioMuseConfig>((ref) {
-  final settings =
-      ref.watch(appSettingsProvider).asData?.value ??
-      const AppSettingsModel.defaults();
-  return AudioMuseConfig(
-    serverUrl: settings.audioMuseServerUrl ?? '',
-    apiKey: settings.audioMuseApiKey,
-    enabled: settings.audioMuseEnabled,
-  );
-});
-
-/// AudioMuse repository — `null` when AudioMuse is not configured.
-///
-/// Consumers should check [audioMuseAvailableProvider] before using this.
-final audioMuseRepositoryProvider = Provider<AudioMuseRepository?>((ref) {
-  final config = ref.watch(audioMuseConfigProvider);
-  if (!config.isConfigured) return null;
-  final client = AudioMuseApiClient(
-    baseUrl: config.serverUrl,
-    apiKey: config.apiKey,
-  );
-  return AudioMuseRepository(client);
-});
-
-/// AI-powered similar artists for a given artist ID.
-/// Returns an empty list when AudioMuse is unavailable.
-final audioMuseSimilarArtistsProvider = FutureProvider.autoDispose
-    .family<List<AudioMuseRecommendation>, String>((ref, artistId) async {
-      final repo = ref.watch(audioMuseRepositoryProvider);
-      if (repo == null) return const [];
-      return await repo.getSimilarArtists(artistId);
-    });
-
-/// AI-powered similar albums for a given album ID.
-/// Returns an empty list when AudioMuse is unavailable.
-final audioMuseSimilarAlbumsProvider = FutureProvider.autoDispose
-    .family<List<AudioMuseRecommendation>, String>((ref, albumId) async {
-      final repo = ref.watch(audioMuseRepositoryProvider);
-      if (repo == null) return const [];
-      return await repo.getSimilarAlbums(albumId);
-    });
-
-/// AI-powered song recommendations for smart auto-queue.
-final audioMuseSongRecommendationsProvider = FutureProvider.autoDispose
-    .family<List<AudioMuseRecommendation>, String>((ref, seedSongId) async {
-      final repo = ref.watch(audioMuseRepositoryProvider);
-      if (repo == null) return const [];
-      return await repo.getRecommendations(seedSongId: seedSongId);
-    });
 
 List<AlbumYearSection> _buildAlbumYearSections(List<AlbumsTableData> albums) {
   if (albums.isEmpty) {

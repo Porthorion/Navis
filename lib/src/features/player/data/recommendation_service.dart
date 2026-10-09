@@ -151,7 +151,7 @@ class RecommendationService {
     // to, when the server has one.
     final mixSeedId = isServerAddressableSongId(seedId)
         ? seedId
-        : await _libraryCopyId(api, seedId, cancelToken) ?? seedId;
+        : await libraryCopyId(api, seedId, cancelToken: cancelToken) ?? seedId;
     final collected = <Song>[];
     var source = RecommendationSource.server;
     var issue = RecommendationIssue.empty;
@@ -231,11 +231,11 @@ class RecommendationService {
 
   /// The server's library copy of the remote song [seedId], or null when
   /// getSong answers with the remote song itself or fails.
-  Future<String?> _libraryCopyId(
+  Future<String?> libraryCopyId(
     SubsonicApiClient api,
-    String seedId,
+    String seedId, {
     CancelToken? cancelToken,
-  ) async {
+  }) async {
     try {
       final song = await api.getSong(seedId, cancelToken: cancelToken);
       final id = song.id.trim();

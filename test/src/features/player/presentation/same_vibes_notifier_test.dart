@@ -8,124 +8,22 @@ import 'package:navis/src/features/integrations/domain/integration_feature.dart'
 import 'package:navis/src/api/lastfm_api_client.dart';
 import 'package:navis/src/api/models/models.dart';
 import 'package:navis/src/api/subsonic_api_client.dart';
-import 'package:navis/src/features/player/domain/playback_snapshot.dart';
 import 'package:navis/src/features/player/domain/same_vibes_state.dart';
 import 'package:navis/src/features/player/presentation/queue_provider.dart';
 import 'package:navis/src/features/player/presentation/recommendation_session_coordinator.dart';
 import 'package:navis/src/features/player/presentation/same_vibes_notifier.dart';
 import 'package:navis/src/providers/app_providers.dart';
 
-class _SnapshotController extends Notifier<PlaybackSnapshot> {
-  @override
-  PlaybackSnapshot build() => const PlaybackSnapshot.idle();
-
-  void emitSnapshot(PlaybackSnapshot snapshot, [Object? marker]) {
-    state = snapshot;
-  }
-}
+import '../../../../helpers/recommendation_test_harness.dart';
 
 class _MockSubsonicApiClient extends Mock implements SubsonicApiClient;
 
 class _MockLastFmApiClient extends Mock implements LastFmApiClient;
 
-class _FakeQueueController extends QueueController {
-  new({this.insertedCount, this.error, this.onRetain});
-
-  final List<List<Song>> appendedSongBatches = <List<Song>>[];
-  final List<String> retainedSongIds = <String>[];
-  final int? insertedCount;
-  final Exception? error;
-  final void Function(String id)? onRetain;
-
-  List<Song> get queuedSongs =>
-      appendedSongBatches.expand((songs) => songs).toList(growable: false);
-
-  @override
-  List<String> build() => const <String>[];
-
-  @override
-  Future<void> addWithSongs(
-    List<Song> songs, {
-    bool expandMatchFlows = true,
-  }) async {
-    throw StateError('Same Vibes should use appendMixTracks');
-  }
-
-  @override
-  Future<void> playNextWithSongs(
-    List<Song> songs, {
-    bool expandMatchFlows = true,
-  }) async {
-    throw StateError('Same Vibes should not use playNext for recommendations');
-  }
-
-  @override
-  Future<void> retainCurrentAsQueue(String id) async {
-    retainedSongIds.add(id);
-    onRetain?.call(id);
-  }
-
-  @override
-  Future<int> appendMixTracks(
-    List<Song> songs, {
-    bool expandMatchFlows = false,
-  }) async {
-    appendedSongBatches.add(List<Song>.from(songs));
-    final error = this.error;
-    if (error != null) {
-      throw error;
-    }
-    return insertedCount ?? songs.length;
-  }
-
-  @override
-  Future<RecommendationQueueResult> appendRecommendationTracks(
-    List<Song> songs, {
-    bool expandMatchFlows = false,
-    bool Function()? isCurrent,
-  }) async {
-    if (isCurrent != null && !isCurrent()) {
-      return const RecommendationQueueResult(<String>[]);
-    }
-    final count = await appendMixTracks(
-      songs,
-      expandMatchFlows: expandMatchFlows,
-    );
-    return RecommendationQueueResult(
-      songs.take(count).map((song) => song.id).toList(),
-    );
-  }
-}
-
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
-  PlaybackSnapshot snapshot({
-    required List<String> queueSongIds,
-    required String? currentSongId,
-    required int? currentIndex,
-    bool radioMode = false,
-  }) {
-    return PlaybackSnapshot(
-      queueSongIds: queueSongIds,
-      currentSongId: currentSongId,
-      currentIndex: currentIndex,
-      playing: true,
-      processingState: AudioProcessingState.ready,
-      position: Duration.zero,
-      duration: const Duration(minutes: 3),
-      bufferedPosition: Duration.zero,
-      shuffleMode: AudioServiceShuffleMode.none,
-      repeatMode: AudioServiceRepeatMode.none,
-      radioStation: radioMode
-          ? const RadioStationMetadata(
-              stationId: 'station-1',
-              stationName: 'Test Station',
-              streamUrl: 'https://example.com/stream',
-            )
-          : null,
-    );
-  }
+  const snapshot = recommendationSnapshot;
 
   test('queue identity keeps Japanese and English editions distinct', () {
     final jp = sameVibesCanonicalSongKey(
@@ -163,10 +61,6 @@ void main() {
       'no Last.fm key is verified': const IntegrationPolicy(),
     }.entries) {
       test('never calls Last.fm when ${entry.key}', () async {
-        final snapshotState =
-            NotifierProvider<_SnapshotController, PlaybackSnapshot>(
-              _SnapshotController.new,
-            );
         final api = _MockSubsonicApiClient();
         final lastFm = _MockLastFmApiClient();
         when(
@@ -182,11 +76,10 @@ void main() {
             cancelToken: any(named: 'cancelToken'),
           ),
         ).thenAnswer((_) async => const <Song>[]);
-        final container = ProviderContainer(
+        final container = createRecommendationContainer(
           overrides: [
-            playerStateProvider.overrideWith((ref) => ref.watch(snapshotState)),
             queueProvider.overrideWith(
-              () => _FakeQueueController(insertedCount: 1),
+              () => RecordingRecommendationQueue(insertedCount: 1),
             ),
             subsonicApiProvider.overrideWithValue(api),
             lastFmApiClientProvider.overrideWithValue(lastFm),
@@ -214,9 +107,8 @@ void main() {
             ),
           ],
         );
-        addTearDown(container.dispose);
         container
-            .read(snapshotState.notifier)
+            .read(recommendationSnapshotProvider.notifier)
             .emitSnapshot(
               snapshot(
                 queueSongIds: const <String>['seed'],
@@ -239,20 +131,14 @@ void main() {
   });
 
   test('deactivates when a regular queue replacement starts', () async {
-    final snapshotState =
-        NotifierProvider<_SnapshotController, PlaybackSnapshot>(
-          _SnapshotController.new,
-        );
-
     late final ProviderContainer container;
-    container = ProviderContainer(
+    container = createRecommendationContainer(
       overrides: [
-        playerStateProvider.overrideWith((ref) => ref.watch(snapshotState)),
         queueProvider.overrideWith(
-          () => _FakeQueueController(
+          () => RecordingRecommendationQueue(
             onRetain: (id) {
               container
-                  .read(snapshotState.notifier)
+                  .read(recommendationSnapshotProvider.notifier)
                   .emitSnapshot(
                     snapshot(
                       queueSongIds: <String>[id],
@@ -270,10 +156,9 @@ void main() {
         ),
       ],
     );
-    addTearDown(container.dispose);
 
     container
-        .read(snapshotState.notifier)
+        .read(recommendationSnapshotProvider.notifier)
         .emitSnapshot(
           snapshot(
             queueSongIds: const <String>['seed'],
@@ -293,11 +178,6 @@ void main() {
   test(
     'activation maps Last.fm recommendations and queues mapped songs',
     () async {
-      final snapshotState =
-          NotifierProvider<_SnapshotController, PlaybackSnapshot>(
-            _SnapshotController.new,
-          );
-
       final api = _MockSubsonicApiClient();
       final lastFm = _MockLastFmApiClient();
       when(
@@ -377,14 +257,13 @@ void main() {
       ).thenAnswer((_) async => const <Song>[]);
 
       late final ProviderContainer container;
-      container = ProviderContainer(
+      container = createRecommendationContainer(
         overrides: [
-          playerStateProvider.overrideWith((ref) => ref.watch(snapshotState)),
           queueProvider.overrideWith(
-            () => _FakeQueueController(
+            () => RecordingRecommendationQueue(
               onRetain: (id) {
                 container
-                    .read(snapshotState.notifier)
+                    .read(recommendationSnapshotProvider.notifier)
                     .emitSnapshot(
                       snapshot(
                         queueSongIds: <String>[id],
@@ -421,10 +300,9 @@ void main() {
           ),
         ],
       );
-      addTearDown(container.dispose);
 
       container
-          .read(snapshotState.notifier)
+          .read(recommendationSnapshotProvider.notifier)
           .emitSnapshot(
             snapshot(
               queueSongIds: const <String>['seed', 'a', 'b', 'c'],
@@ -435,8 +313,9 @@ void main() {
 
       await container.read(sameVibesProvider.notifier).activate('seed');
 
-      final queued =
-          container.read(queueProvider.notifier) as _FakeQueueController;
+      final queued = container.read(
+        queueProvider.notifier,
+      ) as RecordingRecommendationQueue;
       final state = container.read(sameVibesProvider);
       expect(queued.retainedSongIds, <String>['seed']);
       expect(queued.queuedSongs, hasLength(5));
@@ -468,10 +347,6 @@ void main() {
   );
 
   test('activation treats partial queue insertion as success', () async {
-    final snapshotState =
-        NotifierProvider<_SnapshotController, PlaybackSnapshot>(
-          _SnapshotController.new,
-        );
     final api = _MockSubsonicApiClient();
     final lastFm = _MockLastFmApiClient();
     when(() => api.getSong(any(), cancelToken: any(named: 'cancelToken')))
@@ -494,6 +369,16 @@ void main() {
             title: 'SongA',
             match: 1,
           ),
+          LastFmTrackRecommendation(
+            artist: 'ArtistB',
+            title: 'SongB',
+            match: 0.9,
+          ),
+          LastFmTrackRecommendation(
+            artist: 'ArtistC',
+            title: 'SongC',
+            match: 0.8,
+          ),
         ],
       ),
     );
@@ -509,7 +394,11 @@ void main() {
       ),
     ).thenAnswer(
       (_) async => const SearchResult3(
-        songs: <Song>[Song(id: 'mapped-1', title: 'SongA', artist: 'ArtistA')],
+        songs: <Song>[
+          Song(id: 'mapped-1', title: 'SongA', artist: 'ArtistA'),
+          Song(id: 'mapped-2', title: 'SongB', artist: 'ArtistB'),
+          Song(id: 'mapped-3', title: 'SongC', artist: 'ArtistC'),
+        ],
       ),
     );
     when(
@@ -520,11 +409,10 @@ void main() {
       ),
     ).thenAnswer((_) async => const <Song>[]);
 
-    final container = ProviderContainer(
+    final container = createRecommendationContainer(
       overrides: [
-        playerStateProvider.overrideWith((ref) => ref.watch(snapshotState)),
         queueProvider.overrideWith(
-          () => _FakeQueueController(insertedCount: 1),
+          () => RecordingRecommendationQueue(insertedCount: 1),
         ),
         subsonicApiProvider.overrideWithValue(api),
         lastFmApiClientProvider.overrideWithValue(lastFm),
@@ -552,10 +440,9 @@ void main() {
         ),
       ],
     );
-    addTearDown(container.dispose);
 
     container
-        .read(snapshotState.notifier)
+        .read(recommendationSnapshotProvider.notifier)
         .emitSnapshot(
           snapshot(
             queueSongIds: const <String>['seed'],
@@ -566,7 +453,7 @@ void main() {
 
     await container.read(sameVibesProvider.notifier).activate('seed');
     container
-        .read(snapshotState.notifier)
+        .read(recommendationSnapshotProvider.notifier)
         .emitSnapshot(
           snapshot(
             queueSongIds: const <String>['seed', 'mapped-1'],
@@ -577,22 +464,25 @@ void main() {
     await Future<void>.delayed(Duration.zero);
 
     final queued =
-        container.read(queueProvider.notifier) as _FakeQueueController;
+        container.read(queueProvider.notifier) as RecordingRecommendationQueue;
     final state = container.read(sameVibesProvider);
     expect(queued.retainedSongIds, <String>['seed']);
+    // Three songs were offered but only one was inserted: that still counts
+    // as success, and the reported count is the inserted one.
     expect(queued.appendedSongBatches, hasLength(1));
+    expect(queued.appendedSongBatches.single.length, greaterThan(1));
     expect(state.active, isTrue);
     expect(state.error, isNull);
     expect(state.pendingSnackbar, '1');
+    final session = container.read(recommendationSessionProvider);
+    expect(session.stage, 'active');
+    expect(session.insertedCount, 1);
+    expect(session.candidateCount, queued.appendedSongBatches.single.length);
   });
 
   test(
     'activation with zero inserted tracks fails once and deactivates',
     () async {
-      final snapshotState =
-          NotifierProvider<_SnapshotController, PlaybackSnapshot>(
-            _SnapshotController.new,
-          );
       final api = _MockSubsonicApiClient();
       final lastFm = _MockLastFmApiClient();
       when(
@@ -644,11 +534,10 @@ void main() {
         ),
       ).thenAnswer((_) async => const <Song>[]);
 
-      final container = ProviderContainer(
+      final container = createRecommendationContainer(
         overrides: [
-          playerStateProvider.overrideWith((ref) => ref.watch(snapshotState)),
           queueProvider.overrideWith(
-            () => _FakeQueueController(insertedCount: 0),
+            () => RecordingRecommendationQueue(insertedCount: 0),
           ),
           subsonicApiProvider.overrideWithValue(api),
           lastFmApiClientProvider.overrideWithValue(lastFm),
@@ -676,10 +565,9 @@ void main() {
           ),
         ],
       );
-      addTearDown(container.dispose);
 
       container
-          .read(snapshotState.notifier)
+          .read(recommendationSnapshotProvider.notifier)
           .emitSnapshot(
             snapshot(
               queueSongIds: const <String>['seed'],
@@ -690,7 +578,7 @@ void main() {
 
       await container.read(sameVibesProvider.notifier).activate('seed');
       container
-          .read(snapshotState.notifier)
+          .read(recommendationSnapshotProvider.notifier)
           .emitSnapshot(
             snapshot(
               queueSongIds: const <String>['seed'],
@@ -700,8 +588,9 @@ void main() {
           );
       await Future<void>.delayed(Duration.zero);
 
-      final queued =
-          container.read(queueProvider.notifier) as _FakeQueueController;
+      final queued = container.read(
+        queueProvider.notifier,
+      ) as RecordingRecommendationQueue;
       final state = container.read(sameVibesProvider);
       expect(queued.appendedSongBatches, hasLength(1));
       expect(state.active, isFalse);
@@ -714,11 +603,6 @@ void main() {
   );
 
   test('activation caps Last.fm mapping at five queued songs', () async {
-    final snapshotState =
-        NotifierProvider<_SnapshotController, PlaybackSnapshot>(
-          _SnapshotController.new,
-        );
-
     final api = _MockSubsonicApiClient();
     final lastFm = _MockLastFmApiClient();
     when(() => api.getSong(any(), cancelToken: any(named: 'cancelToken')))
@@ -776,10 +660,9 @@ void main() {
       ),
     ).thenAnswer((_) async => const <Song>[]);
 
-    final container = ProviderContainer(
+    final container = createRecommendationContainer(
       overrides: [
-        playerStateProvider.overrideWith((ref) => ref.watch(snapshotState)),
-        queueProvider.overrideWith(_FakeQueueController.new),
+        queueProvider.overrideWith(RecordingRecommendationQueue.new),
         subsonicApiProvider.overrideWithValue(api),
         lastFmApiClientProvider.overrideWithValue(lastFm),
         integrationPolicyProvider.overrideWithValue(
@@ -806,10 +689,9 @@ void main() {
         ),
       ],
     );
-    addTearDown(container.dispose);
 
     container
-        .read(snapshotState.notifier)
+        .read(recommendationSnapshotProvider.notifier)
         .emitSnapshot(
           snapshot(
             queueSongIds: const <String>['seed', 'a', 'b', 'c'],
@@ -821,7 +703,7 @@ void main() {
     await container.read(sameVibesProvider.notifier).activate('seed');
 
     final queued =
-        container.read(queueProvider.notifier) as _FakeQueueController;
+        container.read(queueProvider.notifier) as RecordingRecommendationQueue;
     expect(queued.queuedSongs, hasLength(5));
     verify(
       () => lastFm.getSimilarTracksResult(
@@ -835,11 +717,6 @@ void main() {
   test(
     'falls back to Subsonic similar songs when Last.fm mapping is weak',
     () async {
-      final snapshotState =
-          NotifierProvider<_SnapshotController, PlaybackSnapshot>(
-            _SnapshotController.new,
-          );
-
       final api = _MockSubsonicApiClient();
       final lastFm = _MockLastFmApiClient();
       when(
@@ -887,10 +764,9 @@ void main() {
         ],
       );
 
-      final container = ProviderContainer(
+      final container = createRecommendationContainer(
         overrides: [
-          playerStateProvider.overrideWith((ref) => ref.watch(snapshotState)),
-          queueProvider.overrideWith(_FakeQueueController.new),
+          queueProvider.overrideWith(RecordingRecommendationQueue.new),
           subsonicApiProvider.overrideWithValue(api),
           lastFmApiClientProvider.overrideWithValue(lastFm),
           integrationPolicyProvider.overrideWithValue(
@@ -917,10 +793,9 @@ void main() {
           ),
         ],
       );
-      addTearDown(container.dispose);
 
       container
-          .read(snapshotState.notifier)
+          .read(recommendationSnapshotProvider.notifier)
           .emitSnapshot(
             snapshot(
               queueSongIds: const <String>['seed', 'a', 'b'],
@@ -931,8 +806,9 @@ void main() {
 
       await container.read(sameVibesProvider.notifier).activate('seed');
 
-      final queued =
-          container.read(queueProvider.notifier) as _FakeQueueController;
+      final queued = container.read(
+        queueProvider.notifier,
+      ) as RecordingRecommendationQueue;
       expect(queued.appendedSongBatches, hasLength(1));
       expect(queued.queuedSongs.map((song) => song.id), contains('fallback-1'));
       expect(queued.queuedSongs.map((song) => song.id), contains('fallback-2'));
@@ -949,11 +825,6 @@ void main() {
   test(
     'falls back to Subsonic when Last.fm has transient network failure',
     () async {
-      final snapshotState =
-          NotifierProvider<_SnapshotController, PlaybackSnapshot>(
-            _SnapshotController.new,
-          );
-
       final api = _MockSubsonicApiClient();
       final lastFm = _MockLastFmApiClient();
       when(
@@ -988,10 +859,9 @@ void main() {
         ],
       );
 
-      final container = ProviderContainer(
+      final container = createRecommendationContainer(
         overrides: [
-          playerStateProvider.overrideWith((ref) => ref.watch(snapshotState)),
-          queueProvider.overrideWith(_FakeQueueController.new),
+          queueProvider.overrideWith(RecordingRecommendationQueue.new),
           subsonicApiProvider.overrideWithValue(api),
           lastFmApiClientProvider.overrideWithValue(lastFm),
           integrationPolicyProvider.overrideWithValue(
@@ -1018,10 +888,9 @@ void main() {
           ),
         ],
       );
-      addTearDown(container.dispose);
 
       container
-          .read(snapshotState.notifier)
+          .read(recommendationSnapshotProvider.notifier)
           .emitSnapshot(
             snapshot(
               queueSongIds: const <String>['seed', 'a', 'b'],
@@ -1033,8 +902,9 @@ void main() {
       await container.read(sameVibesProvider.notifier).activate('seed');
 
       final state = container.read(sameVibesProvider);
-      final queued =
-          container.read(queueProvider.notifier) as _FakeQueueController;
+      final queued = container.read(
+        queueProvider.notifier,
+      ) as RecordingRecommendationQueue;
       expect(state.active, isTrue);
       expect(state.refilling, isFalse);
       expect(state.error, isNull);
@@ -1056,11 +926,6 @@ void main() {
   test(
     'broadens Last.fm mapping before filling remaining slots with fallback',
     () async {
-      final snapshotState =
-          NotifierProvider<_SnapshotController, PlaybackSnapshot>(
-            _SnapshotController.new,
-          );
-
       final api = _MockSubsonicApiClient();
       final lastFm = _MockLastFmApiClient();
       when(
@@ -1127,10 +992,9 @@ void main() {
         ],
       );
 
-      final container = ProviderContainer(
+      final container = createRecommendationContainer(
         overrides: [
-          playerStateProvider.overrideWith((ref) => ref.watch(snapshotState)),
-          queueProvider.overrideWith(_FakeQueueController.new),
+          queueProvider.overrideWith(RecordingRecommendationQueue.new),
           subsonicApiProvider.overrideWithValue(api),
           lastFmApiClientProvider.overrideWithValue(lastFm),
           integrationPolicyProvider.overrideWithValue(
@@ -1157,10 +1021,9 @@ void main() {
           ),
         ],
       );
-      addTearDown(container.dispose);
 
       container
-          .read(snapshotState.notifier)
+          .read(recommendationSnapshotProvider.notifier)
           .emitSnapshot(
             snapshot(
               queueSongIds: const <String>['seed', 'a', 'b'],
@@ -1171,8 +1034,9 @@ void main() {
 
       await container.read(sameVibesProvider.notifier).activate('seed');
 
-      final queued =
-          container.read(queueProvider.notifier) as _FakeQueueController;
+      final queued = container.read(
+        queueProvider.notifier,
+      ) as RecordingRecommendationQueue;
       expect(queued.appendedSongBatches.single.map((song) => song.id), <String>[
         'mapped-broad',
         'fallback-1',
@@ -1195,11 +1059,6 @@ void main() {
   );
 
   test('skips Subsonic fallback for external seed ids when no server-like seed is available', () async {
-    final snapshotState =
-        NotifierProvider<_SnapshotController, PlaybackSnapshot>(
-          _SnapshotController.new,
-        );
-
     final api = _MockSubsonicApiClient();
     final lastFm = _MockLastFmApiClient();
     when(
@@ -1228,10 +1087,9 @@ void main() {
       ),
     ).thenAnswer((_) async => const <Song>[]);
 
-    final container = ProviderContainer(
+    final container = createRecommendationContainer(
       overrides: [
-        playerStateProvider.overrideWith((ref) => ref.watch(snapshotState)),
-        queueProvider.overrideWith(_FakeQueueController.new),
+        queueProvider.overrideWith(RecordingRecommendationQueue.new),
         subsonicApiProvider.overrideWithValue(api),
         lastFmApiClientProvider.overrideWithValue(lastFm),
         integrationPolicyProvider.overrideWithValue(
@@ -1258,10 +1116,9 @@ void main() {
         ),
       ],
     );
-    addTearDown(container.dispose);
 
     container
-        .read(snapshotState.notifier)
+        .read(recommendationSnapshotProvider.notifier)
         .emitSnapshot(
           snapshot(
             queueSongIds: const <String>[
@@ -1292,11 +1149,6 @@ void main() {
   test(
     'prefers album-backed candidate over single-style duplicate match',
     () async {
-      final snapshotState =
-          NotifierProvider<_SnapshotController, PlaybackSnapshot>(
-            _SnapshotController.new,
-          );
-
       final api = _MockSubsonicApiClient();
       final lastFm = _MockLastFmApiClient();
       when(
@@ -1364,10 +1216,9 @@ void main() {
         ),
       ).thenAnswer((_) async => const <Song>[]);
 
-      final container = ProviderContainer(
+      final container = createRecommendationContainer(
         overrides: [
-          playerStateProvider.overrideWith((ref) => ref.watch(snapshotState)),
-          queueProvider.overrideWith(_FakeQueueController.new),
+          queueProvider.overrideWith(RecordingRecommendationQueue.new),
           subsonicApiProvider.overrideWithValue(api),
           lastFmApiClientProvider.overrideWithValue(lastFm),
           integrationPolicyProvider.overrideWithValue(
@@ -1394,10 +1245,9 @@ void main() {
           ),
         ],
       );
-      addTearDown(container.dispose);
 
       container
-          .read(snapshotState.notifier)
+          .read(recommendationSnapshotProvider.notifier)
           .emitSnapshot(
             snapshot(
               queueSongIds: const <String>['seed', 'a', 'b', 'c'],
@@ -1408,19 +1258,15 @@ void main() {
 
       await container.read(sameVibesProvider.notifier).activate('seed');
 
-      final queued =
-          container.read(queueProvider.notifier) as _FakeQueueController;
+      final queued = container.read(
+        queueProvider.notifier,
+      ) as RecordingRecommendationQueue;
       expect(queued.queuedSongs, hasLength(1));
       expect(queued.queuedSongs.single.id, 'album-candidate');
     },
   );
 
   test('does not auto-refill while radio mode is active', () async {
-    final snapshotState =
-        NotifierProvider<_SnapshotController, PlaybackSnapshot>(
-          _SnapshotController.new,
-        );
-
     final api = _MockSubsonicApiClient();
     final lastFm = _MockLastFmApiClient();
     when(() => api.getSong(any(), cancelToken: any(named: 'cancelToken')))
@@ -1449,10 +1295,9 @@ void main() {
       ),
     ).thenAnswer((_) async => const <Song>[]);
 
-    final container = ProviderContainer(
+    final container = createRecommendationContainer(
       overrides: [
-        playerStateProvider.overrideWith((ref) => ref.watch(snapshotState)),
-        queueProvider.overrideWith(_FakeQueueController.new),
+        queueProvider.overrideWith(RecordingRecommendationQueue.new),
         subsonicApiProvider.overrideWithValue(api),
         lastFmApiClientProvider.overrideWithValue(lastFm),
         integrationPolicyProvider.overrideWithValue(
@@ -1479,10 +1324,9 @@ void main() {
         ),
       ],
     );
-    addTearDown(container.dispose);
 
     container
-        .read(snapshotState.notifier)
+        .read(recommendationSnapshotProvider.notifier)
         .emitSnapshot(
           snapshot(
             queueSongIds: const <String>['seed', 'a', 'b', 'c'],
@@ -1494,7 +1338,7 @@ void main() {
     await container.read(sameVibesProvider.notifier).activate('seed');
 
     container
-        .read(snapshotState.notifier)
+        .read(recommendationSnapshotProvider.notifier)
         .emitSnapshot(
           snapshot(
             queueSongIds: const <String>['seed', 'a', 'b', 'c'],
@@ -1517,11 +1361,6 @@ void main() {
   test(
     'prefers downloaded match when duplicate candidates are otherwise equal',
     () async {
-      final snapshotState =
-          NotifierProvider<_SnapshotController, PlaybackSnapshot>(
-            _SnapshotController.new,
-          );
-
       final api = _MockSubsonicApiClient();
       final lastFm = _MockLastFmApiClient();
       when(
@@ -1580,10 +1419,9 @@ void main() {
         ),
       ).thenAnswer((_) async => const <Song>[]);
 
-      final container = ProviderContainer(
+      final container = createRecommendationContainer(
         overrides: [
-          playerStateProvider.overrideWith((ref) => ref.watch(snapshotState)),
-          queueProvider.overrideWith(_FakeQueueController.new),
+          queueProvider.overrideWith(RecordingRecommendationQueue.new),
           subsonicApiProvider.overrideWithValue(api),
           lastFmApiClientProvider.overrideWithValue(lastFm),
           integrationPolicyProvider.overrideWithValue(
@@ -1610,10 +1448,9 @@ void main() {
           ),
         ],
       );
-      addTearDown(container.dispose);
 
       container
-          .read(snapshotState.notifier)
+          .read(recommendationSnapshotProvider.notifier)
           .emitSnapshot(
             snapshot(
               queueSongIds: const <String>['seed', 'a', 'b', 'c'],
@@ -1624,8 +1461,9 @@ void main() {
 
       await container.read(sameVibesProvider.notifier).activate('seed');
 
-      final queued =
-          container.read(queueProvider.notifier) as _FakeQueueController;
+      final queued = container.read(
+        queueProvider.notifier,
+      ) as RecordingRecommendationQueue;
       expect(
         queued.queuedSongs.any((song) => song.id == 'downloaded-variant'),
         isTrue,
@@ -1640,11 +1478,6 @@ void main() {
   test(
     'batches mapped songs before fallback songs in one queue append',
     () async {
-      final snapshotState =
-          NotifierProvider<_SnapshotController, PlaybackSnapshot>(
-            _SnapshotController.new,
-          );
-
       final api = _MockSubsonicApiClient();
       final lastFm = _MockLastFmApiClient();
       when(
@@ -1703,10 +1536,9 @@ void main() {
         ],
       );
 
-      final container = ProviderContainer(
+      final container = createRecommendationContainer(
         overrides: [
-          playerStateProvider.overrideWith((ref) => ref.watch(snapshotState)),
-          queueProvider.overrideWith(_FakeQueueController.new),
+          queueProvider.overrideWith(RecordingRecommendationQueue.new),
           subsonicApiProvider.overrideWithValue(api),
           lastFmApiClientProvider.overrideWithValue(lastFm),
           integrationPolicyProvider.overrideWithValue(
@@ -1733,10 +1565,9 @@ void main() {
           ),
         ],
       );
-      addTearDown(container.dispose);
 
       container
-          .read(snapshotState.notifier)
+          .read(recommendationSnapshotProvider.notifier)
           .emitSnapshot(
             snapshot(
               queueSongIds: const <String>['seed', 'a', 'b'],
@@ -1747,8 +1578,9 @@ void main() {
 
       await container.read(sameVibesProvider.notifier).activate('seed');
 
-      final queued =
-          container.read(queueProvider.notifier) as _FakeQueueController;
+      final queued = container.read(
+        queueProvider.notifier,
+      ) as RecordingRecommendationQueue;
       expect(queued.appendedSongBatches, hasLength(1));
       expect(queued.appendedSongBatches.single.map((song) => song.id), <String>[
         'mapped-1',
@@ -1763,10 +1595,6 @@ void main() {
       required String title,
       required List<Song> searchResults,
     }) async {
-      final snapshotState =
-          NotifierProvider<_SnapshotController, PlaybackSnapshot>(
-            _SnapshotController.new,
-          );
       final api = _MockSubsonicApiClient();
       final lastFm = _MockLastFmApiClient();
       when(
@@ -1812,10 +1640,9 @@ void main() {
         ),
       ).thenAnswer((_) async => const <Song>[]);
 
-      final container = ProviderContainer(
+      final container = createRecommendationContainer(
         overrides: [
-          playerStateProvider.overrideWith((ref) => ref.watch(snapshotState)),
-          queueProvider.overrideWith(_FakeQueueController.new),
+          queueProvider.overrideWith(RecordingRecommendationQueue.new),
           subsonicApiProvider.overrideWithValue(api),
           lastFmApiClientProvider.overrideWithValue(lastFm),
           integrationPolicyProvider.overrideWithValue(
@@ -1842,9 +1669,8 @@ void main() {
           ),
         ],
       );
-      addTearDown(container.dispose);
       container
-          .read(snapshotState.notifier)
+          .read(recommendationSnapshotProvider.notifier)
           .emitSnapshot(
             snapshot(
               queueSongIds: const <String>['seed'],
@@ -1854,8 +1680,9 @@ void main() {
           );
 
       await container.read(sameVibesProvider.notifier).activate('seed');
-      final queue =
-          container.read(queueProvider.notifier) as _FakeQueueController;
+      final queue = container.read(
+        queueProvider.notifier,
+      ) as RecordingRecommendationQueue;
       return queue.queuedSongs.map((song) => song.id).toList();
     }
 
@@ -1965,14 +1792,9 @@ void main() {
       String currentTitle = 'Local Song',
       String currentArtist = 'Local Artist',
     }) {
-      final snapshotState =
-          NotifierProvider<_SnapshotController, PlaybackSnapshot>(
-            _SnapshotController.new,
-          );
-      final container = ProviderContainer(
+      final container = createRecommendationContainer(
         overrides: [
-          playerStateProvider.overrideWith((ref) => ref.watch(snapshotState)),
-          queueProvider.overrideWith(_FakeQueueController.new),
+          queueProvider.overrideWith(RecordingRecommendationQueue.new),
           subsonicApiProvider.overrideWithValue(api),
           lastFmApiClientProvider.overrideWithValue(lastFm),
           integrationPolicyProvider.overrideWithValue(
@@ -1999,10 +1821,9 @@ void main() {
           ),
         ],
       );
-      addTearDown(container.dispose);
       container.listen(currentMediaItemProvider, (_, _) {});
       container
-          .read(snapshotState.notifier)
+          .read(recommendationSnapshotProvider.notifier)
           .emitSnapshot(
             snapshot(
               queueSongIds: queue,
@@ -2013,8 +1834,8 @@ void main() {
       return container;
     }
 
-    _FakeQueueController queueOf(ProviderContainer container) =>
-        container.read(queueProvider.notifier) as _FakeQueueController;
+    RecordingRecommendationQueue queueOf(ProviderContainer container) =>
+        container.read(queueProvider.notifier) as RecordingRecommendationQueue;
 
     test(
       'the merged queue retains both Japanese and English editions',
@@ -2381,5 +2202,177 @@ void main() {
       );
       expect(container.read(recommendationSessionProvider).stage, 'failed');
     });
+
+    test('a playing remote seed without a library copy does not borrow a queue '
+        "neighbour's server mix", () async {
+      when(
+        () => api.getSimilarSongs(
+          'local-neighbor',
+          count: any(named: 'count'),
+          cancelToken: any(named: 'cancelToken'),
+        ),
+      ).thenAnswer(
+        (_) async => const <Song>[Song(id: 'sim-local', title: 'Unrelated')],
+      );
+      final container = playing(
+        queue: <String>[remoteSeed.id, 'local-neighbor'],
+        current: remoteSeed.id,
+      );
+
+      await container.read(sameVibesProvider.notifier).activate(remoteSeed.id);
+
+      verifyNever(
+        () => api.getSimilarSongs(
+          any(),
+          count: any(named: 'count'),
+          cancelToken: any(named: 'cancelToken'),
+        ),
+      );
+      expect(queueOf(container).queuedSongs, isEmpty);
+    });
+  });
+
+  group('retry exhaustion', () {
+    late _MockSubsonicApiClient api;
+    late _MockLastFmApiClient lastFm;
+    var similarCalls = 0;
+    var fakeNow = DateTime(2026, 10, 9, 12);
+
+    setUp(() {
+      similarCalls = 0;
+      fakeNow = DateTime(2026, 10, 9, 12);
+      api = _MockSubsonicApiClient();
+      lastFm = _MockLastFmApiClient();
+      when(
+        () => lastFm.getSimilarTracksResult(
+          artist: any(named: 'artist'),
+          track: any(named: 'track'),
+          limit: any(named: 'limit'),
+        ),
+      ).thenAnswer(
+        (_) async => const LastFmTrackFetchResult(
+          outcome: LastFmFetchOutcome.noResults,
+          tracks: <LastFmTrackRecommendation>[],
+        ),
+      );
+      when(() => api.getSong(any(), cancelToken: any(named: 'cancelToken')))
+          .thenAnswer(
+            (_) async => const Song(id: 'q', title: 'Seed', artist: 'Artist'),
+          );
+      // The first (initial) refill succeeds; every later one finds nothing.
+      when(
+        () => api.getSimilarSongs(
+          any(),
+          count: any(named: 'count'),
+          cancelToken: any(named: 'cancelToken'),
+        ),
+      ).thenAnswer((_) async {
+        similarCalls++;
+        return similarCalls == 1
+            ? List<Song>.generate(
+                5,
+                (index) => Song(id: 'rec-$index', title: 'Rec $index'),
+              )
+            : const <Song>[];
+      });
+    });
+
+    test(
+      'five failed refills stop the mix until it is started again',
+      () async {
+        final container = createRecommendationContainer(
+          overrides: [
+            queueProvider.overrideWith(RecordingRecommendationQueue.new),
+            sameVibesProvider.overrideWith(
+              () => SameVibesNotifier(now: () => fakeNow),
+            ),
+            subsonicApiProvider.overrideWithValue(api),
+            lastFmApiClientProvider.overrideWithValue(lastFm),
+            integrationPolicyProvider.overrideWithValue(
+              const IntegrationPolicy(lastFmVerified: true),
+            ),
+            currentMediaItemProvider.overrideWith(
+              (ref) => Stream<MediaItem?>.value(
+                const MediaItem(id: 'seed-a', title: 'Seed', artist: 'Artist'),
+              ),
+            ),
+            downloadedSongIdsProvider.overrideWithValue(
+              const AsyncData(<String>{}),
+            ),
+            cachedSongIdsProvider.overrideWithValue(
+              const AsyncData(<String>{}),
+            ),
+            sameVibesAlbumSongCountLookupProvider.overrideWithValue(
+              (albumIds) async => const <String, int?>{},
+            ),
+            sameVibesQueueSongKeyLookupProvider.overrideWithValue(
+              (songIds) async => const <String>{},
+            ),
+          ],
+        );
+        container.listen(currentMediaItemProvider, (_, _) {});
+        final notifier = container.read(sameVibesProvider.notifier);
+        void emit(int length) => container
+            .read(recommendationSnapshotProvider.notifier)
+            .emitSnapshot(
+              snapshot(
+                queueSongIds: List<String>.generate(length, (i) => 'q-$i'),
+                currentSongId: 'q-${length - 1}',
+                currentIndex: length - 1,
+              ),
+            );
+        // Each step plays the last queued song, so a refill is due, and moves
+        // the clock past any backoff.
+        Future<void> playToEnd(int length) async {
+          fakeNow = fakeNow.add(const Duration(minutes: 5));
+          emit(length);
+          await pumpEventQueue();
+          while (container.read(sameVibesProvider).refilling) {
+            await Future<void>.delayed(const Duration(milliseconds: 5));
+          }
+        }
+
+        emit(1);
+        await notifier.activate('seed-a');
+        expect(similarCalls, 1);
+
+        await playToEnd(6);
+        expect(similarCalls, 2);
+        expect(
+          container.read(recommendationSessionProvider).stage,
+          'retryPending',
+          reason: 'a failed refill must not overwrite its retry stage',
+        );
+        for (var length = 7; length <= 9; length++) {
+          await playToEnd(length);
+        }
+        expect(similarCalls, 5);
+        expect(
+          container.read(recommendationSessionProvider).stage,
+          'retryPending',
+        );
+        await playToEnd(10);
+        expect(similarCalls, 6);
+        expect(
+          container.read(recommendationSessionProvider).stage,
+          'retryExhausted',
+        );
+        expect(container.read(recommendationSessionProvider).retryCount, 5);
+
+        // Later snapshots no longer resume the exhausted refill.
+        await playToEnd(11);
+        await playToEnd(12);
+        expect(similarCalls, 6);
+        expect(
+          container.read(recommendationSessionProvider).stage,
+          'retryExhausted',
+        );
+        expect(container.read(sameVibesProvider).active, isTrue);
+
+        // Starting the mix again re-arms it.
+        await notifier.activate('seed-a');
+        expect(similarCalls, 7);
+      },
+    );
   });
 }

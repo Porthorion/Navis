@@ -12,14 +12,15 @@ import 'package:audio_service/audio_service.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:navis/src/features/player/domain/playback_adjustments.dart';
 import 'package:navis/src/features/player/presentation/playback_adjustment_controller.dart';
+import 'package:navis/src/features/player/presentation/playback_lyrics_content.dart';
 import 'package:navis/src/features/player/presentation/playback_adjustment_panel.dart';
 import 'package:navis/src/features/player/presentation/playback_quick_actions.dart';
+import 'package:navis/src/features/player/presentation/playback_surface_presentation.dart';
 import 'package:navis/src/common_widgets/app_notice.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart' show NumberFormat;
 import 'package:navis/l10n/app_localizations.dart';
-import 'package:navis/src/api/subsonic_error.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:navis/src/common_widgets/cover_art_cache_manager.dart';
 import 'package:navis/src/common_widgets/cover_art_image.dart';
@@ -32,22 +33,18 @@ import 'package:navis/src/features/player/presentation/desktop_volume_slider.dar
 import 'package:navis/src/features/player/data/navis_audio_handler.dart';
 import 'package:navis/src/features/player/presentation/normal_playback_metadata_navigation.dart';
 import 'package:navis/src/features/player/presentation/playback_seek_bar_style.dart';
-import 'package:navis/src/features/player/presentation/instant_mix_notifier.dart';
 import 'package:navis/src/features/player/presentation/queue_sheet.dart';
 import 'package:navis/src/features/player/presentation/queue_shuffle_controls.dart';
-import 'package:navis/src/features/player/presentation/same_vibes_notifier.dart';
+import 'package:navis/src/features/player/presentation/server_mix_seed_provider.dart';
 import 'package:navis/src/features/player/presentation/smart_queue_sheet.dart';
-import 'package:navis/src/common_widgets/lyrics_display_widget.dart';
 import 'package:navis/src/common_widgets/rating_widget.dart';
 import 'package:navis/src/database/navis_database.dart';
 import 'package:navis/src/features/downloads/presentation/download_quality_sheet.dart';
 import 'package:navis/src/features/library/domain/set_rating.dart';
 import 'package:navis/src/features/player/domain/playback_snapshot.dart';
-import 'package:navis/src/features/player/domain/lyrics_resolution.dart';
 import 'package:navis/src/features/playlists/presentation/add_to_playlist_sheet.dart';
 import 'package:navis/src/providers/app_providers.dart';
 import 'package:navis/src/routing/desktop_layout.dart';
-import 'package:navis/src/routing/desktop_window_controller.dart';
 import 'package:navis/src/utils/song_id_utils.dart';
 import 'package:navis/src/utils/sync_diagnostics_overrides.dart';
 import 'package:navis/src/features/search/presentation/search_controller_provider.dart';
@@ -66,6 +63,7 @@ part 'now_playing_transport_controls.dart';
 part 'now_playing_lyrics.dart';
 part 'now_playing_actions.dart';
 part 'now_playing_wide_panels.dart';
+part 'now_playing_settings_items.dart';
 
 /// A single artist entry for [_TrackInfo.artistLinks].
 typedef _ArtistLink = ({String name, VoidCallback? onTap});
@@ -734,8 +732,6 @@ void _showNowPlayingSettingsSheet(
   String? fullscreenLyricsSongId,
   String? fullscreenLyricsTitle,
 }) {
-  final l10n = AppLocalizations.of(context)!;
-
   final action = showModalBottomSheet<_SettingsSheetAction>(
     context: context,
     useRootNavigator: true,
@@ -749,17 +745,7 @@ void _showNowPlayingSettingsSheet(
       snap: true,
       builder: (_, scrollController) => Consumer(
         builder: (_, sheetRef, _) {
-          final currentSongRating = song == null
-              ? null
-              : sheetRef.watch(songRatingProvider(song.id)).asData?.value;
           final sheetVolume = sheetRef.watch(playbackVolumeProvider);
-          final isRemote = song != null && !isServerAddressableSongId(song.id);
-          final songDownloadState = song == null
-              ? SongDownloadState.none
-              : sheetRef.watch(songDownloadStateProvider(song.id));
-          final disabledColor = Theme.of(context).colorScheme.onSurface
-              .withValues(alpha: 0.38);
-          final eqSupported = sheetRef.watch(eqCapabilitiesProvider).supported;
           return SafeArea(
             top: false,
             child: ListView(
@@ -805,200 +791,38 @@ void _showNowPlayingSettingsSheet(
                   ),
                 ),
                 const Divider(height: 1),
-                _NowPlayingSoundSectionLabel(
-                  label: l10n.nowPlayingSoundSection,
-                ),
-                ListTile(
-                  key: const ValueKey('playbackAdjustmentEntryPoint'),
-                  leading: const Icon(Icons.speed),
-                  title: Text(l10n.playbackSpeedPitchTitle),
-                  subtitle: const PlaybackAdjustmentSummary(),
-                  trailing: const Icon(Icons.chevron_right),
+                ..._nowPlayingSettingsItems(
+                  context,
+                  sheetRef,
+                  actionRef: ref,
+                  song: song,
                   // The Speed & Pitch sheet opens once this one has closed,
                   // so two sheets never animate at the same time.
-                  onTap: () =>
+                  onOpenSpeedPitch: (_) =>
                       Navigator.of(sheetContext)
                           .pop(_SettingsSheetAction.speedPitch),
-                ),
-                if (eqSupported)
-                  Padding(
-                    padding: const EdgeInsets.fromLTRB(12, 4, 12, 8),
-                    child: EqQuickCard(
-                      onOpenFullPage: () =>
-                          Navigator.of(sheetContext)
-                              .pop(_SettingsSheetAction.openEqualizer),
-                    ),
-                  )
-                else
-                  const EqualizerEntry(),
-                const Divider(height: 1),
-                if (song != null)
-                  ListTile(
-                    iconColor: isRemote ? disabledColor : null,
-                    textColor: isRemote ? disabledColor : null,
-                    leading: const Icon(Icons.star_outline),
-                    title: Text(l10n.ratingTitle),
-                    subtitle: Text(l10n.ratingHint),
-                    trailing: isRemote
-                        ? IgnorePointer(
-                            child: Opacity(
-                              opacity: 0.38,
-                              child: RatingWidget(
-                                rating: currentSongRating,
-                                compact: true,
-                                onChanged: (_) {},
-                              ),
+                  onOpenEqualizerFullPage: () =>
+                      Navigator.of(sheetContext)
+                          .pop(_SettingsSheetAction.openEqualizer),
+                  equalizerCardPadding: const EdgeInsets.fromLTRB(12, 4, 12, 8),
+                  dimRemoteRatingTile: false,
+                  onOpenFullscreenLyrics:
+                      fullscreenLyricsSongId != null &&
+                          fullscreenLyricsTitle != null
+                      ? () {
+                          Navigator.of(sheetContext).pop();
+                          unawaited(
+                            _openFullscreenLyricsRoute(
+                              context,
+                              fullscreenLyricsSongId,
+                              fullscreenLyricsTitle,
                             ),
-                          )
-                        : RatingWidget(
-                            rating: currentSongRating,
-                            compact: true,
-                            onChanged: (next) {
-                              unawaited(
-                                setSongRating(
-                                  song.id,
-                                  next,
-                                  sheetRef,
-                                ).catchError((_) {
-                                  if (context.mounted) {
-                                    showAppNotice(
-                                      context,
-                                      message: l10n.ratingUpdateFailed,
-                                      level: AppNoticeLevel.error,
-                                    );
-                                  }
-                                }),
-                              );
-                            },
-                          ),
-                    onTap: isRemote
-                        ? () => showAppNotice(
-                            context,
-                            message: l10n.remoteSourceActionUnavailable,
-                            level: AppNoticeLevel.error,
-                          )
-                        : null,
-                  ),
-                if (fullscreenLyricsSongId != null &&
-                    fullscreenLyricsTitle != null)
-                  ListTile(
-                    leading: const Icon(Icons.fullscreen),
-                    title: Text(l10n.nowPlayingLyrics),
-                    onTap: () {
-                      Navigator.of(sheetContext).pop();
-                      unawaited(
-                        _openFullscreenLyricsRoute(
-                          context,
-                          fullscreenLyricsSongId,
-                          fullscreenLyricsTitle,
-                        ),
-                      );
-                    },
-                  ),
-                if (song != null &&
-                    ((song.albumId ?? '').trim().isNotEmpty ||
-                        (song.albumName ?? '').trim().isNotEmpty))
-                  ListTile(
-                    leading: const Icon(Icons.album_outlined),
-                    title: Text(l10n.nowPlayingGoToAlbum),
-                    onTap: () {
-                      Navigator.of(sheetContext).pop();
-                      unawaited(
-                        NormalPlaybackMetadataNavigator.goToAlbum(
-                          context,
-                          ref,
-                          song: song,
-                        ),
-                      );
-                    },
-                  ),
-                if (song != null &&
-                    ((song.artistId ?? '').trim().isNotEmpty ||
-                        (song.artistName ?? '').trim().isNotEmpty))
-                  ListTile(
-                    leading: const Icon(Icons.person_outline),
-                    title: Text(l10n.nowPlayingGoToArtist),
-                    onTap: () {
-                      Navigator.of(sheetContext).pop();
-                      unawaited(
-                        NormalPlaybackMetadataNavigator.goToArtist(
-                          context,
-                          ref,
-                          song: song,
-                        ),
-                      );
-                    },
-                  ),
-                if (song != null)
-                  ListTile(
-                    leading: const Icon(Icons.playlist_add),
-                    title: Text(l10n.librarySongMenuAddToPlaylist),
-                    onTap: () {
-                      Navigator.of(sheetContext).pop();
-                      unawaited(
-                        showAddToPlaylistSheet(context, ref, [song.id]),
-                      );
-                    },
-                  ),
-                if (song != null &&
-                    songDownloadState.status == SongDownloadStatus.downloaded)
-                  ListTile(
-                    leading: Icon(
-                      Icons.delete_outlined,
-                      color: Theme.of(context).colorScheme.error,
-                    ),
-                    title: Text(
-                      l10n.deleteDownloadAction,
-                      style: TextStyle(
-                        color: Theme.of(context).colorScheme.error,
-                      ),
-                    ),
-                    onTap: () {
-                      Navigator.of(sheetContext).pop();
-                      unawaited(
-                        confirmAndDeleteDownload(context, sheetRef, song.id),
-                      );
-                    },
-                  )
-                else if (song != null &&
-                    songDownloadState.status != SongDownloadStatus.queued &&
-                    songDownloadState.status != SongDownloadStatus.downloading)
-                  ListTile(
-                    iconColor: isRemote ? disabledColor : null,
-                    textColor: isRemote ? disabledColor : null,
-                    leading: const Icon(Icons.download_outlined),
-                    title: Text(l10n.downloadAction),
-                    onTap: () async {
-                      if (isRemote) {
-                        showAppNotice(
-                          context,
-                          message: l10n.remoteSourceActionUnavailable,
-                          level: AppNoticeLevel.error,
-                        );
-                        return;
-                      }
-                      Navigator.of(sheetContext).pop();
-                      final choice = await requestDownloadQuality(context, ref);
-                      if (choice == null || !context.mounted) return;
-                      final service = ref.read(downloadServiceProvider);
-                      await service.enqueueSong(
-                        song.id,
-                        quality: choice.quality,
-                        format: choice.format,
-                      );
-                      if (context.mounted) {
-                        showAppNotice(
-                          context,
-                          message: downloadQueuedNotice(
-                            l10n,
-                            l10n.downloadSongQueued,
-                            choice,
-                          ),
-                          level: AppNoticeLevel.success,
-                        );
-                      }
-                    },
-                  ),
+                          );
+                        }
+                      : null,
+                  beforeNavigate: () => Navigator.of(sheetContext).pop(),
+                  beforeAction: () => Navigator.of(sheetContext).pop(),
+                ),
               ],
             ),
           );
@@ -1987,6 +1811,87 @@ class _NowPlayingBodyState extends ConsumerState<_NowPlayingBody>
     final mediaArtUrl = currentMediaItem?.artUri?.toString();
     final hasCoverArtId = coverArtId != null && coverArtId.trim().isNotEmpty;
     final hasMediaArtUrl = mediaArtUrl != null && mediaArtUrl.trim().isNotEmpty;
+
+    // Local factories for the pieces the three layouts (compact-wide,
+    // standard and split) construct identically. Each layout still supplies
+    // its own keys, geometry and animation wrappers.
+    Widget buildCurrentArt(double radioArtMaxSize) => hasCoverArtId
+        ? _CoverArt(
+            coverArtId: coverArtId,
+            semanticLabel: title,
+            isExternalSource: song?.isExternal ?? false,
+          )
+        : (hasMediaArtUrl
+              ? _RadioCoverArt(artUrl: mediaArtUrl, maxSize: radioArtMaxSize)
+              : _CoverArt(
+                  coverArtId: null,
+                  semanticLabel: title,
+                  isExternalSource: song?.isExternal ?? false,
+                ));
+
+    Widget buildTrackInfo({required Key key, required bool compact}) =>
+        _TrackInfo(
+          key: key,
+          title: title,
+          artist: artist,
+          album: album,
+          compact: compact,
+          isExternalSource: !isRadio && (song?.isExternal ?? false),
+          onTitleTap: isRadio
+              ? (radioMeta?.nowPlayingTitle != null &&
+                        radioMeta!.nowPlayingTitle!.isNotEmpty
+                    ? () {
+                        NavService.openSearch(
+                          context,
+                          ref,
+                          radioMeta.nowPlayingTitle!,
+                          filter: SearchResultType.songs,
+                        );
+                      }
+                    : null)
+              : normalTitleTap,
+          artistLinks: isRadio
+              ? (radioMeta?.nowPlayingArtist != null &&
+                        radioMeta!.nowPlayingArtist!.isNotEmpty
+                    ? splitArtistNames(radioMeta.nowPlayingArtist!)
+                          .map(
+                            (name) => (
+                              name: name,
+                              onTap: () {
+                                NavService.openSearch(
+                                  context,
+                                  ref,
+                                  name,
+                                  filter: SearchResultType.artists,
+                                );
+                              },
+                            ),
+                          )
+                          .toList()
+                    : null)
+              : null,
+          onArtistTap: isRadio ? null : normalArtistTap,
+          onAlbumTap: isRadio ? null : normalAlbumTap,
+        );
+
+    VoidCallback? settingsSheetAction({required bool splitPanelOverlay}) =>
+        splitPanelOverlay
+        ? null
+        : () => _showNowPlayingSettingsSheet(
+            context,
+            ref,
+            song,
+            fullscreenLyricsSongId: playback.currentSongId,
+            fullscreenLyricsTitle: playback.currentSongId == null
+                ? null
+                : title,
+          );
+
+    VoidCallback openWidePanelAction(_WideNowPlayingPanel panel) =>
+        () => _updateWideOverlayState(() {
+          _showWideFullscreenLyrics = false;
+          _widePanel = panel;
+        });
     final nowPlayingVisualKey = isRadio
         ? 'radio:${radioMeta?.nowPlayingTitle ?? ''}:${radioMeta?.nowPlayingArtist ?? ''}:${radioMeta?.nowPlayingArtUrl ?? ''}'
         : 'song:${playback.currentSongId ?? currentMediaItem?.id ?? 'none'}';
@@ -2091,22 +1996,7 @@ class _NowPlayingBodyState extends ConsumerState<_NowPlayingBody>
             child: _buildInteractiveSwipeableArt(
               key: ValueKey<String>('compact-wide-cover-$artVisualKey'),
               swipeEnabled: !isRadio,
-              currentArt: hasCoverArtId
-                  ? _CoverArt(
-                      coverArtId: coverArtId,
-                      semanticLabel: title,
-                      isExternalSource: song?.isExternal ?? false,
-                    )
-                  : (hasMediaArtUrl
-                        ? _RadioCoverArt(
-                            artUrl: mediaArtUrl,
-                            maxSize: artMaxSize,
-                          )
-                        : _CoverArt(
-                            coverArtId: null,
-                            semanticLabel: title,
-                            isExternalSource: song?.isExternal ?? false,
-                          )),
+              currentArt: buildCurrentArt(artMaxSize),
             ),
           );
 
@@ -2125,7 +2015,7 @@ class _NowPlayingBodyState extends ConsumerState<_NowPlayingBody>
                   layoutBuilder: _coverArtSwitcherLayoutBuilder,
                   transitionBuilder: songSwapTransitionBuilder,
                   child: showInlineLyrics
-                      ? _InlineLyrics(
+                      ? PlaybackLyricsContent(
                           key: ValueKey<String>(
                             'compact-wide-inline-lyrics-$nowPlayingVisualKey',
                           ),
@@ -2160,50 +2050,11 @@ class _NowPlayingBodyState extends ConsumerState<_NowPlayingBody>
                     switchInCurve: Curves.easeOut,
                     switchOutCurve: Curves.easeIn,
                     transitionBuilder: songSwapTransitionBuilder,
-                    child: _TrackInfo(
+                    child: buildTrackInfo(
                       key: ValueKey<String>(
                         'compact-wide-track-$nowPlayingVisualKey',
                       ),
-                      title: title,
-                      artist: artist,
-                      album: album,
                       compact: true,
-                      isExternalSource: !isRadio && (song?.isExternal ?? false),
-                      onTitleTap: isRadio
-                          ? (radioMeta?.nowPlayingTitle != null &&
-                                    radioMeta!.nowPlayingTitle!.isNotEmpty
-                                ? () {
-                                    NavService.openSearch(
-                                      context,
-                                      ref,
-                                      radioMeta.nowPlayingTitle!,
-                                      filter: SearchResultType.songs,
-                                    );
-                                  }
-                                : null)
-                          : normalTitleTap,
-                      artistLinks: isRadio
-                          ? (radioMeta?.nowPlayingArtist != null &&
-                                    radioMeta!.nowPlayingArtist!.isNotEmpty
-                                ? splitArtistNames(radioMeta.nowPlayingArtist!)
-                                      .map(
-                                        (name) => (
-                                          name: name,
-                                          onTap: () {
-                                            NavService.openSearch(
-                                              context,
-                                              ref,
-                                              name,
-                                              filter: SearchResultType.artists,
-                                            );
-                                          },
-                                        ),
-                                      )
-                                      .toList()
-                                : null)
-                          : null,
-                      onArtistTap: isRadio ? null : normalArtistTap,
-                      onAlbumTap: isRadio ? null : normalAlbumTap,
                     ),
                   ),
                   if (!isRadio) ...<Widget>[
@@ -2246,14 +2097,9 @@ class _NowPlayingBodyState extends ConsumerState<_NowPlayingBody>
                             }),
                       wideEmbeddedMode: true,
                       onOpenQueuePanel: _showQueuePanel,
-                      onOpenSettingsPanel: () => _updateWideOverlayState(() {
-                        _showWideFullscreenLyrics = false;
-                        _widePanel = _WideNowPlayingPanel.settings;
-                      }),
-                      onOpenMixPanel: () => _updateWideOverlayState(() {
-                        _showWideFullscreenLyrics = false;
-                        _widePanel = _WideNowPlayingPanel.mix;
-                      }),
+                      onOpenSettingsPanel: openWidePanelAction(
+                        _WideNowPlayingPanel.settings,
+                      ),
                     ),
                   ],
                   if (widget.showEmbeddedVolumeBelowActions) ...<Widget>[
@@ -2317,19 +2163,6 @@ class _NowPlayingBodyState extends ConsumerState<_NowPlayingBody>
                 embeddedMode: true,
                 onClose: _dismissCompactWidePanel,
               ),
-            );
-          } else if (_widePanel == _WideNowPlayingPanel.mix &&
-              playback.currentSongId != null) {
-            compactOverlayKey = const ValueKey<String>('compact-wide-mix');
-            compactOverlayPage = _CompactWideOverlaySheet(
-              key: compactOverlayKey,
-              title: l10n.nowPlayingInstantMixLabel,
-              dismissRequested: _isCompactWidePanelDismissing,
-              onDismiss: () => _updateWideOverlayState(() {
-                _isCompactWidePanelDismissing = false;
-                _widePanel = _WideNowPlayingPanel.none;
-              }),
-              child: _EmbeddedMixPanel(seedSongId: playback.currentSongId!),
             );
           } else if (_widePanel == _WideNowPlayingPanel.settings) {
             compactOverlayKey = const ValueKey<String>('compact-wide-settings');
@@ -2396,7 +2229,7 @@ class _NowPlayingBodyState extends ConsumerState<_NowPlayingBody>
             onBack: () => _updateWideOverlayState(() {
               _showWideFullscreenLyrics = false;
             }),
-            child: _InlineLyrics(songId: playback.currentSongId!),
+            child: PlaybackLyricsContent(songId: playback.currentSongId!),
           );
         }
         if (widget.wideEmbeddedMode &&
@@ -2431,9 +2264,6 @@ class _NowPlayingBodyState extends ConsumerState<_NowPlayingBody>
             widget.wideEmbeddedMode &&
             resolveAdaptiveContextFor(context).desktopRuntime &&
             !compactTransport;
-        // Mini Player entry lives in the persistent desktop bar and Desktop
-        // Window settings, so embedded Now Playing does not duplicate it.
-        const showDesktopMiniPlayerToggle = false;
         final compactSpacing =
             tightHeight || layoutMode == _NowPlayingLayoutMode.compact;
         final splitGap =
@@ -2515,19 +2345,7 @@ class _NowPlayingBodyState extends ConsumerState<_NowPlayingBody>
           child: _buildInteractiveSwipeableArt(
             key: ValueKey<String>('cover-$artVisualKey'),
             swipeEnabled: !isRadio,
-            currentArt: hasCoverArtId
-                ? _CoverArt(
-                    coverArtId: coverArtId,
-                    semanticLabel: title,
-                    isExternalSource: song?.isExternal ?? false,
-                  )
-                : (hasMediaArtUrl
-                      ? _RadioCoverArt(artUrl: mediaArtUrl, maxSize: artMaxSize)
-                      : _CoverArt(
-                          coverArtId: null,
-                          semanticLabel: title,
-                          isExternalSource: song?.isExternal ?? false,
-                        )),
+            currentArt: buildCurrentArt(artMaxSize),
           ),
         );
 
@@ -2544,7 +2362,7 @@ class _NowPlayingBodyState extends ConsumerState<_NowPlayingBody>
                 layoutBuilder: _coverArtSwitcherLayoutBuilder,
                 transitionBuilder: songSwapTransitionBuilder,
                 child: showInlineLyrics
-                    ? _InlineLyrics(
+                    ? PlaybackLyricsContent(
                         key: ValueKey<String>(
                           'inline-lyrics-$nowPlayingVisualKey',
                         ),
@@ -2575,48 +2393,9 @@ class _NowPlayingBodyState extends ConsumerState<_NowPlayingBody>
             switchInCurve: Curves.easeOut,
             switchOutCurve: Curves.easeIn,
             transitionBuilder: songSwapTransitionBuilder,
-            child: _TrackInfo(
+            child: buildTrackInfo(
               key: ValueKey<String>('track-info-$nowPlayingVisualKey'),
-              title: title,
-              artist: artist,
-              album: album,
               compact: compactSpacing,
-              isExternalSource: !isRadio && (song?.isExternal ?? false),
-              onTitleTap: isRadio
-                  ? (radioMeta?.nowPlayingTitle != null &&
-                            radioMeta!.nowPlayingTitle!.isNotEmpty
-                        ? () {
-                            NavService.openSearch(
-                              context,
-                              ref,
-                              radioMeta.nowPlayingTitle!,
-                              filter: SearchResultType.songs,
-                            );
-                          }
-                        : null)
-                  : normalTitleTap,
-              artistLinks: isRadio
-                  ? (radioMeta?.nowPlayingArtist != null &&
-                            radioMeta!.nowPlayingArtist!.isNotEmpty
-                        ? splitArtistNames(radioMeta.nowPlayingArtist!)
-                              .map(
-                                (name) => (
-                                  name: name,
-                                  onTap: () {
-                                    NavService.openSearch(
-                                      context,
-                                      ref,
-                                      name,
-                                      filter: SearchResultType.artists,
-                                    );
-                                  },
-                                ),
-                              )
-                              .toList()
-                        : null)
-                  : null,
-              onArtistTap: isRadio ? null : normalArtistTap,
-              onAlbumTap: isRadio ? null : normalAlbumTap,
             ),
           ),
           if (!isRadio) ...[
@@ -2646,7 +2425,6 @@ class _NowPlayingBodyState extends ConsumerState<_NowPlayingBody>
               isRadio: isRadio,
               compact: compactTransport,
               showVolumeControl: showDesktopTransportVolume,
-              showMiniPlayerToggle: showDesktopMiniPlayerToggle,
               onSkipPrevious: _handleManualPreviousButton,
               onSkipNext: _handleManualNextButton,
             ),
@@ -2657,17 +2435,9 @@ class _NowPlayingBodyState extends ConsumerState<_NowPlayingBody>
                 songId: playback.currentSongId,
                 isLiked: playback.isCurrentSongLiked,
                 showLyrics: _showLyrics || _showWideFullscreenLyrics,
-                onOpenSettingsSheet: !supportsSplitPanelOverlay
-                    ? () => _showNowPlayingSettingsSheet(
-                        context,
-                        ref,
-                        song,
-                        fullscreenLyricsSongId: playback.currentSongId,
-                        fullscreenLyricsTitle: playback.currentSongId == null
-                            ? null
-                            : title,
-                      )
-                    : null,
+                onOpenSettingsSheet: settingsSheetAction(
+                  splitPanelOverlay: supportsSplitPanelOverlay,
+                ),
                 onLyricsToggle: playback.currentSongId == null
                     ? null
                     : () {
@@ -2697,22 +2467,10 @@ class _NowPlayingBodyState extends ConsumerState<_NowPlayingBody>
                       },
                 wideEmbeddedMode: supportsSplitPanelOverlay,
                 onOpenQueuePanel: supportsSplitPanelOverlay
-                    ? () => _updateWideOverlayState(() {
-                        _showWideFullscreenLyrics = false;
-                        _widePanel = _WideNowPlayingPanel.queue;
-                      })
+                    ? openWidePanelAction(_WideNowPlayingPanel.queue)
                     : null,
                 onOpenSettingsPanel: supportsSplitPanelOverlay
-                    ? () => _updateWideOverlayState(() {
-                        _showWideFullscreenLyrics = false;
-                        _widePanel = _WideNowPlayingPanel.settings;
-                      })
-                    : null,
-                onOpenMixPanel: supportsSplitPanelOverlay
-                    ? () => _updateWideOverlayState(() {
-                        _showWideFullscreenLyrics = false;
-                        _widePanel = _WideNowPlayingPanel.mix;
-                      })
+                    ? openWidePanelAction(_WideNowPlayingPanel.settings)
                     : null,
               ),
             if (widget.showEmbeddedVolumeBelowActions) ...<Widget>[
@@ -2824,7 +2582,7 @@ class _NowPlayingBodyState extends ConsumerState<_NowPlayingBody>
                           ?.copyWith(color: colorScheme.onSurfaceVariant),
                     ),
                   )
-                : _InlineLyrics(songId: playback.currentSongId!),
+                : PlaybackLyricsContent(songId: playback.currentSongId!),
           ),
         );
         final splitTopInfo = Padding(
@@ -2859,22 +2617,7 @@ class _NowPlayingBodyState extends ConsumerState<_NowPlayingBody>
               : _buildInteractiveSwipeableArt(
                   key: ValueKey<String>('split-cover-$artVisualKey'),
                   swipeEnabled: !isRadio,
-                  currentArt: hasCoverArtId
-                      ? _CoverArt(
-                          coverArtId: coverArtId,
-                          semanticLabel: title,
-                          isExternalSource: song?.isExternal ?? false,
-                        )
-                      : (hasMediaArtUrl
-                            ? _RadioCoverArt(
-                                artUrl: mediaArtUrl,
-                                maxSize: splitCoverArtMaxSize,
-                              )
-                            : _CoverArt(
-                                coverArtId: null,
-                                semanticLabel: title,
-                                isExternalSource: song?.isExternal ?? false,
-                              )),
+                  currentArt: buildCurrentArt(splitCoverArtMaxSize),
                 ),
         );
         final splitBottomStack = Column(
@@ -2887,48 +2630,9 @@ class _NowPlayingBodyState extends ConsumerState<_NowPlayingBody>
               switchInCurve: Curves.easeOut,
               switchOutCurve: Curves.easeIn,
               transitionBuilder: songSwapTransitionBuilder,
-              child: _TrackInfo(
+              child: buildTrackInfo(
                 key: ValueKey<String>('split-track-info-$nowPlayingVisualKey'),
-                title: title,
-                artist: artist,
-                album: album,
                 compact: true,
-                isExternalSource: !isRadio && (song?.isExternal ?? false),
-                onTitleTap: isRadio
-                    ? (radioMeta?.nowPlayingTitle != null &&
-                              radioMeta!.nowPlayingTitle!.isNotEmpty
-                          ? () {
-                              NavService.openSearch(
-                                context,
-                                ref,
-                                radioMeta.nowPlayingTitle!,
-                                filter: SearchResultType.songs,
-                              );
-                            }
-                          : null)
-                    : normalTitleTap,
-                artistLinks: isRadio
-                    ? (radioMeta?.nowPlayingArtist != null &&
-                              radioMeta!.nowPlayingArtist!.isNotEmpty
-                          ? splitArtistNames(radioMeta.nowPlayingArtist!)
-                                .map(
-                                  (name) => (
-                                    name: name,
-                                    onTap: () {
-                                      NavService.openSearch(
-                                        context,
-                                        ref,
-                                        name,
-                                        filter: SearchResultType.artists,
-                                      );
-                                    },
-                                  ),
-                                )
-                                .toList()
-                          : null)
-                    : null,
-                onArtistTap: isRadio ? null : normalArtistTap,
-                onAlbumTap: isRadio ? null : normalAlbumTap,
               ),
             ),
             if (!isRadio) ...<Widget>[
@@ -2942,7 +2646,6 @@ class _NowPlayingBodyState extends ConsumerState<_NowPlayingBody>
               isRadio: isRadio,
               compact: compactTransport,
               showVolumeControl: showDesktopTransportVolume,
-              showMiniPlayerToggle: showDesktopMiniPlayerToggle,
               onSkipPrevious: _handleManualPreviousButton,
               onSkipNext: _handleManualNextButton,
             ),
@@ -2953,17 +2656,9 @@ class _NowPlayingBodyState extends ConsumerState<_NowPlayingBody>
                 songId: playback.currentSongId,
                 isLiked: playback.isCurrentSongLiked,
                 showLyrics: false,
-                onOpenSettingsSheet: !supportsSplitPanelOverlay
-                    ? () => _showNowPlayingSettingsSheet(
-                        context,
-                        ref,
-                        song,
-                        fullscreenLyricsSongId: playback.currentSongId,
-                        fullscreenLyricsTitle: playback.currentSongId == null
-                            ? null
-                            : title,
-                      )
-                    : null,
+                onOpenSettingsSheet: settingsSheetAction(
+                  splitPanelOverlay: supportsSplitPanelOverlay,
+                ),
                 onLyricsToggle: playback.currentSongId == null
                     ? null
                     : () => unawaited(
@@ -2975,22 +2670,10 @@ class _NowPlayingBodyState extends ConsumerState<_NowPlayingBody>
                       ),
                 wideEmbeddedMode: supportsSplitPanelOverlay,
                 onOpenQueuePanel: supportsSplitPanelOverlay
-                    ? () => _updateWideOverlayState(() {
-                        _showWideFullscreenLyrics = false;
-                        _widePanel = _WideNowPlayingPanel.queue;
-                      })
+                    ? openWidePanelAction(_WideNowPlayingPanel.queue)
                     : null,
                 onOpenSettingsPanel: supportsSplitPanelOverlay
-                    ? () => _updateWideOverlayState(() {
-                        _showWideFullscreenLyrics = false;
-                        _widePanel = _WideNowPlayingPanel.settings;
-                      })
-                    : null,
-                onOpenMixPanel: supportsSplitPanelOverlay
-                    ? () => _updateWideOverlayState(() {
-                        _showWideFullscreenLyrics = false;
-                        _widePanel = _WideNowPlayingPanel.mix;
-                      })
+                    ? openWidePanelAction(_WideNowPlayingPanel.settings)
                     : null,
               ),
           ],
@@ -3056,13 +2739,6 @@ class _NowPlayingBodyState extends ConsumerState<_NowPlayingBody>
               fullscreenLyricsSongId: playback.currentSongId,
               fullscreenLyricsTitle: title,
               onOpenFullscreenLyrics: openFullscreenLyricsFromSettings,
-            );
-          } else if (_widePanel == _WideNowPlayingPanel.mix &&
-              playback.currentSongId != null) {
-            rightPanePanelTitle = l10n.nowPlayingInstantMixLabel;
-            rightPanePanelHeightFactor = 0.62;
-            rightPanePanelChild = _EmbeddedMixPanel(
-              seedSongId: playback.currentSongId!,
             );
           } else if (_widePanel == _WideNowPlayingPanel.queue) {
             rightPanePanelTitle = l10n.queueTitle;

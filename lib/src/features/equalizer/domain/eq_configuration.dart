@@ -160,12 +160,6 @@ class EqConfiguration {
         (filter) => !filter.enabled || filter.frequencyHz < sampleRate / 2,
       );
 
-  bool get isFlat =>
-      preampDb == 0 &&
-      filters.every(
-        (filter) => !filter.enabled || (filter.usesGain && filter.gainDb == 0),
-      );
-
   EqConfiguration copyWith({
     bool? enabled,
     EqMode? mode,

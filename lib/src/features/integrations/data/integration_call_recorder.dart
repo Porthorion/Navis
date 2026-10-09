@@ -1,5 +1,7 @@
 import 'dart:collection';
 
+import 'package:flutter/foundation.dart';
+
 import 'package:navis/src/features/integrations/domain/integration_feature.dart';
 import 'package:navis/src/utils/app_logger.dart';
 
@@ -234,6 +236,7 @@ class IntegrationCallRecorder {
   /// The most recent spans, oldest first.
   List<IntegrationSpan> recentSpans({int? limit}) => _tail(_spans, limit);
 
+  @visibleForTesting
   IntegrationServiceCounters countersFor(IntegrationService service) =>
       _counters[service]!;
 

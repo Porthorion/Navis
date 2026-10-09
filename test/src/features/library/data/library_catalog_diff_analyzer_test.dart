@@ -20,9 +20,11 @@ void main() {
 
     expect(stats.changedCount, 0);
     expect(stats.unchangedCount, 5);
-    final songs = await database.librarySyncCandidateDao.getSongs(
+    final songs = await database.librarySyncCandidateDao.getSongsPage(
       serverId: 1,
       generation: 2,
+      afterId: '',
+      limit: 10,
     );
     expect(
       songs.map((song) => song.applyState),
@@ -58,11 +60,11 @@ void main() {
     addTearDown(database.close);
     await _seedMatchingCatalog(database, songCount: 1);
     final starred = DateTime.utc(2026, 1, 1);
-    await database.libraryDao.updateArtistStarred('artist-1', starred);
-    await database.libraryDao.updateAlbumStarred('album-1', starred);
-    await database.libraryDao.updateAlbumRating('album-1', 4);
-    await database.libraryDao.updateSongStarred('song-0', starred);
-    await database.libraryDao.updateSongRating('song-0', 5);
+    await database.libraryDao.setEntityStarred('artist', 'artist-1', starred);
+    await database.libraryDao.setEntityStarred('album', 'album-1', starred);
+    await database.libraryDao.setEntityRating('album', 'album-1', 4);
+    await database.libraryDao.setEntityStarred('song', 'song-0', starred);
+    await database.libraryDao.setEntityRating('song', 'song-0', 5);
 
     final stats = await LibraryCatalogDiffAnalyzer(database)
         .analyze(serverId: 1, generation: 2);
@@ -144,12 +146,14 @@ void main() {
         .analyze(serverId: 1, generation: 2);
 
     expect(stats.songUnchangedCount, 2);
-    final counts = await database.librarySyncCandidateDao.getApplyCounts(
-      serverId: 1,
-      generation: 2,
+    final rows = await database
+        .select(database.librarySyncCandidateSongsTable)
+        .get();
+    expect(rows, hasLength(3));
+    expect(
+      rows.map((row) => row.applyState),
+      everyElement(LibraryCandidateApplyState.unchanged),
     );
-    expect(counts.unchanged, 3);
-    expect(counts.unclassified, 0);
   });
 }
 

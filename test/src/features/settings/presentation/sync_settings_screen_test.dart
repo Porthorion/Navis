@@ -1,5 +1,6 @@
 import 'package:material_ui/material_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_riverpod/misc.dart' show Override;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 import 'package:navis/l10n/app_localizations.dart';
@@ -69,6 +70,78 @@ class _FakeLibrarySyncController extends LibrarySyncController {
   }
 }
 
+const _wifiPolicy = SyncNetworkPolicy(
+  networkType: NetworkType.wifi,
+  isMetered: false,
+  allowsBackgroundSync: true,
+  allowsHardProbe: true,
+  allowsInteractiveHydration: true,
+);
+
+const _meteredPolicy = SyncNetworkPolicy(
+  networkType: NetworkType.cellular,
+  isMetered: true,
+  allowsBackgroundSync: false,
+  allowsHardProbe: true,
+  allowsInteractiveHydration: true,
+);
+
+const _defaultServer = ServerConfigModel(
+  url: 'https://example.com',
+  username: 'alice',
+  password: 'secret',
+  apiVersion: '1.16.1',
+);
+
+/// Pumps [SyncSettingsScreen] with the shared overrides and settles it.
+///
+/// Give either [state] (a controller that always reports it) or [controller]
+/// for one with callbacks. A [router] hosts the screen inside GoRouter;
+/// otherwise it is the plain home route.
+Future<void> _pumpSyncSettings(
+  WidgetTester tester,
+  NavisDatabase database, {
+  ServerConfigModel server = _defaultServer,
+  LibrarySyncState? state,
+  _FakeLibrarySyncController Function()? controller,
+  SyncNetworkPolicy policy = _wifiPolicy,
+  List<Override> extraOverrides = const <Override>[],
+  GoRouter? router,
+}) async {
+  assert(
+    (state == null) != (controller == null),
+    'Pass exactly one of state or controller.',
+  );
+  await tester.pumpWidget(
+    ProviderScope(
+      overrides: [
+        ...withTestDatabase(database),
+        serverConfigStateProvider.overrideWithValue(AsyncData(server)),
+        librarySyncControllerProvider.overrideWith(
+          controller ?? () => _FakeLibrarySyncController(stateValue: state!),
+        ),
+        ...extraOverrides,
+        syncNetworkPolicyProvider.overrideWith((_) => policy),
+        backgroundSyncUnmeteredOnlyProvider.overrideWith((_) => true),
+      ],
+      child: router == null
+          ? MaterialApp(
+              theme: testTheme(),
+              localizationsDelegates: navisLocalizationsDelegates,
+              supportedLocales: AppLocalizations.supportedLocales,
+              home: const SyncSettingsScreen(),
+            )
+          : MaterialApp.router(
+              theme: testTheme(),
+              localizationsDelegates: navisLocalizationsDelegates,
+              supportedLocales: AppLocalizations.supportedLocales,
+              routerConfig: router,
+            ),
+    ),
+  );
+  await tester.pumpAndSettle();
+}
+
 void main() {
   testWidgets('shows the latest destructive library change from the ledger', (
     tester,
@@ -111,45 +184,18 @@ void main() {
       },
     );
 
-    await tester.pumpWidget(
-      ProviderScope(
-        overrides: [
-          ...withTestDatabase(database),
-          serverConfigStateProvider.overrideWithValue(
-            AsyncData(
-              ServerConfigModel(
-                id: serverId,
-                url: 'https://example.com',
-                username: 'alice',
-                password: 'secret',
-                apiVersion: '1.16.1',
-              ),
-            ),
-          ),
-          librarySyncControllerProvider.overrideWith(
-            () =>
-                _FakeLibrarySyncController(stateValue: LibrarySyncState.idle()),
-          ),
-          syncNetworkPolicyProvider.overrideWith(
-            (_) => const SyncNetworkPolicy(
-              networkType: NetworkType.wifi,
-              isMetered: false,
-              allowsBackgroundSync: true,
-              allowsHardProbe: true,
-              allowsInteractiveHydration: true,
-            ),
-          ),
-          backgroundSyncUnmeteredOnlyProvider.overrideWith((_) => true),
-        ],
-        child: MaterialApp(
-          theme: testTheme(),
-          localizationsDelegates: navisLocalizationsDelegates,
-          supportedLocales: AppLocalizations.supportedLocales,
-          home: const SyncSettingsScreen(),
-        ),
+    await _pumpSyncSettings(
+      tester,
+      database,
+      server: ServerConfigModel(
+        id: serverId,
+        url: 'https://example.com',
+        username: 'alice',
+        password: 'secret',
+        apiVersion: '1.16.1',
       ),
+      state: LibrarySyncState.idle(),
     );
-    await tester.pumpAndSettle();
 
     expect(find.byTooltip('Back'), findsOneWidget);
     expect(find.text('Last Library Change'), findsOneWidget);
@@ -157,64 +203,6 @@ void main() {
       find.text(
         'The last library update removed 3 artists, 4 albums and 5 songs.',
       ),
-      findsOneWidget,
-    );
-
-    await tester.pumpWidget(const SizedBox.shrink());
-    await tester.pump(const Duration(milliseconds: 1));
-  });
-
-  testWidgets('humanizes legacy persisted resume reasons', (tester) async {
-    final database = createTestDatabase();
-    addTearDown(database.close);
-
-    await tester.pumpWidget(
-      ProviderScope(
-        overrides: [
-          ...withTestDatabase(database),
-          serverConfigStateProvider.overrideWithValue(
-            const AsyncData(
-              ServerConfigModel(
-                url: 'https://example.com',
-                username: 'alice',
-                password: 'secret',
-                apiVersion: '1.16.1',
-              ),
-            ),
-          ),
-          librarySyncControllerProvider.overrideWith(
-            () => _FakeLibrarySyncController(
-              stateValue: LibrarySyncState(
-                status: LibrarySyncStatus.idle,
-                stage: LibrarySyncStage.idle,
-                planKind: LibrarySyncPlanKind.targetedHydration,
-                planReason: 'resumetargetedHydration',
-              ),
-            ),
-          ),
-          syncNetworkPolicyProvider.overrideWith(
-            (_) => const SyncNetworkPolicy(
-              networkType: NetworkType.wifi,
-              isMetered: false,
-              allowsBackgroundSync: true,
-              allowsHardProbe: true,
-              allowsInteractiveHydration: true,
-            ),
-          ),
-          backgroundSyncUnmeteredOnlyProvider.overrideWith((_) => true),
-        ],
-        child: MaterialApp(
-          theme: testTheme(),
-          localizationsDelegates: navisLocalizationsDelegates,
-          supportedLocales: AppLocalizations.supportedLocales,
-          home: const SyncSettingsScreen(),
-        ),
-      ),
-    );
-    await tester.pumpAndSettle();
-
-    expect(
-      find.text('Strategy: targeted hydration — resume targeted hydration'),
       findsOneWidget,
     );
 
@@ -234,55 +222,23 @@ void main() {
     final database = createTestDatabase();
     addTearDown(database.close);
 
-    await tester.pumpWidget(
-      ProviderScope(
-        overrides: [
-          ...withTestDatabase(database),
-          serverConfigStateProvider.overrideWithValue(
-            const AsyncData(
-              ServerConfigModel(
-                url: 'https://example.com',
-                username: 'alice',
-                password: 'secret',
-                apiVersion: '1.16.1',
-              ),
-            ),
-          ),
-          librarySyncControllerProvider.overrideWith(
-            () => _FakeLibrarySyncController(
-              stateValue: LibrarySyncState(
-                status: LibrarySyncStatus.failed,
-                stage: LibrarySyncStage.completed,
-                errorMessage: 'HTTP 502 from a private server',
-                planKind: LibrarySyncPlanKind.targetedHydration,
-                planReason: 'resume targeted hydration',
-                pendingWorkCount: 49,
-                lastApplyDurationMs: 235,
-                apiRequests: 2,
-                lastRunBytes: 29696,
-              ),
-            ),
-          ),
-          syncNetworkPolicyProvider.overrideWith(
-            (_) => const SyncNetworkPolicy(
-              networkType: NetworkType.wifi,
-              isMetered: false,
-              allowsBackgroundSync: true,
-              allowsHardProbe: true,
-              allowsInteractiveHydration: true,
-            ),
-          ),
-          backgroundSyncUnmeteredOnlyProvider.overrideWith((_) => true),
-        ],
-        child: MaterialApp(
-          theme: testTheme(),
-          localizationsDelegates: navisLocalizationsDelegates,
-          supportedLocales: AppLocalizations.supportedLocales,
-          home: const SyncSettingsScreen(),
+    await _pumpSyncSettings(
+      tester,
+      database,
+      controller: () => _FakeLibrarySyncController(
+        stateValue: LibrarySyncState(
+          status: LibrarySyncStatus.failed,
+          stage: LibrarySyncStage.completed,
+          errorMessage: 'HTTP 502 from a private server',
+          planKind: LibrarySyncPlanKind.targetedHydration,
+          planReason: 'resume targeted hydration',
+          pendingWorkCount: 49,
+          lastApplyDurationMs: 235,
+          apiRequests: 2,
+          lastRunBytes: 29696,
         ),
       ),
     );
-    await tester.pumpAndSettle();
 
     expect(
       find.text(
@@ -312,54 +268,22 @@ void main() {
     final database = createTestDatabase();
     addTearDown(database.close);
 
-    await tester.pumpWidget(
-      ProviderScope(
-        overrides: [
-          ...withTestDatabase(database),
-          serverConfigStateProvider.overrideWithValue(
-            const AsyncData(
-              ServerConfigModel(
-                url: 'https://example.com',
-                username: 'alice',
-                password: 'secret',
-                apiVersion: '1.16.1',
-              ),
-            ),
-          ),
-          librarySyncControllerProvider.overrideWith(
-            () => _FakeLibrarySyncController(
-              stateValue: LibrarySyncState(
-                status: LibrarySyncStatus.idle,
-                stage: LibrarySyncStage.idle,
-                planKind: LibrarySyncPlanKind.targetedHydration,
-                planReason: 'resume targeted hydration',
-                pendingWorkCount: 49,
-                lastApplyDurationMs: 235,
-                apiRequests: 2,
-                lastRunBytes: 29696,
-              ),
-            ),
-          ),
-          syncNetworkPolicyProvider.overrideWith(
-            (_) => const SyncNetworkPolicy(
-              networkType: NetworkType.wifi,
-              isMetered: false,
-              allowsBackgroundSync: true,
-              allowsHardProbe: true,
-              allowsInteractiveHydration: true,
-            ),
-          ),
-          backgroundSyncUnmeteredOnlyProvider.overrideWith((_) => true),
-        ],
-        child: MaterialApp(
-          theme: testTheme(),
-          localizationsDelegates: navisLocalizationsDelegates,
-          supportedLocales: AppLocalizations.supportedLocales,
-          home: const SyncSettingsScreen(),
+    await _pumpSyncSettings(
+      tester,
+      database,
+      controller: () => _FakeLibrarySyncController(
+        stateValue: LibrarySyncState(
+          status: LibrarySyncStatus.idle,
+          stage: LibrarySyncStage.idle,
+          planKind: LibrarySyncPlanKind.targetedHydration,
+          planReason: 'resume targeted hydration',
+          pendingWorkCount: 49,
+          lastApplyDurationMs: 235,
+          apiRequests: 2,
+          lastRunBytes: 29696,
         ),
       ),
     );
-    await tester.pumpAndSettle();
 
     expect(
       find.text('Strategy: targeted hydration — resume targeted hydration'),
@@ -395,51 +319,26 @@ void main() {
     );
     addTearDown(router.dispose);
 
-    await tester.pumpWidget(
-      ProviderScope(
-        overrides: [
-          ...withTestDatabase(database),
-          serverConfigStateProvider.overrideWithValue(
-            AsyncData(
-              ServerConfigModel(
-                url: 'https://example.com',
-                username: 'alice',
-                password: 'secret',
-                apiVersion: '1.16.1',
-                lastSynced: lastSynced,
-              ),
-            ),
-          ),
-          librarySyncControllerProvider.overrideWith(
-            () => _FakeLibrarySyncController(
-              stateValue: LibrarySyncState(
-                status: LibrarySyncStatus.idle,
-                stage: LibrarySyncStage.idle,
-                lastSyncedAt: lastSynced,
-                nextRetryAt: DateTime(2026, 2, 20, 12),
-              ),
-            ),
-          ),
-          syncNetworkPolicyProvider.overrideWith(
-            (_) => const SyncNetworkPolicy(
-              networkType: NetworkType.wifi,
-              isMetered: false,
-              allowsBackgroundSync: true,
-              allowsHardProbe: true,
-              allowsInteractiveHydration: true,
-            ),
-          ),
-          backgroundSyncUnmeteredOnlyProvider.overrideWith((_) => true),
-        ],
-        child: MaterialApp.router(
-          theme: testTheme(),
-          localizationsDelegates: navisLocalizationsDelegates,
-          supportedLocales: AppLocalizations.supportedLocales,
-          routerConfig: router,
+    await _pumpSyncSettings(
+      tester,
+      database,
+      server: ServerConfigModel(
+        url: 'https://example.com',
+        username: 'alice',
+        password: 'secret',
+        apiVersion: '1.16.1',
+        lastSynced: lastSynced,
+      ),
+      controller: () => _FakeLibrarySyncController(
+        stateValue: LibrarySyncState(
+          status: LibrarySyncStatus.idle,
+          stage: LibrarySyncStage.idle,
+          lastSyncedAt: lastSynced,
+          nextRetryAt: DateTime(2026, 2, 20, 12),
         ),
       ),
+      router: router,
     );
-    await tester.pumpAndSettle();
 
     expect(find.text('Sync Settings'), findsOneWidget);
     expect(find.text('Next Automatic Check'), findsOneWidget);
@@ -499,51 +398,26 @@ void main() {
     );
     addTearDown(router.dispose);
 
-    await tester.pumpWidget(
-      ProviderScope(
-        overrides: [
-          ...withTestDatabase(database),
-          serverConfigStateProvider.overrideWithValue(
-            AsyncData(
-              ServerConfigModel(
-                url: 'https://example.com',
-                username: 'alice',
-                password: 'secret',
-                apiVersion: '1.16.1',
-                lastSynced: lastSynced,
-              ),
-            ),
-          ),
-          librarySyncControllerProvider.overrideWith(
-            () => _FakeLibrarySyncController(
-              stateValue: LibrarySyncState(
-                status: LibrarySyncStatus.idle,
-                stage: LibrarySyncStage.idle,
-                lastSyncedAt: lastSynced,
-                nextAutomaticCheckAt: DateTime.utc(2026, 2, 20, 12),
-              ),
-            ),
-          ),
-          syncNetworkPolicyProvider.overrideWith(
-            (_) => const SyncNetworkPolicy(
-              networkType: NetworkType.wifi,
-              isMetered: false,
-              allowsBackgroundSync: true,
-              allowsHardProbe: true,
-              allowsInteractiveHydration: true,
-            ),
-          ),
-          backgroundSyncUnmeteredOnlyProvider.overrideWith((_) => true),
-        ],
-        child: MaterialApp.router(
-          theme: testTheme(),
-          localizationsDelegates: navisLocalizationsDelegates,
-          supportedLocales: AppLocalizations.supportedLocales,
-          routerConfig: router,
+    await _pumpSyncSettings(
+      tester,
+      database,
+      server: ServerConfigModel(
+        url: 'https://example.com',
+        username: 'alice',
+        password: 'secret',
+        apiVersion: '1.16.1',
+        lastSynced: lastSynced,
+      ),
+      controller: () => _FakeLibrarySyncController(
+        stateValue: LibrarySyncState(
+          status: LibrarySyncStatus.idle,
+          stage: LibrarySyncStage.idle,
+          lastSyncedAt: lastSynced,
+          nextAutomaticCheckAt: DateTime.utc(2026, 2, 20, 12),
         ),
       ),
+      router: router,
     );
-    await tester.pumpAndSettle();
 
     final context = tester.element(find.byType(SyncSettingsScreen));
     final material = MaterialLocalizations.of(context);
@@ -583,46 +457,21 @@ void main() {
       workerResult: 'deferredPolicy',
     );
 
-    await tester.pumpWidget(
-      ProviderScope(
-        overrides: [
-          ...withTestDatabase(database),
-          serverConfigStateProvider.overrideWithValue(
-            AsyncData(
-              ServerConfigModel(
-                id: serverId,
-                url: 'https://example.com',
-                username: 'alice',
-                password: 'secret',
-                apiVersion: '1.16.1',
-              ),
-            ),
-          ),
-          librarySyncControllerProvider.overrideWith(
-            () =>
-                _FakeLibrarySyncController(stateValue: LibrarySyncState.idle()),
-          ),
-          androidBackgroundSyncAvailableProvider.overrideWith((_) => true),
-          syncNetworkPolicyProvider.overrideWith(
-            (_) => const SyncNetworkPolicy(
-              networkType: NetworkType.wifi,
-              isMetered: false,
-              allowsBackgroundSync: true,
-              allowsHardProbe: true,
-              allowsInteractiveHydration: true,
-            ),
-          ),
-          backgroundSyncUnmeteredOnlyProvider.overrideWith((_) => true),
-        ],
-        child: MaterialApp(
-          theme: testTheme(),
-          localizationsDelegates: navisLocalizationsDelegates,
-          supportedLocales: AppLocalizations.supportedLocales,
-          home: const SyncSettingsScreen(),
-        ),
+    await _pumpSyncSettings(
+      tester,
+      database,
+      server: ServerConfigModel(
+        id: serverId,
+        url: 'https://example.com',
+        username: 'alice',
+        password: 'secret',
+        apiVersion: '1.16.1',
       ),
+      state: LibrarySyncState.idle(),
+      extraOverrides: [
+        androidBackgroundSyncAvailableProvider.overrideWith((_) => true),
+      ],
     );
-    await tester.pumpAndSettle();
 
     expect(find.text('Android Background Sync'), findsOneWidget);
     expect(
@@ -649,54 +498,23 @@ void main() {
     final database = createTestDatabase();
     addTearDown(database.close);
 
-    await tester.pumpWidget(
-      ProviderScope(
-        overrides: [
-          ...withTestDatabase(database),
-          serverConfigStateProvider.overrideWithValue(
-            const AsyncData(
-              ServerConfigModel(
-                url: 'https://example.com',
-                username: 'alice',
-                password: 'secret',
-                apiVersion: '1.16.1',
-              ),
-            ),
-          ),
-          librarySyncControllerProvider.overrideWith(
-            () => _FakeLibrarySyncController(
-              stateValue: LibrarySyncState(
-                status: LibrarySyncStatus.deferred,
-                stage: LibrarySyncStage.completed,
-                planKind: LibrarySyncPlanKind.deltaReconcile,
-                updatesAvailable: true,
-              ),
-              onSyncNow: ({required allowMeteredBroadOverride}) {
-                mobileSyncTriggered = true;
-                expect(allowMeteredBroadOverride, isTrue);
-              },
-            ),
-          ),
-          syncNetworkPolicyProvider.overrideWith(
-            (_) => const SyncNetworkPolicy(
-              networkType: NetworkType.cellular,
-              isMetered: true,
-              allowsBackgroundSync: false,
-              allowsHardProbe: true,
-              allowsInteractiveHydration: true,
-            ),
-          ),
-          backgroundSyncUnmeteredOnlyProvider.overrideWith((_) => true),
-        ],
-        child: MaterialApp(
-          theme: testTheme(),
-          localizationsDelegates: navisLocalizationsDelegates,
-          supportedLocales: AppLocalizations.supportedLocales,
-          home: const SyncSettingsScreen(),
+    await _pumpSyncSettings(
+      tester,
+      database,
+      controller: () => _FakeLibrarySyncController(
+        stateValue: LibrarySyncState(
+          status: LibrarySyncStatus.deferred,
+          stage: LibrarySyncStage.completed,
+          planKind: LibrarySyncPlanKind.deltaReconcile,
+          updatesAvailable: true,
         ),
+        onSyncNow: ({required allowMeteredBroadOverride}) {
+          mobileSyncTriggered = true;
+          expect(allowMeteredBroadOverride, isTrue);
+        },
       ),
+      policy: _meteredPolicy,
     );
-    await tester.pumpAndSettle();
 
     expect(
       find.textContaining('Library updates are available'),
@@ -735,44 +553,13 @@ void main() {
     );
     addTearDown(router.dispose);
 
-    await tester.pumpWidget(
-      ProviderScope(
-        overrides: [
-          ...withTestDatabase(database),
-          serverConfigStateProvider.overrideWithValue(
-            const AsyncData(
-              ServerConfigModel(
-                url: 'https://example.com',
-                username: 'alice',
-                password: 'secret',
-                apiVersion: '1.16.1',
-              ),
-            ),
-          ),
-          librarySyncControllerProvider.overrideWith(
-            () =>
-                _FakeLibrarySyncController(stateValue: LibrarySyncState.idle()),
-          ),
-          syncNetworkPolicyProvider.overrideWith(
-            (_) => const SyncNetworkPolicy(
-              networkType: NetworkType.cellular,
-              isMetered: true,
-              allowsBackgroundSync: false,
-              allowsHardProbe: true,
-              allowsInteractiveHydration: true,
-            ),
-          ),
-          backgroundSyncUnmeteredOnlyProvider.overrideWith((_) => true),
-        ],
-        child: MaterialApp.router(
-          theme: testTheme(),
-          localizationsDelegates: navisLocalizationsDelegates,
-          supportedLocales: AppLocalizations.supportedLocales,
-          routerConfig: router,
-        ),
-      ),
+    await _pumpSyncSettings(
+      tester,
+      database,
+      state: LibrarySyncState.idle(),
+      policy: _meteredPolicy,
+      router: router,
     );
-    await tester.pumpAndSettle();
     await tester.drag(find.byType(ListView), const Offset(0, -600));
     await tester.pumpAndSettle();
 
@@ -822,55 +609,24 @@ void main() {
     );
     addTearDown(router.dispose);
 
-    await tester.pumpWidget(
-      ProviderScope(
-        overrides: [
-          ...withTestDatabase(database),
-          serverConfigStateProvider.overrideWithValue(
-            const AsyncData(
-              ServerConfigModel(
-                url: 'https://example.com',
-                username: 'alice',
-                password: 'secret',
-                apiVersion: '1.16.1',
-              ),
-            ),
-          ),
-          librarySyncControllerProvider.overrideWith(
-            () => _FakeLibrarySyncController(
-              stateValue: LibrarySyncState(
-                status: LibrarySyncStatus.partial,
-                stage: LibrarySyncStage.validatingCandidate,
-                candidateGeneration: 12,
-                candidateStatus: 'awaitingDeletionConfirmation',
-                deletionCandidateCount: 531,
-              ),
-              onDiscardRepairCandidate: () async {
-                candidateDiscarded = true;
-                return true;
-              },
-            ),
-          ),
-          syncNetworkPolicyProvider.overrideWith(
-            (_) => const SyncNetworkPolicy(
-              networkType: NetworkType.wifi,
-              isMetered: false,
-              allowsBackgroundSync: true,
-              allowsHardProbe: true,
-              allowsInteractiveHydration: true,
-            ),
-          ),
-          backgroundSyncUnmeteredOnlyProvider.overrideWith((_) => true),
-        ],
-        child: MaterialApp.router(
-          theme: testTheme(),
-          localizationsDelegates: navisLocalizationsDelegates,
-          supportedLocales: AppLocalizations.supportedLocales,
-          routerConfig: router,
+    await _pumpSyncSettings(
+      tester,
+      database,
+      controller: () => _FakeLibrarySyncController(
+        stateValue: LibrarySyncState(
+          status: LibrarySyncStatus.partial,
+          stage: LibrarySyncStage.validatingCandidate,
+          candidateGeneration: 12,
+          candidateStatus: 'awaitingDeletionConfirmation',
+          deletionCandidateCount: 531,
         ),
+        onDiscardRepairCandidate: () async {
+          candidateDiscarded = true;
+          return true;
+        },
       ),
+      router: router,
     );
-    await tester.pumpAndSettle();
 
     expect(
       find.textContaining('531 items the server no longer has are waiting'),
@@ -926,43 +682,7 @@ void main() {
     ) async {
       final database = createTestDatabase();
       addTearDown(database.close);
-      await tester.pumpWidget(
-        ProviderScope(
-          overrides: [
-            ...withTestDatabase(database),
-            serverConfigStateProvider.overrideWithValue(
-              const AsyncData(
-                ServerConfigModel(
-                  url: 'https://example.com',
-                  username: 'alice',
-                  password: 'secret',
-                  apiVersion: '1.16.1',
-                ),
-              ),
-            ),
-            librarySyncControllerProvider.overrideWith(
-              () => _FakeLibrarySyncController(stateValue: state),
-            ),
-            syncNetworkPolicyProvider.overrideWith(
-              (_) => const SyncNetworkPolicy(
-                networkType: NetworkType.wifi,
-                isMetered: false,
-                allowsBackgroundSync: true,
-                allowsHardProbe: true,
-                allowsInteractiveHydration: true,
-              ),
-            ),
-            backgroundSyncUnmeteredOnlyProvider.overrideWith((_) => true),
-          ],
-          child: MaterialApp(
-            theme: testTheme(),
-            localizationsDelegates: navisLocalizationsDelegates,
-            supportedLocales: AppLocalizations.supportedLocales,
-            home: const SyncSettingsScreen(),
-          ),
-        ),
-      );
-      await tester.pumpAndSettle();
+      await _pumpSyncSettings(tester, database, state: state);
       addTearDown(() async {
         await tester.pumpWidget(const SizedBox.shrink());
         await tester.pump(const Duration(milliseconds: 1));

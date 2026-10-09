@@ -17,7 +17,6 @@ import 'package:navis/src/database/tables/play_queue_items_table.dart';
 import 'package:navis/src/database/tables/playlist_songs_table.dart';
 import 'package:navis/src/database/tables/schema_enums.dart';
 import 'package:navis/src/database/tables/scrobble_queue_table.dart';
-import 'package:navis/src/database/tables/song_identity_aliases_table.dart';
 import 'package:navis/src/database/tables/songs_table.dart';
 import 'package:navis/src/database/tables/star_sync_queue_table.dart';
 
@@ -66,7 +65,6 @@ class ProvisionalGarbageCollectionResult {
     ArtistsTable,
     AlbumsTable,
     SongsTable,
-    SongIdentityAliasesTable,
     EntityIdentityAliasTable,
     CachedTracksTable,
     DownloadQueueTable,
@@ -102,19 +100,31 @@ class SongIdentityDao extends DatabaseAccessor<NavisDatabase>
     return query.get();
   }
 
-  Future<List<SongIdentityAlias>> getAliases() async {
-    final rows = await select(songIdentityAliasesTable).get();
-    return rows
-        .map(
-          (row) => SongIdentityAlias(
-            oldSongId: row.oldSongId,
-            canonicalSongId: row.canonicalSongId,
-            matchReason: row.matchReason,
-            matchedAt: row.matchedAt,
-          ),
-        )
-        .toList(growable: false);
-  }
+  Future<List<SongIdentityAlias>> getAliases() => _songAliases().get();
+
+  Selectable<SongIdentityAlias> _songAliases({
+    DateTime? matchedSince,
+    String? oldId,
+  }) =>
+      customSelect(
+        "SELECT a.* FROM entity_identity_aliases a WHERE a.entity_type = 'song' "
+        'AND a.id = (SELECT MAX(latest.id) FROM entity_identity_aliases latest '
+        'WHERE latest.entity_type = a.entity_type AND latest.old_id = a.old_id) '
+        '${matchedSince == null ? '' : 'AND a.matched_at >= ? '}'
+        '${oldId == null ? '' : 'AND a.old_id = ? '}',
+        variables: [
+          if (matchedSince != null) Variable<DateTime>(matchedSince),
+          if (oldId != null) Variable<String>(oldId),
+        ],
+        readsFrom: {entityIdentityAliasTable},
+      ).map(
+        (row) => SongIdentityAlias(
+          oldSongId: row.read<String>('old_id'),
+          canonicalSongId: row.read<String>('new_id'),
+          matchReason: row.read<String>('match_reason'),
+          matchedAt: row.read<DateTime>('matched_at'),
+        ),
+      );
 
   /// Provisional album rows awaiting identity reconciliation.
   ///
@@ -135,36 +145,14 @@ class SongIdentityDao extends DatabaseAccessor<NavisDatabase>
 
   Future<List<SongIdentityAlias>> getAliasesMatchedSince(
     DateTime matchedSince,
-  ) async {
-    final rows =
-        await (select(songIdentityAliasesTable)..where(
-              (table) => table.matchedAt.isBiggerOrEqualValue(matchedSince),
-            ))
-            .get();
-    return rows
-        .map(
-          (row) => SongIdentityAlias(
-            oldSongId: row.oldSongId,
-            canonicalSongId: row.canonicalSongId,
-            matchReason: row.matchReason,
-            matchedAt: row.matchedAt,
-          ),
-        )
-        .toList(growable: false);
-  }
+  ) => _songAliases(matchedSince: matchedSince).get();
 
   Future<String> resolveCanonicalId(String songId) async {
     var current = songId;
     final visited = <String>{};
     while (visited.add(current)) {
-      final row =
-          await (select(songIdentityAliasesTable)
-                ..where((table) => table.oldSongId.equals(current))
-                ..limit(1))
-              .getSingleOrNull();
-      if (row == null || row.canonicalSongId == current) {
-        return current;
-      }
+      final row = await _songAliases(oldId: current).getSingleOrNull();
+      if (row == null || row.canonicalSongId == current) return current;
       current = row.canonicalSongId;
     }
     return current;
@@ -194,9 +182,7 @@ class SongIdentityDao extends DatabaseAccessor<NavisDatabase>
   }) async {
     final oldId = oldSongId.trim();
     final canonicalId = canonicalSongId.trim();
-    if (oldId.isEmpty || canonicalId.isEmpty || oldId == canonicalId) {
-      throw ArgumentError('Song identity remapping requires two distinct IDs.');
-    }
+    _validateIds(_IdentityKind.song, oldId, canonicalId);
 
     final timestamp = matchedAt ?? DateTime.now();
     final alias = SongIdentityAlias(
@@ -206,7 +192,6 @@ class SongIdentityDao extends DatabaseAccessor<NavisDatabase>
       matchedAt: timestamp,
     );
 
-    var restoredLike = false;
     final oldCache = await _cacheRow(oldId);
     final canonicalCache = await _cacheRow(canonicalId);
     final cacheChoice = await _chooseCacheWinner(
@@ -214,221 +199,33 @@ class SongIdentityDao extends DatabaseAccessor<NavisDatabase>
       canonicalCache: canonicalCache,
     );
 
-    await transaction(() async {
-      // Read both rows inside the transaction so the merge below observes the
-      // same state the reference remaps commit against.
-      final canonicalSong =
-          await (select(songsTable)
-                ..where((table) => table.id.equals(canonicalId))
-                ..limit(1))
-              .getSingleOrNull();
-      if (canonicalSong == null) {
-        throw StateError('Canonical song $canonicalId does not exist.');
-      }
-      final oldSong =
-          await (select(songsTable)
-                ..where((table) => table.id.equals(oldId))
-                ..limit(1))
-              .getSingleOrNull();
-      // A review-screen relink may target an entry whose live row is already
-      // gone; the reference moves below are WHERE-guarded no-ops in that
-      // case and only the alias recording remains meaningful.
-
-      await _remapCache(
-        oldSongId: oldId,
-        canonicalSongId: canonicalId,
-        oldCache: oldCache,
-        canonicalCache: canonicalCache,
-        winner: cacheChoice.winner,
-      );
-
-      await customStatement(
-        'UPDATE download_queue SET song_id = ? WHERE song_id = ?;',
-        <Object?>[canonicalId, oldId],
-      );
-      await customStatement(
-        'UPDATE play_queue_items SET song_id = ? WHERE song_id = ?;',
-        <Object?>[canonicalId, oldId],
-      );
-      await customStatement(
-        '''
-        INSERT OR IGNORE INTO play_history (song_id, played_at)
-        SELECT ?, played_at FROM play_history WHERE song_id = ?;
-        ''',
-        <Object?>[canonicalId, oldId],
-      );
-      await customStatement(
-        'DELETE FROM play_history WHERE song_id = ?;',
-        <Object?>[oldId],
-      );
-      await customStatement(
-        'UPDATE playlist_songs SET song_id = ? WHERE song_id = ?;',
-        <Object?>[canonicalId, oldId],
-      );
-      await customStatement(
-        '''
-        INSERT OR IGNORE INTO match_flow_songs (
-          flow_id,
-          song_id,
-          sort_order,
-          added_at
-        )
-        SELECT flow_id, ?, sort_order, added_at
-        FROM match_flow_songs
-        WHERE song_id = ?;
-        ''',
-        <Object?>[canonicalId, oldId],
-      );
-      await customStatement(
-        'DELETE FROM match_flow_songs WHERE song_id = ?;',
-        <Object?>[oldId],
-      );
-      await customStatement(
-        '''
-        INSERT OR IGNORE INTO external_lyrics_cache (
-          song_id,
-          source,
-          synced_lyrics,
-          plain_lyrics,
-          fetched_at,
-          ttl_seconds,
-          failure_count,
-          last_failed_at
-        )
-        SELECT
-          ?,
-          source,
-          synced_lyrics,
-          plain_lyrics,
-          fetched_at,
-          ttl_seconds,
-          failure_count,
-          last_failed_at
-        FROM external_lyrics_cache
-        WHERE song_id = ?;
-        ''',
-        <Object?>[canonicalId, oldId],
-      );
-      await customStatement(
-        'DELETE FROM external_lyrics_cache WHERE song_id = ?;',
-        <Object?>[oldId],
-      );
-      await customStatement(
-        'UPDATE OR IGNORE scrobble_queue SET song_id = ? WHERE song_id = ?;',
-        <Object?>[canonicalId, oldId],
-      );
-      await customStatement(
-        'DELETE FROM scrobble_queue WHERE song_id = ?;',
-        <Object?>[oldId],
-      );
-      await customStatement(
-        '''
-        UPDATE OR IGNORE listenbrainz_feedback_queue
-        SET song_id = ?
-        WHERE song_id = ?;
-        ''',
-        <Object?>[canonicalId, oldId],
-      );
-      await customStatement(
-        'DELETE FROM listenbrainz_feedback_queue WHERE song_id = ?;',
-        <Object?>[oldId],
-      );
-      await customStatement(
-        '''
-        UPDATE star_sync_queue
-        SET item_id = ?
-        WHERE item_type = 'song' AND item_id = ?;
-        ''',
-        <Object?>[canonicalId, oldId],
-      );
-      // Absence evidence attached to the old identity transfers to the
-      // replacement; leftover rows for the canonical ID would only double-count
-      // observations, so they are replaced by the remapped evidence.
-      await customStatement(
-        'UPDATE OR IGNORE starred_absence_candidates SET entity_id = ? '
-        "WHERE entity_type = 'song' AND entity_id = ?;",
-        <Object?>[canonicalId, oldId],
-      );
-      await customStatement(
-        'DELETE FROM starred_absence_candidates '
-        "WHERE entity_type = 'song' AND entity_id = ?;",
-        <Object?>[oldId],
-      );
-      await customStatement(
-        'UPDATE library_sync_local_mutations SET entity_id = ? '
-        "WHERE entity_type = 'song' AND entity_id = ?;",
-        <Object?>[canonicalId, oldId],
-      );
-      // Merge user state with local precedence: an explicit canonical value
-      // from the server snapshot wins; otherwise the old row's favorite or
-      // rating carries forward. A carried like keeps its original local
-      // timestamp and is queued so the server restores it for other clients.
-      final carriedStarredAt = canonicalSong.starred == null
-          ? oldSong?.starred
-          : null;
-      final carriedRating = canonicalSong.userRating == null
-          ? oldSong?.userRating
-          : null;
-      if (carriedStarredAt != null || carriedRating != null) {
-        await (update(
-          songsTable,
-        )..where((table) => table.id.equals(canonicalId))).write(
-          SongsTableCompanion(
-            starred: carriedStarredAt != null
-                ? Value(carriedStarredAt)
-                : const Value.absent(),
-            userRating: carriedRating != null
-                ? Value(carriedRating)
-                : const Value.absent(),
-          ),
-        );
-      }
-      if (carriedStarredAt != null) {
-        await attachedDatabase.starSyncDao.queueStarAction(
-          itemId: canonicalId,
-          itemType: 'song',
-          action: 'star',
-        );
-        restoredLike = true;
-      }
-      await into(songIdentityAliasesTable).insertOnConflictUpdate(
-        SongIdentityAliasesTableCompanion.insert(
+    final restoredLike = await _remapIdentity(
+      _IdentityKind.song,
+      oldId,
+      canonicalId,
+      matchReason,
+      timestamp,
+      beforeReferences: () async {
+        await _remapCache(
           oldSongId: oldId,
           canonicalSongId: canonicalId,
-          matchReason: matchReason,
-          matchedAt: timestamp,
-        ),
-      );
-      await into(entityIdentityAliasTable).insertOnConflictUpdate(
-        EntityIdentityAliasTableCompanion.insert(
-          entityType: 'song',
-          oldId: oldId,
-          newId: canonicalId,
-          matchReason: matchReason,
-          matchedAt: timestamp,
-        ),
-      );
-      await delete(listenBrainzWeeklyCacheTable).go();
-      await (update(songsTable)..where((table) => table.id.equals(canonicalId)))
-          .write(const SongsTableCompanion(isProvisional: Value(false)));
-      await (delete(songsTable)..where((table) => table.id.equals(oldId))).go();
-    }).then<void>((_) {
-      // Raw SQL does not invalidate Drift queries. If a caller owns an outer
-      // transaction, its database override replays these updates after commit.
-      notifyUpdates(<TableUpdate>{
-        TableUpdate.onTable(attachedDatabase.downloadQueueTable),
-        TableUpdate.onTable(attachedDatabase.playQueueItemsTable),
-        TableUpdate.onTable(attachedDatabase.playHistoryTable),
-        TableUpdate.onTable(attachedDatabase.playlistSongsTable),
-        TableUpdate.onTable(attachedDatabase.matchFlowSongsTable),
-        TableUpdate.onTable(attachedDatabase.externalLyricsCacheTable),
-        TableUpdate.onTable(attachedDatabase.scrobbleQueueTable),
-        TableUpdate.onTable(attachedDatabase.listenBrainzFeedbackQueueTable),
-        TableUpdate.onTable(attachedDatabase.starSyncQueueTable),
-        TableUpdate.onTable(attachedDatabase.starredAbsenceCandidatesTable),
-        TableUpdate.onTable(attachedDatabase.librarySyncLocalMutationsTable),
-      });
-    });
+          oldCache: oldCache,
+          canonicalCache: canonicalCache,
+          winner: cacheChoice.winner,
+        );
+        // A canonical queued download keeps its job and progress intact.
+        await customUpdate(
+          'DELETE FROM download_queue WHERE song_id = ? AND EXISTS ( '
+          'SELECT 1 FROM download_queue WHERE song_id = ?)',
+          variables: [Variable<String>(oldId), Variable<String>(canonicalId)],
+          updates: {downloadQueueTable},
+        );
+      },
+      afterAlias: () async {
+        await delete(listenBrainzWeeklyCacheTable).go();
+        await markCanonical(canonicalId);
+      },
+    );
 
     final deletedPaths = <String>[];
     final retainedPath = retainOldCacheFile ? oldCache?.filePath : null;
@@ -484,113 +281,13 @@ class SongIdentityDao extends DatabaseAccessor<NavisDatabase>
     required String matchReason,
     DateTime? matchedAt,
   }) async {
-    final oldId = oldAlbumId.trim();
-    final canonicalId = canonicalAlbumId.trim();
-    if (oldId.isEmpty || canonicalId.isEmpty || oldId == canonicalId) {
-      throw ArgumentError(
-        'Album identity remapping requires two distinct IDs.',
-      );
-    }
-    final timestamp = matchedAt ?? DateTime.now();
-    var restoredLike = false;
-
-    await transaction(() async {
-      final canonicalAlbum =
-          await (select(albumsTable)
-                ..where((table) => table.id.equals(canonicalId))
-                ..limit(1))
-              .getSingleOrNull();
-      if (canonicalAlbum == null) {
-        throw StateError('Canonical album $canonicalId does not exist.');
-      }
-      final oldAlbum =
-          await (select(albumsTable)
-                ..where((table) => table.id.equals(oldId))
-                ..limit(1))
-              .getSingleOrNull();
-      if (oldAlbum == null) {
-        return;
-      }
-
-      await customStatement(
-        'UPDATE songs SET album_id = ? WHERE album_id = ?;',
-        <Object?>[canonicalId, oldId],
-      );
-      await customStatement(
-        'UPDATE star_sync_queue SET item_id = ? '
-        "WHERE item_type = 'album' AND item_id = ?;",
-        <Object?>[canonicalId, oldId],
-      );
-      // Absence evidence and pending local mutations transfer to the
-      // replacement identity, mirroring song remaps.
-      await customStatement(
-        'UPDATE OR IGNORE starred_absence_candidates SET entity_id = ? '
-        "WHERE entity_type = 'album' AND entity_id = ?;",
-        <Object?>[canonicalId, oldId],
-      );
-      await customStatement(
-        'DELETE FROM starred_absence_candidates '
-        "WHERE entity_type = 'album' AND entity_id = ?;",
-        <Object?>[oldId],
-      );
-      await customStatement(
-        'UPDATE library_sync_local_mutations SET entity_id = ? '
-        "WHERE entity_type = 'album' AND entity_id = ?;",
-        <Object?>[canonicalId, oldId],
-      );
-
-      final carriedStarredAt = canonicalAlbum.starred == null
-          ? oldAlbum.starred
-          : null;
-      final carriedRating = canonicalAlbum.userRating == null
-          ? oldAlbum.userRating
-          : null;
-      if (carriedStarredAt != null || carriedRating != null) {
-        await (update(
-          albumsTable,
-        )..where((table) => table.id.equals(canonicalId))).write(
-          AlbumsTableCompanion(
-            starred: carriedStarredAt != null
-                ? Value(carriedStarredAt)
-                : const Value.absent(),
-            userRating: carriedRating != null
-                ? Value(carriedRating)
-                : const Value.absent(),
-          ),
-        );
-      }
-      if (carriedStarredAt != null) {
-        await attachedDatabase.starSyncDao.queueStarAction(
-          itemId: canonicalId,
-          itemType: 'album',
-          action: 'star',
-        );
-        restoredLike = true;
-      }
-      await into(entityIdentityAliasTable).insertOnConflictUpdate(
-        EntityIdentityAliasTableCompanion.insert(
-          entityType: 'album',
-          oldId: oldId,
-          newId: canonicalId,
-          matchReason: matchReason,
-          matchedAt: timestamp,
-        ),
-      );
-      await (delete(
-        albumsTable,
-      )..where((table) => table.id.equals(oldId))).go();
-    }).then<void>((_) {
-      // Raw SQL does not invalidate Drift queries. If a caller owns an outer
-      // transaction, its database override replays these updates after commit.
-      notifyUpdates(<TableUpdate>{
-        TableUpdate.onTable(attachedDatabase.songsTable),
-        TableUpdate.onTable(attachedDatabase.starSyncQueueTable),
-        TableUpdate.onTable(attachedDatabase.starredAbsenceCandidatesTable),
-        TableUpdate.onTable(attachedDatabase.librarySyncLocalMutationsTable),
-      });
-    });
-
-    return restoredLike;
+    return await _remapIdentity(
+      _IdentityKind.album,
+      oldAlbumId,
+      canonicalAlbumId,
+      matchReason,
+      matchedAt ?? DateTime.now(),
+    );
   }
 
   /// Moves an old artist identity onto its canonical replacement.
@@ -605,104 +302,199 @@ class SongIdentityDao extends DatabaseAccessor<NavisDatabase>
     required String matchReason,
     DateTime? matchedAt,
   }) async {
-    final oldId = oldArtistId.trim();
-    final canonicalId = canonicalArtistId.trim();
+    return await _remapIdentity(
+      _IdentityKind.artist,
+      oldArtistId,
+      canonicalArtistId,
+      matchReason,
+      matchedAt ?? DateTime.now(),
+    );
+  }
+
+  void _validateIds(_IdentityKind kind, String oldId, String canonicalId) {
     if (oldId.isEmpty || canonicalId.isEmpty || oldId == canonicalId) {
       throw ArgumentError(
-        'Artist identity remapping requires two distinct IDs.',
+        '${kind.label} identity remapping requires two distinct IDs.',
       );
     }
-    final timestamp = matchedAt ?? DateTime.now();
-    var restoredLike = false;
+  }
 
-    await transaction(() async {
-      final canonicalArtist =
-          await (select(artistsTable)
-                ..where((table) => table.id.equals(canonicalId))
-                ..limit(1))
-              .getSingleOrNull();
-      if (canonicalArtist == null) {
-        throw StateError('Canonical artist $canonicalId does not exist.');
-      }
-      final oldArtist =
-          await (select(artistsTable)
-                ..where((table) => table.id.equals(oldId))
-                ..limit(1))
-              .getSingleOrNull();
-      if (oldArtist == null) {
-        return;
-      }
+  TableInfo<Table, Object?> _identityTable(_IdentityKind kind) =>
+      switch (kind) {
+        _IdentityKind.song => songsTable,
+        _IdentityKind.album => albumsTable,
+        _IdentityKind.artist => artistsTable,
+      };
 
-      await customStatement(
-        'UPDATE songs SET artist_id = ? WHERE artist_id = ?;',
-        <Object?>[canonicalId, oldId],
+  List<(TableInfo<Table, Object?>, String)> _plainReferences(
+    _IdentityKind kind,
+  ) => switch (kind) {
+    _IdentityKind.song => [
+      (downloadQueueTable, 'song_id'),
+      (playQueueItemsTable, 'song_id'),
+      (playlistSongsTable, 'song_id'),
+    ],
+    _IdentityKind.album => [(songsTable, 'album_id')],
+    _IdentityKind.artist => [
+      (songsTable, 'artist_id'),
+      (albumsTable, 'artist_id'),
+    ],
+  };
+
+  Future<bool> _remapIdentity(
+    _IdentityKind kind,
+    String oldIdentity,
+    String canonicalIdentity,
+    String matchReason,
+    DateTime matchedAt, {
+    Future<void> Function()? beforeReferences,
+    Future<void> Function()? afterAlias,
+  }) async {
+    final oldId = oldIdentity.trim();
+    final canonicalId = canonicalIdentity.trim();
+    _validateIds(kind, oldId, canonicalId);
+    final table = _identityTable(kind);
+    return await transaction(() async {
+      Future<QueryRow?> read(String id) => customSelect(
+        'SELECT * FROM ${table.actualTableName} WHERE id = ?',
+        variables: [Variable<String>(id)],
+        readsFrom: {table},
+      ).getSingleOrNull();
+      final canonical = await read(canonicalId);
+      if (canonical == null) {
+        throw StateError('Canonical ${kind.name} $canonicalId does not exist.');
+      }
+      final old = await read(oldId);
+      if (old == null && kind.requireOld) return false;
+
+      await beforeReferences?.call();
+      for (final (reference, column) in _plainReferences(kind)) {
+        await customUpdate(
+          'UPDATE ${reference.actualTableName} SET $column = ? WHERE $column = ?',
+          variables: [Variable<String>(canonicalId), Variable<String>(oldId)],
+          updates: {reference},
+          updateKind: UpdateKind.update,
+        );
+      }
+      if (kind == _IdentityKind.song) {
+        // History, matches and lyrics have no surrogate IDs to regenerate;
+        // their keys ignore the same collisions as the former insert/select.
+        // Outbox rows retain the existing update/ignore semantics.
+        for (final reference in <TableInfo<Table, Object?>>[
+          playHistoryTable,
+          matchFlowSongsTable,
+          externalLyricsCacheTable,
+          scrobbleQueueTable,
+          listenBrainzFeedbackQueueTable,
+        ]) {
+          await customUpdate(
+            'UPDATE OR IGNORE ${reference.actualTableName} SET song_id = ? WHERE song_id = ?',
+            variables: [Variable<String>(canonicalId), Variable<String>(oldId)],
+            updates: {reference},
+            updateKind: UpdateKind.update,
+          );
+          await customUpdate(
+            'DELETE FROM ${reference.actualTableName} WHERE song_id = ?',
+            variables: [Variable<String>(oldId)],
+            updates: {reference},
+          );
+        }
+      }
+      await customUpdate(
+        'UPDATE star_sync_queue SET item_id = ? WHERE item_type = ? AND item_id = ?',
+        variables: [
+          Variable<String>(canonicalId),
+          Variable<String>(kind.name),
+          Variable<String>(oldId),
+        ],
+        updates: {starSyncQueueTable},
+        updateKind: UpdateKind.update,
       );
-      await customStatement(
-        'UPDATE albums SET artist_id = ? WHERE artist_id = ?;',
-        <Object?>[canonicalId, oldId],
-      );
-      await customStatement(
-        'UPDATE star_sync_queue SET item_id = ? '
-        "WHERE item_type = 'artist' AND item_id = ?;",
-        <Object?>[canonicalId, oldId],
-      );
-      await customStatement(
+      await customUpdate(
         'UPDATE OR IGNORE starred_absence_candidates SET entity_id = ? '
-        "WHERE entity_type = 'artist' AND entity_id = ?;",
-        <Object?>[canonicalId, oldId],
+        'WHERE entity_type = ? AND entity_id = ?',
+        variables: [
+          Variable<String>(canonicalId),
+          Variable<String>(kind.name),
+          Variable<String>(oldId),
+        ],
+        updates: {attachedDatabase.starredAbsenceCandidatesTable},
+        updateKind: UpdateKind.update,
       );
-      await customStatement(
-        'DELETE FROM starred_absence_candidates '
-        "WHERE entity_type = 'artist' AND entity_id = ?;",
-        <Object?>[oldId],
+      await customUpdate(
+        'DELETE FROM starred_absence_candidates WHERE entity_type = ? AND entity_id = ?',
+        variables: [Variable<String>(kind.name), Variable<String>(oldId)],
+        updates: {attachedDatabase.starredAbsenceCandidatesTable},
       );
-      await customStatement(
-        'UPDATE library_sync_local_mutations SET entity_id = ? '
-        "WHERE entity_type = 'artist' AND entity_id = ?;",
-        <Object?>[canonicalId, oldId],
+      await customUpdate(
+        'UPDATE library_sync_local_mutations SET entity_id = ? WHERE entity_type = ? AND entity_id = ?',
+        variables: [
+          Variable<String>(canonicalId),
+          Variable<String>(kind.name),
+          Variable<String>(oldId),
+        ],
+        updates: {attachedDatabase.librarySyncLocalMutationsTable},
+        updateKind: UpdateKind.update,
       );
 
-      final carriedStarredAt = canonicalArtist.starred == null
-          ? oldArtist.starred
+      // An explicit canonical annotation wins; otherwise carry the old local value.
+      final starred = canonical.readNullable<DateTime>('starred') == null
+          ? old?.readNullable<DateTime>('starred')
           : null;
-      if (carriedStarredAt != null) {
-        await (update(artistsTable)
-              ..where((table) => table.id.equals(canonicalId)))
-            .write(ArtistsTableCompanion(starred: Value(carriedStarredAt)));
+      final rating =
+          kind.hasRating && canonical.readNullable<int>('user_rating') == null
+          ? old?.readNullable<int>('user_rating')
+          : null;
+      if (starred != null || rating != null) {
+        await customUpdate(
+          'UPDATE ${table.actualTableName} SET '
+          '${[if (starred != null) 'starred = ?', if (rating != null) 'user_rating = ?'].join(', ')} WHERE id = ?',
+          variables: [
+            if (starred != null) Variable<DateTime>(starred),
+            if (rating != null) Variable<int>(rating),
+            Variable<String>(canonicalId),
+          ],
+          updates: {table},
+          updateKind: UpdateKind.update,
+        );
       }
-      if (carriedStarredAt != null) {
+      if (starred != null) {
         await attachedDatabase.starSyncDao.queueStarAction(
           itemId: canonicalId,
-          itemType: 'artist',
+          itemType: kind.name,
           action: 'star',
         );
-        restoredLike = true;
       }
-      await into(entityIdentityAliasTable).insertOnConflictUpdate(
+      await into(entityIdentityAliasTable).insert(
         EntityIdentityAliasTableCompanion.insert(
-          entityType: 'artist',
+          entityType: kind.name,
           oldId: oldId,
           newId: canonicalId,
           matchReason: matchReason,
-          matchedAt: timestamp,
+          matchedAt: matchedAt,
+          serverId: const Value(null),
+        ),
+        onConflict: DoUpdate(
+          (_) => EntityIdentityAliasTableCompanion(
+            serverId: const Value(null),
+            newId: Value(canonicalId),
+            matchReason: Value(matchReason),
+            matchedAt: Value(matchedAt),
+          ),
+          target: [
+            entityIdentityAliasTable.entityType,
+            entityIdentityAliasTable.oldId,
+          ],
         ),
       );
-      await (delete(
-        artistsTable,
-      )..where((table) => table.id.equals(oldId))).go();
-    }).then<void>((_) {
-      // Raw SQL does not invalidate Drift queries. If a caller owns an outer
-      // transaction, its database override replays these updates after commit.
-      notifyUpdates(<TableUpdate>{
-        TableUpdate.onTable(attachedDatabase.songsTable),
-        TableUpdate.onTable(attachedDatabase.albumsTable),
-        TableUpdate.onTable(attachedDatabase.starSyncQueueTable),
-        TableUpdate.onTable(attachedDatabase.starredAbsenceCandidatesTable),
-        TableUpdate.onTable(attachedDatabase.librarySyncLocalMutationsTable),
-      });
+      await afterAlias?.call();
+      await customUpdate(
+        'DELETE FROM ${table.actualTableName} WHERE id = ?',
+        variables: [Variable<String>(oldId)],
+        updates: {table},
+      );
+      return starred != null;
     });
-
-    return restoredLike;
   }
 
   Future<ProvisionalGarbageCollectionResult>
@@ -860,16 +652,7 @@ class SongIdentityDao extends DatabaseAccessor<NavisDatabase>
       return;
     }
     await into(cachedTracksTable).insert(
-      CachedTracksTableCompanion.insert(
-        songId: canonicalSongId,
-        filePath: winner.filePath,
-        fileSize: winner.fileSize,
-        format: winner.format,
-        bitRate: Value(winner.bitRate),
-        lastAccessedAt: winner.lastAccessedAt,
-        cacheType: winner.cacheType,
-        downloadStatus: winner.downloadStatus,
-      ),
+      winner.toCompanion(false).copyWith(songId: Value(canonicalSongId)),
     );
   }
 }
@@ -879,4 +662,15 @@ class _CacheChoice {
 
   final CachedTracksTableData? winner;
   final List<String> losingFilePaths;
+}
+
+enum _IdentityKind {
+  song('Song', hasRating: true, requireOld: false),
+  album('Album', hasRating: true, requireOld: true),
+  artist('Artist', hasRating: false, requireOld: true);
+
+  new(this.label, {required this.hasRating, required this.requireOld});
+  final String label;
+  final bool hasRating;
+  final bool requireOld;
 }

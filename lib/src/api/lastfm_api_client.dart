@@ -92,8 +92,6 @@ class LastFmApiClient {
   final Dio _dio;
   final String _apiKey;
 
-  bool get isConfigured => _apiKey.isNotEmpty;
-
   Future<LastFmApiKeyValidationResult> validateApiKey() async {
     if (_apiKey.isEmpty) {
       return const LastFmApiKeyValidationResult(
@@ -153,19 +151,6 @@ class LastFmApiClient {
         message: 'Last.fm returned an unreadable response.',
       );
     }
-  }
-
-  Future<List<LastFmTrackRecommendation>> getSimilarTracks({
-    required String artist,
-    required String track,
-    int limit = 50,
-  }) async {
-    final result = await getSimilarTracksResult(
-      artist: artist,
-      track: track,
-      limit: limit,
-    );
-    return result.tracks;
   }
 
   Future<LastFmTrackFetchResult> getSimilarTracksResult({

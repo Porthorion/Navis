@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:drift/drift.dart';
 import 'package:navis/src/database/daos/song_identity_dao.dart';
 import 'package:navis/src/database/navis_database.dart';
+import 'package:navis/src/features/library/data/song_identity_reconciler.dart';
 
 /// Outcome of album/artist identity reconciliation during promotion.
 class EntityIdentityReconciliationSummary {
@@ -77,55 +78,32 @@ class EntityIdentityReconciler {
     final provisionalAlbumsById = <String, AlbumsTableData>{
       for (final album in provisionalAlbums) album.id: album,
     };
-    // Candidates do not change while old albums are matched to them, so the
-    // index is built once rather than once per old album.
-    final albumMbidIndex = _indexMbidCandidates(
-      candidatesById: candidateAlbumsById,
-      candidateMbid: (row) => row.releaseMbid,
+    final (
+      albumAliases,
+      albumRestoredLikes,
+      albumReviews,
+    ) = await _reconcileKind(
+      serverId: serverId,
+      generation: generation,
+      entityType: 'album',
+      oldRows: provisionalAlbums,
+      metadata: (row) => (row.id, row.name, row.releaseMbid, row.artistName),
+      candidates: {
+        for (final row in candidateAlbums) row.id: (row.name, row.releaseMbid),
+      },
+      relationshipTargets: albumTargets,
+      needsReview: _albumNeedsReview,
+      remap: (oldId, canonicalId, reason) =>
+          _database.songIdentityDao.remapAlbumIdentity(
+            oldAlbumId: oldId,
+            canonicalAlbumId: canonicalId,
+            matchReason: reason,
+            matchedAt: DateTime.now(),
+          ),
     );
-    final albumAliases = <String, String>{};
-    for (final oldAlbum in provisionalAlbums) {
-      if (candidateAlbumsById.containsKey(oldAlbum.id)) {
-        // The snapshot still contains this ID; the promotion upsert already
-        // refreshed the row and no relinking is needed.
-        continue;
-      }
-      final decision = _resolveEntity(
-        oldName: oldAlbum.name,
-        oldMbid: oldAlbum.releaseMbid,
-        relationshipTargets: albumTargets[oldAlbum.id] ?? const <String>{},
-        candidatesById: candidateAlbumsById,
-        mbidIndex: albumMbidIndex,
-        candidateName: (row) => row.name,
-      );
-      if (decision.targetId == null) {
-        if (await _albumNeedsReview(oldAlbum)) {
-          await _database.librarySyncDao.recordRecoveryReview(
-            serverId: serverId,
-            entityType: 'album',
-            oldId: oldAlbum.id,
-            savedTitle: oldAlbum.name,
-            savedSubtitle: oldAlbum.artistName,
-            reason: decision.reviewReason!,
-            evidenceGeneration: generation,
-            candidateJson: decision.candidateJson,
-          );
-          summary.reviewCount++;
-        }
-        continue;
-      }
-      albumAliases[oldAlbum.id] = decision.targetId!;
-      final restoredLike = await _database.songIdentityDao.remapAlbumIdentity(
-        oldAlbumId: oldAlbum.id,
-        canonicalAlbumId: decision.targetId!,
-        matchReason: decision.matchReason!,
-        matchedAt: DateTime.now(),
-      );
-      summary.albumAliases++;
-      if (restoredLike) {
-        summary.albumRestoredLikes++;
-      }
-    }
+    summary.albumAliases = albumAliases.length;
+    summary.albumRestoredLikes = albumRestoredLikes;
+    summary.reviewCount += albumReviews;
 
     // --- Artists ----------------------------------------------------------
     final provisionalArtists = await _database.songIdentityDao
@@ -135,10 +113,6 @@ class EntityIdentityReconciler {
       serverId: serverId,
       generation: generation,
     );
-    final candidateArtistsById = <String, LibrarySyncCandidateArtistsTableData>{
-      for (final artist in candidateArtists) artist.id: artist,
-    };
-
     final artistTargets = _relationshipEvidence(
       provisionalSongs: provisionalSongs,
       songAliases: songAliases,
@@ -157,50 +131,88 @@ class EntityIdentityReconciler {
       (artistTargets[oldArtistId] ??= <String>{}).add(newArtistId);
     }
 
-    final artistMbidIndex = _indexMbidCandidates(
-      candidatesById: candidateArtistsById,
-      candidateMbid: (row) => row.artistMbid,
+    final (
+      artistAliases,
+      artistRestoredLikes,
+      artistReviews,
+    ) = await _reconcileKind(
+      serverId: serverId,
+      generation: generation,
+      entityType: 'artist',
+      oldRows: provisionalArtists,
+      metadata: (row) => (row.id, row.name, row.artistMbid, null),
+      candidates: {
+        for (final row in candidateArtists) row.id: (row.name, row.artistMbid),
+      },
+      relationshipTargets: artistTargets,
+      needsReview: _artistNeedsReview,
+      remap: (oldId, canonicalId, reason) =>
+          _database.songIdentityDao.remapArtistIdentity(
+            oldArtistId: oldId,
+            canonicalArtistId: canonicalId,
+            matchReason: reason,
+            matchedAt: DateTime.now(),
+          ),
     );
-    for (final oldArtist in provisionalArtists) {
-      if (candidateArtistsById.containsKey(oldArtist.id)) {
-        continue;
-      }
+    summary.artistAliases = artistAliases.length;
+    summary.artistRestoredLikes = artistRestoredLikes;
+    summary.reviewCount += artistReviews;
+
+    return summary;
+  }
+
+  Future<(Map<String, String>, int, int)> _reconcileKind<T>({
+    required int serverId,
+    required int generation,
+    required String entityType,
+    required List<T> oldRows,
+    required (String, String, String?, String?) Function(T) metadata,
+    required Map<String, (String, String?)> candidates,
+    required Map<String, Set<String>> relationshipTargets,
+    required Future<bool> Function(T) needsReview,
+    required Future<bool> Function(String, String, String) remap,
+  }) async {
+    // Candidate evidence stays fixed across the whole kind's reconciliation.
+    final mbidIndex = _indexMbidCandidates(
+      candidatesById: candidates,
+      candidateMbid: (row) => row.$2,
+    );
+    final aliases = <String, String>{};
+    var restoredLikes = 0;
+    var reviews = 0;
+    for (final old in oldRows) {
+      final (id, name, mbid, subtitle) = metadata(old);
+      // Promotion already refreshed IDs that remain in the snapshot.
+      if (candidates.containsKey(id)) continue;
       final decision = _resolveEntity(
-        oldName: oldArtist.name,
-        oldMbid: oldArtist.artistMbid,
-        relationshipTargets: artistTargets[oldArtist.id] ?? const <String>{},
-        candidatesById: candidateArtistsById,
-        mbidIndex: artistMbidIndex,
-        candidateName: (row) => row.name,
+        oldName: name,
+        oldMbid: mbid,
+        relationshipTargets: relationshipTargets[id] ?? const <String>{},
+        candidatesById: candidates,
+        mbidIndex: mbidIndex,
+        candidateName: (row) => row.$1,
       );
-      if (decision.targetId == null) {
-        if (await _artistNeedsReview(oldArtist)) {
+      final target = decision.targetId;
+      if (target == null) {
+        if (await needsReview(old)) {
           await _database.librarySyncDao.recordRecoveryReview(
             serverId: serverId,
-            entityType: 'artist',
-            oldId: oldArtist.id,
-            savedTitle: oldArtist.name,
+            entityType: entityType,
+            oldId: id,
+            savedTitle: name,
+            savedSubtitle: subtitle,
             reason: decision.reviewReason!,
             evidenceGeneration: generation,
             candidateJson: decision.candidateJson,
           );
-          summary.reviewCount++;
+          reviews++;
         }
         continue;
       }
-      final restoredLike = await _database.songIdentityDao.remapArtistIdentity(
-        oldArtistId: oldArtist.id,
-        canonicalArtistId: decision.targetId!,
-        matchReason: decision.matchReason!,
-        matchedAt: DateTime.now(),
-      );
-      summary.artistAliases++;
-      if (restoredLike) {
-        summary.artistRestoredLikes++;
-      }
+      aliases[id] = target;
+      if (await remap(id, target, decision.matchReason!)) restoredLikes++;
     }
-
-    return summary;
+    return (aliases, restoredLikes, reviews);
   }
 
   Future<Map<String, SongsTableData>> _loadCanonicalSongs(
@@ -264,7 +276,7 @@ class EntityIdentityReconciler {
   }) {
     final index = <String, Set<String>>{};
     for (final entry in candidatesById.entries) {
-      final value = candidateMbid(entry.value)?.trim();
+      final value = normalizeMusicBrainzId(candidateMbid(entry.value));
       if (value == null || value.isEmpty) {
         continue;
       }
@@ -282,7 +294,7 @@ class EntityIdentityReconciler {
     required String Function(C) candidateName,
   }) {
     // 1. Unique stable MusicBrainz identifier on both sides.
-    final normalizedMbid = oldMbid?.trim();
+    final normalizedMbid = normalizeMusicBrainzId(oldMbid);
     if (normalizedMbid != null && normalizedMbid.isNotEmpty) {
       final matchedIds = mbidIndex[normalizedMbid] ?? const <String>{};
       if (matchedIds.length == 1) {
@@ -357,22 +369,15 @@ class EntityIdentityReconciler {
     if (artist.starred != null) {
       return true;
     }
-    final song = await _database
+    final row = await _database
         .customSelect(
-          'SELECT COUNT(*) AS amount FROM songs WHERE artist_id = ? LIMIT 1;',
-          variables: <Variable<Object>>[Variable<String>(artist.id)],
+          'SELECT EXISTS(SELECT 1 FROM songs WHERE artist_id = ?1) '
+          'OR EXISTS(SELECT 1 FROM albums WHERE artist_id = ?1) AS needs_review',
+          variables: [Variable<String>(artist.id)],
+          readsFrom: {_database.songsTable, _database.albumsTable},
         )
         .getSingle();
-    if (song.read<int>('amount') > 0) {
-      return true;
-    }
-    final album = await _database
-        .customSelect(
-          'SELECT COUNT(*) AS amount FROM albums WHERE artist_id = ? LIMIT 1;',
-          variables: <Variable<Object>>[Variable<String>(artist.id)],
-        )
-        .getSingle();
-    return album.read<int>('amount') > 0;
+    return row.read<bool>('needs_review');
   }
 
   String _candidateJson(List<String> candidateIds, String matchReason) {

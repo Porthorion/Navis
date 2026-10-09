@@ -27,7 +27,6 @@ import 'package:navis/src/database/daos/library_dao.dart';
 import 'package:navis/src/database/navis_database.dart';
 import 'package:navis/src/features/auth/data/sign_out_service.dart';
 import 'package:navis/src/features/auth/domain/server_config.dart';
-import 'package:navis/src/features/auth/presentation/initial_server_sync_provider.dart';
 import 'package:navis/src/features/auth/presentation/server_connection_provider.dart';
 import 'package:navis/src/features/auth/presentation/server_config_provider.dart';
 import 'package:navis/src/features/auth/presentation/session_route_provider.dart';
@@ -152,12 +151,12 @@ class SyncDiagnosticsServer {
   Future<LibrarySyncState>? _activeSync;
   LibrarySyncState? _lastSync;
   Object? _lastSyncError;
-  final List<Map<String, Object?>> _syncLedger = <Map<String, Object?>>[];
-  int _nextSyncLedgerId = 1;
   Map<String, Song> _presentationSearchSongs = const <String, Song>{};
   StreamSubscription<Object?>? _playbackFailureSubscription;
-  ProviderSubscription<InitialServerSyncState>? _initialSyncSubscription;
   int _playbackFailureCount = 0;
+
+  int? get _activeServerId =>
+      _container.read(serverConfigStateProvider).asData?.value?.id;
 
   bool get allowsMutations => mode == SyncDiagnosticsMode.clone;
 
@@ -214,8 +213,6 @@ class SyncDiagnosticsServer {
     SchedulerBinding.instance.removeTimingsCallback(_recordFrameTimings);
     await _playbackFailureSubscription?.cancel();
     _playbackFailureSubscription = null;
-    _initialSyncSubscription?.close();
-    _initialSyncSubscription = null;
     await server.close(force: true);
     final clearer = androidHandshakeClearer;
     if (clearer != null) {
@@ -1383,11 +1380,6 @@ class SyncDiagnosticsServer {
       }
       if (request.method == 'GET' && path == '/v1/sync/ledger') {
         await _respond(request, HttpStatus.ok, <String, Object?>{
-          // `events` is a one-release compatibility mirror for the isolated
-          // diagnostics fixture. Durable runs are the cross-restart source of
-          // truth; the live mirror is deliberately bounded and never used to
-          // resume or decide sync work.
-          'events': List<Map<String, Object?>>.unmodifiable(_syncLedger),
           'durableRuns': await _durableRunHistoryJson(),
           'durableOperations': await _durableOperationLedgerJson(),
         });
@@ -1458,11 +1450,7 @@ class SyncDiagnosticsServer {
         return;
       }
       if (request.method == 'GET' && path == '/v1/session/status') {
-        await _respond(
-          request,
-          HttpStatus.ok,
-          await _sessionStatusJson(activateInitialSync: !_isPassive(request)),
-        );
+        await _respond(request, HttpStatus.ok, await _sessionStatusJson());
         return;
       }
       if (request.method == 'POST' && path == '/v1/session/connect') {
@@ -1474,32 +1462,31 @@ class SyncDiagnosticsServer {
         return;
       }
       if (request.method == 'POST' &&
-          path == '/v1/session/initial-sync/retry') {
+          (path == '/v1/session/initial-sync/retry' ||
+              path == '/v1/session/initial-sync/mobile' ||
+              path == '/v1/session/initial-sync/cancel')) {
         if (!allowsMutations) {
           await _forbidden(request);
           return;
         }
-        await _initialSyncController().retry();
-        await _respond(request, HttpStatus.ok, await _sessionStatusJson());
-        return;
-      }
-      if (request.method == 'POST' &&
-          path == '/v1/session/initial-sync/mobile') {
-        if (!allowsMutations) {
-          await _forbidden(request);
+        final provider = requiredLibraryRebuildControllerProvider(
+          RequiredLibraryRebuildReason.initialLogin,
+        );
+        if (!_container.exists(provider)) {
+          await _respond(request, HttpStatus.conflict, <String, Object?>{
+            'error': 'Initial setup controller is not active',
+          });
           return;
         }
-        await _initialSyncController().startUsingMobileData();
-        await _respond(request, HttpStatus.ok, await _sessionStatusJson());
-        return;
-      }
-      if (request.method == 'POST' &&
-          path == '/v1/session/initial-sync/cancel') {
-        if (!allowsMutations) {
-          await _forbidden(request);
-          return;
+        final controller = _container.read(provider.notifier);
+        switch (path) {
+          case '/v1/session/initial-sync/retry':
+            await controller.retry();
+          case '/v1/session/initial-sync/mobile':
+            await controller.startUsingMobileData();
+          case '/v1/session/initial-sync/cancel':
+            await controller.cancelAndSignOut();
         }
-        await _initialSyncController().cancelAndLogOut();
         await _respond(request, HttpStatus.ok, await _sessionStatusJson());
         return;
       }
@@ -1513,11 +1500,7 @@ class SyncDiagnosticsServer {
             .read(signOutServiceProvider)
             .signOut(wipeLocalData: body['wipeLocalData'] == true);
         await _container.read(serverConfigProvider.notifier).refresh();
-        await _respond(
-          request,
-          HttpStatus.ok,
-          await _sessionStatusJson(activateInitialSync: !_isPassive(request)),
-        );
+        await _respond(request, HttpStatus.ok, await _sessionStatusJson());
         return;
       }
       if (request.method == 'POST' &&
@@ -1536,12 +1519,12 @@ class SyncDiagnosticsServer {
         await _container.read(serverDataResetServiceProvider).reset();
         await _container.read(serverConfigProvider.notifier).refresh();
         _container.invalidate(initialSyncRequiredProvider);
-        _container.invalidate(initialServerSyncControllerProvider);
-        await _respond(
-          request,
-          HttpStatus.ok,
-          await _sessionStatusJson(activateInitialSync: !_isPassive(request)),
+        _container.invalidate(
+          requiredLibraryRebuildControllerProvider(
+            RequiredLibraryRebuildReason.initialLogin,
+          ),
         );
+        await _respond(request, HttpStatus.ok, await _sessionStatusJson());
         return;
       }
       if (request.method == 'POST' && path == '/v1/search/source-audit') {
@@ -1658,11 +1641,7 @@ class SyncDiagnosticsServer {
           await _forbidden(request);
           return;
         }
-        final serverId = _container
-            .read(serverConfigStateProvider)
-            .asData
-            ?.value
-            ?.id;
+        final serverId = _activeServerId;
         if (serverId == null) {
           await _respond(request, HttpStatus.conflict, <String, Object?>{
             'error': 'No active server',
@@ -1684,7 +1663,6 @@ class SyncDiagnosticsServer {
       if (request.method == 'POST' && path == '/v1/sync/automatic') {
         await _startControllerSync(
           request,
-          cause: 'automatic',
           operation: () => _container
               .read(librarySyncControllerProvider.notifier)
               .syncIfStale(),
@@ -1722,7 +1700,6 @@ class SyncDiagnosticsServer {
         final allowOverride = body['allowMeteredBroadOverride'] == true;
         await _startControllerSync(
           request,
-          cause: 'manualCheck',
           operation: () => _container
               .read(librarySyncControllerProvider.notifier)
               .syncNow(allowMeteredBroadOverride: allowOverride),
@@ -1734,10 +1711,9 @@ class SyncDiagnosticsServer {
         final allowOverride = body['allowMeteredBroadOverride'] == true;
         await _startControllerSync(
           request,
-          cause: 'repair',
           operation: () => _container
               .read(librarySyncControllerProvider.notifier)
-              .forceFullSync(allowMeteredBroadOverride: allowOverride),
+              .repairLibrary(allowMeteredBroadOverride: allowOverride),
         );
         return;
       }
@@ -1759,8 +1735,6 @@ class SyncDiagnosticsServer {
         // isolation and make this endpoint unsuitable for runtime validation.
         await _startControllerSync(
           request,
-          cause: 'targetHydration',
-          targetKind: target.kind.name,
           operation: () => _container
               .read(librarySyncControllerProvider.notifier)
               .requestTarget(target),
@@ -3096,29 +3070,6 @@ class SyncDiagnosticsServer {
     }
   }
 
-  /// Activates the legacy diagnostics setup controller with a lasting
-  /// subscription. A provider that is only read is paused between reads,
-  /// which would also pause its session watch and phase and network
-  /// listeners, so it would miss a sign-out or sign-in between two requests.
-  InitialServerSyncState _initialSyncState() {
-    final subscription = _initialSyncSubscription ??= _container.listen(
-      initialServerSyncControllerProvider,
-      (_, _) {},
-    );
-    return subscription.read();
-  }
-
-  InitialServerSyncController _initialSyncController() {
-    _initialSyncState();
-    return _container.read(initialServerSyncControllerProvider.notifier);
-  }
-
-  /// `passive=1` reports the session without instantiating the legacy
-  /// diagnostics setup controller, which would otherwise start its own setup
-  /// run whenever the session needs one and mask the route-owned controller.
-  bool _isPassive(HttpRequest request) =>
-      request.uri.queryParameters['passive'] == '1';
-
   /// Observes or retries the full-screen rebuild controller that the mounted
   /// route owns. Reading an unmounted controller would start a rebuild, so
   /// status reports `inactive` instead of instantiating it.
@@ -3202,15 +3153,7 @@ class SyncDiagnosticsServer {
             capabilitiesJson: jsonEncode(probe.capabilities.toJson()),
           ),
         );
-    // Connecting is a configuration operation. Do not instantiate the legacy
-    // initial-sync controller just to describe this response: that controller
-    // treats its start as an interactive retry, while the Home shell owns the
-    // normal startup sync.
-    await _respond(
-      request,
-      HttpStatus.ok,
-      await _sessionStatusJson(activateInitialSync: false),
-    );
+    await _respond(request, HttpStatus.ok, await _sessionStatusJson());
   }
 
   Future<Map<String, Object?>> _cacheStatusJson() async {
@@ -3380,9 +3323,7 @@ class SyncDiagnosticsServer {
     });
   }
 
-  Future<Map<String, Object?>> _sessionStatusJson({
-    bool activateInitialSync = true,
-  }) async {
+  Future<Map<String, Object?>> _sessionStatusJson() async {
     final database = _container.read(navisDatabaseProvider);
     final handler = _container.read(audioHandlerProvider);
     final playback = handler?.snapshot ?? const PlaybackSnapshot.idle();
@@ -3394,9 +3335,12 @@ class SyncDiagnosticsServer {
         .get();
     final sync = _reportedSyncState();
     final phase = _container.read(sessionRoutePhaseProvider);
-    final initialSync = activateInitialSync
-        ? _initialSyncState().status
-        : _passiveInitialSyncStatus(phase, sync);
+    final setup = requiredLibraryRebuildControllerProvider(
+      RequiredLibraryRebuildReason.initialLogin,
+    );
+    final initialSync = _container.exists(setup)
+        ? _container.read(setup).status
+        : _initialSyncStatus(phase, sync);
     return <String, Object?>{
       'phase': phase.name,
       'transition': _container.read(sessionTransitionProvider).name,
@@ -3421,20 +3365,20 @@ class SyncDiagnosticsServer {
     };
   }
 
-  InitialServerSyncStatus _passiveInitialSyncStatus(
+  RequiredLibraryRebuildStatus _initialSyncStatus(
     SessionRoutePhase phase,
     LibrarySyncState sync,
   ) {
     if (phase == SessionRoutePhase.ready) {
-      return InitialServerSyncStatus.complete;
+      return RequiredLibraryRebuildStatus.complete;
     }
     if (phase != SessionRoutePhase.initialSyncRequired) {
-      return InitialServerSyncStatus.idle;
+      return RequiredLibraryRebuildStatus.idle;
     }
     return switch (sync.status) {
-      LibrarySyncStatus.running => InitialServerSyncStatus.running,
-      LibrarySyncStatus.failed => InitialServerSyncStatus.failed,
-      _ => InitialServerSyncStatus.idle,
+      LibrarySyncStatus.running => RequiredLibraryRebuildStatus.syncing,
+      LibrarySyncStatus.failed => RequiredLibraryRebuildStatus.failed,
+      _ => RequiredLibraryRebuildStatus.idle,
     };
   }
 
@@ -3478,8 +3422,6 @@ class SyncDiagnosticsServer {
   /// beginning a second raw-engine operation with competing progress frames.
   Future<void> _startControllerSync(
     HttpRequest request, {
-    required String cause,
-    String? targetKind,
     required Future<LibrarySyncState> Function() operation,
   }) async {
     if (_activeSync != null) {
@@ -3489,38 +3431,16 @@ class SyncDiagnosticsServer {
       return;
     }
     _lastSyncError = null;
-    _recordSyncLedgerEvent(
-      phase: 'requested',
-      cause: cause,
-      targetKind: targetKind,
-    );
     final future = operation();
     _activeSync = future;
-    _recordSyncLedgerEvent(
-      phase: 'started',
-      cause: cause,
-      targetKind: targetKind,
-    );
     unawaited(
       future
           .then<void>(
             (state) {
               _lastSync = state;
-              _recordSyncLedgerEvent(
-                phase: 'terminal',
-                cause: cause,
-                targetKind: targetKind,
-                state: state,
-              );
             },
             onError: (Object error, StackTrace stackTrace) {
               _lastSyncError = error;
-              _recordSyncLedgerEvent(
-                phase: 'failed',
-                cause: cause,
-                targetKind: targetKind,
-                errorType: error.runtimeType.toString(),
-              );
             },
           )
           .whenComplete(() {
@@ -3530,30 +3450,6 @@ class SyncDiagnosticsServer {
     await _respond(request, HttpStatus.accepted, <String, Object?>{
       'status': 'started',
     });
-  }
-
-  void _recordSyncLedgerEvent({
-    required String phase,
-    required String cause,
-    String? targetKind,
-    LibrarySyncState? state,
-    String? errorType,
-  }) {
-    _syncLedger.add(<String, Object?>{
-      'id': _nextSyncLedgerId++,
-      'at': DateTime.now().toUtc().toIso8601String(),
-      'phase': phase,
-      'cause': cause,
-      'targetKind': targetKind,
-      'planKind': state?.planKind?.name,
-      'planReason': state?.planReason,
-      'result': state?.status.name,
-      'endpointRequests': state?.endpointRequests,
-      'errorType': errorType,
-    });
-    if (_syncLedger.length > 50) {
-      _syncLedger.removeRange(0, _syncLedger.length - 50);
-    }
   }
 
   Future<Map<String, Object?>> _equalizerStatus() async {
@@ -4063,7 +3959,7 @@ class SyncDiagnosticsServer {
     await _container
         .read(navisDatabaseProvider)
         .libraryDao
-        .updateSongStarred(songId, liked ? DateTime.now() : null);
+        .setEntityStarred('song', songId, liked ? DateTime.now() : null);
     final starSyncDao = _container.read(navisDatabaseProvider).starSyncDao;
     final diagnosticActions = await starSyncDao.getPendingActions();
     for (final action in diagnosticActions.where(
@@ -4226,11 +4122,7 @@ class SyncDiagnosticsServer {
   /// excludes the opaque profile key, WorkManager input, raw work id, server
   /// identity, and all exception text.
   Future<Map<String, Object?>?> _androidBackgroundSyncJson() async {
-    final serverId = _container
-        .read(serverConfigStateProvider)
-        .asData
-        ?.value
-        ?.id;
+    final serverId = _activeServerId;
     if (serverId == null) {
       return null;
     }
@@ -4259,11 +4151,7 @@ class SyncDiagnosticsServer {
   }
 
   Future<List<Map<String, Object?>>> _durableOperationLedgerJson() async {
-    final serverId = _container
-        .read(serverConfigStateProvider)
-        .asData
-        ?.value
-        ?.id;
+    final serverId = _activeServerId;
     if (serverId == null) {
       return const <Map<String, Object?>>[];
     }
@@ -4284,11 +4172,7 @@ class SyncDiagnosticsServer {
   }
 
   Future<List<Map<String, Object?>>> _durableRunHistoryJson() async {
-    final serverId = _container
-        .read(serverConfigStateProvider)
-        .asData
-        ?.value
-        ?.id;
+    final serverId = _activeServerId;
     if (serverId == null) {
       return const <Map<String, Object?>>[];
     }
@@ -4305,7 +4189,7 @@ class SyncDiagnosticsServer {
             'origin': entry.origin.name,
             'intent': entry.intent.name,
             'targetKind': entry.targetKind.name,
-            'planKind': entry.planKind.name,
+            'planKind': entry.planKind,
             'outcome': entry.outcome.name,
             'reason': entry.reason.name,
             'requestCount': entry.requestCount,
@@ -4320,11 +4204,7 @@ class SyncDiagnosticsServer {
     int limit = 20,
     int? attemptId,
   }) async {
-    final serverId = _container
-        .read(serverConfigStateProvider)
-        .asData
-        ?.value
-        ?.id;
+    final serverId = _activeServerId;
     if (serverId == null) return [];
     final rows = await _container
         .read(navisDatabaseProvider)
@@ -4350,11 +4230,7 @@ class SyncDiagnosticsServer {
   }
 
   Future<List<Map<String, Object?>>> _workSummaryJson() async {
-    final serverId = _container
-        .read(serverConfigStateProvider)
-        .asData
-        ?.value
-        ?.id;
+    final serverId = _activeServerId;
     if (serverId == null) return [];
     return await _container
         .read(navisDatabaseProvider)

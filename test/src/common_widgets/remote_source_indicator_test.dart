@@ -4,7 +4,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:navis/l10n/app_localizations.dart';
 import 'package:navis/l10n/navis_localizations.dart';
-import 'package:navis/src/common_widgets/cache_badge.dart';
 import 'package:navis/src/common_widgets/cover_art_image.dart';
 import 'package:navis/src/common_widgets/hero_cover_art.dart';
 import 'package:navis/src/common_widgets/remote_source_indicator.dart';
@@ -199,7 +198,6 @@ void main() {
                         RemoteSourceIndicator(
                           variant: RemoteSourceIndicatorVariant.inline,
                         ),
-                        CacheBadge(),
                       ],
                     ),
                   ],
@@ -212,7 +210,6 @@ void main() {
 
       expect(tester.takeException(), isNull);
       expect(find.text('Remote'), findsOneWidget);
-      expect(find.text('Downloaded'), findsOneWidget);
     }
   });
 

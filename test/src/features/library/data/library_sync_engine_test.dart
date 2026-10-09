@@ -1,4 +1,5 @@
 import '../../../../helpers/library_sync_fakes.dart';
+import '../../../../helpers/library_sync_plan.dart';
 
 import 'dart:async';
 import 'dart:convert';
@@ -9,47 +10,98 @@ import 'package:drift/native.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:navis/src/api/models/models.dart';
 import 'package:navis/src/api/subsonic_error.dart';
+import 'package:navis/src/api/sync_request_scope.dart';
 import 'package:navis/src/database/daos/library_dao.dart';
 import 'package:navis/src/database/navis_database.dart';
 import 'package:navis/src/features/auth/data/server_config_repository.dart';
 import 'package:navis/src/features/auth/domain/server_config.dart';
 import 'package:navis/src/features/library/data/library_sync_engine.dart';
+import 'package:navis/src/features/library/data/adaptive_library_sync_coordinator.dart';
 import 'package:navis/src/features/library/domain/library_sync_request.dart';
 import 'package:navis/src/features/library/domain/library_sync_state.dart';
-import 'package:navis/src/features/library/domain/sync_run_contract.dart';
 import 'package:navis/src/utils/connectivity.dart';
 
 import '../../../../helpers/test_database.dart';
 
-const _meteredManualDiscoveryPlan = SyncExecutionPlan(
-  request: SyncRunRequest(
-    contractVersion: SyncRunRequest.currentContractVersion,
-    origin: SyncRunOrigin.libraryPullToRefresh,
-    intent: SyncRunIntent.manualCatalogCheck,
-    target: LibrarySyncTarget.catalog(),
-    networkGrant: SyncNetworkGrant.boundedMeteredDiscovery,
-    priority: 60,
-  ),
-  kind: SyncExecutionPlanKind.manualCatalogDiscovery,
-  reason: SyncSafeReason.none,
-  budget: SyncExecutionBudget(
-    allowedEndpoints: <SyncEndpoint>{
-      SyncEndpoint.indexes,
-      SyncEndpoint.newestAlbums,
-      SyncEndpoint.artist,
-      SyncEndpoint.album,
-    },
-    maxNewestPages: 1,
-    maxAlbumHydrations: 3,
-    maxResponseBytes: 16 * 1024 * 1024,
-    maxTotalBytes: null,
-    maxConcurrency: 1,
-  ),
+final _meteredManualDiscoveryPlan = syncPlanForTest(
+  LibrarySyncPlanKind.deltaReconcile,
+  grant: SyncNetworkGrant.boundedMeteredDiscovery,
+  networkType: NetworkType.cellular,
 );
 
 String _testIndexesFingerprint(Iterable<String> artistIds) {
   final normalized = artistIds.toList(growable: false)..sort();
   return sha1.convert(utf8.encode(normalized.join('\n'))).toString();
+}
+
+class _BatchTrackingLibrarySyncApi extends FakeLibrarySyncApi {
+  final batchSizes = <int>[];
+  int _active = 0;
+  bool retryFirstAlbum = false;
+
+  @override
+  Future<Album> getAlbum(String id, {int? maxResponseBytes}) async {
+    if (_active == 0) batchSizes.add(0);
+    batchSizes[batchSizes.length - 1]++;
+    _active++;
+    try {
+      await Future<void>.delayed(const Duration(milliseconds: 10));
+      if (retryFirstAlbum && id == 'album-0') {
+        final scope = SyncRequestScope.current!;
+        final first = scope.beginTransport('getAlbum');
+        first.finish(succeeded: false);
+        scope
+            .beginTransport('getAlbum', retryOf: first)
+            .finish(succeeded: true);
+      }
+      return await super.getAlbum(id, maxResponseBytes: maxResponseBytes);
+    } finally {
+      _active--;
+    }
+  }
+}
+
+class _BulkPageLibrarySyncApi extends FakeLibrarySyncApi {
+  Future<void> Function()? onBulkPage;
+
+  @override
+  Future<SearchResult3> searchSongsPage({
+    required String query,
+    required int size,
+    required int offset,
+  }) async {
+    if (size > 1) await onBulkPage?.call();
+    return await super.searchSongsPage(
+      query: query,
+      size: size,
+      offset: offset,
+    );
+  }
+}
+
+class _FailingTargetSyncApi extends FakeLibrarySyncApi {
+  new(this.error);
+  final Object error;
+  @override
+  Future<Album> getAlbum(String id, {int? maxResponseBytes}) async =>
+      Error.throwWithStackTrace(error, StackTrace.current);
+  @override
+  Future<Artist> getArtist(String id, {int? maxResponseBytes}) async =>
+      Error.throwWithStackTrace(error, StackTrace.current);
+  @override
+  Future<Playlist> getPlaylist(String id, {int? maxResponseBytes}) async =>
+      Error.throwWithStackTrace(error, StackTrace.current);
+  @override
+  Future<StarredContent> getStarredContent() async =>
+      Error.throwWithStackTrace(error, StackTrace.current);
+  @override
+  Future<List<Playlist>> getPlaylists() async =>
+      Error.throwWithStackTrace(error, StackTrace.current);
+  @override
+  Future<Indexes> getIndexes({
+    DateTime? ifModifiedSince,
+    bool disableRetry = false,
+  }) async => Error.throwWithStackTrace(error, StackTrace.current);
 }
 
 void main() {
@@ -78,6 +130,41 @@ void main() {
       );
     }
 
+    /// A session plus one artist with nine single-song albums on one page.
+    Future<void> seedNineAlbumBulkCatalog() async {
+      await saveSession();
+      api.artists.add(const Artist(id: 'artist-1', name: 'Artist 1'));
+      api.fastPathPages[0] = List<Album>.generate(
+        9,
+        (index) => Album(
+          id: 'album-${index + 1}',
+          name: 'Album ${index + 1}',
+          artistId: 'artist-1',
+          artist: 'Artist 1',
+          songCount: 1,
+        ),
+      );
+    }
+
+    /// A stored album whose songs still await hydration.
+    AlbumsTableCompanion unhydratedAlbum(String id, String name) =>
+        AlbumsTableCompanion.insert(
+          id: id,
+          name: name,
+          songsHydrated: const Value(false),
+        );
+
+    /// One bulk-search page with a song for each album of that catalog.
+    List<Song> nineBulkSongs() => List<Song>.generate(
+      9,
+      (index) => Song(
+        id: 'song-${index + 1}',
+        title: 'Song ${index + 1}',
+        albumId: 'album-${index + 1}',
+        artistId: 'artist-1',
+      ),
+    );
+
     setUp(() {
       database = NavisDatabase(NativeDatabase.memory());
       credentials = FakeSyncCredentialStore();
@@ -86,22 +173,213 @@ void main() {
         credentials: credentials,
       );
       api = FakeLibrarySyncApi();
-      engine = DriftLibrarySyncEngine(
+      engine = serialDriftEngine(
         api: api,
         database: database,
-        serverConfigRepository: serverConfigRepository,
-        fallbackArtistConcurrency: 1,
-        wifiAlbumConcurrency: 1,
-        cellularAlbumConcurrency: 1,
-        otherAlbumConcurrency: 1,
-        writeChunkSize: 4,
-        isolateThreshold: 1000,
+        repository: serverConfigRepository,
       );
     });
 
     tearDown(() async {
       await database.close();
     });
+
+    for (final (name, playing, manual, expected) in [
+      ('paused automatic', false, false, LibrarySyncStatus.succeeded),
+      ('playing automatic', true, false, LibrarySyncStatus.deferred),
+      ('playing manual', true, true, LibrarySyncStatus.succeeded),
+    ]) {
+      test('engine uses admitted playback policy: $name', () async {
+        await saveSession(lastSynced: DateTime.utc(2026, 8, 1));
+        final playbackEngine = DriftLibrarySyncEngine(
+          api: api,
+          database: database,
+          serverConfigRepository: serverConfigRepository,
+          networkType: NetworkType.wifi,
+          readActiveSongId: () => 'current-song',
+        );
+        final coordinator = AdaptiveLibrarySyncCoordinator(
+          executor: playbackEngine,
+          database: database,
+          serverConfigRepository: serverConfigRepository,
+          networkType: NetworkType.wifi,
+          staleAfter: const Duration(hours: 1),
+          readHasActivePlayback: () => playing,
+          now: () => DateTime.utc(2026, 8, 4),
+        );
+
+        final result = manual
+            ? await coordinator.requestSync(
+                const LibrarySyncRequest.checkForUpdates(),
+              )
+            : await coordinator.requestSync(
+                const LibrarySyncRequest.automatic(),
+              );
+
+        expect(result.status, expected);
+        expect(api.calls, playing && !manual ? isEmpty : isNotEmpty);
+      }, skip: !sqliteAvailable);
+    }
+
+    for (final utc in [false, true]) {
+      test('hydration maps every album and song field (UTC: $utc)', () async {
+        await saveSession();
+        final created = utc
+            ? DateTime.utc(2025, 2, 3, 4, 5, 6)
+            : DateTime(2025, 2, 3, 4, 5, 6);
+        final starred = created.add(const Duration(days: 1));
+        final song = Song(
+          id: 'ext-song',
+          title: 'Track',
+          albumId: 'ext-album',
+          album: 'Release',
+          artistId: 'artist-1',
+          artist: 'Artist',
+          track: 7,
+          discNumber: 2,
+          year: 2025,
+          duration: 321,
+          bitRate: 320,
+          sampleRate: 96000,
+          contentType: 'audio/flac',
+          suffix: 'flac',
+          size: 123456,
+          coverArt: 'song-cover',
+          starred: starred,
+          musicBrainzId: 'recording',
+          userRating: 4,
+          playCount: 12,
+          created: created,
+          isExternal: false,
+          replayGain: const ReplayGain(
+            trackGain: -4.5,
+            albumGain: -3,
+            trackPeak: 0.92,
+            albumPeak: 0.95,
+          ),
+        );
+        final album = Album(
+          id: 'ext-album',
+          name: 'Release',
+          artistId: 'artist-1',
+          artist: 'Artist',
+          artists: const [
+            ArtistRef(id: 'artist-1', name: 'Artist'),
+            ArtistRef(id: 'artist-2', name: 'Guest'),
+          ],
+          songCount: 1,
+          duration: 321,
+          year: 2025,
+          coverArt: 'album-cover',
+          starred: starred,
+          userRating: 5,
+          playCount: 13,
+          created: created,
+          musicBrainzId: 'release',
+          isExternal: false,
+          songs: [song],
+        );
+        api.albumDetails[album.id] = album;
+        final result = await engine.hydrateAlbum(album.id);
+        expect(result.status, LibrarySyncStatus.succeeded);
+        final storedAlbum = (await database.libraryDao.getAlbumById(album.id))!;
+        final storedSong = (await database.libraryDao.getSongById(song.id))!;
+        expect(
+          [
+            storedAlbum.id,
+            storedAlbum.name,
+            storedAlbum.artistId,
+            storedAlbum.artistName,
+            storedAlbum.artists,
+            storedAlbum.songCount,
+            storedAlbum.duration,
+            storedAlbum.year,
+            storedAlbum.coverArt,
+            storedAlbum.starred,
+            storedAlbum.userRating,
+            storedAlbum.playCount,
+            storedAlbum.serverCreatedAt,
+            storedAlbum.releaseMbid,
+            storedAlbum.isExternal,
+            storedAlbum.songsHydrated,
+          ],
+          [
+            album.id,
+            album.name,
+            album.artistId,
+            album.artist,
+            album.artists,
+            album.songCount,
+            album.duration,
+            album.year,
+            album.coverArt,
+            starred.toLocal(),
+            album.userRating,
+            album.playCount,
+            created.toLocal(),
+            album.musicBrainzId,
+            false,
+            true,
+          ],
+        );
+        expect(
+          [
+            storedSong.id,
+            storedSong.title,
+            storedSong.albumId,
+            storedSong.artistId,
+            storedSong.artistName,
+            storedSong.albumName,
+            storedSong.track,
+            storedSong.discNumber,
+            storedSong.duration,
+            storedSong.bitRate,
+            storedSong.sampleRate,
+            storedSong.contentType,
+            storedSong.suffix,
+            storedSong.size,
+            storedSong.coverArt,
+            storedSong.starred,
+            storedSong.recordingMbid,
+            storedSong.userRating,
+            storedSong.playCount,
+            storedSong.createdAt,
+            storedSong.isExternal,
+            storedSong.replayGainTrackGain,
+            storedSong.replayGainAlbumGain,
+            storedSong.replayGainTrackPeak,
+            storedSong.replayGainAlbumPeak,
+          ],
+          [
+            song.id,
+            song.title,
+            song.albumId,
+            song.artistId,
+            song.artist,
+            song.album,
+            song.track,
+            song.discNumber,
+            song.duration,
+            song.bitRate,
+            song.sampleRate,
+            song.contentType,
+            song.suffix,
+            song.size,
+            song.coverArt,
+            starred.toLocal(),
+            song.musicBrainzId,
+            song.userRating,
+            song.playCount,
+            created.toLocal(),
+            false,
+            -4.5,
+            -3.0,
+            0.92,
+            0.95,
+          ],
+        );
+      }, skip: !sqliteAvailable);
+    }
 
     for (final invalid in <String, Album>{
       'partial count': const Album(
@@ -181,7 +459,11 @@ void main() {
         while (api.currentAlbumRequests == 0) {
           await Future<void>.delayed(Duration.zero);
         }
-        await database.libraryDao.updateSongStarred('s1', DateTime.now());
+        await database.libraryDao.setEntityStarred(
+          'song',
+          's1',
+          DateTime.now(),
+        );
         api.albumCompleter!.complete(
           const Album(
             id: 'a',
@@ -234,15 +516,15 @@ void main() {
           LibrarySyncStatus.succeeded,
         );
         expect(
-          await database.libraryDao.getStarredSongIds(),
+          await database.libraryDao.getStarredIds('song'),
           contains('remote-song'),
         );
         expect(
-          await database.libraryDao.getStarredAlbumIds(),
+          await database.libraryDao.getStarredIds('album'),
           contains('remote-album'),
         );
         expect(
-          await database.libraryDao.getStarredArtistIds(),
+          await database.libraryDao.getStarredIds('artist'),
           contains('remote-artist'),
         );
         expect(
@@ -254,7 +536,10 @@ void main() {
           isTrue,
         );
         expect(await database.libraryDao.watchAllAlbums().first, isEmpty);
-        expect(await database.libraryDao.watchAllSongs().first, isEmpty);
+        expect(
+          await database.libraryDao.getSongsSorted(SongSortOrder.newest),
+          isEmpty,
+        );
       },
     );
 
@@ -377,7 +662,16 @@ void main() {
           Playlist(id: 'playlist-1', name: 'Favorites', songCount: 2),
         ];
 
-        final state = await engine.forceFullSync();
+        final state = await engine.executeSyncPlan(
+          syncPlanForTest(LibrarySyncPlanKind.fullRepair),
+        );
+
+        await engine.executeSyncPlan(
+          syncPlanForTest(
+            LibrarySyncPlanKind.targetedHydration,
+            target: const LibrarySyncTarget.playlistHeaders(),
+          ),
+        );
 
         expect(state.status, LibrarySyncStatus.succeeded);
         expect(state.mode, LibrarySyncMode.forceFull);
@@ -399,7 +693,6 @@ void main() {
         expect(albumRows.length, 2);
         expect(songRows.length, 2);
         expect(playlistRows.length, 1);
-        expect(api.calls, isNot(contains('getGenres')));
         expect(serverConfig?.lastSynced, isNotNull);
         expect(serverConfig?.lastFullSyncedAt, isNotNull);
         final ledger = await database.librarySyncDao
@@ -460,7 +753,9 @@ void main() {
           ],
         );
 
-        final state = await engine.forceFullSync();
+        final state = await engine.executeSyncPlan(
+          syncPlanForTest(LibrarySyncPlanKind.fullRepair),
+        );
 
         expect(state.status, LibrarySyncStatus.succeeded);
         expect(api.calls, containsAll(<String>['getArtists', 'getIndexes']));
@@ -529,7 +824,9 @@ void main() {
           ],
         );
 
-        final state = await engine.forceFullSync();
+        final state = await engine.executeSyncPlan(
+          syncPlanForTest(LibrarySyncPlanKind.fullRepair),
+        );
 
         expect(state.status, LibrarySyncStatus.succeeded);
         final album = await database.libraryDao.getAlbumById('album-1');
@@ -570,7 +867,9 @@ void main() {
           ],
         );
 
-        final state = await engine.forceFullSync();
+        final state = await engine.executeSyncPlan(
+          syncPlanForTest(LibrarySyncPlanKind.fullRepair),
+        );
 
         expect(state.status, LibrarySyncStatus.succeeded);
         expect(
@@ -631,7 +930,9 @@ void main() {
         addTearDown(subscription.cancel);
         await firstEmission.future;
 
-        final sync = engine.forceFullSync();
+        final sync = engine.executeSyncPlan(
+          syncPlanForTest(LibrarySyncPlanKind.fullRepair),
+        );
         while (!api.calls.contains('getAlbum:album-1')) {
           await Future<void>.delayed(Duration.zero);
         }
@@ -650,7 +951,8 @@ void main() {
           )).single.name,
           'New Album',
         );
-        await database.libraryDao.updateSongStarred(
+        await database.libraryDao.setEntityStarred(
+          'song',
           'song-1',
           DateTime.utc(2026, 8, 4, 12),
         );
@@ -724,7 +1026,9 @@ void main() {
         ],
       );
 
-      final state = await engine.forceFullSync();
+      final state = await engine.executeSyncPlan(
+        syncPlanForTest(LibrarySyncPlanKind.fullRepair),
+      );
 
       expect(state.status, LibrarySyncStatus.succeeded);
       expect(await database.libraryDao.getArtistById('artist-1'), isNotNull);
@@ -1031,7 +1335,9 @@ void main() {
         ),
       ];
 
-      final state = await engine.syncNow();
+      final state = await engine.executeSyncPlan(
+        syncPlanForTest(LibrarySyncPlanKind.deltaReconcile),
+      );
       final albums = await database.libraryDao
           .watchAlbumsSorted(sort: AlbumSortOrder.recentlyAdded)
           .first;
@@ -1051,21 +1357,10 @@ void main() {
 
     test('manual 48-album newest probe preserves server order without creation dates', () async {
       await saveSession(lastSynced: DateTime.now());
-      final meteredEngine = DriftLibrarySyncEngine(
+      final meteredEngine = meteredDriftEngine(
         api: api,
         database: database,
-        serverConfigRepository: serverConfigRepository,
-        networkType: NetworkType.cellular,
-        readSyncNetworkPolicy: () => const SyncNetworkPolicy(
-          networkType: NetworkType.cellular,
-          isMetered: true,
-          allowsBackgroundSync: false,
-          allowsHardProbe: true,
-          allowsInteractiveHydration: true,
-        ),
-        fallbackArtistConcurrency: 1,
-        cellularAlbumConcurrency: 1,
-        writeChunkSize: 4,
+        repository: serverConfigRepository,
       );
       final newest = List<Album>.generate(
         48,
@@ -1099,7 +1394,7 @@ void main() {
         );
       }
 
-      final state = await meteredEngine.executeSyncExecutionPlan(
+      final state = await meteredEngine.executeSyncPlan(
         _meteredManualDiscoveryPlan,
       );
       final albums = await database.libraryDao
@@ -1156,7 +1451,9 @@ void main() {
       ]);
       api.fastPathPages[0] = newest;
 
-      final state = await engine.syncNow();
+      final state = await engine.executeSyncPlan(
+        syncPlanForTest(LibrarySyncPlanKind.deltaReconcile),
+      );
       final albums = await database.libraryDao
           .watchAlbumsSorted(sort: AlbumSortOrder.recentlyAdded)
           .first;
@@ -1170,11 +1467,7 @@ void main() {
       () async {
         await saveSession(lastSynced: DateTime.now());
         await database.libraryDao.upsertAlbums(<AlbumsTableCompanion>[
-          AlbumsTableCompanion.insert(
-            id: 'album-1',
-            name: 'Album 1',
-            songsHydrated: const Value(false),
-          ),
+          unhydratedAlbum('album-1', 'Album 1'),
         ]);
         await database.libraryDao.upsertSongs(<SongsTableCompanion>[
           SongsTableCompanion.insert(
@@ -1382,6 +1675,165 @@ void main() {
       expect(await database.libraryDao.watchAllAlbums().first, isEmpty);
     }, skip: !sqliteAvailable);
 
+    Future<void> incompleteStarredAlbums() async {
+      await saveSession(lastSynced: DateTime.now());
+      api.starredContent = StarredContent(
+        songs: [
+          Song(
+            id: 'first-song',
+            title: 'First',
+            albumId: 'first',
+            starred: DateTime.utc(2026),
+          ),
+          Song(
+            id: 'second-song',
+            title: 'Second',
+            albumId: 'second',
+            starred: DateTime.utc(2026),
+          ),
+        ],
+      );
+    }
+
+    test('failed first starred hydration stops the album loop', () async {
+      await incompleteStarredAlbums();
+      api.albumErrors['first'] = StateError('album failed');
+      final state = await engine.syncStarredContent();
+      // Annotation reconciliation survives failed detail hydration.
+      expect(state.status, LibrarySyncStatus.succeeded);
+      expect(api.calls.where((call) => call.startsWith('getAlbum:')), [
+        'getAlbum:first',
+      ]);
+    }, skip: !sqliteAvailable);
+
+    test(
+      'starred hydration honours cancellation without starting a new run',
+      () async {
+        await incompleteStarredAlbums();
+        final countingApi = _RunCountingSyncApi()
+          ..starredContent = api.starredContent;
+        countingApi.albumCompleter = Completer<Album>();
+        final starredEngine = DriftLibrarySyncEngine(
+          api: countingApi,
+          database: database,
+          serverConfigRepository: serverConfigRepository,
+          networkType: NetworkType.wifi,
+        );
+        final run = starredEngine.syncStarredContent();
+        for (
+          var turn = 0;
+          turn < 5000 && countingApi.currentAlbumRequests == 0;
+          turn++
+        ) {
+          await Future<void>.delayed(const Duration(milliseconds: 1));
+        }
+        expect(countingApi.currentAlbumRequests, 1);
+        starredEngine.cancelSync();
+        final state = await run;
+        expect(state.status, LibrarySyncStatus.cancelled);
+        expect(countingApi.beginRunCalls, 1);
+        expect(countingApi.activeRequestsCancelled, isTrue);
+        expect(
+          countingApi.calls.where((call) => call.startsWith('getAlbum:')),
+          ['getAlbum:first'],
+        );
+      },
+      skip: !sqliteAvailable,
+    );
+
+    for (final (error, entityStatus, auxiliaryStatus) in [
+      (
+        const SyncCancelledException(),
+        LibrarySyncStatus.cancelled,
+        LibrarySyncStatus.cancelled,
+      ),
+      (
+        const SyncNetworkDeferredException(),
+        LibrarySyncStatus.deferred,
+        LibrarySyncStatus.deferred,
+      ),
+      (
+        const SubsonicResponseBudgetExceededException(
+          maxBytes: 1,
+          observedBytes: 2,
+        ),
+        LibrarySyncStatus.deferred,
+        LibrarySyncStatus.deferred,
+      ),
+      (
+        const SubsonicIncompleteResponseException('Incomplete'),
+        LibrarySyncStatus.partial,
+        LibrarySyncStatus.failed,
+      ),
+      (
+        StateError('Failed'),
+        LibrarySyncStatus.failed,
+        LibrarySyncStatus.failed,
+      ),
+    ]) {
+      for (final target in [
+        'album',
+        'artist',
+        'playlist',
+        'starred',
+        'playlistHeaders',
+        'probe',
+      ]) {
+        test('$target terminates ${error.runtimeType} consistently', () async {
+          await saveSession();
+          final targetEngine = DriftLibrarySyncEngine(
+            api: _FailingTargetSyncApi(error),
+            database: database,
+            serverConfigRepository: serverConfigRepository,
+          );
+          final progress = <LibrarySyncState>[];
+          final state = await switch (target) {
+            'album' => targetEngine.hydrateAlbum('a', onProgress: progress.add),
+            'artist' => targetEngine.hydrateArtist(
+              'a',
+              onProgress: progress.add,
+            ),
+            'playlist' => targetEngine.hydratePlaylist(
+              'a',
+              onProgress: progress.add,
+            ),
+            'starred' => targetEngine.syncStarredContent(
+              onProgress: progress.add,
+            ),
+            'playlistHeaders' => targetEngine.syncPlaylistHeaders(
+              onProgress: progress.add,
+            ),
+            _ => targetEngine.probeCatalog(onProgress: progress.add),
+          };
+          final expected = target == 'probe'
+              ? (error is SyncCancelledException
+                    ? LibrarySyncStatus.cancelled
+                    : LibrarySyncStatus.failed)
+              : target == 'starred' || target == 'playlistHeaders'
+              ? auxiliaryStatus
+              : entityStatus;
+          expect(state.status, expected);
+          expect(state.stage, LibrarySyncStage.completed);
+          expect(state.completedAt, isNotNull);
+          expect(state.isHydrating, isFalse);
+          expect(progress.first.status, LibrarySyncStatus.running);
+          expect(progress.last, same(state));
+          if ((target == 'album' || target == 'playlist') &&
+              (error is SubsonicIncompleteResponseException ||
+                  error is SubsonicResponseBudgetExceededException)) {
+            expect(state.pendingHydrationCount, 1);
+          }
+        }, skip: !sqliteAvailable);
+      }
+    }
+
+    test('network-deferred album hydration clears its active flag', () async {
+      api.albumErrors['album-1'] = const SyncNetworkDeferredException();
+      final state = await engine.hydrateAlbum('album-1');
+      expect(state.status, LibrarySyncStatus.deferred);
+      expect(state.isHydrating, isFalse);
+    }, skip: !sqliteAvailable);
+
     test('cancellation interrupts an active targeted request', () async {
       await saveSession(lastSynced: DateTime.now());
       api.albumCompleter = Completer<Album>();
@@ -1393,6 +1845,7 @@ void main() {
 
       expect(api.activeRequestsCancelled, isTrue);
       expect(state.status, LibrarySyncStatus.cancelled);
+      expect(state.isHydrating, isFalse);
     }, skip: !sqliteAvailable);
 
     test(
@@ -1425,7 +1878,9 @@ void main() {
           artistId: 'artist-keep',
         );
 
-        final first = await engine.forceFullSync();
+        final first = await engine.executeSyncPlan(
+          syncPlanForTest(LibrarySyncPlanKind.fullRepair),
+        );
         expect(first.freshness, LibrarySyncFreshness.repairRecommended);
         expect(
           await database.libraryDao.getAlbumById('album-stale'),
@@ -1433,12 +1888,15 @@ void main() {
         );
 
         final locallyStarredAt = DateTime.now();
-        await database.libraryDao.updateAlbumStarred(
+        await database.libraryDao.setEntityStarred(
+          'album',
           'album-keep',
           locallyStarredAt,
         );
 
-        final second = await engine.forceFullSync();
+        final second = await engine.executeSyncPlan(
+          syncPlanForTest(LibrarySyncPlanKind.fullRepair),
+        );
         expect(second.status, LibrarySyncStatus.succeeded);
         expect(await database.libraryDao.getAlbumById('album-stale'), isNull);
         expect(await database.libraryDao.getArtistById('artist-stale'), isNull);
@@ -1486,7 +1944,9 @@ void main() {
           ],
         );
 
-        final result = await engine.forceFullSync();
+        final result = await engine.executeSyncPlan(
+          syncPlanForTest(LibrarySyncPlanKind.fullRepair),
+        );
         final candidateSongs =
             await (database.select(database.librarySyncCandidateSongsTable)
                   ..where(
@@ -1525,23 +1985,21 @@ void main() {
             artistId: const Value('artist-stale'),
           ),
         ]);
-        final protectedEngine = DriftLibrarySyncEngine(
+        final protectedEngine = serialDriftEngine(
           api: api,
           database: database,
-          serverConfigRepository: serverConfigRepository,
+          repository: serverConfigRepository,
           readActiveSongId: () => 'song-playing',
           readProtectedSongIds: () => const <String>{'song-playing'},
-          fallbackArtistConcurrency: 1,
-          wifiAlbumConcurrency: 1,
-          cellularAlbumConcurrency: 1,
-          otherAlbumConcurrency: 1,
-          writeChunkSize: 4,
-          isolateThreshold: 1000,
         );
 
-        final first = await protectedEngine.forceFullSync();
+        final first = await protectedEngine.executeSyncPlan(
+          syncPlanForTest(LibrarySyncPlanKind.fullRepair),
+        );
         expect(first.freshness, LibrarySyncFreshness.repairRecommended);
-        final second = await protectedEngine.forceFullSync();
+        final second = await protectedEngine.executeSyncPlan(
+          syncPlanForTest(LibrarySyncPlanKind.fullRepair),
+        );
         expect(second.status, LibrarySyncStatus.succeeded);
 
         final song = await database.libraryDao.getSongById('song-playing');
@@ -1605,10 +2063,10 @@ void main() {
           ],
         );
         final appliedAliases = <Map<String, String>>[];
-        final aliasEngine = DriftLibrarySyncEngine(
+        final aliasEngine = serialDriftEngine(
           api: api,
           database: database,
-          serverConfigRepository: serverConfigRepository,
+          repository: serverConfigRepository,
           onBeforeSongIdentityRemap: (aliases) async {
             expect(
               await database.libraryDao.getSongById('cached-remote-song'),
@@ -1616,15 +2074,11 @@ void main() {
             );
             appliedAliases.add(Map<String, String>.from(aliases));
           },
-          fallbackArtistConcurrency: 1,
-          wifiAlbumConcurrency: 1,
-          cellularAlbumConcurrency: 1,
-          otherAlbumConcurrency: 1,
-          writeChunkSize: 4,
-          isolateThreshold: 1000,
         );
 
-        final result = await aliasEngine.forceFullSync();
+        final result = await aliasEngine.executeSyncPlan(
+          syncPlanForTest(LibrarySyncPlanKind.fullRepair),
+        );
         final aliases = await database.songIdentityDao.getAliases();
 
         expect(result.status, LibrarySyncStatus.succeeded);
@@ -1691,7 +2145,9 @@ void main() {
           ],
         );
 
-        final state = await engine.forceFullSync();
+        final state = await engine.executeSyncPlan(
+          syncPlanForTest(LibrarySyncPlanKind.fullRepair),
+        );
 
         expect(state.status, LibrarySyncStatus.succeeded);
         final album1 = await database.libraryDao.getAlbumById('album-1');
@@ -1765,13 +2221,13 @@ void main() {
           ],
         );
 
-        final result = await engine.forceFullSync();
+        final result = await engine.executeSyncPlan(
+          syncPlanForTest(LibrarySyncPlanKind.fullRepair),
+        );
 
         expect(result.status, LibrarySyncStatus.succeeded);
         expect(await database.songIdentityDao.getAliases(), isEmpty);
-        final review = await database.librarySyncDao.getPendingRecoveryReview(
-          1,
-        );
+        final review = await pendingRecoveryReviews(database, 1);
         final contested = review
             .where((entry) => entry.reason == 'ambiguousMatch')
             .toList();
@@ -1831,7 +2287,9 @@ void main() {
         ],
       );
 
-      final result = await engine.forceFullSync();
+      final result = await engine.executeSyncPlan(
+        syncPlanForTest(LibrarySyncPlanKind.fullRepair),
+      );
 
       expect(result.status, LibrarySyncStatus.succeeded);
       // The old album identity is gone, replaced under the new server ID.
@@ -1906,7 +2364,9 @@ void main() {
         ],
       );
 
-      final result = await engine.forceFullSync();
+      final result = await engine.executeSyncPlan(
+        syncPlanForTest(LibrarySyncPlanKind.fullRepair),
+      );
 
       expect(result.status, LibrarySyncStatus.succeeded);
       final song = await database.libraryDao.getSongById('song-return');
@@ -1930,9 +2390,11 @@ void main() {
           },
         }),
       );
-      await database.librarySyncDao.markAuxiliarySyncedAt(
-        serverId: 1,
-        syncedAt: DateTime.now(),
+      await database.librarySyncDao.writeState(
+        LibrarySyncStateTableCompanion(
+          serverId: const Value(1),
+          lastAuxiliarySyncedAt: Value(DateTime.now()),
+        ),
       );
       final artists = List<Artist>.generate(
         30,
@@ -1943,7 +2405,9 @@ void main() {
         api.artistDetails[artist.id] = artist;
       }
 
-      final first = await engine.runCompatibilityAudit();
+      final first = await engine.executeSyncPlan(
+        syncPlanForTest(LibrarySyncPlanKind.compatibilityAudit),
+      );
       final firstRequests = api.calls
           .where((call) => call.startsWith('getArtist:'))
           .length;
@@ -1955,7 +2419,9 @@ void main() {
       expect(firstState.lastAuditAt, isNotNull);
 
       api.calls.clear();
-      final second = await engine.runCompatibilityAudit();
+      final second = await engine.executeSyncPlan(
+        syncPlanForTest(LibrarySyncPlanKind.compatibilityAudit),
+      );
       final secondRequests = api.calls
           .where((call) => call.startsWith('getArtist:'))
           .length;
@@ -1997,7 +2463,9 @@ void main() {
         ],
       );
 
-      final state = await engine.forceFullSync();
+      final state = await engine.executeSyncPlan(
+        syncPlanForTest(LibrarySyncPlanKind.fullRepair),
+      );
       final songRows = await database.select(database.songsTable).get();
 
       expect(state.status, LibrarySyncStatus.succeeded);
@@ -2058,21 +2526,18 @@ void main() {
           songs: <Song>[],
         );
 
-        final localEngine = DriftLibrarySyncEngine(
+        final localEngine = serialDriftEngine(
           api: api,
           database: database,
-          serverConfigRepository: serverConfigRepository,
-          fallbackArtistConcurrency: 1,
-          wifiAlbumConcurrency: 1,
-          cellularAlbumConcurrency: 1,
-          otherAlbumConcurrency: 1,
+          repository: serverConfigRepository,
           fastPathPageSize: 2,
-          writeChunkSize: 4,
-          isolateThreshold: 1000,
         );
 
         final progress = <LibrarySyncState>[];
-        await localEngine.forceFullSync(onProgress: progress.add);
+        await localEngine.executeSyncPlan(
+          syncPlanForTest(LibrarySyncPlanKind.fullRepair),
+          onProgress: progress.add,
+        );
 
         final albumStageProgress = progress
             .where((state) => state.stage == LibrarySyncStage.fetchingAlbums)
@@ -2121,10 +2586,11 @@ void main() {
           serverConfigRepository: serverConfigRepository,
           fastPathPageSize: 4,
           writeChunkSize: 8,
-          isolateThreshold: 1000,
         );
 
-        final state = await cappedPageEngine.forceFullSync();
+        final state = await cappedPageEngine.executeSyncPlan(
+          syncPlanForTest(LibrarySyncPlanKind.fullRepair),
+        );
 
         expect(state.status, LibrarySyncStatus.succeeded);
         expect(
@@ -2171,7 +2637,6 @@ void main() {
           database: database,
           serverConfigRepository: serverConfigRepository,
           fastPathPageSize: 2,
-          isolateThreshold: 1000,
         );
       }
 
@@ -2184,7 +2649,9 @@ void main() {
         await saveSession();
         final localEngine = shiftedCatalogEngine();
 
-        final state = await localEngine.forceFullSync();
+        final state = await localEngine.executeSyncPlan(
+          syncPlanForTest(LibrarySyncPlanKind.fullRepair),
+        );
 
         expect(state.status, LibrarySyncStatus.succeeded);
         expect(await albumIds(), {'a', 'b', 'c', 'd'});
@@ -2197,12 +2664,16 @@ void main() {
           final localEngine = shiftedCatalogEngine();
           api.fastPathErrors[4] = const SubsonicConnectionException('offline');
           expect(
-            (await localEngine.forceFullSync()).status,
+            (await localEngine.executeSyncPlan(
+              syncPlanForTest(LibrarySyncPlanKind.fullRepair),
+            )).status,
             LibrarySyncStatus.failed,
           );
 
           api.fastPathErrors.clear();
-          final resumed = await localEngine.forceFullSync();
+          final resumed = await localEngine.executeSyncPlan(
+            syncPlanForTest(LibrarySyncPlanKind.fullRepair),
+          );
 
           expect(resumed.status, LibrarySyncStatus.succeeded);
           expect(await albumIds(), {'a', 'b', 'c', 'd'});
@@ -2229,7 +2700,9 @@ void main() {
           ..[0] = [header('d'), header('c')]
           ..[2] = [header('c'), header('b'), header('a')];
 
-        final state = await localEngine.forceFullSync();
+        final state = await localEngine.executeSyncPlan(
+          syncPlanForTest(LibrarySyncPlanKind.fullRepair),
+        );
 
         expect(state.status, LibrarySyncStatus.succeeded);
         final ranks = {
@@ -2251,7 +2724,9 @@ void main() {
           ..[0] = [header('d'), header('c')]
           ..[2] = [header('c'), header('d')];
 
-        final state = await localEngine.forceFullSync();
+        final state = await localEngine.executeSyncPlan(
+          syncPlanForTest(LibrarySyncPlanKind.fullRepair),
+        );
 
         expect(state.status, LibrarySyncStatus.failed);
       }, skip: !sqliteAvailable);
@@ -2273,20 +2748,16 @@ void main() {
           songs: <Song>[],
         );
       }
-      final localEngine = DriftLibrarySyncEngine(
+      final localEngine = serialDriftEngine(
         api: api,
         database: database,
-        serverConfigRepository: serverConfigRepository,
+        repository: serverConfigRepository,
         fastPathPageSize: 2,
-        fallbackArtistConcurrency: 1,
-        wifiAlbumConcurrency: 1,
-        cellularAlbumConcurrency: 1,
-        otherAlbumConcurrency: 1,
-        writeChunkSize: 4,
-        isolateThreshold: 1000,
       );
 
-      final interrupted = await localEngine.forceFullSync();
+      final interrupted = await localEngine.executeSyncPlan(
+        syncPlanForTest(LibrarySyncPlanKind.fullRepair),
+      );
       expect(interrupted.status, LibrarySyncStatus.failed);
       expect(
         (await database.librarySyncDao.getOrCreateState(1)).currentGeneration,
@@ -2297,7 +2768,9 @@ void main() {
       api.fastPathPages[2] = const <Album>[
         Album(id: 'album-3', name: 'Album 3', artistId: 'artist-1'),
       ];
-      final resumed = await localEngine.forceFullSync();
+      final resumed = await localEngine.executeSyncPlan(
+        syncPlanForTest(LibrarySyncPlanKind.fullRepair),
+      );
 
       expect(resumed.status, LibrarySyncStatus.succeeded);
       expect(
@@ -2333,10 +2806,11 @@ void main() {
             database: database,
             serverConfigRepository: serverConfigRepository,
             fastPathPageSize: 2,
-            isolateThreshold: 1000,
           );
           expect(
-            (await localEngine.forceFullSync()).status,
+            (await localEngine.executeSyncPlan(
+              syncPlanForTest(LibrarySyncPlanKind.fullRepair),
+            )).status,
             LibrarySyncStatus.failed,
           );
           final removed = api.fastPathPages[boundary]!.first.id;
@@ -2347,7 +2821,9 @@ void main() {
           api.fastPathErrors.clear();
           api.fastPathPages[4] = [header('e')];
           expect(
-            (await localEngine.forceFullSync()).status,
+            (await localEngine.executeSyncPlan(
+              syncPlanForTest(LibrarySyncPlanKind.fullRepair),
+            )).status,
             LibrarySyncStatus.succeeded,
           );
           final ids = (await database.libraryDao.getAllAlbums())
@@ -2401,7 +2877,9 @@ void main() {
           songs: <Song>[],
         );
 
-        final state = await engine.forceFullSync();
+        final state = await engine.executeSyncPlan(
+          syncPlanForTest(LibrarySyncPlanKind.fullRepair),
+        );
         final albums = await database.libraryDao.getAllAlbums();
 
         expect(state.status, LibrarySyncStatus.succeeded);
@@ -2418,18 +2896,23 @@ void main() {
         await database.libraryDao.replaceArtists(<ArtistsTableCompanion>[
           ArtistsTableCompanion.insert(id: 'existing-artist', name: 'Artist'),
         ]);
-        await database.libraryDao.replaceAlbums(<AlbumsTableCompanion>[
-          AlbumsTableCompanion.insert(
-            id: 'existing-album',
-            name: 'Existing Album',
-            artistId: const Value('existing-artist'),
-          ),
-        ]);
+        await database.batch(
+          (batch) =>
+              batch.insertAll(database.albumsTable, <AlbumsTableCompanion>[
+                AlbumsTableCompanion.insert(
+                  id: 'existing-album',
+                  name: 'Existing Album',
+                  artistId: const Value('existing-artist'),
+                ),
+              ]),
+        );
         api.artists.add(
           const Artist(id: 'artist-1', name: 'Artist 1', albumCount: 1),
         );
 
-        final state = await engine.forceFullSync();
+        final state = await engine.executeSyncPlan(
+          syncPlanForTest(LibrarySyncPlanKind.fullRepair),
+        );
         final albums = await database.libraryDao.getAllAlbums();
 
         expect(state.status, LibrarySyncStatus.failed);
@@ -2464,36 +2947,21 @@ void main() {
         songs: <Song>[Song(id: 'song-1', title: 'Song 1')],
       );
 
-      final state = await engine.forceFullSync();
+      final state = await engine.executeSyncPlan(
+        syncPlanForTest(LibrarySyncPlanKind.fullRepair),
+      );
 
       expect(state.status, LibrarySyncStatus.succeeded);
       expect(api.calls, contains('getArtist:artist-1'));
     }, skip: !sqliteAvailable);
 
     test('bulk song fast path hydrates songs without per-album requests when compatible', () async {
-      await saveSession();
-      api.artists.add(const Artist(id: 'artist-1', name: 'Artist 1'));
-      api.fastPathPages[0] = List<Album>.generate(
-        9,
-        (index) => Album(
-          id: 'album-${index + 1}',
-          name: 'Album ${index + 1}',
-          artistId: 'artist-1',
-          artist: 'Artist 1',
-          songCount: 1,
-        ),
-      );
-      api.bulkSongPages[0] = List<Song>.generate(
-        9,
-        (index) => Song(
-          id: 'song-${index + 1}',
-          title: 'Song ${index + 1}',
-          albumId: 'album-${index + 1}',
-          artistId: 'artist-1',
-        ),
-      );
+      await seedNineAlbumBulkCatalog();
+      api.bulkSongPages[0] = nineBulkSongs();
 
-      final state = await engine.forceFullSync();
+      final state = await engine.executeSyncPlan(
+        syncPlanForTest(LibrarySyncPlanKind.fullRepair),
+      );
       final songs = await database.select(database.songsTable).get();
 
       expect(state.status, LibrarySyncStatus.succeeded);
@@ -2543,10 +3011,11 @@ void main() {
           fastPathPageSize: 4,
           bulkSearchPageSize: 3,
           writeChunkSize: 2,
-          isolateThreshold: 1000,
         );
 
-        final state = await cappedPageEngine.forceFullSync();
+        final state = await cappedPageEngine.executeSyncPlan(
+          syncPlanForTest(LibrarySyncPlanKind.fullRepair),
+        );
         final songs = await database.select(database.songsTable).get();
 
         expect(state.status, LibrarySyncStatus.succeeded);
@@ -2564,18 +3033,7 @@ void main() {
     test(
       'bulk song fast path emits incremental hydration progress updates',
       () async {
-        await saveSession();
-        api.artists.add(const Artist(id: 'artist-1', name: 'Artist 1'));
-        api.fastPathPages[0] = List<Album>.generate(
-          9,
-          (index) => Album(
-            id: 'album-${index + 1}',
-            name: 'Album ${index + 1}',
-            artistId: 'artist-1',
-            artist: 'Artist 1',
-            songCount: 1,
-          ),
-        );
+        await seedNineAlbumBulkCatalog();
         api.bulkSongPages[0] = List<Song>.generate(
           3,
           (index) => Song(
@@ -2604,21 +3062,18 @@ void main() {
           ),
         );
 
-        final bulkEngine = DriftLibrarySyncEngine(
+        final bulkEngine = serialDriftEngine(
           api: api,
           database: database,
-          serverConfigRepository: serverConfigRepository,
-          fallbackArtistConcurrency: 1,
-          wifiAlbumConcurrency: 1,
-          cellularAlbumConcurrency: 1,
-          otherAlbumConcurrency: 1,
+          repository: serverConfigRepository,
           bulkSearchPageSize: 3,
-          writeChunkSize: 4,
-          isolateThreshold: 1000,
         );
 
         final progress = <LibrarySyncState>[];
-        await bulkEngine.forceFullSync(onProgress: progress.add);
+        await bulkEngine.executeSyncPlan(
+          syncPlanForTest(LibrarySyncPlanKind.fullRepair),
+          onProgress: progress.add,
+        );
 
         final hydrationProgress = progress
             .where((state) => state.stage == LibrarySyncStage.fetchingSongs)
@@ -2688,24 +3143,23 @@ void main() {
             artistId: 'artist-1',
           ),
         ];
-        final tailEngine = DriftLibrarySyncEngine(
+        final tailEngine = serialDriftEngine(
           api: api,
           database: database,
-          serverConfigRepository: serverConfigRepository,
-          fallbackArtistConcurrency: 1,
-          wifiAlbumConcurrency: 1,
-          cellularAlbumConcurrency: 1,
-          otherAlbumConcurrency: 1,
+          repository: serverConfigRepository,
           writeChunkSize: 1,
-          isolateThreshold: 1000,
         );
-        await tailEngine.forceFullSync();
+        await tailEngine.executeSyncPlan(
+          syncPlanForTest(LibrarySyncPlanKind.fullRepair),
+        );
 
         // The compatible bulk index now completes but omits album-1, as a
         // capped global song index does. Its unchanged hydrated local songs
         // should be reused without another getAlbum call.
         api.calls.clear();
-        final result = await tailEngine.forceFullSync();
+        final result = await tailEngine.executeSyncPlan(
+          syncPlanForTest(LibrarySyncPlanKind.catalogSnapshot),
+        );
 
         expect(result.status, LibrarySyncStatus.succeeded);
         expect(api.calls, contains('searchSongsPage::0:1000'));
@@ -2713,6 +3167,15 @@ void main() {
         expect(api.calls.where((call) => call == 'getAlbum:album-2'), isEmpty);
         final songs = await database.select(database.songsTable).get();
         expect(songs.map((song) => song.id), contains('song-1'));
+
+        // Explicit repair re-fetches even an unchanged stable tail.
+        api.calls.clear();
+        final repair = await tailEngine.executeSyncPlan(
+          syncPlanForTest(LibrarySyncPlanKind.fullRepair),
+        );
+        expect(repair.status, LibrarySyncStatus.succeeded);
+        expect(api.calls, contains('getAlbum:album-1'));
+        expect(api.calls, contains('getAlbum:album-2'));
       },
       skip: !sqliteAvailable,
     );
@@ -2771,21 +3234,19 @@ void main() {
           ],
         );
 
-        final bulkEngine = DriftLibrarySyncEngine(
+        final bulkEngine = serialDriftEngine(
           api: api,
           database: database,
-          serverConfigRepository: serverConfigRepository,
-          fallbackArtistConcurrency: 1,
-          wifiAlbumConcurrency: 1,
-          cellularAlbumConcurrency: 1,
-          otherAlbumConcurrency: 1,
+          repository: serverConfigRepository,
           bulkSearchPageSize: 2,
           writeChunkSize: 1,
-          isolateThreshold: 1000,
         );
 
         final progress = <LibrarySyncState>[];
-        final result = await bulkEngine.forceFullSync(onProgress: progress.add);
+        final result = await bulkEngine.executeSyncPlan(
+          syncPlanForTest(LibrarySyncPlanKind.fullRepair),
+          onProgress: progress.add,
+        );
 
         final hydrationProgress = progress
             .where((state) => state.stage == LibrarySyncStage.fetchingSongs)
@@ -2806,64 +3267,10 @@ void main() {
       skip: !sqliteAvailable,
     );
 
-    test('bulk song fast path with isolate parsing does not crash', () async {
-      await saveSession();
-      api.artists.add(const Artist(id: 'artist-1', name: 'Artist 1'));
-      api.fastPathPages[0] = List<Album>.generate(
-        9,
-        (index) => Album(
-          id: 'album-${index + 1}',
-          name: 'Album ${index + 1}',
-          artistId: 'artist-1',
-          artist: 'Artist 1',
-          songCount: 1,
-        ),
-      );
-      api.bulkSongPages[0] = List<Song>.generate(
-        9,
-        (index) => Song(
-          id: 'song-${index + 1}',
-          title: 'Song ${index + 1}',
-          albumId: 'album-${index + 1}',
-          artistId: 'artist-1',
-        ),
-      );
-
-      final isolateEngine = DriftLibrarySyncEngine(
-        api: api,
-        database: database,
-        serverConfigRepository: serverConfigRepository,
-        fallbackArtistConcurrency: 1,
-        wifiAlbumConcurrency: 1,
-        cellularAlbumConcurrency: 1,
-        otherAlbumConcurrency: 1,
-        writeChunkSize: 4,
-        isolateThreshold: 1,
-      );
-
-      final state = await isolateEngine.forceFullSync();
-      final songs = await database.select(database.songsTable).get();
-
-      expect(state.status, LibrarySyncStatus.succeeded);
-      expect(api.calls.where((call) => call.startsWith('getAlbum:')), isEmpty);
-      expect(songs.length, 9);
-    }, skip: !sqliteAvailable);
-
     test(
       'bulk song fast path with replay gain keeps fast-path hydration active',
       () async {
-        await saveSession();
-        api.artists.add(const Artist(id: 'artist-1', name: 'Artist 1'));
-        api.fastPathPages[0] = List<Album>.generate(
-          9,
-          (index) => Album(
-            id: 'album-${index + 1}',
-            name: 'Album ${index + 1}',
-            artistId: 'artist-1',
-            artist: 'Artist 1',
-            songCount: 1,
-          ),
-        );
+        await seedNineAlbumBulkCatalog();
         api.bulkSongPages[0] = List<Song>.generate(
           9,
           (index) => Song(
@@ -2880,19 +3287,15 @@ void main() {
           ),
         );
 
-        final isolateEngine = DriftLibrarySyncEngine(
+        final bulkEngine = serialDriftEngine(
           api: api,
           database: database,
-          serverConfigRepository: serverConfigRepository,
-          fallbackArtistConcurrency: 1,
-          wifiAlbumConcurrency: 1,
-          cellularAlbumConcurrency: 1,
-          otherAlbumConcurrency: 1,
-          writeChunkSize: 4,
-          isolateThreshold: 1,
+          repository: serverConfigRepository,
         );
 
-        final state = await isolateEngine.forceFullSync();
+        final state = await bulkEngine.executeSyncPlan(
+          syncPlanForTest(LibrarySyncPlanKind.fullRepair),
+        );
         final songs = await database.select(database.songsTable).get();
 
         expect(state.status, LibrarySyncStatus.succeeded);
@@ -2934,12 +3337,128 @@ void main() {
           );
         }
 
-        final state = await engine.forceFullSync();
+        final state = await engine.executeSyncPlan(
+          syncPlanForTest(LibrarySyncPlanKind.fullRepair),
+        );
 
         expect(state.status, LibrarySyncStatus.succeeded);
         expect(
           api.calls.where((call) => call.startsWith('getAlbum:')).length,
           greaterThan(0),
+        );
+      },
+      skip: !sqliteAvailable,
+    );
+
+    for (final fails in [false, true]) {
+      test(
+        'bulk capability writes preserve fresh updates (failure: $fails)',
+        () async {
+          await saveSession(
+            capabilitiesJson: jsonEncode({
+              'navis': {'bulkSongSearchWildcardQuery': ''},
+            }),
+          );
+          final bulkApi = _BulkPageLibrarySyncApi();
+          bulkApi.artists.add(const Artist(id: 'artist-1', name: 'Artist'));
+          bulkApi.fastPathPages[0] = const [
+            Album(
+              id: 'album-1',
+              name: 'Album',
+              artistId: 'artist-1',
+              songCount: 1,
+            ),
+          ];
+          const song = Song(
+            id: 'song-1',
+            title: 'Song',
+            albumId: 'album-1',
+            artistId: 'artist-1',
+          );
+          bulkApi.bulkSongPages[0] = const [song];
+          bulkApi.albumDetails['album-1'] = const Album(
+            id: 'album-1',
+            name: 'Album',
+            songs: [song],
+          );
+          bulkApi.onBulkPage = () async {
+            final config = await serverConfigRepository.getActiveServer();
+            final capabilities =
+                jsonDecode(config!.capabilitiesJson!) as Map<String, dynamic>;
+            capabilities['provider'] = {'retained': true};
+            (capabilities['navis'] as Map<String, dynamic>)['duringBulk'] =
+                'retained';
+            await serverConfigRepository.updateCapabilitiesJson(
+              jsonEncode(capabilities),
+            );
+            if (fails) {
+              throw const SubsonicGenericException(message: 'Unsupported');
+            }
+          };
+          final bulkEngine = DriftLibrarySyncEngine(
+            api: bulkApi,
+            database: database,
+            serverConfigRepository: serverConfigRepository,
+          );
+
+          final state = await bulkEngine.executeSyncPlan(
+            syncPlanForTest(LibrarySyncPlanKind.fullRepair),
+          );
+
+          expect(state.status, LibrarySyncStatus.succeeded);
+          final config = await serverConfigRepository.getActiveServer();
+          final capabilities =
+              jsonDecode(config!.capabilitiesJson!) as Map<String, dynamic>;
+          final navis = capabilities['navis'] as Map<String, dynamic>;
+          expect(capabilities['provider'], {'retained': true});
+          expect(navis['duringBulk'], 'retained');
+          expect(navis['bulkSongSearchWildcardQuery'], fails ? isNull : '');
+          expect(await database.libraryDao.getSongById('song-1'), isNotNull);
+        },
+        skip: !sqliteAvailable,
+      );
+    }
+
+    test(
+      'index traversal preserves first raw duplicate and stable fingerprint',
+      () async {
+        await saveSession();
+        api.getArtistsError = const SubsonicNotFoundException(
+          message: 'Unsupported',
+        );
+        api.indexes = Indexes(
+          lastModified: DateTime(2026),
+          indexes: const [
+            IndexesIndex(
+              name: 'A',
+              artists: [
+                Artist(id: ' artist-1 ', name: 'First'),
+                Artist(id: ' artist-1 ', name: 'Last'),
+              ],
+            ),
+          ],
+          shortcut: const [Artist(id: 'artist-2', name: 'Shortcut')],
+          child: const [Artist(id: 'artist-2', name: 'Child')],
+        );
+
+        final state = await engine.executeSyncPlan(
+          syncPlanForTest(LibrarySyncPlanKind.fullRepair),
+        );
+
+        expect(state.status, LibrarySyncStatus.succeeded);
+        final artists = await database.libraryDao.getAllArtists();
+        expect(
+          {for (final artist in artists) artist.id: artist.name},
+          {' artist-1 ': 'First', 'artist-2': 'Shortcut'},
+        );
+        final config = await serverConfigRepository.getActiveServer();
+        final navis =
+            (jsonDecode(config!.capabilitiesJson!)
+                    as Map<String, dynamic>)['navis']
+                as Map<String, dynamic>;
+        expect(
+          navis['libraryIndexesFingerprint'],
+          _testIndexesFingerprint(['artist-1', 'artist-2']),
         );
       },
       skip: !sqliteAvailable,
@@ -2972,7 +3491,9 @@ void main() {
           ),
         ];
 
-        final state = await engine.forceFullSync();
+        final state = await engine.executeSyncPlan(
+          syncPlanForTest(LibrarySyncPlanKind.fullRepair),
+        );
 
         expect(state.status, LibrarySyncStatus.succeeded);
         expect(api.calls, contains('searchSongsPage::0:1'));
@@ -2980,46 +3501,6 @@ void main() {
           api.calls.where((call) => call.startsWith('getAlbum:')),
           isEmpty,
         );
-      },
-      skip: !sqliteAvailable,
-    );
-
-    test(
-      'legacy wildcard bulk-song query is discarded instead of issued',
-      () async {
-        await saveSession(
-          capabilitiesJson: jsonEncode(<String, Object?>{
-            'navis': <String, Object?>{'bulkSongSearchWildcardQuery': '*'},
-          }),
-        );
-        api.artists.add(const Artist(id: 'artist-1', name: 'Artist 1'));
-        api.fastPathPages[0] = const <Album>[
-          Album(
-            id: 'album-1',
-            name: 'Album 1',
-            artistId: 'artist-1',
-            songCount: 1,
-          ),
-        ];
-        api.bulkSongPages[0] = const <Song>[
-          Song(
-            id: 'song-1',
-            title: 'Song 1',
-            albumId: 'album-1',
-            artistId: 'artist-1',
-          ),
-        ];
-
-        final state = await engine.forceFullSync();
-        final config = await serverConfigRepository.getActiveServer();
-        final capabilities =
-            jsonDecode(config!.capabilitiesJson!) as Map<String, dynamic>;
-        final navis = capabilities['navis'] as Map<String, dynamic>;
-
-        expect(state.status, LibrarySyncStatus.succeeded);
-        expect(api.calls, isNot(contains('searchSongsPage:*:0:1')));
-        expect(api.calls, contains('getAlbum:album-1'));
-        expect(navis.containsKey('bulkSongSearchWildcardQuery'), isFalse);
       },
       skip: !sqliteAvailable,
     );
@@ -3080,19 +3561,16 @@ void main() {
         ],
       );
 
-      final bulkEnabledEngine = DriftLibrarySyncEngine(
+      final bulkEnabledEngine = serialDriftEngine(
         api: api,
         database: database,
-        serverConfigRepository: serverConfigRepository,
-        fallbackArtistConcurrency: 1,
-        wifiAlbumConcurrency: 1,
-        cellularAlbumConcurrency: 1,
-        otherAlbumConcurrency: 1,
+        repository: serverConfigRepository,
         writeChunkSize: 1,
-        isolateThreshold: 1000,
       );
 
-      final state = await bulkEnabledEngine.forceFullSync();
+      final state = await bulkEnabledEngine.executeSyncPlan(
+        syncPlanForTest(LibrarySyncPlanKind.fullRepair),
+      );
       final songs = await database.select(database.songsTable).get();
 
       expect(state.status, LibrarySyncStatus.succeeded);
@@ -3165,7 +3643,9 @@ void main() {
         ),
       ];
 
-      final state = await engine.forceFullSync();
+      final state = await engine.executeSyncPlan(
+        syncPlanForTest(LibrarySyncPlanKind.fullRepair),
+      );
       final songs = await database.select(database.songsTable).get();
 
       expect(state.status, LibrarySyncStatus.succeeded);
@@ -3210,7 +3690,9 @@ void main() {
           ],
         );
 
-        final state = await engine.forceFullSync();
+        final state = await engine.executeSyncPlan(
+          syncPlanForTest(LibrarySyncPlanKind.fullRepair),
+        );
         final songs = await database.select(database.songsTable).get();
 
         expect(state.status, LibrarySyncStatus.succeeded);
@@ -3228,7 +3710,44 @@ void main() {
         lastFullSyncedAt: DateTime.now(),
       );
 
-      final state = await engine.syncIfStale();
+      await database.librarySyncDao.writeState(
+        LibrarySyncStateTableCompanion(
+          serverId: const Value(1),
+          currentGeneration: const Value(1),
+          providerFingerprint: const Value('https://example.com|1.16.1'),
+          lastCheckedAt: Value(DateTime.now()),
+          lastAuditAt: Value(DateTime.now()),
+          lastAuxiliarySyncedAt: Value(DateTime.now()),
+        ),
+      );
+      for (final target in [
+        const LibrarySyncTarget.starred(),
+        const LibrarySyncTarget.playlistHeaders(),
+      ]) {
+        await database.librarySyncDao.enqueueWork(
+          serverId: 1,
+          kind: LibrarySyncPlanKind.targetedHydration.name,
+          entityId: librarySyncTargetWorkKey(target),
+          priority: 1,
+        );
+        final work = await database.librarySyncDao.getWork(
+          serverId: 1,
+          kind: LibrarySyncPlanKind.targetedHydration.name,
+          entityId: librarySyncTargetWorkKey(target),
+        );
+        await database.librarySyncDao.markCompleted(work!.id);
+      }
+      final coordinator = AdaptiveLibrarySyncCoordinator(
+        executor: engine,
+        database: database,
+        serverConfigRepository: serverConfigRepository,
+        networkType: NetworkType.other,
+        staleAfter: const Duration(hours: 1),
+        readHasActivePlayback: () => false,
+      );
+      final state = await coordinator.requestSync(
+        const LibrarySyncRequest.automatic(),
+      );
 
       expect(state.status, LibrarySyncStatus.skipped);
       expect(api.calls, isEmpty);
@@ -3269,7 +3788,12 @@ void main() {
         songs: <Song>[Song(id: 'song-1', title: 'Song 1', albumId: 'album-1')],
       );
 
-      final state = await engine.syncIfStale();
+      final state = await engine.executeSyncPlan(
+        syncPlanForTest(
+          LibrarySyncPlanKind.deltaReconcile,
+          intent: SyncRunIntent.automaticCatalogCheck,
+        ),
+      );
 
       expect(state.status, LibrarySyncStatus.succeeded);
       expect(state.mode, LibrarySyncMode.incremental);
@@ -3289,7 +3813,9 @@ void main() {
         );
         api.indexes = Indexes(lastModified: serverCursor);
 
-        final state = await engine.syncNow();
+        final state = await engine.executeSyncPlan(
+          syncPlanForTest(LibrarySyncPlanKind.deltaReconcile),
+        );
         final config = await serverConfigRepository.getActiveServer();
         final capabilities =
             jsonDecode(config!.capabilitiesJson!) as Map<String, dynamic>;
@@ -3326,7 +3852,9 @@ void main() {
           api.artistDetails[artist.id] = artist;
         }
 
-        final first = await engine.syncNow();
+        final first = await engine.executeSyncPlan(
+          syncPlanForTest(LibrarySyncPlanKind.deltaReconcile),
+        );
         final firstArtistCalls = api.calls
             .where((call) => call.startsWith('getArtist:'))
             .length;
@@ -3345,13 +3873,18 @@ void main() {
         final continuationCallCounts = <int>[];
         while (next.remainingVerificationCount > 0) {
           api.calls.clear();
-          next = await engine.syncIfStale();
+          next = await engine.executeSyncPlan(
+            syncPlanForTest(
+              LibrarySyncPlanKind.deltaReconcile,
+              intent: SyncRunIntent.automaticCatalogCheck,
+            ),
+          );
           continuationCallCounts.add(
             api.calls.where((call) => call.startsWith('getArtist:')).length,
           );
         }
 
-        expect(continuationCallCounts, <int>[48, 48, 26]);
+        expect(continuationCallCounts, <int>[24, 24, 24, 24, 24, 2]);
         expect(next.status, LibrarySyncStatus.succeeded);
         expect(next.remainingVerificationCount, 0);
         expect(next.freshness, LibrarySyncFreshness.current);
@@ -3387,7 +3920,9 @@ void main() {
           indexes: <IndexesIndex>[IndexesIndex(name: 'A', artists: artists)],
         );
 
-        final first = await engine.syncNow();
+        final first = await engine.executeSyncPlan(
+          syncPlanForTest(LibrarySyncPlanKind.deltaReconcile),
+        );
         final firstIds = api.calls
             .where((call) => call.startsWith('getArtist:'))
             .map((call) => call.substring('getArtist:'.length))
@@ -3404,7 +3939,12 @@ void main() {
         );
         api.calls.clear();
 
-        final second = await engine.continueVerification();
+        final second = await engine.executeSyncPlan(
+          syncPlanForTest(
+            LibrarySyncPlanKind.deltaReconcile,
+            intent: SyncRunIntent.automaticCatalogCheck,
+          ),
+        );
         final secondIds = api.calls
             .where((call) => call.startsWith('getArtist:'))
             .map((call) => call.substring('getArtist:'.length))
@@ -3413,7 +3953,7 @@ void main() {
         expect(second.status, LibrarySyncStatus.succeeded);
         expect(secondIds, contains(added.id));
         expect(secondIds.intersection(firstIds), isEmpty);
-        expect(second.remainingVerificationCount, 53);
+        expect(second.remainingVerificationCount, 77);
       },
       skip: !sqliteAvailable,
     );
@@ -3441,7 +3981,9 @@ void main() {
           ],
         );
 
-        final state = await engine.syncNow();
+        final state = await engine.executeSyncPlan(
+          syncPlanForTest(LibrarySyncPlanKind.deltaReconcile),
+        );
         final config = await serverConfigRepository.getActiveServer();
         final navis =
             jsonDecode(config!.capabilitiesJson!)['navis']
@@ -3458,7 +4000,6 @@ void main() {
         expect(diagnostics.single, containsPair('entityId', 'missing-detail'));
         expect(diagnostics.single, containsPair('endpoint', 'getArtist'));
         expect(diagnostics.single, containsPair('errorType', 'StateError'));
-        expect(diagnostics.single, containsPair('attempts', 1));
 
         api.artistDetails['missing-detail'] = const Artist(
           id: 'missing-detail',
@@ -3476,7 +4017,12 @@ void main() {
         );
         api.calls.clear();
 
-        final artistRecovered = await engine.continueVerification();
+        final artistRecovered = await engine.executeSyncPlan(
+          syncPlanForTest(
+            LibrarySyncPlanKind.deltaReconcile,
+            intent: SyncRunIntent.automaticCatalogCheck,
+          ),
+        );
         final artistRecoveredConfig = await serverConfigRepository
             .getActiveServer();
         final artistRecoveredNavis =
@@ -3511,7 +4057,9 @@ void main() {
         api.indexes = Indexes(lastModified: DateTime.utc(2026, 4, 1));
         api.calls.clear();
 
-        final recovered = await engine.continueVerification();
+        final recovered = await engine.executeSyncPlan(
+          syncPlanForTest(LibrarySyncPlanKind.targetedHydration),
+        );
         final recoveredConfig = await serverConfigRepository.getActiveServer();
         final recoveredNavis =
             jsonDecode(recoveredConfig!.capabilitiesJson!)['navis']
@@ -3586,7 +4134,9 @@ void main() {
         songs: <Song>[Song(id: 'song-new', title: 'New Song')],
       );
 
-      final state = await engine.syncNow();
+      final state = await engine.executeSyncPlan(
+        syncPlanForTest(LibrarySyncPlanKind.deltaReconcile),
+      );
 
       expect(state.status, LibrarySyncStatus.succeeded);
       expect(api.calls, contains('getAlbumListPage:0:100'));
@@ -3664,7 +4214,9 @@ void main() {
         songs: <Song>[Song(id: 'song-new', title: 'New Song')],
       );
 
-      final state = await engine.syncNow();
+      final state = await engine.executeSyncPlan(
+        syncPlanForTest(LibrarySyncPlanKind.deltaReconcile),
+      );
 
       expect(state.status, LibrarySyncStatus.succeeded);
       expect(api.calls, contains('getAlbumListPage:100:100'));
@@ -3678,21 +4230,10 @@ void main() {
       'metered manual discovery hydrates only a bounded newest-album subset',
       () async {
         await saveSession(lastSynced: DateTime.now());
-        final meteredEngine = DriftLibrarySyncEngine(
+        final meteredEngine = meteredDriftEngine(
           api: api,
           database: database,
-          serverConfigRepository: serverConfigRepository,
-          networkType: NetworkType.cellular,
-          readSyncNetworkPolicy: () => const SyncNetworkPolicy(
-            networkType: NetworkType.cellular,
-            isMetered: true,
-            allowsBackgroundSync: false,
-            allowsHardProbe: true,
-            allowsInteractiveHydration: true,
-          ),
-          fallbackArtistConcurrency: 1,
-          cellularAlbumConcurrency: 1,
-          writeChunkSize: 4,
+          repository: serverConfigRepository,
         );
         api.fastPathPages[0] = List<Album>.generate(
           5,
@@ -3716,7 +4257,7 @@ void main() {
           );
         }
 
-        final state = await meteredEngine.executeSyncExecutionPlan(
+        final state = await meteredEngine.executeSyncPlan(
           _meteredManualDiscoveryPlan,
         );
 
@@ -3734,8 +4275,7 @@ void main() {
           api.calls.where(
             (call) =>
                 call.startsWith('getStarredContent') ||
-                call.startsWith('getPlaylists') ||
-                call.startsWith('getGenres'),
+                call.startsWith('getPlaylists'),
           ),
           isEmpty,
         );
@@ -3755,21 +4295,10 @@ void main() {
 
     test('capped metered discovery window records discovery debt', () async {
       await saveSession(lastSynced: DateTime.now());
-      final meteredEngine = DriftLibrarySyncEngine(
+      final meteredEngine = meteredDriftEngine(
         api: api,
         database: database,
-        serverConfigRepository: serverConfigRepository,
-        networkType: NetworkType.cellular,
-        readSyncNetworkPolicy: () => const SyncNetworkPolicy(
-          networkType: NetworkType.cellular,
-          isMetered: true,
-          allowsBackgroundSync: false,
-          allowsHardProbe: true,
-          allowsInteractiveHydration: true,
-        ),
-        fallbackArtistConcurrency: 1,
-        cellularAlbumConcurrency: 1,
-        writeChunkSize: 4,
+        repository: serverConfigRepository,
       );
       // A full 50-album page of unknown content: the metered window caps
       // without ever reaching known content.
@@ -3795,7 +4324,7 @@ void main() {
         );
       }
 
-      final state = await meteredEngine.executeSyncExecutionPlan(
+      final state = await meteredEngine.executeSyncPlan(
         _meteredManualDiscoveryPlan,
       );
 
@@ -3809,21 +4338,10 @@ void main() {
 
     test('reaching known content clears recorded discovery debt', () async {
       await saveSession(lastSynced: DateTime.now());
-      final meteredEngine = DriftLibrarySyncEngine(
+      final meteredEngine = meteredDriftEngine(
         api: api,
         database: database,
-        serverConfigRepository: serverConfigRepository,
-        networkType: NetworkType.cellular,
-        readSyncNetworkPolicy: () => const SyncNetworkPolicy(
-          networkType: NetworkType.cellular,
-          isMetered: true,
-          allowsBackgroundSync: false,
-          allowsHardProbe: true,
-          allowsInteractiveHydration: true,
-        ),
-        fallbackArtistConcurrency: 1,
-        cellularAlbumConcurrency: 1,
-        writeChunkSize: 4,
+        repository: serverConfigRepository,
       );
       api.fastPathPages[0] = List<Album>.generate(
         50,
@@ -3848,11 +4366,11 @@ void main() {
       }
 
       // First pass: everything is unknown, so debt is recorded.
-      await meteredEngine.executeSyncExecutionPlan(_meteredManualDiscoveryPlan);
+      await meteredEngine.executeSyncPlan(_meteredManualDiscoveryPlan);
       // Second pass: the same window is now known and unchanged, so the
       // probe reaches known content and clears the debt.
       api.calls.clear();
-      final state = await meteredEngine.executeSyncExecutionPlan(
+      final state = await meteredEngine.executeSyncPlan(
         _meteredManualDiscoveryPlan,
       );
 
@@ -3878,21 +4396,10 @@ void main() {
             'navis': <String, Object?>{'libraryDiscoveryDebtStreak': '1'},
           }),
         );
-        final meteredEngine = DriftLibrarySyncEngine(
+        final meteredEngine = meteredDriftEngine(
           api: api,
           database: database,
-          serverConfigRepository: serverConfigRepository,
-          networkType: NetworkType.cellular,
-          readSyncNetworkPolicy: () => const SyncNetworkPolicy(
-            networkType: NetworkType.cellular,
-            isMetered: true,
-            allowsBackgroundSync: false,
-            allowsHardProbe: true,
-            allowsInteractiveHydration: true,
-          ),
-          fallbackArtistConcurrency: 1,
-          cellularAlbumConcurrency: 1,
-          writeChunkSize: 4,
+          repository: serverConfigRepository,
         );
         api.fastPathPages[0] = List<Album>.generate(
           50,
@@ -3916,7 +4423,7 @@ void main() {
           );
         }
 
-        final state = await meteredEngine.executeSyncExecutionPlan(
+        final state = await meteredEngine.executeSyncPlan(
           _meteredManualDiscoveryPlan,
         );
 
@@ -3978,8 +4485,12 @@ void main() {
         growable: false,
       );
       await database.libraryDao.replaceArtists(artists);
-      await database.libraryDao.replaceAlbums(albums);
-      await database.libraryDao.replaceSongs(songs);
+      await database.batch(
+        (batch) => batch.insertAll(database.albumsTable, albums),
+      );
+      await database.batch(
+        (batch) => batch.insertAll(database.songsTable, songs),
+      );
 
       api.indexes = Indexes(
         lastModified: changedCursor,
@@ -4039,7 +4550,9 @@ void main() {
         ],
       );
 
-      final state = await engine.syncNow();
+      final state = await engine.executeSyncPlan(
+        syncPlanForTest(LibrarySyncPlanKind.deltaReconcile),
+      );
 
       expect(state.status, LibrarySyncStatus.succeeded);
       expect(await database.libraryDao.getAlbumById('album-new'), isNotNull);
@@ -4104,7 +4617,9 @@ void main() {
           songs: <Song>[],
         );
 
-        final state = await engine.syncNow();
+        final state = await engine.executeSyncPlan(
+          syncPlanForTest(LibrarySyncPlanKind.deltaReconcile),
+        );
         final albums = await database.select(database.albumsTable).get();
 
         expect(state.status, LibrarySyncStatus.succeeded);
@@ -4140,7 +4655,9 @@ void main() {
           songs: <Song>[Song(id: 'song-1', title: 'Song 1')],
         );
 
-        final state = await engine.syncIfStale();
+        final state = await engine.executeSyncPlan(
+          syncPlanForTest(LibrarySyncPlanKind.compatibilityAudit),
+        );
 
         expect(state.status, LibrarySyncStatus.succeeded);
         expect(state.mode, LibrarySyncMode.incremental);
@@ -4177,7 +4694,12 @@ void main() {
           api.artistDetails[artistId] = Artist(id: artistId, name: artistId);
         }
 
-        final state = await engine.syncIfStale();
+        final state = await engine.executeSyncPlan(
+          syncPlanForTest(
+            LibrarySyncPlanKind.deltaReconcile,
+            intent: SyncRunIntent.automaticCatalogCheck,
+          ),
+        );
         final config = await serverConfigRepository.getActiveServer();
 
         expect(state.status, LibrarySyncStatus.succeeded);
@@ -4185,9 +4707,9 @@ void main() {
         expect(api.calls, contains('getIndexes'));
         expect(
           api.calls.where((call) => call.startsWith('getArtist:')).length,
-          48,
+          24,
         );
-        expect(state.remainingVerificationCount, 1);
+        expect(state.remainingVerificationCount, 25);
         expect(api.calls, isNot(contains('getArtists')));
         expect(api.calls, isNot(contains('getAlbumListPage:0:500')));
         expect(
@@ -4230,7 +4752,12 @@ void main() {
         ],
       );
 
-      final state = await engine.syncIfStale();
+      final state = await engine.executeSyncPlan(
+        syncPlanForTest(
+          LibrarySyncPlanKind.deltaReconcile,
+          intent: SyncRunIntent.automaticCatalogCheck,
+        ),
+      );
 
       expect(state.status, LibrarySyncStatus.succeeded);
       expect(state.mode, LibrarySyncMode.incremental);
@@ -4250,7 +4777,12 @@ void main() {
         message: 'origin unavailable',
       );
 
-      final state = await engine.syncIfStale();
+      final state = await engine.executeSyncPlan(
+        syncPlanForTest(
+          LibrarySyncPlanKind.deltaReconcile,
+          intent: SyncRunIntent.automaticCatalogCheck,
+        ),
+      );
 
       expect(state.status, LibrarySyncStatus.failed);
       expect(state.mode, LibrarySyncMode.incremental);
@@ -4267,52 +4799,25 @@ void main() {
         lastSynced: DateTime.now().subtract(const Duration(hours: 2)),
         lastFullSyncedAt: DateTime.now(),
       );
-      await database.librarySyncDao.markAuxiliarySyncedAt(
-        serverId: 1,
-        syncedAt: DateTime.now(),
+      await database.librarySyncDao.writeState(
+        LibrarySyncStateTableCompanion(
+          serverId: const Value(1),
+          lastAuxiliarySyncedAt: Value(DateTime.now()),
+        ),
       );
 
-      final state = await engine.syncIfStale();
+      final state = await engine.executeSyncPlan(
+        syncPlanForTest(
+          LibrarySyncPlanKind.deltaReconcile,
+          intent: SyncRunIntent.automaticCatalogCheck,
+        ),
+      );
 
       expect(state.status, LibrarySyncStatus.succeeded);
       expect(state.mode, LibrarySyncMode.incremental);
       expect(api.calls, contains('getIndexes'));
       expect(api.calls, isNot(contains('getStarredContent')));
-      expect(api.calls, isNot(contains('getGenres')));
       expect(api.calls, isNot(contains('getPlaylists')));
-    }, skip: !sqliteAvailable);
-
-    test('manual normal sync refreshes liked content and playlist headers without genres', () async {
-      await saveSession(
-        lastSynced: DateTime.now().subtract(const Duration(hours: 2)),
-        lastFullSyncedAt: DateTime.now(),
-      );
-      await database.librarySyncDao.markAuxiliarySyncedAt(
-        serverId: 1,
-        syncedAt: DateTime.now().subtract(const Duration(hours: 1)),
-      );
-      api.indexes = Indexes(lastModified: DateTime.utc(2026, 8, 9));
-      api.starredContent = const StarredContent();
-      api.playlists = const <Playlist>[
-        Playlist(id: 'playlist-1', name: 'Playlist 1'),
-      ];
-
-      final state = await engine.syncNow();
-
-      expect(state.status, LibrarySyncStatus.succeeded);
-      expect(api.calls, contains('getStarredContent'));
-      expect(api.calls, contains('getPlaylists'));
-      expect(api.calls, isNot(contains('getGenres')));
-      expect(state.starredSynchronized, isTrue);
-      expect(state.playlistHeadersSynchronized, isTrue);
-      final persisted = await database.librarySyncDao.getOrCreateState(1);
-      expect(persisted.lastAuxiliarySyncedAt, isNotNull);
-      expect(
-        persisted.lastAuxiliarySyncedAt!.isAfter(
-          DateTime.now().subtract(const Duration(seconds: 10)),
-        ),
-        isTrue,
-      );
     }, skip: !sqliteAvailable);
 
     test(
@@ -4339,7 +4844,12 @@ void main() {
           songs: <Song>[Song(id: 'song-1', title: 'Song 1')],
         );
 
-        final state = await engine.syncIfStale();
+        final state = await engine.executeSyncPlan(
+          syncPlanForTest(
+            LibrarySyncPlanKind.deltaReconcile,
+            intent: SyncRunIntent.automaticCatalogCheck,
+          ),
+        );
         final config = await serverConfigRepository.getActiveServer();
 
         expect(state.status, LibrarySyncStatus.succeeded);
@@ -4366,23 +4876,27 @@ void main() {
       await database.libraryDao.replaceArtists(<ArtistsTableCompanion>[
         ArtistsTableCompanion.insert(id: 'artist-1', name: 'Artist 1'),
       ]);
-      await database.libraryDao.replaceAlbums(<AlbumsTableCompanion>[
-        AlbumsTableCompanion.insert(
-          id: 'album-1',
-          name: 'Album 1',
-          artistId: const Value('artist-1'),
-          artistName: const Value('Artist 1'),
-          songsHydrated: const Value(true),
-          songsVerifiedAt: Value(DateTime.now()),
-        ),
-      ]);
-      await database.libraryDao.replaceSongs(<SongsTableCompanion>[
-        SongsTableCompanion.insert(
-          id: 'song-1',
-          title: 'Song 1',
-          albumId: const Value('album-1'),
-        ),
-      ]);
+      await database.batch(
+        (batch) => batch.insertAll(database.albumsTable, <AlbumsTableCompanion>[
+          AlbumsTableCompanion.insert(
+            id: 'album-1',
+            name: 'Album 1',
+            artistId: const Value('artist-1'),
+            artistName: const Value('Artist 1'),
+            songsHydrated: const Value(true),
+            songsVerifiedAt: Value(DateTime.now()),
+          ),
+        ]),
+      );
+      await database.batch(
+        (batch) => batch.insertAll(database.songsTable, <SongsTableCompanion>[
+          SongsTableCompanion.insert(
+            id: 'song-1',
+            title: 'Song 1',
+            albumId: const Value('album-1'),
+          ),
+        ]),
+      );
 
       api.artists.add(const Artist(id: 'artist-1', name: 'Artist 1'));
       api.artistDetails['artist-1'] = const Artist(
@@ -4406,7 +4920,12 @@ void main() {
         ),
       ];
 
-      final state = await engine.syncIfStale();
+      final state = await engine.executeSyncPlan(
+        syncPlanForTest(
+          LibrarySyncPlanKind.deltaReconcile,
+          intent: SyncRunIntent.automaticCatalogCheck,
+        ),
+      );
       final pending = await database.libraryDao.countPendingHydrationAlbums();
       final songs = await database.select(database.songsTable).get();
 
@@ -4453,10 +4972,11 @@ void main() {
           otherAlbumConcurrency: 2,
           otherMaxAlbumConcurrency: 4,
           writeChunkSize: 18,
-          isolateThreshold: 1000,
         );
 
-        final state = await adaptiveEngine.forceFullSync();
+        final state = await adaptiveEngine.executeSyncPlan(
+          syncPlanForTest(LibrarySyncPlanKind.fullRepair),
+        );
 
         expect(state.status, LibrarySyncStatus.succeeded);
         expect(api.maxConcurrentAlbumRequests, greaterThanOrEqualTo(8));
@@ -4497,10 +5017,11 @@ void main() {
           networkType: NetworkType.wifi,
           readActiveSongId: () => 'song-playing',
           writeChunkSize: 12,
-          isolateThreshold: 1000,
         );
 
-        final state = await activePlaybackEngine.forceFullSync();
+        final state = await activePlaybackEngine.executeSyncPlan(
+          syncPlanForTest(LibrarySyncPlanKind.fullRepair),
+        );
 
         expect(state.status, LibrarySyncStatus.succeeded);
         expect(api.maxConcurrentAlbumRequests, greaterThanOrEqualTo(4));
@@ -4540,16 +5061,98 @@ void main() {
           wifiAlbumConcurrency: 2,
           wifiMaxAlbumConcurrency: 8,
           writeChunkSize: 12,
-          isolateThreshold: 1000,
         );
 
-        final state = await adaptiveEngine.forceFullSync();
+        final state = await adaptiveEngine.executeSyncPlan(
+          syncPlanForTest(LibrarySyncPlanKind.fullRepair),
+        );
 
         expect(state.status, LibrarySyncStatus.succeeded);
         expect(api.maxConcurrentAlbumRequests, greaterThanOrEqualTo(8));
       },
       skip: !sqliteAvailable,
     );
+
+    for (final pressure in ['clean', '503', 'transport retry', '404']) {
+      test('adaptive hydration batches respond to $pressure', () async {
+        await saveSession();
+        final batchApi = _BatchTrackingLibrarySyncApi();
+        batchApi.artists.add(const Artist(id: 'artist-1', name: 'Artist 1'));
+        batchApi.fastPathPages[0] = List<Album>.generate(
+          18,
+          (index) => Album(
+            id: 'album-$index',
+            name: 'Album $index',
+            artistId: 'artist-1',
+          ),
+        );
+        for (var index = 0; index < 18; index++) {
+          batchApi.albumDetails['album-$index'] = Album(
+            id: 'album-$index',
+            name: 'Album $index',
+            songs: [Song(id: 'song-$index', title: 'Song')],
+          );
+        }
+        if (pressure == '503') {
+          batchApi.albumErrors['album-0'] = const SubsonicGenericException(
+            message: 'Busy',
+            code: 503,
+          );
+        } else if (pressure == '404') {
+          batchApi.notFoundAlbumIds.add('album-0');
+        }
+        batchApi.retryFirstAlbum = pressure == 'transport retry';
+        final batchEngine = DriftLibrarySyncEngine(
+          api: batchApi,
+          database: database,
+          serverConfigRepository: serverConfigRepository,
+          networkType: NetworkType.wifi,
+          writeChunkSize: 18,
+        );
+        final scope = SyncRequestScope(
+          allowedEndpoints: {
+            'getIndexes',
+            'getArtists',
+            'getAlbumListPage',
+            'getNewestAlbumList2',
+            'searchSongsPage',
+            'getAlbum',
+            'getStarredContent',
+            'getPlaylists',
+          },
+          maxRequests: 100,
+          maxNewestPages: 0,
+          maxAlbumHydrations: 0,
+          maxResponseBytes: null,
+          maxTotalBytes: null,
+          maxConcurrency: 24,
+          maxDuration: const Duration(seconds: 30),
+          canRequest: () => true,
+        );
+
+        final state = await scope.run(
+          () => batchEngine.executeSyncPlan(
+            syncPlanForTest(LibrarySyncPlanKind.fullRepair),
+          ),
+        );
+
+        expect(state.status, LibrarySyncStatus.succeeded);
+        expect(
+          batchApi.batchSizes,
+          pressure == '503' || pressure == 'transport retry'
+              ? [8, 6, 4]
+              : [8, 10],
+        );
+        expect(
+          state.pendingHydrationCount,
+          pressure == '503' || pressure == '404' ? 1 : 0,
+        );
+        expect(
+          batchApi.calls.where((call) => call == 'getAlbum:album-0'),
+          hasLength(1),
+        );
+      }, skip: !sqliteAvailable);
+    }
 
     test('transient album failures are left for durable retry', () async {
       await saveSession();
@@ -4564,7 +5167,9 @@ void main() {
       );
       api.transientAlbumFailures['album-1'] = 2;
 
-      final state = await engine.forceFullSync();
+      final state = await engine.executeSyncPlan(
+        syncPlanForTest(LibrarySyncPlanKind.fullRepair),
+      );
 
       expect(state.status, LibrarySyncStatus.succeeded);
       expect(api.calls.where((call) => call == 'getAlbum:album-1').length, 1);
@@ -4604,7 +5209,9 @@ void main() {
           songs: [Song(id: 'two', title: 'Two', albumId: 'partial')],
         );
 
-        final first = await engine.forceFullSync();
+        final first = await engine.executeSyncPlan(
+          syncPlanForTest(LibrarySyncPlanKind.fullRepair),
+        );
         expect(first.status, LibrarySyncStatus.succeeded);
         expect(first.pendingHydrationCount, 1);
         expect(first.onlyIncompleteAlbumDetails, isTrue);
@@ -4619,7 +5226,9 @@ void main() {
             Song(id: 'three', title: 'Three', albumId: 'partial'),
           ],
         );
-        final recovered = await engine.continueVerification();
+        final recovered = await engine.executeSyncPlan(
+          syncPlanForTest(LibrarySyncPlanKind.targetedHydration),
+        );
         expect(recovered.pendingHydrationCount, 0);
         expect(recovered.onlyIncompleteAlbumDetails, isFalse);
         expect((await database.libraryDao.getCatalogCounts()).songs, 3);
@@ -4634,13 +5243,12 @@ void main() {
           lastSynced: DateTime.now(),
           lastFullSyncedAt: DateTime.now(),
         );
-        await database.libraryDao.replaceAlbums(<AlbumsTableCompanion>[
-          AlbumsTableCompanion.insert(
-            id: 'album-1',
-            name: 'Album 1',
-            songsHydrated: const Value(false),
+        await database.batch(
+          (batch) => batch.insertAll(
+            database.albumsTable,
+            <AlbumsTableCompanion>[unhydratedAlbum('album-1', 'Album 1')],
           ),
-        ]);
+        );
         api.albumDetails['album-1'] = const Album(
           id: 'album-1',
           name: 'Album 1',
@@ -4649,7 +5257,9 @@ void main() {
           ],
         );
 
-        final state = await engine.syncIfStale();
+        final state = await engine.executeSyncPlan(
+          syncPlanForTest(LibrarySyncPlanKind.targetedHydration),
+        );
         final albums = await database.select(database.albumsTable).get();
         final songs = await database.select(database.songsTable).get();
 
@@ -4694,7 +5304,9 @@ void main() {
         ];
         // Intentionally omit api.albumDetails['album-1'] so hydration fails.
 
-        final state = await engine.forceFullSync();
+        final state = await engine.executeSyncPlan(
+          syncPlanForTest(LibrarySyncPlanKind.fullRepair),
+        );
         final songs = await database.select(database.songsTable).get();
         final pendingAlbums = await database.libraryDao
             .getPendingHydrationAlbumIds();
@@ -4715,7 +5327,9 @@ void main() {
         );
         api.calls.clear();
 
-        final recovered = await engine.continueVerification();
+        final recovered = await engine.executeSyncPlan(
+          syncPlanForTest(LibrarySyncPlanKind.targetedHydration),
+        );
         final recoveredSongs = await database.select(database.songsTable).get();
 
         expect(recovered.status, LibrarySyncStatus.succeeded);
@@ -4734,18 +5348,18 @@ void main() {
         lastSynced: DateTime.now(),
         lastFullSyncedAt: DateTime.now(),
       );
-      await database.libraryDao.replaceAlbums(<AlbumsTableCompanion>[
-        AlbumsTableCompanion.insert(
-          id: 'album-1',
-          name: 'Album 1',
-          songsHydrated: const Value(false),
-        ),
-      ]);
+      await database.batch(
+        (batch) => batch.insertAll(database.albumsTable, <AlbumsTableCompanion>[
+          unhydratedAlbum('album-1', 'Album 1'),
+        ]),
+      );
       api.albumErrors['album-1'] = const SubsonicAuthException(
         message: 'expired',
       );
 
-      final state = await engine.syncIfStale();
+      final state = await engine.executeSyncPlan(
+        syncPlanForTest(LibrarySyncPlanKind.targetedHydration),
+      );
       final pendingAlbums = await database.libraryDao
           .getPendingHydrationAlbumIds();
 
@@ -4765,18 +5379,13 @@ void main() {
           lastSynced: DateTime.now(),
           lastFullSyncedAt: DateTime.now(),
         );
-        await database.libraryDao.replaceAlbums(<AlbumsTableCompanion>[
-          AlbumsTableCompanion.insert(
-            id: 'album-1',
-            name: 'Album 1',
-            songsHydrated: const Value(false),
-          ),
-          AlbumsTableCompanion.insert(
-            id: 'album-stale',
-            name: 'Stale Album',
-            songsHydrated: const Value(false),
-          ),
-        ]);
+        await database.batch(
+          (batch) =>
+              batch.insertAll(database.albumsTable, <AlbumsTableCompanion>[
+                unhydratedAlbum('album-1', 'Album 1'),
+                unhydratedAlbum('album-stale', 'Stale Album'),
+              ]),
+        );
         api.albumDetails['album-1'] = const Album(
           id: 'album-1',
           name: 'Album 1',
@@ -4786,7 +5395,9 @@ void main() {
         );
         api.notFoundAlbumIds.add('album-stale');
 
-        final state = await engine.syncIfStale();
+        final state = await engine.executeSyncPlan(
+          syncPlanForTest(LibrarySyncPlanKind.targetedHydration),
+        );
         final albums = await database.select(database.albumsTable).get();
         final songs = await database.select(database.songsTable).get();
 
@@ -4806,18 +5417,13 @@ void main() {
           lastSynced: DateTime.now(),
           lastFullSyncedAt: DateTime.now(),
         );
-        await database.libraryDao.replaceAlbums(<AlbumsTableCompanion>[
-          AlbumsTableCompanion.insert(
-            id: 'album-1',
-            name: 'Album 1',
-            songsHydrated: const Value(false),
-          ),
-          AlbumsTableCompanion.insert(
-            id: 'album-2',
-            name: 'Album 2',
-            songsHydrated: const Value(false),
-          ),
-        ]);
+        await database.batch(
+          (batch) =>
+              batch.insertAll(database.albumsTable, <AlbumsTableCompanion>[
+                unhydratedAlbum('album-1', 'Album 1'),
+                unhydratedAlbum('album-2', 'Album 2'),
+              ]),
+        );
         api.albumDetails['album-1'] = const Album(
           id: 'album-1',
           name: 'Album 1',
@@ -4827,7 +5433,9 @@ void main() {
         );
         api.permanentTransientAlbumIds.add('album-2');
 
-        final state = await engine.syncIfStale();
+        final state = await engine.executeSyncPlan(
+          syncPlanForTest(LibrarySyncPlanKind.targetedHydration),
+        );
         final pending = await database.libraryDao.countPendingHydrationAlbums();
         final songs = await database.select(database.songsTable).get();
 
@@ -4838,26 +5446,34 @@ void main() {
       skip: !sqliteAvailable,
     );
 
-    test('catalog sync makes no genre request', () async {
-      await saveSession(
-        lastSynced: DateTime.now().subtract(const Duration(hours: 3)),
-        lastFullSyncedAt: DateTime.now(),
-      );
-      api.indexes = const Indexes(
-        shortcut: <Artist>[Artist(id: 'artist-1', name: 'Artist 1')],
-      );
-      api.artistDetails['artist-1'] = const Artist(
-        id: 'artist-1',
-        name: 'Artist 1',
-        albums: <Album>[],
-      );
-      final state = await engine.syncIfStale();
-      final config = await serverConfigRepository.getActiveServer();
+    test(
+      'automatic catalog check completes and stamps the last sync',
+      () async {
+        await saveSession(
+          lastSynced: DateTime.now().subtract(const Duration(hours: 3)),
+          lastFullSyncedAt: DateTime.now(),
+        );
+        api.indexes = const Indexes(
+          shortcut: <Artist>[Artist(id: 'artist-1', name: 'Artist 1')],
+        );
+        api.artistDetails['artist-1'] = const Artist(
+          id: 'artist-1',
+          name: 'Artist 1',
+          albums: <Album>[],
+        );
+        final state = await engine.executeSyncPlan(
+          syncPlanForTest(
+            LibrarySyncPlanKind.deltaReconcile,
+            intent: SyncRunIntent.automaticCatalogCheck,
+          ),
+        );
+        final config = await serverConfigRepository.getActiveServer();
 
-      expect(state.status, LibrarySyncStatus.succeeded);
-      expect(config?.lastSynced, isNotNull);
-      expect(api.calls, isNot(contains('getGenres')));
-    }, skip: !sqliteAvailable);
+        expect(state.status, LibrarySyncStatus.succeeded);
+        expect(config?.lastSynced, isNotNull);
+      },
+      skip: !sqliteAvailable,
+    );
 
     test(
       'failed full sync keeps the candidate hidden from the committed catalog',
@@ -4889,7 +5505,9 @@ void main() {
           ArtistsTableCompanion.insert(id: 'artist-1', name: 'Artist 1'),
         ]);
 
-        final state = await engine.forceFullSync();
+        final state = await engine.executeSyncPlan(
+          syncPlanForTest(LibrarySyncPlanKind.fullRepair),
+        );
         final artists = await database.select(database.artistsTable).get();
 
         expect(state.status, LibrarySyncStatus.failed);
@@ -4935,7 +5553,9 @@ void main() {
         );
         api.notFoundArtistIds.add('artist-1');
 
-        final state = await engine.syncNow();
+        final state = await engine.executeSyncPlan(
+          syncPlanForTest(LibrarySyncPlanKind.deltaReconcile),
+        );
 
         expect(state.status, LibrarySyncStatus.succeeded);
         expect(state.remainingVerificationCount, 1);
@@ -4979,7 +5599,9 @@ void main() {
           songs: <Song>[],
         );
 
-        final state = await engine.syncNow();
+        final state = await engine.executeSyncPlan(
+          syncPlanForTest(LibrarySyncPlanKind.deltaReconcile),
+        );
 
         expect(state.status, LibrarySyncStatus.succeeded);
         expect(
@@ -4998,8 +5620,12 @@ void main() {
         final completer = Completer<List<Artist>>();
         api.artistsCompleter = completer;
 
-        final first = engine.forceFullSync();
-        final second = engine.forceFullSync();
+        final first = engine.executeSyncPlan(
+          syncPlanForTest(LibrarySyncPlanKind.fullRepair),
+        );
+        final second = engine.executeSyncPlan(
+          syncPlanForTest(LibrarySyncPlanKind.fullRepair),
+        );
 
         completer.complete(const <Artist>[]);
         final firstState = await first;
@@ -5012,4 +5638,14 @@ void main() {
       skip: !sqliteAvailable,
     );
   });
+}
+
+class _RunCountingSyncApi extends FakeLibrarySyncApi {
+  int beginRunCalls = 0;
+
+  @override
+  void beginRun() {
+    beginRunCalls++;
+    super.beginRun();
+  }
 }

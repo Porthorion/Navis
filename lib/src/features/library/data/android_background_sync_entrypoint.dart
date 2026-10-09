@@ -98,6 +98,27 @@ class _HeadlessBackgroundSyncRunner {
     SubsonicApiClient? client;
     BackgroundNetworkPolicyTracker? policyTracker;
     int? activeServerId;
+    var startedAt = DateTime.now();
+    Future<Map<String, Object?>> finish(
+      String category, {
+      bool retry = false,
+      bool recordStartedAt = false,
+      LibrarySyncState? state,
+    }) async {
+      final serverId = activeServerId;
+      if (serverId != null) {
+        final completedAt = DateTime.now();
+        await database.librarySyncDao.writeAndroidBackgroundStatus(
+          serverId: serverId,
+          workerStartedAt: recordStartedAt ? startedAt : null,
+          workerCompletedAt: completedAt,
+          workerDurationMs: completedAt.difference(startedAt).inMilliseconds,
+          workerResult: category,
+        );
+      }
+      return _result(category, retry: retry, state: state);
+    }
+
     try {
       final repository = ServerConfigRepository(
         database,
@@ -108,17 +129,7 @@ class _HeadlessBackgroundSyncRunner {
       final serverId = retained?.id;
       activeServerId = serverId;
       if (config == null || config.id == null) {
-        if (serverId != null) {
-          final startedAt = DateTime.now();
-          await database.librarySyncDao.writeAndroidBackgroundStatus(
-            serverId: serverId,
-            workerStartedAt: startedAt,
-            workerCompletedAt: startedAt,
-            workerDurationMs: 0,
-            workerResult: 'credentialUnavailable',
-          );
-        }
-        return _result('credentialUnavailable');
+        return await finish('credentialUnavailable', recordStartedAt: true);
       }
       activeServerId = config.id;
 
@@ -131,7 +142,7 @@ class _HeadlessBackgroundSyncRunner {
         return _result('noWorkDue');
       }
 
-      final startedAt = DateTime.now();
+      startedAt = DateTime.now();
       await database.librarySyncDao.writeAndroidBackgroundStatus(
         serverId: config.id!,
         workId: command.workId,
@@ -154,14 +165,7 @@ class _HeadlessBackgroundSyncRunner {
       );
       if (!persisted.androidBackgroundSyncEnabled ||
           persisted.currentGeneration == 0) {
-        final completedAt = DateTime.now();
-        await database.librarySyncDao.writeAndroidBackgroundStatus(
-          serverId: config.id!,
-          workerCompletedAt: completedAt,
-          workerDurationMs: completedAt.difference(startedAt).inMilliseconds,
-          workerResult: 'noWorkDue',
-        );
-        return _result('noWorkDue');
+        return await finish('noWorkDue');
       }
 
       final settings = await database.appSettingsDao.getSettings();
@@ -175,14 +179,7 @@ class _HeadlessBackgroundSyncRunner {
       );
       policyTracker = tracker;
       if (!tracker.current.allowsBackgroundSync) {
-        final completedAt = DateTime.now();
-        await database.librarySyncDao.writeAndroidBackgroundStatus(
-          serverId: config.id!,
-          workerCompletedAt: completedAt,
-          workerDurationMs: completedAt.difference(startedAt).inMilliseconds,
-          workerResult: 'deferredPolicy',
-        );
-        return _result('deferredPolicy');
+        return await finish('deferredPolicy');
       }
 
       final meter = NetworkUsageMeter(
@@ -209,7 +206,9 @@ class _HeadlessBackgroundSyncRunner {
         serverConfigRepository: repository,
         initialNetworkType: tracker.current.networkType,
         readSyncNetworkPolicy: () => tracker.current,
-        staleAfter: Duration(minutes: settings?.syncIntervalMinutes ?? 60),
+        staleAfter: syncStaleAfterForInterval(
+          settings?.syncIntervalMinutes ?? 60,
+        ),
         readHasActivePlayback: () => false,
         readIsForeground: () => false,
         executionOwnerKind: 'androidWorker',
@@ -219,37 +218,12 @@ class _HeadlessBackgroundSyncRunner {
       final state = await coordinator.requestSync(
         const LibrarySyncRequest.automatic(),
       );
-      final category = _categoryFor(state);
-      final completedAt = DateTime.now();
-      await database.librarySyncDao.writeAndroidBackgroundStatus(
-        serverId: config.id!,
-        workerCompletedAt: completedAt,
-        workerDurationMs: completedAt.difference(startedAt).inMilliseconds,
-        workerResult: category,
-      );
-      return _result(category, state: state);
+      return await finish(_categoryFor(state), state: state);
     } on SyncCancelledException {
-      if (activeServerId != null) {
-        final completedAt = DateTime.now();
-        await database.librarySyncDao.writeAndroidBackgroundStatus(
-          serverId: activeServerId,
-          workerCompletedAt: completedAt,
-          workerResult: 'stoppedBySystem',
-        );
-      }
-      return _result('stoppedBySystem');
+      return await finish('stoppedBySystem');
     } on Object {
-      // The coordinator persists sync-domain failures itself. Reaching here
-      // means bootstrap or engine setup failed before it owned the pass.
-      if (activeServerId != null) {
-        final completedAt = DateTime.now();
-        await database.librarySyncDao.writeAndroidBackgroundStatus(
-          serverId: activeServerId,
-          workerCompletedAt: completedAt,
-          workerResult: 'transientFailure',
-        );
-      }
-      return _result('transientFailure', retry: true);
+      // Bootstrap failed before the coordinator owned the pass.
+      return await finish('transientFailure', retry: true);
     } finally {
       _coordinator = null;
       await policyTracker?.dispose();

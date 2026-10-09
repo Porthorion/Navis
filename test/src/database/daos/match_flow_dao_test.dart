@@ -30,7 +30,7 @@ void main() {
 
       final id = await database.matchFlowDao.createFlow();
 
-      var flows = await database.matchFlowDao.getFlowsWithSongs();
+      var flows = await database.matchFlowDao.watchFlowsWithSongs().first;
       expect(flows, hasLength(1));
       expect(flows.single.flow.id, id);
       expect(flows.single.flow.name, MatchFlowDao.defaultFlowName);
@@ -39,12 +39,12 @@ void main() {
       await database.matchFlowDao.renameFlow(id, 'Road trip');
       await database.matchFlowDao.setFlowEnabled(id, enabled: false);
 
-      flows = await database.matchFlowDao.getFlowsWithSongs();
+      flows = await database.matchFlowDao.watchFlowsWithSongs().first;
       expect(flows.single.flow.name, 'Road trip');
       expect(flows.single.flow.enabled, isFalse);
 
       await database.matchFlowDao.deleteFlow(id);
-      expect(await database.matchFlowDao.getFlowsWithSongs(), isEmpty);
+      expect(await database.matchFlowDao.watchFlowsWithSongs().first, isEmpty);
     });
 
     test('adds, removes, and reorders songs', () async {
@@ -56,7 +56,8 @@ void main() {
       await database.matchFlowDao.reorderSong(flowId, 'child-c', newIndex: 1);
       await database.matchFlowDao.removeSong(flowId, 'child-b');
 
-      final flow = (await database.matchFlowDao.getFlowsWithSongs()).single;
+      final flow =
+          (await database.matchFlowDao.watchFlowsWithSongs().first).single;
       expect(flow.songs.map((entry) => entry.link.songId), <String>[
         'master-a',
         'child-c',

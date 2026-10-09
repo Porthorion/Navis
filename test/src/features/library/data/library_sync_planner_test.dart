@@ -37,33 +37,35 @@ void main() {
     LibrarySyncRequest request = const LibrarySyncRequest.automatic(),
     NetworkType networkType = NetworkType.wifi,
     bool? restrictsBackgroundSync,
+    bool? allowsBackgroundSync,
     bool baseline = true,
     bool due = true,
     int pendingHydration = 0,
     SyncCapabilityMode indexes = SyncCapabilityMode.reliable,
-    bool? indexChanged,
-    bool explainable = false,
     bool auxiliaryDue = false,
     bool auditDue = false,
-    bool repairRequired = false,
     bool foreground = true,
     bool playing = false,
   }) {
     return LibrarySyncPlannerContext(
       request: request,
-      networkType: networkType,
-      restrictsBackgroundSync:
-          restrictsBackgroundSync ?? networkType == NetworkType.cellular,
+      networkPolicy: SyncNetworkPolicy(
+        networkType: networkType,
+        isMetered:
+            restrictsBackgroundSync ?? networkType == NetworkType.cellular,
+        allowsBackgroundSync:
+            allowsBackgroundSync ??
+            !(restrictsBackgroundSync ?? networkType == NetworkType.cellular),
+        allowsHardProbe: networkType != NetworkType.offline,
+        allowsInteractiveHydration: networkType != NetworkType.offline,
+      ),
       hasAuthoritativeBaseline: baseline,
       isCatalogCheckDue: due,
       pendingHydrationCount: pendingHydration,
       pendingWorkCount: 0,
       indexesMode: indexes,
-      indexChanged: indexChanged,
-      changeIsExplainable: explainable,
       auxiliaryDue: auxiliaryDue,
       auditDue: auditDue,
-      repairRequired: repairRequired,
       isForeground: foreground,
       hasActivePlayback: playing,
     );
@@ -79,9 +81,9 @@ void main() {
     final plan = planner.plan(
       context(
         request: const LibrarySyncRequest(
-          trigger: LibrarySyncTrigger.interaction,
-          intent: LibrarySyncIntent.checkForUpdates,
+          intent: SyncRunIntent.manualCatalogCheck,
           target: LibrarySyncTarget.album('album-1'),
+          origin: SyncRunOrigin.interaction,
         ),
         networkType: NetworkType.cellular,
       ),
@@ -94,9 +96,9 @@ void main() {
     final plan = planner.plan(
       context(
         request: const LibrarySyncRequest(
-          trigger: LibrarySyncTrigger.interaction,
-          intent: LibrarySyncIntent.automatic,
+          intent: SyncRunIntent.automaticCatalogCheck,
           target: LibrarySyncTarget.starred(),
+          origin: SyncRunOrigin.interaction,
         ),
       ),
     );
@@ -109,9 +111,9 @@ void main() {
     final plan = planner.plan(
       context(
         request: const LibrarySyncRequest(
-          trigger: LibrarySyncTrigger.interaction,
-          intent: LibrarySyncIntent.checkForUpdates,
+          intent: SyncRunIntent.manualCatalogCheck,
           target: LibrarySyncTarget.playlistHeaders(),
+          origin: SyncRunOrigin.interaction,
         ),
       ),
     );
@@ -123,9 +125,9 @@ void main() {
     final plan = planner.plan(
       context(
         request: const LibrarySyncRequest(
-          trigger: LibrarySyncTrigger.interaction,
-          intent: LibrarySyncIntent.checkForUpdates,
+          intent: SyncRunIntent.manualCatalogCheck,
           target: LibrarySyncTarget.album('album-1'),
+          origin: SyncRunOrigin.interaction,
         ),
         networkType: NetworkType.offline,
       ),
@@ -141,7 +143,7 @@ void main() {
   });
 
   test('unchanged fresh domains produce a true no-op', () {
-    final plan = planner.plan(context(due: false, indexChanged: false));
+    final plan = planner.plan(context(due: false));
     expect(plan.kind, LibrarySyncPlanKind.probe);
     expect(plan.shouldExecute, isFalse);
   });
@@ -162,7 +164,7 @@ void main() {
   });
 
   test('eligible due automatic checks discover beyond an unchanged index', () {
-    final plan = planner.plan(context(indexChanged: false));
+    final plan = planner.plan(context());
     expect(plan.kind, LibrarySyncPlanKind.deltaReconcile);
     expect(plan.reason, 'automaticCatalogDiscovery');
     expect(plan.shouldExecute, isTrue);
@@ -207,16 +209,6 @@ void main() {
     },
   );
 
-  test('explainable index change selects bounded delta reconciliation', () {
-    final plan = planner.plan(context(indexChanged: true, explainable: true));
-    expect(plan.kind, LibrarySyncPlanKind.deltaReconcile);
-  });
-
-  test('unexplained or regressing change selects a catalog snapshot', () {
-    final plan = planner.plan(context(indexChanged: true, explainable: false));
-    expect(plan.kind, LibrarySyncPlanKind.catalogSnapshot);
-  });
-
   test('unsupported indexes select only a due compatibility partition', () {
     final plan = planner.plan(
       context(indexes: SyncCapabilityMode.unsupported, auditDue: true),
@@ -252,11 +244,66 @@ void main() {
     expect(plan.reason, 'cellularProbeOnly');
   });
 
+  for (final pending in [0, 4]) {
+    test(
+      'automatic mobile discovery respects enabled background sync: $pending',
+      () {
+        final allowed = context(
+          networkType: NetworkType.cellular,
+          allowsBackgroundSync: true,
+          pendingHydration: pending,
+        );
+        final plan = planner.plan(allowed);
+        expect(plan.kind, LibrarySyncPlanKind.deltaReconcile);
+        expect(plan.shouldExecute, isTrue);
+        expect(plan.deferred, isFalse);
+        for (final (foreground, playing) in [(false, false), (true, true)]) {
+          final blocked = planner.plan(
+            context(
+              networkType: NetworkType.cellular,
+              allowsBackgroundSync: true,
+              pendingHydration: pending,
+              foreground: foreground,
+              playing: playing,
+            ),
+          );
+          expect(blocked.kind, LibrarySyncPlanKind.deltaReconcile);
+          expect(blocked.shouldExecute, isFalse);
+          expect(blocked.deferred, isTrue);
+        }
+      },
+    );
+  }
+
+  for (final (grant, expected) in [
+    (false, LibrarySyncPlanKind.probe),
+    (true, LibrarySyncPlanKind.deltaReconcile),
+  ]) {
+    test('fresh automatic mobile planning with broad grant: $grant', () {
+      final plan = planner.plan(
+        context(
+          request: LibrarySyncRequest(
+            intent: SyncRunIntent.automaticCatalogCheck,
+            origin: SyncRunOrigin.timer,
+            grant: grant
+                ? SyncNetworkGrant.broadMeteredOnce
+                : SyncNetworkGrant.boundedMeteredDiscovery,
+          ),
+          networkType: NetworkType.cellular,
+        ),
+      );
+      expect(plan.kind, expected);
+      expect(plan.shouldExecute, isTrue);
+    });
+  }
+
   test('repair override can execute broad work on metered networks', () {
     final plan = planner.plan(
       context(
-        request: const LibrarySyncRequest.repair(
-          allowMeteredBroadOverride: true,
+        request: const LibrarySyncRequest(
+          origin: SyncRunOrigin.settingsRepair,
+          intent: SyncRunIntent.repairLibrary,
+          grant: SyncNetworkGrant.broadMeteredOnce,
         ),
         networkType: NetworkType.cellular,
       ),
@@ -275,16 +322,13 @@ void main() {
     expect(plan.shouldExecute, isFalse);
   });
 
-  test('automatic repair waits for foreground idle unmetered safety', () {
-    final plan = planner.plan(context(repairRequired: true, playing: true));
-    expect(plan.kind, LibrarySyncPlanKind.fullRepair);
-    expect(plan.deferred, isTrue);
-  });
-
   test('explicit repair remains guarded on cellular', () {
     final plan = planner.plan(
       context(
-        request: const LibrarySyncRequest.repair(),
+        request: const LibrarySyncRequest(
+          origin: SyncRunOrigin.settingsRepair,
+          intent: SyncRunIntent.repairLibrary,
+        ),
         networkType: NetworkType.cellular,
       ),
     );

@@ -122,13 +122,6 @@ class PlaylistDao extends DatabaseAccessor<NavisDatabase>
     });
   }
 
-  Future<void> clearAllPlaylists() async {
-    await transaction(() async {
-      await delete(playlistSongsTable).go();
-      await delete(playlistsTable).go();
-    });
-  }
-
   /// Delete a single playlist and its song associations.
   Future<void> deletePlaylist(String playlistId) async {
     await transaction(() async {
@@ -138,25 +131,6 @@ class PlaylistDao extends DatabaseAccessor<NavisDatabase>
       await (delete(
         playlistsTable,
       )..where((table) => table.id.equals(playlistId))).go();
-    });
-  }
-
-  /// Remove playlists whose IDs are NOT in [keepIds].
-  ///
-  /// Used during server sync to prune locally cached playlists that have been
-  /// deleted on the server.
-  Future<void> deletePlaylistsNotIn(List<String> keepIds) async {
-    if (keepIds.isEmpty) {
-      await clearAllPlaylists();
-      return;
-    }
-    await transaction(() async {
-      await (delete(
-        playlistSongsTable,
-      )..where((table) => table.playlistId.isNotIn(keepIds))).go();
-      await (delete(
-        playlistsTable,
-      )..where((table) => table.id.isNotIn(keepIds))).go();
     });
   }
 

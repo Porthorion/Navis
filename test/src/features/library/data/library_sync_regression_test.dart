@@ -1,3 +1,5 @@
+import '../../../../helpers/library_sync_plan.dart';
+
 import 'package:navis/src/api/subsonic_error.dart';
 import 'package:navis/src/features/library/domain/library_sync_request.dart';
 
@@ -24,6 +26,7 @@ import '../../../../helpers/library_sync_fakes.dart';
 
 class _AuditApi extends FakeLibrarySyncApi {
   Object? newestError;
+  void Function()? onNewestPage;
   Completer<StarredContent>? starredGate;
   @override
   Future<StarredContent> getStarredContent() async {
@@ -39,6 +42,7 @@ class _AuditApi extends FakeLibrarySyncApi {
     required int offset,
   }) async {
     calls.add('newest:$offset:$size');
+    onNewestPage?.call();
     if (newestError != null) {
       Error.throwWithStackTrace(newestError!, StackTrace.current);
     }
@@ -146,7 +150,6 @@ void main() {
       serverConfigRepository: repo,
       networkType: NetworkType.wifi,
       writeChunkSize: 4,
-      isolateThreshold: 1000,
     );
     coordinator = AdaptiveLibrarySyncCoordinator(
       executor: engine,
@@ -160,13 +163,158 @@ void main() {
   tearDown(() async {
     await db.close();
   });
+  for (final (name, network, request) in [
+    (
+      'wifi check',
+      NetworkType.wifi,
+      const LibrarySyncRequest.checkForUpdates(),
+    ),
+    (
+      'wifi repair',
+      NetworkType.wifi,
+      const LibrarySyncRequest(
+        origin: SyncRunOrigin.settingsRepair,
+        intent: SyncRunIntent.repairLibrary,
+      ),
+    ),
+    (
+      'bounded mobile check',
+      NetworkType.cellular,
+      const LibrarySyncRequest.checkForUpdates(),
+    ),
+    (
+      'broad mobile check',
+      NetworkType.cellular,
+      const LibrarySyncRequest.checkForUpdates(
+        grant: SyncNetworkGrant.broadMeteredOnce,
+      ),
+    ),
+    (
+      'broad mobile repair',
+      NetworkType.cellular,
+      const LibrarySyncRequest(
+        origin: SyncRunOrigin.settingsRepair,
+        intent: SyncRunIntent.repairLibrary,
+        grant: SyncNetworkGrant.broadMeteredOnce,
+      ),
+    ),
+  ]) {
+    test('explicit sync continues after the app is hidden: $name', () async {
+      await session();
+      await seed();
+      var foreground = true;
+      api.onNewestPage = () => foreground = false;
+      final hiddenEngine = DriftLibrarySyncEngine(
+        api: api,
+        database: db,
+        serverConfigRepository: repo,
+        networkType: network,
+      );
+      final hiddenCoordinator = AdaptiveLibrarySyncCoordinator(
+        executor: hiddenEngine,
+        database: db,
+        serverConfigRepository: repo,
+        networkType: network,
+        staleAfter: const Duration(hours: 1),
+        readIsForeground: () => foreground,
+        readHasActivePlayback: () => true,
+      );
+
+      final result = await hiddenCoordinator.requestSync(request);
+
+      expect(foreground, isFalse);
+      expect(result.status, LibrarySyncStatus.succeeded);
+      if (network == NetworkType.wifi ||
+          request.grant == SyncNetworkGrant.broadMeteredOnce) {
+        expect(api.calls, containsAll(['getStarredContent', 'getPlaylists']));
+      } else {
+        expect(api.calls, isNot(contains('getStarredContent')));
+        expect(api.calls, isNot(contains('getPlaylists')));
+      }
+    });
+  }
+
+  for (final (name, backgroundAllowed, boundedGrant, broadGrant, queued) in [
+    ('background enabled', true, false, false, false),
+    ('bounded queued delta', false, true, false, true),
+    ('broad grant', false, false, true, false),
+  ]) {
+    test('automatic mobile delta reaches engine checkpoints: $name', () async {
+      final serverId = await session();
+      await seed();
+      await db.librarySyncDao.writeState(
+        LibrarySyncStateTableCompanion(
+          serverId: Value(serverId),
+          currentGeneration: const Value(1),
+          lastAuditAt: Value(DateTime.now()),
+          lastAuxiliarySyncedAt: Value(DateTime.now()),
+        ),
+      );
+      if (queued) {
+        await db.librarySyncDao.enqueueWork(
+          serverId: serverId,
+          kind: LibrarySyncPlanKind.deltaReconcile.name,
+          priority: 20,
+        );
+      }
+      final policy = resolveSyncNetworkPolicy(
+        networkType: NetworkType.cellular,
+        nativeMetered: true,
+        backgroundSyncUnmeteredOnly: !backgroundAllowed,
+      );
+      final mobileEngine = DriftLibrarySyncEngine(
+        api: api,
+        database: db,
+        serverConfigRepository: repo,
+        readSyncNetworkPolicy: () => policy,
+      );
+      final mobileCoordinator = AdaptiveLibrarySyncCoordinator(
+        executor: mobileEngine,
+        database: db,
+        serverConfigRepository: repo,
+        readSyncNetworkPolicy: () => policy,
+        staleAfter: const Duration(hours: 1),
+        readIsForeground: () => true,
+        readHasActivePlayback: () => false,
+      );
+
+      final result = await mobileCoordinator.requestSync(
+        LibrarySyncRequest(
+          intent: SyncRunIntent.automaticCatalogCheck,
+          origin: SyncRunOrigin.timer,
+          grant: broadGrant
+              ? SyncNetworkGrant.broadMeteredOnce
+              : boundedGrant
+              ? SyncNetworkGrant.boundedMeteredDiscovery
+              : SyncNetworkGrant.none,
+        ),
+      );
+
+      expect(result.planKind, LibrarySyncPlanKind.deltaReconcile);
+      expect(result.status, LibrarySyncStatus.succeeded);
+      expect(api.calls, contains('newest:0:100'));
+      if (queued) {
+        expect(
+          (await db.librarySyncDao.getWork(
+            serverId: serverId,
+            kind: LibrarySyncPlanKind.deltaReconcile.name,
+          ))?.status,
+          'completed',
+        );
+      }
+    });
+  }
+
   test('incomplete detail survives coordinator as partial and retries incrementally', () async {
     final serverId = await session(initial: true);
     await seed();
     api.albumDetails['a'] = album.copyWith(songs: [song1]);
 
     final first = await coordinator.requestSync(
-      const LibrarySyncRequest.repair(),
+      const LibrarySyncRequest(
+        origin: SyncRunOrigin.settingsRepair,
+        intent: SyncRunIntent.repairLibrary,
+      ),
     );
     expect(first.status, LibrarySyncStatus.partial);
     expect(first.onlyIncompleteAlbumDetails, isTrue);
@@ -204,7 +352,9 @@ void main() {
       ]);
       const other = Album(id: 'b', name: 'Other', artistId: 'ar', songCount: 0);
       api.albumDetails['b'] = other;
-      final first = await engine.forceFullSync();
+      final first = await engine.executeSyncPlan(
+        syncPlanForTest(LibrarySyncPlanKind.fullRepair),
+      );
       expect(first.candidateStatus, 'awaitingDeletionConfirmation');
       final original = (await db.librarySyncDao.getOrCreateState(serverId))
           .deletionCandidateFingerprint;
@@ -212,7 +362,9 @@ void main() {
       // would incorrectly reconfirm the old removal here.
       api.fastPathPages[0] = [other];
       api.newestPages[0] = [other];
-      final changed = await engine.forceFullSync();
+      final changed = await engine.executeSyncPlan(
+        syncPlanForTest(LibrarySyncPlanKind.fullRepair),
+      );
       expect(changed.candidateStatus, 'awaitingDeletionConfirmation');
       expect(await db.libraryDao.getAlbumById('a'), isNotNull);
       expect(await db.libraryDao.getAlbumById('b'), isNotNull);
@@ -229,10 +381,14 @@ void main() {
           ),
         ),
       );
-      final expired = await engine.forceFullSync();
+      final expired = await engine.executeSyncPlan(
+        syncPlanForTest(LibrarySyncPlanKind.fullRepair),
+      );
       expect(expired.candidateStatus, 'awaitingDeletionConfirmation');
       expect(await db.libraryDao.getAlbumById('a'), isNotNull);
-      final confirmed = await engine.forceFullSync();
+      final confirmed = await engine.executeSyncPlan(
+        syncPlanForTest(LibrarySyncPlanKind.fullRepair),
+      );
       expect(confirmed.status, LibrarySyncStatus.succeeded);
       expect(confirmed.candidateStatus, isNull);
       expect(await db.libraryDao.getAlbumById('a'), isNull);
@@ -257,7 +413,8 @@ void main() {
         api.newestPages[0] = [changed];
         api.albumDetails['a'] = changed;
         final progress = <LibrarySyncState>[];
-        final result = await engine.forceFullSync(
+        final result = await engine.executeSyncPlan(
+          syncPlanForTest(LibrarySyncPlanKind.fullRepair),
           onProgress: (state) {
             progress.add(state);
             if (state.stage == boundary) {
@@ -313,8 +470,12 @@ void main() {
         api.fastPathPages[0] = [mixed];
         final result = switch (path) {
           'target' => await engine.hydrateAlbum('a'),
-          'repair' => await engine.forceFullSync(),
-          _ => await engine.syncNow(),
+          'repair' => await engine.executeSyncPlan(
+            syncPlanForTest(LibrarySyncPlanKind.fullRepair),
+          ),
+          _ => await engine.executeSyncPlan(
+            syncPlanForTest(LibrarySyncPlanKind.deltaReconcile),
+          ),
         };
         expect(result.status, LibrarySyncStatus.succeeded);
         expect((await db.libraryDao.getAlbumById('a'))!.songsHydrated, isTrue);
@@ -487,7 +648,6 @@ void main() {
       await run;
       expect(settled, isTrue);
       expect(api.calls, isNot(contains('getPlaylists')));
-      expect(api.calls, isNot(contains('getGenres')));
     },
   );
 
@@ -499,9 +659,9 @@ void main() {
       api.starredGate = Completer<StarredContent>();
       final active = coordinator.requestSync(
         const LibrarySyncRequest(
-          trigger: LibrarySyncTrigger.user,
-          intent: LibrarySyncIntent.checkForUpdates,
+          intent: SyncRunIntent.manualCatalogCheck,
           target: LibrarySyncTarget.starred(),
+          origin: SyncRunOrigin.libraryPullToRefresh,
         ),
       );
       while (!api.calls.contains('getStarredContent')) {
@@ -509,9 +669,9 @@ void main() {
       }
       final queued = coordinator.requestSync(
         const LibrarySyncRequest(
-          trigger: LibrarySyncTrigger.user,
-          intent: LibrarySyncIntent.checkForUpdates,
+          intent: SyncRunIntent.manualCatalogCheck,
           target: LibrarySyncTarget.playlistHeaders(),
+          origin: SyncRunOrigin.libraryPullToRefresh,
         ),
       );
       while (await db.librarySyncDao.getWork(
@@ -558,7 +718,6 @@ void main() {
     expect(auxiliary.every((row) => row.requestCount == 0), isTrue);
     expect(api.calls, isNot(contains('getStarredContent')));
     expect(api.calls, isNot(contains('getPlaylists')));
-    expect(api.calls, isNot(contains('getGenres')));
   });
 
   test(
@@ -602,7 +761,6 @@ void main() {
 
       expect(api.calls, contains('getStarredContent'));
       expect(api.calls, contains('getPlaylists'));
-      expect(api.calls, isNot(contains('getGenres')));
       expect(
         (await db.libraryDao.getSongById('remote-favorite'))?.starred,
         isNotNull,
@@ -657,7 +815,6 @@ void main() {
         hasLength(1),
       );
       expect(api.calls.where((call) => call == 'getPlaylists'), hasLength(1));
-      expect(api.calls, isNot(contains('getGenres')));
       expect(
         (await db.librarySyncDao.getWork(
           serverId: id,
@@ -724,7 +881,6 @@ void main() {
         hasLength(1),
       );
       expect(api.calls.where((call) => call == 'getPlaylists'), hasLength(1));
-      expect(api.calls, isNot(contains('getGenres')));
       expect(
         (await db.libraryDao.getSongById('scheduled-favorite'))?.starred,
         isNotNull,
@@ -1113,9 +1269,9 @@ void main() {
       api.albumCompleter = Completer<Album>();
       final pending = coordinator.requestSync(
         const LibrarySyncRequest(
-          trigger: LibrarySyncTrigger.interaction,
-          intent: LibrarySyncIntent.checkForUpdates,
+          intent: SyncRunIntent.manualCatalogCheck,
           target: LibrarySyncTarget.album('a'),
+          origin: SyncRunOrigin.interaction,
         ),
       );
       for (var i = 0; i < 100 && !api.calls.contains('getAlbum:a'); i++) {
@@ -1180,7 +1336,6 @@ void main() {
     expect(result.planReason, 'automaticCatalogDiscovery');
     expect(result.status, LibrarySyncStatus.succeeded);
     expect(result.endpointRequests['getAlbum'], 1);
-    expect(result.endpointRequests.containsKey('getGenres'), isFalse);
     expect((await db.libraryDao.getAlbumById('b'))?.songsHydrated, isTrue);
     expect((await db.libraryDao.getSongById('s3'))?.albumId, 'b');
     expect(
@@ -1195,45 +1350,38 @@ void main() {
     await coordinator.requestSync(const LibrarySyncRequest.automatic());
     expect(api.calls.where((call) => call.startsWith('newest:')), isEmpty);
   });
-  test(
-    'F03 initial catalog initializes likes and playlist headers without genres',
-    () async {
-      final serverId = await session(initial: true);
-      api.starredContent = const StarredContent(
-        songs: [
-          Song(id: 'remote-favorite', title: 'Favorite', isExternal: true),
-        ],
-      );
-      api.playlists = const [Playlist(id: 'p', name: 'Playlist', songCount: 0)];
-      final result = await coordinator.requestSync(
-        const LibrarySyncRequest.automatic(),
-      );
-      expect(result.status, LibrarySyncStatus.succeeded);
-      expect(
-        api.calls.where((call) => call == 'getStarredContent'),
-        hasLength(1),
-      );
-      expect(api.calls, isNot(contains('getGenres')));
-      expect(api.calls.where((call) => call == 'getPlaylists'), hasLength(1));
-      expect(
-        (await db.libraryDao.getSongById('remote-favorite'))?.starred,
-        isNotNull,
-      );
-      expect(
-        (await db.libraryDao.watchAllStarredSongs().first).single.id,
-        'remote-favorite',
-      );
-      expect(await db.libraryDao.getAllSongs(), isEmpty);
-      expect((await db.playlistDao.getAllPlaylists()).single.id, 'p');
-      final state = await db.librarySyncDao.getOrCreateState(serverId);
-      expect(state.lastAuxiliarySyncedAt, isNotNull);
-      api.calls.clear();
-      await coordinator.requestSync(const LibrarySyncRequest.automatic());
-      expect(api.calls, isNot(contains('getStarredContent')));
-      expect(api.calls, isNot(contains('getGenres')));
-      expect(api.calls, isNot(contains('getPlaylists')));
-    },
-  );
+  test('F03 initial catalog initializes likes and playlist headers', () async {
+    final serverId = await session(initial: true);
+    api.starredContent = const StarredContent(
+      songs: [Song(id: 'remote-favorite', title: 'Favorite', isExternal: true)],
+    );
+    api.playlists = const [Playlist(id: 'p', name: 'Playlist', songCount: 0)];
+    final result = await coordinator.requestSync(
+      const LibrarySyncRequest.automatic(),
+    );
+    expect(result.status, LibrarySyncStatus.succeeded);
+    expect(
+      api.calls.where((call) => call == 'getStarredContent'),
+      hasLength(1),
+    );
+    expect(api.calls.where((call) => call == 'getPlaylists'), hasLength(1));
+    expect(
+      (await db.libraryDao.getSongById('remote-favorite'))?.starred,
+      isNotNull,
+    );
+    expect(
+      (await db.libraryDao.watchAllStarredSongs().first).single.id,
+      'remote-favorite',
+    );
+    expect(await db.libraryDao.getAllSongs(), isEmpty);
+    expect((await db.playlistDao.getAllPlaylists()).single.id, 'p');
+    final state = await db.librarySyncDao.getOrCreateState(serverId);
+    expect(state.lastAuxiliarySyncedAt, isNotNull);
+    api.calls.clear();
+    await coordinator.requestSync(const LibrarySyncRequest.automatic());
+    expect(api.calls, isNot(contains('getStarredContent')));
+    expect(api.calls, isNot(contains('getPlaylists')));
+  });
 
   test(
     'F03 auxiliary failure retains its retry without suppressing other domains',
@@ -1262,7 +1410,6 @@ void main() {
       api.calls.clear();
       await coordinator.requestSync(const LibrarySyncRequest.automatic());
       expect(api.calls, isNot(contains('getStarredContent')));
-      expect(api.calls, isNot(contains('getGenres')));
       expect(api.calls, isNot(contains('getPlaylists')));
       api.throwOnStarred = null;
       await db.librarySyncDao.requeue(starred!.id);
@@ -1272,7 +1419,6 @@ void main() {
         api.calls.where((call) => call == 'getStarredContent'),
         hasLength(1),
       );
-      expect(api.calls, isNot(contains('getGenres')));
       expect(api.calls, isNot(contains('getPlaylists')));
       expect(
         (await db.librarySyncDao.getOrCreateState(serverId))
@@ -1291,12 +1437,19 @@ void main() {
         const Album(id: 'remote', name: 'External', isExternal: true),
       ];
       api.newestError = StateError('interrupt after page collection');
-      expect((await engine.forceFullSync()).status, LibrarySyncStatus.failed);
+      expect(
+        (await engine.executeSyncPlan(
+          syncPlanForTest(LibrarySyncPlanKind.fullRepair),
+        )).status,
+        LibrarySyncStatus.failed,
+      );
       api.calls.clear();
       api.newestError = null;
       api.fastPathErrors[1] = StateError('wrong resumed offset');
       expect(
-        (await engine.forceFullSync()).status,
+        (await engine.executeSyncPlan(
+          syncPlanForTest(LibrarySyncPlanKind.fullRepair),
+        )).status,
         LibrarySyncStatus.succeeded,
       );
       expect(api.calls, isNot(contains('getAlbumListPage:1:500')));
@@ -1313,7 +1466,12 @@ void main() {
         recentlyAddedRank: const Value(800),
       ),
     ]);
-    expect((await engine.syncNow()).status, LibrarySyncStatus.succeeded);
+    expect(
+      (await engine.executeSyncPlan(
+        syncPlanForTest(LibrarySyncPlanKind.deltaReconcile),
+      )).status,
+      LibrarySyncStatus.succeeded,
+    );
     expect((await db.libraryDao.getAlbumById('tail'))!.recentlyAddedRank, 1);
   });
   test(
@@ -1354,7 +1512,9 @@ void main() {
           ),
         ],
       );
-      final result = await engine.syncNow();
+      final result = await engine.executeSyncPlan(
+        syncPlanForTest(LibrarySyncPlanKind.deltaReconcile),
+      );
       expect(result.status, LibrarySyncStatus.succeeded);
       expect(await db.libraryDao.getAlbumById('remote'), isNull);
       expect(await db.libraryDao.getSongById('remote-song'), isNull);
@@ -1365,7 +1525,9 @@ void main() {
     await seed();
     api.newestPages[0] = [album];
     api.newestPages[1] = [const Album(id: 'new', name: 'New', songCount: 0)];
-    final result = await engine.syncNow();
+    final result = await engine.executeSyncPlan(
+      syncPlanForTest(LibrarySyncPlanKind.deltaReconcile),
+    );
     expect(result.status, LibrarySyncStatus.succeeded);
     expect(api.calls.where((c) => c.startsWith('newest:')).toList(), [
       'newest:0:100',
@@ -1423,7 +1585,10 @@ void main() {
         'fixture offline',
       );
       final result = await coordinator.requestSync(
-        const LibrarySyncRequest.repair(),
+        const LibrarySyncRequest(
+          origin: SyncRunOrigin.settingsRepair,
+          intent: SyncRunIntent.repairLibrary,
+        ),
       );
       expect(result.status, LibrarySyncStatus.failed);
       final work = await db.librarySyncDao.getWork(
@@ -1619,7 +1784,12 @@ void main() {
           ),
         ],
       );
-      expect((await engine.syncNow()).status, LibrarySyncStatus.succeeded);
+      expect(
+        (await engine.executeSyncPlan(
+          syncPlanForTest(LibrarySyncPlanKind.deltaReconcile),
+        )).status,
+        LibrarySyncStatus.succeeded,
+      );
       expect(api.calls, contains('getAlbum:new-album'));
       expect(
         (await db.libraryDao.getAlbumById('new-album'))!.songsHydrated,

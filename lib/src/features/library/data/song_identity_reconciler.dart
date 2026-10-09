@@ -1,3 +1,5 @@
+import 'package:flutter/foundation.dart';
+
 import 'package:navis/src/database/daos/song_identity_dao.dart';
 import 'package:navis/src/database/navis_database.dart';
 
@@ -5,6 +7,12 @@ final _identityPunctuation = RegExp(
   r'''[!"#$%&'()*+,\-./:;<=>?@\[\\\]^_`{|}~]''',
 );
 final _identityWhitespace = RegExp(r'\s+');
+
+/// Normalizes optional MusicBrainz identifiers across songs, albums and artists.
+String? normalizeMusicBrainzId(String? value) {
+  final normalized = value?.trim().toLowerCase();
+  return normalized == null || normalized.isEmpty ? null : normalized;
+}
 
 enum SongIdentityMatchReason { sameId, recordingMbid, exactMetadata }
 
@@ -79,105 +87,11 @@ class SongIdentityReconciler {
   /// them after it commits.
   final List<String>? deferredFileDeletions;
 
+  @visibleForTesting
   SongIdentityMatchResult matchCanonicalSong({
     required SongsTableData canonicalSong,
     required List<SongsTableData> provisionalSongs,
-  }) {
-    final sameIdMatches = provisionalSongs
-        .where((song) => song.id == canonicalSong.id)
-        .toList(growable: false);
-    if (sameIdMatches.length == 1) {
-      return SongIdentityMatched(
-        provisionalSong: sameIdMatches.single,
-        reason: SongIdentityMatchReason.sameId,
-      );
-    }
-
-    final canonicalMbid = _normalizeMbid(canonicalSong.recordingMbid);
-    if (canonicalMbid != null) {
-      final mbidMatches = provisionalSongs
-          .where((song) => _normalizeMbid(song.recordingMbid) == canonicalMbid)
-          .toList(growable: false);
-      if (mbidMatches.length == 1) {
-        return SongIdentityMatched(
-          provisionalSong: mbidMatches.single,
-          reason: SongIdentityMatchReason.recordingMbid,
-        );
-      }
-      if (mbidMatches.length > 1) {
-        return SongIdentityAmbiguous(
-          candidateCount: mbidMatches.length,
-          reason: SongIdentityMatchReason.recordingMbid,
-        );
-      }
-    }
-
-    final canonicalDuration = canonicalSong.duration;
-    if (canonicalDuration == null) {
-      return const SongIdentityUnmatched();
-    }
-    final canonicalTitle = _normalizeIdentityMetadata(canonicalSong.title);
-    final canonicalArtist = _normalizeIdentityMetadata(
-      canonicalSong.artistName ?? '',
-    );
-    final canonicalAlbum = _normalizeIdentityMetadata(
-      canonicalSong.albumName ?? '',
-    );
-    if (canonicalTitle.isEmpty ||
-        canonicalArtist.isEmpty ||
-        canonicalAlbum.isEmpty) {
-      return const SongIdentityUnmatched();
-    }
-
-    final metadataMatches = provisionalSongs
-        .where((candidate) {
-          if (_mbidsConflict(
-            canonicalSong.recordingMbid,
-            candidate.recordingMbid,
-          )) {
-            return false;
-          }
-          final duration = candidate.duration;
-          if (duration == null || (duration - canonicalDuration).abs() > 3) {
-            return false;
-          }
-          if (_normalizeIdentityMetadata(candidate.title) != canonicalTitle ||
-              _normalizeIdentityMetadata(candidate.artistName ?? '') !=
-                  canonicalArtist ||
-              _normalizeIdentityMetadata(candidate.albumName ?? '') !=
-                  canonicalAlbum) {
-            return false;
-          }
-          return _positionsCompatible(canonicalSong.track, candidate.track) &&
-              _positionsCompatible(
-                canonicalSong.discNumber,
-                candidate.discNumber,
-              );
-        })
-        .toList(growable: false);
-    if (metadataMatches.length == 1) {
-      return SongIdentityMatched(
-        provisionalSong: metadataMatches.single,
-        reason: SongIdentityMatchReason.exactMetadata,
-      );
-    }
-    if (metadataMatches.length > 1) {
-      return SongIdentityAmbiguous(
-        candidateCount: metadataMatches.length,
-        reason: SongIdentityMatchReason.exactMetadata,
-      );
-    }
-    return const SongIdentityUnmatched();
-  }
-
-  Future<SongIdentityReconciliationSummary> reconcileCanonicalSongs(
-    Iterable<SongsTableData> canonicalSongs,
-  ) async {
-    final session = await startSession();
-    await session.reconcile(canonicalSongs);
-    await session.finalize();
-    return session.summary;
-  }
+  }) => _ProvisionalIdentityIndex(this, provisionalSongs).match(canonicalSong);
 
   Future<SongIdentityReconciliationSession> startSession({
     List<SongsTableData>? provisionalSongs,
@@ -190,16 +104,11 @@ class SongIdentityReconciler {
     );
   }
 
-  String? _normalizeMbid(String? value) {
-    final normalized = value?.trim().toLowerCase();
-    return normalized == null || normalized.isEmpty ? null : normalized;
-  }
-
   /// Two nonempty but different recording MBIDs are contradictory evidence:
   /// metadata similarity alone must never merge such rows automatically.
   bool _mbidsConflict(String? a, String? b) {
-    final left = _normalizeMbid(a);
-    final right = _normalizeMbid(b);
+    final left = normalizeMusicBrainzId(a);
+    final right = normalizeMusicBrainzId(b);
     return left != null && right != null && left != right;
   }
 
@@ -363,7 +272,7 @@ class _ProvisionalIdentityIndex {
   new(this._reconciler, Iterable<SongsTableData> songs) {
     for (final song in songs) {
       _remaining[song.id] = song;
-      final mbid = _reconciler._normalizeMbid(song.recordingMbid);
+      final mbid = normalizeMusicBrainzId(song.recordingMbid);
       if (mbid != null) {
         (_byMbid[mbid] ??= <SongsTableData>[]).add(song);
       }
@@ -391,7 +300,7 @@ class _ProvisionalIdentityIndex {
         reason: SongIdentityMatchReason.sameId,
       );
     }
-    final mbid = _reconciler._normalizeMbid(canonicalSong.recordingMbid);
+    final mbid = normalizeMusicBrainzId(canonicalSong.recordingMbid);
     if (mbid != null) {
       final matches = _active(_byMbid[mbid]);
       if (matches.length == 1) {

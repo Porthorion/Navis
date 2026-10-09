@@ -235,13 +235,11 @@ assert status["candidateStatus"] is None, status
 for key in ("artists", "albums", "songs"):
     assert 0 < status["catalog"][key] < before["catalog"][key], (before, status)
 ledger_payload = json.load(open(sys.argv[3]))
-events = ledger_payload["events"]
-terminal = [event for event in events if event.get("cause") == "repair" and event.get("phase") == "terminal"]
-# The bounded in-memory diagnostic ledger is intentionally reset by the clean
-# restart. The first repair's durable awaiting state is asserted above; this
-# post-restart ledger proves the explicit confirmation reached its terminal
-# production-controller result.
-assert terminal and terminal[-1]["result"] == "succeeded", terminal
+terminal = max((run for run in ledger_payload["durableRuns"] if run["intent"] == "repairLibrary" and run["targetKind"] == "catalog"), key=lambda run: run["requestId"])
+# Durable history survives restart; select the latest repair, which must be
+# the explicit confirmation rather than the earlier awaiting-confirmation run.
+assert terminal["planKind"] == "repairLibrary", terminal
+assert terminal["outcome"] in ("completed", "noChanges"), terminal
 operations = ledger_payload["durableOperations"]
 promotion = next(
     operation for operation in operations

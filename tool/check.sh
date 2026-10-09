@@ -70,6 +70,7 @@ run_step "diagnostics profile preparation" python3 tool/diagnostics_profile_test
 run_step "format check" ./tool/dart_format.sh --check
 run_step "code generation" dart run build_runner build
 run_step "analyze" flutter analyze --no-fatal-infos
+run_step "dead code" dart run tool/dead_code_check.dart
 # custom_lint is temporarily disabled pending analyzer/riverpod_lint compatibility
 # run_step "custom lint" dart run custom_lint
 

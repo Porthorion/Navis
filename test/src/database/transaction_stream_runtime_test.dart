@@ -192,6 +192,84 @@ void main() {
     },
   );
 
+  for (final operation in [
+    'like',
+    'rating',
+    'server star',
+    'server unstar',
+    'artwork',
+  ]) {
+    test('$operation does not invalidate playlist membership', () async {
+      await database
+          .into(database.playlistsTable)
+          .insert(
+            PlaylistsTableCompanion.insert(id: 'playlist', name: 'Playlist'),
+          );
+      await database
+          .into(database.playlistSongsTable)
+          .insert(
+            PlaylistSongsTableCompanion.insert(
+              playlistId: 'playlist',
+              songId: 'old',
+              sortOrder: 0,
+            ),
+          );
+      if (operation == 'server unstar') {
+        await database.libraryDao.setEntityStarred(
+          'song',
+          'old',
+          DateTime.now(),
+        );
+      }
+      final membership = _Watch(
+        database.select(database.playlistSongsTable).watch(),
+      );
+      await membership.until((rows) => rows.length == 1);
+      final updates = <Set<TableUpdate>>[];
+      final subscription = database.tableUpdates().listen(updates.add);
+      addTearDown(subscription.cancel);
+
+      switch (operation) {
+        case 'like':
+          await database.starSyncDao.setStarred(
+            itemId: 'old',
+            itemType: 'song',
+            liked: true,
+          );
+        case 'rating':
+          await database.starSyncDao.setRating(
+            itemId: 'old',
+            itemType: 'song',
+            rating: 4,
+          );
+        case 'server star':
+          await database.libraryDao.batchReconcileStarred('song', {
+            'old': DateTime.now(),
+          });
+        case 'server unstar':
+          await database.libraryDao.batchReconcileStarred(
+            'song',
+            {},
+            confirmedAbsentIds: {'old'},
+          );
+        case 'artwork':
+          await database.libraryDao.bumpCoverArtRevisions(songIds: ['old']);
+      }
+      await Future<void>.delayed(Duration.zero);
+      final announced = updates.expand((set) => set).toList();
+      expect(announced.where((update) => update.table == 'songs'), isNotEmpty);
+      expect(
+        announced.map((update) => update.table),
+        isNot(contains('playlist_songs')),
+      );
+      expect(membership.values, hasLength(1));
+      expect(
+        await database.select(database.playlistSongsTable).get(),
+        hasLength(1),
+      );
+    });
+  }
+
   test('DAO setStarred publishes liked songs after outer commit', () async {
     final watch = _Watch(database.libraryDao.watchAllStarredSongs());
     await watch.until((rows) => rows.isEmpty);

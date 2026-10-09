@@ -15,30 +15,41 @@ def _maximum(rows, key):
 
 
 def completed_action(before, after, cause):
-    cursor = _maximum(before.get("events", []), "id")
-    events = [
-        event
-        for event in after.get("events", [])
-        if (event.get("id") or 0) > cursor and event.get("cause") == cause
+    cursor = _maximum(before.get("durableRuns", []), "requestId")
+    runs = [
+        run
+        for run in after.get("durableRuns", [])
+        if (run.get("requestId") or 0) > cursor and run.get("completedAt")
     ]
-    starts = [event for event in events if event.get("phase") == "started"]
-    terminals = [
-        event for event in events if event.get("phase") in ("terminal", "failed")
-    ]
-    if not starts or not terminals:
-        return None
-    terminal = terminals[-1]
-    if terminal["id"] <= starts[-1]["id"]:
-        return None
-    return terminal
+    intents = {
+        "manualCheck": "manualCatalogCheck",
+        "repair": "repairLibrary",
+        "targetHydration": "targetHydration",
+    }
+    if cause == "automatic":
+        runs = [
+            run
+            for run in runs
+            if run.get("intent") == "automaticCatalogCheck"
+            or (
+                run.get("intent") == "auxiliaryRefresh"
+                and run.get("origin")
+                in ("timer", "startup", "resume", "reconnect", "androidWorker")
+            )
+        ]
+    else:
+        runs = [run for run in runs if run.get("intent") == intents.get(cause)]
+    return max(runs, key=lambda run: run["requestId"], default=None)
 
 
-def action_evidence(scenario, before, after, attempts):
+def action_evidence(scenario, before, after, attempts, status):
+    if status.get("requestActive"):
+        raise ValueError("diagnostics action has not settled")
     cause = "manualCheck" if scenario == "manual" else "automatic"
     terminal = completed_action(before, after, cause)
     if terminal is None:
-        raise ValueError("diagnostics action has no correlated terminal event")
-    if terminal["phase"] == "failed":
+        raise ValueError("diagnostics action has no correlated terminal run")
+    if terminal["outcome"] == "failed":
         raise ValueError("diagnostics action failed")
 
     cursor = _maximum(before.get("durableRuns", []), "requestId")
@@ -102,7 +113,7 @@ def action_evidence(scenario, before, after, attempts):
             for run in runs
         ):
             raise ValueError("manual check did not create a catalog discovery run")
-        if terminal.get("planReason") != "manualMeteredLimitedDiscovery":
+        if status.get("planReason") != "manualMeteredLimitedDiscovery":
             raise ValueError("manual check did not use bounded cellular discovery")
         if endpoints.get("getNewestAlbumList2", 0) != 1:
             raise ValueError("manual check did not request exactly one newest page")
@@ -125,7 +136,7 @@ def action_evidence(scenario, before, after, attempts):
 
     return {
         "cause": cause,
-        "terminalEventId": terminal["id"],
+        "terminalRequestId": terminal["requestId"],
         "requestIds": sorted(run_ids),
         "outcomes": sorted({run.get("outcome") or "unknown" for run in runs}),
         "endpointRequests": endpoints,
@@ -139,8 +150,8 @@ def main():
         return 0 if completed_action(before, after, cause) else 1
     if command == "validate":
         scenario = sys.argv[2]
-        before, after, attempts = map(_read, sys.argv[3:6])
-        print(json.dumps(action_evidence(scenario, before, after, attempts)))
+        before, after, attempts, status = map(_read, sys.argv[3:7])
+        print(json.dumps(action_evidence(scenario, before, after, attempts, status)))
         return 0
     raise ValueError("usage: sync_diagnostics_action.py complete|validate ...")
 

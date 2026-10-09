@@ -76,9 +76,7 @@ void main() {
       positionMs: 4200,
     );
 
-    final state = await database.playQueueDao.watchQueueState().firstWhere(
-      (value) => value != null,
-    );
+    final state = await database.playQueueDao.getQueueState();
     final items = await database.playQueueDao.watchQueueItems().firstWhere(
       (value) => value.isNotEmpty,
     );
@@ -122,23 +120,25 @@ void main() {
   }, skip: !sqliteAvailable);
 
   test('albums paging returns SQL-sorted deterministic page', () async {
-    await database.libraryDao.replaceAlbums(<AlbumsTableCompanion>[
-      AlbumsTableCompanion.insert(
-        id: 'a-2024-b',
-        name: 'Beta',
-        year: const Value(2024),
-      ),
-      AlbumsTableCompanion.insert(
-        id: 'a-2025-a',
-        name: 'Alpha',
-        year: const Value(2025),
-      ),
-      AlbumsTableCompanion.insert(
-        id: 'a-2024-a',
-        name: 'Alpha',
-        year: const Value(2024),
-      ),
-    ]);
+    await database.batch(
+      (batch) => batch.insertAll(database.albumsTable, <AlbumsTableCompanion>[
+        AlbumsTableCompanion.insert(
+          id: 'a-2024-b',
+          name: 'Beta',
+          year: const Value(2024),
+        ),
+        AlbumsTableCompanion.insert(
+          id: 'a-2025-a',
+          name: 'Alpha',
+          year: const Value(2025),
+        ),
+        AlbumsTableCompanion.insert(
+          id: 'a-2024-a',
+          name: 'Alpha',
+          year: const Value(2024),
+        ),
+      ]),
+    );
 
     final page = await database.libraryDao
         .watchAlbumsPage(sort: AlbumSortOrder.newest, limit: 2)
@@ -149,23 +149,25 @@ void main() {
   }, skip: !sqliteAvailable);
 
   test('pending hydration query returns only non-hydrated albums', () async {
-    await database.libraryDao.replaceAlbums(<AlbumsTableCompanion>[
-      AlbumsTableCompanion.insert(
-        id: 'hydrated',
-        name: 'Hydrated',
-        songsHydrated: const Value(true),
-      ),
-      AlbumsTableCompanion.insert(
-        id: 'pending-1',
-        name: 'Pending 1',
-        songsHydrated: const Value(false),
-      ),
-      AlbumsTableCompanion.insert(
-        id: 'pending-2',
-        name: 'Pending 2',
-        songsHydrated: const Value(false),
-      ),
-    ]);
+    await database.batch(
+      (batch) => batch.insertAll(database.albumsTable, <AlbumsTableCompanion>[
+        AlbumsTableCompanion.insert(
+          id: 'hydrated',
+          name: 'Hydrated',
+          songsHydrated: const Value(true),
+        ),
+        AlbumsTableCompanion.insert(
+          id: 'pending-1',
+          name: 'Pending 1',
+          songsHydrated: const Value(false),
+        ),
+        AlbumsTableCompanion.insert(
+          id: 'pending-2',
+          name: 'Pending 2',
+          songsHydrated: const Value(false),
+        ),
+      ]),
+    );
 
     final pendingCount = await database.libraryDao
         .countPendingHydrationAlbums();

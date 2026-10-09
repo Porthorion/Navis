@@ -21,9 +21,6 @@ export 'package:navis/src/features/library/domain/artist_top_track.dart';
 // Constants
 // ---------------------------------------------------------------------------
 
-/// Most top songs in the "This Is" playlist.
-const int kArtistTopTracksPlaylistMax = kArtistTopTrackSeedMax;
-
 /// Top songs resolved for the artist page's Top Tracks section.
 const int kArtistTopTracksSectionMax = 10;
 
@@ -119,7 +116,7 @@ final artistTopTrackMatchSyncBridgeProvider = Provider<void>((ref) {
 // Providers
 // ---------------------------------------------------------------------------
 
-/// An artist's top songs (up to [kArtistTopTracksPlaylistMax]) from the
+/// An artist's top songs (up to [kArtistTopTrackSeedMax]) from the
 /// first allowed source: Deezer, then Last.fm, then none.
 ///
 /// Kept for 5 minutes after the last listener leaves, so scrolling the

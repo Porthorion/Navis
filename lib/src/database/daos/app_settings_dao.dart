@@ -8,14 +8,6 @@ import 'package:navis/src/database/tables/app_settings_table.dart';
 
 part 'app_settings_dao.g.dart';
 
-typedef GroupListeningSettingsRecord = ({
-  bool groupListeningEnabled,
-  String? voyageServerUrl,
-  String? voyageDisplayName,
-  String? voyageDeviceLabel,
-  bool voyageAutoFollowHost,
-});
-
 const bool _cloneDiagnostics =
     bool.fromEnvironment('NAVIS_SYNC_DIAGNOSTICS') &&
     String.fromEnvironment('NAVIS_SYNC_DIAGNOSTICS_MODE') == 'clone';
@@ -88,7 +80,6 @@ class AppSettingsDao extends DatabaseAccessor<NavisDatabase>
   static const String defaultCellularFormat = 'opus';
   static const int defaultSyncIntervalMinutes = 60;
   static const double defaultDesktopPlaybackVolume = 1;
-  static const bool defaultVoyageAutoFollowHost = true;
 
   Stream<AppSettingsTableData?> watchSettings() {
     final query = select(appSettingsTable)
@@ -111,33 +102,6 @@ class AppSettingsDao extends DatabaseAccessor<NavisDatabase>
     cloneDiagnostics: _cloneDiagnostics,
     diagnosticsRoot: _diagnosticsRoot,
   );
-
-  Future<GroupListeningSettingsRecord> getGroupListeningSettings() async {
-    final row = await customSelect(
-      '''
-      SELECT
-        group_listening_enabled,
-        voyage_server_url,
-        voyage_display_name,
-        voyage_device_label,
-        voyage_auto_follow_host
-      FROM app_settings
-      WHERE id = ?
-      LIMIT 1;
-      ''',
-      variables: <Variable<Object>>[Variable<int>(primarySettingsId)],
-      readsFrom: {appSettingsTable},
-    ).getSingleOrNull();
-    final data = row?.data ?? const <String, Object?>{};
-    return (
-      groupListeningEnabled:
-          (data['group_listening_enabled'] as int? ?? 0) != 0,
-      voyageServerUrl: data['voyage_server_url'] as String?,
-      voyageDisplayName: data['voyage_display_name'] as String?,
-      voyageDeviceLabel: data['voyage_device_label'] as String?,
-      voyageAutoFollowHost: (data['voyage_auto_follow_host'] as int? ?? 1) != 0,
-    );
-  }
 
   /// Full-row save of the device settings. The integration-owned columns
   /// (`updateCheckEnabled`, `useLrclib`, `legacyInstantMixEnabled`, the
@@ -175,9 +139,6 @@ class AppSettingsDao extends DatabaseAccessor<NavisDatabase>
     required bool dynamicAlbumColorEnabled,
     bool? updateCheckEnabled,
     required String updateChannel,
-    String? audioMuseServerUrl,
-    String? audioMuseApiKey,
-    required bool audioMuseEnabled,
     required int syncIntervalMinutes,
     bool backgroundSyncUnmeteredOnly = true,
     bool? useLrclib,
@@ -210,7 +171,6 @@ class AppSettingsDao extends DatabaseAccessor<NavisDatabase>
     bool? listenBrainzScrobblingEnabled,
     bool? listenBrainzTokenValid,
     String? listenBrainzUserName,
-    String? customVoyageServers,
   }) {
     return into(appSettingsTable).insertOnConflictUpdate(
       AppSettingsTableCompanion.insert(
@@ -245,9 +205,6 @@ class AppSettingsDao extends DatabaseAccessor<NavisDatabase>
             ? const Value.absent()
             : Value(updateCheckEnabled),
         updateChannel: Value(updateChannel),
-        audioMuseServerUrl: Value(audioMuseServerUrl),
-        audioMuseApiKey: Value(audioMuseApiKey),
-        audioMuseEnabled: Value(audioMuseEnabled),
         syncIntervalMinutes: Value(syncIntervalMinutes),
         backgroundSyncUnmeteredOnly: Value(backgroundSyncUnmeteredOnly),
         useLrclib: useLrclib == null ? const Value.absent() : Value(useLrclib),
@@ -296,49 +253,8 @@ class AppSettingsDao extends DatabaseAccessor<NavisDatabase>
         listenBrainzUserName: listenBrainzUserName == null
             ? const Value.absent()
             : Value(listenBrainzUserName),
-        customVoyageServers: Value(customVoyageServers),
         updatedAt: DateTime.now(),
       ),
-    );
-  }
-
-  Future<void> saveGroupListeningSettings({
-    required bool groupListeningEnabled,
-    String? voyageServerUrl,
-    String? voyageDisplayName,
-    String? voyageDeviceLabel,
-    bool voyageAutoFollowHost = defaultVoyageAutoFollowHost,
-  }) async {
-    final updatedAt = DateTime.now();
-    await customUpdate(
-      '''
-      INSERT INTO app_settings (
-        id,
-        updated_at,
-        group_listening_enabled,
-        voyage_server_url,
-        voyage_display_name,
-        voyage_device_label,
-        voyage_auto_follow_host
-      ) VALUES (?, ?, ?, NULLIF(?, ''), NULLIF(?, ''), NULLIF(?, ''), ?)
-      ON CONFLICT(id) DO UPDATE SET
-        updated_at = excluded.updated_at,
-        group_listening_enabled = excluded.group_listening_enabled,
-        voyage_server_url = excluded.voyage_server_url,
-        voyage_display_name = excluded.voyage_display_name,
-        voyage_device_label = excluded.voyage_device_label,
-        voyage_auto_follow_host = excluded.voyage_auto_follow_host;
-      ''',
-      variables: <Variable<Object>>[
-        Variable<int>(primarySettingsId),
-        Variable<DateTime>(updatedAt),
-        Variable<int>(groupListeningEnabled ? 1 : 0),
-        Variable<String>(voyageServerUrl ?? ''),
-        Variable<String>(voyageDisplayName ?? ''),
-        Variable<String>(voyageDeviceLabel ?? ''),
-        Variable<int>(voyageAutoFollowHost ? 1 : 0),
-      ],
-      updates: {appSettingsTable},
     );
   }
 
@@ -408,7 +324,6 @@ class AppSettingsDao extends DatabaseAccessor<NavisDatabase>
       dynamicAlbumColorEnabled: false,
       updateCheckEnabled: true,
       updateChannel: 'stable',
-      audioMuseEnabled: false,
       syncIntervalMinutes: defaultSyncIntervalMinutes,
       backgroundSyncUnmeteredOnly: true,
       useLrclib: true,
@@ -435,16 +350,19 @@ class AppSettingsDao extends DatabaseAccessor<NavisDatabase>
       likedQueueEnabled: true,
       lastFmScrobblingEnabled: false,
       lastFmSessionConnected: false,
-      customVoyageServers: null,
     );
     // The full-row save leaves the policy columns alone; reset them here.
     await updateIntegrationPolicy(master: true, disabledJson: '[]');
-    await saveGroupListeningSettings(
-      groupListeningEnabled: false,
-      voyageServerUrl: null,
-      voyageDisplayName: null,
-      voyageDeviceLabel: null,
-      voyageAutoFollowHost: defaultVoyageAutoFollowHost,
+    // The retired AudioMuse client no longer reads these columns, but a key
+    // saved by an older version must still be cleared by a reset.
+    await (update(
+      appSettingsTable,
+    )..where((t) => t.id.equals(primarySettingsId))).write(
+      const AppSettingsTableCompanion(
+        audioMuseServerUrl: Value(null),
+        audioMuseApiKey: Value(null),
+        audioMuseEnabled: Value(false),
+      ),
     );
   }
 
@@ -621,31 +539,6 @@ class AppSettingsDao extends DatabaseAccessor<NavisDatabase>
     );
   }
 
-  /// Stream the Wi-Fi-only downloads setting.
-  Stream<bool> watchWifiOnlyDownloads() {
-    return watchSettings().map((s) => s?.wifiOnlyDownloads ?? true);
-  }
-
-  /// Stream the show liked page setting.
-  Stream<bool> watchShowLikedPage() {
-    return watchSettings().map((s) => s?.showLikedPage ?? true);
-  }
-
-  /// Stream the auto-download liked on Wi-Fi setting.
-  Stream<bool> watchAutoDownloadStarredOnWifi() {
-    return watchSettings().map((s) => s?.autoDownloadStarredOnWifi ?? false);
-  }
-
-  /// Stream the custom permanent-download-folder toggle.
-  Stream<bool> watchCustomDownloadFolderEnabled() {
-    return watchSettings().map((s) => s?.customDownloadFolderEnabled ?? false);
-  }
-
-  /// Stream the custom permanent-download-folder path.
-  Stream<String?> watchCustomDownloadFolderPath() {
-    return watchSettings().map((s) => s?.customDownloadFolderPath);
-  }
-
   // ---------------------------------------------------------------------------
   // Download preference helpers (targeted only; full-draft saves never write
   // these columns)
@@ -786,21 +679,6 @@ class AppSettingsDao extends DatabaseAccessor<NavisDatabase>
     );
   }
 
-  /// Stream the current theme mode.
-  Stream<String> watchThemeMode() {
-    return watchSettings().map((s) => s?.themeMode ?? 'dark');
-  }
-
-  /// Stream the current color scheme seed.
-  Stream<int?> watchColorSchemeSeed() {
-    return watchSettings().map((s) => s?.colorSchemeSeed);
-  }
-
-  /// Stream the current locale override code.
-  Stream<String?> watchAppLocale() {
-    return watchSettings().map((s) => s?.appLocale);
-  }
-
   // ---------------------------------------------------------------------------
   // Custom color presets helpers
   // ---------------------------------------------------------------------------
@@ -871,11 +749,6 @@ class AppSettingsDao extends DatabaseAccessor<NavisDatabase>
     );
   }
 
-  /// Stream the art-tinted Now Playing setting.
-  Stream<bool> watchArtTintedNowPlaying() {
-    return watchSettings().map((s) => s?.artTintedNowPlaying ?? true);
-  }
-
   /// Targeted update for dynamic album-color theming.
   Future<void> updateDynamicAlbumColorEnabled({required bool enabled}) {
     return (update(
@@ -886,11 +759,6 @@ class AppSettingsDao extends DatabaseAccessor<NavisDatabase>
         updatedAt: Value(DateTime.now()),
       ),
     );
-  }
-
-  /// Stream the dynamic album-color setting.
-  Stream<bool> watchDynamicAlbumColorEnabled() {
-    return watchSettings().map((s) => s?.dynamicAlbumColorEnabled ?? false);
   }
 
   // ---------------------------------------------------------------------------
@@ -909,19 +777,6 @@ class AppSettingsDao extends DatabaseAccessor<NavisDatabase>
     );
   }
 
-  /// Stream the sync interval in minutes (0 = manual only).
-  Stream<int> watchSyncIntervalMinutes() {
-    return watchSettings().map(
-      (s) => s?.syncIntervalMinutes ?? defaultSyncIntervalMinutes,
-    );
-  }
-
-  /// Read current sync interval in minutes (one-shot).
-  Future<int> getSyncIntervalMinutes() async {
-    final s = await getSettings();
-    return s?.syncIntervalMinutes ?? defaultSyncIntervalMinutes;
-  }
-
   /// Targeted update for background sync unmetered-only preference.
   Future<void> updateBackgroundSyncUnmeteredOnly({required bool enabled}) {
     return (update(
@@ -932,11 +787,6 @@ class AppSettingsDao extends DatabaseAccessor<NavisDatabase>
         updatedAt: Value(DateTime.now()),
       ),
     );
-  }
-
-  /// Stream whether background sync waits for unmetered networks.
-  Stream<bool> watchBackgroundSyncUnmeteredOnly() {
-    return watchSettings().map((s) => s?.backgroundSyncUnmeteredOnly ?? true);
   }
 
   // ---------------------------------------------------------------------------
@@ -964,18 +814,6 @@ class AppSettingsDao extends DatabaseAccessor<NavisDatabase>
     )..where((t) => t.id.equals(primarySettingsId))).write(
       AppSettingsTableCompanion(
         homeRecommendationsAutoAdvance: Value(enabled),
-        updatedAt: Value(DateTime.now()),
-      ),
-    );
-  }
-
-  /// Targeted update for legacy album grid density (null = auto).
-  Future<void> updateAlbumGridDensity(int? density) {
-    return (update(
-      appSettingsTable,
-    )..where((t) => t.id.equals(primarySettingsId))).write(
-      AppSettingsTableCompanion(
-        albumGridDensity: Value(density),
         updatedAt: Value(DateTime.now()),
       ),
     );

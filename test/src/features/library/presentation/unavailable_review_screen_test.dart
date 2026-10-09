@@ -74,9 +74,7 @@ void main() {
     await tester.tap(find.text('Keep for later'));
     await tester.pumpAndSettle();
 
-    final rows = await database.librarySyncDao.getPendingRecoveryReview(
-      serverId,
-    );
+    final rows = await pendingRecoveryReviews(database, serverId);
     expect(rows, isEmpty);
 
     // Tear the provider tree down before the test binding checks timers.
@@ -148,9 +146,7 @@ void main() {
     expect(aliases, hasLength(1));
     expect(aliases.single.read<String>('old_id'), 'song-gone');
     expect(aliases.single.read<String>('new_id'), 'song-new');
-    final pending = await database.librarySyncDao.getPendingRecoveryReview(
-      serverId,
-    );
+    final pending = await pendingRecoveryReviews(database, serverId);
     expect(pending, isEmpty);
 
     await tester.pumpWidget(const SizedBox.shrink());
@@ -198,9 +194,7 @@ void main() {
 
     // The stale replacement is rejected: the entry stays pending and no
     // alias was recorded.
-    final pending = await database.librarySyncDao.getPendingRecoveryReview(
-      serverId,
-    );
+    final pending = await pendingRecoveryReviews(database, serverId);
     expect(pending, hasLength(1));
     final aliases = await database
         .customSelect(

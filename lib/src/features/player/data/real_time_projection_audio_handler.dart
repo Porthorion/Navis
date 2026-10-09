@@ -54,6 +54,20 @@ class RealTimeProjectionAudioHandler extends CompositeAudioHandler {
       );
   }
 
+  Future<void>? _disposal;
+
+  /// Releases the projection when its session handler is retired.
+  Future<void> dispose() => _disposal ??= _dispose();
+
+  Future<void> _dispose() async {
+    for (final subscription in _subscriptions) {
+      await subscription.cancel();
+    }
+    await _playbackState.close();
+    await _mediaItem.close();
+    await _queue.close();
+  }
+
   /// Songs before the current one kept in the system queue.
   static const int queueWindowBefore = 20;
 

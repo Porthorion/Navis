@@ -8,9 +8,6 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:navis/src/api/deezer_api_client.dart';
 import 'package:navis/src/api/models/models.dart';
 import 'package:navis/src/database/navis_database.dart';
-import 'package:navis/src/features/auth/data/server_config_repository.dart';
-import 'package:navis/src/features/auth/domain/server_config.dart';
-import 'package:navis/src/features/auth/domain/server_reachability.dart';
 import 'package:navis/src/features/auth/presentation/server_config_provider.dart';
 import 'package:navis/src/features/auth/presentation/server_reachability_provider.dart';
 import 'package:navis/src/features/integrations/data/integration_json_cache.dart';
@@ -23,70 +20,25 @@ import 'package:navis/src/features/library/presentation/library_sync_provider.da
 import 'package:navis/src/providers/app_providers.dart';
 
 import '../../../../helpers/library_sync_fakes.dart';
+import '../../../../helpers/reachability_fakes.dart';
+import '../../../../helpers/stub_library_sync_engine.dart';
 
 /// Routes artist targets to the real Drift engine's `getArtist` hydration,
 /// as the adaptive coordinator does, so the test sees the rows it writes.
-class _ArtistHydrationEngine extends LibrarySyncEngine {
-  new(this._drift);
-
-  final DriftLibrarySyncEngine _drift;
-
-  static const _skipped = LibrarySyncState(
-    status: LibrarySyncStatus.skipped,
-    stage: LibrarySyncStage.completed,
-  );
-
-  @override
-  Future<LibrarySyncState> requestSync(
-    LibrarySyncRequest request, {
-    Iterable<String> priorityAlbumIds = const <String>[],
-    LibrarySyncProgressCallback? onProgress,
-  }) async {
-    final target = request.target;
-    if (target.kind == LibrarySyncTargetKind.artist) {
-      return await _drift.hydrateArtist(
-        target.entityId!,
-        onProgress: onProgress,
+StubLibrarySyncEngine _artistHydrationEngine(DriftLibrarySyncEngine drift) =>
+    StubLibrarySyncEngine((request, {onProgress}) async {
+      final target = request.target;
+      if (target.kind == LibrarySyncTargetKind.artist) {
+        return await drift.hydrateArtist(
+          target.entityId!,
+          onProgress: onProgress,
+        );
+      }
+      return const LibrarySyncState(
+        status: LibrarySyncStatus.skipped,
+        stage: LibrarySyncStage.completed,
       );
-    }
-    return _skipped;
-  }
-
-  @override
-  Future<LibrarySyncState> syncIfStale({
-    Iterable<String> priorityAlbumIds = const <String>[],
-    LibrarySyncProgressCallback? onProgress,
-  }) async => _skipped;
-
-  @override
-  Future<LibrarySyncState> syncNow({
-    Iterable<String> priorityAlbumIds = const <String>[],
-    LibrarySyncProgressCallback? onProgress,
-  }) async => _skipped;
-
-  @override
-  Future<LibrarySyncState> continueVerification({
-    Iterable<String> priorityAlbumIds = const <String>[],
-    LibrarySyncProgressCallback? onProgress,
-  }) async => _skipped;
-
-  @override
-  Future<LibrarySyncState> forceFullSync({
-    Iterable<String> priorityAlbumIds = const <String>[],
-    LibrarySyncProgressCallback? onProgress,
-  }) async => _skipped;
-
-  @override
-  Future<LibrarySyncState> probeCatalog({
-    LibrarySyncProgressCallback? onProgress,
-  }) async => _skipped;
-}
-
-class _OnlineReachability extends ServerReachabilityController {
-  @override
-  ServerReachabilityState build() =>
-      const ServerReachabilityState(status: ServerReachabilityStatus.online);
-}
+    });
 
 class _FakeDeezer extends DeezerApiClient {
   new() : super(dio: Dio());
@@ -125,18 +77,9 @@ void main() {
 
   setUp(() async {
     database = NavisDatabase(NativeDatabase.memory());
-    final repository = ServerConfigRepository(
+    final repository = await seedSyncSession(
       database,
-      credentials: FakeSyncCredentialStore(),
-    );
-    await repository.save(
-      ServerConfigModel(
-        url: 'https://example.com',
-        username: 'alice',
-        password: 'secret',
-        apiVersion: '1.16.1',
-        lastSynced: DateTime.now(),
-      ),
+      lastSynced: DateTime.now(),
     );
     api = FakeLibrarySyncApi();
     drift = DriftLibrarySyncEngine(
@@ -198,10 +141,10 @@ void main() {
         navisDatabaseProvider.overrideWithValue(database),
         serverConfigStateProvider.overrideWithValue(const AsyncData(null)),
         serverReachabilityControllerProvider.overrideWith(
-          _OnlineReachability.new,
+          OnlineReachability.new,
         ),
         librarySyncEngineProvider.overrideWithValue(
-          _ArtistHydrationEngine(drift),
+          _artistHydrationEngine(drift),
         ),
         integrationPolicyProvider.overrideWithValue(const IntegrationPolicy()),
         integrationJsonCacheProvider.overrideWithValue(

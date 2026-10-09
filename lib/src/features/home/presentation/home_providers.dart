@@ -343,11 +343,6 @@ void debugResetListenBrainzDiscoverSessionCacheForTests() {
   _listenBrainzMatchCacheIdentityEpoch = null;
 }
 
-@visibleForTesting
-Future<void> awaitListenBrainzStartupIdle(Ref ref, Duration delay) {
-  return _awaitListenBrainzStartupIdle(ref, delay);
-}
-
 Future<void> _awaitListenBrainzStartupIdle(Ref ref, Duration delay) async {
   if (delay <= Duration.zero) {
     await Future<void>.delayed(Duration.zero);
@@ -1222,6 +1217,7 @@ Stream<List<ListenBrainzDiscoverPlaylist>> _resolveListenBrainzWeeklyPlaylists({
   yield visible;
 }
 
+@visibleForTesting
 final listenBrainzDiscoverProvider =
     FutureProvider<List<ListenBrainzDiscoverPlaylist>>((ref) async {
       var latest = const <ListenBrainzDiscoverPlaylist>[];
@@ -2774,18 +2770,6 @@ final homeFrequentAlbumsProvider = FutureProvider<List<Album>>((ref) async {
     size: 20,
     cancelToken: cancelToken,
   );
-});
-
-final homeStarredSongsProvider = FutureProvider<List<Song>>((ref) async {
-  final api = ref.watch(subsonicApiProvider);
-  if (api == null) {
-    return const <Song>[];
-  }
-
-  final cancelToken = CancelToken();
-  ref.onDispose(cancelToken.cancel);
-
-  return (await api.getStarred2(cancelToken: cancelToken)).songs;
 });
 
 /// ListenBrainz names its weekly playlists in English; show Navis's own

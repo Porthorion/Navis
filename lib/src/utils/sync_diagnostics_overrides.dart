@@ -63,55 +63,6 @@ class SyncDiagnosticsOverrides {
   final bool radioPresentationFixture;
   final bool artistTopTracksPresentationFixture;
 
-  SyncDiagnosticsOverrides copyWith({
-    NetworkType? networkType,
-    bool? nativeMetered,
-    bool? backgroundSyncUnmeteredOnly,
-    bool? automaticSyncAllowed,
-    bool? interactiveHydrationAllowed,
-    int? meteredBudgetBytes,
-    bool? requestReporting,
-    bool? cachedListenBrainzPresentation,
-    bool? forceSearchRemoteFailure,
-    bool? radioPresentationFixture,
-    bool? artistTopTracksPresentationFixture,
-    bool clearNetworkType = false,
-    bool clearNativeMetered = false,
-    bool clearBackgroundSyncUnmeteredOnly = false,
-    bool clearAutomaticSyncAllowed = false,
-    bool clearInteractiveHydrationAllowed = false,
-    bool clearMeteredBudgetBytes = false,
-  }) {
-    return SyncDiagnosticsOverrides(
-      networkType: clearNetworkType ? null : networkType ?? this.networkType,
-      nativeMetered: clearNativeMetered
-          ? null
-          : nativeMetered ?? this.nativeMetered,
-      backgroundSyncUnmeteredOnly: clearBackgroundSyncUnmeteredOnly
-          ? null
-          : backgroundSyncUnmeteredOnly ?? this.backgroundSyncUnmeteredOnly,
-      automaticSyncAllowed: clearAutomaticSyncAllowed
-          ? null
-          : automaticSyncAllowed ?? this.automaticSyncAllowed,
-      interactiveHydrationAllowed: clearInteractiveHydrationAllowed
-          ? null
-          : interactiveHydrationAllowed ?? this.interactiveHydrationAllowed,
-      meteredBudgetBytes: clearMeteredBudgetBytes
-          ? null
-          : meteredBudgetBytes ?? this.meteredBudgetBytes,
-      requestReporting: requestReporting ?? this.requestReporting,
-      cachedListenBrainzPresentation:
-          cachedListenBrainzPresentation ?? this.cachedListenBrainzPresentation,
-      forceSearchRemoteFailure:
-          forceSearchRemoteFailure ?? this.forceSearchRemoteFailure,
-      radioPresentationFixture:
-          radioPresentationFixture ?? this.radioPresentationFixture,
-      artistTopTracksPresentationFixture:
-          artistTopTracksPresentationFixture ??
-          this.artistTopTracksPresentationFixture,
-    );
-  }
-
   Map<String, Object?> toJson() => <String, Object?>{
     'networkType': networkType?.name,
     'nativeMetered': nativeMetered,
@@ -150,37 +101,8 @@ class SyncDiagnosticsOverridesController
     };
   }
 
-  // Keep the existing method and callback call contract for callers.
-  // ignore: use_setters_to_change_properties
-  void apply(SyncDiagnosticsOverrides overrides) {
-    state = overrides;
-  }
-
   void patch(Map<String, Object?> json) {
-    final merged = <String, Object?>{...state.toJson(), ...json};
-    if (json.containsKey('networkType') && json['networkType'] == null) {
-      merged.remove('networkType');
-    }
-    if (json.containsKey('nativeMetered') && json['nativeMetered'] == null) {
-      merged.remove('nativeMetered');
-    }
-    if (json.containsKey('backgroundSyncUnmeteredOnly') &&
-        json['backgroundSyncUnmeteredOnly'] == null) {
-      merged.remove('backgroundSyncUnmeteredOnly');
-    }
-    if (json.containsKey('automaticSyncAllowed') &&
-        json['automaticSyncAllowed'] == null) {
-      merged.remove('automaticSyncAllowed');
-    }
-    if (json.containsKey('interactiveHydrationAllowed') &&
-        json['interactiveHydrationAllowed'] == null) {
-      merged.remove('interactiveHydrationAllowed');
-    }
-    if (json.containsKey('meteredBudgetBytes') &&
-        json['meteredBudgetBytes'] == null) {
-      merged.remove('meteredBudgetBytes');
-    }
-    state = SyncDiagnosticsOverrides.fromJson(merged);
+    state = SyncDiagnosticsOverrides.fromJson({...state.toJson(), ...json});
   }
 
   void reset() {

@@ -151,7 +151,7 @@ class DevSyncScenarioTest(unittest.TestCase):
             for line in (PROJECT_ROOT / "pubspec.yaml").read_text().splitlines()
             if line.startswith("version:")
         )
-        for scenario in ("first-setup", "partial-album", "repair-library"):
+        for scenario in ("first-setup", "partial-album", "manual-cache-reset"):
             run = self.root / scenario
             run.mkdir()
             prepare_support_directory(run, scenario)

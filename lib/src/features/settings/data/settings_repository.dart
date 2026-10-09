@@ -54,9 +54,6 @@ class SettingsRepository {
       artTintedNowPlaying: settings.artTintedNowPlaying,
       dynamicAlbumColorEnabled: settings.dynamicAlbumColorEnabled,
       updateChannel: settings.updateChannel,
-      audioMuseServerUrl: settings.audioMuseServerUrl,
-      audioMuseApiKey: settings.audioMuseApiKey,
-      audioMuseEnabled: settings.audioMuseEnabled,
       syncIntervalMinutes: settings.syncIntervalMinutes,
       backgroundSyncUnmeteredOnly: settings.backgroundSyncUnmeteredOnly,
       replayGainMode: settings.replayGainMode,
@@ -86,18 +83,10 @@ class SettingsRepository {
       albumQueueEnabled: settings.albumQueueEnabled,
       matchFlowEnabled: settings.matchFlowEnabled,
       likedQueueEnabled: settings.likedQueueEnabled,
-      customVoyageServers: null,
     );
     // Integration-owned columns (the policy columns, the legacy feature
     // columns, the Last.fm key and the ListenBrainz connection) are not part
     // of the full-row save; see AppSettingsDao.saveSettings.
-    await _dao.saveGroupListeningSettings(
-      groupListeningEnabled: false,
-      voyageServerUrl: null,
-      voyageDisplayName: null,
-      voyageDeviceLabel: null,
-      voyageAutoFollowHost: AppSettingsDao.defaultVoyageAutoFollowHost,
-    );
   }
 
   /// Writes only the custom Last.fm API key; null clears it. The full-row
@@ -212,9 +201,6 @@ class SettingsRepository {
       dynamicAlbumColorEnabled: row.dynamicAlbumColorEnabled,
       updateCheckEnabled: row.updateCheckEnabled,
       updateChannel: row.updateChannel,
-      audioMuseServerUrl: row.audioMuseServerUrl,
-      audioMuseApiKey: row.audioMuseApiKey,
-      audioMuseEnabled: row.audioMuseEnabled,
       syncIntervalMinutes: row.syncIntervalMinutes,
       backgroundSyncUnmeteredOnly: row.backgroundSyncUnmeteredOnly,
       useLrclib: row.useLrclib,
@@ -258,12 +244,6 @@ class SettingsRepository {
       externalIntegrationsEnabled: row.externalIntegrationsEnabled,
       disabledIntegrations: row.disabledIntegrations,
       integrationsNoticeDismissed: row.integrationsNoticeDismissed,
-      customVoyageServers: const <CustomVoyageServer>[],
-      groupListeningEnabled: false,
-      voyageServerUrl: null,
-      voyageDisplayName: null,
-      voyageDeviceLabel: null,
-      voyageAutoFollowHost: AppSettingsDao.defaultVoyageAutoFollowHost,
     );
   }
 

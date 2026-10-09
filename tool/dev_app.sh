@@ -199,7 +199,7 @@ case "${MODE}" in
     scenario_requested=0
     for arg in "$@"; do
       case "$arg" in
-        --first-setup|--bad-cache|--force-setup|--repair-library|--manual-cache-reset|--playback-recovery|--partial-album|--server-error|--fresh-login|--offline|--metered|--scenario-source|--scenario-help)
+        --first-setup|--bad-cache|--force-setup|--manual-cache-reset|--playback-recovery|--partial-album|--server-error|--fresh-login|--offline|--metered|--scenario-source|--scenario-help)
           scenario_requested=1
           ;;
       esac

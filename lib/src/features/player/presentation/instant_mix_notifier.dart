@@ -32,6 +32,11 @@ const _kMinimumRefillInterval = Duration(milliseconds: 1200);
 /// session should persist across navigation until explicitly deactivated or
 /// the queue is cleared by the user.
 class InstantMixNotifier extends Notifier<InstantMixState> {
+  /// [now] lets tests step the refill backoff without waiting.
+  new({DateTime Function()? now}) : _now = now ?? DateTime.now;
+
+  final DateTime Function() _now;
+
   /// The session whose refill is running. It prevents overlapping refills of
   /// one session even before the Riverpod state update is observed, while a
   /// new activation (a new session) starts its own refill at once.
@@ -47,6 +52,10 @@ class InstantMixNotifier extends Notifier<InstantMixState> {
   RecommendationSession? _session;
   Timer? _retryTimer;
   int _transientFailures = 0;
+
+  /// Set after five consecutive failed refills: the mix stops refilling until
+  /// the user starts it again.
+  bool _retryExhausted = false;
 
   @override
   InstantMixState build() {
@@ -77,6 +86,7 @@ class InstantMixNotifier extends Notifier<InstantMixState> {
     _mixSegmentEndIndex = null;
     _nextRefillAllowedAt = null;
     _transientFailures = 0;
+    _retryExhausted = false;
     _retryTimer?.cancel();
     final coordinator = ref.read(recommendationSessionProvider.notifier);
     final session = coordinator.start(
@@ -106,6 +116,7 @@ class InstantMixNotifier extends Notifier<InstantMixState> {
     _retryTimer?.cancel();
     _retryTimer = null;
     _transientFailures = 0;
+    _retryExhausted = false;
     _mixSegmentEndIndex = null;
     _nextRefillAllowedAt = null;
     _activationInProgress = false;
@@ -136,6 +147,7 @@ class InstantMixNotifier extends Notifier<InstantMixState> {
   void _onSnapshotChanged(PlaybackSnapshot? prev, PlaybackSnapshot next) {
     if (!state.active) return;
     if (_activationInProgress) return;
+    if (_retryExhausted) return;
     if (_consumeActivationSeedSnapshot(next)) return;
     if (next.isRadioMode) return;
     if (state.refilling || state.error != null) return;
@@ -151,7 +163,7 @@ class InstantMixNotifier extends Notifier<InstantMixState> {
 
     if (remaining <= _kRefillThreshold) {
       final nextAllowed = _nextRefillAllowedAt;
-      if (nextAllowed != null && DateTime.now().isBefore(nextAllowed)) {
+      if (nextAllowed != null && _now().isBefore(nextAllowed)) {
         return;
       }
       final seedSongId = next.currentSongId ?? state.seedSongId;
@@ -197,6 +209,7 @@ class InstantMixNotifier extends Notifier<InstantMixState> {
   Future<void> _refill(String seedSongId, {bool isInitial = false}) async {
     final refillSession = _session;
     if (refillSession == null) return;
+    if (!isInitial && _retryExhausted) return;
     // Only a refill of this same session blocks. Starting a mix replaces the
     // session and cancels the old fetch, so its first refill runs at once
     // instead of waiting, "preparing", for the superseded one.
@@ -337,10 +350,11 @@ class InstantMixNotifier extends Notifier<InstantMixState> {
     if (session == null || !state.active) return;
     _transientFailures++;
     final exhausted = _transientFailures >= 5;
+    if (exhausted) _retryExhausted = true;
     final delay = Duration(
       seconds: 3 * (1 << (_transientFailures - 1).clamp(0, 4)),
     );
-    _nextRefillAllowedAt = DateTime.now().add(delay);
+    _nextRefillAllowedAt = _now().add(delay);
     state = exhausted
         ? state.copyWith(refilling: false, error: InstantMixError.networkError)
         : state.copyWith(refilling: false, clearError: true);
@@ -407,7 +421,7 @@ class InstantMixNotifier extends Notifier<InstantMixState> {
       final queuedCount = result.count;
       if (queuedCount > 0) {
         _mixSegmentEndIndex = queueLengthBeforeAppend + queuedCount;
-        _nextRefillAllowedAt = DateTime.now().add(_kMinimumRefillInterval);
+        _nextRefillAllowedAt = _now().add(_kMinimumRefillInterval);
       }
       return queuedCount;
     } on Object catch (error, stackTrace) {

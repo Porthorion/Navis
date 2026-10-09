@@ -3,6 +3,84 @@ import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:just_audio/just_audio.dart';
+import 'package:just_audio_platform_interface/just_audio_platform_interface.dart'
+    as platform;
+import 'package:path/path.dart' as p;
+
+class _ProxyPlatform extends platform.JustAudioPlatform {
+  late _ProxyPlayer player;
+
+  @override
+  Future<platform.AudioPlayerPlatform> init(
+    platform.InitRequest request,
+  ) async => player = _ProxyPlayer(request.id);
+
+  @override
+  Future<platform.DisposeAllPlayersResponse> disposeAllPlayers(
+    platform.DisposeAllPlayersRequest request,
+  ) async => platform.DisposeAllPlayersResponse();
+
+  @override
+  Future<platform.DisposePlayerResponse> disposePlayer(
+    platform.DisposePlayerRequest request,
+  ) async {
+    await player.events.close();
+    return platform.DisposePlayerResponse();
+  }
+}
+
+class _ProxyPlayer extends platform.AudioPlayerPlatform {
+  new(super.id);
+
+  final events = StreamController<platform.PlaybackEventMessage>.broadcast();
+  late Uri proxyUri;
+
+  @override
+  Stream<platform.PlaybackEventMessage> get playbackEventMessageStream =>
+      events.stream;
+
+  @override
+  Future<platform.LoadResponse> load(platform.LoadRequest request) async {
+    final playlist =
+        request.audioSourceMessage as platform.ConcatenatingAudioSourceMessage;
+    proxyUri = Uri.parse(
+      (playlist.children.single as platform.ProgressiveAudioSourceMessage).uri,
+    );
+    events.add(
+      platform.PlaybackEventMessage(
+        processingState: platform.ProcessingStateMessage.ready,
+        updateTime: DateTime.now(),
+        updatePosition: Duration.zero,
+        bufferedPosition: Duration.zero,
+        duration: null,
+        icyMetadata: null,
+        currentIndex: 0,
+        androidAudioSessionId: null,
+      ),
+    );
+    return platform.LoadResponse(duration: null);
+  }
+
+  @override
+  Future<platform.SetVolumeResponse> setVolume(
+    platform.SetVolumeRequest request,
+  ) async => platform.SetVolumeResponse();
+
+  @override
+  Future<platform.SetSpeedResponse> setSpeed(
+    platform.SetSpeedRequest request,
+  ) async => platform.SetSpeedResponse();
+
+  @override
+  Future<platform.SetLoopModeResponse> setLoopMode(
+    platform.SetLoopModeRequest request,
+  ) async => platform.SetLoopModeResponse();
+
+  @override
+  Future<platform.SetShuffleModeResponse> setShuffleMode(
+    platform.SetShuffleModeRequest request,
+  ) async => platform.SetShuffleModeResponse();
+}
 
 /// Serves [body] slowly so a download stays in progress, with or without
 /// byte-range support, and counts the downloads it starts.
@@ -36,11 +114,121 @@ Future<(HttpServer, List<int>)> _serve(
 }
 
 void main() {
+  final native = _ProxyPlatform();
+  final previousPlatform = platform.JustAudioPlatform.instance;
+  setUpAll(() => platform.JustAudioPlatform.instance = native);
+  tearDownAll(() => platform.JustAudioPlatform.instance = previousPlatform);
   late Directory directory;
   setUp(() async {
     directory = await Directory.systemTemp.createTemp('navis-lock-cache-');
   });
   tearDown(() => directory.delete(recursive: true));
+
+  for (final knownLength in [false, true]) {
+    test('proxy closes an open-ended range (known length: $knownLength)', () async {
+      final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
+      addTearDown(() => server.close(force: true));
+      final body = List<int>.generate(1024, (index) => index % 256);
+      server.listen((request) async {
+        final response = request.response;
+        response.headers
+          ..contentType = ContentType('audio', 'mpeg')
+          ..set(HttpHeaders.acceptRangesHeader, 'bytes');
+        if (knownLength) response.contentLength = body.length;
+        response.add(body.sublist(0, 512));
+        await response.flush();
+        await Future<void>.delayed(const Duration(milliseconds: 20));
+        response.add(body.sublist(512));
+        await response.close();
+      });
+      // ignore: experimental_member_use, reason: exercises the real lock-cache proxy response.
+      final source = LockCachingAudioSource(
+        Uri.parse('http://127.0.0.1:${server.port}/song'),
+        cacheFile: File(p.join(directory.path, 'proxy.mp3')),
+      );
+      final player = AudioPlayer(
+        handleInterruptions: false,
+        androidApplyAudioAttributes: false,
+      );
+      addTearDown(player.dispose);
+      addTearDown(source.cancelDownload);
+      await player.setAudioSource(source);
+      final client = HttpClient();
+      addTearDown(() => client.close(force: true));
+      final request = await client.getUrl(native.player.proxyUri);
+      request.headers.set(HttpHeaders.rangeHeader, 'bytes=0-');
+
+      final response = await request.close().timeout(
+        const Duration(seconds: 2),
+      );
+
+      expect(
+        response.statusCode,
+        knownLength
+            ? HttpStatus.partialContent
+            : HttpStatus.internalServerError,
+      );
+      final received = await response.fold<List<int>>(
+        [],
+        (bytes, chunk) => bytes..addAll(chunk),
+      );
+      expect(received, knownLength ? body : isEmpty);
+      await source.downloadProgressStream
+          .firstWhere((progress) => progress == 1)
+          .timeout(const Duration(seconds: 2));
+
+      // A later request for the completed cache is still served by this proxy.
+      final replay = await client.getUrl(native.player.proxyUri);
+      replay.headers.set(HttpHeaders.rangeHeader, 'bytes=32-63');
+      final cached = await replay.close();
+      expect(cached.statusCode, HttpStatus.partialContent);
+      expect(cached.contentLength, 32);
+      expect(
+        await cached.fold<List<int>>(
+          [],
+          (bytes, chunk) => bytes..addAll(chunk),
+        ),
+        body.sublist(32, 64),
+      );
+    });
+  }
+
+  for (final knownLength in [true, false]) {
+    test(
+      '100% means flushed and published (known length: $knownLength)',
+      () async {
+        final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
+        addTearDown(() => server.close(force: true));
+        final body = List<int>.filled(128 * 1024, 7);
+        server.listen((request) async {
+          if (knownLength) request.response.contentLength = body.length;
+          request.response.add(body);
+          await request.response.close();
+        });
+        final cacheFile = File('${directory.path}/published.mp3');
+        // ignore: experimental_member_use, reason: tests publication ordering in the vendored source.
+        final source = LockCachingAudioSource(
+          Uri.parse('http://127.0.0.1:${server.port}/song'),
+          cacheFile: cacheFile,
+        );
+        final published = Completer<bool>();
+        final subscription = source.downloadProgressStream.listen((progress) {
+          if (progress == 1 && !published.isCompleted) {
+            published.complete(
+              cacheFile.existsSync() && cacheFile.lengthSync() == body.length,
+            );
+          }
+        });
+        addTearDown(subscription.cancel);
+        final response = await source.request();
+        await response.stream.drain<void>();
+        expect(
+          await published.future.timeout(const Duration(seconds: 2)),
+          isTrue,
+        );
+      },
+    );
+  }
 
   for (final ranges in [true, false]) {
     test('reports whether the origin supports ranges ($ranges)', () async {

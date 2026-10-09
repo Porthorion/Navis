@@ -15,6 +15,7 @@ class AndroidUiBootstrapGate {
   final void Function(Object error, StackTrace stackTrace) onError;
   Future<void>? _uiBootstrap;
 
+  @visibleForTesting
   bool get hasStartedUi => _uiBootstrap != null;
 
   /// Starts UI-only setup exactly once after an Android activity resumes.

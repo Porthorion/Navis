@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:navis/src/features/downloads/data/permanent_download_path_resolver.dart';
 import 'package:path/path.dart' as p;
+import 'package:navis/src/utils/file_utils.dart';
 
 void main() {
   group('sanitizePathComponent', () {
@@ -48,10 +49,7 @@ void main() {
     test('long names are capped without splitting a surrogate pair', () {
       final long = 'a' * 119 + '🎵🎵';
       final result = clean(long);
-      expect(
-        result.length,
-        lessThanOrEqualTo(PermanentDownloadPathResolver.maxComponentLength),
-      );
+      expect(result.length, lessThanOrEqualTo(safeFileNameMaxLength));
       expect(result, 'a' * 119);
     });
   });

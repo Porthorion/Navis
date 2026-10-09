@@ -144,7 +144,6 @@ class RequiredLibraryRebuildController
   Future<void> _run({required bool allowMeteredBroadOverride}) async {
     final runEpoch = _epoch;
     if (_reason != RequiredLibraryRebuildReason.initialLogin &&
-        _reason != RequiredLibraryRebuildReason.repairLibrary &&
         !_resetPrepared) {
       state = const RequiredLibraryRebuildState(
         status: RequiredLibraryRebuildStatus.clearingCache,
@@ -181,20 +180,23 @@ class RequiredLibraryRebuildController
     }
 
     try {
-      final result = switch (_reason) {
-        RequiredLibraryRebuildReason.initialLogin => await _runInitialSync(
-          allowMeteredBroadOverride,
+      state = const RequiredLibraryRebuildState(
+        status: RequiredLibraryRebuildStatus.syncing,
+      );
+      final librarySync = ref.read(librarySyncControllerProvider.notifier);
+      final result = await switch (_reason) {
+        RequiredLibraryRebuildReason.initialLogin => runInitialCatalogSync(
+          ref,
+          allowMeteredBroadOverride: allowMeteredBroadOverride,
         ),
-        RequiredLibraryRebuildReason.cacheUpgrade => await _runCacheUpgrade(
-          allowMeteredBroadOverride,
+        RequiredLibraryRebuildReason.cacheUpgrade => librarySync.forceFullSync(
+          allowMeteredBroadOverride: allowMeteredBroadOverride,
         ),
         RequiredLibraryRebuildReason.manualCacheReset ||
-        RequiredLibraryRebuildReason.playbackRecovery => await _runManualReset(
-          allowMeteredBroadOverride,
-        ),
-        RequiredLibraryRebuildReason.repairLibrary => await _runRepair(
-          allowMeteredBroadOverride,
-        ),
+        RequiredLibraryRebuildReason.playbackRecovery =>
+          librarySync.resetCachesAndRebuildLibrary(
+            allowMeteredBroadOverride: allowMeteredBroadOverride,
+          ),
       };
       if (!_isCurrent(runEpoch) ||
           state.status == RequiredLibraryRebuildStatus.cancelling) {
@@ -260,41 +262,6 @@ class RequiredLibraryRebuildController
     }
   }
 
-  Future<LibrarySyncState> _runInitialSync(bool allowMetered) {
-    state = const RequiredLibraryRebuildState(
-      status: RequiredLibraryRebuildStatus.syncing,
-    );
-    return runInitialCatalogSync(ref, allowMeteredBroadOverride: allowMetered);
-  }
-
-  Future<LibrarySyncState> _runCacheUpgrade(bool allowMetered) async {
-    state = const RequiredLibraryRebuildState(
-      status: RequiredLibraryRebuildStatus.syncing,
-    );
-    final result = await ref
-        .read(librarySyncControllerProvider.notifier)
-        .forceFullSync(allowMeteredBroadOverride: allowMetered);
-    return result;
-  }
-
-  Future<LibrarySyncState> _runManualReset(bool allowMetered) async {
-    state = const RequiredLibraryRebuildState(
-      status: RequiredLibraryRebuildStatus.syncing,
-    );
-    return await ref
-        .read(librarySyncControllerProvider.notifier)
-        .resetCachesAndRebuildLibrary(allowMeteredBroadOverride: allowMetered);
-  }
-
-  Future<LibrarySyncState> _runRepair(bool allowMetered) {
-    state = const RequiredLibraryRebuildState(
-      status: RequiredLibraryRebuildStatus.syncing,
-    );
-    return ref
-        .read(librarySyncControllerProvider.notifier)
-        .repairLibrary(allowMeteredBroadOverride: allowMetered);
-  }
-
   Future<void> _clearRecoverableCache() {
     return switch (_reason) {
       RequiredLibraryRebuildReason.cacheUpgrade =>
@@ -302,7 +269,6 @@ class RequiredLibraryRebuildController
       RequiredLibraryRebuildReason.manualCacheReset ||
       RequiredLibraryRebuildReason.playbackRecovery =>
         ref.read(libraryCacheResetServiceProvider).reset(),
-      RequiredLibraryRebuildReason.repairLibrary => Future<void>.value(),
       RequiredLibraryRebuildReason.initialLogin => Future<void>.value(),
     };
   }
@@ -318,6 +284,7 @@ class RequiredLibraryRebuildController
         serverId: serverId,
         result: result,
         syncModelVersion: ref.read(requiredLibrarySyncModelVersionProvider),
+        cacheEpoch: await ref.read(libraryCacheEpochProvider.future),
       );
     }
     if (persisted.currentGeneration <= 0 ||

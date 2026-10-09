@@ -12,8 +12,6 @@ final class DiagnosticsProviderCounter extends ProviderObserver {
   int _disposed = 0;
   final Map<String, int> _aliveByFamily = <String, int>{};
 
-  int get alive => _alive;
-
   @override
   void didAddProvider(ProviderObserverContext context, Object? value) {
     _alive++;

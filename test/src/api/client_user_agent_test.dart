@@ -44,7 +44,7 @@ void main() {
     ).getArtistTopTracks(artist: 'Artist');
     await ListenBrainzApiClient(
       dio: transport(ListenBrainzApiClient.baseOptions),
-    ).validateToken('fake');
+    ).validateTokenDetails('fake');
     await LrclibClient(dio: transport(LrclibClient.baseOptions))
         .getLyrics(artist: 'Artist', title: 'Song');
     expect(sent, List.filled(4, AppConstants.userAgent));

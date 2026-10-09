@@ -129,6 +129,189 @@ const List<ChangelogVersion> changelogs = [
     version: '1.4.3',
     entries: [
       ChangelogEntry(
+        'Mobile playback can recover when a streamed byte range has no known length',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
+        'Playback works after signing out and reconnecting without restarting Navis',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
+        'System media buttons keep playback paused when a phone call ends',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
+        'A timed-out queue selection advances to the next song when library entries are missing',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
+        'A cancelled queue selection no longer clears the current or saved queue',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
+        'Linux media controls update their seek position when you seek while paused',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
+        'Permanent downloads keep their offline status when streaming cache writes finish concurrently',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
+        'Remote songs start promptly when the server ignores range requests',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
+        'Desktop cache activity clears when a transfer is cancelled or fails',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
+        'Completed mobile streams reliably appear in the rolling cache',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
+        'Completed downloads always play before streaming, regardless of quality settings',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
+        'A slow queue restore after radio stops or fails keeps the saved music queue',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
+        'Previous restarts the first queued song even within its first three seconds',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
+        'System media controls correctly disable Next at the end of long queues',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
+        'Pausing during an audio interruption keeps playback paused when the interruption ends',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
+        'A stalled crossfade preparation falls back to normal playback instead of blocking future fades',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
+        'Radio stream URLs stay private instead of being shared with system media controls',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
+        'Failed stream recovery respects Pause and newer song selections',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
+        'A timed-out startup queue restore can no longer stop or overwrite a newer selection',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
+        'Queue selections keep the chosen song and occurrence when earlier library rows are missing',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
+        'Jumping backward offline keeps played songs queued when their audio is temporarily unavailable',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
+        'Starting a mix clears played queue history when only the seed remains in the player',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
+        'System queue insert and remove-at controls now edit the playback queue',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
+        'System queue controls select and remove the correct song after played tracks leave the player window',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
+        'Fullscreen lyrics follow the song that is playing instead of staying on the one they were opened on, so tapping a line always seeks the lyrics you see',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
+        'Restarting Instant Radio while an earlier start or refill is still finishing no longer lets that old run unlock the new one',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
+        'Same Vibes and Server Mix stop refilling after five failed refills in a row instead of resuming later; start the mix again to continue',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
+        'Same Vibes started from a remote song with no library copy no longer mixes from an unrelated song in the queue',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
+        'Server Mix can start from a remote song when the server has a library copy of it; without one the Instant Mix button stays greyed out with an explanation',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
+        'The full Queue page no longer lets you reorder, remove or play tracks while a new queue is still loading',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
+        'Automatic library checks look further back when recent additions exceed the discovery window',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
+        'Changing the server backend clears stale sync cursors before the next library check',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
+        'Automatic library checks can continue while playback is paused; Check for updates keeps queued repairs waiting for Repair Library',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
+        'Liked items and playlist updates wait for network policy or mobile-data limits without reporting a sync failure',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
+        'Library identity repairs keep one current alias per item, preserve existing song replacements during upgrades, and resetting server data clears repaired identities',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
+        'Library cache renewal stops waiting after five seconds when app version metadata is unavailable',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
+        'Library repair reduces simultaneous album requests when the server is busy or requests need a transport retry',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
+        'Library cache renewal runs automatically on major or minor app upgrades; patch releases keep the same cache epoch',
+      ),
+      ChangelogEntry(
+        'Upgrading a pre-1.0 test installation starts with a fresh database and setup',
+        type: ChangelogEntryType.improvement,
+      ),
+      ChangelogEntry(
+        'Song identity repairs keep an existing download-queue entry instead of creating a duplicate',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
+        'Album and artist identity recovery recognizes MusicBrainz IDs regardless of letter case',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
+        'Cancelling album or liked-item refreshes stops hydration reliably and clears loading status',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
+        'Android background sync uses the same freshness window as foreground sync, including manual-only settings',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
+        'Songs missing from the server keep cached audio when saved state retains them, and failed library updates leave files intact',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
+        'Android folder downloads keep their storage type when a server song ID changes',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
+        'Missing album and artist artwork now refreshes its server metadata once through library sync',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
         'First setup no longer stops at an error when some albums on the server have incomplete details',
         type: ChangelogEntryType.fix,
       ),

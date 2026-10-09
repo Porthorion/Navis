@@ -2,6 +2,7 @@ import 'dart:convert';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:navis/src/features/equalizer/domain/eq_configuration.dart';
+import 'package:navis/src/features/equalizer/domain/eq_workspace.dart';
 
 void main() {
   test('fixed modes have stable frequencies and preserve exact values', () {
@@ -18,7 +19,7 @@ void main() {
     expect(ten.filters.last.frequencyHz, 16000);
     expect(five.isValid, isTrue);
     expect(ten.isValid, isTrue);
-    expect(ten.isFlat, isTrue);
+    expect(sameEqCurve(ten, EqConfiguration.flat(mode: ten.mode)), isTrue);
   });
 
   test('Advanced preserves sound while other fixed modes start flat', () {
@@ -33,9 +34,12 @@ void main() {
     expect(advanced.filters, original.filters);
     expect(advanced.preampDb, original.preampDb);
     final ten = original.changeMode(EqMode.tenBand);
-    expect(ten.isFlat, isTrue);
+    expect(sameEqCurve(ten, EqConfiguration.flat(mode: ten.mode)), isTrue);
     expect(ten.enabled, isTrue);
-    expect(original.isFlat, isFalse);
+    expect(
+      sameEqCurve(original, EqConfiguration.flat(mode: original.mode)),
+      isFalse,
+    );
   });
 
   test('configuration JSON is versioned and round trips exactly', () {

@@ -532,8 +532,6 @@ class _ArtistDetailScreenState extends ConsumerState<ArtistDetailScreen> {
                     artistKey: artistKey,
                     artistInfo: artistInfo,
                   ),
-                  if (ref.watch(audioMuseAvailableProvider))
-                    _AudioMuseSimilarArtists(artistId: widget.artistId),
                   const SizedBox(height: 12),
                 ],
               ),
@@ -1488,49 +1486,6 @@ class _MissingAlbumsSection extends ConsumerWidget {
           ),
         ],
       ),
-    );
-  }
-}
-
-/// AI-powered similar artists section, gated behind
-/// [audioMuseAvailableProvider]. Hidden when no recommendations are returned.
-class _AudioMuseSimilarArtists extends ConsumerWidget {
-  const new({required this.artistId});
-
-  final String artistId;
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final l10n = AppLocalizations.of(context)!;
-    final asyncRecs = ref.watch(audioMuseSimilarArtistsProvider(artistId));
-
-    return asyncRecs.when(
-      data: (recs) {
-        final currentArtistId = artistId.trim();
-        final filteredRecs = recs
-            .where((rec) {
-              final candidateId = rec.id.trim();
-              return candidateId.isNotEmpty && candidateId != currentArtistId;
-            })
-            .toList(growable: false);
-        if (filteredRecs.isEmpty) return const SizedBox.shrink();
-        return SimilarArtistsSection(
-          title: l10n.audioMuseSimilarArtists,
-          artists: filteredRecs
-              .map(
-                (rec) => SimilarArtistEntry(
-                  name: rec.title,
-                  libraryArtistId: rec.id,
-                ),
-              )
-              .toList(growable: false),
-        );
-      },
-      loading: () => const Padding(
-        padding: EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-        child: LinearProgressIndicator(minHeight: 2),
-      ),
-      error: (_, _) => const SizedBox.shrink(),
     );
   }
 }

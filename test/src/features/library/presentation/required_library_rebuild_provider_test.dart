@@ -23,18 +23,19 @@ import 'package:navis/src/utils/connectivity.dart';
 import 'package:flutter_riverpod/misc.dart' show Override;
 
 import '../../../../helpers/test_database.dart';
-
-class _OnlineReachability extends ServerReachabilityController {
-  @override
-  ServerReachabilityState build() =>
-      const ServerReachabilityState(status: ServerReachabilityStatus.online);
-}
+import '../../../../helpers/reachability_fakes.dart';
+import '../../../../helpers/async_helpers.dart';
 
 class _ControlledSync extends LibrarySyncController {
-  new(this.result, {this.beforeResult});
+  new(this.result, {this.beforeResult, this.activeCatalog});
 
   LibrarySyncState result;
   final Future<void> Function()? beforeResult;
+  final Future<void>? activeCatalog;
+  final List<bool> meteredGrants = <bool>[];
+
+  @override
+  Future<void> waitForActiveCatalogSync() async => await activeCatalog;
   final List<String> methods = <String>[];
   int get calls => methods.length;
 
@@ -43,25 +44,29 @@ class _ControlledSync extends LibrarySyncController {
 
   @override
   Future<LibrarySyncState> syncNow({bool allowMeteredBroadOverride = false}) =>
-      _run('syncNow');
+      _run('syncNow', allowMeteredBroadOverride);
 
   @override
   Future<LibrarySyncState> forceFullSync({
     bool allowMeteredBroadOverride = false,
-  }) => _run('forceFullSync');
+  }) => _run('forceFullSync', allowMeteredBroadOverride);
 
   @override
   Future<LibrarySyncState> resetCachesAndRebuildLibrary({
     bool allowMeteredBroadOverride = false,
-  }) => _run('resetCachesAndRebuildLibrary');
+  }) => _run('resetCachesAndRebuildLibrary', allowMeteredBroadOverride);
 
   @override
   Future<LibrarySyncState> repairLibrary({
     bool allowMeteredBroadOverride = false,
-  }) => _run('repairLibrary');
+  }) => _run('repairLibrary', allowMeteredBroadOverride);
 
-  Future<LibrarySyncState> _run(String method) async {
+  Future<LibrarySyncState> _run(
+    String method,
+    bool allowMeteredBroadOverride,
+  ) async {
     methods.add(method);
+    meteredGrants.add(allowMeteredBroadOverride);
     await beforeResult?.call();
     return resultFor(method);
   }
@@ -106,10 +111,12 @@ class _CountingCacheReset extends LibraryCacheResetService {
 class _GatedSignOut implements SignOutService {
   final Completer<void> gate = Completer<void>();
   int calls = 0;
+  bool? lastWipeLocalData;
 
   @override
   Future<void> signOut({required bool wipeLocalData}) {
     calls++;
+    lastWipeLocalData = wipeLocalData;
     return gate.future;
   }
 }
@@ -189,16 +196,21 @@ ProviderContainer _setupContainer({
   required NavisDatabase database,
   required ServerConfigModel server,
   required _ControlledSync sync,
+  SyncNetworkPolicy policy = _wifi,
   List<Override> extra = const <Override>[],
   LibraryCacheResetService? cacheReset,
   Override? session,
+  Override? reachability,
 }) => ProviderContainer(
   overrides: [
     ...extra,
     navisDatabaseProvider.overrideWithValue(database),
     session ?? serverConfigStateProvider.overrideWithValue(AsyncData(server)),
-    serverReachabilityControllerProvider.overrideWith(_OnlineReachability.new),
-    syncNetworkPolicyProvider.overrideWithValue(_wifi),
+    reachability ??
+        serverReachabilityControllerProvider.overrideWith(
+          OnlineReachability.new,
+        ),
+    syncNetworkPolicyProvider.overrideWithValue(policy),
     librarySyncControllerProvider.overrideWith(() => sync),
     libraryCacheResetServiceProvider.overrideWithValue(
       cacheReset ??
@@ -215,6 +227,8 @@ ProviderContainer _setupContainer({
           clearCoverArt: () async {},
         ),
         triggerFullLibraryScan: () async => false,
+        currentEpoch: () async => 1004,
+        hasCommittedCatalog: () async => true,
       ),
     ),
   ],
@@ -229,13 +243,195 @@ ProviderSubscription<RequiredLibraryRebuildState> _mount(
   (_, _) {},
 );
 
-Future<void> _drainMicrotasks() async {
-  for (var i = 0; i < 8; i++) {
-    await Future<void>.delayed(Duration.zero);
-  }
-}
-
 void main() {
+  test('offline setup waits without starting catalog sync', () async {
+    final (database, server) = await _committedCatalog();
+    final sync = _ControlledSync(const LibrarySyncState.idle());
+    final container = _setupContainer(
+      database: database,
+      server: server,
+      sync: sync,
+      reachability: serverReachabilityControllerProvider.overrideWith(
+        () => StaticReachabilityController(
+          const ServerReachabilityState(
+            status: ServerReachabilityStatus.offline,
+          ),
+        ),
+      ),
+    );
+    addTearDown(container.dispose);
+    const reason = RequiredLibraryRebuildReason.initialLogin;
+    _mount(container, reason);
+    await drainMicrotasks();
+    expect(sync.calls, 0);
+    expect(
+      container.read(requiredLibraryRebuildControllerProvider(reason)).status,
+      RequiredLibraryRebuildStatus.waitingForNetwork,
+    );
+  }, skip: !sqliteAvailable);
+
+  test(
+    'metered setup requires consent and forwards ephemeral override',
+    () async {
+      final (database, server) = await _committedCatalog();
+      final sync = _ControlledSync(
+        const LibrarySyncState(
+          status: LibrarySyncStatus.failed,
+          stage: LibrarySyncStage.collectingCandidate,
+          errorMessage: 'Safe failure',
+        ),
+      );
+      final container = _setupContainer(
+        database: database,
+        server: server,
+        sync: sync,
+        policy: const SyncNetworkPolicy(
+          networkType: NetworkType.cellular,
+          isMetered: true,
+          allowsBackgroundSync: false,
+          allowsHardProbe: true,
+          allowsInteractiveHydration: true,
+        ),
+      );
+      addTearDown(container.dispose);
+      const reason = RequiredLibraryRebuildReason.initialLogin;
+      final provider = requiredLibraryRebuildControllerProvider(reason);
+      _mount(container, reason);
+      await drainMicrotasks();
+      expect(sync.calls, 0);
+      expect(
+        container.read(provider).status,
+        RequiredLibraryRebuildStatus.waitingForMobileConsent,
+      );
+      await container.read(provider.notifier).startUsingMobileData();
+      expect(sync.calls, 1);
+      expect(sync.meteredGrants, [true]);
+    },
+    skip: !sqliteAvailable,
+  );
+
+  test(
+    'setup waits for already-running catalog work before selecting its scan',
+    () async {
+      final (database, server) = await _committedCatalog();
+      await database.librarySyncDao.writeState(
+        LibrarySyncStateTableCompanion(
+          serverId: Value(server.id!),
+          currentGeneration: const Value(0),
+        ),
+      );
+      final gate = Completer<void>();
+      final sync = _ControlledSync(
+        const LibrarySyncState(
+          status: LibrarySyncStatus.succeeded,
+          stage: LibrarySyncStage.completed,
+        ),
+        activeCatalog: gate.future,
+      );
+      final container = _setupContainer(
+        database: database,
+        server: server,
+        sync: sync,
+      );
+      addTearDown(container.dispose);
+      const reason = RequiredLibraryRebuildReason.initialLogin;
+      final provider = requiredLibraryRebuildControllerProvider(reason);
+      _mount(container, reason);
+      await drainMicrotasks();
+      expect(sync.calls, 0);
+      expect(
+        container.read(provider).status,
+        RequiredLibraryRebuildStatus.syncing,
+      );
+      await database.librarySyncDao.writeState(
+        LibrarySyncStateTableCompanion(
+          serverId: Value(server.id!),
+          currentGeneration: const Value(2),
+          lastCatalogSyncedAt: Value(DateTime.now()),
+        ),
+      );
+      gate.complete();
+      await container.read(provider.notifier).start();
+      expect(sync.methods, ['forceFullSync']);
+      expect(
+        container.read(provider).status,
+        RequiredLibraryRebuildStatus.complete,
+      );
+    },
+    skip: !sqliteAvailable,
+  );
+
+  test(
+    'readiness stamps only validated success and skips a null model version',
+    () async {
+      final database = createTestDatabase();
+      addTearDown(database.close);
+      await database.serverDao.saveServer(
+        ServerConfigTableCompanion.insert(
+          url: 'https://example.test',
+          username: 'fixture',
+          apiVersion: '1.16.1',
+        ),
+      );
+      final server = (await database.serverDao.getActiveServer())!;
+      await database.appSettingsDao.setLastFullSyncAppBuild('old-model');
+      const completed = LibrarySyncState(
+        status: LibrarySyncStatus.succeeded,
+        stage: LibrarySyncStage.completed,
+      );
+      expect(
+        await recordInitialCatalogReadiness(
+          database: database,
+          serverId: server.id,
+          result: completed,
+          syncModelVersion: currentLibrarySyncModelVersion,
+          cacheEpoch: 1004,
+        ),
+        isFalse,
+      );
+      expect(
+        await database.appSettingsDao.getLastFullSyncAppBuild(),
+        'old-model',
+      );
+      expect(await database.cacheSystemStateDao.getVersion(), isNull);
+      await database.librarySyncDao.writeState(
+        LibrarySyncStateTableCompanion(
+          serverId: Value(server.id),
+          currentGeneration: const Value(1),
+          lastCatalogSyncedAt: Value(DateTime.now()),
+        ),
+      );
+      expect(
+        await recordInitialCatalogReadiness(
+          database: database,
+          serverId: server.id,
+          result: completed,
+        ),
+        isTrue,
+      );
+      expect(
+        await database.appSettingsDao.getLastFullSyncAppBuild(),
+        'old-model',
+      );
+      expect(
+        await recordInitialCatalogReadiness(
+          database: database,
+          serverId: server.id,
+          result: completed,
+          syncModelVersion: currentLibrarySyncModelVersion,
+          cacheEpoch: 1004,
+        ),
+        isTrue,
+      );
+      expect(
+        await database.appSettingsDao.getLastFullSyncAppBuild(),
+        currentLibrarySyncModelVersion,
+      );
+      expect(await database.cacheSystemStateDao.getVersion(), 1004);
+    },
+    skip: !sqliteAvailable,
+  );
+
   test('only isolated album response gaps qualify for automatic exit', () {
     const usable = LibrarySyncState(
       status: LibrarySyncStatus.partial,
@@ -312,7 +508,7 @@ void main() {
       );
       expect(await container.read(initialSyncRequiredProvider.future), isTrue);
       _mount(container, RequiredLibraryRebuildReason.initialLogin);
-      await _drainMicrotasks();
+      await drainMicrotasks(turns: 8);
       expect(
         container
             .read(
@@ -350,7 +546,6 @@ void main() {
     RequiredLibraryRebuildReason.manualCacheReset,
     RequiredLibraryRebuildReason.playbackRecovery,
     RequiredLibraryRebuildReason.cacheUpgrade,
-    RequiredLibraryRebuildReason.repairLibrary,
   ]) {
     test(
       '$reason leaves full-screen after safe incomplete album response',
@@ -403,7 +598,7 @@ void main() {
         );
         addTearDown(container.dispose);
         _mount(container, reason);
-        await _drainMicrotasks();
+        await drainMicrotasks(turns: 8);
         expect(sync.calls, 1);
         expect(
           container
@@ -463,9 +658,9 @@ void main() {
         ),
       );
       addTearDown(container.dispose);
-      const reason = RequiredLibraryRebuildReason.repairLibrary;
+      const reason = RequiredLibraryRebuildReason.manualCacheReset;
       _mount(container, reason);
-      await _drainMicrotasks();
+      await drainMicrotasks(turns: 8);
       expect(
         container.read(requiredLibraryRebuildControllerProvider(reason)).status,
         RequiredLibraryRebuildStatus.failed,
@@ -515,7 +710,7 @@ void main() {
       );
       expect(await container.read(initialSyncRequiredProvider.future), isTrue);
       _mount(container, RequiredLibraryRebuildReason.initialLogin);
-      await _drainMicrotasks();
+      await drainMicrotasks(turns: 8);
       expect(sync.calls, 1);
       expect(
         container
@@ -551,7 +746,7 @@ void main() {
         ),
       );
       _mount(restarted, RequiredLibraryRebuildReason.initialLogin);
-      await _drainMicrotasks();
+      await drainMicrotasks(turns: 8);
       expect(
         restarted
             .read(
@@ -637,7 +832,7 @@ void main() {
       expect(await container.read(initialSyncRequiredProvider.future), isTrue);
       const reason = RequiredLibraryRebuildReason.initialLogin;
       _mount(container, reason);
-      await _drainMicrotasks();
+      await drainMicrotasks(turns: 8);
 
       expect(sync.methods, <String>['forceFullSync']);
       expect(
@@ -693,7 +888,7 @@ void main() {
       addTearDown(container.dispose);
       const reason = RequiredLibraryRebuildReason.initialLogin;
       _mount(container, reason);
-      await _drainMicrotasks();
+      await drainMicrotasks(turns: 8);
 
       expect(sync.methods, <String>['syncNow']);
       expect(
@@ -722,17 +917,17 @@ void main() {
       final provider = requiredLibraryRebuildControllerProvider(reason);
 
       final firstVisit = _mount(container, reason);
-      await _drainMicrotasks();
+      await drainMicrotasks(turns: 8);
       expect(
         container.read(provider).status,
         RequiredLibraryRebuildStatus.complete,
       );
       firstVisit.close();
-      await _drainMicrotasks();
+      await drainMicrotasks(turns: 8);
       expect(container.exists(provider), isFalse);
 
       _mount(container, reason);
-      await _drainMicrotasks();
+      await drainMicrotasks(turns: 8);
       expect(sync.calls, 2);
       expect(
         container.read(provider).status,
@@ -763,7 +958,7 @@ void main() {
     addTearDown(container.dispose);
     const reason = RequiredLibraryRebuildReason.manualCacheReset;
     _mount(container, reason);
-    await _drainMicrotasks();
+    await drainMicrotasks(turns: 8);
     await container
         .read(requiredLibraryRebuildControllerProvider(reason).notifier)
         .retry();
@@ -794,7 +989,7 @@ void main() {
     const reason = RequiredLibraryRebuildReason.initialLogin;
     final provider = requiredLibraryRebuildControllerProvider(reason);
     final visit = _mount(container, reason);
-    await _drainMicrotasks();
+    await drainMicrotasks(turns: 8);
     expect(
       container.read(provider).status,
       RequiredLibraryRebuildStatus.failed,
@@ -807,16 +1002,17 @@ void main() {
     );
     // Signing out replaces the route while the sign-out is still running.
     visit.close();
-    await _drainMicrotasks();
+    await drainMicrotasks(turns: 8);
     expect(container.exists(provider), isTrue);
     signOut.gate.complete();
     await cancelling;
-    await _drainMicrotasks();
+    await drainMicrotasks(turns: 8);
     expect(signOut.calls, 1);
+    expect(signOut.lastWipeLocalData, isFalse);
     expect(container.exists(provider), isFalse);
 
     _mount(container, reason);
-    await _drainMicrotasks();
+    await drainMicrotasks(turns: 8);
     expect(sync.calls, 2);
     expect(
       container.read(provider).status,
@@ -843,23 +1039,23 @@ void main() {
       const reason = RequiredLibraryRebuildReason.initialLogin;
       final provider = requiredLibraryRebuildControllerProvider(reason);
       final visit = _mount(container, reason);
-      await _drainMicrotasks();
+      await drainMicrotasks(turns: 8);
       expect(
         container.read(provider).status,
         RequiredLibraryRebuildStatus.syncing,
       );
 
       visit.close();
-      await _drainMicrotasks();
+      await drainMicrotasks(turns: 8);
       expect(container.exists(provider), isTrue);
       gate.complete();
-      await _drainMicrotasks();
+      await drainMicrotasks(turns: 8);
 
       final persisted = await database.librarySyncDao.getOrCreateState(
         server.id!,
       );
       expect(persisted.initialCatalogUsableAt, isNotNull);
-      await _drainMicrotasks();
+      await drainMicrotasks(turns: 8);
       expect(container.exists(provider), isFalse);
     },
     skip: !sqliteAvailable,
@@ -894,14 +1090,14 @@ void main() {
       final provider = requiredLibraryRebuildControllerProvider(reason);
       // The route's exit transition is reused, so the screen never unmounts.
       _mount(container, reason);
-      await _drainMicrotasks();
+      await drainMicrotasks(turns: 8);
       expect(sync.calls, 1);
 
       final cancelling = container.read(provider.notifier).cancelAndSignOut();
       container.read(_sessionProvider.notifier).set(null);
       signOut.gate.complete();
       await cancelling;
-      await _drainMicrotasks();
+      await drainMicrotasks(turns: 8);
       expect(
         container.read(provider).status,
         RequiredLibraryRebuildStatus.idle,
@@ -909,7 +1105,7 @@ void main() {
       expect(sync.calls, 1);
 
       container.read(_sessionProvider.notifier).set(server);
-      await _drainMicrotasks();
+      await drainMicrotasks(turns: 8);
       expect(sync.calls, 2);
       expect(
         container.read(provider).status,
@@ -943,12 +1139,13 @@ void main() {
       const reason = RequiredLibraryRebuildReason.initialLogin;
       final provider = requiredLibraryRebuildControllerProvider(reason);
       _mount(container, reason);
-      await _drainMicrotasks();
+      await drainMicrotasks(turns: 8);
 
       // Teardown steps fail softly, so credentials may survive sign-out.
       await container.read(provider.notifier).cancelAndSignOut();
 
       expect(signOut.calls, 1);
+      expect(signOut.lastWipeLocalData, isFalse);
       expect(
         container.read(provider).status,
         RequiredLibraryRebuildStatus.failed,

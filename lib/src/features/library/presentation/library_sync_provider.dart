@@ -27,7 +27,7 @@ import 'package:navis/src/utils/notifications/library_sync_notifier.dart';
 import 'package:navis/src/utils/sync_diagnostics_overrides.dart';
 
 /// Sync interval in minutes from user settings (0 = manual only).
-/// The staleness window for the sync engine equals this interval so that
+/// The staleness window uses this interval with a small tolerance so that
 /// periodic ticks actually trigger a sync rather than being skipped.
 final syncIntervalMinutesProvider = Provider<int>((ref) {
   final settings =
@@ -36,28 +36,12 @@ final syncIntervalMinutesProvider = Provider<int>((ref) {
   return settings.syncIntervalMinutes;
 });
 
-@visibleForTesting
 final syncIntervalDurationProvider = Provider<Duration?>((ref) {
   final minutes = ref.watch(syncIntervalMinutesProvider);
   if (minutes <= 0) {
     return null;
   }
   return Duration(minutes: minutes);
-});
-
-final syncStaleAfterProvider = Provider<Duration>((ref) {
-  final minutes = ref.watch(syncIntervalMinutesProvider);
-  if (minutes <= 0) {
-    // Manual-only: use a large staleness window so syncIfStale won't fire
-    // on its own, but syncNow still works.
-    return const Duration(hours: 24);
-  }
-  // Subtract a small tolerance so that when the periodic timer fires at
-  // exactly the interval boundary the data is guaranteed to be considered
-  // stale.  Without this, floating-point rounding can cause the check
-  // `now.difference(lastSynced) < staleAfter` to pass, skipping the sync.
-  final toleranceSeconds = (minutes * 60 * 0.05).round().clamp(10, 120);
-  return Duration(seconds: minutes * 60 - toleranceSeconds);
 });
 
 /// Durable, server-scoped mutation evidence for Sync Settings.
@@ -81,14 +65,9 @@ final librarySyncOperationLedgerProvider =
           .watchRecentOperationLedgerEntries(serverId);
     });
 
-final librarySyncNotifierProvider = Provider<LibrarySyncNotifier>((ref) {
+final librarySyncNotifierProvider = Provider<SystemLibrarySyncNotifier>((ref) {
   return const SystemLibrarySyncNotifier();
 });
-
-final androidBackgroundSyncSchedulerProvider =
-    Provider<AndroidBackgroundSyncScheduler>((ref) {
-      return AndroidBackgroundSyncScheduler();
-    });
 
 final androidBackgroundSyncAvailableProvider = Provider<bool>((ref) {
   return AndroidBackgroundSyncScheduler.isSupported;
@@ -98,7 +77,7 @@ final androidBackgroundSyncReconcilerProvider =
     Provider<AndroidBackgroundSyncReconciler>((ref) {
       return AndroidBackgroundSyncReconciler(
         database: ref.watch(navisDatabaseProvider),
-        scheduler: ref.watch(androidBackgroundSyncSchedulerProvider),
+        scheduler: AndroidBackgroundSyncScheduler(),
       );
     });
 
@@ -165,7 +144,9 @@ final librarySyncEngineProvider = Provider<LibrarySyncEngine?>((ref) {
 
   final database = ref.watch(navisDatabaseProvider);
   final repository = ref.watch(serverConfigRepositoryProvider);
-  final staleAfter = ref.watch(syncStaleAfterProvider);
+  final staleAfter = syncStaleAfterForInterval(
+    ref.watch(syncIntervalMinutesProvider),
+  );
   // Read policy from the live root container at call time; do not watch network
   // providers here so a connectivity change cannot dispose an in-flight
   // coordinator. Reads through this provider's Ref are cached after the first
@@ -265,7 +246,6 @@ final librarySyncControllerProvider =
 const Duration librarySyncProgressPublishInterval = Duration(milliseconds: 250);
 
 class LibrarySyncController extends Notifier<LibrarySyncState> {
-  bool _startupSyncInFlight = false;
   bool _startupSyncSuppressed = false;
   int _startupSyncEpoch = 0;
   int _cancellationGeneration = 0;
@@ -299,7 +279,7 @@ class LibrarySyncController extends Notifier<LibrarySyncState> {
   late final AppLifecycleListener _lifecycleListener;
   Timer? _periodicSyncTimer;
   int _automaticScheduleEpoch = 0;
-  final Set<Future<void>> _automaticTimerArms = {};
+  final Set<Future<void>> _syncStateTasks = {};
   StreamSubscription<int>? _pendingWorkCountSub;
   StreamSubscription<int>? _pendingHydrationCountSub;
 
@@ -333,8 +313,10 @@ class LibrarySyncController extends Notifier<LibrarySyncState> {
     final serverConfig = ref.read(serverConfigStateProvider).asData?.value;
     if (serverConfig != null) {
       _sessionFingerprint = _toSessionFingerprint(serverConfig);
-      unawaited(_loadPersistedSyncState(serverConfig));
-      unawaited(_reconcileAndroidBackgroundSchedule(config: serverConfig));
+      _trackSyncStateTask(_loadPersistedSyncState(serverConfig));
+      _trackSyncStateTask(
+        _reconcileAndroidBackgroundSchedule(config: serverConfig),
+      );
     }
     _lastReachabilityStatus = ref
         .read(serverReachabilityControllerProvider)
@@ -351,7 +333,7 @@ class LibrarySyncController extends Notifier<LibrarySyncState> {
     ref.listen<AsyncValue<bool>>(initialSyncRequiredProvider, (previous, next) {
       if (previous?.value == true && next.asData?.value == false) {
         final epoch = _startupSyncEpoch;
-        unawaited(() async {
+        _trackSyncStateTask(() async {
           await _resetAutomaticCheckSchedule(
             ref.read(syncIntervalMinutesProvider),
           );
@@ -377,7 +359,9 @@ class LibrarySyncController extends Notifier<LibrarySyncState> {
     if (ref.read(androidBackgroundSyncAvailableProvider)) {
       ref.listen<bool>(backgroundSyncUnmeteredOnlyProvider, (previous, next) {
         if (previous != null && previous != next) {
-          unawaited(_reconcileAndroidBackgroundSchedule(enqueueCatchup: true));
+          _trackSyncStateTask(
+            _reconcileAndroidBackgroundSchedule(enqueueCatchup: true),
+          );
         }
       });
     }
@@ -478,7 +462,7 @@ class LibrarySyncController extends Notifier<LibrarySyncState> {
         tolerateUnavailableEngine: false,
         forceFull: true,
         allowMeteredBroadOverride: allowMeteredBroadOverride,
-        caller: LibrarySyncRequestCaller.repairLibrary,
+        repairOrigin: SyncRunOrigin.settingsRepair,
       );
     } finally {
       coordinator?.endRepairSession(serverId: serverId);
@@ -494,7 +478,7 @@ class LibrarySyncController extends Notifier<LibrarySyncState> {
       tolerateUnavailableEngine: false,
       forceFull: true,
       allowMeteredBroadOverride: allowMeteredBroadOverride,
-      caller: LibrarySyncRequestCaller.cacheReset,
+      repairOrigin: SyncRunOrigin.cacheReset,
     );
   }
 
@@ -539,8 +523,6 @@ class LibrarySyncController extends Notifier<LibrarySyncState> {
       engine.cancelSync();
       // Cancellation always clears the in-session mobile-data grant.
       engine.endRepairSession();
-    } else if (engine is DriftLibrarySyncEngine) {
-      engine.cancelSync();
     }
   }
 
@@ -556,8 +538,6 @@ class LibrarySyncController extends Notifier<LibrarySyncState> {
     }
     if (engine is AdaptiveLibrarySyncCoordinator) {
       await engine.cancelAndWait();
-    } else if (engine is DriftLibrarySyncEngine) {
-      await engine.cancelAndWait();
     }
     // The automatic check owns a final schedule write after its engine returns.
     // Drain that owner as well as the engine before a caller closes Drift.
@@ -570,8 +550,14 @@ class LibrarySyncController extends Notifier<LibrarySyncState> {
     if (catalogSync != null) {
       await catalogSync;
     }
-    await Future.wait(_automaticTimerArms.toList());
+    while (_syncStateTasks.isNotEmpty) {
+      await Future.wait(_syncStateTasks.toList());
+    }
+    // The session service cancels native work before wiping the profile.
+    // Its later config-null notification must not launch another status write.
+    _androidScheduledConfig = null;
     _cancelPeriodicSync();
+    _cancelBacklogWatchers();
     if (ref.mounted) {
       state = state.copyWith(
         status: LibrarySyncStatus.cancelled,
@@ -589,33 +575,16 @@ class LibrarySyncController extends Notifier<LibrarySyncState> {
     }
     return await _joinOrStartTargetSync(
       target,
-      () => _runRequest(
-        engine,
+      () => engine.requestSync(
         LibrarySyncRequest(
-          trigger: LibrarySyncTrigger.interaction,
-          intent: LibrarySyncIntent.checkForUpdates,
+          intent: SyncRunIntent.manualCatalogCheck,
           target: target,
+          origin: SyncRunOrigin.interaction,
         ),
-      ),
-    );
-  }
-
-  Future<LibrarySyncState> requestTargetIfStale(
-    LibrarySyncTarget target,
-  ) async {
-    final engine = ref.read(librarySyncEngineProvider);
-    if (engine == null) {
-      return state;
-    }
-    return await _joinOrStartTargetSync(
-      target,
-      () => _runRequest(
-        engine,
-        LibrarySyncRequest(
-          trigger: LibrarySyncTrigger.interaction,
-          intent: LibrarySyncIntent.automatic,
-          target: target,
-        ),
+        priorityAlbumIds: _priorityAlbumIds,
+        // Target hydration owns its page-level loading/error surfaces; keep
+        // the persistent catalog status while requesting one entity.
+        onProgress: null,
       ),
     );
   }
@@ -795,9 +764,11 @@ class LibrarySyncController extends Notifier<LibrarySyncState> {
 
     final serverConfig = next.asData?.value;
     if (serverConfig == null) {
+      _cancelPeriodicSync();
+      _cancelBacklogWatchers();
       final scheduled = _androidScheduledConfig;
       if (scheduled != null) {
-        unawaited(
+        _trackSyncStateTask(
           ref
               .read(androidBackgroundSyncReconcilerProvider)
               .cancelFor(scheduled),
@@ -806,7 +777,6 @@ class LibrarySyncController extends Notifier<LibrarySyncState> {
       _androidScheduledConfig = null;
       _startupSyncSuppressed = true;
       _startupSyncEpoch++;
-      _startupSyncInFlight = false;
       _retryStartupWhenEngineReady = false;
       _startupSyncDoneFingerprint = null;
       _sessionFingerprint = null;
@@ -820,7 +790,6 @@ class LibrarySyncController extends Notifier<LibrarySyncState> {
     if (_sessionFingerprint != fingerprint) {
       _startupSyncSuppressed = false;
       _startupSyncEpoch++;
-      _startupSyncInFlight = false;
       _retryStartupWhenEngineReady = false;
       _startupSyncDoneFingerprint = null;
       _sessionFingerprint = fingerprint;
@@ -830,9 +799,11 @@ class LibrarySyncController extends Notifier<LibrarySyncState> {
         lastSyncedAt: serverConfig.lastSynced,
         freshness: _readPersistedFreshness(serverConfig.capabilitiesJson),
       );
-      unawaited(_loadPersistedSyncState(serverConfig));
+      _trackSyncStateTask(_loadPersistedSyncState(serverConfig));
     }
-    unawaited(_reconcileAndroidBackgroundSchedule(config: serverConfig));
+    _trackSyncStateTask(
+      _reconcileAndroidBackgroundSchedule(config: serverConfig),
+    );
     _scheduleStartupSync();
   }
 
@@ -840,7 +811,8 @@ class LibrarySyncController extends Notifier<LibrarySyncState> {
     ServerConfigModel? config,
     bool enqueueCatchup = false,
   }) async {
-    if (!ref.read(androidBackgroundSyncAvailableProvider)) {
+    if (_startupSyncSuppressed ||
+        !ref.read(androidBackgroundSyncAvailableProvider)) {
       return;
     }
     final active = config ?? ref.read(serverConfigStateProvider).asData?.value;
@@ -870,7 +842,9 @@ class LibrarySyncController extends Notifier<LibrarySyncState> {
         enabled: _enableAndroidBackgroundSync,
       );
     }
-    if (!ref.mounted || _sessionFingerprint != _toSessionFingerprint(active)) {
+    if (!ref.mounted ||
+        _startupSyncSuppressed ||
+        _sessionFingerprint != _toSessionFingerprint(active)) {
       return;
     }
     await ref
@@ -951,6 +925,7 @@ class LibrarySyncController extends Notifier<LibrarySyncState> {
     final persisted = await database.librarySyncDao.getOrCreateState(serverId);
     final pending = await database.librarySyncDao.countPendingWork(serverId);
     if (!ref.mounted ||
+        _startupSyncSuppressed ||
         _sessionFingerprint != _toSessionFingerprint(config) ||
         state.isRunning) {
       return;
@@ -1009,10 +984,7 @@ class LibrarySyncController extends Notifier<LibrarySyncState> {
   }
 
   Future<void> _maybeRunStartupSync(int epoch) async {
-    if (!ref.mounted ||
-        _startupSyncSuppressed ||
-        epoch != _startupSyncEpoch ||
-        _startupSyncInFlight) {
+    if (!ref.mounted || _startupSyncSuppressed || epoch != _startupSyncEpoch) {
       return;
     }
 
@@ -1021,10 +993,7 @@ class LibrarySyncController extends Notifier<LibrarySyncState> {
       return;
     }
 
-    final setupPending = await isInitialCatalogSetupPending(
-      ref.read(navisDatabaseProvider),
-      config,
-    );
+    final setupPending = await _setupPending();
     if (!ref.mounted || _startupSyncSuppressed || epoch != _startupSyncEpoch) {
       return;
     }
@@ -1046,7 +1015,6 @@ class LibrarySyncController extends Notifier<LibrarySyncState> {
     if (_startupSyncSuppressed || epoch != _startupSyncEpoch) {
       return;
     }
-    _startupSyncInFlight = true;
     final database = ref.read(navisDatabaseProvider);
     final requiredSyncModelVersion = ref.read(
       requiredLibrarySyncModelVersionProvider,
@@ -1054,7 +1022,6 @@ class LibrarySyncController extends Notifier<LibrarySyncState> {
     final lastSyncModelVersion = await database.appSettingsDao
         .getLastFullSyncAppBuild();
     if (!ref.mounted || _startupSyncSuppressed || epoch != _startupSyncEpoch) {
-      _startupSyncInFlight = false;
       return;
     }
     final requiresSyncModelRepair =
@@ -1070,44 +1037,40 @@ class LibrarySyncController extends Notifier<LibrarySyncState> {
         '$requiredSyncModelVersion.',
       );
     }
-    try {
-      final result = await (requiresSyncModelRepair && !deferFullResyncOnMobile
-          ? _runSync(
-              force: true,
-              forceFull: true,
-              tolerateUnavailableEngine: true,
-            )
-          : syncIfStale());
-      if (!ref.mounted || epoch != _startupSyncEpoch) {
-        return;
-      }
-      final completedSyncModelRepair =
-          requiresSyncModelRepair &&
-          !deferFullResyncOnMobile &&
-          (result.status == LibrarySyncStatus.succeeded ||
-              (result.status == LibrarySyncStatus.partial &&
-                  result.metadataReady &&
-                  result.candidateGeneration == null &&
-                  result.candidateStatus == null));
-      final completedStartupPass =
-          result.status == LibrarySyncStatus.succeeded ||
-          result.status == LibrarySyncStatus.partial ||
-          completedSyncModelRepair ||
-          result.status == LibrarySyncStatus.failed ||
-          (!deferFullResyncOnMobile &&
-              result.status == LibrarySyncStatus.skipped);
-      if (completedStartupPass) {
-        _startupSyncDoneFingerprint = fingerprint;
-      }
-      if (completedSyncModelRepair) {
-        unawaited(
-          database.appSettingsDao.setLastFullSyncAppBuild(
-            requiredSyncModelVersion,
-          ),
-        );
-      }
-    } finally {
-      _startupSyncInFlight = false;
+    final result = await (requiresSyncModelRepair && !deferFullResyncOnMobile
+        ? _runSync(
+            force: true,
+            forceFull: true,
+            tolerateUnavailableEngine: true,
+          )
+        : syncIfStale());
+    if (!ref.mounted || epoch != _startupSyncEpoch) {
+      return;
+    }
+    final completedSyncModelRepair =
+        requiresSyncModelRepair &&
+        !deferFullResyncOnMobile &&
+        (result.status == LibrarySyncStatus.succeeded ||
+            (result.status == LibrarySyncStatus.partial &&
+                result.metadataReady &&
+                result.candidateGeneration == null &&
+                result.candidateStatus == null));
+    final completedStartupPass =
+        result.status == LibrarySyncStatus.succeeded ||
+        result.status == LibrarySyncStatus.partial ||
+        completedSyncModelRepair ||
+        result.status == LibrarySyncStatus.failed ||
+        (!deferFullResyncOnMobile &&
+            result.status == LibrarySyncStatus.skipped);
+    if (completedStartupPass) {
+      _startupSyncDoneFingerprint = fingerprint;
+    }
+    if (completedSyncModelRepair) {
+      unawaited(
+        database.appSettingsDao.setLastFullSyncAppBuild(
+          requiredSyncModelVersion,
+        ),
+      );
     }
   }
 
@@ -1121,12 +1084,7 @@ class LibrarySyncController extends Notifier<LibrarySyncState> {
     if (serverId == null) {
       return await _runSync(force: false, tolerateUnavailableEngine: true);
     }
-    if (await isInitialCatalogSetupPending(
-          ref.read(navisDatabaseProvider),
-          config!,
-        ) ||
-        !ref.mounted ||
-        _startupSyncSuppressed) {
+    if (!ref.mounted || _startupSyncSuppressed || await _setupPending()) {
       return state;
     }
     final interval = ref.read(syncIntervalDurationProvider);
@@ -1180,6 +1138,35 @@ class LibrarySyncController extends Notifier<LibrarySyncState> {
     );
   }
 
+  Future<bool> _setupPending() async {
+    final config = ref.read(serverConfigStateProvider).asData?.value;
+    return config != null &&
+        await isInitialCatalogSetupPending(
+          ref.read(navisDatabaseProvider),
+          config,
+        );
+  }
+
+  Future<void> _writeNextAutomaticCheck(
+    int serverId,
+    ServerConfigModel config,
+    DateTime? next,
+  ) async {
+    await ref
+        .read(navisDatabaseProvider)
+        .librarySyncDao
+        .setNextAutomaticCheckAt(
+          serverId: serverId,
+          nextAutomaticCheckAt: next,
+        );
+    if (ref.mounted && _sessionFingerprint == _toSessionFingerprint(config)) {
+      state = state.copyWith(
+        nextAutomaticCheckAt: next,
+        clearNextAutomaticCheckAt: next == null,
+      );
+    }
+  }
+
   Future<DateTime?> _ensureAutomaticCheckSchedule(Duration interval) async {
     final config = ref.read(serverConfigStateProvider).asData?.value;
     final serverId = config?.id;
@@ -1195,13 +1182,7 @@ class LibrarySyncController extends Notifier<LibrarySyncState> {
     final now = DateTime.now().toUtc();
     final anchor = persisted.lastCheckedAt ?? config?.lastSynced;
     final next = anchor == null ? now : anchor.add(interval);
-    await dao.setNextAutomaticCheckAt(
-      serverId: serverId,
-      nextAutomaticCheckAt: next,
-    );
-    if (ref.mounted && _sessionFingerprint == _toSessionFingerprint(config!)) {
-      state = state.copyWith(nextAutomaticCheckAt: next);
-    }
+    await _writeNextAutomaticCheck(serverId, config!, next);
     return next;
   }
 
@@ -1212,16 +1193,7 @@ class LibrarySyncController extends Notifier<LibrarySyncState> {
       return;
     }
     final next = DateTime.now().toUtc().add(interval);
-    await ref
-        .read(navisDatabaseProvider)
-        .librarySyncDao
-        .setNextAutomaticCheckAt(
-          serverId: serverId,
-          nextAutomaticCheckAt: next,
-        );
-    if (ref.mounted && _sessionFingerprint == _toSessionFingerprint(config!)) {
-      state = state.copyWith(nextAutomaticCheckAt: next);
-    }
+    await _writeNextAutomaticCheck(serverId, config!, next);
   }
 
   Future<LibrarySyncState> _runSync({
@@ -1229,7 +1201,7 @@ class LibrarySyncController extends Notifier<LibrarySyncState> {
     required bool tolerateUnavailableEngine,
     bool forceFull = false,
     bool allowMeteredBroadOverride = false,
-    LibrarySyncRequestCaller caller = LibrarySyncRequestCaller.unspecified,
+    SyncRunOrigin repairOrigin = SyncRunOrigin.settingsRepair,
   }) async {
     return await _joinOrQueueCatalogSync(
       priority: forceFull
@@ -1242,7 +1214,7 @@ class LibrarySyncController extends Notifier<LibrarySyncState> {
         tolerateUnavailableEngine: tolerateUnavailableEngine,
         forceFull: forceFull,
         allowMeteredBroadOverride: allowMeteredBroadOverride,
-        caller: caller,
+        repairOrigin: repairOrigin,
       ),
     );
   }
@@ -1334,7 +1306,7 @@ class LibrarySyncController extends Notifier<LibrarySyncState> {
     required bool tolerateUnavailableEngine,
     required bool forceFull,
     required bool allowMeteredBroadOverride,
-    required LibrarySyncRequestCaller caller,
+    required SyncRunOrigin repairOrigin,
   }) async {
     final engine = ref.read(librarySyncEngineProvider);
     final notifier = ref.read(librarySyncNotifierProvider);
@@ -1410,7 +1382,7 @@ class LibrarySyncController extends Notifier<LibrarySyncState> {
       force: force,
       forceFull: forceFull,
       allowMeteredBroadOverride: allowMeteredBroadOverride,
-      caller: caller,
+      repairOrigin: repairOrigin,
       onProgressExternal: (progress) {
         if (progress.status == LibrarySyncStatus.running) {
           unawaited(notifier.showProgress(progress));
@@ -1489,21 +1461,6 @@ class LibrarySyncController extends Notifier<LibrarySyncState> {
     return result;
   }
 
-  Future<LibrarySyncState> _runRequest(
-    LibrarySyncEngine engine,
-    LibrarySyncRequest request,
-  ) async {
-    final result = await engine.requestSync(
-      request,
-      priorityAlbumIds: _priorityAlbumIds,
-      // Target hydration has its own page-level loading/error surfaces. Do
-      // not overwrite the persistent catalog status while a detail page or
-      // playlist asks for one entity.
-      onProgress: null,
-    );
-    return result;
-  }
-
   String _toSessionFingerprint(ServerConfigModel config) {
     return '${config.url}|${config.username}|${config.apiVersion}|${config.useLegacyAuth}';
   }
@@ -1525,7 +1482,7 @@ class LibrarySyncController extends Notifier<LibrarySyncState> {
     required bool force,
     required bool forceFull,
     required bool allowMeteredBroadOverride,
-    required LibrarySyncRequestCaller caller,
+    required SyncRunOrigin repairOrigin,
     required void Function(LibrarySyncState progress) onProgressExternal,
   }) {
     // Engines report progress per artist or album batch, and every published
@@ -1563,7 +1520,7 @@ class LibrarySyncController extends Notifier<LibrarySyncState> {
       force: force,
       forceFull: forceFull,
       allowMeteredBroadOverride: allowMeteredBroadOverride,
-      caller: caller,
+      repairOrigin: repairOrigin,
       updateProgress: updateProgress,
     ).whenComplete(throttle.close);
   }
@@ -1573,43 +1530,29 @@ class LibrarySyncController extends Notifier<LibrarySyncState> {
     required bool force,
     required bool forceFull,
     required bool allowMeteredBroadOverride,
-    required LibrarySyncRequestCaller caller,
+    required SyncRunOrigin repairOrigin,
     required void Function(LibrarySyncState progress) updateProgress,
   }) {
-    if (engine is AdaptiveLibrarySyncCoordinator) {
-      final request = forceFull
-          ? caller == LibrarySyncRequestCaller.cacheReset
-                ? LibrarySyncRequest.cacheReset(
-                    allowMeteredBroadOverride: allowMeteredBroadOverride,
-                  )
-                : LibrarySyncRequest.repair(
-                    allowMeteredBroadOverride: allowMeteredBroadOverride,
-                  )
-          : force
-          ? LibrarySyncRequest.checkForUpdates(
-              allowMeteredBroadOverride: allowMeteredBroadOverride,
-            )
-          : const LibrarySyncRequest.automatic();
-      return engine.requestSync(
-        request,
-        priorityAlbumIds: _priorityAlbumIds,
-        onProgress: updateProgress,
-      );
-    }
-    return force
-        ? forceFull
-              ? engine.forceFullSync(
-                  priorityAlbumIds: _priorityAlbumIds,
-                  onProgress: updateProgress,
-                )
-              : engine.syncNow(
-                  priorityAlbumIds: _priorityAlbumIds,
-                  onProgress: updateProgress,
-                )
-        : engine.syncIfStale(
-            priorityAlbumIds: _priorityAlbumIds,
-            onProgress: updateProgress,
-          );
+    final request = forceFull
+        ? LibrarySyncRequest(
+            origin: repairOrigin,
+            intent: SyncRunIntent.repairLibrary,
+            grant: allowMeteredBroadOverride
+                ? SyncNetworkGrant.broadMeteredOnce
+                : SyncNetworkGrant.none,
+          )
+        : force
+        ? LibrarySyncRequest.checkForUpdates(
+            grant: allowMeteredBroadOverride
+                ? SyncNetworkGrant.broadMeteredOnce
+                : SyncNetworkGrant.boundedMeteredDiscovery,
+          )
+        : const LibrarySyncRequest.automatic();
+    return engine.requestSync(
+      request,
+      priorityAlbumIds: _priorityAlbumIds,
+      onProgress: updateProgress,
+    );
   }
 
   void _onAppBackgrounded() {
@@ -1635,19 +1578,25 @@ class LibrarySyncController extends Notifier<LibrarySyncState> {
   // ---------------------------------------------------------------------------
 
   void _onSyncIntervalChanged(int minutes) {
-    unawaited(_resetAutomaticCheckSchedule(minutes));
-    unawaited(_reconcileAndroidBackgroundSchedule(enqueueCatchup: true));
+    _trackSyncStateTask(_resetAutomaticCheckSchedule(minutes));
+    _trackSyncStateTask(
+      _reconcileAndroidBackgroundSchedule(enqueueCatchup: true),
+    );
   }
 
   void _schedulePeriodicSync(int minutes) {
     _cancelPeriodicSync();
     if (_startupSyncSuppressed) return;
     final epoch = _automaticScheduleEpoch;
+    _trackSyncStateTask(_armAutomaticCheckTimer(minutes, epoch));
+  }
+
+  void _trackSyncStateTask(Future<void> action) {
     late final Future<void> task;
-    task = _armAutomaticCheckTimer(minutes, epoch).whenComplete(() {
-      _automaticTimerArms.remove(task);
+    task = action.whenComplete(() {
+      _syncStateTasks.remove(task);
     });
-    _automaticTimerArms.add(task);
+    _syncStateTasks.add(task);
     unawaited(task);
   }
 
@@ -1656,12 +1605,7 @@ class LibrarySyncController extends Notifier<LibrarySyncState> {
     if (interval == null || !_isForeground) {
       return; // Manual-only mode or a backgrounded app — no timer.
     }
-    final config = ref.read(serverConfigStateProvider).asData?.value;
-    if (config != null &&
-        await isInitialCatalogSetupPending(
-          ref.read(navisDatabaseProvider),
-          config,
-        )) {
+    if (await _setupPending()) {
       return;
     }
     if (!ref.mounted ||
@@ -1701,28 +1645,11 @@ class LibrarySyncController extends Notifier<LibrarySyncState> {
       _schedulePeriodicSync(minutes);
       return;
     }
-    if (await isInitialCatalogSetupPending(
-          ref.read(navisDatabaseProvider),
-          config!,
-        ) ||
-        !ref.mounted ||
-        _startupSyncSuppressed) {
+    if (!ref.mounted || _startupSyncSuppressed || await _setupPending()) {
       return;
     }
     final next = interval == null ? null : DateTime.now().toUtc().add(interval);
-    await ref
-        .read(navisDatabaseProvider)
-        .librarySyncDao
-        .setNextAutomaticCheckAt(
-          serverId: serverId,
-          nextAutomaticCheckAt: next,
-        );
-    if (ref.mounted && _sessionFingerprint == _toSessionFingerprint(config)) {
-      state = state.copyWith(
-        nextAutomaticCheckAt: next,
-        clearNextAutomaticCheckAt: next == null,
-      );
-    }
+    await _writeNextAutomaticCheck(serverId, config!, next);
     if (ref.mounted) {
       _schedulePeriodicSync(minutes);
     }

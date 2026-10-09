@@ -20,18 +20,11 @@ import 'package:navis/src/features/onboarding/presentation/onboarding_screen.dar
 import 'package:navis/src/features/player/presentation/scrobble_dispatch_provider.dart';
 import 'package:navis/src/database/navis_database.dart';
 import 'package:navis/src/providers/app_providers.dart';
+import 'package:package_info_plus/package_info_plus.dart';
 
 import '../../../../helpers/test_database.dart';
 import '../../../../helpers/test_theme.dart';
-
-class _StaticReachabilityController extends ServerReachabilityController {
-  new(this._state);
-
-  final ServerReachabilityState _state;
-
-  @override
-  ServerReachabilityState build() => _state;
-}
+import '../../../../helpers/reachability_fakes.dart';
 
 class _FakeServerConnectionService extends ServerConnectionService {
   new({ServerConnectionProbeResult? result, this.error, this.completer})
@@ -117,6 +110,14 @@ Widget _buildTestApp({
         _StaticScrobbleDispatchController.new,
       ),
       initialSyncRequiredProvider.overrideWithValue(const AsyncData(false)),
+      packageInfoProvider.overrideWith(
+        (ref) async => PackageInfo(
+          appName: 'Navis',
+          packageName: 'navis',
+          version: '1.4.3',
+          buildNumber: '10403',
+        ),
+      ),
       ...overrides.cast(),
     ],
     child: testNavisApp,
@@ -134,8 +135,9 @@ Future<void> _disposeApp(WidgetTester tester) async {
 void main() {
   late NavisDatabase database;
 
-  setUp(() {
+  setUp(() async {
     database = createTestDatabase();
+    await database.cacheSystemStateDao.markVersion(1004);
   });
 
   tearDown(() async {
@@ -304,7 +306,7 @@ void main() {
             () => notifier = _TestServerConfigNotifier(),
           ),
           serverReachabilityControllerProvider.overrideWith(
-            () => _StaticReachabilityController(
+            () => StaticReachabilityController(
               const ServerReachabilityState(
                 status: ServerReachabilityStatus.online,
               ),
@@ -325,7 +327,6 @@ void main() {
           homeRandomAlbumsProvider.overrideWithValue(
             const AsyncData(<Album>[]),
           ),
-          homeStarredSongsProvider.overrideWithValue(const AsyncData(<Song>[])),
         ],
       ),
     );
@@ -476,7 +477,7 @@ void main() {
             () => notifier = _TestServerConfigNotifier(),
           ),
           serverReachabilityControllerProvider.overrideWith(
-            () => _StaticReachabilityController(
+            () => StaticReachabilityController(
               const ServerReachabilityState(
                 status: ServerReachabilityStatus.online,
               ),
@@ -497,7 +498,6 @@ void main() {
           homeRandomAlbumsProvider.overrideWithValue(
             const AsyncData(<Album>[]),
           ),
-          homeStarredSongsProvider.overrideWithValue(const AsyncData(<Song>[])),
         ],
       ),
     );

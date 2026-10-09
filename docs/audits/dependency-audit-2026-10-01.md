@@ -110,7 +110,7 @@ this host all equal `b1772918…`. No Pub package version in the lockfile has an
 - Issue #384 fixed a nondeterministic download cache dir name (`Object.hash()`). `remote_build_windows.sh` still
   works around that behaviour.
 - `sqlite3_flutter_libs` 0.6.0+eol and `sqlcipher_flutter_libs` 0.7.0+eol are empty end-of-life shells that
-  `drift_flutter` 0.3.1 requires on purpose. They bundle no SQLite.
+  `drift_flutter` 0.3.1 requires on purpose. They bundle no SQLite. (Update 2026-10-07: Navis imported nothing from `drift_flutter`, so it was removed together with these shells.)
 
 ### Android toolchain
 - `flutter.ndkVersion` resolves to 28.2.13676358 (Flutter `FlutterExtension.kt:42`).

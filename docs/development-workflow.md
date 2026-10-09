@@ -137,10 +137,31 @@ Checks performed:
   `./tool/dart_format.sh` (or `make format`) to apply what it reports
 - code generation (`build_runner`)
 - static analysis (`flutter analyze --no-fatal-infos`)
+- dead-code ratchet (`dart run tool/dead_code_check.dart`)
 - migration and critical regression suites
 - full tests (`flutter test`)
 
+The dead-code CLI self-tests invoke its shared library entry point against
+temporary fixtures in-process, avoiding a Dart subprocess compilation per check.
+
 The script fails fast when `/tmp` is critically low to avoid misleading test hangs.
+
+The dead-code gate checks public Dart declarations, l10n keys, declared file
+assets and font families, missing files loaded from declared asset directories,
+and direct dependencies. Generated Dart supplies references but no declarations.
+References from release/dev scripts in `tool/` count as real use, excluding
+`tool/dead_code_check.dart` and `tool/src/dead_code.dart`. Only `test/` and
+`integration_test/` references classify a declaration as test-only. Production
+code used only by tests must be deleted or marked `@visibleForTesting` as a
+deliberate test seam; annotated declarations are excluded from all findings.
+New findings (including test-only declarations), stale baseline entries, and
+empty reasons fail. Record other deliberate exceptions with factual reasons in
+`tool/dead_code_baseline.json`; `dart run tool/dead_code_check.dart --update`
+preserves reasons and removes stale entries. It refuses unreasoned additions,
+writing `tool/dead_code_baseline.pending.json` for review instead; an explicit
+`--reason "text"` applies only to new entries. The baseline's `dependencyUses`
+records the small CLI/builder exception list with reasons and checked evidence;
+lint includes are detected from root and vendored analysis options.
 
 The full suite includes the design-token ratchet
 (`test/src/theme/design_token_guard_test.dart`). It fails when a file under
@@ -157,7 +178,7 @@ NAVIS_UPDATE_TOKEN_BASELINE=1 flutter test test/src/theme/design_token_guard_tes
 For exploratory Linux setup and sync routing, `./tool/dev_app.sh run -d linux`
 accepts the isolated presets documented in
 [Dev Testing Builds](dev-testing-builds.md). `--first-setup`, `--bad-cache`,
-`--force-setup`, the full-screen repair entries, and deterministic
+`--force-setup`, the full-screen rebuild entries, and deterministic
 `--partial-album`/`--server-error` fixtures create disposable profiles under
 `build/dev-sync-scenarios/`. The launcher uses profile-mode clone diagnostics,
 so the normal local database, both rolling and cover-art caches, and the real
@@ -227,9 +248,9 @@ The same gate reads the bounded redacted `GET /v1/sync/ledger` trace. Its
 `durableRuns` field is the cross-restart typed history (origin, intent, target
 kind, plan kind, terminal outcome/reason, aggregate request/byte counts, and
 timestamps and local request/attempt IDs); it must never contain credentials,
-URLs, media/entity IDs, titles, or paths. The temporary `events` field is a bounded isolated-fixture compatibility
-mirror and is not a scheduler input. Use `durableOperations` for the separate
-atomic destructive-mutation audit.
+URLs, media/entity IDs, titles, or paths. Run history is a diagnostics record,
+not a scheduler input; `library_sync_work` owns the durable queue. Use
+`durableOperations` for the separate atomic destructive-mutation audit.
 
 `tool/manual_discovery_diagnostics.sh` is the corresponding bounded
 unchanged-cursor discovery gate. It may seed a copied, isolated database and
@@ -237,8 +258,8 @@ loopback fixture before launch, but its acceptance action is the running
 app's authenticated `POST /v1/sync/check` while offline; it then restores
 Wi-Fi and drives the production automatic entry point to resume that queued
 manual discovery. It observes both transitions through authenticated status,
-ledger, and minimal album-existence APIs, renders the production detail route,
-and repeats after clean restart. The fixture must use the standard singular
+durable run history, correlated attempt telemetry, and minimal album-existence
+APIs, renders the production detail route, and repeats after clean restart. The fixture must use the standard singular
 `artist.album` response shape, because the production client is responsible for
 normalizing that protocol shape before sync logic.
 For the narrower partial-detail disappearance regression, run it with
@@ -248,8 +269,8 @@ sibling from `getArtist`, then the running app must add the newest-feed album
 without deleting the retained sibling before or after restart.
 The forced-manual variant also queues an isolated higher-priority album target
 before Wi-Fi reconnect. Its explicit `POST /v1/sync/check` must still record a
-`deltaReconcile` terminal event with catalog endpoint evidence, retain the
-target as durable pending work, and drain that target only through its later
+`manualCatalogDiscovery` durable terminal run with catalog endpoint evidence
+from its correlated attempt, retain the target as durable pending work, and drain that target only through its later
 explicit target request.
 
 `tool/repair_confirmation_diagnostics.sh` is the bounded deletion-safety gate.
@@ -807,16 +828,19 @@ presses the screen's "Cancel and sign out" through
 `POST /v1/presentation/library-rebuild` and signs in again. The new visit
 must start automatically, record a `repairLibrary` catalog run (never
 `manualCatalogDiscovery`), store the usable marker, open Home with the album
-still pending, and stay ready after a clean restart. Its session calls use
-`passive=1` so the legacy diagnostics controller does not run a competing
-setup. When setup does not resume, the mode saves the route, controller
-state, ledger and a screenshot before failing.
+still pending, and stay ready after a clean restart. Session status observes
+that same route-owned controller without starting setup. When setup does not
+resume, the mode saves the route, controller state, ledger and a screenshot
+before failing.
 The `partial` mode's rebuild pass visits manual cache reset and Repair
 Library a second time in the same process. Each visit must record its own
 catalog run. The `clone` mode ends with a third profile that cancels a
 waiting setup through `POST /v1/session/initial-sync/cancel` and signs in
-again in the same process. The legacy diagnostics setup controller must then
-report `complete` with the session `ready`, rather than staying `cancelling`.
+again in the same process. Initial-sync actions use the mounted initial-login
+rebuild controller, including its keep-data cancellation. The new route visit
+must reach `complete` with the session `ready`; observing session status never
+creates a setup controller. Cancellation evidence uses the completed sign-out
+response, since fast teardown need not expose a transient `cancelling` frame.
 The clone-only `POST /v1/diagnostics/sync-foreground` control sets the same
 foreground admission provider as Flutter lifecycle events, allowing the
 headless desktop fixture to exercise automatic work even when the window is not
@@ -1503,8 +1527,9 @@ cannot unlink primary cache files. Clone mode first drains startup work under
 the host's real network policy before applying scenario overrides, so a
 schema-migrating or mid-repair primary clone cannot leak its startup model
 repair into the metered guardrail scenarios. The cellular automatic,
-manual-check, and metered-Wi-Fi checks correlate each posted action with new
-redacted ledger events, durable requests, and attempt endpoint counts. A
+manual-check, and metered-Wi-Fi checks correlate each posted action with
+new terminal durable runs and attempt endpoint counts, after the controller
+request (including companion auxiliary work) has settled. A
 preceding repair's displayed status is not attributed to a later bounded
 action. After collecting its performance report, clone mode saves the idle
 sync status and captures an app-owned Library screenshot for visual inspection

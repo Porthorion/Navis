@@ -35,9 +35,6 @@
   "lib/src/features/onboarding/presentation/onboarding_screen.dart": {
     "radius": 1
   },
-  "lib/src/features/player/domain/smart_queue_state.dart": {
-    "colorLiteral": 4
-  },
   "lib/src/features/player/presentation/desktop_volume_slider.dart": {
     "radius": 1
   },

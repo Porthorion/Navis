@@ -62,8 +62,9 @@ migrated; no operation is dual-executed.
   typed repair session.
 - A terminal typed request clears its target key and retains only redacted
   enums, aggregate counts, and timestamps for 90 days. `GET /v1/sync/ledger`
-  exposes this as `durableRuns`; the former bounded `events` list remains only
-  as an isolated diagnostics compatibility mirror.
+  exposes this as `durableRuns`; the former bounded `events` compatibility
+  mirror was removed on 2026-10-08. Endpoint counts come from correlated
+  durable attempt telemetry.
 - Repair Library and Reset caches & rebuild library deliberately do not share a
   durable coalescing key. Repair preserves device caches and local catalog
   until valid atomic promotion; reset first removes streaming cache, cover art,
@@ -180,7 +181,7 @@ Keep candidate tables and atomic promotion. Deletion analysis is valid only afte
 
 1. Add clone fixture with a new album under existing artist and unchanged getIndexes lastModified. Drive API check and assert real Library provider shows album. **Implemented and certified:** the loopback fixture returns the standard `artist.album` payload and a fixed cursor. The authenticated app check discovers, hydrates, persists, routes to, screenshots, and clean-restarts the new album.
 2. Add Home to Library to Liked to Home to Liked trace recording request IDs, cause, plan, target scope, endpoint counts and catalog counts. Capture and inspect screenshots. **Implemented:** the isolated Linux target-lane gate drives the visible Library-section provider through `/library#liked`, asserts that every navigation leaves sync status and aggregate catalog counts unchanged, and proves that no controller ledger event was added. Its inspected Liked and Sync Settings screenshots are captured before a clean restart.
-3. Add opt-in redacted ledger endpoint retaining last 50 events; never return credentials, URLs, titles or paths. **Implemented for diagnostics-initiated controller actions:** `GET /v1/sync/ledger` records requested, started, terminal, and failed transitions with cause, target kind, plan/result, endpoint counts, and safe error type.
+3. Add opt-in redacted ledger endpoint retaining last 50 events; never return credentials, URLs, titles or paths. **Originally implemented for diagnostics-initiated controller actions:** the in-memory transition mirror was removed on 2026-10-08. `GET /v1/sync/ledger` now exposes terminal `durableRuns` and `durableOperations`; `/v1/sync/attempts` provides correlated endpoint telemetry.
 4. Run isolated Linux clone against configured server: baseline counts, manual check, repair, post-run counts, clean restart, endpoint trace and logs. **Implemented and certified:** the primary catalog was copied into an isolated Linux profile; normal policy, interruption/restart, local-mutation precedence, active playback, two Repair Library passes, and final target work completed through the authenticated app API. The committed catalog remained 1,714 artists / 5,464 albums / 54,329 songs over clean restart. The second repair classified 61,507 rows unchanged, removed zero songs, and recorded a 117 ms apply. This certifies current-server lifecycle and repair convergence without changing the primary profile or claiming a live user-created-album reproduction.
 
 Exit: deterministic manual-check reproduction and a trace separating catalog, Liked and target work. **Met:** unchanged-cursor manual discovery, navigation/target lanes, repair confirmation, and configured-server isolated clone lifecycle all have app-API evidence. A direct affected-server vanished-row reproduction remains a focused diagnostic follow-up if it recurs.

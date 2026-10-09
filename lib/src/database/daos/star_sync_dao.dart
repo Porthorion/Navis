@@ -76,16 +76,7 @@ class StarSyncDao extends DatabaseAccessor<NavisDatabase>
   }) {
     return transaction(() async {
       final at = liked ? DateTime.now() : null;
-      switch (itemType) {
-        case 'song':
-          await attachedDatabase.libraryDao.updateSongStarred(itemId, at);
-        case 'album':
-          await attachedDatabase.libraryDao.updateAlbumStarred(itemId, at);
-        case 'artist':
-          await attachedDatabase.libraryDao.updateArtistStarred(itemId, at);
-        default:
-          throw ArgumentError.value(itemType, 'itemType');
-      }
+      await attachedDatabase.libraryDao.setEntityStarred(itemType, itemId, at);
       await queueStarAction(
         itemId: itemId,
         itemType: itemType,
@@ -102,14 +93,11 @@ class StarSyncDao extends DatabaseAccessor<NavisDatabase>
     final normalized = rating.clamp(0, 5);
     return transaction(() async {
       final value = normalized == 0 ? null : normalized;
-      switch (itemType) {
-        case 'song':
-          await attachedDatabase.libraryDao.updateSongRating(itemId, value);
-        case 'album':
-          await attachedDatabase.libraryDao.updateAlbumRating(itemId, value);
-        default:
-          throw ArgumentError.value(itemType, 'itemType');
-      }
+      await attachedDatabase.libraryDao.setEntityRating(
+        itemType,
+        itemId,
+        value,
+      );
       await _queue(
         itemId: itemId,
         itemType: itemType,
@@ -229,13 +217,5 @@ class StarSyncDao extends DatabaseAccessor<NavisDatabase>
   /// Clear all pending actions (e.g., after sign-out).
   Future<int> clearAll() {
     return delete(starSyncQueueTable).go();
-  }
-
-  /// Watch the queue count for UI indicators.
-  Stream<int> watchPendingCount() {
-    final countExpr = starSyncQueueTable.id.count();
-    return (selectOnly(starSyncQueueTable)..addColumns([countExpr]))
-        .map((row) => row.read(countExpr)!)
-        .watchSingle();
   }
 }

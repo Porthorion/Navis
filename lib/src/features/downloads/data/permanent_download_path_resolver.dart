@@ -22,13 +22,6 @@ class PermanentDownloadPathResolver {
   final String? Function() _readCustomDownloadFolderPath;
   final Future<Directory> Function() _readApplicationSupportDirectory;
 
-  Future<Directory> resolveActiveRoot() {
-    return resolveRootFor(
-      customDownloadFolderEnabled: _readCustomDownloadFolderEnabled(),
-      customDownloadFolderPath: _readCustomDownloadFolderPath(),
-    );
-  }
-
   Future<Directory> resolveDefaultRoot() async {
     final root = await _readApplicationSupportDirectory();
     final directory = Directory(p.join(root.path, 'audio', 'permanent'));
@@ -152,9 +145,6 @@ class PermanentDownloadPathResolver {
       }
     }
   }
-
-  /// Longest file or folder name Navis writes; see [safeFileNameComponent].
-  static const int maxComponentLength = safeFileNameMaxLength;
 
   static String sanitizePathComponent(String? raw, {required String fallback}) {
     final cleaned = safeFileNameComponent(raw, fallback: fallback);

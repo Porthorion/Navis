@@ -147,6 +147,30 @@ void main() {
     ]);
   }
 
+  for (final artist in [false, true]) {
+    test(
+      '${artist ? 'artist' : 'album'} MBID matching ignores case and whitespace',
+      () async {
+        final serverId = await saveServer();
+        if (artist) {
+          await seedProvisionalArtist('old', artistMbid: '  ARTIST-MBID  ');
+          await seedCandidateArtist('new', artistMbid: 'artist-mbid');
+        } else {
+          await seedProvisionalAlbum('old', releaseMbid: '  RELEASE-MBID  ');
+          await seedCandidateAlbum('new', releaseMbid: 'release-mbid');
+        }
+        final summary = await EntityIdentityReconciler(database).reconcile(
+          serverId: serverId,
+          generation: 1,
+          songAliases: const [],
+          provisionalSongs: const [],
+        );
+        expect(artist ? summary.artistAliases : summary.albumAliases, 1);
+      },
+      skip: !sqliteAvailable,
+    );
+  }
+
   test(
     'a unique release MBID on both sides remaps the album and moves its songs',
     () async {
@@ -230,10 +254,13 @@ void main() {
       );
       final provisionalBefore = await database.songIdentityDao
           .getProvisionalSongs();
-      final aliases = await SongIdentityReconciler(database.songIdentityDao)
-          .reconcileCanonicalSongs([
-            (await database.libraryDao.getSongById('song-new'))!,
-          ]);
+      final session = await SongIdentityReconciler(database.songIdentityDao)
+          .startSession();
+      await session.reconcile([
+        (await database.libraryDao.getSongById('song-new'))!,
+      ]);
+      await session.finalize();
+      final aliases = session.summary;
 
       final summary = await EntityIdentityReconciler(database).reconcile(
         serverId: serverId,
@@ -287,11 +314,14 @@ void main() {
       );
       final provisionalBefore = await database.songIdentityDao
           .getProvisionalSongs();
-      final aliases = await SongIdentityReconciler(database.songIdentityDao)
-          .reconcileCanonicalSongs([
-            (await database.libraryDao.getSongById('song-a'))!,
-            (await database.libraryDao.getSongById('song-b'))!,
-          ]);
+      final session = await SongIdentityReconciler(database.songIdentityDao)
+          .startSession();
+      await session.reconcile([
+        (await database.libraryDao.getSongById('song-a'))!,
+        (await database.libraryDao.getSongById('song-b'))!,
+      ]);
+      await session.finalize();
+      final aliases = session.summary;
 
       final summary = await EntityIdentityReconciler(database).reconcile(
         serverId: serverId,
@@ -303,9 +333,7 @@ void main() {
       expect(summary.albumAliases, 0);
       expect(summary.reviewCount, 1);
       expect(await database.libraryDao.getAlbumById('album-old'), isNotNull);
-      final review = await database.librarySyncDao.getPendingRecoveryReview(
-        serverId,
-      );
+      final review = await pendingRecoveryReviews(database, serverId);
       final entry = review.single;
       expect(entry.entityType, 'album');
       expect(entry.reason, 'ambiguousMatch');
@@ -336,10 +364,13 @@ void main() {
     );
     final provisionalBefore = await database.songIdentityDao
         .getProvisionalSongs();
-    final aliases = await SongIdentityReconciler(database.songIdentityDao)
-        .reconcileCanonicalSongs([
-          (await database.libraryDao.getSongById('song-new'))!,
-        ]);
+    final session = await SongIdentityReconciler(database.songIdentityDao)
+        .startSession();
+    await session.reconcile([
+      (await database.libraryDao.getSongById('song-new'))!,
+    ]);
+    await session.finalize();
+    final aliases = session.summary;
 
     final summary = await EntityIdentityReconciler(database).reconcile(
       serverId: serverId,
@@ -350,9 +381,7 @@ void main() {
 
     expect(summary.albumAliases, 0);
     expect(summary.reviewCount, 1);
-    final review = await database.librarySyncDao.getPendingRecoveryReview(
-      serverId,
-    );
+    final review = await pendingRecoveryReviews(database, serverId);
     expect(review.single.reason, 'ambiguousMatch');
   }, skip: !sqliteAvailable);
 
@@ -376,9 +405,7 @@ void main() {
       expect(summary.albumAliases, 0);
       expect(summary.reviewCount, 1);
       expect(await database.libraryDao.getAlbumById('album-lost'), isNotNull);
-      final review = await database.librarySyncDao.getPendingRecoveryReview(
-        serverId,
-      );
+      final review = await pendingRecoveryReviews(database, serverId);
       expect(review.single.reason, 'missingFromCatalog');
       expect(review.single.entityType, 'album');
       expect(review.single.savedTitle, 'Vanished');
@@ -398,10 +425,7 @@ void main() {
     );
 
     expect(summary.reviewCount, 0);
-    expect(
-      await database.librarySyncDao.getPendingRecoveryReview(serverId),
-      isEmpty,
-    );
+    expect(await pendingRecoveryReviews(database, serverId), isEmpty);
   }, skip: !sqliteAvailable);
 
   test(
@@ -424,9 +448,7 @@ void main() {
       );
 
       expect(summary.albumAliases, 0);
-      final review = await database.librarySyncDao.getPendingRecoveryReview(
-        serverId,
-      );
+      final review = await pendingRecoveryReviews(database, serverId);
       expect(review.single.reason, 'conflictingMbid');
     },
     skip: !sqliteAvailable,
@@ -452,10 +474,13 @@ void main() {
     );
     final provisionalBefore = await database.songIdentityDao
         .getProvisionalSongs();
-    final aliases = await SongIdentityReconciler(database.songIdentityDao)
-        .reconcileCanonicalSongs([
-          (await database.libraryDao.getSongById('song-new'))!,
-        ]);
+    final session = await SongIdentityReconciler(database.songIdentityDao)
+        .startSession();
+    await session.reconcile([
+      (await database.libraryDao.getSongById('song-new'))!,
+    ]);
+    await session.finalize();
+    final aliases = session.summary;
 
     final summary = await EntityIdentityReconciler(database).reconcile(
       serverId: serverId,

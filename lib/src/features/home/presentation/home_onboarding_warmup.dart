@@ -185,6 +185,30 @@ HomeOnboardingWarmupSession startHomeOnboardingWarmup(
       );
 }
 
+/// Collects de-duplicated warm-up targets in order until [limit] is reached.
+class _HomeWarmupTargetCollector {
+  new(this.limit);
+
+  final int limit;
+  final List<HomeArtworkWarmupTarget> selected = <HomeArtworkWarmupTarget>[];
+  final Set<String> _seenCoverArtIds = <String>{};
+
+  /// Adds [candidates] in order; returns true once [limit] targets are held.
+  bool addAll(Iterable<HomeArtworkWarmupTarget> candidates) {
+    for (final target in candidates) {
+      final id = target.coverArtId.trim();
+      if (id.isEmpty || !_seenCoverArtIds.add(id)) {
+        continue;
+      }
+      selected.add(HomeArtworkWarmupTarget(coverArtId: id, size: target.size));
+      if (selected.length == limit) {
+        return true;
+      }
+    }
+    return false;
+  }
+}
+
 @visibleForTesting
 List<HomeArtworkWarmupTarget> selectHomeArtworkWarmupTargets({
   required Iterable<String> sectionOrder,
@@ -193,25 +217,18 @@ List<HomeArtworkWarmupTarget> selectHomeArtworkWarmupTargets({
   int maxTargets = _homeWarmupTargetLimit,
 }) {
   assert(maxTargets > 0, 'maxTargets must be positive');
-  final selected = <HomeArtworkWarmupTarget>[];
-  final seenCoverArtIds = <String>{};
+  final collector = _HomeWarmupTargetCollector(maxTargets);
   for (final sectionId in sectionOrder) {
     if (hiddenSections.contains(sectionId)) {
       continue;
     }
-    for (final target
-        in targetsBySection[sectionId] ?? const <HomeArtworkWarmupTarget>[]) {
-      final id = target.coverArtId.trim();
-      if (id.isEmpty || !seenCoverArtIds.add(id)) {
-        continue;
-      }
-      selected.add(HomeArtworkWarmupTarget(coverArtId: id, size: target.size));
-      if (selected.length == maxTargets) {
-        return selected;
-      }
+    final candidates =
+        targetsBySection[sectionId] ?? const <HomeArtworkWarmupTarget>[];
+    if (collector.addAll(candidates)) {
+      break;
     }
   }
-  return selected;
+  return collector.selected;
 }
 
 Future<List<HomeArtworkWarmupTarget>> resolveHomeOnboardingWarmupTargets(
@@ -226,8 +243,7 @@ Future<List<HomeArtworkWarmupTarget>> resolveHomeOnboardingWarmupTargets(
   );
   final downloadedOnly = ref.read(downloadedOnlyFilterProvider);
   final likedOnly = ref.read(homeLikedOnlyFilterProvider);
-  final selected = <HomeArtworkWarmupTarget>[];
-  final seenCoverArtIds = <String>{};
+  final collector = _HomeWarmupTargetCollector(_homeWarmupTargetLimit);
 
   for (final sectionId in sectionOrder) {
     if (hiddenSections.contains(sectionId)) {
@@ -247,18 +263,11 @@ Future<List<HomeArtworkWarmupTarget>> resolveHomeOnboardingWarmupTargets(
       // in one provider must not prevent later local sections from warming.
       continue;
     }
-    for (final target in candidates) {
-      final id = target.coverArtId.trim();
-      if (id.isEmpty || !seenCoverArtIds.add(id)) {
-        continue;
-      }
-      selected.add(HomeArtworkWarmupTarget(coverArtId: id, size: target.size));
-      if (selected.length == _homeWarmupTargetLimit) {
-        return selected;
-      }
+    if (collector.addAll(candidates)) {
+      break;
     }
   }
-  return selected;
+  return collector.selected;
 }
 
 Future<List<HomeArtworkWarmupTarget>> _targetsForHomeSection(

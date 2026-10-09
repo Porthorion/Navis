@@ -249,16 +249,22 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       ),
       GoRoute(
         path: AppRoutes.libraryRebuild,
-        builder: (context, state) {
+        // First setup has its own `/initial-sync` route, and this route's
+        // reasons clear caches, so a missing, unknown or initial-login reason
+        // must never fall back to a destructive reset.
+        redirect: (context, state) {
           final reason = RequiredLibraryRebuildReason.parse(
             state.uri.queryParameters['reason'],
           );
-          if (reason == null ||
-              reason == RequiredLibraryRebuildReason.initialLogin) {
-            return const RequiredLibraryRebuildScreen(
-              reason: RequiredLibraryRebuildReason.manualCacheReset,
-            );
-          }
+          return reason == null ||
+                  reason == RequiredLibraryRebuildReason.initialLogin
+              ? AppRoutes.home
+              : null;
+        },
+        builder: (context, state) {
+          final reason = RequiredLibraryRebuildReason.parse(
+            state.uri.queryParameters['reason'],
+          )!;
           return RequiredLibraryRebuildScreen(
             reason: reason,
             allowMeteredBroadOverride:

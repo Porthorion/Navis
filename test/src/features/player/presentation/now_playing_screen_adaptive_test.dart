@@ -10,8 +10,12 @@ import 'package:navis/src/database/navis_database.dart';
 import 'package:navis/src/features/equalizer/domain/eq_configuration.dart';
 import 'package:navis/src/features/equalizer/presentation/eq_controller.dart';
 import 'package:navis/src/features/equalizer/presentation/eq_quick_panel.dart';
+import 'package:navis/src/api/models/models.dart' show LyricsList;
+import 'package:navis/src/features/player/domain/lyrics_resolution.dart';
 import 'package:navis/src/features/player/domain/playback_snapshot.dart';
+import 'package:navis/src/features/player/presentation/instant_mix_notifier.dart';
 import 'package:navis/src/features/player/presentation/now_playing_screen.dart';
+import 'package:navis/src/common_widgets/app_notice.dart';
 import 'package:navis/src/common_widgets/cover_art_image.dart';
 import 'package:navis/src/providers/app_providers.dart';
 import 'package:navis/src/theme/artwork_shape.dart';
@@ -20,6 +24,8 @@ import 'package:flutter_riverpod/misc.dart' show Override;
 
 import '../../../../helpers/adaptive_test_harness.dart';
 import '../../../../helpers/fake_eq_controller.dart';
+import '../../../../helpers/library_copy_api.dart';
+import '../../../../helpers/now_playing_harness.dart';
 import '../../../../helpers/test_database.dart';
 
 const PlaybackSnapshot _songPlayback = PlaybackSnapshot(
@@ -35,6 +41,15 @@ const PlaybackSnapshot _songPlayback = PlaybackSnapshot(
   repeatMode: AudioServiceRepeatMode.none,
 );
 
+class _SpyInstantMixNotifier extends InstantMixNotifier {
+  final activations = <String>[];
+
+  @override
+  Future<void> activate(String seedSongId) async {
+    activations.add(seedSongId);
+  }
+}
+
 double _contrastRatio(Color a, Color b) {
   final first = a.computeLuminance();
   final second = b.computeLuminance();
@@ -43,35 +58,8 @@ double _contrastRatio(Color a, Color b) {
   return (lighter + 0.05) / (darker + 0.05);
 }
 
-class _TestPlaybackNotifier extends Notifier<PlaybackSnapshot> {
-  @override
-  PlaybackSnapshot build() => const PlaybackSnapshot.idle();
-}
-
-final _testPlaybackProvider =
-    NotifierProvider<_TestPlaybackNotifier, PlaybackSnapshot>(
-      _TestPlaybackNotifier.new,
-    );
-
-ProviderContainer _createContainer({List<Override> overrides = const []}) {
-  final database = createTestDatabase();
-  final container = ProviderContainer(
-    overrides: withTestDatabase(
-      database,
-      overrides: <Override>[
-        playerStateProvider.overrideWith(
-          (ref) => ref.watch(_testPlaybackProvider),
-        ),
-        ...overrides,
-      ],
-    ),
-  );
-  addTearDown(() async {
-    container.dispose();
-    await database.close();
-  });
-  return container;
-}
+ProviderContainer _createContainer({List<Override> overrides = const []}) =>
+    createNowPlayingContainer(overrides: overrides);
 
 Finder _findNowPlayingHandle() {
   return find.byWidgetPredicate((widget) {
@@ -102,6 +90,7 @@ Future<void> _pumpNowPlaying(
   TargetPlatform platform = TargetPlatform.linux,
   ThemeData? theme,
   bool settle = true,
+  AppNoticeController? notices,
 }) async {
   await tester.pumpWidget(
     UncontrolledProviderScope(
@@ -116,7 +105,9 @@ Future<void> _pumpNowPlaying(
           data: MediaQuery.of(
             context,
           ).copyWith(disableAnimations: reduceMotion, textScaler: textScaler),
-          child: child!,
+          child: notices == null
+              ? child!
+              : AppNoticeScope(notifier: notices, child: child!),
         ),
         home: Scaffold(
           body: NowPlayingScreen(
@@ -138,12 +129,80 @@ Future<void> _pumpNowPlaying(
 void _noopCollapse() {}
 
 void main() {
+  testWidgets('Server Mix starts from a remote song with a library copy', (
+    tester,
+  ) async {
+    setAdaptiveTestViewport(tester, const Size(390, 844));
+    final spy = _SpyInstantMixNotifier();
+    final container = _createContainer(
+      overrides: <Override>[
+        preferredMixModeProvider.overrideWithValue(
+          PreferredMixMode.legacyInstantMix,
+        ),
+        instantMixProvider.overrideWith(() => spy),
+        subsonicApiProvider.overrideWithValue(
+          LibraryCopyApiClient(const {'ext-remote-1': 'copy-1'}),
+        ),
+      ],
+    );
+    container
+        .read(nowPlayingTestPlaybackProvider.notifier)
+        .state = _songPlayback.copyWith(
+      queueSongIds: const <String>['ext-remote-1'],
+      currentSongId: 'ext-remote-1',
+    );
+    await _pumpNowPlaying(tester, container);
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byKey(const ValueKey<String>('nowPlayingMixButton')));
+    await tester.pump();
+
+    expect(spy.activations, <String>['ext-remote-1']);
+    expect(
+      find.text('Instant Mix requires a locally scanned track.'),
+      findsNothing,
+    );
+    expect(tester.takeException(), isNull);
+  }, skip: !sqliteAvailable);
+
+  testWidgets('Server Mix stays unavailable for a remote song without a '
+      'library copy', (tester) async {
+    setAdaptiveTestViewport(tester, const Size(390, 844));
+    final spy = _SpyInstantMixNotifier();
+    final container = _createContainer(
+      overrides: <Override>[
+        preferredMixModeProvider.overrideWithValue(
+          PreferredMixMode.legacyInstantMix,
+        ),
+        instantMixProvider.overrideWith(() => spy),
+        subsonicApiProvider.overrideWithValue(LibraryCopyApiClient(const {})),
+      ],
+    );
+    container
+        .read(nowPlayingTestPlaybackProvider.notifier)
+        .state = _songPlayback.copyWith(
+      queueSongIds: const <String>['ext-remote-1'],
+      currentSongId: 'ext-remote-1',
+    );
+    final notices = AppNoticeController();
+    addTearDown(notices.dispose);
+    await _pumpNowPlaying(tester, container, notices: notices);
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byKey(const ValueKey<String>('nowPlayingMixButton')));
+    await tester.pump();
+
+    expect(spy.activations, isEmpty);
+    expect(
+      notices.notice?.message,
+      'Instant Mix requires a locally scanned track.',
+    );
+    expect(tester.takeException(), isNull);
+  }, skip: !sqliteAvailable);
+
   testWidgets(
     'desktop runtime follows width parity for now playing wide mode',
     (tester) async {
-      if (!sqliteAvailable) {
-        return;
-      }
       setAdaptiveTestViewport(tester, const Size(840, 1000));
       final container = _createContainer();
       await _pumpNowPlaying(tester, container);
@@ -159,15 +218,14 @@ void main() {
       expect(find.byKey(const Key('nowPlayingCloseButton')), findsOneWidget);
       expect(tester.takeException(), isNull);
     },
+    skip: !sqliteAvailable,
   );
 
   testWidgets('the cover follows Now Playing Art Shape', (tester) async {
-    if (!sqliteAvailable) {
-      return;
-    }
     setAdaptiveTestViewport(tester, const Size(390, 844));
     final container = _createContainer();
-    container.read(_testPlaybackProvider.notifier).state = _songPlayback;
+    container.read(nowPlayingTestPlaybackProvider.notifier).state =
+        _songPlayback;
     await container
         .read(navisDatabaseProvider)
         .appSettingsDao
@@ -187,17 +245,15 @@ void main() {
     );
     expect((tile.decoration! as BoxDecoration).shape, BoxShape.circle);
     expect(tester.takeException(), isNull);
-  });
+  }, skip: !sqliteAvailable);
 
   testWidgets('split layout lyrics action opens fullscreen lyrics page', (
     tester,
   ) async {
-    if (!sqliteAvailable) {
-      return;
-    }
     setAdaptiveTestViewport(tester, const Size(1000, 900));
     final container = _createContainer();
-    container.read(_testPlaybackProvider.notifier).state = _songPlayback;
+    container.read(nowPlayingTestPlaybackProvider.notifier).state =
+        _songPlayback;
     await _pumpNowPlaying(tester, container);
 
     expect(find.text('Lyrics'), findsNothing);
@@ -206,17 +262,50 @@ void main() {
 
     expect(find.text('Lyrics'), findsOneWidget);
     expect(tester.takeException(), isNull);
-  });
+  }, skip: !sqliteAvailable);
+
+  testWidgets('fullscreen lyrics follow the song that is playing', (
+    tester,
+  ) async {
+    setAdaptiveTestViewport(tester, const Size(1000, 900));
+    final container = _createContainer(
+      overrides: <Override>[
+        lyricsProvider.overrideWith(
+          (ref, songId) async => LyricsResolution(
+            lyrics: LyricsList(value: 'Words of $songId'),
+            source: LyricsSource.serverPlain,
+          ),
+        ),
+      ],
+    );
+    container.read(nowPlayingTestPlaybackProvider.notifier).state =
+        _songPlayback;
+    await _pumpNowPlaying(tester, container);
+    await tester.tap(find.byTooltip('Lyrics').first);
+    await tester.pumpAndSettle();
+    expect(find.text('Words of song-1'), findsOneWidget);
+
+    container
+        .read(nowPlayingTestPlaybackProvider.notifier)
+        .state = _songPlayback.copyWith(
+      queueSongIds: const <String>['song-1', 'song-2'],
+      currentSongId: 'song-2',
+      currentIndex: 1,
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('Words of song-2'), findsOneWidget);
+    expect(find.text('Words of song-1'), findsNothing);
+    expect(tester.takeException(), isNull);
+  }, skip: !sqliteAvailable);
 
   testWidgets(
     'now playing info changes without decorative motion when reduced',
     (tester) async {
-      if (!sqliteAvailable) {
-        return;
-      }
       setAdaptiveTestViewport(tester, const Size(390, 844));
       final container = _createContainer();
-      container.read(_testPlaybackProvider.notifier).state = _songPlayback;
+      container.read(nowPlayingTestPlaybackProvider.notifier).state =
+          _songPlayback;
       await _pumpNowPlaying(tester, container, reduceMotion: true);
 
       expect(
@@ -264,14 +353,12 @@ void main() {
         findsNothing,
       );
     },
+    skip: !sqliteAvailable,
   );
 
   testWidgets(
     'full player marks transcoded output with an accessible transform icon',
     (tester) async {
-      if (!sqliteAvailable) {
-        return;
-      }
       setAdaptiveTestViewport(tester, const Size(390, 844));
       final container = _createContainer(
         overrides: <Override>[
@@ -290,7 +377,8 @@ void main() {
           ),
         ],
       );
-      container.read(_testPlaybackProvider.notifier).state = _songPlayback;
+      container.read(nowPlayingTestPlaybackProvider.notifier).state =
+          _songPlayback;
 
       await _pumpNowPlaying(tester, container);
 
@@ -307,14 +395,12 @@ void main() {
       expect(find.text('Transcoded'), findsNothing);
       expect(tester.takeException(), isNull);
     },
+    skip: !sqliteAvailable,
   );
 
   testWidgets('full player keeps original playback quality unmarked', (
     tester,
   ) async {
-    if (!sqliteAvailable) {
-      return;
-    }
     setAdaptiveTestViewport(tester, const Size(390, 844));
     final container = _createContainer(
       overrides: <Override>[
@@ -333,7 +419,8 @@ void main() {
         ),
       ],
     );
-    container.read(_testPlaybackProvider.notifier).state = _songPlayback;
+    container.read(nowPlayingTestPlaybackProvider.notifier).state =
+        _songPlayback;
 
     await _pumpNowPlaying(tester, container);
 
@@ -341,14 +428,11 @@ void main() {
     expect(find.text('FLAC • 900 Kb/s'), findsOneWidget);
     expect(find.bySemanticsLabel('Transcoded playback'), findsNothing);
     expect(tester.takeException(), isNull);
-  });
+  }, skip: !sqliteAvailable);
 
   testWidgets('full player retains the icon for bitrate-only transcoding', (
     tester,
   ) async {
-    if (!sqliteAvailable) {
-      return;
-    }
     setAdaptiveTestViewport(tester, const Size(390, 844));
     final container = _createContainer(
       overrides: <Override>[
@@ -367,7 +451,8 @@ void main() {
         ),
       ],
     );
-    container.read(_testPlaybackProvider.notifier).state = _songPlayback;
+    container.read(nowPlayingTestPlaybackProvider.notifier).state =
+        _songPlayback;
 
     await _pumpNowPlaying(tester, container);
 
@@ -375,17 +460,15 @@ void main() {
     expect(find.text('192 Kb/s'), findsOneWidget);
     expect(find.text('Transcoded'), findsNothing);
     expect(tester.takeException(), isNull);
-  });
+  }, skip: !sqliteAvailable);
 
   testWidgets('Now Playing Like feedback retains its normal motion', (
     tester,
   ) async {
-    if (!sqliteAvailable) {
-      return;
-    }
     setAdaptiveTestViewport(tester, const Size(390, 844));
     final container = _createContainer();
-    container.read(_testPlaybackProvider.notifier).state = _songPlayback;
+    container.read(nowPlayingTestPlaybackProvider.notifier).state =
+        _songPlayback;
 
     await _pumpNowPlaying(tester, container);
 
@@ -393,17 +476,15 @@ void main() {
       find.byKey(const ValueKey<String>('nowPlayingLikeFeedbackScale')),
       findsOneWidget,
     );
-  });
+  }, skip: !sqliteAvailable);
 
   testWidgets('Now Playing surface tint uses the shared surface timing', (
     tester,
   ) async {
-    if (!sqliteAvailable) {
-      return;
-    }
     setAdaptiveTestViewport(tester, const Size(390, 844));
     final container = _createContainer();
-    container.read(_testPlaybackProvider.notifier).state = _songPlayback;
+    container.read(nowPlayingTestPlaybackProvider.notifier).state =
+        _songPlayback;
     await _pumpNowPlaying(tester, container);
 
     expect(
@@ -414,17 +495,15 @@ void main() {
           .duration,
       const Duration(milliseconds: 180),
     );
-  });
+  }, skip: !sqliteAvailable);
 
   testWidgets('fullscreen action row hides retired Listen Together control', (
     tester,
   ) async {
-    if (!sqliteAvailable) {
-      return;
-    }
     setAdaptiveTestViewport(tester, const Size(390, 844));
     final container = _createContainer();
-    container.read(_testPlaybackProvider.notifier).state = _songPlayback;
+    container.read(nowPlayingTestPlaybackProvider.notifier).state =
+        _songPlayback;
     await _pumpNowPlaying(tester, container);
 
     expect(find.byTooltip('Queue'), findsOneWidget);
@@ -434,14 +513,11 @@ void main() {
       findsNothing,
     );
     expect(tester.takeException(), isNull);
-  });
+  }, skip: !sqliteAvailable);
 
   testWidgets('fullscreen remote loading stays visible against play button', (
     tester,
   ) async {
-    if (!sqliteAvailable) {
-      return;
-    }
     setAdaptiveTestViewport(tester, const Size(390, 844));
     final container = _createContainer(
       overrides: <Override>[
@@ -457,12 +533,13 @@ void main() {
         ),
       ],
     );
-    container.read(_testPlaybackProvider.notifier).state = _songPlayback
-        .copyWith(
-          isLoading: true,
-          loadingSongId: 'song-1',
-          processingState: AudioProcessingState.loading,
-        );
+    container
+        .read(nowPlayingTestPlaybackProvider.notifier)
+        .state = _songPlayback.copyWith(
+      isLoading: true,
+      loadingSongId: 'song-1',
+      processingState: AudioProcessingState.loading,
+    );
 
     final indicatorFinder = find.byKey(
       const ValueKey<String>('remote-playback-loading-indicator'),
@@ -494,18 +571,16 @@ void main() {
       expect(indicatorFinder, findsOneWidget);
     }
 
-    container.read(_testPlaybackProvider.notifier).state = _songPlayback;
+    container.read(nowPlayingTestPlaybackProvider.notifier).state =
+        _songPlayback;
     await tester.pump();
     expect(indicatorFinder, findsNothing);
     expect(tester.takeException(), isNull);
-  });
+  }, skip: !sqliteAvailable);
 
   testWidgets('landscape remote loading stays inside the play button', (
     tester,
   ) async {
-    if (!sqliteAvailable) {
-      return;
-    }
     setAdaptiveTestViewport(tester, const Size(844, 390));
     final container = _createContainer(
       overrides: <Override>[
@@ -521,12 +596,13 @@ void main() {
         ),
       ],
     );
-    container.read(_testPlaybackProvider.notifier).state = _songPlayback
-        .copyWith(
-          isLoading: true,
-          loadingSongId: 'song-1',
-          processingState: AudioProcessingState.loading,
-        );
+    container
+        .read(nowPlayingTestPlaybackProvider.notifier)
+        .state = _songPlayback.copyWith(
+      isLoading: true,
+      loadingSongId: 'song-1',
+      processingState: AudioProcessingState.loading,
+    );
     await _pumpNowPlaying(
       tester,
       container,
@@ -546,17 +622,15 @@ void main() {
       findsOneWidget,
     );
     expect(tester.takeException(), isNull);
-  });
+  }, skip: !sqliteAvailable);
 
   testWidgets('phone now playing remains usable at 200 percent text scale', (
     tester,
   ) async {
-    if (!sqliteAvailable) {
-      return;
-    }
     setAdaptiveTestViewport(tester, const Size(390, 844));
     final container = _createContainer();
-    container.read(_testPlaybackProvider.notifier).state = _songPlayback;
+    container.read(nowPlayingTestPlaybackProvider.notifier).state =
+        _songPlayback;
 
     await _pumpNowPlaying(
       tester,
@@ -571,17 +645,15 @@ void main() {
       find.byType(NowPlayingScreen),
       matchesGoldenFile('goldens/now_playing_text_scale_200.png'),
     );
-  });
+  }, skip: !sqliteAvailable);
 
   testWidgets(
     'compact-wide player hides retired Listen Together settings entry',
     (tester) async {
-      if (!sqliteAvailable) {
-        return;
-      }
       setAdaptiveTestViewport(tester, const Size(560, 360));
       final container = _createContainer();
-      container.read(_testPlaybackProvider.notifier).state = _songPlayback;
+      container.read(nowPlayingTestPlaybackProvider.notifier).state =
+          _songPlayback;
 
       await tester.pumpWidget(
         UncontrolledProviderScope(
@@ -614,17 +686,16 @@ void main() {
       expect(find.text('Listen Together'), findsNothing);
       expect(tester.takeException(), isNull);
     },
+    skip: !sqliteAvailable,
   );
 
   testWidgets(
     'compact-wide panels skip travel and fade when reduced motion is enabled',
     (tester) async {
-      if (!sqliteAvailable) {
-        return;
-      }
       setAdaptiveTestViewport(tester, const Size(560, 360));
       final container = _createContainer();
-      container.read(_testPlaybackProvider.notifier).state = _songPlayback;
+      container.read(nowPlayingTestPlaybackProvider.notifier).state =
+          _songPlayback;
 
       await _pumpNowPlaying(
         tester,
@@ -657,17 +728,16 @@ void main() {
       expect(panel, findsNothing);
       expect(tester.takeException(), isNull);
     },
+    skip: !sqliteAvailable,
   );
 
   testWidgets('compact-wide panels retain travel with normal motion', (
     tester,
   ) async {
-    if (!sqliteAvailable) {
-      return;
-    }
     setAdaptiveTestViewport(tester, const Size(560, 360));
     final container = _createContainer();
-    container.read(_testPlaybackProvider.notifier).state = _songPlayback;
+    container.read(nowPlayingTestPlaybackProvider.notifier).state =
+        _songPlayback;
 
     await _pumpNowPlaying(
       tester,
@@ -692,7 +762,7 @@ void main() {
       greaterThan(0),
     );
     expect(tester.takeException(), isNull);
-  });
+  }, skip: !sqliteAvailable);
 
   group('mobile settings sheet Sound section', () {
     Future<ProviderContainer> openSheet(
@@ -719,7 +789,8 @@ void main() {
             ),
         ],
       );
-      container.read(_testPlaybackProvider.notifier).state = _songPlayback;
+      container.read(nowPlayingTestPlaybackProvider.notifier).state =
+          _songPlayback;
       await _pumpNowPlaying(
         tester,
         container,
@@ -733,9 +804,6 @@ void main() {
     }
 
     testWidgets('shows the inline mini equalizer under Sound', (tester) async {
-      if (!sqliteAvailable) {
-        return;
-      }
       await openSheet(tester, eqSupported: true);
       expect(
         find.byKey(const ValueKey('nowPlayingSettingsSheet')),
@@ -749,15 +817,12 @@ void main() {
         find.byType(BottomSheet),
         matchesGoldenFile('goldens/now_playing_settings_sound_390x844.png'),
       );
-    });
+    }, skip: !sqliteAvailable);
 
     for (final scale in <double>[1, 1.3, 2]) {
       testWidgets('the volume level stays on one line at ${scale}x text', (
         tester,
       ) async {
-        if (!sqliteAvailable) {
-          return;
-        }
         // The bundled Inter font with tabular figures made "100%" wider than
         // its old fixed 40 px slot from about 1.13x text scale (1.4.0).
         final inter = FontLoader(navisFontFamily)
@@ -781,15 +846,12 @@ void main() {
         expect(paragraph.size.height, closeTo(oneLine.height, 0.5));
         oneLine.dispose();
         expect(tester.takeException(), isNull);
-      });
+      }, skip: !sqliteAvailable);
     }
 
     testWidgets('Speed & Pitch opens after the settings sheet closes', (
       tester,
     ) async {
-      if (!sqliteAvailable) {
-        return;
-      }
       await openSheet(tester, eqSupported: true);
       await tester.tap(
         find.byKey(const ValueKey('playbackAdjustmentEntryPoint')),
@@ -803,18 +865,15 @@ void main() {
         find.byKey(const ValueKey('playbackAdjustmentQuickPanel')),
         findsOneWidget,
       );
-    });
+    }, skip: !sqliteAvailable);
 
     testWidgets('unsupported backends keep the explanatory Equalizer row', (
       tester,
     ) async {
-      if (!sqliteAvailable) {
-        return;
-      }
       await openSheet(tester, eqSupported: false);
       expect(find.byType(EqQuickCard), findsNothing);
       expect(find.byKey(const ValueKey('equalizerEntryPoint')), findsOneWidget);
-    });
+    }, skip: !sqliteAvailable);
   });
 
   for (final eqSupported in [true, false]) {
@@ -822,9 +881,6 @@ void main() {
       testWidgets(
         'transport keeps Play centred at $width px (EQ supported: $eqSupported)',
         (tester) async {
-          if (!sqliteAvailable) {
-            return;
-          }
           setAdaptiveTestViewport(tester, Size(width, 860));
           final container = _createContainer(
             overrides: [
@@ -837,7 +893,8 @@ void main() {
                 equalizerProvider.overrideWith(FakeEqController.new),
             ],
           );
-          container.read(_testPlaybackProvider.notifier).state = _songPlayback;
+          container.read(nowPlayingTestPlaybackProvider.notifier).state =
+              _songPlayback;
           await _pumpNowPlaying(
             tester,
             container,
@@ -875,6 +932,7 @@ void main() {
             eqSupported ? findsNothing : findsOneWidget,
           );
         },
+        skip: !sqliteAvailable,
       );
     }
   }

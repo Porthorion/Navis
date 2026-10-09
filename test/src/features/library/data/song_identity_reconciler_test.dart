@@ -208,7 +208,10 @@ void main() {
     );
 
     expect(result, isA<SongIdentityAmbiguous>());
-    expect((result as SongIdentityAmbiguous).candidateCount, 2);
+    final ambiguous = result as SongIdentityAmbiguous;
+    expect(ambiguous.candidateCount, 2);
+    expect(ambiguous.canonicalSongId, 'canonical');
+    expect(ambiguous.candidateIds, ['remote-a', 'remote-b']);
   }, skip: !sqliteAvailable);
 
   test('canonical rows contending for one recording MBID resolve as ambiguous regardless of arrival order', () async {

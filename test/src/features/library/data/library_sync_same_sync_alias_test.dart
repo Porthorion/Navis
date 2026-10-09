@@ -1,3 +1,5 @@
+import 'package:navis/src/features/library/domain/library_sync_request.dart';
+
 import 'dart:io';
 
 import 'package:drift/native.dart';
@@ -5,12 +7,10 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:navis/src/api/models/models.dart';
 import 'package:navis/src/database/navis_database.dart';
 import 'package:navis/src/database/tables/schema_enums.dart';
-import 'package:navis/src/features/auth/data/server_config_repository.dart';
-import 'package:navis/src/features/auth/domain/server_config.dart';
-import 'package:navis/src/features/library/data/library_sync_engine.dart';
 import 'package:navis/src/features/library/domain/library_sync_state.dart';
 
 import '../../../../helpers/library_sync_fakes.dart';
+import '../../../../helpers/library_sync_plan.dart';
 import '../../../../helpers/test_database.dart';
 
 void main() {
@@ -20,29 +20,12 @@ void main() {
     addTearDown(database.close);
     final files = await Directory.systemTemp.createTemp('navis_late_alias_');
     addTearDown(() => files.delete(recursive: true));
-    final repository = ServerConfigRepository(
-      database,
-      credentials: FakeSyncCredentialStore(),
-    );
-    await repository.save(
-      ServerConfigModel(
-        url: 'https://example.com',
-        username: 'alice',
-        password: 'secret',
-        apiVersion: '1.16.1',
-      ),
-    );
+    final repository = await seedSyncSession(database);
     final api = FakeLibrarySyncApi();
-    final engine = DriftLibrarySyncEngine(
+    final engine = serialDriftEngine(
       api: api,
       database: database,
-      serverConfigRepository: repository,
-      fallbackArtistConcurrency: 1,
-      wifiAlbumConcurrency: 1,
-      cellularAlbumConcurrency: 1,
-      otherAlbumConcurrency: 1,
-      writeChunkSize: 4,
-      isolateThreshold: 1000,
+      repository: repository,
     );
     void serve(String albumId, String songId) {
       final album = Album(
@@ -73,7 +56,12 @@ void main() {
     }
 
     serve('old-album', 'old-song');
-    expect((await engine.forceFullSync()).status, LibrarySyncStatus.succeeded);
+    expect(
+      (await engine.executeSyncPlan(
+        syncPlanForTest(LibrarySyncPlanKind.fullRepair),
+      )).status,
+      LibrarySyncStatus.succeeded,
+    );
     final download = File('${files.path}/old-song.mp3')
       ..writeAsBytesSync(<int>[1, 2, 3]);
     await database.cacheDao.upsertCachedTrack(
@@ -94,7 +82,9 @@ void main() {
     serve('new-album', 'new-song');
     var promoted = false;
     for (var run = 0; run < 3 && !promoted; run++) {
-      await engine.forceFullSync();
+      await engine.executeSyncPlan(
+        syncPlanForTest(LibrarySyncPlanKind.fullRepair),
+      );
       promoted = await database.libraryDao.getSongById('new-song') != null;
     }
     expect(promoted, isTrue);

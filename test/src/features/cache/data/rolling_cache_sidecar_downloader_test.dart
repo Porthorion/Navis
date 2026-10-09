@@ -46,6 +46,7 @@ void main() {
         uri: Uri.parse('http://127.0.0.1:${server.port}/audio'),
         cacheFilePath: cacheFile.path,
         onProgress: progressValues.add,
+        onTerminated: () {},
         onComplete: (file) async => done.complete(file),
       );
 
@@ -84,6 +85,7 @@ void main() {
       uri: Uri.parse('http://127.0.0.1:${errorServer.port}/audio'),
       cacheFilePath: cacheFile.path,
       onProgress: (_) {},
+      onTerminated: () {},
       onComplete: (_) async => completed = true,
     );
 
@@ -114,6 +116,7 @@ void main() {
       uri: Uri.parse('http://127.0.0.1:${slowServer.port}/audio'),
       cacheFilePath: cacheFile.path,
       onProgress: (_) {},
+      onTerminated: () {},
       onComplete: (_) async {
         completed = true;
       },
@@ -161,12 +164,14 @@ void main() {
     final aUri = Uri.parse('http://127.0.0.1:${delayedServer.port}/a');
     final bUri = Uri.parse('http://127.0.0.1:${delayedServer.port}/b');
     final completions = <int>[];
+    final terminations = <int>[];
     Future<void> start(String songId, Uri uri, File file, int completion) {
       return downloader.start(
         songId: songId,
         uri: uri,
         cacheFilePath: file.path,
         onProgress: (_) {},
+        onTerminated: () => terminations.add(completion),
         onComplete: (_) async => completions.add(completion),
       );
     }
@@ -180,6 +185,7 @@ void main() {
 
     expect(aFile.readAsBytesSync(), <int>[3]);
     expect(completions, <int>[2, 3]);
+    expect(terminations, <int>[1, 2, 3]);
     expect(
       tempDir.listSync().whereType<File>().where(
         (file) => file.path.contains('.part.'),

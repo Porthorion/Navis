@@ -33,9 +33,6 @@ class GuardedSystemArtworkLoader {
               integrationAllowsArtworkHost(policy, uri, serverHost: serverHost);
   }
 
-  /// Checks permission without recording repeated system metadata checks.
-  bool checkAllowed(MediaItem item) => isAllowed(item);
-
   Future<String?> fetch(MediaItem item) async {
     // Check even for a cache hit: refused art must not reach the OS session.
     final uri = item.artUri;

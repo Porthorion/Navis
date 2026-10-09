@@ -1,0 +1,114 @@
+{
+  "entries": [
+    {
+      "kind": "asset",
+      "path": "pubspec.yaml",
+      "name": "lib/src/icon/Navis_App_Icon.png",
+      "reason": "deliberate: launcher image referenced by flutter_launcher_icons.yaml"
+    },
+    {
+      "kind": "declaration",
+      "path": "lib/src/common_widgets/cover_art_recovery.dart",
+      "name": "CoverArtFailureCategory.decodeFailure",
+      "reason": "suspected missing call: image codec failures are not emitted as decodeFailure"
+    },
+    {
+      "kind": "declaration",
+      "path": "lib/src/features/library/domain/library_sync_request.dart",
+      "name": "SyncRunOrigin.invariant",
+      "reason": "deliberate: enum index retained for decoding historical sync diagnostics rows in library_sync_dao.dart"
+    },
+    {
+      "kind": "declaration",
+      "path": "lib/src/features/library/domain/library_sync_request.dart",
+      "name": "SyncRunOrigin.legacyRecovery",
+      "reason": "deliberate: enum index retained for decoding historical sync diagnostics rows in library_sync_dao.dart"
+    },
+    {
+      "kind": "declaration",
+      "path": "lib/src/features/library/domain/library_sync_request.dart",
+      "name": "SyncRunOrigin.startup",
+      "reason": "deliberate: persisted enum index"
+    },
+    {
+      "kind": "declaration",
+      "path": "lib/src/features/library/domain/sync_run_contract.dart",
+      "name": "SyncRunOutcomeKind.noChanges",
+      "reason": "deliberate: enum index retained for decoding historical sync diagnostics rows in library_sync_dao.dart"
+    },
+    {
+      "kind": "declaration",
+      "path": "lib/src/features/library/domain/sync_run_contract.dart",
+      "name": "SyncSafeReason.legacyAmbiguous",
+      "reason": "deliberate: enum index retained for decoding historical sync diagnostics rows in library_sync_dao.dart"
+    },
+    {
+      "kind": "declaration",
+      "path": "lib/src/features/library/domain/sync_run_contract.dart",
+      "name": "SyncSafeReason.providerUnsupported",
+      "reason": "deliberate: enum index retained for decoding historical sync diagnostics rows in library_sync_dao.dart"
+    },
+    {
+      "kind": "dependency",
+      "path": "pubspec.yaml",
+      "name": "cupertino_icons",
+      "reason": "deliberate: Cupertino widgets load the package icon font without a Dart import"
+    },
+    {
+      "kind": "dependency",
+      "path": "pubspec.yaml",
+      "name": "media_kit_libs_linux",
+      "reason": "deliberate: Linux plugin bundles libmpv and is registered by Flutter native tooling"
+    },
+    {
+      "kind": "dependency",
+      "path": "pubspec.yaml",
+      "name": "media_kit_libs_macos_audio",
+      "reason": "deliberate: macOS plugin bundles libmpv and is registered by Flutter native tooling"
+    },
+    {
+      "kind": "dependency",
+      "path": "pubspec.yaml",
+      "name": "media_kit_libs_windows_audio",
+      "reason": "deliberate: Windows plugin bundles libmpv and is registered by Flutter native tooling"
+    },
+    {
+      "kind": "dependency",
+      "path": "pubspec.yaml",
+      "name": "navis_android_storage",
+      "reason": "deliberate: engine-registered Android SAF playback plugin is called via a method channel"
+    }
+  ],
+  "dependencyUses": [
+    {
+      "name": "build_runner",
+      "path": "tool/check.sh",
+      "evidence": "dart run build_runner build",
+      "reason": "deliberate: code-generation CLI invoked by the quality gate"
+    },
+    {
+      "name": "drift_dev",
+      "path": "lib/src/database/navis_database.dart",
+      "evidence": "@DriftDatabase",
+      "reason": "deliberate: build_runner automatically runs the Drift builder for this database"
+    },
+    {
+      "name": "flutter_launcher_icons",
+      "path": "tool/generate_platform_icons.sh",
+      "evidence": "dart run flutter_launcher_icons",
+      "reason": "deliberate: platform-icon generator CLI"
+    },
+    {
+      "name": "freezed",
+      "path": "lib/src/api/models/subsonic_response.dart",
+      "evidence": "@freezed",
+      "reason": "deliberate: build_runner automatically runs the Freezed builder for annotated models"
+    },
+    {
+      "name": "json_serializable",
+      "path": "lib/src/api/models/song.dart",
+      "evidence": "@JsonSerializable",
+      "reason": "deliberate: build_runner automatically runs the JSON builder for annotated models"
+    }
+  ]
+}

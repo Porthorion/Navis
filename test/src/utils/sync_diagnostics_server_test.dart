@@ -20,6 +20,7 @@ import 'package:navis/src/common_widgets/song_playback_indicator.dart';
 import 'package:navis/src/database/navis_database.dart';
 import 'package:navis/src/features/auth/domain/server_config.dart';
 import 'package:navis/src/features/auth/presentation/server_config_provider.dart';
+import 'package:navis/src/features/auth/presentation/session_route_provider.dart';
 import 'package:navis/src/features/integrations/data/integration_call_recorder.dart';
 import 'package:navis/src/features/integrations/domain/integration_feature.dart';
 import 'package:navis/src/features/downloads/data/download_service.dart';
@@ -31,6 +32,8 @@ import 'package:navis/src/features/library/domain/library_sync_state.dart';
 import 'package:navis/src/features/library/domain/sync_run_contract.dart';
 import 'package:navis/src/features/library/presentation/library_scroll_provider.dart';
 import 'package:navis/src/features/library/presentation/library_sync_provider.dart';
+import 'package:navis/src/features/library/presentation/required_library_rebuild.dart';
+import 'package:navis/src/features/library/presentation/required_library_rebuild_provider.dart';
 import 'package:navis/src/features/cache/presentation/library_cache_reset_provider.dart';
 import 'package:navis/src/features/home/presentation/home_onboarding_warmup.dart';
 import 'package:navis/src/features/player/data/navis_audio_handler.dart';
@@ -46,8 +49,10 @@ import 'package:navis/src/utils/diagnostics_presentation_controller.dart';
 import 'package:navis/src/utils/sync_diagnostics_overrides.dart';
 import 'package:navis/src/utils/sync_diagnostics_server.dart';
 import 'package:path/path.dart' as p;
+import 'package:package_info_plus/package_info_plus.dart';
 import 'package:flutter_riverpod/misc.dart' show Override;
 
+import '../../helpers/stub_library_sync_engine.dart';
 import '../../helpers/test_database.dart';
 
 void main() {
@@ -72,20 +77,10 @@ void main() {
           },
         ),
       ]) {
-        final forbidden = await _request(
-          primary.port,
-          path,
-          method: 'POST',
-          token: primary.token,
-          body: body,
-        );
+        final forbidden = await primary.post(path, body);
         expect(forbidden.statusCode, HttpStatus.forbidden, reason: path);
       }
-      final observed = await _request(
-        primary.port,
-        '/v1/downloads/status',
-        token: primary.token,
-      );
+      final observed = await primary.get('/v1/downloads/status');
       expect(observed.statusCode, HttpStatus.ok);
       expect(observed.body['qualityPreference'], containsPair('mode', 'ask'));
       verifyNever(() => primaryService.setPaused(paused: any(named: 'paused')));
@@ -105,38 +100,22 @@ void main() {
         {'format': 'wma'},
         {'prompted': 1},
       ]) {
-        final invalid = await _request(
-          clone.port,
-          '/v1/downloads/settings',
-          method: 'POST',
-          token: clone.token,
-          body: body,
-        );
+        final invalid = await clone.post('/v1/downloads/settings', body);
         expect(invalid.statusCode, HttpStatus.badRequest, reason: '$body');
       }
-      final invalidCancel = await _request(
-        clone.port,
-        '/v1/downloads/cancel',
-        method: 'POST',
-        token: clone.token,
-        body: {'queueId': '1'},
-      );
+      final invalidCancel = await clone.post('/v1/downloads/cancel', {
+        'queueId': '1',
+      });
       expect(invalidCancel.statusCode, HttpStatus.badRequest);
 
-      final saved = await _request(
-        clone.port,
-        '/v1/downloads/settings',
-        method: 'POST',
-        token: clone.token,
-        body: {
-          'maxConcurrent': 3,
-          'paused': true,
-          'qualityMode': 'transcode',
-          'bitRate': 192,
-          'format': 'opus',
-          'prompted': true,
-        },
-      );
+      final saved = await clone.post('/v1/downloads/settings', {
+        'maxConcurrent': 3,
+        'paused': true,
+        'qualityMode': 'transcode',
+        'bitRate': 192,
+        'format': 'opus',
+        'prompted': true,
+      });
       expect(saved.statusCode, HttpStatus.ok);
       verify(() => service.setMaxConcurrentDownloads(3)).called(1);
       verify(() => service.setPaused(paused: true)).called(1);
@@ -160,27 +139,17 @@ void main() {
         expect(saved.body, contains(key));
       }
 
-      final enqueued = await _request(
-        clone.port,
-        '/v1/downloads/enqueue',
-        method: 'POST',
-        token: clone.token,
-        body: {
-          'songIds': ['s1'],
-          'usePreference': true,
-        },
-      );
+      final enqueued = await clone.post('/v1/downloads/enqueue', {
+        'songIds': ['s1'],
+        'usePreference': true,
+      });
       expect(enqueued.statusCode, HttpStatus.accepted);
       verify(() => service.enqueueSong('s1', quality: '192', format: 'opus'))
           .called(1);
 
-      final cancelled = await _request(
-        clone.port,
-        '/v1/downloads/cancel',
-        method: 'POST',
-        token: clone.token,
-        body: {'queueId': 4},
-      );
+      final cancelled = await clone.post('/v1/downloads/cancel', {
+        'queueId': 4,
+      });
       expect(cancelled.statusCode, HttpStatus.ok);
       verify(() => service.cancelQueueItem(4)).called(1);
     },
@@ -192,13 +161,9 @@ void main() {
       final primary = await _startFixture(
         SyncDiagnosticsMode.primaryCertification,
       );
-      final forbidden = await _request(
-        primary.port,
-        '/v1/artists/playback',
-        method: 'POST',
-        token: primary.token,
-        body: {'command': 'cancel'},
-      );
+      final forbidden = await primary.post('/v1/artists/playback', {
+        'command': 'cancel',
+      });
       expect(forbidden.statusCode, HttpStatus.forbidden);
       await primary.close();
       final clone = await _startFixture(SyncDiagnosticsMode.clone);
@@ -208,28 +173,14 @@ void main() {
         {'command': 'prepare', 'artistId': 'artist', 'action': 'invalid'},
         {'command': 'retry', 'extra': true},
       ]) {
-        final invalid = await _request(
-          clone.port,
-          '/v1/artists/playback',
-          method: 'POST',
-          token: clone.token,
-          body: body,
-        );
+        final invalid = await clone.post('/v1/artists/playback', body);
         expect(invalid.statusCode, HttpStatus.badRequest);
       }
-      final conflict = await _request(
-        clone.port,
-        '/v1/artists/playback',
-        method: 'POST',
-        token: clone.token,
-        body: {'command': 'available'},
-      );
+      final conflict = await clone.post('/v1/artists/playback', {
+        'command': 'available',
+      });
       expect(conflict.statusCode, HttpStatus.badRequest);
-      final status = await _request(
-        clone.port,
-        '/v1/artists/playback/status',
-        token: clone.token,
-      );
+      final status = await clone.get('/v1/artists/playback/status');
       final value = status.body;
       expect(value.keys, isNot(contains('artistId')));
       expect(value.keys, isNot(contains('unresolvedAlbumIds')));
@@ -241,13 +192,9 @@ void main() {
       SyncDiagnosticsMode.primaryCertification,
     );
 
-    final forbidden = await _request(
-      primary.port,
-      '/v1/presentation/track-action',
-      method: 'POST',
-      token: primary.token,
-      body: {'action': 'more'},
-    );
+    final forbidden = await primary.post('/v1/presentation/track-action', {
+      'action': 'more',
+    });
     expect(forbidden.statusCode, HttpStatus.forbidden);
     await primary.close();
     final clone = await _startFixture(SyncDiagnosticsMode.clone);
@@ -256,22 +203,12 @@ void main() {
       {'action': 'arbitraryClick'},
       {'action': 'more', 'x': 1},
     ]) {
-      final invalid = await _request(
-        clone.port,
-        '/v1/presentation/track-action',
-        method: 'POST',
-        token: clone.token,
-        body: body,
-      );
+      final invalid = await clone.post('/v1/presentation/track-action', body);
       expect(invalid.statusCode, HttpStatus.badRequest);
     }
-    final unavailable = await _request(
-      clone.port,
-      '/v1/presentation/track-action',
-      method: 'POST',
-      token: clone.token,
-      body: {'action': 'more'},
-    );
+    final unavailable = await clone.post('/v1/presentation/track-action', {
+      'action': 'more',
+    });
     expect(unavailable.statusCode, HttpStatus.serviceUnavailable);
   });
 
@@ -303,11 +240,7 @@ void main() {
       addTearDown(fixture.close);
       final unauthorized = await _request(fixture.port, '/v1/playback/status');
       expect(unauthorized.statusCode, HttpStatus.unauthorized);
-      final observed = await _request(
-        fixture.port,
-        '/v1/playback/status',
-        token: fixture.token,
-      );
+      final observed = await fixture.get('/v1/playback/status');
       expect(observed.statusCode, HttpStatus.ok);
       expect(observed.body['radio'], radio);
       expect(observed.body.toString(), isNot(contains('https://')));
@@ -315,11 +248,7 @@ void main() {
       expect(observed.body['radio'], isNot(contains('publishedArtUri')));
       expect(observed.body, contains('providerCacheActivity'));
       radio = null;
-      final stopped = await _request(
-        fixture.port,
-        '/v1/playback/status',
-        token: fixture.token,
-      );
+      final stopped = await fixture.get('/v1/playback/status');
       expect(stopped.statusCode, HttpStatus.ok);
       expect(stopped.body, containsPair('radio', null));
     },
@@ -358,102 +287,81 @@ void main() {
       body: {'speedPercent': 25},
     );
     expect(unauthorized.statusCode, HttpStatus.unauthorized);
-    final changed = await _request(
-      fixture.port,
-      '/v1/playback/adjustments',
-      method: 'POST',
-      token: fixture.token,
-      body: {'speedPercent': 13.75, 'pitchSemitones': -2.37},
-    );
+    final changed = await fixture.post('/v1/playback/adjustments', {
+      'speedPercent': 13.75,
+      'pitchSemitones': -2.37,
+    });
     expect(changed.statusCode, HttpStatus.ok);
     expect(changed.body['persistedSpeed'], 1.1375);
     expect(changed.body['persistedPitchSemitones'], -2.37);
-    final saved = await _request(
-      fixture.port,
-      '/v1/playback/adjustments',
-      method: 'POST',
-      token: fixture.token,
-      body: {'action': 'save', 'name': 'Nightcore'},
-    );
+    final saved = await fixture.post('/v1/playback/adjustments', {
+      'action': 'save',
+      'name': 'Nightcore',
+    });
     expect(saved.statusCode, HttpStatus.ok);
     final id = saved.body['selectedPresetId'];
-    final none = await _request(
-      fixture.port,
-      '/v1/playback/adjustments',
-      method: 'POST',
-      token: fixture.token,
-      body: {'action': 'select', 'id': 'none'},
-    );
+    final none = await fixture.post('/v1/playback/adjustments', {
+      'action': 'select',
+      'id': 'none',
+    });
     expect(none.body['speedPercent'], 0);
     expect(none.body['pitchSemitones'], 0);
-    final restored = await _request(
-      fixture.port,
-      '/v1/playback/adjustments',
-      method: 'POST',
-      token: fixture.token,
-      body: {'action': 'select', 'id': id},
-    );
+    final restored = await fixture.post('/v1/playback/adjustments', {
+      'action': 'select',
+      'id': id,
+    });
     expect(restored.body['pitchSemitones'], -2.37);
-    final immutable = await _request(
-      fixture.port,
-      '/v1/playback/adjustments',
-      method: 'POST',
-      token: fixture.token,
-      body: {'action': 'delete', 'id': 'none'},
-    );
+    final immutable = await fixture.post('/v1/playback/adjustments', {
+      'action': 'delete',
+      'id': 'none',
+    });
     expect(immutable.statusCode, HttpStatus.badRequest);
-    final ambiguous = await _request(
-      fixture.port,
-      '/v1/playback/adjustments',
-      method: 'POST',
-      token: fixture.token,
-      body: {'speed': 1.25, 'speedPercent': 25},
-    );
+    final ambiguous = await fixture.post('/v1/playback/adjustments', {
+      'speed': 1.25,
+      'speedPercent': 25,
+    });
     expect(ambiguous.statusCode, HttpStatus.badRequest);
     expect(applied.speed, 1.1375);
-    final linked = await _request(
-      fixture.port,
-      '/v1/playback/adjustments',
-      method: 'POST',
-      token: fixture.token,
-      body: {'speed': 1.25, 'lockPitchToSpeed': true},
-    );
+    final linked = await fixture.post('/v1/playback/adjustments', {
+      'speed': 1.25,
+      'lockPitchToSpeed': true,
+    });
     expect(linked.body['speed'], 1.25);
     expect(linked.body['lockPitchToSpeed'], isTrue);
     expect(linked.body['persistedLockPitchToSpeed'], isTrue);
     expect(applied.pitchFactor, 1.25);
-    final rejected = await _request(
-      fixture.port,
-      '/v1/playback/adjustments',
-      method: 'POST',
-      token: fixture.token,
-      body: {'pitchSemitones': 0},
-    );
+    final rejected = await fixture.post('/v1/playback/adjustments', {
+      'pitchSemitones': 0,
+    });
     expect(rejected.statusCode, HttpStatus.badRequest);
-    await _request(
-      fixture.port,
-      '/v1/playback/adjustments',
-      method: 'POST',
-      token: fixture.token,
-      body: {'lockPitchToSpeed': false, 'speed': 1.5},
-    );
+    await fixture.post('/v1/playback/adjustments', {
+      'lockPitchToSpeed': false,
+      'speed': 1.5,
+    });
     expect(applied.pitchFactor, closeTo(1.25, 1e-14));
   });
 
-  test('adjustments API forbids primary mutation', () async {
-    final primary = await _startFixture(
-      SyncDiagnosticsMode.primaryCertification,
-    );
-    addTearDown(primary.close);
-    final forbidden = await _request(
-      primary.port,
+  for (final (name, path, body) in <(String, String, Map<String, Object?>)>[
+    (
+      'adjustments API forbids primary mutation',
       '/v1/playback/adjustments',
-      method: 'POST',
-      token: primary.token,
-      body: {'speedPercent': 25},
-    );
-    expect(forbidden.statusCode, HttpStatus.forbidden);
-  });
+      {'speedPercent': 25},
+    ),
+    (
+      'primary diagnostics cannot queue a target fixture',
+      '/v1/sync/fixture/queue-target',
+      {'targetKind': 'album', 'entityId': 'album-queued'},
+    ),
+  ]) {
+    test(name, () async {
+      final primary = await _startFixture(
+        SyncDiagnosticsMode.primaryCertification,
+      );
+      addTearDown(primary.close);
+      final forbidden = await primary.post(path, body);
+      expect(forbidden.statusCode, HttpStatus.forbidden);
+    });
+  }
 
   test(
     'appearance diagnostics validate targeted settings and remain clone-only',
@@ -477,28 +385,16 @@ void main() {
         <String, Object?>{'nowPlayingArtShape': 'oval'},
         <String, Object?>{'artistCardShape': 1},
       ]) {
-        final invalid = await _request(
-          fixture.port,
-          '/v1/presentation/appearance',
-          method: 'POST',
-          token: fixture.token,
-          body: body,
-        );
+        final invalid = await fixture.post('/v1/presentation/appearance', body);
         expect(invalid.statusCode, HttpStatus.badRequest);
       }
-      final changed = await _request(
-        fixture.port,
-        '/v1/presentation/appearance',
-        method: 'POST',
-        token: fixture.token,
-        body: {
-          'gridArtworkSize': 'small',
-          'homeRecommendationsAutoAdvance': true,
-          'coverArtShape': 'rounded',
-          'nowPlayingArtShape': 'circle',
-          'artistCardShape': 'square',
-        },
-      );
+      final changed = await fixture.post('/v1/presentation/appearance', {
+        'gridArtworkSize': 'small',
+        'homeRecommendationsAutoAdvance': true,
+        'coverArtShape': 'rounded',
+        'nowPlayingArtShape': 'circle',
+        'artistCardShape': 'square',
+      });
       expect(changed.statusCode, HttpStatus.ok);
       expect(changed.body, {
         'gridArtworkSize': 'small',
@@ -509,11 +405,7 @@ void main() {
         'nowPlayingArtShape': 'circle',
         'artistCardShape': 'square',
       });
-      final observed = await _request(
-        fixture.port,
-        '/v1/presentation/appearance',
-        token: fixture.token,
-      );
+      final observed = await fixture.get('/v1/presentation/appearance');
       expect(observed.body, changed.body);
       final persisted = await fixture.container
           .read(navisDatabaseProvider)
@@ -567,21 +459,14 @@ void main() {
         <String, Object?>{'key': 'deezer', 'enabled': 'no'},
         <String, Object?>{'master': false, 'extra': 1},
       ]) {
-        final invalid = await _request(
-          fixture.port,
+        final invalid = await fixture.post(
           '/v1/presentation/integrations',
-          method: 'POST',
-          token: fixture.token,
-          body: body,
+          body,
         );
         expect(invalid.statusCode, HttpStatus.badRequest, reason: '$body');
       }
 
-      final initial = await _request(
-        fixture.port,
-        '/v1/presentation/integrations',
-        token: fixture.token,
-      );
+      final initial = await fixture.get('/v1/presentation/integrations');
       expect(initial.statusCode, HttpStatus.ok);
       expect(initial.body['master'], isTrue);
       expect(initial.body['disabled'], isEmpty);
@@ -594,13 +479,10 @@ void main() {
         'lock': null,
       });
 
-      final changed = await _request(
-        fixture.port,
-        '/v1/presentation/integrations',
-        method: 'POST',
-        token: fixture.token,
-        body: {'key': 'deezer.topSongs', 'enabled': false},
-      );
+      final changed = await fixture.post('/v1/presentation/integrations', {
+        'key': 'deezer.topSongs',
+        'enabled': false,
+      });
       expect(changed.statusCode, HttpStatus.ok);
       expect(changed.body['disabled'], ['deezer.topSongs']);
       expect((changed.body['features']! as Map)['deezer.topSongs'], {
@@ -610,13 +492,11 @@ void main() {
         'lock': null,
       });
 
-      final serviceOff = await _request(
-        fixture.port,
-        '/v1/presentation/integrations',
-        method: 'POST',
-        token: fixture.token,
-        body: {'key': 'lrclib', 'enabled': false, 'master': true},
-      );
+      final serviceOff = await fixture.post('/v1/presentation/integrations', {
+        'key': 'lrclib',
+        'enabled': false,
+        'master': true,
+      });
       expect(serviceOff.statusCode, HttpStatus.ok);
       expect(
         (serviceOff.body['features']! as Map)['lrclib.lyrics'],
@@ -628,13 +508,10 @@ void main() {
       );
 
       // A column-backed feature writes its column, not the JSON set.
-      final sameVibes = await _request(
-        fixture.port,
-        '/v1/presentation/integrations',
-        method: 'POST',
-        token: fixture.token,
-        body: {'key': 'lastfm.sameVibes', 'enabled': false},
-      );
+      final sameVibes = await fixture.post('/v1/presentation/integrations', {
+        'key': 'lastfm.sameVibes',
+        'enabled': false,
+      });
       expect(sameVibes.statusCode, HttpStatus.ok);
       expect(sameVibes.body['disabled'], ['deezer.topSongs', 'lrclib']);
       expect(
@@ -642,13 +519,9 @@ void main() {
         containsPair('switchOn', false),
       );
 
-      final masterOff = await _request(
-        fixture.port,
-        '/v1/presentation/integrations',
-        method: 'POST',
-        token: fixture.token,
-        body: {'master': false},
-      );
+      final masterOff = await fixture.post('/v1/presentation/integrations', {
+        'master': false,
+      });
       expect(masterOff.body['master'], isFalse);
       final lockedFeatures = masterOff.body['features']! as Map;
       expect(lockedFeatures['deezer.trending'], {
@@ -739,11 +612,7 @@ void main() {
       );
       expect(unauthorized.statusCode, HttpStatus.unauthorized);
 
-      final response = await _request(
-        fixture.port,
-        '/v1/diagnostics/integrations',
-        token: fixture.token,
-      );
+      final response = await fixture.get('/v1/diagnostics/integrations');
       expect(response.statusCode, HttpStatus.ok, reason: '$mode');
       final counters = response.body['counters']! as Map;
       expect(counters['lastfm'], {
@@ -781,11 +650,7 @@ void main() {
     );
     addTearDown(fixture.close);
 
-    final response = await _request(
-      fixture.port,
-      '/v1/diagnostics/integrations',
-      token: fixture.token,
-    );
+    final response = await fixture.get('/v1/diagnostics/integrations');
 
     final call = (response.body['calls']! as List).single as Map;
     expect(call, containsPair('service', 'listenbrainz'));
@@ -843,15 +708,9 @@ void main() {
       SongsTableCompanion.insert(id: 'local-1', title: 'Local Song'),
     ]);
 
-    final response = await _request(
-      clone.port,
-      '/v1/playback/queue',
-      method: 'POST',
-      token: clone.token,
-      body: <String, Object?>{
-        'songIds': <String>['ext-deezer-song-1', 'local-1'],
-      },
-    );
+    final response = await clone.post('/v1/playback/queue', <String, Object?>{
+      'songIds': <String>['ext-deezer-song-1', 'local-1'],
+    });
 
     expect(response.statusCode, HttpStatus.accepted);
     expect(queued, <List<String>>[
@@ -870,15 +729,9 @@ void main() {
     expect(await database.libraryDao.getAlbumById('lib-album'), isNull);
     expect(await database.libraryDao.getArtistById('lib-artist'), isNull);
 
-    final missing = await _request(
-      clone.port,
-      '/v1/playback/queue',
-      method: 'POST',
-      token: clone.token,
-      body: <String, Object?>{
-        'songIds': <String>['ext-deezer-song-404', 'local-1'],
-      },
-    );
+    final missing = await clone.post('/v1/playback/queue', <String, Object?>{
+      'songIds': <String>['ext-deezer-song-404', 'local-1'],
+    });
     expect(missing.statusCode, HttpStatus.notFound);
     expect(missing.body['songId'], 'ext-deezer-song-404');
     expect(queued, hasLength(1));
@@ -914,12 +767,7 @@ void main() {
         '/v1/playback/next',
         '/v1/playback/previous',
       ]) {
-        final response = await _request(
-          clone.port,
-          path,
-          method: 'POST',
-          token: clone.token,
-        );
+        final response = await clone.post(path);
         expect(response.statusCode, HttpStatus.ok);
         expect(response.body['navigation'], <String, Object?>{
           'pending': false,
@@ -934,12 +782,7 @@ void main() {
         handler: handler,
       );
       addTearDown(primary.close);
-      final forbidden = await _request(
-        primary.port,
-        '/v1/playback/next',
-        method: 'POST',
-        token: primary.token,
-      );
+      final forbidden = await primary.post('/v1/playback/next');
       expect(forbidden.statusCode, HttpStatus.forbidden);
       expect(nextCalls, 1);
     },
@@ -963,11 +806,7 @@ void main() {
         for (var i = 0; i < 40; i++) timing(999999),
         for (var i = 0; i < 5000; i++) timing(2000),
       ]);
-      final report = await _request(
-        fixture.port,
-        '/v1/diagnostics/report',
-        token: fixture.token,
-      );
+      final report = await fixture.get('/v1/diagnostics/report');
       for (final entry in {
         'frames': 3000,
         'frameBuild': 2000,
@@ -995,18 +834,9 @@ void main() {
       final slowFrames = report.body['slowFrameSamples']! as List<Object?>;
       expect(slowFrames, hasLength(32));
       expect(slowFrames.first, containsPair('totalMicros', 1000999));
-      final reset = await _request(
-        fixture.port,
-        '/v1/diagnostics/metrics/reset',
-        method: 'POST',
-        token: fixture.token,
-      );
+      final reset = await fixture.post('/v1/diagnostics/metrics/reset');
       expect(reset.statusCode, HttpStatus.ok);
-      final cleared = await _request(
-        fixture.port,
-        '/v1/diagnostics/report',
-        token: fixture.token,
-      );
+      final cleared = await fixture.get('/v1/diagnostics/report');
       for (final key in ['frames', 'frameBuild', 'frameRaster', 'frameSpan']) {
         expect(cleared.body[key], {'samples': 0});
       }
@@ -1035,15 +865,13 @@ void main() {
       ),
     );
     const plan = SyncExecutionPlan(
-      request: SyncRunRequest(
-        contractVersion: 1,
+      request: LibrarySyncRequest(
         origin: SyncRunOrigin.interaction,
         intent: SyncRunIntent.targetHydration,
         target: LibrarySyncTarget.album('private-target'),
-        networkGrant: SyncNetworkGrant.none,
-        priority: 1,
+        grant: SyncNetworkGrant.none,
       ),
-      kind: SyncExecutionPlanKind.targetHydration,
+      kind: LibrarySyncPlanKind.targetedHydration,
       reason: SyncSafeReason.none,
       budget: SyncExecutionBudget(
         allowedEndpoints: {SyncEndpoint.album},
@@ -1068,11 +896,7 @@ void main() {
       'attemptId': attempt.id,
       'captureComplete': false,
     });
-    final active = await _request(
-      fixture.port,
-      '/v1/sync/attempts',
-      token: fixture.token,
-    );
+    final active = await fixture.get('/v1/sync/attempts');
     expect(active.statusCode, HttpStatus.ok);
     final row = (active.body['attempts']! as List).single as Map;
     expect(row['requestId'], request.id);
@@ -1088,15 +912,17 @@ void main() {
         reason: SyncSafeReason.none,
       ),
     );
-    final ledger = await _request(
-      fixture.port,
-      '/v1/sync/ledger',
-      token: fixture.token,
-    );
+    final ledger = await fixture.get('/v1/sync/ledger');
     final history = (ledger.body['durableRuns']! as List).single as Map;
     expect(history['requestId'], request.id);
     expect(history['attemptId'], attempt.id);
     expect(history['startedAt'], isA<String>());
+    expect(history['intent'], 'targetHydration');
+    expect(history['planKind'], 'targetHydration');
+    expect(history['targetKind'], 'album');
+    expect(history['outcome'], 'completed');
+    expect(history['completedAt'], isA<String>());
+    expect(ledger.body, isNot(contains('events')));
     expect(jsonEncode(ledger.body), isNot(contains('private')));
   });
 
@@ -1104,10 +930,8 @@ void main() {
     final fixture = await _startFixture(SyncDiagnosticsMode.clone);
     addTearDown(fixture.close);
 
-    final response = await _request(
-      fixture.port,
+    final response = await fixture.get(
       '/v1/diagnostics/local-search?query=song',
-      token: fixture.token,
     );
     expect(response.statusCode, HttpStatus.ok);
     for (final kind in <String>['artists', 'albums', 'songs']) {
@@ -1115,11 +939,7 @@ void main() {
       expect(entry.keys, unorderedEquals(<String>['count', 'elapsedMicros']));
     }
 
-    final missing = await _request(
-      fixture.port,
-      '/v1/diagnostics/local-search',
-      token: fixture.token,
-    );
+    final missing = await fixture.get('/v1/diagnostics/local-search');
     expect(missing.statusCode, HttpStatus.badRequest);
   });
 
@@ -1130,18 +950,28 @@ void main() {
     final unauthorized = await _request(fixture.port, '/v1/health');
     expect(unauthorized.statusCode, HttpStatus.unauthorized);
 
-    final authorized = await _request(
-      fixture.port,
-      '/v1/health',
-      token: fixture.token,
-    );
+    final authorized = await fixture.get('/v1/health');
     expect(authorized.statusCode, HttpStatus.ok);
     expect(authorized.body['mode'], 'clone');
-    expect(authorized.body['schemaVersion'], 92);
+    expect(authorized.body['schemaVersion'], fixture.database.schemaVersion);
   });
 
   test('cache upgrade clears then completes a full library scan', () async {
-    final engine = _SuccessfulFullSyncEngine();
+    const succeeded = LibrarySyncState(
+      status: LibrarySyncStatus.succeeded,
+      stage: LibrarySyncStage.completed,
+    );
+    final engine = StubLibrarySyncEngine((request, {onProgress}) async {
+      if (request.intent == SyncRunIntent.repairLibrary) {
+        onProgress?.call(
+          const LibrarySyncState(
+            status: LibrarySyncStatus.running,
+            stage: LibrarySyncStage.fetchingArtists,
+          ),
+        );
+      }
+      return succeeded;
+    });
     final fixture = await _startFixture(
       SyncDiagnosticsMode.clone,
       librarySyncEngine: engine,
@@ -1154,12 +984,7 @@ void main() {
     await Future<void>.delayed(Duration.zero);
     await fixture.database.customStatement('DELETE FROM cache_system_state;');
 
-    final response = await _request(
-      fixture.port,
-      '/v1/library/cache-upgrade',
-      method: 'POST',
-      token: fixture.token,
-    );
+    final response = await fixture.post('/v1/library/cache-upgrade');
 
     expect(response.statusCode, HttpStatus.ok);
     expect(response.body['status'], 'succeeded');
@@ -1168,7 +993,11 @@ void main() {
       (response.body['sync'] as Map<String, dynamic>)['status'],
       'succeeded',
     );
-    expect(engine.forceFullCalls, 1);
+    expect(
+      engine.requestsWithIntent(SyncRunIntent.repairLibrary),
+      hasLength(1),
+    );
+    expect(await fixture.database.cacheSystemStateDao.getVersion(), 1004);
   });
 
   test(
@@ -1220,37 +1049,21 @@ void main() {
     );
     addTearDown(fixture.close);
 
-    final cancel = await _request(
-      fixture.port,
-      '/v1/sync/cancel',
-      method: 'POST',
-      token: fixture.token,
-    );
+    final cancel = await fixture.post('/v1/sync/cancel');
     expect(cancel.statusCode, HttpStatus.forbidden);
 
-    final maintenance = await _request(
-      fixture.port,
-      '/v1/cache/maintenance',
-      method: 'POST',
-      token: fixture.token,
-    );
+    final maintenance = await fixture.post('/v1/cache/maintenance');
     expect(maintenance.statusCode, HttpStatus.forbidden);
 
-    final corruptCache = await _request(
-      fixture.port,
+    final corruptCache = await fixture.post(
       '/v1/diagnostics/cache/corrupt',
-      method: 'POST',
-      token: fixture.token,
-      body: <String, Object?>{'songId': 'song-1'},
+      <String, Object?>{'songId': 'song-1'},
     );
     expect(corruptCache.statusCode, HttpStatus.forbidden);
 
-    final mutation = await _request(
-      fixture.port,
+    final mutation = await fixture.post(
       '/v1/diagnostics/local-mutation',
-      method: 'POST',
-      token: fixture.token,
-      body: <String, Object?>{
+      <String, Object?>{
         'type': 'song',
         'id': 'song-1',
         'field': 'starred',
@@ -1259,59 +1072,65 @@ void main() {
     );
     expect(mutation.statusCode, HttpStatus.forbidden);
 
-    final restore = await _request(
-      fixture.port,
+    final restore = await fixture.post(
       '/v1/diagnostics/restore-server-star',
-      method: 'POST',
-      token: fixture.token,
-      body: <String, Object?>{'songId': 'song-1', 'liked': false},
+      <String, Object?>{'songId': 'song-1', 'liked': false},
     );
     expect(restore.statusCode, HttpStatus.forbidden);
 
-    final signOut = await _request(
-      fixture.port,
-      '/v1/session/sign-out',
-      method: 'POST',
-      token: fixture.token,
-    );
+    final signOut = await fixture.post('/v1/session/sign-out');
     expect(signOut.statusCode, HttpStatus.forbidden);
 
-    final reset = await _request(
-      fixture.port,
-      '/v1/session/reset-initial-state',
-      method: 'POST',
-      token: fixture.token,
-    );
+    final reset = await fixture.post('/v1/session/reset-initial-state');
     expect(reset.statusCode, HttpStatus.forbidden);
   });
 
+  test(
+    'repair diagnostics uses the repair session and forwards mobile consent',
+    () async {
+      final controller = _RepairRouteController();
+      final fixture = await _startFixture(
+        SyncDiagnosticsMode.clone,
+        overrides: [
+          librarySyncControllerProvider.overrideWith(() => controller),
+        ],
+      );
+      addTearDown(fixture.close);
+      final start = await fixture.post('/v1/sync/repair', const {
+        'allowMeteredBroadOverride': true,
+      });
+      expect(start.statusCode, HttpStatus.accepted);
+      expect(controller.repairGrants, [true]);
+      expect(controller.forceFullCalls, 0);
+    },
+  );
+
   test('target sync diagnostics exercises controller-scoped status', () async {
-    final engine = _TargetProgressSyncEngine();
+    final completion = Completer<LibrarySyncState>();
+    final engine = StubLibrarySyncEngine((request, {onProgress}) {
+      onProgress?.call(
+        const LibrarySyncState(
+          status: LibrarySyncStatus.running,
+          stage: LibrarySyncStage.fetchingSongs,
+        ),
+      );
+      return completion.future;
+    });
     final fixture = await _startFixture(
       SyncDiagnosticsMode.clone,
       librarySyncEngine: engine,
     );
     addTearDown(fixture.close);
 
-    final start = await _request(
-      fixture.port,
-      '/v1/sync/target',
-      method: 'POST',
-      token: fixture.token,
-      body: const <String, Object?>{
-        'targetKind': 'album',
-        'entityId': 'album-1',
-      },
-    );
+    final start = await fixture.post('/v1/sync/target', const <String, Object?>{
+      'targetKind': 'album',
+      'entityId': 'album-1',
+    });
     expect(start.statusCode, HttpStatus.accepted);
     await Future<void>.delayed(Duration.zero);
-    expect(engine.requestCount, 1);
+    expect(engine.requests, hasLength(1));
 
-    final status = await _request(
-      fixture.port,
-      '/v1/sync/status',
-      token: fixture.token,
-    );
+    final status = await fixture.get('/v1/sync/status');
     expect(status.statusCode, HttpStatus.ok);
     expect(status.body['status'], 'idle');
     expect(status.body['stage'], 'idle');
@@ -1325,26 +1144,17 @@ void main() {
       'songs': 0,
     });
 
-    engine.complete();
-    await Future<void>.delayed(Duration.zero);
-    await Future<void>.delayed(Duration.zero);
-    final ledger = await _request(
-      fixture.port,
-      '/v1/sync/ledger',
-      token: fixture.token,
+    completion.complete(
+      const LibrarySyncState(
+        status: LibrarySyncStatus.succeeded,
+        stage: LibrarySyncStage.completed,
+      ),
     );
+    await Future<void>.delayed(Duration.zero);
+    await Future<void>.delayed(Duration.zero);
+    final ledger = await fixture.get('/v1/sync/ledger');
     expect(ledger.statusCode, HttpStatus.ok);
-    final events = ledger.body['events'] as List<Object?>;
-    expect(events, hasLength(3));
-    expect(
-      events.map((event) => (event! as Map<String, Object?>)['phase']),
-      <String>['requested', 'started', 'terminal'],
-    );
-    final terminal = events.last! as Map<String, Object?>;
-    expect(terminal['cause'], 'targetHydration');
-    expect(terminal['targetKind'], 'album');
-    expect(terminal['result'], 'succeeded');
-    expect(terminal.containsKey('endpointRequests'), isTrue);
+    expect(ledger.body, isNot(contains('events')));
     expect(ledger.body['durableRuns'], isEmpty);
     expect(ledger.body['durableOperations'], isEmpty);
   });
@@ -1365,12 +1175,9 @@ void main() {
             ),
           );
 
-      final response = await _request(
-        fixture.port,
+      final response = await fixture.post(
         '/v1/sync/fixture/queue-target',
-        method: 'POST',
-        token: fixture.token,
-        body: const <String, Object?>{
+        const <String, Object?>{
           'targetKind': 'album',
           'entityId': 'album-queued',
         },
@@ -1388,26 +1195,6 @@ void main() {
       expect(work?.status, 'queued');
     },
   );
-
-  test('primary diagnostics cannot queue a target fixture', () async {
-    final fixture = await _startFixture(
-      SyncDiagnosticsMode.primaryCertification,
-    );
-    addTearDown(fixture.close);
-
-    final response = await _request(
-      fixture.port,
-      '/v1/sync/fixture/queue-target',
-      method: 'POST',
-      token: fixture.token,
-      body: const <String, Object?>{
-        'targetKind': 'album',
-        'entityId': 'album-queued',
-      },
-    );
-
-    expect(response.statusCode, HttpStatus.forbidden);
-  });
 
   test(
     'library album observation is authenticated and omits metadata',
@@ -1433,18 +1220,10 @@ void main() {
       );
       expect(missing.statusCode, HttpStatus.unauthorized);
 
-      final invalid = await _request(
-        fixture.port,
-        '/v1/library/album',
-        token: fixture.token,
-      );
+      final invalid = await fixture.get('/v1/library/album');
       expect(invalid.statusCode, HttpStatus.badRequest);
 
-      final present = await _request(
-        fixture.port,
-        '/v1/library/album?id=album-1',
-        token: fixture.token,
-      );
+      final present = await fixture.get('/v1/library/album?id=album-1');
       expect(present.statusCode, HttpStatus.ok);
       expect(present.body, <String, Object?>{
         'id': 'album-1',
@@ -1454,11 +1233,7 @@ void main() {
       });
       expect(jsonEncode(present.body), isNot(contains('Album title')));
 
-      final absent = await _request(
-        fixture.port,
-        '/v1/library/album?id=absent',
-        token: fixture.token,
-      );
+      final absent = await fixture.get('/v1/library/album?id=absent');
       expect(absent.body, <String, Object?>{'id': 'absent', 'exists': false});
     },
   );
@@ -1481,11 +1256,7 @@ void main() {
         ),
       ]);
 
-      final response = await _request(
-        fixture.port,
-        '/v1/library/recent-albums?limit=2',
-        token: fixture.token,
-      );
+      final response = await fixture.get('/v1/library/recent-albums?limit=2');
 
       expect(response.statusCode, HttpStatus.ok);
       expect(response.body['sort'], 'recentlyAdded');
@@ -1503,15 +1274,90 @@ void main() {
     },
   );
 
+  test(
+    'session status observes setup without creating a rebuild controller',
+    () async {
+      final fixture = await _startFixture(
+        SyncDiagnosticsMode.clone,
+        overrides: [
+          sessionRoutePhaseProvider.overrideWithValue(
+            SessionRoutePhase.initialSyncRequired,
+          ),
+        ],
+      );
+      addTearDown(fixture.close);
+      final provider = requiredLibraryRebuildControllerProvider(
+        RequiredLibraryRebuildReason.initialLogin,
+      );
+      expect(fixture.container.exists(provider), isFalse);
+      final response = await fixture.get('/v1/session/status');
+      expect(response.statusCode, HttpStatus.ok);
+      expect(response.body['initialSync'], 'idle');
+      expect(fixture.container.exists(provider), isFalse);
+      for (final action in ['retry', 'mobile', 'cancel']) {
+        final inactive = await fixture.post('/v1/session/initial-sync/$action');
+        expect(inactive.statusCode, HttpStatus.conflict);
+        expect(fixture.container.exists(provider), isFalse);
+      }
+    },
+  );
+
+  test(
+    'initial sync actions and status use the mounted rebuild controller',
+    () async {
+      final provider = requiredLibraryRebuildControllerProvider(
+        RequiredLibraryRebuildReason.initialLogin,
+      );
+      final controller = _DiagnosticsRebuildController();
+      final fixture = await _startFixture(
+        SyncDiagnosticsMode.clone,
+        overrides: [
+          provider.overrideWith(() => controller),
+          sessionRoutePhaseProvider.overrideWithValue(
+            SessionRoutePhase.initialSyncRequired,
+          ),
+        ],
+      );
+      addTearDown(fixture.close);
+      final visit = fixture.container.listen(provider, (_, _) {});
+      addTearDown(visit.close);
+      for (final (action, status) in [
+        ('retry', 'syncing'),
+        ('mobile', 'complete'),
+        ('cancel', 'cancelling'),
+      ]) {
+        final response = await fixture.post('/v1/session/initial-sync/$action');
+        expect(response.statusCode, HttpStatus.ok);
+        expect(response.body['initialSync'], status);
+      }
+      expect(controller.actions, ['retry', 'mobile', 'cancelAndSignOut']);
+    },
+  );
+
+  test('initial sync actions remain clone-only', () async {
+    final provider = requiredLibraryRebuildControllerProvider(
+      RequiredLibraryRebuildReason.initialLogin,
+    );
+    final controller = _DiagnosticsRebuildController();
+    final fixture = await _startFixture(
+      SyncDiagnosticsMode.primaryCertification,
+      overrides: [provider.overrideWith(() => controller)],
+    );
+    addTearDown(fixture.close);
+    final visit = fixture.container.listen(provider, (_, _) {});
+    addTearDown(visit.close);
+    for (final action in ['retry', 'mobile', 'cancel']) {
+      final response = await fixture.post('/v1/session/initial-sync/$action');
+      expect(response.statusCode, HttpStatus.forbidden);
+    }
+    expect(controller.actions, isEmpty);
+  });
+
   test('session status exposes only lifecycle activity fields', () async {
     final fixture = await _startFixture(SyncDiagnosticsMode.clone);
     addTearDown(fixture.close);
 
-    final response = await _request(
-      fixture.port,
-      '/v1/session/status',
-      token: fixture.token,
-    );
+    final response = await fixture.get('/v1/session/status');
 
     expect(response.statusCode, HttpStatus.ok);
     expect(response.body.keys, <String>[
@@ -1535,11 +1381,7 @@ void main() {
     final fixture = await _startFixture(SyncDiagnosticsMode.clone);
     addTearDown(fixture.close);
 
-    final response = await _request(
-      fixture.port,
-      '/v1/cache/status',
-      token: fixture.token,
-    );
+    final response = await fixture.get('/v1/cache/status');
 
     expect(response.statusCode, HttpStatus.ok);
     expect(response.body.keys, <String>[
@@ -1556,12 +1398,9 @@ void main() {
     final fixture = await _startFixture(SyncDiagnosticsMode.clone);
     addTearDown(fixture.close);
 
-    final mutation = await _request(
-      fixture.port,
+    final mutation = await fixture.post(
       '/v1/diagnostics/local-mutation',
-      method: 'POST',
-      token: fixture.token,
-      body: <String, Object?>{
+      <String, Object?>{
         'type': 'song',
         'id': 'song-1',
         'field': 'starred',
@@ -1580,12 +1419,9 @@ void main() {
     final fixture = await _startFixture(SyncDiagnosticsMode.clone);
     addTearDown(fixture.close);
 
-    final response = await _request(
-      fixture.port,
+    final response = await fixture.post(
       '/v1/diagnostics/overrides',
-      method: 'POST',
-      token: fixture.token,
-      body: <String, Object?>{
+      <String, Object?>{
         'networkType': 'cellular',
         'nativeMetered': true,
         'requestReporting': true,
@@ -1602,12 +1438,9 @@ void main() {
     expect(response.body['forceSearchRemoteFailure'], isTrue);
     expect(response.body['artistTopTracksPresentationFixture'], isTrue);
 
-    final cleared = await _request(
-      fixture.port,
+    final cleared = await fixture.post(
       '/v1/diagnostics/overrides',
-      method: 'POST',
-      token: fixture.token,
-      body: const <String, Object?>{},
+      const <String, Object?>{},
     );
     expect(cleared.statusCode, HttpStatus.ok);
     expect(cleared.body['networkType'], isNull);
@@ -1635,29 +1468,18 @@ void main() {
         apiVersion: '1.16.1',
       ),
     );
-    final response = await _request(
-      fixture.port,
+    final response = await fixture.post(
       '/v1/diagnostics/sync-foreground',
-      method: 'POST',
-      token: fixture.token,
-      body: <String, Object?>{'active': true},
+      <String, Object?>{'active': true},
     );
     expect(response.statusCode, HttpStatus.ok);
     expect(response.body['active'], isTrue);
-    final invalid = await _request(
-      fixture.port,
+    final invalid = await fixture.post(
       '/v1/diagnostics/sync-foreground',
-      method: 'POST',
-      token: fixture.token,
-      body: <String, Object?>{'active': 'true'},
+      <String, Object?>{'active': 'true'},
     );
     expect(invalid.statusCode, HttpStatus.badRequest);
-    final due = await _request(
-      fixture.port,
-      '/v1/diagnostics/automatic-sync-due',
-      method: 'POST',
-      token: fixture.token,
-    );
+    final due = await fixture.post('/v1/diagnostics/automatic-sync-due');
     expect(due.statusCode, HttpStatus.ok);
     expect(due.body['due'], isTrue);
     final scheduled = await fixture.database.librarySyncDao.getOrCreateState(1);
@@ -1673,29 +1495,18 @@ void main() {
       );
       addTearDown(fixture.close);
 
-      final response = await _request(
-        fixture.port,
+      final response = await fixture.post(
         '/v1/diagnostics/overrides',
-        method: 'POST',
-        token: fixture.token,
-        body: <String, Object?>{'networkType': 'cellular'},
+        <String, Object?>{'networkType': 'cellular'},
       );
 
       expect(response.statusCode, HttpStatus.forbidden);
-      final foreground = await _request(
-        fixture.port,
+      final foreground = await fixture.post(
         '/v1/diagnostics/sync-foreground',
-        method: 'POST',
-        token: fixture.token,
-        body: <String, Object?>{'active': true},
+        <String, Object?>{'active': true},
       );
       expect(foreground.statusCode, HttpStatus.forbidden);
-      final due = await _request(
-        fixture.port,
-        '/v1/diagnostics/automatic-sync-due',
-        method: 'POST',
-        token: fixture.token,
-      );
+      final due = await fixture.post('/v1/diagnostics/automatic-sync-due');
       expect(due.statusCode, HttpStatus.forbidden);
     },
   );
@@ -1721,11 +1532,7 @@ void main() {
       );
       expect(unauthorized.statusCode, HttpStatus.unauthorized);
 
-      final status = await _request(
-        fixture.port,
-        '/v1/playback/bootstrap/status',
-        token: fixture.token,
-      );
+      final status = await fixture.get('/v1/playback/bootstrap/status');
       expect(status.statusCode, HttpStatus.ok);
       expect(status.body['status'], 'initializing');
       expect(status.body['attempt'], 0);
@@ -1740,12 +1547,9 @@ void main() {
     () async {
       final fixture = await _startFixture(SyncDiagnosticsMode.clone);
 
-      final invalid = await _request(
-        fixture.port,
+      final invalid = await fixture.post(
         '/v1/presentation/playback-recovery',
-        method: 'POST',
-        token: fixture.token,
-        body: <String, Object?>{'action': 'invalid'},
+        <String, Object?>{'action': 'invalid'},
       );
       expect(invalid.statusCode, HttpStatus.badRequest);
       await fixture.close();
@@ -1754,12 +1558,9 @@ void main() {
         SyncDiagnosticsMode.primaryCertification,
       );
       addTearDown(primary.close);
-      final forbidden = await _request(
-        primary.port,
+      final forbidden = await primary.post(
         '/v1/presentation/playback-recovery',
-        method: 'POST',
-        token: primary.token,
-        body: <String, Object?>{'action': 'retry'},
+        <String, Object?>{'action': 'retry'},
       );
       expect(forbidden.statusCode, HttpStatus.forbidden);
     },
@@ -1834,20 +1635,11 @@ void main() {
       expect(response.statusCode, HttpStatus.unauthorized);
     }
 
-    final dismissed = await _request(
-      fixture.port,
-      '/v1/presentation/dismiss-popup',
-      method: 'POST',
-      token: fixture.token,
-    );
+    final dismissed = await fixture.post('/v1/presentation/dismiss-popup');
     expect(dismissed.statusCode, HttpStatus.ok);
     verify(presentation.dismissPopupRoutes).called(1);
 
-    final status = await _request(
-      fixture.port,
-      '/v1/presentation/status',
-      token: fixture.token,
-    );
+    final status = await fixture.get('/v1/presentation/status');
     expect(status.statusCode, HttpStatus.ok);
     expect(status.body['route'], '/');
     expect(status.body['appReady'], isTrue);
@@ -1867,11 +1659,7 @@ void main() {
             size: 600,
           ),
         );
-    final warmupStatus = await _request(
-      fixture.port,
-      '/v1/presentation/home-warmup',
-      token: fixture.token,
-    );
+    final warmupStatus = await fixture.get('/v1/presentation/home-warmup');
     expect(warmupStatus.statusCode, HttpStatus.ok);
     expect(warmupStatus.body, <String, Object?>{
       'targetCount': 2,
@@ -1879,62 +1667,44 @@ void main() {
     });
     expect(jsonEncode(warmupStatus.body), isNot(contains('private-cover')));
 
-    final completeOnboarding = await _request(
-      fixture.port,
+    final completeOnboarding = await fixture.post(
       '/v1/presentation/onboarding/complete',
-      method: 'POST',
-      token: fixture.token,
     );
     expect(completeOnboarding.statusCode, HttpStatus.ok);
     expect(completeOnboarding.body['actualLocation'], '/');
 
-    final invalidNavigation = await _request(
-      fixture.port,
+    final invalidNavigation = await fixture.post(
       '/v1/presentation/navigate',
-      method: 'POST',
-      token: fixture.token,
-      body: const <String, Object?>{'location': 'https://example.com'},
+      const <String, Object?>{'location': 'https://example.com'},
     );
     expect(invalidNavigation.statusCode, HttpStatus.badRequest);
 
-    final nonStringNavigation = await _request(
-      fixture.port,
+    final nonStringNavigation = await fixture.post(
       '/v1/presentation/navigate',
-      method: 'POST',
-      token: fixture.token,
-      body: const <String, Object?>{'location': 42},
+      const <String, Object?>{'location': 42},
     );
     expect(nonStringNavigation.statusCode, HttpStatus.badRequest);
 
-    final navigation = await _request(
-      fixture.port,
+    final navigation = await fixture.post(
       '/v1/presentation/navigate',
-      method: 'POST',
-      token: fixture.token,
-      body: const <String, Object?>{'location': '/target'},
+      const <String, Object?>{'location': '/target'},
     );
     expect(navigation.statusCode, HttpStatus.ok);
     expect(navigation.body['requestedLocation'], '/target');
     expect(navigation.body['actualLocation'], '/target');
     verify(presentation.waitForFrame).called(2);
 
-    final redirected = await _request(
-      fixture.port,
+    final redirected = await fixture.post(
       '/v1/presentation/navigate',
-      method: 'POST',
-      token: fixture.token,
-      body: const <String, Object?>{'location': '/redirect'},
+      const <String, Object?>{'location': '/redirect'},
     );
     expect(redirected.statusCode, HttpStatus.ok);
     expect(redirected.body['actualLocation'], '/target');
     expect(redirected.body['redirected'], isTrue);
 
-    final likedNavigation = await _request(
-      fixture.port,
+    final likedNavigation = await fixture.post(
       '/v1/presentation/navigate',
-      method: 'POST',
-      token: fixture.token,
-      body: const <String, Object?>{'location': '/library#liked'},
+      const <String, Object?>{'location': '/library#liked'},
     );
     expect(likedNavigation.statusCode, HttpStatus.ok);
     // The older fragment form is accepted and normalised to the section URL.
@@ -1944,12 +1714,9 @@ void main() {
       LibrarySection.liked,
     );
 
-    final unknownRoute = await _request(
-      fixture.port,
+    final unknownRoute = await fixture.post(
       '/v1/presentation/navigate',
-      method: 'POST',
-      token: fixture.token,
-      body: const <String, Object?>{'location': '/missing/page'},
+      const <String, Object?>{'location': '/missing/page'},
     );
     expect(unknownRoute.statusCode, HttpStatus.badRequest);
     expect(
@@ -1958,51 +1725,36 @@ void main() {
       reason: 'a rejected location must not navigate',
     );
 
-    final back = await _request(
-      fixture.port,
+    final back = await fixture.post(
       '/v1/presentation/system-back',
-      method: 'POST',
-      token: fixture.token,
-      body: const <String, Object?>{},
+      const <String, Object?>{},
     );
     expect(back.statusCode, HttpStatus.ok);
     expect(back.body['location'], isA<String>());
     verify(presentation.systemBack).called(1);
 
-    final tab = await _request(
-      fixture.port,
+    final tab = await fixture.post(
       '/v1/presentation/tab',
-      method: 'POST',
-      token: fixture.token,
-      body: const <String, Object?>{'branch': 'settings'},
+      const <String, Object?>{'branch': 'settings'},
     );
     expect(tab.statusCode, HttpStatus.ok);
     verify(() => presentation.tapNavigationDestination(3)).called(1);
 
-    final badTab = await _request(
-      fixture.port,
+    final badTab = await fixture.post(
       '/v1/presentation/tab',
-      method: 'POST',
-      token: fixture.token,
-      body: const <String, Object?>{'branch': 'radio'},
+      const <String, Object?>{'branch': 'radio'},
     );
     expect(badTab.statusCode, HttpStatus.badRequest);
 
-    final invalidLibraryFilter = await _request(
-      fixture.port,
+    final invalidLibraryFilter = await fixture.post(
       '/v1/presentation/library-filter',
-      method: 'POST',
-      token: fixture.token,
-      body: <String, Object?>{'query': 'x' * 65},
+      <String, Object?>{'query': 'x' * 65},
     );
     expect(invalidLibraryFilter.statusCode, HttpStatus.badRequest);
 
-    final libraryFilter = await _request(
-      fixture.port,
+    final libraryFilter = await fixture.post(
       '/v1/presentation/library-filter',
-      method: 'POST',
-      token: fixture.token,
-      body: const <String, Object?>{'query': 'no-match'},
+      const <String, Object?>{'query': 'no-match'},
     );
     expect(libraryFilter.statusCode, HttpStatus.ok);
     expect(libraryFilter.body['query'], 'no-match');
@@ -2013,12 +1765,9 @@ void main() {
     );
 
     for (final query in <Object?>[42, true, <String>[]]) {
-      final invalid = await _request(
-        fixture.port,
+      final invalid = await fixture.post(
         '/v1/presentation/library-filter',
-        method: 'POST',
-        token: fixture.token,
-        body: <String, Object?>{'query': query},
+        <String, Object?>{'query': query},
       );
       expect(invalid.statusCode, HttpStatus.badRequest);
       expect(
@@ -2026,12 +1775,9 @@ void main() {
         'no-match',
       );
     }
-    final missingQuery = await _request(
-      fixture.port,
+    final missingQuery = await fixture.post(
       '/v1/presentation/library-filter',
-      method: 'POST',
-      token: fixture.token,
-      body: const <String, Object?>{},
+      const <String, Object?>{},
     );
     expect(missingQuery.statusCode, HttpStatus.badRequest);
     expect(
@@ -2039,47 +1785,35 @@ void main() {
       'no-match',
     );
 
-    final maxLength = await _request(
-      fixture.port,
+    final maxLength = await fixture.post(
       '/v1/presentation/library-filter',
-      method: 'POST',
-      token: fixture.token,
-      body: <String, Object?>{'query': 'x' * 64},
+      <String, Object?>{'query': 'x' * 64},
     );
     expect(maxLength.statusCode, HttpStatus.ok);
     expect(maxLength.body['query'], hasLength(64));
 
     for (final query in <Object?>['', null, '   ']) {
-      final cleared = await _request(
-        fixture.port,
+      final cleared = await fixture.post(
         '/v1/presentation/library-filter',
-        method: 'POST',
-        token: fixture.token,
-        body: <String, Object?>{'query': query},
+        <String, Object?>{'query': query},
       );
       expect(cleared.statusCode, HttpStatus.ok);
       expect(cleared.body['query'], '');
       expect(fixture.container.read(libraryTypeFilterDiagnosticsProvider), '');
     }
 
-    final invalidNotice = await _request(
-      fixture.port,
+    final invalidNotice = await fixture.post(
       '/v1/presentation/notice',
-      method: 'POST',
-      token: fixture.token,
-      body: const <String, Object?>{
+      const <String, Object?>{
         'message': 'Could not save album.',
         'level': 'unknown',
       },
     );
     expect(invalidNotice.statusCode, HttpStatus.badRequest);
 
-    final notice = await _request(
-      fixture.port,
+    final notice = await fixture.post(
       '/v1/presentation/notice',
-      method: 'POST',
-      token: fixture.token,
-      body: const <String, Object?>{
+      const <String, Object?>{
         'message': 'Could not save album.',
         'level': 'error',
       },
@@ -2092,22 +1826,16 @@ void main() {
       AppNoticeLevel.error,
     );
 
-    final overlay = await _request(
-      fixture.port,
+    final overlay = await fixture.post(
       '/v1/presentation/player-overlay',
-      method: 'POST',
-      token: fixture.token,
-      body: const <String, Object?>{'surface': 'queue', 'visible': true},
+      const <String, Object?>{'surface': 'queue', 'visible': true},
     );
     expect(overlay.statusCode, HttpStatus.ok);
     expect(overlay.body['visible'], isTrue);
 
-    final nowPlaying = await _request(
-      fixture.port,
+    final nowPlaying = await fixture.post(
       '/v1/presentation/player-overlay',
-      method: 'POST',
-      token: fixture.token,
-      body: const <String, Object?>{'surface': 'nowPlaying', 'visible': true},
+      const <String, Object?>{'surface': 'nowPlaying', 'visible': true},
     );
     expect(nowPlaying.statusCode, HttpStatus.ok);
     expect(nowPlaying.body['visible'], isTrue);
@@ -2119,30 +1847,21 @@ void main() {
 
     when(() => presentation.capture(label: 'Bad Label'))
         .thenThrow(const FormatException('invalid label'));
-    final invalidScreenshot = await _request(
-      fixture.port,
+    final invalidScreenshot = await fixture.post(
       '/v1/presentation/screenshot',
-      method: 'POST',
-      token: fixture.token,
-      body: const <String, Object?>{'label': 'Bad Label'},
+      const <String, Object?>{'label': 'Bad Label'},
     );
     expect(invalidScreenshot.statusCode, HttpStatus.badRequest);
 
-    final nonStringScreenshot = await _request(
-      fixture.port,
+    final nonStringScreenshot = await fixture.post(
       '/v1/presentation/screenshot',
-      method: 'POST',
-      token: fixture.token,
-      body: const <String, Object?>{'label': <String>[]},
+      const <String, Object?>{'label': <String>[]},
     );
     expect(nonStringScreenshot.statusCode, HttpStatus.badRequest);
 
-    final screenshot = await _request(
-      fixture.port,
+    final screenshot = await fixture.post(
       '/v1/presentation/screenshot',
-      method: 'POST',
-      token: fixture.token,
-      body: const <String, Object?>{'label': 'target'},
+      const <String, Object?>{'label': 'target'},
     );
     expect(screenshot.statusCode, HttpStatus.created);
     expect(screenshot.body['artifact'], 'screenshots/capture.png');
@@ -2180,12 +1899,9 @@ void main() {
         );
         expect(forbidden.statusCode, HttpStatus.forbidden);
       }
-      final unavailablePrimaryCapture = await _request(
-        primary.port,
+      final unavailablePrimaryCapture = await primary.post(
         '/v1/presentation/screenshot',
-        method: 'POST',
-        token: primary.token,
-        body: const <String, Object?>{'label': 'settings'},
+        const <String, Object?>{'label': 'settings'},
       );
       expect(unavailablePrimaryCapture.statusCode, HttpStatus.forbidden);
       await primary.close();
@@ -2245,23 +1961,16 @@ void main() {
       {'action': 'arbitraryClick'},
       {'action': 'openFirstAlbum', 'key': 'arbitrary'},
     ]) {
-      final response = await _request(
-        fixture.port,
+      final response = await fixture.post(
         '/v1/presentation/library-action',
-        method: 'POST',
-        token: fixture.token,
-        body: body,
+        body,
       );
       expect(response.statusCode, HttpStatus.badRequest);
     }
     for (final action in DiagnosticsPresentationController.libraryActions) {
-      final response = await _request(
-        fixture.port,
-        '/v1/presentation/library-action',
-        method: 'POST',
-        token: fixture.token,
-        body: {'action': action},
-      );
+      final response = await fixture.post('/v1/presentation/library-action', {
+        'action': action,
+      });
       expect(response.statusCode, HttpStatus.ok);
       expect(response.body['action'], action);
       verify(() => presentation.activateLibraryControl(action: action))
@@ -2273,12 +1982,9 @@ void main() {
       presentationController: presentation,
     );
     addTearDown(primary.close);
-    final forbidden = await _request(
-      primary.port,
+    final forbidden = await primary.post(
       '/v1/presentation/library-action',
-      method: 'POST',
-      token: primary.token,
-      body: const {'action': 'openFirstAlbum'},
+      const {'action': 'openFirstAlbum'},
     );
     expect(forbidden.statusCode, HttpStatus.forbidden);
   });
@@ -2317,13 +2023,7 @@ void main() {
       {'to': -1},
       {'to': 100001},
     ]) {
-      final response = await _request(
-        fixture.port,
-        '/v1/presentation/scroll',
-        method: 'POST',
-        token: fixture.token,
-        body: body,
-      );
+      final response = await fixture.post('/v1/presentation/scroll', body);
       expect(response.statusCode, HttpStatus.badRequest, reason: '$body');
     }
     verifyNever(
@@ -2332,13 +2032,9 @@ void main() {
         to: any(named: 'to'),
       ),
     );
-    final scrolled = await _request(
-      fixture.port,
-      '/v1/presentation/scroll',
-      method: 'POST',
-      token: fixture.token,
-      body: const {'by': -120.5},
-    );
+    final scrolled = await fixture.post('/v1/presentation/scroll', const {
+      'by': -120.5,
+    });
     expect(scrolled.statusCode, HttpStatus.ok);
     expect(scrolled.body, <String, Object?>{
       'pixels': 640,
@@ -2346,13 +2042,9 @@ void main() {
       'viewportDimension': 844,
     });
     verify(() => presentation.scrollPrimary(by: -120.5)).called(1);
-    final jumped = await _request(
-      fixture.port,
-      '/v1/presentation/scroll',
-      method: 'POST',
-      token: fixture.token,
-      body: const {'to': 0},
-    );
+    final jumped = await fixture.post('/v1/presentation/scroll', const {
+      'to': 0,
+    });
     expect(jumped.statusCode, HttpStatus.ok);
     verify(() => presentation.scrollPrimary(to: 0)).called(1);
 
@@ -2362,25 +2054,17 @@ void main() {
         to: any(named: 'to'),
       ),
     ).thenThrow(const DiagnosticsPresentationUnavailable());
-    final unavailable = await _request(
-      fixture.port,
-      '/v1/presentation/scroll',
-      method: 'POST',
-      token: fixture.token,
-      body: const {'by': 10},
-    );
+    final unavailable = await fixture.post('/v1/presentation/scroll', const {
+      'by': 10,
+    });
     expect(unavailable.statusCode, HttpStatus.serviceUnavailable);
     await fixture.close();
 
     final noSurface = await _startFixture(SyncDiagnosticsMode.clone);
     addTearDown(noSurface.close);
-    final missing = await _request(
-      noSurface.port,
-      '/v1/presentation/scroll',
-      method: 'POST',
-      token: noSurface.token,
-      body: const {'by': 10},
-    );
+    final missing = await noSurface.post('/v1/presentation/scroll', const {
+      'by': 10,
+    });
     expect(missing.statusCode, HttpStatus.serviceUnavailable);
     await noSurface.close();
 
@@ -2389,13 +2073,9 @@ void main() {
       presentationController: presentation,
     );
     addTearDown(primary.close);
-    final forbidden = await _request(
-      primary.port,
-      '/v1/presentation/scroll',
-      method: 'POST',
-      token: primary.token,
-      body: const {'by': 10},
-    );
+    final forbidden = await primary.post('/v1/presentation/scroll', const {
+      'by': 10,
+    });
     expect(forbidden.statusCode, HttpStatus.forbidden);
   });
 
@@ -2415,13 +2095,7 @@ void main() {
       );
       addTearDown(fixture.close);
       Future<_Response> post(String path, Map<String, Object?> body) =>
-          _request(
-            fixture.port,
-            path,
-            method: 'POST',
-            token: fixture.token,
-            body: body,
-          );
+          fixture.post(path, body);
       final unauthorized = await _request(
         fixture.port,
         '/v1/presentation/onboarding/step',
@@ -2486,12 +2160,9 @@ void main() {
 
       final noSurface = await _startFixture(SyncDiagnosticsMode.clone);
       addTearDown(noSurface.close);
-      final missing = await _request(
-        noSurface.port,
+      final missing = await noSurface.post(
         '/v1/presentation/onboarding/step',
-        method: 'POST',
-        token: noSurface.token,
-        body: const {'step': 0},
+        const {'step': 0},
       );
       expect(missing.statusCode, HttpStatus.serviceUnavailable);
       await noSurface.close();
@@ -2505,13 +2176,7 @@ void main() {
         ('/v1/presentation/onboarding/step', {'step': 0}),
         ('/v1/presentation/onboarding/focus', {'field': 'none'}),
       ]) {
-        final forbidden = await _request(
-          primary.port,
-          path,
-          method: 'POST',
-          token: primary.token,
-          body: body,
-        );
+        final forbidden = await primary.post(path, body);
         expect(forbidden.statusCode, HttpStatus.forbidden, reason: path);
       }
     },
@@ -2538,13 +2203,8 @@ void main() {
         presentationController: presentation,
       );
       addTearDown(fixture.close);
-      Future<_Response> post(Map<String, Object?> body) => _request(
-        fixture.port,
-        '/v1/presentation/release-card',
-        method: 'POST',
-        token: fixture.token,
-        body: body,
-      );
+      Future<_Response> post(Map<String, Object?> body) =>
+          fixture.post('/v1/presentation/release-card', body);
       final unauthorized = await _request(
         fixture.port,
         '/v1/presentation/release-card',
@@ -2617,24 +2277,18 @@ void main() {
         HttpStatus.conflict,
       );
       // The old path no longer exists.
-      final retired = await _request(
-        fixture.port,
+      final retired = await fixture.post(
         '/v1/presentation/release-sheet',
-        method: 'POST',
-        token: fixture.token,
-        body: const {'surface': 'newReleases'},
+        const {'surface': 'newReleases'},
       );
       expect(retired.statusCode, HttpStatus.notFound);
       await fixture.close();
 
       final noSurface = await _startFixture(SyncDiagnosticsMode.clone);
       addTearDown(noSurface.close);
-      final missing = await _request(
-        noSurface.port,
+      final missing = await noSurface.post(
         '/v1/presentation/release-card',
-        method: 'POST',
-        token: noSurface.token,
-        body: const {'surface': 'newReleases'},
+        const {'surface': 'newReleases'},
       );
       expect(missing.statusCode, HttpStatus.serviceUnavailable);
       await noSurface.close();
@@ -2644,12 +2298,9 @@ void main() {
         presentationController: presentation,
       );
       addTearDown(primary.close);
-      final forbidden = await _request(
-        primary.port,
+      final forbidden = await primary.post(
         '/v1/presentation/release-card',
-        method: 'POST',
-        token: primary.token,
-        body: const {'surface': 'newReleases'},
+        const {'surface': 'newReleases'},
       );
       expect(forbidden.statusCode, HttpStatus.forbidden);
     },
@@ -2665,12 +2316,9 @@ void main() {
     );
     addTearDown(fixture.close);
 
-    final result = await _request(
-      fixture.port,
+    final result = await fixture.post(
       '/v1/presentation/adjustments',
-      method: 'POST',
-      token: fixture.token,
-      body: const <String, Object?>{'settingsSheet': true},
+      const <String, Object?>{'settingsSheet': true},
     );
 
     expect(result.statusCode, HttpStatus.ok);
@@ -2714,7 +2362,6 @@ void main() {
         dynamicAlbumColorEnabled: false,
         updateCheckEnabled: true,
         updateChannel: 'stable',
-        audioMuseEnabled: false,
         syncIntervalMinutes: 60,
         backgroundSyncUnmeteredOnly: false,
         useLrclib: true,
@@ -2744,30 +2391,20 @@ void main() {
         {'toggle': 'gapless'},
         {'toggle': 'scrobble', 'value': true},
       ]) {
-        final response = await _request(
-          fixture.port,
+        final response = await fixture.post(
           '/v1/presentation/playback-settings',
-          method: 'POST',
-          token: fixture.token,
-          body: body,
+          body,
         );
         expect(response.statusCode, HttpStatus.badRequest);
       }
-      final toggled = await _request(
-        fixture.port,
+      final toggled = await fixture.post(
         '/v1/presentation/playback-settings',
-        method: 'POST',
-        token: fixture.token,
-        body: const {'toggle': 'scrobble'},
+        const {'toggle': 'scrobble'},
       );
       expect(toggled.statusCode, HttpStatus.ok);
       verify(() => presentation.togglePlaybackSetting(setting: 'scrobble'))
           .called(1);
-      final observed = await _request(
-        fixture.port,
-        '/v1/presentation/playback-settings',
-        token: fixture.token,
-      );
+      final observed = await fixture.get('/v1/presentation/playback-settings');
       expect(observed.body, {
         'scrobbleEnabled': false,
         'backgroundSyncUnmeteredOnly': false,
@@ -2828,7 +2465,7 @@ void main() {
       final unauthorized = await _request(fixture.port, path);
       expect(unauthorized.statusCode, HttpStatus.unauthorized);
 
-      final first = await _request(fixture.port, path, token: fixture.token);
+      final first = await fixture.get(path);
       expect(first.statusCode, HttpStatus.ok);
       expect(first.body.keys, <String>[
         'streamBuilds',
@@ -2838,18 +2475,14 @@ void main() {
       expect(first.body['state'], isIn(<String>['loading', 'data', 'error']));
       final builds = first.body['streamBuilds'] as int;
 
-      final repeated = await _request(fixture.port, path, token: fixture.token);
+      final repeated = await fixture.get(path);
       expect(repeated.body['streamBuilds'], builds);
 
       await dao.updateGridArtworkSize('large');
       await settingsApplied(
         (settings) => settings.gridArtworkSize == GridArtworkSize.large,
       );
-      final unrelated = await _request(
-        fixture.port,
-        path,
-        token: fixture.token,
-      );
+      final unrelated = await fixture.get(path);
       expect(unrelated.body['streamBuilds'], builds);
 
       await dao.updateListenBrainzScrobblingState(
@@ -2859,11 +2492,7 @@ void main() {
       await settingsApplied(
         (settings) => settings.listenBrainzUserName == 'fixture-listener',
       );
-      final restarted = await _request(
-        fixture.port,
-        path,
-        token: fixture.token,
-      );
+      final restarted = await fixture.get(path);
       expect(restarted.body['streamBuilds'], builds + 1);
 
       await fixture.close();
@@ -2871,11 +2500,7 @@ void main() {
         SyncDiagnosticsMode.primaryCertification,
       );
       addTearDown(primary.close);
-      final forbidden = await _request(
-        primary.port,
-        path,
-        token: primary.token,
-      );
+      final forbidden = await primary.get(path);
       expect(forbidden.statusCode, HttpStatus.forbidden);
     },
   );
@@ -2902,11 +2527,7 @@ void main() {
         ..createSync(recursive: true)
         ..writeAsBytesSync(<int>[1, 2, 3]);
 
-      final before = await _request(
-        fixture.port,
-        '/v1/downloads/folder/status',
-        token: fixture.token,
-      );
+      final before = await fixture.get('/v1/downloads/folder/status');
       expect(before.body, <String, Object?>{
         'enabled': false,
         'configured': false,
@@ -2914,31 +2535,21 @@ void main() {
         'manualMatchingPending': 0,
       });
 
-      final outside = await _request(
-        fixture.port,
+      final outside = await fixture.post(
         '/v1/downloads/folder/adopt',
-        method: 'POST',
-        token: fixture.token,
-        body: <String, Object?>{'path': Directory.systemTemp.path},
+        <String, Object?>{'path': Directory.systemTemp.path},
       );
       expect(outside.statusCode, HttpStatus.badRequest);
 
-      final adopted = await _request(
-        fixture.port,
+      final adopted = await fixture.post(
         '/v1/downloads/folder/adopt',
-        method: 'POST',
-        token: fixture.token,
-        body: <String, Object?>{'path': folder.path},
+        <String, Object?>{'path': folder.path},
       );
       expect(adopted.statusCode, HttpStatus.ok);
       expect(adopted.body['items'], 1);
       expect(adopted.body['manualMatchingPending'], 1);
 
-      final after = await _request(
-        fixture.port,
-        '/v1/downloads/folder/status',
-        token: fixture.token,
-      );
+      final after = await fixture.get('/v1/downloads/folder/status');
       expect(after.body, <String, Object?>{
         'enabled': true,
         'configured': true,
@@ -2961,22 +2572,16 @@ void main() {
     );
     addTearDown(fixture.close);
     for (final target in <Object>['unknown', 42, <String>[]]) {
-      final invalid = await _request(
-        fixture.port,
+      final invalid = await fixture.post(
         '/v1/presentation/tooltip',
-        method: 'POST',
-        token: fixture.token,
-        body: <String, Object?>{'target': target},
+        <String, Object?>{'target': target},
       );
       expect(invalid.statusCode, HttpStatus.badRequest);
     }
     for (final target in <String?>['lyrics', null]) {
-      final result = await _request(
-        fixture.port,
+      final result = await fixture.post(
         '/v1/presentation/tooltip',
-        method: 'POST',
-        token: fixture.token,
-        body: <String, Object?>{'target': target},
+        <String, Object?>{'target': target},
       );
       expect(result.statusCode, HttpStatus.ok);
       expect(result.body['visible'], target != null);
@@ -3006,12 +2611,9 @@ void main() {
     );
     addTearDown(primary.close);
 
-    final screenshot = await _request(
-      primary.port,
+    final screenshot = await primary.post(
       '/v1/presentation/screenshot',
-      method: 'POST',
-      token: primary.token,
-      body: const <String, Object?>{'label': 'settings'},
+      const <String, Object?>{'label': 'settings'},
     );
 
     expect(screenshot.statusCode, HttpStatus.created);
@@ -3025,41 +2627,28 @@ void main() {
       final fixture = await _startFixture(SyncDiagnosticsMode.clone);
       addTearDown(fixture.close);
 
-      final initial = await _request(
-        fixture.port,
-        '/v1/presentation/window',
-        token: fixture.token,
-      );
+      final initial = await fixture.get('/v1/presentation/window');
       expect(initial.statusCode, HttpStatus.ok);
       expect(initial.body['mode'], 'desktop');
 
-      final mini = await _request(
-        fixture.port,
+      final mini = await fixture.post(
         '/v1/presentation/window',
-        method: 'POST',
-        token: fixture.token,
-        body: const <String, Object?>{'mode': 'miniPlayer'},
+        const <String, Object?>{'mode': 'miniPlayer'},
       );
       expect(mini.statusCode, HttpStatus.ok);
       expect(mini.body['mode'], 'miniPlayer');
 
-      final pinned = await _request(
-        fixture.port,
+      final pinned = await fixture.post(
         '/v1/presentation/window',
-        method: 'POST',
-        token: fixture.token,
-        body: const <String, Object?>{'miniAlwaysOnTop': true},
+        const <String, Object?>{'miniAlwaysOnTop': true},
       );
       expect(pinned.statusCode, HttpStatus.ok);
       expect(pinned.body['miniAlwaysOnTopSupported'], isTrue);
       expect(pinned.body['miniAlwaysOnTop'], isTrue);
 
-      final invalid = await _request(
-        fixture.port,
+      final invalid = await fixture.post(
         '/v1/presentation/window',
-        method: 'POST',
-        token: fixture.token,
-        body: const <String, Object?>{'width': 559, 'height': 360},
+        const <String, Object?>{'width': 559, 'height': 360},
       );
       expect(invalid.statusCode, HttpStatus.badRequest);
     },
@@ -3091,21 +2680,15 @@ void main() {
       );
       expect(unauthorized.statusCode, HttpStatus.unauthorized);
 
-      final invalid = await _request(
-        fixture.port,
-        '/v1/presentation/song-indicator',
-        token: fixture.token,
-      );
+      final invalid = await fixture.get('/v1/presentation/song-indicator');
       expect(invalid.statusCode, HttpStatus.badRequest);
 
       expect(
         fixture.container.read(songPlaybackIndicatorStateProvider('song-1')),
         SongPlaybackIndicatorState.current,
       );
-      final current = await _request(
-        fixture.port,
+      final current = await fixture.get(
         '/v1/presentation/song-indicator?songId=song-1',
-        token: fixture.token,
       );
       expect(current.statusCode, HttpStatus.ok);
       expect(current.body, <String, Object?>{
@@ -3117,10 +2700,8 @@ void main() {
         'foregroundColorRole': 'primary',
       });
 
-      final inactive = await _request(
-        fixture.port,
+      final inactive = await fixture.get(
         '/v1/presentation/song-indicator?songId=song-2',
-        token: fixture.token,
       );
       expect(inactive.body['state'], 'inactive');
       expect(inactive.body['selected'], isFalse);
@@ -3150,10 +2731,8 @@ void main() {
       );
       addTearDown(fixture.close);
 
-      final response = await _request(
-        fixture.port,
+      final response = await fixture.get(
         '/v1/presentation/song-indicator?songId=song-2',
-        token: fixture.token,
       );
       expect(response.statusCode, HttpStatus.ok);
       expect(response.body['state'], 'loading');
@@ -3188,44 +2767,28 @@ void main() {
           .read(playbackVolumeProvider.notifier)
           .hydrate(volume: 1, lastAudibleVolume: 1);
 
-      final invalid = await _request(
-        fixture.port,
+      final invalid = await fixture.post(
         '/v1/playback/volume',
-        method: 'POST',
-        token: fixture.token,
-        body: <String, Object?>{'value': 2},
+        <String, Object?>{'value': 2},
       );
       expect(invalid.statusCode, HttpStatus.badRequest);
 
-      final set = await _request(
-        fixture.port,
-        '/v1/playback/volume',
-        method: 'POST',
-        token: fixture.token,
-        body: <String, Object?>{'value': 0.37},
-      );
+      final set = await fixture.post('/v1/playback/volume', <String, Object?>{
+        'value': 0.37,
+      });
       expect(set.statusCode, HttpStatus.ok);
       expect(set.body['volume'], 0.37);
       expect(set.body['persistedVolume'], 0.37);
       expect(set.body['handlerUserVolume'], 0.37);
 
-      final muted = await _request(
-        fixture.port,
-        '/v1/playback/volume/toggle-mute',
-        method: 'POST',
-        token: fixture.token,
-      );
+      final muted = await fixture.post('/v1/playback/volume/toggle-mute');
       expect(muted.statusCode, HttpStatus.ok);
       expect(muted.body['volume'], 0);
       expect(muted.body['lastAudibleVolume'], 0.37);
       expect(muted.body['persistedLastAudibleVolume'], 0.37);
       expect(muted.body['effectivePlayerVolume'], 0);
 
-      final observed = await _request(
-        fixture.port,
-        '/v1/playback/volume',
-        token: fixture.token,
-      );
+      final observed = await fixture.get('/v1/playback/volume');
       expect(observed.statusCode, HttpStatus.ok);
       expect(observed.body['persistedVolume'], 0);
     },
@@ -3249,20 +2812,13 @@ void main() {
         .read(playbackVolumeProvider.notifier)
         .hydrate(volume: 1, lastAudibleVolume: 1);
 
-    final observed = await _request(
-      fixture.port,
-      '/v1/playback/volume',
-      token: fixture.token,
-    );
+    final observed = await fixture.get('/v1/playback/volume');
     expect(observed.statusCode, HttpStatus.ok);
     expect(observed.body['desktopPersistenceEnabled'], isTrue);
 
-    final response = await _request(
-      fixture.port,
+    final response = await fixture.post(
       '/v1/playback/volume',
-      method: 'POST',
-      token: fixture.token,
-      body: <String, Object?>{'value': 0.37},
+      <String, Object?>{'value': 0.37},
     );
     expect(response.statusCode, HttpStatus.forbidden);
   });
@@ -3287,12 +2843,9 @@ void main() {
       );
       expect(unauthorized.statusCode, HttpStatus.unauthorized);
 
-      final response = await _request(
-        fixture.port,
+      final response = await fixture.post(
         '/v1/search/source-audit',
-        method: 'POST',
-        token: fixture.token,
-        body: const <String, Object?>{'query': 'mixed'},
+        const <String, Object?>{'query': 'mixed'},
       );
       expect(response.statusCode, HttpStatus.ok);
       expect(response.body['songCount'], 20);
@@ -3351,12 +2904,9 @@ void main() {
       ArtistsTableCompanion.insert(id: 'server-prefix', name: 'Aurora Local'),
     ]);
 
-    final response = await _request(
-      fixture.port,
+    final response = await fixture.post(
       '/v1/presentation/search',
-      method: 'POST',
-      token: fixture.token,
-      body: const <String, Object?>{'query': 'Aurora'},
+      const <String, Object?>{'query': 'Aurora'},
     );
 
     expect(response.statusCode, HttpStatus.ok);
@@ -3416,24 +2966,15 @@ void main() {
       );
       addTearDown(fixture.close);
 
-      final search = await _request(
-        fixture.port,
+      final search = await fixture.post(
         '/v1/presentation/search',
-        method: 'POST',
-        token: fixture.token,
-        body: const <String, Object?>{
-          'query': 'Remote Song',
-          'filter': 'songs',
-        },
+        const <String, Object?>{'query': 'Remote Song', 'filter': 'songs'},
       );
       expect(search.statusCode, HttpStatus.ok);
 
-      final play = await _request(
-        fixture.port,
+      final play = await fixture.post(
         '/v1/presentation/search/play',
-        method: 'POST',
-        token: fixture.token,
-        body: const <String, Object?>{'songId': 'provider-song-1'},
+        const <String, Object?>{'songId': 'provider-song-1'},
       );
       expect(play.statusCode, HttpStatus.accepted);
       expect(play.body['source'], 'remote');
@@ -3501,6 +3042,14 @@ Future<_DiagnosticsFixture> _startFixture(
   final container = ProviderContainer(
     overrides: [
       navisDatabaseProvider.overrideWith((ref) => database),
+      packageInfoProvider.overrideWith(
+        (ref) async => PackageInfo(
+          appName: 'Navis',
+          packageName: 'navis',
+          version: '1.4.3',
+          buildNumber: '10403',
+        ),
+      ),
       if (serverConfig != null)
         serverConfigStateProvider.overrideWithValue(AsyncData(serverConfig)),
       libraryCacheResetServiceProvider.overrideWith(
@@ -3577,112 +3126,37 @@ class _MockPresentationController extends Mock
 class _MockDiagnosticsNavigationDriver extends Mock
     implements DiagnosticsNavigationDriver;
 
-class _TargetProgressSyncEngine extends LibrarySyncEngine {
-  final Completer<LibrarySyncState> _completion = Completer<LibrarySyncState>();
-  int requestCount = 0;
+class _DiagnosticsRebuildController extends RequiredLibraryRebuildController {
+  new() : super(RequiredLibraryRebuildReason.initialLogin);
+
+  final List<String> actions = [];
 
   @override
-  Future<LibrarySyncState> requestSync(
-    LibrarySyncRequest request, {
-    Iterable<String> priorityAlbumIds = const <String>[],
-    LibrarySyncProgressCallback? onProgress,
-  }) {
-    requestCount++;
-    onProgress?.call(
-      const LibrarySyncState(
-        status: LibrarySyncStatus.running,
-        stage: LibrarySyncStage.fetchingSongs,
-      ),
-    );
-    return _completion.future;
-  }
+  RequiredLibraryRebuildState build() => const RequiredLibraryRebuildState();
 
-  void complete() {
-    _completion.complete(
-      const LibrarySyncState(
-        status: LibrarySyncStatus.succeeded,
-        stage: LibrarySyncStage.completed,
-      ),
+  @override
+  Future<void> retry() async {
+    actions.add('retry');
+    state = const RequiredLibraryRebuildState(
+      status: RequiredLibraryRebuildStatus.syncing,
     );
   }
 
   @override
-  Future<LibrarySyncState> continueVerification({
-    Iterable<String> priorityAlbumIds = const <String>[],
-    LibrarySyncProgressCallback? onProgress,
-  }) => _completion.future;
-
-  @override
-  Future<LibrarySyncState> forceFullSync({
-    Iterable<String> priorityAlbumIds = const <String>[],
-    LibrarySyncProgressCallback? onProgress,
-  }) => _completion.future;
-
-  @override
-  Future<LibrarySyncState> probeCatalog({
-    LibrarySyncProgressCallback? onProgress,
-  }) => _completion.future;
-
-  @override
-  Future<LibrarySyncState> syncIfStale({
-    Iterable<String> priorityAlbumIds = const <String>[],
-    LibrarySyncProgressCallback? onProgress,
-  }) => _completion.future;
-
-  @override
-  Future<LibrarySyncState> syncNow({
-    Iterable<String> priorityAlbumIds = const <String>[],
-    LibrarySyncProgressCallback? onProgress,
-  }) => _completion.future;
-}
-
-class _SuccessfulFullSyncEngine extends LibrarySyncEngine {
-  int forceFullCalls = 0;
-
-  static const LibrarySyncState _succeeded = LibrarySyncState(
-    status: LibrarySyncStatus.succeeded,
-    stage: LibrarySyncStage.completed,
-  );
-
-  @override
-  Future<LibrarySyncState> forceFullSync({
-    Iterable<String> priorityAlbumIds = const <String>[],
-    LibrarySyncProgressCallback? onProgress,
-    bool allowMeteredBroadOverride = false,
-  }) async {
-    forceFullCalls += 1;
-    onProgress?.call(
-      const LibrarySyncState(
-        status: LibrarySyncStatus.running,
-        stage: LibrarySyncStage.fetchingArtists,
-      ),
+  Future<void> startUsingMobileData() async {
+    actions.add('mobile');
+    state = const RequiredLibraryRebuildState(
+      status: RequiredLibraryRebuildStatus.complete,
     );
-    return _succeeded;
   }
 
   @override
-  Future<LibrarySyncState> continueVerification({
-    Iterable<String> priorityAlbumIds = const <String>[],
-    LibrarySyncProgressCallback? onProgress,
-  }) async => _succeeded;
-
-  @override
-  Future<LibrarySyncState> probeCatalog({
-    LibrarySyncProgressCallback? onProgress,
-  }) async => _succeeded;
-
-  @override
-  Future<LibrarySyncState> syncIfStale({
-    Iterable<String> priorityAlbumIds = const <String>[],
-    LibrarySyncProgressCallback? onProgress,
-  }) async => _succeeded;
-
-  @override
-  Future<LibrarySyncState> syncNow({
-    Iterable<String> priorityAlbumIds = const <String>[],
-    LibrarySyncProgressCallback? onProgress,
-    bool allowMeteredBroadOverride = false,
-  }) async => _succeeded;
+  Future<void> cancelAndSignOut() async {
+    actions.add('cancelAndSignOut');
+    state = const RequiredLibraryRebuildState(
+      status: RequiredLibraryRebuildStatus.cancelling,
+    );
+  }
 }
 
 class _SourceAuditApiClient extends SubsonicApiClient {
@@ -3805,6 +3279,11 @@ class _DiagnosticsFixture {
   final String token;
   bool _closed = false;
 
+  Future<_Response> get(String path) => _request(port, path, token: token);
+
+  Future<_Response> post(String path, [Map<String, Object?>? body]) =>
+      _request(port, path, method: 'POST', token: token, body: body);
+
   Future<void> close() async {
     if (_closed) return;
     _closed = true;
@@ -3820,4 +3299,34 @@ class _Response {
 
   final int statusCode;
   final Map<String, dynamic> body;
+}
+
+class _RepairRouteController extends LibrarySyncController {
+  final List<bool> repairGrants = [];
+  int forceFullCalls = 0;
+
+  @override
+  LibrarySyncState build() => const LibrarySyncState.idle();
+
+  @override
+  Future<LibrarySyncState> repairLibrary({
+    bool allowMeteredBroadOverride = false,
+  }) async {
+    repairGrants.add(allowMeteredBroadOverride);
+    return const LibrarySyncState(
+      status: LibrarySyncStatus.succeeded,
+      stage: LibrarySyncStage.completed,
+    );
+  }
+
+  @override
+  Future<LibrarySyncState> forceFullSync({
+    bool allowMeteredBroadOverride = false,
+  }) async {
+    forceFullCalls++;
+    return const LibrarySyncState(
+      status: LibrarySyncStatus.succeeded,
+      stage: LibrarySyncStage.completed,
+    );
+  }
 }

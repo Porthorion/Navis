@@ -55,10 +55,19 @@ Checks performed (in order, fail-fast):
    vendored CargoKit, which is checked from its own directory)
 5. `dart run build_runner build`
 6. `flutter analyze --no-fatal-infos`
-7. Drift migration tests
-8. Critical routing/provider/playback/library sync test suite
-9. Full `flutter test`
-10. Coverage when `CI=true`
+7. `dart run tool/dead_code_check.dart` (public declarations, l10n, assets,
+   font families and dependencies; new or stale findings and empty baseline
+   reasons fail, including test-only declarations unless annotated
+   `@visibleForTesting` or baselined with a reason; release/dev tool callers
+   count as real use). See
+   [baseline maintenance](development-workflow.md#quality-gate).
+8. Drift migration tests
+9. Critical routing/provider/playback/library sync test suite
+10. Full `flutter test`
+11. Coverage when `CI=true`
+
+The dead-code CLI self-tests invoke its shared library entry point against
+temporary fixtures in-process, avoiding a Dart subprocess compilation per check.
 
 Native EQ fixtures use an available JDK, or Android Studio's bundled JDK.
 `ANDROID_STUDIO_JDK` may select an alternate JDK directory. They validate
@@ -183,9 +192,9 @@ one must have scheduled a new one. The clone uses the desktop secure-storage
 password; when that store is locked or unavailable, set
 `NAVIS_DIAGNOSTICS_CREDENTIAL_PATH` to a private password file. The gate stops
 with an explicit error if the clone loses its server session.
-It also exports and validates the bounded redacted sync ledger, ensuring target
-hydration is attributable without sensitive server or library fields and reaches
-a recorded terminal transition rather than merely being accepted.
+It also exports and validates the bounded redacted `durableRuns` history, ensuring
+target hydration is attributable without sensitive server or library fields and
+reaches a recorded terminal outcome rather than merely being accepted.
 
 Unchanged-cursor manual album discovery has its own isolated Linux gate:
 
@@ -200,7 +209,8 @@ while the running app is offline. The gate verifies deferred delta discovery in
 the redacted ledger, restores Wi-Fi, and invokes the production automatic entry
 point to prove the queued user work runs before its otherwise-future automatic
 deadline. It observes only a narrow authenticated album-existence contract,
-checks the resumed terminal ledger for `getIndexes`, newest-list, artist-detail,
+checks the resumed durable run and its correlated attempt telemetry for
+`getIndexes`, newest-list, artist-detail,
 and album-detail calls, then opens the discovered album after a clean restart.
 It rejects blank compositor screenshots and never sends data to a real server.
 With `NAVIS_MANUAL_DISCOVERY_OMIT_EXISTING=1` and

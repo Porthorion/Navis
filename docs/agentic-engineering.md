@@ -110,6 +110,10 @@ modify unrelated dirty work. Report actual validation and any uncertainty.
   genre page, route, Library section, Home shelf, search filter, Android Auto
   node, sync/scan input, catalog-change signal, recommendation input or
   diagnostics field without an explicit product decision.
+- Production code used only by tests must be deleted or marked
+  `@visibleForTesting` as a deliberate test seam. The dead-code gate excludes
+  annotated declarations and accepts other exceptions only with factual
+  baseline reasons; release/dev tooling callers count as real use.
 - Runtime control comes from the authenticated Navis diagnostics API. Do not
   use AT-SPI, OCR, xdotool, window scraping, or desktop accessibility traversal
   as a substitute; see `development-workflow.md` for the narrow exception.

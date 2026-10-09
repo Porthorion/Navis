@@ -241,10 +241,10 @@ status = json.load(open(sys.argv[1]))
 assert status["status"] == "deferred", status
 assert status["planKind"] == "deltaReconcile", status
 assert status["planReason"] == "manualCatalogDiscoveryOffline", status
-events = json.load(open(sys.argv[2]))["events"]
-terminal = next(event for event in reversed(events) if event.get("cause") == "manualCheck" and event.get("phase") == "terminal")
-assert terminal["planKind"] == "deltaReconcile", terminal
-assert terminal["planReason"] == "manualCatalogDiscoveryOffline", terminal
+runs = json.load(open(sys.argv[2]))["durableRuns"]
+terminal = max((run for run in runs if run["intent"] == "manualCatalogCheck" and run["targetKind"] == "catalog"), key=lambda run: run["requestId"])
+assert terminal["planKind"] == "manualCatalogDiscovery", terminal
+assert terminal["outcome"] == "deferred" and terminal["reason"] == "offline", terminal
 assert json.load(open(sys.argv[3])) == {"id": "fixture-new-album", "exists": False}
 PY
 if [[ "${NAVIS_MANUAL_DISCOVERY_FORCE_MANUAL_RESUME:-0}" == "1" ]]; then
@@ -270,17 +270,16 @@ api POST /v1/diagnostics/overrides \
   > "$OUTPUT_ROOT/online-overrides.json"
 resume_path='/v1/sync/automatic'
 resume_body=''
-resume_cause='automatic'
 if [[ "${NAVIS_MANUAL_DISCOVERY_FORCE_MANUAL_RESUME:-0}" == "1" ]]; then
   resume_path='/v1/sync/check'
   resume_body='{}'
-  resume_cause='manualCheck'
 fi
 api POST "$resume_path" "$resume_body" > "$OUTPUT_ROOT/reconnect-resume-start.json"
 wait_for_idle "$OUTPUT_ROOT/status-after.json"
 api GET '/v1/library/album?id=fixture-new-album&verifySongs=true' > "$OUTPUT_ROOT/album-after.json"
 api GET '/v1/library/album?id=fixture-existing-album&verifySongs=true' > "$OUTPUT_ROOT/existing-album-after.json"
 api GET /v1/sync/ledger > "$OUTPUT_ROOT/sync-ledger.json"
+api GET /v1/sync/attempts > "$OUTPUT_ROOT/sync-attempts.json"
 if [[ "${NAVIS_ANNOTATION_FIXTURE:-false}" == "true" ]]; then
   delivery_verified=0
   for _ in $(seq 1 45); do
@@ -309,20 +308,25 @@ with sqlite3.connect(f"file:{sys.argv[1]}?mode=ro", uri=True) as db:
 VERIFY_EMPTY
 fi
 
-python3 - "$resume_cause" "${NAVIS_MANUAL_DISCOVERY_FORCE_MANUAL_RESUME:-0}" "$OUTPUT_ROOT/status-after.json" "$OUTPUT_ROOT/album-after.json" "$OUTPUT_ROOT/existing-album-after.json" "$OUTPUT_ROOT/sync-ledger.json" <<'PY'
+python3 - "${NAVIS_MANUAL_DISCOVERY_FORCE_MANUAL_RESUME:-0}" "$OUTPUT_ROOT/status-after.json" "$OUTPUT_ROOT/album-after.json" "$OUTPUT_ROOT/existing-album-after.json" "$OUTPUT_ROOT/sync-ledger.json" "$OUTPUT_ROOT/sync-attempts.json" "$OUTPUT_ROOT/offline-sync-ledger.json" <<'PY'
 import json, sys
-resume_cause = sys.argv[1]
-queued_target = sys.argv[2] == "1"
-status = json.load(open(sys.argv[3]))
-album = json.load(open(sys.argv[4]))
+queued_target = sys.argv[1] == "1"
+status = json.load(open(sys.argv[2]))
+album = json.load(open(sys.argv[3]))
 assert album == {"id": "fixture-new-album", "exists": True, "songsHydrated": True, "songCount": 1, "persistedSongCount": 1}, album
-existing = json.load(open(sys.argv[5]))
+existing = json.load(open(sys.argv[4]))
 assert existing.get("exists") and existing.get("songsHydrated") and existing.get("persistedSongCount") == 1, existing
-events = json.load(open(sys.argv[6]))["events"]
-terminal = next(event for event in reversed(events) if event.get("cause") == resume_cause and event.get("phase") == "terminal")
-assert terminal["planKind"] == "deltaReconcile" and terminal["planReason"] == "resumeDeltaReconcile", terminal
+assert status["planKind"] == "deltaReconcile" and status["planReason"] == "resumeDeltaReconcile", status
+cursor = max(run["requestId"] for run in json.load(open(sys.argv[7]))["durableRuns"])
+runs = json.load(open(sys.argv[5]))["durableRuns"]
+# Resuming queued manual discovery preserves manual intent, even when the
+# automatic controller entry point dispatches it.
+terminal = max((run for run in runs if run["requestId"] > cursor and run["intent"] == "manualCatalogCheck" and run["targetKind"] == "catalog"), key=lambda run: run["requestId"])
+assert terminal["planKind"] == "manualCatalogDiscovery", terminal
+attempt = next(attempt for attempt in json.load(open(sys.argv[6]))["attempts"] if attempt["attemptId"] == terminal["attemptId"] and attempt["requestId"] == terminal["requestId"])
+assert attempt["status"] == "terminal" and attempt["telemetry"]["captureComplete"] is True, attempt
 for endpoint in ("getIndexes", "getNewestAlbumList2", "getArtist", "getAlbum"):
-    assert terminal["endpointRequests"].get(endpoint, 0) >= 1, terminal
+    assert attempt["telemetry"]["logicalEndpointRequests"].get(endpoint, 0) >= 1, attempt
 if queued_target:
     assert status["pendingWork"] == 1, status
 PY
@@ -336,9 +340,9 @@ if [[ "${NAVIS_MANUAL_DISCOVERY_FORCE_MANUAL_RESUME:-0}" == "1" ]]; then
 import json, sys
 status = json.load(open(sys.argv[1]))
 assert status["pendingWork"] == 0, status
-events = json.load(open(sys.argv[2]))["events"]
-terminal = next(event for event in reversed(events) if event.get("cause") == "targetHydration" and event.get("phase") == "terminal")
-assert terminal["targetKind"] == "album" and terminal["result"] in ("succeeded", "partial"), terminal
+runs = json.load(open(sys.argv[2]))["durableRuns"]
+terminal = max((run for run in runs if run["intent"] == "targetHydration" and run["targetKind"] == "album"), key=lambda run: run["requestId"])
+assert terminal["outcome"] in ("completed", "noChanges", "partial"), terminal
 PY
 fi
 api POST /v1/presentation/navigate '{"location":"/library/albums/fixture-new-album"}' > "$OUTPUT_ROOT/navigation.json"

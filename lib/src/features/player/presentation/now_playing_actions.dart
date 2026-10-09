@@ -11,7 +11,6 @@ class _ActionRow extends ConsumerStatefulWidget {
     this.onOpenQueuePanel,
     this.onOpenSettingsPanel,
     this.onOpenSettingsSheet,
-    this.onOpenMixPanel,
   });
 
   final SongsTableData? song;
@@ -23,7 +22,6 @@ class _ActionRow extends ConsumerStatefulWidget {
   final VoidCallback? onOpenQueuePanel;
   final VoidCallback? onOpenSettingsPanel;
   final VoidCallback? onOpenSettingsSheet;
-  final VoidCallback? onOpenMixPanel;
 
   @override
   ConsumerState<_ActionRow> createState() => _ActionRowState();
@@ -173,18 +171,15 @@ class _NowPlayingMixButton extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final l10n = AppLocalizations.of(context)!;
     final colorScheme = Theme.of(context).colorScheme;
-    final instantMix = ref.watch(instantMixProvider);
-    final sameVibes = ref.watch(sameVibesProvider);
-    final preferredMixMode = ref.watch(preferredMixModeProvider);
-    final legacyMode = preferredMixMode == PreferredMixMode.legacyInstantMix;
-    final mixActive = legacyMode ? instantMix.active : sameVibes.active;
-    final mixLoading = legacyMode
-        ? (instantMix.refilling && instantMix.active)
-        : (sameVibes.refilling && sameVibes.active);
+    final mix = ref.watch(preferredMixViewProvider);
+    final legacyMode = mix.legacyMode;
+    final mixActive = mix.active;
+    final mixLoading = mix.loading;
     final seedSongId = songId;
-    final isRemote =
-        seedSongId != null && !isServerAddressableSongId(seedSongId);
-    final legacyMixUnavailable = isRemote && legacyMode;
+    final legacyMixUnavailable =
+        seedSongId != null &&
+        legacyMode &&
+        !serverMixSeedAvailable(ref, seedSongId);
     final label = legacyMode
         ? l10n.nowPlayingInstantMixLabel
         : l10n.nowPlayingSameVibesLabel;

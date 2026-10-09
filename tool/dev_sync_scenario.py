@@ -21,7 +21,6 @@ SCENARIOS = {
     "first-setup": None,
     "bad-cache": None,
     "force-setup": None,
-    "repair-library": "/library-rebuild?reason=repair-library",
     "manual-cache-reset": "/library-rebuild?reason=manual-cache-reset",
     "playback-recovery": "/library-rebuild?reason=playback-recovery",
     "partial-album": None,
@@ -31,7 +30,6 @@ SCENARIOS = {
 FIRST_CATALOG_SCENARIOS = {"first-setup", "partial-album", "server-error"}
 REQUIRES_READY_CATALOG = {
     "force-setup",
-    "repair-library",
     "manual-cache-reset",
     "playback-recovery",
     "bad-cache",
@@ -42,8 +40,6 @@ RESET_TABLES = (
     "library_sync_run_request",
     "library_sync_operation_ledger",
     "library_sync_execution_lease",
-    "library_sync_repair_session",
-    "library_sync_provider_profile",
     "library_sync_work",
     "library_sync_local_mutations",
     "library_sync_candidate_songs",

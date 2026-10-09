@@ -138,7 +138,7 @@ void main() {
       evidenceGeneration: 13,
     );
 
-    var pending = await database.librarySyncDao.getPendingRecoveryReview(1);
+    var pending = await pendingRecoveryReviews(database, 1);
     expect(pending, hasLength(1));
     expect(pending.single.evidenceGeneration, 13);
 
@@ -154,7 +154,7 @@ void main() {
       reason: 'missingFromCatalog',
       evidenceGeneration: 14,
     );
-    pending = await database.librarySyncDao.getPendingRecoveryReview(1);
+    pending = await pendingRecoveryReviews(database, 1);
     expect(pending, isEmpty);
   }, skip: !sqliteAvailable);
 
@@ -175,8 +175,7 @@ void main() {
       reason: 'missingFromCatalog',
       evidenceGeneration: 11,
     );
-    final reviewed = (await database.librarySyncDao.getPendingRecoveryReview(1))
-        .single;
+    final reviewed = (await pendingRecoveryReviews(database, 1)).single;
     await database.librarySyncDao.setRecoveryReviewDisposition(
       id: reviewed.id,
       disposition: 'keptForLater',

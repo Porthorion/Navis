@@ -50,10 +50,19 @@ const _kMinimumMappingScore = 0.62;
 
 /// Auto-refill notifier for Last.fm-backed Same Vibes mode.
 class SameVibesNotifier extends Notifier<SameVibesState> {
+  /// [now] lets tests step the refill backoff without waiting.
+  new({DateTime Function()? now}) : _now = now ?? DateTime.now;
+
+  final DateTime Function() _now;
+
   final math.Random _random = math.Random();
   Timer? _retryTimer;
   DateTime? _nextRefillAllowedAt;
   int _consecutiveTransientFailures = 0;
+
+  /// Set after five consecutive failed refills: the mix stops refilling until
+  /// the user starts it again.
+  bool _retryExhausted = false;
   int? _mixSegmentEndIndex;
   bool _activationInProgress = false;
   bool _suppressActivationSeedSnapshot = false;
@@ -89,6 +98,8 @@ class SameVibesNotifier extends Notifier<SameVibesState> {
       return;
     }
     _mixSegmentEndIndex = null;
+    _retryExhausted = false;
+    _consecutiveTransientFailures = 0;
     final session = ref
         .read(recommendationSessionProvider.notifier)
         .start(RecommendationMode.sameVibes, seedId: normalizedSeedSongId);
@@ -124,6 +135,7 @@ class SameVibesNotifier extends Notifier<SameVibesState> {
     _retryTimer = null;
     _nextRefillAllowedAt = null;
     _consecutiveTransientFailures = 0;
+    _retryExhausted = false;
     _mixSegmentEndIndex = null;
     _activationInProgress = false;
     _suppressActivationSeedSnapshot = false;
@@ -153,6 +165,7 @@ class SameVibesNotifier extends Notifier<SameVibesState> {
   void _onSnapshotChanged(PlaybackSnapshot? prev, PlaybackSnapshot next) {
     if (!state.active) return;
     if (_activationInProgress) return;
+    if (_retryExhausted) return;
     if (_consumeActivationSeedSnapshot(next)) return;
     if (next.isRadioMode) return;
     if (state.refilling || state.error != null) {
@@ -196,7 +209,8 @@ class SameVibesNotifier extends Notifier<SameVibesState> {
 
   Future<void> _refill({bool isInitial = false}) async {
     if (state.refilling) return;
-    final now = DateTime.now();
+    if (!isInitial && _retryExhausted) return;
+    final now = _now();
     final nextAllowed = _nextRefillAllowedAt;
     if (!isInitial && nextAllowed != null && now.isBefore(nextAllowed)) {
       AppLogger.debug(
@@ -379,7 +393,6 @@ class SameVibesNotifier extends Notifier<SameVibesState> {
 
       if (shouldAttemptFallback) {
         final fallbackSeedSongId = _resolveFallbackSeedSongId(
-          snapshot: snapshot,
           preferredSeedSongId: normalizedSeedSongId,
           libraryCopyId: seed?.libraryCopyId,
         );
@@ -413,7 +426,6 @@ class SameVibesNotifier extends Notifier<SameVibesState> {
 
       if (shouldAttemptFallback && fallbackSeedEligible) {
         final fallbackSeedSongId = _resolveFallbackSeedSongId(
-          snapshot: snapshot,
           preferredSeedSongId: normalizedSeedSongId,
           libraryCopyId: seed?.libraryCopyId,
         );
@@ -572,7 +584,7 @@ class SameVibesNotifier extends Notifier<SameVibesState> {
         if (isInitial) {
           _retryTimer?.cancel();
           _retryTimer = null;
-          _nextRefillAllowedAt = DateTime.now().add(_kRetryBackoffBase);
+          _nextRefillAllowedAt = _now().add(_kRetryBackoffBase);
           state = const SameVibesState(error: SameVibesError.networkError);
           _reportFailed(session, SameVibesError.networkError);
           return;
@@ -581,7 +593,7 @@ class SameVibesNotifier extends Notifier<SameVibesState> {
       } else {
         AppLogger.debug('SameVibes diagnostics: queuedTracks=$totalQueued');
         _consecutiveTransientFailures = 0;
-        _nextRefillAllowedAt = DateTime.now().add(_kMinimumRefillInterval);
+        _nextRefillAllowedAt = _now().add(_kMinimumRefillInterval);
       }
 
       state = state.copyWith(
@@ -592,7 +604,9 @@ class SameVibesNotifier extends Notifier<SameVibesState> {
           .read(recommendationSessionProvider.notifier)
           .report(
             session,
-            stage: totalQueued > 0 ? 'active' : 'failed',
+            // An empty refill keeps the stage its retry reported (pending or
+            // exhausted); only a refill that queued songs is 'active'.
+            stage: totalQueued > 0 ? 'active' : null,
             source: mappedSongs.isNotEmpty ? 'lastFm' : 'server',
             candidateCount: songsToQueue.length,
             insertedCount: totalQueued,
@@ -606,7 +620,7 @@ class SameVibesNotifier extends Notifier<SameVibesState> {
       if (isInitial) {
         _retryTimer?.cancel();
         _retryTimer = null;
-        _nextRefillAllowedAt = DateTime.now().add(_kRetryBackoffBase);
+        _nextRefillAllowedAt = _now().add(_kRetryBackoffBase);
         state = const SameVibesState(error: SameVibesError.networkError);
         _reportFailed(session, SameVibesError.networkError);
         return;
@@ -625,7 +639,7 @@ class SameVibesNotifier extends Notifier<SameVibesState> {
       if (isInitial) {
         _retryTimer?.cancel();
         _retryTimer = null;
-        _nextRefillAllowedAt = DateTime.now().add(_kRetryBackoffBase);
+        _nextRefillAllowedAt = _now().add(_kRetryBackoffBase);
         state = const SameVibesState(error: SameVibesError.networkError);
         _reportFailed(session, SameVibesError.networkError);
         return;
@@ -861,53 +875,18 @@ class SameVibesNotifier extends Notifier<SameVibesState> {
     return result;
   }
 
+  /// The server id whose similar songs back the fallback: the seed itself, or
+  /// a remote seed's library copy. A remote seed without a library copy has no
+  /// fallback, and never borrows the similar songs of an unrelated queue
+  /// neighbour.
   String? _resolveFallbackSeedSongId({
-    required PlaybackSnapshot snapshot,
     required String preferredSeedSongId,
     String? libraryCopyId,
   }) {
     if (_isServerAddressableSeedId(preferredSeedSongId)) {
       return preferredSeedSongId;
     }
-    if (libraryCopyId != null) {
-      return libraryCopyId;
-    }
-
-    final queue = snapshot.queueSongIds
-        .map((id) => id.trim())
-        .where((id) => id.isNotEmpty)
-        .toList(growable: false);
-    // Neighbours stand in for the seed only while the seed is among them; a
-    // seed chosen from outside the queue replaces it.
-    if (queue.isEmpty || !queue.contains(preferredSeedSongId)) {
-      return null;
-    }
-
-    final currentIndex = (snapshot.currentIndex ?? 0).clamp(
-      0,
-      queue.length - 1,
-    );
-    for (var distance = 0; distance < queue.length; distance++) {
-      final left = currentIndex - distance;
-      if (left >= 0) {
-        final id = queue[left];
-        if (_isServerAddressableSeedId(id)) {
-          return id;
-        }
-      }
-      if (distance == 0) {
-        continue;
-      }
-      final right = currentIndex + distance;
-      if (right < queue.length) {
-        final id = queue[right];
-        if (_isServerAddressableSeedId(id)) {
-          return id;
-        }
-      }
-    }
-
-    return null;
+    return libraryCopyId;
   }
 
   bool _isServerAddressableSeedId(String id) => isServerAddressableSongId(id);
@@ -926,6 +905,7 @@ class SameVibesNotifier extends Notifier<SameVibesState> {
     }
     _consecutiveTransientFailures += 1;
     if (_consecutiveTransientFailures >= 5) {
+      _retryExhausted = true;
       _retryTimer?.cancel();
       _retryTimer = null;
       final session = _session;
@@ -942,7 +922,7 @@ class SameVibesNotifier extends Notifier<SameVibesState> {
       return;
     }
     final delay = _computeRetryDelay();
-    final nextAt = DateTime.now().add(delay);
+    final nextAt = _now().add(delay);
     _nextRefillAllowedAt = nextAt;
     _retryTimer?.cancel();
     _retryTimer = Timer(delay, () {

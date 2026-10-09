@@ -37,7 +37,6 @@ class LibrarySyncExecutionBootstrap {
       api: SubsonicLibrarySyncApi(client),
       database: database,
       serverConfigRepository: serverConfigRepository,
-      staleAfter: staleAfter,
       networkType: initialNetworkType,
       readSyncNetworkPolicy: readSyncNetworkPolicy,
       readMeteredResponseBudgetBytes: readMeteredResponseBudgetBytes,

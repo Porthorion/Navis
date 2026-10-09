@@ -9,6 +9,7 @@ import 'package:navis/src/database/navis_database.dart';
 import 'package:navis/src/features/settings/data/settings_repository.dart';
 import 'package:navis/src/features/settings/domain/app_settings.dart';
 import 'package:navis/src/routing/desktop_window_controller.dart';
+import 'package:navis/src/routing/desktop_layout.dart';
 import 'package:screen_retriever/screen_retriever.dart';
 import 'package:window_manager/window_manager.dart';
 
@@ -183,7 +184,7 @@ void main() {
         await controller.setMiniPlayerMode(true);
 
         expect(controller.mode, DesktopWindowMode.miniPlayer);
-        expect(adapter.minimumSize, DesktopWindowController.miniMinSize);
+        expect(adapter.minimumSize, kDesktopMiniPlayerMinimumSize);
         expect(adapter.maximumSize, const Size(-1, -1));
         expect(adapter.aspectRatio, 0);
         expect(adapter.bounds.size, DesktopWindowController.miniDefaultSize);
