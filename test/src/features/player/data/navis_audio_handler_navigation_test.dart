@@ -1487,6 +1487,68 @@ void main() {
     },
   );
 
+  for (final input in ['ids', 'expanded rows', 'canonical rows']) {
+    for (final duplicate in [false, true]) {
+      test('missing prefix preserves the selected occurrence '
+          '($input, duplicate=$duplicate)', () async {
+        final directory = await Directory.systemTemp.createTemp(
+          'navis-missing-',
+        );
+        final (handler, player, database) = await createHandler(directory, 2);
+        addTearDown(() async {
+          await handler.disposeHandler();
+          await database.close();
+          await directory.delete(recursive: true);
+        });
+        final rows = await database.libraryDao.getSongsByIds([
+          'song-0',
+          'song-1',
+        ]);
+        final requested = [
+          'missing',
+          'song-0',
+          'song-1',
+          if (duplicate) ...['song-0', 'song-1'],
+        ];
+        final startIndex = duplicate ? 3 : 1;
+        if (input == 'ids') {
+          await handler.replaceQueue(
+            requested,
+            startIndex: startIndex,
+            expandMatchFlows: false,
+          );
+        } else {
+          final first = input == 'canonical rows'
+              ? rows.first.copyWith(id: 'retired-0')
+              : rows.first;
+          if (input == 'canonical rows') {
+            await handler.applySongIdentityAliases({'retired-0': 'song-0'});
+          }
+          await handler.replaceQueueWithData(
+            [
+              rows.first.copyWith(id: 'missing'),
+              first,
+              rows.last,
+              if (duplicate) ...[first, rows.last],
+            ],
+            startIndex: startIndex,
+            expandMatchFlows: input == 'expanded rows',
+          );
+        }
+
+        expect(handler.snapshot.currentSongId, 'song-0');
+        expect(handler.snapshot.currentIndex, duplicate ? 2 : 0);
+        expect(player.index, duplicate ? 2 : 0);
+        expect(handler.snapshot.queueSongIds, requested.skip(1));
+        await handler.debugFlushQueuePersistence();
+        expect(
+          (await database.playQueueDao.getQueueState())!.currentIndex,
+          duplicate ? 2 : 0,
+        );
+      });
+    }
+  }
+
   test('duplicate song IDs retain the selected queue occurrence', () async {
     final directory = await Directory.systemTemp.createTemp('navis-nav-test-');
     final (handler, player, database) = await createHandler(directory, 2);

@@ -129,6 +129,10 @@ const List<ChangelogVersion> changelogs = [
     version: '1.4.3',
     entries: [
       ChangelogEntry(
+        'Queue selections keep the chosen song and occurrence when earlier library rows are missing',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
         'Jumping backward offline keeps played songs queued when their audio is temporarily unavailable',
         type: ChangelogEntryType.fix,
       ),

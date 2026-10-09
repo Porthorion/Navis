@@ -4579,6 +4579,21 @@ class NavisAudioHandler extends BaseAudioHandler
     inPlayOrder: false,
   );
 
+  /// Maps a requested occurrence past rows the DAO could no longer resolve.
+  int _startIndexAfterRowResolution(
+    List<String> ids,
+    int startIndex,
+    List<SongsTableData> songs,
+  ) {
+    if (songs.isEmpty) return 0;
+    final available = songs.map((song) => song.id).toSet();
+    final beforeSelection = ids
+        .take(startIndex.clamp(0, ids.length - 1))
+        .where((id) => available.contains(id.trim()))
+        .length;
+    return beforeSelection.clamp(0, songs.length - 1);
+  }
+
   /// [inPlayOrder] is for reloading the current queue (failure recovery):
   /// the songs are already in play order and are never shuffled again.
   Future<void> _replaceQueueIds(
@@ -4651,11 +4666,20 @@ class NavisAudioHandler extends BaseAudioHandler
         }
 
         _checkQueueWorkCurrent(token, generation);
+        final resolvedStartIndex = _startIndexAfterRowResolution(
+          songIds,
+          normalizedStartIndex,
+          songs,
+        );
+        _navigationIntent.select(resolvedStartIndex);
+        _pendingLogicalQueueSongIds = songs.length > 1
+            ? songs.map((song) => song.id).toList(growable: false)
+            : null;
         _pendingLogicalQueueSongs = songs;
 
         final startItem = await _replaceQueuePhase1(
           songs: songs,
-          startIndex: normalizedStartIndex,
+          startIndex: resolvedStartIndex,
           autoPlay: autoPlay,
           persist: false,
           generation: generation,
@@ -4664,7 +4688,7 @@ class NavisAudioHandler extends BaseAudioHandler
         if (startItem != null) {
           await _persistLogicalQueue(
             songs.map((song) => song.id).toList(growable: false),
-            normalizedStartIndex,
+            resolvedStartIndex,
             generation: generation,
           );
         }
@@ -4676,7 +4700,7 @@ class NavisAudioHandler extends BaseAudioHandler
 
         await _replaceQueuePhase2(
           songs: songs,
-          startIndex: normalizedStartIndex,
+          startIndex: resolvedStartIndex,
           startItem: startItem,
           persist: true,
           token: token,
@@ -4801,7 +4825,11 @@ class NavisAudioHandler extends BaseAudioHandler
       if (!_isActiveLoadGeneration(admittedGeneration)) return;
       return _replaceQueueRows(
         canonicalSongs,
-        startIndex: startIndex,
+        startIndex: _startIndexAfterRowResolution(
+          canonicalIds,
+          requestedStartIndex,
+          canonicalSongs,
+        ),
         autoPlay: autoPlay,
         expandMatchFlows: expandMatchFlows,
         inPlayOrder: inPlayOrder,
@@ -4819,7 +4847,11 @@ class NavisAudioHandler extends BaseAudioHandler
       if (!_isActiveLoadGeneration(admittedGeneration)) return;
       return _replaceQueueRows(
         expandedSongs,
-        startIndex: expansion.startIndex,
+        startIndex: _startIndexAfterRowResolution(
+          expansion.songIds,
+          expansion.startIndex,
+          expandedSongs,
+        ),
         autoPlay: autoPlay,
         expandMatchFlows: false,
         inPlayOrder: inPlayOrder,

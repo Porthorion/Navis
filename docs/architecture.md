@@ -2562,8 +2562,10 @@ just_audio) and their partial files discarded; desktop already keeps a single
 sidecar download.
 
 Album-style queue replacement is lazy: the active transport queue prepares the
-tapped song first, then fills the remaining sources in phase 2. While phase 2
-is loading, `PlaybackSnapshot.queueSongIds` can represent the pending logical
+tapped song first, then fills the remaining sources in phase 2. If library
+rows are missing during ID resolution, Match Flow expansion, or a canonical
+reread, the selected occurrence is remapped past those missing rows; duplicate
+song occurrences keep their relative position. While phase 2 is loading, `PlaybackSnapshot.queueSongIds` can represent the pending logical
 queue rather than the prepared transport queue, with
 `hasPendingLogicalQueue == true`. Queue UIs should display those IDs but avoid
 remove, reorder, or play-index actions until the transport queue catches up.
