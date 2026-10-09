@@ -275,7 +275,7 @@ class _NowPlayingInfoPanelState extends ConsumerState<_NowPlayingInfoPanel> {
     return Material(
       color: Colors.transparent,
       child: InkWell(
-        borderRadius: NavisRadius.xlAll,
+        borderRadius: NavisShapeData.of(context).xlAll,
         onTap: () => setState(() {
           _pageIndex = (_pageIndex + 1) % pages.length;
           _showInlineRatingEditor = false;

@@ -428,6 +428,33 @@ const List<ChangelogVersion> changelogs = [
         type: ChangelogEntryType.fix,
       ),
       ChangelogEntry(
+        'Appearance has a Color Style setting: Pastel, Immersive and Night restyle Light, Dark and OLED, and Neutral keeps the current look',
+      ),
+      ChangelogEntry(
+        'Appearance can use OLED black when Auto is dark, switch to the Night style on a daily schedule, and turn on Flat Surfaces for solid colors without glows, shadows or blur',
+      ),
+      ChangelogEntry(
+        'Appearance has a Corner Style setting: Rounded, Soft or Square corners for cards, buttons and panels',
+      ),
+      ChangelogEntry(
+        'Appearance has a Now Playing Background setting: Art-Tinted keeps the color from the cover, Artwork shows the blurred cover itself, and Plain uses your theme background',
+      ),
+      ChangelogEntry(
+        'Home Density is now Density and also tightens track lists, playlists and artist lists; Comfortable keeps the current look',
+      ),
+      ChangelogEntry(
+        'Color Scheme is now Accent Color, and Appearance groups its options into Theme, Color, Shape & Layout and Now Playing',
+      ),
+      ChangelogEntry(
+        'Album card captions blend into a color taken from each cover, so titles stay readable on any artwork in light and dark themes',
+      ),
+      ChangelogEntry(
+        'Setup shows the new appearance options, marked New for people updating until you have seen them, and Home invites you to try them',
+      ),
+      ChangelogEntry(
+        'Home on phones has a slimmer header, so more of You Might Like fits on screen',
+      ),
+      ChangelogEntry(
         'First setup no longer stops at an error when some albums on the server have incomplete details',
         type: ChangelogEntryType.fix,
       ),

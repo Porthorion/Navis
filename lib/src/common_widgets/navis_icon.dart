@@ -23,12 +23,9 @@ class NavisIcon extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final brightness = Theme.of(context).brightness;
     final color = tintWithAccent
         ? tintColor ?? NavisAccentColors.of(context).brand
-        : brightness == Brightness.dark
-        ? const Color(0xFFEFEFEF)
-        : const Color(0xFF242424);
+        : Theme.of(context).colorScheme.onSurface;
 
     final image = SvgPicture.asset(
       assetPath,

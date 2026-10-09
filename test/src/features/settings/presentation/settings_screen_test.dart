@@ -4,14 +4,27 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:navis/l10n/app_localizations.dart';
 import 'package:navis/l10n/navis_localizations.dart';
 import 'package:navis/src/common_widgets/desktop/desktop_primitives.dart';
+import 'package:navis/src/common_widgets/new_feature_tag.dart';
+import 'package:navis/src/features/onboarding/domain/setup_highlights.dart';
+import 'package:navis/src/features/onboarding/presentation/setup_highlights_provider.dart';
 import 'package:navis/src/features/settings/presentation/settings_screen.dart';
+import 'package:navis/src/features/settings/domain/app_settings.dart';
+import 'package:navis/src/providers/app_providers.dart';
 
 import '../../../../helpers/adaptive_test_harness.dart';
+
+final _noHighlights = [
+  pendingSetupHighlightsProvider.overrideWithValue(const <SetupHighlight>{}),
+  appSettingsProvider.overrideWithValue(
+    const AsyncData(AppSettingsModel.defaults()),
+  ),
+];
 
 void main() {
   testWidgets('removed desktop UI toggle is not shown', (tester) async {
     await tester.pumpWidget(
       ProviderScope(
+        overrides: _noHighlights,
         child: MaterialApp(
           localizationsDelegates: navisLocalizationsDelegates,
           supportedLocales: AppLocalizations.supportedLocales,
@@ -30,6 +43,7 @@ void main() {
     setAdaptiveTestViewport(tester, const Size(390, 844));
     await tester.pumpWidget(
       ProviderScope(
+        overrides: _noHighlights,
         child: MaterialApp(
           localizationsDelegates: navisLocalizationsDelegates,
           supportedLocales: AppLocalizations.supportedLocales,
@@ -49,6 +63,7 @@ void main() {
     setAdaptiveTestViewport(tester, const Size(599, 1000));
     await tester.pumpWidget(
       ProviderScope(
+        overrides: _noHighlights,
         child: MaterialApp(
           localizationsDelegates: navisLocalizationsDelegates,
           supportedLocales: AppLocalizations.supportedLocales,
@@ -99,6 +114,7 @@ void main() {
     (tester) async {
       await tester.pumpWidget(
         ProviderScope(
+          overrides: _noHighlights,
           child: MaterialApp(
             localizationsDelegates: navisLocalizationsDelegates,
             supportedLocales: AppLocalizations.supportedLocales,
@@ -123,6 +139,7 @@ void main() {
     setAdaptiveTestViewport(tester, const Size(1200, 1000));
     await tester.pumpWidget(
       ProviderScope(
+        overrides: _noHighlights,
         child: MaterialApp(
           localizationsDelegates: navisLocalizationsDelegates,
           supportedLocales: AppLocalizations.supportedLocales,
@@ -147,6 +164,7 @@ void main() {
     setAdaptiveTestViewport(tester, const Size(390, 844));
     await tester.pumpWidget(
       ProviderScope(
+        overrides: _noHighlights,
         child: MaterialApp(
           localizationsDelegates: navisLocalizationsDelegates,
           supportedLocales: AppLocalizations.supportedLocales,
@@ -171,5 +189,128 @@ void main() {
       find.text('Deezer, Last.fm, ListenBrainz and other online services.'),
       findsOneWidget,
     );
+  });
+
+  group('Appearance entry New tag', () {
+    Future<void> pump(
+      WidgetTester tester,
+      Size size,
+      Set<SetupHighlight> highlights, {
+      String themeMode = 'system',
+    }) async {
+      setAdaptiveTestViewport(tester, size);
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            pendingSetupHighlightsProvider.overrideWithValue(highlights),
+            appSettingsProvider.overrideWithValue(
+              AsyncData(
+                const AppSettingsModel.defaults().copyWith(
+                  themeMode: themeMode,
+                ),
+              ),
+            ),
+          ],
+          child: MaterialApp(
+            localizationsDelegates: navisLocalizationsDelegates,
+            supportedLocales: AppLocalizations.supportedLocales,
+            home: const SettingsScreen(),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+    }
+
+    final sizes = <String, Size>{
+      'phone': const Size(390, 1600),
+      'tablet': const Size(700, 1600),
+      'compact wide landscape': const Size(900, 420),
+      'desktop': const Size(1200, 1000),
+    };
+    for (final entry in sizes.entries) {
+      testWidgets('shows on the ${entry.key} layout while pending', (
+        tester,
+      ) async {
+        await pump(tester, entry.value, SetupHighlight.values.toSet());
+        await tester.scrollUntilVisible(
+          find.text('Appearance'),
+          200,
+          scrollable: find.byType(Scrollable).first,
+        );
+        expect(find.byType(NewFeatureTag), findsNWidgets(2));
+      });
+
+      testWidgets('is absent on the ${entry.key} layout when none pending', (
+        tester,
+      ) async {
+        await pump(tester, entry.value, const <SetupHighlight>{});
+        expect(find.byType(NewFeatureTag), findsNothing);
+      });
+    }
+
+    testWidgets('Appearance and Quick Customization say "Has new options"', (
+      tester,
+    ) async {
+      final handle = tester.ensureSemantics();
+      await pump(tester, const Size(390, 1600), SetupHighlight.values.toSet());
+      await tester.scrollUntilVisible(
+        find.text('Run Quick Customization'),
+        200,
+        scrollable: find.byType(Scrollable).first,
+      );
+
+      for (final title in <String>['Appearance', 'Run Quick Customization']) {
+        final row = find.ancestor(
+          of: find.text(title),
+          matching: find.byType(ListTile),
+        );
+        expect(
+          find.descendant(of: row.first, matching: find.byType(NewFeatureTag)),
+          findsOneWidget,
+          reason: title,
+        );
+      }
+      expect(
+        find.byWidgetPredicate(
+          (widget) =>
+              widget is Semantics &&
+              widget.properties.label == 'Has new options',
+        ),
+        findsNWidgets(2),
+      );
+      handle.dispose();
+    });
+
+    testWidgets('OLED alone does not tag outside Auto mode', (tester) async {
+      await pump(tester, const Size(390, 1600), const <SetupHighlight>{
+        SetupHighlight.oledForAuto,
+      }, themeMode: 'dark');
+      expect(find.byType(NewFeatureTag), findsNothing);
+    });
+
+    testWidgets('OLED alone tags in Auto mode', (tester) async {
+      await pump(tester, const Size(390, 1600), const <SetupHighlight>{
+        SetupHighlight.oledForAuto,
+      });
+      await tester.scrollUntilVisible(
+        find.text('Appearance'),
+        200,
+        scrollable: find.byType(Scrollable).first,
+      );
+      expect(find.byType(NewFeatureTag), findsNWidgets(2));
+    });
+
+    testWidgets('OLED does not hide other pending options', (tester) async {
+      await pump(tester, const Size(390, 1600), const <SetupHighlight>{
+        SetupHighlight.oledForAuto,
+        SetupHighlight.flatSurfaces,
+      }, themeMode: 'dark');
+      await tester.scrollUntilVisible(
+        find.text('Appearance'),
+        200,
+        scrollable: find.byType(Scrollable).first,
+      );
+      expect(find.byType(NewFeatureTag), findsNWidgets(2));
+    });
   });
 }

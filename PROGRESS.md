@@ -14,11 +14,35 @@ Last updated: 2026-10-02
 - ACP status values: `backlog`, `ready`, `in_progress`, `blocked`, `done`.
 
 ## Current Focus
+- [x] Corner Style UI — 2026-10-09 (`CornerStyleOption` in Appearance settings and setup after Flat Surfaces, New tags, setup preview uses the draft style, changelog line; focused widget tests added)
+- [x] Persisted Corner Style backend/state — 2026-10-09 (schema 97, settings/model/DAO/repository, derived provider, setup registry and diagnostics; 179 focused migration/DAO/repository/provider/registry/diagnostics tests passed; widgets, runtime and full gate remain coordinator-owned).
+- [x] Colour/Corner Style audit pass B — 2026-10-09 (OLED chrome true black with hairline separators and chroma-2 containers, OLED Flat band tone 6-10, translucent Now Playing panels over the Artwork layer, Soft = 14 px controls and 32 px sheets, icon buttons follow Corner Style, light Pastel solid Play, raw-seed accent grid with styled dot; focused theme/routing/settings/player/home tests; full gate remains coordinator-owned).
+- [x] Now Playing Background and Density UI — 2026-10-09 (Appearance/setup controls, Artwork blurred-cover layer, `NavisDensityScope` for track/library/artist rows, Settings New tags; focused widget tests only — runtime, screenshots and full gate remain coordinator-owned).
+- [x] Now Playing background and app-wide Density backend/state — 2026-10-09 (schema 96, legacy tint/home-density compatibility, registry and diagnostics, focused migration/DAO/repository/enum/provider tests; widgets, runtime and full gate remain coordinator-owned).
+- [x] Setup update highlight state — 2026-10-09 (schema 95 release markers, registry/providers/service, Finish/Skip hooks, diagnostics reset and focused persistence/provider/widget tests; UI and runtime/full gate remain coordinator-owned).
+- [x] Lazy cover tint revision refresh and remote-cache Home wash — 2026-10-08 (existing sampler/coordinator/worker/store and caption dispatcher reused; NCF1→NCF2 compatibility, lazy/deduplicated refresh, stale-colour retention, and 600/480/420/96 px remote-cache regression tests. Runtime and full gate remain coordinator-owned for this worktree.)
 > Historical AT-SPI attempts recorded below are failed evidence, not a testing
 > precedent. Current agent policy requires the authenticated Navis API and
 > app-owned screenshots and prohibits external accessibility traversal unless
 > the accessibility bridge is explicitly in scope with user authorization.
 
+- [x] Flat desktop You Might Like panel and compact phone Home header —
+  2026-10-08 (desktop Flat is one rounded solid panel around cover, track list
+  and thumbnail strip, tinted like the phone band, with no inner card; phone
+  Home header is about 40 px shorter, and on 2026-10-09 its logo grew to
+  104 px in the same height by trimming padding beside the logo's built-in
+  margin. Evidence: `test/src/features/home/presentation/home_screen_test.dart`,
+  `flat_home_wash_test.dart`)
+- [x] Colour styles (Neutral, Pastel, Immersive, Night) — 2026-10-08 (a
+  second appearance axis next to Light/Dark/OLED/Auto, stored in
+  `app_settings.color_style` (schema 93) and chosen with live preview tiles in
+  Appearance and onboarding. Styled schemes keep containers out of the muddy
+  mid-tone band, keep OLED black, and restyle the Home cover wash and Now
+  Playing tint without touching artwork; album card titles now use scheme
+  text roles. Evidence: `test/src/theme/navis_style_schemes_test.dart`
+  (4 styles × 3 modes × 11 seeds), persistence and migration tests, Linux
+  profile clone and Android sidecar screenshots of Home, album, Now Playing
+  and Appearance in every style and mode, and `./tool/check.sh`.)
 - [x] Permanent download import / 1.2.7 — 2026-08-21 (custom download roots
   now preserve unmanaged files, preview and confirm imports, and use a
   root-level `.navis-downloads.sqlite` identity store; uniquely matched legacy
@@ -1046,6 +1070,8 @@ Last updated: 2026-10-02
 - [x] Last.fm artist top-tracks wrong-artist fix — 2026-04-12 (`getArtistTopTracks` was passing `autocorrect: 1` to Last.fm, causing the API to silently substitute a completely different artist (e.g. "Pokelawls" → "Aurora") for any artist not in their database; fixed by setting `autocorrect: 0` so unknown artists return an error (empty list) instead of misleading results; added defence-in-depth `@attr.artist` response validation — if the resolved artist name doesn't match the requested name the result is discarded; 4 new unit tests added; evidence: `lib/src/api/lastfm_api_client.dart`, `test/src/api/lastfm_api_client_test.dart`)
 - [x] User-configurable Last.fm API key + Configuration screen — 2026-04-12 (settings "Server" tile/screen renamed to "Configuration"; new External Services section in that screen with a Last.fm card; when a build-time `NAVIS_LASTFM_API_KEY` is bundled the card shows a read-only notice; when absent the user can paste their own key with a Save button and a direct "Get API Key" link to last.fm/api/accounts; key stored in `app_settings` (schema v40, `last_fm_api_key` column, idempotent migration); `lastFmApiKeyProvider` is now reactive — prefers bundled key, falls back to user-saved DB value; `lastFmBundledKeyProvider` exposes bundled status as a `bool` for UI; evidence: `lib/src/features/settings/presentation/server_settings_screen.dart`, `lib/src/database/navis_database.dart`, `lib/src/providers/app_providers.dart`, `test/src/features/settings/presentation/server_settings_screen_test.dart`, schema v40, commit 8a15a18)
 
+- [x] Setup shows the new appearance options with New tags and a Home invitation for updated users — 2026-10-09 (evidence: onboarding, home and settings widget tests)
+
 ## Meta Progress
 - [x] Tech stack and methodology validation refresh — 2026-02-18 (evidence: `DEVELOPMENT_PLAN.md` stack validation section + README tech stack update)
 
@@ -1913,3 +1939,6 @@ Latest activity (2026-03-07): published `v0.8.0` APK via `tool/release.sh` and s
 
 - [x] Replace Android custom-folder path handling with persisted SAF tree URIs — 2026-08-21 (implemented: storage-kind migration, `DocumentFile` bridge with create/write/delete capability probe, custom-tree scan/import, download writes, relocation, deletion, content-URI playback, inaccessible-document review counts, and profile-sidecar-only fixture diagnostics. Authenticated Android clone validation against the live configured server completed a fresh catalog sync, configured the bounded fixture tree through the production service, downloaded one real library song, and observed two Navis-owned fixture documents (audio + sidecar), one permanent cache entry, and zero missing files through the app API; it then detached local ownership and re-adopted the same file through production preview/commit, with idempotent rescan results. Inspected app-owned initial-sync and completed-Home screenshots. A restart probe exposed content-URI rows being pruned as filesystem paths; this is fixed with storage-aware cache maintenance coverage and a fresh authenticated force-stop/relaunch now retains the permanent entry, reports zero missing files, and preserves the fixture documents. SAF-to-filesystem relocation is fixed and verified through the production folder-change path (one permanent entry, zero missing files after moving back to app-private storage). Legacy/manual mapping and inaccessible-document classification have focused test coverage. Final emulator certification staged an unindexed fixture-media copy, denied only its `ContentResolver` read, and observed one recognized item plus one `inaccessible` item through the production preview without failing the complete review; after access was restored, import committed one valid permanent entry while leaving the unmatched copy untouched. Stable and ordinary dev packages were not replaced. `./tool/check.sh` and focused Android bridge/diagnostics/import/cache tests passed.)
 - [ ] Speed up custom-download reconciliation and add manual match review — partial: 2026-08-22 (implemented: one-shot indexed legacy matching, bounded FLAC metadata reads, direct SAF FLAC identity bridge, automatic clear-match import, and a cover-art local-library picker that ranks liked content first; focused import/media tests and `./tool/check.sh` pass. Linux isolated-clone clean-start presentation diagnostics passed with inspected restart Home screenshot. Android Studio JDK profile Kotlin compilation passed. Remaining: Android emulator end-to-end SAF runtime validation has not been exercised.)
+
+- 2026-10-09 — Colour-style backend audit: account colour isolation, artwork handle/failure/source fixes, caption memo keys, targeted setup Finish, capped Night timer, per-option setup highlights and guarded 92→97 migration; focused validation recorded in the handoff, runtime/full gate reserved for coordinator.
+- 2026-10-09 — Appearance UX audit C: Settings › Appearance regrouped (Theme, Color, Shape & Layout, Now Playing), setup "More appearance options" group, per-option New-tag clearing on visibility, Settings-home "Has new options" tags, home notice priority and copy pass; focused tests recorded in the handoff, full gate reserved for coordinator.

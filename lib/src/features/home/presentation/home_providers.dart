@@ -48,17 +48,19 @@ final class HomeRandomShowcaseAlbum extends HomeRandomShowcaseItem {
     required this.source,
     this.artist,
     this.coverArtId,
+    this.coverArtRevision = 0,
     this.year,
     this.songCount,
     this.isExternal = false,
   });
 
-  factory fromServer(Album album) {
+  factory fromServer(Album album, {int coverArtRevision = 0}) {
     return HomeRandomShowcaseAlbum(
       id: album.id,
       name: album.name,
       artist: album.artist,
       coverArtId: album.coverArt,
+      coverArtRevision: coverArtRevision,
       year: album.year,
       songCount: album.songCount,
       source: HomeRandomShowcaseSource.serverRandom,
@@ -75,6 +77,7 @@ final class HomeRandomShowcaseAlbum extends HomeRandomShowcaseItem {
       name: album.name,
       artist: album.artistName,
       coverArtId: album.coverArt,
+      coverArtRevision: album.coverArtRevision ?? 0,
       year: album.year,
       songCount: album.songCount,
       source: HomeRandomShowcaseSource.localFallback,
@@ -88,6 +91,7 @@ final class HomeRandomShowcaseAlbum extends HomeRandomShowcaseItem {
       name: album.name,
       artist: album.artistName,
       coverArtId: album.coverArt,
+      coverArtRevision: album.coverArtRevision ?? 0,
       year: album.year,
       songCount: album.songCount,
       source: HomeRandomShowcaseSource.likedDiscovery,
@@ -118,6 +122,7 @@ final class HomeRandomShowcaseAlbum extends HomeRandomShowcaseItem {
   final String name;
   final String? artist;
   final String? coverArtId;
+  final int coverArtRevision;
   final int? year;
   final int? songCount;
   final HomeRandomShowcaseSource source;
@@ -2027,7 +2032,13 @@ final homeRandomAlbumShowcaseProvider =
             if (serverRandom.isNotEmpty) {
               return serverRandom
                   .take(_homeRandomShowcaseLimit)
-                  .map(HomeRandomShowcaseAlbum.fromServer)
+                  .map(
+                    (album) => HomeRandomShowcaseAlbum.fromServer(
+                      album,
+                      coverArtRevision:
+                          scopedById[album.id]?.coverArtRevision ?? 0,
+                    ),
+                  )
                   .toList(growable: false);
             }
           } on Exception {

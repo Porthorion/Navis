@@ -1,3 +1,4 @@
+import 'package:navis/src/features/settings/domain/navis_density.dart';
 import 'package:navis/src/features/player/domain/playback_adjustments.dart';
 
 import 'dart:async';
@@ -367,6 +368,32 @@ void main() {
   }
 
   test(
+    'settings diagnostics dump canonical background, corners and density',
+    () async {
+      final fixture = await _startFixture(SyncDiagnosticsMode.clone);
+      addTearDown(fixture.close);
+      final dao = fixture.container.read(navisDatabaseProvider).appSettingsDao;
+      await dao.updateNowPlayingBackground('artwork');
+      await dao.updateCornerStyle('soft');
+      await dao.updateDensity(NavisDensity.compact);
+      for (final path in [
+        '/v1/presentation/appearance',
+        '/v1/presentation/integrations',
+      ]) {
+        final response = await _request(
+          fixture.port,
+          path,
+          token: fixture.token,
+        );
+        expect(response.statusCode, HttpStatus.ok);
+        expect(response.body['nowPlayingBackground'], 'artwork');
+        expect(response.body['cornerStyle'], 'soft');
+        expect(response.body['density'], 'compact');
+      }
+    },
+  );
+
+  test(
     'appearance diagnostics validate targeted settings and remain clone-only',
     () async {
       final fixture = await _startFixture(SyncDiagnosticsMode.clone);
@@ -407,6 +434,16 @@ void main() {
         'coverArtShape': 'rounded',
         'nowPlayingArtShape': 'circle',
         'artistCardShape': 'square',
+        'nowPlayingBackground': 'tinted',
+        'cornerStyle': 'rounded',
+        'density': 'comfortable',
+        'themeMode': 'dark',
+        'colorStyle': 'neutral',
+        'colorSchemeSeed': null,
+        'dynamicAlbumColor': false,
+        'oledForAuto': false,
+        'nightSchedule': {'enabled': false, 'start': 1320, 'end': 420},
+        'flatSurfaces': false,
       });
       final observed = await fixture.get('/v1/presentation/appearance');
       expect(observed.body, changed.body);
@@ -436,6 +473,121 @@ void main() {
       }
     },
   );
+
+  test('appearance theme controls validate before writes and persist targeted values', () async {
+    final fixture = await _startFixture(SyncDiagnosticsMode.clone);
+    addTearDown(fixture.close);
+    const path = '/v1/presentation/appearance';
+    final values = <String, Object?>{
+      'themeMode': 'system',
+      'colorStyle': 'immersive',
+      'colorSchemeSeed': 0xFF567890,
+      'dynamicAlbumColor': true,
+      'oledForAuto': true,
+      'nightSchedule': {'enabled': true, 'start': 1200, 'end': 300},
+      'flatSurfaces': true,
+      'cornerStyle': 'square',
+      'nowPlayingBackground': 'artwork',
+      'density': 'compact',
+    };
+    final unauthorized = await _request(
+      fixture.port,
+      path,
+      method: 'POST',
+      body: values,
+    );
+    expect(unauthorized.statusCode, HttpStatus.unauthorized);
+    final changed = await _request(
+      fixture.port,
+      path,
+      method: 'POST',
+      token: fixture.token,
+      body: values,
+    );
+    expect(changed.statusCode, HttpStatus.ok);
+    for (final entry in values.entries) {
+      expect(changed.body[entry.key], entry.value);
+    }
+    final persisted = await fixture.container
+        .read(navisDatabaseProvider)
+        .appSettingsDao
+        .getSettings();
+    expect(persisted!.colorSchemeSeed, 0xFF567890);
+    expect(persisted.colorStyle, 'immersive');
+    expect(persisted.nightScheduleStartMinutes, 1200);
+    for (final invalid in <Map<String, Object?>>[
+      {'themeMode': 'auto'},
+      {'colorStyle': 'unknown'},
+      {'colorSchemeSeed': 1.5},
+      {'colorSchemeSeed': -1},
+      {'colorSchemeSeed': 0x100000000},
+      {'dynamicAlbumColor': null},
+      {'oledForAuto': 'true'},
+      {'flatSurfaces': 1},
+      {'cornerStyle': 'circle'},
+      {'nowPlayingBackground': 'blur'},
+      {'density': null},
+      {'nightSchedule': null},
+      {'nightSchedule': {}},
+      {
+        'nightSchedule': {'enabled': 1},
+      },
+      {
+        'nightSchedule': {'start': -1},
+      },
+      {
+        'nightSchedule': {'end': 1440},
+      },
+      {
+        'nightSchedule': {'start': 1.5},
+      },
+      {
+        'nightSchedule': {'extra': true},
+      },
+    ]) {
+      final result = await _request(
+        fixture.port,
+        path,
+        method: 'POST',
+        token: fixture.token,
+        body: {'gridArtworkSize': 'small', ...invalid},
+      );
+      expect(result.statusCode, HttpStatus.badRequest, reason: '$invalid');
+    }
+    final unchanged = await _request(fixture.port, path, token: fixture.token);
+    expect(unchanged.body, changed.body);
+    final cleared = await _request(
+      fixture.port,
+      path,
+      method: 'POST',
+      token: fixture.token,
+      body: {
+        'colorSchemeSeed': null,
+        'nightSchedule': {'end': 450},
+      },
+    );
+    expect(cleared.statusCode, HttpStatus.ok);
+    expect(cleared.body['colorSchemeSeed'], isNull);
+    expect(cleared.body['nightSchedule'], {
+      'enabled': true,
+      'start': 1200,
+      'end': 450,
+    });
+    expect(cleared.body['colorStyle'], 'immersive');
+    await fixture.close();
+    final primary = await _startFixture(
+      SyncDiagnosticsMode.primaryCertification,
+    );
+    addTearDown(primary.close);
+    final forbidden = await _request(
+      primary.port,
+      path,
+      method: 'POST',
+      token: primary.token,
+      body: values,
+    );
+    expect(forbidden.statusCode, HttpStatus.forbidden);
+  });
 
   test(
     'integrations diagnostics report and change the policy, clone-only',
@@ -1739,6 +1891,76 @@ void main() {
     },
   );
 
+  test(
+    'setup highlights reset is authenticated, clone-only and targeted',
+    () async {
+      const path = '/v1/presentation/setup-highlights/reset';
+      final fixture = await _startFixture(SyncDiagnosticsMode.clone);
+      addTearDown(fixture.close);
+      final dao = fixture.database.appSettingsDao;
+      await dao.getSettings();
+      await dao.completeOnboarding(1);
+      await dao.updateColorStyle('pastel');
+      await dao.updateSetupHighlightsSeenRelease('1.4.3');
+      await dao.updateSetupCardDismissedRelease('1.4.3');
+
+      final unauthorized = await _request(fixture.port, path, method: 'POST');
+      expect(unauthorized.statusCode, HttpStatus.unauthorized);
+      expect((await dao.getSettings())!.setupHighlightsSeenRelease, '1.4.3');
+      final before = await _request(
+        fixture.port,
+        '/v1/presentation/integrations',
+        token: fixture.token,
+      );
+      expect(before.statusCode, HttpStatus.ok);
+      expect(before.body['setupHighlightsSeenRelease'], '1.4.3');
+      expect(before.body['setupCardDismissedRelease'], '1.4.3');
+
+      for (var run = 0; run < 2; run++) {
+        final reset = await _request(
+          fixture.port,
+          path,
+          method: 'POST',
+          token: fixture.token,
+        );
+        expect(reset.statusCode, HttpStatus.ok);
+        expect(reset.body, {
+          'setupHighlightsSeen': <Object?>[],
+          'setupHighlightsSeenRelease': null,
+          'setupCardDismissedRelease': null,
+        });
+      }
+      final row = await dao.getSettings();
+      expect(row.setupHighlightsSeenRelease, isNull);
+      expect(row.setupCardDismissedRelease, isNull);
+      expect(row.onboardingVersion, 1);
+      expect(row.colorStyle, 'pastel');
+      await fixture.close();
+
+      final primary = await _startFixture(
+        SyncDiagnosticsMode.primaryCertification,
+      );
+      addTearDown(primary.close);
+      await primary.database.appSettingsDao.getSettings();
+      await primary.database.appSettingsDao.updateSetupHighlightsSeenRelease(
+        '1.4.3',
+      );
+      final forbidden = await _request(
+        primary.port,
+        path,
+        method: 'POST',
+        token: primary.token,
+      );
+      expect(forbidden.statusCode, HttpStatus.forbidden);
+      expect(
+        (await primary.database.appSettingsDao.getSettings())!
+            .setupHighlightsSeenRelease,
+        '1.4.3',
+      );
+    },
+    skip: !sqliteAvailable,
+  );
+
   test('presentation endpoints use the authenticated clone control plane', () async {
     final presentation = _MockPresentationController();
     final navigationDriver = _MockDiagnosticsNavigationDriver();
@@ -1794,6 +2016,7 @@ void main() {
       ('POST', '/v1/presentation/navigate'),
       ('POST', '/v1/presentation/dismiss-popup'),
       ('POST', '/v1/presentation/onboarding/complete'),
+      ('POST', '/v1/presentation/setup-highlights/reset'),
       ('GET', '/v1/presentation/home-warmup'),
       ('POST', '/v1/presentation/library-filter'),
       ('POST', '/v1/presentation/notice'),
@@ -2057,6 +2280,7 @@ void main() {
         ('POST', '/v1/presentation/navigate'),
         ('POST', '/v1/presentation/dismiss-popup'),
         ('POST', '/v1/presentation/onboarding/complete'),
+        ('POST', '/v1/presentation/setup-highlights/reset'),
         ('GET', '/v1/presentation/home-warmup'),
         ('POST', '/v1/presentation/library-filter'),
         ('POST', '/v1/presentation/notice'),
@@ -2528,10 +2752,15 @@ void main() {
         autoDownloadStarredOnWifi: false,
         customDownloadFolderEnabled: false,
         themeMode: 'dark',
+        colorStyle: 'neutral',
+        oledForAuto: false,
+        nightScheduleEnabled: false,
+        nightScheduleStartMinutes: 1320,
+        nightScheduleEndMinutes: 420,
+        flatSurfaces: false,
         crossfadeEnabled: false,
         crossfadeDurationSeconds: 5,
         crossfadeType: 'normal',
-        artTintedNowPlaying: true,
         dynamicAlbumColorEnabled: false,
         updateCheckEnabled: true,
         updateChannel: 'stable',

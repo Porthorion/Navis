@@ -2820,6 +2820,60 @@ abstract class AppLocalizations {
   /// **'Navis can now use Deezer for top songs, artist photos and new releases. Review integrations.'**
   String get integrationsNoticeBody;
 
+  /// No description provided for @setupHighlightsCardTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'New appearance options'**
+  String get setupHighlightsCardTitle;
+
+  /// No description provided for @setupHighlightsCardBody.
+  ///
+  /// In en, this message translates to:
+  /// **'Color styles, corner style, Now Playing background and more. Try them in Quick Customization.'**
+  String get setupHighlightsCardBody;
+
+  /// No description provided for @setupHighlightsCardDismiss.
+  ///
+  /// In en, this message translates to:
+  /// **'Dismiss'**
+  String get setupHighlightsCardDismiss;
+
+  /// No description provided for @settingsAppearanceNewOptionsSemantics.
+  ///
+  /// In en, this message translates to:
+  /// **'Has new options'**
+  String get settingsAppearanceNewOptionsSemantics;
+
+  /// No description provided for @appearanceSectionTheme.
+  ///
+  /// In en, this message translates to:
+  /// **'Theme'**
+  String get appearanceSectionTheme;
+
+  /// No description provided for @appearanceSectionColor.
+  ///
+  /// In en, this message translates to:
+  /// **'Color'**
+  String get appearanceSectionColor;
+
+  /// No description provided for @appearanceSectionShapeLayout.
+  ///
+  /// In en, this message translates to:
+  /// **'Shape & Layout'**
+  String get appearanceSectionShapeLayout;
+
+  /// No description provided for @appearanceSectionNowPlaying.
+  ///
+  /// In en, this message translates to:
+  /// **'Now Playing'**
+  String get appearanceSectionNowPlaying;
+
+  /// No description provided for @newFeatureTagSemantics.
+  ///
+  /// In en, this message translates to:
+  /// **'New option'**
+  String get newFeatureTagSemantics;
+
   /// No description provided for @integrationsNoticeDismiss.
   ///
   /// In en, this message translates to:
@@ -5177,6 +5231,60 @@ abstract class AppLocalizations {
   /// **'Auto'**
   String get appearanceThemeSystem;
 
+  /// No description provided for @appearanceColorStyleLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Color Style'**
+  String get appearanceColorStyleLabel;
+
+  /// No description provided for @appearanceColorStyleNeutral.
+  ///
+  /// In en, this message translates to:
+  /// **'Neutral'**
+  String get appearanceColorStyleNeutral;
+
+  /// No description provided for @appearanceColorStylePastel.
+  ///
+  /// In en, this message translates to:
+  /// **'Pastel'**
+  String get appearanceColorStylePastel;
+
+  /// No description provided for @appearanceColorStyleImmersive.
+  ///
+  /// In en, this message translates to:
+  /// **'Immersive'**
+  String get appearanceColorStyleImmersive;
+
+  /// No description provided for @appearanceColorStyleNight.
+  ///
+  /// In en, this message translates to:
+  /// **'Night'**
+  String get appearanceColorStyleNight;
+
+  /// No description provided for @appearanceColorStyleNeutralSub.
+  ///
+  /// In en, this message translates to:
+  /// **'Neutral backgrounds. Color comes from your accent and album art.'**
+  String get appearanceColorStyleNeutralSub;
+
+  /// No description provided for @appearanceColorStylePastelSub.
+  ///
+  /// In en, this message translates to:
+  /// **'Soft pastel accents on gently tinted backgrounds.'**
+  String get appearanceColorStylePastelSub;
+
+  /// No description provided for @appearanceColorStyleImmersiveSub.
+  ///
+  /// In en, this message translates to:
+  /// **'Your accent color fills the backgrounds in deep, rich tones.'**
+  String get appearanceColorStyleImmersiveSub;
+
+  /// No description provided for @appearanceColorStyleNightSub.
+  ///
+  /// In en, this message translates to:
+  /// **'Warm colors with less blue light, for evening listening.'**
+  String get appearanceColorStyleNightSub;
+
   /// No description provided for @appearanceLanguageLabel.
   ///
   /// In en, this message translates to:
@@ -5204,19 +5312,19 @@ abstract class AppLocalizations {
   /// No description provided for @appearanceColorSchemeLabel.
   ///
   /// In en, this message translates to:
-  /// **'Color Scheme'**
+  /// **'Accent Color'**
   String get appearanceColorSchemeLabel;
 
   /// No description provided for @appearanceColorSchemeSub.
   ///
   /// In en, this message translates to:
-  /// **'Choose a seed color for the app\'s color palette.'**
+  /// **'Choose the accent color your color style is built from.'**
   String get appearanceColorSchemeSub;
 
   /// No description provided for @appearanceColorSchemeDynamicSub.
   ///
   /// In en, this message translates to:
-  /// **'Selected colors are used when album art has no available accent.'**
+  /// **'Dynamic Album Color is on: album art replaces your accent when a cover has one.'**
   String get appearanceColorSchemeDynamicSub;
 
   /// No description provided for @appearanceColorDefault.
@@ -5291,17 +5399,167 @@ abstract class AppLocalizations {
   /// **'{label} (long-press to delete)'**
   String appearanceLongPressHint(Object label);
 
-  /// No description provided for @appearanceArtTintedLabel.
+  /// No description provided for @appearanceNowPlayingBackgroundLabel.
   ///
   /// In en, this message translates to:
-  /// **'Art-tinted Now Playing'**
-  String get appearanceArtTintedLabel;
+  /// **'Now Playing Background'**
+  String get appearanceNowPlayingBackgroundLabel;
 
-  /// No description provided for @appearanceArtTintedSub.
+  /// No description provided for @appearanceNowPlayingBackgroundTinted.
   ///
   /// In en, this message translates to:
-  /// **'Tint the Now Playing background with colours from the album art.'**
-  String get appearanceArtTintedSub;
+  /// **'Art-Tinted'**
+  String get appearanceNowPlayingBackgroundTinted;
+
+  /// No description provided for @appearanceNowPlayingBackgroundArtwork.
+  ///
+  /// In en, this message translates to:
+  /// **'Artwork'**
+  String get appearanceNowPlayingBackgroundArtwork;
+
+  /// No description provided for @appearanceNowPlayingBackgroundPlain.
+  ///
+  /// In en, this message translates to:
+  /// **'Plain'**
+  String get appearanceNowPlayingBackgroundPlain;
+
+  /// No description provided for @appearanceNowPlayingBackgroundTintedSub.
+  ///
+  /// In en, this message translates to:
+  /// **'A soft gradient in the album art color, or one solid color when Flat Surfaces is on.'**
+  String get appearanceNowPlayingBackgroundTintedSub;
+
+  /// No description provided for @appearanceNowPlayingBackgroundArtworkSub.
+  ///
+  /// In en, this message translates to:
+  /// **'The album art, blurred and veiled so text stays easy to read. Flat Surfaces uses one solid color instead.'**
+  String get appearanceNowPlayingBackgroundArtworkSub;
+
+  /// No description provided for @appearanceNowPlayingBackgroundOledFlatNote.
+  ///
+  /// In en, this message translates to:
+  /// **'With OLED and Flat Surfaces, Now Playing stays black.'**
+  String get appearanceNowPlayingBackgroundOledFlatNote;
+
+  /// No description provided for @appearanceNowPlayingBackgroundPlainSub.
+  ///
+  /// In en, this message translates to:
+  /// **'The plain background of your theme, with no album color.'**
+  String get appearanceNowPlayingBackgroundPlainSub;
+
+  /// No description provided for @appearanceOledForAutoLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Use OLED When Dark'**
+  String get appearanceOledForAutoLabel;
+
+  /// No description provided for @appearanceOledForAutoSub.
+  ///
+  /// In en, this message translates to:
+  /// **'In Auto, use pure black instead of Dark when your device is in dark mode.'**
+  String get appearanceOledForAutoSub;
+
+  /// No description provided for @appearanceNightScheduleLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Night Schedule'**
+  String get appearanceNightScheduleLabel;
+
+  /// No description provided for @appearanceNightScheduleSub.
+  ///
+  /// In en, this message translates to:
+  /// **'Switches the color style to Night from {start} to {end}. Theme mode stays as set.'**
+  String appearanceNightScheduleSub(Object start, Object end);
+
+  /// No description provided for @appearanceNightScheduleStartsAt.
+  ///
+  /// In en, this message translates to:
+  /// **'Starts at {time}'**
+  String appearanceNightScheduleStartsAt(Object time);
+
+  /// No description provided for @appearanceNightScheduleEndsAt.
+  ///
+  /// In en, this message translates to:
+  /// **'Ends at {time}'**
+  String appearanceNightScheduleEndsAt(Object time);
+
+  /// No description provided for @appearanceNightScheduleActiveNote.
+  ///
+  /// In en, this message translates to:
+  /// **'Night is on until {time}.'**
+  String appearanceNightScheduleActiveNote(Object time);
+
+  /// No description provided for @appearanceNightScheduleAlreadyNight.
+  ///
+  /// In en, this message translates to:
+  /// **'Your color style is already Night.'**
+  String get appearanceNightScheduleAlreadyNight;
+
+  /// No description provided for @appearanceNightScheduleSameTimes.
+  ///
+  /// In en, this message translates to:
+  /// **'Pick different start and end times.'**
+  String get appearanceNightScheduleSameTimes;
+
+  /// No description provided for @appearanceFlatSurfacesLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Flat Surfaces'**
+  String get appearanceFlatSurfacesLabel;
+
+  /// No description provided for @appearanceFlatSurfacesSub.
+  ///
+  /// In en, this message translates to:
+  /// **'Solid colors without glows, gradients, shadows or blur. Now Playing Artwork becomes a solid color.'**
+  String get appearanceFlatSurfacesSub;
+
+  /// No description provided for @appearanceCornerStyleLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Corner Style'**
+  String get appearanceCornerStyleLabel;
+
+  /// No description provided for @appearanceCornerStyleRounded.
+  ///
+  /// In en, this message translates to:
+  /// **'Rounded'**
+  String get appearanceCornerStyleRounded;
+
+  /// No description provided for @appearanceCornerStyleSoft.
+  ///
+  /// In en, this message translates to:
+  /// **'Soft'**
+  String get appearanceCornerStyleSoft;
+
+  /// No description provided for @appearanceCornerStyleSquare.
+  ///
+  /// In en, this message translates to:
+  /// **'Square'**
+  String get appearanceCornerStyleSquare;
+
+  /// No description provided for @appearanceCornerStyleRoundedSub.
+  ///
+  /// In en, this message translates to:
+  /// **'Gently rounded cards and pill buttons.'**
+  String get appearanceCornerStyleRoundedSub;
+
+  /// No description provided for @appearanceCornerStyleSoftSub.
+  ///
+  /// In en, this message translates to:
+  /// **'Larger, softer corners on cards, buttons and sheets.'**
+  String get appearanceCornerStyleSoftSub;
+
+  /// No description provided for @appearanceCornerStyleSquareSub.
+  ///
+  /// In en, this message translates to:
+  /// **'Crisp corners on cards, buttons and chips.'**
+  String get appearanceCornerStyleSquareSub;
+
+  /// No description provided for @appearanceCornerStyleArtworkNote.
+  ///
+  /// In en, this message translates to:
+  /// **'Artwork follows Artwork Shape.'**
+  String get appearanceCornerStyleArtworkNote;
 
   /// No description provided for @appearanceDynamicAlbumColorLabel.
   ///
@@ -5309,17 +5567,11 @@ abstract class AppLocalizations {
   /// **'Dynamic Album Color'**
   String get appearanceDynamicAlbumColorLabel;
 
-  /// No description provided for @appearanceDynamicAlbumColorEnabledSub.
+  /// No description provided for @appearanceDynamicAlbumColorSub.
   ///
   /// In en, this message translates to:
-  /// **'Album art is currently overriding the selected color when artwork is available.'**
-  String get appearanceDynamicAlbumColorEnabledSub;
-
-  /// No description provided for @appearanceDynamicAlbumColorDisabledSub.
-  ///
-  /// In en, this message translates to:
-  /// **'Use the currently playing album art to theme app accent colors.'**
-  String get appearanceDynamicAlbumColorDisabledSub;
+  /// **'Album art replaces your accent when a cover has one.'**
+  String get appearanceDynamicAlbumColorSub;
 
   /// No description provided for @cacheSettingsCoverArtSection.
   ///
@@ -5960,8 +6212,14 @@ abstract class AppLocalizations {
   /// No description provided for @appearanceCoverArtShapeLabel.
   ///
   /// In en, this message translates to:
-  /// **'Cover Art Shape'**
+  /// **'Artwork Shape'**
   String get appearanceCoverArtShapeLabel;
+
+  /// No description provided for @appearanceCoverArtShapeNote.
+  ///
+  /// In en, this message translates to:
+  /// **'Cards and buttons follow Corner Style.'**
+  String get appearanceCoverArtShapeNote;
 
   /// No description provided for @appearanceCoverArtShapeSubLabel.
   ///
@@ -6023,29 +6281,29 @@ abstract class AppLocalizations {
   /// **'Home Sections'**
   String get appearanceHomeSectionsLabel;
 
-  /// No description provided for @appearanceHomeDensityLabel.
+  /// No description provided for @appearanceDensityLabel.
   ///
   /// In en, this message translates to:
-  /// **'Home Density'**
-  String get appearanceHomeDensityLabel;
+  /// **'Density'**
+  String get appearanceDensityLabel;
 
-  /// No description provided for @appearanceHomeDensitySub.
+  /// No description provided for @appearanceDensitySub.
   ///
   /// In en, this message translates to:
-  /// **'Choose spacing style for Home cards and lists.'**
-  String get appearanceHomeDensitySub;
+  /// **'Spacing for Home, track lists, playlists and artist lists.'**
+  String get appearanceDensitySub;
 
-  /// No description provided for @appearanceHomeDensityComfortable.
+  /// No description provided for @appearanceDensityComfortable.
   ///
   /// In en, this message translates to:
   /// **'Comfortable'**
-  String get appearanceHomeDensityComfortable;
+  String get appearanceDensityComfortable;
 
-  /// No description provided for @appearanceHomeDensityCompact.
+  /// No description provided for @appearanceDensityCompact.
   ///
   /// In en, this message translates to:
   /// **'Compact'**
-  String get appearanceHomeDensityCompact;
+  String get appearanceDensityCompact;
 
   /// No description provided for @desktopNavbarSectionLabel.
   ///
@@ -6059,17 +6317,17 @@ abstract class AppLocalizations {
   /// **'Navigation Style'**
   String get desktopNavbarStyleLabel;
 
-  /// No description provided for @desktopNavbarStyleComfortable.
+  /// No description provided for @desktopNavbarStyleWide.
   ///
   /// In en, this message translates to:
-  /// **'Comfortable'**
-  String get desktopNavbarStyleComfortable;
+  /// **'Wide'**
+  String get desktopNavbarStyleWide;
 
-  /// No description provided for @desktopNavbarStyleCompact.
+  /// No description provided for @desktopNavbarStyleNarrow.
   ///
   /// In en, this message translates to:
-  /// **'Compact'**
-  String get desktopNavbarStyleCompact;
+  /// **'Narrow'**
+  String get desktopNavbarStyleNarrow;
 
   /// No description provided for @desktopNavbarStyleIcons.
   ///
@@ -8270,13 +8528,19 @@ abstract class AppLocalizations {
   /// No description provided for @onboardingAppearanceDescription.
   ///
   /// In en, this message translates to:
-  /// **'Pick a theme and accent. You can change both later in Appearance settings.'**
+  /// **'Choose your theme, style, accent and layout. You can change them later in Appearance settings.'**
   String get onboardingAppearanceDescription;
+
+  /// No description provided for @onboardingMoreAppearanceOptions.
+  ///
+  /// In en, this message translates to:
+  /// **'More appearance options'**
+  String get onboardingMoreAppearanceOptions;
 
   /// No description provided for @onboardingAccentColor.
   ///
   /// In en, this message translates to:
-  /// **'Accent color'**
+  /// **'Accent Color'**
   String get onboardingAccentColor;
 
   /// No description provided for @onboardingAppearanceColorPickerHint.

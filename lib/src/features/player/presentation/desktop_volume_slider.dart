@@ -1,4 +1,5 @@
 import 'package:material_ui/material_ui.dart';
+import 'package:navis/src/theme/navis_shape_data.dart';
 
 /// A desktop volume slider with a floating percentage tooltip that tracks the
 /// thumb position while the user is dragging.
@@ -188,7 +189,8 @@ class _DesktopVolumeSliderState extends State<DesktopVolumeSlider>
                               ),
                               decoration: BoxDecoration(
                                 color: colors.inverseSurface,
-                                borderRadius: BorderRadius.circular(6),
+                                borderRadius: NavisShapeData.of(context)
+                                    .scaledAll(6),
                               ),
                               child: Text(
                                 '$percent%',

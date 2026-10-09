@@ -39,6 +39,7 @@ dependencies:
   just_audio:
     path: third_party/just_audio
   logger: ^2.8.0
+  material_color_utilities: ^0.13.0
   material_ui: ^1.4.0
   meta: ^1.19.0
   octo_image: ^2.1.1

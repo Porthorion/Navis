@@ -26,6 +26,12 @@ String? _showcaseWashCoverId(HomeRandomShowcaseItem item) {
   };
 }
 
+/// Revision of the album cover when local library metadata is available.
+int _showcaseWashCoverRevision(HomeRandomShowcaseItem item) => switch (item) {
+  HomeRandomShowcaseAlbum(:final coverArtRevision) => coverArtRevision,
+  HomeRandomShowcasePlaylist() => 0,
+};
+
 /// "2023 • 12 songs · Similar to your likes": unknown parts are left out.
 String _showcaseMetaLine(AppLocalizations l10n, HomeRandomShowcaseItem item) {
   final reason = _showcaseReasonLabel(l10n, item);
@@ -140,6 +146,7 @@ class _ShowcaseCoverCard extends ConsumerWidget {
         );
         artwork = HeroCoverArt(
           coverArtId: item.coverArtId,
+          revision: item.coverArtRevision,
           heroTag: heroTag,
           size: kCoverArtStandardSize,
           fit: BoxFit.cover,
@@ -176,13 +183,16 @@ class _ShowcaseCoverCard extends ConsumerWidget {
       child: DecoratedBox(
         decoration: BoxDecoration(
           borderRadius: radius,
-          boxShadow: <BoxShadow>[
-            BoxShadow(
-              color: Colors.black.withValues(alpha: 0.28),
-              blurRadius: 18,
-              offset: const Offset(0, 8),
-            ),
-          ],
+          // Flat: no drop shadow under the showcase artwork.
+          boxShadow: NavisColorStyleData.of(context).flat
+              ? null
+              : <BoxShadow>[
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.28),
+                    blurRadius: 18,
+                    offset: const Offset(0, 8),
+                  ),
+                ],
         ),
         child: Material(
           color: Theme.of(context).colorScheme.surfaceContainerHigh,
@@ -211,6 +221,7 @@ class _ShowcaseCoverCard extends ConsumerWidget {
                               : motion.surface,
                           child: IconButton.filled(
                             key: focused ? playKey : null,
+                            style: NavisShapeData.circularIconButtonStyle,
                             tooltip: l10n.homeShowcasePlayTooltip(
                               playName ?? '',
                             ),
@@ -237,12 +248,15 @@ class _ShowcaseCoverCard extends ConsumerWidget {
 
 /// Title, artist and "year • songs · reason" for the focused carousel item.
 class _ShowcaseInfoPanel extends ConsumerWidget {
-  const new({required this.item, required this.heroContext});
+  const new({required this.item, required this.heroContext, this.tint});
 
   static const Key panelKey = ValueKey<String>('home-showcase-info');
 
   final HomeRandomShowcaseItem item;
   final String heroContext;
+
+  /// Text colours over the Flat colour band; null keeps the theme colours.
+  final CaptionTint? tint;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -271,7 +285,7 @@ class _ShowcaseInfoPanel extends ConsumerWidget {
       children: <Widget>[
         InkWell(
           onTap: openItem,
-          borderRadius: NavisRadius.smAll,
+          borderRadius: NavisShapeData.of(context).smAll,
           child: Padding(
             padding: const EdgeInsets.symmetric(horizontal: NavisSpace.xxs),
             child: Text(
@@ -279,7 +293,7 @@ class _ShowcaseInfoPanel extends ConsumerWidget {
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
               textAlign: TextAlign.center,
-              style: textTheme.titleMedium,
+              style: textTheme.titleMedium?.copyWith(color: tint?.text),
             ),
           ),
         ),
@@ -290,7 +304,7 @@ class _ShowcaseInfoPanel extends ConsumerWidget {
             overflow: TextOverflow.ellipsis,
             textAlign: TextAlign.center,
             style: textTheme.bodyMedium?.copyWith(
-              color: colors.onSurfaceVariant,
+              color: tint?.subtext ?? colors.onSurfaceVariant,
             ),
           ),
         const SizedBox(height: NavisSpace.xxs),
@@ -299,7 +313,9 @@ class _ShowcaseInfoPanel extends ConsumerWidget {
           maxLines: 1,
           overflow: TextOverflow.ellipsis,
           textAlign: TextAlign.center,
-          style: textTheme.bodySmall?.copyWith(color: colors.onSurfaceVariant),
+          style: textTheme.bodySmall?.copyWith(
+            color: tint?.subtext ?? colors.onSurfaceVariant,
+          ),
         ),
       ],
     );
@@ -321,6 +337,10 @@ class _ShowcaseInfoPanel extends ConsumerWidget {
   }
 }
 
+/// Test seam for the private [_ShowcaseColourWash].
+@visibleForTesting
+typedef ShowcaseColourWash = _ShowcaseColourWash;
+
 /// A soft wash of the focused cover's colours behind the section.
 ///
 /// The cover is sampled into a small colour grid (see
@@ -329,11 +349,19 @@ class _ShowcaseInfoPanel extends ConsumerWidget {
 /// glides the colours instead of crossfading images, and a page-coloured
 /// veil keeps contrast.
 class _ShowcaseColourWash extends ConsumerWidget {
-  const new({required this.coverArtId, this.subtle = false});
+  const new({
+    required this.coverArtId,
+    this.coverArtRevision = 0,
+    this.subtle = false,
+  });
 
   static const Key washKey = ValueKey<String>('home-showcase-wash');
 
+  /// The single solid block painted instead of the mesh when Flat is on.
+  static const Key flatFillKey = ValueKey<String>('home-showcase-wash-flat');
+
   final String? coverArtId;
+  final int coverArtRevision;
 
   /// Large desktop surfaces use a lighter tint.
   final bool subtle;
@@ -344,13 +372,24 @@ class _ShowcaseColourWash extends ConsumerWidget {
     final background = theme.scaffoldBackgroundColor;
     final motion = MotionPolicy.of(context);
     final coverId = coverArtId?.trim();
-    // Light surfaces need a gentler tint to keep text contrast.
-    final light = theme.brightness == Brightness.light;
-    final veil = subtle ? (light ? 0.9 : 0.78) : (light ? 0.84 : 0.66);
+    // The colour style sets the veil (light surfaces need a gentler tint to
+    // keep text contrast) and reshapes the sampled cover colours.
+    final style = NavisColorStyleData.of(context);
+    final veil = style.artWashVeil(subtle: subtle);
     final field = coverId == null || coverId.isEmpty
         ? null
-        : ref.watch(coverColourFieldProvider(coverId)).asData?.value;
-    final target = field ?? CoverColourField.uniform(background);
+        : ref
+                  .watch(coverColourFieldProvider((coverId, coverArtRevision)))
+                  .value ??
+              peekCoverColourField(coverId);
+    if (style.flat) {
+      return _buildFlat(context, background, style, field, veil);
+    }
+    final target = field == null
+        ? CoverColourField.uniform(background)
+        : CoverColourField(
+            field.colors.map(style.adaptArtColor).toList(growable: false),
+          );
     return IgnorePointer(
       key: washKey,
       child: ExcludeSemantics(
@@ -392,6 +431,55 @@ class _ShowcaseColourWash extends ConsumerWidget {
   }
 }
 
+extension on _ShowcaseColourWash {
+  /// Flat wash: one solid block with hard edges, the adapted average of the
+  /// field's cells at the style's veil strength over the page background.
+  Widget _buildFlat(
+    BuildContext context,
+    Color background,
+    NavisColorStyleData style,
+    CoverColourField? field,
+    double veil,
+  ) {
+    final motion = MotionPolicy.of(context);
+    var fill = background;
+    final average = field?.average;
+    if (average != null) {
+      final adapted = styledCoverSample(
+        average,
+        style,
+        Theme.of(context).colorScheme.secondaryContainer,
+      );
+      fill = Color.alphaBlend(adapted.withValues(alpha: 1 - veil), background);
+    }
+    return IgnorePointer(
+      key: _ShowcaseColourWash.washKey,
+      child: ExcludeSemantics(
+        child: TweenAnimationBuilder<Color?>(
+          tween: ColorTween(end: fill),
+          duration: motion.reduceMotion
+              ? Duration.zero
+              : const Duration(milliseconds: 400),
+          curve: Curves.easeOut,
+          // An intentional panel: inset to the page's content margins with
+          // rounded corners rather than a full-bleed hard-edged rectangle.
+          builder: (context, value, _) => Padding(
+            padding: const EdgeInsets.symmetric(horizontal: NavisSpace.md),
+            child: DecoratedBox(
+              key: _ShowcaseColourWash.flatFillKey,
+              decoration: BoxDecoration(
+                color: value ?? fill,
+                borderRadius: NavisShapeData.of(context).xlAll,
+              ),
+              child: const SizedBox.expand(),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 class _CoverColourFieldTween extends Tween<CoverColourField> {
   new({super.end});
 
@@ -400,4 +488,132 @@ class _CoverColourFieldTween extends Tween<CoverColourField> {
     final from = begin ?? end!;
     return CoverColourField.lerp(from, end!, t);
   }
+}
+
+/// Test seam for the private [_ShowcaseFlatBand].
+@visibleForTesting
+typedef ShowcaseFlatBand = _ShowcaseFlatBand;
+
+/// Flat phone wash: a solid, full-bleed, hard-edged colour band that wraps
+/// the carousel, so it is exactly as tall as its content and the neighbouring
+/// covers sit fully inside it.
+///
+/// The band colour is the current cover's adapted average (with the style's
+/// chroma floor for grey covers) toned to the theme by [flatBandSample] and
+/// passed through [captionTintFor], which also
+/// yields the title, subtitle and page-dot colours handed to [builder]. A new
+/// cover glides the band and text colours together.
+class _ShowcaseFlatBand extends ConsumerWidget {
+  const new({
+    required this.coverArtId,
+    this.coverArtRevision = 0,
+    required this.builder,
+    this.borderRadius,
+  });
+
+  static const Key bandKey = ValueKey<String>('home-showcase-flat-band');
+
+  final String? coverArtId;
+  final int coverArtRevision;
+  final Widget Function(BuildContext context, CaptionTint tint) builder;
+
+  /// Clips the band to rounded corners; null keeps it hard-edged (phones).
+  /// The desktop pager uses it to make the band one panel around its content.
+  final BorderRadius? borderRadius;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final theme = Theme.of(context);
+    final style = NavisColorStyleData.of(context);
+    final motion = MotionPolicy.of(context);
+    final coverId = coverArtId?.trim();
+    final field = coverId == null || coverId.isEmpty
+        ? null
+        : ref
+                  .watch(coverColourFieldProvider((coverId, coverArtRevision)))
+                  .value ??
+              peekCoverColourField(coverId);
+    final average = field?.average;
+    final CaptionTint target;
+    if (average == null) {
+      target = CaptionTint(
+        fill: theme.scaffoldBackgroundColor,
+        text: theme.colorScheme.onSurface,
+        subtext: theme.colorScheme.onSurfaceVariant,
+      );
+    } else {
+      final sampled = styledCoverSample(
+        average,
+        style,
+        theme.colorScheme.secondaryContainer,
+      );
+      target = captionTintFor(
+        flatBandSample(sampled, style, adapted: true),
+        style,
+        adapted: true,
+      );
+    }
+    return SizedBox(
+      width: double.infinity,
+      child: TweenAnimationBuilder<CaptionTint>(
+        tween: _CaptionTintTween(end: target),
+        duration: motion.reduceMotion
+            ? Duration.zero
+            : const Duration(milliseconds: 400),
+        curve: Curves.easeOut,
+        builder: (context, value, _) {
+          final band = ColoredBox(
+            key: bandKey,
+            color: value.fill,
+            child: builder(context, value),
+          );
+          final radius = borderRadius;
+          return radius == null
+              ? band
+              : ClipRRect(borderRadius: radius, child: band);
+        },
+      ),
+    );
+  }
+}
+
+/// Re-themes the Flat desktop panel's content for the band [tint]: text,
+/// icons, selection and the Play/Shuffle buttons read against the panel fill
+/// (title/subtitle colours from [captionTintFor], so contrast stays at least
+/// [kCaptionMinContrast]); raised surfaces become a faint lift of the text
+/// colour over the fill.
+ThemeData _flatPanelTheme(ThemeData base, CaptionTint tint) {
+  final lift = Color.alphaBlend(tint.text.withValues(alpha: 0.16), tint.fill);
+  final scheme = base.colorScheme.copyWith(
+    surface: tint.fill,
+    onSurface: tint.text,
+    onSurfaceVariant: tint.subtext,
+    primary: tint.text,
+    onPrimary: tint.fill,
+    secondaryContainer: lift,
+    onSecondaryContainer: tint.text,
+    surfaceContainerHigh: lift,
+    surfaceContainerHighest: lift,
+    outline: tint.subtext,
+    outlineVariant: tint.subtext,
+  );
+  return base.copyWith(
+    colorScheme: scheme,
+    textTheme: base.textTheme.apply(
+      bodyColor: tint.text,
+      displayColor: tint.text,
+    ),
+  );
+}
+
+/// Test seam for the private [_flatPanelTheme].
+@visibleForTesting
+ThemeData flatPanelThemeForTest(ThemeData base, CaptionTint tint) =>
+    _flatPanelTheme(base, tint);
+
+class _CaptionTintTween extends Tween<CaptionTint> {
+  new({super.end});
+
+  @override
+  CaptionTint lerp(double t) => CaptionTint.lerp(begin ?? end!, end!, t);
 }

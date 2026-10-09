@@ -42,6 +42,8 @@ import 'package:navis/src/common_widgets/entity_meta_line.dart';
 import 'package:navis/src/utils/external_url.dart';
 import 'package:navis/src/routing/app_routes.dart';
 import 'package:navis/src/theme/artwork_shape.dart';
+import 'package:navis/src/theme/navis_shape_data.dart';
+import 'package:navis/src/theme/navis_color_style_data.dart';
 
 /// An album's page. An album the library does not hold yet, or a remote
 /// (`ext-…`) album without tracks, is fetched from the server first: the page
@@ -743,16 +745,19 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen> {
                         // ── Gradient fade from header into track list ──
                         Container(
                           height: 28,
-                          decoration: BoxDecoration(
-                            gradient: LinearGradient(
-                              begin: Alignment.topCenter,
-                              end: Alignment.bottomCenter,
-                              colors: <Color>[
-                                colors.surfaceContainerHigh,
-                                colors.surface,
-                              ],
-                            ),
-                          ),
+                          // Flat: a hard step to the solid end colour.
+                          decoration: NavisColorStyleData.of(context).flat
+                              ? BoxDecoration(color: colors.surface)
+                              : BoxDecoration(
+                                  gradient: LinearGradient(
+                                    begin: Alignment.topCenter,
+                                    end: Alignment.bottomCenter,
+                                    colors: <Color>[
+                                      colors.surfaceContainerHigh,
+                                      colors.surface,
+                                    ],
+                                  ),
+                                ),
                         ),
                         // ── Track list — flat, no card ──
                         Expanded(
@@ -1194,22 +1199,39 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen> {
                             fit: BoxFit.cover,
                             fadeInDuration: Duration.zero,
                           ),
-                          Positioned.fill(
-                            child: DecoratedBox(
-                              decoration: BoxDecoration(
-                                gradient: LinearGradient(
-                                  begin: Alignment.topCenter,
-                                  end: Alignment.bottomCenter,
-                                  colors: <Color>[
-                                    Colors.transparent,
-                                    Colors.transparent,
-                                    Theme.of(context).scaffoldBackgroundColor,
-                                  ],
-                                  stops: const <double>[0, 0.60, 0.85],
+                          if (NavisColorStyleData.of(context).flat)
+                            // Flat: a hard-edged solid block under the title
+                            // instead of the fade into the page.
+                            Positioned.fill(
+                              child: Align(
+                                alignment: Alignment.bottomCenter,
+                                child: FractionallySizedBox(
+                                  heightFactor: 0.4,
+                                  widthFactor: 1,
+                                  child: ColoredBox(
+                                    color: Theme.of(context)
+                                        .scaffoldBackgroundColor,
+                                  ),
+                                ),
+                              ),
+                            )
+                          else
+                            Positioned.fill(
+                              child: DecoratedBox(
+                                decoration: BoxDecoration(
+                                  gradient: LinearGradient(
+                                    begin: Alignment.topCenter,
+                                    end: Alignment.bottomCenter,
+                                    colors: <Color>[
+                                      Colors.transparent,
+                                      Colors.transparent,
+                                      Theme.of(context).scaffoldBackgroundColor,
+                                    ],
+                                    stops: const <double>[0, 0.60, 0.85],
+                                  ),
                                 ),
                               ),
                             ),
-                          ),
                           // The title scrolls out with the lower gradient.
                           Positioned(
                             bottom: 0,
@@ -1232,12 +1254,19 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen> {
                                         color: isLightTheme
                                             ? mobileColors.onSurface
                                             : Colors.white,
-                                        shadows: isLightTheme
+                                        shadows:
+                                            isLightTheme ||
+                                                NavisColorStyleData.of(context)
+                                                    .flat
                                             ? null
                                             : <Shadow>[
                                                 Shadow(
-                                                  color: Colors.black
-                                                      .withValues(alpha: 0.55),
+                                                  color:
+                                                      NavisColorStyleData.of(
+                                                        context,
+                                                      ).artworkScrim.withValues(
+                                                        alpha: 0.55,
+                                                      ),
                                                   blurRadius: 12,
                                                   offset: const Offset(0, 2),
                                                 ),
@@ -2708,6 +2737,13 @@ class _RatingButtonState extends State<_RatingButton>
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
     final l10n = AppLocalizations.of(context)!;
+    // The pill follows Corner Style: a stadium in Rounded, a rounded
+    // rectangle in Soft and Square.
+    final pillRadius = min(
+      NavisShapeData.of(context).control,
+      _kRatingHeight / 2,
+    );
+    final pillInnerRadius = pillRadius - 1;
     final hasRating = (widget.rating ?? 0) > 0;
     final effective = widget.rating ?? 0;
     // The collapsed label is helpful at ordinary text sizes, but forcing it
@@ -2740,15 +2776,11 @@ class _RatingButtonState extends State<_RatingButton>
           height: _kRatingHeight,
           child: DecoratedBox(
             decoration: BoxDecoration(
-              borderRadius: const BorderRadius.all(
-                Radius.circular(_kRatingHeight / 2),
-              ),
+              borderRadius: BorderRadius.circular(pillRadius),
               border: Border.all(color: borderColor),
             ),
             child: ClipRRect(
-              borderRadius: const BorderRadius.all(
-                Radius.circular(_kRatingHeight / 2 - 1),
-              ),
+              borderRadius: BorderRadius.circular(pillInnerRadius),
               child: Material(
                 color: Colors.transparent,
                 child: Stack(
@@ -2849,8 +2881,8 @@ class _RatingButtonState extends State<_RatingButton>
                             message: l10n.ratingTitle,
                             child: InkWell(
                               onTap: widget.loading ? null : _expand,
-                              borderRadius: const BorderRadius.all(
-                                Radius.circular(_kRatingHeight / 2 - 1),
+                              borderRadius: BorderRadius.circular(
+                                pillInnerRadius,
                               ),
                               child: SizedBox(
                                 width: collapsedWidth,

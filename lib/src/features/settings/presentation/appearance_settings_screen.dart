@@ -1,4 +1,3 @@
-import 'dart:async';
 import 'dart:convert';
 import 'dart:math';
 
@@ -14,9 +13,17 @@ import 'package:navis/src/providers/app_providers.dart';
 import 'package:navis/src/routing/desktop_layout.dart';
 import 'package:navis/src/routing/content_layout.dart';
 import 'package:navis/src/routing/navigation_service.dart';
+import 'package:navis/src/features/settings/presentation/appearance_layout.dart';
+import 'package:navis/src/features/settings/presentation/appearance_options.dart';
+import 'package:navis/src/features/settings/presentation/color_style_selector.dart';
+import 'package:navis/src/theme/corner_style_provider.dart';
+import 'package:navis/src/theme/dynamic_accent_provider.dart';
+import 'package:navis/src/theme/navis_color_style.dart';
+import 'package:navis/src/theme/navis_color_style_data.dart';
 import 'package:navis/src/theme/navis_theme.dart';
-import 'package:navis/src/theme/navis_tokens.dart';
 import 'package:navis/src/routing/app_routes.dart';
+import 'package:navis/src/theme/navis_shape_data.dart';
+import 'package:navis/src/theme/navis_tokens.dart';
 
 class AppearanceSettingsScreen extends ConsumerWidget {
   const new({super.key});
@@ -26,6 +33,21 @@ class AppearanceSettingsScreen extends ConsumerWidget {
     final l10n = AppLocalizations.of(context)!;
     final currentMode = ref.watch(themeModeProvider);
     final currentSeed = ref.watch(colorSchemeSeedProvider);
+    final currentStyle = ref.watch(colorStyleProvider);
+    final previewSeed = resolveColorSchemeSeedColor(
+      ref.watch(effectiveColorSchemeSeedProvider),
+    );
+    final previewBrightness = switch (currentMode) {
+      'light' => Brightness.light,
+      'system' => MediaQuery.platformBrightnessOf(context),
+      _ => Brightness.dark,
+    };
+    final oledForAuto = ref.watch(oledForAutoProvider);
+    final previewOled =
+        currentMode == 'oled' ||
+        (currentMode == 'system' &&
+            oledForAuto &&
+            previewBrightness == Brightness.dark);
     final dynamicAlbumColorEnabled = ref.watch(
       dynamicAlbumColorEnabledProvider,
     );
@@ -45,6 +67,48 @@ class AppearanceSettingsScreen extends ConsumerWidget {
     );
     final libraryPageOrder = ref.watch(libraryPageOrderProvider);
     final isDesktop = resolveAdaptiveContextFor(context).useDesktopShell;
+    final options = AppearanceOptionSet(
+      oledForAutoVisible: currentMode == 'system',
+      oledForAuto: oledForAuto,
+      onOledForAutoChanged: (enabled) async {
+        final db = ref.read(navisDatabaseProvider);
+        await db.appSettingsDao.updateOledForAuto(enabled: enabled);
+      },
+      nightSchedule: ref.watch(nightScheduleProvider),
+      userStyle: currentStyle,
+      now: ref.watch(nowProvider)(),
+      onNightScheduleChanged: (schedule) async {
+        final db = ref.read(navisDatabaseProvider);
+        await db.appSettingsDao.updateNightSchedule(
+          enabled: schedule.enabled,
+          startMinutes: schedule.startMinutes,
+          endMinutes: schedule.endMinutes,
+        );
+      },
+      flatSurfaces: ref.watch(flatSurfacesProvider),
+      onFlatSurfacesChanged: (enabled) async {
+        final db = ref.read(navisDatabaseProvider);
+        await db.appSettingsDao.updateFlatSurfaces(enabled: enabled);
+      },
+      cornerStyle: ref.watch(cornerStyleProvider),
+      onCornerStyleChanged: (style) async {
+        final db = ref.read(navisDatabaseProvider);
+        await db.appSettingsDao.updateCornerStyle(style.name);
+      },
+      density: ref.watch(densityProvider),
+      onDensityChanged: (density) async {
+        final db = ref.read(navisDatabaseProvider);
+        await db.appSettingsDao.updateDensity(density);
+      },
+      nowPlayingBackground: ref.watch(nowPlayingBackgroundProvider),
+      onNowPlayingBackgroundChanged: (background) async {
+        final db = ref.read(navisDatabaseProvider);
+        await db.appSettingsDao.updateNowPlayingBackground(
+          background.storageKey,
+        );
+      },
+      previewOled: previewOled,
+    );
     // Quick Actions are now always-visible below the home logo; remove from
     // the section reorder list on all platforms.
     final displayOrder = sanitizedOrder
@@ -64,438 +128,419 @@ class AppearanceSettingsScreen extends ConsumerWidget {
             : null,
         title: Text(l10n.appearanceTitle),
       ),
-      body: Align(
-        alignment: Alignment.topCenter,
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 1040),
-          child: ListView(
-            padding: EdgeInsets.symmetric(vertical: isDesktop ? 24 : 8),
-            children: <Widget>[
-              if (languageControlVisible) ...[
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(16, 8, 16, 4),
-                  child: Text(
-                    l10n.appearanceLanguageLabel,
-                    style: theme.textTheme.titleSmall?.copyWith(
-                      color: theme.colorScheme.primary,
-                    ),
+      body: AppearanceVisitScope(
+        child: Align(
+          alignment: Alignment.topCenter,
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 1040),
+            child: ListView(
+              padding: EdgeInsets.symmetric(vertical: isDesktop ? 24 : 8),
+              children: <Widget>[
+                if (languageControlVisible) ...[
+                  AppearanceHeading(title: l10n.appearanceLanguageLabel),
+                  _LanguageSelector(
+                    appLocale: appLocale,
+                    enabled: languageControlEnabled,
+                    onChanged: (localeCode) async {
+                      final db = ref.read(navisDatabaseProvider);
+                      await db.appSettingsDao.updateAppLocale(localeCode);
+                    },
                   ),
+                  const SizedBox(height: 8),
+                ],
+
+                // ── Theme ───────────────────────────────────────────────
+                AppearanceHeading(
+                  title: l10n.appearanceSectionTheme,
+                  level: AppearanceHeadingLevel.section,
+                  topPadding: NavisSpace.xs,
                 ),
-                _LanguageSelector(
-                  appLocale: appLocale,
-                  enabled: languageControlEnabled,
-                  onChanged: (localeCode) async {
+                AppearanceHeading(title: l10n.appearanceThemeModeLabel),
+                ThemeModeSelector(
+                  currentMode: currentMode,
+                  onChanged: (mode) async {
                     final db = ref.read(navisDatabaseProvider);
-                    await db.appSettingsDao.updateAppLocale(localeCode);
+                    await db.appSettingsDao.updateThemeMode(mode);
                   },
                 ),
+                ...options.buildAll(const <AppearanceOptionKind>[
+                  AppearanceOptionKind.oledForAuto,
+                  AppearanceOptionKind.nightSchedule,
+                ]),
+                const Divider(height: 32),
+
+                // ── Color ───────────────────────────────────────────────
+                AppearanceHeading(
+                  title: l10n.appearanceSectionColor,
+                  level: AppearanceHeadingLevel.section,
+                  topPadding: 0,
+                ),
+                ColorStyleOption(
+                  currentStyle: currentStyle,
+                  seed: previewSeed,
+                  brightness: previewBrightness,
+                  oled: previewOled,
+                  onChanged: (style) async {
+                    final db = ref.read(navisDatabaseProvider);
+                    await db.appSettingsDao.updateColorStyle(style.storageKey);
+                  },
+                ),
+                AppearanceHeading(
+                  title: l10n.appearanceColorSchemeLabel,
+                  topPadding: NavisSpace.md,
+                ),
+                Padding(
+                  padding: EdgeInsets.symmetric(
+                    horizontal: AppearanceLayout.gutterOf(context),
+                    vertical: 8,
+                  ),
+                  child: Text(
+                    l10n.appearanceColorSchemeSub,
+                    style: theme.textTheme.bodySmall,
+                  ),
+                ),
+                ColorSchemeGrid(
+                  currentSeed: currentSeed,
+                  style: currentStyle,
+                  dynamicAlbumColorEnabled: dynamicAlbumColorEnabled,
+                  customPresets: customPresets,
+                  onSelected: (seed) async {
+                    final db = ref.read(navisDatabaseProvider);
+                    await db.appSettingsDao.updateColorSchemeSeed(
+                      _normalizeColorSchemeSeed(seed),
+                    );
+                  },
+                  onCustomColorPicked: (colorValue) async {
+                    final db = ref.read(navisDatabaseProvider);
+                    await db.appSettingsDao.updateColorSchemeSeed(
+                      _normalizeColorSchemeSeed(colorValue),
+                    );
+                  },
+                  onSavePreset: (colorValue) async {
+                    if (_normalizeColorSchemeSeed(colorValue) == null) return;
+                    final db = ref.read(navisDatabaseProvider);
+                    final updated = {
+                      ...customPresets,
+                      colorValue,
+                    }.toList(growable: false);
+                    await db.appSettingsDao.updateCustomColorPresets(
+                      jsonEncode(updated),
+                    );
+                    if (context.mounted) {
+                      AppNoticeMessenger.of(context).clearSnackBars();
+                      showAppNotice(
+                        context,
+                        message: l10n.appearanceColorPresetSaved,
+                        level: AppNoticeLevel.success,
+                      );
+                    }
+                  },
+                  onDeletePreset: (colorValue) async {
+                    final confirmed = await showDialog<bool>(
+                      context: context,
+                      builder: (dialogContext) => AlertDialog(
+                        title: Text(l10n.appearanceColorDeletePreset),
+                        content: Text(l10n.appearanceColorDeletePresetConfirm),
+                        actions: <Widget>[
+                          TextButton(
+                            onPressed: () =>
+                                Navigator.pop(dialogContext, false),
+                            child: Text(l10n.cancelAction),
+                          ),
+                          FilledButton(
+                            onPressed: () => Navigator.pop(dialogContext, true),
+                            child: Text(l10n.appearanceColorDeletePreset),
+                          ),
+                        ],
+                      ),
+                    );
+                    if (confirmed != true || !context.mounted) return;
+                    final db = ref.read(navisDatabaseProvider);
+                    final updated = List<int>.from(customPresets)
+                      ..remove(colorValue);
+                    await db.appSettingsDao.updateCustomColorPresets(
+                      updated.isEmpty ? null : jsonEncode(updated),
+                    );
+                    if (currentSeed == colorValue) {
+                      await db.appSettingsDao.updateColorSchemeSeed(null);
+                    }
+                    if (context.mounted) {
+                      AppNoticeMessenger.of(context).clearSnackBars();
+                      showAppNotice(
+                        context,
+                        message: l10n.appearanceColorPresetDeleted,
+                        level: AppNoticeLevel.success,
+                      );
+                    }
+                  },
+                ),
+                SwitchListTile(
+                  contentPadding: appearanceSwitchPadding(context),
+                  title: Text(l10n.appearanceDynamicAlbumColorLabel),
+                  subtitle: Text(l10n.appearanceDynamicAlbumColorSub),
+                  value: dynamicAlbumColorEnabled,
+                  onChanged: (enabled) async {
+                    final db = ref.read(navisDatabaseProvider);
+                    await db.appSettingsDao.updateDynamicAlbumColorEnabled(
+                      enabled: enabled,
+                    );
+                  },
+                ),
+                const Divider(height: 32),
+
+                // ── Shape & Layout ──────────────────────────────────────
+                AppearanceHeading(
+                  title: l10n.appearanceSectionShapeLayout,
+                  level: AppearanceHeadingLevel.section,
+                  topPadding: 0,
+                ),
+                ...options.buildAll(const <AppearanceOptionKind>[
+                  AppearanceOptionKind.flatSurfaces,
+                  AppearanceOptionKind.cornerStyle,
+                ]),
+                AppearanceHeading(
+                  title: l10n.appearanceCoverArtShapeLabel,
+                  topPadding: NavisSpace.md,
+                ),
+                _ShapeSelector(
+                  label: l10n.appearanceCoverArtShapeSubLabel,
+                  value: ref.watch(coverArtShapeProvider),
+                  includeCircle: false,
+                  onChanged: (shape) async {
+                    final db = ref.read(navisDatabaseProvider);
+                    await db.appSettingsDao.updateCoverArtShape(shape);
+                  },
+                ),
+                _ShapeSelector(
+                  label: l10n.appearanceNpArtShapeLabel,
+                  value: ref.watch(nowPlayingArtShapeProvider),
+                  onChanged: (shape) async {
+                    final db = ref.read(navisDatabaseProvider);
+                    await db.appSettingsDao.updateNowPlayingArtShape(shape);
+                  },
+                ),
+                _ShapeSelector(
+                  label: l10n.appearanceArtistCardShapeLabel,
+                  value: ref.watch(artistCardShapeProvider),
+                  onChanged: (shape) async {
+                    final db = ref.read(navisDatabaseProvider);
+                    await db.appSettingsDao.updateArtistCardShape(shape);
+                  },
+                ),
+                Padding(
+                  padding: EdgeInsets.symmetric(
+                    horizontal: AppearanceLayout.gutterOf(context),
+                    vertical: NavisSpace.xxs,
+                  ),
+                  child: Text(
+                    l10n.appearanceCoverArtShapeNote,
+                    style: theme.textTheme.bodySmall,
+                  ),
+                ),
+                AppearanceHeading(
+                  title: l10n.appearanceArtworkSizeLabel,
+                  topPadding: NavisSpace.md,
+                ),
+                Padding(
+                  padding: EdgeInsets.symmetric(
+                    horizontal: AppearanceLayout.gutterOf(context),
+                    vertical: 4,
+                  ),
+                  child: Text(
+                    l10n.appearanceArtworkSizeSub,
+                    style: theme.textTheme.bodySmall,
+                  ),
+                ),
+                _ArtworkSizeSelector(
+                  current: ref.watch(gridArtworkSizeProvider),
+                  onChanged: (density) async {
+                    final db = ref.read(navisDatabaseProvider);
+                    await db.appSettingsDao.updateGridArtworkSize(density.name);
+                  },
+                ),
+                ...options.buildAll(const <AppearanceOptionKind>[
+                  AppearanceOptionKind.density,
+                ]),
+                AppearanceHeading(
+                  title: l10n.appearanceArtistViewModeLabel,
+                  topPadding: NavisSpace.md,
+                ),
+                Padding(
+                  padding: EdgeInsets.symmetric(
+                    horizontal: AppearanceLayout.gutterOf(context),
+                    vertical: 8,
+                  ),
+                  child: SegmentedButton<String>(
+                    segments: <ButtonSegment<String>>[
+                      ButtonSegment<String>(
+                        value: 'list',
+                        label: Text(l10n.appearanceArtistViewModeList),
+                        icon: const Icon(Icons.view_list),
+                      ),
+                      ButtonSegment<String>(
+                        value: 'grid',
+                        label: Text(l10n.appearanceArtistViewModeGrid),
+                        icon: const Icon(Icons.grid_view),
+                      ),
+                    ],
+                    selected: {ref.watch(artistViewModeProvider)},
+                    onSelectionChanged: (selection) async {
+                      if (selection.isNotEmpty) {
+                        final db = ref.read(navisDatabaseProvider);
+                        await db.appSettingsDao.updateArtistViewMode(
+                          selection.first,
+                        );
+                      }
+                    },
+                    showSelectedIcon: false,
+                  ),
+                ),
+                const Divider(height: 32),
+
+                // ── Now Playing ─────────────────────────────────────────
+                AppearanceHeading(
+                  title: l10n.appearanceSectionNowPlaying,
+                  level: AppearanceHeadingLevel.section,
+                  topPadding: 0,
+                ),
+                ...options.buildAll(const <AppearanceOptionKind>[
+                  AppearanceOptionKind.nowPlayingBackground,
+                ]),
+                const Divider(height: 32),
+
+                SettingsCollapsibleGroup(
+                  leading: const Icon(Icons.home_outlined),
+                  title: l10n.appearanceHomeSectionsLabel,
+                  initiallyExpanded: false,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: <Widget>[
+                      if (!resolveAdaptiveContextFor(context).desktopRuntime)
+                        SwitchListTile(
+                          title: Text(
+                            l10n.appearanceRecommendationsAutoAdvance,
+                          ),
+                          subtitle: Text(
+                            l10n.appearanceRecommendationsAutoAdvanceSub,
+                          ),
+                          value: ref.watch(
+                            homeRecommendationsAutoAdvanceProvider,
+                          ),
+                          onChanged: (value) async {
+                            await ref
+                                .read(navisDatabaseProvider)
+                                .appSettingsDao
+                                .updateHomeRecommendationsAutoAdvance(
+                                  enabled: value,
+                                );
+                          },
+                        ),
+                      _HomeSectionReorder(
+                        order: displayOrder,
+                        hidden: sanitizedHidden,
+                        onReorder: (newOrder) async {
+                          final db = ref.read(navisDatabaseProvider);
+                          await db.appSettingsDao.updateHomeSectionOrder(
+                            jsonEncode(newOrder),
+                          );
+                        },
+                        onToggleVisibility:
+                            (sectionId, {required visible}) async {
+                              final db = ref.read(navisDatabaseProvider);
+                              final current = List<String>.from(
+                                sanitizedHidden,
+                              );
+                              if (visible) {
+                                current.remove(sectionId);
+                              } else {
+                                if (!current.contains(sectionId)) {
+                                  current.add(sectionId);
+                                }
+                              }
+                              await db.appSettingsDao.updateHomeSectionsHidden(
+                                current.isEmpty ? null : jsonEncode(current),
+                              );
+                            },
+                      ),
+                    ],
+                  ),
+                ),
+                const Divider(height: 24),
+
+                SettingsCollapsibleGroup(
+                  leading: const _BlinkingEyeIcon(),
+                  title: l10n.appearancePagesSectionLabel,
+                  initiallyExpanded: false,
+                  child: _LibraryPageReorder(
+                    order: libraryPageOrder,
+                    visibleSections: visibleLibrarySections(
+                      orderedSections: libraryPageOrder,
+                      showAlbums: ref.watch(showAlbumsPageProvider),
+                      showLiked: ref.watch(showLikedPageProvider),
+                      showArtists: ref.watch(showArtistsPageProvider),
+                      showPlaylists: ref.watch(showPlaylistsPageProvider),
+                      showRadio: ref.watch(showRadioPageProvider),
+                    ).toSet(),
+                    onReorder: (newOrder) async {
+                      final db = ref.read(navisDatabaseProvider);
+                      await db.appSettingsDao.updateLibraryPageOrder(
+                        jsonEncode(
+                          newOrder.map((section) => section.name).toList(),
+                        ),
+                      );
+                    },
+                    onToggleVisibility: (section, {required visible}) async {
+                      final db = ref.read(navisDatabaseProvider);
+                      switch (section) {
+                        case LibrarySection.albums:
+                          await db.appSettingsDao.updateShowAlbumsPage(
+                            enabled: visible,
+                          );
+                        case LibrarySection.liked:
+                          await db.appSettingsDao.updateShowLikedPage(
+                            enabled: visible,
+                          );
+                        case LibrarySection.artists:
+                          await db.appSettingsDao.updateShowArtistsPage(
+                            enabled: visible,
+                          );
+                        case LibrarySection.playlists:
+                          await db.appSettingsDao.updateShowPlaylistsPage(
+                            enabled: visible,
+                          );
+                        case LibrarySection.radio:
+                          await db.appSettingsDao.updateShowRadioPage(
+                            enabled: visible,
+                          );
+                      }
+                    },
+                  ),
+                ),
+                if (isDesktop) ...[
+                  const Divider(height: 24),
+                  SettingsCollapsibleGroup(
+                    leading: const Icon(Icons.view_sidebar_outlined),
+                    title: l10n.desktopNavbarSectionLabel,
+                    initiallyExpanded: false,
+                    child: _DesktopNavbarSettings(
+                      currentStyle: ref.watch(desktopNavbarStyleProvider),
+                      autohideEnabled: ref.watch(desktopNavbarAutohideProvider),
+                      onStyleChanged: (style) async {
+                        final db = ref.read(navisDatabaseProvider);
+                        await db.appSettingsDao.updateDesktopNavbarStyle(style);
+                      },
+                      onAutohideChanged: (enabled) async {
+                        final db = ref.read(navisDatabaseProvider);
+                        await db.appSettingsDao.updateDesktopNavbarAutohide(
+                          enabled,
+                        );
+                      },
+                    ),
+                  ),
+                ],
                 const SizedBox(height: 8),
               ],
-
-              // ── Theme Mode ──────────────────────────────────────────
-              Padding(
-                padding: const EdgeInsets.fromLTRB(16, 8, 16, 4),
-                child: Text(
-                  l10n.appearanceThemeModeLabel,
-                  style: theme.textTheme.titleSmall?.copyWith(
-                    color: theme.colorScheme.primary,
-                  ),
-                ),
-              ),
-              ThemeModeSelector(
-                currentMode: currentMode,
-                onChanged: (mode) async {
-                  final db = ref.read(navisDatabaseProvider);
-                  await db.appSettingsDao.updateThemeMode(mode);
-                },
-              ),
-              const Divider(height: 32),
-
-              // ── Color Scheme ────────────────────────────────────────
-              Padding(
-                padding: const EdgeInsets.fromLTRB(16, 0, 16, 4),
-                child: Text(
-                  l10n.appearanceColorSchemeLabel,
-                  style: theme.textTheme.titleSmall?.copyWith(
-                    color: theme.colorScheme.primary,
-                  ),
-                ),
-              ),
-              Padding(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 16,
-                  vertical: 8,
-                ),
-                child: Text(
-                  l10n.appearanceColorSchemeSub,
-                  style: theme.textTheme.bodySmall,
-                ),
-              ),
-              ColorSchemeGrid(
-                currentSeed: currentSeed,
-                dynamicAlbumColorEnabled: dynamicAlbumColorEnabled,
-                customPresets: customPresets,
-                onSelected: (seed) async {
-                  final db = ref.read(navisDatabaseProvider);
-                  await db.appSettingsDao.updateColorSchemeSeed(
-                    _normalizeColorSchemeSeed(seed),
-                  );
-                },
-                onCustomColorPicked: (colorValue) async {
-                  final db = ref.read(navisDatabaseProvider);
-                  await db.appSettingsDao.updateColorSchemeSeed(
-                    _normalizeColorSchemeSeed(colorValue),
-                  );
-                },
-                onSavePreset: (colorValue) async {
-                  if (_normalizeColorSchemeSeed(colorValue) == null) return;
-                  final db = ref.read(navisDatabaseProvider);
-                  final updated = {
-                    ...customPresets,
-                    colorValue,
-                  }.toList(growable: false);
-                  await db.appSettingsDao.updateCustomColorPresets(
-                    jsonEncode(updated),
-                  );
-                  if (context.mounted) {
-                    AppNoticeMessenger.of(context).clearSnackBars();
-                    showAppNotice(
-                      context,
-                      message: l10n.appearanceColorPresetSaved,
-                      level: AppNoticeLevel.success,
-                    );
-                  }
-                },
-                onDeletePreset: (colorValue) async {
-                  final confirmed = await showDialog<bool>(
-                    context: context,
-                    builder: (dialogContext) => AlertDialog(
-                      title: Text(l10n.appearanceColorDeletePreset),
-                      content: Text(l10n.appearanceColorDeletePresetConfirm),
-                      actions: <Widget>[
-                        TextButton(
-                          onPressed: () => Navigator.pop(dialogContext, false),
-                          child: Text(l10n.cancelAction),
-                        ),
-                        FilledButton(
-                          onPressed: () => Navigator.pop(dialogContext, true),
-                          child: Text(l10n.appearanceColorDeletePreset),
-                        ),
-                      ],
-                    ),
-                  );
-                  if (confirmed != true || !context.mounted) return;
-                  final db = ref.read(navisDatabaseProvider);
-                  final updated = List<int>.from(customPresets)
-                    ..remove(colorValue);
-                  await db.appSettingsDao.updateCustomColorPresets(
-                    updated.isEmpty ? null : jsonEncode(updated),
-                  );
-                  if (currentSeed == colorValue) {
-                    await db.appSettingsDao.updateColorSchemeSeed(null);
-                  }
-                  if (context.mounted) {
-                    AppNoticeMessenger.of(context).clearSnackBars();
-                    showAppNotice(
-                      context,
-                      message: l10n.appearanceColorPresetDeleted,
-                      level: AppNoticeLevel.success,
-                    );
-                  }
-                },
-              ),
-              const Divider(height: 32),
-
-              // ── Art-Tinted Now Playing ──────────────────────────────
-              SwitchListTile(
-                title: Text(l10n.appearanceArtTintedLabel),
-                subtitle: Text(l10n.appearanceArtTintedSub),
-                value: ref.watch(artTintedNowPlayingProvider),
-                onChanged: (enabled) async {
-                  final db = ref.read(navisDatabaseProvider);
-                  await db.appSettingsDao.updateArtTintedNowPlaying(
-                    enabled: enabled,
-                  );
-                },
-              ),
-              SwitchListTile(
-                title: Text(l10n.appearanceDynamicAlbumColorLabel),
-                subtitle: Text(
-                  dynamicAlbumColorEnabled
-                      ? l10n.appearanceDynamicAlbumColorEnabledSub
-                      : l10n.appearanceDynamicAlbumColorDisabledSub,
-                ),
-                value: dynamicAlbumColorEnabled,
-                onChanged: (enabled) async {
-                  final db = ref.read(navisDatabaseProvider);
-                  await db.appSettingsDao.updateDynamicAlbumColorEnabled(
-                    enabled: enabled,
-                  );
-                },
-              ),
-              const Divider(height: 32),
-
-              // ── Grid Density ────────────────────────────────────────
-              Padding(
-                padding: const EdgeInsets.fromLTRB(16, 0, 16, 4),
-                child: Text(
-                  l10n.appearanceArtworkSizeLabel,
-                  style: theme.textTheme.titleSmall?.copyWith(
-                    color: theme.colorScheme.primary,
-                  ),
-                ),
-              ),
-              Padding(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 16,
-                  vertical: 4,
-                ),
-                child: Text(
-                  l10n.appearanceArtworkSizeSub,
-                  style: theme.textTheme.bodySmall,
-                ),
-              ),
-              _ArtworkSizeSelector(
-                current: ref.watch(gridArtworkSizeProvider),
-                onChanged: (density) async {
-                  final db = ref.read(navisDatabaseProvider);
-                  await db.appSettingsDao.updateGridArtworkSize(density.name);
-                },
-              ),
-              const Divider(height: 32),
-
-              // ── Artist View Mode ────────────────────────────────────
-              Padding(
-                padding: const EdgeInsets.fromLTRB(16, 0, 16, 4),
-                child: Text(
-                  l10n.appearanceArtistViewModeLabel,
-                  style: theme.textTheme.titleSmall?.copyWith(
-                    color: theme.colorScheme.primary,
-                  ),
-                ),
-              ),
-              Padding(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 16,
-                  vertical: 8,
-                ),
-                child: SegmentedButton<String>(
-                  segments: <ButtonSegment<String>>[
-                    ButtonSegment<String>(
-                      value: 'list',
-                      label: Text(l10n.appearanceArtistViewModeList),
-                      icon: const Icon(Icons.view_list),
-                    ),
-                    ButtonSegment<String>(
-                      value: 'grid',
-                      label: Text(l10n.appearanceArtistViewModeGrid),
-                      icon: const Icon(Icons.grid_view),
-                    ),
-                  ],
-                  selected: {ref.watch(artistViewModeProvider)},
-                  onSelectionChanged: (selection) async {
-                    if (selection.isNotEmpty) {
-                      final db = ref.read(navisDatabaseProvider);
-                      await db.appSettingsDao.updateArtistViewMode(
-                        selection.first,
-                      );
-                    }
-                  },
-                  showSelectedIcon: false,
-                ),
-              ),
-              const Divider(height: 32),
-
-              _SettingsCollapsibleGroup(
-                leading: const _CyclingShapeIcon(),
-                title: l10n.appearanceCoverArtShapeLabel,
-                initiallyExpanded: false,
-                child: Column(
-                  children: <Widget>[
-                    _ShapeSelector(
-                      label: l10n.appearanceCoverArtShapeSubLabel,
-                      value: ref.watch(coverArtShapeProvider),
-                      includeCircle: false,
-                      onChanged: (shape) async {
-                        final db = ref.read(navisDatabaseProvider);
-                        await db.appSettingsDao.updateCoverArtShape(shape);
-                      },
-                    ),
-                    _ShapeSelector(
-                      label: l10n.appearanceNpArtShapeLabel,
-                      value: ref.watch(nowPlayingArtShapeProvider),
-                      onChanged: (shape) async {
-                        final db = ref.read(navisDatabaseProvider);
-                        await db.appSettingsDao.updateNowPlayingArtShape(shape);
-                      },
-                    ),
-                    _ShapeSelector(
-                      label: l10n.appearanceArtistCardShapeLabel,
-                      value: ref.watch(artistCardShapeProvider),
-                      onChanged: (shape) async {
-                        final db = ref.read(navisDatabaseProvider);
-                        await db.appSettingsDao.updateArtistCardShape(shape);
-                      },
-                    ),
-                  ],
-                ),
-              ),
-              const Divider(height: 24),
-
-              _SettingsCollapsibleGroup(
-                leading: const Icon(Icons.home_outlined),
-                title: l10n.appearanceHomeSectionsLabel,
-                initiallyExpanded: false,
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: <Widget>[
-                    Padding(
-                      padding: const EdgeInsets.fromLTRB(16, 8, 16, 4),
-                      child: Text(
-                        l10n.appearanceHomeDensityLabel,
-                        style: theme.textTheme.titleSmall?.copyWith(
-                          color: theme.colorScheme.primary,
-                        ),
-                      ),
-                    ),
-                    Padding(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 16,
-                        vertical: 4,
-                      ),
-                      child: Text(
-                        l10n.appearanceHomeDensitySub,
-                        style: theme.textTheme.bodySmall,
-                      ),
-                    ),
-                    _HomeDensitySelector(
-                      current: ref.watch(homeDensityProvider),
-                      onChanged: (value) async {
-                        final db = ref.read(navisDatabaseProvider);
-                        await db.appSettingsDao.updateHomeDensity(value);
-                      },
-                    ),
-                    if (!resolveAdaptiveContextFor(context).desktopRuntime)
-                      SwitchListTile(
-                        title: Text(l10n.appearanceRecommendationsAutoAdvance),
-                        subtitle: Text(
-                          l10n.appearanceRecommendationsAutoAdvanceSub,
-                        ),
-                        value: ref.watch(
-                          homeRecommendationsAutoAdvanceProvider,
-                        ),
-                        onChanged: (value) async {
-                          await ref
-                              .read(navisDatabaseProvider)
-                              .appSettingsDao
-                              .updateHomeRecommendationsAutoAdvance(
-                                enabled: value,
-                              );
-                        },
-                      ),
-                    _HomeSectionReorder(
-                      order: displayOrder,
-                      hidden: sanitizedHidden,
-                      onReorder: (newOrder) async {
-                        final db = ref.read(navisDatabaseProvider);
-                        await db.appSettingsDao.updateHomeSectionOrder(
-                          jsonEncode(newOrder),
-                        );
-                      },
-                      onToggleVisibility:
-                          (sectionId, {required visible}) async {
-                            final db = ref.read(navisDatabaseProvider);
-                            final current = List<String>.from(sanitizedHidden);
-                            if (visible) {
-                              current.remove(sectionId);
-                            } else {
-                              if (!current.contains(sectionId)) {
-                                current.add(sectionId);
-                              }
-                            }
-                            await db.appSettingsDao.updateHomeSectionsHidden(
-                              current.isEmpty ? null : jsonEncode(current),
-                            );
-                          },
-                    ),
-                  ],
-                ),
-              ),
-              const Divider(height: 24),
-
-              _SettingsCollapsibleGroup(
-                leading: const _BlinkingEyeIcon(),
-                title: l10n.appearancePagesSectionLabel,
-                initiallyExpanded: false,
-                child: _LibraryPageReorder(
-                  order: libraryPageOrder,
-                  visibleSections: visibleLibrarySections(
-                    orderedSections: libraryPageOrder,
-                    showAlbums: ref.watch(showAlbumsPageProvider),
-                    showLiked: ref.watch(showLikedPageProvider),
-                    showArtists: ref.watch(showArtistsPageProvider),
-                    showPlaylists: ref.watch(showPlaylistsPageProvider),
-                    showRadio: ref.watch(showRadioPageProvider),
-                  ).toSet(),
-                  onReorder: (newOrder) async {
-                    final db = ref.read(navisDatabaseProvider);
-                    await db.appSettingsDao.updateLibraryPageOrder(
-                      jsonEncode(
-                        newOrder.map((section) => section.name).toList(),
-                      ),
-                    );
-                  },
-                  onToggleVisibility: (section, {required visible}) async {
-                    final db = ref.read(navisDatabaseProvider);
-                    switch (section) {
-                      case LibrarySection.albums:
-                        await db.appSettingsDao.updateShowAlbumsPage(
-                          enabled: visible,
-                        );
-                      case LibrarySection.liked:
-                        await db.appSettingsDao.updateShowLikedPage(
-                          enabled: visible,
-                        );
-                      case LibrarySection.artists:
-                        await db.appSettingsDao.updateShowArtistsPage(
-                          enabled: visible,
-                        );
-                      case LibrarySection.playlists:
-                        await db.appSettingsDao.updateShowPlaylistsPage(
-                          enabled: visible,
-                        );
-                      case LibrarySection.radio:
-                        await db.appSettingsDao.updateShowRadioPage(
-                          enabled: visible,
-                        );
-                    }
-                  },
-                ),
-              ),
-              if (isDesktop) ...[
-                const Divider(height: 24),
-                _SettingsCollapsibleGroup(
-                  leading: const Icon(Icons.view_sidebar_outlined),
-                  title: l10n.desktopNavbarSectionLabel,
-                  initiallyExpanded: false,
-                  child: _DesktopNavbarSettings(
-                    currentStyle: ref.watch(desktopNavbarStyleProvider),
-                    autohideEnabled: ref.watch(desktopNavbarAutohideProvider),
-                    onStyleChanged: (style) async {
-                      final db = ref.read(navisDatabaseProvider);
-                      await db.appSettingsDao.updateDesktopNavbarStyle(style);
-                    },
-                    onAutohideChanged: (enabled) async {
-                      final db = ref.read(navisDatabaseProvider);
-                      await db.appSettingsDao.updateDesktopNavbarAutohide(
-                        enabled,
-                      );
-                    },
-                  ),
-                ),
-              ],
-              const SizedBox(height: 8),
-            ],
+            ),
           ),
         ),
       ),
@@ -551,12 +596,15 @@ class _LanguageSelector extends StatelessWidget {
   }
 }
 
-class _SettingsCollapsibleGroup extends StatefulWidget {
+class SettingsCollapsibleGroup extends StatefulWidget {
   const new({
     required this.leading,
     required this.title,
     required this.child,
     this.initiallyExpanded = false,
+    this.outerPadding = const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+    this.buildCollapsed = true,
+    super.key,
   });
 
   final Widget leading;
@@ -564,36 +612,61 @@ class _SettingsCollapsibleGroup extends StatefulWidget {
   final Widget child;
   final bool initiallyExpanded;
 
+  /// Space around the card.
+  final EdgeInsetsGeometry outerPadding;
+
+  /// Whether [child] stays built (but hidden) while collapsed. Setup turns
+  /// this off so hidden options are neither focusable nor counted as shown.
+  final bool buildCollapsed;
+
   @override
-  State<_SettingsCollapsibleGroup> createState() =>
-      _SettingsCollapsibleGroupState();
+  State<SettingsCollapsibleGroup> createState() =>
+      SettingsCollapsibleGroupState();
 }
 
-class _SettingsCollapsibleGroupState extends State<_SettingsCollapsibleGroup> {
+class SettingsCollapsibleGroupState extends State<SettingsCollapsibleGroup> {
   static const Duration _duration = Duration(milliseconds: 220);
   bool _expanded = false;
+  bool _childBuilt = true;
+  bool _userToggled = false;
 
   @override
   void initState() {
     super.initState();
     _expanded = widget.initiallyExpanded;
+    _childBuilt = widget.buildCollapsed || _expanded;
+  }
+
+  @override
+  void didUpdateWidget(SettingsCollapsibleGroup oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    // A group that was told late to start open (its trigger loads
+    // asynchronously) still opens, unless the user already chose.
+    if (!_userToggled && widget.initiallyExpanded && !_expanded) {
+      _expanded = true;
+      _childBuilt = true;
+    }
   }
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+      padding: widget.outerPadding,
       child: Material(
         color: theme.colorScheme.surfaceContainerLow,
-        borderRadius: NavisRadius.mdAll,
+        borderRadius: NavisShapeData.of(context).mdAll,
         child: Column(
           children: <Widget>[
             InkWell(
-              borderRadius: NavisRadius.mdAll,
+              borderRadius: NavisShapeData.of(context).mdAll,
               onTap: () {
                 final nextExpanded = !_expanded;
-                setState(() => _expanded = nextExpanded);
+                setState(() {
+                  _userToggled = true;
+                  _expanded = nextExpanded;
+                  if (nextExpanded) _childBuilt = true;
+                });
                 if (!nextExpanded) {
                   return;
                 }
@@ -648,71 +721,23 @@ class _SettingsCollapsibleGroupState extends State<_SettingsCollapsibleGroup> {
                 heightFactor: _expanded ? 1 : 0,
                 duration: _duration,
                 curve: Curves.easeOutCubic,
+                onEnd: () {
+                  if (!_expanded && !widget.buildCollapsed && _childBuilt) {
+                    setState(() => _childBuilt = false);
+                  }
+                },
                 child: AnimatedOpacity(
                   opacity: _expanded ? 1 : 0,
                   duration: const Duration(milliseconds: 170),
                   curve: Curves.easeOutCubic,
                   child: Padding(
                     padding: const EdgeInsets.only(bottom: 10),
-                    child: widget.child,
+                    child: _childBuilt ? widget.child : const SizedBox.shrink(),
                   ),
                 ),
               ),
             ),
           ],
-        ),
-      ),
-    );
-  }
-}
-
-class _CyclingShapeIcon extends StatefulWidget {
-  const new();
-
-  @override
-  State<_CyclingShapeIcon> createState() => _CyclingShapeIconState();
-}
-
-class _CyclingShapeIconState extends State<_CyclingShapeIcon> {
-  static const List<double> _cornerRadii = <double>[1.5, 6, 999];
-  Timer? _timer;
-  int _index = 0;
-
-  @override
-  void initState() {
-    super.initState();
-    _timer = Timer.periodic(const Duration(milliseconds: 950), (_) {
-      if (!mounted) return;
-      setState(() => _index = (_index + 1) % _cornerRadii.length);
-    });
-  }
-
-  @override
-  void dispose() {
-    _timer?.cancel();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final color =
-        IconTheme.of(context).color ?? Theme.of(context).iconTheme.color;
-    return SizedBox(
-      width: 22,
-      height: 22,
-      child: Center(
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 220),
-          curve: Curves.easeOutCubic,
-          width: 16,
-          height: 16,
-          decoration: BoxDecoration(
-            border: Border.all(
-              color: color ?? Theme.of(context).colorScheme.primary,
-              width: 2,
-            ),
-            borderRadius: BorderRadius.circular(_cornerRadii[_index]),
-          ),
         ),
       ),
     );
@@ -790,7 +815,10 @@ class ThemeModeSelector extends StatelessWidget {
       builder: (context, constraints) {
         final compact = constraints.maxWidth < 440;
         return Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+          padding: EdgeInsets.symmetric(
+            horizontal: AppearanceLayout.gutterOf(context),
+            vertical: 8,
+          ),
           child: SegmentedButton<String>(
             segments: entries
                 .map(
@@ -833,9 +861,15 @@ class ColorSchemeGrid extends StatelessWidget {
     required this.onCustomColorPicked,
     required this.onSavePreset,
     required this.onDeletePreset,
+    this.style = NavisColorStyle.neutral,
   });
 
   final int? currentSeed;
+
+  /// Colour style the swatches preview: each swatch is filled with its raw
+  /// seed (so Night's many hues stay distinguishable) and carries a small dot
+  /// with the accent the style will make from it.
+  final NavisColorStyle style;
   final bool dynamicAlbumColorEnabled;
   final List<int> customPresets;
   final ValueChanged<int?> onSelected;
@@ -857,7 +891,12 @@ class ColorSchemeGrid extends StatelessWidget {
       children: <Widget>[
         if (dynamicAlbumColorEnabled)
           Padding(
-            padding: const EdgeInsets.fromLTRB(16, 0, 16, 4),
+            padding: EdgeInsets.fromLTRB(
+              AppearanceLayout.gutterOf(context),
+              0,
+              AppearanceLayout.gutterOf(context),
+              4,
+            ),
             child: Text(
               l10n.appearanceColorSchemeDynamicSub,
               style: theme.textTheme.bodySmall?.copyWith(
@@ -866,13 +905,17 @@ class ColorSchemeGrid extends StatelessWidget {
             ),
           ),
         Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+          padding: EdgeInsets.symmetric(
+            horizontal: AppearanceLayout.gutterOf(context),
+            vertical: 8,
+          ),
           child: Wrap(
             spacing: 12,
             runSpacing: 12,
             children: <Widget>[
               _ColorChip(
-                color: defaultColorSchemeSeedColor,
+                color: styledSwatchColor(defaultColorSchemeSeedColor, style),
+                seedColor: defaultColorSchemeSeedColor,
                 label: l10n.appearanceColorDefault,
                 isSelected: _normalizeColorSchemeSeed(currentSeed) == null,
                 onTap: () => onSelected(null),
@@ -881,7 +924,8 @@ class ColorSchemeGrid extends StatelessWidget {
               ),
               for (final swatch in swatches)
                 _ColorChip(
-                  color: swatch.color,
+                  color: styledSwatchColor(swatch.color, style),
+                  seedColor: swatch.color,
                   label: swatch.label,
                   isSelected: currentSeed == swatch.colorValue,
                   onTap: () => onSelected(swatch.colorValue),
@@ -1027,13 +1071,19 @@ class _ColorChip extends StatelessWidget {
     required this.isSelected,
     required this.onTap,
     required this.theme,
+    this.seedColor,
     this.onLongPress,
     this.showDeleteHint = false,
     this.isCustom = false,
     this.valueKey,
   });
 
+  /// The accent the user gets (the seed under the colour style); fills the chip.
   final Color color;
+
+  /// The raw seed, shown as a small dot so accents that the style makes
+  /// near-identical stay distinguishable.
+  final Color? seedColor;
   final String label;
   final bool isSelected;
   final VoidCallback onTap;
@@ -1074,7 +1124,7 @@ class _ColorChip extends StatelessWidget {
                   : theme.colorScheme.outlineVariant,
               width: isSelected ? 3 : 1,
             ),
-            boxShadow: isSelected
+            boxShadow: isSelected && !NavisColorStyleData.of(context).flat
                 ? <BoxShadow>[
                     BoxShadow(
                       color: theme.colorScheme.primary.withAlpha(72),
@@ -1112,6 +1162,25 @@ class _ColorChip extends StatelessWidget {
                       Icons.check_rounded,
                       color: checkColor,
                       size: 20,
+                    ),
+                  ),
+                if (seedColor != null)
+                  Positioned(
+                    key: valueKey == null
+                        ? null
+                        : ValueKey<String>('seedDot-$valueKey'),
+                    left: 3,
+                    bottom: 3,
+                    child: DecoratedBox(
+                      decoration: BoxDecoration(
+                        color: seedColor,
+                        shape: BoxShape.circle,
+                        border: Border.all(
+                          color: theme.colorScheme.surface,
+                          width: 1.5,
+                        ),
+                      ),
+                      child: const SizedBox(width: 14, height: 14),
                     ),
                   ),
                 if (isCustom)
@@ -1162,27 +1231,33 @@ class _RainbowChip extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     const size = 52.0;
-    final child = GestureDetector(
+    final child = Semantics(
+      button: true,
+      label: label,
+      excludeSemantics: true,
       onTap: onTap,
-      child: Container(
-        width: size,
-        height: size,
-        decoration: const BoxDecoration(
-          shape: BoxShape.circle,
-          gradient: SweepGradient(
-            colors: <Color>[
-              Colors.red,
-              Colors.orange,
-              Colors.yellow,
-              Colors.green,
-              Colors.cyan,
-              Colors.blue,
-              Colors.purple,
-              Colors.red,
-            ],
+      child: GestureDetector(
+        onTap: onTap,
+        child: Container(
+          width: size,
+          height: size,
+          decoration: const BoxDecoration(
+            shape: BoxShape.circle,
+            gradient: SweepGradient(
+              colors: <Color>[
+                Colors.red,
+                Colors.orange,
+                Colors.yellow,
+                Colors.green,
+                Colors.cyan,
+                Colors.blue,
+                Colors.purple,
+                Colors.red,
+              ],
+            ),
           ),
+          child: const Icon(Icons.add, color: Colors.white, size: 24),
         ),
-        child: const Icon(Icons.add, color: Colors.white, size: 24),
       ),
     );
 
@@ -1420,7 +1495,7 @@ class _HueSlider extends StatelessWidget {
         Container(
           height: 24,
           decoration: BoxDecoration(
-            borderRadius: NavisRadius.mdAll,
+            borderRadius: NavisShapeData.of(context).mdAll,
             gradient: LinearGradient(
               colors: List<Color>.generate(
                 360 ~/ 10 + 1,
@@ -1456,7 +1531,10 @@ class _ArtworkSizeSelector extends StatelessWidget {
     ];
 
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      padding: EdgeInsets.symmetric(
+        horizontal: AppearanceLayout.gutterOf(context),
+        vertical: 8,
+      ),
       child: Wrap(
         spacing: 8,
         runSpacing: 8,
@@ -1469,67 +1547,6 @@ class _ArtworkSizeSelector extends StatelessWidget {
               materialTapTargetSize: MaterialTapTargetSize.padded,
               onSelected: (_) => onChanged(preset.$1),
             ),
-        ],
-      ),
-    );
-  }
-}
-
-class _HomeDensitySelector extends StatelessWidget {
-  const new({required this.current, required this.onChanged});
-
-  final String current;
-  final ValueChanged<String> onChanged;
-
-  @override
-  Widget build(BuildContext context) {
-    final l10n = AppLocalizations.of(context)!;
-    final selectedValue = current == 'compact' ? 'compact' : 'comfortable';
-    final colorScheme = Theme.of(context).colorScheme;
-
-    Widget option({
-      required String value,
-      required String label,
-      required IconData icon,
-    }) {
-      final selected = selectedValue == value;
-      return Expanded(
-        child: SizedBox(
-          height: 48,
-          child: FilledButton.icon(
-            onPressed: () => onChanged(value),
-            icon: Icon(icon, size: 18),
-            label: Text(label, maxLines: 1, overflow: TextOverflow.ellipsis),
-            style: FilledButton.styleFrom(
-              padding: const EdgeInsets.symmetric(horizontal: 10),
-              backgroundColor: selected
-                  ? colorScheme.primaryContainer
-                  : colorScheme.surfaceContainerLow,
-              foregroundColor: selected
-                  ? colorScheme.onPrimaryContainer
-                  : colorScheme.onSurfaceVariant,
-              shape: RoundedRectangleBorder(borderRadius: NavisRadius.mdAll),
-            ),
-          ),
-        ),
-      );
-    }
-
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-      child: Row(
-        children: <Widget>[
-          option(
-            value: 'comfortable',
-            label: l10n.appearanceHomeDensityComfortable,
-            icon: Icons.view_agenda_outlined,
-          ),
-          const SizedBox(width: 8),
-          option(
-            value: 'compact',
-            label: l10n.appearanceHomeDensityCompact,
-            icon: Icons.view_compact_alt_outlined,
-          ),
         ],
       ),
     );
@@ -1561,7 +1578,10 @@ class _ShapeSelector extends ConsumerWidget {
         ? value
         : (value == 'square' ? 'square' : 'rounded');
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      padding: EdgeInsets.symmetric(
+        horizontal: AppearanceLayout.gutterOf(context),
+        vertical: 8,
+      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: <Widget>[
@@ -1863,7 +1883,7 @@ class _DesktopNavbarSettings extends StatelessWidget {
               foregroundColor: isSelected
                   ? colorScheme.onPrimaryContainer
                   : colorScheme.onSurfaceVariant,
-              shape: RoundedRectangleBorder(borderRadius: NavisRadius.mdAll),
+              shape: NavisShapeData.of(context).mdShape,
             ),
           ),
         ),
@@ -1888,13 +1908,13 @@ class _DesktopNavbarSettings extends StatelessWidget {
             children: <Widget>[
               styleOption(
                 value: 'comfortable',
-                label: l10n.desktopNavbarStyleComfortable,
+                label: l10n.desktopNavbarStyleWide,
                 icon: Icons.view_sidebar_outlined,
               ),
               const SizedBox(width: 8),
               styleOption(
                 value: 'compact',
-                label: l10n.desktopNavbarStyleCompact,
+                label: l10n.desktopNavbarStyleNarrow,
                 icon: Icons.view_compact_alt_outlined,
               ),
               const SizedBox(width: 8),

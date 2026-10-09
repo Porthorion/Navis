@@ -1,7 +1,7 @@
 import 'dart:async';
 import 'dart:io';
 
-import 'package:cached_network_image/cached_network_image.dart';
+import 'package:navis/src/common_widgets/cover_art_source.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:flutter_cache_manager/flutter_cache_manager.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -15,6 +15,7 @@ import 'package:navis/src/providers/app_providers.dart';
 import 'package:navis/src/theme/artwork_shape.dart';
 import 'package:octo_image/octo_image.dart';
 import 'package:visibility_detector/visibility_detector.dart';
+import 'package:navis/src/theme/navis_color_style_data.dart';
 
 // Re-export constants so that files which import cover_art_image.dart continue
 // to access coverArtCacheKey and kCoverArtStandardSize without extra imports.
@@ -295,17 +296,24 @@ class _CoverArtImageState extends ConsumerState<CoverArtImage> {
     // and saves the network fetch. A refreshed revision still loads fresh and
     // falls back to the stored cover only when the network load fails.
     final permanentFile = _permanentFile;
-    if (permanentFile != null &&
-        cachedFile == null &&
-        widget.revision == 0 &&
-        _renderedNetworkCacheKey != cacheKey) {
+    final source = coverArtImageProviderFor(
+      coverArtId: id,
+      size: resolvedSize,
+      revision: widget.revision,
+      api: api,
+      cacheManager: cacheManager,
+      permanentFile: cachedFile == null && _renderedNetworkCacheKey != cacheKey
+          ? permanentFile
+          : null,
+    );
+    if (source is FileImage) {
       return _withVisibility(
         _withRemoteSourceIndicator(
           context,
           _withSemantics(
             _buildFileImageChild(
               context,
-              permanentFile,
+              source.file,
               resolvedSize,
               cacheManager,
               recoverCacheEntry: false,
@@ -519,13 +527,13 @@ class _CoverArtImageState extends ConsumerState<CoverArtImage> {
     final image = OctoImage(
       key: ValueKey<int>(_retryNonce),
       image: _boundedImageProvider(
-        CachedNetworkImageProvider(
-          api
-              .getCoverArtUrl(id: widget.coverArtId!.trim(), size: resolvedSize)
-              .toString(),
-          cacheKey: cacheKey,
+        coverArtImageProviderFor(
+          coverArtId: widget.coverArtId!,
+          size: resolvedSize,
+          revision: widget.revision,
+          api: api,
           cacheManager: cacheManager,
-        ),
+        )!,
         resolvedSize,
       ),
       fit: widget.fit,
@@ -611,6 +619,12 @@ class _CoverArtImageState extends ConsumerState<CoverArtImage> {
       width: widget.width,
       height: widget.height,
       gaplessPlayback: widget.gaplessPlayback,
+      frameBuilder: (context, child, frame, wasSynchronouslyLoaded) {
+        if (frame != null || wasSynchronouslyLoaded) {
+          _reportImageReady('file:${file.path}');
+        }
+        return child;
+      },
       errorBuilder: (_, _, _) {
         // Decode failure of a cached file (plan F6): evict the entry once
         // so the next build performs one bounded network refetch.
@@ -718,14 +732,20 @@ class _CoverArtImageState extends ConsumerState<CoverArtImage> {
       width: widget.width,
       height: widget.height,
       decoration: BoxDecoration(
-        gradient: LinearGradient(
-          begin: AlignmentDirectional.topStart,
-          end: AlignmentDirectional.bottomEnd,
-          colors: <Color>[
-            colors.surfaceContainerHigh,
-            colors.surfaceContainerHighest,
-          ],
-        ),
+        // Flat: the gradient's end colour as a solid fill.
+        color: NavisColorStyleData.of(context).flat
+            ? colors.surfaceContainerHighest
+            : null,
+        gradient: NavisColorStyleData.of(context).flat
+            ? null
+            : LinearGradient(
+                begin: AlignmentDirectional.topStart,
+                end: AlignmentDirectional.bottomEnd,
+                colors: <Color>[
+                  colors.surfaceContainerHigh,
+                  colors.surfaceContainerHighest,
+                ],
+              ),
         borderRadius: _isCircular ? null : _borderRadius,
         shape: _isCircular ? BoxShape.circle : BoxShape.rectangle,
       ),

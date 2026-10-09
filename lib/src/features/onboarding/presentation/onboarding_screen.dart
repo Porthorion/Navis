@@ -13,18 +13,25 @@ import 'package:navis/src/features/integrations/data/integration_guard_intercept
 import 'package:navis/src/features/integrations/domain/integration_feature.dart';
 import 'package:navis/src/features/integrations/presentation/integration_copy.dart';
 import 'package:navis/src/features/onboarding/presentation/onboarding_provider.dart';
+import 'package:navis/src/features/onboarding/presentation/setup_highlights_provider.dart';
+import 'package:navis/src/features/settings/domain/night_schedule.dart';
+import 'package:navis/src/features/settings/presentation/appearance_layout.dart';
+import 'package:navis/src/features/onboarding/domain/setup_highlights.dart';
+import 'package:navis/src/features/settings/presentation/appearance_options.dart';
 import 'package:navis/src/features/settings/presentation/appearance_settings_screen.dart';
 import 'package:navis/src/features/settings/presentation/external_service_messages.dart';
 import 'package:navis/src/features/settings/presentation/listenbrainz_connection_status.dart';
 import 'package:navis/src/features/settings/domain/app_settings.dart';
 import 'package:navis/src/utils/app_logger.dart';
 import 'package:navis/src/providers/app_providers.dart';
+import 'package:navis/src/theme/navis_shape_data.dart';
 import 'package:navis/src/theme/motion_policy.dart';
 import 'package:navis/src/theme/navis_theme.dart';
 import 'package:navis/src/theme/navis_tokens.dart';
 import 'package:navis/src/utils/external_url.dart';
 import 'package:navis/src/routing/app_routes.dart';
 import 'package:navis/src/routing/navigation_service.dart';
+import 'package:navis/src/theme/navis_color_style.dart';
 
 /// A deliberately shell-free, one-time customization experience.
 class OnboardingScreen extends ConsumerStatefulWidget {
@@ -58,6 +65,7 @@ class OnboardingScreenState extends ConsumerState<OnboardingScreen> {
   // used before its choices have been shown.
   bool _skippedToIntegrations = false;
   bool _hydrated = false;
+  bool _onboardingRequiredAtEntry = false;
   bool _saving = false;
   bool _lastFmBusy = false;
   bool _listenBrainzBusy = false;
@@ -67,6 +75,8 @@ class OnboardingScreenState extends ConsumerState<OnboardingScreen> {
   String? _listenBrainzError;
   String? _saveError;
   AppSettingsModel? _draft;
+  late final AppSettingsModel _initialSettings;
+  late final List<int> _initialCustomPresets;
   List<int>? _draftCustomPresets;
   late final TextEditingController _lastFmKey;
   late final TextEditingController _listenBrainzToken;
@@ -141,13 +151,16 @@ class OnboardingScreenState extends ConsumerState<OnboardingScreen> {
     _homeWarmup?.stop();
   }
 
-  void _hydrate(AppSettingsModel settings) {
+  void _hydrate(AppSettingsModel settings, {required bool onboardingRequired}) {
     if (_hydrated) return;
     _hydrated = true;
+    _onboardingRequiredAtEntry = onboardingRequired;
+    _initialSettings = settings;
     _draft = settings;
     _draftCustomPresets = List<int>.from(
       ref.read(customColorPresetsProvider).asData?.value ?? const <int>[],
     );
+    _initialCustomPresets = List<int>.of(_draftCustomPresets!);
     _lastFmKey.text = settings.lastFmApiKey ?? '';
     unawaited(_readListenBrainzToken());
   }
@@ -175,7 +188,8 @@ class OnboardingScreenState extends ConsumerState<OnboardingScreen> {
         await _saveIntegrationChoices(draft);
       } else if (!discardDraft) {
         final customPresets = _draftCustomPresets;
-        if (customPresets != null) {
+        if (customPresets != null &&
+            !listEquals(customPresets, _initialCustomPresets)) {
           await ref
               .read(navisDatabaseProvider)
               .appSettingsDao
@@ -183,10 +197,15 @@ class OnboardingScreenState extends ConsumerState<OnboardingScreen> {
                 customPresets.isEmpty ? null : jsonEncode(customPresets),
               );
         }
-        await ref.read(settingsRepositoryProvider).saveSettings(draft);
+        await ref
+            .read(settingsRepositoryProvider)
+            .saveOnboardingChanges(_initialSettings, draft);
         await _saveIntegrationChoices(draft);
         final handler = ref.read(audioHandlerProvider);
         if (handler != null) await handler.applyRuntimeSettings();
+      }
+      if (!discardDraft || (!widget.reviewMode && _onboardingRequiredAtEntry)) {
+        await ref.read(setupHighlightsServiceProvider).markSeen();
       }
       await ref.read(onboardingCompletionServiceProvider).complete();
       if (!mounted) return;
@@ -207,21 +226,37 @@ class OnboardingScreenState extends ConsumerState<OnboardingScreen> {
   }
 
   /// Writes the Integrations step's switches through the targeted writers,
-  /// which the full-row settings save leaves alone, and marks the 1.4.3
+  /// only for changes from the entry snapshot, and marks the 1.4.3
   /// Integrations note as seen: setup has just shown the same choices.
   Future<void> _saveIntegrationChoices(AppSettingsModel draft) async {
     final repository = ref.read(settingsRepositoryProvider);
+    final initial = _initialSettings;
     final policy = _draftIntegrationPolicy(draft);
-    await repository.updateLastFmApiKey(draft.lastFmApiKey);
-    await repository.updateListenBrainzConnection(
-      tokenValid: draft.listenBrainzTokenValid,
-      userName: draft.listenBrainzUserName,
-      scrobblingEnabled: draft.listenBrainzScrobblingEnabled,
-    );
-    await repository.setExternalIntegrationsEnabled(
-      enabled: draft.externalIntegrationsEnabled,
-    );
+    final initialPolicy = _draftIntegrationPolicy(initial);
+    if (draft.lastFmApiKey != initial.lastFmApiKey) {
+      await repository.updateLastFmApiKey(draft.lastFmApiKey);
+    }
+    if (draft.listenBrainzTokenValid != initial.listenBrainzTokenValid ||
+        draft.listenBrainzUserName != initial.listenBrainzUserName ||
+        draft.listenBrainzScrobblingEnabled !=
+            initial.listenBrainzScrobblingEnabled) {
+      await repository.updateListenBrainzConnection(
+        tokenValid: draft.listenBrainzTokenValid,
+        userName: draft.listenBrainzUserName,
+        scrobblingEnabled: draft.listenBrainzScrobblingEnabled,
+      );
+    }
+    if (draft.externalIntegrationsEnabled !=
+        initial.externalIntegrationsEnabled) {
+      await repository.setExternalIntegrationsEnabled(
+        enabled: draft.externalIntegrationsEnabled,
+      );
+    }
     for (final service in _integrationStepServices) {
+      if (policy.isServiceSwitchOn(service) ==
+          initialPolicy.isServiceSwitchOn(service)) {
+        continue;
+      }
       await repository.setIntegrationEnabled(
         service.key,
         enabled: policy.isServiceSwitchOn(service),
@@ -373,7 +408,12 @@ class OnboardingScreenState extends ConsumerState<OnboardingScreen> {
   @override
   Widget build(BuildContext context) {
     final settings = ref.watch(appSettingsProvider);
-    settings.whenData(_hydrate);
+    final onboardingRequired = ref.watch(onboardingRequiredProvider);
+    if (onboardingRequired != null) {
+      settings.whenData(
+        (value) => _hydrate(value, onboardingRequired: onboardingRequired),
+      );
+    }
     final draft = _draft;
     if (draft == null) {
       return const Scaffold(body: Center(child: CircularProgressIndicator()));
@@ -558,7 +598,7 @@ class OnboardingScreenState extends ConsumerState<OnboardingScreen> {
       color: previewTheme.colorScheme.surfaceContainerLow,
       clipBehavior: Clip.antiAlias,
       shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(28),
+        borderRadius: NavisShapeData.of(context).scaledAll(28),
         side: BorderSide(color: previewTheme.colorScheme.outlineVariant),
       ),
       child: content,
@@ -623,11 +663,24 @@ class OnboardingScreenState extends ConsumerState<OnboardingScreen> {
         (resolvedMode == ThemeMode.system &&
             MediaQuery.platformBrightnessOf(context) == Brightness.dark);
     final seed = resolveColorSchemeSeedColor(draft.colorSchemeSeed);
-    if (!dark) return buildLightTheme(seed);
-    return draft.themeMode == 'oled'
-        ? buildOledTheme(seed)
-        : buildDarkTheme(seed);
+    final style = NavisColorStyle.parse(draft.colorStyle);
+    final flat = draft.flatSurfaces;
+    final corners = draft.cornerStyle;
+    if (!dark) {
+      return buildLightTheme(seed, style: style, flat: flat, corners: corners);
+    }
+    return _previewOled(context, draft)
+        ? buildOledTheme(seed, style: style, flat: flat, corners: corners)
+        : buildDarkTheme(seed, style: style, flat: flat, corners: corners);
   }
+
+  /// Mirrors app.dart: OLED mode, or Auto with "OLED when dark" while the
+  /// platform is dark. The night schedule never switches the preview by time.
+  bool _previewOled(BuildContext context, AppSettingsModel draft) =>
+      draft.themeMode == 'oled' ||
+      (draft.themeMode == 'system' &&
+          draft.oledForAuto &&
+          MediaQuery.platformBrightnessOf(context) == Brightness.dark);
 
   /// The current step, built under the preview theme: the [Builder]'s
   /// context sits below `Theme(data: previewTheme)`, unlike the state's own
@@ -643,62 +696,155 @@ class OnboardingScreenState extends ConsumerState<OnboardingScreen> {
 
   Widget _appearanceStep(BuildContext context, AppSettingsModel draft) {
     final l10n = AppLocalizations.of(context)!;
+    final theme = Theme.of(context);
     final customPresets = _draftCustomPresets ?? const <int>[];
-    return _scrollStep(
-      children: [
-        Text(
-          l10n.onboardingAppearanceTitle,
-          style: Theme.of(context).textTheme.titleLarge,
+    final colorStyle = NavisColorStyle.parse(draft.colorStyle);
+    final previewOled = _previewOled(context, draft);
+    final optionTitleStyle = theme.textTheme.titleMedium;
+    // The same builders as Settings > Appearance, fed from the draft.
+    final options = AppearanceOptionSet(
+      oledForAutoVisible: draft.themeMode == 'system',
+      oledForAuto: draft.oledForAuto,
+      onOledForAutoChanged: (value) =>
+          setState(() => _draft = draft.copyWith(oledForAuto: value)),
+      nightSchedule: NightSchedule(
+        enabled: draft.nightScheduleEnabled,
+        startMinutes: draft.nightScheduleStartMinutes,
+        endMinutes: draft.nightScheduleEndMinutes,
+      ),
+      userStyle: colorStyle,
+      now: ref.watch(nowProvider)(),
+      onNightScheduleChanged: (schedule) => setState(
+        () => _draft = draft.copyWith(
+          nightScheduleEnabled: schedule.enabled,
+          nightScheduleStartMinutes: schedule.startMinutes,
+          nightScheduleEndMinutes: schedule.endMinutes,
         ),
-        const SizedBox(height: 8),
-        Text(l10n.onboardingAppearanceDescription),
-        const SizedBox(height: 16),
-        ThemeModeSelector(
-          currentMode: draft.themeMode,
-          onChanged: (value) =>
-              setState(() => _draft = draft.copyWith(themeMode: value)),
-        ),
-        const SizedBox(height: 24),
-        Text(
-          l10n.onboardingAccentColor,
-          style: Theme.of(context).textTheme.titleMedium,
-        ),
-        ColorSchemeGrid(
-          currentSeed: draft.colorSchemeSeed,
-          dynamicAlbumColorEnabled: false,
-          customPresets: customPresets,
-          onSelected: (seed) => setState(
-            () => _draft = draft.copyWith(
-              colorSchemeSeed: seed,
-              clearColorSchemeSeed: seed == null,
-            ),
-          ),
-          onCustomColorPicked: (value) =>
-              setState(() => _draft = draft.copyWith(colorSchemeSeed: value)),
-          onSavePreset: (value) => setState(() {
-            if (!_draftCustomPresets!.contains(value)) {
-              _draftCustomPresets = [..._draftCustomPresets!, value];
-            }
-          }),
-          onDeletePreset: (value) => setState(() {
-            _draftCustomPresets = _draftCustomPresets!
-                .where((preset) => preset != value)
-                .toList(growable: false);
-            if (draft.colorSchemeSeed == value) {
-              _draft = draft.copyWith(
-                clearColorSchemeSeed: true,
-                colorSchemeSeed: null,
-              );
-            }
-          }),
-        ),
-        const SizedBox(height: 12),
-        Text(
-          l10n.onboardingAppearanceColorPickerHint,
-          style: Theme.of(context).textTheme.bodySmall,
-        ),
-      ],
+      ),
+      flatSurfaces: draft.flatSurfaces,
+      onFlatSurfacesChanged: (value) =>
+          setState(() => _draft = draft.copyWith(flatSurfaces: value)),
+      cornerStyle: draft.cornerStyle,
+      onCornerStyleChanged: (value) =>
+          setState(() => _draft = draft.copyWith(cornerStyle: value)),
+      density: draft.density,
+      onDensityChanged: (value) =>
+          setState(() => _draft = draft.copyWith(density: value)),
+      nowPlayingBackground: draft.nowPlayingBackground,
+      onNowPlayingBackgroundChanged: (value) =>
+          setState(() => _draft = draft.copyWith(nowPlayingBackground: value)),
+      previewOled: previewOled,
     );
+    return AppearanceVisitScope(
+      child: AppearanceLayout(
+        gutter: 0,
+        optionTitleStyle: optionTitleStyle,
+        child: _scrollStep(
+          children: [
+            Text(
+              l10n.onboardingAppearanceTitle,
+              style: theme.textTheme.titleLarge,
+            ),
+            const SizedBox(height: 8),
+            Text(l10n.onboardingAppearanceDescription),
+            const SizedBox(height: 16),
+            ThemeModeSelector(
+              currentMode: draft.themeMode,
+              onChanged: (value) =>
+                  setState(() => _draft = draft.copyWith(themeMode: value)),
+            ),
+            const SizedBox(height: 8),
+            ColorStyleOption(
+              currentStyle: colorStyle,
+              seed: resolveColorSchemeSeedColor(draft.colorSchemeSeed),
+              brightness: theme.brightness,
+              oled: previewOled,
+              onChanged: (style) => setState(
+                () => _draft = draft.copyWith(colorStyle: style.storageKey),
+              ),
+            ),
+            AppearanceHeading(
+              title: l10n.onboardingAccentColor,
+              topPadding: NavisSpace.lg,
+            ),
+            ColorSchemeGrid(
+              currentSeed: draft.colorSchemeSeed,
+              style: colorStyle,
+              dynamicAlbumColorEnabled: false,
+              customPresets: customPresets,
+              onSelected: (seed) => setState(
+                () => _draft = draft.copyWith(
+                  colorSchemeSeed: seed,
+                  clearColorSchemeSeed: seed == null,
+                ),
+              ),
+              onCustomColorPicked: (value) => setState(
+                () => _draft = draft.copyWith(colorSchemeSeed: value),
+              ),
+              onSavePreset: (value) => setState(() {
+                if (!_draftCustomPresets!.contains(value)) {
+                  _draftCustomPresets = [..._draftCustomPresets!, value];
+                }
+              }),
+              onDeletePreset: (value) => setState(() {
+                _draftCustomPresets = _draftCustomPresets!
+                    .where((preset) => preset != value)
+                    .toList(growable: false);
+                if (draft.colorSchemeSeed == value) {
+                  _draft = draft.copyWith(
+                    clearColorSchemeSeed: true,
+                    colorSchemeSeed: null,
+                  );
+                }
+              }),
+            ),
+            const SizedBox(height: 12),
+            Text(
+              l10n.onboardingAppearanceColorPickerHint,
+              style: theme.textTheme.bodySmall,
+            ),
+            const SizedBox(height: 16),
+            Builder(
+              builder: (context) => SettingsCollapsibleGroup(
+                key: const ValueKey<String>(
+                  'onboarding-more-appearance-options',
+                ),
+                leading: const Icon(Icons.tune),
+                title: l10n.onboardingMoreAppearanceOptions,
+                // Open when something in it carries a New tag this visit, so updated
+                // users see what changed. It only ever opens by itself: clearing tags
+                // must not close the group while they are looking at it.
+                initiallyExpanded: _hasPendingMoreOptions(context, draft),
+                outerPadding: EdgeInsets.zero,
+                buildCollapsed: false,
+                child: AppearanceLayout(
+                  gutter: 14,
+                  optionTitleStyle: optionTitleStyle,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: options.buildAll(AppearanceOptionKind.values),
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// Whether any option under "More appearance options" is tagged and shown.
+  /// Use OLED When Dark only counts in Auto, where it is visible.
+  bool _hasPendingMoreOptions(BuildContext context, AppSettingsModel draft) {
+    final Set<SetupHighlight> pending;
+    final visit = AppearanceVisitScope.maybeOf(context);
+    pending = visit ?? ref.watch(pendingSetupHighlightsProvider);
+    return AppearanceOptionKind.values.any((kind) {
+      final highlight = kind.highlight;
+      if (highlight == null || !pending.contains(highlight)) return false;
+      return kind != AppearanceOptionKind.oledForAuto ||
+          draft.themeMode == 'system';
+    });
   }
 
   void _updateStepScrollability() {
@@ -729,7 +875,7 @@ class OnboardingScreenState extends ConsumerState<OnboardingScreen> {
       context,
       children: children,
       showHint:
-          (_step == 1 || _step == integrationsStep) &&
+          (_step == 0 || _step == 1 || _step == integrationsStep) &&
           _stepHasMoreBelow[_step] &&
           MediaQuery.viewInsetsOf(context).bottom == 0 &&
           constraints.maxHeight >= _minStepHeightForScrollHint,

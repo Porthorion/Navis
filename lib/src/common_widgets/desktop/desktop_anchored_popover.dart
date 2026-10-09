@@ -1,7 +1,8 @@
 import 'dart:math' as math;
 
 import 'package:material_ui/material_ui.dart';
-import 'package:navis/src/theme/navis_tokens.dart';
+import 'package:navis/src/theme/navis_color_style_data.dart';
+import 'package:navis/src/theme/navis_shape_data.dart';
 import 'package:navis/src/theme/motion_policy.dart';
 
 /// Shows a card anchored to the widget that owns [anchorContext].
@@ -56,7 +57,7 @@ Future<T?> showDesktopAnchoredPopover<T>({
         : const Duration(milliseconds: 200),
     pageBuilder: (context, _, _) {
       final colors = Theme.of(context).colorScheme;
-      final radius = NavisTokens.of(context).panelRadius;
+      final radius = NavisShapeData.of(context).xl;
       final border = colors.outlineVariant.withValues(alpha: 0.4);
       return CustomMultiChildLayout(
         delegate: _AnchoredPopoverLayout(
@@ -73,7 +74,10 @@ Future<T?> showDesktopAnchoredPopover<T>({
               key: const ValueKey<String>('desktopAnchoredPopover'),
               color: colors.surfaceContainerHigh,
               elevation: 12,
-              shadowColor: Colors.black.withValues(alpha: 0.5),
+              // Flat drops the hand-set black shadow.
+              shadowColor: NavisColorStyleData.of(context).flat
+                  ? Colors.transparent
+                  : Colors.black.withValues(alpha: 0.5),
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(radius),
                 side: BorderSide(color: border),

@@ -6,6 +6,8 @@ import 'package:navis/l10n/app_localizations.dart';
 import 'package:navis/src/common_widgets/cover_art_image.dart';
 import 'package:navis/src/common_widgets/star_button.dart';
 import 'package:navis/src/database/navis_database.dart';
+import 'package:navis/src/theme/navis_density_scope.dart';
+import 'package:navis/src/theme/navis_shape_data.dart';
 import 'package:navis/src/theme/navis_tokens.dart';
 import 'package:navis/src/theme/artwork_shape.dart';
 
@@ -31,13 +33,16 @@ class ArtistCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context)!;
     final albumCount = artist.albumCount ?? 0;
+    final density = NavisDensityScope.of(context);
     final tile = ListTile(
+      dense: density.compact,
+      visualDensity: density.compact ? VisualDensity.compact : null,
       leading: CoverArtImage(
         coverArtId: artist.coverArt,
         revision: artist.coverArtRevision ?? 0,
         size: 96,
-        width: 40,
-        height: 40,
+        width: density.compact ? 36 : 40,
+        height: density.compact ? 36 : 40,
         shape: ArtworkShapeRole.artist,
         placeholderIcon: Icons.person_outline,
         isExternalSource: artist.isExternal,
@@ -72,7 +77,7 @@ class ArtistCard extends StatelessWidget {
           ),
         ],
       ),
-      shape: const RoundedRectangleBorder(borderRadius: NavisRadius.mdAll),
+      shape: NavisShapeData.of(context).mdShape,
       onTap: onTap,
       onLongPress: onLongPress == null
           ? null

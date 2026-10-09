@@ -29,6 +29,7 @@ import 'package:navis/src/routing/navigation_service.dart';
 import 'package:navis/src/theme/navis_tokens.dart';
 import 'package:navis/src/utils/catalog_source.dart';
 import 'package:navis/src/theme/artwork_shape.dart';
+import 'package:navis/src/theme/navis_shape_data.dart';
 
 class SearchScreen extends ConsumerStatefulWidget {
   const new({super.key});
@@ -573,8 +574,8 @@ class _SearchBar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context)!;
-    const border = OutlineInputBorder(
-      borderRadius: NavisRadius.mdAll,
+    final border = OutlineInputBorder(
+      borderRadius: NavisShapeData.of(context).mdAll,
       borderSide: BorderSide.none,
     );
     return TextField(

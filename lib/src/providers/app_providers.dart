@@ -74,10 +74,14 @@ import 'package:navis/src/features/settings/data/update_check_store.dart';
 import 'package:navis/src/features/settings/data/update_repository.dart';
 import 'package:navis/src/features/settings/data/update_service.dart';
 import 'package:navis/src/features/settings/domain/app_settings.dart';
+import 'package:navis/src/features/settings/domain/navis_density.dart';
+import 'package:navis/src/features/settings/domain/night_schedule.dart';
+import 'package:navis/src/features/settings/domain/now_playing_background.dart';
 import 'package:navis/src/features/settings/domain/update_info.dart';
 import 'package:navis/src/routing/content_layout.dart';
 import 'package:navis/src/routing/desktop_layout.dart' show isDesktopRuntime;
 import 'package:navis/src/theme/artwork_shape.dart';
+import 'package:navis/src/theme/navis_color_style.dart';
 import 'package:navis/src/utils/app_logger.dart';
 import 'package:navis/src/utils/connectivity.dart';
 import 'package:navis/src/utils/constants.dart';
@@ -2620,6 +2624,63 @@ final themeModeProvider = Provider<String>((ref) {
   return settings.themeMode;
 });
 
+/// Current colour style (Neutral, Pastel, Immersive or Night).
+final colorStyleProvider = Provider<NavisColorStyle>((ref) {
+  final settings =
+      ref.watch(appSettingsProvider).asData?.value ??
+      const AppSettingsModel.defaults();
+  return NavisColorStyle.parse(settings.colorStyle);
+});
+
+/// Whether Auto mode uses OLED when the device is dark.
+final oledForAutoProvider = Provider<bool>((ref) {
+  final settings =
+      ref.watch(appSettingsProvider).asData?.value ??
+      const AppSettingsModel.defaults();
+  return settings.oledForAuto;
+});
+
+/// Whether surfaces use flat rendering.
+final flatSurfacesProvider = Provider<bool>((ref) {
+  final settings =
+      ref.watch(appSettingsProvider).asData?.value ??
+      const AppSettingsModel.defaults();
+  return settings.flatSurfaces;
+});
+
+/// Daily window for the Night colour style.
+final nightScheduleProvider = Provider<NightSchedule>((ref) {
+  final settings =
+      ref.watch(appSettingsProvider).asData?.value ??
+      const AppSettingsModel.defaults();
+  return NightSchedule(
+    enabled: settings.nightScheduleEnabled,
+    startMinutes: settings.nightScheduleStartMinutes,
+    endMinutes: settings.nightScheduleEndMinutes,
+  );
+});
+
+final nowProvider = Provider<DateTime Function()>((ref) => DateTime.now);
+
+/// Applies the scheduled Night style without changing the saved user style.
+final effectiveColorStyleProvider = Provider<NavisColorStyle>((ref) {
+  final style = ref.watch(colorStyleProvider);
+  final schedule = ref.watch(nightScheduleProvider);
+  final now = ref.watch(nowProvider)();
+  if (schedule.enabled) {
+    final untilBoundary = schedule.nextBoundaryAfter(now).difference(now);
+    // Suspended desktops may resume without advancing Dart timers. Recheck the
+    // wall clock within fifteen minutes even when the boundary was hours away.
+    const recheckCap = Duration(minutes: 15);
+    final timer = Timer(
+      untilBoundary < recheckCap ? untilBoundary : recheckCap,
+      ref.invalidateSelf,
+    );
+    ref.onDispose(timer.cancel);
+  }
+  return schedule.isActiveAt(now) ? NavisColorStyle.night : style;
+});
+
 /// Current color scheme seed color value (null = default white).
 final colorSchemeSeedProvider = Provider<int?>((ref) {
   final settings =
@@ -2636,12 +2697,12 @@ final appLocaleProvider = Provider<String?>((ref) {
   return settings.appLocale;
 });
 
-/// Whether the Now Playing screen background should be tinted with album art.
-final artTintedNowPlayingProvider = Provider<bool>((ref) {
+/// Current Now Playing background, defaulting to tinted while settings load.
+final nowPlayingBackgroundProvider = Provider<NowPlayingBackground>((ref) {
   final settings =
       ref.watch(appSettingsProvider).asData?.value ??
       const AppSettingsModel.defaults();
-  return settings.artTintedNowPlaying;
+  return settings.nowPlayingBackground;
 });
 
 /// Whether lyrics should open in fullscreen mode by default.
@@ -2722,12 +2783,12 @@ final artistViewModeProvider = Provider<String>((ref) {
   return settings.artistViewMode;
 });
 
-/// Home layout density: 'comfortable' or 'compact'.
-final homeDensityProvider = Provider<String>((ref) {
+/// App-wide Density covers Home and lists, using the existing homeDensity column.
+final densityProvider = Provider<NavisDensity>((ref) {
   final settings =
       ref.watch(appSettingsProvider).asData?.value ??
       const AppSettingsModel.defaults();
-  return settings.homeDensity == 'compact' ? 'compact' : 'comfortable';
+  return settings.density;
 });
 
 /// Desktop navigation sidebar style: 'comfortable', 'compact', or 'icons'.

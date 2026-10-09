@@ -951,6 +951,86 @@ class $AppSettingsTableTable extends AppSettingsTable
     requiredDuringInsert: false,
     defaultValue: const Constant('dark'),
   );
+  static const VerificationMeta _colorStyleMeta = const VerificationMeta(
+    'colorStyle',
+  );
+  @override
+  late final GeneratedColumn<String> colorStyle = GeneratedColumn<String>(
+    'color_style',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant('neutral'),
+  );
+  static const VerificationMeta _oledForAutoMeta = const VerificationMeta(
+    'oledForAuto',
+  );
+  @override
+  late final GeneratedColumn<bool> oledForAuto = GeneratedColumn<bool>(
+    'oled_for_auto',
+    aliasedName,
+    false,
+    type: DriftSqlType.bool,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'CHECK ("oled_for_auto" IN (0, 1))',
+    ),
+    defaultValue: const Constant(false),
+  );
+  static const VerificationMeta _nightScheduleEnabledMeta =
+      const VerificationMeta('nightScheduleEnabled');
+  @override
+  late final GeneratedColumn<bool> nightScheduleEnabled = GeneratedColumn<bool>(
+    'night_schedule_enabled',
+    aliasedName,
+    false,
+    type: DriftSqlType.bool,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'CHECK ("night_schedule_enabled" IN (0, 1))',
+    ),
+    defaultValue: const Constant(false),
+  );
+  static const VerificationMeta _nightScheduleStartMinutesMeta =
+      const VerificationMeta('nightScheduleStartMinutes');
+  @override
+  late final GeneratedColumn<int> nightScheduleStartMinutes =
+      GeneratedColumn<int>(
+        'night_schedule_start_minutes',
+        aliasedName,
+        false,
+        type: DriftSqlType.int,
+        requiredDuringInsert: false,
+        defaultValue: const Constant(1320),
+      );
+  static const VerificationMeta _nightScheduleEndMinutesMeta =
+      const VerificationMeta('nightScheduleEndMinutes');
+  @override
+  late final GeneratedColumn<int> nightScheduleEndMinutes =
+      GeneratedColumn<int>(
+        'night_schedule_end_minutes',
+        aliasedName,
+        false,
+        type: DriftSqlType.int,
+        requiredDuringInsert: false,
+        defaultValue: const Constant(420),
+      );
+  static const VerificationMeta _flatSurfacesMeta = const VerificationMeta(
+    'flatSurfaces',
+  );
+  @override
+  late final GeneratedColumn<bool> flatSurfaces = GeneratedColumn<bool>(
+    'flat_surfaces',
+    aliasedName,
+    false,
+    type: DriftSqlType.bool,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'CHECK ("flat_surfaces" IN (0, 1))',
+    ),
+    defaultValue: const Constant(false),
+  );
   static const VerificationMeta _colorSchemeSeedMeta = const VerificationMeta(
     'colorSchemeSeed',
   );
@@ -1049,6 +1129,30 @@ class $AppSettingsTableTable extends AppSettingsTable
     ),
     defaultValue: const Constant(true),
   );
+  static const VerificationMeta _cornerStyleMeta = const VerificationMeta(
+    'cornerStyle',
+  );
+  @override
+  late final GeneratedColumn<String> cornerStyle = GeneratedColumn<String>(
+    'corner_style',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant('rounded'),
+  );
+  static const VerificationMeta _nowPlayingBackgroundMeta =
+      const VerificationMeta('nowPlayingBackground');
+  @override
+  late final GeneratedColumn<String> nowPlayingBackground =
+      GeneratedColumn<String>(
+        'now_playing_background',
+        aliasedName,
+        false,
+        type: DriftSqlType.string,
+        requiredDuringInsert: false,
+        defaultValue: const Constant('tinted'),
+      );
   static const VerificationMeta _dynamicAlbumColorEnabledMeta =
       const VerificationMeta('dynamicAlbumColorEnabled');
   @override
@@ -1670,6 +1774,39 @@ class $AppSettingsTableTable extends AppSettingsTable
         ),
         defaultValue: const Constant(false),
       );
+  static const VerificationMeta _setupHighlightsSeenMeta =
+      const VerificationMeta('setupHighlightsSeen');
+  @override
+  late final GeneratedColumn<String> setupHighlightsSeen =
+      GeneratedColumn<String>(
+        'setup_highlights_seen',
+        aliasedName,
+        true,
+        type: DriftSqlType.string,
+        requiredDuringInsert: false,
+      );
+  static const VerificationMeta _setupHighlightsSeenReleaseMeta =
+      const VerificationMeta('setupHighlightsSeenRelease');
+  @override
+  late final GeneratedColumn<String> setupHighlightsSeenRelease =
+      GeneratedColumn<String>(
+        'setup_highlights_seen_release',
+        aliasedName,
+        true,
+        type: DriftSqlType.string,
+        requiredDuringInsert: false,
+      );
+  static const VerificationMeta _setupCardDismissedReleaseMeta =
+      const VerificationMeta('setupCardDismissedRelease');
+  @override
+  late final GeneratedColumn<String> setupCardDismissedRelease =
+      GeneratedColumn<String>(
+        'setup_card_dismissed_release',
+        aliasedName,
+        true,
+        type: DriftSqlType.string,
+        requiredDuringInsert: false,
+      );
   static const VerificationMeta _lastFullSyncAppBuildMeta =
       const VerificationMeta('lastFullSyncAppBuild');
   @override
@@ -1722,6 +1859,12 @@ class $AppSettingsTableTable extends AppSettingsTable
     maxConcurrentDownloads,
     downloadsPaused,
     themeMode,
+    colorStyle,
+    oledForAuto,
+    nightScheduleEnabled,
+    nightScheduleStartMinutes,
+    nightScheduleEndMinutes,
+    flatSurfaces,
     colorSchemeSeed,
     customColorPresets,
     appLocale,
@@ -1730,6 +1873,8 @@ class $AppSettingsTableTable extends AppSettingsTable
     crossfadeType,
     coverArtCacheMaxObjects,
     artTintedNowPlaying,
+    cornerStyle,
+    nowPlayingBackground,
     dynamicAlbumColorEnabled,
     updateCheckEnabled,
     updateChannel,
@@ -1778,6 +1923,9 @@ class $AppSettingsTableTable extends AppSettingsTable
     externalIntegrationsEnabled,
     disabledIntegrations,
     integrationsNoticeDismissed,
+    setupHighlightsSeen,
+    setupHighlightsSeenRelease,
+    setupCardDismissedRelease,
     lastFullSyncAppBuild,
     updatedAt,
   ];
@@ -2033,6 +2181,57 @@ class $AppSettingsTableTable extends AppSettingsTable
         themeMode.isAcceptableOrUnknown(data['theme_mode']!, _themeModeMeta),
       );
     }
+    if (data.containsKey('color_style')) {
+      context.handle(
+        _colorStyleMeta,
+        colorStyle.isAcceptableOrUnknown(data['color_style']!, _colorStyleMeta),
+      );
+    }
+    if (data.containsKey('oled_for_auto')) {
+      context.handle(
+        _oledForAutoMeta,
+        oledForAuto.isAcceptableOrUnknown(
+          data['oled_for_auto']!,
+          _oledForAutoMeta,
+        ),
+      );
+    }
+    if (data.containsKey('night_schedule_enabled')) {
+      context.handle(
+        _nightScheduleEnabledMeta,
+        nightScheduleEnabled.isAcceptableOrUnknown(
+          data['night_schedule_enabled']!,
+          _nightScheduleEnabledMeta,
+        ),
+      );
+    }
+    if (data.containsKey('night_schedule_start_minutes')) {
+      context.handle(
+        _nightScheduleStartMinutesMeta,
+        nightScheduleStartMinutes.isAcceptableOrUnknown(
+          data['night_schedule_start_minutes']!,
+          _nightScheduleStartMinutesMeta,
+        ),
+      );
+    }
+    if (data.containsKey('night_schedule_end_minutes')) {
+      context.handle(
+        _nightScheduleEndMinutesMeta,
+        nightScheduleEndMinutes.isAcceptableOrUnknown(
+          data['night_schedule_end_minutes']!,
+          _nightScheduleEndMinutesMeta,
+        ),
+      );
+    }
+    if (data.containsKey('flat_surfaces')) {
+      context.handle(
+        _flatSurfacesMeta,
+        flatSurfaces.isAcceptableOrUnknown(
+          data['flat_surfaces']!,
+          _flatSurfacesMeta,
+        ),
+      );
+    }
     if (data.containsKey('color_scheme_seed')) {
       context.handle(
         _colorSchemeSeedMeta,
@@ -2099,6 +2298,24 @@ class $AppSettingsTableTable extends AppSettingsTable
         artTintedNowPlaying.isAcceptableOrUnknown(
           data['art_tinted_now_playing']!,
           _artTintedNowPlayingMeta,
+        ),
+      );
+    }
+    if (data.containsKey('corner_style')) {
+      context.handle(
+        _cornerStyleMeta,
+        cornerStyle.isAcceptableOrUnknown(
+          data['corner_style']!,
+          _cornerStyleMeta,
+        ),
+      );
+    }
+    if (data.containsKey('now_playing_background')) {
+      context.handle(
+        _nowPlayingBackgroundMeta,
+        nowPlayingBackground.isAcceptableOrUnknown(
+          data['now_playing_background']!,
+          _nowPlayingBackgroundMeta,
         ),
       );
     }
@@ -2531,6 +2748,33 @@ class $AppSettingsTableTable extends AppSettingsTable
         ),
       );
     }
+    if (data.containsKey('setup_highlights_seen')) {
+      context.handle(
+        _setupHighlightsSeenMeta,
+        setupHighlightsSeen.isAcceptableOrUnknown(
+          data['setup_highlights_seen']!,
+          _setupHighlightsSeenMeta,
+        ),
+      );
+    }
+    if (data.containsKey('setup_highlights_seen_release')) {
+      context.handle(
+        _setupHighlightsSeenReleaseMeta,
+        setupHighlightsSeenRelease.isAcceptableOrUnknown(
+          data['setup_highlights_seen_release']!,
+          _setupHighlightsSeenReleaseMeta,
+        ),
+      );
+    }
+    if (data.containsKey('setup_card_dismissed_release')) {
+      context.handle(
+        _setupCardDismissedReleaseMeta,
+        setupCardDismissedRelease.isAcceptableOrUnknown(
+          data['setup_card_dismissed_release']!,
+          _setupCardDismissedReleaseMeta,
+        ),
+      );
+    }
     if (data.containsKey('last_full_sync_app_build')) {
       context.handle(
         _lastFullSyncAppBuildMeta,
@@ -2669,6 +2913,30 @@ class $AppSettingsTableTable extends AppSettingsTable
         DriftSqlType.string,
         data['${effectivePrefix}theme_mode'],
       )!,
+      colorStyle: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}color_style'],
+      )!,
+      oledForAuto: attachedDatabase.typeMapping.read(
+        DriftSqlType.bool,
+        data['${effectivePrefix}oled_for_auto'],
+      )!,
+      nightScheduleEnabled: attachedDatabase.typeMapping.read(
+        DriftSqlType.bool,
+        data['${effectivePrefix}night_schedule_enabled'],
+      )!,
+      nightScheduleStartMinutes: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}night_schedule_start_minutes'],
+      )!,
+      nightScheduleEndMinutes: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}night_schedule_end_minutes'],
+      )!,
+      flatSurfaces: attachedDatabase.typeMapping.read(
+        DriftSqlType.bool,
+        data['${effectivePrefix}flat_surfaces'],
+      )!,
       colorSchemeSeed: attachedDatabase.typeMapping.read(
         DriftSqlType.int,
         data['${effectivePrefix}color_scheme_seed'],
@@ -2700,6 +2968,14 @@ class $AppSettingsTableTable extends AppSettingsTable
       artTintedNowPlaying: attachedDatabase.typeMapping.read(
         DriftSqlType.bool,
         data['${effectivePrefix}art_tinted_now_playing'],
+      )!,
+      cornerStyle: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}corner_style'],
+      )!,
+      nowPlayingBackground: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}now_playing_background'],
       )!,
       dynamicAlbumColorEnabled: attachedDatabase.typeMapping.read(
         DriftSqlType.bool,
@@ -2893,6 +3169,18 @@ class $AppSettingsTableTable extends AppSettingsTable
         DriftSqlType.bool,
         data['${effectivePrefix}integrations_notice_dismissed'],
       )!,
+      setupHighlightsSeen: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}setup_highlights_seen'],
+      ),
+      setupHighlightsSeenRelease: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}setup_highlights_seen_release'],
+      ),
+      setupCardDismissedRelease: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}setup_card_dismissed_release'],
+      ),
       lastFullSyncAppBuild: attachedDatabase.typeMapping.read(
         DriftSqlType.string,
         data['${effectivePrefix}last_full_sync_app_build'],
@@ -2975,6 +3263,25 @@ class AppSettingsTableData extends DataClass
   /// Theme mode: 'light', 'dark', 'oled', or 'system'. Defaults to 'dark'.
   final String themeMode;
 
+  /// Colour style: 'neutral', 'pastel', 'immersive' or 'night'.
+  /// Orthogonal to [themeMode].
+  final String colorStyle;
+
+  /// Uses OLED for the dark theme when the theme mode follows the system.
+  final bool oledForAuto;
+
+  /// Switches to Night colour style during the daily schedule.
+  final bool nightScheduleEnabled;
+
+  /// Daily Night start in minutes after local midnight.
+  final int nightScheduleStartMinutes;
+
+  /// Daily Night end in minutes after local midnight.
+  final int nightScheduleEndMinutes;
+
+  /// Disables surface glows, gradients and shadows when rendered.
+  final bool flatSurfaces;
+
   /// Seed color for the app's ColorScheme. Null = dynamic / default white.
   final int? colorSchemeSeed;
 
@@ -2996,8 +3303,14 @@ class AppSettingsTableData extends DataClass
   /// Max number of cover art images to keep in the disk cache. Default 5000.
   final int coverArtCacheMaxObjects;
 
-  /// When true, the Now Playing background is tinted with album art colors.
+  /// Legacy compatibility flag; nowPlayingBackground is authoritative.
   final bool artTintedNowPlaying;
+
+  /// Chrome corners: rounded, soft or square.
+  final String cornerStyle;
+
+  /// Now Playing background: tinted, artwork or plain.
+  final String nowPlayingBackground;
 
   /// When true, app accent color follows the currently playing album art.
   final bool dynamicAlbumColorEnabled;
@@ -3153,6 +3466,15 @@ class AppSettingsTableData extends DataClass
   /// True once the one-time Integrations notice on Home was dismissed.
   final bool integrationsNoticeDismissed;
 
+  /// JSON array of setup highlight storage keys already shown to the user.
+  final String? setupHighlightsSeen;
+
+  /// Latest setup highlight release acknowledged by completing setup.
+  final String? setupHighlightsSeenRelease;
+
+  /// Latest setup highlight release whose Home invitation was dismissed.
+  final String? setupCardDismissedRelease;
+
   /// The app version+build string (e.g. "1.2.3+100") that was current when
   /// the last forced full sync was triggered. Null means no version-triggered
   /// full sync has run yet. Used to auto-force a full resync on app updates.
@@ -3187,6 +3509,12 @@ class AppSettingsTableData extends DataClass
     required this.maxConcurrentDownloads,
     required this.downloadsPaused,
     required this.themeMode,
+    required this.colorStyle,
+    required this.oledForAuto,
+    required this.nightScheduleEnabled,
+    required this.nightScheduleStartMinutes,
+    required this.nightScheduleEndMinutes,
+    required this.flatSurfaces,
     this.colorSchemeSeed,
     this.customColorPresets,
     this.appLocale,
@@ -3195,6 +3523,8 @@ class AppSettingsTableData extends DataClass
     required this.crossfadeType,
     required this.coverArtCacheMaxObjects,
     required this.artTintedNowPlaying,
+    required this.cornerStyle,
+    required this.nowPlayingBackground,
     required this.dynamicAlbumColorEnabled,
     required this.updateCheckEnabled,
     required this.updateChannel,
@@ -3243,6 +3573,9 @@ class AppSettingsTableData extends DataClass
     required this.externalIntegrationsEnabled,
     required this.disabledIntegrations,
     required this.integrationsNoticeDismissed,
+    this.setupHighlightsSeen,
+    this.setupHighlightsSeenRelease,
+    this.setupCardDismissedRelease,
     this.lastFullSyncAppBuild,
     required this.updatedAt,
   });
@@ -3295,6 +3628,14 @@ class AppSettingsTableData extends DataClass
     map['max_concurrent_downloads'] = Variable<int>(maxConcurrentDownloads);
     map['downloads_paused'] = Variable<bool>(downloadsPaused);
     map['theme_mode'] = Variable<String>(themeMode);
+    map['color_style'] = Variable<String>(colorStyle);
+    map['oled_for_auto'] = Variable<bool>(oledForAuto);
+    map['night_schedule_enabled'] = Variable<bool>(nightScheduleEnabled);
+    map['night_schedule_start_minutes'] = Variable<int>(
+      nightScheduleStartMinutes,
+    );
+    map['night_schedule_end_minutes'] = Variable<int>(nightScheduleEndMinutes);
+    map['flat_surfaces'] = Variable<bool>(flatSurfaces);
     if (!nullToAbsent || colorSchemeSeed != null) {
       map['color_scheme_seed'] = Variable<int>(colorSchemeSeed);
     }
@@ -3309,6 +3650,8 @@ class AppSettingsTableData extends DataClass
     map['crossfade_type'] = Variable<String>(crossfadeType);
     map['cover_art_cache_max_objects'] = Variable<int>(coverArtCacheMaxObjects);
     map['art_tinted_now_playing'] = Variable<bool>(artTintedNowPlaying);
+    map['corner_style'] = Variable<String>(cornerStyle);
+    map['now_playing_background'] = Variable<String>(nowPlayingBackground);
     map['dynamic_album_color_enabled'] = Variable<bool>(
       dynamicAlbumColorEnabled,
     );
@@ -3397,6 +3740,19 @@ class AppSettingsTableData extends DataClass
     map['integrations_notice_dismissed'] = Variable<bool>(
       integrationsNoticeDismissed,
     );
+    if (!nullToAbsent || setupHighlightsSeen != null) {
+      map['setup_highlights_seen'] = Variable<String>(setupHighlightsSeen);
+    }
+    if (!nullToAbsent || setupHighlightsSeenRelease != null) {
+      map['setup_highlights_seen_release'] = Variable<String>(
+        setupHighlightsSeenRelease,
+      );
+    }
+    if (!nullToAbsent || setupCardDismissedRelease != null) {
+      map['setup_card_dismissed_release'] = Variable<String>(
+        setupCardDismissedRelease,
+      );
+    }
     if (!nullToAbsent || lastFullSyncAppBuild != null) {
       map['last_full_sync_app_build'] = Variable<String>(lastFullSyncAppBuild);
     }
@@ -3444,6 +3800,12 @@ class AppSettingsTableData extends DataClass
       maxConcurrentDownloads: Value(maxConcurrentDownloads),
       downloadsPaused: Value(downloadsPaused),
       themeMode: Value(themeMode),
+      colorStyle: Value(colorStyle),
+      oledForAuto: Value(oledForAuto),
+      nightScheduleEnabled: Value(nightScheduleEnabled),
+      nightScheduleStartMinutes: Value(nightScheduleStartMinutes),
+      nightScheduleEndMinutes: Value(nightScheduleEndMinutes),
+      flatSurfaces: Value(flatSurfaces),
       colorSchemeSeed: colorSchemeSeed == null && nullToAbsent
           ? const Value.absent()
           : Value(colorSchemeSeed),
@@ -3458,6 +3820,8 @@ class AppSettingsTableData extends DataClass
       crossfadeType: Value(crossfadeType),
       coverArtCacheMaxObjects: Value(coverArtCacheMaxObjects),
       artTintedNowPlaying: Value(artTintedNowPlaying),
+      cornerStyle: Value(cornerStyle),
+      nowPlayingBackground: Value(nowPlayingBackground),
       dynamicAlbumColorEnabled: Value(dynamicAlbumColorEnabled),
       updateCheckEnabled: Value(updateCheckEnabled),
       updateChannel: Value(updateChannel),
@@ -3526,6 +3890,17 @@ class AppSettingsTableData extends DataClass
       externalIntegrationsEnabled: Value(externalIntegrationsEnabled),
       disabledIntegrations: Value(disabledIntegrations),
       integrationsNoticeDismissed: Value(integrationsNoticeDismissed),
+      setupHighlightsSeen: setupHighlightsSeen == null && nullToAbsent
+          ? const Value.absent()
+          : Value(setupHighlightsSeen),
+      setupHighlightsSeenRelease:
+          setupHighlightsSeenRelease == null && nullToAbsent
+          ? const Value.absent()
+          : Value(setupHighlightsSeenRelease),
+      setupCardDismissedRelease:
+          setupCardDismissedRelease == null && nullToAbsent
+          ? const Value.absent()
+          : Value(setupCardDismissedRelease),
       lastFullSyncAppBuild: lastFullSyncAppBuild == null && nullToAbsent
           ? const Value.absent()
           : Value(lastFullSyncAppBuild),
@@ -3585,6 +3960,18 @@ class AppSettingsTableData extends DataClass
       ),
       downloadsPaused: serializer.fromJson<bool>(json['downloadsPaused']),
       themeMode: serializer.fromJson<String>(json['themeMode']),
+      colorStyle: serializer.fromJson<String>(json['colorStyle']),
+      oledForAuto: serializer.fromJson<bool>(json['oledForAuto']),
+      nightScheduleEnabled: serializer.fromJson<bool>(
+        json['nightScheduleEnabled'],
+      ),
+      nightScheduleStartMinutes: serializer.fromJson<int>(
+        json['nightScheduleStartMinutes'],
+      ),
+      nightScheduleEndMinutes: serializer.fromJson<int>(
+        json['nightScheduleEndMinutes'],
+      ),
+      flatSurfaces: serializer.fromJson<bool>(json['flatSurfaces']),
       colorSchemeSeed: serializer.fromJson<int?>(json['colorSchemeSeed']),
       customColorPresets: serializer.fromJson<String?>(
         json['customColorPresets'],
@@ -3600,6 +3987,10 @@ class AppSettingsTableData extends DataClass
       ),
       artTintedNowPlaying: serializer.fromJson<bool>(
         json['artTintedNowPlaying'],
+      ),
+      cornerStyle: serializer.fromJson<String>(json['cornerStyle']),
+      nowPlayingBackground: serializer.fromJson<String>(
+        json['nowPlayingBackground'],
       ),
       dynamicAlbumColorEnabled: serializer.fromJson<bool>(
         json['dynamicAlbumColorEnabled'],
@@ -3701,6 +4092,15 @@ class AppSettingsTableData extends DataClass
       integrationsNoticeDismissed: serializer.fromJson<bool>(
         json['integrationsNoticeDismissed'],
       ),
+      setupHighlightsSeen: serializer.fromJson<String?>(
+        json['setupHighlightsSeen'],
+      ),
+      setupHighlightsSeenRelease: serializer.fromJson<String?>(
+        json['setupHighlightsSeenRelease'],
+      ),
+      setupCardDismissedRelease: serializer.fromJson<String?>(
+        json['setupCardDismissedRelease'],
+      ),
       lastFullSyncAppBuild: serializer.fromJson<String?>(
         json['lastFullSyncAppBuild'],
       ),
@@ -3749,6 +4149,16 @@ class AppSettingsTableData extends DataClass
       'maxConcurrentDownloads': serializer.toJson<int>(maxConcurrentDownloads),
       'downloadsPaused': serializer.toJson<bool>(downloadsPaused),
       'themeMode': serializer.toJson<String>(themeMode),
+      'colorStyle': serializer.toJson<String>(colorStyle),
+      'oledForAuto': serializer.toJson<bool>(oledForAuto),
+      'nightScheduleEnabled': serializer.toJson<bool>(nightScheduleEnabled),
+      'nightScheduleStartMinutes': serializer.toJson<int>(
+        nightScheduleStartMinutes,
+      ),
+      'nightScheduleEndMinutes': serializer.toJson<int>(
+        nightScheduleEndMinutes,
+      ),
+      'flatSurfaces': serializer.toJson<bool>(flatSurfaces),
       'colorSchemeSeed': serializer.toJson<int?>(colorSchemeSeed),
       'customColorPresets': serializer.toJson<String?>(customColorPresets),
       'appLocale': serializer.toJson<String?>(appLocale),
@@ -3761,6 +4171,8 @@ class AppSettingsTableData extends DataClass
         coverArtCacheMaxObjects,
       ),
       'artTintedNowPlaying': serializer.toJson<bool>(artTintedNowPlaying),
+      'cornerStyle': serializer.toJson<String>(cornerStyle),
+      'nowPlayingBackground': serializer.toJson<String>(nowPlayingBackground),
       'dynamicAlbumColorEnabled': serializer.toJson<bool>(
         dynamicAlbumColorEnabled,
       ),
@@ -3835,6 +4247,13 @@ class AppSettingsTableData extends DataClass
       'integrationsNoticeDismissed': serializer.toJson<bool>(
         integrationsNoticeDismissed,
       ),
+      'setupHighlightsSeen': serializer.toJson<String?>(setupHighlightsSeen),
+      'setupHighlightsSeenRelease': serializer.toJson<String?>(
+        setupHighlightsSeenRelease,
+      ),
+      'setupCardDismissedRelease': serializer.toJson<String?>(
+        setupCardDismissedRelease,
+      ),
       'lastFullSyncAppBuild': serializer.toJson<String?>(lastFullSyncAppBuild),
       'updatedAt': serializer.toJson<DateTime>(updatedAt),
     };
@@ -3869,6 +4288,12 @@ class AppSettingsTableData extends DataClass
     int? maxConcurrentDownloads,
     bool? downloadsPaused,
     String? themeMode,
+    String? colorStyle,
+    bool? oledForAuto,
+    bool? nightScheduleEnabled,
+    int? nightScheduleStartMinutes,
+    int? nightScheduleEndMinutes,
+    bool? flatSurfaces,
     Value<int?> colorSchemeSeed = const Value.absent(),
     Value<String?> customColorPresets = const Value.absent(),
     Value<String?> appLocale = const Value.absent(),
@@ -3877,6 +4302,8 @@ class AppSettingsTableData extends DataClass
     String? crossfadeType,
     int? coverArtCacheMaxObjects,
     bool? artTintedNowPlaying,
+    String? cornerStyle,
+    String? nowPlayingBackground,
     bool? dynamicAlbumColorEnabled,
     bool? updateCheckEnabled,
     String? updateChannel,
@@ -3925,6 +4352,9 @@ class AppSettingsTableData extends DataClass
     bool? externalIntegrationsEnabled,
     String? disabledIntegrations,
     bool? integrationsNoticeDismissed,
+    Value<String?> setupHighlightsSeen = const Value.absent(),
+    Value<String?> setupHighlightsSeenRelease = const Value.absent(),
+    Value<String?> setupCardDismissedRelease = const Value.absent(),
     Value<String?> lastFullSyncAppBuild = const Value.absent(),
     DateTime? updatedAt,
   }) => AppSettingsTableData(
@@ -3969,6 +4399,14 @@ class AppSettingsTableData extends DataClass
         maxConcurrentDownloads ?? this.maxConcurrentDownloads,
     downloadsPaused: downloadsPaused ?? this.downloadsPaused,
     themeMode: themeMode ?? this.themeMode,
+    colorStyle: colorStyle ?? this.colorStyle,
+    oledForAuto: oledForAuto ?? this.oledForAuto,
+    nightScheduleEnabled: nightScheduleEnabled ?? this.nightScheduleEnabled,
+    nightScheduleStartMinutes:
+        nightScheduleStartMinutes ?? this.nightScheduleStartMinutes,
+    nightScheduleEndMinutes:
+        nightScheduleEndMinutes ?? this.nightScheduleEndMinutes,
+    flatSurfaces: flatSurfaces ?? this.flatSurfaces,
     colorSchemeSeed: colorSchemeSeed.present
         ? colorSchemeSeed.value
         : this.colorSchemeSeed,
@@ -3983,6 +4421,8 @@ class AppSettingsTableData extends DataClass
     coverArtCacheMaxObjects:
         coverArtCacheMaxObjects ?? this.coverArtCacheMaxObjects,
     artTintedNowPlaying: artTintedNowPlaying ?? this.artTintedNowPlaying,
+    cornerStyle: cornerStyle ?? this.cornerStyle,
+    nowPlayingBackground: nowPlayingBackground ?? this.nowPlayingBackground,
     dynamicAlbumColorEnabled:
         dynamicAlbumColorEnabled ?? this.dynamicAlbumColorEnabled,
     updateCheckEnabled: updateCheckEnabled ?? this.updateCheckEnabled,
@@ -4063,6 +4503,15 @@ class AppSettingsTableData extends DataClass
     disabledIntegrations: disabledIntegrations ?? this.disabledIntegrations,
     integrationsNoticeDismissed:
         integrationsNoticeDismissed ?? this.integrationsNoticeDismissed,
+    setupHighlightsSeen: setupHighlightsSeen.present
+        ? setupHighlightsSeen.value
+        : this.setupHighlightsSeen,
+    setupHighlightsSeenRelease: setupHighlightsSeenRelease.present
+        ? setupHighlightsSeenRelease.value
+        : this.setupHighlightsSeenRelease,
+    setupCardDismissedRelease: setupCardDismissedRelease.present
+        ? setupCardDismissedRelease.value
+        : this.setupCardDismissedRelease,
     lastFullSyncAppBuild: lastFullSyncAppBuild.present
         ? lastFullSyncAppBuild.value
         : this.lastFullSyncAppBuild,
@@ -4151,6 +4600,24 @@ class AppSettingsTableData extends DataClass
           ? data.downloadsPaused.value
           : this.downloadsPaused,
       themeMode: data.themeMode.present ? data.themeMode.value : this.themeMode,
+      colorStyle: data.colorStyle.present
+          ? data.colorStyle.value
+          : this.colorStyle,
+      oledForAuto: data.oledForAuto.present
+          ? data.oledForAuto.value
+          : this.oledForAuto,
+      nightScheduleEnabled: data.nightScheduleEnabled.present
+          ? data.nightScheduleEnabled.value
+          : this.nightScheduleEnabled,
+      nightScheduleStartMinutes: data.nightScheduleStartMinutes.present
+          ? data.nightScheduleStartMinutes.value
+          : this.nightScheduleStartMinutes,
+      nightScheduleEndMinutes: data.nightScheduleEndMinutes.present
+          ? data.nightScheduleEndMinutes.value
+          : this.nightScheduleEndMinutes,
+      flatSurfaces: data.flatSurfaces.present
+          ? data.flatSurfaces.value
+          : this.flatSurfaces,
       colorSchemeSeed: data.colorSchemeSeed.present
           ? data.colorSchemeSeed.value
           : this.colorSchemeSeed,
@@ -4173,6 +4640,12 @@ class AppSettingsTableData extends DataClass
       artTintedNowPlaying: data.artTintedNowPlaying.present
           ? data.artTintedNowPlaying.value
           : this.artTintedNowPlaying,
+      cornerStyle: data.cornerStyle.present
+          ? data.cornerStyle.value
+          : this.cornerStyle,
+      nowPlayingBackground: data.nowPlayingBackground.present
+          ? data.nowPlayingBackground.value
+          : this.nowPlayingBackground,
       dynamicAlbumColorEnabled: data.dynamicAlbumColorEnabled.present
           ? data.dynamicAlbumColorEnabled.value
           : this.dynamicAlbumColorEnabled,
@@ -4316,6 +4789,15 @@ class AppSettingsTableData extends DataClass
       integrationsNoticeDismissed: data.integrationsNoticeDismissed.present
           ? data.integrationsNoticeDismissed.value
           : this.integrationsNoticeDismissed,
+      setupHighlightsSeen: data.setupHighlightsSeen.present
+          ? data.setupHighlightsSeen.value
+          : this.setupHighlightsSeen,
+      setupHighlightsSeenRelease: data.setupHighlightsSeenRelease.present
+          ? data.setupHighlightsSeenRelease.value
+          : this.setupHighlightsSeenRelease,
+      setupCardDismissedRelease: data.setupCardDismissedRelease.present
+          ? data.setupCardDismissedRelease.value
+          : this.setupCardDismissedRelease,
       lastFullSyncAppBuild: data.lastFullSyncAppBuild.present
           ? data.lastFullSyncAppBuild.value
           : this.lastFullSyncAppBuild,
@@ -4356,6 +4838,12 @@ class AppSettingsTableData extends DataClass
           ..write('maxConcurrentDownloads: $maxConcurrentDownloads, ')
           ..write('downloadsPaused: $downloadsPaused, ')
           ..write('themeMode: $themeMode, ')
+          ..write('colorStyle: $colorStyle, ')
+          ..write('oledForAuto: $oledForAuto, ')
+          ..write('nightScheduleEnabled: $nightScheduleEnabled, ')
+          ..write('nightScheduleStartMinutes: $nightScheduleStartMinutes, ')
+          ..write('nightScheduleEndMinutes: $nightScheduleEndMinutes, ')
+          ..write('flatSurfaces: $flatSurfaces, ')
           ..write('colorSchemeSeed: $colorSchemeSeed, ')
           ..write('customColorPresets: $customColorPresets, ')
           ..write('appLocale: $appLocale, ')
@@ -4364,6 +4852,8 @@ class AppSettingsTableData extends DataClass
           ..write('crossfadeType: $crossfadeType, ')
           ..write('coverArtCacheMaxObjects: $coverArtCacheMaxObjects, ')
           ..write('artTintedNowPlaying: $artTintedNowPlaying, ')
+          ..write('cornerStyle: $cornerStyle, ')
+          ..write('nowPlayingBackground: $nowPlayingBackground, ')
           ..write('dynamicAlbumColorEnabled: $dynamicAlbumColorEnabled, ')
           ..write('updateCheckEnabled: $updateCheckEnabled, ')
           ..write('updateChannel: $updateChannel, ')
@@ -4418,6 +4908,9 @@ class AppSettingsTableData extends DataClass
           ..write('externalIntegrationsEnabled: $externalIntegrationsEnabled, ')
           ..write('disabledIntegrations: $disabledIntegrations, ')
           ..write('integrationsNoticeDismissed: $integrationsNoticeDismissed, ')
+          ..write('setupHighlightsSeen: $setupHighlightsSeen, ')
+          ..write('setupHighlightsSeenRelease: $setupHighlightsSeenRelease, ')
+          ..write('setupCardDismissedRelease: $setupCardDismissedRelease, ')
           ..write('lastFullSyncAppBuild: $lastFullSyncAppBuild, ')
           ..write('updatedAt: $updatedAt')
           ..write(')'))
@@ -4454,6 +4947,12 @@ class AppSettingsTableData extends DataClass
     maxConcurrentDownloads,
     downloadsPaused,
     themeMode,
+    colorStyle,
+    oledForAuto,
+    nightScheduleEnabled,
+    nightScheduleStartMinutes,
+    nightScheduleEndMinutes,
+    flatSurfaces,
     colorSchemeSeed,
     customColorPresets,
     appLocale,
@@ -4462,6 +4961,8 @@ class AppSettingsTableData extends DataClass
     crossfadeType,
     coverArtCacheMaxObjects,
     artTintedNowPlaying,
+    cornerStyle,
+    nowPlayingBackground,
     dynamicAlbumColorEnabled,
     updateCheckEnabled,
     updateChannel,
@@ -4510,6 +5011,9 @@ class AppSettingsTableData extends DataClass
     externalIntegrationsEnabled,
     disabledIntegrations,
     integrationsNoticeDismissed,
+    setupHighlightsSeen,
+    setupHighlightsSeenRelease,
+    setupCardDismissedRelease,
     lastFullSyncAppBuild,
     updatedAt,
   ]);
@@ -4547,6 +5051,12 @@ class AppSettingsTableData extends DataClass
           other.maxConcurrentDownloads == this.maxConcurrentDownloads &&
           other.downloadsPaused == this.downloadsPaused &&
           other.themeMode == this.themeMode &&
+          other.colorStyle == this.colorStyle &&
+          other.oledForAuto == this.oledForAuto &&
+          other.nightScheduleEnabled == this.nightScheduleEnabled &&
+          other.nightScheduleStartMinutes == this.nightScheduleStartMinutes &&
+          other.nightScheduleEndMinutes == this.nightScheduleEndMinutes &&
+          other.flatSurfaces == this.flatSurfaces &&
           other.colorSchemeSeed == this.colorSchemeSeed &&
           other.customColorPresets == this.customColorPresets &&
           other.appLocale == this.appLocale &&
@@ -4555,6 +5065,8 @@ class AppSettingsTableData extends DataClass
           other.crossfadeType == this.crossfadeType &&
           other.coverArtCacheMaxObjects == this.coverArtCacheMaxObjects &&
           other.artTintedNowPlaying == this.artTintedNowPlaying &&
+          other.cornerStyle == this.cornerStyle &&
+          other.nowPlayingBackground == this.nowPlayingBackground &&
           other.dynamicAlbumColorEnabled == this.dynamicAlbumColorEnabled &&
           other.updateCheckEnabled == this.updateCheckEnabled &&
           other.updateChannel == this.updateChannel &&
@@ -4609,6 +5121,9 @@ class AppSettingsTableData extends DataClass
           other.disabledIntegrations == this.disabledIntegrations &&
           other.integrationsNoticeDismissed ==
               this.integrationsNoticeDismissed &&
+          other.setupHighlightsSeen == this.setupHighlightsSeen &&
+          other.setupHighlightsSeenRelease == this.setupHighlightsSeenRelease &&
+          other.setupCardDismissedRelease == this.setupCardDismissedRelease &&
           other.lastFullSyncAppBuild == this.lastFullSyncAppBuild &&
           other.updatedAt == this.updatedAt);
 }
@@ -4642,6 +5157,12 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
   final Value<int> maxConcurrentDownloads;
   final Value<bool> downloadsPaused;
   final Value<String> themeMode;
+  final Value<String> colorStyle;
+  final Value<bool> oledForAuto;
+  final Value<bool> nightScheduleEnabled;
+  final Value<int> nightScheduleStartMinutes;
+  final Value<int> nightScheduleEndMinutes;
+  final Value<bool> flatSurfaces;
   final Value<int?> colorSchemeSeed;
   final Value<String?> customColorPresets;
   final Value<String?> appLocale;
@@ -4650,6 +5171,8 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
   final Value<String> crossfadeType;
   final Value<int> coverArtCacheMaxObjects;
   final Value<bool> artTintedNowPlaying;
+  final Value<String> cornerStyle;
+  final Value<String> nowPlayingBackground;
   final Value<bool> dynamicAlbumColorEnabled;
   final Value<bool> updateCheckEnabled;
   final Value<String> updateChannel;
@@ -4698,6 +5221,9 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
   final Value<bool> externalIntegrationsEnabled;
   final Value<String> disabledIntegrations;
   final Value<bool> integrationsNoticeDismissed;
+  final Value<String?> setupHighlightsSeen;
+  final Value<String?> setupHighlightsSeenRelease;
+  final Value<String?> setupCardDismissedRelease;
   final Value<String?> lastFullSyncAppBuild;
   final Value<DateTime> updatedAt;
   const AppSettingsTableCompanion({
@@ -4729,6 +5255,12 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
     this.maxConcurrentDownloads = const Value.absent(),
     this.downloadsPaused = const Value.absent(),
     this.themeMode = const Value.absent(),
+    this.colorStyle = const Value.absent(),
+    this.oledForAuto = const Value.absent(),
+    this.nightScheduleEnabled = const Value.absent(),
+    this.nightScheduleStartMinutes = const Value.absent(),
+    this.nightScheduleEndMinutes = const Value.absent(),
+    this.flatSurfaces = const Value.absent(),
     this.colorSchemeSeed = const Value.absent(),
     this.customColorPresets = const Value.absent(),
     this.appLocale = const Value.absent(),
@@ -4737,6 +5269,8 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
     this.crossfadeType = const Value.absent(),
     this.coverArtCacheMaxObjects = const Value.absent(),
     this.artTintedNowPlaying = const Value.absent(),
+    this.cornerStyle = const Value.absent(),
+    this.nowPlayingBackground = const Value.absent(),
     this.dynamicAlbumColorEnabled = const Value.absent(),
     this.updateCheckEnabled = const Value.absent(),
     this.updateChannel = const Value.absent(),
@@ -4785,6 +5319,9 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
     this.externalIntegrationsEnabled = const Value.absent(),
     this.disabledIntegrations = const Value.absent(),
     this.integrationsNoticeDismissed = const Value.absent(),
+    this.setupHighlightsSeen = const Value.absent(),
+    this.setupHighlightsSeenRelease = const Value.absent(),
+    this.setupCardDismissedRelease = const Value.absent(),
     this.lastFullSyncAppBuild = const Value.absent(),
     this.updatedAt = const Value.absent(),
   });
@@ -4817,6 +5354,12 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
     this.maxConcurrentDownloads = const Value.absent(),
     this.downloadsPaused = const Value.absent(),
     this.themeMode = const Value.absent(),
+    this.colorStyle = const Value.absent(),
+    this.oledForAuto = const Value.absent(),
+    this.nightScheduleEnabled = const Value.absent(),
+    this.nightScheduleStartMinutes = const Value.absent(),
+    this.nightScheduleEndMinutes = const Value.absent(),
+    this.flatSurfaces = const Value.absent(),
     this.colorSchemeSeed = const Value.absent(),
     this.customColorPresets = const Value.absent(),
     this.appLocale = const Value.absent(),
@@ -4825,6 +5368,8 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
     this.crossfadeType = const Value.absent(),
     this.coverArtCacheMaxObjects = const Value.absent(),
     this.artTintedNowPlaying = const Value.absent(),
+    this.cornerStyle = const Value.absent(),
+    this.nowPlayingBackground = const Value.absent(),
     this.dynamicAlbumColorEnabled = const Value.absent(),
     this.updateCheckEnabled = const Value.absent(),
     this.updateChannel = const Value.absent(),
@@ -4873,6 +5418,9 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
     this.externalIntegrationsEnabled = const Value.absent(),
     this.disabledIntegrations = const Value.absent(),
     this.integrationsNoticeDismissed = const Value.absent(),
+    this.setupHighlightsSeen = const Value.absent(),
+    this.setupHighlightsSeenRelease = const Value.absent(),
+    this.setupCardDismissedRelease = const Value.absent(),
     this.lastFullSyncAppBuild = const Value.absent(),
     required DateTime updatedAt,
   }) : updatedAt = Value(updatedAt);
@@ -4905,6 +5453,12 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
     Expression<int>? maxConcurrentDownloads,
     Expression<bool>? downloadsPaused,
     Expression<String>? themeMode,
+    Expression<String>? colorStyle,
+    Expression<bool>? oledForAuto,
+    Expression<bool>? nightScheduleEnabled,
+    Expression<int>? nightScheduleStartMinutes,
+    Expression<int>? nightScheduleEndMinutes,
+    Expression<bool>? flatSurfaces,
     Expression<int>? colorSchemeSeed,
     Expression<String>? customColorPresets,
     Expression<String>? appLocale,
@@ -4913,6 +5467,8 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
     Expression<String>? crossfadeType,
     Expression<int>? coverArtCacheMaxObjects,
     Expression<bool>? artTintedNowPlaying,
+    Expression<String>? cornerStyle,
+    Expression<String>? nowPlayingBackground,
     Expression<bool>? dynamicAlbumColorEnabled,
     Expression<bool>? updateCheckEnabled,
     Expression<String>? updateChannel,
@@ -4961,6 +5517,9 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
     Expression<bool>? externalIntegrationsEnabled,
     Expression<String>? disabledIntegrations,
     Expression<bool>? integrationsNoticeDismissed,
+    Expression<String>? setupHighlightsSeen,
+    Expression<String>? setupHighlightsSeenRelease,
+    Expression<String>? setupCardDismissedRelease,
     Expression<String>? lastFullSyncAppBuild,
     Expression<DateTime>? updatedAt,
   }) {
@@ -5005,6 +5564,15 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
         'max_concurrent_downloads': maxConcurrentDownloads,
       if (downloadsPaused != null) 'downloads_paused': downloadsPaused,
       if (themeMode != null) 'theme_mode': themeMode,
+      if (colorStyle != null) 'color_style': colorStyle,
+      if (oledForAuto != null) 'oled_for_auto': oledForAuto,
+      if (nightScheduleEnabled != null)
+        'night_schedule_enabled': nightScheduleEnabled,
+      if (nightScheduleStartMinutes != null)
+        'night_schedule_start_minutes': nightScheduleStartMinutes,
+      if (nightScheduleEndMinutes != null)
+        'night_schedule_end_minutes': nightScheduleEndMinutes,
+      if (flatSurfaces != null) 'flat_surfaces': flatSurfaces,
       if (colorSchemeSeed != null) 'color_scheme_seed': colorSchemeSeed,
       if (customColorPresets != null)
         'custom_color_presets': customColorPresets,
@@ -5017,6 +5585,9 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
         'cover_art_cache_max_objects': coverArtCacheMaxObjects,
       if (artTintedNowPlaying != null)
         'art_tinted_now_playing': artTintedNowPlaying,
+      if (cornerStyle != null) 'corner_style': cornerStyle,
+      if (nowPlayingBackground != null)
+        'now_playing_background': nowPlayingBackground,
       if (dynamicAlbumColorEnabled != null)
         'dynamic_album_color_enabled': dynamicAlbumColorEnabled,
       if (updateCheckEnabled != null)
@@ -5092,6 +5663,12 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
         'disabled_integrations': disabledIntegrations,
       if (integrationsNoticeDismissed != null)
         'integrations_notice_dismissed': integrationsNoticeDismissed,
+      if (setupHighlightsSeen != null)
+        'setup_highlights_seen': setupHighlightsSeen,
+      if (setupHighlightsSeenRelease != null)
+        'setup_highlights_seen_release': setupHighlightsSeenRelease,
+      if (setupCardDismissedRelease != null)
+        'setup_card_dismissed_release': setupCardDismissedRelease,
       if (lastFullSyncAppBuild != null)
         'last_full_sync_app_build': lastFullSyncAppBuild,
       if (updatedAt != null) 'updated_at': updatedAt,
@@ -5127,6 +5704,12 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
     Value<int>? maxConcurrentDownloads,
     Value<bool>? downloadsPaused,
     Value<String>? themeMode,
+    Value<String>? colorStyle,
+    Value<bool>? oledForAuto,
+    Value<bool>? nightScheduleEnabled,
+    Value<int>? nightScheduleStartMinutes,
+    Value<int>? nightScheduleEndMinutes,
+    Value<bool>? flatSurfaces,
     Value<int?>? colorSchemeSeed,
     Value<String?>? customColorPresets,
     Value<String?>? appLocale,
@@ -5135,6 +5718,8 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
     Value<String>? crossfadeType,
     Value<int>? coverArtCacheMaxObjects,
     Value<bool>? artTintedNowPlaying,
+    Value<String>? cornerStyle,
+    Value<String>? nowPlayingBackground,
     Value<bool>? dynamicAlbumColorEnabled,
     Value<bool>? updateCheckEnabled,
     Value<String>? updateChannel,
@@ -5183,6 +5768,9 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
     Value<bool>? externalIntegrationsEnabled,
     Value<String>? disabledIntegrations,
     Value<bool>? integrationsNoticeDismissed,
+    Value<String?>? setupHighlightsSeen,
+    Value<String?>? setupHighlightsSeenRelease,
+    Value<String?>? setupCardDismissedRelease,
     Value<String?>? lastFullSyncAppBuild,
     Value<DateTime>? updatedAt,
   }) {
@@ -5222,6 +5810,14 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
           maxConcurrentDownloads ?? this.maxConcurrentDownloads,
       downloadsPaused: downloadsPaused ?? this.downloadsPaused,
       themeMode: themeMode ?? this.themeMode,
+      colorStyle: colorStyle ?? this.colorStyle,
+      oledForAuto: oledForAuto ?? this.oledForAuto,
+      nightScheduleEnabled: nightScheduleEnabled ?? this.nightScheduleEnabled,
+      nightScheduleStartMinutes:
+          nightScheduleStartMinutes ?? this.nightScheduleStartMinutes,
+      nightScheduleEndMinutes:
+          nightScheduleEndMinutes ?? this.nightScheduleEndMinutes,
+      flatSurfaces: flatSurfaces ?? this.flatSurfaces,
       colorSchemeSeed: colorSchemeSeed ?? this.colorSchemeSeed,
       customColorPresets: customColorPresets ?? this.customColorPresets,
       appLocale: appLocale ?? this.appLocale,
@@ -5232,6 +5828,8 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
       coverArtCacheMaxObjects:
           coverArtCacheMaxObjects ?? this.coverArtCacheMaxObjects,
       artTintedNowPlaying: artTintedNowPlaying ?? this.artTintedNowPlaying,
+      cornerStyle: cornerStyle ?? this.cornerStyle,
+      nowPlayingBackground: nowPlayingBackground ?? this.nowPlayingBackground,
       dynamicAlbumColorEnabled:
           dynamicAlbumColorEnabled ?? this.dynamicAlbumColorEnabled,
       updateCheckEnabled: updateCheckEnabled ?? this.updateCheckEnabled,
@@ -5297,6 +5895,11 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
       disabledIntegrations: disabledIntegrations ?? this.disabledIntegrations,
       integrationsNoticeDismissed:
           integrationsNoticeDismissed ?? this.integrationsNoticeDismissed,
+      setupHighlightsSeen: setupHighlightsSeen ?? this.setupHighlightsSeen,
+      setupHighlightsSeenRelease:
+          setupHighlightsSeenRelease ?? this.setupHighlightsSeenRelease,
+      setupCardDismissedRelease:
+          setupCardDismissedRelease ?? this.setupCardDismissedRelease,
       lastFullSyncAppBuild: lastFullSyncAppBuild ?? this.lastFullSyncAppBuild,
       updatedAt: updatedAt ?? this.updatedAt,
     );
@@ -5405,6 +6008,30 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
     if (themeMode.present) {
       map['theme_mode'] = Variable<String>(themeMode.value);
     }
+    if (colorStyle.present) {
+      map['color_style'] = Variable<String>(colorStyle.value);
+    }
+    if (oledForAuto.present) {
+      map['oled_for_auto'] = Variable<bool>(oledForAuto.value);
+    }
+    if (nightScheduleEnabled.present) {
+      map['night_schedule_enabled'] = Variable<bool>(
+        nightScheduleEnabled.value,
+      );
+    }
+    if (nightScheduleStartMinutes.present) {
+      map['night_schedule_start_minutes'] = Variable<int>(
+        nightScheduleStartMinutes.value,
+      );
+    }
+    if (nightScheduleEndMinutes.present) {
+      map['night_schedule_end_minutes'] = Variable<int>(
+        nightScheduleEndMinutes.value,
+      );
+    }
+    if (flatSurfaces.present) {
+      map['flat_surfaces'] = Variable<bool>(flatSurfaces.value);
+    }
     if (colorSchemeSeed.present) {
       map['color_scheme_seed'] = Variable<int>(colorSchemeSeed.value);
     }
@@ -5432,6 +6059,14 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
     }
     if (artTintedNowPlaying.present) {
       map['art_tinted_now_playing'] = Variable<bool>(artTintedNowPlaying.value);
+    }
+    if (cornerStyle.present) {
+      map['corner_style'] = Variable<String>(cornerStyle.value);
+    }
+    if (nowPlayingBackground.present) {
+      map['now_playing_background'] = Variable<String>(
+        nowPlayingBackground.value,
+      );
     }
     if (dynamicAlbumColorEnabled.present) {
       map['dynamic_album_color_enabled'] = Variable<bool>(
@@ -5619,6 +6254,21 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
         integrationsNoticeDismissed.value,
       );
     }
+    if (setupHighlightsSeen.present) {
+      map['setup_highlights_seen'] = Variable<String>(
+        setupHighlightsSeen.value,
+      );
+    }
+    if (setupHighlightsSeenRelease.present) {
+      map['setup_highlights_seen_release'] = Variable<String>(
+        setupHighlightsSeenRelease.value,
+      );
+    }
+    if (setupCardDismissedRelease.present) {
+      map['setup_card_dismissed_release'] = Variable<String>(
+        setupCardDismissedRelease.value,
+      );
+    }
     if (lastFullSyncAppBuild.present) {
       map['last_full_sync_app_build'] = Variable<String>(
         lastFullSyncAppBuild.value,
@@ -5663,6 +6313,12 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
           ..write('maxConcurrentDownloads: $maxConcurrentDownloads, ')
           ..write('downloadsPaused: $downloadsPaused, ')
           ..write('themeMode: $themeMode, ')
+          ..write('colorStyle: $colorStyle, ')
+          ..write('oledForAuto: $oledForAuto, ')
+          ..write('nightScheduleEnabled: $nightScheduleEnabled, ')
+          ..write('nightScheduleStartMinutes: $nightScheduleStartMinutes, ')
+          ..write('nightScheduleEndMinutes: $nightScheduleEndMinutes, ')
+          ..write('flatSurfaces: $flatSurfaces, ')
           ..write('colorSchemeSeed: $colorSchemeSeed, ')
           ..write('customColorPresets: $customColorPresets, ')
           ..write('appLocale: $appLocale, ')
@@ -5671,6 +6327,8 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
           ..write('crossfadeType: $crossfadeType, ')
           ..write('coverArtCacheMaxObjects: $coverArtCacheMaxObjects, ')
           ..write('artTintedNowPlaying: $artTintedNowPlaying, ')
+          ..write('cornerStyle: $cornerStyle, ')
+          ..write('nowPlayingBackground: $nowPlayingBackground, ')
           ..write('dynamicAlbumColorEnabled: $dynamicAlbumColorEnabled, ')
           ..write('updateCheckEnabled: $updateCheckEnabled, ')
           ..write('updateChannel: $updateChannel, ')
@@ -5725,6 +6383,9 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
           ..write('externalIntegrationsEnabled: $externalIntegrationsEnabled, ')
           ..write('disabledIntegrations: $disabledIntegrations, ')
           ..write('integrationsNoticeDismissed: $integrationsNoticeDismissed, ')
+          ..write('setupHighlightsSeen: $setupHighlightsSeen, ')
+          ..write('setupHighlightsSeenRelease: $setupHighlightsSeenRelease, ')
+          ..write('setupCardDismissedRelease: $setupCardDismissedRelease, ')
           ..write('lastFullSyncAppBuild: $lastFullSyncAppBuild, ')
           ..write('updatedAt: $updatedAt')
           ..write(')'))
@@ -33742,6 +34403,12 @@ typedef $$AppSettingsTableTableCreateCompanionBuilder =
       Value<int> maxConcurrentDownloads,
       Value<bool> downloadsPaused,
       Value<String> themeMode,
+      Value<String> colorStyle,
+      Value<bool> oledForAuto,
+      Value<bool> nightScheduleEnabled,
+      Value<int> nightScheduleStartMinutes,
+      Value<int> nightScheduleEndMinutes,
+      Value<bool> flatSurfaces,
       Value<int?> colorSchemeSeed,
       Value<String?> customColorPresets,
       Value<String?> appLocale,
@@ -33750,6 +34417,8 @@ typedef $$AppSettingsTableTableCreateCompanionBuilder =
       Value<String> crossfadeType,
       Value<int> coverArtCacheMaxObjects,
       Value<bool> artTintedNowPlaying,
+      Value<String> cornerStyle,
+      Value<String> nowPlayingBackground,
       Value<bool> dynamicAlbumColorEnabled,
       Value<bool> updateCheckEnabled,
       Value<String> updateChannel,
@@ -33798,6 +34467,9 @@ typedef $$AppSettingsTableTableCreateCompanionBuilder =
       Value<bool> externalIntegrationsEnabled,
       Value<String> disabledIntegrations,
       Value<bool> integrationsNoticeDismissed,
+      Value<String?> setupHighlightsSeen,
+      Value<String?> setupHighlightsSeenRelease,
+      Value<String?> setupCardDismissedRelease,
       Value<String?> lastFullSyncAppBuild,
       required DateTime updatedAt,
     });
@@ -33831,6 +34503,12 @@ typedef $$AppSettingsTableTableUpdateCompanionBuilder =
       Value<int> maxConcurrentDownloads,
       Value<bool> downloadsPaused,
       Value<String> themeMode,
+      Value<String> colorStyle,
+      Value<bool> oledForAuto,
+      Value<bool> nightScheduleEnabled,
+      Value<int> nightScheduleStartMinutes,
+      Value<int> nightScheduleEndMinutes,
+      Value<bool> flatSurfaces,
       Value<int?> colorSchemeSeed,
       Value<String?> customColorPresets,
       Value<String?> appLocale,
@@ -33839,6 +34517,8 @@ typedef $$AppSettingsTableTableUpdateCompanionBuilder =
       Value<String> crossfadeType,
       Value<int> coverArtCacheMaxObjects,
       Value<bool> artTintedNowPlaying,
+      Value<String> cornerStyle,
+      Value<String> nowPlayingBackground,
       Value<bool> dynamicAlbumColorEnabled,
       Value<bool> updateCheckEnabled,
       Value<String> updateChannel,
@@ -33887,6 +34567,9 @@ typedef $$AppSettingsTableTableUpdateCompanionBuilder =
       Value<bool> externalIntegrationsEnabled,
       Value<String> disabledIntegrations,
       Value<bool> integrationsNoticeDismissed,
+      Value<String?> setupHighlightsSeen,
+      Value<String?> setupHighlightsSeenRelease,
+      Value<String?> setupCardDismissedRelease,
       Value<String?> lastFullSyncAppBuild,
       Value<DateTime> updatedAt,
     });
@@ -34041,6 +34724,36 @@ class $$AppSettingsTableTableFilterComposer
     builder: (column) => ColumnFilters(column),
   );
 
+  ColumnFilters<String> get colorStyle => $composableBuilder(
+    column: $table.colorStyle,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<bool> get oledForAuto => $composableBuilder(
+    column: $table.oledForAuto,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<bool> get nightScheduleEnabled => $composableBuilder(
+    column: $table.nightScheduleEnabled,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get nightScheduleStartMinutes => $composableBuilder(
+    column: $table.nightScheduleStartMinutes,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get nightScheduleEndMinutes => $composableBuilder(
+    column: $table.nightScheduleEndMinutes,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<bool> get flatSurfaces => $composableBuilder(
+    column: $table.flatSurfaces,
+    builder: (column) => ColumnFilters(column),
+  );
+
   ColumnFilters<int> get colorSchemeSeed => $composableBuilder(
     column: $table.colorSchemeSeed,
     builder: (column) => ColumnFilters(column),
@@ -34078,6 +34791,16 @@ class $$AppSettingsTableTableFilterComposer
 
   ColumnFilters<bool> get artTintedNowPlaying => $composableBuilder(
     column: $table.artTintedNowPlaying,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get cornerStyle => $composableBuilder(
+    column: $table.cornerStyle,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get nowPlayingBackground => $composableBuilder(
+    column: $table.nowPlayingBackground,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -34321,6 +35044,21 @@ class $$AppSettingsTableTableFilterComposer
     builder: (column) => ColumnFilters(column),
   );
 
+  ColumnFilters<String> get setupHighlightsSeen => $composableBuilder(
+    column: $table.setupHighlightsSeen,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get setupHighlightsSeenRelease => $composableBuilder(
+    column: $table.setupHighlightsSeenRelease,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get setupCardDismissedRelease => $composableBuilder(
+    column: $table.setupCardDismissedRelease,
+    builder: (column) => ColumnFilters(column),
+  );
+
   ColumnFilters<String> get lastFullSyncAppBuild => $composableBuilder(
     column: $table.lastFullSyncAppBuild,
     builder: (column) => ColumnFilters(column),
@@ -34482,6 +35220,36 @@ class $$AppSettingsTableTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<String> get colorStyle => $composableBuilder(
+    column: $table.colorStyle,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<bool> get oledForAuto => $composableBuilder(
+    column: $table.oledForAuto,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<bool> get nightScheduleEnabled => $composableBuilder(
+    column: $table.nightScheduleEnabled,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get nightScheduleStartMinutes => $composableBuilder(
+    column: $table.nightScheduleStartMinutes,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get nightScheduleEndMinutes => $composableBuilder(
+    column: $table.nightScheduleEndMinutes,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<bool> get flatSurfaces => $composableBuilder(
+    column: $table.flatSurfaces,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<int> get colorSchemeSeed => $composableBuilder(
     column: $table.colorSchemeSeed,
     builder: (column) => ColumnOrderings(column),
@@ -34519,6 +35287,16 @@ class $$AppSettingsTableTableOrderingComposer
 
   ColumnOrderings<bool> get artTintedNowPlaying => $composableBuilder(
     column: $table.artTintedNowPlaying,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get cornerStyle => $composableBuilder(
+    column: $table.cornerStyle,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get nowPlayingBackground => $composableBuilder(
+    column: $table.nowPlayingBackground,
     builder: (column) => ColumnOrderings(column),
   );
 
@@ -34763,6 +35541,21 @@ class $$AppSettingsTableTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<String> get setupHighlightsSeen => $composableBuilder(
+    column: $table.setupHighlightsSeen,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get setupHighlightsSeenRelease => $composableBuilder(
+    column: $table.setupHighlightsSeenRelease,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get setupCardDismissedRelease => $composableBuilder(
+    column: $table.setupCardDismissedRelease,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<String> get lastFullSyncAppBuild => $composableBuilder(
     column: $table.lastFullSyncAppBuild,
     builder: (column) => ColumnOrderings(column),
@@ -34920,6 +35713,36 @@ class $$AppSettingsTableTableAnnotationComposer
   GeneratedColumn<String> get themeMode =>
       $composableBuilder(column: $table.themeMode, builder: (column) => column);
 
+  GeneratedColumn<String> get colorStyle => $composableBuilder(
+    column: $table.colorStyle,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<bool> get oledForAuto => $composableBuilder(
+    column: $table.oledForAuto,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<bool> get nightScheduleEnabled => $composableBuilder(
+    column: $table.nightScheduleEnabled,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get nightScheduleStartMinutes => $composableBuilder(
+    column: $table.nightScheduleStartMinutes,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get nightScheduleEndMinutes => $composableBuilder(
+    column: $table.nightScheduleEndMinutes,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<bool> get flatSurfaces => $composableBuilder(
+    column: $table.flatSurfaces,
+    builder: (column) => column,
+  );
+
   GeneratedColumn<int> get colorSchemeSeed => $composableBuilder(
     column: $table.colorSchemeSeed,
     builder: (column) => column,
@@ -34955,6 +35778,16 @@ class $$AppSettingsTableTableAnnotationComposer
 
   GeneratedColumn<bool> get artTintedNowPlaying => $composableBuilder(
     column: $table.artTintedNowPlaying,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get cornerStyle => $composableBuilder(
+    column: $table.cornerStyle,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get nowPlayingBackground => $composableBuilder(
+    column: $table.nowPlayingBackground,
     builder: (column) => column,
   );
 
@@ -35197,6 +36030,21 @@ class $$AppSettingsTableTableAnnotationComposer
     builder: (column) => column,
   );
 
+  GeneratedColumn<String> get setupHighlightsSeen => $composableBuilder(
+    column: $table.setupHighlightsSeen,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get setupHighlightsSeenRelease => $composableBuilder(
+    column: $table.setupHighlightsSeenRelease,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get setupCardDismissedRelease => $composableBuilder(
+    column: $table.setupCardDismissedRelease,
+    builder: (column) => column,
+  );
+
   GeneratedColumn<String> get lastFullSyncAppBuild => $composableBuilder(
     column: $table.lastFullSyncAppBuild,
     builder: (column) => column,
@@ -35272,6 +36120,12 @@ class $$AppSettingsTableTableTableManager
                 Value<int> maxConcurrentDownloads = const Value.absent(),
                 Value<bool> downloadsPaused = const Value.absent(),
                 Value<String> themeMode = const Value.absent(),
+                Value<String> colorStyle = const Value.absent(),
+                Value<bool> oledForAuto = const Value.absent(),
+                Value<bool> nightScheduleEnabled = const Value.absent(),
+                Value<int> nightScheduleStartMinutes = const Value.absent(),
+                Value<int> nightScheduleEndMinutes = const Value.absent(),
+                Value<bool> flatSurfaces = const Value.absent(),
                 Value<int?> colorSchemeSeed = const Value.absent(),
                 Value<String?> customColorPresets = const Value.absent(),
                 Value<String?> appLocale = const Value.absent(),
@@ -35280,6 +36134,8 @@ class $$AppSettingsTableTableTableManager
                 Value<String> crossfadeType = const Value.absent(),
                 Value<int> coverArtCacheMaxObjects = const Value.absent(),
                 Value<bool> artTintedNowPlaying = const Value.absent(),
+                Value<String> cornerStyle = const Value.absent(),
+                Value<String> nowPlayingBackground = const Value.absent(),
                 Value<bool> dynamicAlbumColorEnabled = const Value.absent(),
                 Value<bool> updateCheckEnabled = const Value.absent(),
                 Value<String> updateChannel = const Value.absent(),
@@ -35331,6 +36187,10 @@ class $$AppSettingsTableTableTableManager
                 Value<bool> externalIntegrationsEnabled = const Value.absent(),
                 Value<String> disabledIntegrations = const Value.absent(),
                 Value<bool> integrationsNoticeDismissed = const Value.absent(),
+                Value<String?> setupHighlightsSeen = const Value.absent(),
+                Value<String?> setupHighlightsSeenRelease =
+                    const Value.absent(),
+                Value<String?> setupCardDismissedRelease = const Value.absent(),
                 Value<String?> lastFullSyncAppBuild = const Value.absent(),
                 Value<DateTime> updatedAt = const Value.absent(),
               }) => AppSettingsTableCompanion(
@@ -35363,6 +36223,12 @@ class $$AppSettingsTableTableTableManager
                 maxConcurrentDownloads: maxConcurrentDownloads,
                 downloadsPaused: downloadsPaused,
                 themeMode: themeMode,
+                colorStyle: colorStyle,
+                oledForAuto: oledForAuto,
+                nightScheduleEnabled: nightScheduleEnabled,
+                nightScheduleStartMinutes: nightScheduleStartMinutes,
+                nightScheduleEndMinutes: nightScheduleEndMinutes,
+                flatSurfaces: flatSurfaces,
                 colorSchemeSeed: colorSchemeSeed,
                 customColorPresets: customColorPresets,
                 appLocale: appLocale,
@@ -35371,6 +36237,8 @@ class $$AppSettingsTableTableTableManager
                 crossfadeType: crossfadeType,
                 coverArtCacheMaxObjects: coverArtCacheMaxObjects,
                 artTintedNowPlaying: artTintedNowPlaying,
+                cornerStyle: cornerStyle,
+                nowPlayingBackground: nowPlayingBackground,
                 dynamicAlbumColorEnabled: dynamicAlbumColorEnabled,
                 updateCheckEnabled: updateCheckEnabled,
                 updateChannel: updateChannel,
@@ -35419,6 +36287,9 @@ class $$AppSettingsTableTableTableManager
                 externalIntegrationsEnabled: externalIntegrationsEnabled,
                 disabledIntegrations: disabledIntegrations,
                 integrationsNoticeDismissed: integrationsNoticeDismissed,
+                setupHighlightsSeen: setupHighlightsSeen,
+                setupHighlightsSeenRelease: setupHighlightsSeenRelease,
+                setupCardDismissedRelease: setupCardDismissedRelease,
                 lastFullSyncAppBuild: lastFullSyncAppBuild,
                 updatedAt: updatedAt,
               ),
@@ -35453,6 +36324,12 @@ class $$AppSettingsTableTableTableManager
                 Value<int> maxConcurrentDownloads = const Value.absent(),
                 Value<bool> downloadsPaused = const Value.absent(),
                 Value<String> themeMode = const Value.absent(),
+                Value<String> colorStyle = const Value.absent(),
+                Value<bool> oledForAuto = const Value.absent(),
+                Value<bool> nightScheduleEnabled = const Value.absent(),
+                Value<int> nightScheduleStartMinutes = const Value.absent(),
+                Value<int> nightScheduleEndMinutes = const Value.absent(),
+                Value<bool> flatSurfaces = const Value.absent(),
                 Value<int?> colorSchemeSeed = const Value.absent(),
                 Value<String?> customColorPresets = const Value.absent(),
                 Value<String?> appLocale = const Value.absent(),
@@ -35461,6 +36338,8 @@ class $$AppSettingsTableTableTableManager
                 Value<String> crossfadeType = const Value.absent(),
                 Value<int> coverArtCacheMaxObjects = const Value.absent(),
                 Value<bool> artTintedNowPlaying = const Value.absent(),
+                Value<String> cornerStyle = const Value.absent(),
+                Value<String> nowPlayingBackground = const Value.absent(),
                 Value<bool> dynamicAlbumColorEnabled = const Value.absent(),
                 Value<bool> updateCheckEnabled = const Value.absent(),
                 Value<String> updateChannel = const Value.absent(),
@@ -35512,6 +36391,10 @@ class $$AppSettingsTableTableTableManager
                 Value<bool> externalIntegrationsEnabled = const Value.absent(),
                 Value<String> disabledIntegrations = const Value.absent(),
                 Value<bool> integrationsNoticeDismissed = const Value.absent(),
+                Value<String?> setupHighlightsSeen = const Value.absent(),
+                Value<String?> setupHighlightsSeenRelease =
+                    const Value.absent(),
+                Value<String?> setupCardDismissedRelease = const Value.absent(),
                 Value<String?> lastFullSyncAppBuild = const Value.absent(),
                 required DateTime updatedAt,
               }) => AppSettingsTableCompanion.insert(
@@ -35544,6 +36427,12 @@ class $$AppSettingsTableTableTableManager
                 maxConcurrentDownloads: maxConcurrentDownloads,
                 downloadsPaused: downloadsPaused,
                 themeMode: themeMode,
+                colorStyle: colorStyle,
+                oledForAuto: oledForAuto,
+                nightScheduleEnabled: nightScheduleEnabled,
+                nightScheduleStartMinutes: nightScheduleStartMinutes,
+                nightScheduleEndMinutes: nightScheduleEndMinutes,
+                flatSurfaces: flatSurfaces,
                 colorSchemeSeed: colorSchemeSeed,
                 customColorPresets: customColorPresets,
                 appLocale: appLocale,
@@ -35552,6 +36441,8 @@ class $$AppSettingsTableTableTableManager
                 crossfadeType: crossfadeType,
                 coverArtCacheMaxObjects: coverArtCacheMaxObjects,
                 artTintedNowPlaying: artTintedNowPlaying,
+                cornerStyle: cornerStyle,
+                nowPlayingBackground: nowPlayingBackground,
                 dynamicAlbumColorEnabled: dynamicAlbumColorEnabled,
                 updateCheckEnabled: updateCheckEnabled,
                 updateChannel: updateChannel,
@@ -35600,6 +36491,9 @@ class $$AppSettingsTableTableTableManager
                 externalIntegrationsEnabled: externalIntegrationsEnabled,
                 disabledIntegrations: disabledIntegrations,
                 integrationsNoticeDismissed: integrationsNoticeDismissed,
+                setupHighlightsSeen: setupHighlightsSeen,
+                setupHighlightsSeenRelease: setupHighlightsSeenRelease,
+                setupCardDismissedRelease: setupCardDismissedRelease,
                 lastFullSyncAppBuild: lastFullSyncAppBuild,
                 updatedAt: updatedAt,
               ),

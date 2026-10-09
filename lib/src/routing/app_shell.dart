@@ -83,6 +83,8 @@ import 'package:navis/src/utils/connectivity.dart';
 import 'package:navis/src/utils/format_utils.dart';
 import 'package:navis/src/utils/sync_diagnostics_overrides.dart';
 import 'package:navis/src/theme/artwork_shape.dart';
+import 'package:navis/src/theme/navis_color_style_data.dart';
+import 'package:navis/src/theme/navis_shape_data.dart';
 
 part 'app_shell_support_widgets.dart';
 part 'app_shell_quick_search_overlay.dart';
@@ -672,21 +674,9 @@ class _AppShellState extends ConsumerState<AppShell> {
     if (!mounted || !shouldPrompt) {
       return;
     }
-    await showModalBottomSheet<void>(
-      context: context,
-      useRootNavigator: true,
-      useSafeArea: true,
-      showDragHandle: true,
-      isScrollControlled: true,
-      backgroundColor: Theme.of(context).colorScheme.surfaceContainerHigh,
-      builder: (sheetContext) {
-        return _BatteryOptimizationSheet(
-          onOpenSettings: () {
-            Navigator.of(sheetContext).pop();
-            unawaited(service.openDisableBatteryOptimizationSettings());
-          },
-        );
-      },
+    await showBatteryOptimizationSheet(
+      context,
+      onOpenSettings: service.openDisableBatteryOptimizationSettings,
     );
   }
 

@@ -1,10 +1,16 @@
+import 'dart:convert';
+
 import 'package:drift/drift.dart';
 import 'package:meta/meta.dart' show visibleForTesting;
+import 'package:navis/src/features/settings/domain/night_schedule.dart';
 import 'package:navis/src/database/navis_database.dart';
+import 'package:navis/src/database/tables/app_settings_table.dart';
 import 'package:navis/src/features/downloads/domain/download_preferences.dart';
 import 'package:navis/src/features/integrations/domain/integration_feature.dart';
+import 'package:navis/src/features/settings/domain/navis_density.dart';
+import 'package:navis/src/features/settings/domain/now_playing_background.dart';
+import 'package:navis/src/theme/navis_corner_style.dart';
 import 'package:path/path.dart' as p;
-import 'package:navis/src/database/tables/app_settings_table.dart';
 
 part 'app_settings_dao.g.dart';
 
@@ -110,6 +116,8 @@ class AppSettingsDao extends DatabaseAccessor<NavisDatabase>
   /// belong to the targeted writers ([setIntegrationEnabled],
   /// [updateLastFmApiKey], [updateListenBrainzScrobblingState]) so a stale
   /// screen snapshot cannot revert a switch or a token clear.
+  ///
+  /// Setup release markers are also omitted and have targeted writers.
   Future<void> saveSettings({
     int? wifiMaxBitRate,
     String? wifiFormat,
@@ -130,12 +138,19 @@ class AppSettingsDao extends DatabaseAccessor<NavisDatabase>
     required bool customDownloadFolderEnabled,
     String? customDownloadFolderPath,
     required String themeMode,
+    required String colorStyle,
+    required bool oledForAuto,
+    required bool nightScheduleEnabled,
+    required int nightScheduleStartMinutes,
+    required int nightScheduleEndMinutes,
+    required bool flatSurfaces,
     int? colorSchemeSeed,
     String? appLocale,
     required bool crossfadeEnabled,
     required int crossfadeDurationSeconds,
     required String crossfadeType,
-    required bool artTintedNowPlaying,
+    String nowPlayingBackground = 'tinted',
+    String? cornerStyle,
     required bool dynamicAlbumColorEnabled,
     bool? updateCheckEnabled,
     required String updateChannel,
@@ -172,6 +187,7 @@ class AppSettingsDao extends DatabaseAccessor<NavisDatabase>
     bool? listenBrainzTokenValid,
     String? listenBrainzUserName,
   }) {
+    final background = NowPlayingBackground.parse(nowPlayingBackground);
     return into(appSettingsTable).insertOnConflictUpdate(
       AppSettingsTableCompanion.insert(
         id: Value(primarySettingsId),
@@ -194,12 +210,23 @@ class AppSettingsDao extends DatabaseAccessor<NavisDatabase>
         customDownloadFolderEnabled: Value(customDownloadFolderEnabled),
         customDownloadFolderPath: Value(customDownloadFolderPath),
         themeMode: Value(themeMode),
+        colorStyle: Value(colorStyle),
+        oledForAuto: Value(oledForAuto),
+        nightScheduleEnabled: Value(nightScheduleEnabled),
+        nightScheduleStartMinutes: Value(
+          nightScheduleStartMinutes.clamp(0, 1439),
+        ),
+        nightScheduleEndMinutes: Value(nightScheduleEndMinutes.clamp(0, 1439)),
+        flatSurfaces: Value(flatSurfaces),
         colorSchemeSeed: Value(colorSchemeSeed),
         appLocale: Value(appLocale),
         crossfadeEnabled: Value(crossfadeEnabled),
         crossfadeDurationSeconds: Value(crossfadeDurationSeconds),
         crossfadeType: Value(crossfadeType),
-        artTintedNowPlaying: Value(artTintedNowPlaying),
+        nowPlayingBackground: Value(background.storageKey),
+        cornerStyle: cornerStyle == null
+            ? const Value.absent()
+            : Value(NavisCornerStyle.parse(cornerStyle).name),
         dynamicAlbumColorEnabled: Value(dynamicAlbumColorEnabled),
         updateCheckEnabled: updateCheckEnabled == null
             ? const Value.absent()
@@ -226,7 +253,7 @@ class AppSettingsDao extends DatabaseAccessor<NavisDatabase>
         desktopFocusPlayerModeEnabled: Value(desktopFocusPlayerModeEnabled),
         desktopPlaybackVolume: Value(desktopPlaybackVolume),
         desktopLastAudibleVolume: Value(desktopLastAudibleVolume),
-        homeDensity: Value(homeDensity),
+        homeDensity: Value(NavisDensity.parse(homeDensity).storageKey),
         homeSectionOrder: Value(homeSectionOrder),
         homeSectionsHidden: Value(homeSectionsHidden),
         libraryPageOrder: Value(libraryPageOrder),
@@ -282,6 +309,9 @@ class AppSettingsDao extends DatabaseAccessor<NavisDatabase>
   }
 
   Future<void> resetDefaults() async {
+    await clearSetupHighlightsSeen();
+    await updateSetupHighlightsSeenRelease(null);
+    await updateSetupCardDismissedRelease(null);
     await updatePlaybackAdjustments(
       speed: 1,
       pitchSemitones: 0,
@@ -315,12 +345,19 @@ class AppSettingsDao extends DatabaseAccessor<NavisDatabase>
       customDownloadFolderEnabled: false,
       customDownloadFolderPath: null,
       themeMode: 'dark',
+      colorStyle: 'neutral',
+      oledForAuto: false,
+      nightScheduleEnabled: false,
+      nightScheduleStartMinutes: NightSchedule.defaultStartMinutes,
+      nightScheduleEndMinutes: NightSchedule.defaultEndMinutes,
+      flatSurfaces: false,
       colorSchemeSeed: null,
       appLocale: null,
       crossfadeEnabled: false,
       crossfadeDurationSeconds: 5,
       crossfadeType: 'normal',
-      artTintedNowPlaying: true,
+      nowPlayingBackground: 'tinted',
+      cornerStyle: 'rounded',
       dynamicAlbumColorEnabled: false,
       updateCheckEnabled: true,
       updateChannel: 'stable',
@@ -362,6 +399,101 @@ class AppSettingsDao extends DatabaseAccessor<NavisDatabase>
         audioMuseServerUrl: Value(null),
         audioMuseApiKey: Value(null),
         audioMuseEnabled: Value(false),
+      ),
+    );
+    await updateSetupHighlightsSeenRelease(null);
+    await updateSetupCardDismissedRelease(null);
+  }
+
+  /// Writes changed setup listening and queue options without a full-row save.
+  Future<void> updateSetupListeningPreferences({
+    Value<int?> wifiMaxBitRate = const Value.absent(),
+    Value<String?> wifiFormat = const Value.absent(),
+    Value<int?> cellularMaxBitRate = const Value.absent(),
+    Value<String?> cellularFormat = const Value.absent(),
+    Value<bool> cachedPlaybackFirst = const Value.absent(),
+    Value<bool> scrobbleEnabled = const Value.absent(),
+    Value<bool> gaplessEnabled = const Value.absent(),
+    Value<bool> crossfadeEnabled = const Value.absent(),
+    Value<int> crossfadeDurationSeconds = const Value.absent(),
+    Value<String> crossfadeType = const Value.absent(),
+    Value<bool> albumQueueEnabled = const Value.absent(),
+    Value<bool> likedQueueEnabled = const Value.absent(),
+  }) => (update(appSettingsTable)..where((t) => t.id.equals(primarySettingsId)))
+      .write(
+        AppSettingsTableCompanion(
+          wifiMaxBitRate: wifiMaxBitRate,
+          wifiFormat: wifiFormat,
+          cellularMaxBitRate: cellularMaxBitRate,
+          cellularFormat: cellularFormat,
+          cachedPlaybackFirst: cachedPlaybackFirst,
+          scrobbleEnabled: scrobbleEnabled,
+          gaplessEnabled: gaplessEnabled,
+          crossfadeEnabled: crossfadeEnabled,
+          crossfadeDurationSeconds: crossfadeDurationSeconds,
+          crossfadeType: crossfadeType,
+          albumQueueEnabled: albumQueueEnabled,
+          likedQueueEnabled: likedQueueEnabled,
+          updatedAt: Value(DateTime.now()),
+        ),
+      );
+
+  /// Clears only per-option setup acknowledgements, for reset and diagnostics.
+  Future<void> clearSetupHighlightsSeen() =>
+      (update(
+        appSettingsTable,
+      )..where((t) => t.id.equals(primarySettingsId))).write(
+        AppSettingsTableCompanion(
+          setupHighlightsSeen: const Value(null),
+          updatedAt: Value(DateTime.now()),
+        ),
+      );
+
+  /// Adds one seen option atomically without overwriting simultaneous options.
+  Future<void> markSetupHighlightSeen(String key) => transaction(() async {
+    final row = await getSettings();
+    final seen = <String>{};
+    try {
+      final decoded = jsonDecode(row?.setupHighlightsSeen ?? '[]');
+      if (decoded is List) seen.addAll(decoded.whereType<String>());
+    } on FormatException {
+      // An invalid legacy value has no acknowledged options.
+    }
+    if (!seen.add(key)) return;
+    await (update(
+      appSettingsTable,
+    )..where((t) => t.id.equals(primarySettingsId))).write(
+      AppSettingsTableCompanion(
+        setupHighlightsSeen: Value(jsonEncode(seen.toList())),
+        updatedAt: Value(DateTime.now()),
+      ),
+    );
+  });
+
+  /// Writes only the acknowledged setup release; null clears it.
+  ///
+  /// Deliberately absent from [saveSettings] to preserve newer targeted writes.
+  Future<void> updateSetupHighlightsSeenRelease(String? release) {
+    return (update(
+      appSettingsTable,
+    )..where((t) => t.id.equals(primarySettingsId))).write(
+      AppSettingsTableCompanion(
+        setupHighlightsSeenRelease: Value(release),
+        updatedAt: Value(DateTime.now()),
+      ),
+    );
+  }
+
+  /// Writes only the dismissed Home invitation release; null clears it.
+  ///
+  /// Deliberately absent from [saveSettings] so onboarding drafts cannot revert it.
+  Future<void> updateSetupCardDismissedRelease(String? release) {
+    return (update(
+      appSettingsTable,
+    )..where((t) => t.id.equals(primarySettingsId))).write(
+      AppSettingsTableCompanion(
+        setupCardDismissedRelease: Value(release),
+        updatedAt: Value(DateTime.now()),
       ),
     );
   }
@@ -655,6 +787,66 @@ class AppSettingsDao extends DatabaseAccessor<NavisDatabase>
     );
   }
 
+  /// Targeted update for colour style.
+  Future<void> updateColorStyle(String style) {
+    return (update(
+      appSettingsTable,
+    )..where((t) => t.id.equals(primarySettingsId))).write(
+      AppSettingsTableCompanion(
+        colorStyle: Value(style),
+        updatedAt: Value(DateTime.now()),
+      ),
+    );
+  }
+
+  /// Targeted update for OLED in Auto mode.
+  Future<void> updateOledForAuto({required bool enabled}) {
+    return (update(
+      appSettingsTable,
+    )..where((t) => t.id.equals(primarySettingsId))).write(
+      AppSettingsTableCompanion(
+        oledForAuto: Value(enabled),
+        updatedAt: Value(DateTime.now()),
+      ),
+    );
+  }
+
+  /// Targeted update for flat surfaces.
+  Future<void> updateFlatSurfaces({required bool enabled}) {
+    return (update(
+      appSettingsTable,
+    )..where((t) => t.id.equals(primarySettingsId))).write(
+      AppSettingsTableCompanion(
+        flatSurfaces: Value(enabled),
+        updatedAt: Value(DateTime.now()),
+      ),
+    );
+  }
+
+  /// Targeted update for the daily Night schedule.
+  Future<void> updateNightSchedule({
+    bool? enabled,
+    int? startMinutes,
+    int? endMinutes,
+  }) {
+    return (update(
+      appSettingsTable,
+    )..where((t) => t.id.equals(primarySettingsId))).write(
+      AppSettingsTableCompanion(
+        nightScheduleEnabled: enabled == null
+            ? const Value.absent()
+            : Value(enabled),
+        nightScheduleStartMinutes: startMinutes == null
+            ? const Value.absent()
+            : Value(startMinutes.clamp(0, 1439)),
+        nightScheduleEndMinutes: endMinutes == null
+            ? const Value.absent()
+            : Value(endMinutes.clamp(0, 1439)),
+        updatedAt: Value(DateTime.now()),
+      ),
+    );
+  }
+
   /// Targeted update for color scheme seed.
   Future<void> updateColorSchemeSeed(int? seed) {
     return (update(
@@ -734,16 +926,30 @@ class AppSettingsDao extends DatabaseAccessor<NavisDatabase>
   }
 
   // ---------------------------------------------------------------------------
-  // Art-tinted Now Playing helpers
+  // Corner style and Art-tinted Now Playing helpers
   // ---------------------------------------------------------------------------
 
-  /// Targeted update for art-tinted Now Playing.
-  Future<void> updateArtTintedNowPlaying({required bool enabled}) {
+  /// Writes the canonical chrome corner style without changing other settings.
+  Future<void> updateCornerStyle(String value) {
+    final style = NavisCornerStyle.parse(value);
     return (update(
       appSettingsTable,
     )..where((t) => t.id.equals(primarySettingsId))).write(
       AppSettingsTableCompanion(
-        artTintedNowPlaying: Value(enabled),
+        cornerStyle: Value(style.name),
+        updatedAt: Value(DateTime.now()),
+      ),
+    );
+  }
+
+  /// Writes the canonical background choice.
+  Future<void> updateNowPlayingBackground(String value) {
+    final background = NowPlayingBackground.parse(value);
+    return (update(
+      appSettingsTable,
+    )..where((t) => t.id.equals(primarySettingsId))).write(
+      AppSettingsTableCompanion(
+        nowPlayingBackground: Value(background.storageKey),
         updatedAt: Value(DateTime.now()),
       ),
     );
@@ -867,13 +1073,12 @@ class AppSettingsDao extends DatabaseAccessor<NavisDatabase>
     );
   }
 
-  /// Targeted update for home section density ('comfortable' or 'compact').
-  Future<void> updateHomeDensity(String density) {
+  Future<void> updateDensity(NavisDensity density) {
     return (update(
       appSettingsTable,
     )..where((t) => t.id.equals(primarySettingsId))).write(
       AppSettingsTableCompanion(
-        homeDensity: Value(density),
+        homeDensity: Value(density.storageKey),
         updatedAt: Value(DateTime.now()),
       ),
     );

@@ -1,7 +1,11 @@
 import 'package:flutter/foundation.dart';
-import 'package:navis/src/features/player/domain/playback_adjustments.dart';
+import 'package:navis/src/features/settings/domain/night_schedule.dart';
 import 'package:navis/src/database/daos/app_settings_dao.dart';
+import 'package:navis/src/features/player/domain/playback_adjustments.dart';
+import 'package:navis/src/features/settings/domain/navis_density.dart';
+import 'package:navis/src/features/settings/domain/now_playing_background.dart';
 import 'package:navis/src/routing/content_layout.dart';
+import 'package:navis/src/theme/navis_corner_style.dart';
 
 double sanitizeDesktopPlaybackVolume(double? value) {
   if (value == null || !value.isFinite) {
@@ -40,12 +44,19 @@ class AppSettingsModel {
     required this.customDownloadFolderEnabled,
     required this.customDownloadFolderPath,
     required this.themeMode,
+    this.colorStyle = 'neutral',
+    this.oledForAuto = false,
+    this.nightScheduleEnabled = false,
+    this.nightScheduleStartMinutes = NightSchedule.defaultStartMinutes,
+    this.nightScheduleEndMinutes = NightSchedule.defaultEndMinutes,
+    this.flatSurfaces = false,
     required this.colorSchemeSeed,
     required this.appLocale,
     required this.crossfadeEnabled,
     required this.crossfadeDurationSeconds,
     required this.crossfadeType,
-    required this.artTintedNowPlaying,
+    this.nowPlayingBackground = NowPlayingBackground.tinted,
+    this.cornerStyle = NavisCornerStyle.rounded,
     required this.dynamicAlbumColorEnabled,
     required this.updateCheckEnabled,
     required this.updateChannel,
@@ -70,7 +81,7 @@ class AppSettingsModel {
     this.desktopFocusPlayerModeEnabled = false,
     this.desktopPlaybackVolume = AppSettingsDao.defaultDesktopPlaybackVolume,
     this.desktopLastAudibleVolume = AppSettingsDao.defaultDesktopPlaybackVolume,
-    this.homeDensity = 'comfortable',
+    this.homeDensity = NavisDensity.comfortable,
     required this.homeSectionOrder,
     required this.homeSectionsHidden,
     required this.libraryPageOrder,
@@ -88,6 +99,9 @@ class AppSettingsModel {
     this.externalIntegrationsEnabled = true,
     this.disabledIntegrations = '[]',
     this.integrationsNoticeDismissed = false,
+    this.setupHighlightsSeen = const <String>{},
+    this.setupHighlightsSeenRelease,
+    this.setupCardDismissedRelease,
   });
 
   const new defaults()
@@ -110,12 +124,19 @@ class AppSettingsModel {
       customDownloadFolderEnabled = false,
       customDownloadFolderPath = null,
       themeMode = 'dark',
+      colorStyle = 'neutral',
+      oledForAuto = false,
+      nightScheduleEnabled = false,
+      nightScheduleStartMinutes = NightSchedule.defaultStartMinutes,
+      nightScheduleEndMinutes = NightSchedule.defaultEndMinutes,
+      flatSurfaces = false,
       colorSchemeSeed = null,
       appLocale = null,
       crossfadeEnabled = false,
       crossfadeDurationSeconds = 5,
       crossfadeType = 'normal',
-      artTintedNowPlaying = true,
+      nowPlayingBackground = NowPlayingBackground.tinted,
+      cornerStyle = NavisCornerStyle.rounded,
       dynamicAlbumColorEnabled = false,
       updateCheckEnabled = true,
       updateChannel = 'stable',
@@ -140,7 +161,7 @@ class AppSettingsModel {
       desktopFocusPlayerModeEnabled = false,
       desktopPlaybackVolume = AppSettingsDao.defaultDesktopPlaybackVolume,
       desktopLastAudibleVolume = AppSettingsDao.defaultDesktopPlaybackVolume,
-      homeDensity = 'comfortable',
+      homeDensity = NavisDensity.comfortable,
       homeSectionOrder = null,
       homeSectionsHidden = null,
       libraryPageOrder = null,
@@ -157,7 +178,10 @@ class AppSettingsModel {
       listenBrainzUserName = null,
       externalIntegrationsEnabled = true,
       disabledIntegrations = '[]',
-      integrationsNoticeDismissed = false;
+      integrationsNoticeDismissed = false,
+      setupHighlightsSeen = const <String>{},
+      setupHighlightsSeenRelease = null,
+      setupCardDismissedRelease = null;
 
   final int? wifiMaxBitRate;
   final String? wifiFormat;
@@ -180,12 +204,20 @@ class AppSettingsModel {
   final bool customDownloadFolderEnabled;
   final String? customDownloadFolderPath;
   final String themeMode;
+  final String colorStyle;
+  final bool oledForAuto;
+  final bool nightScheduleEnabled;
+  final int nightScheduleStartMinutes;
+  final int nightScheduleEndMinutes;
+  final bool flatSurfaces;
   final int? colorSchemeSeed;
   final String? appLocale;
   final bool crossfadeEnabled;
   final int crossfadeDurationSeconds;
   final String crossfadeType;
-  final bool artTintedNowPlaying;
+  final NowPlayingBackground nowPlayingBackground;
+  final NavisCornerStyle cornerStyle;
+
   final bool dynamicAlbumColorEnabled;
   final bool updateCheckEnabled;
   final String updateChannel;
@@ -238,8 +270,10 @@ class AppSettingsModel {
   /// Last non-muted desktop volume restored by the mute toggle.
   final double desktopLastAudibleVolume;
 
-  /// Home layout density: 'comfortable' or 'compact'.
-  final String homeDensity;
+  /// Density now covers Home and lists; the legacy storage name is retained.
+  final NavisDensity homeDensity;
+
+  NavisDensity get density => homeDensity;
 
   /// Ordered list of home section IDs, or null for default order.
   final List<String>? homeSectionOrder;
@@ -299,6 +333,19 @@ class AppSettingsModel {
   /// Whether the one-time Integrations notice on Home was dismissed.
   final bool integrationsNoticeDismissed;
 
+  /// Setup highlight storage keys already shown, written only via targeted writes.
+  final Set<String> setupHighlightsSeen;
+
+  /// Latest setup highlight release acknowledged by Finish (or first-run Skip).
+  ///
+  /// Written only through targeted writers, never by a full settings save.
+  final String? setupHighlightsSeenRelease;
+
+  /// Latest setup highlight release whose Home card was dismissed.
+  ///
+  /// Dismissal does not acknowledge the setup highlights themselves.
+  final String? setupCardDismissedRelease;
+
   AppSettingsModel copyWith({
     int? wifiMaxBitRate,
     String? wifiFormat,
@@ -319,12 +366,19 @@ class AppSettingsModel {
     bool? customDownloadFolderEnabled,
     String? customDownloadFolderPath,
     String? themeMode,
+    String? colorStyle,
+    bool? oledForAuto,
+    bool? nightScheduleEnabled,
+    int? nightScheduleStartMinutes,
+    int? nightScheduleEndMinutes,
+    bool? flatSurfaces,
     int? colorSchemeSeed,
     String? appLocale,
     bool? crossfadeEnabled,
     int? crossfadeDurationSeconds,
     String? crossfadeType,
-    bool? artTintedNowPlaying,
+    NowPlayingBackground? nowPlayingBackground,
+    NavisCornerStyle? cornerStyle,
     bool? dynamicAlbumColorEnabled,
     bool? updateCheckEnabled,
     String? updateChannel,
@@ -350,7 +404,8 @@ class AppSettingsModel {
     bool? desktopFocusPlayerModeEnabled,
     double? desktopPlaybackVolume,
     double? desktopLastAudibleVolume,
-    String? homeDensity,
+    NavisDensity? homeDensity,
+    NavisDensity? density,
     List<String>? homeSectionOrder,
     List<String>? homeSectionsHidden,
     List<String>? libraryPageOrder,
@@ -368,6 +423,11 @@ class AppSettingsModel {
     bool? externalIntegrationsEnabled,
     String? disabledIntegrations,
     bool? integrationsNoticeDismissed,
+    Set<String>? setupHighlightsSeen,
+    String? setupHighlightsSeenRelease,
+    String? setupCardDismissedRelease,
+    bool clearSetupHighlightsSeenRelease = false,
+    bool clearSetupCardDismissedRelease = false,
     bool clearWifiBitRate = false,
     bool clearWifiFormat = false,
     bool clearCellularBitRate = false,
@@ -412,6 +472,14 @@ class AppSettingsModel {
           ? null
           : customDownloadFolderPath ?? this.customDownloadFolderPath,
       themeMode: themeMode ?? this.themeMode,
+      colorStyle: colorStyle ?? this.colorStyle,
+      oledForAuto: oledForAuto ?? this.oledForAuto,
+      nightScheduleEnabled: nightScheduleEnabled ?? this.nightScheduleEnabled,
+      nightScheduleStartMinutes:
+          nightScheduleStartMinutes ?? this.nightScheduleStartMinutes,
+      nightScheduleEndMinutes:
+          nightScheduleEndMinutes ?? this.nightScheduleEndMinutes,
+      flatSurfaces: flatSurfaces ?? this.flatSurfaces,
       colorSchemeSeed: clearColorSchemeSeed
           ? null
           : colorSchemeSeed ?? this.colorSchemeSeed,
@@ -420,7 +488,8 @@ class AppSettingsModel {
       crossfadeDurationSeconds:
           crossfadeDurationSeconds ?? this.crossfadeDurationSeconds,
       crossfadeType: crossfadeType ?? this.crossfadeType,
-      artTintedNowPlaying: artTintedNowPlaying ?? this.artTintedNowPlaying,
+      nowPlayingBackground: nowPlayingBackground ?? this.nowPlayingBackground,
+      cornerStyle: cornerStyle ?? this.cornerStyle,
       dynamicAlbumColorEnabled:
           dynamicAlbumColorEnabled ?? this.dynamicAlbumColorEnabled,
       updateCheckEnabled: updateCheckEnabled ?? this.updateCheckEnabled,
@@ -457,7 +526,7 @@ class AppSettingsModel {
           desktopPlaybackVolume ?? this.desktopPlaybackVolume,
       desktopLastAudibleVolume:
           desktopLastAudibleVolume ?? this.desktopLastAudibleVolume,
-      homeDensity: homeDensity ?? this.homeDensity,
+      homeDensity: density ?? homeDensity ?? this.homeDensity,
       homeSectionOrder: clearHomeSectionOrder
           ? null
           : homeSectionOrder ?? this.homeSectionOrder,
@@ -492,6 +561,13 @@ class AppSettingsModel {
       disabledIntegrations: disabledIntegrations ?? this.disabledIntegrations,
       integrationsNoticeDismissed:
           integrationsNoticeDismissed ?? this.integrationsNoticeDismissed,
+      setupHighlightsSeen: setupHighlightsSeen ?? this.setupHighlightsSeen,
+      setupHighlightsSeenRelease: clearSetupHighlightsSeenRelease
+          ? null
+          : setupHighlightsSeenRelease ?? this.setupHighlightsSeenRelease,
+      setupCardDismissedRelease: clearSetupCardDismissedRelease
+          ? null
+          : setupCardDismissedRelease ?? this.setupCardDismissedRelease,
     );
   }
 }

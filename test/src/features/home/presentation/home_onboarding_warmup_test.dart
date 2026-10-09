@@ -11,6 +11,7 @@ import 'package:navis/src/features/home/domain/new_releases.dart';
 import 'package:navis/src/features/home/presentation/home_deezer_providers.dart';
 import 'package:navis/src/features/home/presentation/home_onboarding_warmup.dart';
 import 'package:navis/src/features/home/presentation/home_providers.dart';
+import 'package:navis/src/features/onboarding/presentation/onboarding_provider.dart';
 import 'package:navis/src/features/onboarding/presentation/onboarding_screen.dart';
 import 'package:navis/src/features/settings/domain/app_settings.dart';
 import 'package:navis/src/providers/app_providers.dart';
@@ -279,6 +280,7 @@ void main() {
         await tester.pumpWidget(
           ProviderScope(
             overrides: [
+              onboardingRequiredProvider.overrideWithValue(true),
               appSettingsProvider.overrideWithValue(
                 const AsyncData(AppSettingsModel.defaults()),
               ),

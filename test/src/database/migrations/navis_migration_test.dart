@@ -1,3 +1,4 @@
+import 'package:navis/src/features/settings/domain/navis_density.dart';
 import 'package:navis/src/features/equalizer/data/eq_repository.dart';
 import 'package:navis/src/features/equalizer/domain/eq_configuration.dart';
 
@@ -152,6 +153,542 @@ void main() {
     )..where((row) => row.id.equals(profile))).go();
     expect(await database.songIdentityDao.resolveCanonicalId('old'), 'newest');
   }, skip: !sqliteAvailable);
+  for (final from in [92, 93, 94, 95, 96, 97]) {
+    for (final partial in [false, true]) {
+      test(
+        'guarded $from to 98 ${partial ? 'partial' : 'complete'} upgrade',
+        () async {
+          final directory = Directory.systemTemp.createTempSync('navis_92_98_');
+          final file = File(p.join(directory.path, 'fixture.sqlite'));
+          addTearDown(() => directory.deleteSync(recursive: true));
+          final seed = createTestDatabase(file: file);
+          await seed.appSettingsDao.getSettings();
+          await seed.appSettingsDao.updateColorStyle('pastel');
+          await seed.appSettingsDao.updateOledForAuto(enabled: true);
+          await seed.appSettingsDao.updateFlatSurfaces(enabled: true);
+          await seed.appSettingsDao.updateNightSchedule(
+            enabled: true,
+            startMinutes: 1000,
+            endMinutes: 300,
+          );
+          await seed.appSettingsDao.updateSetupHighlightsSeenRelease('1.4.3');
+          await seed.appSettingsDao.updateSetupCardDismissedRelease('1.4.3');
+          await seed.appSettingsDao.markSetupHighlightSeen('colorStyle');
+          await seed.appSettingsDao.updateNowPlayingBackground('artwork');
+          await seed.appSettingsDao.updateCornerStyle('soft');
+          await seed.appSettingsDao.updateDesktopPlaybackVolume(
+            volume: 0.4,
+            lastAudibleVolume: 0.4,
+          );
+          await seed.close();
+          const introduced = <String, int>{
+            'color_style': 93,
+            'oled_for_auto': 94,
+            'night_schedule_enabled': 94,
+            'night_schedule_start_minutes': 94,
+            'night_schedule_end_minutes': 94,
+            'flat_surfaces': 94,
+            'setup_highlights_seen_release': 95,
+            'setup_card_dismissed_release': 95,
+            'now_playing_background': 96,
+            'corner_style': 97,
+            'setup_highlights_seen': 97,
+          };
+          final removed = <String>{};
+          final raw = sqlite3.open(file.path);
+          try {
+            var index = 0;
+            for (final entry in introduced.entries) {
+              if (entry.value > from && (!partial || index.isEven)) {
+                raw.execute(
+                  'ALTER TABLE app_settings DROP COLUMN ${entry.key}',
+                );
+                removed.add(entry.key);
+              }
+              index++;
+            }
+            raw.execute('PRAGMA user_version = $from');
+          } finally {
+            raw.close();
+          }
+          final upgraded = createTestDatabase(file: file);
+          final defaults = <String, Object?>{
+            'color_style': 'neutral',
+            'oled_for_auto': 0,
+            'night_schedule_enabled': 0,
+            'night_schedule_start_minutes': 1320,
+            'night_schedule_end_minutes': 420,
+            'flat_surfaces': 0,
+            'setup_highlights_seen_release': null,
+            'setup_card_dismissed_release': null,
+            'now_playing_background': 'tinted',
+            'corner_style': 'rounded',
+            'setup_highlights_seen': null,
+          };
+          final saved = <String, Object?>{
+            'color_style': 'pastel',
+            'oled_for_auto': 1,
+            'night_schedule_enabled': 1,
+            'night_schedule_start_minutes': 1000,
+            'night_schedule_end_minutes': 300,
+            'flat_surfaces': 1,
+            'setup_highlights_seen_release': '1.4.3',
+            'setup_card_dismissed_release': '1.4.3',
+            'now_playing_background': 'artwork',
+            'corner_style': 'soft',
+            'setup_highlights_seen': '["colorStyle"]',
+          };
+          try {
+            await upgraded.appSettingsDao.getSettings();
+            final row = await upgraded
+                .customSelect('SELECT * FROM app_settings WHERE id = 1')
+                .getSingle();
+            for (final key in introduced.keys) {
+              expect(
+                row.data[key],
+                removed.contains(key) ? defaults[key] : saved[key],
+                reason: key,
+              );
+            }
+            expect(row.read<double>('desktop_playback_volume'), 0.4);
+            await upgraded.from97To98(Migrator(upgraded));
+            final rerun = await upgraded
+                .customSelect('SELECT * FROM app_settings WHERE id = 1')
+                .getSingle();
+            expect(rerun.data, row.data);
+          } finally {
+            await upgraded.close();
+          }
+          final reopened = createTestDatabase(file: file);
+          try {
+            final row = (await reopened.appSettingsDao.getSettings())!;
+            expect(row.desktopPlaybackVolume, 0.4);
+            expect(
+              (await reopened.customSelect('PRAGMA user_version').getSingle())
+                  .read<int>('user_version'),
+              98,
+            );
+          } finally {
+            await reopened.close();
+          }
+        },
+        skip: !sqliteAvailable,
+      );
+    }
+  }
+
+  for (final partial in [false, true]) {
+    test(
+      'v96 to v98 ${partial ? 'preserves an existing column' : 'defaults existing rows to rounded'} and survives reopen',
+      () async {
+        final directory = await Directory.systemTemp.createTemp(
+          'navis_corner_style_upgrade_',
+        );
+        final file = File(p.join(directory.path, 'fixture.sqlite'));
+        addTearDown(() => directory.delete(recursive: true));
+        final seed = createTestDatabase(file: file);
+        await seed.appSettingsDao.getSettings();
+        await seed.appSettingsDao.updateThemeMode('oled');
+        await seed.appSettingsDao.updateNowPlayingBackground('artwork');
+        await seed.appSettingsDao.updateCornerStyle('soft');
+        await seed
+            .into(seed.appSettingsTable)
+            .insert(
+              AppSettingsTableCompanion.insert(
+                id: const Value(2),
+                cornerStyle: const Value('square'),
+                updatedAt: DateTime.now(),
+              ),
+            );
+        await seed.close();
+        final raw = sqlite3.open(file.path);
+        try {
+          if (!partial) {
+            raw.execute('ALTER TABLE app_settings DROP COLUMN corner_style');
+          }
+          raw.execute('PRAGMA user_version = 96');
+        } finally {
+          raw.close();
+        }
+        final upgraded = createTestDatabase(file: file);
+        try {
+          final row = (await upgraded.appSettingsDao.getSettings())!;
+          expect(upgraded.schemaVersion, 98);
+          expect(row.cornerStyle, partial ? 'soft' : 'rounded');
+          expect(row.themeMode, 'oled');
+          expect(row.nowPlayingBackground, 'artwork');
+          final secondary = await (upgraded.select(
+            upgraded.appSettingsTable,
+          )..where((t) => t.id.equals(2))).getSingle();
+          expect(secondary.cornerStyle, partial ? 'square' : 'rounded');
+          expect(
+            (await upgraded.customSelect('PRAGMA user_version').getSingle())
+                .read<int>('user_version'),
+            98,
+          );
+          await upgraded
+              .into(upgraded.appSettingsTable)
+              .insert(
+                AppSettingsTableCompanion.insert(
+                  id: const Value(3),
+                  updatedAt: DateTime.now(),
+                ),
+              );
+          final fresh = await (upgraded.select(
+            upgraded.appSettingsTable,
+          )..where((t) => t.id.equals(3))).getSingle();
+          expect(fresh.cornerStyle, 'rounded');
+          await upgraded.appSettingsDao.updateCornerStyle('square');
+          for (var run = 0; run < 2; run++) {
+            await upgraded.from97To98(Migrator(upgraded));
+          }
+          expect(
+            (await upgraded.appSettingsDao.getSettings())!.cornerStyle,
+            'square',
+          );
+        } finally {
+          await upgraded.close();
+        }
+        final reopened = createTestDatabase(file: file);
+        try {
+          final row = (await reopened.appSettingsDao.getSettings())!;
+          expect(row.cornerStyle, 'square');
+          expect(row.themeMode, 'oled');
+          expect(row.nowPlayingBackground, 'artwork');
+        } finally {
+          await reopened.close();
+        }
+      },
+      skip: !sqliteAvailable,
+    );
+  }
+
+  for (final tinted in [true, false]) {
+    test('v95 to v98 maps legacy tint $tinted and survives reopen', () async {
+      final directory = await Directory.systemTemp.createTemp(
+        'navis_background_upgrade_',
+      );
+      final file = File(p.join(directory.path, 'fixture.sqlite'));
+      addTearDown(() => directory.delete(recursive: true));
+      final seed = createTestDatabase(file: file);
+      await seed.customStatement(
+        'UPDATE app_settings SET art_tinted_now_playing = ?',
+        [if (tinted) 1 else 0],
+      );
+      await seed.appSettingsDao.updateDensity(NavisDensity.compact);
+      await seed.close();
+      final raw = sqlite3.open(file.path);
+      try {
+        raw.execute(
+          'ALTER TABLE app_settings DROP COLUMN now_playing_background',
+        );
+        raw.execute('PRAGMA user_version = 95');
+      } finally {
+        raw.close();
+      }
+      final upgraded = createTestDatabase(file: file);
+      try {
+        final row = (await upgraded.appSettingsDao.getSettings())!;
+        expect(upgraded.schemaVersion, 98);
+        expect(row.nowPlayingBackground, tinted ? 'tinted' : 'plain');
+        expect(row.artTintedNowPlaying, tinted);
+        expect(row.homeDensity, 'compact');
+        expect(
+          (await upgraded.customSelect('PRAGMA user_version').getSingle())
+              .read<int>('user_version'),
+          98,
+        );
+        // New rows use the SQL default even in an upgraded database.
+        await upgraded
+            .into(upgraded.appSettingsTable)
+            .insert(
+              AppSettingsTableCompanion.insert(
+                id: const Value(2),
+                updatedAt: DateTime.now(),
+              ),
+            );
+        final fresh = await (upgraded.select(
+          upgraded.appSettingsTable,
+        )..where((t) => t.id.equals(2))).getSingle();
+        expect(fresh.nowPlayingBackground, 'tinted');
+        await upgraded.appSettingsDao.updateNowPlayingBackground('artwork');
+        for (var run = 0; run < 2; run++) {
+          await upgraded.from97To98(Migrator(upgraded));
+        }
+      } finally {
+        await upgraded.close();
+      }
+      final reopened = createTestDatabase(file: file);
+      try {
+        final row = (await reopened.appSettingsDao.getSettings())!;
+        expect(row.nowPlayingBackground, 'artwork');
+        expect(row.artTintedNowPlaying, tinted);
+        expect(row.homeDensity, 'compact');
+      } finally {
+        await reopened.close();
+      }
+    }, skip: !sqliteAvailable);
+  }
+
+  test(
+    'v95 partial migration preserves an existing background column',
+    () async {
+      final database = createTestDatabase();
+      addTearDown(database.close);
+      await database.appSettingsDao.updateNowPlayingBackground('artwork');
+      await database.customStatement('PRAGMA user_version = 95');
+      await database.from97To98(Migrator(database));
+      expect(
+        (await database.appSettingsDao.getSettings())!.nowPlayingBackground,
+        'artwork',
+      );
+    },
+    skip: !sqliteAvailable,
+  );
+
+  for (final partial in [false, true]) {
+    test(
+      'migrates v94 to v98 with ${partial ? 'one' : 'no'} setup columns',
+      () async {
+        final directory = await Directory.systemTemp.createTemp(
+          'navis_setup_upgrade_',
+        );
+        final file = File(p.join(directory.path, 'fixture.sqlite'));
+        addTearDown(() => directory.delete(recursive: true));
+        final seed = createTestDatabase(file: file);
+        await seed.appSettingsDao.getSettings();
+        await seed.appSettingsDao.completeOnboarding(1);
+        await seed.appSettingsDao.updateColorStyle('pastel');
+        await seed.appSettingsDao.updateSetupHighlightsSeenRelease('1.4.3');
+        await seed.close();
+        final raw = sqlite3.open(file.path);
+        try {
+          if (!partial) {
+            raw.execute(
+              'ALTER TABLE app_settings DROP COLUMN setup_highlights_seen_release',
+            );
+          }
+          raw.execute(
+            'ALTER TABLE app_settings DROP COLUMN setup_card_dismissed_release',
+          );
+          raw.execute('PRAGMA user_version = 94');
+        } finally {
+          raw.close();
+        }
+        final upgraded = createTestDatabase(file: file);
+        try {
+          final settings = (await upgraded.appSettingsDao.getSettings())!;
+          expect(upgraded.schemaVersion, 98);
+          expect(settings.setupHighlightsSeenRelease, partial ? '1.4.3' : null);
+          expect(settings.setupCardDismissedRelease, isNull);
+          expect(settings.onboardingVersion, 1);
+          expect(settings.colorStyle, 'pastel');
+          final version = await upgraded
+              .customSelect('PRAGMA user_version')
+              .getSingle();
+          expect(version.read<int>('user_version'), 98);
+          await upgraded.appSettingsDao.updateSetupHighlightsSeenRelease(
+            '1.4.3',
+          );
+          await upgraded.appSettingsDao.updateSetupCardDismissedRelease(
+            '1.4.3',
+          );
+          // Guarded migration reruns preserve both existing markers.
+          for (var run = 0; run < 2; run++) {
+            await upgraded.from97To98(Migrator(upgraded));
+          }
+        } finally {
+          await upgraded.close();
+        }
+        final reopened = createTestDatabase(file: file);
+        try {
+          final settings = (await reopened.appSettingsDao.getSettings())!;
+          expect(settings.setupHighlightsSeenRelease, '1.4.3');
+          expect(settings.setupCardDismissedRelease, '1.4.3');
+          expect(settings.onboardingVersion, 1);
+          expect(settings.colorStyle, 'pastel');
+        } finally {
+          await reopened.close();
+        }
+      },
+      skip: !sqliteAvailable,
+    );
+  }
+
+  for (final partial in [false, true]) {
+    test(
+      'migrates v93 to v98 with ${partial ? 'some' : 'no'} appearance columns',
+      () async {
+        final directory = await Directory.systemTemp.createTemp(
+          'navis_appearance_upgrade_',
+        );
+        final file = File(p.join(directory.path, 'fixture.sqlite'));
+        addTearDown(() => directory.delete(recursive: true));
+        final seed = createTestDatabase(file: file);
+        try {
+          await seed.appSettingsDao.getSettings();
+          await seed.appSettingsDao.updateThemeMode('system');
+          await seed.appSettingsDao.updateColorStyle('pastel');
+          await seed.appSettingsDao.updateOledForAuto(enabled: true);
+          await seed.appSettingsDao.updateNightSchedule(startMinutes: 1200);
+        } finally {
+          await seed.close();
+        }
+
+        final raw = sqlite3.open(file.path);
+        try {
+          for (final column in [
+            if (!partial) 'oled_for_auto',
+            'night_schedule_enabled',
+            if (!partial) 'night_schedule_start_minutes',
+            'night_schedule_end_minutes',
+            'flat_surfaces',
+          ]) {
+            raw.execute('ALTER TABLE app_settings DROP COLUMN $column');
+          }
+          raw.execute('PRAGMA user_version = 93');
+        } finally {
+          raw.close();
+        }
+
+        final upgraded = createTestDatabase(file: file);
+        try {
+          final settings = (await upgraded.appSettingsDao.getSettings())!;
+          expect(upgraded.schemaVersion, 98);
+          expect(settings.oledForAuto, partial);
+          expect(settings.nightScheduleEnabled, isFalse);
+          expect(settings.nightScheduleStartMinutes, partial ? 1200 : 1320);
+          expect(settings.nightScheduleEndMinutes, 420);
+          expect(settings.flatSurfaces, isFalse);
+          expect(settings.themeMode, 'system');
+          expect(settings.colorStyle, 'pastel');
+          final pragmaRow = await upgraded
+              .customSelect('PRAGMA user_version;')
+              .getSingle();
+          expect(pragmaRow.read<int>('user_version'), 98);
+          await upgraded.appSettingsDao.updateOledForAuto(enabled: true);
+          await upgraded.appSettingsDao.updateNightSchedule(
+            enabled: true,
+            startMinutes: 1230,
+            endMinutes: 450,
+          );
+          await upgraded.appSettingsDao.updateFlatSurfaces(enabled: true);
+        } finally {
+          await upgraded.close();
+        }
+
+        final reopened = createTestDatabase(file: file);
+        try {
+          final settings = (await reopened.appSettingsDao.getSettings())!;
+          expect(settings.oledForAuto, isTrue);
+          expect(settings.nightScheduleEnabled, isTrue);
+          expect(settings.nightScheduleStartMinutes, 1230);
+          expect(settings.nightScheduleEndMinutes, 450);
+          expect(settings.flatSurfaces, isTrue);
+          expect(settings.colorStyle, 'pastel');
+          expect(settings.themeMode, 'system');
+        } finally {
+          await reopened.close();
+        }
+      },
+      skip: !sqliteAvailable,
+    );
+  }
+
+  test(
+    'v94 migration preserves existing appearance columns on rerun',
+    () async {
+      final database = createTestDatabase();
+      addTearDown(database.close);
+      await database.appSettingsDao.getSettings();
+      await database.appSettingsDao.updateOledForAuto(enabled: true);
+      await database.appSettingsDao.updateNightSchedule(
+        enabled: true,
+        startMinutes: 1200,
+        endMinutes: 480,
+      );
+      await database.appSettingsDao.updateFlatSurfaces(enabled: true);
+      for (var run = 0; run < 2; run++) {
+        await database.from97To98(Migrator(database));
+      }
+      final settings = (await database.appSettingsDao.getSettings())!;
+      expect(settings.oledForAuto, isTrue);
+      expect(settings.nightScheduleEnabled, isTrue);
+      expect(settings.nightScheduleStartMinutes, 1200);
+      expect(settings.nightScheduleEndMinutes, 480);
+      expect(settings.flatSurfaces, isTrue);
+    },
+    skip: !sqliteAvailable,
+  );
+
+  test(
+    'migrates v92 to v98 with neutral colour style for an existing row',
+    () async {
+      final directory = await Directory.systemTemp.createTemp(
+        'navis_color_style_upgrade_',
+      );
+      final file = File(p.join(directory.path, 'fixture.sqlite'));
+      addTearDown(() => directory.delete(recursive: true));
+      final seed = createTestDatabase(file: file);
+      try {
+        await seed.appSettingsDao.getSettings();
+        await seed.appSettingsDao.updateThemeMode('oled');
+      } finally {
+        await seed.close();
+      }
+
+      final raw = sqlite3.open(file.path);
+      try {
+        raw.execute('ALTER TABLE app_settings DROP COLUMN color_style');
+        raw.execute('PRAGMA user_version = 92');
+      } finally {
+        raw.close();
+      }
+
+      final upgraded = createTestDatabase(file: file);
+      try {
+        final settings = (await upgraded.appSettingsDao.getSettings())!;
+        expect(upgraded.schemaVersion, 98);
+        expect(settings.colorStyle, 'neutral');
+        expect(settings.themeMode, 'oled');
+        final pragmaRow = await upgraded
+            .customSelect('PRAGMA user_version;')
+            .getSingle();
+        expect(pragmaRow.read<int>('user_version'), 98);
+        await upgraded.appSettingsDao.updateColorStyle('pastel');
+      } finally {
+        await upgraded.close();
+      }
+
+      final reopened = createTestDatabase(file: file);
+      try {
+        final settings = (await reopened.appSettingsDao.getSettings())!;
+        expect(settings.colorStyle, 'pastel');
+        expect(settings.themeMode, 'oled');
+      } finally {
+        await reopened.close();
+      }
+    },
+    skip: !sqliteAvailable,
+  );
+
+  test(
+    'v93 migration can be rerun without changing the saved colour style',
+    () async {
+      final database = createTestDatabase();
+      addTearDown(database.close);
+      await database.appSettingsDao.getSettings();
+      await database.appSettingsDao.updateColorStyle('night');
+      for (var run = 0; run < 2; run++) {
+        await database.from97To98(Migrator(database));
+      }
+      expect(
+        (await database.appSettingsDao.getSettings())!.colorStyle,
+        'night',
+      );
+    },
+    skip: !sqliteAvailable,
+  );
 
   test('v91 migration can be rerun with existing columns', () async {
     final database = createTestDatabase();
@@ -273,7 +810,7 @@ void main() {
       expect(
         (await migrated.customSelect('PRAGMA user_version').getSingle())
             .read<int>('user_version'),
-        94,
+        98,
       );
     },
     skip: !sqliteAvailable,
@@ -358,7 +895,7 @@ void main() {
         await migrated.close();
         await directory.delete(recursive: true);
       });
-      expect(migrated.schemaVersion, 94);
+      expect(migrated.schemaVersion, 98);
       Future<Set<String>> columns(String table) async =>
           (await migrated.customSelect('PRAGMA table_info($table)').get())
               .map((row) => row.read<String>('name'))
@@ -480,7 +1017,7 @@ void main() {
       expect(
         (await migrated.customSelect('PRAGMA user_version').getSingle())
             .read<int>('user_version'),
-        94,
+        98,
       );
     },
     skip: !sqliteAvailable,
@@ -530,7 +1067,7 @@ void main() {
       expect(
         (await migrated.customSelect('PRAGMA user_version').getSingle())
             .read<int>('user_version'),
-        94,
+        98,
       );
     },
     skip: !sqliteAvailable,
@@ -628,7 +1165,7 @@ void main() {
       expect(stored.configuration, configuration);
       expect(stored.workspaces['headphones']!.configuration, configuration);
       expect(stored.presets.single.configuration.preampDb, 0);
-      expect(migrated.schemaVersion, 94);
+      expect(migrated.schemaVersion, 98);
       await migrated.close();
       await directory.delete(recursive: true);
     },
@@ -725,7 +1262,7 @@ void main() {
       expect(
         (await migrated.customSelect('PRAGMA user_version').getSingle())
             .read<int>('user_version'),
-        94,
+        98,
       );
       await migrated.appSettingsDao.updatePlaybackAdjustments(
         speed: 1.25,
@@ -776,7 +1313,7 @@ void main() {
     expect(settings.playbackPresets, '[]');
     expect(settings.selectedPlaybackPresetId, isNull);
     expect(settings.themeMode, 'oled');
-    expect(migrated.schemaVersion, 94);
+    expect(migrated.schemaVersion, 98);
   }, skip: !sqliteAvailable);
 
   for (final sample in <(int?, String)>[
@@ -874,7 +1411,7 @@ void main() {
       final ready = await migrated.librarySyncDao.getOrCreateState(1);
       expect(ready.initialCatalogUsableAt, isNotNull);
       expect(ready.lastCatalogSyncedAt, isNull);
-      expect(migrated.schemaVersion, 94);
+      expect(migrated.schemaVersion, 98);
     },
   );
 
@@ -941,7 +1478,7 @@ void main() {
           .telemetryJson,
       '{"version":1}',
     );
-    expect(migrated.schemaVersion, 94);
+    expect(migrated.schemaVersion, 98);
     expect(
       await migrated.customSelect('PRAGMA foreign_key_check').get(),
       isEmpty,
@@ -1036,7 +1573,7 @@ void main() {
       final album = (await migrated.libraryDao.getAlbumById('kept'))!;
       expect(album.songsHydrated, isTrue);
       expect(album.songsVerifiedAt, isNull);
-      expect(migrated.schemaVersion, 94);
+      expect(migrated.schemaVersion, 98);
     },
   );
   test(
@@ -1075,7 +1612,7 @@ void main() {
       expect(pending.operation, 'star');
       expect(pending.attemptCount, 0);
       expect(pending.notBefore, isNull);
-      expect(migrated.schemaVersion, 94);
+      expect(migrated.schemaVersion, 98);
     },
   );
   for (final obsoleteTablesExist in [true, false]) {
@@ -1123,7 +1660,7 @@ void main() {
       final version = await database
           .customSelect('PRAGMA user_version')
           .getSingle();
-      expect(version.read<int>('user_version'), 94);
+      expect(version.read<int>('user_version'), 98);
       final tables = await database
           .customSelect(
             "SELECT name FROM sqlite_master WHERE type = 'table' AND name IN "
@@ -1152,8 +1689,8 @@ void main() {
         .customSelect('PRAGMA user_version;')
         .getSingle();
 
-    expect(database.schemaVersion, 94);
-    expect(pragmaRow.read<int>('user_version'), 94);
+    expect(database.schemaVersion, 98);
+    expect(pragmaRow.read<int>('user_version'), 98);
     final obsolete = await database
         .customSelect(
           'SELECT name FROM sqlite_master WHERE name IN '
@@ -1188,7 +1725,7 @@ void main() {
       await tempDir.delete(recursive: true);
     });
 
-    expect(migrated.schemaVersion, 94);
+    expect(migrated.schemaVersion, 98);
     final tables = await migrated
         .customSelect("SELECT name FROM sqlite_master WHERE type = 'table';")
         .get();
@@ -1233,7 +1770,7 @@ void main() {
     final columns = await migrated
         .customSelect("PRAGMA table_info('library_sync_candidate_albums');")
         .get();
-    expect(migrated.schemaVersion, 94);
+    expect(migrated.schemaVersion, 98);
     expect(
       columns.map((row) => row.read<String>('name')),
       contains('recently_added_rank'),
@@ -1279,7 +1816,7 @@ void main() {
       await tempDir.delete(recursive: true);
     });
 
-    expect(migrated.schemaVersion, 94);
+    expect(migrated.schemaVersion, 98);
     expect(
       (await migrated.libraryDao.getArtistById('ext-artist'))?.isExternal,
       isTrue,
@@ -1324,7 +1861,7 @@ void main() {
     final marker = await migrated
         .customSelect('SELECT * FROM cache_system_state;')
         .get();
-    expect(version.read<int>('user_version'), 94);
+    expect(version.read<int>('user_version'), 98);
     expect(marker, isEmpty);
   }, skip: !sqliteAvailable);
 
@@ -1360,7 +1897,7 @@ void main() {
         .customSelect("PRAGMA table_info('albums');")
         .get();
 
-    expect(version.read<int>('user_version'), 94);
+    expect(version.read<int>('user_version'), 98);
     expect(
       columns.map((row) => row.read<String>('name')),
       contains('recently_added_rank'),
@@ -1495,7 +2032,7 @@ void main() {
     final versionRow = await migrated
         .customSelect('PRAGMA user_version;')
         .getSingle();
-    expect(versionRow.read<int>('user_version'), 94);
+    expect(versionRow.read<int>('user_version'), 98);
 
     final settingsInfo = await migrated
         .customSelect("PRAGMA table_info('app_settings');")
@@ -1584,7 +2121,7 @@ CREATE TABLE scrobble_queue (
     final versionRow = await migrated
         .customSelect('PRAGMA user_version;')
         .getSingle();
-    expect(versionRow.read<int>('user_version'), 94);
+    expect(versionRow.read<int>('user_version'), 98);
 
     final now = DateTime.utc(2026, 1, 1, 1);
     await migrated.scrobbleDao.enqueue(
@@ -1671,7 +2208,7 @@ CREATE TABLE scrobble_queue (
     final versionRow = await migrated
         .customSelect('PRAGMA user_version;')
         .getSingle();
-    expect(versionRow.read<int>('user_version'), 94);
+    expect(versionRow.read<int>('user_version'), 98);
 
     final settingsInfo = await migrated
         .customSelect("PRAGMA table_info('app_settings');")
@@ -1776,7 +2313,7 @@ SET group_listening_enabled = 1,
       final versionRow = await migrated
           .customSelect('PRAGMA user_version;')
           .getSingle();
-      expect(versionRow.read<int>('user_version'), 94);
+      expect(versionRow.read<int>('user_version'), 98);
 
       final settings = await migrated.appSettingsDao.getSettings();
       expect(settings?.customVoyageServers, isNull);
@@ -1846,7 +2383,7 @@ SET group_listening_enabled = 1,
       final versionRow = await migrated
           .customSelect('PRAGMA user_version;')
           .getSingle();
-      expect(versionRow.read<int>('user_version'), 94);
+      expect(versionRow.read<int>('user_version'), 98);
 
       for (final table in <String>['artists', 'albums', 'songs']) {
         final columns = await migrated
@@ -1959,7 +2496,7 @@ SET group_listening_enabled = 1,
     final version = await migrated
         .customSelect('PRAGMA user_version;')
         .getSingle();
-    expect(version.read<int>('user_version'), 94);
+    expect(version.read<int>('user_version'), 98);
     final state = await migrated.librarySyncDao.getOrCreateState(1);
     expect(state.conditionalIndexesMode, 'reliable');
     expect(state.bulkSearchMode, 'supported');
@@ -2032,7 +2569,7 @@ SET group_listening_enabled = 1,
     final version = await migrated
         .customSelect('PRAGMA user_version;')
         .getSingle();
-    expect(version.read<int>('user_version'), 94);
+    expect(version.read<int>('user_version'), 98);
     final tables = await migrated
         .customSelect("SELECT name FROM sqlite_master WHERE type = 'table';")
         .get();
@@ -2112,7 +2649,7 @@ SET group_listening_enabled = 1,
       final version = await migrated
           .customSelect('PRAGMA user_version;')
           .getSingle();
-      expect(version.read<int>('user_version'), 94);
+      expect(version.read<int>('user_version'), 98);
       for (final table in <String>[
         'library_sync_candidate_artists',
         'library_sync_candidate_albums',
@@ -2169,7 +2706,7 @@ SET group_listening_enabled = 1,
       final version = await migrated
           .customSelect('PRAGMA user_version;')
           .getSingle();
-      expect(version.read<int>('user_version'), 94);
+      expect(version.read<int>('user_version'), 98);
       final settingsColumns = await migrated
           .customSelect("PRAGMA table_info('app_settings');")
           .get();
@@ -2258,7 +2795,7 @@ SET group_listening_enabled = 1,
         await tempDir.delete(recursive: true);
       });
 
-      expect(migrated.schemaVersion, 94);
+      expect(migrated.schemaVersion, 98);
       final artist = await migrated.libraryDao.getArtistById(
         'ext-deezer-artist-1',
       );
@@ -2318,7 +2855,7 @@ SET group_listening_enabled = 1,
       await tempDir.delete(recursive: true);
     });
 
-    expect(migrated.schemaVersion, 94);
+    expect(migrated.schemaVersion, 98);
     final settings = await migrated.appSettingsDao.getSettings();
     expect(settings, isNotNull);
     expect(settings!.themeMode, 'oled');
@@ -2355,7 +2892,7 @@ SET group_listening_enabled = 1,
       await tempDir.delete(recursive: true);
     });
 
-    expect(migrated.schemaVersion, 94);
+    expect(migrated.schemaVersion, 98);
     final retained = await migrated.serverDao.getRetainedServer();
     expect(retained, isNotNull);
     expect(retained!.isAuthenticated, isTrue);
@@ -2384,7 +2921,7 @@ SET group_listening_enabled = 1,
       await tempDir.delete(recursive: true);
     });
 
-    expect(migrated.schemaVersion, 94);
+    expect(migrated.schemaVersion, 98);
     final table = await migrated
         .customSelect(
           "SELECT name FROM sqlite_master WHERE type = 'table' "
@@ -2420,7 +2957,7 @@ SET group_listening_enabled = 1,
       await tempDir.delete(recursive: true);
     });
 
-    expect(migrated.schemaVersion, 94);
+    expect(migrated.schemaVersion, 98);
     final column = await migrated
         .customSelect(
           "SELECT name FROM pragma_table_info('library_sync_state') "
@@ -2453,7 +2990,7 @@ SET group_listening_enabled = 1,
       await tempDir.delete(recursive: true);
     });
 
-    expect(migrated.schemaVersion, 94);
+    expect(migrated.schemaVersion, 98);
     final table = await migrated
         .customSelect(
           "SELECT name FROM sqlite_master WHERE type = 'table' "
@@ -2501,7 +3038,7 @@ SET group_listening_enabled = 1,
       await tempDir.delete(recursive: true);
     });
 
-    expect(migrated.schemaVersion, 94);
+    expect(migrated.schemaVersion, 98);
     final columns = await migrated
         .customSelect("PRAGMA table_info('library_sync_state');")
         .get();
@@ -2601,7 +3138,7 @@ SET group_listening_enabled = 1,
         await tempDir.delete(recursive: true);
       });
 
-      expect(migrated.schemaVersion, 94);
+      expect(migrated.schemaVersion, 98);
       for (final tableName in <String>[
         'library_scan_observation',
         'library_recovery_review',
@@ -2671,7 +3208,7 @@ SET group_listening_enabled = 1,
       await tempDir.delete(recursive: true);
     });
 
-    expect(migrated.schemaVersion, 94);
+    expect(migrated.schemaVersion, 98);
     final albumColumns = await migrated
         .customSelect("PRAGMA table_info('library_sync_candidate_albums');")
         .get();
@@ -2726,7 +3263,7 @@ SET group_listening_enabled = 1,
       await tempDir.delete(recursive: true);
     });
 
-    expect(migrated.schemaVersion, 94);
+    expect(migrated.schemaVersion, 98);
     final columns = await migrated
         .customSelect("PRAGMA table_info('song_search_text');")
         .get();
@@ -2791,7 +3328,7 @@ SET group_listening_enabled = 1,
       await tempDir.delete(recursive: true);
     });
 
-    expect(migrated.schemaVersion, 94);
+    expect(migrated.schemaVersion, 98);
     final entries = await migrated.playQueueDao.getQueueEntries();
     expect(entries.map((entry) => entry.song.id), ['a', 'b']);
     // Saved before v88: no original order, so restore reshuffles.

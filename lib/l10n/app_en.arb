@@ -771,6 +771,15 @@
     }
   },
   "integrationsNoticeBody": "Navis can now use Deezer for top songs, artist photos and new releases. Review integrations.",
+  "setupHighlightsCardTitle": "New appearance options",
+  "setupHighlightsCardBody": "Color styles, corner style, Now Playing background and more. Try them in Quick Customization.",
+  "setupHighlightsCardDismiss": "Dismiss",
+  "settingsAppearanceNewOptionsSemantics": "Has new options",
+  "appearanceSectionTheme": "Theme",
+  "appearanceSectionColor": "Color",
+  "appearanceSectionShapeLayout": "Shape & Layout",
+  "appearanceSectionNowPlaying": "Now Playing",
+  "newFeatureTagSemantics": "New option",
   "integrationsNoticeDismiss": "Dismiss",
   "listenBrainzConnectedTitle": "ListenBrainz connected",
   "listenBrainzConnectedAs": "Connected as {account}.",
@@ -1530,13 +1539,22 @@
   "appearanceThemeDark": "Dark",
   "appearanceThemeOled": "OLED",
   "appearanceThemeSystem": "Auto",
+  "appearanceColorStyleLabel": "Color Style",
+  "appearanceColorStyleNeutral": "Neutral",
+  "appearanceColorStylePastel": "Pastel",
+  "appearanceColorStyleImmersive": "Immersive",
+  "appearanceColorStyleNight": "Night",
+  "appearanceColorStyleNeutralSub": "Neutral backgrounds. Color comes from your accent and album art.",
+  "appearanceColorStylePastelSub": "Soft pastel accents on gently tinted backgrounds.",
+  "appearanceColorStyleImmersiveSub": "Your accent color fills the backgrounds in deep, rich tones.",
+  "appearanceColorStyleNightSub": "Warm colors with less blue light, for evening listening.",
   "appearanceLanguageLabel": "Language",
   "appearanceLanguageSystemDefault": "System default",
   "appearanceLanguageUnavailable": "Language switching is disabled in this build.",
   "appearanceLanguageEnglish": "English",
-  "appearanceColorSchemeLabel": "Color Scheme",
-  "appearanceColorSchemeSub": "Choose a seed color for the app's color palette.",
-  "appearanceColorSchemeDynamicSub": "Selected colors are used when album art has no available accent.",
+  "appearanceColorSchemeLabel": "Accent Color",
+  "appearanceColorSchemeSub": "Choose the accent color your color style is built from.",
+  "appearanceColorSchemeDynamicSub": "Dynamic Album Color is on: album art replaces your accent when a cover has one.",
   "appearanceColorDefault": "Default",
   "appearanceColorCustom": "Custom",
   "appearanceColorCustomSemantics": "{label}, custom color",
@@ -1560,11 +1578,56 @@
     }
   },
 
-  "appearanceArtTintedLabel": "Art-tinted Now Playing",
-  "appearanceArtTintedSub": "Tint the Now Playing background with colours from the album art.",
+  "appearanceNowPlayingBackgroundLabel": "Now Playing Background",
+  "appearanceNowPlayingBackgroundTinted": "Art-Tinted",
+  "appearanceNowPlayingBackgroundArtwork": "Artwork",
+  "appearanceNowPlayingBackgroundPlain": "Plain",
+  "appearanceNowPlayingBackgroundTintedSub": "A soft gradient in the album art color, or one solid color when Flat Surfaces is on.",
+  "appearanceNowPlayingBackgroundArtworkSub": "The album art, blurred and veiled so text stays easy to read. Flat Surfaces uses one solid color instead.",
+  "appearanceNowPlayingBackgroundOledFlatNote": "With OLED and Flat Surfaces, Now Playing stays black.",
+  "appearanceNowPlayingBackgroundPlainSub": "The plain background of your theme, with no album color.",
+  "appearanceOledForAutoLabel": "Use OLED When Dark",
+  "appearanceOledForAutoSub": "In Auto, use pure black instead of Dark when your device is in dark mode.",
+  "appearanceNightScheduleLabel": "Night Schedule",
+  "appearanceNightScheduleSub": "Switches the color style to Night from {start} to {end}. Theme mode stays as set.",
+  "@appearanceNightScheduleSub": {
+    "placeholders": {
+      "start": {},
+      "end": {}
+    }
+  },
+  "appearanceNightScheduleStartsAt": "Starts at {time}",
+  "@appearanceNightScheduleStartsAt": {
+    "placeholders": {
+      "time": {}
+    }
+  },
+  "appearanceNightScheduleEndsAt": "Ends at {time}",
+  "@appearanceNightScheduleEndsAt": {
+    "placeholders": {
+      "time": {}
+    }
+  },
+  "appearanceNightScheduleActiveNote": "Night is on until {time}.",
+  "@appearanceNightScheduleActiveNote": {
+    "placeholders": {
+      "time": {}
+    }
+  },
+  "appearanceNightScheduleAlreadyNight": "Your color style is already Night.",
+  "appearanceNightScheduleSameTimes": "Pick different start and end times.",
+  "appearanceFlatSurfacesLabel": "Flat Surfaces",
+  "appearanceFlatSurfacesSub": "Solid colors without glows, gradients, shadows or blur. Now Playing Artwork becomes a solid color.",
+  "appearanceCornerStyleLabel": "Corner Style",
+  "appearanceCornerStyleRounded": "Rounded",
+  "appearanceCornerStyleSoft": "Soft",
+  "appearanceCornerStyleSquare": "Square",
+  "appearanceCornerStyleRoundedSub": "Gently rounded cards and pill buttons.",
+  "appearanceCornerStyleSoftSub": "Larger, softer corners on cards, buttons and sheets.",
+  "appearanceCornerStyleSquareSub": "Crisp corners on cards, buttons and chips.",
+  "appearanceCornerStyleArtworkNote": "Artwork follows Artwork Shape.",
   "appearanceDynamicAlbumColorLabel": "Dynamic Album Color",
-  "appearanceDynamicAlbumColorEnabledSub": "Album art is currently overriding the selected color when artwork is available.",
-  "appearanceDynamicAlbumColorDisabledSub": "Use the currently playing album art to theme app accent colors.",
+  "appearanceDynamicAlbumColorSub": "Album art replaces your accent when a cover has one.",
 
   "cacheSettingsCoverArtSection": "Cover Art Cache",
   "cacheSettingsCoverArtDescription": "Cached album artwork images. Larger limits reduce network requests but use more storage.",
@@ -1782,7 +1845,8 @@
   "appearanceShowLikedPageSubtitle": "Show the Liked tab in the Library screen.",
 
   "appearanceGridDensityAuto": "Auto",
-  "appearanceCoverArtShapeLabel": "Cover Art Shape",
+  "appearanceCoverArtShapeLabel": "Artwork Shape",
+  "appearanceCoverArtShapeNote": "Cards and buttons follow Corner Style.",
   "appearanceCoverArtShapeSubLabel": "Library & Carousel Art",
   "appearanceNpArtShapeLabel": "Now Playing Art",
   "appearanceArtistCardShapeLabel": "Artist Card Art",
@@ -1794,15 +1858,15 @@
   "appearanceArtistViewModeList": "List",
 
   "appearanceHomeSectionsLabel": "Home Sections",
-  "appearanceHomeDensityLabel": "Home Density",
-  "appearanceHomeDensitySub": "Choose spacing style for Home cards and lists.",
-  "appearanceHomeDensityComfortable": "Comfortable",
-  "appearanceHomeDensityCompact": "Compact",
+  "appearanceDensityLabel": "Density",
+  "appearanceDensitySub": "Spacing for Home, track lists, playlists and artist lists.",
+  "appearanceDensityComfortable": "Comfortable",
+  "appearanceDensityCompact": "Compact",
 
   "desktopNavbarSectionLabel": "Desktop Navigation",
   "desktopNavbarStyleLabel": "Navigation Style",
-  "desktopNavbarStyleComfortable": "Comfortable",
-  "desktopNavbarStyleCompact": "Compact",
+  "desktopNavbarStyleWide": "Wide",
+  "desktopNavbarStyleNarrow": "Narrow",
   "desktopNavbarStyleIcons": "Icons",
   "desktopNavbarAutohideLabel": "Collapse Sidebar",
   "desktopNavbarAutohideSub": "When inactive, the sidebar collapses to icons. Hover it to expand.",
@@ -2381,8 +2445,9 @@
   "onboardingFinish": "Finish",
   "onboardingScrollForMore": "Scroll for more options",
   "onboardingAppearanceTitle": "Choose Your Look",
-  "onboardingAppearanceDescription": "Pick a theme and accent. You can change both later in Appearance settings.",
-  "onboardingAccentColor": "Accent color",
+  "onboardingAppearanceDescription": "Choose your theme, style, accent and layout. You can change them later in Appearance settings.",
+  "onboardingMoreAppearanceOptions": "More appearance options",
+  "onboardingAccentColor": "Accent Color",
   "onboardingAppearanceColorPickerHint": "This is the full color picker from Appearance settings. You can revisit it there at any time.",
   "onboardingListeningTitle": "Tune Your Listening",
   "onboardingListeningDescription": "Choose stream quality, formats, local playback priority, and track transitions.",

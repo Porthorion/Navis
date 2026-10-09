@@ -1,5 +1,32 @@
 part of 'app_shell.dart';
 
+/// Show the battery optimisation prompt.
+///
+/// The sheet takes its background from the ambient `bottomSheetTheme` instead
+/// of an explicit `backgroundColor`: a colour read from the opener's theme is
+/// frozen when the route is pushed, so a live theme switch left the sheet on
+/// its old surface while its text followed the new theme.
+Future<void> showBatteryOptimizationSheet(
+  BuildContext context, {
+  required Future<void> Function() onOpenSettings,
+}) {
+  return showModalBottomSheet<void>(
+    context: context,
+    useRootNavigator: true,
+    useSafeArea: true,
+    showDragHandle: true,
+    isScrollControlled: true,
+    builder: (sheetContext) {
+      return _BatteryOptimizationSheet(
+        onOpenSettings: () {
+          Navigator.of(sheetContext).pop();
+          unawaited(onOpenSettings());
+        },
+      );
+    },
+  );
+}
+
 class _BatteryOptimizationSheet extends StatelessWidget {
   const new({required this.onOpenSettings});
 
@@ -23,7 +50,7 @@ class _BatteryOptimizationSheet extends StatelessWidget {
             height: 52,
             decoration: BoxDecoration(
               color: colors.primary.withValues(alpha: 0.12),
-              borderRadius: NavisRadius.lgAll,
+              borderRadius: NavisShapeData.of(context).lgAll,
             ),
             child: Icon(
               Icons.battery_saver_outlined,
@@ -52,7 +79,7 @@ class _BatteryOptimizationSheet extends StatelessWidget {
             padding: const EdgeInsets.all(14),
             decoration: BoxDecoration(
               color: colors.surfaceContainerHighest,
-              borderRadius: NavisRadius.lgAll,
+              borderRadius: NavisShapeData.of(context).lgAll,
             ),
             child: Row(
               children: <Widget>[

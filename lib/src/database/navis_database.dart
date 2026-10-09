@@ -1,3 +1,4 @@
+import 'package:navis/src/features/settings/domain/night_schedule.dart';
 import 'package:navis/src/database/tables/annotation_dispatch_lease_table.dart';
 
 import 'dart:async';
@@ -221,7 +222,7 @@ class NavisDatabase extends _$NavisDatabase {
   }
 
   @override
-  int get schemaVersion => 94;
+  int get schemaVersion => 98;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -325,6 +326,10 @@ class NavisDatabase extends _$NavisDatabase {
       from91To92,
       from92To93,
       from93To94,
+      _noMigration, // 94–97 were only used by colour-style development builds.
+      _noMigration,
+      _noMigration,
+      from97To98,
     ];
     for (var version = from; version < to; version++) {
       await steps[version - firstStepFrom](migrator);
@@ -362,6 +367,77 @@ class NavisDatabase extends _$NavisDatabase {
   Future<void> from92To93(Migrator migrator) async {
     await customStatement('DROP TABLE IF EXISTS library_sync_provider_profile');
     await customStatement('DROP TABLE IF EXISTS library_sync_repair_session');
+  }
+
+  Future<void> _noMigration(Migrator _) async {}
+
+  /// Adds the appearance and setup columns in one guarded upgrade.
+  ///
+  /// Colour-style development builds reached 93–97 with these columns but
+  /// without the sync steps 93 and 94, so those idempotent steps run again and
+  /// the column guards skip anything already added.
+  Future<void> from97To98(Migrator migrator) async {
+    await from92To93(migrator);
+    await from93To94(migrator);
+    if (!await _columnExists('app_settings', 'color_style')) {
+      await migrator.addColumn(appSettingsTable, appSettingsTable.colorStyle);
+    }
+    if (!await _columnExists('app_settings', 'oled_for_auto')) {
+      await migrator.addColumn(appSettingsTable, appSettingsTable.oledForAuto);
+    }
+    if (!await _columnExists('app_settings', 'night_schedule_enabled')) {
+      await migrator.addColumn(
+        appSettingsTable,
+        appSettingsTable.nightScheduleEnabled,
+      );
+    }
+    if (!await _columnExists('app_settings', 'night_schedule_start_minutes')) {
+      await migrator.addColumn(
+        appSettingsTable,
+        appSettingsTable.nightScheduleStartMinutes,
+      );
+    }
+    if (!await _columnExists('app_settings', 'night_schedule_end_minutes')) {
+      await migrator.addColumn(
+        appSettingsTable,
+        appSettingsTable.nightScheduleEndMinutes,
+      );
+    }
+    if (!await _columnExists('app_settings', 'flat_surfaces')) {
+      await migrator.addColumn(appSettingsTable, appSettingsTable.flatSurfaces);
+    }
+    if (!await _columnExists('app_settings', 'setup_highlights_seen_release')) {
+      await migrator.addColumn(
+        appSettingsTable,
+        appSettingsTable.setupHighlightsSeenRelease,
+      );
+    }
+    if (!await _columnExists('app_settings', 'setup_card_dismissed_release')) {
+      await migrator.addColumn(
+        appSettingsTable,
+        appSettingsTable.setupCardDismissedRelease,
+      );
+    }
+    if (!await _columnExists('app_settings', 'now_playing_background')) {
+      await migrator.addColumn(
+        appSettingsTable,
+        appSettingsTable.nowPlayingBackground,
+      );
+      await customStatement("""
+        UPDATE app_settings
+        SET now_playing_background = CASE
+          WHEN art_tinted_now_playing = 1 THEN 'tinted' ELSE 'plain' END
+      """);
+    }
+    if (!await _columnExists('app_settings', 'corner_style')) {
+      await migrator.addColumn(appSettingsTable, appSettingsTable.cornerStyle);
+    }
+    if (!await _columnExists('app_settings', 'setup_highlights_seen')) {
+      await migrator.addColumn(
+        appSettingsTable,
+        appSettingsTable.setupHighlightsSeen,
+      );
+    }
   }
 
   /// Clears LRCLIB lyrics selected before edition-aware matching.
@@ -1549,8 +1625,18 @@ FROM scrobble_queue;
         customDownloadFolderPath: const Value(null),
         useLrclib: const Value(true),
         themeMode: const Value('dark'),
+        colorStyle: const Value('neutral'),
+        oledForAuto: const Value(false),
+        nightScheduleEnabled: const Value(false),
+        nightScheduleStartMinutes: const Value(
+          NightSchedule.defaultStartMinutes,
+        ),
+        nightScheduleEndMinutes: const Value(NightSchedule.defaultEndMinutes),
+        flatSurfaces: const Value(false),
         colorSchemeSeed: const Value(null),
         onboardingVersion: const Value(0),
+        setupHighlightsSeenRelease: const Value(null),
+        setupCardDismissedRelease: const Value(null),
         albumQueueEnabled: const Value(true),
         likedQueueEnabled: const Value(true),
         matchFlowEnabled: const Value(false),

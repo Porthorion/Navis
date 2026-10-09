@@ -21,9 +21,13 @@ class HeroCoverArt extends StatelessWidget {
     this.isExternalSource = false,
     this.remoteSourceIndicatorPolicy = RemoteSourceIndicatorPolicy.automatic,
     this.revision = 0,
+    this.onImageReady,
   });
 
   final String? coverArtId;
+
+  /// Forwarded to the hero's [CoverArtImage.onImageReady].
+  final VoidCallback? onImageReady;
 
   /// Targeted artwork refresh revision from the owning row (plan F2/F3).
   final int revision;
@@ -157,6 +161,7 @@ class HeroCoverArt extends StatelessWidget {
         isExternalSource: isExternalSource,
         remoteSourceIndicatorPolicy: RemoteSourceIndicatorPolicy.hidden,
         gaplessPlayback: true,
+        onImageReady: onImageReady,
       ),
     );
     return RemoteSourceArtworkOverlay(

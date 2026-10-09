@@ -6,6 +6,7 @@ import 'package:navis/l10n/app_localizations.dart';
 import 'package:navis/src/api/listenbrainz_api_client.dart';
 import 'package:navis/src/api/models/listenbrainz_playlist.dart';
 import 'package:navis/l10n/navis_localizations.dart';
+import 'package:navis/src/features/onboarding/presentation/onboarding_provider.dart';
 import 'package:navis/src/features/onboarding/presentation/onboarding_screen.dart';
 import 'package:navis/src/features/settings/domain/app_settings.dart';
 import 'package:navis/src/providers/app_providers.dart';
@@ -31,6 +32,7 @@ void main() {
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
+          onboardingRequiredProvider.overrideWithValue(true),
           appSettingsProvider.overrideWithValue(
             const AsyncData(AppSettingsModel.defaults()),
           ),
@@ -57,6 +59,7 @@ void main() {
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
+          onboardingRequiredProvider.overrideWithValue(true),
           appSettingsProvider.overrideWithValue(
             const AsyncData(AppSettingsModel.defaults()),
           ),
@@ -85,9 +88,14 @@ void main() {
   testWidgets('previews appearance changes and exposes detailed crossfade', (
     tester,
   ) async {
+    // Tall enough that the style tiles clear the hint and the action bar.
+    tester.view.physicalSize = const Size(800, 1000);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
+          onboardingRequiredProvider.overrideWithValue(true),
           appSettingsProvider.overrideWithValue(
             const AsyncData(AppSettingsModel.defaults()),
           ),
@@ -112,6 +120,29 @@ void main() {
     expect(
       Theme.of(tester.element(find.byType(Scaffold))).brightness,
       Brightness.light,
+    );
+    final neutralSurface = Theme.of(tester.element(find.byType(Scaffold)))
+        .colorScheme
+        .surface;
+    final pastelTile = find.byKey(
+      const ValueKey<String>('colorStyleTile-pastel'),
+    );
+    await tester.ensureVisible(pastelTile);
+    await tester.tap(pastelTile);
+    await tester.pumpAndSettle();
+    expect(
+      Theme.of(tester.element(find.byType(Scaffold))).colorScheme.surface,
+      isNot(neutralSurface),
+    );
+    await tester.tap(
+      find.byKey(const ValueKey<String>('colorStyleTile-neutral')),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.scrollUntilVisible(
+      find.bySemanticsLabel('Deep Orange'),
+      200,
+      scrollable: find.byType(Scrollable).first,
     );
     await tester.tap(find.bySemanticsLabel('Deep Orange'));
     await tester.pumpAndSettle();
@@ -150,6 +181,7 @@ void main() {
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
+          onboardingRequiredProvider.overrideWithValue(true),
           appSettingsProvider.overrideWithValue(
             AsyncData(
               const AppSettingsModel.defaults().copyWith(themeMode: 'light'),
@@ -205,6 +237,7 @@ void main() {
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
+          onboardingRequiredProvider.overrideWithValue(true),
           appSettingsProvider.overrideWithValue(AsyncData(settings)),
           customColorPresetsProvider.overrideWithValue(
             const AsyncData(<int>[]),
@@ -240,6 +273,7 @@ void main() {
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
+          onboardingRequiredProvider.overrideWithValue(true),
           appSettingsProvider.overrideWithValue(
             const AsyncData(AppSettingsModel.defaults()),
           ),

@@ -558,6 +558,49 @@ void main() {
     },
   );
 
+  for (final style in <String>['neutral', 'pastel', 'immersive', 'night']) {
+    testWidgets('OLED $style desktop sidebar and player bar are pure black', (
+      tester,
+    ) async {
+      tester.view.devicePixelRatio = 1;
+      tester.view.physicalSize = const Size(1280, 1000);
+      addTearDown(() {
+        tester.view.resetPhysicalSize();
+        tester.view.resetDevicePixelRatio();
+      });
+      final settings = const AppSettingsModel.defaults().copyWith(
+        themeMode: 'oled',
+        colorStyle: style,
+      );
+      final container = _createContainerWithDatabase(
+        overrides: <Override>[
+          ..._authenticatedShellOverrides(desktopRuntime: true),
+          appSettingsProvider.overrideWithValue(AsyncData(settings)),
+        ],
+      );
+      await tester.pumpWidget(
+        UncontrolledProviderScope(container: container, child: testNavisApp),
+      );
+      await tester.pumpAndSettle();
+
+      final sidebar = find
+          .ancestor(
+            of: find.byKey(const ValueKey<String>('desktopSidebarRegion')),
+            matching: find.byType(Material),
+          )
+          .first;
+      expect(tester.widget<Material>(sidebar).color, Colors.black);
+      expect(
+        tester
+            .widget<Material>(
+              find.byKey(const ValueKey<String>('desktopPlayerBar')),
+            )
+            .color,
+        Colors.black,
+      );
+    });
+  }
+
   testWidgets('desktop sidebar autohide retains an icon-only navigation rail', (
     tester,
   ) async {
@@ -1517,6 +1560,72 @@ void main() {
     expect(tester.takeException(), isNull);
     await tester.pump(const Duration(milliseconds: 201));
   });
+
+  for (final entry in <(String, String, bool)>[
+    ('pastel', 'light', true),
+    ('pastel', 'dark', false),
+    ('neutral', 'light', false),
+  ]) {
+    testWidgets('phone mini player Play is solid primary only in light Pastel '
+        '(${entry.$1} ${entry.$2})', (tester) async {
+      tester.view.devicePixelRatio = 1;
+      tester.view.physicalSize = const Size(390, 844);
+      addTearDown(() {
+        tester.view.resetPhysicalSize();
+        tester.view.resetDevicePixelRatio();
+      });
+      const radioPlayback = PlaybackSnapshot(
+        queueSongIds: <String>[],
+        currentSongId: null,
+        currentIndex: null,
+        playing: true,
+        processingState: AudioProcessingState.ready,
+        position: Duration.zero,
+        duration: Duration.zero,
+        bufferedPosition: Duration.zero,
+        shuffleMode: AudioServiceShuffleMode.none,
+        repeatMode: AudioServiceRepeatMode.none,
+        radioStation: RadioStationMetadata(
+          stationId: 'radio-1',
+          stationName: 'Test Radio',
+          streamUrl: 'https://example.com/radio',
+        ),
+      );
+      final settings = const AppSettingsModel.defaults().copyWith(
+        themeMode: entry.$2,
+        colorStyle: entry.$1,
+      );
+      final container = _createContainerWithDatabase(
+        overrides: <Override>[
+          ..._authenticatedShellOverrides(playback: radioPlayback),
+          appSettingsProvider.overrideWithValue(AsyncData(settings)),
+        ],
+      );
+      await tester.pumpWidget(
+        UncontrolledProviderScope(container: container, child: testNavisApp),
+      );
+      await tester.pumpAndSettle();
+
+      final button = tester.widget<IconButton>(
+        find
+            .ancestor(
+              of: find.byTooltip('Pause'),
+              matching: find.byType(IconButton),
+            )
+            .first,
+      );
+      final scheme = Theme.of(tester.element(find.byType(Scaffold).first))
+          .colorScheme;
+      expect(
+        button.style!.backgroundColor!.resolve(<WidgetState>{}),
+        entry.$3 ? scheme.primary : scheme.primaryContainer,
+      );
+      expect(
+        button.style!.shape!.resolve(<WidgetState>{}),
+        isA<CircleBorder>(),
+      );
+    });
+  }
 
   testWidgets('Desktop radio keeps invalid action slots visibly disabled', (
     tester,

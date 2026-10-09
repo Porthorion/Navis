@@ -20,6 +20,7 @@
 | AudioMuse direct client and similar-artist/album sections | Removed 2026-10-07 | `AudioMuseRepository`/`AudioMuseApiClient` fed AI "similar artists" and "You might also like" sections on the artist and album pages, gated by `audioMuseAvailableProvider`. | The gate had been hard-coded to `false` since the AudioMuse Navidrome plugin began answering the standard similarity calls through the server (Smart Queue and Instant Mix use `getSimilarSongs2`), so the client, models, providers, widgets, `audioMuse*` settings fields and strings could never run. Product decision 2026-10-07: a direct AudioMuse client is out of scope. Navis depends entirely on results returned by the Subsonic APIs; a server with the AudioMuse plugin simply returns AudioMuse-powered results through those same standard calls. The three `audio_muse_*` columns stay in the Drift schema for migration compatibility. | `chore/dead-code-removal`; `settings_screen_test.dart` and `app_router_test.dart` still assert there is no AudioMuse settings entry or route. |
 | Sleep timer controller | Removed 2026-10-07 | `SleepTimerController` could stop playback after a duration or at end of track with a 30-second volume fade. | Nothing ever started it: there was no UI entry point and no tests, and sign-out only called `cancel()`. Product decision 2026-10-07: a sleep timer suits audiobook apps, not a music player, so Navis will not have one. If it is ever wanted it will be designed from scratch rather than restored from this code. | `chore/dead-code-removal`; `sleep_timer_provider.dart`. |
 | Retired Voyage and Listen Together fields in the settings model | Removed 2026-10-07 | `AppSettingsModel`, `AppSettingsDao` and `SettingsRepository` carried `groupListeningEnabled`, the `voyage*` fields and `customVoyageServers`, and rewrote the retired columns to disabled values on every save and reset. | Runtime settings no longer expose them and saves no longer touch the columns. The schema migration that resets the columns on upgrade remains and is still covered by `navis_migration_test.dart` (now through raw SQL). | `chore/dead-code-removal`; compare the 2026-06-30 Listen Together row. |
+| Temporary album-card caption variants | Removed 2026-10-08 | Compared the plain fade, caption-below, solid band, dark scrim and cover-tinted fade; hosts reserved extra height for caption-below. | Cover-tinted captions are the design for everyone, with the plain fade retained until tint is known or no cover-art id is available. The selector and extra-height plumbing are deleted; cards stay square. | Experiment `4b258725`, tint `68b5c5e4`; [colour-style decision](../decisions/2026-10-07-colour-styles.md#album-card-captions); release 1.4.3. |
 
 When a removal is reintroduced, retain this history row and add the new
 decision/replacement information rather than erasing the record.
@@ -175,3 +176,14 @@ a choice made on the new page. Configuration keeps a link row, About keeps
 "Check now" (disabled while update checks are off) and a link, and the retired
 `/settings/external-services` path now redirects to Integrations. See
 [architecture.md](../architecture.md#external-integration-policy).
+
+## 2026-10-09 — Duplicate appearance compatibility APIs removed
+
+The old `artTintedNowPlaying` model/save parameter, provider and DAO writer/watch
+are removed. `NowPlayingBackground` and its targeted DAO writer are the single
+source; the database column remains unchanged for historical migrations,
+including the guarded 92→97 conversion, and active writes no longer mirror it.
+The Home density string provider/writer are also removed in favour of typed
+`NavisDensity` and `densityProvider`. Appearance consistently uses DAO writers,
+so redundant repository wrappers are removed. No user setting or schema column
+is removed. `NavisShapeData` replaces the duplicate panel-radius token.

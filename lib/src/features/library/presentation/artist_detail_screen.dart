@@ -44,8 +44,11 @@ import 'package:navis/src/routing/app_routes.dart';
 import 'package:navis/src/routing/desktop_layout.dart';
 import 'package:navis/src/routing/navigation_service.dart';
 import 'package:navis/src/utils/catalog_source.dart';
+import 'package:navis/src/theme/navis_shape_data.dart';
 import 'package:navis/src/theme/navis_tokens.dart';
 import 'package:navis/src/theme/artwork_shape.dart';
+import 'package:navis/src/common_widgets/artwork_scrim.dart';
+import 'package:navis/src/theme/navis_color_style_data.dart';
 
 /// The album count an artist page shows: the larger of the artist row's
 /// [stored] count and the [listed] albums on the page. A server whose artist
@@ -642,15 +645,21 @@ class _ArtistDetailLoadingState extends StatelessWidget {
                   height: headerHeight,
                   child: DecoratedBox(
                     decoration: BoxDecoration(
-                      gradient: LinearGradient(
-                        begin: Alignment.topLeft,
-                        end: Alignment.bottomRight,
-                        colors: <Color>[
-                          colorScheme.surfaceContainerHighest,
-                          colorScheme.surfaceContainerHigh,
-                          colorScheme.surface,
-                        ],
-                      ),
+                      // Flat: the solid end colour instead of the gradient.
+                      color: NavisColorStyleData.of(context).flat
+                          ? colorScheme.surface
+                          : null,
+                      gradient: NavisColorStyleData.of(context).flat
+                          ? null
+                          : LinearGradient(
+                              begin: Alignment.topLeft,
+                              end: Alignment.bottomRight,
+                              colors: <Color>[
+                                colorScheme.surfaceContainerHighest,
+                                colorScheme.surfaceContainerHigh,
+                                colorScheme.surface,
+                              ],
+                            ),
                     ),
                     child: Padding(
                       padding: const EdgeInsets.fromLTRB(20, 24, 20, 24),
@@ -749,7 +758,7 @@ class _ArtistDetailLoadingPlaceholder extends StatelessWidget {
     return DecoratedBox(
       decoration: BoxDecoration(
         color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.12),
-        borderRadius: NavisRadius.smAll,
+        borderRadius: NavisShapeData.of(context).smAll,
       ),
       child: SizedBox(height: height, width: width),
     );
@@ -847,7 +856,7 @@ class _ArtistHeaderState extends State<_ArtistHeader> {
 /// Full-width header image shown at the top of the artist detail page when
 /// the artist has a photo (the server's, else Deezer's). Overlays the artist
 /// name, the summary line and the heart at the bottom of the image.
-class _ArtistImageHeader extends StatelessWidget {
+class _ArtistImageHeader extends ConsumerWidget {
   const new({
     required this.imageUrl,
     required this.onImageFailed,
@@ -872,7 +881,7 @@ class _ArtistImageHeader extends StatelessWidget {
   final bool isExternalSource;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     return LayoutBuilder(
       builder: (context, constraints) {
         final availableWidth = constraints.maxWidth.isFinite
@@ -907,20 +916,11 @@ class _ArtistImageHeader extends StatelessWidget {
                   return const SizedBox.shrink();
                 },
               ),
-              // Dual gradient: slight top vignette + heavy bottom scrim
-              const DecoratedBox(
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    begin: Alignment.topCenter,
-                    end: Alignment.bottomCenter,
-                    colors: <Color>[
-                      Color(0x55000000),
-                      Color(0x00000000),
-                      Color(0xF2000000),
-                    ],
-                    stops: <double>[0, 0.35, 1],
-                  ),
-                ),
+              // Dual gradient: slight top vignette + heavy bottom scrim. Kept
+              // under Flat: it is what keeps the name readable.
+              const ArtworkScrim(
+                alphas: <int>[0x55, 0x00, 0xF2],
+                stops: <double>[0, 0.35, 1],
               ),
               // Artist name (bottom-left) + heart (bottom-right) overlaid
               Positioned(
@@ -1233,9 +1233,9 @@ class _ArtistVirtualPlaylistCard extends StatelessWidget {
       padding: const EdgeInsets.fromLTRB(16, 24, 16, 0),
       child: Material(
         color: colorScheme.secondaryContainer.withValues(alpha: 0.55),
-        borderRadius: NavisRadius.smAll,
+        borderRadius: NavisShapeData.of(context).smAll,
         child: InkWell(
-          borderRadius: NavisRadius.smAll,
+          borderRadius: NavisShapeData.of(context).smAll,
           onTap: onTap,
           child: Padding(
             padding: const EdgeInsets.all(14),

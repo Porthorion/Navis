@@ -2,6 +2,7 @@ import 'package:material_ui/material_ui.dart';
 import 'package:navis/src/features/changelog/changelog_data.dart';
 import 'package:navis/src/features/changelog/presentation/changelog_release_cover.dart';
 import 'package:navis/src/features/changelog/presentation/changelog_style.dart';
+import 'package:navis/src/theme/navis_shape_data.dart';
 import 'package:navis/src/theme/navis_tokens.dart';
 
 /// A release in a list, styled like a library row: a cover for major
@@ -38,10 +39,10 @@ class ChangelogReleaseRow extends StatelessWidget {
       color: selected
           ? colorScheme.primary.withValues(alpha: 0.08)
           : Colors.transparent,
-      borderRadius: NavisRadius.mdAll,
+      borderRadius: NavisShapeData.of(context).mdAll,
       child: InkWell(
         key: ValueKey<String>('changelogReleaseRow-${version.version}'),
-        borderRadius: NavisRadius.mdAll,
+        borderRadius: NavisShapeData.of(context).mdAll,
         onTap: onTap,
         child: Padding(
           padding: const EdgeInsets.symmetric(

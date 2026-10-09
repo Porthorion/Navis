@@ -96,6 +96,28 @@ class AppSettingsTable extends Table {
   /// Theme mode: 'light', 'dark', 'oled', or 'system'. Defaults to 'dark'.
   TextColumn get themeMode => text().withDefault(const Constant('dark'))();
 
+  /// Colour style: 'neutral', 'pastel', 'immersive' or 'night'.
+  /// Orthogonal to [themeMode].
+  TextColumn get colorStyle => text().withDefault(const Constant('neutral'))();
+
+  /// Uses OLED for the dark theme when the theme mode follows the system.
+  BoolColumn get oledForAuto => boolean().withDefault(const Constant(false))();
+
+  /// Switches to Night colour style during the daily schedule.
+  BoolColumn get nightScheduleEnabled =>
+      boolean().withDefault(const Constant(false))();
+
+  /// Daily Night start in minutes after local midnight.
+  IntColumn get nightScheduleStartMinutes =>
+      integer().withDefault(const Constant(1320))();
+
+  /// Daily Night end in minutes after local midnight.
+  IntColumn get nightScheduleEndMinutes =>
+      integer().withDefault(const Constant(420))();
+
+  /// Disables surface glows, gradients and shadows when rendered.
+  BoolColumn get flatSurfaces => boolean().withDefault(const Constant(false))();
+
   /// Seed color for the app's ColorScheme. Null = dynamic / default white.
   IntColumn get colorSchemeSeed => integer().nullable()();
 
@@ -121,9 +143,16 @@ class AppSettingsTable extends Table {
   IntColumn get coverArtCacheMaxObjects =>
       integer().withDefault(const Constant(5000))();
 
-  /// When true, the Now Playing background is tinted with album art colors.
+  /// Legacy compatibility flag; nowPlayingBackground is authoritative.
   BoolColumn get artTintedNowPlaying =>
       boolean().withDefault(const Constant(true))();
+
+  /// Chrome corners: rounded, soft or square.
+  TextColumn get cornerStyle => text().withDefault(const Constant('rounded'))();
+
+  /// Now Playing background: tinted, artwork or plain.
+  TextColumn get nowPlayingBackground =>
+      text().withDefault(const Constant('tinted'))();
 
   /// When true, app accent color follows the currently playing album art.
   BoolColumn get dynamicAlbumColorEnabled =>
@@ -314,6 +343,15 @@ class AppSettingsTable extends Table {
   /// True once the one-time Integrations notice on Home was dismissed.
   BoolColumn get integrationsNoticeDismissed =>
       boolean().withDefault(const Constant(false))();
+
+  /// JSON array of setup highlight storage keys already shown to the user.
+  TextColumn get setupHighlightsSeen => text().nullable()();
+
+  /// Latest setup highlight release acknowledged by completing setup.
+  TextColumn get setupHighlightsSeenRelease => text().nullable()();
+
+  /// Latest setup highlight release whose Home invitation was dismissed.
+  TextColumn get setupCardDismissedRelease => text().nullable()();
 
   /// The app version+build string (e.g. "1.2.3+100") that was current when
   /// the last forced full sync was triggered. Null means no version-triggered

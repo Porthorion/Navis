@@ -179,6 +179,9 @@ class _RailMiniPlayerState extends ConsumerState<_RailMiniPlayer> {
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context)!;
     final cs = Theme.of(context).colorScheme;
+    final colorStyle = NavisColorStyleData.of(context);
+    final playFill = colorStyle.playButtonFill(cs);
+    final onPlayFill = colorStyle.onPlayButtonFill(cs);
     final playback = widget.playback;
     // Position and buffer ticks arrive 5-10 times a second. Only the slider
     // and progress leaves below watch them, so the rest of the player is not
@@ -191,6 +194,26 @@ class _RailMiniPlayerState extends ConsumerState<_RailMiniPlayer> {
     final seekPreviewPosition = Duration(
       milliseconds: (_dragSliderValue ?? _lastSeekPreviewMs).round(),
     );
+    final seekPreviewText = Text(
+      '${formatDuration(seekPreviewPosition, showHours: true)} / '
+      '${formatDuration(duration, showHours: true)}',
+      style: Theme.of(context).textTheme.titleMedium
+          ?.copyWith(fontWeight: FontWeight.w700),
+    );
+    // Flat drops the blur: the preview sits on an opaque container fill.
+    final seekPreview = NavisColorStyleData.of(context).flat
+        ? ColoredBox(
+            color: cs.surfaceContainerHigh,
+            child: Center(child: seekPreviewText),
+          )
+        : BackdropFilter(
+            filter: ImageFilter.blur(sigmaX: 8, sigmaY: 8),
+            child: Container(
+              color: cs.surface.withValues(alpha: 0.24),
+              alignment: Alignment.center,
+              child: seekPreviewText,
+            ),
+          );
     final artistDisplay =
         (widget.songArtist == null || widget.songArtist!.trim().isEmpty)
         ? l10n.miniPlayerUnknownArtist
@@ -221,11 +244,11 @@ class _RailMiniPlayerState extends ConsumerState<_RailMiniPlayer> {
             children: <Widget>[
               Material(
                 color: Colors.transparent,
-                borderRadius: NavisRadius.xlAll,
+                borderRadius: NavisShapeData.of(context).xlAll,
                 clipBehavior: Clip.antiAlias,
                 child: InkWell(
                   onTap: widget.onOpenPlayer,
-                  borderRadius: NavisRadius.xlAll,
+                  borderRadius: NavisShapeData.of(context).xlAll,
                   child: Stack(
                     children: <Widget>[
                       Padding(
@@ -401,8 +424,9 @@ class _RailMiniPlayerState extends ConsumerState<_RailMiniPlayer> {
                                         : l10n.miniPlayerPlay,
                                     constraints: compactButtonConstraints,
                                     style: IconButton.styleFrom(
-                                      backgroundColor: cs.primaryContainer,
-                                      foregroundColor: cs.onPrimaryContainer,
+                                      backgroundColor: playFill,
+                                      foregroundColor: onPlayFill,
+                                      shape: const CircleBorder(),
                                       padding: EdgeInsets.zero,
                                       minimumSize: const Size(46, 46),
                                       tapTargetSize:
@@ -489,22 +513,8 @@ class _RailMiniPlayerState extends ConsumerState<_RailMiniPlayer> {
                             curve: Curves.easeOut,
                             opacity: _isSeeking && canSeek ? 1 : 0,
                             child: ClipRRect(
-                              borderRadius: NavisRadius.xlAll,
-                              child: BackdropFilter(
-                                filter: ImageFilter.blur(sigmaX: 8, sigmaY: 8),
-                                child: Container(
-                                  color: cs.surface.withValues(alpha: 0.24),
-                                  alignment: Alignment.center,
-                                  child: Text(
-                                    '${formatDuration(seekPreviewPosition, showHours: true)} / '
-                                    '${formatDuration(duration, showHours: true)}',
-                                    style: Theme.of(context)
-                                        .textTheme
-                                        .titleMedium
-                                        ?.copyWith(fontWeight: FontWeight.w700),
-                                  ),
-                                ),
-                              ),
+                              borderRadius: NavisShapeData.of(context).xlAll,
+                              child: seekPreview,
                             ),
                           ),
                         ),
@@ -712,6 +722,11 @@ class _MiniPlayerStripState extends ConsumerState<_MiniPlayerStrip> {
 
     final l10n = AppLocalizations.of(context)!;
     final cs = Theme.of(context).colorScheme;
+    final oled = NavisColorStyleData.of(context).oled;
+    final colorStyle = NavisColorStyleData.of(context);
+    final playFill = colorStyle.playButtonFill(cs);
+    final onPlayFill = colorStyle.onPlayButtonFill(cs);
+    final miniPlayerColor = oled ? cs.surface : cs.surfaceContainerHigh;
     final viewportWidth = MediaQuery.sizeOf(context).width;
     final compactControls = viewportWidth < 380;
     final isPlaying = playback.playing;
@@ -750,7 +765,7 @@ class _MiniPlayerStripState extends ConsumerState<_MiniPlayerStrip> {
           : null,
       child: DecoratedBox(
         decoration: BoxDecoration(
-          border: (flattenWideStyle && !compactWideLandscapeMode)
+          border: (flattenWideStyle && !compactWideLandscapeMode && !oled)
               ? null
               : Border(
                   top: BorderSide(
@@ -761,10 +776,8 @@ class _MiniPlayerStripState extends ConsumerState<_MiniPlayerStrip> {
         ),
         child: Material(
           color: compactWideLandscapeMode
-              ? cs.surfaceContainerHigh
-              : (flattenWideStyle
-                    ? Colors.transparent
-                    : cs.surfaceContainerHigh),
+              ? miniPlayerColor
+              : (flattenWideStyle ? Colors.transparent : miniPlayerColor),
           child: InkWell(
             onTap: onTap,
             child: compactWideLandscapeMode
@@ -806,8 +819,9 @@ class _MiniPlayerStripState extends ConsumerState<_MiniPlayerStrip> {
                               ? l10n.miniPlayerPause
                               : l10n.miniPlayerPlay,
                           style: IconButton.styleFrom(
-                            backgroundColor: cs.primaryContainer,
-                            foregroundColor: cs.onPrimaryContainer,
+                            backgroundColor: playFill,
+                            foregroundColor: onPlayFill,
+                            shape: const CircleBorder(),
                             minimumSize: const Size(52, 52),
                             padding: const EdgeInsets.all(8),
                           ),
@@ -902,8 +916,9 @@ class _MiniPlayerStripState extends ConsumerState<_MiniPlayerStrip> {
                                   ? l10n.miniPlayerPause
                                   : l10n.miniPlayerPlay,
                               style: IconButton.styleFrom(
-                                backgroundColor: cs.primaryContainer,
-                                foregroundColor: cs.onPrimaryContainer,
+                                backgroundColor: playFill,
+                                foregroundColor: onPlayFill,
+                                shape: const CircleBorder(),
                                 minimumSize: Size(
                                   compactControls ? 40 : 46,
                                   compactControls ? 40 : 46,

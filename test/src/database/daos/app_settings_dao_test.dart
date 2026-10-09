@@ -1,4 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:navis/src/features/settings/domain/navis_density.dart';
 import 'package:navis/src/database/daos/app_settings_dao.dart';
 import 'package:navis/src/database/navis_database.dart';
 import 'package:navis/src/features/downloads/domain/download_preferences.dart';
@@ -17,6 +18,172 @@ void main() {
     tearDown(() async {
       await database.close();
     });
+
+    test(
+      'corner style round trips, watches and resets independently',
+      () async {
+        final dao = database.appSettingsDao;
+        final initial = (await dao.getSettings())!;
+        expect(initial.cornerStyle, 'rounded');
+        await dao.updateThemeMode('oled');
+        await dao.updateNowPlayingBackground('artwork');
+        for (final style in ['soft', 'square', 'rounded']) {
+          await dao.updateCornerStyle(style);
+          final row = (await dao.getSettings())!;
+          expect(row.cornerStyle, style);
+          expect((await dao.watchSettings().first)!.cornerStyle, style);
+          expect(row.themeMode, 'oled');
+          expect(row.nowPlayingBackground, 'artwork');
+          expect(row.updatedAt.isBefore(initial.updatedAt), isFalse);
+        }
+        await dao.updateCornerStyle('unknown');
+        expect((await dao.getSettings())!.cornerStyle, 'rounded');
+        await dao.updateCornerStyle('square');
+        await dao.resetDefaults();
+        expect((await dao.getSettings())!.cornerStyle, 'rounded');
+      },
+      skip: !sqliteAvailable,
+    );
+
+    test(
+      'background and density round trip through targeted writers',
+      () async {
+        final dao = database.appSettingsDao;
+        final initial = (await dao.getSettings())!;
+        expect(initial.nowPlayingBackground, 'tinted');
+        expect(initial.homeDensity, 'comfortable');
+        for (final value in ['artwork', 'plain', 'tinted']) {
+          await dao.updateNowPlayingBackground(value);
+          final row = (await dao.getSettings())!;
+          expect(row.nowPlayingBackground, value);
+          expect(row.themeMode, initial.themeMode);
+        }
+        await dao.updateNowPlayingBackground('unknown');
+        expect((await dao.getSettings())!.nowPlayingBackground, 'tinted');
+        await dao.updateNowPlayingBackground('plain');
+        expect((await dao.getSettings())!.nowPlayingBackground, 'plain');
+        await dao.updateNowPlayingBackground('tinted');
+        expect((await dao.getSettings())!.nowPlayingBackground, 'tinted');
+        await dao.updateDensity(NavisDensity.compact);
+        expect((await dao.getSettings())!.homeDensity, 'compact');
+        await dao.updateDensity(NavisDensity.comfortable);
+        expect((await dao.getSettings())!.homeDensity, 'comfortable');
+        await dao.updateDensity(NavisDensity.compact);
+        await dao.updateNowPlayingBackground('artwork');
+        await dao.resetDefaults();
+        final reset = (await dao.getSettings())!;
+        expect(reset.nowPlayingBackground, 'tinted');
+        expect(reset.homeDensity, 'comfortable');
+      },
+      skip: !sqliteAvailable,
+    );
+
+    test(
+      'background writes and resets leave the legacy migration source alone',
+      () async {
+        await database.customStatement(
+          'UPDATE app_settings SET art_tinted_now_playing = 0',
+        );
+        final dao = database.appSettingsDao;
+        await dao.updateNowPlayingBackground('artwork');
+        await dao.resetDefaults();
+        final legacy = await database
+            .customSelect('SELECT art_tinted_now_playing FROM app_settings')
+            .getSingle();
+        expect(legacy.read<int>('art_tinted_now_playing'), 0);
+        expect((await dao.getSettings())!.nowPlayingBackground, 'tinted');
+      },
+      skip: !sqliteAvailable,
+    );
+
+    test(
+      'setup release writers round trip and preserve other settings',
+      () async {
+        final dao = database.appSettingsDao;
+        final initial = (await dao.getSettings())!;
+        expect(initial.setupHighlightsSeenRelease, isNull);
+        expect(initial.setupCardDismissedRelease, isNull);
+        await dao.updateSetupHighlightsSeenRelease('1.4.3');
+        await dao.updateSetupCardDismissedRelease('1.5.0');
+        var row = (await dao.getSettings())!;
+        expect(row.setupHighlightsSeenRelease, '1.4.3');
+        expect(row.setupCardDismissedRelease, '1.5.0');
+        expect(row.colorStyle, initial.colorStyle);
+        expect(row.onboardingVersion, initial.onboardingVersion);
+        expect(row.updatedAt.isBefore(initial.updatedAt), isFalse);
+        await dao.updateSetupHighlightsSeenRelease(null);
+        row = (await dao.getSettings())!;
+        expect(row.setupHighlightsSeenRelease, isNull);
+        expect(row.setupCardDismissedRelease, '1.5.0');
+        await dao.updateSetupHighlightsSeenRelease('1.4.3');
+        await dao.resetDefaults();
+        row = (await dao.getSettings())!;
+        expect(row.setupHighlightsSeenRelease, isNull);
+        expect(row.setupCardDismissedRelease, isNull);
+      },
+      skip: !sqliteAvailable,
+    );
+
+    test(
+      'colour style defaults to neutral and updates independently',
+      () async {
+        final initial = (await database.appSettingsDao.getSettings())!;
+        expect(initial.colorStyle, 'neutral');
+
+        await database.appSettingsDao.updateThemeMode('oled');
+        await database.appSettingsDao.updateColorStyle('pastel');
+
+        final saved = (await database.appSettingsDao.getSettings())!;
+        expect(saved.colorStyle, 'pastel');
+        expect(saved.themeMode, 'oled');
+        expect(saved.updatedAt.isBefore(initial.updatedAt), isFalse);
+      },
+      skip: !sqliteAvailable,
+    );
+
+    test('appearance settings default and update independently', () async {
+      final initial = (await database.appSettingsDao.getSettings())!;
+      expect(initial.oledForAuto, isFalse);
+      expect(initial.nightScheduleEnabled, isFalse);
+      expect(initial.nightScheduleStartMinutes, 1320);
+      expect(initial.nightScheduleEndMinutes, 420);
+      expect(initial.flatSurfaces, isFalse);
+
+      await database.appSettingsDao.updateColorStyle('pastel');
+      await database.appSettingsDao.updateOledForAuto(enabled: true);
+      await database.appSettingsDao.updateFlatSurfaces(enabled: true);
+      await database.appSettingsDao.updateNightSchedule(enabled: true);
+      var saved = (await database.appSettingsDao.getSettings())!;
+      expect(saved.oledForAuto, isTrue);
+      expect(saved.flatSurfaces, isTrue);
+      expect(saved.nightScheduleEnabled, isTrue);
+      expect(saved.nightScheduleStartMinutes, 1320);
+      expect(saved.nightScheduleEndMinutes, 420);
+      expect(saved.colorStyle, 'pastel');
+      expect(saved.themeMode, initial.themeMode);
+      expect(saved.updatedAt.isBefore(initial.updatedAt), isFalse);
+
+      await database.appSettingsDao.updateNightSchedule(startMinutes: -10);
+      saved = (await database.appSettingsDao.getSettings())!;
+      expect(saved.nightScheduleStartMinutes, 0);
+      expect(saved.nightScheduleEndMinutes, 420);
+      expect(saved.nightScheduleEnabled, isTrue);
+      await database.appSettingsDao.updateNightSchedule(endMinutes: 1500);
+      saved = (await database.appSettingsDao.getSettings())!;
+      expect(saved.nightScheduleStartMinutes, 0);
+      expect(saved.nightScheduleEndMinutes, 1439);
+      await database.appSettingsDao.updateNightSchedule(
+        enabled: false,
+        startMinutes: 1500,
+        endMinutes: -10,
+      );
+      saved = (await database.appSettingsDao.getSettings())!;
+      expect(saved.nightScheduleEnabled, isFalse);
+      expect(saved.nightScheduleStartMinutes, 1439);
+      expect(saved.nightScheduleEndMinutes, 0);
+      expect(saved.oledForAuto, isTrue);
+      expect(saved.flatSurfaces, isTrue);
+    }, skip: !sqliteAvailable);
 
     test('saveSettings writes and overwrites single-row settings', () async {
       await database.appSettingsDao.saveSettings(
@@ -39,11 +206,17 @@ void main() {
         customDownloadFolderEnabled: false,
         customDownloadFolderPath: null,
         themeMode: 'dark',
+        colorStyle: 'neutral',
+        oledForAuto: true,
+        nightScheduleEnabled: true,
+        nightScheduleStartMinutes: 1200,
+        nightScheduleEndMinutes: 480,
+        flatSurfaces: true,
         colorSchemeSeed: null,
         crossfadeEnabled: false,
         crossfadeDurationSeconds: 5,
         crossfadeType: 'normal',
-        artTintedNowPlaying: false,
+        nowPlayingBackground: 'plain',
         dynamicAlbumColorEnabled: false,
         updateCheckEnabled: true,
         updateChannel: 'stable',
@@ -64,10 +237,17 @@ void main() {
       expect(first, isNotNull);
       expect(first!.id, AppSettingsDao.primarySettingsId);
       expect(first.wifiMaxBitRate, 320);
+      expect(first.nowPlayingBackground, 'plain');
+      expect(first.nowPlayingBackground, 'plain');
       expect(first.wifiFormat, 'opus');
       expect(first.cellularMaxBitRate, 128);
       expect(first.cellularFormat, 'aac');
       expect(first.cachedPlaybackFirst, isTrue);
+      expect(first.oledForAuto, isTrue);
+      expect(first.nightScheduleEnabled, isTrue);
+      expect(first.nightScheduleStartMinutes, 1200);
+      expect(first.nightScheduleEndMinutes, 480);
+      expect(first.flatSurfaces, isTrue);
       expect(first.scrobbleEnabled, isFalse);
       expect(first.gaplessEnabled, isFalse);
       expect(first.skipSilenceEnabled, isTrue);
@@ -97,11 +277,17 @@ void main() {
         customDownloadFolderEnabled: false,
         customDownloadFolderPath: null,
         themeMode: 'dark',
+        colorStyle: 'neutral',
+        oledForAuto: false,
+        nightScheduleEnabled: false,
+        nightScheduleStartMinutes: 1320,
+        nightScheduleEndMinutes: 420,
+        flatSurfaces: false,
         colorSchemeSeed: null,
         crossfadeEnabled: false,
         crossfadeDurationSeconds: 5,
         crossfadeType: 'normal',
-        artTintedNowPlaying: false,
+        nowPlayingBackground: 'plain',
         dynamicAlbumColorEnabled: false,
         updateCheckEnabled: false,
         updateChannel: 'beta',
@@ -126,6 +312,11 @@ void main() {
       expect(second.cellularMaxBitRate, 192);
       expect(second.cellularFormat, 'mp3');
       expect(second.cachedPlaybackFirst, isFalse);
+      expect(second.oledForAuto, isFalse);
+      expect(second.nightScheduleEnabled, isFalse);
+      expect(second.nightScheduleStartMinutes, 1320);
+      expect(second.nightScheduleEndMinutes, 420);
+      expect(second.flatSurfaces, isFalse);
       expect(second.scrobbleEnabled, isTrue);
       expect(second.gaplessEnabled, isTrue);
       expect(second.skipSilenceEnabled, isFalse);
@@ -157,11 +348,17 @@ void main() {
         customDownloadFolderEnabled: false,
         customDownloadFolderPath: null,
         themeMode: 'oled',
+        colorStyle: 'night',
+        oledForAuto: true,
+        nightScheduleEnabled: true,
+        nightScheduleStartMinutes: 1200,
+        nightScheduleEndMinutes: 480,
+        flatSurfaces: true,
         colorSchemeSeed: 4283215696,
         crossfadeEnabled: false,
         crossfadeDurationSeconds: 5,
         crossfadeType: 'normal',
-        artTintedNowPlaying: false,
+        nowPlayingBackground: 'plain',
         dynamicAlbumColorEnabled: false,
         updateCheckEnabled: false,
         updateChannel: 'beta',
@@ -199,7 +396,14 @@ void main() {
       expect(settings.customDownloadFolderEnabled, isFalse);
       expect(settings.customDownloadFolderPath, isNull);
       expect(settings.dynamicAlbumColorEnabled, isFalse);
+      expect(settings.colorStyle, 'neutral');
+      expect(settings.oledForAuto, isFalse);
+      expect(settings.nightScheduleEnabled, isFalse);
+      expect(settings.nightScheduleStartMinutes, 1320);
+      expect(settings.nightScheduleEndMinutes, 420);
+      expect(settings.flatSurfaces, isFalse);
       expect(settings.homeDensity, 'comfortable');
+      expect(settings.nowPlayingBackground, 'tinted');
     }, skip: !sqliteAvailable);
 
     test('download preferences are written by targeted updates', () async {
@@ -285,10 +489,16 @@ void main() {
         autoDownloadStarredOnWifi: false,
         customDownloadFolderEnabled: false,
         themeMode: 'dark',
+        colorStyle: 'neutral',
+        oledForAuto: false,
+        nightScheduleEnabled: false,
+        nightScheduleStartMinutes: 1320,
+        nightScheduleEndMinutes: 420,
+        flatSurfaces: false,
         crossfadeEnabled: false,
         crossfadeDurationSeconds: 5,
         crossfadeType: 'normal',
-        artTintedNowPlaying: false,
+        nowPlayingBackground: 'plain',
         dynamicAlbumColorEnabled: false,
         updateCheckEnabled: updateCheckEnabled,
         updateChannel: 'stable',

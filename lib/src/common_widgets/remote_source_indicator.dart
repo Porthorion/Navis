@@ -1,7 +1,8 @@
 import 'package:material_ui/material_ui.dart';
 import 'package:navis/l10n/app_localizations.dart';
 import 'package:navis/src/common_widgets/navis_tooltip.dart';
-import 'package:navis/src/theme/navis_tokens.dart';
+import 'package:navis/src/theme/navis_shape_data.dart';
+import 'package:navis/src/theme/navis_color_style_data.dart';
 
 enum RemoteSourceIndicatorVariant { artwork, compactArtwork, inline, chip }
 
@@ -161,17 +162,19 @@ class _ArtworkIndicator extends StatelessWidget {
     return DecoratedBox(
       decoration: BoxDecoration(
         color: colors.surface.withValues(alpha: 0.90),
-        borderRadius: NavisRadius.pillAll,
+        borderRadius: NavisShapeData.of(context).controlAll,
         border: Border.all(
           color: colors.outlineVariant.withValues(alpha: 0.72),
         ),
-        boxShadow: const <BoxShadow>[
-          BoxShadow(
-            color: Color(0x52000000),
-            blurRadius: 4,
-            offset: Offset(0, 1),
-          ),
-        ],
+        boxShadow: NavisColorStyleData.of(context).flat
+            ? null
+            : const <BoxShadow>[
+                BoxShadow(
+                  color: Color(0x52000000),
+                  blurRadius: 4,
+                  offset: Offset(0, 1),
+                ),
+              ],
       ),
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 4),
@@ -208,13 +211,15 @@ class _CompactArtworkIndicator extends StatelessWidget {
         border: Border.all(
           color: colors.outlineVariant.withValues(alpha: 0.72),
         ),
-        boxShadow: const <BoxShadow>[
-          BoxShadow(
-            color: Color(0x52000000),
-            blurRadius: 3,
-            offset: Offset(0, 1),
-          ),
-        ],
+        boxShadow: NavisColorStyleData.of(context).flat
+            ? null
+            : const <BoxShadow>[
+                BoxShadow(
+                  color: Color(0x52000000),
+                  blurRadius: 3,
+                  offset: Offset(0, 1),
+                ),
+              ],
       ),
       child: Padding(
         padding: const EdgeInsets.all(3),
@@ -263,7 +268,7 @@ class _ChipIndicator extends StatelessWidget {
     return DecoratedBox(
       decoration: BoxDecoration(
         color: colors.surfaceContainerHighest,
-        borderRadius: NavisRadius.pillAll,
+        borderRadius: NavisShapeData.of(context).controlAll,
         border: Border.all(color: colors.outlineVariant),
       ),
       child: Padding(

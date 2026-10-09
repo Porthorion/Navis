@@ -22,7 +22,7 @@ class _LikedArtistStripTile extends ConsumerWidget {
     final textStyle = Theme.of(context).textTheme.bodySmall;
 
     return InkWell(
-      borderRadius: NavisRadius.mdAll,
+      borderRadius: NavisShapeData.of(context).mdAll,
       onTap: onTap,
       onLongPress: onLongPress,
       onSecondaryTapDown: onSecondaryTapDown,
@@ -265,10 +265,14 @@ class _LibraryPlaylistsTabState extends ConsumerState<_LibraryPlaylistsTab>
             virtual.totalCount,
           )
         : l10n.weeklyPlaylistAvailableMatching(virtual.matchedCount);
+    final density = NavisDensityScope.of(context);
+    final cover = density.listCover;
     return ListTile(
-      minLeadingWidth: 48,
+      dense: density.compact,
+      visualDensity: density.compact ? VisualDensity.compact : null,
+      minLeadingWidth: cover,
       horizontalTitleGap: 12,
-      leading: ListenBrainzPlaylistArtwork(playlist: virtual, size: 48),
+      leading: ListenBrainzPlaylistArtwork(playlist: virtual, size: cover),
       title: Text(item.name),
       subtitle: Text(
         <String>[availability, l10n.weeklyPlaylistServiceName].join(' • '),
@@ -287,15 +291,19 @@ class _LibraryPlaylistsTabState extends ConsumerState<_LibraryPlaylistsTab>
   Widget _buildTrendingTile(PlaylistLibraryItem item) {
     final l10n = AppLocalizations.of(context)!;
     final tracks = item.trendingTracks;
+    final density = NavisDensityScope.of(context);
+    final cover = density.listCover;
     return ListTile(
       key: const ValueKey<String>('library-playlist-trending'),
-      minLeadingWidth: 48,
+      dense: density.compact,
+      visualDensity: density.compact ? VisualDensity.compact : null,
+      minLeadingWidth: cover,
       horizontalTitleGap: 12,
       leading: PlaylistCoverMosaic(
         coverArtIds: <String>[
           ...?tracks?.map((track) => track.resolvedSong?.coverArt).nonNulls,
         ],
-        size: 48,
+        size: cover,
         fallbackIcon: Icons.trending_up_rounded,
       ),
       title: Text(l10n.homeTrendingTitle),
@@ -313,17 +321,21 @@ class _LibraryPlaylistsTabState extends ConsumerState<_LibraryPlaylistsTab>
 
   Widget _buildPlaylistTile(PlaylistsTableData playlist) {
     final l10n = AppLocalizations.of(context)!;
+    final density = NavisDensityScope.of(context);
+    final cover = density.listCover;
     final tile = ListTile(
-      minLeadingWidth: 48,
+      dense: density.compact,
+      visualDensity: density.compact ? VisualDensity.compact : null,
+      minLeadingWidth: cover,
       horizontalTitleGap: 12,
       leading: SizedBox(
-        width: 48,
-        height: 48,
+        width: cover,
+        height: cover,
         child: CoverArtImage(
           coverArtId: playlist.coverArt,
           size: 48,
-          width: 48,
-          height: 48,
+          width: cover,
+          height: cover,
           shape: ArtworkShapeRole.cover,
           semanticLabel: playlist.name,
         ),

@@ -7,6 +7,7 @@ import 'package:file/memory.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_cache_manager/flutter_cache_manager.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_riverpod/misc.dart' show Override;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 import 'package:material_ui/material_ui.dart';
@@ -14,6 +15,7 @@ import 'package:navis/l10n/app_localizations.dart';
 import 'package:navis/l10n/navis_localizations.dart';
 import 'package:navis/src/api/models/deezer_models.dart';
 import 'package:navis/src/api/models/models.dart';
+import 'package:navis/src/common_widgets/artwork_scrim.dart';
 import 'package:navis/src/common_widgets/external_album_card.dart';
 import 'package:navis/src/common_widgets/external_artwork_image.dart';
 import 'package:navis/src/database/navis_database.dart';
@@ -22,12 +24,13 @@ import 'package:navis/src/features/integrations/domain/integration_feature.dart'
 import 'package:navis/src/features/library/domain/similar_artist_entry.dart';
 import 'package:navis/src/features/library/presentation/artist_deezer_providers.dart';
 import 'package:navis/src/features/library/presentation/artist_detail_screen.dart';
-import 'package:navis/src/features/library/presentation/detail_load_states.dart';
 import 'package:navis/src/features/library/presentation/artist_top_tracks_provider.dart';
+import 'package:navis/src/features/library/presentation/detail_load_states.dart';
 import 'package:navis/src/features/search/presentation/search_controller_provider.dart';
 import 'package:navis/src/providers/app_providers.dart';
 import 'package:navis/src/routing/app_routes.dart';
 import 'package:navis/src/routing/desktop_layout.dart';
+import 'package:navis/src/theme/navis_color_style.dart';
 import 'package:navis/src/theme/navis_theme.dart';
 import 'package:navis/src/utils/connectivity.dart';
 import 'package:navis/src/utils/diagnostics_presentation_controller.dart';
@@ -178,9 +181,11 @@ void main() {
     ThemeData? theme,
     int albumCount = 12,
     DiagnosticsPresentationController? presentation,
+    List<Override> extraOverrides = const [],
   }) {
     return ProviderScope(
       overrides: [
+        ...extraOverrides,
         navisDatabaseProvider.overrideWithValue(database),
         serverConfigStateProvider.overrideWithValue(const AsyncData(null)),
         subsonicApiProvider.overrideWith((_) => null),
@@ -266,6 +271,66 @@ void main() {
     await tester.ensureVisible(finder.first);
     await tester.pumpAndSettle();
   }
+
+  group('Flat artwork text', () {
+    const photoInfo = ArtistInfo(largeImageUrl: _serverPhoto);
+
+    Future<LinearGradient> pumpHeroScrim(
+      WidgetTester tester, {
+      required bool flat,
+      NavisColorStyle style = NavisColorStyle.neutral,
+    }) async {
+      await tester.pumpWidget(
+        app(
+          info: photoInfo,
+          theme: buildDarkTheme(
+            defaultColorSchemeSeedColor,
+            style: style,
+            flat: flat,
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(headerImage(_serverPhoto), findsOneWidget);
+      final box = tester.widget<DecoratedBox>(
+        find
+            .descendant(
+              of: find.byType(ArtworkScrim),
+              matching: find.byType(DecoratedBox),
+            )
+            .first,
+      );
+      return (box.decoration as BoxDecoration).gradient! as LinearGradient;
+    }
+
+    for (final flat in <bool>[false, true]) {
+      testWidgets('Neutral keeps the black gradient (flat: $flat)', (
+        tester,
+      ) async {
+        final gradient = await pumpHeroScrim(tester, flat: flat);
+        expect(gradient.colors, const <Color>[
+          Color(0x55000000),
+          Color(0x00000000),
+          Color(0xF2000000),
+        ]);
+        await dispose(tester);
+      });
+    }
+
+    testWidgets('Pastel tints the gradient under Flat', (tester) async {
+      final gradient = await pumpHeroScrim(
+        tester,
+        flat: true,
+        style: NavisColorStyle.pastel,
+      );
+      expect(gradient.colors.last.a, closeTo(0xF2 / 255, 0.01));
+      expect(
+        gradient.colors.last.withAlpha(255),
+        isNot(const Color(0xFF000000)),
+      );
+      await dispose(tester);
+    });
+  });
 
   group('header photo', () {
     testWidgets('the server photo comes first', (tester) async {

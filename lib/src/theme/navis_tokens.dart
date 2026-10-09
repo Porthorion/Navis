@@ -1,4 +1,6 @@
 import 'package:material_ui/material_ui.dart';
+import 'package:navis/src/theme/navis_color_style.dart';
+import 'package:navis/src/theme/navis_color_style_data.dart';
 
 /// Spacing scale shared by every layout.
 ///
@@ -48,8 +50,6 @@ class NavisTokens extends ThemeExtension<NavisTokens> {
     required this.frameMaxWidthStandard,
     required this.frameMaxWidthUltraWide,
     required this.sidebarWidth,
-    required this.panelRadius,
-    required this.cardRadius,
     required this.panelElevation,
     required this.hoverOpacity,
     required this.focusOpacity,
@@ -60,8 +60,13 @@ class NavisTokens extends ThemeExtension<NavisTokens> {
   });
 
   /// Tokens for [scheme]. OLED keeps warnings off pure black by raising the
-  /// container one step, matching its other container overrides.
-  factory forScheme(ColorScheme scheme, {bool oled = false}) {
+  /// container one step, matching its other container overrides. [style]
+  /// supplies the colour style's success colour.
+  factory forScheme(
+    ColorScheme scheme, {
+    bool oled = false,
+    NavisColorStyleData? style,
+  }) {
     final warningBase = oled
         ? scheme.surfaceContainerHighest
         : scheme.surfaceContainerHigh;
@@ -70,8 +75,6 @@ class NavisTokens extends ThemeExtension<NavisTokens> {
       frameMaxWidthStandard: defaults.frameMaxWidthStandard,
       frameMaxWidthUltraWide: defaults.frameMaxWidthUltraWide,
       sidebarWidth: defaults.sidebarWidth,
-      panelRadius: defaults.panelRadius,
-      cardRadius: defaults.cardRadius,
       panelElevation: defaults.panelElevation,
       hoverOpacity: defaults.hoverOpacity,
       focusOpacity: defaults.focusOpacity,
@@ -81,9 +84,13 @@ class NavisTokens extends ThemeExtension<NavisTokens> {
       ),
       onQuietWarningContainer: scheme.onSurface,
       quietWarningAccent: scheme.error,
-      success: scheme.brightness == Brightness.dark
-          ? const Color(0xFF81C995)
-          : const Color(0xFF2E7D32),
+      success:
+          (style ??
+                  NavisColorStyleData(
+                    style: NavisColorStyle.neutral,
+                    dark: scheme.brightness == Brightness.dark,
+                  ))
+              .success,
     );
   }
 
@@ -91,8 +98,6 @@ class NavisTokens extends ThemeExtension<NavisTokens> {
   final double frameMaxWidthStandard;
   final double frameMaxWidthUltraWide;
   final double sidebarWidth;
-  final double panelRadius;
-  final double cardRadius;
   final double panelElevation;
   final double hoverOpacity;
   final double focusOpacity;
@@ -115,8 +120,6 @@ class NavisTokens extends ThemeExtension<NavisTokens> {
     frameMaxWidthStandard: 1440,
     frameMaxWidthUltraWide: 1720,
     sidebarWidth: 300,
-    panelRadius: NavisRadius.xl,
-    cardRadius: NavisRadius.lg,
     panelElevation: 0,
     hoverOpacity: 0.09,
     focusOpacity: 0.14,
@@ -140,8 +143,6 @@ class NavisTokens extends ThemeExtension<NavisTokens> {
     double? frameMaxWidthStandard,
     double? frameMaxWidthUltraWide,
     double? sidebarWidth,
-    double? panelRadius,
-    double? cardRadius,
     double? panelElevation,
     double? hoverOpacity,
     double? focusOpacity,
@@ -157,8 +158,6 @@ class NavisTokens extends ThemeExtension<NavisTokens> {
       frameMaxWidthUltraWide:
           frameMaxWidthUltraWide ?? this.frameMaxWidthUltraWide,
       sidebarWidth: sidebarWidth ?? this.sidebarWidth,
-      panelRadius: panelRadius ?? this.panelRadius,
-      cardRadius: cardRadius ?? this.cardRadius,
       panelElevation: panelElevation ?? this.panelElevation,
       hoverOpacity: hoverOpacity ?? this.hoverOpacity,
       focusOpacity: focusOpacity ?? this.focusOpacity,
@@ -192,8 +191,6 @@ class NavisTokens extends ThemeExtension<NavisTokens> {
         other.frameMaxWidthUltraWide,
       ),
       sidebarWidth: lerp(sidebarWidth, other.sidebarWidth),
-      panelRadius: lerp(panelRadius, other.panelRadius),
-      cardRadius: lerp(cardRadius, other.cardRadius),
       panelElevation: lerp(panelElevation, other.panelElevation),
       hoverOpacity: lerp(hoverOpacity, other.hoverOpacity),
       focusOpacity: lerp(focusOpacity, other.focusOpacity),

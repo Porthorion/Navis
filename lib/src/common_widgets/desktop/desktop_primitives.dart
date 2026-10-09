@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:navis/src/common_widgets/song_playback_indicator.dart';
 import 'package:navis/src/routing/desktop_layout.dart';
 import 'package:navis/src/theme/navis_tokens.dart';
+import 'package:navis/src/theme/navis_shape_data.dart';
 
 class DesktopFrame extends StatelessWidget {
   const new({
@@ -42,7 +43,7 @@ class DesktopPanel extends StatelessWidget {
     return Material(
       color: color ?? colors.surfaceContainerLow,
       elevation: tokens.panelElevation,
-      borderRadius: BorderRadius.circular(tokens.panelRadius),
+      borderRadius: NavisShapeData.of(context).xlAll,
       clipBehavior: Clip.antiAlias,
       child: Padding(padding: padding, child: child),
     );
@@ -141,9 +142,9 @@ class DesktopListRow extends ConsumerWidget {
       color: isSelected
           ? colors.primary.withValues(alpha: 0.08)
           : Colors.transparent,
-      borderRadius: NavisRadius.mdAll,
+      borderRadius: NavisShapeData.of(context).mdAll,
       child: InkWell(
-        borderRadius: NavisRadius.mdAll,
+        borderRadius: NavisShapeData.of(context).mdAll,
         mouseCursor: onTap != null
             ? SystemMouseCursors.click
             : MouseCursor.defer,

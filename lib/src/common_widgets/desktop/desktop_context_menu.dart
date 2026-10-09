@@ -1,5 +1,5 @@
 import 'package:material_ui/material_ui.dart';
-import 'package:navis/src/theme/navis_tokens.dart';
+import 'package:navis/src/theme/navis_shape_data.dart';
 
 /// Shows a desktop popup menu with a lightweight scrim and root-overlay
 /// anchoring so right-click context menus feel modal and placement stays
@@ -81,7 +81,7 @@ Future<T?> showDesktopContextMenu<T>({
             maxWidth: 320,
             maxHeight: overlaySize.height - 24,
           ),
-      shape: shape ?? RoundedRectangleBorder(borderRadius: NavisRadius.mdAll),
+      shape: shape ?? NavisShapeData.of(context).mdShape,
       color: color,
       surfaceTintColor: surfaceTintColor,
       items: items,

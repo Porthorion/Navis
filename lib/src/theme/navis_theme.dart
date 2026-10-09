@@ -1,5 +1,50 @@
+import 'package:material_color_utilities/material_color_utilities.dart'
+    show Hct;
 import 'package:material_ui/material_ui.dart';
+import 'package:navis/src/theme/caption_tint.dart';
+import 'package:navis/src/theme/navis_color_style.dart';
+import 'package:navis/src/theme/navis_color_style_data.dart';
+import 'package:navis/src/theme/navis_corner_style.dart';
+import 'package:navis/src/theme/navis_shape_data.dart';
+import 'package:navis/src/theme/navis_style_schemes.dart';
 import 'package:navis/src/theme/navis_tokens.dart';
+
+/// Bounded per-app cache of complete themes, keyed only by theme inputs.
+class NavisThemeCache {
+  new({this.capacity = 8})
+    : assert(capacity > 0, 'The theme cache needs at least one entry.');
+
+  final int capacity;
+  final Map<
+    (Color, Brightness, bool, NavisColorStyle, bool, NavisCornerStyle),
+    ThemeData
+  >
+  _themes = {};
+
+  ThemeData resolve({
+    required Color seed,
+    required Brightness brightness,
+    required bool oled,
+    required NavisColorStyle style,
+    required bool flat,
+    required NavisCornerStyle corners,
+  }) {
+    final key = (seed, brightness, oled, style, flat, corners);
+    final known = _themes.remove(key);
+    if (known != null) {
+      _themes[key] = known;
+      return known;
+    }
+    final theme = brightness == Brightness.light
+        ? buildLightTheme(seed, style: style, flat: flat, corners: corners)
+        : oled
+        ? buildOledTheme(seed, style: style, flat: flat, corners: corners)
+        : buildDarkTheme(seed, style: style, flat: flat, corners: corners);
+    _themes[key] = theme;
+    if (_themes.length > capacity) _themes.remove(_themes.keys.first);
+    return theme;
+  }
+}
 
 /// Default seed used when no explicit color has been saved.
 const Color defaultColorSchemeSeedColor = Colors.white;
@@ -50,21 +95,23 @@ class NavisAccentColors extends ThemeExtension<NavisAccentColors> {
   }
 
   static Color _resolveBrandColor(Color source, ColorScheme colorScheme) {
-    if (_contrastRatio(source, colorScheme.surface) >= 3.0) {
+    if (captionContrast(
+          source,
+          colorScheme.surface,
+          compositeForeground: false,
+        ) >=
+        3.0) {
       return source;
     }
-    if (_contrastRatio(colorScheme.primary, colorScheme.surface) >= 3.0) {
+    if (captionContrast(
+          colorScheme.primary,
+          colorScheme.surface,
+          compositeForeground: false,
+        ) >=
+        3.0) {
       return colorScheme.primary;
     }
     return colorScheme.onSurface;
-  }
-
-  static double _contrastRatio(Color a, Color b) {
-    final aLuminance = a.computeLuminance();
-    final bLuminance = b.computeLuminance();
-    final lighter = aLuminance > bLuminance ? aLuminance : bLuminance;
-    final darker = aLuminance > bLuminance ? bLuminance : aLuminance;
-    return (lighter + 0.05) / (darker + 0.05);
   }
 
   @override
@@ -104,53 +151,71 @@ ThemeMode resolveThemeMode(String mode) {
 }
 
 /// Build the light [ThemeData] from a seed color.
-ThemeData buildLightTheme(Color seedColor) {
-  final colorScheme = ColorScheme.fromSeed(
-    seedColor: seedColor,
+ThemeData buildLightTheme(
+  Color seedColor, {
+  NavisColorStyle style = NavisColorStyle.neutral,
+  bool flat = false,
+  NavisCornerStyle corners = NavisCornerStyle.rounded,
+}) {
+  final colorScheme = buildStyledColorScheme(
+    seed: seedColor,
     brightness: Brightness.light,
-    // Tonal spot retains the selected accent while keeping text, headings,
-    // and interactive roles sufficiently dark against light surfaces.
-    dynamicSchemeVariant: DynamicSchemeVariant.tonalSpot,
+    style: style,
   );
-  return _buildNavisTheme(colorScheme, seedColor);
+  return _buildNavisTheme(
+    colorScheme,
+    seedColor,
+    style: style,
+    flat: flat,
+    corners: corners,
+  );
 }
 
 /// Build the standard dark [ThemeData] from a seed color.
-ThemeData buildDarkTheme(Color seedColor) {
-  final colorScheme = ColorScheme.fromSeed(
-    seedColor: seedColor,
+ThemeData buildDarkTheme(
+  Color seedColor, {
+  NavisColorStyle style = NavisColorStyle.neutral,
+  bool flat = false,
+  NavisCornerStyle corners = NavisCornerStyle.rounded,
+}) {
+  final colorScheme = buildStyledColorScheme(
+    seed: seedColor,
     brightness: Brightness.dark,
-    dynamicSchemeVariant: DynamicSchemeVariant.fidelity,
+    style: style,
   );
-  return _buildNavisTheme(colorScheme, seedColor);
+  return _buildNavisTheme(
+    colorScheme,
+    seedColor,
+    style: style,
+    flat: flat,
+    corners: corners,
+  );
 }
-
-// OLED surface constants – extracted for consistency.
-const Color _oledContainer = Color(0xFF0A0A0A);
-const Color _oledContainerHighest = Color(0xFF121212);
 
 /// Build an OLED (pure black) [ThemeData] from a seed color.
 ///
 /// Uses true `#000000` backgrounds and surfaces for maximum battery savings
-/// on AMOLED screens.
-ThemeData buildOledTheme(Color seedColor) {
-  final baseScheme = ColorScheme.fromSeed(
-    seedColor: seedColor,
+/// on AMOLED screens, in every colour style.
+ThemeData buildOledTheme(
+  Color seedColor, {
+  NavisColorStyle style = NavisColorStyle.neutral,
+  bool flat = false,
+  NavisCornerStyle corners = NavisCornerStyle.rounded,
+}) {
+  final colorScheme = buildStyledColorScheme(
+    seed: seedColor,
     brightness: Brightness.dark,
-    dynamicSchemeVariant: DynamicSchemeVariant.fidelity,
+    oled: true,
+    style: style,
   );
-  final colorScheme = baseScheme.copyWith(
-    surface: Colors.black,
-    onSurface: Colors.white,
-    surfaceContainerLowest: Colors.black,
-    surfaceContainerLow: _oledContainer,
-    surfaceContainer: _oledContainer,
-    surfaceContainerHigh: _oledContainer,
-    surfaceContainerHighest: _oledContainerHighest,
-    // Ensure "on" colors for container variants stay readable
-    onSurfaceVariant: baseScheme.onSurfaceVariant.withAlpha(230),
+  return _buildNavisTheme(
+    colorScheme,
+    seedColor,
+    oled: true,
+    style: style,
+    flat: flat,
+    corners: corners,
   );
-  return _buildNavisTheme(colorScheme, seedColor, oled: true);
 }
 
 /// Bundled UI typeface (see `assets/fonts/`).
@@ -204,21 +269,51 @@ ThemeData _buildNavisTheme(
   ColorScheme colorScheme,
   Color seedColor, {
   bool oled = false,
+  NavisColorStyle style = NavisColorStyle.neutral,
+  bool flat = false,
+  NavisCornerStyle corners = NavisCornerStyle.rounded,
 }) {
+  final shape = NavisShapeData.forStyle(corners);
+  final roundedCorners = corners == NavisCornerStyle.rounded;
+  final styleData = NavisColorStyleData(
+    style: style,
+    dark: colorScheme.brightness == Brightness.dark,
+    flat: flat,
+    oled: oled,
+    accentHue: Hct.fromInt(colorScheme.primary.toARGB32()).hue,
+  );
+  // Light Pastel fills its main buttons with the pastel container colour and
+  // keeps the deeper primary for text, which needs the contrast.
+  final pastelLight =
+      style == NavisColorStyle.pastel &&
+      colorScheme.brightness == Brightness.light;
   // Outlines on secondary controls use the softer variant role so they
   // separate controls without competing with filled primary actions.
   final softOutline = BorderSide(color: colorScheme.outlineVariant);
+  final controlShape = WidgetStatePropertyAll<OutlinedBorder>(
+    shape.controlShape,
+  );
   final disabledOutline = BorderSide(
     color: colorScheme.onSurface.withValues(alpha: 0.12),
   );
+  // Flat removes drop shadows at the theme level: Material surfaces resolve
+  // their shadow from `ColorScheme.shadow` (and the legacy
+  // `ThemeData.shadowColor`), so making both transparent flattens cards,
+  // buttons, FABs, menus, dialogs, sheets and app bars at once. Elevation
+  // values stay, so surface-tint behaviour is unchanged.
+  final effectiveScheme = flat
+      ? colorScheme.copyWith(shadow: Colors.transparent)
+      : colorScheme;
   return ThemeData(
     useMaterial3: true,
     brightness: colorScheme.brightness,
-    colorScheme: colorScheme,
+    colorScheme: effectiveScheme,
+    shadowColor: flat ? Colors.transparent : null,
     fontFamily: navisFontFamily,
     textTheme: _navisTextTheme,
     outlinedButtonTheme: OutlinedButtonThemeData(
       style: ButtonStyle(
+        shape: roundedCorners ? null : controlShape,
         side: WidgetStateProperty.resolveWith(
           (states) => states.contains(WidgetState.disabled)
               ? disabledOutline
@@ -227,7 +322,7 @@ ThemeData _buildNavisTheme(
       ),
     ),
     chipTheme: ChipThemeData(
-      shape: const StadiumBorder(),
+      shape: shape.controlShape,
       side: WidgetStateBorderSide.resolveWith((states) {
         if (states.contains(WidgetState.selected)) {
           return const BorderSide(color: Colors.transparent);
@@ -239,22 +334,75 @@ ThemeData _buildNavisTheme(
     ),
     cardTheme: CardThemeData(
       elevation: 0,
-      color: oled ? _oledContainer : colorScheme.surfaceContainerLow,
-      shape: const RoundedRectangleBorder(borderRadius: NavisRadius.mdAll),
+      color: colorScheme.surfaceContainerLow,
+      shape: shape.mdShape,
     ),
-    popupMenuTheme: const PopupMenuThemeData(
-      shape: RoundedRectangleBorder(borderRadius: NavisRadius.mdAll),
-    ),
-    inputDecorationTheme: const InputDecorationTheme(
+    popupMenuTheme: PopupMenuThemeData(shape: shape.mdShape),
+    inputDecorationTheme: InputDecorationTheme(
       // Only the base border is themed: a themed enabled/focused border
       // would override fields that deliberately pass InputBorder.none.
-      border: OutlineInputBorder(borderRadius: NavisRadius.mdAll),
+      border: OutlineInputBorder(borderRadius: shape.mdAll),
     ),
     scaffoldBackgroundColor: oled ? Colors.black : null,
-    cardColor: oled ? _oledContainer : null,
-    dialogTheme: oled
-        ? const DialogThemeData(backgroundColor: _oledContainer)
+    cardColor: oled ? colorScheme.surfaceContainerLow : null,
+    dialogTheme: oled || !roundedCorners
+        ? DialogThemeData(
+            backgroundColor: oled ? colorScheme.surfaceContainer : null,
+            shadowColor: oled && flat ? Colors.transparent : null,
+            shape: roundedCorners ? null : shape.xlShape,
+          )
         : null,
+    filledButtonTheme: pastelLight || !roundedCorners
+        ? FilledButtonThemeData(
+            style: FilledButton.styleFrom(
+              backgroundColor: pastelLight
+                  ? colorScheme.primaryContainer
+                  : null,
+              foregroundColor: pastelLight
+                  ? colorScheme.onPrimaryContainer
+                  : null,
+              shape: roundedCorners ? null : shape.controlShape,
+            ),
+          )
+        : null,
+    // Rounded keeps Material's defaults for everything below so the default
+    // look does not move; other styles take their shapes from the table.
+    textButtonTheme: roundedCorners
+        ? null
+        : TextButtonThemeData(style: ButtonStyle(shape: controlShape)),
+    elevatedButtonTheme: roundedCorners
+        ? null
+        : ElevatedButtonThemeData(style: ButtonStyle(shape: controlShape)),
+    segmentedButtonTheme: roundedCorners
+        ? null
+        : SegmentedButtonThemeData(style: ButtonStyle(shape: controlShape)),
+    // Plain icon buttons take the control corner; play, shuffle, transport
+    // and mini-player buttons pass `NavisShapeData.circularIconButtonStyle`.
+    iconButtonTheme: roundedCorners
+        ? null
+        : IconButtonThemeData(style: ButtonStyle(shape: controlShape)),
+    // MenuAnchor menus: Rounded encodes the 4 px shape Material's M3 menu
+    // renders today (so it does not move); Soft and Square match popup menus.
+    menuTheme: MenuThemeData(
+      style: MenuStyle(
+        shape: WidgetStatePropertyAll<OutlinedBorder>(
+          roundedCorners
+              ? RoundedRectangleBorder(borderRadius: NavisRadius.xsAll)
+              : shape.mdShape,
+        ),
+      ),
+    ),
+    floatingActionButtonTheme: roundedCorners
+        ? null
+        : FloatingActionButtonThemeData(shape: shape.lgShape),
+    // Fixed snackbars render no shape and floating ones Material's 4 px, so
+    // Rounded stays unset; Soft and Square theme both.
+    snackBarTheme: roundedCorners
+        ? null
+        : SnackBarThemeData(shape: shape.smShape),
+    navigationRailTheme: roundedCorners
+        ? null
+        : NavigationRailThemeData(indicatorShape: shape.controlShape),
     appBarTheme: oled
         ? const AppBarTheme(
             backgroundColor: Colors.black,
@@ -264,18 +412,33 @@ ThemeData _buildNavisTheme(
     bottomNavigationBarTheme: oled
         ? const BottomNavigationBarThemeData(backgroundColor: Colors.black)
         : null,
-    navigationBarTheme: oled
-        ? const NavigationBarThemeData(
-            backgroundColor: Colors.black,
-            surfaceTintColor: Colors.transparent,
+    navigationBarTheme: oled || !roundedCorners
+        ? NavigationBarThemeData(
+            backgroundColor: oled ? Colors.black : null,
+            surfaceTintColor: oled ? Colors.transparent : null,
+            indicatorShape: roundedCorners ? null : shape.controlShape,
           )
         : null,
-    bottomSheetTheme: oled
-        ? const BottomSheetThemeData(backgroundColor: _oledContainer)
+    bottomSheetTheme: oled || !roundedCorners
+        ? BottomSheetThemeData(
+            backgroundColor: oled ? colorScheme.surfaceContainer : null,
+            shape: roundedCorners
+                ? null
+                : RoundedRectangleBorder(borderRadius: shape.sheetTop),
+          )
         : null,
     extensions: <ThemeExtension<dynamic>>[
-      NavisTokens.forScheme(colorScheme, oled: oled),
-      NavisAccentColors.fromScheme(source: seedColor, colorScheme: colorScheme),
+      NavisTokens.forScheme(colorScheme, oled: oled, style: styleData),
+      shape,
+      NavisAccentColors.fromScheme(
+        // Styled schemes reshape the seed, so the brand mark follows the
+        // styled accent rather than the raw seed.
+        source: style == NavisColorStyle.neutral
+            ? seedColor
+            : colorScheme.primary,
+        colorScheme: colorScheme,
+      ),
+      styleData,
     ],
   );
 }

@@ -13,7 +13,9 @@ import 'package:navis/l10n/app_localizations.dart';
 import 'package:navis/l10n/navis_localizations.dart';
 import 'package:navis/src/api/models/listenbrainz_playlist.dart';
 import 'package:navis/src/api/models/models.dart';
+import 'package:flutter/rendering.dart' show RenderParagraph;
 import 'package:navis/src/common_widgets/navis_icon.dart';
+import 'package:navis/src/common_widgets/navis_section_header.dart';
 import 'package:navis/src/common_widgets/remote_source_indicator.dart';
 import 'package:navis/src/common_widgets/shimmer_placeholder.dart';
 import 'package:navis/src/common_widgets/song_download_status_icon.dart';
@@ -30,6 +32,7 @@ import 'package:navis/src/features/home/presentation/trending_detail_screen.dart
 import 'package:navis/src/features/library/domain/artist_top_track.dart';
 import 'package:navis/src/features/library/domain/library_sync_state.dart';
 import 'package:navis/src/features/onboarding/presentation/onboarding_provider.dart';
+import 'package:package_info_plus/package_info_plus.dart';
 import 'package:navis/src/features/library/presentation/library_sync_provider.dart';
 import 'package:navis/src/features/player/presentation/queue_provider.dart';
 import 'package:navis/src/features/player/domain/playback_snapshot.dart';
@@ -38,7 +41,11 @@ import 'package:navis/src/features/settings/domain/update_delivery.dart';
 import 'package:navis/src/features/settings/domain/update_info.dart';
 import 'package:navis/src/providers/app_providers.dart';
 import 'package:navis/src/routing/desktop_layout.dart';
+import 'package:navis/src/features/home/presentation/cover_colour_field.dart';
+import 'package:navis/src/theme/caption_tint.dart';
+import 'package:navis/src/theme/navis_color_style.dart';
 import 'package:navis/src/theme/navis_theme.dart';
+import 'package:navis/src/theme/navis_tokens.dart';
 import 'package:flutter_riverpod/misc.dart' show Override;
 
 import '../../../../helpers/adaptive_test_harness.dart';
@@ -610,6 +617,8 @@ Future<void> _pumpRandomSectionHome(
   List<String> sectionOrder = const [HomeSectionIds.randomAlbums],
   bool reduceMotion = true,
   ValueNotifier<bool>? homeActive,
+  ThemeData? baseTheme,
+  double textScale = 1,
 }) async {
   final sectionOverrides = withTestDatabase(
     database,
@@ -707,11 +716,14 @@ Future<void> _pumpRandomSectionHome(
     ProviderScope(
       overrides: sectionOverrides,
       child: MaterialApp.router(
-        theme: testTheme(),
+        theme: testTheme(baseTheme),
         localizationsDelegates: navisLocalizationsDelegates,
         supportedLocales: AppLocalizations.supportedLocales,
         builder: (ctx, child) => MediaQuery(
-          data: MediaQuery.of(ctx).copyWith(disableAnimations: reduceMotion),
+          data: MediaQuery.of(ctx).copyWith(
+            disableAnimations: reduceMotion,
+            textScaler: TextScaler.linear(textScale),
+          ),
           child: child!,
         ),
         routerConfig: router,
@@ -1159,6 +1171,132 @@ void main() {
       findsOneWidget,
     );
   });
+
+  testWidgets(
+    'the Integrations notice comes first, then the setup invitation, then the release notes',
+    (tester) async {
+      final view = tester.view;
+      view.devicePixelRatio = 1;
+      view.physicalSize = const Size(390, 844);
+      addTearDown(() {
+        view.resetPhysicalSize();
+        view.resetDevicePixelRatio();
+      });
+      final changelog = changelogToShowProvider.overrideWith(
+        (ref) async => const ChangelogDiscovery(
+          current: _majorRelease,
+          featured: _majorRelease,
+        ),
+      );
+      final info = packageInfoProvider.overrideWith(
+        (ref) async => PackageInfo(
+          appName: 'Navis',
+          packageName: 'test.navis',
+          version: '1.4.3',
+          buildNumber: '10403',
+        ),
+      );
+      final setup = find.byKey(const ValueKey<String>('setupHighlightsOpen'));
+      final integrations = find.byKey(
+        const ValueKey<String>('integrationsNoticeOpen'),
+      );
+      final whatsNew = find.byKey(
+        const ValueKey<String>('changelogDiscoveryOpen'),
+      );
+
+      await _pumpHomeWithAppSettings(
+        tester,
+        database: database,
+        overrides: <Override>[
+          changelog,
+          info,
+          onboardingRequiredProvider.overrideWithValue(false),
+        ],
+      );
+      expect(integrations, findsOneWidget);
+      expect(setup, findsNothing);
+      expect(whatsNew, findsNothing);
+
+      // The Integrations notice seen: the setup invitation follows.
+      await _pumpHomeWithAppSettings(
+        tester,
+        database: database,
+        appSettings: const AppSettingsModel.defaults().copyWith(
+          integrationsNoticeDismissed: true,
+        ),
+        overrides: <Override>[
+          changelog,
+          info,
+          onboardingRequiredProvider.overrideWithValue(false),
+        ],
+      );
+      expect(integrations, findsNothing);
+      expect(setup, findsOneWidget);
+      expect(whatsNew, findsNothing);
+      expect(find.text('New appearance options'), findsOneWidget);
+
+      // Setup invitation dismissed or acknowledged: What's New returns.
+      for (final settings in <AppSettingsModel>[
+        const AppSettingsModel.defaults().copyWith(
+          integrationsNoticeDismissed: true,
+          setupCardDismissedRelease: '1.4.3',
+        ),
+        const AppSettingsModel.defaults().copyWith(
+          integrationsNoticeDismissed: true,
+          setupHighlightsSeenRelease: '1.4.3',
+        ),
+      ]) {
+        await _pumpHomeWithAppSettings(
+          tester,
+          database: database,
+          appSettings: settings,
+          overrides: <Override>[
+            changelog,
+            info,
+            onboardingRequiredProvider.overrideWithValue(false),
+          ],
+        );
+        expect(setup, findsNothing);
+        expect(integrations, findsNothing);
+        expect(whatsNew, findsOneWidget);
+      }
+
+      // Integrations still unread with the setup invitation dismissed.
+      await _pumpHomeWithAppSettings(
+        tester,
+        database: database,
+        appSettings: const AppSettingsModel.defaults().copyWith(
+          setupHighlightsSeenRelease: '1.4.3',
+        ),
+        overrides: <Override>[
+          changelog,
+          info,
+          onboardingRequiredProvider.overrideWithValue(false),
+        ],
+      );
+      expect(setup, findsNothing);
+      expect(integrations, findsOneWidget);
+      expect(whatsNew, findsNothing);
+
+      // Everything seen: the release notes row returns.
+      await _pumpHomeWithAppSettings(
+        tester,
+        database: database,
+        appSettings: const AppSettingsModel.defaults().copyWith(
+          setupHighlightsSeenRelease: '1.4.3',
+          integrationsNoticeDismissed: true,
+        ),
+        overrides: <Override>[
+          changelog,
+          info,
+          onboardingRequiredProvider.overrideWithValue(false),
+        ],
+      );
+      expect(setup, findsNothing);
+      expect(integrations, findsNothing);
+      expect(whatsNew, findsOneWidget);
+    },
+  );
 
   testWidgets('patch release notes show a compact row on Home', (tester) async {
     const patch = ChangelogVersion(
@@ -1953,6 +2091,340 @@ void main() {
       // Weekly playlists open their detail instead of playing directly.
       expect(play, findsNothing);
       expect(tester.takeException(), isNull);
+    },
+  );
+
+  for (final scale in <double>[1, 2]) {
+    testWidgets('Flat You Might Like band on a phone at ${scale}x text', (
+      tester,
+    ) async {
+      final view = tester.view;
+      view.devicePixelRatio = 1.0;
+      view.physicalSize = const Size(390, 844);
+      addTearDown(() {
+        view.resetPhysicalSize();
+        view.resetDevicePixelRatio();
+      });
+      final theme = buildDarkTheme(
+        const Color(0xFF009688),
+        style: NavisColorStyle.pastel,
+        flat: true,
+      );
+      await _pumpRandomSectionHome(
+        tester,
+        database: database,
+        nativeTouch: true,
+        baseTheme: theme,
+        textScale: scale,
+        overrides: <Override>[
+          coverColourFieldProvider.overrideWith(
+            (ref, id) async => CoverColourField(
+              List<Color>.filled(9, const Color(0xFFD32F2F)),
+            ),
+          ),
+        ],
+        randomAlbums: const <HomeRandomShowcaseItem>[
+          HomeRandomShowcaseAlbum(
+            id: 'band-1',
+            name: 'A Rather Long Album Title That Needs More Than One Line',
+            artist: 'An Artist With A Rather Long Name Too',
+            coverArtId: 'cover-band-1',
+            year: 2023,
+            songCount: 12,
+            source: HomeRandomShowcaseSource.likedDiscovery,
+          ),
+          HomeRandomShowcaseAlbum(
+            id: 'band-2',
+            name: 'Band Two',
+            artist: 'Artist Two',
+            coverArtId: 'cover-band-2',
+            source: HomeRandomShowcaseSource.serverRandom,
+          ),
+        ],
+      );
+      final band = find.byKey(
+        const ValueKey<String>('home-showcase-flat-band'),
+      );
+      expect(band, findsOneWidget);
+      // Full-bleed: edge to edge, and tall enough to hold the carousel, info
+      // panel and dots with their padding.
+      expect(tester.getTopLeft(band).dx, 0);
+      expect(tester.getSize(band).width, 390);
+      final bandRect = tester.getRect(band);
+      final carouselRect = tester.getRect(
+        find.byKey(const ValueKey<String>('home-random-hero-carousel')),
+      );
+      final infoRect = tester.getRect(
+        find.byKey(const ValueKey<String>('home-showcase-info')),
+      );
+      expect(bandRect.top, lessThanOrEqualTo(carouselRect.top - NavisSpace.lg));
+      expect(bandRect.bottom, greaterThan(infoRect.bottom));
+      expect(tester.takeException(), isNull);
+    });
+  }
+
+  group('Flat desktop You Might Like panel', () {
+    const bandKey = ValueKey<String>('home-showcase-flat-band');
+    const albums = <HomeRandomShowcaseItem>[
+      HomeRandomShowcaseAlbum(
+        id: 'flat-a',
+        name: 'Flat Album A',
+        artist: 'Artist A',
+        coverArtId: 'cover-flat-a',
+        source: HomeRandomShowcaseSource.serverRandom,
+      ),
+      HomeRandomShowcaseAlbum(
+        id: 'flat-b',
+        name: 'Flat Album B',
+        artist: 'Artist B',
+        coverArtId: 'cover-flat-b',
+        source: HomeRandomShowcaseSource.serverRandom,
+      ),
+    ];
+
+    List<Override> overridesFor() => <Override>[
+      coverColourFieldProvider.overrideWith(
+        (ref, id) async =>
+            CoverColourField(List<Color>.filled(9, const Color(0xFFD32F2F))),
+      ),
+      albumProvider.overrideWith(
+        (ref, albumId) => Stream.value(
+          _albumWithSongs(albumId, 'Album', <SongsTableData>[
+            for (var i = 1; i <= 4; i++)
+              _songRow(
+                id: '$albumId-song-$i',
+                title: 'Flat Song $i',
+                albumId: albumId,
+                discNumber: 1,
+                track: i,
+              ),
+          ]),
+        ),
+      ),
+      songByIdProvider.overrideWith((ref, songId) => Stream.value(null)),
+      songStarredProvider.overrideWith((ref, songId) => Stream.value(false)),
+    ];
+
+    Color? textColour(WidgetTester tester, String text) =>
+        tester.renderObject<RenderParagraph>(find.text(text)).text.style?.color;
+
+    for (final dark in <bool>[true, false]) {
+      for (final style in <NavisColorStyle>[
+        NavisColorStyle.neutral,
+        NavisColorStyle.pastel,
+      ]) {
+        testWidgets('album page sits inside one solid panel '
+            '(${dark ? 'dark' : 'light'} ${style.name})', (tester) async {
+          setAdaptiveTestViewport(tester, const Size(1366, 900));
+          final theme = dark
+              ? buildDarkTheme(
+                  const Color(0xFF009688),
+                  style: style,
+                  flat: true,
+                )
+              : buildLightTheme(
+                  const Color(0xFF009688),
+                  style: style,
+                  flat: true,
+                );
+          await _pumpRandomSectionHome(
+            tester,
+            database: database,
+            baseTheme: theme,
+            randomAlbums: albums,
+            overrides: overridesFor(),
+          );
+          final panel = find.byKey(bandKey);
+          expect(panel, findsOneWidget);
+          final panelRect = tester.getRect(panel);
+          final coverRect = tester.getRect(
+            find.byKey(const ValueKey('album:flat-a')),
+          );
+          final stripRect = tester.getRect(
+            find.byKey(const ValueKey('home-random-desktop-mini-cover-0')),
+          );
+          final listRect = tester.getRect(
+            find.byKey(const ValueKey('home-random-desktop-song-list-flat-a')),
+          );
+          // Even NavisSpace.md padding around the cover, list and strip.
+          expect(coverRect.left - panelRect.left, NavisSpace.md);
+          expect(coverRect.top - panelRect.top, NavisSpace.md);
+          expect(panelRect.right - listRect.right, NavisSpace.md);
+          expect(
+            panelRect.bottom - stripRect.bottom,
+            greaterThanOrEqualTo(NavisSpace.md),
+          );
+          expect(panelRect.contains(coverRect.topLeft), isTrue);
+          expect(panelRect.contains(coverRect.bottomRight), isTrue);
+          expect(panelRect.contains(stripRect.bottomRight), isTrue);
+          expect(panelRect.contains(listRect.bottomRight), isTrue);
+          // The track list only shows whole 56 px rows (plus 4 px gaps).
+          final firstRow = find.byWidgetPredicate((w) {
+            final key = w.key;
+            return key is ValueKey<String> &&
+                key.value.startsWith('home-random-desktop-song-row-');
+          }).first;
+          expect(tester.getSize(firstRow).height, 56);
+          expect((listRect.height + 4) % 60, anyOf(0, lessThan(0.01)));
+          // Flush with the section's content column (heading's left edge).
+          expect(
+            panelRect.left,
+            tester.getTopLeft(find.byType(NavisSectionHeader)).dx,
+          );
+          // No bordered tracklist surface inside the panel.
+          expect(
+            find.descendant(
+              of: panel,
+              matching: find.byWidgetPredicate(
+                (w) =>
+                    w is DecoratedBox &&
+                    w.decoration is BoxDecoration &&
+                    (w.decoration as BoxDecoration).border != null &&
+                    (w.decoration as BoxDecoration).borderRadius ==
+                        NavisRadius.xlAll,
+              ),
+            ),
+            findsNothing,
+          );
+          // Text on the panel stays readable.
+          final fill = tester.widget<ColoredBox>(panel).color;
+          for (final label in <String>['Flat Song 1']) {
+            final colour = textColour(tester, label)!;
+            expect(
+              captionContrast(colour, fill),
+              greaterThanOrEqualTo(kCaptionMinContrast),
+              reason: label,
+            );
+          }
+          if (!dark || style != NavisColorStyle.neutral) {
+            return;
+          }
+          // Neutral Dark never shows a light panel.
+          expect(HSLColor.fromColor(fill).lightness, lessThan(0.5));
+        });
+      }
+    }
+
+    testWidgets('playlist page sits inside the panel with no inner surface', (
+      tester,
+    ) async {
+      setAdaptiveTestViewport(tester, const Size(1366, 900));
+      await _pumpRandomSectionHome(
+        tester,
+        database: database,
+        baseTheme: buildDarkTheme(
+          const Color(0xFF009688),
+          style: NavisColorStyle.pastel,
+          flat: true,
+        ),
+        overrides: overridesFor(),
+        randomAlbums: const <HomeRandomShowcaseItem>[
+          HomeRandomShowcaseListenBrainz.loading(
+            sourcePatch: 'weekly-exploration',
+            displayTitle: 'Weekly Exploration',
+          ),
+          HomeRandomShowcaseListenBrainz.loading(
+            sourcePatch: 'weekly-jams',
+            displayTitle: 'Weekly Jams',
+          ),
+        ],
+        settle: false,
+      );
+      final panel = find.byKey(bandKey);
+      expect(panel, findsOneWidget);
+      final panelRect = tester.getRect(panel);
+      final pageRect = tester.getRect(
+        find.byKey(const ValueKey<String>('home-random-desktop-pageview')),
+      );
+      final stripRect = tester.getRect(
+        find.byKey(const ValueKey('home-random-desktop-mini-cover-0')),
+      );
+      expect(pageRect.left - panelRect.left, NavisSpace.md);
+      expect(panelRect.right - pageRect.right, NavisSpace.md);
+      expect(panelRect.contains(stripRect.bottomRight), isTrue);
+      expect(
+        find.descendant(
+          of: find.byKey(const ValueKey<String>('home-random-desktop-pager')),
+          matching: find.byWidgetPredicate(
+            (w) =>
+                w is DecoratedBox &&
+                w.decoration is BoxDecoration &&
+                (w.decoration as BoxDecoration).border != null &&
+                (w.decoration as BoxDecoration).borderRadius ==
+                    NavisRadius.xlAll,
+          ),
+        ),
+        findsNothing,
+      );
+      await tester.pumpWidget(const SizedBox.shrink());
+      await tester.pumpAndSettle();
+    });
+
+    testWidgets('non-Flat desktop keeps the mesh wash and bordered card', (
+      tester,
+    ) async {
+      setAdaptiveTestViewport(tester, const Size(1366, 900));
+      await _pumpRandomSectionHome(
+        tester,
+        database: database,
+        randomAlbums: albums,
+        overrides: overridesFor(),
+      );
+      expect(find.byKey(bandKey), findsNothing);
+      expect(
+        find.byKey(const ValueKey<String>('home-showcase-wash')),
+        findsOneWidget,
+      );
+      expect(
+        find.descendant(
+          of: find.byKey(const ValueKey<String>('home-random-desktop-pager')),
+          matching: find.byWidgetPredicate(
+            (w) =>
+                w is DecoratedBox &&
+                w.decoration is BoxDecoration &&
+                (w.decoration as BoxDecoration).border != null &&
+                (w.decoration as BoxDecoration).borderRadius ==
+                    NavisRadius.xlAll,
+          ),
+        ),
+        findsWidgets,
+      );
+    });
+  });
+
+  testWidgets(
+    'phone Home header is compact; tablet portrait keeps the old one',
+    (tester) async {
+      const header = ValueKey<String>('homeCenteredLogoHeader');
+      setAdaptiveTestViewport(tester, const Size(390, 844));
+      await _pumpHomeWithAppSettings(tester, database: database);
+      // 16 top + 104 logo + 4 bottom (was 48 + 96 + 14): a larger logo in the
+      // same height, using the transparent margin inside the logo asset.
+      expect(tester.getSize(find.byKey(header)).height, 124);
+      final logoRect = tester.getRect(
+        find.byKey(const ValueKey<String>('home-sync-logo')),
+      );
+      expect(logoRect.height, 104);
+      final actionRow = find.byKey(
+        const ValueKey<String>('homeMobileActionRow'),
+      );
+      expect(
+        tester.getTopLeft(actionRow).dy,
+        tester.getRect(find.byKey(header)).bottom,
+      );
+      // Filter buttons keep a 48 px tap target.
+      expect(
+        tester
+            .getSize(
+              find.widgetWithIcon(IconButton, Icons.favorite_border_rounded),
+            )
+            .height,
+        greaterThanOrEqualTo(40),
+      );
+
+      tester.view.physicalSize = const Size(700, 1000);
+      await tester.pumpAndSettle();
+      expect(tester.getSize(find.byKey(header)).height, 158);
     },
   );
 

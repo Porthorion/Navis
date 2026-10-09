@@ -1,25 +1,19 @@
-import 'dart:async';
 import 'dart:collection';
-import 'dart:typed_data';
 import 'dart:ui' as ui;
 
-import 'package:cached_network_image/cached_network_image.dart';
 import 'package:material_ui/material_ui.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:navis/src/common_widgets/cover_art_cache_manager.dart';
-import 'package:navis/src/providers/app_providers.dart';
+
+export 'package:navis/src/features/home/presentation/cover_colour_sampler.dart'
+    show coverColourFieldProvider;
 
 /// Side of the colour grid sampled from a cover.
 const int kCoverColourGrid = 3;
-
-/// Decode size used for sampling; small enough to read instantly.
-const int _kSampleSize = 24;
 
 /// A [kCoverColourGrid]×[kCoverColourGrid] grid of a cover's average
 /// colours, row-major from the top-left.
 @immutable
 class CoverColourField {
-  const new(this.colors)
+  const new(this.colors, {this.revision = 0})
     : assert(
         colors.length == kCoverColourGrid * kCoverColourGrid,
         'A colour field needs one colour per grid cell.',
@@ -40,6 +34,38 @@ class CoverColourField {
 
   final List<Color> colors;
 
+  /// Artwork revision sampled into this field. Retained with cached colours
+  /// so a visible caller can refresh lazily without losing the old field.
+  final int revision;
+
+  /// Average of the bottom row of the grid: the colour under a caption drawn
+  /// along the cover's lower edge.
+  Color get bottomRowAverage =>
+      _averageColors(colors.skip((kCoverColourGrid - 1) * kCoverColourGrid))!;
+
+  /// Opaque average of usable cells, or null for an entirely transparent field.
+  Color? get average => _averageColors(colors.where((color) => color.a > 0));
+
+  static Color? _averageColors(Iterable<Color> colors) {
+    var r = 0.0;
+    var g = 0.0;
+    var b = 0.0;
+    var count = 0;
+    for (final color in colors) {
+      r += color.r;
+      g += color.g;
+      b += color.b;
+      count++;
+    }
+    if (count == 0) return null;
+    return Color.from(
+      alpha: 1,
+      red: r / count,
+      green: g / count,
+      blue: b / count,
+    );
+  }
+
   @override
   bool operator ==(Object other) =>
       other is CoverColourField && _listEquals(other.colors, colors);
@@ -56,49 +82,13 @@ class CoverColourField {
   }
 }
 
-/// Averages an RGBA buffer into a [grid]×[grid] row-major colour grid.
-///
-/// Transparent pixels are ignored so letterboxed covers do not wash out.
-@visibleForTesting
-List<Color> averageColourGrid(
-  ByteData rgba,
-  int width,
-  int height, {
-  int grid = kCoverColourGrid,
-}) {
-  final sums = List<List<int>>.generate(grid * grid, (_) => [0, 0, 0, 0]);
-  for (var y = 0; y < height; y++) {
-    final row = (y * grid ~/ height).clamp(0, grid - 1);
-    for (var x = 0; x < width; x++) {
-      final column = (x * grid ~/ width).clamp(0, grid - 1);
-      final offset = (y * width + x) * 4;
-      final alpha = rgba.getUint8(offset + 3);
-      if (alpha == 0) continue;
-      final cell = sums[row * grid + column];
-      cell[0] += rgba.getUint8(offset);
-      cell[1] += rgba.getUint8(offset + 1);
-      cell[2] += rgba.getUint8(offset + 2);
-      cell[3] += 1;
-    }
-  }
-  return <Color>[
-    for (final cell in sums)
-      if (cell[3] == 0)
-        Colors.transparent
-      else
-        Color.fromARGB(
-          255,
-          cell[0] ~/ cell[3],
-          cell[1] ~/ cell[3],
-          cell[2] ~/ cell[3],
-        ),
-  ];
-}
+/// Fields kept in memory. Each is nine colours, so a few hundred cost
+/// kilobytes; the size covers a long grid plus its rails.
+const int kCoverColourFieldCacheCapacity = 512;
 
 /// Small least-recently-used cache so revisiting a cover reuses its field.
-@visibleForTesting
 class CoverColourFieldCache {
-  new({this.capacity = 64});
+  new({this.capacity = kCoverColourFieldCacheCapacity});
 
   final int capacity;
   final LinkedHashMap<String, CoverColourField> _entries =
@@ -119,71 +109,22 @@ class CoverColourFieldCache {
     }
   }
 
+  /// The cached value without marking it recently used.
+  CoverColourField? peek(String key) => _entries[key];
+
+  void clear() => _entries.clear();
+
   int get length => _entries.length;
 }
 
-final CoverColourFieldCache _fieldCache = CoverColourFieldCache();
+/// The cache behind [peekCoverColourField] and the app-wide sampler.
+final CoverColourFieldCache sharedCoverColourFieldCache =
+    CoverColourFieldCache();
 
-/// Colour field for a cover, sampled from the already-cached 600 px artwork.
-///
-/// Uses the same URL and cache key as the album cards, so it never makes a
-/// new request; only a 24 px decode is read.
-final coverColourFieldProvider = FutureProvider.autoDispose
-    .family<CoverColourField?, String>((ref, coverId) async {
-      final cached = _fieldCache.get(coverId);
-      if (cached != null) return cached;
-      final api = ref.watch(subsonicApiProvider);
-      if (api == null) return null;
-      final cacheManager = ref.watch(coverArtCacheManagerProvider);
-      final provider = ResizeImage(
-        CachedNetworkImageProvider(
-          api
-              .getCoverArtUrl(id: coverId, size: kCoverArtStandardSize)
-              .toString(),
-          cacheKey: coverArtImageCacheKey(coverId, kCoverArtStandardSize),
-          cacheManager: cacheManager,
-        ),
-        width: _kSampleSize,
-        height: _kSampleSize,
-      );
-      final info = await _resolveImage(provider);
-      if (info == null) return null;
-      try {
-        final bytes = await info.image.toByteData(
-          format: ui.ImageByteFormat.rawRgba,
-        );
-        if (bytes == null) return null;
-        final colors = averageColourGrid(
-          bytes,
-          info.image.width,
-          info.image.height,
-        );
-        if (colors.any((color) => color.a == 0)) return null;
-        final field = CoverColourField(colors);
-        _fieldCache.put(coverId, field);
-        return field;
-      } finally {
-        info.dispose();
-      }
-    });
-
-Future<ImageInfo?> _resolveImage(ImageProvider provider) {
-  final completer = Completer<ImageInfo?>();
-  final stream = provider.resolve(ImageConfiguration.empty);
-  late final ImageStreamListener listener;
-  listener = ImageStreamListener(
-    (info, _) {
-      stream.removeListener(listener);
-      if (!completer.isCompleted) completer.complete(info);
-    },
-    onError: (_, _) {
-      stream.removeListener(listener);
-      if (!completer.isCompleted) completer.complete(null);
-    },
-  );
-  stream.addListener(listener);
-  return completer.future;
-}
+/// The cached field for [coverId], if it was already sampled. Lets a card
+/// paint its final colours on first build instead of flashing the fallback.
+CoverColourField? peekCoverColourField(String coverId) =>
+    sharedCoverColourFieldCache.get(coverId);
 
 /// Paints [field] as a smoothly shaded mesh.
 ///

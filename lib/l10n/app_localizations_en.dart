@@ -1828,6 +1828,34 @@ class AppLocalizationsEn extends AppLocalizations {
       'Navis can now use Deezer for top songs, artist photos and new releases. Review integrations.';
 
   @override
+  String get setupHighlightsCardTitle => 'New appearance options';
+
+  @override
+  String get setupHighlightsCardBody =>
+      'Color styles, corner style, Now Playing background and more. Try them in Quick Customization.';
+
+  @override
+  String get setupHighlightsCardDismiss => 'Dismiss';
+
+  @override
+  String get settingsAppearanceNewOptionsSemantics => 'Has new options';
+
+  @override
+  String get appearanceSectionTheme => 'Theme';
+
+  @override
+  String get appearanceSectionColor => 'Color';
+
+  @override
+  String get appearanceSectionShapeLayout => 'Shape & Layout';
+
+  @override
+  String get appearanceSectionNowPlaying => 'Now Playing';
+
+  @override
+  String get newFeatureTagSemantics => 'New option';
+
+  @override
   String get integrationsNoticeDismiss => 'Dismiss';
 
   @override
@@ -3309,6 +3337,37 @@ class AppLocalizationsEn extends AppLocalizations {
   String get appearanceThemeSystem => 'Auto';
 
   @override
+  String get appearanceColorStyleLabel => 'Color Style';
+
+  @override
+  String get appearanceColorStyleNeutral => 'Neutral';
+
+  @override
+  String get appearanceColorStylePastel => 'Pastel';
+
+  @override
+  String get appearanceColorStyleImmersive => 'Immersive';
+
+  @override
+  String get appearanceColorStyleNight => 'Night';
+
+  @override
+  String get appearanceColorStyleNeutralSub =>
+      'Neutral backgrounds. Color comes from your accent and album art.';
+
+  @override
+  String get appearanceColorStylePastelSub =>
+      'Soft pastel accents on gently tinted backgrounds.';
+
+  @override
+  String get appearanceColorStyleImmersiveSub =>
+      'Your accent color fills the backgrounds in deep, rich tones.';
+
+  @override
+  String get appearanceColorStyleNightSub =>
+      'Warm colors with less blue light, for evening listening.';
+
+  @override
   String get appearanceLanguageLabel => 'Language';
 
   @override
@@ -3322,15 +3381,15 @@ class AppLocalizationsEn extends AppLocalizations {
   String get appearanceLanguageEnglish => 'English';
 
   @override
-  String get appearanceColorSchemeLabel => 'Color Scheme';
+  String get appearanceColorSchemeLabel => 'Accent Color';
 
   @override
   String get appearanceColorSchemeSub =>
-      'Choose a seed color for the app\'s color palette.';
+      'Choose the accent color your color style is built from.';
 
   @override
   String get appearanceColorSchemeDynamicSub =>
-      'Selected colors are used when album art has no available accent.';
+      'Dynamic Album Color is on: album art replaces your accent when a cover has one.';
 
   @override
   String get appearanceColorDefault => 'Default';
@@ -3374,22 +3433,112 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
-  String get appearanceArtTintedLabel => 'Art-tinted Now Playing';
+  String get appearanceNowPlayingBackgroundLabel => 'Now Playing Background';
 
   @override
-  String get appearanceArtTintedSub =>
-      'Tint the Now Playing background with colours from the album art.';
+  String get appearanceNowPlayingBackgroundTinted => 'Art-Tinted';
+
+  @override
+  String get appearanceNowPlayingBackgroundArtwork => 'Artwork';
+
+  @override
+  String get appearanceNowPlayingBackgroundPlain => 'Plain';
+
+  @override
+  String get appearanceNowPlayingBackgroundTintedSub =>
+      'A soft gradient in the album art color, or one solid color when Flat Surfaces is on.';
+
+  @override
+  String get appearanceNowPlayingBackgroundArtworkSub =>
+      'The album art, blurred and veiled so text stays easy to read. Flat Surfaces uses one solid color instead.';
+
+  @override
+  String get appearanceNowPlayingBackgroundOledFlatNote =>
+      'With OLED and Flat Surfaces, Now Playing stays black.';
+
+  @override
+  String get appearanceNowPlayingBackgroundPlainSub =>
+      'The plain background of your theme, with no album color.';
+
+  @override
+  String get appearanceOledForAutoLabel => 'Use OLED When Dark';
+
+  @override
+  String get appearanceOledForAutoSub =>
+      'In Auto, use pure black instead of Dark when your device is in dark mode.';
+
+  @override
+  String get appearanceNightScheduleLabel => 'Night Schedule';
+
+  @override
+  String appearanceNightScheduleSub(Object start, Object end) {
+    return 'Switches the color style to Night from $start to $end. Theme mode stays as set.';
+  }
+
+  @override
+  String appearanceNightScheduleStartsAt(Object time) {
+    return 'Starts at $time';
+  }
+
+  @override
+  String appearanceNightScheduleEndsAt(Object time) {
+    return 'Ends at $time';
+  }
+
+  @override
+  String appearanceNightScheduleActiveNote(Object time) {
+    return 'Night is on until $time.';
+  }
+
+  @override
+  String get appearanceNightScheduleAlreadyNight =>
+      'Your color style is already Night.';
+
+  @override
+  String get appearanceNightScheduleSameTimes =>
+      'Pick different start and end times.';
+
+  @override
+  String get appearanceFlatSurfacesLabel => 'Flat Surfaces';
+
+  @override
+  String get appearanceFlatSurfacesSub =>
+      'Solid colors without glows, gradients, shadows or blur. Now Playing Artwork becomes a solid color.';
+
+  @override
+  String get appearanceCornerStyleLabel => 'Corner Style';
+
+  @override
+  String get appearanceCornerStyleRounded => 'Rounded';
+
+  @override
+  String get appearanceCornerStyleSoft => 'Soft';
+
+  @override
+  String get appearanceCornerStyleSquare => 'Square';
+
+  @override
+  String get appearanceCornerStyleRoundedSub =>
+      'Gently rounded cards and pill buttons.';
+
+  @override
+  String get appearanceCornerStyleSoftSub =>
+      'Larger, softer corners on cards, buttons and sheets.';
+
+  @override
+  String get appearanceCornerStyleSquareSub =>
+      'Crisp corners on cards, buttons and chips.';
+
+  @override
+  String get appearanceCornerStyleArtworkNote =>
+      'Artwork follows Artwork Shape.';
 
   @override
   String get appearanceDynamicAlbumColorLabel => 'Dynamic Album Color';
 
   @override
-  String get appearanceDynamicAlbumColorEnabledSub =>
-      'Album art is currently overriding the selected color when artwork is available.';
-
-  @override
-  String get appearanceDynamicAlbumColorDisabledSub =>
-      'Use the currently playing album art to theme app accent colors.';
+  String get appearanceDynamicAlbumColorSub =>
+      'Album art replaces your accent when a cover has one.';
 
   @override
   String get cacheSettingsCoverArtSection => 'Cover Art Cache';
@@ -3786,7 +3935,11 @@ class AppLocalizationsEn extends AppLocalizations {
   String get appearanceGridDensityAuto => 'Auto';
 
   @override
-  String get appearanceCoverArtShapeLabel => 'Cover Art Shape';
+  String get appearanceCoverArtShapeLabel => 'Artwork Shape';
+
+  @override
+  String get appearanceCoverArtShapeNote =>
+      'Cards and buttons follow Corner Style.';
 
   @override
   String get appearanceCoverArtShapeSubLabel => 'Library & Carousel Art';
@@ -3819,17 +3972,17 @@ class AppLocalizationsEn extends AppLocalizations {
   String get appearanceHomeSectionsLabel => 'Home Sections';
 
   @override
-  String get appearanceHomeDensityLabel => 'Home Density';
+  String get appearanceDensityLabel => 'Density';
 
   @override
-  String get appearanceHomeDensitySub =>
-      'Choose spacing style for Home cards and lists.';
+  String get appearanceDensitySub =>
+      'Spacing for Home, track lists, playlists and artist lists.';
 
   @override
-  String get appearanceHomeDensityComfortable => 'Comfortable';
+  String get appearanceDensityComfortable => 'Comfortable';
 
   @override
-  String get appearanceHomeDensityCompact => 'Compact';
+  String get appearanceDensityCompact => 'Compact';
 
   @override
   String get desktopNavbarSectionLabel => 'Desktop Navigation';
@@ -3838,10 +3991,10 @@ class AppLocalizationsEn extends AppLocalizations {
   String get desktopNavbarStyleLabel => 'Navigation Style';
 
   @override
-  String get desktopNavbarStyleComfortable => 'Comfortable';
+  String get desktopNavbarStyleWide => 'Wide';
 
   @override
-  String get desktopNavbarStyleCompact => 'Compact';
+  String get desktopNavbarStyleNarrow => 'Narrow';
 
   @override
   String get desktopNavbarStyleIcons => 'Icons';
@@ -5179,10 +5332,13 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get onboardingAppearanceDescription =>
-      'Pick a theme and accent. You can change both later in Appearance settings.';
+      'Choose your theme, style, accent and layout. You can change them later in Appearance settings.';
 
   @override
-  String get onboardingAccentColor => 'Accent color';
+  String get onboardingMoreAppearanceOptions => 'More appearance options';
+
+  @override
+  String get onboardingAccentColor => 'Accent Color';
 
   @override
   String get onboardingAppearanceColorPickerHint =>

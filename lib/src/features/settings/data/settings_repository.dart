@@ -1,11 +1,15 @@
 import 'dart:convert';
 
-import 'package:navis/src/features/player/domain/playback_adjustments.dart';
+import 'package:drift/drift.dart' show Value;
 
 import 'package:navis/src/database/daos/app_settings_dao.dart';
 import 'package:navis/src/database/navis_database.dart';
+import 'package:navis/src/features/player/domain/playback_adjustments.dart';
 import 'package:navis/src/features/settings/domain/app_settings.dart';
+import 'package:navis/src/features/settings/domain/navis_density.dart';
+import 'package:navis/src/features/settings/domain/now_playing_background.dart';
 import 'package:navis/src/routing/content_layout.dart';
+import 'package:navis/src/theme/navis_corner_style.dart';
 
 class SettingsRepository {
   new(this._dao);
@@ -46,12 +50,19 @@ class SettingsRepository {
       customDownloadFolderEnabled: settings.customDownloadFolderEnabled,
       customDownloadFolderPath: settings.customDownloadFolderPath,
       themeMode: settings.themeMode,
+      colorStyle: settings.colorStyle,
+      oledForAuto: settings.oledForAuto,
+      nightScheduleEnabled: settings.nightScheduleEnabled,
+      nightScheduleStartMinutes: settings.nightScheduleStartMinutes,
+      nightScheduleEndMinutes: settings.nightScheduleEndMinutes,
+      flatSurfaces: settings.flatSurfaces,
       colorSchemeSeed: settings.colorSchemeSeed,
       appLocale: settings.appLocale,
       crossfadeEnabled: settings.crossfadeEnabled,
       crossfadeDurationSeconds: settings.crossfadeDurationSeconds,
       crossfadeType: settings.crossfadeType,
-      artTintedNowPlaying: settings.artTintedNowPlaying,
+      nowPlayingBackground: settings.nowPlayingBackground.storageKey,
+      cornerStyle: settings.cornerStyle.name,
       dynamicAlbumColorEnabled: settings.dynamicAlbumColorEnabled,
       updateChannel: settings.updateChannel,
       syncIntervalMinutes: settings.syncIntervalMinutes,
@@ -74,7 +85,7 @@ class SettingsRepository {
       desktopLastAudibleVolume: sanitizeDesktopLastAudibleVolume(
         settings.desktopLastAudibleVolume,
       ),
-      homeDensity: settings.homeDensity,
+      homeDensity: settings.homeDensity.storageKey,
       homeSectionOrder: _encodeStringList(settings.homeSectionOrder),
       homeSectionsHidden: _encodeStringList(settings.homeSectionsHidden),
       libraryPageOrder: _encodeStringList(settings.libraryPageOrder),
@@ -84,9 +95,104 @@ class SettingsRepository {
       matchFlowEnabled: settings.matchFlowEnabled,
       likedQueueEnabled: settings.likedQueueEnabled,
     );
+    // Setup release markers are targeted-only, so a stale onboarding draft
+    // cannot overwrite acknowledgements or card dismissals.
     // Integration-owned columns (the policy columns, the legacy feature
     // columns, the Last.fm key and the ListenBrainz connection) are not part
     // of the full-row save; see AppSettingsDao.saveSettings.
+  }
+
+  /// Saves only setup choices changed from the snapshot captured at entry.
+  Future<void> saveOnboardingChanges(
+    AppSettingsModel initial,
+    AppSettingsModel draft,
+  ) async {
+    if (draft.themeMode != initial.themeMode) {
+      await _dao.updateThemeMode(draft.themeMode);
+    }
+    if (draft.colorStyle != initial.colorStyle) {
+      await _dao.updateColorStyle(draft.colorStyle);
+    }
+    if (draft.oledForAuto != initial.oledForAuto) {
+      await _dao.updateOledForAuto(enabled: draft.oledForAuto);
+    }
+    if (draft.flatSurfaces != initial.flatSurfaces) {
+      await _dao.updateFlatSurfaces(enabled: draft.flatSurfaces);
+    }
+    if (draft.cornerStyle != initial.cornerStyle) {
+      await _dao.updateCornerStyle(draft.cornerStyle.name);
+    }
+    if (draft.nowPlayingBackground != initial.nowPlayingBackground) {
+      await _dao.updateNowPlayingBackground(
+        draft.nowPlayingBackground.storageKey,
+      );
+    }
+    if (draft.colorSchemeSeed != initial.colorSchemeSeed) {
+      await _dao.updateColorSchemeSeed(draft.colorSchemeSeed);
+    }
+    if (draft.wifiOnlyDownloads != initial.wifiOnlyDownloads) {
+      await _dao.updateWifiOnlyDownloads(enabled: draft.wifiOnlyDownloads);
+    }
+    if (draft.density != initial.density) {
+      await _dao.updateDensity(draft.density);
+    }
+    if (draft.nightScheduleEnabled != initial.nightScheduleEnabled ||
+        draft.nightScheduleStartMinutes != initial.nightScheduleStartMinutes ||
+        draft.nightScheduleEndMinutes != initial.nightScheduleEndMinutes) {
+      await _dao.updateNightSchedule(
+        enabled: draft.nightScheduleEnabled != initial.nightScheduleEnabled
+            ? draft.nightScheduleEnabled
+            : null,
+        startMinutes:
+            draft.nightScheduleStartMinutes != initial.nightScheduleStartMinutes
+            ? draft.nightScheduleStartMinutes
+            : null,
+        endMinutes:
+            draft.nightScheduleEndMinutes != initial.nightScheduleEndMinutes
+            ? draft.nightScheduleEndMinutes
+            : null,
+      );
+    }
+    await _dao.updateSetupListeningPreferences(
+      wifiMaxBitRate: draft.wifiMaxBitRate == initial.wifiMaxBitRate
+          ? const Value.absent()
+          : Value(draft.wifiMaxBitRate),
+      wifiFormat: draft.wifiFormat == initial.wifiFormat
+          ? const Value.absent()
+          : Value(draft.wifiFormat),
+      cellularMaxBitRate: draft.cellularMaxBitRate == initial.cellularMaxBitRate
+          ? const Value.absent()
+          : Value(draft.cellularMaxBitRate),
+      cellularFormat: draft.cellularFormat == initial.cellularFormat
+          ? const Value.absent()
+          : Value(draft.cellularFormat),
+      cachedPlaybackFirst:
+          draft.cachedPlaybackFirst == initial.cachedPlaybackFirst
+          ? const Value.absent()
+          : Value(draft.cachedPlaybackFirst),
+      scrobbleEnabled: draft.scrobbleEnabled == initial.scrobbleEnabled
+          ? const Value.absent()
+          : Value(draft.scrobbleEnabled),
+      gaplessEnabled: draft.gaplessEnabled == initial.gaplessEnabled
+          ? const Value.absent()
+          : Value(draft.gaplessEnabled),
+      crossfadeEnabled: draft.crossfadeEnabled == initial.crossfadeEnabled
+          ? const Value.absent()
+          : Value(draft.crossfadeEnabled),
+      crossfadeDurationSeconds:
+          draft.crossfadeDurationSeconds == initial.crossfadeDurationSeconds
+          ? const Value.absent()
+          : Value(draft.crossfadeDurationSeconds),
+      crossfadeType: draft.crossfadeType == initial.crossfadeType
+          ? const Value.absent()
+          : Value(draft.crossfadeType),
+      albumQueueEnabled: draft.albumQueueEnabled == initial.albumQueueEnabled
+          ? const Value.absent()
+          : Value(draft.albumQueueEnabled),
+      likedQueueEnabled: draft.likedQueueEnabled == initial.likedQueueEnabled
+          ? const Value.absent()
+          : Value(draft.likedQueueEnabled),
+    );
   }
 
   /// Writes only the custom Last.fm API key; null clears it. The full-row
@@ -144,6 +250,18 @@ class SettingsRepository {
   Future<void> updateIntegrationsNoticeDismissed({required bool dismissed}) =>
       _dao.updateIntegrationsNoticeDismissed(dismissed: dismissed);
 
+  /// Acknowledges one setup option through an atomic, targeted write.
+  Future<void> markSetupHighlightSeen(String key) =>
+      _dao.markSetupHighlightSeen(key);
+
+  /// Records the acknowledged setup release; null clears it.
+  Future<void> updateSetupHighlightsSeenRelease(String? release) =>
+      _dao.updateSetupHighlightsSeenRelease(release);
+
+  /// Records the dismissed setup invitation release; null clears it.
+  Future<void> updateSetupCardDismissedRelease(String? release) =>
+      _dao.updateSetupCardDismissedRelease(release);
+
   /// Records the outcome of a ListenBrainz token check without a full-row
   /// save, so a slow validation cannot overwrite switches changed meanwhile.
   /// A null [scrobblingEnabled] leaves the scrobbling switch as it is.
@@ -192,12 +310,21 @@ class SettingsRepository {
       customDownloadFolderEnabled: row.customDownloadFolderEnabled,
       customDownloadFolderPath: row.customDownloadFolderPath,
       themeMode: row.themeMode,
+      colorStyle: row.colorStyle,
+      oledForAuto: row.oledForAuto,
+      nightScheduleEnabled: row.nightScheduleEnabled,
+      nightScheduleStartMinutes: row.nightScheduleStartMinutes,
+      nightScheduleEndMinutes: row.nightScheduleEndMinutes,
+      flatSurfaces: row.flatSurfaces,
       colorSchemeSeed: row.colorSchemeSeed,
       appLocale: row.appLocale,
       crossfadeEnabled: row.crossfadeEnabled,
       crossfadeDurationSeconds: row.crossfadeDurationSeconds,
       crossfadeType: row.crossfadeType,
-      artTintedNowPlaying: row.artTintedNowPlaying,
+      nowPlayingBackground: NowPlayingBackground.parse(
+        row.nowPlayingBackground,
+      ),
+      cornerStyle: NavisCornerStyle.parse(row.cornerStyle),
       dynamicAlbumColorEnabled: row.dynamicAlbumColorEnabled,
       updateCheckEnabled: row.updateCheckEnabled,
       updateChannel: row.updateChannel,
@@ -226,7 +353,7 @@ class SettingsRepository {
       desktopLastAudibleVolume: sanitizeDesktopLastAudibleVolume(
         row.desktopLastAudibleVolume,
       ),
-      homeDensity: row.homeDensity,
+      homeDensity: NavisDensity.parse(row.homeDensity),
       homeSectionOrder: _decodeStringList(row.homeSectionOrder),
       homeSectionsHidden: _decodeStringList(row.homeSectionsHidden),
       libraryPageOrder: _decodeStringList(row.libraryPageOrder),
@@ -244,7 +371,21 @@ class SettingsRepository {
       externalIntegrationsEnabled: row.externalIntegrationsEnabled,
       disabledIntegrations: row.disabledIntegrations,
       integrationsNoticeDismissed: row.integrationsNoticeDismissed,
+      setupHighlightsSeen: _decodeStringSet(row.setupHighlightsSeen),
+      setupHighlightsSeenRelease: row.setupHighlightsSeenRelease,
+      setupCardDismissedRelease: row.setupCardDismissedRelease,
     );
+  }
+
+  Set<String> _decodeStringSet(String? raw) {
+    try {
+      final decoded = jsonDecode(raw ?? '[]');
+      return decoded is List
+          ? Set.unmodifiable(decoded.whereType<String>())
+          : const <String>{};
+    } on FormatException {
+      return const <String>{};
+    }
   }
 
   String? _encodeStringList(List<String>? values) {

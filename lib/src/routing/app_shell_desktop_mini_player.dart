@@ -331,6 +331,7 @@ class _DesktopMiniPlayerTightPlaybackState
             icon: const Icon(Icons.skip_previous_rounded),
           ),
         IconButton.filled(
+          style: NavisShapeData.circularIconButtonStyle,
           tooltip: playback.playing
               ? l10n.nowPlayingPause
               : l10n.nowPlayingPlay,

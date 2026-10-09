@@ -9,6 +9,7 @@ import 'package:navis/src/common_widgets/song_playback_indicator.dart';
 import 'package:navis/src/database/navis_database.dart';
 import 'package:navis/src/common_widgets/adaptive_track_row.dart';
 import 'package:navis/src/theme/artwork_shape.dart';
+import 'package:navis/src/theme/navis_density_scope.dart';
 
 class TrackListTile extends ConsumerWidget {
   const new({
@@ -56,17 +57,18 @@ class TrackListTile extends ConsumerWidget {
       songPlaybackIndicatorStateProvider(song.id),
     );
     final isSelected = playbackState.isSelected;
+    final cover = NavisDensityScope.of(context).listCover;
 
     final inactiveLeading = showAlbumArt
         ? SizedBox(
-            width: 48,
-            height: 48,
+            width: cover,
+            height: cover,
             child: CoverArtImage(
               coverArtId: song.coverArt,
               revision: song.coverArtRevision ?? 0,
               size: 80,
-              width: 48,
-              height: 48,
+              width: cover,
+              height: cover,
               shape: ArtworkShapeRole.cover,
               isExternalSource: song.isExternal,
               remoteSourceIndicatorPolicy: RemoteSourceIndicatorPolicy.hidden,
@@ -100,7 +102,7 @@ class TrackListTile extends ConsumerWidget {
       showAlbumColumn: showAlbumColumn,
       duration: song.duration,
       leading: leading,
-      leadingExtent: showAlbumArt ? 48 : 32,
+      leadingExtent: showAlbumArt ? cover : 32,
       leadingGap: horizontalTitleGap ?? 12,
       actionExtent: actionExtent,
       selected: isSelected,
@@ -108,9 +110,7 @@ class TrackListTile extends ConsumerWidget {
       actions: trailing,
       badge: badge,
       onTap: onTap,
-      padding:
-          contentPadding ??
-          const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      padding: contentPadding,
       onLongPress: onLongPress == null
           ? null
           : () {

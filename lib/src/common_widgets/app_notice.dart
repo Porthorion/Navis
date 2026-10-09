@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:material_ui/material_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:navis/l10n/app_localizations.dart';
+import 'package:navis/src/theme/navis_shape_data.dart';
 import 'package:navis/src/theme/motion_policy.dart';
 
 enum AppNoticeLevel { info, success, error }
@@ -230,6 +231,7 @@ class _NoticePill extends StatelessWidget {
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
     final isError = notice.level == AppNoticeLevel.error;
+    final shapes = NavisShapeData.of(context);
     final (icon, bgColor, fgColor) = switch (notice.level) {
       AppNoticeLevel.success => (
         Icons.check_circle_outline,
@@ -263,14 +265,18 @@ class _NoticePill extends StatelessWidget {
           child: Material(
             elevation: 8,
             shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(isError ? 22 : 999),
+              borderRadius: (isError
+                  ? shapes.scaledAll(22)
+                  : shapes.controlAll),
               side: isError
                   ? BorderSide(color: colorScheme.error.withValues(alpha: .55))
                   : BorderSide.none,
             ),
             color: bgColor,
             child: InkWell(
-              borderRadius: BorderRadius.circular(isError ? 22 : 999),
+              borderRadius: (isError
+                  ? shapes.scaledAll(22)
+                  : shapes.controlAll),
               onTap: isError ? null : onDismissed,
               child: Padding(
                 padding: const EdgeInsets.symmetric(

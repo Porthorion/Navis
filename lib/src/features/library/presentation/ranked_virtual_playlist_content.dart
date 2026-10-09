@@ -23,6 +23,7 @@ import 'package:navis/src/routing/desktop_layout.dart';
 import 'package:navis/src/routing/navigation_service.dart';
 import 'package:navis/src/theme/artwork_shape.dart';
 import 'package:navis/src/utils/catalog_source.dart';
+import 'package:navis/src/theme/navis_color_style_data.dart';
 
 /// A ranked virtual playlist page: artwork, title, a meta line, Play,
 /// Shuffle and Download, then numbered rows. The number is each track's
@@ -149,13 +150,19 @@ class RankedVirtualPlaylistContent extends ConsumerWidget {
             child: Container(
               key: ValueKey<String>('$keyPrefix-desktop-fade'),
               height: 28,
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  begin: Alignment.topCenter,
-                  end: Alignment.bottomCenter,
-                  colors: <Color>[colors.surfaceContainerHigh, colors.surface],
-                ),
-              ),
+              // Flat: a hard step to the solid end colour instead of a fade.
+              decoration: NavisColorStyleData.of(context).flat
+                  ? BoxDecoration(color: colors.surface)
+                  : BoxDecoration(
+                      gradient: LinearGradient(
+                        begin: Alignment.topCenter,
+                        end: Alignment.bottomCenter,
+                        colors: <Color>[
+                          colors.surfaceContainerHigh,
+                          colors.surface,
+                        ],
+                      ),
+                    ),
             ),
           ),
         SliverToBoxAdapter(

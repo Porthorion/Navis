@@ -633,14 +633,240 @@ target-selection rules.
 
 ### Theme and design tokens (`lib/src/theme/`)
 
+- Schema 97 adds `app_settings.now_playing_background`: `tinted` (default),
+  `artwork` or `plain`. The guarded 92→97 migration maps the retained legacy
+  `art_tinted_now_playing` boolean to `tinted`/`plain`. The enum model field and
+  `nowPlayingBackgroundProvider` are authoritative. The retained boolean is
+  only a historical migration source: active writes, full saves and resets do
+  not update it, and there is no legacy model field, provider or DAO writer.
+  Appearance uses the production DAO's targeted writers consistently;
+  SettingsRepository maps and saves the typed model and onboarding changes.
+- App-wide Density covers Home and lists using the existing `home_density`
+  column, with `comfortable` (default) or `compact`. `densityProvider` exposes
+  `NavisDensity`; the model's `homeDensity` is typed too. Home reads the same
+  provider directly, with no string provider or legacy DAO writer.
+  Unknown stored values and unloaded settings use the defaults. The background
+  choice joins the setup highlights registry for 1.4.3; Density
+  is a renamed existing setting (it also tightens playlists and artist lists)
+  and has no New tag. Both appear in diagnostics.
+- Now Playing Background (`now_playing_screen.dart`, `now_playing_artwork_background.dart`):
+  Art-Tinted is the existing tint/gradient (solid under Flat). Plain is the
+  theme `surface` (black in OLED). Artwork decodes the standard 600 px cover
+  through the shared `coverArtImageProviderFor` source resolver at 96 px
+  (`ResizeImage`). Permanent downloaded artwork works offline; connected
+  refreshes use the cover revision in the existing cache manager key. The layer
+  blurs the cover (sigma 32, `ImageFiltered` inside a `RepaintBoundary`, not a
+  backdrop filter), lays `NavisColorStyleData.nowPlayingArtworkVeil` over it
+  (adaptive: the smallest alpha keeping both `onSurface` and the accent-coloured
+  title at 5.0:1 against the shared cover field's usable-cell average (from
+  `coverColourFieldProvider((id, revision))`), within dark 0.30-0.80, OLED
+  0.72-0.92 so it still reads as OLED, and light 0.58-0.88; fixed
+  0.68/0.8/0.68 until the average is known) and adds a 0.15 veil over the
+  bottom fifth. The previous cover stays until the next one
+  decodes, then crossfades over `MotionPolicy.surface`. Cover-id art reuses
+  the worker's field instead of reading bitmap pixels on the UI isolate;
+  radio/URL art retains its thumbnail bitmap average. The decode listener
+  disposes every received image handle, including stale callbacks. Failed source
+  keys are remembered by the layer and reported to the screen after the frame,
+  selecting Art-Tinted without retrying on position rebuilds. A new source or
+  revision can resolve again. Flat has no blur, so
+  Artwork falls back to the Flat solid tint (OLED + Flat stays black); radio or
+  external art uses the same allowed-artwork path as the tint, and with no
+  image Artwork falls back to the tinted look. Tint extraction only runs when a
+  tint is drawn. While the Artwork layer is shown, the split-layout lyrics
+  and right panes, the embedded queue sheet and the wide side-panel sheets
+  paint a translucent veil (`nowPlayingArtworkVeilBase` at 0.45) instead of
+  an opaque surface so the art stays visible: `NowPlayingArtworkLayerScope`
+  (`now_playing_artwork_scope.dart`) is set around the Now Playing body and
+  panels read it through `nowPlayingArtworkPanelFill`. Without the layer, and
+  under Flat, they stay opaque. The adaptive veil keeps `onSurface`,
+  `onSurfaceVariant` and the accent title at 5.0:1. In OLED the Art-Tinted
+  gradient's top colour is capped at HCT tone 10, and with OLED + Flat the
+  Now Playing Background selector notes that Now Playing stays black.
+- Density is provided by `NavisDensityScope` (`navis_density_scope.dart`,
+  placed in `MaterialApp.builder` from `densityProvider`). List rows read
+  `NavisDensityScope.of(context)`; without a scope they are Comfortable.
+  Compact: `AdaptiveTrackRow` min height 64→52 and vertical padding 8→4 (an
+  explicit `minHeight`/`padding`/`leadingExtent` still wins), track covers
+  48→40 (`TrackListTile`, `AdaptiveTrackHeader` leading width follows), library
+  playlist rows 48→40 covers with dense `ListTile`, artist list rows 40→36
+  covers with dense `ListTile`; Home keeps reading the same value. Row action
+  buttons keep their 48 px targets.
+
 - `navis_theme.dart`: `buildLightTheme`, `buildDarkTheme` and
-  `buildOledTheme` each choose a `ColorScheme` from the user's seed (or the
-  dynamic album colour) and delegate to one shared builder. Typography,
-  component themes and theme extensions are defined only in that builder.
-  OLED differences are expressed there as surface overrides.
+  `buildOledTheme` take the user's seed (or the dynamic album colour) and a
+  colour style, get a `ColorScheme` from `buildStyledColorScheme`, and
+  delegate to one shared builder. Typography, component themes and theme
+  extensions are defined only in that builder. `NavisApp` constructs only the
+  active brightness/OLED variant and reuses a per-app eight-entry LRU cache
+  (`NavisThemeCache`) keyed by seed, brightness, OLED, style, Flat and corners.
+  Unrelated settings rebuilds reuse complete themes; new album seeds build
+  only the visible variant, and switching back can reuse a cached theme.
+  OLED cards, dialogs and sheets
+  take their colours from the scheme's container roles, whose chroma styled
+  schemes cap at 2 so they read black-ish. OLED chrome is true black: the
+  phone mini player, desktop sidebar and desktop player bar are `surface`
+  (`#000000`) with a hairline `outlineVariant` separator like the navigation
+  bar, never a tinted container.
+- Colour styles (`navis_color_style.dart`, `navis_style_schemes.dart`,
+  `navis_color_style_data.dart`) are a second axis next to the theme mode:
+  Neutral, Pastel, Immersive and Night each work with Light, Dark, OLED and
+  Auto.
+  - Stored in `app_settings.color_style` (schema 97) as `neutral`, `pastel`,
+    `immersive` or `night`; fresh installs, upgraded rows and resets use
+    `neutral`. `colorStyleProvider` resolves it through
+    `NavisColorStyle.parse`, which falls back to Neutral while settings load
+    or for unknown values.
+  - Schema 97 also persists `oled_for_auto`, `night_schedule_enabled`,
+    `night_schedule_start_minutes`, `night_schedule_end_minutes` and
+    `flat_surfaces`. Fresh installs, upgrades and resets disable all three
+    switches and use a 22:00–07:00 Night window; DAO writes clamp minutes to
+    0–1439. Targeted updates preserve the other appearance settings.
+    `oledForAutoProvider`, `flatSurfacesProvider` and `nightScheduleProvider`
+    expose these settings with the same defaults while settings load.
+  - `effectiveColorStyleProvider` overrides the user's style with Night inside
+    the enabled local-time window, including windows spanning midnight. The
+    start is inclusive, the end exclusive, and equal times never activate.
+    An overrideable `nowProvider` and a disposable boundary timer, capped at
+    fifteen minutes, recheck wall time after suspend without changing the saved
+    style. Resume invalidation in `app.dart` remains in place. `app.dart`
+    uses this effective style and selects OLED for Auto's dark theme when
+    `oledForAuto` is enabled. `flatSurfacesProvider` drives Flat rendering.
+  - Flat (`flatSurfacesProvider`, `NavisColorStyleData.flat`) is orthogonal to
+    theme mode and colour style: it removes depth effects so the style's solid
+    colours read stronger. `app.dart` passes it to `buildLightTheme`,
+    `buildDarkTheme` and `buildOledTheme`, which record it in the extension and
+    make `ColorScheme.shadow`, `ThemeData.shadowColor` and the OLED dialog
+    shadow transparent. Under Flat: the Home cover wash is one solid block. On
+    phones (`phoneCompact`, not desktop) the You Might Like wash is a
+    full-bleed, hard-edged colour band (`_ShowcaseFlatBand`) that wraps the
+    carousel, title lines and page dots with `NavisSpace.lg` vertical padding,
+    so its height follows the content; its fill is
+    `captionTintFor(average, style).fill` (the adapted cover average, with the
+    grey chroma floor applied to the sample first and its HCT tone clamped by
+    `flatBandSample` to 16-30 in dark themes, 6-10 in OLED (still tinted,
+    near black; `NavisColorStyleData.oled`) or 82-92 in light ones, so a
+    light cover never paints a bright block on a dark page) and the title, artist, meta
+    and page-dot colours come from the same tint, all gliding together when
+    the cover changes. On desktop the pager is the same band as one rounded
+    (`NavisRadius.xl`) solid panel (`_ShowcaseFlatBand` with `borderRadius`)
+    flush with the section's content column and wrapping the cover, track
+    list and thumbnail strip with `NavisSpace.md` padding on every side; the
+    pages draw no card of their own inside it and its content is re-themed
+    from the same tint (`_flatPanelTheme`), so text, icons and Play/Shuffle
+    keep at least 4.5 contrast. The tablet card keeps the adapted average of
+    the cover colour field at `1 - artWashVeil` over the
+    page background; art-tinted Now Playing is one solid colour (adapted tint
+    at `nowPlayingTintAlpha` over `surface`, see
+    `nowPlayingSurfaceDecoration`) and plain `surface` when the art tint is
+    off; decorative gradients become their solid end colour; hand-drawn drop
+    shadows and the seek-preview blur are dropped for opaque container fills.
+    Exceptions that stay: the desktop/tablet Home wash is a rounded panel
+    (`NavisRadius.xl`) inset to the 16 px content margins, and a wash colour with HCT chroma
+    below 6 (grey covers) takes 25% of `secondaryContainer` into the raw sample
+    before adaptation, through `styledCoverSample` shared by wash and band;
+    coloured samples are adapted once; OLED + Flat Now Playing is plain
+    `surface` (black), never the solid tint (`NavisColorStyleData.oled`, set by `buildOledTheme`); the legibility
+    gradients behind white text over artwork stay under Flat (see
+    `NavisColorStyleData.artworkScrim` below).
+    Kept deliberately: the shimmer animation, the scroll-edge fade mask
+    (`quick_panel.dart`; it signals scrollable overflow) and focus/selection
+    styling.
+  - Neutral reproduces the original schemes (`tonalSpot` light, `fidelity`
+    dark, black OLED overrides) except that dark and OLED primary, secondary
+    and tertiary containers in a warm hue (`isWarmHue`, reds through olive)
+    in the muddy band are replaced by the same hue at chroma 20; cool hues
+    and `errorContainer` are left alone. The other styles use hand-built
+    role tables over HCT instead of Material's fixed tone table.
+  - Rules every styled scheme keeps, enforced by
+    `test/src/theme/navis_style_schemes_test.dart`: containers and surfaces
+    never sit at tone 25–50 with chroma above 24 (the brick-red and olive
+    "mud" the `fidelity` scheme produces from saturated covers); dark tones
+    rotate yellow hues away from khaki; OLED backgrounds stay `#000000`;
+    text and control pairs meet contrast minimums.
+  - A seed with almost no chroma (the default white) gets the sea-glass hue
+    (190°) in Pastel and Immersive. Pastel's dark backgrounds put warm
+    accents on a plum base, and its light paper (tone 95, chroma up to 12,
+    gamut-capped) shifts warm hues up to 25° toward peach so the tint stays
+    visible; Night moves accents into the rose-to-amber range.
+  - `NavisColorStyleData` (a ThemeExtension) adapts colours sampled from
+    artwork for the Home cover wash and the Now Playing tint, sets their veil
+    and tint opacity, and supplies the `success` colour. Artwork itself and
+    text drawn over artwork are never restyled.
+    - `adaptArtColor` follows each style's no-mud logic on dark and OLED
+      schemes. Pastel rotates warm hues toward its plum dusk
+      (`pastelDuskHue`, 60% blend, up to 85% for yellows) so an orange cover
+      reads rose or plum, not terracotta. Immersive keeps the hue but caps warm
+      chroma at 22 below tone 35 (wine or mahogany, not brown; yellows still go
+      through `mudGuardHue`). Night's umber is intended and unchanged. Neutral
+      returns the raw colour.
+    - `artworkScrim` is the colour of the black gradients behind white text
+      over artwork (artist hero, Home showcase, hero, playlist and album
+      cards, the album title shadow): Neutral `#000000`; Pastel a deep plum
+      (dusk hue, tone 7, chroma 10); Immersive the accent hue (tone 6, chroma
+      12); Night umber (tone 6, chroma 10). Alphas and stops are unchanged and
+      text stays white. `ArtworkScrim` (`artwork_scrim.dart`) draws it. The
+      former Flat caption-band experiment and its provider were removed.
+    - Light styled schemes put `surfaceContainerLow` (bottom sheets, cards),
+      `surfaceContainer` (popup menus) and `surfaceContainerHigh` (dialogs)
+      3, 5 and 7 tone steps below the tinted paper so raised surfaces stay
+      distinct from the page.
+  - Appearance and onboarding pick a style with `ColorStyleSelector`, whose
+    tiles are painted from each style's real scheme (their inner radii follow
+    Corner Style); the accent grid fills each swatch with the accent the selected style
+    will use (a pastel box under Pastel) and shows the raw seed as a small inner
+    dot, so Night's near-identical accents stay distinguishable. Light Pastel's `primaryContainer` is about
+    1.2:1 against raised surfaces, so the mini player's and Now Playing's main
+    Play use `primary`/`onPrimary` there (`NavisColorStyleData.solidPlayButton`);
+    other styles are unchanged. Flat also drops the album-card caption fade
+    for a solid `CaptionTint.fill` block, the selected-swatch glow and the
+    anchored popover's black shadow.
+  - Decision record:
+    [decisions/2026-10-07-colour-styles.md](decisions/2026-10-07-colour-styles.md).
+  - Settings › Appearance (`appearance_settings_screen.dart`) has four
+    sections under one `AppearanceHeading` (`appearance_layout.dart`):
+    Theme (Theme Mode, Use OLED When Dark in Auto only, Night Schedule),
+    Color (Color Style, Accent Color, then Dynamic Album Color directly under
+    the accent grid, whose note names the switch), Shape & Layout (Flat
+    Surfaces, Corner Style, Artwork Shape with its three selectors, Artwork
+    Size, Density, Artist View Mode) and Now Playing (Now Playing Background).
+    Home Sections, Page Visibility and Desktop Navigation stay collapsed
+    below. Night Schedule shows its explanation while off and the time pills
+    while on; with Night as the chosen style the switch is locked off and says
+    so. `app.dart` re-checks the scheduled style when the app resumes.
+  - Settings and setup share the option widgets and one `AppearanceOptionSet`
+    (`appearance_options.dart`), whose `AppearanceOptionKind` order (OLED,
+    Night Schedule, Flat Surfaces, Corner Style, Density, Now Playing
+    Background) is the relative order in both places. `AppearanceLayout`, an
+    inherited widget, gives every shared control its left gutter (16 in
+    Settings, 0 in setup) so headings and controls share one edge.
 - `navis_tokens.dart`:
   - `NavisSpace` and `NavisRadius` are compile-time spacing and radius
     scales.
+  - Corner Style: `NavisCornerStyle` (`rounded` default, `soft`, `square`) is
+    persisted in `app_settings.corner_style` (schema 97). The guarded 92→97
+    migration defaults existing rows to `rounded`. `SettingsRepository`
+    saves it through `updateCornerStyle` or `saveSettings`; `cornerStyleProvider`
+    derives it from `appSettingsProvider`, falling back to `rounded` while
+    loading or on error. It is watched in `app.dart` and passed as `corners:`
+    to the three theme builders. `NavisShapeData` (a ThemeExtension,
+    `NavisShapeData.of(context)`) carries the xs..xl radii and the control
+    (button/chip/indicator) corner; component themes and
+    `NavisTokens.panelRadius` (the style's `xl`) are built from it, and
+    `rounded` leaves Material defaults unset except `menuTheme`, which encodes
+    the 4 px shape Material renders today. Soft is distinct from Rounded: 14 px
+    rounded-rectangle controls (not pills), `xl` 32 for dialogs and sheets and
+    1.5x steps elsewhere; Square uses 4 px controls. Soft and Square add an
+    `iconButtonTheme` shaped by `controlShape`, `menuTheme` (md) and
+    `snackBarTheme` (sm); play, shuffle, transport and mini-player buttons pass
+    `NavisShapeData.circularIconButtonStyle` (or `CircleBorder`) to stay round. Artwork keeps following Artwork Shape. Users choose it in Settings > Appearance
+    (Shape & Layout, after Flat Surfaces, via `CornerStyleOption`) and on the
+    setup Appearance step under "More appearance options". The setup preview
+    theme uses the draft's color style, Flat Surfaces and Corner Style.
+    Screens read radii through `NavisShapeData.of(context)` (named steps,
+    `controlAll` for badges/tags, `scaled(n)` for one-off literals that must
+    stay identical in `rounded`); circles, dots, drag handles, skeletons and
+    painter internals keep fixed radii.
   - `NavisTokens` is a ThemeExtension for theme-dependent values: frame widths,
     hover/focus opacity, and colour roles `ColorScheme` lacks: the quiet
     warning container and the `success` foreground for completed or
@@ -650,7 +876,7 @@ target-selection rules.
     `circle`) and the artwork's rendered size to corners with
     `artworkBorderRadius`: rounded is 4 below 40 px, 8 below 96 px and 12
     otherwise, so row thumbnails and cards share one look. `ArtworkShapeRole`
-    names the setting a surface follows (Cover Art Shape for album, song and
+    names the setting a surface follows (Artwork Shape for album, song and
     playlist art, Now Playing Art Shape, Artist Card Shape), and
     `artworkShapeProvider(role)` reads it. `CoverArtImage(shape: role)`
     shapes itself from its width and height; surfaces that clip or decorate
@@ -687,6 +913,14 @@ target-selection rules.
 - Decision record:
   [decisions/2026-09-30-design-foundation.md](decisions/2026-09-30-design-foundation.md).
 
+Shared utility ownership: `utils/semver.dart` parses and compares release cores
+for changelog/setup discovery and update selection, accepting leading `v`,
+build and label suffixes. `captionContrast` owns WCAG contrast maths for
+captions, veils and theme brand roles (the latter compare raw RGB as before).
+`NightSchedule` owns Dart schedule defaults; Drift table defaults retain their
+SQL literals. `NavisShapeData.xl` owns panel radii, including desktop panels and
+anchored popovers; `NavisTokens` no longer duplicates that shape value.
+
 ### Home: You Might Like
 
 `you_might_like_widgets.dart` (a part of `home_screen.dart`) renders the
@@ -711,10 +945,10 @@ recommendation showcase.
 header adds the same reason line and a compact Play/Shuffle pair.
 
 **Colour wash (`_ShowcaseColourWash`, both layouts):**
-- `coverColourFieldProvider` (`cover_colour_field.dart`) decodes the cached
-  600 px cover at 24 px (same URL and cache key as the cards, so no new
-  request), averages it into a 3×3 colour grid, and keeps the result in a
-  64-entry LRU.
+- `coverColourFieldProvider` returns a cover's 3×3 colour grid from the
+  app-wide `CoverColourSampler` (see "Cover colour sampling" below). It only
+  reads a cover that is already on the device and retries a missing one a few
+  times (1, 2, 4 s) while the wash is watching it.
 - `CoverColourFieldPainter` draws the grid as a vertex-coloured mesh
   (`Canvas.drawVertices`). The GPU shades it smoothly at any width, where a
   stretched thumbnail pixelates on wide displays. The mesh overscans its box
@@ -723,6 +957,88 @@ header adds the same reason line and a compact Play/Shuffle pair.
   desktop), so it needs no offscreen layer while idle.
 - Changing covers interpolates the nine colours over 400 ms; reduced motion
   switches instantly.
+
+**Cover colour sampling (`cover_colour_sampler.dart`).** Shared by this wash
+and the cover-tinted album-card caption, the shared design for all album
+cards. Titles and subtitles sit over a fade into a colour sampled from the
+cover's bottom edge, with fill and text adjusted for 4.5:1 contrast. Until the
+tint is known, and for cards without a cover-art id (including external album
+cards), the caption falls back to the page-background fade and scheme text
+colours. Cards remain square in grids and rails. Each caption has its own
+`RepaintBoundary`; a lone tint on an idle list fades in, while bursts and
+arrivals during scrolling apply instantly. Sampling is built so that scrolling
+never pays for it:
+- *Sampling gate.* `AlbumCard` passes `CoverArtImage.onImageReady` to its
+  `AlbumCardLabel` as `coverReady`, so a card samples only after the same
+  visibility and load-window logic that loads its artwork has shown the
+  cover. It waits `kCoverTintSettleDelay` (150 ms) built and idle before
+  requesting. The existing `isScrollingNotifier` cancels that one-shot wait
+  when scrolling starts and schedules it when scrolling stops; there is no
+  per-card polling timer. Flutter's deferred-loading recommendation remains
+  a final check before sampling. Cards that fly past never request. Known
+  colours are read synchronously from `peekCoverColourField` on the first frame.
+- *Local files only.* `decodeLocalCoverColour` reads the permanent artwork
+  store file or the rolling-cache file (`getFileFromCache`) and decodes it
+  natively at 24 px (`ImmutableBuffer.fromFilePath`, `ImageDescriptor`,
+  `targetWidth/Height`). The decode bypasses `PaintingBinding.imageCache`, so
+  tiny tint images never evict real artwork. Remote cache lookup tries the
+  sizes the showcase actually loads: 600 px for album cards/heroes, 480/420
+  px for playlist mosaics, then 96 px for the mini-cover strip. It never
+  fetches; a cover not on the device yields null. A nonzero revision samples
+  only that revision's remote cache key, so an older permanent copy cannot
+  be recorded as the refreshed artwork.
+- *Off the UI isolate.* `CoverColourWorker` (`cover_colour_worker.dart`) is a
+  long-lived worker isolate, started on first use
+  (`coverColourWorkerProvider`; tests inject `InlineCoverColourWorker`). The
+  UI isolate only hands it the 2 KB RGBA buffer and receives plain ints. It
+  does the pixel averaging, the `captionTintFor` maths (HCT conversions and
+  tone search) and all persistence: read, merge, trim to 5000, encode and
+  atomic write of the colour file, debounced 2 s. A card derives its tint
+  through `resolveCaptionTint` (memoised in `caption_tint_resolver.dart`),
+  during dependency/widget changes and field subscription callbacks. Build
+  only renders the applied tint. Each applied tint resets its instant/fade
+  decision; queued results stay behind the frame dispatcher. Memo and card
+  dedupe keys contain only sampled ARGB, colour style and darkness; these are the only arguments
+  sent to the worker. Track-driven accent hue changes reuse the tint.
+- *Burst control.* Results reach cards through `FrameBudgetDispatcher`
+  (`frame_budget_dispatcher.dart`): at most three tint repaints start per
+  frame, the rest follow on later frames. A throwing callback rearms remaining
+  work in `finally`, while Flutter still reports the exception. A card also
+  never starts sampling
+  while its list is scrolling at all (`isScrollingNotifier`) or Flutter
+  recommends deferred loading.
+- *Bounded scheduling.* Each request tracks interest on a dedicated
+  `CoverArtLoadCoordinator` (`coverColourLoadCoordinatorProvider`, two active
+  slots, no critical reserve) under the key `tint:<cover cache key>`, then
+  acquires a slot. A decode still queued when its last card is gone is
+  cancelled by the coordinator's stale-interest logic. A separate instance is
+  used because the artwork coordinator's slots also gate real artwork
+  downloads, which tint decodes must never delay. Requests for one cover and
+  revision share one decode.
+- *Persistent cache.* Fields resolve from the memory LRU (512), then from
+  the worker's copy of `cover_colour_fields.bin` in the application support
+  directory (newest 5000 entries), then by decoding. The newest 512 entries
+  warm the memory LRU when the store opens. A file, not a Drift table: the
+  data is a disposable cache that needs no queries, relations or migration.
+  The file records a hash of the server URL and user name (never
+  credentials); another account reads as empty. Opening another scope also
+  clears the session-long worker map and pending dirty state before loading;
+  only fresh same-scope entries merge. The sampler resets the memory LRU and
+  its missing-art retry counts when the account changes. NCF2 stores the sampled
+  artwork
+  revision alongside each field; NCF1 files load with revision zero and are
+  upgraded on the next save.
+- *Lazy artwork refresh.* The provider takes `(coverId, revision)`, while
+  memory and disk retain one field per cover id. Album cards and the Home
+  album showcase pass the existing `coverArtRevision` from library metadata
+  to both artwork and sampling. A revision bump refreshes only when a visible
+  caller requests that cover, through the same settle/scroll gate, two-slot
+  coordinator, worker and frame-budgeted caption dispatcher. Unshown covers
+  do no work. The old field and derived caption tint remain visible until
+  their replacements are ready; an older in-flight decode cannot overwrite
+  a newer cached revision. Unchanged revisions reuse the field without file
+  stats or image decoding. URL-only external album cards have no Subsonic
+  cover id/revision and retain the existing caption fallback.
 
 Paging, auto-advance and the test/diagnostics keys
 `home-random-hero-carousel(-page-N)` are unchanged. The hero's items and
@@ -1015,6 +1331,69 @@ an unreadable marker, keeps the renewal pending until it can be resolved.
 Completion goes directly
 to versioned onboarding when it is required; otherwise it opens Home. Ordinary
 settings updates must not refresh the router.
+
+Setup update highlights live in `features/onboarding/domain/setup_highlights.dart`
+and `presentation/setup_highlights_provider.dart`. The registry selects the
+newest eligible release using the shared changelog semver helpers and package
+metadata, ignoring build and label suffixes. A newer highlight release replaces
+the group. Highlights survive the next minor release, then expire: the 1.4.x
+registry still applies in 1.5.x, but not in 1.6.0+ or a new major. The six options
+are Color Style, OLED for Auto, Night Schedule, Flat Surfaces, Now Playing
+Background and Corner Style; Density is an existing setting and has no New tag.
+
+Schema 97 persists nullable `setup_highlights_seen` (JSON array of stable
+`SetupHighlight.storageKey` values), `setup_highlights_seen_release` and
+`setup_card_dismissed_release`. Branch-only migrations 93–97 are consolidated
+into one guarded `from92To97`; every column guard allows partially upgraded
+93–96 installs to finish safely. Versions 91–92 remain unchanged. The legacy
+background backfill runs only when `now_playing_background` is newly added.
+
+`pendingSetupHighlightsProvider` subtracts seen options from the current release
+and is empty during loading, required onboarding, expiry, or after acknowledging
+that release (or a later one). `SetupHighlightsService.markOptionSeen(option)`
+atomically adds one key through the existing repository/DAO transaction; it is
+idempotent and preserves concurrent option acknowledgements. Unknown or malformed
+stored keys do not acknowledge other options. `setupHighlightsCardVisibleProvider`
+is hidden when pending is empty or the invitation was dismissed for this release.
+`dismissCard()` hides only the invitation. Finish in any mode calls `markSeen()`
+to clear all tags for the release; Skip calls it only for non-review setup that
+was required at hydration. Fresh installs suppress tags and acknowledge the
+release on first completion. All acknowledgement writes are targeted and excluded
+from full settings saves; defaults and resets clear them. The clone-only
+`POST /v1/presentation/setup-highlights/reset` clears the set and both release
+markers in a transaction; the integrations settings dump exposes all three.
+
+The look step shows the appearance options through the same callback-driven
+widgets as Settings › Appearance (`settings/presentation/appearance_options.dart`).
+Theme Mode, Color Style and Accent Color are always visible; a "More appearance
+options" group (`SettingsCollapsibleGroup`, children built only while open)
+holds Use OLED When Dark (Auto only), Night Schedule, Flat Surfaces, Corner
+Style, Density and Now Playing Background, in Settings' relative order. It
+starts open when any of them carries a pending tag (OLED only counts in Auto)
+and closed otherwise. The step shows the "Scroll for more" hint like the other
+steps. Choices write only to the draft that Finish
+saves through `SettingsRepository.saveOnboardingChanges`: it compares against
+the hydrated entry snapshot and uses existing targeted DAO writers, preserving
+unchanged fields written elsewhere meanwhile (including desktop volume). Custom
+presets and integration switches likewise write only when changed. The preview
+theme mirrors `app.dart`: OLED for OLED mode or Auto with
+OLED When Dark at dark platform brightness, and `flat:` from the draft. The
+night schedule never switches the preview by time. Options whose
+`SetupHighlight` is pending carry a `NewFeatureTag` (`common_widgets/`).
+`HighlightedAppearanceOption` wraps each tagged option in Settings and setup:
+once at least half of it has been on screen (a `VisibilityDetector`, once per
+screen visit) it calls `markOptionSeen`, so only options the user actually saw
+lose their tag on the next visit. Tags render from `AppearanceVisitScope`'s
+per-visit snapshot of the pending highlights (taken when the Appearance screen
+or setup step is entered, which also decides whether the setup expander opens),
+so a tag stays visible while the user is on the screen. Hidden options (OLED outside Auto, a closed expander) never
+mark. On Settings home `settingsHasNewOptionsProvider` tags the Appearance and
+Run Quick Customization rows ("Has new options"); OLED does not count while it
+is hidden. Home shows `SetupHighlightsCard` ("New appearance options")
+while `setupHighlightsCardVisibleProvider` is true. Tapping it opens the
+onboarding review without acknowledging anything; its close button only calls
+`dismissCard`. Home shows one notice: the Integrations notice, else the setup
+card, else the What's New row.
 
 When a successful required initial-library build or cache renewal immediately
 leads to onboarding, the rebuild route carries only an internal eligibility
@@ -1698,7 +2077,7 @@ and Subsonic delivery continues independently.
   and Updates except on iOS and web) with the same one-line description, and
   "Fine-tune per feature in Settings › Integrations". The choices live in the
   onboarding draft (`externalIntegrationsEnabled`, `disabledIntegrations`) and
-  are written on Finish, after the full-row `saveSettings`, through
+  are written only when changed on Finish, through
   `setExternalIntegrationsEnabled` and `setIntegrationEnabled` (service keys
   only; feature switches are untouched); Finish then writes
   `updateIntegrationsNoticeDismissed(dismissed: true)`. Skip writes nothing, so

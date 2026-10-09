@@ -88,10 +88,12 @@ class _DesktopPlayerBarState extends ConsumerState<_DesktopPlayerBar> {
     final repeatTooltip = repeat.tooltip;
     final repeatIcon = repeat.icon;
     final isRepeatActive = repeat.active;
-    final barColor = Color.alphaBlend(
-      colors.primary.withValues(alpha: 0.024),
-      colors.surfaceContainerLow,
-    );
+    final barColor = NavisColorStyleData.of(context).oled
+        ? colors.surface
+        : Color.alphaBlend(
+            colors.primary.withValues(alpha: 0.024),
+            colors.surfaceContainerLow,
+          );
 
     return DecoratedBox(
       decoration: BoxDecoration(

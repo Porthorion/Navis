@@ -15,8 +15,8 @@ import 'package:navis/src/features/settings/domain/app_settings.dart';
 import 'package:navis/src/providers/app_providers.dart';
 import 'package:navis/src/routing/desktop_layout.dart';
 import 'package:navis/src/routing/navigation_service.dart';
-import 'package:navis/src/theme/navis_tokens.dart';
 import 'package:navis/src/routing/app_routes.dart';
+import 'package:navis/src/theme/navis_shape_data.dart';
 
 class PlaybackSettingsScreen extends ConsumerStatefulWidget {
   const new({super.key});
@@ -497,11 +497,11 @@ class _PlaybackSettingsScreenState
     final theme = Theme.of(context);
     return Material(
       color: theme.colorScheme.surfaceContainerLow,
-      borderRadius: NavisRadius.mdAll,
+      borderRadius: NavisShapeData.of(context).mdAll,
       child: Column(
         children: <Widget>[
           InkWell(
-            borderRadius: NavisRadius.mdAll,
+            borderRadius: NavisShapeData.of(context).mdAll,
             onTap: () {
               setState(() {
                 _experimentalExpanded = !_experimentalExpanded;

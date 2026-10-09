@@ -18,6 +18,9 @@ import 'package:navis/src/routing/desktop_presentation_host.dart';
 import 'package:navis/src/theme/dynamic_accent_provider.dart';
 import 'package:navis/src/theme/navis_theme.dart';
 import 'package:navis/src/routing/navigation_service.dart';
+import 'package:navis/src/theme/corner_style_provider.dart';
+import 'package:navis/src/theme/navis_color_style.dart';
+import 'package:navis/src/theme/navis_density_scope.dart';
 
 /// Root application widget for Navis.
 class NavisApp extends ConsumerStatefulWidget {
@@ -39,14 +42,17 @@ class NavisApp extends ConsumerStatefulWidget {
   ConsumerState<NavisApp> createState() => _NavisAppState();
 }
 
-class _NavisAppState extends ConsumerState<NavisApp> {
+class _NavisAppState extends ConsumerState<NavisApp>
+    with WidgetsBindingObserver {
   bool _didScheduleBootstrap = false;
+  final _themeCache = NavisThemeCache();
   final ShortcutManager _desktopActivationShortcutManager =
       _DesktopActivationShortcutManager();
 
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     if (!widget.requirePlaybackBootstrap ||
         !widget.schedulePlaybackBootstrap ||
         _didScheduleBootstrap) {
@@ -62,6 +68,25 @@ class _NavisAppState extends ConsumerState<NavisApp> {
   }
 
   @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  void didChangePlatformBrightness() {
+    setState(() {});
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    // Android may delay the schedule timer while suspended.
+    if (state == AppLifecycleState.resumed) {
+      ref.invalidate(effectiveColorStyleProvider);
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
     final router = ref.watch(appRouterProvider);
     if (isDesktopRuntime) {
@@ -69,14 +94,45 @@ class _NavisAppState extends ConsumerState<NavisApp> {
       ref.listen(navigationHistoryProvider, (_, _) {});
     }
     final themeModeName = ref.watch(themeModeProvider);
+    final colorStyle = ref.watch(effectiveColorStyleProvider);
+    final oledForAuto = ref.watch(oledForAutoProvider);
+    final flat = ref.watch(flatSurfacesProvider);
+    final density = ref.watch(densityProvider);
+    final corners = ref.watch(cornerStyleProvider);
     final colorSeed = ref.watch(effectiveColorSchemeSeedProvider);
+    // With Dynamic Album Colour, styled schemes repaint backgrounds as well as
+    // accents on every track change, so they ease over a longer transition.
+    final themeAnimationDuration =
+        colorStyle != NavisColorStyle.neutral &&
+            ref.watch(dynamicAlbumColorEnabledProvider)
+        ? const Duration(milliseconds: 500)
+        : kThemeAnimationDuration;
     final localeCode = ref.watch(appLocaleProvider);
     final seedColor = resolveColorSchemeSeedColor(colorSeed);
     final resolvedThemeMode = resolveThemeMode(themeModeName);
-    final isOled = themeModeName == 'oled';
+    final isOled =
+        themeModeName == 'oled' || (themeModeName == 'system' && oledForAuto);
     final appLocale = localeCode == null || localeCode.trim().isEmpty
         ? null
         : Locale(localeCode);
+
+    final brightness = switch (resolvedThemeMode) {
+      ThemeMode.light => Brightness.light,
+      ThemeMode.dark => Brightness.dark,
+      ThemeMode.system =>
+        MediaQuery.maybePlatformBrightnessOf(context) ??
+            WidgetsBinding.instance.platformDispatcher.platformBrightness,
+    };
+    final theme = _themeCache
+        .resolve(
+          seed: seedColor,
+          brightness: brightness,
+          oled: brightness == Brightness.dark && isOled,
+          style: colorStyle,
+          flat: flat,
+          corners: corners,
+        )
+        .copyWith(splashFactory: widget.splashFactory);
 
     return MaterialApp.router(
       debugShowCheckedModeBanner: false,
@@ -85,12 +141,10 @@ class _NavisAppState extends ConsumerState<NavisApp> {
       localizationsDelegates: navisLocalizationsDelegates,
       supportedLocales: AppLocalizations.supportedLocales,
       locale: appLocale,
-      theme: buildLightTheme(seedColor)
-          .copyWith(splashFactory: widget.splashFactory),
-      darkTheme:
-          (isOled ? buildOledTheme(seedColor) : buildDarkTheme(seedColor))
-              .copyWith(splashFactory: widget.splashFactory),
+      theme: brightness == Brightness.light ? theme : null,
+      darkTheme: brightness == Brightness.dark ? theme : null,
       themeMode: resolvedThemeMode,
+      themeAnimationDuration: themeAnimationDuration,
       builder: (context, child) {
         var content = _wrapWithDesktopInputBoundary(
           child ?? const SizedBox.shrink(),
@@ -98,6 +152,7 @@ class _NavisAppState extends ConsumerState<NavisApp> {
         if (isDesktopRuntime) {
           content = DesktopPresentationHost(child: content);
         }
+        content = NavisDensityScope(density: density, child: content);
         if (widget.requirePlaybackBootstrap) {
           content = _AppBootstrapOverlay(
             onDismissed: widget.onBootstrapOverlayDismissed,

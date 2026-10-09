@@ -12,6 +12,8 @@ import 'package:navis/src/routing/content_layout.dart';
 import 'package:flutter/rendering.dart' show RenderAbstractViewport, RenderBox;
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:navis/src/features/onboarding/presentation/setup_highlights_card.dart';
+import 'package:navis/src/features/onboarding/presentation/setup_highlights_provider.dart';
 import 'package:navis/l10n/app_localizations.dart';
 import 'package:navis/src/api/models/listenbrainz_playlist.dart';
 import 'package:navis/src/api/models/models.dart';
@@ -71,6 +73,11 @@ import 'package:navis/src/theme/navis_tokens.dart';
 import 'package:navis/src/utils/catalog_source.dart';
 import 'package:navis/src/utils/external_url.dart';
 import 'package:navis/src/theme/artwork_shape.dart';
+import 'package:navis/src/theme/caption_tint.dart';
+import 'package:navis/src/theme/flat_band_tone.dart';
+import 'package:navis/src/theme/navis_color_style_data.dart';
+import 'package:navis/src/common_widgets/artwork_scrim.dart';
+import 'package:navis/src/theme/navis_shape_data.dart';
 
 export 'package:navis/src/features/home/domain/home_section_ids.dart';
 
@@ -274,16 +281,19 @@ class _ListenBrainzWeeklyDetailContentState
               ),
               Container(
                 height: 28,
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    begin: Alignment.topCenter,
-                    end: Alignment.bottomCenter,
-                    colors: <Color>[
-                      colors.surfaceContainerHigh,
-                      colors.surface,
-                    ],
-                  ),
-                ),
+                // Flat: a hard step to the solid end colour.
+                decoration: NavisColorStyleData.of(context).flat
+                    ? BoxDecoration(color: colors.surface)
+                    : BoxDecoration(
+                        gradient: LinearGradient(
+                          begin: Alignment.topCenter,
+                          end: Alignment.bottomCenter,
+                          colors: <Color>[
+                            colors.surfaceContainerHigh,
+                            colors.surface,
+                          ],
+                        ),
+                      ),
               ),
               Expanded(
                 child: CustomScrollView(
@@ -412,22 +422,38 @@ class _ListenBrainzWeeklyDetailContentState
               fit: StackFit.expand,
               children: <Widget>[
                 _ListenBrainzArtwork(playlist: playlist, size: screenWidth),
-                Positioned.fill(
-                  child: DecoratedBox(
-                    decoration: BoxDecoration(
-                      gradient: LinearGradient(
-                        begin: Alignment.topCenter,
-                        end: Alignment.bottomCenter,
-                        colors: <Color>[
-                          Colors.transparent,
-                          Colors.transparent,
-                          Theme.of(context).scaffoldBackgroundColor,
-                        ],
-                        stops: const <double>[0, 0.60, 0.85],
+                if (NavisColorStyleData.of(context).flat)
+                  // Flat: a hard-edged solid block under the title instead
+                  // of the fade into the page.
+                  Positioned.fill(
+                    child: Align(
+                      alignment: Alignment.bottomCenter,
+                      child: FractionallySizedBox(
+                        heightFactor: 0.4,
+                        widthFactor: 1,
+                        child: ColoredBox(
+                          color: Theme.of(context).scaffoldBackgroundColor,
+                        ),
+                      ),
+                    ),
+                  )
+                else
+                  Positioned.fill(
+                    child: DecoratedBox(
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          begin: Alignment.topCenter,
+                          end: Alignment.bottomCenter,
+                          colors: <Color>[
+                            Colors.transparent,
+                            Colors.transparent,
+                            Theme.of(context).scaffoldBackgroundColor,
+                          ],
+                          stops: const <double>[0, 0.60, 0.85],
+                        ),
                       ),
                     ),
                   ),
-                ),
                 Positioned(
                   bottom: 0,
                   left: 0,
@@ -440,13 +466,17 @@ class _ListenBrainzWeeklyDetailContentState
                         playlist.localizedTitle(AppLocalizations.of(context)!),
                         style: textTheme.displayMedium?.copyWith(
                           color: Colors.white,
-                          shadows: <Shadow>[
-                            Shadow(
-                              color: Colors.black.withValues(alpha: 0.55),
-                              blurRadius: 12,
-                              offset: const Offset(0, 2),
-                            ),
-                          ],
+                          shadows: NavisColorStyleData.of(context).flat
+                              ? null
+                              : <Shadow>[
+                                  Shadow(
+                                    color: NavisColorStyleData.of(context)
+                                        .artworkScrim
+                                        .withValues(alpha: 0.55),
+                                    blurRadius: 12,
+                                    offset: const Offset(0, 2),
+                                  ),
+                                ],
                         ),
                         textAlign: TextAlign.center,
                         maxLines: 2,
@@ -1107,8 +1137,11 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
     final compactHorizontalInset = compactWideLandscapeMode ? 10.0 : 0.0;
     final desktopRuntime = adaptiveContext.desktopRuntime;
     final desktopMode = adaptiveContext.useDesktopShell;
+    // Phones get a tighter header (about 40 px less than tablets) so more of
+    // You Might Like is visible; tablet portrait keeps the roomier one.
+    final phoneHeader = adaptiveLayoutClass == AdaptiveLayoutClass.phoneCompact;
     final useCustomHomePullRefresh = !desktopMode;
-    final homeDensity = ref.watch(homeDensityProvider);
+    final homeDensity = ref.watch(densityProvider).storageKey;
     final persistedOrder = ref.watch(homeSectionOrderProvider);
     final order = HomeSectionIds.resolveOrder(persistedOrder);
     final hidden = HomeSectionIds.resolveHidden(
@@ -1184,10 +1217,12 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
         else ...<Widget>[
           Padding(
             key: const ValueKey<String>('homeCenteredLogoHeader'),
-            padding: const EdgeInsets.fromLTRB(0, 48, 0, 14),
+            padding: phoneHeader
+                ? const EdgeInsets.fromLTRB(0, 16, 0, 4)
+                : const EdgeInsets.fromLTRB(0, 48, 0, 14),
             child: Center(
               child: _HomeSyncLogo(
-                size: 96,
+                size: phoneHeader ? 104 : 96,
                 pullProgress: useCustomHomePullRefresh ? _homePullProgress : 0,
                 showImmediateRefreshRing:
                     useCustomHomePullRefresh &&
@@ -1197,12 +1232,14 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
             ),
           ),
           const _HomeActionRow(variant: _HomeActionRowVariant.mobile),
-          const SizedBox(height: 10),
+          SizedBox(height: phoneHeader ? 4 : 10),
         ],
-        // The one-time Integrations notice takes the What's New row's place
-        // while it shows, so the two never stack.
+        // One notice at a time: the Integrations (privacy) notice first, then
+        // the setup invitation, then the What's New row.
         if (ref.watch(integrationsNoticeVisibleProvider))
           const IntegrationsNoticeCard()
+        else if (ref.watch(setupHighlightsCardVisibleProvider))
+          const SetupHighlightsCard()
         else
           const ChangelogDiscoveryCard(),
         const _UpdateBanner(),
@@ -1911,6 +1948,12 @@ bool _homeRandomShowcaseItemsVisuallyChanged(
               prior.songs.map((song) => song.id).toList(growable: false),
               incoming.songs.map((song) => song.id).toList(growable: false),
             ),
+      (
+        final HomeRandomShowcaseAlbum prior,
+        final HomeRandomShowcaseAlbum incoming,
+      ) =>
+        prior.coverArtId != incoming.coverArtId ||
+            prior.coverArtRevision != incoming.coverArtRevision,
       _ => false,
     };
     if (changed) {
@@ -2391,6 +2434,7 @@ class _DesktopRandomAlbumsPagerState
 
     final currentItem =
         _displayedAlbums[_currentPage.clamp(0, _displayedAlbums.length - 1)];
+    final flat = NavisColorStyleData.of(context).flat;
     final pager = Column(
       key: const ValueKey<String>('home-random-desktop-pager'),
       children: <Widget>[
@@ -2428,7 +2472,9 @@ class _DesktopRandomAlbumsPagerState
                       },
                       itemBuilder: (context, index) {
                         return Padding(
-                          padding: const EdgeInsets.symmetric(horizontal: 2),
+                          padding: EdgeInsets.symmetric(
+                            horizontal: flat ? 0 : 2,
+                          ),
                           child: KeyedSubtree(
                             key: ValueKey<String>(
                               _displayedAlbums[index].stableId,
@@ -2493,11 +2539,30 @@ class _DesktopRandomAlbumsPagerState
         ],
       ],
     );
+    // Flat: one rounded solid panel, flush with the section's content column
+    // (the heading's left edge), that contains the cover, the track list and
+    // the thumbnail strip with even NavisSpace.md padding. The pages draw no
+    // surface of their own inside it and read their colours from the panel.
+    if (NavisColorStyleData.of(context).flat) {
+      return _ShowcaseFlatBand(
+        coverArtId: _showcaseWashCoverId(currentItem),
+        coverArtRevision: _showcaseWashCoverRevision(currentItem),
+        borderRadius: NavisShapeData.of(context).xlAll,
+        builder: (context, tint) => Theme(
+          data: _flatPanelTheme(Theme.of(context), tint),
+          child: Padding(
+            padding: const EdgeInsets.all(NavisSpace.md),
+            child: pager,
+          ),
+        ),
+      );
+    }
     return Stack(
       children: <Widget>[
         Positioned.fill(
           child: _ShowcaseColourWash(
             coverArtId: _showcaseWashCoverId(currentItem),
+            coverArtRevision: _showcaseWashCoverRevision(currentItem),
             subtle: true,
           ),
         ),
@@ -2523,6 +2588,7 @@ class _DesktopRandomAlbumPage extends ConsumerWidget {
 
   Widget _albumPage(BuildContext context, HomeRandomShowcaseAlbum album) {
     final colors = Theme.of(context).colorScheme;
+    final flat = NavisColorStyleData.of(context).flat;
     return LayoutBuilder(
       builder: (context, constraints) {
         final pageHeight = constraints.maxHeight.isFinite
@@ -2540,24 +2606,15 @@ class _DesktopRandomAlbumPage extends ConsumerWidget {
                 heroContext: heroContext,
               ),
             ),
-            const SizedBox(width: 8),
+            SizedBox(width: flat ? NavisSpace.md : 8),
             Expanded(
               child: SizedBox(
                 height: pageHeight,
-                child: DecoratedBox(
-                  decoration: BoxDecoration(
-                    color: colors.surfaceContainerLowest.withValues(
-                      alpha: 0.28,
-                    ),
-                    borderRadius: NavisRadius.xlAll,
-                    border: Border.all(
-                      color: colors.outlineVariant.withValues(alpha: 0.34),
-                    ),
-                  ),
-                  child: Padding(
-                    padding: const EdgeInsets.fromLTRB(14, 10, 14, 10),
-                    child: _DesktopRandomAlbumSongList(album: album),
-                  ),
+                child: _desktopPageSurface(
+                  radius: NavisShapeData.of(context).xlAll,
+                  flat: flat,
+                  colors: colors,
+                  child: _DesktopRandomAlbumSongList(album: album),
                 ),
               ),
             ),
@@ -2566,6 +2623,29 @@ class _DesktopRandomAlbumPage extends ConsumerWidget {
       },
     );
   }
+}
+
+/// The track-list surface beside a desktop hero cover: the translucent bordered
+/// card normally; under Flat nothing, because the pager's solid panel is the
+/// only surface and the list sits directly on it.
+Widget _desktopPageSurface({
+  required BorderRadius radius,
+  required bool flat,
+  required ColorScheme colors,
+  required Widget child,
+}) {
+  if (flat) return child;
+  return DecoratedBox(
+    decoration: BoxDecoration(
+      color: colors.surfaceContainerLowest.withValues(alpha: 0.28),
+      borderRadius: radius,
+      border: Border.all(color: colors.outlineVariant.withValues(alpha: 0.34)),
+    ),
+    child: Padding(
+      padding: const EdgeInsets.fromLTRB(14, 10, 14, 10),
+      child: child,
+    ),
+  );
 }
 
 class _DesktopRandomAlbumVisual extends ConsumerWidget {
@@ -2589,9 +2669,9 @@ class _DesktopRandomAlbumVisual extends ConsumerWidget {
 
     return Material(
       color: Colors.transparent,
-      borderRadius: NavisRadius.lgAll,
+      borderRadius: NavisShapeData.of(context).lgAll,
       child: InkWell(
-        borderRadius: NavisRadius.lgAll,
+        borderRadius: NavisShapeData.of(context).lgAll,
         onTap: () => NavService.openAlbumDetail(
           context,
           ref,
@@ -2606,7 +2686,9 @@ class _DesktopRandomAlbumVisual extends ConsumerWidget {
           anchor: details.globalPosition,
         ),
         child: Padding(
-          padding: const EdgeInsets.fromLTRB(2, 4, 2, 4),
+          padding: NavisColorStyleData.of(context).flat
+              ? EdgeInsets.zero
+              : const EdgeInsets.fromLTRB(2, 4, 2, 4),
           child: SizedBox.expand(
             child: Card(
               margin: EdgeInsets.zero,
@@ -2617,6 +2699,7 @@ class _DesktopRandomAlbumVisual extends ConsumerWidget {
                 children: <Widget>[
                   HeroCoverArt(
                     coverArtId: album.coverArtId,
+                    revision: album.coverArtRevision,
                     heroTag: heroTag,
                     size: kCoverArtStandardSize,
                     fit: BoxFit.cover,
@@ -2630,71 +2713,63 @@ class _DesktopRandomAlbumVisual extends ConsumerWidget {
                       fit: StackFit.expand,
                       children: <Widget>[
                         const Positioned.fill(
-                          child: DecoratedBox(
-                            decoration: BoxDecoration(
-                              gradient: LinearGradient(
-                                begin: Alignment.topCenter,
-                                end: Alignment.bottomCenter,
-                                colors: <Color>[
-                                  Colors.transparent,
-                                  Colors.transparent,
-                                  Color(0x66000000),
-                                  Color(0xD0000000),
-                                ],
-                                stops: <double>[0, 0.52, 0.74, 1],
-                              ),
-                            ),
+                          child: ArtworkScrim(
+                            alphas: <int>[0, 0, 0x66, 0xD0],
+                            stops: <double>[0, 0.52, 0.74, 1],
                           ),
                         ),
                         Positioned(
-                          left: 12,
-                          right: 12,
-                          bottom: 10,
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            mainAxisSize: MainAxisSize.min,
-                            children: <Widget>[
-                              Text(
-                                album.name,
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: Theme.of(context).textTheme.titleMedium
-                                    ?.copyWith(
-                                      color: Colors.white,
-                                      fontWeight: FontWeight.w700,
-                                      shadows: const <Shadow>[
-                                        Shadow(
-                                          offset: Offset(0, 1),
-                                          blurRadius: 2,
-                                          color: Color(0x99000000),
-                                        ),
-                                      ],
-                                    ),
-                              ),
-                              if (album.artist != null &&
-                                  album.artist!.trim().isNotEmpty)
-                                Padding(
-                                  padding: const EdgeInsets.only(top: 2),
-                                  child: Text(
-                                    album.artist!,
-                                    maxLines: 1,
-                                    overflow: TextOverflow.ellipsis,
-                                    style: Theme.of(context)
-                                        .textTheme
-                                        .bodyMedium
-                                        ?.copyWith(
-                                          color: const Color(0xE6FFFFFF),
-                                          shadows: const <Shadow>[
-                                            Shadow(
-                                              offset: Offset(0, 1),
-                                              blurRadius: 2,
-                                              color: Color(0x99000000),
-                                            ),
-                                          ],
-                                        ),
-                                  ),
+                          left: 0,
+                          right: 0,
+                          bottom: 0,
+                          child: Padding(
+                            padding: const EdgeInsets.fromLTRB(12, 0, 12, 10),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              mainAxisSize: MainAxisSize.min,
+                              children: <Widget>[
+                                Text(
+                                  album.name,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: Theme.of(context).textTheme.titleMedium
+                                      ?.copyWith(
+                                        color: Colors.white,
+                                        fontWeight: FontWeight.w700,
+                                        shadows: const <Shadow>[
+                                          Shadow(
+                                            offset: Offset(0, 1),
+                                            blurRadius: 2,
+                                            color: Color(0x99000000),
+                                          ),
+                                        ],
+                                      ),
                                 ),
-                            ],
+                                if (album.artist != null &&
+                                    album.artist!.trim().isNotEmpty)
+                                  Padding(
+                                    padding: const EdgeInsets.only(top: 2),
+                                    child: Text(
+                                      album.artist!,
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: Theme.of(context)
+                                          .textTheme
+                                          .bodyMedium
+                                          ?.copyWith(
+                                            color: const Color(0xE6FFFFFF),
+                                            shadows: const <Shadow>[
+                                              Shadow(
+                                                offset: Offset(0, 1),
+                                                blurRadius: 2,
+                                                color: Color(0x99000000),
+                                              ),
+                                            ],
+                                          ),
+                                    ),
+                                  ),
+                              ],
+                            ),
                           ),
                         ),
                       ],
@@ -2718,6 +2793,7 @@ class _DesktopPlaylistPage extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final flat = NavisColorStyleData.of(context).flat;
     return LayoutBuilder(
       builder: (context, constraints) {
         final pageHeight = constraints.maxHeight.isFinite
@@ -2732,35 +2808,26 @@ class _DesktopPlaylistPage extends ConsumerWidget {
               height: pageHeight,
               child: _ShowcasePlaylistVisual(item: item),
             ),
-            const SizedBox(width: 8),
+            SizedBox(width: flat ? NavisSpace.md : 8),
             Expanded(
               child: SizedBox(
                 height: pageHeight,
-                child: DecoratedBox(
-                  decoration: BoxDecoration(
-                    color: Theme.of(context).colorScheme.surfaceContainerLowest
-                        .withValues(alpha: 0.28),
-                    borderRadius: NavisRadius.xlAll,
-                    border: Border.all(
-                      color: Theme.of(context).colorScheme.outlineVariant
-                          .withValues(alpha: 0.34),
-                    ),
-                  ),
-                  child: Padding(
-                    padding: const EdgeInsets.fromLTRB(14, 10, 14, 10),
-                    child: switch (item) {
-                      final HomeRandomShowcaseListenBrainz item =>
-                        _DesktopListenBrainzSongList(
-                          key: ValueKey<String>(item.stableId),
-                          item: item,
-                        ),
-                      final HomeRandomShowcaseTrending item =>
-                        _DesktopTrendingSongList(
-                          key: ValueKey<String>(item.stableId),
-                          item: item,
-                        ),
-                    },
-                  ),
+                child: _desktopPageSurface(
+                  radius: NavisShapeData.of(context).xlAll,
+                  flat: flat,
+                  colors: Theme.of(context).colorScheme,
+                  child: switch (item) {
+                    final HomeRandomShowcaseListenBrainz item =>
+                      _DesktopListenBrainzSongList(
+                        key: ValueKey<String>(item.stableId),
+                        item: item,
+                      ),
+                    final HomeRandomShowcaseTrending item =>
+                      _DesktopTrendingSongList(
+                        key: ValueKey<String>(item.stableId),
+                        item: item,
+                      ),
+                  },
                 ),
               ),
             ),
@@ -2795,44 +2862,37 @@ class _ShowcasePlaylistVisual extends ConsumerWidget {
           fit: StackFit.expand,
           children: <Widget>[
             _ShowcasePlaylistArtwork(item: item, size: 480),
-            DecoratedBox(
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  begin: Alignment.topCenter,
-                  end: Alignment.bottomCenter,
-                  colors: <Color>[
-                    Colors.black.withValues(alpha: 0),
-                    Colors.black.withValues(alpha: 0.78),
+            ArtworkScrim(alphas: const <int>[0, 199]),
+            Positioned(
+              left: 0,
+              right: 0,
+              bottom: 0,
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(12, 0, 12, 10),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: <Widget>[
+                    Text(
+                      item.localizedTitle(AppLocalizations.of(context)!),
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                        color: Colors.white,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      _showcasePlaylistAvailability(l10n, item),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: Colors.white.withValues(alpha: 0.78),
+                      ),
+                    ),
                   ],
                 ),
-              ),
-            ),
-            Positioned(
-              left: 12,
-              right: 12,
-              bottom: 10,
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisSize: MainAxisSize.min,
-                children: <Widget>[
-                  Text(
-                    item.localizedTitle(AppLocalizations.of(context)!),
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                      color: Colors.white,
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    _showcasePlaylistAvailability(l10n, item),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: Theme.of(context).textTheme.bodySmall
-                        ?.copyWith(color: Colors.white.withValues(alpha: 0.78)),
-                  ),
-                ],
               ),
             ),
             if (item.isLoading)
@@ -3089,6 +3149,24 @@ class _ListenBrainzLoadingArtwork extends StatelessWidget {
   }
 }
 
+/// Height of one Home hero track row (48 px minimum plus 4 px padding above
+/// and below) and the gap between rows.
+const double _kDesktopSongRowHeight = 56;
+const double _kDesktopSongRowGap = 4;
+
+/// The tallest height at most [available] that shows only whole rows of
+/// [count] tracks (the full list height when it all fits).
+@visibleForTesting
+double snapDesktopSongListHeight(double available, int count) {
+  const step = _kDesktopSongRowHeight + _kDesktopSongRowGap;
+  if (count <= 0) return 0;
+  final full = count * step - _kDesktopSongRowGap;
+  if (full <= available) return full;
+  final rows = ((available + _kDesktopSongRowGap) / step).floor();
+  if (rows < 1) return available;
+  return rows * step - _kDesktopSongRowGap;
+}
+
 class _DesktopRandomAlbumSongList extends ConsumerWidget {
   const new({required this.album});
 
@@ -3183,18 +3261,39 @@ class _DesktopRandomAlbumSongList extends ConsumerWidget {
           ),
         ),
         Expanded(
-          child: ListView.separated(
-            key: ValueKey<String>('home-random-desktop-song-list-${album.id}'),
-            padding: EdgeInsets.zero,
-            itemCount: allSongs.length,
-            separatorBuilder: (_, _) => const SizedBox(height: 4),
-            itemBuilder: (context, index) {
-              final song = allSongs[index];
-              return _DesktopRandomAlbumSongRow(
-                song: song,
-                albumTracks: allSongs,
-                queueStartIndex: index,
-                displayIndex: index + 1,
+          child: LayoutBuilder(
+            builder: (context, constraints) {
+              final list = ListView.separated(
+                key: ValueKey<String>(
+                  'home-random-desktop-song-list-${album.id}',
+                ),
+                padding: EdgeInsets.zero,
+                itemCount: allSongs.length,
+                separatorBuilder: (_, _) =>
+                    const SizedBox(height: _kDesktopSongRowGap),
+                itemBuilder: (context, index) {
+                  final song = allSongs[index];
+                  return _DesktopRandomAlbumSongRow(
+                    song: song,
+                    albumTracks: allSongs,
+                    queueStartIndex: index,
+                    displayIndex: index + 1,
+                  );
+                },
+              );
+              // Flat has no card edge to clip against, so a half-cut last row
+              // reads as a glitch: show only whole rows.
+              final height = constraints.maxHeight;
+              if (!NavisColorStyleData.of(context).flat || !height.isFinite) {
+                return list;
+              }
+              final snapped = snapDesktopSongListHeight(
+                height,
+                allSongs.length,
+              );
+              return Align(
+                alignment: Alignment.topCenter,
+                child: SizedBox(height: snapped, child: list),
               );
             },
           ),
@@ -3396,6 +3495,7 @@ class _RandomMiniCover extends StatelessWidget {
         ),
         final HomeRandomShowcaseAlbum album => CoverArtImage(
           coverArtId: album.coverArtId,
+          revision: album.coverArtRevision,
           size: 96,
           fit: BoxFit.cover,
           placeholderIcon: Icons.album_outlined,
@@ -3803,7 +3903,7 @@ class _RandomAlbumsHeroCarouselState
     const shadowBottom = 24.0;
     const peekGap = 16.0;
 
-    final section = Column(
+    Widget buildSection(CaptionTint? tint) => Column(
       children: <Widget>[
         LayoutBuilder(
           builder: (context, constraints) {
@@ -3924,7 +4024,11 @@ class _RandomAlbumsHeroCarouselState
             );
           },
         ),
-        _ShowcaseInfoPanel(item: currentItem, heroContext: widget.heroContext),
+        _ShowcaseInfoPanel(
+          item: currentItem,
+          heroContext: widget.heroContext,
+          tint: tint,
+        ),
         if (_displayedAlbums.length > 1) ...[
           const SizedBox(height: NavisSpace.sm),
           Wrap(
@@ -3940,7 +4044,11 @@ class _RandomAlbumsHeroCarouselState
                 width: currentIndex == index ? 16 : 6,
                 height: 6,
                 decoration: BoxDecoration(
-                  color: currentIndex == index
+                  color: tint != null
+                      ? (currentIndex == index
+                            ? tint.text
+                            : tint.text.withValues(alpha: 0.35))
+                      : currentIndex == index
                       ? Theme.of(context).colorScheme.primary
                       : Theme.of(context).colorScheme.onSurfaceVariant
                             .withValues(alpha: 0.35),
@@ -3953,14 +4061,31 @@ class _RandomAlbumsHeroCarouselState
       ],
     );
 
+    // Phones under Flat: a full-bleed colour band sized by its content, so
+    // the neighbouring covers sit fully inside it (see [_ShowcaseFlatBand]).
+    final phone =
+        !widget.desktopMode &&
+        widget.adaptiveLayoutClass == AdaptiveLayoutClass.phoneCompact;
+    if (phone && NavisColorStyleData.of(context).flat) {
+      return _ShowcaseFlatBand(
+        coverArtId: _showcaseWashCoverId(currentItem),
+        coverArtRevision: _showcaseWashCoverRevision(currentItem),
+        builder: (context, tint) => Padding(
+          padding: const EdgeInsets.symmetric(vertical: NavisSpace.lg),
+          child: buildSection(tint),
+        ),
+      );
+    }
+
     return Stack(
       children: <Widget>[
         Positioned.fill(
           child: _ShowcaseColourWash(
             coverArtId: _showcaseWashCoverId(currentItem),
+            coverArtRevision: _showcaseWashCoverRevision(currentItem),
           ),
         ),
-        section,
+        buildSection(null),
       ],
     );
   }
@@ -4025,6 +4150,7 @@ class _RandomAlbumsHeroCard extends ConsumerWidget {
           children: <Widget>[
             HeroCoverArt(
               coverArtId: album.coverArtId,
+              revision: album.coverArtRevision,
               heroTag: heroTag,
               size: kCoverArtStandardSize,
               fit: BoxFit.cover,
@@ -4040,68 +4166,60 @@ class _RandomAlbumsHeroCard extends ConsumerWidget {
               child: Stack(
                 fit: StackFit.expand,
                 children: <Widget>[
-                  DecoratedBox(
-                    decoration: BoxDecoration(
-                      gradient: LinearGradient(
-                        begin: Alignment.topCenter,
-                        end: Alignment.bottomCenter,
-                        colors: <Color>[
-                          Colors.black.withValues(alpha: 0),
-                          Colors.black.withValues(alpha: 0.76),
-                        ],
-                      ),
-                    ),
-                  ),
+                  ArtworkScrim(alphas: const <int>[0, 194]),
                   Align(
                     alignment: Alignment.bottomLeft,
-                    child: Padding(
-                      padding: const EdgeInsets.fromLTRB(14, 44, 14, 14),
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: <Widget>[
-                          Text(
-                            album.name,
-                            maxLines: 2,
-                            overflow: TextOverflow.ellipsis,
-                            style: Theme.of(context).textTheme.titleMedium
-                                ?.copyWith(
-                                  color: Colors.white,
-                                  fontWeight: FontWeight.w700,
+                    child: SizedBox(
+                      width: double.infinity,
+                      child: Padding(
+                        padding: const EdgeInsets.fromLTRB(14, 44, 14, 14),
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: <Widget>[
+                            Text(
+                              album.name,
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
+                              style: Theme.of(context).textTheme.titleMedium
+                                  ?.copyWith(
+                                    color: Colors.white,
+                                    fontWeight: FontWeight.w700,
+                                  ),
+                            ),
+                            if (album.artist != null &&
+                                album.artist!.trim().isNotEmpty)
+                              Padding(
+                                padding: const EdgeInsets.only(top: 4),
+                                child: Text(
+                                  album.artist!,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: Theme.of(context).textTheme.bodyMedium
+                                      ?.copyWith(
+                                        color: Colors.white.withValues(
+                                          alpha: 0.86,
+                                        ),
+                                      ),
                                 ),
-                          ),
-                          if (album.artist != null &&
-                              album.artist!.trim().isNotEmpty)
-                            Padding(
-                              padding: const EdgeInsets.only(top: 4),
-                              child: Text(
-                                album.artist!,
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: Theme.of(context).textTheme.bodyMedium
-                                    ?.copyWith(
-                                      color: Colors.white.withValues(
-                                        alpha: 0.86,
-                                      ),
-                                    ),
                               ),
-                            ),
-                          if (metadataParts.isNotEmpty)
-                            Padding(
-                              padding: const EdgeInsets.only(top: 6),
-                              child: Text(
-                                metadataParts.join(' • '),
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: Theme.of(context).textTheme.bodySmall
-                                    ?.copyWith(
-                                      color: Colors.white.withValues(
-                                        alpha: 0.72,
+                            if (metadataParts.isNotEmpty)
+                              Padding(
+                                padding: const EdgeInsets.only(top: 6),
+                                child: Text(
+                                  metadataParts.join(' • '),
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: Theme.of(context).textTheme.bodySmall
+                                      ?.copyWith(
+                                        color: Colors.white.withValues(
+                                          alpha: 0.72,
+                                        ),
                                       ),
-                                    ),
+                                ),
                               ),
-                            ),
-                        ],
+                          ],
+                        ),
                       ),
                     ),
                   ),
@@ -4139,66 +4257,59 @@ class _RandomPlaylistHeroCard extends ConsumerWidget {
           fit: StackFit.expand,
           children: <Widget>[
             _ShowcasePlaylistArtwork(item: item, size: 420),
-            DecoratedBox(
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  begin: Alignment.topCenter,
-                  end: Alignment.bottomCenter,
-                  colors: <Color>[
-                    Colors.black.withValues(alpha: 0),
-                    Colors.black.withValues(alpha: 0.78),
-                  ],
-                ),
-              ),
-            ),
+            ArtworkScrim(alphas: const <int>[0, 199]),
             Align(
               alignment: Alignment.bottomLeft,
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(14, 44, 14, 14),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: <Widget>[
-                    Text(
-                      item.localizedTitle(AppLocalizations.of(context)!),
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                        color: Colors.white,
-                        fontWeight: FontWeight.w700,
+              child: SizedBox(
+                width: double.infinity,
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(14, 44, 14, 14),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: <Widget>[
+                      Text(
+                        item.localizedTitle(AppLocalizations.of(context)!),
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: Theme.of(context).textTheme.titleMedium
+                            ?.copyWith(
+                              color: Colors.white,
+                              fontWeight: FontWeight.w700,
+                            ),
                       ),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      _showcasePlaylistAvailability(l10n, item),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                        color: Colors.white.withValues(alpha: 0.86),
+                      const SizedBox(height: 4),
+                      Text(
+                        _showcasePlaylistAvailability(l10n, item),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                          color: Colors.white.withValues(alpha: 0.86),
+                        ),
                       ),
-                    ),
-                    const SizedBox(height: 6),
-                    Text(
-                      switch (item) {
-                        HomeRandomShowcaseListenBrainz(
-                          :final playlist?,
-                          isLoading: false,
-                        ) =>
-                          playlist.matchingComplete
-                              ? l10n.weeklyPlaylistReady
-                              : l10n.weeklyPlaylistMatching,
-                        HomeRandomShowcaseListenBrainz() =>
-                          l10n.weeklyPlaylistLoading,
-                        HomeRandomShowcaseTrending() =>
-                          l10n.homeShowcaseReasonTrending,
-                      },
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                        color: Colors.white.withValues(alpha: 0.72),
+                      const SizedBox(height: 6),
+                      Text(
+                        switch (item) {
+                          HomeRandomShowcaseListenBrainz(
+                            :final playlist?,
+                            isLoading: false,
+                          ) =>
+                            playlist.matchingComplete
+                                ? l10n.weeklyPlaylistReady
+                                : l10n.weeklyPlaylistMatching,
+                          HomeRandomShowcaseListenBrainz() =>
+                            l10n.weeklyPlaylistLoading,
+                          HomeRandomShowcaseTrending() =>
+                            l10n.homeShowcaseReasonTrending,
+                        },
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                          color: Colors.white.withValues(alpha: 0.72),
+                        ),
                       ),
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
               ),
             ),
@@ -4304,51 +4415,46 @@ class _ServerAlbumCard extends StatelessWidget {
                   bottom: 0,
                   child: HeroRouteChrome(
                     heroTag: heroTag,
-                    child: DecoratedBox(
-                      decoration: BoxDecoration(
-                        gradient: LinearGradient(
-                          begin: Alignment.topCenter,
-                          end: Alignment.bottomCenter,
-                          colors: <Color>[
-                            Colors.black.withValues(alpha: 0),
-                            Colors.black.withValues(alpha: 0.75),
-                          ],
+                    child: Stack(
+                      children: <Widget>[
+                        Positioned.fill(
+                          child: ArtworkScrim(alphas: const <int>[0, 191]),
                         ),
-                      ),
-                      child: Padding(
-                        padding: const EdgeInsets.fromLTRB(10, 24, 10, 10),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          mainAxisSize: MainAxisSize.min,
-                          children: <Widget>[
-                            Text(
-                              name,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: TextStyle(
-                                color: Colors.white.withValues(alpha: 0.95),
-                                fontSize: 13,
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
-                            if (artist != null) ...[
-                              const SizedBox(height: 2),
+                        Padding(
+                          padding: const EdgeInsets.fromLTRB(10, 24, 10, 10),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            mainAxisSize: MainAxisSize.min,
+                            children: <Widget>[
                               Text(
-                                artist!,
+                                name,
                                 maxLines: 1,
                                 overflow: TextOverflow.ellipsis,
-                                style: Theme.of(context).textTheme.labelSmall
-                                    ?.copyWith(
-                                      color: Colors.white.withValues(
-                                        alpha: 0.75,
-                                      ),
-                                      fontWeight: FontWeight.w400,
-                                    ),
+                                style: TextStyle(
+                                  color: Colors.white.withValues(alpha: 0.95),
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w600,
+                                ),
                               ),
+                              if (artist != null) ...[
+                                const SizedBox(height: 2),
+                                Text(
+                                  artist!,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: Theme.of(context).textTheme.labelSmall
+                                      ?.copyWith(
+                                        color: Colors.white.withValues(
+                                          alpha: 0.75,
+                                        ),
+                                        fontWeight: FontWeight.w400,
+                                      ),
+                                ),
+                              ],
                             ],
-                          ],
+                          ),
                         ),
-                      ),
+                      ],
                     ),
                   ),
                 ),

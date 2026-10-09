@@ -2110,8 +2110,10 @@ void main() {
     },
   );
 
-  test('online unfiltered uses server random source', () async {
+  test('server random keeps the local artwork revision', () async {
     final database = createTestDatabase();
+    await _insertAlbum(database, id: 'srv-1', name: 'Server Album');
+    await database.libraryDao.bumpCoverArtRevisions(albumIds: ['srv-1']);
     final fakeApi = _FakeDiscoveryApiClient({});
     final container = ProviderContainer(
       overrides: withHomeShowcaseTestOverrides(
@@ -2148,6 +2150,7 @@ void main() {
     expect(result, hasLength(1));
     expect(result.first.album.id, 'srv-1');
     expect(result.first.album.source, HomeRandomShowcaseSource.serverRandom);
+    expect(result.first.album.coverArtRevision, 1);
   });
 
   test(

@@ -1,13 +1,6 @@
 {
   "lib/src/common_widgets/album_card.dart": {
-    "fontSize": 1,
-    "colorLiteral": 1
-  },
-  "lib/src/common_widgets/album_download_badge.dart": {
-    "colorLiteral": 1
-  },
-  "lib/src/common_widgets/navis_icon.dart": {
-    "colorLiteral": 2
+    "fontSize": 1
   },
   "lib/src/common_widgets/navis_tooltip.dart": {
     "colorLiteral": 1
@@ -23,17 +16,14 @@
   },
   "lib/src/features/home/presentation/home_screen.dart": {
     "fontSize": 1,
-    "colorLiteral": 5
+    "colorLiteral": 3
   },
   "lib/src/features/library/presentation/album_detail_screen.dart": {
     "fontSize": 2
   },
   "lib/src/features/library/presentation/artist_detail_screen.dart": {
     "fontSize": 3,
-    "colorLiteral": 6
-  },
-  "lib/src/features/onboarding/presentation/onboarding_screen.dart": {
-    "radius": 1
+    "colorLiteral": 3
   },
   "lib/src/features/player/presentation/desktop_volume_slider.dart": {
     "radius": 1
@@ -50,9 +40,6 @@
   "lib/src/features/settings/presentation/appearance_settings_screen.dart": {
     "colorLiteral": 1,
     "paletteColor": 8
-  },
-  "lib/src/features/settings/presentation/desktop_shortcuts_settings_screen.dart": {
-    "radius": 1
   },
   "lib/src/routing/app_shell_mini_player.dart": {
     "fontSize": 2

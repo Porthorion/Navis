@@ -1,3 +1,4 @@
+import 'package:navis/src/features/settings/domain/navis_density.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:navis/src/features/settings/data/settings_repository.dart';
 import 'package:navis/src/features/settings/domain/app_settings.dart';
@@ -36,7 +37,7 @@ void main() {
       await repository.saveSettings(
         const AppSettingsModel.defaults().copyWith(
           themeMode: 'oled',
-          homeDensity: 'compact',
+          homeDensity: NavisDensity.compact,
         ),
       );
       await db.appSettingsDao.updateGridArtworkSize('small');
@@ -46,7 +47,7 @@ void main() {
       var saved = await repository.getSettings();
       expect(saved.gridArtworkSize, GridArtworkSize.small);
       expect(saved.homeRecommendationsAutoAdvance, isTrue);
-      expect(saved.homeDensity, 'compact');
+      expect(saved.homeDensity, NavisDensity.compact);
       expect(saved.themeMode, 'oled');
       await repository.saveSettings(saved.copyWith(cachedPlaybackFirst: true));
       saved = await repository.getSettings();

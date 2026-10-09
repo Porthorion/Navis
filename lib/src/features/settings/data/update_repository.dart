@@ -5,6 +5,7 @@ import 'package:cryptography/cryptography.dart';
 import 'package:dio/dio.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 
+import 'package:navis/src/utils/semver.dart';
 import 'package:navis/src/features/integrations/data/integration_guard_interceptor.dart';
 import 'package:navis/src/features/settings/data/install_source_service.dart';
 import 'package:navis/src/features/settings/data/update_check_store.dart';
@@ -101,7 +102,10 @@ class UpdateRepository {
     }
 
     final packageInfo = await PackageInfo.fromPlatform();
-    final currentSemver = _parseSemverCore(packageInfo.version);
+    final currentSemver = parseSemver(
+      packageInfo.version,
+      allowExtraParts: true,
+    );
     final channel = channelFor(updateChannel);
     final url = manifestUrlFor(channel);
     final timestamp = DateTime.now().toUtc();
@@ -179,11 +183,11 @@ class UpdateRepository {
       if (payload['channel'] != channel) return reject('wrong_channel');
       final candidateSemver = payloadVersion == null
           ? null
-          : _parseSemverCore(payloadVersion);
+          : parseSemver(payloadVersion, allowExtraParts: true);
       if (currentSemver == null || candidateSemver == null) {
         return reject('invalid_version');
       }
-      if (_compareSemverCore(candidateSemver, currentSemver) <= 0) {
+      if (compareSemver(candidateSemver, currentSemver) <= 0) {
         return reject('version_not_newer');
       }
       final tag = payload['tag'];
@@ -270,29 +274,4 @@ String _linuxDebArch() {
     }
   } on Object catch (_) {}
   return 'unknown';
-}
-
-List<int>? _parseSemverCore(String raw) {
-  var value = raw.trim();
-  if (value.startsWith('v')) value = value.substring(1);
-  final plusIndex = value.indexOf('+');
-  if (plusIndex >= 0) value = value.substring(0, plusIndex);
-  final dashIndex = value.indexOf('-');
-  if (dashIndex >= 0) value = value.substring(0, dashIndex);
-
-  final parts = value.split('.');
-  if (parts.length < 3) return null;
-
-  final major = int.tryParse(parts[0]);
-  final minor = int.tryParse(parts[1]);
-  final patch = int.tryParse(parts[2]);
-  if (major == null || minor == null || patch == null) return null;
-  return <int>[major, minor, patch];
-}
-
-int _compareSemverCore(List<int> a, List<int> b) {
-  for (var i = 0; i < 3; i++) {
-    if (a[i] != b[i]) return a[i].compareTo(b[i]);
-  }
-  return 0;
 }

@@ -1,4 +1,5 @@
 import 'package:material_ui/material_ui.dart';
+import 'package:navis/src/features/player/presentation/now_playing_artwork_scope.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:navis/l10n/app_localizations.dart';
 import 'package:navis/src/common_widgets/empty_state.dart';
@@ -9,7 +10,7 @@ import 'package:navis/src/features/player/presentation/queue_unavailable_tracks.
 import 'package:navis/src/providers/app_providers.dart'
     show playerStateProvider;
 import 'package:navis/src/routing/navigation_service.dart';
-import 'package:navis/src/theme/navis_tokens.dart';
+import 'package:navis/src/theme/navis_shape_data.dart';
 
 /// A queue panel. Slide animation and swipe-to-dismiss are driven entirely
 /// by the shell overlay in `app_shell.dart`; this widget has no animation
@@ -117,7 +118,10 @@ class QueueSheet extends ConsumerWidget {
 
     if (embeddedMode) {
       return Material(
-        color: Theme.of(context).colorScheme.surface,
+        color: nowPlayingArtworkPanelFill(
+          context,
+          Theme.of(context).colorScheme.surface,
+        ),
         child: body,
       );
     }
@@ -126,12 +130,13 @@ class QueueSheet extends ConsumerWidget {
       top: true,
       bottom: false,
       child: Material(
-        color: Theme.of(context).colorScheme.surface,
+        color: nowPlayingArtworkPanelFill(
+          context,
+          Theme.of(context).colorScheme.surface,
+        ),
         elevation: 12,
-        shape: const RoundedRectangleBorder(
-          borderRadius: BorderRadius.vertical(
-            top: Radius.circular(NavisRadius.lg),
-          ),
+        shape: RoundedRectangleBorder(
+          borderRadius: NavisShapeData.of(context).sheetTop,
         ),
         clipBehavior: Clip.antiAlias,
         child: body,

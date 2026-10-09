@@ -26,6 +26,10 @@ class MotionPolicy {
   Duration get feedback =>
       reduceMotion ? Duration.zero : const Duration(milliseconds: 120);
 
+  /// Colour change of an element whose colours arrive asynchronously.
+  Duration get tint =>
+      reduceMotion ? Duration.zero : const Duration(milliseconds: 200);
+
   Duration get surface =>
       reduceMotion ? Duration.zero : const Duration(milliseconds: 180);
 }

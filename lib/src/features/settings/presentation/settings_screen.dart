@@ -1,3 +1,5 @@
+import 'package:navis/src/common_widgets/new_feature_tag.dart';
+import 'package:navis/src/features/onboarding/presentation/setup_highlights_provider.dart';
 import 'package:navis/src/features/equalizer/presentation/eq_controller.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -52,6 +54,10 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
         l10n.settingsGroupLibrarySynchronization;
     final groupOther = l10n.settingsGroupOther;
     final groupDesktop = l10n.settingsGroupDesktop;
+    final hasNewOptions = ref.watch(settingsHasNewOptionsProvider);
+    final newOptionsTag = NewFeatureTag(
+      semanticsLabel: l10n.settingsAppearanceNewOptionsSemantics,
+    );
     final coreEntries = <_SettingsEntry>[
       _SettingsEntry(
         icon: Icons.storage_outlined,
@@ -111,6 +117,8 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
         subtitle: l10n.settingsAppearanceSubtitle,
         page: SettingsPage.appearance,
         group: groupOther,
+        // Every setup highlight is an Appearance option.
+        adornment: hasNewOptions ? newOptionsTag : null,
       ),
     ];
     final desktopEntries = <_SettingsEntry>[
@@ -143,6 +151,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
       title: l10n.settingsRunQuickCustomizationTitle,
       subtitle: l10n.settingsRunQuickCustomizationSubtitle,
       group: groupOther,
+      adornment: hasNewOptions ? newOptionsTag : null,
     );
     // Desktop entries come between core and About so About is always last.
     final entries = <_SettingsEntry>[
@@ -188,7 +197,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                     subtitle: entry.subtitle == null
                         ? null
                         : Text(entry.subtitle!),
-                    trailing: const Icon(Icons.chevron_right),
+                    trailing: entry.trailing,
                     onTap: entry.enabled
                         ? () => _open(context, ref, entry)
                         : null,
@@ -231,7 +240,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                   subtitle: entry.subtitle == null
                       ? null
                       : Text(entry.subtitle!),
-                  trailing: const Icon(Icons.chevron_right),
+                  trailing: entry.trailing,
                   onTap: entry.enabled
                       ? () => _open(context, ref, entry)
                       : null,
@@ -259,7 +268,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                         subtitle: entry.subtitle == null
                             ? null
                             : Text(entry.subtitle!),
-                        trailing: const Icon(Icons.chevron_right),
+                        trailing: entry.trailing,
                         onTap: entry.enabled
                             ? () => _open(context, ref, entry)
                             : null,
@@ -322,7 +331,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                   leading: Icon(entry.icon),
                   title: entry.title,
                   subtitle: entry.subtitle,
-                  trailing: const Icon(Icons.chevron_right),
+                  trailing: entry.trailing,
                   onTap: entry.enabled
                       ? () => _open(context, ref, entry)
                       : null,
@@ -352,6 +361,7 @@ class _SettingsEntry {
     required this.group,
     this.page,
     this.enabled = true,
+    this.adornment,
   });
 
   final IconData icon;
@@ -362,4 +372,17 @@ class _SettingsEntry {
   final SettingsPage? page;
   final String group;
   final bool enabled;
+
+  /// Shown before the chevron, for example a "New" tag.
+  final Widget? adornment;
+
+  Widget get trailing {
+    const chevron = Icon(Icons.chevron_right);
+    final tag = adornment;
+    if (tag == null) return chevron;
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: <Widget>[tag, const SizedBox(width: 8), chevron],
+    );
+  }
 }
