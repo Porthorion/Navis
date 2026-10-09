@@ -16,7 +16,11 @@
 | M-4 | Fixed on fix/security-audit | Mutable browser links use the hosted HTTP(S) launcher; MusicBrainz path identifiers must be UUIDs. The file-manager helper remains a local directory action. Store links in the protected updater service are constants. |
 | M-5, L-6 | Fixed on fix/security-audit | Radio requires hosted HTTP(S), stream URLs stay in handler memory rather than media-session extras, and only `/listen/` or `/hls/` stream shapes produce AzuraCast polling endpoints. |
 | M-2 | Fixed on fix/security-audit | Code 41 is mapped explicitly and is the only legacy-fallback trigger. Wrong passwords and reported old versions never downgrade authentication. Remote HTTP legacy retries fail with a localized HTTPS requirement. |
-| M-3 (redaction) | Fixed on fix/security-audit | Request logs and free-text redaction strip URL user info; credential checks treat it as authentication. Storage/transport migration remains deferred below. |
+| M-3 (redaction and storage) | Fixed on fix/security-audit | Request logs and free-text redaction strip URL user info. Drift stores only a credential-free server URL; user info uses its own key beside the server password in the existing secure store, with memory-only fallback. Loads migrate legacy rows once and active configs merge it back in memory for HTTP/media Basic authentication, including Android background sync. Both sign-out paths delete it. |
+| L-11a | Fixed on fix/security-audit | System cover keys use HMAC-SHA256 over cover IDs, truncated to 32 lowercase hex characters, with a random persisted per-install secret loaded before media-service setup. Kotlin requires that exact key format and reads only v2 filenames, ignoring old guessable files. The independent rolling-cache and SAF SHA-1 identities are unchanged. |
+| L-11b | Fixed on fix/security-audit | Wipe sign-out clears the ListenBrainz secure token, username and connection flags through the existing credential store and settings writer; keep-data sign-out retains them. Secure deletion errors are rethrown into teardown warning reporting. |
+| Thin artwork (validation follow-up) | Fixed on fix/security-audit | Both palette callers check decoded dimensions before Material's 112px scaling can truncate an edge to zero. Extremely thin images retain default tint/theme seed, and decode/extraction failures are contained. |
+| L-8 (AudioMuse, dormant) | Deferred | Secure API-key storage and guarded transport must be fixed before the feature is re-enabled. |
 | M-1, L-1 (cover-art redirects) | Fixed on fix/security-audit | The shared cache manager strips credentials from all insertion URLs and URL keys; the HTTP service re-signs only the active server's exact cover endpoint at dispatch. Startup purges both old app-owned JSON/SQLite repositories and image directories before marking completion; both current repositories use v2 keys. Both sign-out modes clear shared and system covers. HTTPS→HTTP artwork redirects are refused. |
 | M-7 | Fixed on fix/security-audit | Both external artwork decode edges are bounded, radio prewarm/display share the same decoded frame, and all artwork response bodies have a 20 MiB cap. |
 
@@ -37,14 +41,15 @@ Android background sync (`app_providers.dart`, `subsonicApiProvider`, and
 covers only new logins; it does not migrate or block those stored accounts.
 The owner must decide how to handle existing insecure legacy configurations.
 
-**Additional validation observation (unfixed):** Material UI's palette extractor
-truncates its scaled short edge to zero for extremely thin artwork (for example,
-32×4096), throwing `Invalid image dimensions` during Now Playing tint prewarm.
-This occurs in the existing `ColorScheme.fromImageProvider` implementation, and
-is separate from the A–E decode/transfer bounds. Regression tests verify these
-extreme images through decode-only prewarm; 128×4096 and 4096×128 also exercise
-the full Now Playing prewarm and decoded-frame reuse. The palette issue needs a
-separate follow-up.
+**Thin-artwork follow-up (fixed):** Material's async palette listener can throw
+`Invalid image dimensions` outside its returned future when its 112px scaling
+truncates a short edge to zero. The shared app-side `artworkColorScheme` guard
+checks the decoded dimensions before invoking that listener, retains the default
+tint/theme seed for unsafe aspect ratios, and catches decode/extraction failures.
+Both 32×4096 and 4096×32 regression images now exercise full Now Playing prewarm
+and dynamic accent fallback; 128×4096 and 4096×128 still extract a palette. All
+four verify bounded decode and immediate display reuse, and malformed-image
+coverage verifies a contained decode failure.
 
 **Follow-up validation:** All selected final runs passed: cover cache migration,
 response sizes, system-artwork signing, playback artwork, sign-out, cache settings,
@@ -56,16 +61,41 @@ updating `test/src/features/library/presentation/goldens/artist_detail_phone_dee
 its old/new rendered images were inspected. File-level `dart analyze` ran before
 each commit, with no errors or warnings; remaining infos predate these changes.
 Initial runs exposed test/implementation regressions which were corrected and
-rerun, plus the separate palette issue noted above. App/runtime/native validation,
+rerun, including the palette follow-up now fixed above. App/runtime/native validation,
 emulators, VMs, `tool/check.sh`, and the full suite were skipped under the host
 rules. No model/schema change required generation.
 
-**Deferred:** M-3's server URL storage and transport still retain `user:pass@`.
-Moving those credentials into secure storage and an `Authorization: Basic`
-header is a separate change; the redaction fix does not claim that migration.
-Updater/tooling files remain with their assigned branch. Cleanup is confined to
-app-owned repository files; archived or Trash copies outside app storage are not
-modified.
+**Deferred:** L-8 remains deferred while AudioMuse is dormant; fix its API-key
+storage and guarded transport before re-enabling it. The legacy-auth owner
+decision above remains open. Updater/tooling files remain with their assigned
+branch. Cleanup is confined to app-owned repository files; archived or Trash
+copies outside app storage are not modified.
+
+**Final remediation validation:** The task-specific runs passed: 27 tests for
+server-config storage/migration, sign-out and Android background sync; 18 for
+playback artwork and Android projection/HMAC keys; 11 for sign-out and external
+scrobble credentials; and 12 for artwork decode, dynamic accent and Now Playing
+transitions. Counts overlap across task runs. The final combined focused run
+passed 63 tests. All invocations used
+`flutter test --concurrency=4 --timeout 60s <files>`. File-level `dart analyze`
+ran before every implementation commit and again before the audit commit;
+there were no errors or warnings, only existing infos (three changelog quoting
+infos and two discarded-future infos in playback artwork tests). Initial runs
+exposed formatting/compilation and fixture mismatches; these were corrected and
+the affected tests rerun. No database schema/model change required generation.
+
+The coordinator must validate a legacy `user:pass@` account through migration,
+clean restart, API requests, mpv/mobile streaming, and Android headless sync;
+check that the DB URL is credential-free and both sign-out modes delete the
+secure user-info key. Verify memory-only operation when secure storage is
+unavailable. On Android, build the changed Kotlin provider and verify new content
+URIs open from Android Auto/media controls after restart, guessed/old IDs cannot
+open covers (including old IDs consisting of 32 hex characters), and permanent
+download artwork remains available offline. Verify wipe sign-out removes the
+ListenBrainz token/username while keep-data sign-out retains them, and a failed
+secure deletion produces a cleanup warning. Exercise both thin artwork
+orientations with Now Playing and dynamic accents enabled, inspect the app-owned
+screenshot, and confirm normal artwork still produces tints.
 
 **Validation:** focused tests passed for file utilities, permanent paths,
 playback-source resolution (including MIME and requested-format traversal), URL
@@ -90,7 +120,7 @@ preserved.
 ### High
 | ID | Finding | Evidence | Fix (reuse) |
 |---|---|---|---|
-| H-1 ✔ | **Path traversal from server data.** A malicious server sets `suffix` or `id` to `x/../../.config/autostart/evil.desktop`, and playing the song writes attacker bytes anywhere the user can write. On desktop that means code execution at next login. | `permanent_download_path_resolver.dart:187` `_normalizeExtension` (raw); `playback_source_resolver.dart:413` (raw `song.id` + ext), `:570-585`; `download_service.dart:2201` | Allowlist the extension (`^[A-Za-z0-9]{1,10}$`, else `bin`) in one shared helper used by both resolvers. Hash raw ids with `PlaybackArtCache.fileKey` (`playback_art_cache.dart:47`). Add a final `p.isWithin` guard (`_isWithinOrSame` in `utils/file_utils.dart`). |
+| H-1 ✔ | **Path traversal from server data.** A malicious server sets `suffix` or `id` to `x/../../.config/autostart/evil.desktop`, and playing the song writes attacker bytes anywhere the user can write. On desktop that means code execution at next login. | `permanent_download_path_resolver.dart:187` `_normalizeExtension` (raw); `playback_source_resolver.dart:413` (raw `song.id` + ext), `:570-585`; `download_service.dart:2201` | Allowlist the extension (`^[A-Za-z0-9]{1,10}$`, else `bin`) in one shared helper used by both resolvers. Use the existing hashed rolling-cache and SAF identities independently of artwork keys. Add a final `p.isWithin` guard (`_isWithinOrSame` in `utils/file_utils.dart`). |
 | H-2 ✔ | **Linux `.deb` update leads to root code execution.** The download goes to the shared `/tmp/navis_updates`, which is reused if it already exists, and then `pkexec dpkg -i` runs on it. Another local user can swap the file or plant a symlink. | `update_service.dart:45-52,296` | Use `Directory.systemTemp.createTemp('navis_update_')` (mode 0700, random name; this pattern is already used in `permanent_download_import_service.dart:774`). |
 | H-3 | **Linux portable update stages in a predictable `/tmp` path.** The staging dir `/tmp/navis_update_staging_<millis>` and the script are attacker-raceable, so another user can replace the binary before the move. | `update_service.dart:319-322`, `update_scripts.dart:65-68,120` | Use the same private `createTemp` dir for staging and the script. |
 
@@ -99,7 +129,7 @@ preserved.
 |---|---|---|---|
 | M-1 ✔ | **Cover-art cache stores signed URLs** (`u/t/s`, or the `p=enc:` password with legacy auth) in a mode-644 JSON file. There are 1516 tokens on this machine and about 150 old copies in the Trash, and they survive "sign out, keep data". | `cover_art_cache_manager.dart:1009-1020`, `cover_art_image.dart:522`, `sign_out_service.dart:212` | Give the cache only unsigned URLs or keys and have `CoverArtHttpFileService.get()` sign them. Purge the old cache files once, and clear the cache on every sign-out. |
 | M-2 ✔ | **Login silently downgrades to the reversible password.** It retries with `p=enc:` on *any* auth error (including a wrong password), or when the ping reports a version below 1.13, which a fake server can claim. | `server_connection_service.dart:44-61,81-96,129-142` | Fall back only on Subsonic error code 41. Never over non-loopback `http://`. Ask the user before turning legacy auth on. |
-| M-3 | **`user:pass@` in the server URL** is saved in the DB, sent on every URL and logged at WARNING in release. | `server_config_repository.dart:240-246`, `subsonic_logging_interceptor.dart:72-80`, `credential_redaction.dart` | Move it to secure storage and send an `Authorization: Basic` header. Strip `userInfo` in both redaction helpers. |
+| M-3 | **`user:pass@` in the server URL** is saved in the DB, sent on every URL and logged at WARNING in release. | `server_config_repository.dart:240-246`, `subsonic_logging_interceptor.dart:72-80`, `credential_redaction.dart` | Keep user info beside the server password under its own secure-store key, migrate plaintext rows on load, and merge it into active in-memory URLs to preserve HTTP/media Basic auth. Strip `userInfo` in both redaction helpers. |
 | M-4 | **Server-supplied URLs are opened with no scheme allowlist.** `lastFmUrl` and the release `htmlUrl` reach Windows ShellExecute and xdg-open (`file://`, `search-ms:`, `.desktop`). | `album_detail_screen.dart:2060`, `update_dialog.dart:415,431,443`, `integrations_settings_screen.dart:502`, `home_support_widgets.dart:165` | Add one `launchExternalHttpUrl` helper built on `isHostedHttpUri` (`integration_artwork.dart:100`) and route every `launchUrl` call through it. Check that `musicBrainzId` is a UUID. |
 | M-5 | **Radio `streamUrl` has no scheme check**, so mpv will accept `file://`, `lavfi://` and `edl://`. The URL is also published in `MediaItem.extras`. | `navis_audio_handler.dart:~9338-9346,9529` | Require `isHostedHttpUri` and drop the URL from extras (follow `navis_playback_rules.dart:743`). |
 | M-6 ✔ | **Inno relaunches Navis as Administrator after a silent update.** | `tool/windows/build_inno_installer.ps1:99` | Add the `runasoriginaluser` flag. |
@@ -110,11 +140,11 @@ preserved.
 - **L-1:** https→http redirects are followed and resend `t/s` (Dio default; the cover redirect loop at `cover_art_cache_manager.dart:616`). Reject scheme downgrades.
 - **L-3:** Only the sideload APK ships with obfuscated Dart symbols; desktop and iOS release binaries do not. Apply `--obfuscate --split-debug-info` to every release target.
 - **L-6:** AzuraCast polling guesses the endpoint from the server-set homepage host, which means blind GETs to LAN hosts. Poll only when the stream URL matches `/listen/` or `/hls/`.
-- **L-8:** AudioMuse (dormant): the API key is stored in the DB and the client uses a raw `Dio()`, bypassing the integration guard. Fix this before the feature is re-enabled.
+- **L-8 (deferred until re-enabled):** AudioMuse (dormant): the API key is stored in the DB and the client uses a raw `Dio()`, bypassing the integration guard. Fix this before the feature is re-enabled.
 - **L-9:** `permanent_download_path_resolver.dart:145` returns an occupied path after 100 attempts, so it overwrites. Throw instead.
 - **L-11:** Extensions of P-15 / P-12:
-  - `NavisArtworkProvider` lets any app probe the library's covers. Use HMAC keys.
-  - A full wipe keeps the ListenBrainz token.
+  - **L-11a (fixed):** `NavisArtworkProvider` used guessable cover IDs. Persisted per-install HMAC keys and v2 filenames prevent probing known IDs.
+  - **L-11b (fixed):** A full wipe kept the ListenBrainz token. Wipe sign-out now clears the token and username; keep-data sign-out retains them.
 
 ### Local tooling notes (out of scope, informational)
 These concern local development, testing and diagnostics, which are intentionally lightly protected. They are not findings. `fix/security-tooling` holds optional changes for some of them; merging it is the owner's choice.
