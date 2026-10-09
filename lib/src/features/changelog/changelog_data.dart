@@ -129,25 +129,28 @@ const List<ChangelogVersion> changelogs = [
     version: '1.4.3',
     entries: [
       ChangelogEntry(
+        'Appearance has a Color Style setting: Pastel, Immersive and Night restyle Light, Dark and OLED, and Neutral keeps the current look',
+      ),
+      ChangelogEntry(
+        'Appearance can use OLED black when Auto is dark, switch to the Night style on a daily schedule, and turn on Flat Surfaces for solid colors without glows, shadows or blur',
+      ),
+      ChangelogEntry(
         'Appearance has a Corner Style setting: Rounded, Soft or Square corners for cards, buttons and panels',
       ),
       ChangelogEntry(
-        'Appearance has a Now Playing Background setting: Art-Tinted keeps the colour from the cover, Artwork shows the blurred cover itself, and Plain uses your theme background',
+        'Appearance has a Now Playing Background setting: Art-Tinted keeps the color from the cover, Artwork shows the blurred cover itself, and Plain uses your theme background',
       ),
       ChangelogEntry(
-        'Appearance has a Density setting that tightens spacing on Home, track lists, playlists and artist lists; Comfortable keeps the current look',
+        'Home Density is now Density and also tightens track lists, playlists and artist lists; Comfortable keeps the current look',
       ),
       ChangelogEntry(
-        'Album cards blend their titles into a colour taken from each cover, so titles stay readable on any artwork in light and dark themes',
+        'Color Scheme is now Accent Color, and Appearance groups its options into Theme, Color, Shape & Layout and Now Playing',
       ),
       ChangelogEntry(
-        'Setup shows the new appearance options, marked New for people updating, and Home invites you to try them',
+        'Album card captions blend into a color taken from each cover, so titles stay readable on any artwork in light and dark themes',
       ),
       ChangelogEntry(
-        'Appearance can use OLED black in Auto, switch to the Night style on a daily schedule, and turn on Flat Surfaces for solid colours without glows or shadows',
-      ),
-      ChangelogEntry(
-        'Appearance has a Color Style setting: Pastel, Immersive and Night restyle Light, Dark and OLED, and Neutral keeps the current look',
+        'Setup shows the new appearance options, marked New for people updating until you have seen them, and Home invites you to try them',
       ),
       ChangelogEntry(
         'Home on phones has a slimmer header, so more of You Might Like fits on screen',
