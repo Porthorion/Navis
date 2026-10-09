@@ -3034,6 +3034,10 @@ source's `MediaItem` tag, or for an Android lock-cached stream, which is built
 before its `MediaItem` and carries no tag, from its stream URL's `id`
 (`navisNativeSourceSongId`).
 
+Handler teardown starts full cleanup synchronously through `beginTeardown`;
+`disposeHandler` awaits the same cached future, including decks, artwork,
+sidecar, subscriptions, browse notifications and owned stream controllers.
+
 Startup waits for cache maintenance before restoring or synthesizing a queue,
 so stale partial-file cleanup cannot race a new lock-cache download. If the OS
 sends duplicate Play requests while the queue is empty, both await the same

@@ -441,7 +441,7 @@ class NavisAudioHandler extends BaseAudioHandler
   );
   Future<void>? _playerDisposalFuture;
   bool _disposeHandlerStarted = false;
-  bool _disposeHandlerCompleted = false;
+  Future<void>? _disposeHandlerFuture;
   Duration get _playerLoadTimeout => _timeouts.load;
   Duration get _remotePlaybackStallTimeout => _timeouts.remoteStall;
   Duration get _seekBufferingRecoveryTimeout => _timeouts.seekBufferingRecovery;
@@ -9301,24 +9301,19 @@ class NavisAudioHandler extends BaseAudioHandler
     );
   }
 
-  Future<void> disposeHandler() async {
-    if (_disposeHandlerCompleted) {
-      return;
-    }
-    if (_disposeHandlerStarted) {
-      await _ensurePlayerDisposalStarted();
-      return;
-    }
+  Future<void> disposeHandler() => _disposeHandlerFuture ??= _disposeHandler();
+
+  Future<void> _disposeHandler() async {
     _disposeHandlerStarted = true;
     _artCache?.dispose();
     _cancelCrossfade();
     _cancelRemotePlaybackStallWatchdog();
-    await _disposeInactiveCrossfadeDeck();
     _positionPersistTimer?.cancel();
     _transportPersistTimer?.cancel();
-    await _flushQueueItemsPersistence();
     _radioStation = null;
     _radioMetadataService.dispose();
+    await _disposeInactiveCrossfadeDeck();
+    await _flushQueueItemsPersistence();
     await _sidecarDownloader.dispose();
     _sidecarSongsById.clear();
     _sidecarStreamUris.clear();
@@ -9346,33 +9341,10 @@ class NavisAudioHandler extends BaseAudioHandler
     await _radioStreamErrorController.close();
     await _loadFailureController.close();
     await _droppedSongsController.close();
-    _disposeHandlerCompleted = true;
   }
 
   void beginTeardown() {
-    if (_disposeHandlerCompleted) {
-      return;
-    }
-    if (_disposeHandlerStarted) {
-      unawaited(_ensurePlayerDisposalStarted());
-      return;
-    }
-    _disposeHandlerStarted = true;
-    _cancelCrossfade();
-    _cancelRemotePlaybackStallWatchdog();
-    unawaited(_disposeInactiveCrossfadeDeck());
-    _positionPersistTimer?.cancel();
-    _transportPersistTimer?.cancel();
-    unawaited(_flushQueueItemsPersistence());
-    _radioStation = null;
-    _radioMetadataService.dispose();
-    unawaited(_disposePlayerListeners());
-    for (final subscription in _cacheProgressSubscriptions.values) {
-      unawaited(subscription.cancel());
-    }
-    _cacheProgressSubscriptions.clear();
-    _rollingCacheActivities.clear();
-    _reportRollingCacheActivity?.call(const RollingCacheActivity.idle());
+    unawaited(disposeHandler());
     unawaited(_ensurePlayerDisposalStarted());
   }
 

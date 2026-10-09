@@ -10,6 +10,7 @@ import 'dart:io';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:dio/dio.dart';
 import 'package:mocktail/mocktail.dart';
+import 'package:navis/src/common_widgets/cover_art_cache_manager.dart';
 import 'package:navis/src/features/player/data/radio_metadata_service.dart';
 import 'package:just_audio/just_audio.dart';
 import 'package:navis/src/api/subsonic_api_client.dart';
@@ -54,6 +55,35 @@ class _NoopScrobbleService extends Fake implements ScrobbleService {
     required String sessionKey,
     ScrobbleTrackPayload? track,
   }) async {}
+}
+
+class _TeardownArtworkService extends Fake implements CoverArtHttpFileService {
+  bool closed = false;
+
+  @override
+  void close({bool force = false}) {
+    closed = true;
+  }
+}
+
+class _TeardownHttpClient extends Fake implements HttpClient {
+  final requested = Completer<void>();
+  final request = Completer<HttpClientRequest>();
+  bool closed = false;
+
+  @override
+  Future<HttpClientRequest> getUrl(Uri uri) {
+    requested.complete();
+    return request.future;
+  }
+
+  @override
+  void close({bool force = false}) {
+    closed = force;
+    if (requested.isCompleted && !request.isCompleted) {
+      request.completeError(const HttpException('fixture client closed'));
+    }
+  }
 }
 
 class _ControllableAudioPlayer extends Fake implements AudioPlayer {
@@ -463,6 +493,7 @@ void main() {
     bool Function(Uri)? readRadioArtworkAllowed,
     bool Function()? readRadioMetadataAllowed,
     Dio Function()? createRadioMetadataDio,
+    CoverArtHttpFileService? artworkFileService,
   }) async {
     final database = createTestDatabase();
     final apiClient = sidecarStreams
@@ -508,6 +539,7 @@ void main() {
     final cache = DriftRollingCacheManager(cacheDao: database.cacheDao);
     final player = initialPlayer ?? _ControllableAudioPlayer();
     final handler = NavisAudioHandler(
+      artworkFileService: artworkFileService,
       readRadioMetadataAllowed: readRadioMetadataAllowed ?? () => false,
       createRadioMetadataDio: createRadioMetadataDio,
       readRadioArtworkAllowed: readRadioArtworkAllowed,
@@ -569,6 +601,86 @@ void main() {
     if (waitForReady) await handler.waitUntilReady();
     return (handler, player, database);
   }
+
+  test(
+    'begin then dispose closes all handler streams and browse parents',
+    () async {
+      final directory = await Directory.systemTemp.createTemp(
+        'navis-teardown-',
+      );
+      final artwork = _TeardownArtworkService();
+      final (handler, player, database) = await createHandler(
+        directory,
+        1,
+        crossfade: true,
+        artworkFileService: artwork,
+      );
+      addTearDown(() async {
+        await handler.disposeHandler();
+        await database.close();
+        await directory.delete(recursive: true);
+      });
+      final closed = <Future<void>>[
+        for (final stream in <Stream<dynamic>>[
+          handler.snapshotStream,
+          handler.playbackAdjustmentsStream,
+          handler.equalizerStateStream,
+          handler.transportVisualCueStream,
+          handler.positionStream,
+          handler.bufferStateStream,
+          handler.radioStreamErrorStream,
+          handler.loadFailureStream,
+          handler.droppedSongsStream,
+          handler.subscribeToChildren('root'),
+          handler.subscribeToChildren('root/recent'),
+          handler.subscribeToChildren(AudioService.recentRootId),
+        ])
+          stream.listen((_) {}).asFuture<void>(),
+      ];
+      handler.beginTeardown();
+      expect(player.stopCalls, 1);
+      expect(
+        artwork.closed,
+        Platform.isAndroid || Platform.isLinux || Platform.isWindows,
+      );
+      final disposal = handler.disposeHandler();
+      await disposal;
+      await Future.wait(closed).timeout(const Duration(seconds: 1));
+      expect(identical(disposal, handler.disposeHandler()), isTrue);
+      expect(player._indices.hasListener, isFalse);
+      expect(handler.debugInactiveDeck, isNull);
+    },
+  );
+
+  test('begin then dispose cancels an in-flight sidecar client', () async {
+    final directory = await Directory.systemTemp.createTemp(
+      'navis-teardown-sidecar-',
+    );
+    final client = _TeardownHttpClient();
+    await HttpOverrides.runZoned(() async {
+      final (handler, _, database) = await createHandler(
+        directory,
+        1,
+        sidecarStreams: true,
+        artworkFileService: _TeardownArtworkService(),
+      );
+      addTearDown(() async {
+        await handler.disposeHandler();
+        await database.close();
+        await directory.delete(recursive: true);
+      });
+      await handler.replaceQueue(['song-0'], expandMatchFlows: false);
+      await client.requested.future.timeout(const Duration(seconds: 2));
+      handler.beginTeardown();
+      await handler.disposeHandler();
+      await pumpEventQueue();
+      expect(client.closed, isTrue);
+      expect(
+        handler.collectPlaybackDiagnostics()['sidecarCacheActiveSongId'],
+        isNull,
+      );
+    }, createHttpClient: (_) => client);
+  });
 
   for (final initiallyAllowed in [true, false]) {
     test(
