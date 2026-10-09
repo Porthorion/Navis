@@ -420,17 +420,8 @@ NavisOsControlCapabilities navisOsControlCapabilitiesForSnapshot(
 
 @visibleForTesting
 List<MediaControl> navisNotificationControls({
-  required bool isPlaying,
-  NavisOsControlCapabilities? capabilities,
+  required NavisOsControlCapabilities capabilities,
 }) {
-  if (capabilities == null) {
-    return <MediaControl>[
-      MediaControl.skipToPrevious,
-      if (isPlaying) MediaControl.pause else MediaControl.play,
-      MediaControl.skipToNext,
-    ];
-  }
-
   return <MediaControl>[
     if (capabilities.canSkipPrevious) MediaControl.skipToPrevious,
     if (capabilities.canPause)

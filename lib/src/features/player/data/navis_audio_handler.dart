@@ -7569,10 +7569,7 @@ class NavisAudioHandler extends BaseAudioHandler
       processingState: processingState,
       playing: _visiblePlaying,
     );
-    final controls = navisNotificationControls(
-      isPlaying: _visiblePlaying,
-      capabilities: capabilities,
-    );
+    final controls = navisNotificationControls(capabilities: capabilities);
     final state = playbackState.value.copyWith(
       controls: controls,
       systemActions: navisSystemActionsForCapabilities(capabilities),

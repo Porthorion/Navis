@@ -12,29 +12,26 @@ import 'package:navis/src/features/player/domain/playback_snapshot.dart';
 
 void main() {
   group('NavisAudioHandler fallback helpers', () {
-    test('notification controls are stable and ordered', () {
-      final pausedControls = navisNotificationControls(isPlaying: false);
-      final playingControls = navisNotificationControls(isPlaying: true);
-
-      expect(pausedControls.length, 3);
-      expect(playingControls.length, 3);
-
-      expect(pausedControls[0].action, MediaAction.skipToPrevious);
-      expect(pausedControls[1].action, MediaAction.play);
-      expect(pausedControls[2].action, MediaAction.skipToNext);
-
-      expect(playingControls[0].action, MediaAction.skipToPrevious);
-      expect(playingControls[1].action, MediaAction.pause);
-      expect(playingControls[2].action, MediaAction.skipToNext);
-    });
-
-    test('instant mix control is removed; controls always have 3 items', () {
-      final pausedControls = navisNotificationControls(isPlaying: false);
-      final playingControls = navisNotificationControls(isPlaying: true);
-
-      expect(pausedControls.length, 3);
-      expect(playingControls.length, 3);
-    });
+    for (final (playing, transportAction) in [
+      (false, MediaAction.play),
+      (true, MediaAction.pause),
+    ]) {
+      test('notification controls are ordered (playing=$playing)', () {
+        final capabilities = navisOsControlCapabilities(
+          queueLength: 3,
+          currentIndex: 1,
+          isRadioMode: false,
+          duration: const Duration(minutes: 3),
+          processingState: AudioProcessingState.ready,
+          playing: playing,
+        );
+        expect(
+          navisNotificationControls(capabilities: capabilities)
+              .map((control) => control.action),
+          [MediaAction.skipToPrevious, transportAction, MediaAction.skipToNext],
+        );
+      });
+    }
 
     group('OS media control capabilities', () {
       test('idle exposes no transport controls', () {
@@ -49,13 +46,7 @@ void main() {
         expect(capabilities.canSkipNext, isFalse);
         expect(capabilities.canSkipPrevious, isFalse);
         expect(capabilities.isLive, isFalse);
-        expect(
-          navisNotificationControls(
-            isPlaying: false,
-            capabilities: capabilities,
-          ),
-          isEmpty,
-        );
+        expect(navisNotificationControls(capabilities: capabilities), isEmpty);
       });
 
       test('loading queue disables play until ready', () {
