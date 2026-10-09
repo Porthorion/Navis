@@ -2860,7 +2860,9 @@ when those songs change, and maps system queue indices (`skipToQueueItem`,
 queue. audio_service sends the whole list over the platform channel on every
 queue change, and on Android the platform thread is the UI thread. Linux MPRIS
 keeps the spec's track-time
-Position and publishes Rate on every speed change. Windows SMTC has no rate,
+Position and publishes Rate on every speed change. Interface-specific property
+descriptors generate MPRIS introspection and individual/bulk reads; method and
+property-write dispatch remain separate. Windows SMTC has no rate,
 so `WindowsSmtcBridge` publishes its timeline in real listening time and
 converts SMTC seek and skip requests back to track time.
 

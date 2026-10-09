@@ -502,6 +502,71 @@ class _NavisMprisObject extends DBusObject {
     ]);
   }
 
+  late final _properties = <String, Map<String, _MprisProperty>>{
+    'org.mpris.MediaPlayer2': {
+      'CanQuit': _MprisProperty('b', () => const DBusBoolean(false)),
+      'CanRaise': _MprisProperty('b', () => const DBusBoolean(false)),
+      'HasTrackList': _MprisProperty('b', () => const DBusBoolean(false)),
+      'Identity': _MprisProperty('s', () => const DBusString('Navis')),
+      'SupportedUriSchemes': _MprisProperty('as', () => DBusArray.string([])),
+      'SupportedMimeTypes': _MprisProperty('as', () => DBusArray.string([])),
+    },
+    'org.mpris.MediaPlayer2.Player': {
+      'PlaybackStatus': _MprisProperty('s', () => DBusString(_playbackStatus)),
+      'LoopStatus': _MprisProperty(
+        's',
+        () => DBusString(_loopStatus),
+        access: DBusPropertyAccess.readwrite,
+      ),
+      'Rate': _MprisProperty(
+        'd',
+        () => DBusDouble(_rate),
+        access: DBusPropertyAccess.readwrite,
+      ),
+      'Shuffle': _MprisProperty(
+        'b',
+        () => DBusBoolean(_shuffleEnabled),
+        access: DBusPropertyAccess.readwrite,
+      ),
+      'Metadata': _MprisProperty('a{sv}', () => _metadata),
+      'Volume': _MprisProperty(
+        'd',
+        () => const DBusDouble(1),
+        access: DBusPropertyAccess.readwrite,
+      ),
+      'Position': _MprisProperty(
+        'x',
+        () => DBusInt64(_position.inMicroseconds),
+      ),
+      'MinimumRate': _MprisProperty('d', () => const DBusDouble(0.5)),
+      'MaximumRate': _MprisProperty('d', () => const DBusDouble(2)),
+      'CanGoNext': _MprisProperty(
+        'b',
+        () => DBusBoolean(_capabilities.canSkipNext),
+      ),
+      'CanGoPrevious': _MprisProperty(
+        'b',
+        () => DBusBoolean(_capabilities.canSkipPrevious),
+      ),
+      'CanPlay': _MprisProperty('b', () => DBusBoolean(_capabilities.canPlay)),
+      'CanPause': _MprisProperty(
+        'b',
+        () => DBusBoolean(_capabilities.canPause),
+      ),
+      'CanSeek': _MprisProperty('b', () => DBusBoolean(_capabilities.canSeek)),
+      'CanControl': _MprisProperty('b', () => const DBusBoolean(true)),
+    },
+  };
+
+  List<DBusIntrospectProperty> _introspectProperties(String interface) => [
+    for (final entry in _properties[interface]!.entries)
+      DBusIntrospectProperty(
+        entry.key,
+        DBusSignature(entry.value.signature),
+        access: entry.value.access,
+      ),
+  ];
+
   // ---- DBusObject overrides ------------------------------------------------
 
   @override
@@ -510,38 +575,7 @@ class _NavisMprisObject extends DBusObject {
       DBusIntrospectInterface(
         'org.mpris.MediaPlayer2',
         methods: [DBusIntrospectMethod('Raise'), DBusIntrospectMethod('Quit')],
-        properties: [
-          DBusIntrospectProperty(
-            'CanQuit',
-            DBusSignature('b'),
-            access: DBusPropertyAccess.read,
-          ),
-          DBusIntrospectProperty(
-            'CanRaise',
-            DBusSignature('b'),
-            access: DBusPropertyAccess.read,
-          ),
-          DBusIntrospectProperty(
-            'HasTrackList',
-            DBusSignature('b'),
-            access: DBusPropertyAccess.read,
-          ),
-          DBusIntrospectProperty(
-            'Identity',
-            DBusSignature('s'),
-            access: DBusPropertyAccess.read,
-          ),
-          DBusIntrospectProperty(
-            'SupportedUriSchemes',
-            DBusSignature('as'),
-            access: DBusPropertyAccess.read,
-          ),
-          DBusIntrospectProperty(
-            'SupportedMimeTypes',
-            DBusSignature('as'),
-            access: DBusPropertyAccess.read,
-          ),
-        ],
+        properties: _introspectProperties('org.mpris.MediaPlayer2'),
       ),
       DBusIntrospectInterface(
         'org.mpris.MediaPlayer2.Player',
@@ -600,83 +634,7 @@ class _NavisMprisObject extends DBusObject {
             ],
           ),
         ],
-        properties: [
-          DBusIntrospectProperty(
-            'PlaybackStatus',
-            DBusSignature('s'),
-            access: DBusPropertyAccess.read,
-          ),
-          DBusIntrospectProperty(
-            'LoopStatus',
-            DBusSignature('s'),
-            access: DBusPropertyAccess.readwrite,
-          ),
-          DBusIntrospectProperty(
-            'Rate',
-            DBusSignature('d'),
-            access: DBusPropertyAccess.readwrite,
-          ),
-          DBusIntrospectProperty(
-            'Shuffle',
-            DBusSignature('b'),
-            access: DBusPropertyAccess.readwrite,
-          ),
-          DBusIntrospectProperty(
-            'Metadata',
-            DBusSignature('a{sv}'),
-            access: DBusPropertyAccess.read,
-          ),
-          DBusIntrospectProperty(
-            'Volume',
-            DBusSignature('d'),
-            access: DBusPropertyAccess.readwrite,
-          ),
-          DBusIntrospectProperty(
-            'Position',
-            DBusSignature('x'),
-            access: DBusPropertyAccess.read,
-          ),
-          DBusIntrospectProperty(
-            'MinimumRate',
-            DBusSignature('d'),
-            access: DBusPropertyAccess.read,
-          ),
-          DBusIntrospectProperty(
-            'MaximumRate',
-            DBusSignature('d'),
-            access: DBusPropertyAccess.read,
-          ),
-          DBusIntrospectProperty(
-            'CanGoNext',
-            DBusSignature('b'),
-            access: DBusPropertyAccess.read,
-          ),
-          DBusIntrospectProperty(
-            'CanGoPrevious',
-            DBusSignature('b'),
-            access: DBusPropertyAccess.read,
-          ),
-          DBusIntrospectProperty(
-            'CanPlay',
-            DBusSignature('b'),
-            access: DBusPropertyAccess.read,
-          ),
-          DBusIntrospectProperty(
-            'CanPause',
-            DBusSignature('b'),
-            access: DBusPropertyAccess.read,
-          ),
-          DBusIntrospectProperty(
-            'CanSeek',
-            DBusSignature('b'),
-            access: DBusPropertyAccess.read,
-          ),
-          DBusIntrospectProperty(
-            'CanControl',
-            DBusSignature('b'),
-            access: DBusPropertyAccess.read,
-          ),
-        ],
+        properties: _introspectProperties('org.mpris.MediaPlayer2.Player'),
       ),
     ];
   }
@@ -746,54 +704,10 @@ class _NavisMprisObject extends DBusObject {
 
   @override
   Future<DBusMethodResponse> getProperty(String interface, String name) async {
-    if (interface == 'org.mpris.MediaPlayer2') {
-      return switch (name) {
-        'CanQuit' => DBusGetPropertyResponse(const DBusBoolean(false)),
-        'CanRaise' => DBusGetPropertyResponse(const DBusBoolean(false)),
-        'HasTrackList' => DBusGetPropertyResponse(const DBusBoolean(false)),
-        'Identity' => DBusGetPropertyResponse(const DBusString('Navis')),
-        'SupportedUriSchemes' => DBusGetPropertyResponse(DBusArray.string([])),
-        'SupportedMimeTypes' => DBusGetPropertyResponse(DBusArray.string([])),
-        _ => DBusMethodErrorResponse.unknownProperty(),
-      };
-    }
-
-    if (interface == 'org.mpris.MediaPlayer2.Player') {
-      return switch (name) {
-        'PlaybackStatus' => DBusGetPropertyResponse(
-          DBusString(_playbackStatus),
-        ),
-        'LoopStatus' => DBusGetPropertyResponse(DBusString(_loopStatus)),
-        'Rate' => DBusGetPropertyResponse(DBusDouble(_rate)),
-        'Shuffle' => DBusGetPropertyResponse(DBusBoolean(_shuffleEnabled)),
-        'Metadata' => DBusGetPropertyResponse(_metadata),
-        'Volume' => DBusGetPropertyResponse(const DBusDouble(1)),
-        'Position' => DBusGetPropertyResponse(
-          DBusInt64(_position.inMicroseconds),
-        ),
-        'MinimumRate' => DBusGetPropertyResponse(const DBusDouble(0.5)),
-        'MaximumRate' => DBusGetPropertyResponse(const DBusDouble(2)),
-        'CanGoNext' => DBusGetPropertyResponse(
-          DBusBoolean(_capabilities.canSkipNext),
-        ),
-        'CanGoPrevious' => DBusGetPropertyResponse(
-          DBusBoolean(_capabilities.canSkipPrevious),
-        ),
-        'CanPlay' => DBusGetPropertyResponse(
-          DBusBoolean(_capabilities.canPlay),
-        ),
-        'CanPause' => DBusGetPropertyResponse(
-          DBusBoolean(_capabilities.canPause),
-        ),
-        'CanSeek' => DBusGetPropertyResponse(
-          DBusBoolean(_capabilities.canSeek),
-        ),
-        'CanControl' => DBusGetPropertyResponse(const DBusBoolean(true)),
-        _ => DBusMethodErrorResponse.unknownProperty(),
-      };
-    }
-
-    return DBusMethodErrorResponse.unknownProperty();
+    final property = _properties[interface]?[name];
+    return property == null
+        ? DBusMethodErrorResponse.unknownProperty()
+        : DBusGetPropertyResponse(property.read());
   }
 
   @override
@@ -828,37 +742,18 @@ class _NavisMprisObject extends DBusObject {
 
   @override
   Future<DBusMethodResponse> getAllProperties(String interface) async {
-    if (interface == 'org.mpris.MediaPlayer2') {
-      return DBusGetAllPropertiesResponse({
-        'CanQuit': const DBusBoolean(false),
-        'CanRaise': const DBusBoolean(false),
-        'HasTrackList': const DBusBoolean(false),
-        'Identity': const DBusString('Navis'),
-        'SupportedUriSchemes': DBusArray.string([]),
-        'SupportedMimeTypes': DBusArray.string([]),
-      });
-    }
-
-    if (interface == 'org.mpris.MediaPlayer2.Player') {
-      return DBusGetAllPropertiesResponse({
-        'PlaybackStatus': DBusString(_playbackStatus),
-        'LoopStatus': DBusString(_loopStatus),
-        'Rate': DBusDouble(_rate),
-        'Shuffle': DBusBoolean(_shuffleEnabled),
-        'Metadata': _metadata,
-        'Volume': const DBusDouble(1),
-        'Position': DBusInt64(_position.inMicroseconds),
-        'MinimumRate': const DBusDouble(0.5),
-        'MaximumRate': const DBusDouble(2),
-        'CanGoNext': DBusBoolean(_capabilities.canSkipNext),
-        'CanGoPrevious': DBusBoolean(_capabilities.canSkipPrevious),
-        'CanPlay': DBusBoolean(_capabilities.canPlay),
-        'CanPause': DBusBoolean(_capabilities.canPause),
-        'CanSeek': DBusBoolean(_capabilities.canSeek),
-        'CanControl': const DBusBoolean(true),
-      });
-    }
-
-    return DBusGetAllPropertiesResponse({});
+    final properties = _properties[interface];
+    return DBusGetAllPropertiesResponse({
+      if (properties != null)
+        for (final entry in properties.entries) entry.key: entry.value.read(),
+    });
   }
+}
+
+class _MprisProperty {
+  const new(this.signature, this.read, {this.access = DBusPropertyAccess.read});
+
+  final String signature;
+  final DBusPropertyAccess access;
+  final DBusValue Function() read;
 }

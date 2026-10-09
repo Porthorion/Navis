@@ -34,6 +34,173 @@ void main() {
     await handler.close();
   });
 
+  test('introspection XML preserves the MPRIS protocol surface', () {
+    final xml = client.object
+        .introspect()
+        .map((interface) => interface.toXml().toXmlString(pretty: true))
+        .join('\n');
+    expect(xml, '''
+<interface name="org.mpris.MediaPlayer2">
+  <method name="Raise"/>
+  <method name="Quit"/>
+  <property name="CanQuit" type="b" access="read"/>
+  <property name="CanRaise" type="b" access="read"/>
+  <property name="HasTrackList" type="b" access="read"/>
+  <property name="Identity" type="s" access="read"/>
+  <property name="SupportedUriSchemes" type="as" access="read"/>
+  <property name="SupportedMimeTypes" type="as" access="read"/>
+</interface>
+<interface name="org.mpris.MediaPlayer2.Player">
+  <method name="Next"/>
+  <method name="Previous"/>
+  <method name="Pause"/>
+  <method name="PlayPause"/>
+  <method name="Stop"/>
+  <method name="Play"/>
+  <method name="Seek">
+    <arg name="Offset" type="x" direction="in"/>
+  </method>
+  <method name="SetPosition">
+    <arg name="TrackId" type="o" direction="in"/>
+    <arg name="Position" type="x" direction="in"/>
+  </method>
+  <method name="OpenUri">
+    <arg name="Uri" type="s" direction="in"/>
+  </method>
+  <signal name="Seeked">
+    <arg name="Position" type="x"/>
+  </signal>
+  <property name="PlaybackStatus" type="s" access="read"/>
+  <property name="LoopStatus" type="s" access="readwrite"/>
+  <property name="Rate" type="d" access="readwrite"/>
+  <property name="Shuffle" type="b" access="readwrite"/>
+  <property name="Metadata" type="a{sv}" access="read"/>
+  <property name="Volume" type="d" access="readwrite"/>
+  <property name="Position" type="x" access="read"/>
+  <property name="MinimumRate" type="d" access="read"/>
+  <property name="MaximumRate" type="d" access="read"/>
+  <property name="CanGoNext" type="b" access="read"/>
+  <property name="CanGoPrevious" type="b" access="read"/>
+  <property name="CanPlay" type="b" access="read"/>
+  <property name="CanPause" type="b" access="read"/>
+  <property name="CanSeek" type="b" access="read"/>
+  <property name="CanControl" type="b" access="read"/>
+</interface>''');
+  });
+
+  Future<void> expectProperties(
+    String interface,
+    Map<String, DBusValue> values,
+  ) async {
+    final all = await client.object.getAllProperties(interface);
+    expect(all.returnValues, DBusGetAllPropertiesResponse(values).returnValues);
+    for (final entry in values.entries) {
+      final single = await client.object.getProperty(interface, entry.key);
+      expect(single.returnValues, [
+        DBusVariant(entry.value),
+      ], reason: entry.key);
+    }
+  }
+
+  test('Get and GetAll preserve the root values', () async {
+    await expectProperties('org.mpris.MediaPlayer2', {
+      'CanQuit': const DBusBoolean(false),
+      'CanRaise': const DBusBoolean(false),
+      'HasTrackList': const DBusBoolean(false),
+      'Identity': const DBusString('Navis'),
+      'SupportedUriSchemes': DBusArray.string([]),
+      'SupportedMimeTypes': DBusArray.string([]),
+    });
+  });
+
+  test('Get and GetAll preserve the paused player values', () async {
+    await expectProperties('org.mpris.MediaPlayer2.Player', {
+      'PlaybackStatus': const DBusString('Paused'),
+      'LoopStatus': const DBusString('None'),
+      'Rate': const DBusDouble(1),
+      'Shuffle': const DBusBoolean(false),
+      'Metadata': DBusDict.stringVariant({
+        'mpris:trackid': DBusObjectPath('/org/mpris/MediaPlayer2/Track/song_1'),
+        'xesam:title': const DBusString('First'),
+      }),
+      'Volume': const DBusDouble(1),
+      'Position': const DBusInt64(10000000),
+      'MinimumRate': const DBusDouble(0.5),
+      'MaximumRate': const DBusDouble(2),
+      'CanGoNext': const DBusBoolean(false),
+      'CanGoPrevious': const DBusBoolean(false),
+      'CanPlay': const DBusBoolean(true),
+      'CanPause': const DBusBoolean(false),
+      'CanSeek': const DBusBoolean(false),
+      'CanControl': const DBusBoolean(true),
+    });
+  });
+
+  test('property reads follow playback, rate and track-time updates', () async {
+    handler.emitSnapshot(
+      handler.snapshot.copyWith(
+        queueSongIds: ['song-0', 'song-1', 'song-2'],
+        currentIndex: 1,
+        playing: true,
+        repeatMode: AudioServiceRepeatMode.all,
+        shuffleMode: AudioServiceShuffleMode.all,
+        duration: const Duration(minutes: 3),
+        position: const Duration(microseconds: 12345678),
+      ),
+    );
+    handler.emitAdjustments(const PlaybackAdjustments(speed: 1.75));
+    await pumpEventQueue();
+    await expectProperties('org.mpris.MediaPlayer2.Player', {
+      'PlaybackStatus': const DBusString('Playing'),
+      'LoopStatus': const DBusString('Playlist'),
+      'Rate': const DBusDouble(1.75),
+      'Shuffle': const DBusBoolean(true),
+      'Metadata': DBusDict.stringVariant({
+        'mpris:trackid': DBusObjectPath('/org/mpris/MediaPlayer2/Track/song_1'),
+        'xesam:title': const DBusString('First'),
+      }),
+      'Volume': const DBusDouble(1),
+      'Position': const DBusInt64(12345678),
+      'MinimumRate': const DBusDouble(0.5),
+      'MaximumRate': const DBusDouble(2),
+      'CanGoNext': const DBusBoolean(true),
+      'CanGoPrevious': const DBusBoolean(true),
+      'CanPlay': const DBusBoolean(false),
+      'CanPause': const DBusBoolean(true),
+      'CanSeek': const DBusBoolean(true),
+      'CanControl': const DBusBoolean(true),
+    });
+  });
+
+  test('unknown property and interface responses remain distinct', () async {
+    for (final interface in [
+      'org.mpris.MediaPlayer2',
+      'org.mpris.MediaPlayer2.Player',
+      'unknown',
+    ]) {
+      final response = await client.object.getProperty(interface, 'unknown');
+      expect(response, isA<DBusMethodErrorResponse>());
+      expect(
+        (response as DBusMethodErrorResponse).errorName,
+        'org.freedesktop.DBus.Error.UnknownProperty',
+      );
+    }
+    final all = await client.object.getAllProperties('unknown');
+    expect(all.returnValues, DBusGetAllPropertiesResponse({}).returnValues);
+    final method = await client.object.handleMethodCall(
+      const DBusMethodCall(
+        sender: ':fixture',
+        interface: 'unknown',
+        name: 'Play',
+        values: [],
+      ),
+    );
+    expect(
+      (method as DBusMethodErrorResponse).errorName,
+      'org.freedesktop.DBus.Error.UnknownInterface',
+    );
+  });
+
   test('paused UI timeline seek emits Seeked in microseconds', () async {
     handler.emitPosition(const Duration(seconds: 45));
     await pumpEventQueue();
@@ -137,6 +304,13 @@ class _Handler extends Fake implements NavisPlaybackHandler {
   final snapshots = StreamController<PlaybackSnapshot>.broadcast();
   final positions = StreamController<Duration>.broadcast();
   final items = StreamController<MediaItem?>.broadcast();
+  PlaybackAdjustments _adjustments = const PlaybackAdjustments();
+  final adjustmentChanges = StreamController<PlaybackAdjustments>.broadcast();
+
+  void emitAdjustments(PlaybackAdjustments adjustments) {
+    _adjustments = adjustments;
+    adjustmentChanges.add(adjustments);
+  }
 
   void emitSnapshot(PlaybackSnapshot snapshot) {
     _snapshot = snapshot;
@@ -158,6 +332,7 @@ class _Handler extends Fake implements NavisPlaybackHandler {
     await snapshots.close();
     await positions.close();
     await items.close();
+    await adjustmentChanges.close();
   }
 
   @override
@@ -172,8 +347,8 @@ class _Handler extends Fake implements NavisPlaybackHandler {
   @override
   Stream<MediaItem?> get mediaItemStream => items.stream;
   @override
-  PlaybackAdjustments get playbackAdjustments => const PlaybackAdjustments();
+  PlaybackAdjustments get playbackAdjustments => _adjustments;
   @override
   Stream<PlaybackAdjustments> get playbackAdjustmentsStream =>
-      const Stream.empty();
+      adjustmentChanges.stream;
 }
