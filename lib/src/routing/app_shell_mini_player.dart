@@ -23,6 +23,122 @@ Widget _remoteLoadingPlayPauseIcon({
   );
 }
 
+/// Cover art for the mini players: radio station art, remote/non-library
+/// fallback art or the library cover.
+Widget _miniPlayerArtwork({
+  required bool isRadio,
+  required String? radioArtUrl,
+  required String? coverArtId,
+  required String? coverArtUrl,
+  required bool isExternalSource,
+  required double size,
+  required ColorScheme colorScheme,
+  double? placeholderSize,
+}) {
+  // The compact-wide strip draws a 64 px cover but keeps 48 px radio/remote
+  // art, so the placeholder extent is separate.
+  final fallbackSize = placeholderSize ?? size;
+  if (isRadio) {
+    return _MiniRadioArt(
+      artUrl: radioArtUrl,
+      colorScheme: colorScheme,
+      size: fallbackSize,
+    );
+  }
+  if (coverArtId == null || coverArtId.trim().isEmpty) {
+    return _MiniRemoteArt(
+      artUrl: coverArtUrl,
+      colorScheme: colorScheme,
+      size: fallbackSize,
+    );
+  }
+  return CoverArtImage(
+    coverArtId: coverArtId,
+    size: kCoverArtStandardSize,
+    width: size,
+    height: size,
+    shape: ArtworkShapeRole.cover,
+    loadPriority: CoverArtLoadPriority.critical,
+    isExternalSource: isExternalSource,
+    remoteSourceIndicatorPolicy: RemoteSourceIndicatorPolicy.hidden,
+  );
+}
+
+/// Title and artist lines of the plain (non-navigating) mini player strip.
+/// [large] selects the compact-wide landscape typography and spacing.
+Widget _miniPlayerTrackText(
+  BuildContext context, {
+  required String? title,
+  required String? artist,
+  required bool isExternalSource,
+  required bool large,
+}) {
+  final l10n = AppLocalizations.of(context)!;
+  final textTheme = Theme.of(context).textTheme;
+  final cs = Theme.of(context).colorScheme;
+  return Column(
+    mainAxisAlignment: large
+        ? MainAxisAlignment.center
+        : MainAxisAlignment.start,
+    crossAxisAlignment: CrossAxisAlignment.start,
+    mainAxisSize: large ? MainAxisSize.max : MainAxisSize.min,
+    children: <Widget>[
+      Text(
+        (title == null || title.trim().isEmpty)
+            ? l10n.miniPlayerUnknownTrack
+            : title,
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+        style: (large ? textTheme.bodyLarge : textTheme.bodyMedium)?.copyWith(
+          fontWeight: FontWeight.w600,
+        ),
+      ),
+      if (isExternalSource)
+        const RemoteSourceIndicator(
+          variant: RemoteSourceIndicatorVariant.inline,
+        ),
+      SizedBox(height: large ? 3 : 2),
+      Text(
+        (artist == null || artist.trim().isEmpty)
+            ? l10n.miniPlayerUnknownArtist
+            : artist,
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+        style: (large ? textTheme.bodyMedium : textTheme.bodySmall)?.copyWith(
+          color: cs.onSurface.withValues(alpha: large ? 0.58 : 0.6),
+        ),
+      ),
+    ],
+  );
+}
+
+void _miniSkipPrevious(WidgetRef ref) {
+  final handler = ref.read(audioHandlerProvider);
+  if (handler == null) {
+    return;
+  }
+  unawaited(HapticFeedback.lightImpact());
+  unawaited(handler.skipToPrevious());
+}
+
+void _miniSkipNext(WidgetRef ref) {
+  final handler = ref.read(audioHandlerProvider);
+  if (handler == null) {
+    return;
+  }
+  unawaited(HapticFeedback.lightImpact());
+  unawaited(handler.skipToNext());
+}
+
+Future<void> _miniStopRadio(WidgetRef ref) async {
+  await ref.read(audioHandlerProvider)?.stopRadio();
+}
+
+void _miniToggleLike(WidgetRef ref) {
+  unawaited(HapticFeedback.lightImpact());
+  unawaited(ref.read(audioHandlerProvider)?.toggleLike());
+}
+
 class _RailMiniPlayer extends ConsumerStatefulWidget {
   const new({
     required this.playback,
@@ -122,35 +238,15 @@ class _RailMiniPlayerState extends ConsumerState<_RailMiniPlayer> {
                               children: <Widget>[
                                 Builder(
                                   builder: (context) {
-                                    Widget art;
-                                    if (widget.isRadio) {
-                                      art = _MiniRadioArt(
-                                        artUrl: widget.radioArtUrl,
-                                        colorScheme: cs,
-                                        size: 44,
-                                      );
-                                    } else if (widget.coverArtId == null ||
-                                        widget.coverArtId!.trim().isEmpty) {
-                                      art = _MiniRemoteArt(
-                                        artUrl: widget.coverArtUrl,
-                                        colorScheme: cs,
-                                        size: 44,
-                                      );
-                                    } else {
-                                      art = CoverArtImage(
-                                        coverArtId: widget.coverArtId,
-                                        size: kCoverArtStandardSize,
-                                        width: 44,
-                                        height: 44,
-                                        shape: ArtworkShapeRole.cover,
-                                        loadPriority:
-                                            CoverArtLoadPriority.critical,
-                                        isExternalSource:
-                                            widget.isExternalSource,
-                                        remoteSourceIndicatorPolicy:
-                                            RemoteSourceIndicatorPolicy.hidden,
-                                      );
-                                    }
+                                    final art = _miniPlayerArtwork(
+                                      isRadio: widget.isRadio,
+                                      radioArtUrl: widget.radioArtUrl,
+                                      coverArtId: widget.coverArtId,
+                                      coverArtUrl: widget.coverArtUrl,
+                                      isExternalSource: widget.isExternalSource,
+                                      size: 44,
+                                      colorScheme: cs,
+                                    );
                                     if (!canNavigateAlbum) {
                                       return art;
                                     }
@@ -294,16 +390,7 @@ class _RailMiniPlayerState extends ConsumerState<_RailMiniPlayer> {
                                     visualDensity: VisualDensity.compact,
                                     onPressed: widget.isRadio
                                         ? null
-                                        : () {
-                                            unawaited(
-                                              HapticFeedback.lightImpact(),
-                                            );
-                                            unawaited(
-                                              ref
-                                                  .read(audioHandlerProvider)
-                                                  ?.skipToPrevious(),
-                                            );
-                                          },
+                                        : () => _miniSkipPrevious(ref),
                                     icon: const Icon(
                                       Icons.skip_previous_rounded,
                                     ),
@@ -322,19 +409,10 @@ class _RailMiniPlayerState extends ConsumerState<_RailMiniPlayer> {
                                           MaterialTapTargetSize.shrinkWrap,
                                       visualDensity: VisualDensity.compact,
                                     ),
-                                    onPressed: () async {
-                                      final handler = ref.read(
-                                        audioHandlerProvider,
-                                      );
-                                      if (handler == null) {
-                                        return;
-                                      }
-                                      if (isPlaying) {
-                                        await handler.pause();
-                                      } else {
-                                        await handler.play();
-                                      }
-                                    },
+                                    onPressed: () => togglePlayPause(
+                                      ref,
+                                      isPlaying: isPlaying,
+                                    ),
                                     icon: _remoteLoadingPlayPauseIcon(
                                       isExternalSource: widget.isExternalSource,
                                       playback: playback,
@@ -381,16 +459,7 @@ class _RailMiniPlayerState extends ConsumerState<_RailMiniPlayer> {
                                       visualDensity: VisualDensity.compact,
                                       onPressed: widget.isRadio
                                           ? null
-                                          : () {
-                                              unawaited(
-                                                HapticFeedback.lightImpact(),
-                                              );
-                                              unawaited(
-                                                ref
-                                                    .read(audioHandlerProvider)
-                                                    ?.toggleLike(),
-                                              );
-                                            },
+                                          : () => _miniToggleLike(ref),
                                       icon: Icon(
                                         playback.isCurrentSongLiked
                                             ? Icons.favorite
@@ -703,71 +772,30 @@ class _MiniPlayerStripState extends ConsumerState<_MiniPlayerStrip> {
                     padding: const EdgeInsets.fromLTRB(16, 10, 10, 10),
                     child: Row(
                       children: <Widget>[
-                        if (isRadio)
-                          _MiniRadioArt(artUrl: radioArtUrl, colorScheme: cs)
-                        else if (coverArtId == null ||
-                            coverArtId.trim().isEmpty)
-                          _MiniRemoteArt(artUrl: coverArtUrl, colorScheme: cs)
-                        else
-                          CoverArtImage(
-                            coverArtId: coverArtId,
-                            size: kCoverArtStandardSize,
-                            width: 64,
-                            height: 64,
-                            shape: ArtworkShapeRole.cover,
-                            loadPriority: CoverArtLoadPriority.critical,
-                            isExternalSource: widget.isExternalSource,
-                            remoteSourceIndicatorPolicy:
-                                RemoteSourceIndicatorPolicy.hidden,
-                          ),
+                        _miniPlayerArtwork(
+                          isRadio: isRadio,
+                          radioArtUrl: radioArtUrl,
+                          coverArtId: coverArtId,
+                          coverArtUrl: coverArtUrl,
+                          isExternalSource: widget.isExternalSource,
+                          size: 64,
+                          placeholderSize: 48,
+                          colorScheme: cs,
+                        ),
                         const SizedBox(width: 14),
                         Expanded(
-                          child: Column(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: <Widget>[
-                              Text(
-                                (songTitle == null || songTitle.trim().isEmpty)
-                                    ? l10n.miniPlayerUnknownTrack
-                                    : songTitle,
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: Theme.of(context).textTheme.bodyLarge
-                                    ?.copyWith(fontWeight: FontWeight.w600),
-                              ),
-                              if (widget.isExternalSource)
-                                const RemoteSourceIndicator(
-                                  variant: RemoteSourceIndicatorVariant.inline,
-                                ),
-                              const SizedBox(height: 3),
-                              Text(
-                                (songArtist == null ||
-                                        songArtist.trim().isEmpty)
-                                    ? l10n.miniPlayerUnknownArtist
-                                    : songArtist,
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: Theme.of(context).textTheme.bodyMedium
-                                    ?.copyWith(
-                                      color: cs.onSurface.withValues(
-                                        alpha: 0.58,
-                                      ),
-                                    ),
-                              ),
-                            ],
+                          child: _miniPlayerTrackText(
+                            context,
+                            title: songTitle,
+                            artist: songArtist,
+                            isExternalSource: widget.isExternalSource,
+                            large: true,
                           ),
                         ),
                         if (!isRadio)
                           IconButton(
                             tooltip: l10n.nowPlayingPrevious,
-                            onPressed: () {
-                              final handler = ref.read(audioHandlerProvider);
-                              if (handler == null) {
-                                return;
-                              }
-                              unawaited(HapticFeedback.lightImpact());
-                              unawaited(handler.skipToPrevious());
-                            },
+                            onPressed: () => _miniSkipPrevious(ref),
                             icon: const Icon(
                               Icons.skip_previous_rounded,
                               size: 28,
@@ -783,17 +811,8 @@ class _MiniPlayerStripState extends ConsumerState<_MiniPlayerStrip> {
                             minimumSize: const Size(52, 52),
                             padding: const EdgeInsets.all(8),
                           ),
-                          onPressed: () async {
-                            final handler = ref.read(audioHandlerProvider);
-                            if (handler == null) {
-                              return;
-                            }
-                            if (isPlaying) {
-                              await handler.pause();
-                            } else {
-                              await handler.play();
-                            }
-                          },
+                          onPressed: () =>
+                              togglePlayPause(ref, isPlaying: isPlaying),
                           icon: _remoteLoadingPlayPauseIcon(
                             isExternalSource: widget.isExternalSource,
                             playback: playback,
@@ -805,26 +824,13 @@ class _MiniPlayerStripState extends ConsumerState<_MiniPlayerStrip> {
                         if (!isRadio)
                           IconButton(
                             tooltip: l10n.miniPlayerSkipNext,
-                            onPressed: () {
-                              final handler = ref.read(audioHandlerProvider);
-                              if (handler == null) {
-                                return;
-                              }
-                              unawaited(HapticFeedback.lightImpact());
-                              unawaited(handler.skipToNext());
-                            },
+                            onPressed: () => _miniSkipNext(ref),
                             icon: const Icon(Icons.skip_next_rounded, size: 28),
                           )
                         else
                           IconButton(
                             tooltip: l10n.radioStopStation,
-                            onPressed: () async {
-                              final handler = ref.read(audioHandlerProvider);
-                              if (handler == null) {
-                                return;
-                              }
-                              await handler.stopRadio();
-                            },
+                            onPressed: () => _miniStopRadio(ref),
                             icon: const Icon(Icons.stop_rounded, size: 28),
                           ),
                         if (!isRadio)
@@ -832,12 +838,7 @@ class _MiniPlayerStripState extends ConsumerState<_MiniPlayerStrip> {
                             tooltip: playback.isCurrentSongLiked
                                 ? l10n.actionLiked
                                 : l10n.actionLike,
-                            onPressed: () {
-                              unawaited(HapticFeedback.lightImpact());
-                              unawaited(
-                                ref.read(audioHandlerProvider)?.toggleLike(),
-                              );
-                            },
+                            onPressed: () => _miniToggleLike(ref),
                             icon: Icon(
                               playback.isCurrentSongLiked
                                   ? Icons.favorite
@@ -863,68 +864,23 @@ class _MiniPlayerStripState extends ConsumerState<_MiniPlayerStrip> {
                         ),
                         child: Row(
                           children: <Widget>[
-                            if (isRadio)
-                              _MiniRadioArt(
-                                artUrl: radioArtUrl,
-                                colorScheme: cs,
-                              )
-                            else if (coverArtId == null ||
-                                coverArtId.trim().isEmpty)
-                              _MiniRemoteArt(
-                                artUrl: coverArtUrl,
-                                colorScheme: cs,
-                              )
-                            else
-                              CoverArtImage(
-                                coverArtId: coverArtId,
-                                size: kCoverArtStandardSize,
-                                width: 48,
-                                height: 48,
-                                shape: ArtworkShapeRole.cover,
-                                loadPriority: CoverArtLoadPriority.critical,
-                                isExternalSource: widget.isExternalSource,
-                                remoteSourceIndicatorPolicy:
-                                    RemoteSourceIndicatorPolicy.hidden,
-                              ),
+                            _miniPlayerArtwork(
+                              isRadio: isRadio,
+                              radioArtUrl: radioArtUrl,
+                              coverArtId: coverArtId,
+                              coverArtUrl: coverArtUrl,
+                              isExternalSource: widget.isExternalSource,
+                              size: 48,
+                              colorScheme: cs,
+                            ),
                             const SizedBox(width: 12),
                             Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                mainAxisSize: MainAxisSize.min,
-                                children: <Widget>[
-                                  Text(
-                                    (songTitle == null ||
-                                            songTitle.trim().isEmpty)
-                                        ? l10n.miniPlayerUnknownTrack
-                                        : songTitle,
-                                    maxLines: 1,
-                                    overflow: TextOverflow.ellipsis,
-                                    style: Theme.of(context)
-                                        .textTheme
-                                        .bodyMedium
-                                        ?.copyWith(fontWeight: FontWeight.w600),
-                                  ),
-                                  if (widget.isExternalSource)
-                                    const RemoteSourceIndicator(
-                                      variant:
-                                          RemoteSourceIndicatorVariant.inline,
-                                    ),
-                                  const SizedBox(height: 2),
-                                  Text(
-                                    (songArtist == null ||
-                                            songArtist.trim().isEmpty)
-                                        ? l10n.miniPlayerUnknownArtist
-                                        : songArtist,
-                                    maxLines: 1,
-                                    overflow: TextOverflow.ellipsis,
-                                    style: Theme.of(context).textTheme.bodySmall
-                                        ?.copyWith(
-                                          color: cs.onSurface.withValues(
-                                            alpha: 0.6,
-                                          ),
-                                        ),
-                                  ),
-                                ],
+                              child: _miniPlayerTrackText(
+                                context,
+                                title: songTitle,
+                                artist: songArtist,
+                                isExternalSource: widget.isExternalSource,
+                                large: false,
                               ),
                             ),
                             if (!isRadio)
@@ -935,16 +891,7 @@ class _MiniPlayerStripState extends ConsumerState<_MiniPlayerStrip> {
                                   minHeight: 36,
                                 ),
                                 padding: EdgeInsets.zero,
-                                onPressed: () {
-                                  final handler = ref.read(
-                                    audioHandlerProvider,
-                                  );
-                                  if (handler == null) {
-                                    return;
-                                  }
-                                  unawaited(HapticFeedback.lightImpact());
-                                  unawaited(handler.skipToPrevious());
-                                },
+                                onPressed: () => _miniSkipPrevious(ref),
                                 icon: const Icon(
                                   Icons.skip_previous_rounded,
                                   size: 19,
@@ -963,17 +910,8 @@ class _MiniPlayerStripState extends ConsumerState<_MiniPlayerStrip> {
                                 ),
                                 padding: const EdgeInsets.all(6),
                               ),
-                              onPressed: () async {
-                                final handler = ref.read(audioHandlerProvider);
-                                if (handler == null) {
-                                  return;
-                                }
-                                if (isPlaying) {
-                                  await handler.pause();
-                                } else {
-                                  await handler.play();
-                                }
-                              },
+                              onPressed: () =>
+                                  togglePlayPause(ref, isPlaying: isPlaying),
                               icon: _remoteLoadingPlayPauseIcon(
                                 isExternalSource: widget.isExternalSource,
                                 playback: playback,
@@ -990,16 +928,7 @@ class _MiniPlayerStripState extends ConsumerState<_MiniPlayerStrip> {
                                   minHeight: 36,
                                 ),
                                 padding: EdgeInsets.zero,
-                                onPressed: () {
-                                  final handler = ref.read(
-                                    audioHandlerProvider,
-                                  );
-                                  if (handler == null) {
-                                    return;
-                                  }
-                                  unawaited(HapticFeedback.lightImpact());
-                                  unawaited(handler.skipToNext());
-                                },
+                                onPressed: () => _miniSkipNext(ref),
                                 icon: const Icon(
                                   Icons.skip_next_rounded,
                                   size: 19,
@@ -1010,15 +939,7 @@ class _MiniPlayerStripState extends ConsumerState<_MiniPlayerStrip> {
                                 tooltip: l10n.radioStopStation,
                                 constraints: const BoxConstraints(),
                                 padding: const EdgeInsets.fromLTRB(4, 6, 6, 6),
-                                onPressed: () async {
-                                  final handler = ref.read(
-                                    audioHandlerProvider,
-                                  );
-                                  if (handler == null) {
-                                    return;
-                                  }
-                                  await handler.stopRadio();
-                                },
+                                onPressed: () => _miniStopRadio(ref),
                                 icon: const Icon(Icons.stop_rounded, size: 20),
                               ),
                             if (!isRadio)
@@ -1031,14 +952,7 @@ class _MiniPlayerStripState extends ConsumerState<_MiniPlayerStrip> {
                                   minHeight: 36,
                                 ),
                                 padding: EdgeInsets.zero,
-                                onPressed: () {
-                                  unawaited(HapticFeedback.lightImpact());
-                                  unawaited(
-                                    ref
-                                        .read(audioHandlerProvider)
-                                        ?.toggleLike(),
-                                  );
-                                },
+                                onPressed: () => _miniToggleLike(ref),
                                 icon: Icon(
                                   playback.isCurrentSongLiked
                                       ? Icons.favorite

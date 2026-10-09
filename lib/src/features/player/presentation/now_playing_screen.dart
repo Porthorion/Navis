@@ -15,6 +15,7 @@ import 'package:navis/src/features/player/presentation/playback_adjustment_contr
 import 'package:navis/src/features/player/presentation/playback_lyrics_content.dart';
 import 'package:navis/src/features/player/presentation/playback_adjustment_panel.dart';
 import 'package:navis/src/features/player/presentation/playback_quick_actions.dart';
+import 'package:navis/src/features/player/presentation/playback_surface_presentation.dart';
 import 'package:navis/src/common_widgets/app_notice.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -32,10 +33,8 @@ import 'package:navis/src/features/player/presentation/desktop_volume_slider.dar
 import 'package:navis/src/features/player/data/navis_audio_handler.dart';
 import 'package:navis/src/features/player/presentation/normal_playback_metadata_navigation.dart';
 import 'package:navis/src/features/player/presentation/playback_seek_bar_style.dart';
-import 'package:navis/src/features/player/presentation/instant_mix_notifier.dart';
 import 'package:navis/src/features/player/presentation/queue_sheet.dart';
 import 'package:navis/src/features/player/presentation/queue_shuffle_controls.dart';
-import 'package:navis/src/features/player/presentation/same_vibes_notifier.dart';
 import 'package:navis/src/features/player/presentation/server_mix_seed_provider.dart';
 import 'package:navis/src/features/player/presentation/smart_queue_sheet.dart';
 import 'package:navis/src/common_widgets/rating_widget.dart';

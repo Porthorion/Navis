@@ -171,14 +171,10 @@ class _NowPlayingMixButton extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final l10n = AppLocalizations.of(context)!;
     final colorScheme = Theme.of(context).colorScheme;
-    final instantMix = ref.watch(instantMixProvider);
-    final sameVibes = ref.watch(sameVibesProvider);
-    final preferredMixMode = ref.watch(preferredMixModeProvider);
-    final legacyMode = preferredMixMode == PreferredMixMode.legacyInstantMix;
-    final mixActive = legacyMode ? instantMix.active : sameVibes.active;
-    final mixLoading = legacyMode
-        ? (instantMix.refilling && instantMix.active)
-        : (sameVibes.refilling && sameVibes.active);
+    final mix = ref.watch(preferredMixViewProvider);
+    final legacyMode = mix.legacyMode;
+    final mixActive = mix.active;
+    final mixLoading = mix.loading;
     final seedSongId = songId;
     final legacyMixUnavailable =
         seedSongId != null &&

@@ -3,8 +3,7 @@ import 'dart:collection';
 import 'dart:math' as math;
 import 'dart:ui';
 
-import 'package:audio_service/audio_service.dart'
-    show AudioServiceRepeatMode, AudioServiceShuffleMode;
+import 'package:audio_service/audio_service.dart' show AudioServiceShuffleMode;
 import 'package:flutter/gestures.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:navis/src/features/settings/presentation/settings_scroll_provider.dart';
@@ -37,6 +36,7 @@ import 'package:navis/src/features/player/data/playback_source_resolver.dart';
 import 'package:navis/src/features/player/domain/instant_mix_state.dart';
 import 'package:navis/src/features/player/domain/same_vibes_state.dart';
 import 'package:navis/src/features/player/presentation/instant_mix_notifier.dart';
+import 'package:navis/src/features/player/presentation/playback_surface_presentation.dart';
 import 'package:navis/src/features/player/presentation/personal_radio_notifier.dart';
 import 'package:navis/src/features/player/presentation/mix_mode_reconciliation_provider.dart';
 import 'package:navis/src/features/player/presentation/queue_provider.dart';

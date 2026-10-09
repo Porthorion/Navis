@@ -41,14 +41,8 @@ class _TransportControls extends ConsumerWidget {
                 shape: const CircleBorder(),
                 padding: EdgeInsets.all(compact ? 12 : 16),
               ),
-              onPressed: () {
-                final handler = ref.read(audioHandlerProvider);
-                if (isPlaying) {
-                  unawaited(handler?.pause());
-                } else {
-                  unawaited(handler?.play());
-                }
-              },
+              onPressed: () =>
+                  unawaited(togglePlayPause(ref, isPlaying: isPlaying)),
               child: _playPauseChild(
                 showLoading: showLoading,
                 isPlaying: isPlaying,
@@ -100,22 +94,10 @@ class _TransportControls extends ConsumerWidget {
       );
     }
 
-    String repeatTooltip;
-    IconData repeatIcon;
-    switch (repeatMode) {
-      case AudioServiceRepeatMode.one:
-        repeatTooltip = l10n.nowPlayingRepeatOne;
-        repeatIcon = Icons.repeat_one;
-      case AudioServiceRepeatMode.all:
-      case AudioServiceRepeatMode.group:
-        repeatTooltip = l10n.nowPlayingRepeatAll;
-        repeatIcon = Icons.repeat;
-      case AudioServiceRepeatMode.none:
-        repeatTooltip = l10n.nowPlayingRepeatOff;
-        repeatIcon = Icons.repeat;
-    }
-
-    final isRepeatActive = repeatMode != AudioServiceRepeatMode.none;
+    final repeat = repeatPresentation(repeatMode, l10n);
+    final repeatTooltip = repeat.tooltip;
+    final repeatIcon = repeat.icon;
+    final isRepeatActive = repeat.active;
 
     // Minimum width required to display all transport buttons + volume slider.
     // Below this threshold the volume slider overflows the Row and is moved to
@@ -182,14 +164,8 @@ class _TransportControls extends ConsumerWidget {
                   shape: const CircleBorder(),
                   padding: EdgeInsets.all(compact ? 12 : 16),
                 ),
-                onPressed: () {
-                  final handler = ref.read(audioHandlerProvider);
-                  if (isPlaying) {
-                    unawaited(handler?.pause());
-                  } else {
-                    unawaited(handler?.play());
-                  }
-                },
+                onPressed: () =>
+                    unawaited(togglePlayPause(ref, isPlaying: isPlaying)),
                 child: _playPauseChild(
                   showLoading: showLoading,
                   isPlaying: isPlaying,
@@ -226,13 +202,7 @@ class _TransportControls extends ConsumerWidget {
               tooltip: repeatTooltip,
               onPressed: () {
                 final handler = ref.read(audioHandlerProvider);
-                final next = switch (repeatMode) {
-                  AudioServiceRepeatMode.none => AudioServiceRepeatMode.all,
-                  AudioServiceRepeatMode.all => AudioServiceRepeatMode.one,
-                  AudioServiceRepeatMode.one => AudioServiceRepeatMode.none,
-                  AudioServiceRepeatMode.group => AudioServiceRepeatMode.none,
-                };
-                unawaited(handler?.setRepeatMode(next));
+                unawaited(handler?.setRepeatMode(nextRepeatMode(repeatMode)));
               },
             ),
             if (showQuickActions)
