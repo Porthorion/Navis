@@ -176,11 +176,12 @@ void main() {
       ),
     );
 
-    final image = tester.widget<CachedNetworkImage>(
-      find.byType(CachedNetworkImage),
-    );
+    final image =
+        (tester.widget<Image>(find.byType(Image)).image as ResizeImage)
+                .imageProvider
+            as CachedNetworkImageProvider;
     expect(image.cacheManager, same(manager));
-    expect(image.imageUrl, 'https://images.example.com/a.jpg');
+    expect(image.url, 'https://images.example.com/a.jpg');
   });
 
   testWidgets('a radio image names its feature on the request', (tester) async {
@@ -192,10 +193,11 @@ void main() {
         feature: IntegrationFeature.radioNowPlaying,
       ),
     );
-    final image = tester.widget<CachedNetworkImage>(
-      find.byType(CachedNetworkImage),
-    );
-    expect(image.httpHeaders, {coverArtFeatureHeader: 'radio.nowPlaying'});
+    final image =
+        (tester.widget<Image>(find.byType(Image)).image as ResizeImage)
+                .imageProvider
+            as CachedNetworkImageProvider;
+    expect(image.headers, {coverArtFeatureHeader: 'radio.nowPlaying'});
     // Tagged loads never share a cache entry or download with untagged ones.
     expect(
       image.cacheKey,
@@ -238,7 +240,7 @@ void main() {
       );
 
       expect(find.byKey(_fallbackKey), findsOneWidget);
-      expect(find.byType(CachedNetworkImage), findsNothing);
+      expect(find.byType(Image), findsNothing);
     });
   }
 
@@ -253,7 +255,7 @@ void main() {
       ),
     );
 
-    expect(find.byType(CachedNetworkImage), findsOneWidget);
+    expect(find.byType(Image), findsOneWidget);
     expect(find.byKey(_fallbackKey), findsNothing);
   });
 
@@ -292,7 +294,7 @@ void main() {
         manager: _FailingCacheManager(),
       ),
     );
-    expect(find.byType(CachedNetworkImage), findsOneWidget);
+    expect(find.byType(Image), findsOneWidget);
   });
 
   testWidgets('a URL that cannot be parsed shows the fallback', (tester) async {
@@ -330,14 +332,14 @@ void main() {
         ),
       ),
     );
-    expect(find.byType(CachedNetworkImage), findsOneWidget);
+    expect(find.byType(Image), findsOneWidget);
 
     container
         .read(_policyState.notifier)
         .replace(const IntegrationPolicy(masterEnabled: false));
     await tester.pump();
 
-    expect(find.byType(CachedNetworkImage), findsNothing);
+    expect(find.byType(Image), findsNothing);
     expect(find.byKey(_fallbackKey), findsOneWidget);
   });
 }

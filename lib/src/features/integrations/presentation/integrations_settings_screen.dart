@@ -19,7 +19,7 @@ import 'package:navis/src/routing/desktop_layout.dart';
 import 'package:navis/src/routing/navigation_service.dart';
 import 'package:navis/src/theme/navis_tokens.dart';
 import 'package:navis/src/utils/app_logger.dart';
-import 'package:url_launcher/url_launcher.dart';
+import 'package:navis/src/utils/external_url.dart';
 
 /// Settings › Integrations: which online services Navis may contact besides
 /// the user's server, per service and per feature.
@@ -501,10 +501,7 @@ class _IntegrationsSettingsScreenState
   }
 
   Future<void> _openExternal(String url) async {
-    final uri = Uri.parse(url);
-    if (await canLaunchUrl(uri)) {
-      await launchUrl(uri, mode: LaunchMode.externalApplication);
-    }
+    await launchExternalHttpUrl(url);
   }
 }
 

@@ -8,6 +8,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:just_audio_media_kit/just_audio_media_kit.dart';
 import 'package:navis/src/app.dart';
 import 'package:navis/src/app_licenses.dart';
+import 'package:navis/src/common_widgets/cover_art_cache_manager.dart';
 import 'package:navis/src/bootstrap/android_ui_bootstrap_gate.dart';
 import 'package:navis/src/bootstrap/bundled_libmpv.dart';
 import 'package:navis/src/database/navis_database.dart';
@@ -76,6 +77,14 @@ Future<void> _runNavis() async {
     // Android must prepare its own scoped directory before Drift opens there.
     await _androidDiagnosticsHandshakeChannel.invokeMethod<String>(
       'artifactRoot',
+    );
+  }
+  try {
+    await purgeLegacyCoverArtCredentials();
+  } on FileSystemException catch (error) {
+    // Retry next startup; the v2 manager never opens these legacy repositories.
+    AppLogger.warning(
+      'Legacy cover cache cleanup failed: ${error.runtimeType}.',
     );
   }
   final diagnosticsDatabase = _openDiagnosticsDatabase();

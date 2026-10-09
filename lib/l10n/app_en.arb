@@ -19,10 +19,19 @@
   "loginValidationServerUrlRequired": "Server URL is required.",
   "loginValidationServerUrlInvalid": "Enter a valid server URL.",
   "loginInsecureHttpWarning": "HTTP does not encrypt traffic. Use HTTPS when possible.",
+  "serverSettingsHttpReminder": "This server uses HTTP. HTTPS is safer.",
+  "@serverSettingsHttpReminder": {
+    "description": "Small permanent reminder on the server settings page when the server URL is http:// to a non-local host."
+  },
+  "serverSettingsHttpLegacyReminder": "This server uses HTTP and your password is sent in readable form. Switch the server to HTTPS.",
+  "@serverSettingsHttpLegacyReminder": {
+    "description": "Stronger permanent reminder on the server settings page when an http:// non-local server also uses legacy password authentication."
+  },
   "loginValidationUsernameRequired": "Username is required.",
   "loginValidationPasswordRequired": "Password is required.",
   "loginErrorAuthentication": "Authentication failed. Check your credentials.",
   "loginErrorConnection": "Could not reach server. Check URL and network.",
+  "loginErrorInsecureLegacyAuth": "This server requires legacy authentication. Use HTTPS to protect your password.",
   "loginErrorUnknown": "Unexpected error while connecting.",
   "loginTestConnectionSuccess": "Connection successful (API {apiVersion}).",
   "@loginTestConnectionSuccess": {

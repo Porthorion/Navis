@@ -14,6 +14,7 @@ import 'package:navis/src/api/subsonic_logging_interceptor.dart';
 import 'package:navis/src/api/subsonic_retry_interceptor.dart';
 import 'package:navis/src/api/retry_after.dart';
 import 'package:navis/src/utils/app_logger.dart';
+import 'package:navis/src/utils/credential_redaction.dart';
 import 'package:navis/src/utils/network_usage_meter.dart';
 import 'package:uuid/uuid.dart';
 
@@ -578,6 +579,23 @@ class SubsonicApiClient {
       ..['id'] = id
       ..addAll({if (size != null) 'size': '$size'});
     return _buildMediaUri('/rest/getCoverArt.view', query);
+  }
+
+  /// Signs only this client's cover endpoint with the current credentials.
+  Uri authenticateCoverArtUri(Uri uri) {
+    final id = uri.queryParameters['id'];
+    if (id == null || id.isEmpty) return uri;
+    final signed = getCoverArtUrl(
+      id: id,
+      size: int.tryParse(uri.queryParameters['size'] ?? ''),
+    );
+    if (uri.origin != signed.origin || uri.path != signed.path) return uri;
+    return signed.replace(
+      queryParameters: {
+        ...credentialFreeUri(uri).queryParametersAll,
+        ...signed.queryParametersAll,
+      },
+    );
   }
 
   Future<LyricsList> getLyricsBySongId(

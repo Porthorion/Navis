@@ -44,7 +44,7 @@ final serverDataResetServiceProvider = Provider<ServerDataResetService>((ref) {
     database: ref.watch(navisDatabaseProvider),
     // Download artwork is Navis-owned and belongs to the server's downloads.
     clearCoverArt: () async {
-      await ref.read(coverArtCacheManagerProvider).emptyCache();
+      await ref.read(clearCoverArtCachesProvider)();
       await ref.read(permanentArtworkStoreProvider).clear();
     },
   );
@@ -82,6 +82,7 @@ final signOutServiceProvider = Provider<SignOutService>((ref) {
       ref.read(playerOverlayStackProvider.notifier).clear();
       resetPlaybackActionErrors(ref);
     },
+    clearCoverArt: () => ref.read(clearCoverArtCachesProvider)(),
     wipeServerData: () async {
       await ref.read(serverDataResetServiceProvider).reset();
       await ref.read(clearIntegrationLibraryCacheProvider)();
@@ -109,6 +110,7 @@ class SessionLifecycleService implements SignOutService {
     this._stopDownloads,
     this._resetPlayback,
     this._resetTransientUi,
+    this._clearCoverArt,
     Future<void> Function()? wipeServerData,
     this._onTransition,
     this._invalidateSessionProviders,
@@ -126,6 +128,7 @@ class SessionLifecycleService implements SignOutService {
   final Future<void> Function()? _stopDownloads;
   final Future<void> Function()? _resetPlayback;
   final Future<void> Function()? _resetTransientUi;
+  final Future<void> Function()? _clearCoverArt;
   final Future<void> Function() _wipeServerData;
   final void Function(SessionTransition transition)? _onTransition;
   final void Function()? _invalidateSessionProviders;
@@ -214,6 +217,10 @@ class SessionLifecycleService implements SignOutService {
         'dismiss download notification',
         DownloadNotifier.dismissProgress,
       );
+
+      await attempt('clear cover artwork cache', () async {
+        await _clearCoverArt?.call();
+      });
 
       if (wipeLocalData) {
         await attempt('clear server-scoped data', _wipeServerData);

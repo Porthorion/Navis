@@ -71,6 +71,14 @@ class AppLocalizationsEn extends AppLocalizations {
       'HTTP does not encrypt traffic. Use HTTPS when possible.';
 
   @override
+  String get serverSettingsHttpReminder =>
+      'This server uses HTTP. HTTPS is safer.';
+
+  @override
+  String get serverSettingsHttpLegacyReminder =>
+      'This server uses HTTP and your password is sent in readable form. Switch the server to HTTPS.';
+
+  @override
   String get loginValidationUsernameRequired => 'Username is required.';
 
   @override
@@ -83,6 +91,10 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get loginErrorConnection =>
       'Could not reach server. Check URL and network.';
+
+  @override
+  String get loginErrorInsecureLegacyAuth =>
+      'This server requires legacy authentication. Use HTTPS to protect your password.';
 
   @override
   String get loginErrorUnknown => 'Unexpected error while connecting.';

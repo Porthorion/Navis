@@ -2201,12 +2201,19 @@ class DownloadService {
   ) async {
     if (_isSafRoot(_readCustomDownloadFolderPath())) {
       final temporaryRoot = await _permanentPathResolver.resolveDefaultRoot();
+      final identity = sha1.convert(utf8.encode(song.id)).toString();
       final temporary = File(
         p.join(
           temporaryRoot.path,
-          '.navis-saf-transfer-${song.id}.${_resolveFormat(song, item)}',
+          '.navis-saf-transfer-$identity.${safeFileExtension(_resolveFormat(song, item))}',
         ),
       );
+      if (!p.isWithin(temporaryRoot.path, temporary.path)) {
+        throw FileSystemException(
+          'SAF transfer path escapes its root.',
+          temporary.path,
+        );
+      }
       await temporary.parent.create(recursive: true);
       return temporary;
     }
@@ -2248,7 +2255,7 @@ class DownloadService {
         .convert(utf8.encode(song.id))
         .toString()
         .substring(0, 8);
-    return '$artist/$title [$identity].${format.replaceFirst('.', '')}';
+    return '$artist/$title [$identity].${safeFileExtension(format)}';
   }
 
   String _mimeTypeFor(String format) => switch (format.toLowerCase()) {

@@ -73,6 +73,10 @@ raised. [Dependency audit](audits/dependency-audit-2026-10-01.md) lists
 dependencies and build-time binaries that are old, archived or carry
 advisories outside pub's version constraints, with a recommendation for each.
 
+[Security audit](audits/security-audit-2026-10-09.md) lists code-level
+security findings (path traversal, credential leaks, updater and release
+tooling) with evidence and the fix for each.
+
 [Polestar 4 automotive investigation](audits/polestar-4-automotive-investigation-2026-09-28.md)
 preserves the direct-install driving lockout report, Android Auto/AAOS findings,
 user preferences, and open questions. Automotive work is deferred separately

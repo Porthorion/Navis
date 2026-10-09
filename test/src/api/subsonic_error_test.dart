@@ -8,6 +8,10 @@ void main() {
       isA<SubsonicAuthException>(),
     );
     expect(
+      mapSubsonicApiError(code: 41, message: 'token unsupported'),
+      isA<SubsonicTokenAuthUnsupportedException>(),
+    );
+    expect(
       mapSubsonicApiError(code: 50, message: 'forbidden'),
       isA<SubsonicForbiddenException>(),
     );

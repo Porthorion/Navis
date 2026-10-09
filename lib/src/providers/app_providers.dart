@@ -221,6 +221,9 @@ final artworkCallRecorderProvider = Provider<ArtworkCallRecorder>((ref) {
 @visibleForTesting
 CoverArtHttpFileService createPlaybackArtworkFileService(Ref ref) {
   final service = CoverArtHttpFileService(
+    authenticateUri: (uri) => ref.mounted
+        ? ref.read(subsonicApiProvider)?.authenticateCoverArtUri(uri) ?? uri
+        : uri,
     connectionTimeout: const Duration(seconds: 10),
     responseTimeout: const Duration(seconds: 15),
     bodyReadTimeout: const Duration(seconds: 30),
@@ -254,6 +257,9 @@ final coverArtCacheManagerProvider = Provider<CacheManager>((ref) {
   final coordinator = ref.watch(coverArtLoadCoordinatorProvider);
   final networkUsageMeter = ref.read(networkUsageMeterProvider);
   final service = CoverArtHttpFileService(
+    authenticateUri: (uri) => ref.mounted
+        ? ref.read(subsonicApiProvider)?.authenticateCoverArtUri(uri) ?? uri
+        : uri,
     recorder: ref.read(integrationCallRecorderProvider),
     loadCoordinator: coordinator,
     reportNetworkUsage: _networkUsageReporter(networkUsageMeter),
@@ -301,6 +307,51 @@ final coverArtCacheManagerProvider = Provider<CacheManager>((ref) {
     unawaited(manager.dispose());
   });
   return manager;
+});
+
+// AudioService and session teardown must share the same repository owner.
+final systemArtworkCacheManagerProvider = Provider<CacheManager>((ref) {
+  final service = createSystemArtworkFileService(
+    authenticateUri: (uri) => ref.mounted
+        ? ref.read(subsonicApiProvider)?.authenticateCoverArtUri(uri) ?? uri
+        : uri,
+    allowUri: (uri) =>
+        ref.mounted &&
+        integrationAllowsRadioArtworkUri(
+          ref.read(integrationPolicyProvider),
+          uri,
+          serverHost: ref.read(serverHostProvider),
+        ),
+    recorder: ref.read(integrationCallRecorderProvider),
+    isServerUri: (uri) =>
+        ref.mounted &&
+        integrationFeatureForArtworkUri(
+              uri,
+              serverHost: ref.read(serverHostProvider),
+            ) ==
+            null,
+    reportNetworkUsage: _networkUsageReporter(
+      ref.read(networkUsageMeterProvider),
+    ),
+  );
+  final manager = createCoverArtCacheManager(
+    cacheKey: systemArtworkCacheKey,
+    fileService: service,
+  );
+  ref.onDispose(() {
+    service.close(force: true);
+    unawaited(manager.dispose());
+  });
+  return manager;
+});
+
+final clearCoverArtCachesProvider = Provider<Future<void> Function()>((ref) {
+  return () async {
+    await Future.wait([
+      ref.read(coverArtCacheManagerProvider).emptyCache(),
+      ref.read(systemArtworkCacheManagerProvider).emptyCache(),
+    ]);
+  };
 });
 
 final connectivityProvider = StreamProvider<List<ConnectivityResult>>((ref) {
@@ -1121,6 +1172,8 @@ final audioHandlerInitializerProvider = Provider<AudioHandlerInitializer>((
         readUsesSidecarRollingCache: () => isDesktopRuntime,
       ),
       readApiClient: () => ref.read(subsonicApiProvider),
+      readSystemArtworkCacheManager: () =>
+          ref.read(systemArtworkCacheManagerProvider),
       rollingCacheManager: ref.read(rollingCacheManagerProvider),
       readRollingCacheBudgetBytes: () =>
           ref.read(rollingCacheBudgetBytesProvider),
@@ -1151,13 +1204,6 @@ final audioHandlerInitializerProvider = Provider<AudioHandlerInitializer>((
                   .read(personalRadioProvider.notifier)
                   .start(autoPlay: autoPlay))
               .succeeded,
-      artworkRecorder: ref.read(integrationCallRecorderProvider),
-      isServerArtworkUri: (uri) =>
-          integrationFeatureForArtworkUri(
-            uri,
-            serverHost: ref.read(serverHostProvider),
-          ) ==
-          null,
       playbackArtworkFileService: createPlaybackArtworkFileService(ref),
       fetchWindowsArtwork: windowsArtwork.fetch,
       readWindowsArtworkAllowed: windowsArtwork.isAllowed,

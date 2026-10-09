@@ -4,6 +4,8 @@ import 'dart:async';
 import 'package:navis/src/features/settings/data/external_scrobble_credentials.dart';
 
 import 'package:drift/drift.dart' show InsertMode, Value;
+import 'package:flutter_cache_manager/flutter_cache_manager.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:navis/src/database/navis_database.dart';
 import 'package:navis/src/database/tables/schema_enums.dart';
@@ -11,6 +13,7 @@ import 'package:navis/src/features/auth/data/secure_credential_store.dart';
 import 'package:navis/src/features/auth/data/server_config_repository.dart';
 import 'package:navis/src/features/auth/data/sign_out_service.dart';
 import 'package:navis/src/features/auth/domain/server_config.dart';
+import 'package:navis/src/providers/app_providers.dart';
 
 import '../../../../helpers/test_database.dart';
 
@@ -43,6 +46,14 @@ class _ListenBrainzStore
   }
 }
 
+class _ArtworkCacheManager extends Fake implements CacheManager {
+  new(this.onClear);
+  final void Function() onClear;
+
+  @override
+  Future<void> emptyCache() async => onClear();
+}
+
 void main() {
   group('SignOutService', () {
     late NavisDatabase database;
@@ -50,20 +61,37 @@ void main() {
     late ServerConfigRepository repository;
     late SignOutService service;
     late Directory tmpDir;
+    var coverClears = 0;
+    var systemArtworkClears = 0;
+    late ProviderContainer container;
 
     setUp(() {
+      coverClears = 0;
+      systemArtworkClears = 0;
       database = createTestDatabase();
+      container = ProviderContainer(
+        overrides: [
+          coverArtCacheManagerProvider.overrideWithValue(
+            _ArtworkCacheManager(() => coverClears++),
+          ),
+          systemArtworkCacheManagerProvider.overrideWithValue(
+            _ArtworkCacheManager(() => systemArtworkClears++),
+          ),
+        ],
+      );
       credentials = _FakeCredentialStore();
       repository = ServerConfigRepository(database, credentials: credentials);
       service = SessionLifecycleService(
         credentials: CloneDiagnosticsExternalScrobbleCredentialStore(),
         serverConfigRepository: repository,
         database: database,
+        clearCoverArt: container.read(clearCoverArtCachesProvider),
       );
       tmpDir = Directory.systemTemp.createTempSync('navis_sign_out_test_');
     });
 
     tearDown(() async {
+      container.dispose();
       await database.close();
       if (tmpDir.existsSync()) {
         tmpDir.deleteSync(recursive: true);
@@ -106,6 +134,8 @@ void main() {
       await _seedAuthenticatedData(database, repository, cacheFile.path);
 
       await service.signOut(wipeLocalData: false);
+      expect(coverClears, 1);
+      expect(systemArtworkClears, 1);
 
       expect(await database.serverDao.getActiveServer(), isNull);
       expect(await database.serverDao.getRetainedServer(), isNotNull);
@@ -167,6 +197,8 @@ void main() {
       await _seedAuthenticatedData(database, repository, cacheFile.path);
 
       await service.signOut(wipeLocalData: true);
+      expect(coverClears, 1);
+      expect(systemArtworkClears, 1);
 
       expect(await database.serverDao.getActiveServer(), isNull);
       expect(credentials.password, isNull);

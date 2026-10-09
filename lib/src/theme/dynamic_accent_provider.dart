@@ -2,6 +2,7 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_cache_manager/flutter_cache_manager.dart';
+import 'package:navis/src/common_widgets/cover_art_image.dart';
 import 'package:navis/src/api/subsonic_api_client.dart';
 import 'package:navis/src/common_widgets/cover_art_cache_manager.dart';
 import 'package:navis/src/features/integrations/domain/integration_artwork.dart';
@@ -125,15 +126,16 @@ class _DynamicAccentColorCache {
     }
 
     try {
-      final scheme = await ColorScheme.fromImageProvider(
+      final scheme = await artworkColorScheme(
         provider: image,
         brightness: Brightness.light,
         dynamicSchemeVariant: DynamicSchemeVariant.fidelity,
       );
+      if (scheme == null) return null;
       final seed = scheme.primary.toARGB32();
       _seedBySource[source] = seed;
       return seed;
-    } on Exception {
+    } on Object {
       return null;
     }
   }
@@ -149,14 +151,20 @@ class _DynamicAccentColorCache {
         return null;
       }
       // A `url:` source exists only for radio now-playing art.
-      return CachedNetworkImageProvider(
-        url,
-        cacheManager: cacheManager,
-        cacheKey: coverArtFeatureCacheKey(
-          IntegrationFeature.radioNowPlaying.key,
+      return boundedDecode(
+        CachedNetworkImageProvider(
           url,
+          cacheManager: cacheManager,
+          cacheKey: coverArtFeatureCacheKey(
+            IntegrationFeature.radioNowPlaying.key,
+            url,
+          ),
+          headers: coverArtFeatureHeaders(
+            IntegrationFeature.radioNowPlaying.key,
+          ),
         ),
-        headers: coverArtFeatureHeaders(IntegrationFeature.radioNowPlaying.key),
+        width: kPaletteDecodeEdge,
+        height: kPaletteDecodeEdge,
       );
     }
 
@@ -165,10 +173,14 @@ class _DynamicAccentColorCache {
       if (id.isEmpty || api == null) {
         return null;
       }
-      return CachedNetworkImageProvider(
-        api.getCoverArtUrl(id: id, size: 128).toString(),
-        cacheManager: cacheManager,
-        cacheKey: coverArtImageCacheKey(id, 128),
+      return boundedDecode(
+        CachedNetworkImageProvider(
+          api.getCoverArtUrl(id: id, size: 128).toString(),
+          cacheManager: cacheManager,
+          cacheKey: coverArtImageCacheKey(id, 128),
+        ),
+        width: kPaletteDecodeEdge,
+        height: kPaletteDecodeEdge,
       );
     }
 

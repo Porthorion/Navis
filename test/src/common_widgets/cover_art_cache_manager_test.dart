@@ -12,6 +12,10 @@ import 'package:flutter_cache_manager/flutter_cache_manager.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:navis/src/common_widgets/cover_art_cache_manager.dart';
+import 'package:navis/src/api/subsonic_api_client.dart';
+import 'package:navis/src/api/subsonic_auth_interceptor.dart';
+import 'package:navis/src/utils/credential_redaction.dart';
+import 'package:path/path.dart' as p;
 import 'package:navis/src/common_widgets/cover_art_recovery.dart';
 import 'package:navis/src/database/navis_database.dart';
 import 'package:navis/src/features/integrations/data/integration_call_recorder.dart';
@@ -20,6 +24,16 @@ import 'package:navis/src/features/integrations/domain/integration_feature.dart'
 import '../../helpers/test_database.dart';
 
 class _MockCacheManager extends Mock implements CacheManager;
+class _MockHttpClient extends Mock implements HttpClient;
+class _MockHttpRequest extends Mock implements HttpClientRequest;
+
+class _MockHttpResponse extends Mock implements HttpClientResponse {
+  @override
+  Stream<S> map<S>(S Function(List<int>) convert) =>
+      const Stream<List<int>>.empty().map(convert);
+}
+
+class _MockHttpHeaders extends Mock implements HttpHeaders;
 
 class _TestCacheFileSystem implements FileSystem {
   new(this.directory);
@@ -43,6 +57,187 @@ class _FailingCacheRepository extends JsonCacheInfoRepository {
 }
 
 void main() {
+  test('legacy repositories and image directories are purged once, preserving current caches', () async {
+    final directory = await Directory.systemTemp.createTemp('cover-purge-');
+    addTearDown(() => directory.delete(recursive: true));
+    final support = await Directory(p.join(directory.path, 'support')).create();
+    final temporary = await Directory(p.join(directory.path, 'temp')).create();
+    // Profiles which ran the incomplete cleanup still need both old caches purged.
+    File(p.join(support.path, '.navis-cover-art-credentials-purged-v2'))
+        .writeAsStringSync('2');
+    final oldNames = [
+      for (final key in ['navis_cover_art_cache', 'navis_system_artwork_cache'])
+        for (final suffix in [
+          '.json',
+          '.json.tmp',
+          '_0123456789abcdef.json',
+          '.db',
+          '.db-wal',
+          '.db-shm',
+          '.db-journal',
+        ])
+          '$key$suffix',
+    ];
+    for (final name in [
+      ...oldNames,
+      '$coverArtCacheKey.json',
+      '$systemArtworkCacheKey.json',
+      'other.json',
+    ]) {
+      File(p.join(support.path, name))
+          .writeAsStringSync('fixture p=enc:fixture');
+    }
+    final oldDirectories = [
+      'navis_cover_art_cache',
+      'navis_cover_art_cache_0123456789abcdef',
+      'navis_system_artwork_cache',
+      'navis_system_artwork_cache_0123456789abcdef',
+    ];
+    for (final name in [
+      ...oldDirectories,
+      coverArtCacheKey,
+      systemArtworkCacheKey,
+      'other',
+    ]) {
+      final cache = await Directory(p.join(temporary.path, name, 'nested'))
+          .create(recursive: true);
+      await File(p.join(cache.path, 'cover.jpg')).writeAsBytes([1, 2, 3]);
+    }
+    await purgeLegacyCoverArtCredentials(
+      supportDirectory: support,
+      temporaryDirectory: temporary,
+    );
+    for (final name in oldNames) {
+      expect(File(p.join(support.path, name)).existsSync(), isFalse);
+    }
+    for (final name in oldDirectories) {
+      expect(Directory(p.join(temporary.path, name)).existsSync(), isFalse);
+    }
+    for (final name in [coverArtCacheKey, systemArtworkCacheKey, 'other']) {
+      expect(Directory(p.join(temporary.path, name)).existsSync(), isTrue);
+    }
+    for (final name in [
+      '$coverArtCacheKey.json',
+      '$systemArtworkCacheKey.json',
+      'other.json',
+    ]) {
+      expect(File(p.join(support.path, name)).existsSync(), isTrue);
+    }
+    expect(await coverArtCacheStorageBytes(temporaryDirectory: temporary), 6);
+    final recreated = File(p.join(support.path, oldNames.first))
+      ..writeAsStringSync('fixture');
+    await purgeLegacyCoverArtCredentials(
+      supportDirectory: support,
+      temporaryDirectory: temporary,
+    );
+    expect(recreated.existsSync(), isTrue, reason: 'migration runs once');
+  });
+
+  test(
+    'failed image-directory cleanup leaves no completion marker and can retry',
+    () async {
+      final directory = await Directory.systemTemp.createTemp(
+        'cover-purge-retry-',
+      );
+      addTearDown(() => directory.delete(recursive: true));
+      final temporary = File(p.join(directory.path, 'temp'))
+        ..writeAsStringSync('fixture');
+      await expectLater(
+        purgeLegacyCoverArtCredentials(
+          supportDirectory: directory,
+          temporaryDirectory: Directory(temporary.path),
+        ),
+        throwsA(isA<FileSystemException>()),
+      );
+      final marker = File(
+        p.join(directory.path, '.navis-cover-art-credentials-purged-v3'),
+      );
+      expect(marker.existsSync(), isFalse);
+      temporary.deleteSync();
+      final tempDirectory = await Directory(temporary.path).create();
+      await Directory(p.join(tempDirectory.path, 'navis_system_artwork_cache'))
+          .create();
+      await purgeLegacyCoverArtCredentials(
+        supportDirectory: directory,
+        temporaryDirectory: tempDirectory,
+      );
+      expect(marker.readAsStringSync(), '3');
+      expect(
+        Directory(p.join(tempDirectory.path, 'navis_system_artwork_cache'))
+            .existsSync(),
+        isFalse,
+      );
+    },
+  );
+
+  test(
+    'current cover and system artwork managers remove their cached bytes',
+    () async {
+      final directory = await Directory.systemTemp.createTemp('cover-clear-');
+      addTearDown(() => directory.delete(recursive: true));
+      for (final key in [coverArtCacheKey, systemArtworkCacheKey]) {
+        final cacheDirectory = await Directory(p.join(directory.path, key))
+            .create();
+        final manager = createCoverArtCacheManager(
+          config: Config(
+            key,
+            repo: JsonCacheInfoRepository(
+              path: p.join(directory.path, '$key.json'),
+            ),
+            fileSystem: _TestCacheFileSystem(cacheDirectory),
+          ),
+        );
+        addTearDown(manager.dispose);
+        final file = await manager.putFile(
+          'https://example.test/cover.jpg',
+          Uint8List.fromList([1, 2, 3]),
+          key: 'fixture',
+        );
+        expect(file.existsSync(), isTrue);
+        await manager.emptyCache();
+        expect(file.existsSync(), isFalse);
+        expect(await manager.getFileFromCache('fixture'), isNull);
+      }
+      expect(await coverArtCacheStorageBytes(temporaryDirectory: directory), 0);
+    },
+  );
+
+  test('HTTPS to HTTP redirect is refused before the second request', () async {
+    final client = _MockHttpClient();
+    final request = _MockHttpRequest();
+    final response = _MockHttpResponse();
+    final headers = _MockHttpHeaders();
+    final uri = Uri.parse(
+      'https://example.com/rest/getCoverArt.view?id=1&t=fixture',
+    );
+    when(() => client.getUrl(uri)).thenAnswer((_) async => request);
+    when(request.close).thenAnswer((_) async => response);
+    when(() => response.statusCode).thenReturn(302);
+    when(() => response.contentLength).thenReturn(0);
+    when(() => response.isRedirect).thenReturn(true);
+    when(() => response.headers).thenReturn(headers);
+    when(() => headers.value(HttpHeaders.locationHeader))
+        .thenReturn('http://example.com/rest/getCoverArt.view?id=1&t=fixture');
+    final service = CoverArtHttpFileService(createHttpClient: () => client);
+    addTearDown(service.close);
+    await expectLater(
+      service.get(uri.toString()),
+      throwsA(
+        isA<HttpException>().having(
+          (error) => error.message,
+          'message',
+          contains('downgrade'),
+        ),
+      ),
+    );
+    verify(() => client.getUrl(uri)).called(1);
+    verifyNever(
+      () => client.getUrl(
+        Uri.parse('http://example.com/rest/getCoverArt.view?id=1&t=fixture'),
+      ),
+    );
+  });
+
   group('external artwork recording', () {
     late HttpServer server;
     late IntegrationCallRecorder recorder;
@@ -271,6 +466,159 @@ void main() {
     CacheManager createManager(CacheInfoRepository repository) => CacheManager(
       Config('art-persistence-test', repo: repository, fileSystem: fileSystem),
     );
+
+    test(
+      'queued cover fetch uses the credentials current at dispatch',
+      () async {
+        final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
+        final received = Completer<Uri>();
+        server.listen((request) async {
+          received.complete(request.uri);
+          request.response.headers.contentType = ContentType('image', 'jpeg');
+          request.response.add([0xff, 0xd8, 0xff, 1]);
+          await request.response.close();
+        });
+        addTearDown(() => server.close(force: true));
+        SubsonicApiClient api(String username) => SubsonicApiClient(
+          baseUrl: 'http://127.0.0.1:${server.port}',
+          authConfig: SubsonicAuthConfig(
+            username: username,
+            password: 'fixture-password',
+            apiVersion: '1.16.1',
+          ),
+          enableLogging: false,
+        );
+        var current = api('before-queue');
+        addTearDown(() => current.close());
+        final coordinator = CoverArtLoadCoordinator(
+          maxActiveDownloads: 1,
+          criticalReserve: 0,
+        );
+        final blocker = await coordinator.acquire('blocker');
+        addTearDown(blocker.release);
+        final service = CoverArtHttpFileService(
+          loadCoordinator: coordinator,
+          authenticateUri: (uri) => current.authenticateCoverArtUri(uri),
+        );
+        addTearDown(service.close);
+        final manager = createCoverArtCacheManager(
+          config: Config(
+            'queued-auth-test',
+            repo: JsonCacheInfoRepository(path: metadataPath),
+            fileSystem: fileSystem,
+            fileService: service,
+          ),
+        );
+        addTearDown(manager.dispose);
+        final pending = manager.downloadFile(
+          current.getCoverArtUrl(id: 'cover-1').toString(),
+        );
+        for (
+          var attempt = 0;
+          attempt < 100 && coordinator.queuedCount == 0;
+          attempt++
+        ) {
+          await Future<void>.delayed(const Duration(milliseconds: 10));
+        }
+        expect(coordinator.queuedCount, 1);
+        current.close();
+        current = api('after-queue');
+        blocker.release();
+        await pending;
+        expect((await received.future).queryParameters['u'], 'after-queue');
+      },
+    );
+
+    for (final operation in [
+      'download',
+      'stream',
+      'single',
+      'put',
+      'putStream',
+    ]) {
+      for (final legacy in [false, true]) {
+        test('$operation persists only unsigned URLs and keys (legacy $legacy)', () async {
+          final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
+          final requests = <Uri>[];
+          server.listen((request) async {
+            requests.add(request.uri);
+            request.response.headers.contentType = ContentType('image', 'jpeg');
+            request.response.add([0xff, 0xd8, 0xff, 1]);
+            await request.response.close();
+          });
+          addTearDown(() => server.close(force: true));
+          final api = SubsonicApiClient(
+            baseUrl: 'http://127.0.0.1:${server.port}',
+            authConfig: SubsonicAuthConfig(
+              apiVersion: '1.16.1',
+              username: 'current-user',
+              password: 'current-password',
+              authType: legacy
+                  ? SubsonicAuthType.legacyPassword
+                  : SubsonicAuthType.token,
+            ),
+            enableLogging: false,
+          );
+          addTearDown(api.close);
+          final service = CoverArtHttpFileService(
+            authenticateUri: api.authenticateCoverArtUri,
+          );
+          addTearDown(service.close);
+          final manager = createCoverArtCacheManager(
+            config: Config(
+              'credential-cache-test',
+              repo: JsonCacheInfoRepository(path: metadataPath),
+              fileSystem: fileSystem,
+              fileService: service,
+            ),
+          );
+          final url =
+              'http://old-user:old-password@127.0.0.1:${server.port}/rest/getCoverArt.view?id=cover-1&size=600&u=old-user&T=old-token&s=old-salt&p=enc:old-password&apiKey=old-key';
+          final key = operation == 'stream'
+              ? coverArtFeatureCacheKey('radio.nowPlaying', url)
+              : null;
+          switch (operation) {
+            case 'download':
+              await manager.downloadFile(url, key: key);
+            case 'stream':
+              await manager.getFileStream(url, key: key).drain<void>();
+            case 'single':
+              await manager.getSingleFile(url, key: key);
+            case 'put':
+              await manager.putFile(url, Uint8List.fromList([1, 2, 3]));
+            case 'putStream':
+              await manager.putFileStream(url, Stream.value([1, 2, 3]));
+          }
+          final objects = await manager.config.repo.getAllObjects();
+          expect(objects, hasLength(1));
+          final object = objects.single;
+          expect(uriCarriesCredentials(Uri.parse(object.url)), isFalse);
+          expect(object.url, contains('id=cover-1&size=600'));
+          if (operation == 'download' ||
+              operation == 'stream' ||
+              operation == 'single') {
+            expect(requests.single.queryParameters['u'], 'current-user');
+            expect(requests.single.queryParameters.containsKey('p'), legacy);
+            expect(requests.single.queryParameters.containsKey('t'), !legacy);
+          } else {
+            expect(requests, isEmpty);
+          }
+          await manager.dispose();
+          final persisted = File(metadataPath).readAsStringSync();
+          for (final secret in [
+            'old-user',
+            'old-password',
+            'old-token',
+            'old-salt',
+            'old-key',
+            'current-user',
+            'current-password',
+          ]) {
+            expect(persisted, isNot(contains(secret)));
+          }
+        });
+      }
+    }
 
     test(
       'metadata survives immediate close and reopen after putFile',

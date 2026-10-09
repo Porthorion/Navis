@@ -16,6 +16,7 @@ import 'package:navis/src/features/cache/data/rolling_cache_manager.dart';
 import 'package:navis/src/features/downloads/data/android_saf_storage.dart';
 import 'package:navis/src/features/player/domain/streaming_quality.dart';
 import 'package:navis/src/utils/app_logger.dart';
+import 'package:navis/src/utils/file_utils.dart';
 import 'package:path/path.dart' as p;
 
 @immutable
@@ -397,7 +398,11 @@ class PlaybackSourceResolver {
       quality: quality,
     );
 
-    return File(p.join(rollingDir.path, '${song.id}_$digest.$extension'));
+    final path = p.join(rollingDir.path, '$digest.$extension');
+    if (!p.isWithin(rollingDir.path, path)) {
+      throw FileSystemException('Rolling cache path escapes its root.', path);
+    }
+    return File(path);
   }
 
   Uri _buildStreamUri({
@@ -548,22 +553,22 @@ class PlaybackSourceResolver {
   }) {
     final requestedFormat = quality.format?.trim();
     if (requestedFormat != null && requestedFormat.isNotEmpty) {
-      return requestedFormat;
+      return safeFileExtension(requestedFormat);
     }
     if (metadata.isTranscoded) {
-      return metadata.format ?? 'transcoded';
+      return safeFileExtension(metadata.format);
     }
 
     final suffix = song.suffix?.trim();
     if (suffix != null && suffix.isNotEmpty) {
-      return suffix;
+      return safeFileExtension(suffix);
     }
 
     final contentType = song.contentType?.trim() ?? '';
     if (contentType.contains('/')) {
-      final inferred = contentType.split('/').last.trim();
+      final inferred = contentType.substring(contentType.indexOf('/') + 1);
       if (inferred.isNotEmpty) {
-        return inferred;
+        return safeFileExtension(inferred);
       }
     }
 

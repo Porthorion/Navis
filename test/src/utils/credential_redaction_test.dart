@@ -4,6 +4,34 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:navis/src/utils/credential_redaction.dart';
 
 void main() {
+  test('credential-free cache URIs remove all credential keys and keep repeated metadata', () {
+    final uri = credentialFreeUri(
+      Uri.parse(
+        'https://user:pass@example.com/rest?id=1&id=2&U=user&T=token&S=salt&P=enc:password&APIKEY=key&size=600',
+      ),
+    );
+    expect(uriCarriesCredentials(uri), isFalse);
+    expect(uri.queryParametersAll['id'], ['1', '2']);
+    expect(uri.queryParameters['size'], '600');
+  });
+
+  test('URL user info is a credential even without query authentication', () {
+    expect(
+      uriCarriesCredentials(
+        Uri.parse('https://user:pass@example.com/cover?id=7'),
+      ),
+      isTrue,
+    );
+    expect(
+      uriCarriesCredentials(Uri.parse('https://example.com/cover?id=7')),
+      isFalse,
+    );
+    expect(
+      uriCarriesCredentials(Uri.parse('https://example.com/cover?T=token')),
+      isTrue,
+    );
+  });
+
   group('redactCredentialQueryParameters', () {
     test('redacts Last.fm api_key in URLs and encoded queries', () {
       for (final separator in ['?', '&amp;', '%3F', '%253F']) {
@@ -19,6 +47,21 @@ void main() {
           Uri.parse('https://service.example/?api_key=fixture-key'),
         ),
         isTrue,
+      );
+    });
+
+    test('strips user info from multiple URLs and keeps path parameters', () {
+      expect(
+        redactCredentialQueryParameters(
+          'GET https://user:pass%40word@example.com/rest?id=7&t=token then //name:secret@other.test/path',
+        ),
+        'GET https://example.com/rest?id=7&t=REDACTED then //other.test/path',
+      );
+      expect(
+        redactCredentialQueryParameters(
+          'https://example.com/path/user@name?id=7',
+        ),
+        'https://example.com/path/user@name?id=7',
       );
     });
 

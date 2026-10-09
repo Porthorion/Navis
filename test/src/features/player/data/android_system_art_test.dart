@@ -1,8 +1,10 @@
 import 'dart:async';
+import 'dart:io';
 
 import 'package:audio_service/audio_service.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:navis/src/features/player/data/android_system_art.dart';
+import 'package:navis/src/features/player/data/playback_art_cache.dart';
 import 'package:navis/src/features/player/data/real_time_projection_audio_handler.dart';
 
 Uri _cover(String id) => Uri.parse(
@@ -42,6 +44,13 @@ class _InnerHandler extends BaseAudioHandler {
 }
 
 void main() {
+  setUpAll(() async {
+    final directory = await Directory.systemTemp.createTemp(
+      'navis-system-art-key-',
+    );
+    addTearDown(() => directory.delete(recursive: true));
+    await PlaybackArtCache.initializeKey(supportDirectory: directory);
+  });
   test('publishes no cover until it is cached, then a content URI', () async {
     final fetches = _Fetches()..held['al-1/x'] = Completer<String?>();
     final art = fetches.art('app.test.artwork');
@@ -56,7 +65,10 @@ void main() {
     await pumpEventQueue();
 
     final mapped = art.forSystem(song);
-    expect(mapped.artUri.toString(), 'content://app.test.artwork/cover/al-1_x');
+    expect(
+      mapped.artUri.toString(),
+      'content://app.test.artwork/cover/${PlaybackArtCache.fileKey('al-1/x')}',
+    );
     expect(mapped.artUri.toString(), isNot(contains('tok')));
   });
 
@@ -73,7 +85,10 @@ void main() {
       ),
     );
 
-    expect(mapped.artUri.toString(), 'content://a.artwork/cover/c-9');
+    expect(
+      mapped.artUri.toString(),
+      'content://a.artwork/cover/${PlaybackArtCache.fileKey('c-9')}',
+    );
     expect(fetches.ids, isEmpty);
   });
 
@@ -143,9 +158,9 @@ void main() {
     // Only covers that are on disk are offered; the rest appear the next
     // time the list is shown.
     expect(mapped.map((item) => item.artUri?.toString()), <String?>[
-      'content://a.artwork/cover/a',
+      'content://a.artwork/cover/${PlaybackArtCache.fileKey('a')}',
       null,
-      'content://a.artwork/cover/a',
+      'content://a.artwork/cover/${PlaybackArtCache.fileKey('a')}',
     ]);
     fetches.held['b']!.complete(null);
   });
@@ -191,11 +206,14 @@ void main() {
 
     expect(
       projection.mediaItem.value!.artUri.toString(),
-      'content://a.artwork/cover/c-1',
+      'content://a.artwork/cover/${PlaybackArtCache.fileKey('c-1')}',
     );
     expect(projection.queue.value.single.artUri!.scheme, 'content');
     final children = await projection.getChildren('root');
-    expect(children.single.artUri.toString(), 'content://a.artwork/cover/c-2');
+    expect(
+      children.single.artUri.toString(),
+      'content://a.artwork/cover/${PlaybackArtCache.fileKey('c-2')}',
+    );
     // The app keeps its own cover URL.
     expect(inner.mediaItem.value!.artUri, _cover('c-1'));
   });

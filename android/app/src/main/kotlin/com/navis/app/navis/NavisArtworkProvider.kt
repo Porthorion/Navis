@@ -12,7 +12,7 @@ import java.io.FileNotFoundException
  * Serves cached cover art read-only as `content://<applicationId>.artwork/cover/<key>`.
  *
  * Navis caches the current song's cover (and covers of Android Auto browse
- * items) in the app cache as `navis_art_<key>.jpg` (Dart `PlaybackArtCache`).
+ * items) in the app cache as `navis_art_v2_<key>.jpg` (Dart `PlaybackArtCache`).
  * The media session, notification and Android Auto receive this URI instead
  * of the Subsonic cover URL, which carries the account token. Android Auto
  * runs in another process, so the provider is exported; it exposes nothing
@@ -32,7 +32,7 @@ class NavisArtworkProvider : ContentProvider() {
     private fun coverFile(uri: Uri): File? {
         val key = coverKey(uri) ?: return null
         val cacheDir = context?.cacheDir ?: return null
-        val file = File(cacheDir, "navis_art_$key.jpg")
+        val file = File(cacheDir, "navis_art_v2_$key.jpg")
         return file.takeIf { it.isFile && it.length() > 0L }
     }
 
@@ -63,6 +63,6 @@ class NavisArtworkProvider : ContentProvider() {
 
     private companion object {
         /** `PlaybackArtCache.fileKey`: no path separators or dots. */
-        val COVER_KEY = Regex("[A-Za-z0-9_-]{1,200}")
+        val COVER_KEY = Regex("[a-f0-9]{32}")
     }
 }

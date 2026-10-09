@@ -18,6 +18,15 @@ void main() {
     },
   );
 
+  test('platform token deletion uses the existing secure key', () async {
+    final storage = _Storage();
+    when(() => storage.delete(key: any(named: 'key'))).thenAnswer((_) async {});
+    await FlutterExternalScrobbleCredentialStore(storage: storage)
+        .clearListenBrainzToken();
+    verify(
+      () => storage.delete(key: 'navis.external_scrobble.listenbrainz.token'),
+    ).called(1);
+  });
   test('clone diagnostics credentials remain process-local', () async {
     final store = CloneDiagnosticsExternalScrobbleCredentialStore();
 

@@ -162,10 +162,7 @@ class _UpdateBanner extends ConsumerWidget {
       return;
     }
 
-    await launchUrl(
-      Uri.parse(info.htmlUrl),
-      mode: LaunchMode.externalApplication,
-    );
+    await launchExternalHttpUrl(info.htmlUrl);
   }
 
   @override

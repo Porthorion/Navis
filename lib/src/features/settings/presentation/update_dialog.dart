@@ -10,7 +10,7 @@ import 'package:navis/src/features/settings/data/update_service.dart';
 import 'package:navis/src/features/settings/domain/update_delivery.dart';
 import 'package:navis/src/features/settings/domain/update_info.dart';
 import 'package:navis/src/utils/app_logger.dart';
-import 'package:url_launcher/url_launcher.dart';
+import 'package:navis/src/utils/external_url.dart';
 
 /// Shows a dialog that downloads and applies an update, or redirects to a store.
 ///
@@ -423,10 +423,7 @@ class _UpdateDownloadDialogState extends State<_UpdateDownloadDialog> {
             child: Text(l10n.updateDismiss),
           ),
           FilledButton.icon(
-            onPressed: () => launchUrl(
-              Uri.parse(widget.info.htmlUrl),
-              mode: LaunchMode.externalApplication,
-            ),
+            onPressed: () => launchExternalHttpUrl(widget.info.htmlUrl),
             icon: const Icon(Icons.open_in_new),
             label: Text(l10n.updateDownloadManually),
           ),
@@ -439,10 +436,7 @@ class _UpdateDownloadDialogState extends State<_UpdateDownloadDialog> {
             child: Text(l10n.updateDismiss),
           ),
           FilledButton.icon(
-            onPressed: () => launchUrl(
-              Uri.parse(widget.info.htmlUrl),
-              mode: LaunchMode.externalApplication,
-            ),
+            onPressed: () => launchExternalHttpUrl(widget.info.htmlUrl),
             icon: const Icon(Icons.open_in_new),
             label: Text(l10n.updateDownloadManually),
           ),
@@ -451,10 +445,7 @@ class _UpdateDownloadDialogState extends State<_UpdateDownloadDialog> {
       case _DownloadPhase.error:
         return [
           TextButton(
-            onPressed: () => launchUrl(
-              Uri.parse(widget.info.htmlUrl),
-              mode: LaunchMode.externalApplication,
-            ),
+            onPressed: () => launchExternalHttpUrl(widget.info.htmlUrl),
             child: Text(l10n.updateDownloadManually),
           ),
           if (!_isApplyError)

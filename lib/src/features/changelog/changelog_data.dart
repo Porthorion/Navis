@@ -388,6 +388,46 @@ const List<ChangelogVersion> changelogs = [
       ),
       ChangelogEntry('Custom accent colours have more accurate names'),
       ChangelogEntry(
+        'Extremely thin artwork keeps the default tint instead of crashing palette extraction',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
+        'Android system artwork uses private per-install keys to prevent other apps from probing album IDs',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
+        'Reverse-proxy URL credentials are kept in secure storage instead of the library database',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
+        'Artwork responses have a size limit, external images respect memory limits in both dimensions, and radio artwork displays immediately after prewarming',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
+        'System playback artwork uses current server authentication on iOS and macOS',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
+        'Cover caches no longer store server credentials, old cover and system-artwork caches are removed on startup, and every sign-out clears both caches',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
+        'Login retries legacy authentication only when the server explicitly requires it, and requires HTTPS outside loopback',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
+        'Radio requires HTTP or HTTPS streams and discovers AzuraCast metadata only from stream addresses',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
+        'External links from servers and integrations open only valid HTTP or HTTPS addresses',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
+        'Downloads and playback caches safely handle malformed server filenames and refuse exhausted filename collisions',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
         'First setup no longer stops at an error when some albums on the server have incomplete details',
         type: ChangelogEntryType.fix,
       ),

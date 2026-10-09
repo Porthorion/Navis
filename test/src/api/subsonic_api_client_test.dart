@@ -811,6 +811,31 @@ void main() {
       },
     );
 
+    test(
+      'cover URI signing is confined to the current origin and endpoint',
+      () {
+        final client = createClient(
+          dio: Dio(BaseOptions(baseUrl: 'https://example.com/music')),
+        );
+        final own = Uri.parse(
+          'https://example.com/music/rest/getCoverArt.view?id=1&size=600&u=old-user&t=old-token',
+        );
+        final signed = client.authenticateCoverArtUri(own);
+        expect(signed.queryParameters['u'], 'alice');
+        expect(signed.queryParameters['t'], isNot('old-token'));
+        expect(signed.queryParameters['size'], '600');
+        for (final url in [
+          'https://other.test/music/rest/getCoverArt.view?id=1',
+          'http://example.com/music/rest/getCoverArt.view?id=1',
+          'https://example.com/rest/getCoverArt.view?id=1',
+          'https://example.com/music/rest/stream.view?id=1',
+        ]) {
+          final external = Uri.parse(url);
+          expect(client.authenticateCoverArtUri(external), external);
+        }
+      },
+    );
+
     test('builds media urls without fetching', () {
       final client = createClient(
         dio: Dio(BaseOptions(baseUrl: 'https://example.com')),

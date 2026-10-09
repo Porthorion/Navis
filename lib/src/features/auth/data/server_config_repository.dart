@@ -6,6 +6,7 @@ import 'package:navis/src/database/navis_database.dart';
 import 'package:navis/src/features/auth/data/secure_credential_store.dart';
 import 'package:navis/src/features/auth/domain/server_config.dart';
 import 'package:navis/src/utils/app_logger.dart';
+import 'package:navis/src/utils/credential_redaction.dart';
 
 enum RetainedServerMatch { none, same, different }
 
@@ -36,7 +37,7 @@ class ServerConfigRepository {
 
   Future<ServerConfigModel?> getRetainedServer() async {
     final row = await _serverDao.getRetainedServer();
-    return row == null ? null : _mapRetainedRowToModel(row);
+    return row == null ? null : _mapRetainedRowToModel(await _migrateUrl(row));
   }
 
   Future<RetainedServerMatch> compareRetainedServer(
@@ -67,13 +68,26 @@ class ServerConfigRepository {
         )) {
       throw const RetainedServerMismatchException();
     }
+    final uri = Uri.parse(config.url);
+    final storedUrl = credentialFreeUri(uri)
+        .toString()
+        .replaceFirst(RegExp(r'\?(?=#|$)'), '');
     await _credentials.savePassword(config.password);
     try {
+      if (_credentials case final ServerUrlCredentialStore store) {
+        if (uri.userInfo.isEmpty) {
+          await store.clearUserInfo();
+        } else {
+          await store.saveUserInfo(uri.userInfo);
+        }
+      } else if (uri.userInfo.isNotEmpty) {
+        throw StateError('Credential store cannot retain URL credentials.');
+      }
       if (retained == null) {
         await _serverDao.saveServer(
           ServerConfigTableCompanion.insert(
             name: Value(config.name),
-            url: config.url,
+            url: storedUrl,
             username: config.username.trim(),
             apiVersion: config.apiVersion,
             capabilities: Value(config.capabilitiesJson),
@@ -87,7 +101,7 @@ class ServerConfigRepository {
           retained.id,
           ServerConfigTableCompanion(
             name: Value(config.name),
-            url: Value(config.url),
+            url: Value(storedUrl),
             username: Value(config.username.trim()),
             apiVersion: Value(config.apiVersion),
             capabilities: Value(
@@ -102,7 +116,7 @@ class ServerConfigRepository {
       }
     } on Object catch (error, stackTrace) {
       try {
-        await _credentials.clearPassword();
+        await _clearCredentials();
       } on Object {
         // Keep the original persistence error as the primary failure signal.
       }
@@ -114,14 +128,27 @@ class ServerConfigRepository {
     Object? databaseError;
     StackTrace? databaseStackTrace;
     try {
-      await _serverDao.markSignedOut();
+      final retained = await _serverDao.getRetainedServer();
+      if (retained != null) {
+        await _serverDao.updateRetainedServer(
+          retained.id,
+          ServerConfigTableCompanion(
+            url: Value(
+              credentialFreeUri(Uri.parse(retained.url))
+                  .toString()
+                  .replaceFirst(RegExp(r'\?(?=#|$)'), ''),
+            ),
+            isAuthenticated: const Value(false),
+          ),
+        );
+      }
     } on Object catch (error, stackTrace) {
       databaseError = error;
       databaseStackTrace = stackTrace;
     }
 
     try {
-      await _credentials.clearPassword();
+      await _clearCredentials();
     } on Object {
       if (databaseError != null && databaseStackTrace != null) {
         Error.throwWithStackTrace(databaseError, databaseStackTrace);
@@ -145,7 +172,7 @@ class ServerConfigRepository {
     }
 
     try {
-      await _credentials.clearPassword();
+      await _clearCredentials();
     } on Object {
       if (serverError != null && serverStackTrace != null) {
         Error.throwWithStackTrace(serverError, serverStackTrace);
@@ -180,24 +207,33 @@ class ServerConfigRepository {
     // No signed-in server is not a reason to delete the password: sign-in
     // saves it before marking the row authenticated, so a read landing in
     // between would erase the new password. Sign-out and clear() delete it.
-    if (row == null) return null;
+    if (row == null) {
+      await getRetainedServer(); // Scrub even a signed-out legacy profile.
+      return null;
+    }
 
+    final migratedRow = await _migrateUrl(row);
     final password = await _readPasswordIfPossible();
     if (password == null || password.isEmpty) {
       await _serverDao.markSignedOut();
       return null;
     }
 
+    final userInfo = _credentials is ServerUrlCredentialStore
+        ? await _credentials.readUserInfo()
+        : null;
     return ServerConfigModel(
-      id: row.id,
-      name: row.name,
-      url: row.url,
-      username: row.username,
+      id: migratedRow.id,
+      name: migratedRow.name,
+      url: Uri.parse(migratedRow.url)
+          .replace(userInfo: userInfo ?? '')
+          .toString(),
+      username: migratedRow.username,
       password: password,
-      apiVersion: row.apiVersion,
-      capabilitiesJson: row.capabilities,
-      lastSynced: row.lastSynced,
-      lastFullSyncedAt: row.lastFullSynced,
+      apiVersion: migratedRow.apiVersion,
+      capabilitiesJson: migratedRow.capabilities,
+      lastSynced: migratedRow.lastSynced,
+      lastFullSyncedAt: migratedRow.lastFullSynced,
     );
   }
 
@@ -239,7 +275,6 @@ class ServerConfigRepository {
         (uri.scheme.toLowerCase() == 'http' && uri.port == 80);
     return Uri(
       scheme: uri.scheme.toLowerCase(),
-      userInfo: uri.userInfo,
       host: uri.host.toLowerCase(),
       port: defaultPort ? null : (uri.hasPort ? uri.port : null),
       path: path,
@@ -267,6 +302,35 @@ class ServerConfigRepository {
     } on FormatException {
       return probed;
     }
+  }
+
+  Future<ServerConfigTableData> _migrateUrl(ServerConfigTableData row) async {
+    final uri = Uri.parse(row.url);
+    final cleanUrl = credentialFreeUri(uri)
+        .toString()
+        .replaceFirst(RegExp(r'\?(?=#|$)'), '');
+    if (cleanUrl == row.url) return row;
+    if (uri.userInfo.isNotEmpty && row.isAuthenticated) {
+      if (_credentials case final ServerUrlCredentialStore store) {
+        await store.saveUserInfo(uri.userInfo);
+      } else {
+        throw StateError('Credential store cannot migrate URL credentials.');
+      }
+    }
+    await _serverDao.updateRetainedServer(
+      row.id,
+      ServerConfigTableCompanion(url: Value(cleanUrl)),
+    );
+    return row.copyWith(url: cleanUrl);
+  }
+
+  Future<void> _clearCredentials() async {
+    // Attempt both deletions even when one fails.
+    await Future.wait([
+      _credentials.clearPassword(),
+      if (_credentials case final ServerUrlCredentialStore store)
+        store.clearUserInfo(),
+    ]);
   }
 
   Future<String?> _readPasswordIfPossible() async {

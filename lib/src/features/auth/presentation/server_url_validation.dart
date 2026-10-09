@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:navis/l10n/app_localizations.dart';
 
 String normalizeServerUrl(String rawUrl) {
@@ -20,6 +22,15 @@ Uri? parseServerUrl(String rawUrl) {
 bool isInsecureHttpUrl(String rawUrl) {
   final uri = parseServerUrl(rawUrl);
   return uri?.scheme.toLowerCase() == 'http';
+}
+
+/// True for `http://` to a non-loopback host (loopback traffic never leaves
+/// the machine).
+bool isInsecureRemoteHttpUrl(String rawUrl) {
+  final uri = parseServerUrl(rawUrl);
+  if (uri == null || uri.scheme.toLowerCase() != 'http') return false;
+  return uri.host.toLowerCase() != 'localhost' &&
+      !(InternetAddress.tryParse(uri.host)?.isLoopback ?? false);
 }
 
 String? validateServerUrl(String? rawUrl, AppLocalizations l10n) {

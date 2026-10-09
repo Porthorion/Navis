@@ -3,8 +3,8 @@ import 'dart:async';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:navis/src/common_widgets/cover_art_image.dart';
 import 'package:navis/src/api/models/models.dart';
-import 'package:navis/src/common_widgets/cover_art_cache_manager.dart';
 import 'package:navis/src/database/navis_database.dart';
 import 'package:navis/src/features/home/domain/home_section_ids.dart';
 import 'package:navis/src/features/home/presentation/home_providers.dart';
@@ -500,12 +500,16 @@ Future<void> _decodeHomeArtworkTarget(
   }
   final cacheManager = ref.read(coverArtCacheManagerProvider);
   final cacheKey = coverArtImageCacheKey(target.coverArtId, target.size);
-  final provider = CachedNetworkImageProvider(
-    api.getCoverArtUrl(id: target.coverArtId, size: target.size).toString(),
-    cacheKey: cacheKey,
-    cacheManager: cacheManager,
-    maxWidth: target.size,
-    maxHeight: target.size,
+  final provider = boundedDecode(
+    CachedNetworkImageProvider(
+      api.getCoverArtUrl(id: target.coverArtId, size: target.size).toString(),
+      cacheKey: cacheKey,
+      cacheManager: cacheManager,
+      maxWidth: target.size,
+      maxHeight: target.size,
+    ),
+    width: target.size,
+    height: target.size,
   );
   try {
     await precacheImage(provider, context);

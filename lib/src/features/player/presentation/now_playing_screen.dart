@@ -22,7 +22,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart' show NumberFormat;
 import 'package:navis/l10n/app_localizations.dart';
 import 'package:cached_network_image/cached_network_image.dart';
-import 'package:navis/src/common_widgets/cover_art_cache_manager.dart';
 import 'package:navis/src/common_widgets/cover_art_image.dart';
 import 'package:navis/src/common_widgets/external_artwork_image.dart';
 import 'package:navis/src/features/integrations/domain/integration_artwork.dart';
@@ -225,10 +224,12 @@ ImageProvider<Object>? _resolveNowPlayingImageProvider({
       return null;
     }
     final coverUrl = api.getCoverArtUrl(id: trimmedCoverArtId, size: 768);
-    return CachedNetworkImageProvider(
-      coverUrl.toString(),
-      cacheManager: cacheManager,
-      cacheKey: coverArtImageCacheKey(trimmedCoverArtId, 768),
+    return boundedDecode(
+      CachedNetworkImageProvider(
+        coverUrl.toString(),
+        cacheManager: cacheManager,
+        cacheKey: coverArtImageCacheKey(trimmedCoverArtId, 768),
+      ),
     );
   }
 
@@ -248,14 +249,10 @@ ImageProvider<Object>? _resolveNowPlayingImageProvider({
       )) {
     return null;
   }
-  return CachedNetworkImageProvider(
-    trimmedArtUrl,
+  return externalArtworkImageProvider(
+    url: trimmedArtUrl,
     cacheManager: cacheManager,
-    cacheKey: coverArtFeatureCacheKey(
-      IntegrationFeature.radioNowPlaying.key,
-      trimmedArtUrl,
-    ),
-    headers: coverArtFeatureHeaders(IntegrationFeature.radioNowPlaying.key),
+    feature: IntegrationFeature.radioNowPlaying,
   );
 }
 
@@ -303,12 +300,14 @@ Future<void> prewarmNowPlayingVisuals({
               );
     try {
       await precacheImage(imageProvider, context, onError: (_, _) {});
-      final scheme = await ColorScheme.fromImageProvider(
+      final scheme = await artworkColorScheme(
         provider: imageProvider,
         brightness: brightness,
       );
-      _nowPlayingTintColorCache[cacheKey] = scheme.primary;
-    } on Exception {
+      if (scheme != null) {
+        _nowPlayingTintColorCache[cacheKey] = scheme.primary;
+      }
+    } on Object {
       // Best-effort warm path: ignore extraction failures.
     } finally {
       coverArtInterest?.dispose();
@@ -1306,10 +1305,12 @@ class _NowPlayingBodyState extends ConsumerState<_NowPlayingBody>
         return;
       }
       final cacheManager = ref.read(coverArtCacheManagerProvider);
-      final ImageProvider<Object> imageProvider = CachedNetworkImageProvider(
-        artUrl,
-        cacheManager: cacheManager,
-        cacheKey: coverArtImageCacheKey(trimmedCoverArt, 768),
+      final imageProvider = boundedDecode(
+        CachedNetworkImageProvider(
+          artUrl,
+          cacheManager: cacheManager,
+          cacheKey: coverArtImageCacheKey(trimmedCoverArt, 768),
+        ),
       );
       unawaited(precacheImage(imageProvider, context, onError: (_, _) {}));
     });

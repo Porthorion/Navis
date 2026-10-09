@@ -14,6 +14,7 @@ import 'package:navis/src/features/settings/data/update_scripts.dart';
 import 'package:navis/src/features/settings/domain/update_info.dart';
 import 'package:navis/src/utils/app_logger.dart';
 import 'package:navis/src/utils/constants.dart';
+import 'package:navis/src/utils/external_url.dart';
 import 'package:navis/src/utils/network_usage_meter.dart';
 
 /// A downloaded artifact differs from the signed manifest's size or digest.
@@ -175,16 +176,8 @@ class UpdateService {
     }
 
     final fallback = fallbackUrl?.trim();
-    if (fallback != null && fallback.isNotEmpty) {
-      final fallbackUri = Uri.parse(fallback);
-      if (await canLaunchUrl(fallbackUri)) {
-        return await launchUrl(
-          fallbackUri,
-          mode: LaunchMode.externalApplication,
-        );
-      }
-    }
-    return false;
+    if (fallback == null || fallback.isEmpty) return false;
+    return launchExternalHttpUrl(fallback);
   }
 
   // ---------------------------------------------------------------------------

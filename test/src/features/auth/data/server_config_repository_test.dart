@@ -1,7 +1,8 @@
 import 'dart:io';
 
 import 'package:drift/drift.dart' show Value;
-import 'package:drift/native.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+import 'package:mocktail/mocktail.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:navis/src/database/navis_database.dart';
 import 'package:navis/src/features/auth/data/secure_credential_store.dart';
@@ -10,7 +11,23 @@ import 'package:navis/src/features/auth/domain/server_config.dart';
 
 import '../../../../helpers/test_database.dart';
 
-class _FakeCredentialStore implements SecureCredentialStore {
+class _MockSecureStorage extends Mock implements FlutterSecureStorage;
+
+class _FakeCredentialStore implements ServerUrlCredentialStore {
+  String? userInfo;
+  int userInfoSaves = 0;
+
+  @override
+  Future<void> saveUserInfo(String value) async {
+    userInfoSaves++;
+    userInfo = value;
+  }
+
+  @override
+  Future<String?> readUserInfo() async => userInfo;
+
+  @override
+  Future<void> clearUserInfo() async => userInfo = null;
   String? password;
   int clearCalls = 0;
 
@@ -113,13 +130,38 @@ void main() {
     expect(values, everyElement('fixture-secret'));
   });
 
+  test('URL secure storage failure uses memory only and clears it', () async {
+    final storage = _MockSecureStorage();
+    when(
+      () => storage.write(
+        key: any(named: 'key'),
+        value: any(named: 'value'),
+      ),
+    ).thenThrow(StateError('unavailable'));
+    when(() => storage.read(key: any(named: 'key')))
+        .thenThrow(StateError('unavailable'));
+    when(() => storage.delete(key: any(named: 'key')))
+        .thenThrow(StateError('unavailable'));
+    final store = FlutterSecureCredentialStore(storage: storage);
+    await store.saveUserInfo('proxy:fixture');
+    expect(await store.readUserInfo(), 'proxy:fixture');
+    await store.clearUserInfo();
+    expect(await store.readUserInfo(), isNull);
+    verify(
+      () => storage.write(
+        key: 'navis.auth.active_server.user_info',
+        value: 'proxy:fixture',
+      ),
+    ).called(1);
+  });
+
   group('ServerConfigRepository', () {
     late NavisDatabase database;
     late _FakeCredentialStore credentials;
     late ServerConfigRepository repository;
 
     setUp(() {
-      database = NavisDatabase(NativeDatabase.memory());
+      database = createTestDatabase();
       credentials = _FakeCredentialStore();
       repository = ServerConfigRepository(database, credentials: credentials);
     });
@@ -127,6 +169,99 @@ void main() {
     tearDown(() async {
       await database.close();
     });
+
+    const proxyConfig = ServerConfigModel(
+      url: 'https://proxy:p%40ss@example.com/music',
+      username: 'alice',
+      password: 'secret',
+      apiVersion: '1.16.1',
+    );
+
+    test(
+      'URL credentials live only in secure storage and the loaded model',
+      () async {
+        await repository.save(proxyConfig);
+        expect(
+          (await database.serverDao.getActiveServer())?.url,
+          'https://example.com/music',
+        );
+        expect(credentials.userInfo, 'proxy:p%40ss');
+        expect((await repository.getActiveServer())?.url, proxyConfig.url);
+        expect(
+          (await repository.watchActiveServer().first)?.url,
+          proxyConfig.url,
+        );
+        expect(
+          await repository.compareRetainedServer(proxyConfig),
+          RetainedServerMatch.same,
+        );
+        await repository.save(
+          proxyConfig.copyWith(url: 'https://new:proxy@example.com/music'),
+        );
+        expect(credentials.userInfo, 'new:proxy');
+      },
+      skip: !sqliteAvailable,
+    );
+
+    test(
+      'load migrates legacy URL once, preserving transport credentials',
+      () async {
+        await database.serverDao.saveServer(
+          ServerConfigTableCompanion.insert(
+            url: proxyConfig.url,
+            username: 'alice',
+            apiVersion: '1.16.1',
+          ),
+        );
+        credentials.password = 'secret';
+        expect((await repository.getActiveServer())?.url, proxyConfig.url);
+        expect(
+          (await database.serverDao.getActiveServer())?.url,
+          'https://example.com/music',
+        );
+        expect((await repository.getActiveServer())?.url, proxyConfig.url);
+        expect(credentials.userInfoSaves, 1);
+      },
+      skip: !sqliteAvailable,
+    );
+
+    for (final wipe in [false, true]) {
+      test('sign-out wipes URL credentials (wipe: $wipe)', () async {
+        await repository.save(proxyConfig);
+        if (wipe) {
+          await repository.clear();
+        } else {
+          await repository.signOutKeepData();
+          expect(
+            (await repository.getRetainedServer())?.url,
+            'https://example.com/music',
+          );
+        }
+        expect(credentials.userInfo, isNull);
+        expect(credentials.password, isNull);
+      }, skip: !sqliteAvailable);
+    }
+
+    test(
+      'signed-out legacy profile is scrubbed without resurrecting credentials',
+      () async {
+        await database.serverDao.saveServer(
+          ServerConfigTableCompanion.insert(
+            url: proxyConfig.url,
+            username: 'alice',
+            apiVersion: '1.16.1',
+            isAuthenticated: const Value(false),
+          ),
+        );
+        expect(await repository.getActiveServer(), isNull);
+        expect(
+          (await database.serverDao.getRetainedServer())?.url,
+          'https://example.com/music',
+        );
+        expect(credentials.userInfo, isNull);
+      },
+      skip: !sqliteAvailable,
+    );
 
     test('save writes drift metadata and secure password', () async {
       await repository.save(

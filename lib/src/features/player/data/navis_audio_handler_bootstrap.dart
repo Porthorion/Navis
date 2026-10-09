@@ -61,26 +61,24 @@ void _invalidateNavisAudioHandlerCache(NavisPlaybackHandler handler) {
   }
 }
 
-/// Cache key of the cache manager AudioService loads media-session art with.
-const String systemArtworkCacheKey = 'navis_system_artwork_cache';
-
 /// File service for the art AudioService downloads itself (notification, lock
 /// screen, Bluetooth). AudioService fetches whatever `artUri` it is handed, so
 /// every fetch goes through [allowUri]: it is rechecked after a download slot
 /// is granted, on every redirect hop and immediately before dispatch.
 /// [isServerUri] excludes own-server art from [recorder]. Missing-cover
 /// recovery has no callback here, so an external id never requests repair.
-@visibleForTesting
 CoverArtHttpFileService createSystemArtworkFileService({
   required bool Function(Uri uri) allowUri,
   NetworkUsageReporter? reportNetworkUsage,
   CoverArtLoadCoordinator? loadCoordinator,
   IntegrationCallRecorder? recorder,
   bool Function(Uri)? isServerUri,
+  Uri Function(Uri)? authenticateUri,
 }) => CoverArtHttpFileService(
   loadCoordinator: loadCoordinator,
   recorder: recorder,
   isServerUri: isServerUri,
+  authenticateUri: authenticateUri,
   reportNetworkUsage: reportNetworkUsage,
   allowUri: allowUri,
 );
@@ -93,6 +91,7 @@ Future<NavisPlaybackHandler> initNavisAudioHandler({
   required HistoryDao historyDao,
   required PlaybackSourceResolver sourceResolver,
   required SubsonicApiClient? Function() readApiClient,
+  required CacheManager Function() readSystemArtworkCacheManager,
   required RollingCacheManager rollingCacheManager,
   required int Function() readRollingCacheBudgetBytes,
   required ScrobbleService scrobbleService,
@@ -114,8 +113,6 @@ Future<NavisPlaybackHandler> initNavisAudioHandler({
   Dio Function()? createRadioMetadataDio,
   Future<String?> Function(MediaItem)? fetchWindowsArtwork,
   bool Function(MediaItem)? readWindowsArtworkAllowed,
-  IntegrationCallRecorder? artworkRecorder,
-  bool Function(Uri)? isServerArtworkUri,
   CoverArtHttpFileService? playbackArtworkFileService,
 }) {
   final cached = _audioHandlerInitCache;
@@ -177,22 +174,12 @@ Future<NavisPlaybackHandler> initNavisAudioHandler({
         (_isAndroidRuntime
                 ? PackageInfo.fromPlatform().then((info) => info.packageName)
                 : Future<String?>.value())
-            .then(
-              (packageName) => initNavisAudioServiceHandler(
+            .then((packageName) async {
+              await PlaybackArtCache.initializeKey();
+              return initNavisAudioServiceHandler(
                 // Never AudioService's default cache, which would fetch any
                 // published URL, a refused redirect target included.
-                cacheManager: createCoverArtCacheManager(
-                  cacheKey: systemArtworkCacheKey,
-                  fileService: createSystemArtworkFileService(
-                    // Own server, or radio art the policy allows. A missing
-                    // reader refuses everything.
-                    allowUri: (uri) =>
-                        readRadioArtworkAllowed?.call(uri) ?? false,
-                    reportNetworkUsage: reportNetworkUsage,
-                    recorder: artworkRecorder,
-                    isServerUri: isServerArtworkUri,
-                  ),
-                ),
+                cacheManager: readSystemArtworkCacheManager(),
                 builder: () {
                   final base = createBaseHandler();
                   return RealTimeProjectionAudioHandler(
@@ -207,8 +194,8 @@ Future<NavisPlaybackHandler> initNavisAudioHandler({
                           ),
                   );
                 },
-              ),
-            )
+              );
+            })
             .then<NavisPlaybackHandler>((initialized) => initialized.handler);
   }
 

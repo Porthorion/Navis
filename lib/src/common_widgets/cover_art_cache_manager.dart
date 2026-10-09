@@ -7,16 +7,24 @@ import 'dart:typed_data';
 
 import 'package:flutter/foundation.dart';
 
+import 'package:file/file.dart' as files;
 import 'package:flutter_cache_manager/flutter_cache_manager.dart';
 import 'package:navis/src/api/subsonic_error.dart';
 import 'package:navis/src/common_widgets/cover_art_recovery.dart';
 import 'package:navis/src/features/integrations/data/artwork_call_recorder.dart';
 import 'package:navis/src/features/integrations/data/integration_call_recorder.dart';
+import 'package:navis/src/features/integrations/domain/integration_artwork.dart';
 import 'package:navis/src/utils/app_logger.dart';
+import 'package:navis/src/utils/credential_redaction.dart';
+import 'package:path/path.dart' as p;
+import 'package:path_provider/path_provider.dart';
 import 'package:navis/src/utils/network_usage_meter.dart';
 
 /// Shared cover art cache key used by both the cache manager and clear logic.
-const String coverArtCacheKey = 'navis_cover_art_cache';
+const String coverArtCacheKey = 'navis_cover_art_cache_v2';
+
+/// Cache key for the artwork AudioService loads for media sessions.
+const String systemArtworkCacheKey = 'navis_system_artwork_cache_v2';
 
 /// Standard cover art size used for all album/artist cover displays outside of
 /// the full-screen viewer. Using a single size ensures that navigating from any
@@ -64,6 +72,9 @@ const int _coverArtMaxScheduledFetches = 64;
 /// classification before it is rejected.
 const int _coverArtErrorDocumentSampleBytes = 64 * 1024;
 
+/// Maximum transferred artwork body size, including chunked responses.
+const int kMaxArtworkResponseBytes = 20 * 1024 * 1024;
+
 /// Redirect hops followed per artwork request; each is policy-checked.
 const int _coverArtMaxRedirects = 5;
 
@@ -85,7 +96,7 @@ Map<String, String> coverArtFeatureHeaders(String featureKey) =>
 /// a tagged download would inherit its refusal. Always pass it together with
 /// [coverArtFeatureHeaders].
 String coverArtFeatureCacheKey(String featureKey, String url) =>
-    'feature:$featureKey:$url';
+    'feature:$featureKey:${credentialFreeUri(Uri.parse(url))}';
 
 /// True when the payload head carries a known image signature (JPEG, PNG,
 /// GIF, WebP, BMP, ICO, TIFF, AVIF and HEIC/HEIF). Content types are untrusted:
@@ -496,6 +507,8 @@ class CoverArtHttpFileService implements FileService {
     this._allowUri,
     this._allowFeatureUri,
     this._isServerUri,
+    this._authenticateUri,
+    this._createHttpClient,
     this.recorder,
     this._connectionTimeout = const Duration(seconds: 15),
     this._responseTimeout = const Duration(seconds: 20),
@@ -505,6 +518,9 @@ class CoverArtHttpFileService implements FileService {
   late HttpClient _client = _createClient();
   final CoverArtLoadCoordinator _loadCoordinator;
   final NetworkUsageReporter? _reportNetworkUsage;
+
+  final Uri Function(Uri uri)? _authenticateUri;
+  final HttpClient Function()? _createHttpClient;
 
   /// Invoked when the server answers that a cover-art reference does not
   /// exist so the caller can schedule one coalesced entity-metadata refresh
@@ -566,6 +582,7 @@ class CoverArtHttpFileService implements FileService {
         ? headers
         : (<String, String>{...headers}..remove(coverArtFeatureHeader));
     bool allowed() =>
+        !_closed &&
         (_allowUri?.call(uri) ?? true) &&
         (featureKey == null ||
             (_allowFeatureUri?.call(uri, featureKey) ?? true));
@@ -605,6 +622,8 @@ class CoverArtHttpFileService implements FileService {
         started = Stopwatch()..start();
         recorded = false;
         statusCode = null;
+        uri = _authenticateUri?.call(uri) ?? uri;
+        checkAllowed();
         final request = await _client.getUrl(uri).timeout(_connectionTimeout);
         request.followRedirects = false;
         // Caller headers never travel to a different origin.
@@ -618,14 +637,27 @@ class CoverArtHttpFileService implements FileService {
         }
         response = await request.close().timeout(_responseTimeout);
         statusCode = response.statusCode;
+        if (response.contentLength > kMaxArtworkResponseBytes) {
+          _resetClientAfterAbortedResponse();
+          throw const CoverArtInvalidResponseException(
+            'declared body exceeds artwork byte limit',
+          );
+        }
         if (!response.isRedirect) break;
         final location = response.headers.value(HttpHeaders.locationHeader);
-        await response.drain<void>().timeout(_bodyReadTimeout);
+        await _boundedBody(
+          response,
+          onTooLarge: _resetClientAfterAbortedResponse,
+        ).drain<void>().timeout(_bodyReadTimeout);
         if (location == null || hop >= _coverArtMaxRedirects) {
           throw const HttpException('Cover art redirect refused');
         }
         finish(IntegrationCallOutcome.ok);
-        uri = uri.resolve(location);
+        final redirectUri = uri.resolve(location);
+        if (uri.scheme == 'https' && redirectUri.scheme == 'http') {
+          throw const HttpException('Cover art HTTPS downgrade refused');
+        }
+        uri = redirectUri;
         diagnosticUri = _diagnosticUri(uri);
       }
       final missingCoverHook = (_isServerUri?.call(uri) ?? true)
@@ -663,7 +695,12 @@ class CoverArtHttpFileService implements FileService {
         // Drain so the keep-alive connection is not poisoned for the next
         // queued request before the typed failure propagates.
         try {
-          await response.drain<void>().timeout(_bodyReadTimeout);
+          await _boundedBody(
+            response,
+            onTooLarge: _resetClientAfterAbortedResponse,
+          ).drain<void>().timeout(_bodyReadTimeout);
+        } on CoverArtInvalidResponseException {
+          rethrow;
         } on Object {
           // The rejection itself must not be masked by a drain failure.
         }
@@ -682,6 +719,7 @@ class CoverArtHttpFileService implements FileService {
         final sample = await _drainBoundedSample(
           response,
           timeout: _bodyReadTimeout,
+          onTooLarge: _resetClientAfterAbortedResponse,
         );
         if (looksLikeSubsonicErrorDocument(sample)) {
           final coverId = uri.queryParameters['id'];
@@ -706,7 +744,7 @@ class CoverArtHttpFileService implements FileService {
         diagnosticUri: diagnosticUri,
         coverArtId: uri.queryParameters['id'],
         onMissingCover: missingCoverHook,
-        onTimeout: _resetClientAfterTimeout,
+        onAbort: _resetClientAfterAbortedResponse,
         onDone: lease.release,
         onFinished: ({required success}) => finish(
           success && response.statusCode < 400
@@ -725,7 +763,7 @@ class CoverArtHttpFileService implements FileService {
       AppLogger.warning(
         'Cover art request timed out for $diagnosticUri: $error',
       );
-      _resetClientAfterTimeout();
+      _resetClientAfterAbortedResponse();
       lease.release();
       rethrow;
     } on CoverArtLoadCanceledException {
@@ -746,7 +784,7 @@ class CoverArtHttpFileService implements FileService {
   }
 
   HttpClient _createClient() {
-    return HttpClient()
+    return (_createHttpClient?.call() ?? HttpClient())
       ..userAgent = AppConstants.userAgent
       ..maxConnectionsPerHost = _coverArtMaxConnectionsPerHost
       ..connectionTimeout = _connectionTimeout;
@@ -760,17 +798,23 @@ class CoverArtHttpFileService implements FileService {
   static Future<List<int>> _drainBoundedSample(
     HttpClientResponse response, {
     required Duration timeout,
+    required void Function() onTooLarge,
   }) async {
     final buffer = BytesBuilder(copy: false);
     try {
-      await for (final chunk in response.timeout(
-        timeout,
-        onTimeout: (sink) => sink.close(),
-      )) {
+      await for (final chunk in _boundedBody(
+        response,
+        onTooLarge: onTooLarge,
+      ).timeout(timeout, onTimeout: (sink) => sink.close())) {
         if (buffer.length < _coverArtErrorDocumentSampleBytes) {
-          buffer.add(chunk);
+          final remaining = _coverArtErrorDocumentSampleBytes - buffer.length;
+          buffer.add(
+            chunk.length <= remaining ? chunk : chunk.sublist(0, remaining),
+          );
         }
       }
+    } on CoverArtInvalidResponseException {
+      rethrow;
     } on Object {
       // The caller's classification must not be masked by a body-read
       // failure.
@@ -778,7 +822,28 @@ class CoverArtHttpFileService implements FileService {
     return buffer.takeBytes();
   }
 
-  void _resetClientAfterTimeout() {
+  static Stream<List<int>> _boundedBody(
+    HttpClientResponse response, {
+    required void Function() onTooLarge,
+    void Function(int)? onBytesRead,
+  }) {
+    var bytesRead = 0;
+    return response.map((chunk) {
+      bytesRead += chunk.length;
+      onBytesRead?.call(chunk.length);
+      if (bytesRead > kMaxArtworkResponseBytes) {
+        // Closing the client aborts the active response; request.abort() alone
+        // has no effect once its response future has completed.
+        onTooLarge();
+        throw const CoverArtInvalidResponseException(
+          'streamed body exceeds artwork byte limit',
+        );
+      }
+      return chunk;
+    });
+  }
+
+  void _resetClientAfterAbortedResponse() {
     if (_closed) {
       return;
     }
@@ -804,7 +869,7 @@ class _CoverArtHttpFileServiceResponse implements FileServiceResponse {
     this._response, {
     required this._bodyReadTimeout,
     required this._diagnosticUri,
-    required this._onTimeout,
+    required this._onAbort,
     required this._onDone,
     required this._onFinished,
     required this._onBytesRead,
@@ -812,7 +877,6 @@ class _CoverArtHttpFileServiceResponse implements FileServiceResponse {
     this.onMissingCover,
   }) {
     if (!_expectsConsumedBody) {
-      _onFinished(success: _response.statusCode < 400);
       _releaseOnce();
       unawaited(_discardBody());
     }
@@ -821,7 +885,7 @@ class _CoverArtHttpFileServiceResponse implements FileServiceResponse {
   final HttpClientResponse _response;
   final Duration _bodyReadTimeout;
   final Uri _diagnosticUri;
-  final void Function() _onTimeout;
+  final void Function() _onAbort;
   final void Function() _onDone;
   final void Function({required bool success}) _onFinished;
   final void Function(int bytes) _onBytesRead;
@@ -847,21 +911,25 @@ class _CoverArtHttpFileServiceResponse implements FileServiceResponse {
     var headIsErrorDocument = false;
     var bodyCompleted = false;
     try {
-      await for (final chunk in _response.timeout(
-        _bodyReadTimeout,
-        onTimeout: (sink) {
-          final error = TimeoutException(
-            'Timed out reading cover art response body from $_diagnosticUri',
+      await for (final chunk
+          in CoverArtHttpFileService._boundedBody(
+            _response,
+            onTooLarge: _onAbort,
+            onBytesRead: (bytes) => bytesRead += bytes,
+          ).timeout(
             _bodyReadTimeout,
-          );
-          AppLogger.warning('$error');
-          sink
-            ..addError(error)
-            ..close();
-          scheduleMicrotask(_onTimeout);
-        },
-      )) {
-        bytesRead += chunk.length;
+            onTimeout: (sink) {
+              final error = TimeoutException(
+                'Timed out reading cover art response body from $_diagnosticUri',
+                _bodyReadTimeout,
+              );
+              AppLogger.warning('$error');
+              sink
+                ..addError(error)
+                ..close();
+              scheduleMicrotask(_onAbort);
+            },
+          )) {
         if (!inspectedHead) {
           inspectedHead = true;
           headIsImage = _looksLikeImagePayload(chunk);
@@ -928,7 +996,10 @@ class _CoverArtHttpFileServiceResponse implements FileServiceResponse {
 
   Future<void> _discardBody() async {
     try {
-      await _response
+      await CoverArtHttpFileService._boundedBody(
+            _response,
+            onTooLarge: _onAbort,
+          )
           .timeout(
             _bodyReadTimeout,
             onTimeout: (sink) {
@@ -937,12 +1008,16 @@ class _CoverArtHttpFileServiceResponse implements FileServiceResponse {
                 _bodyReadTimeout,
               );
               AppLogger.warning('$error');
-              sink.close();
-              scheduleMicrotask(_onTimeout);
+              sink
+                ..addError(error)
+                ..close();
+              scheduleMicrotask(_onAbort);
             },
           )
           .drain<void>();
+      _onFinished(success: _response.statusCode < 400);
     } on Object catch (error, stackTrace) {
+      _onFinished(success: false);
       AppLogger.warning(
         'Cover art response discard failed for $_diagnosticUri: '
         '$error\n$stackTrace',
@@ -1009,21 +1084,173 @@ CacheManager createCoverArtCacheManager({
   CoverArtHttpFileService? fileService,
   CoverArtLoadCoordinator? loadCoordinator,
   NetworkUsageReporter? reportNetworkUsage,
+  Config? config,
 }) {
   final cap = maxNrOfCacheObjects <= 0
       ? _coverArtCacheUnlimited
       : maxNrOfCacheObjects;
-  return CacheManager(
-    Config(
-      cacheKey,
-      stalePeriod: const Duration(days: 30),
-      maxNrOfCacheObjects: cap,
-      fileService:
-          fileService ??
-          CoverArtHttpFileService(
-            loadCoordinator: loadCoordinator,
-            reportNetworkUsage: reportNetworkUsage,
-          ),
-    ),
+  return _CredentialFreeCoverArtCacheManager(
+    config ??
+        Config(
+          cacheKey,
+          stalePeriod: const Duration(days: 30),
+          maxNrOfCacheObjects: cap,
+          fileService:
+              fileService ??
+              CoverArtHttpFileService(
+                loadCoordinator: loadCoordinator,
+                reportNetworkUsage: reportNetworkUsage,
+              ),
+        ),
   );
+}
+
+// CacheManager persists its input URL, not the URL the FileService requests.
+// Keep every insertion boundary credential-free, including default URL keys.
+class _CredentialFreeCoverArtCacheManager extends CacheManager {
+  new(super.config);
+
+  String _url(String url) => credentialFreeUri(Uri.parse(url)).toString();
+  String _key(String url, String? key) {
+    if (key == null) return _url(url);
+    final uri = Uri.tryParse(key);
+    return uri != null && isHostedHttpUri(uri)
+        ? credentialFreeUri(uri).toString()
+        : redactCredentialQueryParameters(key);
+  }
+
+  @override
+  Future<files.File> getSingleFile(
+    String url, {
+    String? key,
+    Map<String, String>? headers,
+  }) => super.getSingleFile(_url(url), key: _key(url, key), headers: headers);
+
+  @override
+  Stream<FileResponse> getFileStream(
+    String url, {
+    String? key,
+    Map<String, String>? headers,
+    bool withProgress = false,
+  }) => super.getFileStream(
+    _url(url),
+    key: _key(url, key),
+    headers: headers,
+    withProgress: withProgress,
+  );
+
+  @override
+  Future<FileInfo> downloadFile(
+    String url, {
+    String? key,
+    Map<String, String>? authHeaders,
+    bool force = false,
+  }) => super.downloadFile(
+    _url(url),
+    key: _key(url, key),
+    authHeaders: authHeaders,
+    force: force,
+  );
+
+  @override
+  Future<files.File> putFile(
+    String url,
+    Uint8List fileBytes, {
+    String? key,
+    String? eTag,
+    Duration maxAge = const Duration(days: 30),
+    String fileExtension = 'file',
+  }) => super.putFile(
+    _url(url),
+    fileBytes,
+    key: _key(url, key),
+    eTag: eTag,
+    maxAge: maxAge,
+    fileExtension: fileExtension,
+  );
+
+  @override
+  Future<files.File> putFileStream(
+    String url,
+    Stream<List<int>> source, {
+    String? key,
+    String? eTag,
+    Duration maxAge = const Duration(days: 30),
+    String fileExtension = 'file',
+  }) => super.putFileStream(
+    _url(url),
+    source,
+    key: _key(url, key),
+    eTag: eTag,
+    maxAge: maxAge,
+    fileExtension: fileExtension,
+  );
+}
+
+/// Deletes the previous cache repositories once, before a manager can open them.
+/// Artwork bytes are disposable; durable download artwork is a separate store.
+Future<void> purgeLegacyCoverArtCredentials({
+  Directory? supportDirectory,
+  Directory? temporaryDirectory,
+}) async {
+  final support = supportDirectory ?? await getApplicationSupportDirectory();
+  final marker = File(
+    p.join(support.path, '.navis-cover-art-credentials-purged-v3'),
+  );
+  // ignore: avoid_slow_async_io, reason: Startup must not block on filesystem metadata.
+  if (await marker.exists()) return;
+  await support.create(recursive: true);
+  // CacheObjectProvider moves pre-v2 mobile/macOS databases to support on lookup.
+  if (supportDirectory == null &&
+      (Platform.isAndroid || Platform.isIOS || Platform.isMacOS)) {
+    for (final name in [
+      'navis_cover_art_cache',
+      'navis_system_artwork_cache',
+    ]) {
+      await CacheObjectProvider(databaseName: name).exists();
+    }
+  }
+  final legacyName = RegExp(
+    r'^navis_(?:cover_art|system_artwork)_cache(?:_[a-f0-9]{16})?\.(?:json(?:\.tmp)?|db(?:-wal|-shm|-journal)?)$',
+  );
+  await for (final entry in support.list(followLinks: false)) {
+    if (entry is File && legacyName.hasMatch(p.basename(entry.path))) {
+      await entry.delete();
+    }
+  }
+  final temporary = temporaryDirectory ?? await getTemporaryDirectory();
+  final legacyDirectoryName = RegExp(
+    r'^navis_(?:cover_art|system_artwork)_cache(?:_[a-f0-9]{16})?$',
+  );
+  await for (final entry in temporary.list(followLinks: false)) {
+    if (legacyDirectoryName.hasMatch(p.basename(entry.path))) {
+      // These names belonged only to disposable artwork, never downloads.
+      await entry.delete(recursive: entry is Directory);
+    }
+  }
+  await marker.writeAsString('3', flush: true);
+}
+
+/// Counts the current disposable cover and media-session artwork directories.
+Future<int> coverArtCacheStorageBytes({Directory? temporaryDirectory}) async {
+  final temporary = temporaryDirectory ?? await getTemporaryDirectory();
+  var total = 0;
+  for (final key in [coverArtCacheKey, systemArtworkCacheKey]) {
+    final directory = Directory(p.join(temporary.path, key));
+    // ignore: avoid_slow_async_io, reason: Storage accounting must not block the UI.
+    if (!await directory.exists()) continue;
+    await for (final entry in directory.list(
+      recursive: true,
+      followLinks: false,
+    )) {
+      if (entry is File) {
+        try {
+          total += await entry.length();
+        } on FileSystemException {
+          // Cache eviction can remove a file while accounting is in flight.
+        }
+      }
+    }
+  }
+  return total;
 }

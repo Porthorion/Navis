@@ -85,6 +85,52 @@ void main() {
     apiVersion: '1.16.1',
   );
 
+  group('HTTP reminder', () {
+    const safe = 'HTTP. HTTPS is safer';
+    const legacy = 'Switch the server to HTTPS';
+
+    Future<void> pumpWith(
+      WidgetTester tester,
+      String url, {
+      bool legacyAuth = false,
+    }) async {
+      await tester.pumpWidget(
+        _buildTestApp(
+          configNotifier: _TestServerConfigNotifier(
+            initialConfig.copyWith(url: url, useLegacyAuth: legacyAuth),
+          ),
+          connectionService: _FakeServerConnectionService(),
+          signOutService: _FakeSignOutService(),
+        ),
+      );
+      await tester.pumpAndSettle();
+    }
+
+    testWidgets('hidden for https and loopback http', (tester) async {
+      for (final url in <String>[
+        'https://example.com',
+        'http://localhost:4533',
+        'http://127.0.0.1:4533',
+      ]) {
+        await pumpWith(tester, url, legacyAuth: true);
+        expect(find.textContaining(safe), findsNothing);
+        expect(find.textContaining(legacy), findsNothing);
+      }
+    });
+
+    testWidgets('shown for http on a LAN host', (tester) async {
+      await pumpWith(tester, 'http://192.168.1.10:4533');
+      expect(find.textContaining(safe), findsOneWidget);
+      expect(find.textContaining(legacy), findsNothing);
+    });
+
+    testWidgets('stronger text with legacy auth', (tester) async {
+      await pumpWith(tester, 'http://192.168.1.10:4533', legacyAuth: true);
+      expect(find.textContaining(legacy), findsOneWidget);
+      expect(find.textContaining(safe), findsNothing);
+    });
+  });
+
   testWidgets('renders current server details', (tester) async {
     final fakeConnection = _FakeServerConnectionService();
     final fakeSignOut = _FakeSignOutService();

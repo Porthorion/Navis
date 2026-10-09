@@ -374,6 +374,23 @@ build their own containers keep Riverpod's default unless they pass it.
 
 ### Authentication, initial catalog, and teardown
 
+Credential redaction treats URL user info as a credential: request logging and
+free-text error redaction strip it, and OS media URL guards reject it. The server password and URL user info use separate keys in the existing secure
+credential store, with a memory-only fallback when platform storage is unavailable.
+Drift stores the credential-free URL; active configs merge user info back in memory
+for HTTP and media Basic authentication, including Android background sync. Loads
+scrub legacy URLs once; signed-out profiles are scrubbed without restoring secrets.
+Both sign-out modes delete both keys. A full wipe also clears the ListenBrainz
+secure token, username, token-valid flag and scrobbling enablement through the
+existing store and targeted settings writer; keep-data sign-out retains them.
+Credential deletion failures reach teardown warning reporting. Profile identity
+excludes URL credentials.
+
+Connection probes always start with token authentication, regardless of the
+reported API version. Only Subsonic code 41 (token authentication unsupported)
+permits a legacy retry. That retry is blocked for non-loopback HTTP servers and
+asks the user to connect over HTTPS; code 40 never sends a reversible password.
+
 Navis retains one local server/account profile. Its stable identity is the
 normalized server base URL plus trimmed username. Schema v61 stores
 `server_config.is_authenticated` separately from the non-secret profile:
@@ -645,7 +662,10 @@ target-selection rules.
 - `motion_policy.dart`: owns every duration, including the reduced-motion
   zero values.
 - `dynamic_accent_provider.dart`: samples the current artwork to reseed the
-  scheme when dynamic album colour is enabled.
+  scheme when dynamic album colour is enabled. Both it and Now Playing prewarm
+  use `artworkColorScheme`, which checks decoded dimensions before Material's
+  112px palette scaling can truncate an edge to zero. Extremely thin artwork
+  keeps the default tint/theme seed; extraction errors stay best-effort.
 - Custom accent labels use `settings/domain/color_namer.dart`: nearest CIE76
   colour in CIELAB (sRGB D65), ignoring alpha, with lazily cached table Lab
   values. The MIT meodai/color-names table is generated from the pinned
@@ -1399,6 +1419,9 @@ database wins and leaves legacy files untouched. No schema changes are involved.
 External HTTP clients use a shared ASCII User-Agent containing the current
 Navis version, `https://navis.porthorion.com` and `support@porthorion.com`,
 including radio metadata, AutoEQ, cover-art fetching and update requests.
+
+External browser links use `launchExternalHttpUrl`, which accepts only hosted
+HTTP(S) addresses. MusicBrainz release-group links require a UUID identifier.
 
 Navis talks to its own Subsonic server and, optionally, to external services:
 Deezer, Last.fm, ListenBrainz, LRCLIB, the update feed, AutoEQ, radio station
@@ -2378,6 +2401,10 @@ expired backoff never resume it. Only starting the mix again re-arms refills.
 
 ### Playback Flow
 
+Radio accepts only hosted HTTP(S) stream URLs and keeps them in handler memory,
+never `MediaItem.extras`. AzuraCast polling is derived only from `/listen/` or
+`/hls/` stream paths; station homepages do not create polling endpoints.
+
 1. User taps album/track → `QueueController.replace()`
 2. Queue controller calls `NavisAudioHandler.replaceQueue()`
 3. Audio handler resolves sources via `PlaybackSourceResolver`
@@ -3206,8 +3233,12 @@ On Android, `RealTimeProjectionAudioHandler` maps
 every credential-bearing `artUri` it publishes (metadata, the queue window,
 browse, search and `getMediaItem` results) through `AndroidSystemArt` to
 `content://<applicationId>.artwork/cover/<key>`, served read-only by the
-exported `NavisArtworkProvider` from the same cache, which Android Auto can
-open from its own process. The content URI is published only once the cover
+exported `NavisArtworkProvider` from the same cache. Keys are the first 32 hex
+characters of HMAC-SHA256 over the cover ID, with a random 32-byte per-install
+secret persisted in app support storage and loaded before media-service setup.
+The provider accepts exactly 32 lowercase hex characters, so other apps cannot
+probe known cover IDs. Old cache filenames are ignored through a `navis_art_v2_` file prefix. Android
+Auto can open these URIs from its own process. The content URI is published only once the cover
 is on disk (the item carries `artCacheFile`, or `PlaybackArtCache.cachedPath`
 knows it); until then the item has no art and the download starts. A URI the
 provider cannot open yet made audio_service store empty
@@ -3805,6 +3836,35 @@ contract.
   does removing the widget.
 
 ### Cache Flow
+
+The shared cover-art manager strips URL user info and Subsonic authentication
+parameters before passing URLs and default URL keys to `flutter_cache_manager`.
+Its guarded HTTP service signs only the active server's exact cover endpoint
+with current credentials, after queue admission and before dispatch. URLs for
+other origins or paths never receive server authentication. AudioService uses the
+same request-time signing through the current API accessor for HTTP session art
+on iOS/macOS. HTTPS redirects to HTTP are refused. Riverpod owns both the shared
+`navis_cover_art_cache_v2` and AudioService's `navis_system_artwork_cache_v2`
+managers. Startup removes both old JSON/SQLite repositories (including temporary
+and journal files) and their old image directories under temporary storage.
+The v3 completion marker is written only after all cleanup succeeds, so profiles
+which ran the earlier v2 metadata-only cleanup also receive the complete purge.
+Ordinary artwork is refetched; permanent download artwork remains in its separate
+durable store. Both keep-data and full sign-out, server-data reset, library-cache
+reset, and Settings “clear covers” clear both managers. Cover storage accounting
+sums both current directories without following links. External artwork display
+and radio Now Playing prewarm share `externalArtworkImageProvider`, wrapped by
+`boundedDecode` with a 1024×1024 fit bound. Both edges are capped without
+upscaling, and display reuses the prewarmed decode without an image fade. The
+HTTP file service rejects a declared body larger than 20 MiB and aborts when
+streamed bytes exceed that limit, including chunked, redirected and discarded
+bodies. It uses the existing forced transport reset to stop an oversized body,
+records an error outcome, and releases the coordinator slot.
+
+Server-provided file extensions use a shared ASCII alphanumeric allowlist (1–10
+characters, otherwise `bin`). Rolling audio and SAF staging filenames hash song
+identities; generated native paths must stay inside their root. Permanent
+download naming throws when all 100 collision candidates are occupied.
 
 1. Playback starts → on Android/iOS `LockCachingAudioSource` writes the
    consumed stream into the rolling cache without a second download. Desktop
