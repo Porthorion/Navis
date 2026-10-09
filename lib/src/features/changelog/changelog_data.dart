@@ -127,7 +127,7 @@ enum ChangelogHighlightIcon {
 const List<ChangelogVersion> changelogs = [
   ChangelogVersion(
     version: '1.5.0',
-    codename: 'Expression',
+    codename: 'Aura',
     summary:
         'Make Navis look the way you want with new color styles, corners, '
         'density and Now Playing backgrounds, on top of signed updates and a '
