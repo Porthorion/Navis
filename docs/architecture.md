@@ -2588,8 +2588,15 @@ just_audio) and their partial files discarded; desktop already keeps a single
 sidecar download.
 
 Album-style queue replacement is lazy: the active transport queue prepares the
-tapped song first, then fills the remaining sources in phase 2. If library
-rows are missing during ID resolution, Match Flow expansion, or a canonical
+tapped song first, then fills the remaining sources in phase 2. ID and supplied-row
+inputs share one replacement lifecycle for admission, lane execution, early logical
+persistence, fill, completion and timeout advance. The ID adapter canonicalizes
+identities before Match Flow expansion and reads rows inside the lane. The row
+adapter rereads local retired identities and local Match Flow expansions; mixed
+queues containing external rows retain every supplied row and bypass expansion.
+Timeout recovery retains the adapter's IDs or rows in play order without reshuffling.
+Eager queue loading and saved-queue restoration keep their separate contracts.
+If library rows are missing during ID resolution, Match Flow expansion, or a canonical
 reread, the selected occurrence is remapped past those missing rows; duplicate
 song occurrences keep their relative position. While phase 2 is loading, `PlaybackSnapshot.queueSongIds` can represent the pending logical
 queue rather than the prepared transport queue, with

@@ -4476,6 +4476,35 @@ class NavisAudioHandler extends BaseAudioHandler
     return beforeSelection.clamp(0, songs.length - 1);
   }
 
+  int _admitQueueReplacement(
+    List<String> ids, {
+    required int startIndex,
+    required bool autoPlay,
+    required bool inPlayOrder,
+    List<SongsTableData>? suppliedRows,
+  }) {
+    _navigationIntent.reset();
+    _pendingLogicalQueueSongs = suppliedRows;
+    _supersedeTransportIntent(shouldPlay: autoPlay);
+    final start = ids.isEmpty ? 0 : startIndex.clamp(0, ids.length - 1);
+    if (ids.isNotEmpty) {
+      _navigationIntent.select(start);
+      _acceptStartupSelection(
+        ids[start],
+        isExternal: isExternalCatalogSource(
+          id: ids[start],
+          apiIsExternal: suppliedRows?[start].isExternal ?? false,
+        ),
+      );
+    }
+    return _supersedeQueueWork(
+      isLoading: ids.isNotEmpty,
+      loadingSongId: ids.isEmpty ? null : ids[start],
+      pendingLogicalQueueSongIds:
+          ids.length > 1 && (inPlayOrder || !_shuffleEnabled) ? ids : null,
+    );
+  }
+
   /// [inPlayOrder] is for reloading the current queue (failure recovery):
   /// the songs are already in play order and are never shuffled again.
   Future<void> _replaceQueueIds(
@@ -4485,157 +4514,47 @@ class NavisAudioHandler extends BaseAudioHandler
     bool expandMatchFlows = true,
     required bool inPlayOrder,
   }) async {
-    _navigationIntent.reset();
-    _pendingLogicalQueueSongs = null;
-    _supersedeTransportIntent(shouldPlay: autoPlay);
-    songIds = songIds.map(_canonicalSongId).toList(growable: false);
-    final requestedStartIndex = songIds.isEmpty
-        ? 0
-        : startIndex.clamp(0, songIds.length - 1);
-    if (songIds.isNotEmpty) _navigationIntent.select(requestedStartIndex);
-    if (songIds.isNotEmpty) {
-      _acceptStartupSelection(
-        songIds[requestedStartIndex],
-        isExternal: isExternalCatalogSource(id: songIds[requestedStartIndex]),
-      );
-    }
-    final reorders = _shuffleEnabled && !inPlayOrder;
-    final admittedGeneration = _supersedeQueueWork(
-      isLoading: songIds.isNotEmpty,
-      loadingSongId: songIds.isEmpty ? null : songIds[requestedStartIndex],
-      pendingLogicalQueueSongIds: songIds.length > 1 && !reorders
-          ? songIds
-          : null,
+    final canonicalIds = songIds.map(_canonicalSongId).toList(growable: false);
+    final admittedGeneration = _admitQueueReplacement(
+      canonicalIds,
+      startIndex: startIndex,
+      autoPlay: autoPlay,
+      inPlayOrder: inPlayOrder,
     );
     final expansion = await _expandMatchFlowIds(
-      songIds,
+      canonicalIds,
       startIndex: startIndex,
       expandMatchFlows: expandMatchFlows,
     );
     if (!_isActiveLoadGeneration(admittedGeneration)) return;
-    (songIds, startIndex) = _playOrderForLoad(
+    final (orderedIds, orderedStart) = _playOrderForLoad(
       expansion.songIds,
       expansion.startIndex,
       (id) => id,
       inPlayOrder: inPlayOrder,
     );
-    final normalizedStartIndex = songIds.isEmpty
-        ? 0
-        : startIndex.clamp(0, songIds.length - 1);
-    if (songIds.isNotEmpty) _navigationIntent.select(normalizedStartIndex);
-    final loadingSongId = songIds.isEmpty
-        ? null
-        : songIds[normalizedStartIndex];
-    final generation = _supersedeQueueWork(
-      isLoading: songIds.isNotEmpty,
-      loadingSongId: loadingSongId,
-      pendingLogicalQueueSongIds: songIds.length > 1 ? songIds : null,
-    );
-    return _queueLane.run((token) async {
-      try {
-        await _ready;
-        _checkQueueWorkCurrent(token, generation);
-        _cancelCrossfade();
-        _radioMetadataService.stop();
-        _radioStation = null;
-
-        final songs = await _libraryDao.getSongsByIds(songIds);
-        if (songs.isEmpty) {
-          _clearPendingLogicalQueue();
-          await _clearQueueInternal(persist: true);
-          _completeQueueLoad(generation);
-          return;
-        }
-
-        _checkQueueWorkCurrent(token, generation);
-        final resolvedStartIndex = _startIndexAfterRowResolution(
-          songIds,
-          normalizedStartIndex,
+    await _runQueueReplacement(
+      songIds: orderedIds,
+      startIndex: orderedStart,
+      autoPlay: autoPlay,
+      context: 'replaceQueue',
+      resolve: () async {
+        final songs = await _libraryDao.getSongsByIds(orderedIds);
+        return (
           songs,
+          _startIndexAfterRowResolution(orderedIds, orderedStart, songs),
         );
-        _navigationIntent.select(resolvedStartIndex);
-        _pendingLogicalQueueSongIds = songs.length > 1
-            ? songs.map((song) => song.id).toList(growable: false)
-            : null;
-        _pendingLogicalQueueSongs = songs;
-
-        final startItem = await _replaceQueuePhase1(
-          songs: songs,
-          startIndex: resolvedStartIndex,
-          autoPlay: autoPlay,
-          persist: false,
-          generation: generation,
-          token: token,
-        );
-        if (startItem != null) {
-          await _persistLogicalQueue(
-            songs.map((song) => song.id).toList(growable: false),
-            resolvedStartIndex,
-            generation: generation,
-          );
-        }
-
-        if (startItem == null || songs.length <= 1) {
-          _completeQueueLoad(generation);
-          return;
-        }
-
-        await _replaceQueuePhase2(
-          songs: songs,
-          startIndex: resolvedStartIndex,
-          startItem: startItem,
-          persist: true,
-          token: token,
-          generation: generation,
-          deferTail: _shouldDeferTail(songs.length),
-        );
-        _completeQueueLoad(generation);
-      } on OperationCancelledException {
-        AppLogger.debug(
-          'replaceQueue cancelled — superseded by newer command.',
-        );
-      } on PlaybackLoadTimeoutException catch (error) {
-        if (!_isActiveLoadGeneration(generation)) return;
-        _completeQueueLoad(
-          generation,
-          loadingSongId: error.songId ?? loadingSongId,
-          failed: true,
-        );
-        final nextIndex = _nextPlayableIndexAfterFailure(
-          normalizedStartIndex,
-          songIds.length,
-        );
-        if (nextIndex != null) {
-          unawaited(
-            _replaceQueueIds(
-              songIds,
-              startIndex: nextIndex,
-              autoPlay: _latestExplicitTransportPlaying ?? autoPlay,
-              expandMatchFlows: false,
-              inPlayOrder: true,
-            ),
-          );
-        }
-      } on Object {
-        _completeQueueLoad(
-          generation,
-          loadingSongId: loadingSongId,
-          failed: false,
-        );
-        rethrow;
-      }
-    });
+      },
+      recover: ({required startIndex, required autoPlay}) => _replaceQueueIds(
+        orderedIds,
+        startIndex: startIndex,
+        autoPlay: autoPlay,
+        expandMatchFlows: false,
+        inPlayOrder: true,
+      ),
+    );
   }
 
-  /// Like [replaceQueue] but accepts pre-fetched [SongsTableData] rows,
-  /// bypassing the library DAO read.  Used by UI screens that already hold the
-  /// song data in memory (album detail, liked songs) so the song list does not
-  /// need to be re-fetched from the database.
-  ///
-  /// Uses the same two-phase/lazy source-resolution path as [replaceQueue]:
-  /// load the requested start item first, then resolve the rest in small
-  /// batches. This keeps queue replacement from eagerly preparing hundreds of
-  /// remote stream URLs on mobile data.
   @override
   Future<void> replaceQueueWithData(
     List<SongsTableData> songs, {
@@ -4658,45 +4577,21 @@ class NavisAudioHandler extends BaseAudioHandler
     bool expandMatchFlows = true,
     required bool inPlayOrder,
   }) async {
-    _navigationIntent.reset();
-    _pendingLogicalQueueSongs = songs;
-    _supersedeTransportIntent(shouldPlay: autoPlay);
-    // A remote row can be identity-matched to a local catalog row after it
-    // was rendered in a playlist/artist/album list.  Whole-entity playback
-    // must retain that supplied remote source rather than canonicalizing it
-    // away and re-reading only the local row.
+    // Whole-entity playback retains supplied remote sources even when they
+    // have since been matched to a local identity.
     final canonicalIds = navisQueueSourceIds(
       songs,
       canonicalize: _canonicalSongId,
     );
-    final requestedStartIndex = canonicalIds.isEmpty
-        ? 0
-        : startIndex.clamp(0, canonicalIds.length - 1);
-    if (canonicalIds.isNotEmpty) _navigationIntent.select(requestedStartIndex);
-    if (canonicalIds.isNotEmpty) {
-      _acceptStartupSelection(
-        canonicalIds[requestedStartIndex],
-        isExternal: isExternalCatalogSource(
-          id: canonicalIds[requestedStartIndex],
-          apiIsExternal: songs[requestedStartIndex].isExternal,
-        ),
-      );
-    }
-    final admittedGeneration = _supersedeQueueWork(
-      isLoading: canonicalIds.isNotEmpty,
-      loadingSongId: canonicalIds.isEmpty
-          ? null
-          : canonicalIds[requestedStartIndex],
-      pendingLogicalQueueSongIds:
-          canonicalIds.length > 1 && (inPlayOrder || !_shuffleEnabled)
-          ? canonicalIds
-          : null,
+    final admittedGeneration = _admitQueueReplacement(
+      canonicalIds,
+      startIndex: startIndex,
+      autoPlay: autoPlay,
+      inPlayOrder: inPlayOrder,
+      suppliedRows: songs,
     );
-    // In a mixed-source entity queue, preserve every supplied row as-is.  In
-    // particular, an external row may be matched to a local identity and its
-    // ID therefore cannot safely be used to re-read the queue from the local
-    // catalog.  This also keeps the order and source choice intact when a
-    // separate local row happens to have a retired identity.
+    // Mixed-source queues keep every row, including a retired local identity;
+    // ID-based expansion or rereading could replace the remote source.
     final hasExternalSource = songs.any((song) => song.isExternal);
     final hasRetiredIdentity =
         !hasExternalSource &&
@@ -4705,20 +4600,19 @@ class NavisAudioHandler extends BaseAudioHandler
     if (hasRetiredIdentity) {
       final canonicalSongs = await _libraryDao.getSongsByIds(canonicalIds);
       if (!_isActiveLoadGeneration(admittedGeneration)) return;
-      return _replaceQueueRows(
+      await _replaceQueueRows(
         canonicalSongs,
         startIndex: _startIndexAfterRowResolution(
           canonicalIds,
-          requestedStartIndex,
+          startIndex,
           canonicalSongs,
         ),
         autoPlay: autoPlay,
         expandMatchFlows: expandMatchFlows,
         inPlayOrder: inPlayOrder,
       );
+      return;
     }
-    // Match Flow expansion is ID based and would likewise re-fetch a matched
-    // remote row. Preserve the caller's exact mixed-source entity queue.
     if (expandMatchFlows && songs.isNotEmpty && !hasExternalSource) {
       final expansion = await _expandMatchFlowIds(
         songs.map((song) => song.id).toList(growable: false),
@@ -4727,7 +4621,7 @@ class NavisAudioHandler extends BaseAudioHandler
       );
       final expandedSongs = await _libraryDao.getSongsByIds(expansion.songIds);
       if (!_isActiveLoadGeneration(admittedGeneration)) return;
-      return _replaceQueueRows(
+      await _replaceQueueRows(
         expandedSongs,
         startIndex: _startIndexAfterRowResolution(
           expansion.songIds,
@@ -4738,27 +4632,59 @@ class NavisAudioHandler extends BaseAudioHandler
         expandMatchFlows: false,
         inPlayOrder: inPlayOrder,
       );
+      return;
     }
     if (!_isActiveLoadGeneration(admittedGeneration)) return;
-    (songs, startIndex) = _playOrderForLoad(
+    final (orderedSongs, orderedStart) = _playOrderForLoad(
       songs,
       startIndex,
       (song) => song.id,
       inPlayOrder: inPlayOrder,
     );
-    final normalizedStartIndex = songs.isEmpty
-        ? 0
-        : startIndex.clamp(0, songs.length - 1);
-    if (songs.isNotEmpty) _navigationIntent.select(normalizedStartIndex);
-    final loadingSongId = songs.isEmpty ? null : songs[normalizedStartIndex].id;
-    final generation = _supersedeQueueWork(
-      isLoading: songs.isNotEmpty,
-      loadingSongId: loadingSongId,
-      pendingLogicalQueueSongIds: songs.length > 1
-          ? songs.map((song) => song.id).toList(growable: false)
-          : null,
+    await _runQueueReplacement(
+      songIds: orderedSongs.map((song) => song.id).toList(growable: false),
+      startIndex: orderedStart,
+      autoPlay: autoPlay,
+      context: 'replaceQueueWithData',
+      clearEmptyRows: orderedSongs.isEmpty,
+      resolve: () => (orderedSongs, orderedStart),
+      recover: ({required startIndex, required autoPlay}) => _replaceQueueRows(
+        orderedSongs,
+        startIndex: startIndex,
+        autoPlay: autoPlay,
+        expandMatchFlows: false,
+        inPlayOrder: true,
+      ),
     );
-    if (songs.isEmpty) {
+  }
+
+  Future<void> _runQueueReplacement({
+    required List<String> songIds,
+    required int startIndex,
+    required bool autoPlay,
+    required String context,
+    required FutureOr<(List<SongsTableData>, int)> Function() resolve,
+    required Future<void> Function({
+      required int startIndex,
+      required bool autoPlay,
+    })
+    recover,
+    bool clearEmptyRows = false,
+  }) {
+    final normalizedStartIndex = songIds.isEmpty
+        ? 0
+        : startIndex.clamp(0, songIds.length - 1);
+    if (songIds.isNotEmpty) _navigationIntent.select(normalizedStartIndex);
+    final loadingSongId = songIds.isEmpty
+        ? null
+        : songIds[normalizedStartIndex];
+    final generation = _supersedeQueueWork(
+      isLoading: songIds.isNotEmpty,
+      loadingSongId: loadingSongId,
+      pendingLogicalQueueSongIds: songIds.length > 1 ? songIds : null,
+    );
+    // Empty supplied input clears without row resolution or radio teardown.
+    if (clearEmptyRows) {
       return _queueLane.run((token) async {
         await _ready;
         _checkQueueWorkCurrent(token, generation);
@@ -4770,14 +4696,30 @@ class NavisAudioHandler extends BaseAudioHandler
       try {
         await _ready;
         _checkQueueWorkCurrent(token, generation);
-        _pendingLogicalQueueSongs = songs;
         _cancelCrossfade();
         _radioMetadataService.stop();
         _radioStation = null;
 
+        final (songs, selectedOccurrence) = await resolve();
+        final resolvedStartIndex = songs.isEmpty
+            ? 0
+            : selectedOccurrence.clamp(0, songs.length - 1);
+        if (songs.isEmpty) {
+          _clearPendingLogicalQueue();
+          await _clearQueueInternal(persist: true);
+          _completeQueueLoad(generation);
+          return;
+        }
+        _checkQueueWorkCurrent(token, generation);
+        _navigationIntent.select(resolvedStartIndex);
+        _pendingLogicalQueueSongIds = songs.length > 1
+            ? songs.map((song) => song.id).toList(growable: false)
+            : null;
+        _pendingLogicalQueueSongs = songs;
+
         final startItem = await _replaceQueuePhase1(
           songs: songs,
-          startIndex: normalizedStartIndex,
+          startIndex: resolvedStartIndex,
           autoPlay: autoPlay,
           persist: false,
           generation: generation,
@@ -4786,19 +4728,17 @@ class NavisAudioHandler extends BaseAudioHandler
         if (startItem != null) {
           await _persistLogicalQueue(
             songs.map((song) => song.id).toList(growable: false),
-            normalizedStartIndex,
+            resolvedStartIndex,
             generation: generation,
           );
         }
-
         if (startItem == null || songs.length <= 1) {
           _completeQueueLoad(generation);
           return;
         }
-
         await _replaceQueuePhase2(
           songs: songs,
-          startIndex: normalizedStartIndex,
+          startIndex: resolvedStartIndex,
           startItem: startItem,
           persist: true,
           token: token,
@@ -4807,9 +4747,7 @@ class NavisAudioHandler extends BaseAudioHandler
         );
         _completeQueueLoad(generation);
       } on OperationCancelledException {
-        AppLogger.debug(
-          'replaceQueueWithData cancelled — superseded by newer command.',
-        );
+        AppLogger.debug('$context cancelled — superseded by newer command.');
       } on PlaybackLoadTimeoutException catch (error) {
         if (!_isActiveLoadGeneration(generation)) return;
         _completeQueueLoad(
@@ -4819,16 +4757,13 @@ class NavisAudioHandler extends BaseAudioHandler
         );
         final nextIndex = _nextPlayableIndexAfterFailure(
           normalizedStartIndex,
-          songs.length,
+          songIds.length,
         );
         if (nextIndex != null) {
           unawaited(
-            _replaceQueueRows(
-              songs,
+            recover(
               startIndex: nextIndex,
               autoPlay: _latestExplicitTransportPlaying ?? autoPlay,
-              expandMatchFlows: false,
-              inPlayOrder: true,
             ),
           );
         }

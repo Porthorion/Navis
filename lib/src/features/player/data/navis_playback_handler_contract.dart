@@ -79,10 +79,11 @@ abstract class NavisPlaybackHandler {
     bool expandMatchFlows,
   });
 
-  /// Like [replaceQueue] but accepts pre-fetched [SongsTableData] rows,
-  /// skipping the DB read entirely. Use this when the caller already has the
-  /// song data in memory (e.g. album-detail, artist-detail, playlist screens)
-  /// to avoid a potentially-blocked read during an ongoing library sync.
+  /// Replaces the queue using pre-fetched [SongsTableData] rows.
+  ///
+  /// Exact supplied sources bypass the library read. Local retired identities
+  /// and Match Flow expansion reread rows; queues containing external rows
+  /// retain every supplied row and bypass expansion.
   Future<void> replaceQueueWithData(
     List<SongsTableData> songs, {
     int startIndex,
