@@ -3066,6 +3066,9 @@ keyboard, headset, or an external media session. Successful manual changes use
 a 220 ms clean artwork handoff: the previous cover drops away, the new cover
 settles without lateral travel, and metadata fades upward only after artwork
 settles. Automatic advances use a short non-directional focus fade.
+Previous restarts the first queue song even within three seconds when there
+is no previous entry; Repeat All retains its wrap to the last entry. Both
+in-app navigation and the previous-action rules restart at that edge.
 Restart-current and unavailable-edge requests retain the same artwork and use
 one small dynamic-color edge pulse rather than a floating icon; no UI animation
 delays audio transport. Reduced motion applies direct state changes with

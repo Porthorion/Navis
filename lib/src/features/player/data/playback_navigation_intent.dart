@@ -75,8 +75,8 @@ class PlaybackNavigationIntent {
     }
 
     if (!forward &&
-        !_pending &&
-        confirmedPosition > const Duration(seconds: 3)) {
+        ((!_pending && confirmedPosition > const Duration(seconds: 3)) ||
+            (position == 0 && (!loopAll || effectiveOrder.length == 1)))) {
       _desiredIndex = current;
       _pending = true;
       return PlaybackNavigationDecision(

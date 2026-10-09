@@ -129,6 +129,10 @@ const List<ChangelogVersion> changelogs = [
     version: '1.4.3',
     entries: [
       ChangelogEntry(
+        'Previous restarts the first queued song even within its first three seconds',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
         'System media controls correctly disable Next at the end of long queues',
         type: ChangelogEntryType.fix,
       ),

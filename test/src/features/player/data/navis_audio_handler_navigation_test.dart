@@ -623,6 +623,34 @@ void main() {
     return (handler, player, database);
   }
 
+  test('Previous restarts the first queue song within three seconds', () async {
+    final directory = await Directory.systemTemp.createTemp('navis-previous-');
+    final (handler, player, database) = await createHandler(directory, 2);
+    addTearDown(() async {
+      await handler.disposeHandler();
+      await database.close();
+      await directory.delete(recursive: true);
+    });
+    await handler.replaceQueue(['song-0', 'song-1'], expandMatchFlows: false);
+    player.simulatedPosition = const Duration(seconds: 2);
+    final cues = <TransportVisualCue>[];
+    final subscription = handler.transportVisualCueStream.listen(cues.add);
+    addTearDown(subscription.cancel);
+    await handler.skipToPrevious();
+    await Future<void>.delayed(Duration.zero);
+    expect(handler.snapshot.currentSongId, 'song-0');
+    expect(player.position, Duration.zero);
+    expect(cues.last.intent, TransportVisualIntent.restartCurrent);
+    expect(
+      navisResolvePreviousTrackAction(
+        queueLength: 2,
+        currentIndex: 0,
+        position: const Duration(seconds: 2),
+      ),
+      NavisPreviousTrackAction.restartCurrent,
+    );
+  });
+
   for (final noisy in [false, true]) {
     test('session pause stops both crossfade decks (noisy=$noisy)', () async {
       final directory = await Directory.systemTemp.createTemp(

@@ -36,6 +36,25 @@ void main() {
     },
   );
 
+  for (final milliseconds in [0, 1000, 3000]) {
+    test(
+      'previous at the first entry restarts within three seconds ($milliseconds)',
+      () {
+        final intent = PlaybackNavigationIntent();
+        final decision = intent.relative(
+          forward: false,
+          confirmedIndex: 0,
+          confirmedPosition: Duration(milliseconds: milliseconds),
+          effectiveOrder: const [0, 1, 2],
+        );
+        expect(decision.outcome, PlaybackNavigationOutcome.restart);
+        expect(decision.index, 0);
+        expect(decision.canApply, isTrue);
+        expect(intent.isPending, isTrue);
+      },
+    );
+  }
+
   test('previous restart applies only before a pending navigation', () {
     final intent = PlaybackNavigationIntent();
     const order = <int>[0, 1, 2];
