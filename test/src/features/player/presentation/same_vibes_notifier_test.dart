@@ -2354,5 +2354,33 @@ void main() {
       );
       expect(container.read(recommendationSessionProvider).stage, 'failed');
     });
+
+    test('a playing remote seed without a library copy does not borrow a queue '
+        "neighbour's server mix", () async {
+      when(
+        () => api.getSimilarSongs(
+          'local-neighbor',
+          count: any(named: 'count'),
+          cancelToken: any(named: 'cancelToken'),
+        ),
+      ).thenAnswer(
+        (_) async => const <Song>[Song(id: 'sim-local', title: 'Unrelated')],
+      );
+      final container = playing(
+        queue: <String>[remoteSeed.id, 'local-neighbor'],
+        current: remoteSeed.id,
+      );
+
+      await container.read(sameVibesProvider.notifier).activate(remoteSeed.id);
+
+      verifyNever(
+        () => api.getSimilarSongs(
+          any(),
+          count: any(named: 'count'),
+          cancelToken: any(named: 'cancelToken'),
+        ),
+      );
+      expect(queueOf(container).queuedSongs, isEmpty);
+    });
   });
 }

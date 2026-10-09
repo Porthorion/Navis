@@ -379,7 +379,6 @@ class SameVibesNotifier extends Notifier<SameVibesState> {
 
       if (shouldAttemptFallback) {
         final fallbackSeedSongId = _resolveFallbackSeedSongId(
-          snapshot: snapshot,
           preferredSeedSongId: normalizedSeedSongId,
           libraryCopyId: seed?.libraryCopyId,
         );
@@ -413,7 +412,6 @@ class SameVibesNotifier extends Notifier<SameVibesState> {
 
       if (shouldAttemptFallback && fallbackSeedEligible) {
         final fallbackSeedSongId = _resolveFallbackSeedSongId(
-          snapshot: snapshot,
           preferredSeedSongId: normalizedSeedSongId,
           libraryCopyId: seed?.libraryCopyId,
         );
@@ -861,53 +859,18 @@ class SameVibesNotifier extends Notifier<SameVibesState> {
     return result;
   }
 
+  /// The server id whose similar songs back the fallback: the seed itself, or
+  /// a remote seed's library copy. A remote seed without a library copy has no
+  /// fallback, and never borrows the similar songs of an unrelated queue
+  /// neighbour.
   String? _resolveFallbackSeedSongId({
-    required PlaybackSnapshot snapshot,
     required String preferredSeedSongId,
     String? libraryCopyId,
   }) {
     if (_isServerAddressableSeedId(preferredSeedSongId)) {
       return preferredSeedSongId;
     }
-    if (libraryCopyId != null) {
-      return libraryCopyId;
-    }
-
-    final queue = snapshot.queueSongIds
-        .map((id) => id.trim())
-        .where((id) => id.isNotEmpty)
-        .toList(growable: false);
-    // Neighbours stand in for the seed only while the seed is among them; a
-    // seed chosen from outside the queue replaces it.
-    if (queue.isEmpty || !queue.contains(preferredSeedSongId)) {
-      return null;
-    }
-
-    final currentIndex = (snapshot.currentIndex ?? 0).clamp(
-      0,
-      queue.length - 1,
-    );
-    for (var distance = 0; distance < queue.length; distance++) {
-      final left = currentIndex - distance;
-      if (left >= 0) {
-        final id = queue[left];
-        if (_isServerAddressableSeedId(id)) {
-          return id;
-        }
-      }
-      if (distance == 0) {
-        continue;
-      }
-      final right = currentIndex + distance;
-      if (right < queue.length) {
-        final id = queue[right];
-        if (_isServerAddressableSeedId(id)) {
-          return id;
-        }
-      }
-    }
-
-    return null;
+    return libraryCopyId;
   }
 
   bool _isServerAddressableSeedId(String id) => isServerAddressableSongId(id);

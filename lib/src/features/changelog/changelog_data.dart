@@ -202,6 +202,10 @@ const List<ChangelogVersion> changelogs = [
       ),
       ChangelogEntry(
         'System queue controls select and remove the correct song after played tracks leave the player window',
+        'Same Vibes started from a remote song with no library copy no longer mixes from an unrelated song in the queue',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
         'Server Mix can start from a remote song when the server has a library copy of it; the Instant Mix button is no longer greyed out for remote songs',
         type: ChangelogEntryType.fix,
       ),
