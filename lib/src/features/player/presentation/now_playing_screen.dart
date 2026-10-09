@@ -12,9 +12,6 @@ import 'package:navis/src/features/player/presentation/now_playing_artwork_scope
 import 'dart:async';
 import 'dart:math' as math;
 
-import 'package:material_color_utilities/material_color_utilities.dart'
-    show Hct;
-
 import 'package:audio_service/audio_service.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:navis/src/features/player/domain/playback_adjustments.dart';
