@@ -3027,19 +3027,10 @@ class NavisAudioHandler extends BaseAudioHandler
 
   Future<void> _loadInactiveDeck(
     AudioPlayer player, {
-    int generation = 0,
     int? initialIndex,
   }) async {
     if (_queueItems.isEmpty) {
-      if (generation > 0) {
-        await _runTimedPlayerOperation(
-          generation: generation,
-          operation: 'inactive deck clear',
-          action: () => player.setAudioSources(const <AudioSource>[]),
-        );
-      } else {
-        await player.setAudioSources(const <AudioSource>[]);
-      }
+      await player.setAudioSources(const <AudioSource>[]);
       return;
     }
     final orderedSongs = (await _rowsForDeferredEntries(
@@ -3061,23 +3052,11 @@ class NavisAudioHandler extends BaseAudioHandler
         .map((entry) => entry.source.asClonedAudioSource(tag: entry.mediaItem))
         .toList(growable: false);
     try {
-      if (generation > 0) {
-        await _runTimedPlayerOperation(
-          generation: generation,
-          operation: 'inactive deck sync',
-          action: () => player.setAudioSources(
-            inactiveSources,
-            preload: true,
-            initialIndex: resolvedInitialIndex,
-          ),
-        );
-      } else {
-        await player.setAudioSources(
-          inactiveSources,
-          preload: true,
-          initialIndex: resolvedInitialIndex,
-        );
-      }
+      await player.setAudioSources(
+        inactiveSources,
+        preload: true,
+        initialIndex: resolvedInitialIndex,
+      );
     } on Object catch (error, stackTrace) {
       _markPreparedLockCachingBypassed(
         prepared,
@@ -3096,23 +3075,11 @@ class NavisAudioHandler extends BaseAudioHandler
             (entry) => entry.source.asClonedAudioSource(tag: entry.mediaItem),
           )
           .toList(growable: false);
-      if (generation > 0) {
-        await _runTimedPlayerOperation(
-          generation: generation,
-          operation: 'inactive deck direct sync',
-          action: () => player.setAudioSources(
-            directSources,
-            preload: true,
-            initialIndex: resolvedInitialIndex,
-          ),
-        );
-      } else {
-        await player.setAudioSources(
-          directSources,
-          preload: true,
-          initialIndex: resolvedInitialIndex,
-        );
-      }
+      await player.setAudioSources(
+        directSources,
+        preload: true,
+        initialIndex: resolvedInitialIndex,
+      );
     }
     await _setVolumeIfChanged(player, 0);
     await player.pause();
