@@ -2270,6 +2270,7 @@ private extensions on the handler within the same library:
 | Released queue window | `navis_audio_handler_queue_window.dart` |
 | Queue loading and source preparation | `navis_audio_handler_queue_loading.dart` |
 | Queue edits and identity aliases | `navis_audio_handler_queue_editing.dart` |
+| Transport and navigation | `navis_audio_handler_navigation.dart` |
 
 Helpers that directly reference class static members remain in the class, as do
 source-guarded player construction and initialization.
