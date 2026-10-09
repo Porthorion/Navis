@@ -2,6 +2,7 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:navis/src/common_widgets/cover_art_cache_manager.dart';
+import 'package:navis/src/common_widgets/cover_art_image.dart';
 import 'package:navis/src/features/integrations/domain/integration_artwork.dart';
 import 'package:navis/src/features/integrations/domain/integration_feature.dart';
 import 'package:navis/src/providers/app_providers.dart';
@@ -116,6 +117,9 @@ class _ExternalArtworkImageState extends ConsumerState<ExternalArtworkImage> {
       cacheKey: widget.feature == null
           ? null
           : coverArtFeatureCacheKey(widget.feature!.key, widget.url.trim()),
+      // Bounds the decode so a decompression bomb cannot exhaust memory. Width
+      // only: with both set CachedNetworkImage stretches to an exact box.
+      memCacheWidth: kMaxArtworkDecodeEdge,
       width: widget.width,
       height: widget.height,
       fit: widget.fit,
