@@ -431,21 +431,6 @@ class _ShowcaseColourWash extends ConsumerWidget {
   }
 }
 
-/// HCT chroma below which the Flat wash colour is treated as grey.
-const double _flatWashChromaFloor = 6;
-
-/// Opaque average of the field's non-transparent cells; null without any.
-Color? _averageCoverColour(CoverColourField? field) {
-  final cells = field?.colors.where((c) => c.a > 0).toList() ?? <Color>[];
-  if (cells.isEmpty) return null;
-  return Color.from(
-    alpha: 1,
-    red: cells.fold<double>(0, (sum, c) => sum + c.r) / cells.length,
-    green: cells.fold<double>(0, (sum, c) => sum + c.g) / cells.length,
-    blue: cells.fold<double>(0, (sum, c) => sum + c.b) / cells.length,
-  );
-}
-
 extension on _ShowcaseColourWash {
   /// Flat wash: one solid block with hard edges, the adapted average of the
   /// field's cells at the style's veil strength over the page background.
@@ -458,19 +443,13 @@ extension on _ShowcaseColourWash {
   ) {
     final motion = MotionPolicy.of(context);
     var fill = background;
-    final average = _averageCoverColour(field);
+    final average = field?.average;
     if (average != null) {
-      var adapted = style.adaptArtColor(average);
-      // Grey covers would give an unstyled grey panel: below this chroma the
-      // colour takes 25% of the theme's secondary container so it always
-      // carries the style.
-      if (Hct.fromInt(adapted.toARGB32()).chroma < _flatWashChromaFloor) {
-        adapted = Color.lerp(
-          adapted,
-          Theme.of(context).colorScheme.secondaryContainer,
-          0.25,
-        )!;
-      }
+      final adapted = styledCoverSample(
+        average,
+        style,
+        Theme.of(context).colorScheme.secondaryContainer,
+      );
       fill = Color.alphaBlend(adapted.withValues(alpha: 1 - veil), background);
     }
     return IgnorePointer(
@@ -554,7 +533,7 @@ class _ShowcaseFlatBand extends ConsumerWidget {
                   .watch(coverColourFieldProvider((coverId, coverArtRevision)))
                   .value ??
               peekCoverColourField(coverId);
-    final average = _averageCoverColour(field);
+    final average = field?.average;
     final CaptionTint target;
     if (average == null) {
       target = CaptionTint(
@@ -563,19 +542,13 @@ class _ShowcaseFlatBand extends ConsumerWidget {
         subtext: theme.colorScheme.onSurfaceVariant,
       );
     } else {
-      var sampled = average;
-      // Grey covers would give an unstyled grey band: below the chroma floor
-      // the sample takes 25% of the theme's secondary container first.
-      if (Hct.fromInt(style.adaptArtColor(sampled).toARGB32()).chroma <
-          _flatWashChromaFloor) {
-        sampled = Color.lerp(
-          sampled,
-          theme.colorScheme.secondaryContainer,
-          0.25,
-        )!;
-      }
+      final sampled = styledCoverSample(
+        average,
+        style,
+        theme.colorScheme.secondaryContainer,
+      );
       target = captionTintFor(
-        flatBandSample(sampled, style),
+        flatBandSample(sampled, style, adapted: true),
         style,
         adapted: true,
       );

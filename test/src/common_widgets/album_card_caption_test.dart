@@ -85,7 +85,7 @@ void main() {
       var decodes = 0;
       final sampler = CoverColourSampler(
         decode: (id, {revision = 0}) {
-          expect(revision, 1);
+          expectSync(revision, 1);
           decodes++;
           return gate.future;
         },

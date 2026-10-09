@@ -612,11 +612,14 @@ target-selection rules.
   blurs the cover (sigma 32, `ImageFiltered` inside a `RepaintBoundary`, not a
   backdrop filter), lays `NavisColorStyleData.nowPlayingArtworkVeil` over it
   (adaptive: the smallest alpha keeping both `onSurface` and the accent-coloured
-  title at 5.0:1 against the 96 px average, within dark 0.30-0.80, OLED
+  title at 5.0:1 against the shared cover field's usable-cell average (from
+  `coverColourFieldProvider((id, revision))`), within dark 0.30-0.80, OLED
   0.72-0.92 so it still reads as OLED, and light 0.58-0.88; fixed
   0.68/0.8/0.68 until the average is known) and adds a 0.15 veil over the
   bottom fifth. The previous cover stays until the next one
-  decodes, then crossfades over `MotionPolicy.surface`. The averaging listener
+  decodes, then crossfades over `MotionPolicy.surface`. Cover-id art reuses
+  the worker's field instead of reading bitmap pixels on the UI isolate;
+  radio/URL art retains its thumbnail bitmap average. The decode listener
   disposes every received image handle, including stale callbacks. Failed source
   keys are remembered by the layer and reported to the screen after the frame,
   selecting Art-Tinted without retrying on position rebuilds. A new source or
@@ -709,9 +712,10 @@ target-selection rules.
     shadows and the seek-preview blur are dropped for opaque container fills.
     Exceptions that stay: the desktop/tablet Home wash is a rounded panel
     (`NavisRadius.xl`) inset to the 16 px content margins, and a wash colour with HCT chroma
-    below 6 (grey covers) takes 25% of `secondaryContainer` so it carries the
-    style; OLED + Flat Now Playing is plain `surface` (black), never the solid
-    tint (`NavisColorStyleData.oled`, set by `buildOledTheme`); the legibility
+    below 6 (grey covers) takes 25% of `secondaryContainer` into the raw sample
+    before adaptation, through `styledCoverSample` shared by wash and band;
+    coloured samples are adapted once; OLED + Flat Now Playing is plain
+    `surface` (black), never the solid tint (`NavisColorStyleData.oled`, set by `buildOledTheme`); the legibility
     gradients behind white text over artwork stay under Flat (see
     `NavisColorStyleData.artworkScrim` below).
     Kept deliberately: the shimmer animation, the scroll-edge fade mask
@@ -892,10 +896,12 @@ never pays for it:
 - *Sampling gate.* `AlbumCard` passes `CoverArtImage.onImageReady` to its
   `AlbumCardLabel` as `coverReady`, so a card samples only after the same
   visibility and load-window logic that loads its artwork has shown the
-  cover. It then waits `kCoverTintSettleDelay` (150 ms) built, and while
-  `Scrollable.recommendDeferredLoadingForContext` says a fast scroll is under
-  way it keeps waiting. Cards that fly past never request. Known colours are
-  read synchronously from `peekCoverColourField` on the first frame.
+  cover. It waits `kCoverTintSettleDelay` (150 ms) built and idle before
+  requesting. The existing `isScrollingNotifier` cancels that one-shot wait
+  when scrolling starts and schedules it when scrolling stops; there is no
+  per-card polling timer. Flutter's deferred-loading recommendation remains
+  a final check before sampling. Cards that fly past never request. Known
+  colours are read synchronously from `peekCoverColourField` on the first frame.
 - *Local files only.* `decodeLocalCoverColour` reads the permanent artwork
   store file or the rolling-cache file (`getFileFromCache`) and decodes it
   natively at 24 px (`ImmutableBuffer.fromFilePath`, `ImageDescriptor`,
@@ -914,8 +920,10 @@ never pays for it:
   tone search) and all persistence: read, merge, trim to 5000, encode and
   atomic write of the colour file, debounced 2 s. A card derives its tint
   through `resolveCaptionTint` (memoised in `caption_tint_resolver.dart`),
-  so `captionTintFor` never runs in `build`. Memo and card dedupe keys contain
-  only sampled ARGB, colour style and darkness; these are the only arguments
+  during dependency/widget changes and field subscription callbacks. Build
+  only renders the applied tint. Each applied tint resets its instant/fade
+  decision; queued results stay behind the frame dispatcher. Memo and card
+  dedupe keys contain only sampled ARGB, colour style and darkness; these are the only arguments
   sent to the worker. Track-driven accent hue changes reuse the tint.
 - *Burst control.* Results reach cards through `FrameBudgetDispatcher`
   (`frame_budget_dispatcher.dart`): at most three tint repaints start per
