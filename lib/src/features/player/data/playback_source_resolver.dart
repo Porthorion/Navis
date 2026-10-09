@@ -176,43 +176,28 @@ class PlaybackSourceResolver {
       );
       cachedTrack = null;
     }
-    if (song.serverDeletedAt != null) {
-      if (cachedTrack != null &&
-          cachedTrack.cacheType == CacheType.permanent &&
-          cachedTrack.downloadStatus == DownloadStatus.complete) {
-        if (await _cachedLocatorExists(cachedTrack)) {
-          await _rollingCacheManager.touchTrack(song.id);
-          return ResolvedPlaybackSource.file(
-            songId: song.id,
-            uri: _cachedLocatorUri(cachedTrack),
-            metadata: _resolveCachedTrackMetadata(
-              song: song,
-              cachedTrack: cachedTrack,
-            ),
-            cachedFilePath: cachedTrack.filePath,
+    final cachePolicy = song.serverDeletedAt != null
+        ? null
+        : PlaybackCachePolicy(
+            cachedPlaybackFirst: _readCachedPlaybackFirst(),
+            preferAnyCache: _readPreferAnyCache(),
+            canStream: _readCanStream(),
           );
-        }
-      }
-      await _cacheDao.removeCachedTrack(song.id);
-      await _libraryDao?.deleteLocalOnlySong(song.id);
-      throw const PlaybackSourceUnavailableException(
-        'Downloaded file is no longer available.',
-      );
-    }
-
-    final cachePolicy = PlaybackCachePolicy(
-      cachedPlaybackFirst: _readCachedPlaybackFirst(),
-      preferAnyCache: _readPreferAnyCache(),
-      canStream: _readCanStream(),
-    );
+    final acceptsCache =
+        cachedTrack != null &&
+        (cachePolicy == null
+            ? cachedTrack.cacheType == CacheType.permanent &&
+                  cachedTrack.downloadStatus == DownloadStatus.complete
+            : _shouldUseCachedTrack(
+                song: song,
+                cachedTrack: cachedTrack,
+                quality: quality,
+                policy: cachePolicy,
+              ));
     if (cachedTrack != null &&
-        _shouldUseCachedTrack(
-          song: song,
-          cachedTrack: cachedTrack,
-          quality: quality,
-          policy: cachePolicy,
-        )) {
-      if (await _cachedLocatorExists(cachedTrack)) {
+        acceptsCache &&
+        await _cachedLocatorExists(cachedTrack)) {
+      if (cachePolicy != null) {
         AppLogger.debug(
           'Playback source resolved: song=${song.id} '
           'kind=${PlaybackSourceKind.file.name} path=${cachedTrack.filePath} '
@@ -220,26 +205,28 @@ class PlaybackSourceResolver {
           'maxBitRate=${quality.maxBitRate?.toString() ?? 'original'} '
           'format=${quality.format ?? 'original'}',
         );
-        await _rollingCacheManager.touchTrack(song.id);
-        return ResolvedPlaybackSource.file(
-          songId: song.id,
-          uri: _cachedLocatorUri(cachedTrack),
-          metadata: _resolveCachedTrackMetadata(
-            song: song,
-            cachedTrack: cachedTrack,
-          ),
-          cachedFilePath: cachedTrack.filePath,
-        );
       }
-    }
-
-    if (cachedTrack != null &&
-        !_shouldUseCachedTrack(
+      await _rollingCacheManager.touchTrack(song.id);
+      return ResolvedPlaybackSource.file(
+        songId: song.id,
+        uri: _cachedLocatorUri(cachedTrack),
+        metadata: _resolveCachedTrackMetadata(
           song: song,
           cachedTrack: cachedTrack,
-          quality: quality,
-          policy: cachePolicy,
-        )) {
+        ),
+        cachedFilePath: cachedTrack.filePath,
+      );
+    }
+
+    if (cachePolicy == null) {
+      await _cacheDao.removeCachedTrack(song.id);
+      await _libraryDao?.deleteLocalOnlySong(song.id);
+      throw const PlaybackSourceUnavailableException(
+        'Downloaded file is no longer available.',
+      );
+    }
+
+    if (cachedTrack != null && !acceptsCache) {
       AppLogger.debug(
         'Skipping cached source for song=${song.id} due to active '
         'streaming quality profile. cacheType=${cachedTrack.cacheType.name} '
