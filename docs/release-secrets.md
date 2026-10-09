@@ -152,6 +152,12 @@ export MACOS_NOTARY_PROFILE="navis-notary-profile"
 - full-disk encryption enabled
 - screen lock and account password required
 - no plaintext secret files outside intended local config paths
+- `tool/release.env`, `android/key.properties` and the keystores are mode 600
+  (`tool/security_audit.sh` fails otherwise)
+- remote builders receive only tracked files (`git ls-files`), never these
+  secrets; their sshd allows key logins from the LAN only
+- obfuscation symbols under `build/obfuscation/<platform>/<version>` stay on the
+  release host and are never uploaded
 - periodic token/password rotation
 
 ## Preflight before release

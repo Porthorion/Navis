@@ -357,6 +357,17 @@ Start-Service sshd
 Set-Service -Name sshd -StartupType Automatic
 ```
 
+Harden it before it receives release builds. Allow key logins only, allow
+only the build account, and keep the port reachable from the LAN only:
+
+```powershell
+$cfg = "$env:ProgramData\ssh\sshd_config"
+# Prepend: the default file ends in a Match block, and sshd keeps the first value.
+Set-Content $cfg (@('PasswordAuthentication no', 'AllowUsers <build-user>') + (Get-Content $cfg))
+Restart-Service sshd
+Set-NetFirewallRule -Name OpenSSH-Server-In-TCP -RemoteAddress LocalSubnet
+```
+
 3. Add your public key:
 
 ```powershell

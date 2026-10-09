@@ -90,6 +90,9 @@ REMOTE_SCRIPT="$(mktemp -t navis_windows_remote_script.XXXXXX.ps1)"
 _remote_defines_pushed=false
 cleanup() {
   rm -f "${SOURCE_ARCHIVE}" "${PUB_CACHE_ARCHIVE}" "${REMOTE_SCRIPT}" "${_sqlite3_dll_tmp:-}"
+  ssh "${SSH_TARGET}" \
+    "powershell -NoProfile -Command \"Remove-Item -Force -ErrorAction SilentlyContinue (Join-Path (Join-Path \$HOME '${REMOTE_DIR}') 'source.tgz')\"" \
+    >/dev/null 2>&1 || true
   if [[ "${_remote_defines_pushed}" == "true" ]]; then
     ssh "${SSH_TARGET}" \
       "powershell -NoProfile -Command \"Remove-Item -Force -ErrorAction SilentlyContinue (Join-Path (Join-Path \$HOME '${REMOTE_DIR}') 'lastfm-defines.json')\"" \
@@ -104,15 +107,10 @@ if [[ -n "${LASTFM_DEFINES_FILE}" && ! -f "${LASTFM_DEFINES_FILE}" ]]; then
 fi
 
 printf '[remote-windows] Packaging local source archive...\n'
-tar \
-  --exclude='.git' \
-  --exclude='.dart_tool' \
-  --exclude='build' \
-  --exclude='ios/Pods' \
-  --exclude='android/.gradle' \
-  --exclude='tool/release.env' \
-  -czf "${SOURCE_ARCHIVE}" \
-  -C "${REPO_ROOT}" .
+# Package tracked files only. Ignored files such as android/key.properties,
+# the release keystore and tool/release.env must never reach a build host.
+git -C "${REPO_ROOT}" ls-files -z |
+  tar -czf "${SOURCE_ARCHIVE}" -C "${REPO_ROOT}" --null -T -
 
 # Bundle the pub packages required by pubspec.lock so the Windows VM can run
 # flutter pub get --offline even without internet access. Also include the
@@ -238,6 +236,7 @@ if (Test-Path $workspaceDir) {
 New-Item -ItemType Directory -Force -Path $workspaceDir | Out-Null
 
 tar -xzf $archivePath -C $workspaceDir
+Remove-Item -Force $archivePath
 Set-Location $workspaceDir
 
 # Set up offline pub cache. We always use the system-default PUB_CACHE
@@ -503,6 +502,10 @@ if [[ -z "${asset_name}" ]]; then
   exit 1
 fi
 
+if [[ ! "${asset_name}" =~ ^[A-Za-z0-9._-]+$ ]]; then
+  echo "[remote-windows] Refusing unexpected remote asset name: ${asset_name}" >&2
+  exit 1
+fi
 printf '[remote-windows] Fetching %s...\n' "${asset_name}"
 scp "${SSH_TARGET}:${REMOTE_DIR}/${asset_name}" "${REPO_ROOT}/${asset_name}" >/dev/null
 

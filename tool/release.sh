@@ -434,6 +434,14 @@ rm -f "${PUBSPEC}.bak"
 ASSET_FILES=()
 ASSET_NAMES=()
 
+# Every release target ships obfuscated Dart symbols; the split debug info stays
+# local under build/obfuscation/<platform>/<version> for symbolising traces.
+set_obfuscation_args() {
+  local symbols_dir="${SCRIPT_DIR}/../build/obfuscation/$1/${VERSION}"
+  mkdir -p "${symbols_dir}"
+  OBFUSCATION_ARGS=(--obfuscate "--split-debug-info=${symbols_dir}")
+}
+
 if [[ "${BUILD_ANDROID}" == "true" ]]; then
   echo "==> Building Android APK..."
   export NAVIS_SELF_UPDATE=true
@@ -519,9 +527,9 @@ if [[ "${BUILD_ANDROID}" == "true" ]]; then
 
     # key.properties storeFile is relative to android/app/
     STORE_FILE_ABS="${SCRIPT_DIR}/../android/app/${STORE_FILE}"
-    EXPECTED_CERT_SHA256="$(keytool -list -v \
+    EXPECTED_CERT_SHA256="$(STORE_PASSWORD="${STORE_PASSWORD}" keytool -list -v \
       -keystore "${STORE_FILE_ABS}" \
-      -storepass "${STORE_PASSWORD}" \
+      -storepass:env STORE_PASSWORD \
       -alias "${KEY_ALIAS}" 2>/dev/null | awk -F': ' '/SHA256:/{gsub(":", "", $2); print tolower($2); exit}')"
     ACTUAL_CERT_SHA256="$(${APKSIGNER_BIN} verify --print-certs "${APK_ASSET}" | awk '/SHA-256 digest/{print tolower($NF); exit}')"
 
@@ -549,7 +557,8 @@ fi
 
 if [[ "${BUILD_IOS}" == "true" ]]; then
   echo "==> Building iOS IPA (ad-hoc)..."
-  flutter build ipa --release --export-method ad-hoc "${DART_DEFINE_ARGS[@]}"
+  set_obfuscation_args ios
+  flutter build ipa --release --export-method ad-hoc "${OBFUSCATION_ARGS[@]}" "${DART_DEFINE_ARGS[@]}"
 
   IPA_DIR="${SCRIPT_DIR}/../build/ios/ipa"
   FOUND_IPA="$(find "${IPA_DIR}" -maxdepth 2 -name "*.ipa" | head -1)"
@@ -570,7 +579,8 @@ fi
 
 if [[ "${BUILD_MACOS}" == "true" ]]; then
   echo "==> Building macOS app..."
-  flutter build macos --release "${DART_DEFINE_ARGS[@]}"
+  set_obfuscation_args macos
+  flutter build macos --release "${OBFUSCATION_ARGS[@]}" "${DART_DEFINE_ARGS[@]}"
 
   MACOS_RELEASE_DIR="${SCRIPT_DIR}/../build/macos/Build/Products/Release"
   MACOS_APP_PATH="$(find "${MACOS_RELEASE_DIR}" -maxdepth 1 -type d -name "*.app" | head -1)"
@@ -599,14 +609,15 @@ fi
 if [[ "${BUILD_LINUX}" == "true" ]]; then
   if [[ "${UNAME}" == "Linux" ]]; then
     echo "==> Building Linux bundle..."
+    set_obfuscation_args linux
     # When running inside a Flatpak sandbox (e.g. VS Code Flatpak), clang++ and
     # the system headers are not available. Delegate the build to the host OS.
     if [[ -n "${FLATPAK_ID:-}" ]]; then
       _flutter_bin="$(command -v flutter)"
       /usr/bin/flatpak-spawn --host -- bash -c \
-        "export PATH=\"$(dirname "${_flutter_bin}"):\$HOME/.local/bin:\$PATH\"; cd \"${SCRIPT_DIR}/..\"; flutter build linux --release $(printf '%q ' "${DART_DEFINE_ARGS[@]}")"
+        "export PATH=\"$(dirname "${_flutter_bin}"):\$HOME/.local/bin:\$PATH\"; cd \"${SCRIPT_DIR}/..\"; flutter build linux --release $(printf '%q ' "${OBFUSCATION_ARGS[@]}" "${DART_DEFINE_ARGS[@]}")"
     else
-      flutter build linux --release "${DART_DEFINE_ARGS[@]}"
+      flutter build linux --release "${OBFUSCATION_ARGS[@]}" "${DART_DEFINE_ARGS[@]}"
     fi
 
     LINUX_BUNDLE_DIR="$(find "${SCRIPT_DIR}/../build/linux" -type d -path "*/release/bundle" | head -1)"
@@ -754,7 +765,8 @@ fi
 if [[ "${BUILD_WINDOWS}" == "true" ]]; then
   if [[ "${OS:-}" == "Windows_NT" ]]; then
     echo "==> Building Windows bundle..."
-    flutter build windows --release "${DART_DEFINE_ARGS[@]}"
+    set_obfuscation_args windows
+    flutter build windows --release "${OBFUSCATION_ARGS[@]}" "${DART_DEFINE_ARGS[@]}"
 
     WINDOWS_RELEASE_DIR="${SCRIPT_DIR}/../build/windows/x64/runner/Release"
     if [[ ! -d "${WINDOWS_RELEASE_DIR}" ]]; then

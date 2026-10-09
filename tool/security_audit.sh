@@ -5,7 +5,7 @@ ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "${ROOT}"
 
 echo "==> Secret and token scan"
-rg -n --hidden \
+if rg -n --hidden \
   --glob '!.git/**' \
   --glob '!build/**' \
   --glob '!.dart_tool/**' \
@@ -15,11 +15,29 @@ rg -n --hidden \
   --glob '!tool/security_audit.sh' \
   --glob '!tool/release.env' \
   --glob '!tool/secrets/**' \
-  '(api[_-]?key[[:space:]]*[:=][[:space:]]*["'\'']?[A-Za-z0-9._-]{16,}|shared[_-]?secret[[:space:]]*[:=]|bearer[[:space:]]+[A-Za-z0-9._-]{16,}|password[[:space:]]*[=:][[:space:]]*["'\''][^"'\'']{8,}|private[_-]?key[[:space:]]*[:=]|BEGIN (RSA |EC |OPENSSH )?PRIVATE KEY|keystore[[:space:]]*[:=])' \
-  . || true
+  --glob '!test/**' \
+  --glob '!android/key.properties.example' \
+  '(^[[:space:]]*(storePassword|keyPassword)=[^[:space:]]+|api[_-]?key[[:space:]]*[:=][[:space:]]*["'\'']?[A-Za-z0-9._-]{16,}|shared[_-]?secret[[:space:]]*[:=]|bearer[[:space:]]+[A-Za-z0-9._-]{16,}|password[[:space:]]*[=:][[:space:]]*["'\''][^"'\'']{8,}|private[_-]?key[[:space:]]*[:=]|BEGIN (RSA |EC |OPENSSH )?PRIVATE KEY|keystore[[:space:]]*[:=])' \
+  .; then
+  echo "Secret-like values found above; remove them or extend the exclusions." >&2
+  exit 1
+fi
 
 echo "==> Tracked env files"
-git ls-files | rg '(^|/)(\.env($|\.)|release\.env$)' || true
+if git ls-files | rg '(^|/)(\.env($|\.)|release\.env$)'; then
+  echo "Env files must not be tracked." >&2
+  exit 1
+fi
+
+echo "==> Local secret file permissions"
+for secret in tool/release.env android/key.properties android/*.jks android/app/*.jks; do
+  [[ -f "${secret}" ]] || continue
+  mode="$(stat -c '%a' "${secret}" 2>/dev/null || stat -f '%Lp' "${secret}")"
+  if [[ "${mode}" != "600" && "${mode}" != "400" ]]; then
+    echo "${secret} is mode ${mode}; run chmod 600 on it." >&2
+    exit 1
+  fi
+done
 
 echo "==> Android Play manifest blockers"
 if rg -n 'REQUEST_INSTALL_PACKAGES|FileProvider' android/app/src/main/AndroidManifest.xml; then
