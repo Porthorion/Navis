@@ -3434,6 +3434,11 @@ contract.
 
 ### Cache Flow
 
+Server-provided file extensions use a shared ASCII alphanumeric allowlist (1–10
+characters, otherwise `bin`). Rolling audio and SAF staging filenames hash song
+identities; generated native paths must stay inside their root. Permanent
+download naming throws when all 100 collision candidates are occupied.
+
 1. Playback starts → on Android/iOS `LockCachingAudioSource` writes the
    consumed stream into the rolling cache without a second download. Desktop
    (media_kit) cannot seek that proxy, so it streams over HTTPS while a

@@ -81,6 +81,32 @@ void main() {
           reservedPaths: reserved,
         );
 
+    for (final extension in ['x/../../evil', '../a', 'mp3\u0000', r'a\..\b']) {
+      test('contains unsafe extension $extension and identity', () {
+        final path = resolver.resolvePathInDirectory(
+          rootDirectory: root,
+          artist: '../Artist',
+          title: null,
+          titleFallback: '../../id/song',
+          identity: '../../id/song',
+          extension: extension,
+        );
+        expect(p.isWithin(root.path, path), isTrue);
+        expect(p.extension(path), '.bin');
+      });
+    }
+
+    test('throws when all 100 collision candidates are reserved', () {
+      final reserved = <String>{};
+      for (var i = 0; i <= 100; i++) {
+        reserved.add(resolve(reserved: reserved));
+      }
+      expect(
+        () => resolve(reserved: reserved),
+        throwsA(isA<FileSystemException>()),
+      );
+    });
+
     test('prefers the plain name and falls back to a free tagged name', () {
       final preferred = p.join(root.path, 'Artist', 'Song.flac');
       expect(resolve(), preferred);

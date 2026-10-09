@@ -129,6 +129,10 @@ const List<ChangelogVersion> changelogs = [
     version: '1.4.3',
     entries: [
       ChangelogEntry(
+        'Downloads and playback caches safely handle malformed server filenames and refuse exhausted filename collisions',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
         'First setup no longer stops at an error when some albums on the server have incomplete details',
         type: ChangelogEntryType.fix,
       ),

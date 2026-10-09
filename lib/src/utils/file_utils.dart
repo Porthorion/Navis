@@ -179,3 +179,10 @@ bool _isReservedWindowsName(String name) {
       }.contains(stem) ||
       RegExp(r'^(COM|LPT)[0-9\u00B9\u00B2\u00B3]$').hasMatch(stem);
 }
+
+/// A server-supplied extension that is safe as a single path component.
+String safeFileExtension(String? extension) {
+  return extension != null && RegExp(r'^[A-Za-z0-9]{1,10}$').hasMatch(extension)
+      ? extension.toLowerCase()
+      : 'bin';
+}

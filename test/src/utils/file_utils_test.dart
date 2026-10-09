@@ -4,6 +4,22 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:navis/src/utils/file_utils.dart';
 
 void main() {
+  test('extensions allow only one to ten ASCII letters or digits', () {
+    expect(safeFileExtension('MP3'), 'mp3');
+    for (final value in [
+      null,
+      '',
+      '.mp3',
+      'abcdefghijk',
+      'x/../../evil',
+      '../a',
+      'mp3\u0000',
+      r'a\..\b',
+    ]) {
+      expect(safeFileExtension(value), 'bin');
+    }
+  });
+
   late Directory sandbox;
 
   setUp(() async {

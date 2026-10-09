@@ -46,6 +46,70 @@ void main() {
       }
     });
 
+    for (final suffix in ['x/../../evil', '../a', 'mp3\u0000', r'a\..\b']) {
+      test('rolling cache contains hostile id and suffix $suffix', () async {
+        final song = await _insertSong(
+          database,
+          id: '../../id/song',
+          title: 'Song',
+          suffix: suffix,
+        );
+        final resolver = PlaybackSourceResolver(
+          cacheDao: database.cacheDao,
+          rollingCacheManager: DriftRollingCacheManager(
+            cacheDao: database.cacheDao,
+          ),
+          readApiClient: () => apiClient,
+          readStreamingQuality: () => const StreamingQuality(label: 'wifi'),
+          readRollingCacheDirectory: () async => rollingDir,
+          readUsesSidecarRollingCache: () => true,
+        );
+        final resolved = await resolver.resolveForSong(song);
+        expect(
+          p.isWithin(rollingDir.path, resolved.sidecarCacheFilePath!),
+          isTrue,
+        );
+        expect(
+          p.basename(resolved.sidecarCacheFilePath!),
+          matches(r'^[a-f0-9]{40}\.bin$'),
+        );
+      }, skip: !sqliteAvailable);
+    }
+
+    for (final contentType in ['audio/x/../../evil', 'audio/mp3\u0000']) {
+      for (final format in [null, '../evil']) {
+        test(
+          'rolling extension rejects MIME $contentType and requested format $format',
+          () async {
+            final song = await _insertSong(
+              database,
+              id: '../hostile/song',
+              title: 'Song',
+              contentType: contentType,
+            );
+            final resolver = PlaybackSourceResolver(
+              cacheDao: database.cacheDao,
+              rollingCacheManager: DriftRollingCacheManager(
+                cacheDao: database.cacheDao,
+              ),
+              readApiClient: () => apiClient,
+              readStreamingQuality: () =>
+                  StreamingQuality(label: 'wifi', format: format),
+              readRollingCacheDirectory: () async => rollingDir,
+              readUsesSidecarRollingCache: () => true,
+            );
+            final resolved = await resolver.resolveForSong(song);
+            expect(
+              p.isWithin(rollingDir.path, resolved.sidecarCacheFilePath!),
+              isTrue,
+            );
+            expect(p.extension(resolved.sidecarCacheFilePath!), '.bin');
+          },
+          skip: !sqliteAvailable,
+        );
+      }
+    }
+
     test('prefers local cached file when present', () async {
       final song = await _insertSong(
         database,

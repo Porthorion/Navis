@@ -122,10 +122,15 @@ class PermanentDownloadPathResolver {
       fallback: unknownArtistDirectory,
     );
     final fileStem = sanitizePathComponent(title, fallback: titleFallback);
-    final normalizedExtension = _normalizeExtension(extension);
+    final normalizedExtension = safeFileExtension(extension);
     final baseDirectory = p.join(rootDirectory.path, artistDirectory);
-    String candidate(String stem) =>
-        p.join(baseDirectory, '$stem.$normalizedExtension');
+    String candidate(String stem) {
+      final path = p.join(baseDirectory, '$stem.$normalizedExtension');
+      if (!p.isWithin(rootDirectory.path, path)) {
+        throw FileSystemException('Download path escapes its root.', path);
+      }
+      return path;
+    }
 
     final preferredPath = candidate(fileStem);
     if (_isPathAvailable(
@@ -139,18 +144,18 @@ class PermanentDownloadPathResolver {
         .convert(utf8.encode(identity))
         .toString()
         .substring(0, 8);
-    for (var attempt = 1; ; attempt++) {
+    for (var attempt = 1; attempt <= 100; attempt++) {
       final tag = attempt == 1 ? suffix : '$suffix-$attempt';
       final path = candidate('$fileStem [$tag]');
-      if (attempt >= 100 ||
-          _isPathAvailable(
-            candidatePath: path,
-            existingPath: existingPath,
-            reservedPaths: reservedPaths,
-          )) {
+      if (_isPathAvailable(
+        candidatePath: path,
+        existingPath: existingPath,
+        reservedPaths: reservedPaths,
+      )) {
         return path;
       }
     }
+    throw FileSystemException('No free download path after 100 attempts.');
   }
 
   /// Longest file or folder name Navis writes; see [safeFileNameComponent].
@@ -182,10 +187,5 @@ class PermanentDownloadPathResolver {
     } on FileSystemException {
       return false;
     }
-  }
-
-  String _normalizeExtension(String rawExtension) {
-    final trimmed = rawExtension.trim().replaceFirst('.', '');
-    return trimmed.isEmpty ? 'bin' : trimmed;
   }
 }
