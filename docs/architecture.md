@@ -3090,6 +3090,11 @@ source's `MediaItem` tag, or for an Android lock-cached stream, which is built
 before its `MediaItem` and carries no tag, from its stream URL's `id`
 (`navisNativeSourceSongId`).
 
+Windows and Linux playback wrappers share a private base that delegates the
+playback, startup-observer and batch-editor contracts without wrapping streams.
+Each public wrapper owns its platform bridge. Teardown begins delegate cleanup
+immediately, disposes the bridge, then awaits handler disposal.
+
 Handler teardown starts full cleanup synchronously through `beginTeardown`;
 `disposeHandler` awaits the same cached future, including decks, artwork,
 sidecar, subscriptions, browse notifications and owned stream controllers.

@@ -47,16 +47,16 @@ void main() {
       test('preserves value and stream identity', () {
         const snapshot = PlaybackSnapshot.idle();
         final item = MediaItem(id: 'song', title: 'Song');
-        const snapshots = Stream<PlaybackSnapshot>.empty();
-        const positions = Stream<Duration>.empty();
-        const cues = Stream<TransportVisualCue>.empty();
-        const buffers = Stream<PlaybackBufferState>.empty();
-        const items = Stream<MediaItem?>.empty();
-        const failures = Stream<PlaybackLoadFailure>.empty();
-        const dropped = Stream<QueueSongsDropped>.empty();
-        const radioErrors = Stream<void>.empty();
-        const adjustments = Stream<PlaybackAdjustments>.empty();
-        const equalizer = Stream<EqApplicationState>.empty();
+        final snapshots = Stream<PlaybackSnapshot>.fromIterable(const []);
+        final positions = Stream<Duration>.fromIterable(const []);
+        final cues = Stream<TransportVisualCue>.fromIterable(const []);
+        final buffers = Stream<PlaybackBufferState>.fromIterable(const []);
+        final items = Stream<MediaItem?>.fromIterable(const []);
+        final failures = Stream<PlaybackLoadFailure>.fromIterable(const []);
+        final dropped = Stream<QueueSongsDropped>.fromIterable(const []);
+        final radioErrors = Stream<void>.fromIterable(const []);
+        final adjustments = Stream<PlaybackAdjustments>.fromIterable(const []);
+        final equalizer = Stream<EqApplicationState>.fromIterable(const []);
         when(() => delegate.snapshot).thenReturn(snapshot);
         when(() => delegate.currentMediaItem).thenReturn(item);
         when(() => delegate.snapshotStream).thenAnswer((_) => snapshots);
