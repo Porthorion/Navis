@@ -36,7 +36,6 @@ import 'package:navis/src/features/player/data/navis_audio_handler.dart';
 import 'package:navis/src/features/player/data/playback_source_resolver.dart';
 import 'package:navis/src/features/player/domain/instant_mix_state.dart';
 import 'package:navis/src/features/player/domain/same_vibes_state.dart';
-import 'package:navis/src/features/player/domain/smart_queue_state.dart';
 import 'package:navis/src/features/player/presentation/instant_mix_notifier.dart';
 import 'package:navis/src/features/player/presentation/personal_radio_notifier.dart';
 import 'package:navis/src/features/player/presentation/mix_mode_reconciliation_provider.dart';
@@ -44,7 +43,6 @@ import 'package:navis/src/features/player/presentation/queue_provider.dart';
 import 'package:navis/src/features/player/presentation/recommendation_session_coordinator.dart';
 import 'package:navis/src/features/player/presentation/playback_recovery_sheet.dart';
 import 'package:navis/src/features/player/presentation/same_vibes_notifier.dart';
-import 'package:navis/src/features/player/presentation/smart_queue_notifier.dart';
 import 'package:navis/src/features/player/presentation/now_playing_screen.dart';
 import 'package:navis/src/features/player/presentation/now_playing_lyrics_screen.dart';
 import 'package:navis/src/features/player/presentation/desktop_volume_slider.dart';
@@ -789,30 +787,6 @@ class _AppShellState extends ConsumerState<AppShell> {
       }
     });
 
-    // Global Smart Queue snackbar / error notifications.
-    ref.listen<SmartQueueState>(smartQueueProvider, (prev, next) {
-      if (!mounted) return;
-      if (next.pendingSnackbar != null &&
-          next.pendingSnackbar != prev?.pendingSnackbar) {
-        final count = int.tryParse(next.pendingSnackbar ?? '') ?? 0;
-        _appNoticeController.show(
-          message: l10n.smartQueueStarted(count),
-          level: AppNoticeLevel.success,
-        );
-        ref.read(smartQueueProvider.notifier).clearSnackbar();
-      }
-      if (next.error != null && next.error != prev?.error) {
-        final msg = next.error == SmartQueueError.unsupported
-            ? l10n.smartQueueUnsupported
-            : l10n.smartQueueError;
-        _appNoticeController.show(message: msg, level: AppNoticeLevel.error);
-        ref.read(smartQueueProvider.notifier).clearError();
-      }
-      // Show a "stopped" notification when the session ends.
-      if ((prev?.active ?? false) && !next.active && next.error == null) {
-        _appNoticeController.show(message: l10n.smartQueueStopped);
-      }
-    });
     // Global Same Vibes snackbar / error notifications.
     ref.listen<SameVibesState>(sameVibesProvider, (prev, next) {
       if (!mounted) return;

@@ -6125,30 +6125,6 @@ abstract class AppLocalizations {
   /// **'How would you like to handle your local library data?'**
   String get serverSettingsSignOutConfirmMessage;
 
-  /// No description provided for @smartQueueStopped.
-  ///
-  /// In en, this message translates to:
-  /// **'Smart Queue stopped'**
-  String get smartQueueStopped;
-
-  /// No description provided for @smartQueueStarted.
-  ///
-  /// In en, this message translates to:
-  /// **'{count, plural, =1{1 track} other{{count} tracks}} queued via Smart Queue.'**
-  String smartQueueStarted(int count);
-
-  /// No description provided for @smartQueueUnsupported.
-  ///
-  /// In en, this message translates to:
-  /// **'Smart Queues require the AudioMuse plugin on your server.'**
-  String get smartQueueUnsupported;
-
-  /// No description provided for @smartQueueError.
-  ///
-  /// In en, this message translates to:
-  /// **'Smart Queue encountered an error. Please try again.'**
-  String get smartQueueError;
-
   /// No description provided for @songStatusQueued.
   ///
   /// In en, this message translates to:

@@ -27,7 +27,6 @@ void main() {
     expect(l10n.artistDetailAlbumCount(1), '1 album');
     expect(l10n.artistDetailAlbumCount(12), '12 albums');
     expect(l10n.searchAlbumCount(1), '1 album');
-    expect(l10n.smartQueueStarted(25), '25 tracks queued via Smart Queue.');
     expect(l10n.eqFilterCount(1), '1 filter');
     expect(l10n.eqFilterCount(10), '10 filters');
     expect(l10n.syncSettingsIntervalMinutes(1), 'Every minute');

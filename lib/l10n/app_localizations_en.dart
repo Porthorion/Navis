@@ -3883,32 +3883,6 @@ class AppLocalizationsEn extends AppLocalizations {
       'How would you like to handle your local library data?';
 
   @override
-  String get smartQueueStopped => 'Smart Queue stopped';
-
-  @override
-  String smartQueueStarted(int count) {
-    final intl.NumberFormat countNumberFormat =
-        intl.NumberFormat.decimalPattern(localeName);
-    final String countString = countNumberFormat.format(count);
-
-    String _temp0 = intl.Intl.pluralLogic(
-      count,
-      locale: localeName,
-      other: '$countString tracks',
-      one: '1 track',
-    );
-    return '$_temp0 queued via Smart Queue.';
-  }
-
-  @override
-  String get smartQueueUnsupported =>
-      'Smart Queues require the AudioMuse plugin on your server.';
-
-  @override
-  String get smartQueueError =>
-      'Smart Queue encountered an error. Please try again.';
-
-  @override
   String get songStatusQueued => 'Queued for download';
 
   @override

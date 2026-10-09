@@ -1787,18 +1787,6 @@
 
   "serverSettingsSignOutConfirmTitle": "Sign Out",
   "serverSettingsSignOutConfirmMessage": "How would you like to handle your local library data?",
-  "smartQueueStopped": "Smart Queue stopped",
-  "smartQueueStarted": "{count, plural, =1{1 track} other{{count} tracks}} queued via Smart Queue.",
-  "@smartQueueStarted": {
-    "placeholders": {
-      "count": {
-        "type": "int",
-        "format": "decimalPattern"
-      }
-    }
-  },
-  "smartQueueUnsupported": "Smart Queues require the AudioMuse plugin on your server.",
-  "smartQueueError": "Smart Queue encountered an error. Please try again.",
   "songStatusQueued": "Queued for download",
   "songStatusDownloading": "Downloading…",
   "songStatusCachedTooltip": "Temporarily cached — will be removed when cache fills up or when the track is downloaded",
