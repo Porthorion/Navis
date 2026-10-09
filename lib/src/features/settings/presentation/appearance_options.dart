@@ -1,6 +1,8 @@
 import 'package:material_ui/material_ui.dart';
 import 'package:navis/l10n/app_localizations.dart';
+import 'package:navis/src/features/settings/domain/navis_density.dart';
 import 'package:navis/src/features/settings/domain/night_schedule.dart';
+import 'package:navis/src/features/settings/domain/now_playing_background.dart';
 import 'package:navis/src/theme/motion_policy.dart';
 import 'package:navis/src/theme/navis_color_style.dart';
 
@@ -280,6 +282,193 @@ class _ScheduleWindowRow extends StatelessWidget {
           Icon(Icons.arrow_forward, size: 16, color: scheme.onSurfaceVariant),
           pill(endLabel, endSemantics, onPickEnd),
         ],
+      ),
+    );
+  }
+}
+
+/// A titled option with an optional [adornment] (a "New" tag), a one-line
+/// [description] and a [selector] below. Shared by Appearance settings and
+/// setup, which differ only in [titleStyle].
+class _AppearanceChoiceSection extends StatelessWidget {
+  const new({
+    required this.title,
+    required this.description,
+    required this.selector,
+    required this.adornment,
+    required this.titleStyle,
+  });
+
+  final String title;
+  final String description;
+  final Widget selector;
+  final Widget? adornment;
+  final TextStyle? titleStyle;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: <Widget>[
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 8, 16, 4),
+          child: Row(
+            children: <Widget>[
+              Flexible(
+                child: Text(
+                  title,
+                  style:
+                      titleStyle ??
+                      theme.textTheme.titleSmall?.copyWith(
+                        color: theme.colorScheme.primary,
+                      ),
+                ),
+              ),
+              if (adornment != null) ...<Widget>[
+                const SizedBox(width: 8),
+                adornment!,
+              ],
+            ],
+          ),
+        ),
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+          child: AnimatedSize(
+            duration: MotionPolicy.of(context).surface,
+            alignment: Alignment.topLeft,
+            child: Text(description, style: theme.textTheme.bodySmall),
+          ),
+        ),
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+          child: selector,
+        ),
+      ],
+    );
+  }
+}
+
+/// Now Playing Background: Art-Tinted, Artwork or Plain, with a description
+/// of the selected look. Shared by Appearance settings and setup.
+class NowPlayingBackgroundOption extends StatelessWidget {
+  const new({
+    required this.value,
+    required this.onChanged,
+    this.adornment,
+    this.titleStyle,
+    super.key,
+  });
+
+  final NowPlayingBackground value;
+  final ValueChanged<NowPlayingBackground> onChanged;
+
+  /// Shown beside the title, for example a "New" tag.
+  final Widget? adornment;
+  final TextStyle? titleStyle;
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
+    return _AppearanceChoiceSection(
+      title: l10n.appearanceNowPlayingBackgroundLabel,
+      adornment: adornment,
+      titleStyle: titleStyle,
+      description: switch (value) {
+        NowPlayingBackground.tinted =>
+          l10n.appearanceNowPlayingBackgroundTintedSub,
+        NowPlayingBackground.artwork =>
+          l10n.appearanceNowPlayingBackgroundArtworkSub,
+        NowPlayingBackground.plain =>
+          l10n.appearanceNowPlayingBackgroundPlainSub,
+      },
+      selector: SegmentedButton<NowPlayingBackground>(
+        key: const ValueKey<String>('nowPlayingBackgroundSelector'),
+        showSelectedIcon: false,
+        segments: <ButtonSegment<NowPlayingBackground>>[
+          ButtonSegment<NowPlayingBackground>(
+            value: NowPlayingBackground.tinted,
+            label: Text(
+              l10n.appearanceNowPlayingBackgroundTinted,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
+          ButtonSegment<NowPlayingBackground>(
+            value: NowPlayingBackground.artwork,
+            label: Text(
+              l10n.appearanceNowPlayingBackgroundArtwork,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
+          ButtonSegment<NowPlayingBackground>(
+            value: NowPlayingBackground.plain,
+            label: Text(
+              l10n.appearanceNowPlayingBackgroundPlain,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
+        ],
+        selected: <NowPlayingBackground>{value},
+        onSelectionChanged: (selection) => onChanged(selection.first),
+      ),
+    );
+  }
+}
+
+/// Density: Comfortable or Compact spacing for Home, track lists and library
+/// rows. Shared by Appearance settings and setup.
+class DensityOption extends StatelessWidget {
+  const new({
+    required this.value,
+    required this.onChanged,
+    this.adornment,
+    this.titleStyle,
+    super.key,
+  });
+
+  final NavisDensity value;
+  final ValueChanged<NavisDensity> onChanged;
+
+  /// Shown beside the title, for example a "New" tag.
+  final Widget? adornment;
+  final TextStyle? titleStyle;
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
+    return _AppearanceChoiceSection(
+      title: l10n.appearanceDensityLabel,
+      adornment: adornment,
+      titleStyle: titleStyle,
+      description: l10n.appearanceDensitySub,
+      selector: SegmentedButton<NavisDensity>(
+        key: const ValueKey<String>('densitySelector'),
+        showSelectedIcon: false,
+        segments: <ButtonSegment<NavisDensity>>[
+          ButtonSegment<NavisDensity>(
+            value: NavisDensity.comfortable,
+            icon: const Icon(Icons.view_agenda_outlined),
+            label: Text(
+              l10n.appearanceDensityComfortable,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
+          ButtonSegment<NavisDensity>(
+            value: NavisDensity.compact,
+            icon: const Icon(Icons.view_compact_alt_outlined),
+            label: Text(
+              l10n.appearanceDensityCompact,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
+        ],
+        selected: <NavisDensity>{value},
+        onSelectionChanged: (selection) => onChanged(selection.first),
       ),
     );
   }

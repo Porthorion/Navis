@@ -3,7 +3,12 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:navis/l10n/app_localizations.dart';
 import 'package:navis/l10n/navis_localizations.dart';
+import 'package:navis/src/common_widgets/new_feature_tag.dart';
+import 'package:navis/src/features/onboarding/domain/setup_highlights.dart';
+import 'package:navis/src/features/onboarding/presentation/setup_highlights_provider.dart';
 import 'package:navis/src/features/settings/domain/app_settings.dart';
+import 'package:navis/src/features/settings/domain/navis_density.dart';
+import 'package:navis/src/features/settings/domain/now_playing_background.dart';
 import 'package:navis/src/features/settings/presentation/appearance_settings_screen.dart';
 import 'package:navis/src/providers/app_providers.dart';
 import 'package:navis/src/routing/desktop_layout.dart';
@@ -29,6 +34,9 @@ void main() {
     bool nightScheduleEnabled = false,
     int? nightStartMinutes,
     int? nightEndMinutes,
+    Set<SetupHighlight> highlights = const <SetupHighlight>{},
+    bool settle = true,
+    NowPlayingBackground? nowPlayingBackground,
   }) async {
     if (adaptiveContext == null &&
         tester.view.physicalSize / tester.view.devicePixelRatio ==
@@ -45,6 +53,7 @@ void main() {
       dynamicAlbumColorEnabled: dynamicAlbumColorEnabled,
       homeSectionOrder: homeSectionOrder,
       themeMode: themeMode,
+      nowPlayingBackground: nowPlayingBackground,
       nightScheduleEnabled: nightScheduleEnabled,
       nightScheduleStartMinutes: nightStartMinutes,
       nightScheduleEndMinutes: nightEndMinutes,
@@ -54,6 +63,7 @@ void main() {
         database,
         overrides: <Override>[
           appSettingsProvider.overrideWithValue(AsyncData(settings)),
+          pendingSetupHighlightsProvider.overrideWithValue(highlights),
           customColorPresetsProvider.overrideWithValue(
             AsyncData(customPresets),
           ),
@@ -85,8 +95,10 @@ void main() {
         ),
       ),
     );
-    if (adaptiveContext == null) {
+    if (adaptiveContext == null && settle) {
       await tester.pumpAndSettle();
+    } else if (adaptiveContext == null) {
+      await tester.pump(const Duration(milliseconds: 500));
     } else {
       await tester.pump();
     }
@@ -483,6 +495,13 @@ void main() {
       await tester.pump();
     }
 
+    Future<void> scrollTo(WidgetTester tester, Finder finder) =>
+        tester.scrollUntilVisible(
+          finder,
+          200,
+          scrollable: find.byType(Scrollable).first,
+        );
+
     testWidgets('OLED switch is hidden outside Auto', (tester) async {
       await pumpAppearance(tester);
       expect(find.text(l10n.appearanceOledForAutoLabel), findsNothing);
@@ -590,6 +609,123 @@ void main() {
         container.read(navisDatabaseProvider).appSettingsDao.getSettings,
       );
       expect(settings?.flatSurfaces, isTrue);
+    });
+
+    for (final look in NowPlayingBackground.values) {
+      testWidgets('Now Playing Background describes ${look.name}', (
+        tester,
+      ) async {
+        final descriptions = <NowPlayingBackground, String>{
+          NowPlayingBackground.tinted:
+              l10n.appearanceNowPlayingBackgroundTintedSub,
+          NowPlayingBackground.artwork:
+              l10n.appearanceNowPlayingBackgroundArtworkSub,
+          NowPlayingBackground.plain:
+              l10n.appearanceNowPlayingBackgroundPlainSub,
+        };
+        await pumpAppearance(tester, nowPlayingBackground: look);
+        await scrollTo(
+          tester,
+          find.byKey(const ValueKey<String>('nowPlayingBackgroundSelector')),
+        );
+        for (final entry in descriptions.entries) {
+          expect(
+            find.text(entry.value),
+            entry.key == look ? findsOneWidget : findsNothing,
+          );
+        }
+      });
+    }
+
+    testWidgets('Now Playing Background saves the chosen look', (tester) async {
+      final container = await pumpAppearance(tester);
+      await scrollTo(
+        tester,
+        find.byKey(const ValueKey<String>('nowPlayingBackgroundSelector')),
+      );
+      await tester.tap(find.text(l10n.appearanceNowPlayingBackgroundArtwork));
+      await tester.pump(const Duration(milliseconds: 100));
+      final settings = await tester.runAsync(
+        container.read(navisDatabaseProvider).appSettingsDao.getSettings,
+      );
+      expect(settings?.nowPlayingBackground, 'artwork');
+    });
+
+    testWidgets('Density sits beside Artwork Size, not in Home Sections', (
+      tester,
+    ) async {
+      final container = await pumpAppearance(tester);
+      final selector = find.byKey(const ValueKey<String>('densitySelector'));
+      await scrollTo(tester, selector);
+      expect(find.text(l10n.appearanceDensityLabel), findsOneWidget);
+      expect(find.text(l10n.appearanceDensitySub), findsOneWidget);
+      expect(find.text('Home Density'), findsNothing);
+      await tester.tap(find.text(l10n.appearanceDensityCompact));
+      await tester.pump(const Duration(milliseconds: 100));
+      final settings = await tester.runAsync(
+        container.read(navisDatabaseProvider).appSettingsDao.getSettings,
+      );
+      expect(settings?.homeDensity, NavisDensity.compact.storageKey);
+      expect(NowPlayingBackground.values, hasLength(3));
+    });
+
+    group('New tags', () {
+      void tallView(WidgetTester tester) {
+        tester.view.physicalSize = const Size(800, 2400);
+        tester.view.devicePixelRatio = 1;
+        addTearDown(tester.view.reset);
+      }
+
+      testWidgets('mark every pending option', (tester) async {
+        tallView(tester);
+        await pumpAppearance(
+          tester,
+          themeMode: 'system',
+          highlights: SetupHighlight.values.toSet(),
+          settle: false,
+        );
+        expect(find.byType(NewFeatureTag), findsNWidgets(6));
+        for (final label in <String>[
+          l10n.appearanceColorStyleLabel,
+          l10n.appearanceOledForAutoLabel,
+          l10n.appearanceNightScheduleLabel,
+          l10n.appearanceFlatSurfacesLabel,
+          l10n.appearanceNowPlayingBackgroundLabel,
+          l10n.appearanceDensityLabel,
+        ]) {
+          final row = find.ancestor(
+            of: find.text(label),
+            matching: find.byType(Row),
+          );
+          expect(
+            find.descendant(
+              of: row.first,
+              matching: find.byType(NewFeatureTag),
+            ),
+            findsOneWidget,
+            reason: label,
+          );
+        }
+      });
+
+      testWidgets('only the pending ones', (tester) async {
+        tallView(tester);
+        await pumpAppearance(
+          tester,
+          highlights: <SetupHighlight>{
+            SetupHighlight.density,
+            SetupHighlight.nowPlayingBackground,
+          },
+          settle: false,
+        );
+        expect(find.byType(NewFeatureTag), findsNWidgets(2));
+      });
+
+      testWidgets('absent when nothing is pending', (tester) async {
+        tallView(tester);
+        await pumpAppearance(tester, themeMode: 'system', settle: false);
+        expect(find.byType(NewFeatureTag), findsNothing);
+      });
     });
   });
 }

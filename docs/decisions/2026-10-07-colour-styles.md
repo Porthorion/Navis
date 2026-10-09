@@ -99,6 +99,13 @@ Night schedule and flat surfaces under 1.4.3; the planned version move to
 1.5.0 renames this together with the changelog entry. A newer release with its
 own highlights replaces the old group. A new major with none clears old tags.
 
+The same pending set drives tags in Settings: Appearance shows them beside
+Color Style, OLED When Dark, Night Schedule, Flat Surfaces, Now Playing
+Background and Density, and the Settings home Appearance entry shows one while
+any highlight is pending (all three layouts). There is no separate clearing
+rule; Finish in setup clears both. Setup's appearance step also offers Now
+Playing Background and Density, after Flat Surfaces.
+
 Tags remain until Finish in setup or review mode; Skip keeps them for updated
 users. Fresh installs never see tags while onboarding is required, and their
 first Finish or Skip records the current highlight release as seen. The

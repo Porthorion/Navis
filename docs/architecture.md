@@ -601,6 +601,30 @@ target-selection rules.
   `NavisDensity`; `homeDensityProvider` remains a string compatibility alias.
   Unknown stored values and unloaded settings use the defaults. Both options
   join the setup highlights registry for 1.4.3 and the diagnostics settings dump.
+- Now Playing Background (`now_playing_screen.dart`, `now_playing_artwork_background.dart`):
+  Art-Tinted is the existing tint/gradient (solid under Flat). Plain is the
+  theme `surface` (black in OLED). Artwork decodes the standard 600 px cover
+  already in the cover cache at 96 px (`ResizeImage`, no second full-size
+  fetch), blurs it (sigma 32, `ImageFiltered` inside a `RepaintBoundary`, not a
+  backdrop filter), lays `NavisColorStyleData.nowPlayingArtworkVeil` over it
+  (dark `artworkScrim` at 0.62, OLED 0.8, light `surface` at 0.68; tuned so
+  `onSurface` keeps WCAG 4.5 on yellow, white, black and red covers) and fades
+  the bottom into `surface`. The previous cover stays until the next one
+  decodes, then crossfades over `MotionPolicy.surface`. Flat has no blur, so
+  Artwork falls back to the Flat solid tint (OLED + Flat stays black); radio or
+  external art uses the same allowed-artwork path as the tint, and with no
+  image Artwork falls back to the tinted look. Tint extraction only runs when a
+  tint is drawn. Queue sheet, side panels and the lyrics pane keep their own
+  surfaces.
+- Density is provided by `NavisDensityScope` (`navis_density_scope.dart`,
+  placed in `MaterialApp.builder` from `densityProvider`). List rows read
+  `NavisDensityScope.of(context)`; without a scope they are Comfortable.
+  Compact: `AdaptiveTrackRow` min height 64→52 and vertical padding 8→4 (an
+  explicit `minHeight`/`padding`/`leadingExtent` still wins), track covers
+  48→40 (`TrackListTile`, `AdaptiveTrackHeader` leading width follows), library
+  playlist rows 48→40 covers with dense `ListTile`, artist list rows 40→36
+  covers with dense `ListTile`; Home keeps reading the same value. Row action
+  buttons keep their 48 px targets.
 
 - `navis_theme.dart`: `buildLightTheme`, `buildDarkTheme` and
   `buildOledTheme` take the user's seed (or the dynamic album colour) and a
