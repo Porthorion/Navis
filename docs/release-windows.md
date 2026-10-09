@@ -151,15 +151,22 @@ choco install jq
 # Or: download the binary from https://jqlang.github.io/jq/download/ and add to PATH
 ```
 
-### 5. Forgejo token
+### 5. R2 publishing settings
 
-Create `tool/release.env` (git-ignored):
+Create `tool/release.env` (git-ignored) from `tool/release.env.example`:
 
 ```bash
-FORGEJO_URL="https://git.porthorion.com"
-FORGEJO_REPO="khalifa/Navis"
-FORGEJO_TOKEN="<personal-access-token-with-write:release>"
+R2_ACCOUNT_ID="<cloudflare-account-id>"
+R2_BUCKET="downloads"
+R2_PREFIX="navis"
+R2_ACCESS_KEY_ID="<r2-access-key-id>"
+R2_SECRET_ACCESS_KEY="<r2-secret-access-key>"
+NAVIS_UPDATE_SIGNING_KEY="$HOME/.config/navis/update-signing-ed25519.pem"
 ```
+
+Releases are published to R2 with a signed update manifest. Add `FORGEJO_URL`,
+`FORGEJO_REPO` and `FORGEJO_TOKEN` only for the 1.5.0 `--forgejo` bridge release. See
+[release-r2.md](release-r2.md) and [release-secrets.md](release-secrets.md).
 
 ---
 
@@ -236,9 +243,11 @@ Inno Setup always places this file there during installation.
 
 ### Auto-update flow
 
-1. Downloads `navis-vX.Y.Z-windows-installer.exe`.
-2. Launches it with `/SILENT /CLOSEAPPLICATIONS`.
-3. Exits the app immediately.
+1. Downloads `navis-vX.Y.Z-windows-installer.exe` (manifest key `windowsInstaller`).
+2. Checks its size and SHA-256 against the signed manifest; a mismatch deletes the file
+   and shows "The update download was damaged".
+3. Launches it with `/SILENT /CLOSEAPPLICATIONS`.
+4. Exits the app immediately.
 
 Inno Setup closes any running Navis instance, installs new files over the existing
 installation, and launches the app on completion — all without any user interaction.
@@ -276,7 +285,8 @@ The auto-updater uses portable mode when `unins000.exe` does **not** exist next 
 
 ### Auto-update flow
 
-1. Downloads `navis-vX.Y.Z-windows.zip`.
+1. Downloads `navis-vX.Y.Z-windows.zip` (manifest key `windowsPortable`) and checks its
+   size and SHA-256 against the signed manifest.
 2. Extracts using PowerShell `Expand-Archive` to a temp staging directory.
 3. Writes a batch updater script to temp and launches it with `cmd /c` (detached), then
    exits the app.
@@ -291,40 +301,19 @@ The updater script:
 
 ---
 
-## Publishing Both Formats in One Release
+## Publishing Both Formats
 
-The release script creates the Forgejo release on its first run. To publish both formats,
-build one with the script then manually build and upload the second.
+`release.sh` builds one Windows package per run (`--windows-package=zip|exe`) and
+publishes it to R2 in that run. `tool/r2_publish.sh` writes `SHA256SUMS` and the
+channel manifest once per tag and refuses to change them afterwards, so uploading the
+second format later with a second publish for the same tag fails. Ship one Windows
+format per tag with `release.sh` (the installer is recommended). Publishing both
+formats needs the two files passed to a single `r2_publish.sh publish` call, which
+`release.sh` does not do yet.
 
-### Step 1 — Full release with the installer
-
-```bash
-./tool/release.sh v0.x.y --targets=windows --windows-package=exe
-```
-
-### Step 2 — Build portable zip and upload separately (Git Bash)
-
-```bash
-# Build
-flutter build windows --release --dart-define=NAVIS_UPDATE_CHANNEL=stable
-RELEASE_DIR="build/windows/x64/runner/Release"
-
-powershell.exe -NoProfile -Command \
-  "Compress-Archive -Path '${RELEASE_DIR//\//\\}\\*' -DestinationPath 'navis-v0.x.y-windows.zip' -Force"
-
-# Upload to the existing release
-source tool/release.env
-RELEASE_ID=$(curl -sf \
-  "${FORGEJO_URL}/api/v1/repos/${FORGEJO_REPO}/releases/tags/v0.x.y" \
-  -H "Authorization: token ${FORGEJO_TOKEN}" | jq -r '.id')
-
-curl -sf -X POST \
-  "${FORGEJO_URL}/api/v1/repos/${FORGEJO_REPO}/releases/${RELEASE_ID}/assets?name=navis-v0.x.y-windows.zip" \
-  -H "Authorization: token ${FORGEJO_TOKEN}" \
-  -F "attachment=@navis-v0.x.y-windows.zip"
-
-rm navis-v0.x.y-windows.zip
-```
+Windows installs pick their asset by detected install mode: installer installs read
+`windowsInstaller` and portable installs read `windowsPortable`. A manifest that lacks the
+key for an install reports no update for that install (reject reason `missing_asset`).
 
 ---
 

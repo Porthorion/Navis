@@ -15,7 +15,7 @@ or Arch official repositories.
 - Linux binary name is `navis`.
 - Existing desktop file: `linux/packaging/com.navis.app.navis.desktop`.
 - Current release pipeline already produces Linux portable bundles and `.deb`
-  packages for Forgejo releases.
+  packages for the R2 update channel.
 - Navis uses Linux desktop media integration through MPRIS.
 - Navis needs network access for Subsonic/OpenSubsonic, Last.fm, ListenBrainz,
   LRCLIB, artwork, and optional update/release checks on non-Flatpak
@@ -162,8 +162,8 @@ Before submission:
 - Expect review feedback around metadata, permissions, bundled dependencies,
   licensing, and reproducibility.
 - After merge, use Flathub builds as the Linux update path for Flatpak users.
-- Keep Forgejo releases for `.deb`, portable bundles, release notes, tags, and
-  non-Flatpak users.
+- Keep the R2 channel (`downloads.porthorion.com`) for `.deb`, portable bundles, and
+  non-Flatpak users, with release notes and tags in Forgejo.
 
 ## Limitations Compared To Native Packages
 
@@ -187,7 +187,7 @@ Before submission:
 - Should Flatpak builds disable the existing desktop update controls at compile
   time or detect the Flatpak runtime?
 - What filesystem access is necessary for custom downloads?
-- Should Flathub be the only Linux auto-update channel, with Forgejo artifacts
+- Should Flathub be the only Linux auto-update channel, with R2 artifacts
   remaining manual?
 
 ## References

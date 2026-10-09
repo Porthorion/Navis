@@ -479,7 +479,7 @@ required:
 
 ## Release (`tool/release.sh`)
 
-Builds selected release artifacts, tags the commit, creates a Forgejo release, and uploads all assets — all from the local machine.
+Builds selected release artifacts, tags the commit, and publishes the assets plus a signed update manifest to Cloudflare R2 (`tool/r2_publish.sh`) — all from the local machine. A Forgejo release is created only with `--forgejo` (the 1.5.0 bridge for 1.4.x installs). See [release-r2.md](release-r2.md).
 
 ### Setup (one-time)
 
@@ -491,12 +491,18 @@ Builds selected release artifacts, tags the commit, creates a Forgejo release, a
    sudo apt install jq
    ```
 
-2. Create `tool/release.env` with your Forgejo credentials (this file is git-ignored):
+2. Copy `tool/release.env.example` to `tool/release.env` (git-ignored) and fill in
+   the R2 settings and the update signing key path:
    ```bash
-   FORGEJO_URL="https://your-forgejo-instance.com"
-   FORGEJO_REPO="your-user/Navis"
-   FORGEJO_TOKEN="your-api-token"
+   R2_ACCOUNT_ID="<cloudflare-account-id>"
+   R2_BUCKET="downloads"
+   R2_PREFIX="navis"
+   R2_ACCESS_KEY_ID="<r2-access-key-id>"
+   R2_SECRET_ACCESS_KEY="<r2-secret-access-key>"
+   NAVIS_UPDATE_SIGNING_KEY="$HOME/.config/navis/update-signing-ed25519.pem"
    ```
+   Add `FORGEJO_URL`, `FORGEJO_REPO` and `FORGEJO_TOKEN` only if you pass `--forgejo`.
+   Key handling is in [release-secrets.md](release-secrets.md).
 
 3. Ensure the script is executable:
    ```bash
@@ -558,8 +564,22 @@ make release VERSION=v0.2.0
    not as a plain define.
 6. For `--channel=dev`, defaults Android sidecar identity to `.dev` / `Navis Dev`.
 7. Creates an annotated git tag and pushes main/current branch/tag.
-8. Creates a Forgejo release with `prerelease=true` for dev channel (or when `--prerelease` is passed).
-9. Uploads all built assets to the release.
+8. Publishes to R2 with `tool/r2_publish.sh publish`: uploads each updater asset to
+   `navis/releases/<tag>/`, writes `SHA256SUMS`, signs and uploads the channel manifest
+   last, then verifies it against the pinned key and the uploaded files. Assets with no
+   updater install mode (such as the `.ipa`) are skipped.
+9. With `--forgejo` only, creates a Forgejo release (`prerelease=true` for the dev
+   channel or when `--prerelease` is passed) and uploads the same assets to it.
+
+Before building anything (after the version checks), `release.sh` runs
+`tool/r2_publish.sh check`, which fails early if an R2 setting or the signing key is
+missing, the signing key does not match `updateSigningPublicKey` in
+`lib/src/utils/constants.dart`, or the channel already holds a newer version. The
+built files stay on disk until every publish step succeeds, so a failed upload is
+retried with `./tool/r2_publish.sh publish --tag=<tag> --channel=<channel> --notes-file=<md> <files…>`.
+Release tags must be plain `vX.Y.Z`; `r2_publish.sh` rejects prerelease suffixes such
+as `-beta.1`. `r2_publish.sh` refuses to replace a release file whose content differs,
+so a given tag is published once with all its files.
 
 After each artifact is built, `release.sh` searches it for the plaintext
 Last.fm key and fails the release before anything is tagged or uploaded if it
@@ -589,9 +609,22 @@ needed this flag; it no longer does.
 - `stable` channel assets are named `navis-<tag>.*`
 - `dev` channel assets are named `navis-dev-<tag>.*`
 
-The app updater uses `NAVIS_UPDATE_CHANNEL` to prefer channel-matching assets.
+The app updater uses `NAVIS_UPDATE_CHANNEL` to pick the manifest
+(`navis/channels/<channel>/manifest.json`) and rejects a manifest whose signed
+`channel` differs. It selects the asset by manifest key, not by file name; see
+"Signed manifest and download verification" in [architecture.md](architecture.md).
 
 ### Required environment variables
+
+| Variable | Description |
+|---|---|
+| `R2_ACCOUNT_ID` | Cloudflare account ID that owns the bucket |
+| `R2_BUCKET` | R2 bucket name (`downloads`) |
+| `R2_ACCESS_KEY_ID` | R2 API token key ID with Object Read & Write on the bucket |
+| `R2_SECRET_ACCESS_KEY` | R2 API token secret |
+| `NAVIS_UPDATE_SIGNING_KEY` | Path to the Ed25519 PEM private key that signs update manifests; must match `updateSigningPublicKey` |
+
+Needed only with `--forgejo` (the 1.5.0 bridge release for 1.4.x installs):
 
 | Variable | Description |
 |---|---|
@@ -603,6 +636,8 @@ Optional variables:
 
 | Variable | Description |
 |---|---|
+| `R2_PREFIX` | Key prefix inside the bucket (default `navis`) |
+| `NAVIS_RELEASE_NOTES_URL` | HTTPS link on `navis.porthorion.com` shown as the release notes link in the update dialog |
 | `NAVIS_DEB_MAINTAINER` | Linux Debian maintainer override (default `Porthorion <support@porthorion.com>`) |
 | `MACOS_SIGN_IDENTITY` | Developer ID Application signing identity used by `--macos-notarize` |
 | `MACOS_NOTARY_PROFILE` | `xcrun notarytool` keychain profile name used by `--macos-notarize` |
@@ -719,7 +754,7 @@ The intended flow for shipping a feature or fix:
 3. Commit with Conventional Commits format.
 4. When ready to release: merge `dev` → `main`.
 5. Run `./tool/release.sh v0.x.0` from `main`.
-6. The script handles everything: checks, build, tag, Forgejo release, APK upload.
+6. The script handles everything: checks, build, tag, R2 upload and signed manifest.
 
 The manual discovery gate also calls `GET /v1/library/album?verifySongs=true`
 (with the fixture album `id`) and requires `persistedSongCount` before and after

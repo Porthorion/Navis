@@ -48,15 +48,22 @@ brew install cocoapods
 
 Resolve any failures before building.
 
-### 5. Forgejo token
+### 5. R2 publishing settings
 
-Create `tool/release.env` (git-ignored):
+Create `tool/release.env` (git-ignored) from `tool/release.env.example`:
 
 ```bash
-FORGEJO_URL="https://git.porthorion.com"
-FORGEJO_REPO="khalifa/Navis"
-FORGEJO_TOKEN="<personal-access-token-with-write:release>"
+R2_ACCOUNT_ID="<cloudflare-account-id>"
+R2_BUCKET="downloads"
+R2_PREFIX="navis"
+R2_ACCESS_KEY_ID="<r2-access-key-id>"
+R2_SECRET_ACCESS_KEY="<r2-secret-access-key>"
+NAVIS_UPDATE_SIGNING_KEY="$HOME/.config/navis/update-signing-ed25519.pem"
 ```
+
+Releases are published to R2 with a signed update manifest. Add `FORGEJO_URL`,
+`FORGEJO_REPO` and `FORGEJO_TOKEN` only for the 1.5.0 `--forgejo` bridge release. See
+[release-r2.md](release-r2.md) and [release-secrets.md](release-secrets.md).
 
 ---
 
@@ -174,8 +181,9 @@ Asset naming: `navis-dev-v0.x.y-macos.zip`
 3. **With `--macos-notarize`:** calls `tool/macos_notarize.sh` which signs → notarizes →
    staples → packages with `ditto`.
 4. **Without `--macos-notarize`:** packages with `ditto -c -k --keepParent`.
-5. Bumps `pubspec.yaml`, commits, tags, pushes to Forgejo.
-6. Creates a Forgejo release and uploads `navis-v0.x.y-macos.zip`.
+5. Bumps `pubspec.yaml`, commits, tags, pushes.
+6. Uploads `navis-v0.x.y-macos.zip` to R2 and publishes the signed channel manifest
+   (manifest key `macosBundle`). A Forgejo release is created only with `--forgejo`.
 
 ---
 
@@ -216,11 +224,14 @@ Once installed, the auto-updater handles all future updates.
 When a new version is detected:
 
 1. **Write-access check:** verifies that `/Applications` (or wherever the `.app` lives) is
-   writable. If not, shows "Download Manually" and links to the release page.
+   writable. If not, shows "Download Manually" and links to the release notes page (or
+   the download page on the Navis website).
 2. Downloads `navis-vX.Y.Z-macos.zip` to the system temp directory.
-3. Extracts using `ditto -xk`, which preserves the code signature.
-4. Resolves the current `.app` bundle path by walking up from the running executable.
-5. Writes a bash updater script to temp and launches it detached, then exits.
+3. Checks its size and SHA-256 against the signed manifest. A mismatch deletes the file
+   and shows "The update download was damaged"; nothing is extracted.
+4. Extracts using `ditto -xk`, which preserves the code signature.
+5. Resolves the current `.app` bundle path by walking up from the running executable.
+6. Writes a bash updater script to temp and launches it detached, then exits.
 
 The updater script:
 - Waits 2 seconds for the app to exit.

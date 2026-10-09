@@ -1393,7 +1393,7 @@ When a feature, bug fix, or phase is complete and merged to `main`:
 ./tool/release.sh v0.2.0
 ```
 
-This runs the full quality gate, builds a release APK, tags the commit, creates a Forgejo release, and uploads the APK. See [ci-cd.md](ci-cd.md) for setup details.
+This runs the full quality gate, builds a release APK, tags the commit, and publishes the APK to R2 with a signed update manifest (a Forgejo release only with `--forgejo`). See [ci-cd.md](ci-cd.md) for setup details.
 
 For Android releases, `tool/release.sh` cleans stale APK build outputs before
 building, removes an existing same-name root release asset before copying, and
@@ -1424,10 +1424,13 @@ Advanced release packaging options:
 Pre-release builds (from `dev` branch when needed):
 
 ```bash
-./tool/release.sh v0.3.0-beta.1
+./tool/release.sh v0.3.1 --channel=dev
 ```
 
-Tags containing `-alpha`, `-beta`, `-rc`, or `-dev` are automatically marked as pre-release on Forgejo.
+The `dev` channel publishes to `navis/channels/dev/manifest.json`, which only dev
+builds read. Tags must be plain `vX.Y.Z`: `tool/r2_publish.sh` rejects `-beta`, `-rc`
+and similar suffixes. `--prerelease` and the dev channel only mark the Forgejo
+release (`--forgejo`) as a pre-release.
 
 ## Dependency Health
 

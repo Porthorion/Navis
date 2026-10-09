@@ -49,15 +49,22 @@ yes | flutter doctor --android-licenses
 Keystore and `android/key.properties` must be provisioned locally. See
 [release-secrets.md](release-secrets.md).
 
-### 4. Forgejo token
+### 4. R2 publishing settings
 
-Create `tool/release.env` (git-ignored):
+Create `tool/release.env` (git-ignored) from `tool/release.env.example`:
 
 ```bash
-FORGEJO_URL="https://git.porthorion.com"
-FORGEJO_REPO="khalifa/Navis"
-FORGEJO_TOKEN="<personal-access-token-with-write:release>"
+R2_ACCOUNT_ID="<cloudflare-account-id>"
+R2_BUCKET="downloads"
+R2_PREFIX="navis"
+R2_ACCESS_KEY_ID="<r2-access-key-id>"
+R2_SECRET_ACCESS_KEY="<r2-secret-access-key>"
+NAVIS_UPDATE_SIGNING_KEY="$HOME/.config/navis/update-signing-ed25519.pem"
 ```
+
+Releases are published to R2 with a signed update manifest. Add `FORGEJO_URL`,
+`FORGEJO_REPO` and `FORGEJO_TOKEN` only for the 1.5.0 `--forgejo` bridge release. See
+[release-r2.md](release-r2.md) and [release-secrets.md](release-secrets.md).
 
 ---
 
@@ -184,18 +191,21 @@ instructions.
 
 ### Adding macOS
 
-Run the macOS portion separately on the Mac after the Forgejo release exists, then upload
-the `.zip` asset via the Forgejo API or web UI. See [release-macos.md](release-macos.md).
+Run the macOS portion on the Mac. `tool/r2_publish.sh` writes `SHA256SUMS` and the
+channel manifest once per tag and refuses to change them, so a macOS zip cannot be added
+to a tag that `release.sh` already published from this host. Pass every artifact for the
+tag, including the macOS zip, to a single `r2_publish.sh publish` call. See
+[release-macos.md](release-macos.md) and [release-r2.md](release-r2.md).
 
 ---
 
 ## Dev Channel Releases
 
 ```bash
-./tool/release.sh v0.9.0-dev.1 --channel=dev --targets=android,linux
+./tool/release.sh v0.9.1 --channel=dev --targets=android,linux
 ```
 
-Assets will be named `navis-dev-v0.9.0-dev.1.*`. The `dev` channel also sets the Android
+Assets will be named `navis-dev-v0.9.1.*` and are listed in `navis/channels/dev/manifest.json`. The `dev` channel also sets the Android
 sidecar identity (`com.navis.app.navis.dev`) so both channels coexist on the same device.
 
 ---

@@ -7,8 +7,9 @@ Navis for Linux is distributed in two formats:
 | Debian package | `navis-v0.x.y-linux-amd64.deb` | Debian, Ubuntu, Mint, Pop!\_OS, Kali, Raspberry Pi OS, etc. |
 | Portable bundle | `navis-v0.x.y-linux.tar.gz` | Fedora, Arch, Gentoo, NixOS, openSUSE, Alpine, any distro |
 
-Both formats are supported by the built-in auto-updater. **Ship both formats per release**
-to cover the full Linux user base.
+Both formats are supported by the built-in auto-updater. Ideally ship both formats per
+release to cover the full Linux user base; see "Publishing Both Formats" for the current
+limit.
 
 ---
 
@@ -60,15 +61,22 @@ flutter --version          # Flutter 3.x stable
 flutter doctor -v
 ```
 
-### 3. Forgejo token
+### 3. R2 publishing settings
 
-Create `tool/release.env` (git-ignored):
+Create `tool/release.env` (git-ignored) from `tool/release.env.example`:
 
 ```bash
-FORGEJO_URL="https://git.porthorion.com"
-FORGEJO_REPO="khalifa/Navis"
-FORGEJO_TOKEN="<personal-access-token-with-write:release>"
+R2_ACCOUNT_ID="<cloudflare-account-id>"
+R2_BUCKET="downloads"
+R2_PREFIX="navis"
+R2_ACCESS_KEY_ID="<r2-access-key-id>"
+R2_SECRET_ACCESS_KEY="<r2-secret-access-key>"
+NAVIS_UPDATE_SIGNING_KEY="$HOME/.config/navis/update-signing-ed25519.pem"
 ```
+
+Releases are published to R2 with a signed update manifest. Add `FORGEJO_URL`,
+`FORGEJO_REPO` and `FORGEJO_TOKEN` only for the 1.5.0 `--forgejo` bridge release. See
+[release-r2.md](release-r2.md) and [release-secrets.md](release-secrets.md).
 
 ---
 
@@ -155,13 +163,20 @@ system desktop libraries.
 The auto-updater detects `.deb` mode when the running executable path starts with
 `/opt/navis` — which is always the case for a `dpkg`-installed app.
 
-Update flow:
-1. Downloads `navis-vX.Y.Z-linux-amd64.deb`.
-2. Runs `pkexec dpkg -i <path>` — the user sees a polkit authentication dialog.
-3. After `dpkg` exits cleanly, the app relaunches from `Platform.resolvedExecutable`.
+The manifest key is `linuxDeb-<arch>` (`linuxDeb-amd64` or `linuxDeb-arm64`). An install
+only ever uses the key for its own architecture; if the manifest has none, no update is
+offered (there is no cross-architecture fallback).
 
-If `pkexec` is unavailable on the user's system, the auto-updater surfaces a
-"Download Manually" prompt instead of failing silently.
+Update flow:
+1. Downloads `navis-vX.Y.Z-linux-amd64.deb` (or `-arm64`).
+2. Checks its size and SHA-256 against the signed manifest; a mismatch deletes the file
+   and shows "The update download was damaged".
+3. Runs `pkexec dpkg -i <path>` — the user sees a polkit authentication dialog.
+4. After `dpkg` exits cleanly, the app relaunches from `Platform.resolvedExecutable`.
+
+If `pkexec` is missing, or `pkexec`/`dpkg` exits non-zero (including a cancelled
+authentication dialog), the update dialog shows "Could not apply the update
+automatically." with a "Download Manually" button and no Retry.
 
 ---
 
@@ -197,7 +212,8 @@ To create a desktop shortcut, copy the included `.desktop` file template and adj
 The auto-updater uses portable mode when the executable is **not** under `/opt/navis`.
 
 Update flow:
-1. Downloads `navis-vX.Y.Z-linux.tar.gz`.
+1. Downloads `navis-vX.Y.Z-linux.tar.gz` (manifest key `linuxPortable`) and checks its
+   size and SHA-256 against the signed manifest.
 2. Extracts to a temp staging directory using `tar -xzf`.
 3. Writes a bash updater script to temp and launches it detached, then exits.
 
@@ -211,41 +227,16 @@ The updater script:
 
 ---
 
-## Publishing Both Formats in One Release
+## Publishing Both Formats
 
-The release script creates the Forgejo release on its first run. Running it a second time
-for the same tag will error because the release already exists. Use this two-step approach:
-
-### Step 1 — Full release with the `.deb`
-
-```bash
-./tool/release.sh v0.x.y --targets=linux --linux-package=deb
-```
-
-This creates the Forgejo release, uploads the `.deb`, bumps pubspec, tags, and pushes.
-
-### Step 2 — Build `.tar.gz` and upload separately
-
-```bash
-# Build the portable bundle (no publish)
-flutter build linux --release --dart-define=NAVIS_UPDATE_CHANNEL=stable
-
-BUNDLE_DIR=$(find build/linux -type d -path "*/release/bundle" | head -1)
-tar -czf navis-v0.x.y-linux.tar.gz -C "${BUNDLE_DIR}" .
-
-# Upload to the existing release via Forgejo API
-source tool/release.env
-RELEASE_ID=$(curl -sf \
-  "${FORGEJO_URL}/api/v1/repos/${FORGEJO_REPO}/releases/tags/v0.x.y" \
-  -H "Authorization: token ${FORGEJO_TOKEN}" | jq -r '.id')
-
-curl -sf -X POST \
-  "${FORGEJO_URL}/api/v1/repos/${FORGEJO_REPO}/releases/${RELEASE_ID}/assets?name=navis-v0.x.y-linux.tar.gz" \
-  -H "Authorization: token ${FORGEJO_TOKEN}" \
-  -F "attachment=@navis-v0.x.y-linux.tar.gz"
-
-rm navis-v0.x.y-linux.tar.gz
-```
+`release.sh` builds one Linux package per run (`--linux-package=bundle|deb`) and
+publishes it to R2 in that run. `tool/r2_publish.sh` writes `SHA256SUMS` and the
+channel manifest once per tag and refuses to change them afterwards, so uploading the
+second format later with a second publish for the same tag fails. Until `release.sh`
+can build both formats in one run, pass both files to a single
+`r2_publish.sh publish --tag=<tag> --channel=<channel> <files…>` call to ship them
+together. Each install type reads only its own key (`linuxDeb-<arch>` or
+`linuxPortable`), and an install whose key is missing sees no update.
 
 ---
 
@@ -317,8 +308,10 @@ still need system mpv (`libmpv2` on Debian 12/Ubuntu 23.04+, `libmpv1` on 22.04)
 sudo apt-get install -y policykit-1
 ```
 
-If `pkexec` is unavailable, the auto-updater will fail at the apply stage and show the
-"Download Manually" option directing the user to the releases page.
+If `pkexec` is unavailable, `Process.run('pkexec', ...)` throws at the apply stage and
+the update dialog shows "Could not apply the update automatically." with a "Download
+Manually" button that opens the release notes link (or the download page on the Navis
+website). There is no separate prompt before the download, and no Retry button.
 
 ### `dpkg-deb: error: failed to open package info file`
 

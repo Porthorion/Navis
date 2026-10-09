@@ -105,11 +105,11 @@ For desktop targets, use channel-aware release assets and run from extracted bun
 Example:
 
 ```bash
-./tool/release.sh v0.3.0-dev.1 --channel=dev --targets=linux
-./tool/release.sh v0.3.0-dev.1 --channel=dev --targets=macos
-./tool/release.sh v0.3.0-dev.1 --channel=dev --targets=windows
+./tool/release.sh v0.3.1 --channel=dev --targets=linux
+./tool/release.sh v0.3.2 --channel=dev --targets=macos
+./tool/release.sh v0.3.3 --channel=dev --targets=windows
 # macOS orchestration with remote desktop builders
-./tool/release.sh v0.3.0-dev.1 --channel=dev --targets=linux,windows --linux-ssh="linux-builder" --windows-ssh="windows-builder"
+./tool/release.sh v0.3.4 --channel=dev --targets=linux,windows --linux-ssh="linux-builder" --windows-ssh="windows-builder"
 ```
 
 Asset naming:
@@ -139,11 +139,17 @@ For Linux target builds, choose output mode:
 Updater behavior is controlled by compile-time channel:
 
 - `NAVIS_UPDATE_CHANNEL=stable` (default)
-  - checks stable releases
-  - prefers assets `navis-<tag>.apk`
+  - reads `https://downloads.porthorion.com/navis/channels/stable/manifest.json`
 - `NAVIS_UPDATE_CHANNEL=dev`
-  - allows prereleases
-  - prefers assets `navis-dev-<tag>.apk`
+  - reads `https://downloads.porthorion.com/navis/channels/dev/manifest.json`
+- `NAVIS_UPDATE_CHANNEL=staging`
+  - reads `.../channels/staging/manifest.json`; no shipped build uses it, so it is
+    the channel for testing the updater end to end (see [release-r2.md](release-r2.md))
+
+Each manifest is signed and names its channel; a build rejects a manifest for another
+channel. Assets are picked by manifest key (`androidApk`, `windowsInstaller`,
+`windowsPortable`, `macosBundle`, `linuxDeb-<arch>`, `linuxPortable`), not by file name.
+Release tags must be plain `vX.Y.Z`, and a channel never moves to an older version.
 
 ## iOS Note
 

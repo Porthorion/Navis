@@ -1,29 +1,29 @@
 # Google Play Readiness
 
 This is the canonical checklist for making Navis Play-ready while keeping
-Forgejo releases for desktop artifacts, tags, release notes, and optional
-non-Android assets.
+the R2 update channel (see [release-r2.md](release-r2.md)) for desktop and sideload
+artifacts, with Forgejo kept only for tags and the 1.5.0 bridge release.
 
 ## Android Distribution
 
 - Android has two release paths:
-  - **Forgejo APK** (`tool/release.sh --targets=android`) ships in-app APK
+  - **Sideload APK** (`tool/release.sh --targets=android`, published to R2) ships in-app APK
     self-update (`NAVIS_SELF_UPDATE=true`, `REQUEST_INSTALL_PACKAGES`, and
     FileProvider in the `src/sideload` product flavor manifest).
   - **Google Play AAB** (`tool/play_release.sh`) must stay Play-safe
     (`NAVIS_SELF_UPDATE=false`, no install permissions, no APK installer
     MethodChannel registration).
 - Runtime install-source detection redirects Play-delivered installs to the
-  Play Store listing even when a newer Forgejo release exists.
+  Play Store listing even when a newer sideload release exists.
 - Package name: `com.navis.app.navis`.
 - Target SDK: 36.
 - Release signing certificate SHA-256:
   `12:C6:41:1B:2A:9F:D3:0B:2B:B8:63:01:9D:63:08:5E:5F:36:A1:D2:09:A1:D1:F1:55:9D:70:95:50:E9:B0:C7`.
 - `REQUEST_INSTALL_PACKAGES` must not be present in Play AAB builds (only in the
-  optional `src/sideload` product flavor manifest used by Forgejo APK builds).
+  optional `src/sideload` product flavor manifest used by sideload APK builds).
 - Play builds must not register the APK installer MethodChannel at runtime.
-- Forgejo update checks run on Android and desktop; Play installs are redirected
-  to the Play Store instead of downloading APKs.
+- Update checks (signed manifest on `downloads.porthorion.com`) run on Android and
+  desktop; Play installs are redirected to the Play Store instead of downloading APKs.
 
 ## Signing Continuity
 
@@ -33,9 +33,9 @@ non-Android assets.
   app signing key.
 - A separate upload key can be generated after app signing is configured.
 - Validate migration:
-  1. Install the latest Forgejo APK.
+  1. Install the latest sideload APK.
   2. Upload an internal-test AAB signed/configured with the existing key.
-  3. Confirm the Play-delivered build updates over the Forgejo APK without
+  3. Confirm the Play-delivered build updates over the sideload APK without
      uninstalling.
 - If the existing keystore or password is unrecoverable, seamless migration is
   not possible; use a new package name or require uninstall/reinstall.

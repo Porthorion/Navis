@@ -686,7 +686,7 @@ Trending Now are described in "Deezer on Home".
 
 **Data.** `changelog_data.dart` is a `const` list of `ChangelogVersion`s,
 newest first. It has no imports, so it is the single source for the app and
-for `tool/generate_release_notes.dart`, which renders a Forgejo release body
+for `tool/generate_release_notes.dart`, which renders the release notes (the manifest `notes` field, and the Forgejo release body with `--forgejo`)
 through `release_notes_markdown.dart`.
 - Every `x.y.0` release is major (`isMajor`) and shows as `1.4`
   (`displayVersion`).
@@ -2146,13 +2146,15 @@ Settings › Integrations › Updates holds the automatic check
 (`updates.automatic`); About keeps "Check now", which only the master and
 `updates` service switches block.
 
-- `data/update_repository.dart` — fetches the Forgejo Releases API, filters by update
-  channel, parses semver, and selects the correct platform artifact using
-  `detectInstallMode()`. Returns `UpdateInfo` (with `downloadUrl` and `assetFileName`)
-  when a newer version is available.
+- `data/update_repository.dart` — fetches the channel's signed manifest from
+  `AppConstants.updateBaseUrl` (R2, see [release-r2.md](release-r2.md)), verifies it,
+  and selects the platform asset by manifest key using `detectInstallMode()`. Returns
+  `UpdateInfo` (with `downloadUrl`, `assetFileName`, `sha256` and `size`) when a newer
+  version is available. A manifest that fails any check is dropped (the reason is kept
+  for diagnostics) and reads as "no update".
 - `data/update_service.dart` — downloads the release artifact into the system temp
-  directory and applies the update. Distribution is resolved at runtime:
-  - **Forgejo/sideload Android APK builds** (`NAVIS_SELF_UPDATE=true`) download the
+  directory, verifies it, and applies the update. Distribution is resolved at runtime:
+  - **Sideload Android APK builds** (`NAVIS_SELF_UPDATE=true`) download the
     APK and invoke the system installer via a gated `MethodChannel`.
   - **Google Play installs** (detected via install-source metadata, or Play AAB builds
     with `NAVIS_SELF_UPDATE=false`) open the Play Store listing instead of sideloading.
@@ -2172,16 +2174,52 @@ Settings › Integrations › Updates holds the automatic check
   Linux/macOS, `.bat` for Windows). Scripts include rollback on failure and self-delete
   after successful update.
 - `domain/update_info.dart` — immutable value object with an `UpdateDelivery` mode.
-  `downloadUrl` holds the direct asset URL for self-update paths; Play redirects omit it.
+  `downloadUrl`, `sha256` and `size` hold the direct asset URL and its manifest digest for
+  self-update paths; Play redirects omit them.
 - `domain/update_delivery_resolver.dart` — maps platform, build capability, and Android
-  install source to `UpdateDelivery`.
+  install source to `UpdateDelivery` (`selfUpdate`, `storeRedirect`, ...).
+
+### Signed manifest and download verification
+
+`UpdateRepository.checkForUpdate` reads
+`https://downloads.porthorion.com/navis/channels/<channel>/manifest.json`, a signed
+envelope (`payload` and `signature`, both base64). It accepts the manifest only if all of
+these hold; each failure is recorded as a reject reason and nothing is offered:
+
+- the Ed25519 signature verifies against `AppConstants.updateSigningPublicKey`
+  (`invalid_signature`, `malformed_envelope`);
+- `schema` is 1 and `channel` equals the build's channel (`unsupported_schema`,
+  `wrong_channel`);
+- `version` is newer than the installed version (`version_not_newer`);
+- the platform's asset key exists (`missing_asset`). Keys are the `UpdateInstallMode`
+  names, with `linuxDeb-<arch>` (`amd64` or `arm64`) for Debian packages. There is no
+  fallback to another architecture or another install mode;
+- the asset URL is HTTPS under `AppConstants.updateBaseUrl`, and its `sha256` and `size`
+  are well formed (`invalid_asset_url`, `invalid_asset_sha256`, `invalid_asset_size`).
+
+A transport failure is not a reject: it surfaces through the provider's error state, and
+a successful fetch keeps the 24-hour check throttle. The release notes link comes from
+the manifest's `notes_url` only when it is an HTTPS URL on `navis.porthorion.com`;
+otherwise "Download Manually" opens `AppConstants.updateManualDownloadUrl`.
+
+`UpdateService.downloadArtifact` refuses a URL outside the update host or a missing
+digest, then checks the downloaded file's size and SHA-256 against the manifest before
+returning its path. A mismatch deletes the file and throws `UpdateIntegrityException`;
+the dialog shows "The update download was damaged. Try again." Nothing is installed or
+extracted before that check passes, which replaces the old "smaller than 10 KB" guard.
+
+`GET /v1/diagnostics/update` returns the last manifest check (URL, time,
+`signatureValid`, `payloadVersion`, `assetKey`, `rejectReason`, `tag`) and
+`POST /v1/diagnostics/update/check` forces a check. Both exist only in clone
+profiles. See [release-r2.md](release-r2.md) for publishing and key handling.
 
 ### Write-access guard
 
 Before starting any download, `UpdateService.canApplyUpdate(mode)` probes the target
 directory for write access. If the directory is not writable (e.g. app installed to
 `/Applications` by an admin user, or a read-only portable location), the update dialog
-shows a "Download Manually" prompt linking to the release page instead of attempting
+shows a "Download Manually" prompt linking to the release notes page (or the website
+download page) instead of attempting
 a doomed automatic update.
 
 ### Startup cleanup
@@ -2193,9 +2231,11 @@ script, preventing accumulation of stale files.
 ### Update channel
 
 The update channel (`stable` or `dev`) is baked in at compile time via
-`--dart-define=NAVIS_UPDATE_CHANNEL=dev`. The `dev` channel matches release assets prefixed
-with `navis-dev-`, while the `stable` channel matches assets prefixed with `navis-`. This
-ensures sidecar/dev builds never suggest a stable release as an upgrade.
+`--dart-define=NAVIS_UPDATE_CHANNEL=dev`. The channel selects the manifest
+(`channels/dev/manifest.json` or `channels/stable/manifest.json`), and a manifest whose
+signed `channel` differs is rejected. This ensures sidecar/dev builds never suggest a
+stable release as an upgrade. Builds with another channel name (for example `staging`)
+read that channel's manifest; see [release-r2.md](release-r2.md).
 
 The Last.fm API key used by "Same Vibes" instant mix mode is injected at build
 time as a masked pair, `NAVIS_LASTFM_API_KEY_MASKED` (key XOR a per-build random

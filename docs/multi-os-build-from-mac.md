@@ -2,7 +2,7 @@
 
 This guide covers release builds where macOS drives Linux and Windows desktop
 artifacts through SSH-accessible builders, usually local VMs on the same Mac.
-The macOS host still owns the release script, Forgejo upload, signing secrets,
+The macOS host still owns the release script, R2 upload and manifest signing, signing secrets,
 and final asset naming.
 
 ## When to use this flow
@@ -18,16 +18,16 @@ Use this when running:
 
 The release script packages the local source tree, sends it to each remote
 builder, runs the platform build there, copies the completed artifacts back to
-the repository root, and uploads them to the Forgejo release.
+the repository root, and publishes them to R2 with the signed manifest.
 
 ## macOS host requirements
 
 - Flutter and Dart versions matching `pubspec.yaml`.
 - `git`, `curl`, `jq`, `ssh`, and `scp` on `PATH`.
-- `tool/release.env` with Forgejo credentials and any bundled release defines:
-  - `FORGEJO_URL`
-  - `FORGEJO_REPO`
-  - `FORGEJO_TOKEN`
+- `tool/release.env` with the R2 settings, `NAVIS_UPDATE_SIGNING_KEY` (see
+  [release-r2.md](release-r2.md)) and any bundled release defines:
+  - `R2_ACCOUNT_ID`, `R2_BUCKET`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`
+  - `FORGEJO_URL`, `FORGEJO_REPO`, `FORGEJO_TOKEN` (only with `--forgejo`)
   - optional `NAVIS_LASTFM_API_KEY` (bundled masked; see
     [ci-cd.md](ci-cd.md#lastfm-key))
 - SSH key access to each builder without interactive prompts.
@@ -107,7 +107,8 @@ Before relying on remote builders for a release:
    disabled in a disposable test branch.
 4. Confirm copied artifacts exist at the repository root and match the expected
    asset names.
-5. Confirm the generated Forgejo release assets match the active channel:
+5. Confirm the published R2 assets and manifest match the active channel
+   (`./tool/r2_publish.sh verify --channel=<channel>`):
    stable uses `navis-*`; dev uses `navis-dev-*`.
 
 ## Troubleshooting
