@@ -21,7 +21,6 @@ import 'package:intl/intl.dart' show NumberFormat;
 import 'package:navis/l10n/app_localizations.dart';
 import 'package:navis/src/api/subsonic_error.dart';
 import 'package:cached_network_image/cached_network_image.dart';
-import 'package:navis/src/common_widgets/cover_art_cache_manager.dart';
 import 'package:navis/src/common_widgets/cover_art_image.dart';
 import 'package:navis/src/common_widgets/external_artwork_image.dart';
 import 'package:navis/src/features/integrations/domain/integration_artwork.dart';
@@ -252,16 +251,10 @@ ImageProvider<Object>? _resolveNowPlayingImageProvider({
       )) {
     return null;
   }
-  return boundedDecode(
-    CachedNetworkImageProvider(
-      trimmedArtUrl,
-      cacheManager: cacheManager,
-      cacheKey: coverArtFeatureCacheKey(
-        IntegrationFeature.radioNowPlaying.key,
-        trimmedArtUrl,
-      ),
-      headers: coverArtFeatureHeaders(IntegrationFeature.radioNowPlaying.key),
-    ),
+  return externalArtworkImageProvider(
+    url: trimmedArtUrl,
+    cacheManager: cacheManager,
+    feature: IntegrationFeature.radioNowPlaying,
   );
 }
 

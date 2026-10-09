@@ -1,11 +1,32 @@
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/widgets.dart';
+import 'package:flutter_cache_manager/flutter_cache_manager.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:navis/src/common_widgets/cover_art_cache_manager.dart';
 import 'package:navis/src/common_widgets/cover_art_image.dart';
 import 'package:navis/src/features/integrations/domain/integration_artwork.dart';
 import 'package:navis/src/features/integrations/domain/integration_feature.dart';
 import 'package:navis/src/providers/app_providers.dart';
+
+/// Shares a bounded decode identity between external-artwork display and prewarm.
+ImageProvider<Object> externalArtworkImageProvider({
+  required String url,
+  required CacheManager cacheManager,
+  IntegrationFeature? feature,
+}) {
+  final trimmedUrl = url.trim();
+  return boundedDecode(
+    CachedNetworkImageProvider(
+      trimmedUrl,
+      cacheManager: cacheManager,
+      headers: feature == null ? null : coverArtFeatureHeaders(feature.key),
+      // Tagged loads must retain the dispatch-time feature gate.
+      cacheKey: feature == null
+          ? null
+          : coverArtFeatureCacheKey(feature.key, trimmedUrl),
+    ),
+  );
+}
 
 /// A network image whose URL may point anywhere but the user's own server:
 /// artist photos, radio station art, Deezer and ListenBrainz covers.
@@ -105,26 +126,17 @@ class _ExternalArtworkImageState extends ConsumerState<ExternalArtworkImage> {
     if (!allowed) {
       return widget.fallbackBuilder(context);
     }
-    return CachedNetworkImage(
-      imageUrl: widget.url.trim(),
-      cacheManager: ref.watch(coverArtCacheManagerProvider),
-      // Names the feature so a download queued for it is refused at dispatch
-      // once the feature is switched off.
-      httpHeaders: widget.feature == null
-          ? null
-          : coverArtFeatureHeaders(widget.feature!.key),
-      // Tagged loads never share a download with untagged loads of the URL.
-      cacheKey: widget.feature == null
-          ? null
-          : coverArtFeatureCacheKey(widget.feature!.key, widget.url.trim()),
-      // Bounds the decode so a decompression bomb cannot exhaust memory. Width
-      // only: with both set CachedNetworkImage stretches to an exact box.
-      memCacheWidth: kMaxArtworkDecodeEdge,
+    return Image(
+      image: externalArtworkImageProvider(
+        url: widget.url,
+        cacheManager: ref.watch(coverArtCacheManagerProvider),
+        feature: widget.feature,
+      ),
       width: widget.width,
       height: widget.height,
       fit: widget.fit,
       alignment: widget.alignment,
-      errorWidget: (context, _, _) => widget.fallbackBuilder(context),
+      errorBuilder: (context, _, _) => widget.fallbackBuilder(context),
     );
   }
 }

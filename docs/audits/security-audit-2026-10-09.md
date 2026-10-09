@@ -25,7 +25,7 @@
 | A | Fixed | AudioService artwork signs the active server's cover endpoint with current credentials after queue admission; external paths and hosts remain unsigned. |
 | B | Fixed | The same startup migration purges both legacy repositories. AudioService shares its Riverpod-owned manager with session teardown and all cover-clear actions. |
 | C | Fixed | Cleanup deletes both old image directories before writing the v3 marker, including after a prior v2 cleanup. Storage accounting and clear covers include both current directories. |
-| D | Pending | Bound both external image dimensions and share the radio prewarm/display provider. |
+| D | Fixed | External artwork and radio prewarm use one provider wrapped by `boundedDecode` with a 1024×1024 fit bound. A decoded-frame regression checks tall/wide images and immediate reuse after prewarm. The artist detail golden is updated for the Image layout. |
 | E | Pending | Cap declared and streamed artwork response bytes. |
 
 **Deferred:** M-3's server URL storage and transport still retain `user:pass@`.

@@ -3466,7 +3466,10 @@ which ran the earlier v2 metadata-only cleanup also receive the complete purge.
 Ordinary artwork is refetched; permanent download artwork remains in its separate
 durable store. Both keep-data and full sign-out, server-data reset, library-cache
 reset, and Settings “clear covers” clear both managers. Cover storage accounting
-sums both current directories without following links.
+sums both current directories without following links. External artwork display
+and radio Now Playing prewarm share `externalArtworkImageProvider`, wrapped by
+`boundedDecode` with a 1024×1024 fit bound. Both edges are capped without
+upscaling, and display reuses the prewarmed decode without an image fade.
 
 Server-provided file extensions use a shared ASCII alphanumeric allowlist (1–10
 characters, otherwise `bin`). Rolling audio and SAF staging filenames hash song
