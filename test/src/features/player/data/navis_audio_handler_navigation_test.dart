@@ -555,6 +555,7 @@ void main() {
     List<_ControllableAudioPlayer>? rebuiltPlayers,
     _ControllableAudioPlayer? initialPlayer,
     bool waitForReady = true,
+    NavisDatabase? sharedDatabase,
     LibraryDao Function(NavisDatabase)? createLibraryDao,
     // Songs stream from a server, with desktop sidecar caching.
     bool sidecarStreams = false,
@@ -568,7 +569,7 @@ void main() {
     CoverArtHttpFileService? artworkFileService,
     Future<bool> Function({required bool autoPlay})? startPersonalRadio,
   }) async {
-    final database = createTestDatabase();
+    final database = sharedDatabase ?? createTestDatabase();
     final apiClient = sidecarStreams
         ? SubsonicApiClient(
             baseUrl: 'https://example.com',
@@ -1053,13 +1054,18 @@ void main() {
       );
       final fixtures =
           <(NavisAudioHandler, _ControllableAudioPlayer, NavisDatabase)>[];
+      final database = createTestDatabase();
       final cache = _MockSystemArtCache();
       final services = <SwitchAudioHandler>[];
       final projections = <RealTimeProjectionAudioHandler>[];
       final container = ProviderContainer(
         overrides: [
           audioHandlerInitializerProvider.overrideWithValue(() async {
-            final fixture = await createHandler(directory, 1);
+            final fixture = await createHandler(
+              directory,
+              1,
+              sharedDatabase: database,
+            );
             fixtures.add(fixture);
             final initialized = await initNavisAudioServiceHandler(
               builder: () {
@@ -1079,10 +1085,10 @@ void main() {
             .read(audioBootstrapControllerProvider.notifier)
             .abortForSessionTeardown();
         container.dispose();
-        for (final (handler, _, database) in fixtures) {
+        for (final (handler, _, _) in fixtures) {
           await handler.disposeHandler();
-          await database.close();
         }
+        await database.close();
         await directory.delete(recursive: true);
       });
       final bootstrap = container.read(
@@ -1126,17 +1132,22 @@ void main() {
       final directory = await Directory.systemTemp.createTemp(
         'navis-init-race-',
       );
-      final first = await createHandler(directory, 1);
-      final second = await createHandler(directory, 1);
+      final database = createTestDatabase();
+      final first = await createHandler(directory, 1, sharedDatabase: database);
+      final second = await createHandler(
+        directory,
+        1,
+        sharedDatabase: database,
+      );
       final projections = [
         RealTimeProjectionAudioHandler(first.$1),
         RealTimeProjectionAudioHandler(second.$1),
       ];
       addTearDown(() async {
-        for (final (handler, _, database) in [first, second]) {
+        for (final (handler, _, _) in [first, second]) {
           await disposeNavisPlaybackHandler(handler);
-          await database.close();
         }
+        await database.close();
         await directory.delete(recursive: true);
       });
       final initializations = await Future.wait([
