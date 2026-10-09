@@ -6,6 +6,7 @@ import 'package:navis/src/database/daos/app_settings_dao.dart';
 import 'package:navis/src/database/navis_database.dart';
 import 'package:navis/src/features/settings/data/settings_repository.dart';
 import 'package:navis/src/features/settings/domain/app_settings.dart';
+import 'package:navis/src/theme/navis_corner_style.dart';
 
 import '../../../../helpers/test_database.dart';
 
@@ -22,6 +23,54 @@ void main() {
     tearDown(() async {
       await database.close();
     });
+
+    test('corner style maps, saves, watches and resets', () async {
+      final defaults = await repository.getSettings();
+      expect(defaults.cornerStyle, NavisCornerStyle.rounded);
+      expect(
+        const AppSettingsModel.defaults().cornerStyle,
+        NavisCornerStyle.rounded,
+      );
+      for (final style in NavisCornerStyle.values) {
+        await repository.updateCornerStyle(style);
+        final targeted = await repository.getSettings();
+        expect(targeted.cornerStyle, style);
+        expect(targeted.copyWith(themeMode: 'oled').cornerStyle, style);
+        await repository.saveSettings(targeted.copyWith(themeMode: 'oled'));
+        expect((await repository.getSettings()).cornerStyle, style);
+        expect(
+          (await database.appSettingsDao.getSettings())!.cornerStyle,
+          style.name,
+        );
+        final savedStyle = style == NavisCornerStyle.square
+            ? NavisCornerStyle.soft
+            : NavisCornerStyle.square;
+        await repository.saveSettings(
+          defaults.copyWith(cornerStyle: savedStyle),
+        );
+        expect(
+          (await repository.watchSettings().first).cornerStyle,
+          savedStyle,
+        );
+        expect(
+          (await database.appSettingsDao.getSettings())!.cornerStyle,
+          savedStyle.name,
+        );
+      }
+      await database.customStatement(
+        "UPDATE app_settings SET corner_style = 'unknown'",
+      );
+      expect(
+        (await repository.getSettings()).cornerStyle,
+        NavisCornerStyle.rounded,
+      );
+      await repository.updateCornerStyle(NavisCornerStyle.soft);
+      await repository.resetDefaults();
+      expect(
+        (await repository.getSettings()).cornerStyle,
+        NavisCornerStyle.rounded,
+      );
+    }, skip: !sqliteAvailable);
 
     test('background and density map, save, watch and reset', () async {
       final defaults = await repository.getSettings();

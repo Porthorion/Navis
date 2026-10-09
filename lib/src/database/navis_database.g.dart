@@ -1129,6 +1129,18 @@ class $AppSettingsTableTable extends AppSettingsTable
     ),
     defaultValue: const Constant(true),
   );
+  static const VerificationMeta _cornerStyleMeta = const VerificationMeta(
+    'cornerStyle',
+  );
+  @override
+  late final GeneratedColumn<String> cornerStyle = GeneratedColumn<String>(
+    'corner_style',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant('rounded'),
+  );
   static const VerificationMeta _nowPlayingBackgroundMeta =
       const VerificationMeta('nowPlayingBackground');
   @override
@@ -1850,6 +1862,7 @@ class $AppSettingsTableTable extends AppSettingsTable
     crossfadeType,
     coverArtCacheMaxObjects,
     artTintedNowPlaying,
+    cornerStyle,
     nowPlayingBackground,
     dynamicAlbumColorEnabled,
     updateCheckEnabled,
@@ -2273,6 +2286,15 @@ class $AppSettingsTableTable extends AppSettingsTable
         artTintedNowPlaying.isAcceptableOrUnknown(
           data['art_tinted_now_playing']!,
           _artTintedNowPlayingMeta,
+        ),
+      );
+    }
+    if (data.containsKey('corner_style')) {
+      context.handle(
+        _cornerStyleMeta,
+        cornerStyle.isAcceptableOrUnknown(
+          data['corner_style']!,
+          _cornerStyleMeta,
         ),
       );
     }
@@ -2926,6 +2948,10 @@ class $AppSettingsTableTable extends AppSettingsTable
         DriftSqlType.bool,
         data['${effectivePrefix}art_tinted_now_playing'],
       )!,
+      cornerStyle: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}corner_style'],
+      )!,
       nowPlayingBackground: attachedDatabase.typeMapping.read(
         DriftSqlType.string,
         data['${effectivePrefix}now_playing_background'],
@@ -3255,6 +3281,9 @@ class AppSettingsTableData extends DataClass
   /// Legacy compatibility flag; nowPlayingBackground is authoritative.
   final bool artTintedNowPlaying;
 
+  /// Chrome corners: rounded, soft or square.
+  final String cornerStyle;
+
   /// Now Playing background: tinted, artwork or plain.
   final String nowPlayingBackground;
 
@@ -3466,6 +3495,7 @@ class AppSettingsTableData extends DataClass
     required this.crossfadeType,
     required this.coverArtCacheMaxObjects,
     required this.artTintedNowPlaying,
+    required this.cornerStyle,
     required this.nowPlayingBackground,
     required this.dynamicAlbumColorEnabled,
     required this.updateCheckEnabled,
@@ -3591,6 +3621,7 @@ class AppSettingsTableData extends DataClass
     map['crossfade_type'] = Variable<String>(crossfadeType);
     map['cover_art_cache_max_objects'] = Variable<int>(coverArtCacheMaxObjects);
     map['art_tinted_now_playing'] = Variable<bool>(artTintedNowPlaying);
+    map['corner_style'] = Variable<String>(cornerStyle);
     map['now_playing_background'] = Variable<String>(nowPlayingBackground);
     map['dynamic_album_color_enabled'] = Variable<bool>(
       dynamicAlbumColorEnabled,
@@ -3757,6 +3788,7 @@ class AppSettingsTableData extends DataClass
       crossfadeType: Value(crossfadeType),
       coverArtCacheMaxObjects: Value(coverArtCacheMaxObjects),
       artTintedNowPlaying: Value(artTintedNowPlaying),
+      cornerStyle: Value(cornerStyle),
       nowPlayingBackground: Value(nowPlayingBackground),
       dynamicAlbumColorEnabled: Value(dynamicAlbumColorEnabled),
       updateCheckEnabled: Value(updateCheckEnabled),
@@ -3921,6 +3953,7 @@ class AppSettingsTableData extends DataClass
       artTintedNowPlaying: serializer.fromJson<bool>(
         json['artTintedNowPlaying'],
       ),
+      cornerStyle: serializer.fromJson<String>(json['cornerStyle']),
       nowPlayingBackground: serializer.fromJson<String>(
         json['nowPlayingBackground'],
       ),
@@ -4100,6 +4133,7 @@ class AppSettingsTableData extends DataClass
         coverArtCacheMaxObjects,
       ),
       'artTintedNowPlaying': serializer.toJson<bool>(artTintedNowPlaying),
+      'cornerStyle': serializer.toJson<String>(cornerStyle),
       'nowPlayingBackground': serializer.toJson<String>(nowPlayingBackground),
       'dynamicAlbumColorEnabled': serializer.toJson<bool>(
         dynamicAlbumColorEnabled,
@@ -4229,6 +4263,7 @@ class AppSettingsTableData extends DataClass
     String? crossfadeType,
     int? coverArtCacheMaxObjects,
     bool? artTintedNowPlaying,
+    String? cornerStyle,
     String? nowPlayingBackground,
     bool? dynamicAlbumColorEnabled,
     bool? updateCheckEnabled,
@@ -4346,6 +4381,7 @@ class AppSettingsTableData extends DataClass
     coverArtCacheMaxObjects:
         coverArtCacheMaxObjects ?? this.coverArtCacheMaxObjects,
     artTintedNowPlaying: artTintedNowPlaying ?? this.artTintedNowPlaying,
+    cornerStyle: cornerStyle ?? this.cornerStyle,
     nowPlayingBackground: nowPlayingBackground ?? this.nowPlayingBackground,
     dynamicAlbumColorEnabled:
         dynamicAlbumColorEnabled ?? this.dynamicAlbumColorEnabled,
@@ -4561,6 +4597,9 @@ class AppSettingsTableData extends DataClass
       artTintedNowPlaying: data.artTintedNowPlaying.present
           ? data.artTintedNowPlaying.value
           : this.artTintedNowPlaying,
+      cornerStyle: data.cornerStyle.present
+          ? data.cornerStyle.value
+          : this.cornerStyle,
       nowPlayingBackground: data.nowPlayingBackground.present
           ? data.nowPlayingBackground.value
           : this.nowPlayingBackground,
@@ -4767,6 +4806,7 @@ class AppSettingsTableData extends DataClass
           ..write('crossfadeType: $crossfadeType, ')
           ..write('coverArtCacheMaxObjects: $coverArtCacheMaxObjects, ')
           ..write('artTintedNowPlaying: $artTintedNowPlaying, ')
+          ..write('cornerStyle: $cornerStyle, ')
           ..write('nowPlayingBackground: $nowPlayingBackground, ')
           ..write('dynamicAlbumColorEnabled: $dynamicAlbumColorEnabled, ')
           ..write('updateCheckEnabled: $updateCheckEnabled, ')
@@ -4874,6 +4914,7 @@ class AppSettingsTableData extends DataClass
     crossfadeType,
     coverArtCacheMaxObjects,
     artTintedNowPlaying,
+    cornerStyle,
     nowPlayingBackground,
     dynamicAlbumColorEnabled,
     updateCheckEnabled,
@@ -4976,6 +5017,7 @@ class AppSettingsTableData extends DataClass
           other.crossfadeType == this.crossfadeType &&
           other.coverArtCacheMaxObjects == this.coverArtCacheMaxObjects &&
           other.artTintedNowPlaying == this.artTintedNowPlaying &&
+          other.cornerStyle == this.cornerStyle &&
           other.nowPlayingBackground == this.nowPlayingBackground &&
           other.dynamicAlbumColorEnabled == this.dynamicAlbumColorEnabled &&
           other.updateCheckEnabled == this.updateCheckEnabled &&
@@ -5080,6 +5122,7 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
   final Value<String> crossfadeType;
   final Value<int> coverArtCacheMaxObjects;
   final Value<bool> artTintedNowPlaying;
+  final Value<String> cornerStyle;
   final Value<String> nowPlayingBackground;
   final Value<bool> dynamicAlbumColorEnabled;
   final Value<bool> updateCheckEnabled;
@@ -5176,6 +5219,7 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
     this.crossfadeType = const Value.absent(),
     this.coverArtCacheMaxObjects = const Value.absent(),
     this.artTintedNowPlaying = const Value.absent(),
+    this.cornerStyle = const Value.absent(),
     this.nowPlayingBackground = const Value.absent(),
     this.dynamicAlbumColorEnabled = const Value.absent(),
     this.updateCheckEnabled = const Value.absent(),
@@ -5273,6 +5317,7 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
     this.crossfadeType = const Value.absent(),
     this.coverArtCacheMaxObjects = const Value.absent(),
     this.artTintedNowPlaying = const Value.absent(),
+    this.cornerStyle = const Value.absent(),
     this.nowPlayingBackground = const Value.absent(),
     this.dynamicAlbumColorEnabled = const Value.absent(),
     this.updateCheckEnabled = const Value.absent(),
@@ -5370,6 +5415,7 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
     Expression<String>? crossfadeType,
     Expression<int>? coverArtCacheMaxObjects,
     Expression<bool>? artTintedNowPlaying,
+    Expression<String>? cornerStyle,
     Expression<String>? nowPlayingBackground,
     Expression<bool>? dynamicAlbumColorEnabled,
     Expression<bool>? updateCheckEnabled,
@@ -5486,6 +5532,7 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
         'cover_art_cache_max_objects': coverArtCacheMaxObjects,
       if (artTintedNowPlaying != null)
         'art_tinted_now_playing': artTintedNowPlaying,
+      if (cornerStyle != null) 'corner_style': cornerStyle,
       if (nowPlayingBackground != null)
         'now_playing_background': nowPlayingBackground,
       if (dynamicAlbumColorEnabled != null)
@@ -5616,6 +5663,7 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
     Value<String>? crossfadeType,
     Value<int>? coverArtCacheMaxObjects,
     Value<bool>? artTintedNowPlaying,
+    Value<String>? cornerStyle,
     Value<String>? nowPlayingBackground,
     Value<bool>? dynamicAlbumColorEnabled,
     Value<bool>? updateCheckEnabled,
@@ -5724,6 +5772,7 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
       coverArtCacheMaxObjects:
           coverArtCacheMaxObjects ?? this.coverArtCacheMaxObjects,
       artTintedNowPlaying: artTintedNowPlaying ?? this.artTintedNowPlaying,
+      cornerStyle: cornerStyle ?? this.cornerStyle,
       nowPlayingBackground: nowPlayingBackground ?? this.nowPlayingBackground,
       dynamicAlbumColorEnabled:
           dynamicAlbumColorEnabled ?? this.dynamicAlbumColorEnabled,
@@ -5953,6 +6002,9 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
     }
     if (artTintedNowPlaying.present) {
       map['art_tinted_now_playing'] = Variable<bool>(artTintedNowPlaying.value);
+    }
+    if (cornerStyle.present) {
+      map['corner_style'] = Variable<String>(cornerStyle.value);
     }
     if (nowPlayingBackground.present) {
       map['now_playing_background'] = Variable<String>(
@@ -6213,6 +6265,7 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
           ..write('crossfadeType: $crossfadeType, ')
           ..write('coverArtCacheMaxObjects: $coverArtCacheMaxObjects, ')
           ..write('artTintedNowPlaying: $artTintedNowPlaying, ')
+          ..write('cornerStyle: $cornerStyle, ')
           ..write('nowPlayingBackground: $nowPlayingBackground, ')
           ..write('dynamicAlbumColorEnabled: $dynamicAlbumColorEnabled, ')
           ..write('updateCheckEnabled: $updateCheckEnabled, ')
@@ -35840,6 +35893,7 @@ typedef $$AppSettingsTableTableCreateCompanionBuilder =
       Value<String> crossfadeType,
       Value<int> coverArtCacheMaxObjects,
       Value<bool> artTintedNowPlaying,
+      Value<String> cornerStyle,
       Value<String> nowPlayingBackground,
       Value<bool> dynamicAlbumColorEnabled,
       Value<bool> updateCheckEnabled,
@@ -35938,6 +35992,7 @@ typedef $$AppSettingsTableTableUpdateCompanionBuilder =
       Value<String> crossfadeType,
       Value<int> coverArtCacheMaxObjects,
       Value<bool> artTintedNowPlaying,
+      Value<String> cornerStyle,
       Value<String> nowPlayingBackground,
       Value<bool> dynamicAlbumColorEnabled,
       Value<bool> updateCheckEnabled,
@@ -36210,6 +36265,11 @@ class $$AppSettingsTableTableFilterComposer
 
   ColumnFilters<bool> get artTintedNowPlaying => $composableBuilder(
     column: $table.artTintedNowPlaying,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get cornerStyle => $composableBuilder(
+    column: $table.cornerStyle,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -36699,6 +36759,11 @@ class $$AppSettingsTableTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<String> get cornerStyle => $composableBuilder(
+    column: $table.cornerStyle,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<String> get nowPlayingBackground => $composableBuilder(
     column: $table.nowPlayingBackground,
     builder: (column) => ColumnOrderings(column),
@@ -37180,6 +37245,11 @@ class $$AppSettingsTableTableAnnotationComposer
     builder: (column) => column,
   );
 
+  GeneratedColumn<String> get cornerStyle => $composableBuilder(
+    column: $table.cornerStyle,
+    builder: (column) => column,
+  );
+
   GeneratedColumn<String> get nowPlayingBackground => $composableBuilder(
     column: $table.nowPlayingBackground,
     builder: (column) => column,
@@ -37523,6 +37593,7 @@ class $$AppSettingsTableTableTableManager
                 Value<String> crossfadeType = const Value.absent(),
                 Value<int> coverArtCacheMaxObjects = const Value.absent(),
                 Value<bool> artTintedNowPlaying = const Value.absent(),
+                Value<String> cornerStyle = const Value.absent(),
                 Value<String> nowPlayingBackground = const Value.absent(),
                 Value<bool> dynamicAlbumColorEnabled = const Value.absent(),
                 Value<bool> updateCheckEnabled = const Value.absent(),
@@ -37624,6 +37695,7 @@ class $$AppSettingsTableTableTableManager
                 crossfadeType: crossfadeType,
                 coverArtCacheMaxObjects: coverArtCacheMaxObjects,
                 artTintedNowPlaying: artTintedNowPlaying,
+                cornerStyle: cornerStyle,
                 nowPlayingBackground: nowPlayingBackground,
                 dynamicAlbumColorEnabled: dynamicAlbumColorEnabled,
                 updateCheckEnabled: updateCheckEnabled,
@@ -37723,6 +37795,7 @@ class $$AppSettingsTableTableTableManager
                 Value<String> crossfadeType = const Value.absent(),
                 Value<int> coverArtCacheMaxObjects = const Value.absent(),
                 Value<bool> artTintedNowPlaying = const Value.absent(),
+                Value<String> cornerStyle = const Value.absent(),
                 Value<String> nowPlayingBackground = const Value.absent(),
                 Value<bool> dynamicAlbumColorEnabled = const Value.absent(),
                 Value<bool> updateCheckEnabled = const Value.absent(),
@@ -37824,6 +37897,7 @@ class $$AppSettingsTableTableTableManager
                 crossfadeType: crossfadeType,
                 coverArtCacheMaxObjects: coverArtCacheMaxObjects,
                 artTintedNowPlaying: artTintedNowPlaying,
+                cornerStyle: cornerStyle,
                 nowPlayingBackground: nowPlayingBackground,
                 dynamicAlbumColorEnabled: dynamicAlbumColorEnabled,
                 updateCheckEnabled: updateCheckEnabled,

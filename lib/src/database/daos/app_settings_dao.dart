@@ -6,6 +6,7 @@ import 'package:navis/src/features/downloads/domain/download_preferences.dart';
 import 'package:navis/src/features/integrations/domain/integration_feature.dart';
 import 'package:navis/src/features/settings/domain/navis_density.dart';
 import 'package:navis/src/features/settings/domain/now_playing_background.dart';
+import 'package:navis/src/theme/navis_corner_style.dart';
 import 'package:path/path.dart' as p;
 
 part 'app_settings_dao.g.dart';
@@ -183,6 +184,7 @@ class AppSettingsDao extends DatabaseAccessor<NavisDatabase>
     required String crossfadeType,
     required bool artTintedNowPlaying,
     String? nowPlayingBackground,
+    String? cornerStyle,
     required bool dynamicAlbumColorEnabled,
     bool? updateCheckEnabled,
     required String updateChannel,
@@ -265,6 +267,9 @@ class AppSettingsDao extends DatabaseAccessor<NavisDatabase>
         crossfadeType: Value(crossfadeType),
         artTintedNowPlaying: Value(background != NowPlayingBackground.plain),
         nowPlayingBackground: Value(background.storageKey),
+        cornerStyle: cornerStyle == null
+            ? const Value.absent()
+            : Value(NavisCornerStyle.parse(cornerStyle).name),
         dynamicAlbumColorEnabled: Value(dynamicAlbumColorEnabled),
         updateCheckEnabled: updateCheckEnabled == null
             ? const Value.absent()
@@ -437,6 +442,7 @@ class AppSettingsDao extends DatabaseAccessor<NavisDatabase>
       crossfadeType: 'normal',
       artTintedNowPlaying: true,
       nowPlayingBackground: 'tinted',
+      cornerStyle: 'rounded',
       dynamicAlbumColorEnabled: false,
       updateCheckEnabled: true,
       updateChannel: 'stable',
@@ -978,8 +984,21 @@ class AppSettingsDao extends DatabaseAccessor<NavisDatabase>
   }
 
   // ---------------------------------------------------------------------------
-  // Art-tinted Now Playing helpers
+  // Corner style and Art-tinted Now Playing helpers
   // ---------------------------------------------------------------------------
+
+  /// Writes the canonical chrome corner style without changing other settings.
+  Future<void> updateCornerStyle(String value) {
+    final style = NavisCornerStyle.parse(value);
+    return (update(
+      appSettingsTable,
+    )..where((t) => t.id.equals(primarySettingsId))).write(
+      AppSettingsTableCompanion(
+        cornerStyle: Value(style.name),
+        updatedAt: Value(DateTime.now()),
+      ),
+    );
+  }
 
   /// Writes the background choice and its legacy compatibility flag together.
   Future<void> updateNowPlayingBackground(String value) {

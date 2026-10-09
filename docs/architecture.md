@@ -746,10 +746,13 @@ target-selection rules.
 - `navis_tokens.dart`:
   - `NavisSpace` and `NavisRadius` are compile-time spacing and radius
     scales.
-  - Corner Style (prototype, in-memory only): `NavisCornerStyle` (`rounded`
-    default, `soft`, `square`) is held by `cornerStyleProvider`
-    (`CornerStyleController.set`), watched in `app.dart` and passed as
-    `corners:` to the three theme builders. `NavisShapeData` (a ThemeExtension,
+  - Corner Style: `NavisCornerStyle` (`rounded` default, `soft`, `square`) is
+    persisted in `app_settings.corner_style` (schema 97). The guarded 96→97
+    migration defaults existing rows to `rounded`. `SettingsRepository`
+    saves it through `updateCornerStyle` or `saveSettings`; `cornerStyleProvider`
+    derives it from `appSettingsProvider`, falling back to `rounded` while
+    loading or on error. It is watched in `app.dart` and passed as `corners:`
+    to the three theme builders. `NavisShapeData` (a ThemeExtension,
     `NavisShapeData.of(context)`) carries the xs..xl radii and the control
     (button/chip/indicator) corner; component themes and
     `NavisTokens.panelRadius`/`cardRadius` are built from it, and `rounded`

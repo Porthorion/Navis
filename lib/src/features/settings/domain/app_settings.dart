@@ -4,6 +4,7 @@ import 'package:navis/src/features/player/domain/playback_adjustments.dart';
 import 'package:navis/src/features/settings/domain/navis_density.dart';
 import 'package:navis/src/features/settings/domain/now_playing_background.dart';
 import 'package:navis/src/routing/content_layout.dart';
+import 'package:navis/src/theme/navis_corner_style.dart';
 
 double sanitizeDesktopPlaybackVolume(double? value) {
   if (value == null || !value.isFinite) {
@@ -77,6 +78,7 @@ class AppSettingsModel {
     required this.crossfadeType,
     bool artTintedNowPlaying = true,
     NowPlayingBackground? nowPlayingBackground,
+    this.cornerStyle = NavisCornerStyle.rounded,
     required this.dynamicAlbumColorEnabled,
     required this.updateCheckEnabled,
     required this.updateChannel,
@@ -168,6 +170,7 @@ class AppSettingsModel {
       crossfadeDurationSeconds = 5,
       crossfadeType = 'normal',
       nowPlayingBackground = NowPlayingBackground.tinted,
+      cornerStyle = NavisCornerStyle.rounded,
       dynamicAlbumColorEnabled = false,
       updateCheckEnabled = true,
       updateChannel = 'stable',
@@ -255,6 +258,7 @@ class AppSettingsModel {
   final int crossfadeDurationSeconds;
   final String crossfadeType;
   final NowPlayingBackground nowPlayingBackground;
+  final NavisCornerStyle cornerStyle;
 
   /// Compatibility view of the background choice for existing callers.
   bool get artTintedNowPlaying =>
@@ -439,6 +443,7 @@ class AppSettingsModel {
     String? crossfadeType,
     bool? artTintedNowPlaying,
     NowPlayingBackground? nowPlayingBackground,
+    NavisCornerStyle? cornerStyle,
     bool? dynamicAlbumColorEnabled,
     bool? updateCheckEnabled,
     String? updateChannel,
@@ -568,6 +573,7 @@ class AppSettingsModel {
               : artTintedNowPlaying
               ? NowPlayingBackground.tinted
               : NowPlayingBackground.plain),
+      cornerStyle: cornerStyle ?? this.cornerStyle,
       dynamicAlbumColorEnabled:
           dynamicAlbumColorEnabled ?? this.dynamicAlbumColorEnabled,
       updateCheckEnabled: updateCheckEnabled ?? this.updateCheckEnabled,

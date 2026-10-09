@@ -231,7 +231,7 @@ class NavisDatabase extends _$NavisDatabase {
   }
 
   @override
-  int get schemaVersion => 96;
+  int get schemaVersion => 97;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -540,6 +540,16 @@ class NavisDatabase extends _$NavisDatabase {
     }
     if (from < 96 && to >= 96) {
       await from95To96(migrator);
+    }
+    if (from < 97 && to >= 97) {
+      await from96To97(migrator);
+    }
+  }
+
+  /// Adds the persisted chrome corner style, defaulting existing rows to rounded.
+  Future<void> from96To97(Migrator migrator) async {
+    if (!await _columnExists('app_settings', 'corner_style')) {
+      await migrator.addColumn(appSettingsTable, appSettingsTable.cornerStyle);
     }
   }
 

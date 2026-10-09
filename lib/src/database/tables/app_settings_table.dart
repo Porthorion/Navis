@@ -147,6 +147,9 @@ class AppSettingsTable extends Table {
   BoolColumn get artTintedNowPlaying =>
       boolean().withDefault(const Constant(true))();
 
+  /// Chrome corners: rounded, soft or square.
+  TextColumn get cornerStyle => text().withDefault(const Constant('rounded'))();
+
   /// Now Playing background: tinted, artwork or plain.
   TextColumn get nowPlayingBackground =>
       text().withDefault(const Constant('tinted'))();
