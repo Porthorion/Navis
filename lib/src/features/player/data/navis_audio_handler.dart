@@ -94,9 +94,9 @@ class NavisAudioHandler extends BaseAudioHandler
     Future<File?> Function(String coverArtId)? readPermanentArtwork,
     CoverArtHttpFileService? artworkFileService,
     this._reportRollingCacheActivity,
-    this._startPersonalRadio,
-    Future<void> Function(String)? startPreferredMix,
-    Future<void> Function(String)? togglePreferredMix,
+    required this._startPersonalRadio,
+    required Future<void> Function(String) startPreferredMix,
+    required Future<void> Function(String) togglePreferredMix,
     this._readRadioMetadataAllowed,
     this._readRadioArtworkAllowed,
     this._createRadioMetadataDio,
@@ -189,7 +189,7 @@ class NavisAudioHandler extends BaseAudioHandler
   final NetworkUsageReporter? _reportNetworkUsage;
   final void Function(RollingCacheActivity activity)?
   _reportRollingCacheActivity;
-  final Future<bool> Function(bool autoPlay)? _startPersonalRadio;
+  final Future<bool> Function(bool autoPlay) _startPersonalRadio;
   late final AutoMediaTreeService _autoMediaTreeService;
   final AndroidAutoBrowseNotifier _androidAutoBrowseNotifier =
       AndroidAutoBrowseNotifier();
@@ -630,12 +630,9 @@ class NavisAudioHandler extends BaseAudioHandler
         if (autoPlay) {
           return _playInstantMixFromCurrentSong();
         }
-        return _queueInstantRadioFallback(autoPlay: false);
+        return _startInstantRadio(autoPlay: false);
       case AutoMediaRoot.instantRadio:
-        if (autoPlay) {
-          return _playInstantRadio();
-        }
-        return _queueInstantRadioFallback(autoPlay: false);
+        return _startInstantRadio(autoPlay: autoPlay);
       case AutoMediaRoot.likedSongs:
         final songs = await _libraryDao.watchAllStarredSongs().first;
         if (songs.isEmpty) return false;
@@ -831,10 +828,7 @@ class NavisAudioHandler extends BaseAudioHandler
   }) async {
     final request = navisAndroidAutoSearchRequest(query, extras);
     if (request.type == NavisAndroidAutoSearchType.empty) {
-      if (autoPlay) {
-        return _playInstantRadio();
-      }
-      return _queueInstantRadioFallback(autoPlay: false);
+      return _startInstantRadio(autoPlay: autoPlay);
     }
 
     switch (request.type) {
@@ -3491,7 +3485,7 @@ class NavisAudioHandler extends BaseAudioHandler
     );
     if (source == NavisAutoResumeSource.randomFallback) {
       AppLogger.info('Android Auto resume: trying random song fallback.');
-      return _queueInstantRadioFallback(autoPlay: false);
+      return _startInstantRadio(autoPlay: false);
     }
 
     AppLogger.info('Android Auto resume: no playable source available.');
@@ -9064,65 +9058,31 @@ class NavisAudioHandler extends BaseAudioHandler
     return super.customAction(name, extras);
   }
 
-  /// Starts an Instant Mix seeded from the currently playing song.
-  ///
-  /// Uses [_preferredMixToggleCallback] (toggles on/off) when registered,
-  /// falling back to [_preferredMixCallback] (activate-only), and finally
-  /// to a direct `getSimilarSongs` API call.
-  ///
-  /// Note: the current media item's `id` is a raw Subsonic song ID, not the
-  /// `song/{id}` format used in the browse tree.
+  /// Starts an Instant Mix seeded from the current song or local library.
   Future<bool> _playInstantMixFromCurrentSong() async {
     final current = _currentMediaItem;
-    // Android Auto may start its service before there is a media item or a
-    // Flutter shell. Choose a local library seed and still honor the saved
-    // song-mix mode through the bootstrap callback.
+    // Android Auto may start before a media item or the Flutter shell exists.
     final seedId = current?.id ?? await _coldStartMixSeed();
     if (seedId == null) return false;
 
-    final toggleCb = current == null ? null : _preferredMixToggleCallback;
-    if (toggleCb != null) {
+    if (current != null) {
       try {
-        await toggleCb(seedId);
+        await _preferredMixToggleCallback(seedId);
         return true;
       } on Object catch (e, st) {
         AppLogger.warning('Instant Mix (toggle) failed for $seedId: $e\n$st');
       }
     }
 
-    // Fallback to activate-only callback if toggle not yet wired.
-    if (_preferredMixCallback != null) {
-      try {
-        await _preferredMixCallback!(seedId);
-        return true;
-      } on Object catch (e, st) {
-        AppLogger.warning(
-          'Instant Mix (preferred mode) failed for $seedId: $e\n$st',
-        );
-      }
+    try {
+      await _preferredMixCallback(seedId);
+      return true;
+    } on Object catch (e, st) {
+      AppLogger.warning(
+        'Instant Mix (preferred mode) failed for $seedId: $e\n$st',
+      );
+      return false;
     }
-
-    if (toggleCb != null || _preferredMixCallback != null) return false;
-
-    // Last resort: direct API call.
-    final api = _readApiClient();
-    if (api != null) {
-      try {
-        final songs = await api.getSimilarSongs(seedId, count: 50);
-        final songIds = songs.map((s) => s.id).toList(growable: false);
-        if (songIds.isNotEmpty) {
-          await replaceQueue(songIds, expandMatchFlows: false);
-          if (_queueItems.isNotEmpty) {
-            return true;
-          }
-        }
-      } on Object catch (e, st) {
-        AppLogger.warning(
-          'Instant Mix (fallback) failed for song $seedId: $e\n$st',
-        );
-      }
-    }
-    return _playInstantRadio();
   }
 
   Future<String?> _coldStartMixSeed() async {
@@ -9135,117 +9095,11 @@ class NavisAudioHandler extends BaseAudioHandler
     return first.isEmpty ? null : first.first.id;
   }
 
-  /// Starts an Instant Radio seeded from a random liked song.
-  ///
-  /// Matches the behaviour of the home screen Instant Radio button: picks a
-  /// random liked (starred) song as the seed and delegates to
-  /// [_preferredMixCallback].  Falls back to `getRandomSongs()` when no liked
-  /// songs exist or no API client is available.
-  Future<bool> _playInstantRadio() async {
-    final startPersonalRadio = _startPersonalRadio;
-    if (startPersonalRadio != null) {
-      return startPersonalRadio(true);
-    }
-    final liked = await _libraryDao.watchAllStarredSongs().first;
-    if (liked.isNotEmpty) {
-      final seed = (List.of(liked)..shuffle()).first;
-      if (_preferredMixCallback != null) {
-        try {
-          await _preferredMixCallback!(seed.id);
-          return true;
-        } on Object catch (e, st) {
-          AppLogger.warning(
-            'Instant Radio (preferred mode) failed for ${seed.id}: $e\n$st',
-          );
-        }
-      }
-    }
+  Future<bool> _startInstantRadio({required bool autoPlay}) =>
+      _startPersonalRadio(autoPlay);
 
-    // Fallback: random songs from the API or local library.
-    final api = _readApiClient();
-    if (api != null) {
-      try {
-        final songs = await api.getRandomSongs(size: 50);
-        final songIds = songs.map((s) => s.id).toList(growable: false);
-        if (songIds.isNotEmpty) {
-          await replaceQueue(songIds, expandMatchFlows: false);
-          if (_queueItems.isNotEmpty) {
-            return true;
-          }
-        }
-      } on Object catch (e, st) {
-        AppLogger.warning('Instant Radio API fallback failed: $e\n$st');
-      }
-    }
-    final shuffled = await _libraryDao.getRandomSongs(50);
-    if (shuffled.isEmpty) return false;
-    await replaceQueueWithData(shuffled, expandMatchFlows: false);
-    return _queueItems.isNotEmpty;
-  }
-
-  Future<bool> _queueInstantRadioFallback({required bool autoPlay}) async {
-    final startPersonalRadio = _startPersonalRadio;
-    if (startPersonalRadio != null) {
-      return startPersonalRadio(autoPlay);
-    }
-    final liked = await _libraryDao.watchAllStarredSongs().first;
-    if (liked.isNotEmpty) {
-      AppLogger.debug(
-        'Android Auto fallback: queueing liked songs '
-        '(count=${liked.length}, autoPlay=$autoPlay).',
-      );
-      await replaceQueueWithData(
-        liked,
-        autoPlay: autoPlay,
-        expandMatchFlows: false,
-      );
-      return _queueItems.isNotEmpty;
-    }
-
-    final api = _readApiClient();
-    if (api != null) {
-      try {
-        final songs = await api.getRandomSongs(size: 50);
-        final songIds = songs.map((s) => s.id).toList(growable: false);
-        if (songIds.isNotEmpty) {
-          AppLogger.debug(
-            'Android Auto fallback: queueing API random songs '
-            '(count=${songIds.length}, autoPlay=$autoPlay).',
-          );
-          await replaceQueue(
-            songIds,
-            autoPlay: autoPlay,
-            expandMatchFlows: false,
-          );
-          if (_queueItems.isNotEmpty) {
-            return true;
-          }
-        }
-      } on Object catch (e, st) {
-        AppLogger.warning('Android Auto random API fallback failed: $e\n$st');
-      }
-    }
-
-    final shuffled = await _libraryDao.getRandomSongs(50);
-    if (shuffled.isEmpty) {
-      AppLogger.debug('Android Auto fallback: local library is empty.');
-      return false;
-    }
-
-    AppLogger.debug(
-      'Android Auto fallback: queueing local random songs '
-      '(count=${shuffled.length}, autoPlay=$autoPlay).',
-    );
-    await replaceQueueWithData(
-      shuffled,
-      autoPlay: autoPlay,
-      expandMatchFlows: false,
-    );
-    return _queueItems.isNotEmpty;
-  }
-
-  Future<void> Function(String)? _preferredMixCallback;
-  Future<void> Function(String)? _preferredMixToggleCallback;
+  Future<void> Function(String) _preferredMixCallback;
+  Future<void> Function(String) _preferredMixToggleCallback;
 
   @override
   void registerPreferredMixCallback(

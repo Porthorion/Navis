@@ -564,6 +564,9 @@ void main() {
     final cache = DriftRollingCacheManager(cacheDao: database.cacheDao);
     final player = initialPlayer ?? _ControllableAudioPlayer();
     final handler = NavisAudioHandler(
+      startPersonalRadio: (_) async => false,
+      startPreferredMix: (_) async {},
+      togglePreferredMix: (_) async {},
       artworkFileService: artworkFileService,
       readRadioMetadataAllowed: readRadioMetadataAllowed ?? () => false,
       createRadioMetadataDio: createRadioMetadataDio,

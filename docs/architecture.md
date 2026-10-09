@@ -2212,6 +2212,9 @@ familiar anchors, and fills remaining positions from eligible local songs.
 Home captures Liked only and Downloaded only at start. Offline playback uses
 verified permanent downloads and, unless Downloaded only is selected, valid
 rolling cache files. Android Auto starts the same policy without Home filters.
+The audio handler requires Personal Radio and preferred-mix callbacks at
+construction so these actions also work before the Flutter shell registers
+its callbacks.
 The Home action awaits an actual queue insertion before opening Now Playing.
 
 `RecommendationSessionCoordinator` owns one generation and cancellation token
