@@ -2258,6 +2258,11 @@ expired backoff never resume it. Only starting the mix again re-arms refills.
 6. UI reacts to structural snapshots without rebuilding for routine position
    or buffer ticks; timeline widgets subscribe to the lightweight streams
 
+`NavisAudioHandler` keeps its fields, public API and audio-service overrides in
+`navis_audio_handler.dart`. Private crossfade deck helpers live in
+`navis_audio_handler_crossfade.dart`, a part of the same library using a private
+extension on the handler.
+
 `StreamingQuality` belongs to the player domain. The composition root selects
 the active profile and injects it into the source resolver; the resolver does
 not import application providers for the value type.
