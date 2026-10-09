@@ -2070,6 +2070,41 @@ void main() {
         );
       });
 
+      for (final allUnavailable in [true, false]) {
+        test('offline backward jump retains temporarily unavailable history '
+            '(allUnavailable=$allUnavailable)', () async {
+          final (handler, player, database) = await trimmed();
+          final dropped = <QueueSongsDropped>[];
+          final subscription = handler.droppedSongsStream.listen(dropped.add);
+          addTearDown(subscription.cancel);
+          await database.cacheDao.deleteCachedTracksBySongIds(
+            allUnavailable ? ids(6) : ['song-2'],
+          );
+
+          await handler.playFromIndex(4);
+          await until(() => !handler.snapshot.isLoading);
+
+          expect(handler.snapshot.queueSongIds, ids(60));
+          expect(dropped, isEmpty);
+          expect(head(handler), allUnavailable ? 6 : 3);
+          expect(
+            handler.snapshot.currentSongId,
+            allUnavailable ? 'song-10' : 'song-4',
+          );
+          expect(
+            player.sourceIds[player.index!],
+            allUnavailable ? 'song-10' : 'song-4',
+          );
+          await handler.debugFlushQueuePersistence();
+          expect(
+            (await database.playQueueDao.getQueueItems()).map(
+              (song) => song.id,
+            ),
+            ids(60),
+          );
+        });
+      }
+
       test('beyond the window leave the player in batches', () async {
         final (handler, player, database) = await trimmed();
         expect(head(handler), 6);

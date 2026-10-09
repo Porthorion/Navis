@@ -2605,8 +2605,10 @@ reorders and inserts entirely inside the head or tail are Dart-only; a
 reorder reaching into the head releases it first. Songs that cannot be
 resolved when released are dropped, except that a song that is only
 unplayable for now (offline without a cached copy, or no server session)
-stays deferred with every song after it and the release backs off and
-retries. Shuffled queues defer like any other (see Shuffle below).
+stays deferred with the songs farther from the window: following songs in
+the tail or earlier songs in the head. Tail releases back off and retry; a
+backward jump can release the playable head suffix and leaves unavailable
+history queued for a later attempt. Shuffled queues defer like any other (see Shuffle below).
 Repeat-all stays off natively while anything is deferred on either side, so
 the player never wraps early; the reported repeat mode is the user's, and at
 the end of the last song Navis wraps to the first itself.

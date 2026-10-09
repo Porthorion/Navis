@@ -1534,38 +1534,51 @@ class NavisAudioHandler extends BaseAudioHandler
   /// Moves up to [count] songs from the end of the deferred head back into
   /// the player, before the materialised queue, with one native insert (for
   /// Previous past the first song the player holds, or a near jump back).
-  /// Songs that cannot be prepared are dropped. A failed insert puts the
-  /// songs back in the head.
+  /// Permanently unavailable songs are dropped. Temporarily unavailable
+  /// songs stay deferred with earlier history; only the suffix after them is
+  /// released. A failed insert puts the songs back in the head.
   Future<void> _releaseHead({required int count, OperationToken? token}) async {
     if (_deferredHead.isEmpty || count <= 0) return;
     final take = count < _deferredHead.length ? count : _deferredHead.length;
     final start = _deferredHead.length - take;
     final entries = _deferredHead.sublist(start);
     final rows = await _rowsForDeferredEntries(entries);
+    var retryThrough = -1;
     final (:prepared, :offsets) = await _prepareRowsConcurrently(
       rows,
       token: token,
+      onRetryLater: (index) => retryThrough = math.max(retryThrough, index),
     );
     token?.checkCancelled();
+    final releaseFrom = retryThrough + 1;
+    if (releaseFrom == entries.length) {
+      throw const PlaybackSourceTemporarilyUnavailableException(
+        'Played songs are not playable right now.',
+      );
+    }
+    final released = <_PreparedQueueItem>[
+      for (var i = releaseFrom; i < entries.length; i++)
+        if (offsets[i] case final offset?) prepared[offset],
+    ];
     // Out of the head first: a timed-out insert reloads the materialised
     // queue, which must not list these songs twice.
-    _deferredHead.removeRange(start, _deferredHead.length);
+    _deferredHead.removeRange(start + releaseFrom, _deferredHead.length);
     var inserted = const <_PreparedQueueItem>[];
-    if (prepared.isNotEmpty) {
+    if (released.isNotEmpty) {
       try {
         inserted = await _applyMaterialisedInsert(
-          prepared,
+          released,
           at: 0,
           operation: 'release played songs',
         );
       } on Object {
-        _deferredHead.addAll(entries);
+        _deferredHead.addAll(entries.skip(releaseFrom));
         rethrow;
       }
     }
     final insertedIds = <_PreparedQueueItem>{...inserted};
     _reportDroppedSongs(<String>[
-      for (var i = 0; i < entries.length; i++)
+      for (var i = releaseFrom; i < entries.length; i++)
         if (offsets[i] == null || !insertedIds.contains(prepared[offsets[i]!]))
           entries[i].id,
     ], QueueDropReason.release);
@@ -5114,6 +5127,7 @@ class NavisAudioHandler extends BaseAudioHandler
   _prepareRowsConcurrently(
     List<SongsTableData?> rows, {
     OperationToken? token,
+    void Function(int index)? onRetryLater,
   }) async {
     final prepared = <_PreparedQueueItem>[];
     final offsets = <int?>[];
@@ -5126,13 +5140,18 @@ class NavisAudioHandler extends BaseAudioHandler
         start,
         math.min(start + _queueFillBatchSizeLimit, rows.length),
       );
-      final resolved = await Future.wait(
-        chunk.map(
-          (row) => row == null
-              ? Future<_PreparedQueueItem?>.value()
-              : _prepareSingleItemForQueueFill(row),
-        ),
-      );
+      final resolved = await Future.wait([
+        for (var i = 0; i < chunk.length; i++)
+          if (chunk[i] case final row?)
+            _prepareSingleItemForQueueFill(
+              row,
+              onRetryLater: onRetryLater == null
+                  ? null
+                  : () => onRetryLater(start + i),
+            )
+          else
+            Future<_PreparedQueueItem?>.value(),
+      ]);
       for (final item in resolved) {
         offsets.add(item == null ? null : prepared.length);
         if (item != null) prepared.add(item);

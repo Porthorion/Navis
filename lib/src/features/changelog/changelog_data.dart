@@ -129,6 +129,10 @@ const List<ChangelogVersion> changelogs = [
     version: '1.4.3',
     entries: [
       ChangelogEntry(
+        'Jumping backward offline keeps played songs queued when their audio is temporarily unavailable',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
         'Starting a mix clears played queue history when only the seed remains in the player',
         type: ChangelogEntryType.fix,
       ),
