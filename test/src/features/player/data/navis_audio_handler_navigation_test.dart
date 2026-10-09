@@ -29,7 +29,7 @@ import 'package:navis/src/features/player/data/playback_source_resolver.dart';
 import 'package:navis/src/features/player/data/real_time_projection_audio_handler.dart';
 import 'package:navis/src/features/player/data/scrobble_service.dart';
 import 'package:navis/src/features/player/domain/playback_snapshot.dart';
-import 'package:navis/src/providers/app_providers.dart';
+import 'package:navis/src/features/player/domain/streaming_quality.dart';
 
 import '../../../../helpers/test_database.dart';
 

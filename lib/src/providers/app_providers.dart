@@ -60,6 +60,7 @@ import 'package:navis/src/features/player/data/playback_source_resolver.dart';
 import 'package:navis/src/features/player/data/scrobble_service.dart';
 import 'package:navis/src/features/player/domain/lyrics_resolution.dart';
 import 'package:navis/src/features/player/domain/playback_snapshot.dart';
+import 'package:navis/src/features/player/domain/streaming_quality.dart';
 import 'package:navis/src/features/player/presentation/instant_mix_notifier.dart';
 import 'package:navis/src/features/player/presentation/personal_radio_notifier.dart';
 import 'package:navis/src/features/player/presentation/playback_adjustment_controller.dart';
@@ -429,14 +430,6 @@ final networkUsageTotalProvider = StreamProvider.family<NetworkUsageTotal, int>(
         .watchTotalSince(since);
   },
 );
-
-class StreamingQuality {
-  const new({required this.label, this.maxBitRate, this.format});
-
-  final String label;
-  final int? maxBitRate;
-  final String? format;
-}
 
 final eqRepositoryProvider = Provider<EqRepository>(
   (ref) => EqRepository(ref.watch(navisDatabaseProvider).eqDao),

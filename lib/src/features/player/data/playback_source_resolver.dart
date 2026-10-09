@@ -14,7 +14,7 @@ import 'package:navis/src/database/navis_database.dart';
 import 'package:navis/src/database/tables/schema_enums.dart';
 import 'package:navis/src/features/cache/data/rolling_cache_manager.dart';
 import 'package:navis/src/features/downloads/data/android_saf_storage.dart';
-import 'package:navis/src/providers/app_providers.dart';
+import 'package:navis/src/features/player/domain/streaming_quality.dart';
 import 'package:navis/src/utils/app_logger.dart';
 import 'package:path/path.dart' as p;
 

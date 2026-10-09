@@ -2257,6 +2257,10 @@ expired backoff never resume it. Only starting the mix again re-arms refills.
 6. UI reacts to structural snapshots without rebuilding for routine position
    or buffer ticks; timeline widgets subscribe to the lightweight streams
 
+`StreamingQuality` belongs to the player domain. The composition root selects
+the active profile and injects it into the source resolver; the resolver does
+not import application providers for the value type.
+
 Artist Play, Shuffle, and Add to Queue share `ArtistPlaybackController` and
 `ArtistPlaybackResolver`. A transactional DAO snapshot applies the same primary
 and Featured In release membership as the artist page, then selects all tracks
