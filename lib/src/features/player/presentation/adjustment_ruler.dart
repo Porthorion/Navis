@@ -5,7 +5,7 @@ import 'package:flutter/gestures.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:flutter/services.dart';
 import 'package:navis/src/features/player/domain/playback_adjustments.dart';
-import 'package:navis/src/theme/navis_tokens.dart';
+import 'package:navis/src/theme/navis_shape_data.dart';
 
 /// Strength of the haptic tick for a ruler movement.
 enum RulerTick { none, minor, major, neutral }
@@ -343,7 +343,7 @@ class _AdjustmentRulerState extends State<AdjustmentRuler>
             // Flat on the panel: the outline appears only as a focus ring.
             child: DecoratedBox(
               decoration: BoxDecoration(
-                borderRadius: NavisRadius.mdAll,
+                borderRadius: NavisShapeData.of(context).mdAll,
                 border: _focused ? Border.all(color: colors.primary) : null,
               ),
               child: SizedBox(
@@ -356,7 +356,7 @@ class _AdjustmentRulerState extends State<AdjustmentRuler>
                           3,
                         ),
                 child: ClipRRect(
-                  borderRadius: NavisRadius.mdAll,
+                  borderRadius: NavisShapeData.of(context).mdAll,
                   child: CustomPaint(
                     painter: _RulerPainter(
                       value: _visualValue,

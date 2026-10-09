@@ -44,6 +44,7 @@ import 'package:navis/src/routing/app_routes.dart';
 import 'package:navis/src/routing/desktop_layout.dart';
 import 'package:navis/src/routing/navigation_service.dart';
 import 'package:navis/src/utils/catalog_source.dart';
+import 'package:navis/src/theme/navis_shape_data.dart';
 import 'package:navis/src/theme/navis_tokens.dart';
 import 'package:navis/src/theme/artwork_shape.dart';
 import 'package:navis/src/common_widgets/artwork_scrim.dart';
@@ -759,7 +760,7 @@ class _ArtistDetailLoadingPlaceholder extends StatelessWidget {
     return DecoratedBox(
       decoration: BoxDecoration(
         color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.12),
-        borderRadius: NavisRadius.smAll,
+        borderRadius: NavisShapeData.of(context).smAll,
       ),
       child: SizedBox(height: height, width: width),
     );
@@ -1234,9 +1235,9 @@ class _ArtistVirtualPlaylistCard extends StatelessWidget {
       padding: const EdgeInsets.fromLTRB(16, 24, 16, 0),
       child: Material(
         color: colorScheme.secondaryContainer.withValues(alpha: 0.55),
-        borderRadius: NavisRadius.smAll,
+        borderRadius: NavisShapeData.of(context).smAll,
         child: InkWell(
-          borderRadius: NavisRadius.smAll,
+          borderRadius: NavisShapeData.of(context).smAll,
           onTap: onTap,
           child: Padding(
             padding: const EdgeInsets.all(14),

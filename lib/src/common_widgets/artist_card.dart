@@ -7,6 +7,7 @@ import 'package:navis/src/common_widgets/cover_art_image.dart';
 import 'package:navis/src/common_widgets/star_button.dart';
 import 'package:navis/src/database/navis_database.dart';
 import 'package:navis/src/theme/navis_density_scope.dart';
+import 'package:navis/src/theme/navis_shape_data.dart';
 import 'package:navis/src/theme/navis_tokens.dart';
 import 'package:navis/src/theme/artwork_shape.dart';
 
@@ -76,7 +77,7 @@ class ArtistCard extends StatelessWidget {
           ),
         ],
       ),
-      shape: const RoundedRectangleBorder(borderRadius: NavisRadius.mdAll),
+      shape: NavisShapeData.of(context).mdShape,
       onTap: onTap,
       onLongPress: onLongPress == null
           ? null

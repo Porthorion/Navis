@@ -14,7 +14,7 @@ import 'package:navis/src/features/library/presentation/required_library_rebuild
 import 'package:navis/src/providers/app_providers.dart';
 import 'package:navis/src/routing/desktop_layout.dart';
 import 'package:navis/src/routing/navigation_service.dart';
-import 'package:navis/src/theme/navis_tokens.dart';
+import 'package:navis/src/theme/navis_shape_data.dart';
 import 'package:navis/src/utils/format_utils.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:navis/src/routing/app_routes.dart';
@@ -765,7 +765,7 @@ class _CacheStatsCard extends StatelessWidget {
           const SizedBox(height: 6),
           if (budgetBytes != null)
             ClipRRect(
-              borderRadius: NavisRadius.xsAll,
+              borderRadius: NavisShapeData.of(context).xsAll,
               child: LinearProgressIndicator(
                 value: progress,
                 minHeight: 8,

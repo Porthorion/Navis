@@ -1,6 +1,6 @@
 import 'package:material_ui/material_ui.dart';
 import 'package:navis/l10n/app_localizations.dart';
-import 'package:navis/src/theme/navis_tokens.dart';
+import 'package:navis/src/theme/navis_shape_data.dart';
 
 /// Visual variants for the cache badge.
 enum CacheBadgeType {
@@ -39,7 +39,7 @@ class CacheBadge extends StatelessWidget {
     return DecoratedBox(
       decoration: BoxDecoration(
         color: bgColor,
-        borderRadius: NavisRadius.pillAll,
+        borderRadius: NavisShapeData.of(context).controlAll,
       ),
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),

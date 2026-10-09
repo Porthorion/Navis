@@ -2,7 +2,7 @@ import 'package:material_ui/material_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:navis/l10n/app_localizations.dart';
 import 'package:navis/src/providers/app_providers.dart';
-import 'package:navis/src/theme/navis_tokens.dart';
+import 'package:navis/src/theme/navis_shape_data.dart';
 
 class AlbumDownloadBadge extends ConsumerWidget {
   const new({required this.albumId, super.key});
@@ -32,7 +32,7 @@ class AlbumDownloadBadge extends ConsumerWidget {
     return DecoratedBox(
       decoration: BoxDecoration(
         color: theme.colorScheme.tertiaryContainer,
-        borderRadius: NavisRadius.pillAll,
+        borderRadius: NavisShapeData.of(context).controlAll,
       ),
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
@@ -101,7 +101,7 @@ class _PartialAlbumBadge extends StatelessWidget {
     return DecoratedBox(
       decoration: BoxDecoration(
         color: Colors.black.withValues(alpha: 0.62),
-        borderRadius: NavisRadius.pillAll,
+        borderRadius: NavisShapeData.of(context).controlAll,
       ),
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),

@@ -24,6 +24,7 @@ import 'package:navis/src/features/settings/presentation/listenbrainz_connection
 import 'package:navis/src/features/settings/domain/app_settings.dart';
 import 'package:navis/src/utils/app_logger.dart';
 import 'package:navis/src/providers/app_providers.dart';
+import 'package:navis/src/theme/navis_shape_data.dart';
 import 'package:navis/src/theme/motion_policy.dart';
 import 'package:navis/src/theme/navis_theme.dart';
 import 'package:navis/src/theme/navis_tokens.dart';
@@ -555,7 +556,7 @@ class OnboardingScreenState extends ConsumerState<OnboardingScreen> {
       color: previewTheme.colorScheme.surfaceContainerLow,
       clipBehavior: Clip.antiAlias,
       shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(28),
+        borderRadius: NavisShapeData.of(context).scaledAll(28),
         side: BorderSide(color: previewTheme.colorScheme.outlineVariant),
       ),
       child: content,

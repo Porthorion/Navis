@@ -93,7 +93,7 @@ class _CarouselShimmer extends StatelessWidget {
             width: cardSize,
             child: Card(
               clipBehavior: Clip.antiAlias,
-              shape: RoundedRectangleBorder(borderRadius: NavisRadius.mdAll),
+              shape: NavisShapeData.of(context).mdShape,
               child: ShimmerPlaceholder(height: cardSize, width: cardSize),
             ),
           );
@@ -121,7 +121,7 @@ class _ListShimmer extends StatelessWidget {
             child: ShimmerPlaceholder(
               height: compactDensity ? 52 : 60,
               width: double.infinity,
-              borderRadius: NavisRadius.mdAll,
+              borderRadius: NavisShapeData.of(context).mdAll,
             ),
           ),
         ),

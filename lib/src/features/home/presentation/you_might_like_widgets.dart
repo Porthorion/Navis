@@ -284,7 +284,7 @@ class _ShowcaseInfoPanel extends ConsumerWidget {
       children: <Widget>[
         InkWell(
           onTap: openItem,
-          borderRadius: NavisRadius.smAll,
+          borderRadius: NavisShapeData.of(context).smAll,
           child: Padding(
             padding: const EdgeInsets.symmetric(horizontal: NavisSpace.xxs),
             child: Text(

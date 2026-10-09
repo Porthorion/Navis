@@ -347,7 +347,7 @@ class _SectionRail extends StatelessWidget {
             child: DecoratedBox(
               decoration: BoxDecoration(
                 color: Theme.of(context).colorScheme.surfaceContainerHighest,
-                borderRadius: NavisRadius.mdAll,
+                borderRadius: NavisShapeData.of(context).mdAll,
               ),
               child: Column(
                 children: labels
@@ -396,7 +396,7 @@ class _RailOverlay extends StatelessWidget {
             decoration: BoxDecoration(
               color: Theme.of(context).colorScheme.surfaceContainerHigh
                   .withValues(alpha: 0.92),
-              borderRadius: NavisRadius.mdAll,
+              borderRadius: NavisShapeData.of(context).mdAll,
             ),
             child: Padding(
               padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),

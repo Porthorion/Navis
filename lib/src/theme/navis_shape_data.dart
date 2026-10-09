@@ -78,6 +78,22 @@ class NavisShapeData extends ThemeExtension<NavisShapeData> {
   BorderRadius get xlAll => BorderRadius.circular(xl);
   BorderRadius get controlAll => BorderRadius.circular(control);
 
+  /// Maps a one-off [roundedRadius] that has no semantic step onto this
+  /// style: unchanged for `rounded`, 1.5x for `soft`, and a crisp quarter
+  /// (2..6 px) for `square`. Prefer the named steps; use this only where a
+  /// literal such as 22 or 28 must stay pixel-identical in `rounded`.
+  double scaled(double roundedRadius) {
+    return switch (style) {
+      NavisCornerStyle.rounded => roundedRadius,
+      NavisCornerStyle.soft => roundedRadius * 1.5,
+      NavisCornerStyle.square => (roundedRadius / 4).clamp(2.0, 6.0),
+    };
+  }
+
+  /// [scaled] as a uniform [BorderRadius].
+  BorderRadius scaledAll(double roundedRadius) =>
+      BorderRadius.circular(scaled(roundedRadius));
+
   /// Top-only corners for bottom sheets.
   BorderRadius get sheetTop => BorderRadius.vertical(top: Radius.circular(xl));
 

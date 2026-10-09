@@ -6,6 +6,7 @@ import 'package:navis/src/routing/desktop_commands.dart';
 import 'package:navis/src/routing/desktop_layout.dart';
 import 'package:navis/src/routing/navigation_service.dart';
 import 'package:navis/src/routing/app_routes.dart';
+import 'package:navis/src/theme/navis_shape_data.dart';
 
 class DesktopShortcutsSettingsScreen extends ConsumerStatefulWidget {
   const new({super.key});
@@ -587,7 +588,7 @@ class _BuiltInShortcutTile extends StatelessWidget {
           padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
           decoration: BoxDecoration(
             color: colors.surfaceContainerHighest.withValues(alpha: 0.6),
-            borderRadius: BorderRadius.circular(6),
+            borderRadius: NavisShapeData.of(context).scaledAll(6),
           ),
           child: Text(
             shortcutLabel,
