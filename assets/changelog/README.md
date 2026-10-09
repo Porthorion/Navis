@@ -33,3 +33,8 @@ ChangelogVersion(
   2026, replacing an earlier glyph traced from third-party fan art. A glowing
   orb in a halo with two pairs of wings and a sparkle trail; hand-written SVG,
   no external source.
+- `chromatic.svg` (1.5 "Chromatic"): original artwork drawn for Navis in 2026,
+  inspired by Path of Exile's Chromatic Orb (a bismuth crystal) but not traced
+  from it. Three stacked isometric blocks with terraced faces; the three colours
+  are three opacities (1, 0.62, 0.34, faces shaded), which survive the cover's
+  single-colour filter. Generated geometry, no external source.
