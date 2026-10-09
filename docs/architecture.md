@@ -2272,6 +2272,7 @@ private extensions on the handler within the same library:
 | Queue edits and identity aliases | `navis_audio_handler_queue_editing.dart` |
 | Transport and navigation | `navis_audio_handler_navigation.dart` |
 | Seek and stall recovery | `navis_audio_handler_recovery.dart` |
+| Rolling-cache observation and sidecar activity | `navis_audio_handler_cache.dart` |
 
 Helpers that directly reference class static members remain in the class, as do
 source-guarded player construction and initialization.
