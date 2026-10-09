@@ -129,6 +129,10 @@ const List<ChangelogVersion> changelogs = [
     version: '1.4.3',
     entries: [
       ChangelogEntry(
+        'A stalled crossfade preparation falls back to normal playback instead of blocking future fades',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
         'Radio stream URLs stay private instead of being shared with system media controls',
         type: ChangelogEntryType.fix,
       ),

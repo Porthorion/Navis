@@ -2838,6 +2838,44 @@ void main() {
     }
 
     test(
+      'hung inactive deck prewarm expires without stopping active playback',
+      () async {
+        final directory = await Directory.systemTemp.createTemp(
+          'navis-fade-hang-',
+        );
+        final (handler, player, database) = await createHandler(
+          directory,
+          3,
+          crossfade: true,
+          timeouts: const NavisPlaybackTimeouts(
+            load: Duration(milliseconds: 80),
+          ),
+        );
+        addTearDown(() async {
+          await handler.disposeHandler();
+          await database.close();
+          await directory.delete(recursive: true);
+        });
+        await handler.replaceQueue(ids(3), expandMatchFlows: false);
+        final deck = handler.debugInactiveDeck! as _ControllableAudioPlayer;
+        deck.hang.add('setAudioSources');
+        final started = handler.debugStartCrossfade();
+        await Future<void>.delayed(const Duration(milliseconds: 200));
+        expect(fade(handler)['active'], isFalse);
+        expect(player.playing, isTrue);
+        expect(handler.debugActivePlayer, same(player));
+        expect(handler.snapshot.queueSongIds, ids(3));
+        expect(fade(handler)['phases'], containsPair('prewarm_failed', 1));
+        expect(handler.debugInactiveDeck, isNot(same(deck)));
+        await started;
+        player.moveTo(1);
+        await Future<void>.delayed(Duration.zero);
+        await handler.debugStartCrossfade();
+        expect(fade(handler)['active'], isTrue);
+      },
+    );
+
+    test(
       'a deck load that races a queue edit loads again before it plays',
       () async {
         final (handler, player, _) = await crossfading(8);

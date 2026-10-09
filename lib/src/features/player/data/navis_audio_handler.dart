@@ -2621,7 +2621,7 @@ class NavisAudioHandler extends BaseAudioHandler
       await _prepareInactiveDeckForCrossfade(
         player: cfPlayer,
         nextIndex: nextIndex,
-      );
+      ).timeout(_playerLoadTimeout);
       prewarmStopwatch.stop();
       _crossfadePrewarmLatencyMs = prewarmStopwatch.elapsedMilliseconds;
       if (!_isCrossfadeSessionActive(sessionToken, nextIndex)) {
@@ -2677,6 +2677,13 @@ class NavisAudioHandler extends BaseAudioHandler
           fallbackReason: 'prewarm_failed',
           canceledReason: error.runtimeType.toString(),
         );
+        if (error is TimeoutException &&
+            identical(_crossfadePlayer, cfPlayer)) {
+          // A timed-out native call can finish late. Retire only this deck;
+          // the active player must keep its queue and continue gaplessly.
+          _crossfadePlayer = _crossfadeEnabled ? _newCrossfadePlayer() : null;
+          unawaited(_disposeAbandonedPlayer(cfPlayer));
+        }
         _cancelCrossfade();
       }
     }

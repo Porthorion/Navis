@@ -3020,7 +3020,9 @@ the same partial cache file. Queue edits do not wait for a fade, so the deck
 is checked by content, not length: before a fade the deck is loaded unless it
 holds exactly the materialised queue (song ids, canonical ids matching); an
 edit that lands while it loads makes it load once more, and a second change
-degrades that transition to gapless (`prewarm_failed`). The incoming deck must
+degrades that transition to gapless (`prewarm_failed`). Prewarming has the
+load deadline; a timeout retires only the inactive deck so a late native load
+cannot take over, while the active queue keeps playing sequentially. The incoming deck must
 still hold the queue, at the next song, when the fade starts, and still hold
 the queue at the hand-over; otherwise the fade is cancelled and the active
 player, which holds the queue, continues gaplessly (`deck_mismatch`). No fade
