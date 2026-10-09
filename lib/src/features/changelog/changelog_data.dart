@@ -129,6 +129,10 @@ const List<ChangelogVersion> changelogs = [
     version: '1.4.3',
     entries: [
       ChangelogEntry(
+        'Extremely thin artwork keeps the default tint instead of crashing palette extraction',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
         'Sign out and wipe local data also removes the ListenBrainz token and account name',
         type: ChangelogEntryType.fix,
       ),

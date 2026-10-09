@@ -636,7 +636,10 @@ target-selection rules.
 - `motion_policy.dart`: owns every duration, including the reduced-motion
   zero values.
 - `dynamic_accent_provider.dart`: samples the current artwork to reseed the
-  scheme when dynamic album colour is enabled.
+  scheme when dynamic album colour is enabled. Both it and Now Playing prewarm
+  use `artworkColorScheme`, which checks decoded dimensions before Material's
+  112px palette scaling can truncate an edge to zero. Extremely thin artwork
+  keeps the default tint/theme seed; extraction errors stay best-effort.
 - Fonts: the bundled Inter variable font (`assets/fonts/`, SIL OFL 1.1,
   licence registered in `main.dart`). Scripts Inter lacks use the platform's
   per-glyph fallback.

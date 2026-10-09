@@ -12,6 +12,8 @@ import 'package:navis/src/common_widgets/external_artwork_image.dart';
 import 'package:navis/src/features/integrations/domain/integration_feature.dart';
 import 'package:navis/src/features/player/presentation/now_playing_screen.dart';
 import 'package:navis/src/providers/app_providers.dart';
+import 'package:navis/src/theme/dynamic_accent_provider.dart';
+import 'package:navis/src/features/player/domain/playback_snapshot.dart';
 import 'package:path/path.dart' as p;
 
 class _CachedManager extends Mock implements CacheManager;
@@ -66,6 +68,19 @@ void main() {
               const IntegrationPolicy(),
             ),
             serverHostProvider.overrideWithValue(null),
+            subsonicApiProvider.overrideWithValue(null),
+            dynamicAccentEnabledProvider.overrideWithValue(true),
+            colorSchemeSeedProvider.overrideWithValue(0xFF123456),
+            playerStateProvider.overrideWithValue(
+              const PlaybackSnapshot.idle().copyWith(
+                radioStation: RadioStationMetadata(
+                  stationId: 'fixture',
+                  stationName: 'Radio',
+                  streamUrl: 'https://radio.example.test/listen/live',
+                  nowPlayingArtUrl: url,
+                ),
+              ),
+            ),
           ],
         );
         addTearDown(container.dispose);
@@ -104,19 +119,40 @@ void main() {
           feature: IntegrationFeature.radioNowPlaying,
         );
         await tester.runAsync(() async {
+          await prewarmNowPlayingVisuals(
+            context: warmContext,
+            ref: warmRef,
+            brightness: Brightness.light,
+            artUrl: url,
+          );
+          final seed = await container.read(
+            dynamicAccentSeedColorProvider.future,
+          );
           if (dimensions.$1 == 32 || dimensions.$2 == 32) {
-            // The palette library truncates a sampled edge to zero for these
-            // extreme aspect ratios. Test their decode without palette work.
-            await precacheImage(provider, warmContext);
+            expect(seed, isNull);
+            expect(
+              nowPlayingCachedTintColor(
+                brightness: Brightness.light,
+                artUrl: url,
+              ),
+              isNull,
+            );
+            expect(
+              container.read(effectiveColorSchemeSeedProvider),
+              0xFF123456,
+            );
           } else {
-            await prewarmNowPlayingVisuals(
-              context: warmContext,
-              ref: warmRef,
-              brightness: Brightness.light,
-              artUrl: url,
+            expect(seed, isNotNull);
+            expect(
+              nowPlayingCachedTintColor(
+                brightness: Brightness.light,
+                artUrl: url,
+              ),
+              isNotNull,
             );
           }
         });
+        expect(tester.takeException(), isNull);
         // Compare the actual display frame with the decoded prewarm frame.
         final stream = provider.resolve(
           createLocalImageConfiguration(warmContext),

@@ -857,3 +857,52 @@ ImageProvider boundedDecode(
     policy: ResizeImagePolicy.fit,
   );
 }
+
+/// Extracts a palette only when Material's 112px sampling keeps both edges nonzero.
+///
+/// Its async image listener throws outside the returned future for thinner images,
+/// so check the decoded dimensions before invoking it. Failures use the caller's
+/// default tint or theme seed.
+Future<ColorScheme?> artworkColorScheme({
+  required ImageProvider provider,
+  required Brightness brightness,
+  DynamicSchemeVariant dynamicSchemeVariant = DynamicSchemeVariant.tonalSpot,
+}) async {
+  ImageStream? stream;
+  ImageStreamListener? listener;
+  try {
+    // Match the palette library's resolve configuration and scaling limit.
+    const sampleEdge = 112;
+    stream = provider.resolve(const ImageConfiguration(size: Size(112, 112)));
+    final usable = Completer<bool>();
+    listener = ImageStreamListener(
+      (info, _) {
+        final width = info.image.width;
+        final height = info.image.height;
+        final longEdge = width > height ? width : height;
+        final shortEdge = width < height ? width : height;
+        if (!usable.isCompleted) {
+          usable.complete(
+            shortEdge > 0 &&
+                (longEdge <= sampleEdge || shortEdge * sampleEdge >= longEdge),
+          );
+        }
+        info.dispose();
+      },
+      onError: (error, stackTrace) {
+        if (!usable.isCompleted) usable.completeError(error, stackTrace);
+      },
+    );
+    stream.addListener(listener);
+    if (!await usable.future.timeout(const Duration(seconds: 5))) return null;
+    return await ColorScheme.fromImageProvider(
+      provider: provider,
+      brightness: brightness,
+      dynamicSchemeVariant: dynamicSchemeVariant,
+    );
+  } on Object {
+    return null;
+  } finally {
+    if (listener != null) stream?.removeListener(listener);
+  }
+}

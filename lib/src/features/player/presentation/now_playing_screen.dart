@@ -302,12 +302,14 @@ Future<void> prewarmNowPlayingVisuals({
               );
     try {
       await precacheImage(imageProvider, context, onError: (_, _) {});
-      final scheme = await ColorScheme.fromImageProvider(
+      final scheme = await artworkColorScheme(
         provider: imageProvider,
         brightness: brightness,
       );
-      _nowPlayingTintColorCache[cacheKey] = scheme.primary;
-    } on Exception {
+      if (scheme != null) {
+        _nowPlayingTintColorCache[cacheKey] = scheme.primary;
+      }
+    } on Object {
       // Best-effort warm path: ignore extraction failures.
     } finally {
       coverArtInterest?.dispose();

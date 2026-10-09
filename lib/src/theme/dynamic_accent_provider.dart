@@ -126,15 +126,16 @@ class _DynamicAccentColorCache {
     }
 
     try {
-      final scheme = await ColorScheme.fromImageProvider(
+      final scheme = await artworkColorScheme(
         provider: image,
         brightness: Brightness.light,
         dynamicSchemeVariant: DynamicSchemeVariant.fidelity,
       );
+      if (scheme == null) return null;
       final seed = scheme.primary.toARGB32();
       _seedBySource[source] = seed;
       return seed;
-    } on Exception {
+    } on Object {
       return null;
     }
   }
