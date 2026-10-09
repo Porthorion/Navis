@@ -16,7 +16,8 @@
 | M-5, L-6 | Fixed on fix/security-audit | Radio requires hosted HTTP(S), stream URLs stay in handler memory rather than media-session extras, and only `/listen/` or `/hls/` stream shapes produce AzuraCast polling endpoints. |
 | M-2 | Fixed on fix/security-audit | Code 41 is mapped explicitly and is the only legacy-fallback trigger. Wrong passwords and reported old versions never downgrade authentication. Remote HTTP legacy retries fail with a localized HTTPS requirement. |
 | M-3 (redaction) | Fixed on fix/security-audit | Request logs and free-text redaction strip URL user info; credential checks treat it as authentication. Storage/transport migration remains deferred below. |
-| M-1, L-1 (cover-art redirects) | Fixed on fix/security-audit | The shared cache manager strips credentials from all insertion URLs and URL keys; the HTTP service re-signs only the active server's exact cover endpoint at dispatch. Startup purges old app-owned JSON/SQLite metadata once and uses the v2 repository key. Both sign-out modes clear covers. HTTPS→HTTP artwork redirects are refused. |
+| M-1, L-1 (cover-art redirects) | Fixed on fix/security-audit | The shared cache manager strips credentials from all insertion URLs and URL keys; the HTTP service re-signs only the active server's exact cover endpoint at dispatch. Startup purges both old app-owned JSON/SQLite repositories and image directories before marking completion; both current repositories use v2 keys. Both sign-out modes clear shared and system covers. HTTPS→HTTP artwork redirects are refused. |
+| M-7 | Fixed on fix/security-audit | Both external artwork decode edges are bounded, radio prewarm/display share the same decoded frame, and all artwork response bodies have a 20 MiB cap. |
 
 ### Independent review follow-up
 
@@ -26,7 +27,37 @@
 | B | Fixed | The same startup migration purges both legacy repositories. AudioService shares its Riverpod-owned manager with session teardown and all cover-clear actions. |
 | C | Fixed | Cleanup deletes both old image directories before writing the v3 marker, including after a prior v2 cleanup. Storage accounting and clear covers include both current directories. |
 | D | Fixed | External artwork and radio prewarm use one provider wrapped by `boundedDecode` with a 1024×1024 fit bound. A decoded-frame regression checks tall/wide images and immediate reuse after prewarm. The artist detail golden is updated for the Image layout. |
-| E | Pending | Cap declared and streamed artwork response bytes. |
+| E | Fixed | A shared 20 MiB response cap rejects oversized Content-Length and aborts cumulative streamed overflow, including chunked, redirected and discarded bodies. Rejections record an error outcome and release the download slot. |
+
+**Open owner decision:** Existing accounts with stored `useLegacyAuth=true`
+over non-loopback `http` still send `p=enc:` on reconnect, media requests and
+Android background sync (`app_providers.dart`, `subsonicApiProvider`, and
+`android_background_sync_entrypoint.dart`, client construction). The probe guard
+covers only new logins; it does not migrate or block those stored accounts.
+The owner must decide how to handle existing insecure legacy configurations.
+
+**Additional validation observation (unfixed):** Material UI's palette extractor
+truncates its scaled short edge to zero for extremely thin artwork (for example,
+32×4096), throwing `Invalid image dimensions` during Now Playing tint prewarm.
+This occurs in the existing `ColorScheme.fromImageProvider` implementation, and
+is separate from the A–E decode/transfer bounds. Regression tests verify these
+extreme images through decode-only prewarm; 128×4096 and 4096×128 also exercise
+the full Now Playing prewarm and decoded-frame reuse. The palette issue needs a
+separate follow-up.
+
+**Follow-up validation:** All selected final runs passed: cover cache migration,
+response sizes, system-artwork signing, playback artwork, sign-out, cache settings,
+library-cache reset, external-artwork policy/display/decode, Now Playing transition
+and adaptive tests, artist Deezer detail, and radio screen tests. Every test run
+used `flutter test --concurrency=4 --timeout 60s <files>`. Only the test named
+“phone artist page with Deezer header and sections” used `--update-goldens`,
+updating `test/src/features/library/presentation/goldens/artist_detail_phone_deezer.png`;
+its old/new rendered images were inspected. File-level `dart analyze` ran before
+each commit, with no errors or warnings; remaining infos predate these changes.
+Initial runs exposed test/implementation regressions which were corrected and
+rerun, plus the separate palette issue noted above. App/runtime/native validation,
+emulators, VMs, `tool/check.sh`, and the full suite were skipped under the host
+rules. No model/schema change required generation.
 
 **Deferred:** M-3's server URL storage and transport still retain `user:pass@`.
 Moving those credentials into secure storage and an `Authorization: Basic`

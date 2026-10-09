@@ -23,7 +23,13 @@ import '../../helpers/test_database.dart';
 class _MockCacheManager extends Mock implements CacheManager;
 class _MockHttpClient extends Mock implements HttpClient;
 class _MockHttpRequest extends Mock implements HttpClientRequest;
-class _MockHttpResponse extends Mock implements HttpClientResponse;
+
+class _MockHttpResponse extends Mock implements HttpClientResponse {
+  @override
+  Stream<S> map<S>(S Function(List<int>) convert) =>
+      const Stream<List<int>>.empty().map(convert);
+}
+
 class _MockHttpHeaders extends Mock implements HttpHeaders;
 
 class _TestCacheFileSystem implements FileSystem {
@@ -204,11 +210,11 @@ void main() {
     when(() => client.getUrl(uri)).thenAnswer((_) async => request);
     when(request.close).thenAnswer((_) async => response);
     when(() => response.statusCode).thenReturn(302);
+    when(() => response.contentLength).thenReturn(0);
     when(() => response.isRedirect).thenReturn(true);
     when(() => response.headers).thenReturn(headers);
     when(() => headers.value(HttpHeaders.locationHeader))
         .thenReturn('http://example.com/rest/getCoverArt.view?id=1&t=fixture');
-    when(() => response.drain<void>()).thenAnswer((_) async {});
     final service = CoverArtHttpFileService(createHttpClient: () => client);
     addTearDown(service.close);
     await expectLater(

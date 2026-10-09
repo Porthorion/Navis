@@ -67,6 +67,9 @@ const int _coverArtMaxScheduledFetches = 64;
 /// classification before it is rejected.
 const int _coverArtErrorDocumentSampleBytes = 64 * 1024;
 
+/// Maximum transferred artwork body size, including chunked responses.
+const int kMaxArtworkResponseBytes = 20 * 1024 * 1024;
+
 /// Redirect hops followed per artwork request; each is policy-checked.
 const int _coverArtMaxRedirects = 5;
 
@@ -628,9 +631,18 @@ class CoverArtHttpFileService implements FileService {
         }
         response = await request.close().timeout(_responseTimeout);
         statusCode = response.statusCode;
+        if (response.contentLength > kMaxArtworkResponseBytes) {
+          _resetClientAfterAbortedResponse();
+          throw const CoverArtInvalidResponseException(
+            'declared body exceeds artwork byte limit',
+          );
+        }
         if (!response.isRedirect) break;
         final location = response.headers.value(HttpHeaders.locationHeader);
-        await response.drain<void>().timeout(_bodyReadTimeout);
+        await _boundedBody(
+          response,
+          onTooLarge: _resetClientAfterAbortedResponse,
+        ).drain<void>().timeout(_bodyReadTimeout);
         if (location == null || hop >= _coverArtMaxRedirects) {
           throw const HttpException('Cover art redirect refused');
         }
@@ -677,7 +689,12 @@ class CoverArtHttpFileService implements FileService {
         // Drain so the keep-alive connection is not poisoned for the next
         // queued request before the typed failure propagates.
         try {
-          await response.drain<void>().timeout(_bodyReadTimeout);
+          await _boundedBody(
+            response,
+            onTooLarge: _resetClientAfterAbortedResponse,
+          ).drain<void>().timeout(_bodyReadTimeout);
+        } on CoverArtInvalidResponseException {
+          rethrow;
         } on Object {
           // The rejection itself must not be masked by a drain failure.
         }
@@ -696,6 +713,7 @@ class CoverArtHttpFileService implements FileService {
         final sample = await _drainBoundedSample(
           response,
           timeout: _bodyReadTimeout,
+          onTooLarge: _resetClientAfterAbortedResponse,
         );
         if (looksLikeSubsonicErrorDocument(sample)) {
           final coverId = uri.queryParameters['id'];
@@ -720,7 +738,7 @@ class CoverArtHttpFileService implements FileService {
         diagnosticUri: diagnosticUri,
         coverArtId: uri.queryParameters['id'],
         onMissingCover: missingCoverHook,
-        onTimeout: _resetClientAfterTimeout,
+        onAbort: _resetClientAfterAbortedResponse,
         onDone: lease.release,
         onFinished: ({required success}) => finish(
           success && response.statusCode < 400
@@ -739,7 +757,7 @@ class CoverArtHttpFileService implements FileService {
       AppLogger.warning(
         'Cover art request timed out for $diagnosticUri: $error',
       );
-      _resetClientAfterTimeout();
+      _resetClientAfterAbortedResponse();
       lease.release();
       rethrow;
     } on CoverArtLoadCanceledException {
@@ -773,17 +791,23 @@ class CoverArtHttpFileService implements FileService {
   static Future<List<int>> _drainBoundedSample(
     HttpClientResponse response, {
     required Duration timeout,
+    required void Function() onTooLarge,
   }) async {
     final buffer = BytesBuilder(copy: false);
     try {
-      await for (final chunk in response.timeout(
-        timeout,
-        onTimeout: (sink) => sink.close(),
-      )) {
+      await for (final chunk in _boundedBody(
+        response,
+        onTooLarge: onTooLarge,
+      ).timeout(timeout, onTimeout: (sink) => sink.close())) {
         if (buffer.length < _coverArtErrorDocumentSampleBytes) {
-          buffer.add(chunk);
+          final remaining = _coverArtErrorDocumentSampleBytes - buffer.length;
+          buffer.add(
+            chunk.length <= remaining ? chunk : chunk.sublist(0, remaining),
+          );
         }
       }
+    } on CoverArtInvalidResponseException {
+      rethrow;
     } on Object {
       // The caller's classification must not be masked by a body-read
       // failure.
@@ -791,7 +815,28 @@ class CoverArtHttpFileService implements FileService {
     return buffer.takeBytes();
   }
 
-  void _resetClientAfterTimeout() {
+  static Stream<List<int>> _boundedBody(
+    HttpClientResponse response, {
+    required void Function() onTooLarge,
+    void Function(int)? onBytesRead,
+  }) {
+    var bytesRead = 0;
+    return response.map((chunk) {
+      bytesRead += chunk.length;
+      onBytesRead?.call(chunk.length);
+      if (bytesRead > kMaxArtworkResponseBytes) {
+        // Closing the client aborts the active response; request.abort() alone
+        // has no effect once its response future has completed.
+        onTooLarge();
+        throw const CoverArtInvalidResponseException(
+          'streamed body exceeds artwork byte limit',
+        );
+      }
+      return chunk;
+    });
+  }
+
+  void _resetClientAfterAbortedResponse() {
     if (_closed) {
       return;
     }
@@ -817,7 +862,7 @@ class _CoverArtHttpFileServiceResponse implements FileServiceResponse {
     this._response, {
     required this._bodyReadTimeout,
     required this._diagnosticUri,
-    required this._onTimeout,
+    required this._onAbort,
     required this._onDone,
     required this._onFinished,
     required this._onBytesRead,
@@ -825,7 +870,6 @@ class _CoverArtHttpFileServiceResponse implements FileServiceResponse {
     this.onMissingCover,
   }) {
     if (!_expectsConsumedBody) {
-      _onFinished(success: _response.statusCode < 400);
       _releaseOnce();
       unawaited(_discardBody());
     }
@@ -834,7 +878,7 @@ class _CoverArtHttpFileServiceResponse implements FileServiceResponse {
   final HttpClientResponse _response;
   final Duration _bodyReadTimeout;
   final Uri _diagnosticUri;
-  final void Function() _onTimeout;
+  final void Function() _onAbort;
   final void Function() _onDone;
   final void Function({required bool success}) _onFinished;
   final void Function(int bytes) _onBytesRead;
@@ -860,21 +904,25 @@ class _CoverArtHttpFileServiceResponse implements FileServiceResponse {
     var headIsErrorDocument = false;
     var bodyCompleted = false;
     try {
-      await for (final chunk in _response.timeout(
-        _bodyReadTimeout,
-        onTimeout: (sink) {
-          final error = TimeoutException(
-            'Timed out reading cover art response body from $_diagnosticUri',
+      await for (final chunk
+          in CoverArtHttpFileService._boundedBody(
+            _response,
+            onTooLarge: _onAbort,
+            onBytesRead: (bytes) => bytesRead += bytes,
+          ).timeout(
             _bodyReadTimeout,
-          );
-          AppLogger.warning('$error');
-          sink
-            ..addError(error)
-            ..close();
-          scheduleMicrotask(_onTimeout);
-        },
-      )) {
-        bytesRead += chunk.length;
+            onTimeout: (sink) {
+              final error = TimeoutException(
+                'Timed out reading cover art response body from $_diagnosticUri',
+                _bodyReadTimeout,
+              );
+              AppLogger.warning('$error');
+              sink
+                ..addError(error)
+                ..close();
+              scheduleMicrotask(_onAbort);
+            },
+          )) {
         if (!inspectedHead) {
           inspectedHead = true;
           headIsImage = _looksLikeImagePayload(chunk);
@@ -941,7 +989,10 @@ class _CoverArtHttpFileServiceResponse implements FileServiceResponse {
 
   Future<void> _discardBody() async {
     try {
-      await _response
+      await CoverArtHttpFileService._boundedBody(
+            _response,
+            onTooLarge: _onAbort,
+          )
           .timeout(
             _bodyReadTimeout,
             onTimeout: (sink) {
@@ -950,12 +1001,16 @@ class _CoverArtHttpFileServiceResponse implements FileServiceResponse {
                 _bodyReadTimeout,
               );
               AppLogger.warning('$error');
-              sink.close();
-              scheduleMicrotask(_onTimeout);
+              sink
+                ..addError(error)
+                ..close();
+              scheduleMicrotask(_onAbort);
             },
           )
           .drain<void>();
+      _onFinished(success: _response.statusCode < 400);
     } on Object catch (error, stackTrace) {
+      _onFinished(success: false);
       AppLogger.warning(
         'Cover art response discard failed for $_diagnosticUri: '
         '$error\n$stackTrace',

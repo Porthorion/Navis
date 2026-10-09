@@ -3469,7 +3469,11 @@ reset, and Settings “clear covers” clear both managers. Cover storage accoun
 sums both current directories without following links. External artwork display
 and radio Now Playing prewarm share `externalArtworkImageProvider`, wrapped by
 `boundedDecode` with a 1024×1024 fit bound. Both edges are capped without
-upscaling, and display reuses the prewarmed decode without an image fade.
+upscaling, and display reuses the prewarmed decode without an image fade. The
+HTTP file service rejects a declared body larger than 20 MiB and aborts when
+streamed bytes exceed that limit, including chunked, redirected and discarded
+bodies. It uses the existing forced transport reset to stop an oversized body,
+records an error outcome, and releases the coordinator slot.
 
 Server-provided file extensions use a shared ASCII alphanumeric allowlist (1–10
 characters, otherwise `bin`). Rolling audio and SAF staging filenames hash song

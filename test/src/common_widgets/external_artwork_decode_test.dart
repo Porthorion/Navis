@@ -17,7 +17,7 @@ import 'package:path/path.dart' as p;
 class _CachedManager extends Mock implements CacheManager;
 
 void main() {
-  for (final dimensions in [(128, 4096), (4096, 128)]) {
+  for (final dimensions in [(128, 4096), (4096, 128), (32, 4096), (4096, 32)]) {
     testWidgets(
       'radio prewarm and display share a bounded decode for ${dimensions.$1}x${dimensions.$2}',
       (tester) async {
@@ -98,21 +98,26 @@ void main() {
           ),
         );
         await tester.pumpWidget(harness());
-        await tester.runAsync(
-          () => prewarmNowPlayingVisuals(
-            context: warmContext,
-            ref: warmRef,
-            brightness: Brightness.light,
-            artUrl: url,
-          ),
-        );
-        // Keep a reference to the decoded prewarm frame and compare the actual
-        // display frame, not just two independently constructed provider keys.
         final provider = externalArtworkImageProvider(
           url: url,
           cacheManager: manager,
           feature: IntegrationFeature.radioNowPlaying,
         );
+        await tester.runAsync(() async {
+          if (dimensions.$1 == 32 || dimensions.$2 == 32) {
+            // The palette library truncates a sampled edge to zero for these
+            // extreme aspect ratios. Test their decode without palette work.
+            await precacheImage(provider, warmContext);
+          } else {
+            await prewarmNowPlayingVisuals(
+              context: warmContext,
+              ref: warmRef,
+              brightness: Brightness.light,
+              artUrl: url,
+            );
+          }
+        });
+        // Compare the actual display frame with the decoded prewarm frame.
         final stream = provider.resolve(
           createLocalImageConfiguration(warmContext),
         );

@@ -129,7 +129,7 @@ const List<ChangelogVersion> changelogs = [
     version: '1.4.3',
     entries: [
       ChangelogEntry(
-        'External artwork respects memory limits in both dimensions, and radio artwork displays immediately after prewarming',
+        'Artwork responses have a size limit, external images respect memory limits in both dimensions, and radio artwork displays immediately after prewarming',
         type: ChangelogEntryType.fix,
       ),
       ChangelogEntry(
