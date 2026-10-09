@@ -125,7 +125,7 @@ Status key: ✅ fixed on the branch · 🧭 deferred (infrastructure or a produc
 
 ### Owner actions still open
 
-1. Copy both libmpv archives to R2 at `https://downloads.porthorion.com/third-party/<file name>`. They are the build fallback.
+1. Copy both libmpv archives to R2 at `https://downloads.porthorion.com/navis/third-party/<file name>`. They are the build fallback.
 2. Run a full Windows app check after logging in at the VM console: install, play, check the EQ, and check the publisher in Apps & features.
 3. Do a real-server check of the Deezer and Last.fm credits.
 4. Update the website privacy policy using the handoff list.

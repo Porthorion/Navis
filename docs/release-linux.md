@@ -133,7 +133,7 @@ for them. Custom packages without the bundle need their own system-mpv dependenc
 The current archive is `libmpv-linux-x86_64-lgpl-20261007.tar.gz`, SHA-256
 `759bb6586b4d772bb78a565609dcccc5205741c8b1163c1d47ed3493bf227f6e`.
 CMake tries the matching navis-third-party release, then
-`https://downloads.porthorion.com/third-party/libmpv-linux-x86_64-lgpl-20261007.tar.gz`.
+`https://downloads.porthorion.com/navis/third-party/libmpv-linux-x86_64-lgpl-20261007.tar.gz`.
 Every attempt is verified, failures are deleted, and the archive is cached in
 the CMake build directory. A verified cached archive supports offline builds;
 extraction is once per pin, retried if incomplete. The library is installed

@@ -116,7 +116,7 @@ if(NAVIS_BUNDLE_LIBMPV)
   set(LIBMPV_SHA256 "759bb6586b4d772bb78a565609dcccc5205741c8b1163c1d47ed3493bf227f6e")
   set(LIBMPV_URLS
     "https://git.porthorion.com/khalifa/navis-third-party/releases/download/libmpv-linux-x86_64-lgpl-20261007/${LIBMPV}"
-    "https://downloads.porthorion.com/third-party/${LIBMPV}"
+    "https://downloads.porthorion.com/navis/third-party/${LIBMPV}"
   )
   set(LIBMPV_ARCHIVE "${CMAKE_BINARY_DIR}/${LIBMPV}")
   # A new archive pin always gets its own extraction, even in an old build tree.

@@ -27,7 +27,7 @@ v0.41.0-1104-geb0ee1031 (`-Dgpl=false`) and FFmpeg N-127222-g151814650
 (without `--enable-gpl`), with the `volume` and `biquad` filters present.
 
 CMake tries the navis-third-party Forgejo mirror, then
-`https://downloads.porthorion.com/third-party/`, then the pinned upstream
+`https://downloads.porthorion.com/navis/third-party/`, then the pinned upstream
 release. Each attempt is SHA-256 verified; failed or mismatched downloads are
 deleted before trying the next URL. A verified build-directory cache works
 offline. Extraction is per archive pin. The mirror keeps old Navis versions
@@ -49,7 +49,7 @@ To update the pin:
    and build configuration), and the corresponding mpv/FFmpeg source tarballs.
    Use the API for `.7z` uploads. Preserve older releases.
 4. Copy the identical archive to R2 at
-   `https://downloads.porthorion.com/third-party/<archive-name>` and verify
+   `https://downloads.porthorion.com/navis/third-party/<archive-name>` and verify
    its SHA-256 there. Update `LIBMPV`, ordered `LIBMPV_URLS` and
    `LIBMPV_SHA256` in the vendored CMake file.
 5. Build a profile bundle and verify EQ, speed/pitch, gapless playback,

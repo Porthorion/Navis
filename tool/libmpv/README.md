@@ -38,7 +38,7 @@ that tarball, `SOURCES.md` (versions, source URLs, SHA-256, LGPL configuration
 and licence inventory), and every corresponding archive from `out/src/`,
 including mpv, FFmpeg, libass and libplacebo with submodules. Preserve older
 releases. Copy the identical tarball to the R2 fallback at
-`https://downloads.porthorion.com/third-party/<tarball-name>` and verify it.
+`https://downloads.porthorion.com/navis/third-party/<tarball-name>` and verify it.
 Update the filename, ordered URLs and SHA-256 in `linux/CMakeLists.txt`, plus
 the in-app source location in `assets/licenses/libmpv-ffmpeg-NOTICE.txt`.
 See [the Linux release guide](../../docs/release-linux.md) for the current pin,
