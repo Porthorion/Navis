@@ -3588,17 +3588,18 @@ class NavisAudioHandler extends BaseAudioHandler
     }
 
     final clampedIndex = startIndex.clamp(0, prepared.length - 1);
+    Future<void> apply() => _applyPreparedQueue(
+      prepared,
+      startIndex: clampedIndex,
+      autoPlay: autoPlay,
+      initialPosition: initialPosition,
+      preloadWhenPaused: preloadWhenPaused,
+      forcePreloadWhenPaused: forcePreloadWhenPaused,
+      generation: generation,
+      token: token,
+    );
     try {
-      await _applyPreparedQueue(
-        prepared,
-        startIndex: clampedIndex,
-        autoPlay: autoPlay,
-        initialPosition: initialPosition,
-        preloadWhenPaused: preloadWhenPaused,
-        forcePreloadWhenPaused: forcePreloadWhenPaused,
-        generation: generation,
-        token: token,
-      );
+      await apply();
     } on Object catch (error, stackTrace) {
       token?.checkCancelled();
       final sourceKinds = prepared
@@ -3619,7 +3620,7 @@ class NavisAudioHandler extends BaseAudioHandler
           'Disabling DSP for this session and rebuilding queue with direct '
           'stream sources. $error\n$stackTrace',
         );
-        await _rebuildPlayerWithoutEqualizer(force: true);
+        await _rebuildPlayerWithoutEqualizer();
       } else {
         _markPreparedLockCachingBypassed(
           prepared,
@@ -3634,16 +3635,7 @@ class NavisAudioHandler extends BaseAudioHandler
       }
       prepared = await _prepareQueueItems(songs, preferLockCaching: false);
       try {
-        await _applyPreparedQueue(
-          prepared,
-          startIndex: clampedIndex,
-          autoPlay: autoPlay,
-          initialPosition: initialPosition,
-          preloadWhenPaused: preloadWhenPaused,
-          forcePreloadWhenPaused: forcePreloadWhenPaused,
-          generation: generation,
-          token: token,
-        );
+        await apply();
       } on Object catch (retryError, retryStackTrace) {
         token?.checkCancelled();
         if (!_isAndroidDspInitializationFailure(retryError)) {
@@ -3654,17 +3646,8 @@ class NavisAudioHandler extends BaseAudioHandler
           'failure. Forcing plain player rebind and retrying once more. '
           '$retryError\n$retryStackTrace',
         );
-        await _rebuildPlayerWithoutEqualizer(force: true);
-        await _applyPreparedQueue(
-          prepared,
-          startIndex: clampedIndex,
-          autoPlay: autoPlay,
-          initialPosition: initialPosition,
-          preloadWhenPaused: preloadWhenPaused,
-          forcePreloadWhenPaused: forcePreloadWhenPaused,
-          generation: generation,
-          token: token,
-        );
+        await _rebuildPlayerWithoutEqualizer();
+        await apply();
       }
     }
 
@@ -4368,94 +4351,46 @@ class NavisAudioHandler extends BaseAudioHandler
     Duration? timeout,
     OperationToken? token,
   }) async {
+    const operations = <String>[
+      'active queue apply',
+      'active queue apply retry',
+      'active queue apply final retry',
+    ];
+    Future<Duration?> apply() => _player.setAudioSources(
+      audioSources,
+      preload: preload,
+      initialIndex: initialIndex,
+      initialPosition: initialPosition,
+    );
     token?.checkCancelled();
-    try {
-      if (generation > 0) {
-        await _runTimedPlayerOperation(
-          generation: generation,
-          operation: 'active queue apply',
-          timeout: timeout,
-          action: () => _player.setAudioSources(
-            audioSources,
-            preload: preload,
-            initialIndex: initialIndex,
-            initialPosition: initialPosition,
-          ),
-          songId: songId,
-        );
-      } else {
-        await _player.setAudioSources(
-          audioSources,
-          preload: preload,
-          initialIndex: initialIndex,
-          initialPosition: initialPosition,
-        );
-      }
-    } on Object catch (error, stackTrace) {
-      token?.checkCancelled();
-      if (!_isAndroidDspInitializationFailure(error)) {
-        rethrow;
-      }
-      AppLogger.warning(
-        'Android DSP initialization failed during queue apply. '
-        'Disabling DSP pipeline for this session and retrying. '
-        '$error\n$stackTrace',
-      );
-      await _rebuildPlayerWithoutEqualizer(force: true);
+    for (var attempt = 0; attempt < operations.length; attempt++) {
       try {
         if (generation > 0) {
           await _runTimedPlayerOperation(
             generation: generation,
-            operation: 'active queue apply retry',
+            operation: operations[attempt],
             timeout: timeout,
-            action: () => _player.setAudioSources(
-              audioSources,
-              preload: preload,
-              initialIndex: initialIndex,
-              initialPosition: initialPosition,
-            ),
+            action: apply,
             songId: songId,
           );
         } else {
-          await _player.setAudioSources(
-            audioSources,
-            preload: preload,
-            initialIndex: initialIndex,
-            initialPosition: initialPosition,
-          );
+          await apply();
         }
-      } on Object catch (retryError, retryStackTrace) {
+        break;
+      } on Object catch (error, stackTrace) {
+        if (attempt == operations.length - 1) rethrow;
         token?.checkCancelled();
-        if (!_isAndroidDspInitializationFailure(retryError)) {
-          rethrow;
-        }
+        if (!_isAndroidDspInitializationFailure(error)) rethrow;
         AppLogger.warning(
-          'Android DSP fallback retry failed again. Rebuilding a plain player '
-          'instance and retrying one final time. '
-          '$retryError\n$retryStackTrace',
+          attempt == 0
+              ? 'Android DSP initialization failed during queue apply. '
+                    'Disabling DSP pipeline for this session and retrying. '
+                    '$error\n$stackTrace'
+              : 'Android DSP fallback retry failed again. Rebuilding a plain player '
+                    'instance and retrying one final time. '
+                    '$error\n$stackTrace',
         );
-        await _rebuildPlayerWithoutEqualizer(force: true);
-        if (generation > 0) {
-          await _runTimedPlayerOperation(
-            generation: generation,
-            operation: 'active queue apply final retry',
-            timeout: timeout,
-            action: () => _player.setAudioSources(
-              audioSources,
-              preload: preload,
-              initialIndex: initialIndex,
-              initialPosition: initialPosition,
-            ),
-            songId: songId,
-          );
-        } else {
-          await _player.setAudioSources(
-            audioSources,
-            preload: preload,
-            initialIndex: initialIndex,
-            initialPosition: initialPosition,
-          );
-        }
+        await _rebuildPlayerWithoutEqualizer();
       }
     }
     token?.checkCancelled();
@@ -4519,11 +4454,7 @@ class NavisAudioHandler extends BaseAudioHandler
     );
   }
 
-  Future<void> _rebuildPlayerWithoutEqualizer({bool force = false}) async {
-    if (!_equalizerPipelineEnabled && !force) {
-      return;
-    }
-
+  Future<void> _rebuildPlayerWithoutEqualizer() async {
     final previousPlayer = _player;
     final previousLoopMode = previousPlayer.loopMode;
 
