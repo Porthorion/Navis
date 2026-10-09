@@ -2274,6 +2274,7 @@ private extensions on the handler within the same library:
 | Seek and stall recovery | `navis_audio_handler_recovery.dart` |
 | Rolling-cache observation and sidecar activity | `navis_audio_handler_cache.dart` |
 | Radio metadata setup and mix dispatch | `navis_audio_handler_radio.dart` |
+| Startup and native queue diagnostics | `navis_audio_handler_diagnostics.dart` |
 
 Helpers that directly reference class static members remain in the class, as do
 source-guarded player construction and initialization.
