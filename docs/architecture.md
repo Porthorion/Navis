@@ -3457,12 +3457,16 @@ Its guarded HTTP service signs only the active server's exact cover endpoint
 with current credentials, after queue admission and before dispatch. URLs for
 other origins or paths never receive server authentication. AudioService uses the
 same request-time signing through the current API accessor for HTTP session art
-on iOS/macOS. HTTPS redirects to
-HTTP are refused. The repository key is `navis_cover_art_cache_v2`; startup
-removes the old JSON/SQLite repositories (including temporary and journal files)
-once, with a marker written only after successful cleanup. Ordinary artwork is
-refetched; permanent download artwork remains in its separate durable store.
-Both keep-data and full sign-out clear the shared cover cache.
+on iOS/macOS. HTTPS redirects to HTTP are refused. Riverpod owns both the shared
+`navis_cover_art_cache_v2` and AudioService's `navis_system_artwork_cache_v2`
+managers. Startup removes both old JSON/SQLite repositories (including temporary
+and journal files) and their old image directories under temporary storage.
+The v3 completion marker is written only after all cleanup succeeds, so profiles
+which ran the earlier v2 metadata-only cleanup also receive the complete purge.
+Ordinary artwork is refetched; permanent download artwork remains in its separate
+durable store. Both keep-data and full sign-out, server-data reset, library-cache
+reset, and Settings “clear covers” clear both managers. Cover storage accounting
+sums both current directories without following links.
 
 Server-provided file extensions use a shared ASCII alphanumeric allowlist (1–10
 characters, otherwise `bin`). Rolling audio and SAF staging filenames hash song

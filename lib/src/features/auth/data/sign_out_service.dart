@@ -44,7 +44,7 @@ final serverDataResetServiceProvider = Provider<ServerDataResetService>((ref) {
     database: ref.watch(navisDatabaseProvider),
     // Download artwork is Navis-owned and belongs to the server's downloads.
     clearCoverArt: () async {
-      await ref.read(coverArtCacheManagerProvider).emptyCache();
+      await ref.read(clearCoverArtCachesProvider)();
       await ref.read(permanentArtworkStoreProvider).clear();
     },
   );
@@ -83,7 +83,7 @@ final signOutServiceProvider = Provider<SignOutService>((ref) {
       ref.read(playerOverlayStackProvider.notifier).clear();
       resetPlaybackActionErrors(ref);
     },
-    clearCoverArt: () => ref.read(coverArtCacheManagerProvider).emptyCache(),
+    clearCoverArt: () => ref.read(clearCoverArtCachesProvider)(),
     wipeServerData: () async {
       await ref.read(serverDataResetServiceProvider).reset();
       await ref.read(clearIntegrationLibraryCacheProvider)();

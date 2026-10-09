@@ -16,7 +16,8 @@ import 'package:navis/src/routing/desktop_layout.dart';
 import 'package:navis/src/routing/navigation_service.dart';
 import 'package:navis/src/theme/navis_tokens.dart';
 import 'package:navis/src/utils/format_utils.dart';
-import 'package:path_provider/path_provider.dart';
+import 'package:navis/src/common_widgets/cover_art_cache_manager.dart'
+    show coverArtCacheStorageBytes;
 import 'package:navis/src/routing/app_routes.dart';
 
 class CacheSettingsScreen extends ConsumerStatefulWidget {
@@ -74,22 +75,7 @@ class _CacheSettingsScreenState extends ConsumerState<CacheSettingsScreen> {
 
   Future<void> _loadCoverArtStorageBytes() async {
     try {
-      final tempDir = await getTemporaryDirectory();
-      final dir = Directory('${tempDir.path}/$coverArtCacheKey');
-      if (!dir.existsSync()) {
-        if (mounted) setState(() => _coverArtStorageBytes = 0);
-        return;
-      }
-      var total = 0;
-      await for (final entity in dir.list(recursive: true)) {
-        if (entity is File) {
-          try {
-            total += await entity.length();
-          } on FileSystemException {
-            // skip
-          }
-        }
-      }
+      final total = await coverArtCacheStorageBytes();
       if (mounted) setState(() => _coverArtStorageBytes = total);
     } on Exception {
       if (mounted) setState(() => _coverArtStorageBytes = 0);
@@ -198,7 +184,7 @@ class _CacheSettingsScreenState extends ConsumerState<CacheSettingsScreen> {
 
     setState(() => _clearing = true);
     try {
-      await ref.read(coverArtCacheManagerProvider).emptyCache();
+      await ref.read(clearCoverArtCachesProvider)();
       if (mounted) {
         setState(() => _coverArtStorageBytes = 0);
         _showClearedSnackBar();

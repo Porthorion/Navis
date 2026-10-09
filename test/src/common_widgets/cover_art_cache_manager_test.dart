@@ -48,35 +48,150 @@ class _FailingCacheRepository extends JsonCacheInfoRepository {
 }
 
 void main() {
-  test('legacy credential repositories are purged once without deleting v2 or unrelated files', () async {
+  test('legacy repositories and image directories are purged once, preserving current caches', () async {
     final directory = await Directory.systemTemp.createTemp('cover-purge-');
     addTearDown(() => directory.delete(recursive: true));
+    final support = await Directory(p.join(directory.path, 'support')).create();
+    final temporary = await Directory(p.join(directory.path, 'temp')).create();
+    // Profiles which ran the incomplete cleanup still need both old caches purged.
+    File(p.join(support.path, '.navis-cover-art-credentials-purged-v2'))
+        .writeAsStringSync('2');
     final oldNames = [
-      'navis_cover_art_cache.json',
-      'navis_cover_art_cache.json.tmp',
-      'navis_cover_art_cache_0123456789abcdef.json',
-      'navis_cover_art_cache.db',
-      'navis_cover_art_cache.db-wal',
-      'navis_cover_art_cache.db-shm',
-      'navis_cover_art_cache.db-journal',
+      for (final key in ['navis_cover_art_cache', 'navis_system_artwork_cache'])
+        for (final suffix in [
+          '.json',
+          '.json.tmp',
+          '_0123456789abcdef.json',
+          '.db',
+          '.db-wal',
+          '.db-shm',
+          '.db-journal',
+        ])
+          '$key$suffix',
     ];
-    for (final name in [...oldNames, '$coverArtCacheKey.json', 'other.json']) {
-      File(p.join(directory.path, name)).writeAsStringSync('fixture');
+    for (final name in [
+      ...oldNames,
+      '$coverArtCacheKey.json',
+      '$systemArtworkCacheKey.json',
+      'other.json',
+    ]) {
+      File(p.join(support.path, name))
+          .writeAsStringSync('fixture p=enc:fixture');
     }
-    await purgeLegacyCoverArtCredentials(supportDirectory: directory);
-    for (final name in oldNames) {
-      expect(File(p.join(directory.path, name)).existsSync(), isFalse);
+    final oldDirectories = [
+      'navis_cover_art_cache',
+      'navis_cover_art_cache_0123456789abcdef',
+      'navis_system_artwork_cache',
+      'navis_system_artwork_cache_0123456789abcdef',
+    ];
+    for (final name in [
+      ...oldDirectories,
+      coverArtCacheKey,
+      systemArtworkCacheKey,
+      'other',
+    ]) {
+      final cache = await Directory(p.join(temporary.path, name, 'nested'))
+          .create(recursive: true);
+      await File(p.join(cache.path, 'cover.jpg')).writeAsBytes([1, 2, 3]);
     }
-    expect(
-      File(p.join(directory.path, '$coverArtCacheKey.json')).existsSync(),
-      isTrue,
+    await purgeLegacyCoverArtCredentials(
+      supportDirectory: support,
+      temporaryDirectory: temporary,
     );
-    expect(File(p.join(directory.path, 'other.json')).existsSync(), isTrue);
-    final recreated = File(p.join(directory.path, oldNames.first))
+    for (final name in oldNames) {
+      expect(File(p.join(support.path, name)).existsSync(), isFalse);
+    }
+    for (final name in oldDirectories) {
+      expect(Directory(p.join(temporary.path, name)).existsSync(), isFalse);
+    }
+    for (final name in [coverArtCacheKey, systemArtworkCacheKey, 'other']) {
+      expect(Directory(p.join(temporary.path, name)).existsSync(), isTrue);
+    }
+    for (final name in [
+      '$coverArtCacheKey.json',
+      '$systemArtworkCacheKey.json',
+      'other.json',
+    ]) {
+      expect(File(p.join(support.path, name)).existsSync(), isTrue);
+    }
+    expect(await coverArtCacheStorageBytes(temporaryDirectory: temporary), 6);
+    final recreated = File(p.join(support.path, oldNames.first))
       ..writeAsStringSync('fixture');
-    await purgeLegacyCoverArtCredentials(supportDirectory: directory);
+    await purgeLegacyCoverArtCredentials(
+      supportDirectory: support,
+      temporaryDirectory: temporary,
+    );
     expect(recreated.existsSync(), isTrue, reason: 'migration runs once');
   });
+
+  test(
+    'failed image-directory cleanup leaves no completion marker and can retry',
+    () async {
+      final directory = await Directory.systemTemp.createTemp(
+        'cover-purge-retry-',
+      );
+      addTearDown(() => directory.delete(recursive: true));
+      final temporary = File(p.join(directory.path, 'temp'))
+        ..writeAsStringSync('fixture');
+      await expectLater(
+        purgeLegacyCoverArtCredentials(
+          supportDirectory: directory,
+          temporaryDirectory: Directory(temporary.path),
+        ),
+        throwsA(isA<FileSystemException>()),
+      );
+      final marker = File(
+        p.join(directory.path, '.navis-cover-art-credentials-purged-v3'),
+      );
+      expect(marker.existsSync(), isFalse);
+      temporary.deleteSync();
+      final tempDirectory = await Directory(temporary.path).create();
+      await Directory(p.join(tempDirectory.path, 'navis_system_artwork_cache'))
+          .create();
+      await purgeLegacyCoverArtCredentials(
+        supportDirectory: directory,
+        temporaryDirectory: tempDirectory,
+      );
+      expect(marker.readAsStringSync(), '3');
+      expect(
+        Directory(p.join(tempDirectory.path, 'navis_system_artwork_cache'))
+            .existsSync(),
+        isFalse,
+      );
+    },
+  );
+
+  test(
+    'current cover and system artwork managers remove their cached bytes',
+    () async {
+      final directory = await Directory.systemTemp.createTemp('cover-clear-');
+      addTearDown(() => directory.delete(recursive: true));
+      for (final key in [coverArtCacheKey, systemArtworkCacheKey]) {
+        final cacheDirectory = await Directory(p.join(directory.path, key))
+            .create();
+        final manager = createCoverArtCacheManager(
+          config: Config(
+            key,
+            repo: JsonCacheInfoRepository(
+              path: p.join(directory.path, '$key.json'),
+            ),
+            fileSystem: _TestCacheFileSystem(cacheDirectory),
+          ),
+        );
+        addTearDown(manager.dispose);
+        final file = await manager.putFile(
+          'https://example.test/cover.jpg',
+          Uint8List.fromList([1, 2, 3]),
+          key: 'fixture',
+        );
+        expect(file.existsSync(), isTrue);
+        await manager.emptyCache();
+        expect(file.existsSync(), isFalse);
+        expect(await manager.getFileFromCache('fixture'), isNull);
+      }
+      expect(await coverArtCacheStorageBytes(temporaryDirectory: directory), 0);
+    },
+  );
 
   test('HTTPS to HTTP redirect is refused before the second request', () async {
     final client = _MockHttpClient();

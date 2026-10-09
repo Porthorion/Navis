@@ -18,6 +18,9 @@ import 'package:navis/src/utils/network_usage_meter.dart';
 /// Shared cover art cache key used by both the cache manager and clear logic.
 const String coverArtCacheKey = 'navis_cover_art_cache_v2';
 
+/// Cache key for the artwork AudioService loads for media sessions.
+const String systemArtworkCacheKey = 'navis_system_artwork_cache_v2';
+
 /// Standard cover art size used for all album/artist cover displays outside of
 /// the full-screen viewer. Using a single size ensures that navigating from any
 /// list or grid to a detail screen (or back) always hits the same cache entry —
@@ -1126,10 +1129,11 @@ class _CredentialFreeCoverArtCacheManager extends CacheManager {
 /// Artwork bytes are disposable; durable download artwork is a separate store.
 Future<void> purgeLegacyCoverArtCredentials({
   Directory? supportDirectory,
+  Directory? temporaryDirectory,
 }) async {
   final support = supportDirectory ?? await getApplicationSupportDirectory();
   final marker = File(
-    p.join(support.path, '.navis-cover-art-credentials-purged-v2'),
+    p.join(support.path, '.navis-cover-art-credentials-purged-v3'),
   );
   // ignore: avoid_slow_async_io, reason: Startup must not block on filesystem metadata.
   if (await marker.exists()) return;
@@ -1137,15 +1141,54 @@ Future<void> purgeLegacyCoverArtCredentials({
   // CacheObjectProvider moves pre-v2 mobile/macOS databases to support on lookup.
   if (supportDirectory == null &&
       (Platform.isAndroid || Platform.isIOS || Platform.isMacOS)) {
-    await CacheObjectProvider(databaseName: 'navis_cover_art_cache').exists();
+    for (final name in [
+      'navis_cover_art_cache',
+      'navis_system_artwork_cache',
+    ]) {
+      await CacheObjectProvider(databaseName: name).exists();
+    }
   }
   final legacyName = RegExp(
-    r'^navis_cover_art_cache(?:_[a-f0-9]{16})?\.(?:json(?:\.tmp)?|db(?:-wal|-shm|-journal)?)$',
+    r'^navis_(?:cover_art|system_artwork)_cache(?:_[a-f0-9]{16})?\.(?:json(?:\.tmp)?|db(?:-wal|-shm|-journal)?)$',
   );
   await for (final entry in support.list(followLinks: false)) {
     if (entry is File && legacyName.hasMatch(p.basename(entry.path))) {
       await entry.delete();
     }
   }
-  await marker.writeAsString('2', flush: true);
+  final temporary = temporaryDirectory ?? await getTemporaryDirectory();
+  final legacyDirectoryName = RegExp(
+    r'^navis_(?:cover_art|system_artwork)_cache(?:_[a-f0-9]{16})?$',
+  );
+  await for (final entry in temporary.list(followLinks: false)) {
+    if (legacyDirectoryName.hasMatch(p.basename(entry.path))) {
+      // These names belonged only to disposable artwork, never downloads.
+      await entry.delete(recursive: entry is Directory);
+    }
+  }
+  await marker.writeAsString('3', flush: true);
+}
+
+/// Counts the current disposable cover and media-session artwork directories.
+Future<int> coverArtCacheStorageBytes({Directory? temporaryDirectory}) async {
+  final temporary = temporaryDirectory ?? await getTemporaryDirectory();
+  var total = 0;
+  for (final key in [coverArtCacheKey, systemArtworkCacheKey]) {
+    final directory = Directory(p.join(temporary.path, key));
+    // ignore: avoid_slow_async_io, reason: Storage accounting must not block the UI.
+    if (!await directory.exists()) continue;
+    await for (final entry in directory.list(
+      recursive: true,
+      followLinks: false,
+    )) {
+      if (entry is File) {
+        try {
+          total += await entry.length();
+        } on FileSystemException {
+          // Cache eviction can remove a file while accounting is in flight.
+        }
+      }
+    }
+  }
+  return total;
 }

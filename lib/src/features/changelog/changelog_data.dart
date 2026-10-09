@@ -133,7 +133,7 @@ const List<ChangelogVersion> changelogs = [
         type: ChangelogEntryType.fix,
       ),
       ChangelogEntry(
-        'Cover caches no longer store server credentials, old cache metadata is removed on startup, and every sign-out clears cached covers',
+        'Cover caches no longer store server credentials, old cover and system-artwork caches are removed on startup, and every sign-out clears both caches',
         type: ChangelogEntryType.fix,
       ),
       ChangelogEntry(

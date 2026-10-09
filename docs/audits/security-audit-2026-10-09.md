@@ -23,8 +23,8 @@
 | Gap | Status | Change |
 |---|---|---|
 | A | Fixed | AudioService artwork signs the active server's cover endpoint with current credentials after queue admission; external paths and hosts remain unsigned. |
-| B | Pending | Purge and clear the system-artwork repository. |
-| C | Pending | Delete orphaned image directories and verify current cache accounting/clearing. |
+| B | Fixed | The same startup migration purges both legacy repositories. AudioService shares its Riverpod-owned manager with session teardown and all cover-clear actions. |
+| C | Fixed | Cleanup deletes both old image directories before writing the v3 marker, including after a prior v2 cleanup. Storage accounting and clear covers include both current directories. |
 | D | Pending | Bound both external image dimensions and share the radio prewarm/display provider. |
 | E | Pending | Cap declared and streamed artwork response bytes. |
 

@@ -11,7 +11,7 @@ final libraryCacheResetServiceProvider = Provider<LibraryCacheResetService>((
 ) {
   return LibraryCacheResetService(
     database: ref.watch(navisDatabaseProvider),
-    clearCoverArt: () => ref.read(coverArtCacheManagerProvider).emptyCache(),
+    clearCoverArt: () => ref.read(clearCoverArtCachesProvider)(),
     clearIntegrationMatches: () =>
         ref.read(clearIntegrationLibraryCacheProvider)(),
   );
