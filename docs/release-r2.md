@@ -22,7 +22,9 @@ navis/releases/<tag>/SHA256SUMS      Cache-Control: no-cache (SHA256SUMS.<channe
 
 Release files (everything except `SHA256SUMS`) are immutable: `tool/r2_publish.sh` refuses to replace an object
 whose content differs, and Cloudflare's edge keeps serving a cached copy for a
-year anyway. Fix a bad release by publishing a newer version. Channels never
+year anyway. Fix a bad release by publishing a newer version, and never delete and re-upload a
+release file under the same name: clients behind a cache that still holds the old bytes
+would fail the SHA-256 check for up to a year. Channels never
 move to an older version.
 
 ## Manifest

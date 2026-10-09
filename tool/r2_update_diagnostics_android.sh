@@ -15,11 +15,12 @@ WORK="$WT/build/r2-android/$(date -u +%Y%m%dT%H%M%SZ)"; mkdir -p "$WORK"
 set -a; source tool/release.env; set +a
 S=(--aws-sigv4 "aws:amz:auto:s3" --user "$R2_ACCESS_KEY_ID:$R2_SECRET_ACCESS_KEY")
 B="https://$R2_ACCOUNT_ID.r2.cloudflarestorage.com/$R2_BUCKET/navis"
+N="$(date +%s)"; V1="v1.4.$N"; V2="v1.4.$((N+1))"
 PASS=0; FAIL=0
 ok()  { echo "PASS: $*"; PASS=$((PASS+1)); }
 bad() { echo "FAIL: $*"; FAIL=$((FAIL+1)); }
 cleanup() {
-  for v in v1.4.4 v1.4.5; do for f in navis-$v.apk SHA256SUMS.staging; do curl -s -o /dev/null "${S[@]}" -X DELETE "$B/releases/$v/$f"; done; done
+  for v in "$V1" "$V2"; do for f in navis-$v.apk SHA256SUMS.staging; do curl -s -o /dev/null "${S[@]}" -X DELETE "$B/releases/$v/$f"; done; done
   curl -s -o /dev/null "${S[@]}" -X DELETE "$B/channels/staging/manifest.json"
   $ADB uninstall $PKG >/dev/null 2>&1
   echo "cleanup done"
@@ -54,10 +55,10 @@ field() { python3 -c 'import json,sys;print(json.loads(sys.stdin.read()).get(sys
 for _ in $(seq 1 60); do api GET /v1/health | grep -q . && break; sleep 1; done
 echo "    version: $($ADB shell dumpsys package $PKG | grep -m1 versionName)"
 
-cp "$APK" "$WORK/navis-v1.4.4.apk"
-./tool/r2_publish.sh publish --tag=v1.4.4 --channel=staging "$WORK/navis-v1.4.4.apk" | tail -1
+cp "$APK" "$WORK/navis-$V1.apk"
+./tool/r2_publish.sh publish --tag=$V1 --channel=staging "$WORK/navis-$V1.apk" | tail -1
 R="$(api POST /v1/diagnostics/update/check)"; echo "    $R"
-[[ "$(field tag <<<"$R")" == "v1.4.4" && "$(field assetKey <<<"$R")" == "androidApk" && "$(field signatureValid <<<"$R")" == "True" ]] && ok "Android offered v1.4.4 (androidApk)" || bad "offer: $R"
+[[ "$(field tag <<<"$R")" == "$V1" && "$(field assetKey <<<"$R")" == "androidApk" && "$(field signatureValid <<<"$R")" == "True" ]] && ok "Android offered $V1 (androidApk)" || bad "offer: $R"
 R="$(api POST /v1/diagnostics/update/download)"; echo "    $R"
 AP="$(field artifactPath <<<"$R")"
 if [[ "$(field downloaded <<<"$R")" == "True" ]]; then
@@ -65,13 +66,13 @@ if [[ "$(field downloaded <<<"$R")" == "True" ]]; then
   [[ "$GOT" == "$(sha256sum < "$APK" | cut -d' ' -f1)" ]] && ok "Android download verified, bytes match" || bad "on-device sha $GOT"
 else bad "download: $R"; fi
 
-cp "$APK" "$WORK/navis-v1.4.5.apk"
-./tool/r2_publish.sh publish --tag=v1.4.5 --channel=staging "$WORK/navis-v1.4.5.apk" | tail -1
+cp "$APK" "$WORK/navis-$V2.apk"
+./tool/r2_publish.sh publish --tag=$V2 --channel=staging "$WORK/navis-$V2.apk" | tail -1
 head -c "$(stat -c %s "$APK")" /dev/urandom > "$WORK/corrupt"
-curl -s -o /dev/null "${S[@]}" -T "$WORK/corrupt" "$B/releases/v1.4.5/navis-v1.4.5.apk"
+curl -s -o /dev/null "${S[@]}" -T "$WORK/corrupt" "$B/releases/$V2/navis-$V2.apk"
 R="$(api POST /v1/diagnostics/update/download)"; echo "    $R"
 [[ "$(field downloadError <<<"$R")" == "integrity_mismatch" ]] && ok "Android corrupt download rejected" || bad "corrupt: $R"
-$ADB exec-out run-as $PKG ls "$(dirname "$AP")" 2>/dev/null | grep -q v1.4.5 && bad "corrupt APK left on device" || ok "corrupt APK deleted"
+$ADB exec-out run-as $PKG ls "$(dirname "$AP")" 2>/dev/null | grep -q $V2 && bad "corrupt APK left on device" || ok "corrupt APK deleted"
 
 curl -s "https://downloads.porthorion.com/navis/channels/staging/manifest.json?x=$RANDOM" -o "$WORK/good.json"
 jq -r .payload "$WORK/good.json" | base64 -d > "$WORK/p.json"
