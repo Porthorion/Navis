@@ -4,8 +4,44 @@
 - **Scope:** code-level security, as a companion to `COMPLIANCE-AUDIT.md` (2026-10-07, not in the repo). Findings already listed there (D-2 update SHA-256, D-4 debug-key fallback, P-10, P-11, P-15, S-1 and S-5) are not repeated here.
 - **Method:** read-only review of three areas: network and credentials; filesystem, updater and native code; build and supply chain. Findings marked ✔ were confirmed again by hand, in the code or on disk.
 - **Fix ownership:**
-  - App-side items are fixed on `fix/security-audit`.
-  - The updater and release-tooling items (H-2, H-3, H-4, M-6, M-9, M-10, L-1 to L-5, L-10) touch files that `feat/r2-updates` is rewriting, so they are fixed there.
+  - App-side items in the requested remediation scope are fixed on `fix/security-audit`; see the scoped status below.
+  - The updater and release-tooling items (H-2, H-3, H-4, M-6, M-9, M-10, updater-side L-1, L-2 to L-5, L-10) touch files that `feat/r2-updates` is rewriting, so they are fixed there.
+
+## Remediation status — 2026-10-09
+
+| IDs | Status | Implemented change |
+|---|---|---|
+| H-1, L-9 | Fixed on fix/security-audit | One shared extension allowlist, hashed rolling/SAF identities, final root-containment checks, and an exception when permanent filename collisions exhaust 100 attempts. |
+| M-4 | Fixed on fix/security-audit | Mutable browser links use the hosted HTTP(S) launcher; MusicBrainz path identifiers must be UUIDs. The file-manager helper remains a local directory action. Store links in the protected updater service are constants. |
+| M-5, L-6 | Fixed on fix/security-audit | Radio requires hosted HTTP(S), stream URLs stay in handler memory rather than media-session extras, and only `/listen/` or `/hls/` stream shapes produce AzuraCast polling endpoints. |
+| M-2 | Fixed on fix/security-audit | Code 41 is mapped explicitly and is the only legacy-fallback trigger. Wrong passwords and reported old versions never downgrade authentication. Remote HTTP legacy retries fail with a localized HTTPS requirement. |
+| M-3 (redaction) | Fixed on fix/security-audit | Request logs and free-text redaction strip URL user info; credential checks treat it as authentication. Storage/transport migration remains deferred below. |
+| M-1, L-1 (cover-art redirects) | Fixed on fix/security-audit | The shared cache manager strips credentials from all insertion URLs and URL keys; the HTTP service re-signs only the active server's exact cover endpoint at dispatch. Startup purges old app-owned JSON/SQLite metadata once and uses the v2 repository key. Both sign-out modes clear covers. HTTPS→HTTP artwork redirects are refused. |
+
+**Deferred:** M-3's server URL storage and transport still retain `user:pass@`.
+Moving those credentials into secure storage and an `Authorization: Basic`
+header is a separate change; the redaction fix does not claim that migration.
+Updater/tooling files remain with their assigned branch. Cleanup is confined to
+app-owned repository files; archived or Trash copies outside app storage are not
+modified.
+
+**Validation:** focused tests passed for file utilities, permanent paths,
+playback-source resolution (including MIME and requested-format traversal), URL
+launching, radio handler/metadata, connection probing/login, credential logging,
+cover-cache persistence and queued authentication, both sign-out modes, playback
+artwork, and the affected cache callers. Every Flutter test invocation used
+`--concurrency=4 --timeout 60s`. File-level Dart analysis ran before implementation
+commits; its remaining findings are existing infos, with no errors or warnings.
+Localization output was regenerated with `flutter gen-l10n`; no model or schema
+change required generation.
+
+Per the host rules, no app, emulator, or VM was launched, and `tool/check.sh` was
+not run. The coordinator must run that gate and validate runtime downloads/cache
+containment, allowed/blocked links, radio playback and metadata, code-41 login
+behavior, cover re-fetching with current authentication, legacy-repository
+cleanup (JSON and SQLite targets), and keep-data sign-out/re-login. Disposable
+cover art is refetched after the repository bump; durable download artwork is
+preserved.
 
 ## Findings
 
