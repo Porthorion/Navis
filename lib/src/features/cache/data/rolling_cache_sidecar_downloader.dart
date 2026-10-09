@@ -17,8 +17,11 @@ class RollingCacheSidecarDownloader {
   int _generation = 0;
   String? _activeSongId;
   String? _activeCacheFilePath;
+  int? _activeReceivedBytes;
 
   String? get activeSongId => _activeSongId;
+
+  int? get activeReceivedBytes => _activeReceivedBytes;
 
   Future<void> start({
     required String songId,
@@ -36,6 +39,7 @@ class RollingCacheSidecarDownloader {
     final generation = ++_generation;
     _activeSongId = songId;
     _activeCacheFilePath = cacheFilePath;
+    _activeReceivedBytes = 0;
     final client = _httpClientFactory();
     _activeClient = client;
 
@@ -89,6 +93,7 @@ class RollingCacheSidecarDownloader {
           }
           sink.add(chunk);
           received += chunk.length;
+          _activeReceivedBytes = received;
           if (contentLength > 0) {
             onProgress((received / contentLength).clamp(0, 1));
           } else {
@@ -141,6 +146,7 @@ class RollingCacheSidecarDownloader {
     _activeClient = null;
     _activeSongId = null;
     _activeCacheFilePath = null;
+    _activeReceivedBytes = null;
   }
 
   Future<void> cancel() {
@@ -180,5 +186,6 @@ class RollingCacheSidecarDownloader {
     _activeClient = null;
     _activeSongId = null;
     _activeCacheFilePath = null;
+    _activeReceivedBytes = null;
   }
 }

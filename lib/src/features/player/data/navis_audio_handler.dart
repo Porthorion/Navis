@@ -6591,6 +6591,9 @@ class NavisAudioHandler extends BaseAudioHandler
     if (songId == null) {
       return null;
     }
+    if (_sidecarDownloader.activeSongId == songId) {
+      return _sidecarDownloader.activeReceivedBytes;
+    }
     for (final entry in _rollingCacheActivities.entries) {
       if (entry.value.songId != songId) {
         continue;

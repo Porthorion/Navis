@@ -2505,7 +2505,9 @@ libmpv. Ordinary direct HTTPS playback bypasses just_audio's request-header
 proxy on desktop and passes the Navis user agent to media-kit. A completed
 sidecar file is registered once and remains the authoritative cache byte and
 track total. `rollingCacheActivityProvider` reports the in-progress write so
-Cache & Storage does not look idle before registration. Every desktop source is
+Cache & Storage does not look idle before registration. Desktop partial-byte
+diagnostics read the active sidecar attempt's received byte count, including
+its generation-specific partial write. Every desktop source is
 a direct stream, so the resolver attaches the sidecar path even when a caller
 asks for no lock caching (seek recovery, crossfade decks, songs whose
 lock-cached start failed); otherwise a recovery reload cancelled the download

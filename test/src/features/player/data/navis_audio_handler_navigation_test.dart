@@ -805,6 +805,65 @@ void main() {
     },
   );
 
+  test(
+    'desktop diagnostics expose bytes from the active sidecar attempt',
+    () async {
+      final previousHttp = HttpOverrides.current;
+      HttpOverrides.global = null;
+      final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
+      final release = Completer<void>();
+      server.listen((request) async {
+        try {
+          request.response
+            ..bufferOutput = false
+            ..contentLength = 100 * 1024
+            ..add(List<int>.filled(40 * 1024, 1));
+          await request.response.flush();
+          await release.future;
+          request.response.add(List<int>.filled(60 * 1024, 1));
+          await request.response.close();
+        } on HttpException {
+          // The handler cancels the unfinished transfer at teardown.
+        }
+      });
+      final api = SubsonicApiClient(
+        baseUrl: 'http://127.0.0.1:${server.port}',
+        authConfig: const SubsonicAuthConfig(
+          username: 'fixture',
+          password: 'synthetic',
+          apiVersion: '1.16.1',
+        ),
+        enableLogging: false,
+      );
+      final directory = await Directory.systemTemp.createTemp(
+        'navis-sidecar-bytes-',
+      );
+      final (handler, _, database) = await createHandler(
+        directory,
+        1,
+        sidecarStreams: true,
+        readApiClient: () => api,
+      );
+      addTearDown(() async {
+        await handler.disposeHandler();
+        release.complete();
+        await database.close();
+        await server.close(force: true);
+        await directory.delete(recursive: true);
+        HttpOverrides.global = previousHttp;
+      });
+      await handler.replaceQueue(['song-0'], expandMatchFlows: false);
+      for (var attempt = 0; attempt < 400; attempt++) {
+        final activity = handler.collectPlaybackDiagnostics()['cacheActivity'];
+        if (activity is Map && (activity['progress'] as num) >= 0.4) break;
+        await Future<void>.delayed(const Duration(milliseconds: 5));
+      }
+      final diagnostics = handler.collectPlaybackDiagnostics();
+      expect(diagnostics['cacheActivity'], isNotNull);
+      expect(diagnostics['partialCacheBytes'], 40 * 1024);
+    },
+  );
+
   test('begin then dispose cancels an in-flight sidecar client', () async {
     final directory = await Directory.systemTemp.createTemp(
       'navis-teardown-sidecar-',
