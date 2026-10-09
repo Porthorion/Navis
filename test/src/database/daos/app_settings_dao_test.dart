@@ -20,6 +20,32 @@ void main() {
     });
 
     test(
+      'corner style round trips, watches and resets independently',
+      () async {
+        final dao = database.appSettingsDao;
+        final initial = (await dao.getSettings())!;
+        expect(initial.cornerStyle, 'rounded');
+        await dao.updateThemeMode('oled');
+        await dao.updateNowPlayingBackground('artwork');
+        for (final style in ['soft', 'square', 'rounded']) {
+          await dao.updateCornerStyle(style);
+          final row = (await dao.getSettings())!;
+          expect(row.cornerStyle, style);
+          expect((await dao.watchSettings().first)!.cornerStyle, style);
+          expect(row.themeMode, 'oled');
+          expect(row.nowPlayingBackground, 'artwork');
+          expect(row.updatedAt.isBefore(initial.updatedAt), isFalse);
+        }
+        await dao.updateCornerStyle('unknown');
+        expect((await dao.getSettings())!.cornerStyle, 'rounded');
+        await dao.updateCornerStyle('square');
+        await dao.resetDefaults();
+        expect((await dao.getSettings())!.cornerStyle, 'rounded');
+      },
+      skip: !sqliteAvailable,
+    );
+
+    test(
       'background and density round trip through targeted writers and watches',
       () async {
         final dao = database.appSettingsDao;

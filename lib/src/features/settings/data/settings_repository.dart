@@ -7,6 +7,7 @@ import 'package:navis/src/features/settings/domain/app_settings.dart';
 import 'package:navis/src/features/settings/domain/navis_density.dart';
 import 'package:navis/src/features/settings/domain/now_playing_background.dart';
 import 'package:navis/src/routing/content_layout.dart';
+import 'package:navis/src/theme/navis_corner_style.dart';
 
 class SettingsRepository {
   new(this._dao);
@@ -60,6 +61,7 @@ class SettingsRepository {
       crossfadeType: settings.crossfadeType,
       artTintedNowPlaying: settings.artTintedNowPlaying,
       nowPlayingBackground: settings.nowPlayingBackground.storageKey,
+      cornerStyle: settings.cornerStyle.name,
       dynamicAlbumColorEnabled: settings.dynamicAlbumColorEnabled,
       updateChannel: settings.updateChannel,
       audioMuseServerUrl: settings.audioMuseServerUrl,
@@ -112,6 +114,9 @@ class SettingsRepository {
 
   Future<void> updateNowPlayingBackground(NowPlayingBackground background) =>
       _dao.updateNowPlayingBackground(background.storageKey);
+
+  Future<void> updateCornerStyle(NavisCornerStyle style) =>
+      _dao.updateCornerStyle(style.name);
 
   Future<void> updateDensity(NavisDensity density) =>
       _dao.updateDensity(density);
@@ -241,6 +246,7 @@ class SettingsRepository {
       nowPlayingBackground: NowPlayingBackground.parse(
         row.nowPlayingBackground,
       ),
+      cornerStyle: NavisCornerStyle.parse(row.cornerStyle),
       dynamicAlbumColorEnabled: row.dynamicAlbumColorEnabled,
       updateCheckEnabled: row.updateCheckEnabled,
       updateChannel: row.updateChannel,

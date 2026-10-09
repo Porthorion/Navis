@@ -8,6 +8,7 @@ enum SetupHighlight {
   nightSchedule('1.4.3'),
   flatSurfaces('1.4.3'),
   nowPlayingBackground('1.4.3'),
+  cornerStyle('1.4.3'),
   density('1.4.3');
 
   new(this.since);

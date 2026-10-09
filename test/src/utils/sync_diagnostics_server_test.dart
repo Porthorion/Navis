@@ -455,22 +455,31 @@ void main() {
     expect(forbidden.statusCode, HttpStatus.forbidden);
   });
 
-  test('settings diagnostics dump canonical background and density', () async {
-    final fixture = await _startFixture(SyncDiagnosticsMode.clone);
-    addTearDown(fixture.close);
-    final dao = fixture.container.read(navisDatabaseProvider).appSettingsDao;
-    await dao.updateNowPlayingBackground('artwork');
-    await dao.updateHomeDensity('compact');
-    for (final path in [
-      '/v1/presentation/appearance',
-      '/v1/presentation/integrations',
-    ]) {
-      final response = await _request(fixture.port, path, token: fixture.token);
-      expect(response.statusCode, HttpStatus.ok);
-      expect(response.body['nowPlayingBackground'], 'artwork');
-      expect(response.body['density'], 'compact');
-    }
-  });
+  test(
+    'settings diagnostics dump canonical background, corners and density',
+    () async {
+      final fixture = await _startFixture(SyncDiagnosticsMode.clone);
+      addTearDown(fixture.close);
+      final dao = fixture.container.read(navisDatabaseProvider).appSettingsDao;
+      await dao.updateNowPlayingBackground('artwork');
+      await dao.updateCornerStyle('soft');
+      await dao.updateHomeDensity('compact');
+      for (final path in [
+        '/v1/presentation/appearance',
+        '/v1/presentation/integrations',
+      ]) {
+        final response = await _request(
+          fixture.port,
+          path,
+          token: fixture.token,
+        );
+        expect(response.statusCode, HttpStatus.ok);
+        expect(response.body['nowPlayingBackground'], 'artwork');
+        expect(response.body['cornerStyle'], 'soft');
+        expect(response.body['density'], 'compact');
+      }
+    },
+  );
 
   test(
     'appearance diagnostics validate targeted settings and remain clone-only',
@@ -526,6 +535,7 @@ void main() {
         'nowPlayingArtShape': 'circle',
         'artistCardShape': 'square',
         'nowPlayingBackground': 'tinted',
+        'cornerStyle': 'rounded',
         'density': 'comfortable',
       });
       final observed = await _request(
@@ -1156,7 +1166,7 @@ void main() {
     );
     expect(authorized.statusCode, HttpStatus.ok);
     expect(authorized.body['mode'], 'clone');
-    expect(authorized.body['schemaVersion'], 96);
+    expect(authorized.body['schemaVersion'], 97);
   });
 
   test('cache upgrade clears then completes a full library scan', () async {

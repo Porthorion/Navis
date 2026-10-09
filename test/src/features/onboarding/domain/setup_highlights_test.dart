@@ -21,17 +21,22 @@ void main() {
     expect(setupWhatsNewRelease('2.0.0+20000'), isNull);
   });
 
-  test('background and app-wide density are introduced in 1.4.3', () {
-    expect(SetupHighlight.nowPlayingBackground.since, '1.4.3');
-    expect(SetupHighlight.density.since, '1.4.3');
-    expect(
-      setupHighlightsFor('1.4.3'),
-      containsAll([
-        SetupHighlight.nowPlayingBackground,
-        SetupHighlight.density,
-      ]),
-    );
-  });
+  test(
+    'background, corner style and app-wide density are introduced in 1.4.3',
+    () {
+      expect(SetupHighlight.nowPlayingBackground.since, '1.4.3');
+      expect(SetupHighlight.density.since, '1.4.3');
+      expect(SetupHighlight.cornerStyle.since, '1.4.3');
+      expect(
+        setupHighlightsFor('1.4.3'),
+        containsAll([
+          SetupHighlight.nowPlayingBackground,
+          SetupHighlight.density,
+          SetupHighlight.cornerStyle,
+        ]),
+      );
+    },
+  );
 
   test('release groups replace old highlights rather than accumulating', () {
     expect(setupHighlightsFor('1.4.3'), SetupHighlight.values.toSet());

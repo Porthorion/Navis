@@ -67,6 +67,7 @@ import 'package:navis/src/routing/app_router.dart';
 import 'package:navis/src/routing/desktop_commands.dart';
 import 'package:navis/src/routing/desktop_layout.dart';
 import 'package:navis/src/routing/desktop_window_controller.dart';
+import 'package:navis/src/theme/navis_corner_style.dart';
 import 'package:navis/src/utils/catalog_source.dart';
 import 'package:navis/src/utils/diagnostics_presentation_controller.dart';
 import 'package:navis/src/utils/diagnostics_provider_counter.dart';
@@ -852,6 +853,7 @@ class SyncDiagnosticsServer {
           'nowPlayingBackground': NowPlayingBackground.parse(
             settings?.nowPlayingBackground,
           ).storageKey,
+          'cornerStyle': NavisCornerStyle.parse(settings?.cornerStyle).name,
           'density': NavisDensity.parse(settings?.homeDensity).storageKey,
           'artistCardShape': settings?.artistCardShape ?? 'circle',
         });
@@ -4433,6 +4435,7 @@ class SyncDiagnosticsServer {
       'setupHighlightsSeenRelease': settings.setupHighlightsSeenRelease,
       'setupCardDismissedRelease': settings.setupCardDismissedRelease,
       'nowPlayingBackground': settings.nowPlayingBackground.storageKey,
+      'cornerStyle': settings.cornerStyle.name,
       'density': settings.density.storageKey,
       'services': <String, Object?>{
         for (final service in IntegrationService.values)

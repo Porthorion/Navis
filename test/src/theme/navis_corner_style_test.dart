@@ -1,12 +1,18 @@
+import 'dart:async';
+
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:navis/src/common_widgets/home_notice_card.dart';
+import 'package:navis/src/features/settings/domain/app_settings.dart';
+import 'package:navis/src/providers/app_providers.dart';
 import 'package:navis/src/theme/corner_style_provider.dart';
 import 'package:navis/src/theme/navis_corner_style.dart';
 import 'package:navis/src/theme/navis_shape_data.dart';
 import 'package:navis/src/theme/navis_theme.dart';
 import 'package:navis/src/theme/navis_tokens.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
+
+import '../../helpers/test_database.dart';
 
 const Color _seed = Color(0xFF009688);
 
@@ -112,12 +118,85 @@ void main() {
     });
   });
 
-  test('cornerStyleProvider defaults to rounded and can be set', () {
-    final container = ProviderContainer();
-    addTearDown(container.dispose);
-    expect(container.read(cornerStyleProvider), NavisCornerStyle.rounded);
-    container.read(cornerStyleProvider.notifier).set(NavisCornerStyle.square);
-    expect(container.read(cornerStyleProvider), NavisCornerStyle.square);
+  group('cornerStyleProvider', () {
+    for (final failed in [false, true]) {
+      test(
+        'defaults to rounded while settings ${failed ? 'fail' : 'load'}',
+        () async {
+          final controller = StreamController<AppSettingsModel>();
+          addTearDown(controller.close);
+          final container = ProviderContainer(
+            retry: (_, _) => null,
+            overrides: [
+              appSettingsProvider.overrideWith((ref) => controller.stream),
+            ],
+          );
+          addTearDown(container.dispose);
+          container.listen(appSettingsProvider, (_, _) {});
+          if (failed) {
+            final expectation = expectLater(
+              container.read(appSettingsProvider.future),
+              throwsStateError,
+            );
+            controller.addError(StateError('fixture'));
+            await expectation;
+          }
+          expect(container.read(cornerStyleProvider), NavisCornerStyle.rounded);
+        },
+      );
+    }
+
+    test('reflects every style and subsequent settings updates', () async {
+      final controller = StreamController<AppSettingsModel>();
+      addTearDown(controller.close);
+      final container = ProviderContainer(
+        overrides: [
+          appSettingsProvider.overrideWith((ref) => controller.stream),
+        ],
+      );
+      addTearDown(container.dispose);
+      container.listen(cornerStyleProvider, (_, _) {});
+      for (final style in NavisCornerStyle.values) {
+        final updated = Completer<void>();
+        final subscription = container.listen(appSettingsProvider, (_, next) {
+          next.whenData((settings) {
+            if (settings.cornerStyle == style && !updated.isCompleted) {
+              updated.complete();
+            }
+          });
+        });
+        controller.add(
+          const AppSettingsModel.defaults().copyWith(cornerStyle: style),
+        );
+        await updated.future;
+        subscription.close();
+        expect(container.read(cornerStyleProvider), style);
+      }
+    });
+
+    test('repository persistence updates reach the provider', () async {
+      final database = createTestDatabase();
+      final container = ProviderContainer(
+        overrides: withTestDatabase(database),
+      );
+      addTearDown(() async {
+        container.dispose();
+        await database.close();
+      });
+      container.listen(cornerStyleProvider, (_, _) {});
+      await container.read(appSettingsProvider.future);
+      final repository = container.read(settingsRepositoryProvider);
+      for (final style in [NavisCornerStyle.soft, NavisCornerStyle.square]) {
+        final updated = Completer<void>();
+        final subscription = container.listen(cornerStyleProvider, (_, next) {
+          if (next == style && !updated.isCompleted) updated.complete();
+        });
+        await repository.updateCornerStyle(style);
+        await updated.future;
+        subscription.close();
+        expect(container.read(cornerStyleProvider), style);
+      }
+    }, skip: !sqliteAvailable);
   });
 
   testWidgets('HomeNoticeCard follows the corner style', (tester) async {
