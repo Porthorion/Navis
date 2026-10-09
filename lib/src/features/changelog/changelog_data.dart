@@ -129,6 +129,10 @@ const List<ChangelogVersion> changelogs = [
     version: '1.4.3',
     entries: [
       ChangelogEntry(
+        'A slow queue restore after radio stops or fails keeps the saved music queue',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
         'Previous restarts the first queued song even within its first three seconds',
         type: ChangelogEntryType.fix,
       ),

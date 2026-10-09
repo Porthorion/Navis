@@ -2810,8 +2810,10 @@ cost to the materialised part of a queue.
 A saved queue larger than 64 songs is restored the same way at startup: the
 current song is prepared at its saved position first, and the rest is filled
 in the queue lane, so handler readiness and media-session Play do not wait for
-every source. A startup or deferred-retry restore timeout keeps the saved queue
-instead of deleting it. Before releasing the lane it cancels the restore token,
+every source. A startup, deferred-retry or post-radio restore timeout keeps the
+saved queue instead of deleting it. Radio Stop returns after stopping the stream; its
+background restore and the restore after radio failure share this preservation
+policy. Before releasing the lane it cancels the restore token,
 retires its load generation, and replaces the native player, so a late native
 load or its inner deadline cannot change a newer selection. Eager restores
 (up to 64 songs) carry the same cancellation ownership through source
@@ -3032,8 +3034,9 @@ holds exactly the materialised queue (song ids, canonical ids matching); an
 edit that lands while it loads makes it load once more, and a second change
 degrades that transition to gapless (`prewarm_failed`). Prewarming has the
 load deadline; a timeout retires only the inactive deck so a late native load
-cannot take over, while the active queue keeps playing sequentially. The incoming deck must
-still hold the queue, at the next song, when the fade starts, and still hold
+cannot take over, while the active queue keeps playing sequentially. The
+incoming deck must still hold the queue, at the next song, when the fade
+starts, and still hold
 the queue at the hand-over; otherwise the fade is cancelled and the active
 player, which holds the queue, continues gaplessly (`deck_mismatch`). No fade
 starts while a queue load is in progress, and a song whose transition could

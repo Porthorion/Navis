@@ -106,6 +106,7 @@ class _TestAudioSession extends Fake implements AudioSession {
 
 class _ControllableAudioPlayer extends Fake implements AudioPlayer {
   final StreamController<int?> _indices = StreamController<int?>.broadcast();
+  final _events = StreamController<PlaybackEvent>.broadcast();
   List<AudioSource> _sources = <AudioSource>[];
   ProcessingState state = ProcessingState.idle;
   bool isPlaying = false;
@@ -143,6 +144,7 @@ class _ControllableAudioPlayer extends Fake implements AudioPlayer {
   String? failLoadSongId;
   Completer<void>? seekGate;
   Completer<void>? seekEntered;
+  bool gateNonEmptyLoadsOnly = false;
   Completer<void>? loadGate;
   Completer<void>? loadEntered;
   StateError? blockedLoadError;
@@ -180,8 +182,7 @@ class _ControllableAudioPlayer extends Fake implements AudioPlayer {
   );
 
   @override
-  Stream<PlaybackEvent> get playbackEventStream =>
-      const Stream<PlaybackEvent>.empty();
+  Stream<PlaybackEvent> get playbackEventStream => _events.stream;
 
   @override
   Stream<int?> get currentIndexStream => _indices.stream;
@@ -380,8 +381,8 @@ class _ControllableAudioPlayer extends Fake implements AudioPlayer {
     }
     state = ProcessingState.loading;
     final gate = loadGate;
-    loadGate = null;
-    if (gate != null) {
+    if (gate != null && (!gateNonEmptyLoadsOnly || sources.isNotEmpty)) {
+      loadGate = null;
       loadEntered?.complete();
       await gate.future;
       if (blockedLoadError case final error?) throw error;
@@ -487,7 +488,10 @@ class _ControllableAudioPlayer extends Fake implements AudioPlayer {
 
   @override
   Future<void> dispose() async {
-    if (!keepStreamsAfterDispose) await _indices.close();
+    if (!keepStreamsAfterDispose) {
+      await _indices.close();
+      await _events.close();
+    }
   }
 }
 
@@ -961,6 +965,129 @@ void main() {
       expect(radio['nowPlayingArtHash'], isNull);
       expect(radio['publishedArtHash'], isNull);
     });
+  }
+
+  for (final streamFailure in [false, true]) {
+    test(
+      'radio failure logs omit URLs carried by native errors ($streamFailure)',
+      () async {
+        final directory = await Directory.systemTemp.createTemp(
+          'navis-radio-logs-',
+        );
+        const url = 'https://radio.example.invalid/private?token=fixture-token';
+        final lines = <String>[];
+        await runZoned(
+          () async {
+            final (handler, player, database) = await createHandler(
+              directory,
+              0,
+            );
+            addTearDown(() async {
+              await handler.disposeHandler();
+              await database.close();
+              await directory.delete(recursive: true);
+            });
+            if (!streamFailure) {
+              player
+                ..loadGate = (Completer<void>()..complete())
+                ..blockedLoadError = StateError(url);
+              await expectLater(
+                handler.playRadioStream(
+                  stationId: 'fixture',
+                  stationName: 'Fixture',
+                  streamUrl: url,
+                ),
+                throwsStateError,
+              );
+            } else {
+              await handler.playRadioStream(
+                stationId: 'fixture',
+                stationName: 'Fixture',
+                streamUrl: url,
+              );
+              player._events.addError(StateError(url), StackTrace.current);
+              await pumpEventQueue();
+            }
+          },
+          zoneSpecification: ZoneSpecification(
+            print: (self, parent, zone, line) => lines.add(line),
+          ),
+        );
+        expect(lines, isNotEmpty);
+        expect(lines.join('\n'), isNot(contains('fixture-token')));
+        expect(lines.join('\n'), isNot(contains('/private')));
+      },
+    );
+  }
+
+  for (final streamFailure in [false, true]) {
+    test(
+      'radio restore timeout keeps saved queue (failure=$streamFailure)',
+      () async {
+        final directory = await Directory.systemTemp.createTemp(
+          'navis-radio-restore-',
+        );
+        final rebuilt = <_ControllableAudioPlayer>[];
+        final (handler, player, database) = await createHandler(
+          directory,
+          3,
+          rebuiltPlayers: rebuilt,
+        );
+        final gate = Completer<void>();
+        final entered = Completer<void>();
+        addTearDown(() async {
+          if (!gate.isCompleted) gate.complete();
+          await pumpEventQueue();
+          await handler.disposeHandler();
+          player.keepStreamsAfterDispose = false;
+          await player.dispose();
+          await database.close();
+          await directory.delete(recursive: true);
+        });
+        await handler.replaceQueue([
+          'song-0',
+          'song-1',
+        ], expandMatchFlows: false);
+        await handler.debugFlushQueuePersistence();
+        await handler.playRadioStream(
+          stationId: 'fixture',
+          stationName: 'Fixture',
+          streamUrl: 'https://radio.example.invalid/stream',
+        );
+        player
+          ..gateNonEmptyLoadsOnly = true
+          ..loadGate = gate
+          ..loadEntered = entered
+          ..keepStreamsAfterDispose = true;
+        if (streamFailure) {
+          player._events.addError(
+            StateError('fixture radio failure'),
+            StackTrace.current,
+          );
+        } else {
+          await handler.stopRadio();
+        }
+        await entered.future.timeout(const Duration(seconds: 2));
+        await Future<void>.delayed(const Duration(seconds: 11));
+        expect(
+          (await database.playQueueDao.getQueueItems()).map((song) => song.id),
+          ['song-0', 'song-1'],
+        );
+        expect(handler.debugQueueLaneIdle, isTrue);
+        expect(
+          handler.collectPlaybackDiagnostics()['queueRestoreOutcome'],
+          'timeout',
+        );
+        await handler.replaceQueue(['song-2'], expandMatchFlows: false);
+        gate.complete();
+        await Future<void>.delayed(const Duration(seconds: 2));
+        expect(handler.snapshot.currentSongId, 'song-2');
+        expect(
+          (await database.playQueueDao.getQueueItems()).map((song) => song.id),
+          ['song-2'],
+        );
+      },
+    );
   }
 
   test(

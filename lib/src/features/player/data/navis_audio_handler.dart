@@ -2293,18 +2293,10 @@ class NavisAudioHandler extends BaseAudioHandler
             }),
           );
           unawaited(
-            _queueLane.run((_) async {
+            _queueLane.run((token) async {
               if (_queueItems.isNotEmpty || _radioStation != null) return;
               try {
-                await _restoreQueueFromDisk().timeout(
-                  const Duration(seconds: 10),
-                );
-              } on TimeoutException catch (e, st) {
-                AppLogger.warning(
-                  'Queue restore after radio stream error timed out. '
-                  'Clearing persisted queue. $e\n$st',
-                );
-                await _clearPersistedQueueBestEffort();
+                await _restoreSavedQueue(token: token);
               } on Object catch (e, st) {
                 AppLogger.warning(
                   'Queue restore after radio stream error failed: $e\n$st',
@@ -7550,14 +7542,12 @@ class NavisAudioHandler extends BaseAudioHandler
     );
   }
 
-  /// Writes any coalesced queue save now and waits for the persistence lane.
-  @visibleForTesting
-  /// Whether no queue work, including idle releases and trims, is running
-  /// or waiting.
   @visibleForTesting
   void debugWireAudioSession(AudioSession session) =>
       _wireAudioSession(session);
 
+  /// Whether no queue work, including idle releases and trims, is running
+  /// or waiting.
   @visibleForTesting
   bool get debugQueueLaneIdle => _queueLane.isIdle;
 
@@ -7594,6 +7584,7 @@ class NavisAudioHandler extends BaseAudioHandler
         reason: 'remote playback stalled',
       );
 
+  /// Writes any coalesced queue save now and waits for the persistence lane.
   @visibleForTesting
   Future<void> debugFlushQueuePersistence() async {
     await _flushQueueItemsPersistence();
@@ -9578,16 +9569,7 @@ class NavisAudioHandler extends BaseAudioHandler
               _checkQueueWorkCurrent(token, generation);
               if (_queueItems.isNotEmpty || _radioStation != null) return;
               try {
-                await _restoreQueueFromDisk().timeout(
-                  const Duration(seconds: 10),
-                );
-              } on TimeoutException catch (error, stackTrace) {
-                AppLogger.warning(
-                  'Queue restore after radio stop timed out. '
-                  'Clearing persisted queue to unblock playback. '
-                  '$error\n$stackTrace',
-                );
-                await _clearPersistedQueueBestEffort();
+                await _restoreSavedQueue(token: token);
               } on Object catch (error, stackTrace) {
                 AppLogger.warning(
                   'Queue restore after radio stop failed: $error\n$stackTrace',
