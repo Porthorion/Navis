@@ -155,4 +155,72 @@ void main() {
 
     expect(queueSpy.removeCalls, 1);
   });
+  testWidgets('phone full Queue rendering is pinned', (tester) async {
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(390, 844);
+    addTearDown(() {
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+    });
+    final queueSpy = _QueueSpyController(<String>[
+      'song-1',
+      'song-2',
+      'song-3',
+    ]);
+    const snapshot = PlaybackSnapshot(
+      queueSongIds: <String>['song-1', 'song-2', 'song-3'],
+      currentSongId: 'song-2',
+      currentIndex: 1,
+      playing: true,
+      processingState: AudioProcessingState.ready,
+      position: Duration.zero,
+      duration: Duration(minutes: 3),
+      bufferedPosition: Duration.zero,
+      shuffleMode: AudioServiceShuffleMode.none,
+      repeatMode: AudioServiceRepeatMode.none,
+    );
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          playerStateProvider.overrideWithValue(snapshot),
+          appSettingsProvider.overrideWithValue(
+            const AsyncData(AppSettingsModel.defaults()),
+          ),
+          queueProvider.overrideWith(() => queueSpy),
+          songByIdProvider.overrideWith(
+            (ref, songId) => songId == 'song-3'
+                ? Stream<SongsTableData?>.error(StateError('lookup failed'))
+                : Stream.value(
+                    SongsTableData(
+                      isProvisional: false,
+                      isExternal: songId == 'song-1',
+                      id: songId,
+                      title: 'Track $songId',
+                      albumId: 'album',
+                      artistName: 'Artist',
+                      albumName: 'Album',
+                      duration: 180,
+                    ),
+                  ),
+          ),
+        ],
+        child: MaterialApp(
+          localizationsDelegates: navisLocalizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
+          home: const RepaintBoundary(
+            key: ValueKey('queue-screen-golden'),
+            child: QueueScreen(),
+          ),
+        ),
+      ),
+    );
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 100));
+
+    await expectLater(
+      find.byKey(const ValueKey('queue-screen-golden')),
+      matchesGoldenFile('goldens/queue_screen_phone_390x844.png'),
+    );
+  });
 }
