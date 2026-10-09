@@ -129,6 +129,10 @@ const List<ChangelogVersion> changelogs = [
     version: '1.4.3',
     entries: [
       ChangelogEntry(
+        'Desktop updates keep downloads and installer scripts in private temporary folders',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
         'Updates now come from downloads.porthorion.com, and every update is checked against a signed release list before it installs',
         type: ChangelogEntryType.fix,
       ),

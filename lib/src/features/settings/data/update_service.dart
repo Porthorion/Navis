@@ -37,7 +37,7 @@ class UpdateService {
   // Download
   // ---------------------------------------------------------------------------
 
-  /// Downloads the artifact from [UpdateInfo.downloadUrl] to the app's cache
+  /// Downloads the artifact from [UpdateInfo.downloadUrl] to a private work
   /// directory and reports progress via [onProgress] (0.0 – 1.0).
   ///
   /// Returns the absolute path to the downloaded file.
@@ -59,9 +59,29 @@ class UpdateService {
     }
 
     final cacheDir = await getTemporaryDirectory();
-    final updatesDir = Directory(p.join(cacheDir.path, 'navis_updates'));
-    if (!updatesDir.existsSync()) {
-      updatesDir.createSync(recursive: true);
+    // Android's FileProvider exposes this app-private cache subdirectory.
+    // Desktop temp bases can be shared, so create a fresh private directory.
+    final updatesDir = Platform.isAndroid
+        ? await Directory(p.join(cacheDir.path, 'navis_updates'))
+              .create(recursive: true)
+        : await Directory(p.join(cacheDir.path)).createTemp('navis_update_');
+    if (!Platform.isAndroid && !Platform.isWindows) {
+      // createTemp's POSIX mode depends on the SDK/umask. Make the directory
+      // private before writing any artifact or script, and fail closed.
+      final result = await Process.run('chmod', ['700', updatesDir.path]);
+      if (result.exitCode != 0) {
+        throw ProcessException(
+          'chmod',
+          ['700', updatesDir.path],
+          'Could not secure update work directory',
+          result.exitCode,
+        );
+      }
+      // Reject anything inserted before the directory became private when
+      // the process umask allowed other users to write to the empty directory.
+      if (updatesDir.listSync(followLinks: false).isNotEmpty) {
+        throw StateError('Update work directory was not empty');
+      }
     }
 
     final fileName = p.basename(info.assetFileName ?? 'navis-${info.tagName}');
@@ -261,15 +281,14 @@ class UpdateService {
 
   Future<void> _applyWindowsPortable(String zipPath) async {
     final targetDir = _resolveTargetDir(UpdateInstallMode.windowsPortable);
-    final stagingDir = p.join(
-      Directory.systemTemp.path,
-      'navis_update_staging_${DateTime.now().millisecondsSinceEpoch}',
-    );
+    final workDir = p.dirname(zipPath);
+    final stagingDir = p.join(workDir, 'staging');
 
     AppLogger.info('Extracting Windows zip to $stagingDir');
     await ArchiveUtils.extractZipWindows(zipPath, stagingDir);
 
     final script = await UpdateScripts.writeWindowsPortableScript(
+      workDir: workDir,
       targetDir: targetDir,
       stagingDir: stagingDir,
       appExeName: 'navis.exe',
@@ -294,15 +313,14 @@ class UpdateService {
       throw StateError('Could not locate .app bundle for executable: $exe');
     }
 
-    final stagingDir = p.join(
-      Directory.systemTemp.path,
-      'navis_update_staging_${DateTime.now().millisecondsSinceEpoch}',
-    );
+    final workDir = p.dirname(zipPath);
+    final stagingDir = p.join(workDir, 'staging');
 
     AppLogger.info('Extracting macOS zip to $stagingDir');
     await ArchiveUtils.extractZipMacos(zipPath, stagingDir);
 
     final script = await UpdateScripts.writeUnixScript(
+      workDir: workDir,
       targetPath: appBundlePath,
       stagingPath: p.join(stagingDir, p.basename(appBundlePath)),
       isMacos: true,
@@ -341,10 +359,8 @@ class UpdateService {
 
   Future<void> _applyLinuxPortable(String tarPath) async {
     final targetDir = _resolveTargetDir(UpdateInstallMode.linuxPortable);
-    final stagingDir = p.join(
-      Directory.systemTemp.path,
-      'navis_update_staging_${DateTime.now().millisecondsSinceEpoch}',
-    );
+    final workDir = p.dirname(tarPath);
+    final stagingDir = p.join(workDir, 'staging');
 
     AppLogger.info('Extracting Linux tar.gz to $stagingDir');
     await ArchiveUtils.extractTarGz(tarPath, stagingDir);
@@ -352,6 +368,7 @@ class UpdateService {
     final executableName = p.basename(Platform.resolvedExecutable);
 
     final script = await UpdateScripts.writeUnixScript(
+      workDir: workDir,
       targetPath: targetDir,
       stagingPath: stagingDir,
       isMacos: false,
@@ -367,17 +384,17 @@ class UpdateService {
   // Startup cleanup
   // ---------------------------------------------------------------------------
 
-  /// Deletes leftover `.backup` directories and orphaned staging dirs created
-  /// by a previous updater script. Safe to call on every app launch.
+  /// Deletes leftover `.backup` directories and this user's private update
+  /// work directories. Safe to call on every desktop app launch.
   static Future<void> cleanupStaledUpdates() async {
     await _cleanupNextToBundle();
-    await _cleanupStagingDirs();
+    await _cleanupWorkDirs();
   }
 
   static Future<void> _cleanupNextToBundle() async {
     try {
       final exeDir = File(Platform.resolvedExecutable).parent;
-      await for (final entity in exeDir.list()) {
+      await for (final entity in exeDir.list(followLinks: false)) {
         if (entity is Directory &&
             p.basename(entity.path).endsWith('.backup')) {
           AppLogger.info('Removing leftover backup dir: ${entity.path}');
@@ -387,14 +404,40 @@ class UpdateService {
     } on Object catch (_) {}
   }
 
-  static Future<void> _cleanupStagingDirs() async {
+  static Future<void> _cleanupWorkDirs() async {
     try {
-      final tmpDir = Directory.systemTemp;
-      await for (final entity in tmpDir.list()) {
-        if (entity is Directory &&
-            p.basename(entity.path).startsWith('navis_update_staging_')) {
-          AppLogger.info('Removing leftover staging dir: ${entity.path}');
+      final tmpDir = await getTemporaryDirectory();
+      // FileStat does not expose ownership. On POSIX, compare numeric UIDs
+      // before deleting anything in a potentially shared temp base.
+      String? uid;
+      if (!Platform.isWindows) {
+        final result = await Process.run('id', ['-u']);
+        if (result.exitCode != 0) return;
+        uid = (result.stdout as String).trim();
+        if (int.tryParse(uid) == null) return;
+      }
+      await for (final entity in tmpDir.list(followLinks: false)) {
+        if (entity is! Directory ||
+            !p.basename(entity.path).startsWith('navis_update_')) {
+          continue;
+        }
+        try {
+          if (uid != null) {
+            final owner = await Process.run(
+              'stat',
+              Platform.isMacOS
+                  ? ['-f', '%u', entity.path]
+                  : ['-c', '%u', '--', entity.path],
+            );
+            if (owner.exitCode != 0 || (owner.stdout as String).trim() != uid) {
+              continue;
+            }
+          }
+          if (FileSystemEntity.isLinkSync(entity.path)) continue;
+          AppLogger.info('Removing leftover update dir: ${entity.path}');
           await entity.delete(recursive: true);
+        } on Object catch (_) {
+          // A directory may disappear or belong to another user; continue.
         }
       }
     } on Object catch (_) {}

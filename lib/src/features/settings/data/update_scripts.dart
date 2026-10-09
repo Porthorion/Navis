@@ -5,7 +5,8 @@ import 'package:path/path.dart' as p;
 import 'package:navis/src/utils/app_logger.dart';
 
 /// Generates lightweight platform-specific updater scripts that are written
-/// to a temp file, launched detached, and self-delete after finishing.
+/// inside a private update work directory, launched detached, and self-delete
+/// after finishing.
 ///
 /// All path arguments are shell-escaped to prevent command injection.
 class UpdateScripts {
@@ -18,14 +19,12 @@ class UpdateScripts {
   ///
   /// Returns the absolute path to the written `.bat` file.
   static Future<String> writeWindowsPortableScript({
+    required String workDir,
     required String targetDir,
     required String stagingDir,
     required String appExeName,
   }) async {
-    final scriptPath = p.join(
-      Directory.systemTemp.path,
-      'navis_update_${DateTime.now().millisecondsSinceEpoch}.bat',
-    );
+    final scriptPath = p.join(workDir, 'navis_update.bat');
 
     final backupDir = '$targetDir.backup';
     final tdEsc = _winEsc(targetDir);
@@ -63,15 +62,13 @@ del "%~f0"
   ///
   /// Returns the absolute path to the written `.sh` file.
   static Future<String> writeUnixScript({
+    required String workDir,
     required String targetPath,
     required String stagingPath,
     required bool isMacos,
     required String relaunchCommand,
   }) async {
-    final scriptPath = p.join(
-      Directory.systemTemp.path,
-      'navis_update_${DateTime.now().millisecondsSinceEpoch}.sh',
-    );
+    final scriptPath = p.join(workDir, 'navis_update.sh');
 
     final backupPath = '$targetPath.backup';
     final tEsc = _shEsc(targetPath);
@@ -114,6 +111,8 @@ rm -- "\$0" 2>/dev/null || true
 ''';
 
     final file = File(scriptPath);
+    // The enclosing work directory is already private (0700 on POSIX),
+    // protecting the script while it is written and before chmod.
     await file.writeAsString(script);
     // Make executable. We still invoke the script as `bash scriptPath` so
     // this is defensive; log a warning if it somehow fails.

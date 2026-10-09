@@ -2152,8 +2152,12 @@ Settings › Integrations › Updates holds the automatic check
   `UpdateInfo` (with `downloadUrl`, `assetFileName`, `sha256` and `size`) when a newer
   version is available. A manifest that fails any check is dropped (the reason is kept
   for diagnostics) and reads as "no update".
-- `data/update_service.dart` — downloads the release artifact into the system temp
-  directory, verifies it, and applies the update. Distribution is resolved at runtime:
+- `data/update_service.dart` — downloads each desktop artifact into a fresh private
+  `navis_update_*` work directory under `getTemporaryDirectory()`. POSIX downloads
+  require `chmod 700` on that directory before writing any contents. Navis then
+  verifies the artifact and applies the update. Diagnostics overrides of the temp base are
+  preserved. Android retains `<cache>/navis_updates/` for its FileProvider.
+  Distribution is resolved at runtime:
   - **Sideload Android APK builds** (`NAVIS_SELF_UPDATE=true`) download the
     APK and invoke the system installer via a gated `MethodChannel`.
   - **Google Play installs** (detected via install-source metadata, or Play AAB builds
@@ -2161,7 +2165,8 @@ Settings › Integrations › Updates holds the automatic check
   - **Desktop** runs a platform-appropriate apply strategy:
   - **Linux deb:** `pkexec dpkg -i` + relaunch.
   - **Linux portable / Windows portable / macOS:** extracts the archive to a staging
-    directory, writes a self-deleting shell/batch script with rollback logic, launches it
+    subdirectory of the downloaded artifact's private work directory, writes a
+    self-deleting shell/batch script inside that same work directory, launches it
     detached, and exits. The script replaces the running bundle, relaunches the app, and
     cleans up automatically.
   - **Windows installer:** launches the Inno Setup installer with `/SILENT /CLOSEAPPLICATIONS`.
@@ -2172,7 +2177,8 @@ Settings › Integrations › Updates holds the automatic check
   `Expand-Archive`).
 - `data/update_scripts.dart` — generates the platform-specific updater scripts (`.sh` for
   Linux/macOS, `.bat` for Windows). Scripts include rollback on failure and self-delete
-  after successful update.
+  after successful update. Unix scripts retain `chmod 700`; their enclosing private
+  directory protects them before chmod as well.
 - `domain/update_info.dart` — immutable value object with an `UpdateDelivery` mode.
   `downloadUrl`, `sha256` and `size` hold the direct asset URL and its manifest digest for
   self-update paths; Play redirects omit them.
@@ -2231,8 +2237,12 @@ a doomed automatic update.
 ### Startup cleanup
 
 `UpdateService.cleanupStaledUpdates()` is called on every desktop app launch. It removes
-any `.backup` directories and orphaned staging dirs left behind by a previous update
-script, preventing accumulation of stale files.
+`.backup` directories next to the bundle and leftover `navis_update_*` directories
+under the same `getTemporaryDirectory()` base, including legacy staging directories.
+POSIX cleanup checks the directory owner against the current UID; Windows uses its
+per-user temp base. Cleanup skips symlinks, does not follow nested symlinks, and
+ignores individual deletion errors. Updater scripts may leave the private work
+directory for this startup cleanup.
 
 ### Update channel
 
