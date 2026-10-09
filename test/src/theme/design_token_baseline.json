@@ -25,9 +25,6 @@
     "fontSize": 3,
     "colorLiteral": 3
   },
-  "lib/src/features/player/presentation/desktop_volume_slider.dart": {
-    "radius": 1
-  },
   "lib/src/features/player/presentation/now_playing_screen.dart": {
     "radius": 1
   },
