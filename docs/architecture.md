@@ -607,9 +607,11 @@ target-selection rules.
   already in the cover cache at 96 px (`ResizeImage`, no second full-size
   fetch), blurs it (sigma 32, `ImageFiltered` inside a `RepaintBoundary`, not a
   backdrop filter), lays `NavisColorStyleData.nowPlayingArtworkVeil` over it
-  (adaptive: the smallest alpha keeping 5.0:1 against the 96 px average, dark 0.30-0.80, OLED 0.55-0.90, light 0.40-0.85, fixed 0.68/0.8/0.68 until known; tuned so
-  `onSurface` keeps WCAG 4.5 on yellow, white, black and red covers) and adds a 0.15 veil over the bottom fifth
-  (the bottom fifth only). The previous cover stays until the next one
+  (adaptive: the smallest alpha keeping both `onSurface` and the accent-coloured
+  title at 5.0:1 against the 96 px average, within dark 0.30-0.80, OLED
+  0.72-0.92 so it still reads as OLED, and light 0.58-0.88; fixed
+  0.68/0.8/0.68 until the average is known) and adds a 0.15 veil over the
+  bottom fifth. The previous cover stays until the next one
   decodes, then crossfades over `MotionPolicy.surface`. Flat has no blur, so
   Artwork falls back to the Flat solid tint (OLED + Flat stays black); radio or
   external art uses the same allowed-artwork path as the tint, and with no

@@ -536,6 +536,7 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen> {
     required NavisColorStyleData colorStyle,
     required Color surfaceColor,
     required Color onSurfaceColor,
+    required Color accentColor,
     required Duration fadeDuration,
     required Widget child,
   }) {
@@ -551,6 +552,7 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen> {
             colorStyle: colorStyle,
             surfaceColor: surfaceColor,
             onSurfaceColor: onSurfaceColor,
+            accentColor: accentColor,
             fadeDuration: fadeDuration,
           ),
         ),
@@ -720,6 +722,7 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen> {
           colorStyle: colorStyle,
           surfaceColor: surfaceColor,
           onSurfaceColor: Theme.of(context).colorScheme.onSurface,
+          accentColor: Theme.of(context).colorScheme.primary,
           fadeDuration: motion.surface,
           child: Builder(
             builder: (context) {

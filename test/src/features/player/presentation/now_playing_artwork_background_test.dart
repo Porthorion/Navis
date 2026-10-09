@@ -81,7 +81,7 @@ void main() {
       }
     }
 
-    test('ranges: dark 0.30-0.80, OLED 0.55-0.90, light 0.40-0.85', () {
+    test('ranges: dark 0.30-0.80, OLED 0.72-0.92, light 0.58-0.88', () {
       const style = NavisColorStyle.neutral;
       expect(
         const NavisColorStyleData(
@@ -96,14 +96,14 @@ void main() {
           dark: true,
           oled: true,
         ).nowPlayingArtworkVeilRange,
-        (0.55, 0.9),
+        (0.72, 0.92),
       );
       expect(
         const NavisColorStyleData(
           style: style,
           dark: false,
         ).nowPlayingArtworkVeilRange,
-        (0.40, 0.85),
+        (0.58, 0.88),
       );
     });
 
@@ -119,6 +119,27 @@ void main() {
         average: c,
       ).a;
       expect(alpha(const Color(0xFF301000)), lessThan(alpha(Colors.white)));
+    });
+
+    test('the accent-coloured title also stays readable', () {
+      const data = NavisColorStyleData(
+        style: NavisColorStyle.pastel,
+        dark: false,
+      );
+      const surface = Color(0xFFFFF4F0);
+      const accent = Color(0xFFB0453A);
+      const salmon = Color(0xFFE08A70);
+      final veil = nowPlayingAdaptiveVeil(
+        colorStyle: data,
+        surface: surface,
+        onSurface: const Color(0xFF2A1F1D),
+        accent: accent,
+        average: salmon,
+      );
+      expect(
+        captionContrast(accent, Color.alphaBlend(veil, salmon)),
+        greaterThanOrEqualTo(kCaptionMinContrast),
+      );
     });
   });
 
