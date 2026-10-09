@@ -141,16 +141,16 @@ void main() {
 
     test('stale onboarding drafts preserve setup release markers', () async {
       final stale = await repository.getSettings();
-      await repository.updateSetupHighlightsSeenRelease('1.4.3');
-      await repository.updateSetupCardDismissedRelease('1.4.3');
+      await repository.updateSetupHighlightsSeenRelease('1.5.0');
+      await repository.updateSetupCardDismissedRelease('1.5.0');
       await repository.saveSettings(stale.copyWith(colorStyle: 'night'));
       final saved = await repository.getSettings();
-      expect(saved.setupHighlightsSeenRelease, '1.4.3');
-      expect(saved.setupCardDismissedRelease, '1.4.3');
+      expect(saved.setupHighlightsSeenRelease, '1.5.0');
+      expect(saved.setupCardDismissedRelease, '1.5.0');
       expect(saved.colorStyle, 'night');
       final watched = await repository.watchSettings().first;
-      expect(watched.setupHighlightsSeenRelease, '1.4.3');
-      expect(watched.setupCardDismissedRelease, '1.4.3');
+      expect(watched.setupHighlightsSeenRelease, '1.5.0');
+      expect(watched.setupCardDismissedRelease, '1.5.0');
       final cleared = saved.copyWith(
         clearSetupHighlightsSeenRelease: true,
         clearSetupCardDismissedRelease: true,
@@ -159,7 +159,7 @@ void main() {
       expect(cleared.setupCardDismissedRelease, isNull);
       expect(
         saved.copyWith(themeMode: 'oled').setupHighlightsSeenRelease,
-        '1.4.3',
+        '1.5.0',
       );
     }, skip: !sqliteAvailable);
 

@@ -120,8 +120,8 @@ Future<_Harness> _pump(
         setupHighlightsServiceProvider.overrideWith((ref) {
           final repository = ref.watch(settingsRepositoryProvider);
           return SetupHighlightsService(
-            () => repository.updateSetupHighlightsSeenRelease('1.4.3'),
-            () => repository.updateSetupCardDismissedRelease('1.4.3'),
+            () => repository.updateSetupHighlightsSeenRelease('1.5.0'),
+            () => repository.updateSetupCardDismissedRelease('1.5.0'),
             (option) async {
               _shownOptions.add(option);
               if (clearTagsWhenShown) {
@@ -134,8 +134,8 @@ Future<_Harness> _pump(
           (ref) async => PackageInfo(
             appName: 'Navis',
             packageName: 'test.navis',
-            version: '1.4.3',
-            buildNumber: '10403',
+            version: '1.5.0',
+            buildNumber: '10500',
           ),
         ),
       ],
@@ -256,7 +256,7 @@ void main() {
     expect(row.cornerStyle, 'square');
     expect(row.nowPlayingBackground, 'artwork');
     expect(row.homeDensity, 'compact');
-    expect(row.setupHighlightsSeenRelease, '1.4.3');
+    expect(row.setupHighlightsSeenRelease, '1.5.0');
   });
 
   testWidgets('Skip in review keeps the tags pending', (tester) async {
@@ -340,7 +340,7 @@ void main() {
     );
     expect(tag, findsOneWidget);
     await h.finish();
-    expect(await h.row().then((r) => r.setupHighlightsSeenRelease), '1.4.3');
+    expect(await h.row().then((r) => r.setupHighlightsSeenRelease), '1.5.0');
   });
 
   testWidgets('a night schedule does not switch the preview by time', (
@@ -382,7 +382,7 @@ void main() {
     ) async {
       await _pump(
         tester,
-        seed: (d) => d.updateSetupHighlightsSeenRelease('1.4.3'),
+        seed: (d) => d.updateSetupHighlightsSeenRelease('1.5.0'),
       );
 
       expect(find.byKey(expanderKey), findsOneWidget);

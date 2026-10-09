@@ -11,7 +11,7 @@ import 'package:navis/src/routing/navigation_service.dart';
 import 'package:navis/src/utils/app_logger.dart';
 
 /// The release that introduced Integrations, named on the notice.
-const String kIntegrationsNoticeVersion = '1.4.3';
+const String kIntegrationsNoticeVersion = '1.5.0';
 
 /// Whether Home shows [IntegrationsNoticeCard]: settings have loaded, the
 /// notice was never dismissed or opened, and setup is complete. Home hides
@@ -26,7 +26,7 @@ final integrationsNoticeVisibleProvider = Provider<bool>((ref) {
   return ref.watch(onboardingRequiredProvider) == false;
 });
 
-/// A one-time row on Home for people updating to 1.4.3: "New in 1.4.3",
+/// A one-time row on Home for people updating to 1.5.0: "New in 1.5.0",
 /// then what Navis can now use Deezer for. Tapping it opens Settings ›
 /// Integrations; tapping it or its close button records the notice as seen
 /// (`integrations_notice_dismissed`), so it never returns.

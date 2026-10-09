@@ -1100,7 +1100,7 @@ void main() {
     );
   });
 
-  testWidgets('the 1.4.3 Integrations notice takes the release notes row', (
+  testWidgets('the 1.5.0 Integrations notice takes the release notes row', (
     tester,
   ) async {
     final view = tester.view;
@@ -1192,8 +1192,8 @@ void main() {
         (ref) async => PackageInfo(
           appName: 'Navis',
           packageName: 'test.navis',
-          version: '1.4.3',
-          buildNumber: '10403',
+          version: '1.5.0',
+          buildNumber: '10500',
         ),
       );
       final setup = find.byKey(const ValueKey<String>('setupHighlightsOpen'));
@@ -1239,11 +1239,11 @@ void main() {
       for (final settings in <AppSettingsModel>[
         const AppSettingsModel.defaults().copyWith(
           integrationsNoticeDismissed: true,
-          setupCardDismissedRelease: '1.4.3',
+          setupCardDismissedRelease: '1.5.0',
         ),
         const AppSettingsModel.defaults().copyWith(
           integrationsNoticeDismissed: true,
-          setupHighlightsSeenRelease: '1.4.3',
+          setupHighlightsSeenRelease: '1.5.0',
         ),
       ]) {
         await _pumpHomeWithAppSettings(
@@ -1266,7 +1266,7 @@ void main() {
         tester,
         database: database,
         appSettings: const AppSettingsModel.defaults().copyWith(
-          setupHighlightsSeenRelease: '1.4.3',
+          setupHighlightsSeenRelease: '1.5.0',
         ),
         overrides: <Override>[
           changelog,
@@ -1283,7 +1283,7 @@ void main() {
         tester,
         database: database,
         appSettings: const AppSettingsModel.defaults().copyWith(
-          setupHighlightsSeenRelease: '1.4.3',
+          setupHighlightsSeenRelease: '1.5.0',
           integrationsNoticeDismissed: true,
         ),
         overrides: <Override>[

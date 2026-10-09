@@ -6,15 +6,15 @@ void main() {
   test(
     'picks the newest eligible setup release and ignores build suffixes',
     () {
-      expect(setupWhatsNewRelease('1.4.2'), isNull);
-      expect(setupWhatsNewRelease('1.4.3'), '1.4.3');
-      expect(setupWhatsNewRelease('1.4.3+10403'), '1.4.3');
-      expect(setupWhatsNewRelease('1.4.3-sidecar'), '1.4.3');
-      expect(setupWhatsNewRelease('1.4.10'), '1.4.3');
-      expect(setupWhatsNewRelease('1.5.0'), '1.4.3');
-      expect(setupWhatsNewRelease('1.5.9+10509'), '1.4.3');
-      expect(setupWhatsNewRelease('1.6.0'), isNull);
-      expect(setupWhatsNewRelease('1.6.0-sidecar'), isNull);
+      expect(setupWhatsNewRelease('1.4.9'), isNull);
+      expect(setupWhatsNewRelease('1.5.0'), '1.5.0');
+      expect(setupWhatsNewRelease('1.5.0+10500'), '1.5.0');
+      expect(setupWhatsNewRelease('1.5.0-sidecar'), '1.5.0');
+      expect(setupWhatsNewRelease('1.5.10'), '1.5.0');
+      expect(setupWhatsNewRelease('1.6.0'), '1.5.0');
+      expect(setupWhatsNewRelease('1.6.9+10609'), '1.5.0');
+      expect(setupWhatsNewRelease('1.7.0'), isNull);
+      expect(setupWhatsNewRelease('1.7.0-sidecar'), isNull);
       expect(setupWhatsNewRelease('invalid'), isNull);
     },
   );
@@ -24,11 +24,11 @@ void main() {
     expect(setupWhatsNewRelease('2.0.0+20000'), isNull);
   });
 
-  test('background and corner style are introduced in 1.4.3', () {
-    expect(SetupHighlight.nowPlayingBackground.since, '1.4.3');
-    expect(SetupHighlight.cornerStyle.since, '1.4.3');
+  test('background and corner style are introduced in 1.5.0', () {
+    expect(SetupHighlight.nowPlayingBackground.since, '1.5.0');
+    expect(SetupHighlight.cornerStyle.since, '1.5.0');
     expect(
-      setupHighlightsFor('1.4.3'),
+      setupHighlightsFor('1.5.0'),
       containsAll([
         SetupHighlight.nowPlayingBackground,
         SetupHighlight.cornerStyle,
@@ -37,9 +37,9 @@ void main() {
   });
 
   test('release groups replace old highlights rather than accumulating', () {
-    expect(setupHighlightsFor('1.4.3'), SetupHighlight.values.toSet());
+    expect(setupHighlightsFor('1.5.0'), SetupHighlight.values.toSet());
     // A replacement release returns only its own group, never the older group.
-    expect(setupHighlightsFor('1.5.0'), isEmpty);
+    expect(setupHighlightsFor('1.6.0'), isEmpty);
     for (final release in SetupHighlight.values.map((h) => h.since).toSet()) {
       expect(
         setupHighlightsFor(release),

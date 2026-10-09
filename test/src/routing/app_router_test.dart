@@ -166,11 +166,11 @@ const _testApp = NavisApp(splashFactory: NoSplash.splashFactory);
 Future<ProviderContainer> _createContainerWithDatabase({
   List<Override> overrides = const <Override>[],
   bool initialSyncRequired = false,
-  String appVersion = '1.4.3',
+  String appVersion = '1.5.0',
   int onboardingVersion = currentOnboardingVersion,
 }) async {
   final database = createTestDatabase();
-  await database.cacheSystemStateDao.markVersion(1004);
+  await database.cacheSystemStateDao.markVersion(1005);
   final container = ProviderContainer(
     overrides: withTestDatabase(
       database,
@@ -180,7 +180,7 @@ Future<ProviderContainer> _createContainerWithDatabase({
             appName: 'Navis',
             packageName: 'navis',
             version: appVersion,
-            buildNumber: '10403',
+            buildNumber: '10500',
           ),
         ),
         initialSyncRequiredProvider.overrideWithValue(

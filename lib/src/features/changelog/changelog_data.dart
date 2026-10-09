@@ -126,7 +126,39 @@ enum ChangelogHighlightIcon {
 /// All changelogs, newest first.
 const List<ChangelogVersion> changelogs = [
   ChangelogVersion(
-    version: '1.4.3',
+    version: '1.5.0',
+    codename: 'Expression',
+    summary:
+        'Make Navis look the way you want with new color styles, corners, '
+        'density and Now Playing backgrounds, on top of signed updates and a '
+        'large round of playback, sync and security fixes.',
+    highlights: [
+      ChangelogHighlight(
+        icon: ChangelogHighlightIcon.sparkle,
+        title: 'Color Styles',
+        body: 'Pastel, Immersive and Night, plus OLED for Auto on a schedule',
+      ),
+      ChangelogHighlight(
+        icon: ChangelogHighlightIcon.library,
+        title: 'Shape and density',
+        body: 'Rounded, Soft or Square corners, Density and Flat Surfaces',
+      ),
+      ChangelogHighlight(
+        icon: ChangelogHighlightIcon.player,
+        title: 'Now Playing backgrounds',
+        body: 'Art-tinted, blurred artwork or your plain theme background',
+      ),
+      ChangelogHighlight(
+        icon: ChangelogHighlightIcon.download,
+        title: 'Signed updates',
+        body: 'Every update is checked against a signed release list',
+      ),
+      ChangelogHighlight(
+        icon: ChangelogHighlightIcon.queue,
+        title: 'Steadier playback',
+        body: 'Dozens of queue, recovery and system-control fixes',
+      ),
+    ],
     entries: [
       ChangelogEntry(
         'Mobile playback can recover when a streamed byte range has no known length',
@@ -429,15 +461,19 @@ const List<ChangelogVersion> changelogs = [
       ),
       ChangelogEntry(
         'Appearance has a Color Style setting: Pastel, Immersive and Night restyle Light, Dark and OLED, and Neutral keeps the current look',
+        type: ChangelogEntryType.newFeature,
       ),
       ChangelogEntry(
         'Appearance can use OLED black when Auto is dark, switch to the Night style on a daily schedule, and turn on Flat Surfaces for solid colors without glows, shadows or blur',
+        type: ChangelogEntryType.newFeature,
       ),
       ChangelogEntry(
         'Appearance has a Corner Style setting: Rounded, Soft or Square corners for cards, buttons and panels',
+        type: ChangelogEntryType.newFeature,
       ),
       ChangelogEntry(
         'Appearance has a Now Playing Background setting: Art-Tinted keeps the color from the cover, Artwork shows the blurred cover itself, and Plain uses your theme background',
+        type: ChangelogEntryType.newFeature,
       ),
       ChangelogEntry(
         'Home Density is now Density and also tightens track lists, playlists and artist lists; Comfortable keeps the current look',

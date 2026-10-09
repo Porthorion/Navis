@@ -28,7 +28,7 @@ void main() {
           appSettingsProvider.overrideWith(
             (ref) => Stream.value(const AppSettingsModel.defaults()),
           ),
-          packageInfoProvider.overrideWith((ref) async => _info('1.4.3')),
+          packageInfoProvider.overrideWith((ref) async => _info('1.5.0')),
         ],
       );
       container.listen(appSettingsProvider, (_, _) {});
@@ -47,7 +47,7 @@ void main() {
     });
   }
 
-  for (final seen in ['1.4.2', '1.4.3', '1.4.3+1', '1.5.0', 'malformed']) {
+  for (final seen in ['1.4.9', '1.5.0', '1.5.0+1', '1.6.0', 'malformed']) {
     test('seen release $seen uses semver ordering', () async {
       final container = ProviderContainer(
         overrides: [
@@ -59,7 +59,7 @@ void main() {
               ),
             ),
           ),
-          packageInfoProvider.overrideWith((ref) async => _info('1.4.3+1')),
+          packageInfoProvider.overrideWith((ref) async => _info('1.5.0+1')),
         ],
       );
       container.listen(appSettingsProvider, (_, _) {});
@@ -69,14 +69,14 @@ void main() {
       await container.read(packageInfoProvider.future);
       expect(
         container.read(pendingSetupHighlightsProvider),
-        ['1.4.2', 'malformed'].contains(seen)
+        ['1.4.9', 'malformed'].contains(seen)
             ? SetupHighlight.values.toSet()
             : isEmpty,
       );
     });
   }
 
-  for (final dismissed in ['1.4.2', '1.4.3', '1.4.3+1', '1.5.0']) {
+  for (final dismissed in ['1.4.9', '1.5.0', '1.5.0+1', '1.6.0']) {
     test('card dismissal $dismissed leaves tags pending', () async {
       final container = ProviderContainer(
         overrides: [
@@ -88,7 +88,7 @@ void main() {
               ),
             ),
           ),
-          packageInfoProvider.overrideWith((ref) async => _info('1.4.3')),
+          packageInfoProvider.overrideWith((ref) async => _info('1.5.0')),
         ],
       );
       container.listen(appSettingsProvider, (_, _) {});
@@ -102,7 +102,7 @@ void main() {
       );
       expect(
         container.read(setupHighlightsCardVisibleProvider),
-        dismissed == '1.4.2',
+        dismissed == '1.4.9',
       );
     });
   }
@@ -126,7 +126,7 @@ void main() {
         settings.add(const AppSettingsModel.defaults());
         await container.read(appSettingsProvider.future);
       } else {
-        metadata.complete(_info('1.4.3'));
+        metadata.complete(_info('1.5.0'));
         await container.read(packageInfoProvider.future);
       }
       expect(container.read(pendingSetupHighlightsProvider), isEmpty);
@@ -180,7 +180,7 @@ void main() {
         overrides: withTestDatabase(
           database,
           overrides: <Override>[
-            packageInfoProvider.overrideWith((ref) async => _info('1.4.3+1')),
+            packageInfoProvider.overrideWith((ref) async => _info('1.5.0+1')),
           ],
         ),
       );
@@ -202,7 +202,7 @@ void main() {
       final cardHidden = container
           .read(settingsRepositoryProvider)
           .watchSettings()
-          .firstWhere((s) => s.setupCardDismissedRelease == '1.4.3');
+          .firstWhere((s) => s.setupCardDismissedRelease == '1.5.0');
       await service.dismissCard();
       await cardHidden;
       await Future<void>.delayed(Duration.zero);
@@ -214,7 +214,7 @@ void main() {
       final seen = container
           .read(settingsRepositoryProvider)
           .watchSettings()
-          .firstWhere((s) => s.setupHighlightsSeenRelease == '1.4.3');
+          .firstWhere((s) => s.setupHighlightsSeenRelease == '1.5.0');
       await service.markSeen();
       await seen;
       await Future<void>.delayed(Duration.zero);
@@ -236,7 +236,7 @@ void main() {
         overrides: withTestDatabase(
           database,
           overrides: <Override>[
-            packageInfoProvider.overrideWith((ref) async => _info('1.4.3')),
+            packageInfoProvider.overrideWith((ref) async => _info('1.5.0')),
           ],
         ),
       );
@@ -327,11 +327,11 @@ void main() {
       (await database.appSettingsDao.getSettings())!.setupHighlightsSeenRelease,
       isNull,
     );
-    metadata.complete(_info('1.4.3'));
+    metadata.complete(_info('1.5.0'));
     await operation;
     expect(
       (await database.appSettingsDao.getSettings())!.setupHighlightsSeenRelease,
-      '1.4.3',
+      '1.5.0',
     );
   }, skip: !sqliteAvailable);
 }

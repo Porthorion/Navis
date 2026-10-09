@@ -146,8 +146,8 @@ Future<_Harness> _pump(
           (ref) async => PackageInfo(
             appName: 'Navis',
             packageName: 'test.navis',
-            version: '1.4.3',
-            buildNumber: '10403',
+            version: '1.5.0',
+            buildNumber: '10500',
           ),
         ),
         lastFmBundledKeyProvider.overrideWithValue(lastFmBundled),
@@ -452,7 +452,7 @@ void main() {
     expect(h.credentials.listenBrainzToken, isNull);
   });
 
-  testWidgets('Finish saves the choices and marks the 1.4.3 note seen', (
+  testWidgets('Finish saves the choices and marks the 1.5.0 note seen', (
     tester,
   ) async {
     final h = await _pump(tester);
@@ -473,7 +473,7 @@ void main() {
       'lrclib',
     });
     expect(row.integrationsNoticeDismissed, isTrue);
-    expect(row.setupHighlightsSeenRelease, '1.4.3');
+    expect(row.setupHighlightsSeenRelease, '1.5.0');
   });
 
   testWidgets('Finish with Online services off stores the master switch', (
@@ -522,7 +522,7 @@ void main() {
     expect(row.integrationsNoticeDismissed, isTrue);
   });
 
-  testWidgets('Skip keeps the defaults and leaves the 1.4.3 note pending', (
+  testWidgets('Skip keeps the defaults and leaves the 1.5.0 note pending', (
     tester,
   ) async {
     final h = await _pump(tester);
@@ -541,7 +541,7 @@ void main() {
     expect(row.externalIntegrationsEnabled, isTrue);
     expect(row.disabledIntegrations, '[]');
     expect(row.integrationsNoticeDismissed, isFalse);
-    expect(row.setupHighlightsSeenRelease, '1.4.3');
+    expect(row.setupHighlightsSeenRelease, '1.5.0');
   });
 
   for (final reviewMode in [false, true]) {
@@ -556,13 +556,13 @@ void main() {
         // This targeted write happens after draft hydration and must survive Finish.
         await tester.runAsync(
           () => h.database.appSettingsDao.updateSetupCardDismissedRelease(
-            '1.4.3',
+            '1.5.0',
           ),
         );
         await h.finish();
         final row = await h.row();
-        expect(row.setupHighlightsSeenRelease, '1.4.3');
-        expect(row.setupCardDismissedRelease, '1.4.3');
+        expect(row.setupHighlightsSeenRelease, '1.5.0');
+        expect(row.setupCardDismissedRelease, '1.5.0');
       },
     );
 
@@ -597,6 +597,6 @@ void main() {
     await h.tap(find.widgetWithText(FilledButton, 'Skip setup'));
     await tester.pump(const Duration(milliseconds: 300));
     await h.settle();
-    expect((await h.row()).setupHighlightsSeenRelease, '1.4.3');
+    expect((await h.row()).setupHighlightsSeenRelease, '1.5.0');
   });
 }

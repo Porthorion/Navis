@@ -114,8 +114,8 @@ Widget _buildTestApp({
         (ref) async => PackageInfo(
           appName: 'Navis',
           packageName: 'navis',
-          version: '1.4.3',
-          buildNumber: '10403',
+          version: '1.5.0',
+          buildNumber: '10500',
         ),
       ),
       ...overrides.cast(),
@@ -137,7 +137,7 @@ void main() {
 
   setUp(() async {
     database = createTestDatabase();
-    await database.cacheSystemStateDao.markVersion(1004);
+    await database.cacheSystemStateDao.markVersion(1005);
   });
 
   tearDown(() async {

@@ -167,7 +167,7 @@ List<Override> _authenticatedShellOverrides({
 }) {
   return <Override>[
     changelogToShowProvider.overrideWith((ref) async => null),
-    // Like the release notes row, the 1.4.3 notice is not part of the shell.
+    // Like the release notes row, the 1.5.0 notice is not part of the shell.
     integrationsNoticeVisibleProvider.overrideWithValue(false),
     initialSyncRequiredProvider.overrideWithValue(const AsyncData(false)),
     desktopPresentationRuntimeProvider.overrideWithValue(desktopRuntime),

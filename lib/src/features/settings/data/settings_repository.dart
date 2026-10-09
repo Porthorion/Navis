@@ -246,7 +246,7 @@ class SettingsRepository {
   Future<void> setExternalIntegrationsEnabled({required bool enabled}) =>
       _dao.setExternalIntegrationsEnabled(enabled: enabled);
 
-  /// Records whether the one-time 1.4.3 Integrations note on Home was seen.
+  /// Records whether the one-time 1.5.0 Integrations note on Home was seen.
   Future<void> updateIntegrationsNoticeDismissed({required bool dismissed}) =>
       _dao.updateIntegrationsNoticeDismissed(dismissed: dismissed);
 

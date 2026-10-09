@@ -646,7 +646,7 @@ target-selection rules.
   `NavisDensity`; the model's `homeDensity` is typed too. Home reads the same
   provider directly, with no string provider or legacy DAO writer.
   Unknown stored values and unloaded settings use the defaults. The background
-  choice joins the setup highlights registry for 1.4.3; Density
+  choice joins the setup highlights registry for 1.5.0; Density
   is a renamed existing setting (it also tightens playlists and artist lists)
   and has no New tag. Both appear in diagnostics.
 - Now Playing Background (`now_playing_screen.dart`, `now_playing_artwork_background.dart`):
@@ -1314,7 +1314,7 @@ briefly re-evaluate session readiness, but they must preserve the current
 location.
 
 `CacheSystemUpgradeService` derives the cache epoch from `PackageInfo.version`
-as `major * 1000 + minor` (1.4.3 → 1004), ignoring patch and build numbers.
+as `major * 1000 + minor` (1.5.0 → 1005), ignoring patch and build numbers.
 The cache-renewal gate waits for package metadata and the durable cache-system
 marker alongside the authentication phase. A committed profile with any different
 epoch (including newer or legacy 0–3 markers) is routed to
@@ -2081,7 +2081,7 @@ and Subsonic delivery continues independently.
   `setExternalIntegrationsEnabled` and `setIntegrationEnabled` (service keys
   only; feature switches are untouched); Finish then writes
   `updateIntegrationsNoticeDismissed(dismissed: true)`. Skip writes nothing, so
-  the defaults (all on) stay and the 1.4.3 notice stays pending. Last.fm is
+  the defaults (all on) stay and the 1.5.0 notice stays pending. Last.fm is
   locked with its reason until a key is verified (bundled, or validated in the
   draft); the key field appears only in keyless builds. The ListenBrainz
   switch is not locked by a missing token: switched on, it shows the token
@@ -2540,9 +2540,9 @@ playlist's page lists its songs, Trending's numbered by chart position with
 unmatched songs in place; a row plays like a weekly song (the whole playlist's
 playable songs from it with Album Queue on, match flows collapsed).
 
-**1.4.3 notice** (`IntegrationsNoticeCard`,
+**1.5.0 notice** (`IntegrationsNoticeCard`,
 `features/integrations/presentation/integrations_notice_card.dart`). A
-one-time row in the What's New row's place: "New in 1.4.3" and "Navis can now
+one-time row in the What's New row's place: "New in 1.5.0" and "Navis can now
 use Deezer for top songs, artist photos and new releases. Review
 integrations." `integrationsNoticeVisibleProvider` shows it once settings have
 loaded, `integrations_notice_dismissed` is false and onboarding is complete
@@ -3535,7 +3535,7 @@ so it needs one position-translation layer that every position consumer goes
 through: the handler's `_player.position` reads, position and buffered streams,
 duration, persistence, scrobbling, lyrics, media sessions, crossfade, end
 detection and recovery reloads. The full-file cache download must also keep
-running beside it. It was deferred on 2026-10-04 so that the 1.4.3 seek fixes
+running beside it. It was deferred on 2026-10-04 so that the 1.5.0 seek fixes
 shipped on their own. If seeking issues come back for transcoded or uncached
 songs, heavily consider implementing it next, used only for linear transcodes
 whose download will not finish soon and only when the server advertises

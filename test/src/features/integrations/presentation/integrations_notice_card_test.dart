@@ -75,10 +75,10 @@ void main() {
 
   final open = find.byKey(const ValueKey<String>('integrationsNoticeOpen'));
 
-  testWidgets('says what is new in 1.4.3 after setup', (tester) async {
+  testWidgets('says what is new in 1.5.0 after setup', (tester) async {
     await pump(tester);
     expect(open, findsOneWidget);
-    expect(find.text('New in 1.4.3'), findsOneWidget);
+    expect(find.text('New in 1.5.0'), findsOneWidget);
     expect(
       find.text(
         'Navis can now use Deezer for top songs, artist photos and new '

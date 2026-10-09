@@ -103,10 +103,10 @@ void main() {
         final initial = (await dao.getSettings())!;
         expect(initial.setupHighlightsSeenRelease, isNull);
         expect(initial.setupCardDismissedRelease, isNull);
-        await dao.updateSetupHighlightsSeenRelease('1.4.3');
+        await dao.updateSetupHighlightsSeenRelease('1.5.0');
         await dao.updateSetupCardDismissedRelease('1.5.0');
         var row = (await dao.getSettings())!;
-        expect(row.setupHighlightsSeenRelease, '1.4.3');
+        expect(row.setupHighlightsSeenRelease, '1.5.0');
         expect(row.setupCardDismissedRelease, '1.5.0');
         expect(row.colorStyle, initial.colorStyle);
         expect(row.onboardingVersion, initial.onboardingVersion);
@@ -115,7 +115,7 @@ void main() {
         row = (await dao.getSettings())!;
         expect(row.setupHighlightsSeenRelease, isNull);
         expect(row.setupCardDismissedRelease, '1.5.0');
-        await dao.updateSetupHighlightsSeenRelease('1.4.3');
+        await dao.updateSetupHighlightsSeenRelease('1.5.0');
         await dao.resetDefaults();
         row = (await dao.getSettings())!;
         expect(row.setupHighlightsSeenRelease, isNull);

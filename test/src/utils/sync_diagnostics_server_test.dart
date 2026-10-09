@@ -1322,7 +1322,7 @@ void main() {
       engine.requestsWithIntent(SyncRunIntent.repairLibrary),
       hasLength(1),
     );
-    expect(await fixture.database.cacheSystemStateDao.getVersion(), 1004);
+    expect(await fixture.database.cacheSystemStateDao.getVersion(), 1005);
   });
 
   test(
@@ -1901,20 +1901,20 @@ void main() {
       await dao.getSettings();
       await dao.completeOnboarding(1);
       await dao.updateColorStyle('pastel');
-      await dao.updateSetupHighlightsSeenRelease('1.4.3');
-      await dao.updateSetupCardDismissedRelease('1.4.3');
+      await dao.updateSetupHighlightsSeenRelease('1.5.0');
+      await dao.updateSetupCardDismissedRelease('1.5.0');
 
       final unauthorized = await _request(fixture.port, path, method: 'POST');
       expect(unauthorized.statusCode, HttpStatus.unauthorized);
-      expect((await dao.getSettings())!.setupHighlightsSeenRelease, '1.4.3');
+      expect((await dao.getSettings())!.setupHighlightsSeenRelease, '1.5.0');
       final before = await _request(
         fixture.port,
         '/v1/presentation/integrations',
         token: fixture.token,
       );
       expect(before.statusCode, HttpStatus.ok);
-      expect(before.body['setupHighlightsSeenRelease'], '1.4.3');
-      expect(before.body['setupCardDismissedRelease'], '1.4.3');
+      expect(before.body['setupHighlightsSeenRelease'], '1.5.0');
+      expect(before.body['setupCardDismissedRelease'], '1.5.0');
 
       for (var run = 0; run < 2; run++) {
         final reset = await _request(
@@ -1943,7 +1943,7 @@ void main() {
       addTearDown(primary.close);
       await primary.database.appSettingsDao.getSettings();
       await primary.database.appSettingsDao.updateSetupHighlightsSeenRelease(
-        '1.4.3',
+        '1.5.0',
       );
       final forbidden = await _request(
         primary.port,
@@ -1955,7 +1955,7 @@ void main() {
       expect(
         (await primary.database.appSettingsDao.getSettings())!
             .setupHighlightsSeenRelease,
-        '1.4.3',
+        '1.5.0',
       );
     },
     skip: !sqliteAvailable,
@@ -3448,8 +3448,8 @@ Future<_DiagnosticsFixture> _startFixture(
         (ref) async => PackageInfo(
           appName: 'Navis',
           packageName: 'navis',
-          version: '1.4.3',
-          buildNumber: '10403',
+          version: '1.5.0',
+          buildNumber: '10500',
         ),
       ),
       if (serverConfig != null)

@@ -171,8 +171,8 @@ void main() {
             startMinutes: 1000,
             endMinutes: 300,
           );
-          await seed.appSettingsDao.updateSetupHighlightsSeenRelease('1.4.3');
-          await seed.appSettingsDao.updateSetupCardDismissedRelease('1.4.3');
+          await seed.appSettingsDao.updateSetupHighlightsSeenRelease('1.5.0');
+          await seed.appSettingsDao.updateSetupCardDismissedRelease('1.5.0');
           await seed.appSettingsDao.markSetupHighlightSeen('colorStyle');
           await seed.appSettingsDao.updateNowPlayingBackground('artwork');
           await seed.appSettingsDao.updateCornerStyle('soft');
@@ -232,8 +232,8 @@ void main() {
             'night_schedule_start_minutes': 1000,
             'night_schedule_end_minutes': 300,
             'flat_surfaces': 1,
-            'setup_highlights_seen_release': '1.4.3',
-            'setup_card_dismissed_release': '1.4.3',
+            'setup_highlights_seen_release': '1.5.0',
+            'setup_card_dismissed_release': '1.5.0',
             'now_playing_background': 'artwork',
             'corner_style': 'soft',
             'setup_highlights_seen': '["colorStyle"]',
@@ -459,7 +459,7 @@ void main() {
         await seed.appSettingsDao.getSettings();
         await seed.appSettingsDao.completeOnboarding(1);
         await seed.appSettingsDao.updateColorStyle('pastel');
-        await seed.appSettingsDao.updateSetupHighlightsSeenRelease('1.4.3');
+        await seed.appSettingsDao.updateSetupHighlightsSeenRelease('1.5.0');
         await seed.close();
         final raw = sqlite3.open(file.path);
         try {
@@ -479,7 +479,7 @@ void main() {
         try {
           final settings = (await upgraded.appSettingsDao.getSettings())!;
           expect(upgraded.schemaVersion, 98);
-          expect(settings.setupHighlightsSeenRelease, partial ? '1.4.3' : null);
+          expect(settings.setupHighlightsSeenRelease, partial ? '1.5.0' : null);
           expect(settings.setupCardDismissedRelease, isNull);
           expect(settings.onboardingVersion, 1);
           expect(settings.colorStyle, 'pastel');
@@ -488,10 +488,10 @@ void main() {
               .getSingle();
           expect(version.read<int>('user_version'), 98);
           await upgraded.appSettingsDao.updateSetupHighlightsSeenRelease(
-            '1.4.3',
+            '1.5.0',
           );
           await upgraded.appSettingsDao.updateSetupCardDismissedRelease(
-            '1.4.3',
+            '1.5.0',
           );
           // Guarded migration reruns preserve both existing markers.
           for (var run = 0; run < 2; run++) {
@@ -503,8 +503,8 @@ void main() {
         final reopened = createTestDatabase(file: file);
         try {
           final settings = (await reopened.appSettingsDao.getSettings())!;
-          expect(settings.setupHighlightsSeenRelease, '1.4.3');
-          expect(settings.setupCardDismissedRelease, '1.4.3');
+          expect(settings.setupHighlightsSeenRelease, '1.5.0');
+          expect(settings.setupCardDismissedRelease, '1.5.0');
           expect(settings.onboardingVersion, 1);
           expect(settings.colorStyle, 'pastel');
         } finally {

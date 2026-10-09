@@ -226,7 +226,7 @@ class OnboardingScreenState extends ConsumerState<OnboardingScreen> {
   }
 
   /// Writes the Integrations step's switches through the targeted writers,
-  /// only for changes from the entry snapshot, and marks the 1.4.3
+  /// only for changes from the entry snapshot, and marks the 1.5.0
   /// Integrations note as seen: setup has just shown the same choices.
   Future<void> _saveIntegrationChoices(AppSettingsModel draft) async {
     final repository = ref.read(settingsRepositoryProvider);

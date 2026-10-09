@@ -94,7 +94,7 @@ artwork; missing local files use the existing bounded retry path.
 ### New tags in setup
 
 Updated users see "New" on options introduced by the newest eligible setup
-highlight release. The initial 1.4.3 registry includes six options: Color Style,
+highlight release. The initial 1.5.0 registry includes six options: Color Style,
 OLED for Auto, Night Schedule, Flat Surfaces, Now Playing Background and Corner
 Style. The planned version move to 1.5.0 renames this together with the changelog
 entry. Density is a renamed existing setting, so it has no highlight or New tag.

@@ -44,7 +44,7 @@ artifacts, with Forgejo kept only for tags and the 1.5.0 bridge release.
 
 - Subsonic/OpenSubsonic server scrobbling remains independent.
 - Last.fm scrobbling and its shared-secret/session-key sign-in were removed in
-  1.4.3; the Last.fm API key is only used for read-only recommendation lookups
+  1.5.0; the Last.fm API key is only used for read-only recommendation lookups
   and is bundled with the build (see [release-secrets.md](release-secrets.md)).
   The Play App Bundle is built with it through `tool/play_release.sh`.
 - ListenBrainz requires the user token from ListenBrainz settings and is

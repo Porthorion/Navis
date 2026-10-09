@@ -35,7 +35,7 @@ class HomeSectionIds {
     frequentAlbums,
   ];
 
-  /// The ids that existed before Home gained sections in 1.4.3. Every user
+  /// The ids that existed before Home gained sections in 1.5.0. Every user
   /// with a saved hidden list has seen them, so that list alone decides
   /// whether they show.
   static const Set<String> _legacyIds = <String>{

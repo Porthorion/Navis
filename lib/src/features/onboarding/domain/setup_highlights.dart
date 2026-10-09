@@ -2,13 +2,12 @@ import 'package:navis/src/utils/semver.dart';
 
 /// Setup options introduced together in a release, shown to updated users.
 enum SetupHighlight {
-  // The version move to 1.5.0 renames this together with the changelog entry.
-  colorStyle('1.4.3'),
-  oledForAuto('1.4.3'),
-  nightSchedule('1.4.3'),
-  flatSurfaces('1.4.3'),
-  nowPlayingBackground('1.4.3'),
-  cornerStyle('1.4.3');
+  colorStyle('1.5.0'),
+  oledForAuto('1.5.0'),
+  nightSchedule('1.5.0'),
+  flatSurfaces('1.5.0'),
+  nowPlayingBackground('1.5.0'),
+  cornerStyle('1.5.0');
 
   new(this.since);
 

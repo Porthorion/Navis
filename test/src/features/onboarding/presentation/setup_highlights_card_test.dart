@@ -68,8 +68,8 @@ void main() {
               (ref) async => PackageInfo(
                 appName: 'Navis',
                 packageName: 'test.navis',
-                version: '1.4.3',
-                buildNumber: '10403',
+                version: '1.5.0',
+                buildNumber: '10500',
               ),
             ),
           ],
@@ -95,7 +95,7 @@ void main() {
 
     expect(open, findsOneWidget);
     expect(find.text('New appearance options'), findsOneWidget);
-    expect(find.text('New in 1.4.3'), findsNothing);
+    expect(find.text('New in 1.5.0'), findsNothing);
     expect(
       find.text(
         'Color styles, corner style, Now Playing background and more. Try '
@@ -131,7 +131,7 @@ void main() {
     await tester.runAsync(() => Future<void>.delayed(Duration.zero));
 
     final stored = await row(tester);
-    expect(stored.setupCardDismissedRelease, '1.4.3');
+    expect(stored.setupCardDismissedRelease, '1.5.0');
     expect(stored.setupHighlightsSeenRelease, isNull);
   });
 
@@ -143,12 +143,12 @@ void main() {
   });
 
   testWidgets('is hidden once the release is acknowledged', (tester) async {
-    await pump(tester, seenRelease: '1.4.3');
+    await pump(tester, seenRelease: '1.5.0');
     expect(open, findsNothing);
   });
 
   testWidgets('is hidden when the card was dismissed earlier', (tester) async {
-    await pump(tester, dismissedRelease: '1.4.3');
+    await pump(tester, dismissedRelease: '1.5.0');
     expect(open, findsNothing);
   });
 }
