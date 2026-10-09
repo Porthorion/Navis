@@ -15,7 +15,7 @@ product contracts.
 | Architecture, providers, data flows, routing, platform integration | [architecture.md](architecture.md) |
 | Bootstrap, local validation, diagnostics API, runtime evidence | [development-workflow.md](development-workflow.md) |
 | Dependency audits, upgrade batches, replacement decisions, and regression gates | [dependency-upgrades.md](dependency-upgrades.md) |
-| Quality gates, releases, signing, CI-equivalent workflow | [ci-cd.md](ci-cd.md) and [release-secrets.md](release-secrets.md) |
+| Quality gates, releases, signing, CI-equivalent workflow | [ci-cd.md](ci-cd.md), [release-secrets.md](release-secrets.md) and [release-r2.md](release-r2.md) (update channel) |
 | Side-by-side/dev builds | [dev-testing-builds.md](dev-testing-builds.md) |
 | Android Auto | [android-auto-testing.md](android-auto-testing.md) and [android_auto_real_car_testing.md](android_auto_real_car_testing.md) |
 | Linux, macOS, Windows, or multi-host releases | [release-from-linux.md](release-from-linux.md), [release-linux.md](release-linux.md), [release-macos.md](release-macos.md), [release-windows.md](release-windows.md), [multi-os-build-from-mac.md](multi-os-build-from-mac.md) |
