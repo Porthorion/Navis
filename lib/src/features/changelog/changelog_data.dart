@@ -129,6 +129,10 @@ const List<ChangelogVersion> changelogs = [
     version: '1.4.3',
     entries: [
       ChangelogEntry(
+        'Failed stream recovery respects Pause and newer song selections',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
         'A timed-out startup queue restore can no longer stop or overwrite a newer selection',
         type: ChangelogEntryType.fix,
       ),

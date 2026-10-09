@@ -3614,6 +3614,44 @@ void main() {
       expect(player.sourceIds, ids(7));
     });
 
+    for (final command in ['pause', 'selection']) {
+      test('failed remote recovery yields to a newer $command', () async {
+        final (handler, player, _) = await recovering(5);
+        await start(handler, 5);
+        final gate = Completer<void>();
+        final entered = Completer<void>();
+        player
+          ..loadGate = gate
+          ..loadEntered = entered
+          ..blockedLoadError = StateError('retry failed');
+        final recovery = handler.debugRecoverCurrentSong();
+        await entered.future;
+        final newerCommand = command == 'pause'
+            ? handler.pause()
+            : handler.playFromIndex(4);
+        if (command == 'pause') await newerCommand;
+        gate.complete();
+        await Future.wait([recovery, newerCommand]);
+        await until(() => !handler.snapshot.isLoading);
+        expect(
+          handler.snapshot.currentSongId,
+          command == 'pause' ? 'song-1' : 'song-4',
+        );
+        expect(player.playing, command != 'pause');
+      });
+    }
+
+    test('failed recovery of a paused song advances without playing', () async {
+      final (handler, player, _) = await recovering(5);
+      await start(handler, 5);
+      await handler.pause();
+      player.failLoadSongId = 'song-1';
+      await handler.debugRecoverCurrentSong();
+      await until(() => !handler.snapshot.isLoading);
+      expect(handler.snapshot.currentSongId, 'song-2');
+      expect(player.playing, isFalse);
+    });
+
     test(
       'a song that cannot be reloaded keeps the queue and moves on',
       () async {

@@ -8956,11 +8956,12 @@ class NavisAudioHandler extends BaseAudioHandler
         }
       }
 
+      if (!_isCurrentTransportIntent(transportGeneration)) return;
       await _skipPastFailedRemoteSong(
         // By position in the whole queue: played songs may have moved out of
         // the player, and a failed reload restores the queue around it.
         _locateQueueTarget(songId, currentIndex + _deferredHead.length),
-        autoPlay: autoPlay,
+        autoPlay: _latestExplicitTransportPlaying ?? autoPlay,
       );
       _recordSeekDiagnosticsEvent(<String, Object?>{
         'at': DateTime.now().toUtc().toIso8601String(),
@@ -8987,7 +8988,12 @@ class NavisAudioHandler extends BaseAudioHandler
         ? null
         : _nextPlayableIndexAfterFailure(failedIndex, _logicalQueueIds.length);
     if (nextIndex != null) {
-      await playFromIndex(nextIndex);
+      await _applyNavigationDecision(
+        _navigationIntent.select(nextIndex),
+        logicalIds: _logicalQueueIds,
+        shouldPlay: autoPlay,
+        context: 'skip failed remote song',
+      );
       return;
     }
 

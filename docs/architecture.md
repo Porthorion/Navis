@@ -2540,7 +2540,9 @@ Remote stream recovery is generation- and song-scoped. A failed remote source
 receives one retry at its current (or user-requested seek) position: a
 lock-cached source rebuilds as a direct stream, while a direct stream reloads
 at that position. A second failure marks the song failed and advances to the
-next playable queue item when available. Seek recovery also detects a remote
+next playable queue item when available, retaining the latest Play/Pause
+intent. A failed retry yields to a newer transport command or selection before
+advancing. Seek recovery also detects a remote
 seek that landed correctly but remains buffering. Background phase-2 queue
 fill failures never reload or clear the active start item. Loading an uncached
 remote (external) song has `NavisPlaybackTimeouts.remoteLoad` (45 s) rather
