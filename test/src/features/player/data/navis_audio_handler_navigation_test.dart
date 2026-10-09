@@ -9,6 +9,8 @@ import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
+import 'package:drift/drift.dart' show Value;
+import 'package:navis/src/features/auto/data/auto_media_id.dart';
 import 'package:dio/dio.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:navis/src/common_widgets/cover_art_cache_manager.dart';
@@ -757,6 +759,71 @@ void main() {
           );
         }
       });
+    }
+  });
+
+  group('Android Auto collections', () {
+    for (final (type, root, order) in [
+      (AutoMediaContextType.downloads, AutoMediaRoot.downloads, [2, 1, 0]),
+      (AutoMediaContextType.liked, AutoMediaRoot.likedSongs, [2, 0]),
+      (AutoMediaContextType.recent, AutoMediaRoot.recent, [2, 0]),
+    ]) {
+      for (final contextual in [false, true]) {
+        test('${type.name} collection (contextual=$contextual)', () async {
+          final directory = await Directory.systemTemp.createTemp(
+            'navis-auto-',
+          );
+          final (handler, player, database) = await createHandler(
+            directory,
+            3,
+            seed: (database) async {
+              await database.libraryDao.upsertSongs([
+                for (var i = 0; i < 3; i++)
+                  SongsTableCompanion.insert(
+                    id: 'song-$i',
+                    title: 'Song $i',
+                    createdAt: Value(DateTime(2026, 1, i + 1)),
+                  ),
+              ]);
+              for (final i in [0, 2]) {
+                await database.libraryDao.setEntityStarred(
+                  'song',
+                  'song-$i',
+                  DateTime(2026, 1, i + 1),
+                );
+                await database
+                    .into(database.playHistoryTable)
+                    .insert(
+                      PlayHistoryTableCompanion.insert(
+                        songId: 'song-$i',
+                        playedAt: DateTime(2026, 1, i + 1),
+                      ),
+                    );
+              }
+            },
+          );
+          addTearDown(() async {
+            await handler.disposeHandler();
+            await database.close();
+            await directory.delete(recursive: true);
+          });
+
+          await handler.prepareFromMediaId(
+            contextual
+                ? AutoMediaId.song('song-0', contextType: type, contextId: root)
+                : root,
+          );
+
+          expect(handler.snapshot.queueSongIds, [
+            for (final i in order) 'song-$i',
+          ]);
+          expect(
+            handler.snapshot.currentSongId,
+            contextual ? 'song-0' : 'song-2',
+          );
+          expect(player.playing, isFalse);
+        });
+      }
     }
   });
 

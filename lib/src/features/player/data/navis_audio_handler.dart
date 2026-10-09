@@ -610,6 +610,36 @@ class NavisAudioHandler extends BaseAudioHandler
     );
   }
 
+  Future<List<SongsTableData>> _loadAutoCollection(
+    AutoMediaContextType? context,
+  ) async => switch (context) {
+    AutoMediaContextType.downloads => await _libraryDao.getSongsSorted(
+      SongSortOrder.newest,
+      onlyIds: await _rollingCacheManager.getPermanentlyCachedSongIds(),
+    ),
+    AutoMediaContextType.liked =>
+      await _libraryDao.watchAllStarredSongs().first,
+    AutoMediaContextType.recent =>
+      await _historyDao.watchRecentlyPlayedSongs(limit: 50).first,
+    _ => const <SongsTableData>[],
+  };
+
+  Future<bool> _loadAutoRows(
+    List<SongsTableData> songs, {
+    required bool autoPlay,
+    int startIndex = 0,
+    bool expandMatchFlows = true,
+  }) async {
+    if (songs.isEmpty) return false;
+    await replaceQueueWithData(
+      songs,
+      startIndex: startIndex,
+      autoPlay: autoPlay,
+      expandMatchFlows: expandMatchFlows,
+    );
+    return _queueItems.isNotEmpty;
+  }
+
   Future<bool> _loadFromMediaId(
     String mediaId, {
     required bool autoPlay,
@@ -620,12 +650,11 @@ class NavisAudioHandler extends BaseAudioHandler
         final songs = await _libraryDao.watchAllStarredSongs().first;
         if (songs.isEmpty) return false;
         final shuffled = List<SongsTableData>.of(songs)..shuffle();
-        await replaceQueueWithData(
+        return await _loadAutoRows(
           shuffled,
           autoPlay: autoPlay,
           expandMatchFlows: false,
         );
-        return _queueItems.isNotEmpty;
       case AutoMediaRoot.instantMix:
         if (autoPlay) {
           return _playInstantMixFromCurrentSong();
@@ -634,23 +663,24 @@ class NavisAudioHandler extends BaseAudioHandler
       case AutoMediaRoot.instantRadio:
         return _startInstantRadio(autoPlay: autoPlay);
       case AutoMediaRoot.likedSongs:
-        final songs = await _libraryDao.watchAllStarredSongs().first;
-        if (songs.isEmpty) return false;
-        await replaceQueueWithData(
-          songs,
+      case AutoMediaRoot.downloads:
+      case AutoMediaRoot.recent:
+        return await _loadAutoRows(
+          await _loadAutoCollection(switch (mediaId) {
+            AutoMediaRoot.likedSongs => AutoMediaContextType.liked,
+            AutoMediaRoot.downloads => AutoMediaContextType.downloads,
+            _ => AutoMediaContextType.recent,
+          }),
           autoPlay: autoPlay,
           expandMatchFlows: false,
         );
-        return _queueItems.isNotEmpty;
       case AutoMediaRoot.likedAlbums:
         final albums = await _libraryDao.watchLikedAlbums().first;
         final allSongs = <SongsTableData>[];
         for (final album in albums) {
           allSongs.addAll(await _libraryDao.watchSongsByAlbum(album.id).first);
         }
-        if (allSongs.isEmpty) return false;
-        await replaceQueueWithData(allSongs, autoPlay: autoPlay);
-        return _queueItems.isNotEmpty;
+        return await _loadAutoRows(allSongs, autoPlay: autoPlay);
       case AutoMediaRoot.resumeQueue:
         await _restoreQueueFromDisk();
         if (_queueItems.isEmpty) return false;
@@ -658,32 +688,6 @@ class NavisAudioHandler extends BaseAudioHandler
           await play();
         }
         return true;
-      case AutoMediaRoot.downloads:
-        final downloadedSongIds = await _rollingCacheManager
-            .getPermanentlyCachedSongIds();
-        if (downloadedSongIds.isEmpty) return false;
-        final songs = await _libraryDao.getSongsSorted(
-          SongSortOrder.newest,
-          onlyIds: downloadedSongIds,
-        );
-        if (songs.isEmpty) return false;
-        await replaceQueueWithData(
-          songs,
-          autoPlay: autoPlay,
-          expandMatchFlows: false,
-        );
-        return _queueItems.isNotEmpty;
-      case AutoMediaRoot.recent:
-        final songs = await _historyDao
-            .watchRecentlyPlayedSongs(limit: 50)
-            .first;
-        if (songs.isEmpty) return false;
-        await replaceQueueWithData(
-          songs,
-          autoPlay: autoPlay,
-          expandMatchFlows: false,
-        );
-        return _queueItems.isNotEmpty;
     }
 
     // Handle entity media IDs (artist/album/playlist/song).
@@ -699,8 +703,7 @@ class NavisAudioHandler extends BaseAudioHandler
         AppLogger.debug('Android Auto raw song mediaId not found: $mediaId');
         return false;
       }
-      await replaceQueueWithData(songs, autoPlay: autoPlay);
-      return _queueItems.isNotEmpty;
+      return await _loadAutoRows(songs, autoPlay: autoPlay);
     }
     if (parsed.entityId == null) return false;
 
@@ -709,33 +712,18 @@ class NavisAudioHandler extends BaseAudioHandler
         final songs = await _libraryDao.getSongsByIds([parsed.entityId!]);
         if (songs.isEmpty) return false;
         final song = songs.first;
-        final contextualSongs = await switch (parsed.contextType) {
-          AutoMediaContextType.downloads => () async {
-            final downloadedSongIds = await _rollingCacheManager
-                .getPermanentlyCachedSongIds();
-            return _libraryDao.getSongsSorted(
-              SongSortOrder.newest,
-              onlyIds: downloadedSongIds,
-            );
-          }(),
-          AutoMediaContextType.liked =>
-            _libraryDao.watchAllStarredSongs().first,
-          AutoMediaContextType.recent =>
-            _historyDao.watchRecentlyPlayedSongs(limit: 50).first,
-          _ => Future<List<SongsTableData>>.value(const <SongsTableData>[]),
-        };
+        final contextualSongs = await _loadAutoCollection(parsed.contextType);
         if (contextualSongs.isNotEmpty) {
           final startIndex = contextualSongs.indexWhere(
             (item) => item.id == parsed.entityId,
           );
           if (startIndex >= 0) {
-            await replaceQueueWithData(
+            return await _loadAutoRows(
               contextualSongs,
               startIndex: startIndex,
               autoPlay: autoPlay,
               expandMatchFlows: false,
             );
-            return _queueItems.isNotEmpty;
           }
         }
         if (parsed.contextType == AutoMediaContextType.playlist &&
@@ -747,12 +735,11 @@ class NavisAudioHandler extends BaseAudioHandler
             (item) => item.id == parsed.entityId,
           );
           if (startIndex >= 0) {
-            await replaceQueueWithData(
+            return await _loadAutoRows(
               playlistSongs,
               startIndex: startIndex,
               autoPlay: autoPlay,
             );
-            return _queueItems.isNotEmpty;
           }
         }
 
@@ -767,12 +754,11 @@ class NavisAudioHandler extends BaseAudioHandler
             final startIndex = albumSongs.indexWhere(
               (s) => s.id == parsed.entityId,
             );
-            await replaceQueueWithData(
+            return await _loadAutoRows(
               albumSongs,
               startIndex: startIndex < 0 ? 0 : startIndex,
               autoPlay: autoPlay,
             );
-            return _queueItems.isNotEmpty;
           }
         }
         await replaceQueue([parsed.entityId!], autoPlay: autoPlay);
@@ -781,16 +767,12 @@ class NavisAudioHandler extends BaseAudioHandler
         final songs = await _libraryDao
             .watchSongsByAlbum(parsed.entityId!)
             .first;
-        if (songs.isEmpty) return false;
-        await replaceQueueWithData(songs, autoPlay: autoPlay);
-        return _queueItems.isNotEmpty;
+        return await _loadAutoRows(songs, autoPlay: autoPlay);
       case AutoMediaIdType.playlist:
         final songs = await _playlistDao
             .watchPlaylistSongs(parsed.entityId!)
             .first;
-        if (songs.isEmpty) return false;
-        await replaceQueueWithData(songs, autoPlay: autoPlay);
-        return _queueItems.isNotEmpty;
+        return await _loadAutoRows(songs, autoPlay: autoPlay);
       case AutoMediaIdType.artist:
         final albums = await _libraryDao
             .watchAlbumsByArtist(parsed.entityId!)
@@ -799,9 +781,7 @@ class NavisAudioHandler extends BaseAudioHandler
         for (final album in albums) {
           allSongs.addAll(await _libraryDao.watchSongsByAlbum(album.id).first);
         }
-        if (allSongs.isEmpty) return false;
-        await replaceQueueWithData(allSongs, autoPlay: autoPlay);
-        return _queueItems.isNotEmpty;
+        return await _loadAutoRows(allSongs, autoPlay: autoPlay);
       case AutoMediaIdType.root:
       case AutoMediaIdType.rootCategory:
       case AutoMediaIdType.likedSubcategory:
