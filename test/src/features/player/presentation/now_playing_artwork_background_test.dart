@@ -3,9 +3,9 @@ import 'dart:typed_data';
 import 'dart:ui' as ui;
 
 import 'package:flutter_test/flutter_test.dart';
+import 'package:flutter/foundation.dart' show SynchronousFuture;
 import 'package:material_ui/material_ui.dart';
 import 'package:navis/src/features/player/presentation/now_playing_artwork_background.dart';
-import 'package:navis/src/features/player/presentation/now_playing_screen.dart';
 import 'package:navis/src/features/settings/domain/now_playing_background.dart';
 import 'package:navis/src/theme/caption_tint.dart';
 import 'package:navis/src/theme/navis_color_style.dart';
@@ -24,6 +24,7 @@ Future<ImageProvider> _solid(Color color) async {
       .drawRect(const Rect.fromLTWH(0, 0, 4, 4), Paint()..color = color);
   final image = await recorder.endRecording().toImage(4, 4);
   final bytes = (await image.toByteData(format: ui.ImageByteFormat.png))!;
+  image.dispose();
   return MemoryImage(Uint8List.view(bytes.buffer));
 }
 
@@ -189,6 +190,7 @@ void main() {
       required String? key,
       required ImageProvider? image,
       Duration fade = const Duration(milliseconds: 200),
+      void Function(String, {required bool available})? onAvailabilityChanged,
     }) => Directionality(
       textDirection: TextDirection.ltr,
       child: SizedBox(
@@ -197,6 +199,7 @@ void main() {
         child: NowPlayingArtworkBackground(
           imageKey: key,
           image: image,
+          onAvailabilityChanged: onAvailabilityChanged,
           colorStyle: const NavisColorStyleData(
             style: NavisColorStyle.neutral,
             dark: true,
@@ -207,6 +210,67 @@ void main() {
         ),
       ),
     );
+
+    testWidgets(
+      'disposes received image handles after averaging and when stale',
+      (tester) async {
+        final provider = _ControlledImage();
+        await tester.pumpWidget(host(key: 'a', image: provider));
+        final listener = provider.completer.listeners.single;
+        final first = (await tester.runAsync(_countingInfo))!;
+        listener.onImage(first, false);
+        await tester.runAsync(() async {
+          await Future<void>.delayed(const Duration(milliseconds: 50));
+        });
+        expect(first.disposals, 1);
+        await tester.pumpWidget(const SizedBox.shrink());
+        // A callback queued before disposal still owns its image handle.
+        final stale = (await tester.runAsync(_countingInfo))!;
+        listener.onImage(stale, false);
+        expect(stale.disposals, 1);
+      },
+    );
+
+    testWidgets('remembers failed keys and reports the tinted fallback', (
+      tester,
+    ) async {
+      final provider = _ControlledImage();
+      final events = <(String, bool)>[];
+      void report(String key, {required bool available}) =>
+          events.add((key, available));
+      await tester.pumpWidget(
+        host(key: 'bad', image: provider, onAvailabilityChanged: report),
+      );
+      provider.completer.listeners.single.onError!(
+        StateError('missing artwork'),
+        StackTrace.current,
+      );
+      await tester.pump();
+      expect(events, [('bad', false)]);
+      expect(
+        nowPlayingShowsArtworkLayer(
+          background: NowPlayingBackground.artwork,
+          flat: false,
+          hasImage: events.last.$2,
+        ),
+        isFalse,
+      );
+      for (var i = 0; i < 5; i++) {
+        await tester.pumpWidget(
+          host(key: 'bad', image: provider, onAvailabilityChanged: report),
+        );
+      }
+      expect(provider.resolutions, 1);
+      expect(find.byType(Image), findsNothing);
+      await tester.pumpWidget(
+        host(
+          key: 'new-revision',
+          image: provider,
+          onAvailabilityChanged: report,
+        ),
+      );
+      expect(provider.resolutions, 2);
+    });
 
     testWidgets('draws a blurred, veiled cover only after it decoded', (
       tester,
@@ -300,4 +364,56 @@ class _NeverImage extends ImageProvider<_NeverImage> {
     _NeverImage key,
     ImageDecoderCallback decode,
   ) => OneFrameImageStreamCompleter(Completer<ImageInfo>().future);
+}
+
+Future<_CountingInfo> _countingInfo() async {
+  final recorder = ui.PictureRecorder();
+  Canvas(recorder)
+      .drawRect(const Rect.fromLTWH(0, 0, 4, 4), Paint()..color = Colors.red);
+  final picture = recorder.endRecording();
+  final image = await picture.toImage(4, 4);
+  picture.dispose();
+  return _CountingInfo(image);
+}
+
+class _CountingInfo extends ImageInfo {
+  new(ui.Image image) : super(image: image);
+  final _DisposalCount _count = _DisposalCount();
+  int get disposals => _count.value;
+  @override
+  void dispose() {
+    _count.value++;
+    super.dispose();
+  }
+}
+
+class _ControlledCompleter extends ImageStreamCompleter {
+  final listeners = <ImageStreamListener>[];
+  @override
+  void addListener(ImageStreamListener listener) => listeners.add(listener);
+  @override
+  void removeListener(ImageStreamListener listener) =>
+      listeners.remove(listener);
+}
+
+class _ControlledImage extends ImageProvider<_ControlledImage> {
+  final completer = _ControlledCompleter();
+  int resolutions = 0;
+  @override
+  Future<_ControlledImage> obtainKey(ImageConfiguration configuration) =>
+      SynchronousFuture(this);
+  @override
+  void resolveStreamForKey(
+    ImageConfiguration configuration,
+    ImageStream stream,
+    _ControlledImage key,
+    ImageErrorListener handleError,
+  ) {
+    resolutions++;
+    stream.setCompleter(completer);
+  }
+}
+
+class _DisposalCount {
+  int value = 0;
 }

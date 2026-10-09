@@ -1,7 +1,7 @@
 import 'dart:async';
 import 'dart:io';
 
-import 'package:cached_network_image/cached_network_image.dart';
+import 'package:navis/src/common_widgets/cover_art_source.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:flutter_cache_manager/flutter_cache_manager.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -296,17 +296,24 @@ class _CoverArtImageState extends ConsumerState<CoverArtImage> {
     // and saves the network fetch. A refreshed revision still loads fresh and
     // falls back to the stored cover only when the network load fails.
     final permanentFile = _permanentFile;
-    if (permanentFile != null &&
-        cachedFile == null &&
-        widget.revision == 0 &&
-        _renderedNetworkCacheKey != cacheKey) {
+    final source = coverArtImageProviderFor(
+      coverArtId: id,
+      size: resolvedSize,
+      revision: widget.revision,
+      api: api,
+      cacheManager: cacheManager,
+      permanentFile: cachedFile == null && _renderedNetworkCacheKey != cacheKey
+          ? permanentFile
+          : null,
+    );
+    if (source is FileImage) {
       return _withVisibility(
         _withRemoteSourceIndicator(
           context,
           _withSemantics(
             _buildFileImageChild(
               context,
-              permanentFile,
+              source.file,
               resolvedSize,
               cacheManager,
               recoverCacheEntry: false,
@@ -520,13 +527,13 @@ class _CoverArtImageState extends ConsumerState<CoverArtImage> {
     final image = OctoImage(
       key: ValueKey<int>(_retryNonce),
       image: _boundedImageProvider(
-        CachedNetworkImageProvider(
-          api
-              .getCoverArtUrl(id: widget.coverArtId!.trim(), size: resolvedSize)
-              .toString(),
-          cacheKey: cacheKey,
+        coverArtImageProviderFor(
+          coverArtId: widget.coverArtId!,
+          size: resolvedSize,
+          revision: widget.revision,
+          api: api,
           cacheManager: cacheManager,
-        ),
+        )!,
         resolvedSize,
       ),
       fit: widget.fit,

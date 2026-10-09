@@ -1,6 +1,9 @@
 /// @docImport 'package:navis/src/common_widgets/expandable_player_sheet.dart';
 library;
 
+export 'now_playing_artwork_background.dart'
+    show nowPlayingShowsArtworkLayer, nowPlayingSurfaceDecoration;
+
 import 'package:navis/src/features/equalizer/presentation/eq_controller.dart';
 import 'package:navis/src/features/equalizer/presentation/eq_entry.dart';
 import 'package:navis/src/features/equalizer/presentation/eq_quick_panel.dart';
@@ -23,6 +26,7 @@ import 'package:navis/src/api/subsonic_error.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:navis/src/common_widgets/cover_art_cache_manager.dart';
 import 'package:navis/src/common_widgets/cover_art_image.dart';
+import 'package:navis/src/common_widgets/cover_art_source.dart';
 import 'package:navis/src/common_widgets/external_artwork_image.dart';
 import 'package:navis/src/features/integrations/domain/integration_artwork.dart';
 import 'package:navis/src/features/integrations/domain/integration_feature.dart';
@@ -202,49 +206,6 @@ String? nowPlayingVisualCacheKeyFor({
   return null;
 }
 
-/// Whether the Artwork background draws its blurred cover. Flat has no blur
-/// (it falls back to the solid art colour) and a missing cover falls back to
-/// the tinted look.
-@visibleForTesting
-bool nowPlayingShowsArtworkLayer({
-  required NowPlayingBackground background,
-  required bool flat,
-  required bool hasImage,
-}) => background == NowPlayingBackground.artwork && !flat && hasImage;
-
-/// Background of the Now Playing surface.
-///
-/// No [tintColor] (art tint off or no art yet): plain [surfaceColor]. With a
-/// tint: the style-adapted art colour fading into the surface, or under Flat
-/// one solid colour, the adapted tint at the style's alpha composited over
-/// the surface.
-@visibleForTesting
-BoxDecoration nowPlayingSurfaceDecoration({
-  required Color? tintColor,
-  required NavisColorStyleData colorStyle,
-  required Color surfaceColor,
-}) {
-  // OLED + Flat stays pure black: a solid tint would lift the whole screen
-  // off black, which defeats OLED. Non-flat OLED keeps its gradient.
-  if (tintColor == null || (colorStyle.flat && colorStyle.oled)) {
-    return BoxDecoration(color: surfaceColor);
-  }
-  final tint = colorStyle
-      .adaptArtColor(tintColor)
-      .withValues(alpha: colorStyle.nowPlayingTintAlpha);
-  if (colorStyle.flat) {
-    return BoxDecoration(color: Color.alphaBlend(tint, surfaceColor));
-  }
-  return BoxDecoration(
-    gradient: LinearGradient(
-      begin: Alignment.topCenter,
-      end: Alignment.bottomCenter,
-      colors: <Color>[tint, surfaceColor],
-      stops: const <double>[0, 0.7],
-    ),
-  );
-}
-
 Color? nowPlayingCachedTintColor({
   required Brightness brightness,
   String? coverArtId,
@@ -270,15 +231,14 @@ ImageProvider<Object>? _resolveNowPlayingImageProvider({
   final cacheManager = ref.read(coverArtCacheManagerProvider);
   final trimmedCoverArtId = coverArtId?.trim() ?? '';
   if (trimmedCoverArtId.isNotEmpty) {
-    final api = ref.read(subsonicApiProvider);
-    if (api == null) {
-      return null;
-    }
-    final coverUrl = api.getCoverArtUrl(id: trimmedCoverArtId, size: size);
-    return CachedNetworkImageProvider(
-      coverUrl.toString(),
+    return coverArtImageProviderFor(
+      coverArtId: trimmedCoverArtId,
+      size: size,
+      api: ref.read(subsonicApiProvider),
       cacheManager: cacheManager,
-      cacheKey: coverArtImageCacheKey(trimmedCoverArtId, size),
+      permanentFile: ref
+          .read(permanentArtworkStoreProvider)
+          .loadedFileFor(trimmedCoverArtId),
     );
   }
 
@@ -418,29 +378,45 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen> {
   /// Small cover for the Artwork background, memoised per cover identity.
   String? _artworkBackdropKey;
   ImageProvider<Object>? _artworkBackdropImage;
+  final Set<String> _failedArtworkBackdropKeys = <String>{};
 
   /// Decodes the standard 600 px cover (the one [CoverArtImage] already
   /// caches, so no second fetch) at a thumbnail width.
   ImageProvider<Object>? _artworkBackdropFor({
     required String? coverArtId,
     required String? artUrl,
+    int revision = 0,
   }) {
     final trimmedId = coverArtId?.trim() ?? '';
     final trimmedUrl = artUrl?.trim() ?? '';
-    final key = trimmedId.isNotEmpty
-        ? 'id:$trimmedId'
-        : (trimmedUrl.isNotEmpty ? 'url:$trimmedUrl' : null);
     // A transient metadata gap keeps the previous cover, like the tint does.
-    if (key == null) return _artworkBackdropImage;
+    if (trimmedId.isEmpty && trimmedUrl.isEmpty) return _artworkBackdropImage;
+    ImageProvider<Object>? base;
+    if (trimmedId.isNotEmpty) {
+      final source = ref.watch(
+        coverArtImageSourceProvider((
+          trimmedId,
+          kCoverArtStandardSize,
+          revision,
+        )),
+      );
+      // Keep the current layer mounted while the durable-store probe completes,
+      // so it can crossfade once the next source has decoded.
+      if (source.isLoading) return _artworkBackdropImage;
+      base = source.asData?.value;
+    } else {
+      base = _resolveNowPlayingImageProvider(
+        ref: ref,
+        artUrl: trimmedUrl,
+        size: kCoverArtStandardSize,
+      );
+    }
+    final key = trimmedId.isNotEmpty
+        ? 'id:$trimmedId:$revision:${base?.hashCode}'
+        : 'url:$trimmedUrl:${base?.hashCode}';
     if (key == _artworkBackdropKey && _artworkBackdropImage != null) {
       return _artworkBackdropImage;
     }
-    final base = _resolveNowPlayingImageProvider(
-      ref: ref,
-      coverArtId: trimmedId,
-      artUrl: trimmedId.isEmpty ? trimmedUrl : null,
-      size: kCoverArtStandardSize,
-    );
     _artworkBackdropKey = key;
     return _artworkBackdropImage = base == null
         ? null
@@ -550,6 +526,16 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen> {
             key: const ValueKey<String>('nowPlayingArtworkBackground'),
             imageKey: _artworkBackdropKey,
             image: image,
+            onAvailabilityChanged: (key, {required available}) {
+              if (!mounted || key != _artworkBackdropKey) return;
+              setState(() {
+                if (available) {
+                  _failedArtworkBackdropKeys.remove(key);
+                } else {
+                  _failedArtworkBackdropKeys.add(key);
+                }
+              });
+            },
             colorStyle: colorStyle,
             surfaceColor: surfaceColor,
             onSurfaceColor: onSurfaceColor,
@@ -594,6 +580,7 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen> {
       artworkImage = _artworkBackdropFor(
         coverArtId: playback.isRadioMode ? null : song?.coverArt,
         artUrl: activeArtUrl,
+        revision: song?.coverArtRevision ?? 0,
       );
     } else {
       _artworkBackdropKey = null;
@@ -602,7 +589,9 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen> {
     final showArtworkLayer = nowPlayingShowsArtworkLayer(
       background: background,
       flat: colorStyle.flat,
-      hasImage: artworkImage != null,
+      hasImage:
+          artworkImage != null &&
+          !_failedArtworkBackdropKeys.contains(_artworkBackdropKey),
     );
     final artTinted =
         background == NowPlayingBackground.tinted ||
