@@ -68,6 +68,7 @@ extension _NavisNavigation on NavisAudioHandler {
     }
     _navigationInFlightRevision = decision.revision;
     _navigationIssuedAt = DateTime.now();
+    _queueFinished = false;
     final transportGeneration = _supersedeTransportIntent(
       shouldPlay: shouldPlay,
     );

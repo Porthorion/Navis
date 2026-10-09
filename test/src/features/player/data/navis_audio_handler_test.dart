@@ -394,6 +394,8 @@ void main() {
           previous: ProcessingState.ready,
           current: ProcessingState.completed,
           continuingPastCompletion: false,
+          position: _end,
+          duration: _end,
         ),
         isTrue,
       );
@@ -403,6 +405,8 @@ void main() {
           previous: ProcessingState.completed,
           current: ProcessingState.completed,
           continuingPastCompletion: false,
+          position: _end,
+          duration: _end,
         ),
         isFalse,
       );
@@ -411,6 +415,8 @@ void main() {
           previous: ProcessingState.ready,
           current: ProcessingState.completed,
           continuingPastCompletion: true,
+          position: _end,
+          duration: _end,
         ),
         isFalse,
       );
@@ -419,6 +425,19 @@ void main() {
           previous: ProcessingState.buffering,
           current: ProcessingState.ready,
           continuingPastCompletion: false,
+          position: _end,
+          duration: _end,
+        ),
+        isFalse,
+      );
+      // Re-entering completed while a restarted song plays from the start.
+      expect(
+        navisQueueJustFinished(
+          previous: ProcessingState.ready,
+          current: ProcessingState.completed,
+          continuingPastCompletion: false,
+          position: const Duration(milliseconds: 300),
+          duration: _end,
         ),
         isFalse,
       );
@@ -945,3 +964,5 @@ void main() {
     });
   });
 }
+
+const _end = Duration(seconds: 4);

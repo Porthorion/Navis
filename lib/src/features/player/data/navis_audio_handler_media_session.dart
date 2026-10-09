@@ -170,6 +170,8 @@ extension _NavisMediaSession on NavisAudioHandler {
           previous: _finishObservedProcessingState,
           current: processing,
           continuingPastCompletion: _continuingIntoDeferredTail,
+          position: _player.position,
+          duration: _player.duration,
         )) {
           _queueFinished = true;
         } else if (processing != ProcessingState.completed) {

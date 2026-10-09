@@ -161,6 +161,14 @@ const List<ChangelogVersion> changelogs = [
     ],
     entries: [
       ChangelogEntry(
+        'The player shows Play once the queue has finished, so one press restarts it instead of two',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
+        'Android no longer signs you out when opening an artist page soon after signing back in',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
         'Mobile playback can recover when a streamed byte range has no known length',
         type: ChangelogEntryType.fix,
       ),
