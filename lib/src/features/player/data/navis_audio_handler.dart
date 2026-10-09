@@ -7275,21 +7275,27 @@ class NavisAudioHandler extends BaseAudioHandler
     return _persistQueueState();
   }
 
+  (schema.RepeatMode, schema.ShuffleMode, int) _playbackSaveFields({
+    bool includePosition = true,
+  }) => (
+    switch (_desiredLoopMode) {
+      LoopMode.one => schema.RepeatMode.one,
+      LoopMode.all => schema.RepeatMode.all,
+      LoopMode.off => schema.RepeatMode.off,
+    },
+    _shuffleEnabled ? schema.ShuffleMode.all : schema.ShuffleMode.off,
+    includePosition
+        ? _player.position.inMilliseconds
+        : _snapshot.position.inMilliseconds,
+  );
+
   Future<void> _persistLogicalQueue(
     List<String> songIds,
     int index, {
     required int generation,
   }) {
     final immutableIds = List<String>.unmodifiable(songIds);
-    final repeatMode = switch (_desiredLoopMode) {
-      LoopMode.one => schema.RepeatMode.one,
-      LoopMode.all => schema.RepeatMode.all,
-      LoopMode.off => schema.RepeatMode.off,
-    };
-    final shuffleMode = _shuffleEnabled
-        ? schema.ShuffleMode.all
-        : schema.ShuffleMode.off;
-    final positionMs = _player.position.inMilliseconds;
+    final (repeatMode, shuffleMode, positionMs) = _playbackSaveFields();
     return _persistSafely(() async {
       if (!_isActiveLoadGeneration(generation)) return;
       await _playQueueDao.saveQueue(
@@ -7519,19 +7525,9 @@ class NavisAudioHandler extends BaseAudioHandler
       return;
     }
 
-    final repeatMode = switch (_desiredLoopMode) {
-      LoopMode.one => schema.RepeatMode.one,
-      LoopMode.all => schema.RepeatMode.all,
-      LoopMode.off => schema.RepeatMode.off,
-    };
-
-    final shuffleMode = _shuffleEnabled
-        ? schema.ShuffleMode.all
-        : schema.ShuffleMode.off;
-
-    final positionMs = includePosition
-        ? _player.position.inMilliseconds
-        : _snapshot.position.inMilliseconds;
+    final (repeatMode, shuffleMode, positionMs) = _playbackSaveFields(
+      includePosition: includePosition,
+    );
     final resolvedCurrentIndex = _radioStation == null
         ? _logicalCurrentIndex
         : null;
