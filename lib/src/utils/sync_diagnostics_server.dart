@@ -62,6 +62,7 @@ import 'package:navis/src/features/player/presentation/same_vibes_notifier.dart'
 import 'package:navis/src/features/search/domain/search_result_ranker.dart';
 import 'package:navis/src/features/search/presentation/search_controller_provider.dart';
 import 'package:navis/src/features/settings/data/update_repository.dart';
+import 'package:navis/src/features/settings/data/update_install_mode.dart';
 import 'package:navis/src/features/settings/data/update_service.dart';
 import 'package:navis/src/features/settings/domain/update_info.dart';
 import 'package:navis/src/providers/app_providers.dart';
@@ -3084,7 +3085,10 @@ class SyncDiagnosticsServer {
           return;
         }
         // Runs the forced check, then the production download and integrity
-        // check. Nothing is installed or applied.
+        // check. Only {"apply": true} on desktop goes on to the production
+        // apply, which replaces this build and exits after the response.
+        final body = await _readJson(request);
+        final apply = body['apply'] == true;
         final info = await _forceUpdateCheck();
         String? artifactPath;
         String? downloadError;
@@ -3104,7 +3108,13 @@ class SyncDiagnosticsServer {
           'downloaded': artifactPath != null,
           'artifactPath': artifactPath,
           'downloadError': downloadError,
+          'applying': apply && artifactPath != null,
         });
+        if (apply && artifactPath != null) {
+          await _container
+              .read(updateServiceProvider)
+              .applyDesktopUpdate(artifactPath, detectInstallMode());
+        }
         return;
       }
       if (request.method == 'GET' && path == '/v1/diagnostics/integrations') {
