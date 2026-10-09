@@ -3,6 +3,7 @@ import 'package:navis/l10n/app_localizations.dart';
 import 'package:navis/src/common_widgets/remote_source_indicator.dart';
 import 'package:navis/src/routing/content_layout.dart';
 import 'package:navis/src/routing/desktop_layout.dart';
+import 'package:navis/src/theme/navis_density_scope.dart';
 import 'package:navis/src/theme/navis_tokens.dart';
 import 'package:navis/src/utils/format_utils.dart';
 
@@ -104,7 +105,7 @@ class AdaptiveTrackRow extends StatelessWidget {
     this.album,
     this.duration,
     this.leading,
-    this.leadingExtent = 48,
+    this.leadingExtent,
     this.leadingGap = 12,
     this.actionExtent,
     this.actions,
@@ -114,10 +115,10 @@ class AdaptiveTrackRow extends StatelessWidget {
     this.onTap,
     this.onLongPress,
     this.onSecondaryTapDown,
-    this.padding = const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+    this.padding,
     this.showAlbumColumn = true,
     this.titleBadge,
-    this.minHeight = 64,
+    this.minHeight,
     super.key,
   });
 
@@ -126,7 +127,9 @@ class AdaptiveTrackRow extends StatelessWidget {
   final String? album;
   final int? duration;
   final Widget? leading;
-  final double leadingExtent;
+
+  /// Width of the leading slot; null follows the Density cover size.
+  final double? leadingExtent;
   final double leadingGap;
   final double? actionExtent;
   final Widget? actions;
@@ -136,7 +139,9 @@ class AdaptiveTrackRow extends StatelessWidget {
   final VoidCallback? onTap;
   final VoidCallback? onLongPress;
   final GestureTapDownCallback? onSecondaryTapDown;
-  final EdgeInsetsGeometry padding;
+
+  /// Row padding; null follows the Density setting.
+  final EdgeInsetsGeometry? padding;
 
   /// False on an album's own track list, where every row would repeat the
   /// same album name.
@@ -146,13 +151,17 @@ class AdaptiveTrackRow extends StatelessWidget {
   /// "Not on server"), so it never adds a line to the row.
   final Widget? titleBadge;
 
-  /// Rows sized for artwork use 64; numbered lists without artwork can be
-  /// denser.
-  final double minHeight;
+  /// Rows sized for artwork follow the Density setting (64 comfortable, 52
+  /// compact); numbered lists without artwork can be denser.
+  final double? minHeight;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final density = NavisDensityScope.of(context);
+    final leadingExtent = this.leadingExtent ?? density.listCover;
+    final padding = this.padding ?? density.trackRowPadding;
+    final minHeight = this.minHeight ?? density.trackRowMinHeight;
     final style = theme.textTheme.bodySmall?.copyWith(
       color: theme.colorScheme.onSurfaceVariant,
     );
@@ -493,7 +502,7 @@ class _CompactTrackInformation extends StatelessWidget {
 class AdaptiveTrackHeader extends StatelessWidget {
   const new({
     this.numberColumnExtent,
-    this.leadingExtent = 48,
+    this.leadingExtent,
     this.leadingGap = 12,
     this.actionExtent,
     this.padding = const EdgeInsets.fromLTRB(12, 8, 12, 8),
@@ -501,11 +510,14 @@ class AdaptiveTrackHeader extends StatelessWidget {
     super.key,
   }) : assert(
          numberColumnExtent == null ||
-             (numberColumnExtent > 0 && numberColumnExtent <= leadingExtent),
+             (numberColumnExtent > 0 &&
+                 numberColumnExtent <= (leadingExtent ?? 40)),
          'Number column must fit inside the leading area.',
        );
   final double? numberColumnExtent;
-  final double leadingExtent;
+
+  /// Width of the leading slot; null follows the Density cover size.
+  final double? leadingExtent;
   final double leadingGap;
   final double? actionExtent;
   final EdgeInsetsGeometry padding;
@@ -516,6 +528,8 @@ class AdaptiveTrackHeader extends StatelessWidget {
   @override
   Widget build(BuildContext context) => LayoutBuilder(
     builder: (context, constraints) {
+      final leadingExtent =
+          this.leadingExtent ?? NavisDensityScope.of(context).listCover;
       final insets = padding.resolve(Directionality.of(context));
       final mode = ContentLayout.trackMode(
         (constraints.maxWidth - insets.horizontal).clamp(0.0, double.infinity),
