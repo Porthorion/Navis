@@ -2841,7 +2841,9 @@ converts SMTC seek and skip requests back to track time.
 
 A scrobble and play-history session belongs to the playing queue entry: songs
 inserted, released, or moved before it shift its index without starting a new
-session, and neither does refreshing its metadata in place.
+session, and neither does refreshing its metadata in place. Disposing the
+scrobble service disables timer scheduling before cancellation; in-flight
+flushes and database timer-sync results cannot recreate timers afterwards.
 
 Queue replacement prefetches lyrics only for the selected song and the next
 two; batched artist admits prefetch none. `lyricsProvider` watches just the playing item's lookup metadata, so a

@@ -359,6 +359,7 @@ class DriftScrobbleService implements ScrobbleService {
 
   @override
   Future<void> dispose() async {
+    _started = false;
     _stopDispatchTimer();
     _dispatchRetryTimer?.cancel();
     _dispatchRetryTimer = null;
@@ -382,6 +383,7 @@ class DriftScrobbleService implements ScrobbleService {
 
     try {
       final count = await _dao.countEntries();
+      if (!_started) return;
       if (count > 0) {
         _dispatchRetryTimer?.cancel();
         _dispatchRetryTimer = null;
@@ -390,6 +392,7 @@ class DriftScrobbleService implements ScrobbleService {
         _stopDispatchTimer();
       }
     } on Object catch (error) {
+      if (!_started) return;
       if (!_isDatabaseLocked(error)) {
         rethrow;
       }
