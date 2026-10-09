@@ -50,7 +50,7 @@ class _BatteryOptimizationSheet extends StatelessWidget {
             height: 52,
             decoration: BoxDecoration(
               color: colors.primary.withValues(alpha: 0.12),
-              borderRadius: NavisRadius.lgAll,
+              borderRadius: NavisShapeData.of(context).lgAll,
             ),
             child: Icon(
               Icons.battery_saver_outlined,
@@ -79,7 +79,7 @@ class _BatteryOptimizationSheet extends StatelessWidget {
             padding: const EdgeInsets.all(14),
             decoration: BoxDecoration(
               color: colors.surfaceContainerHighest,
-              borderRadius: NavisRadius.lgAll,
+              borderRadius: NavisShapeData.of(context).lgAll,
             ),
             child: Row(
               children: <Widget>[

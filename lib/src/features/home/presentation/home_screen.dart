@@ -79,6 +79,7 @@ import 'package:navis/src/theme/caption_tint.dart';
 import 'package:navis/src/theme/flat_band_tone.dart';
 import 'package:navis/src/theme/navis_color_style_data.dart';
 import 'package:navis/src/common_widgets/artwork_scrim.dart';
+import 'package:navis/src/theme/navis_shape_data.dart';
 
 export 'package:navis/src/features/home/domain/home_section_ids.dart';
 
@@ -2542,7 +2543,7 @@ class _DesktopRandomAlbumsPagerState
       return _ShowcaseFlatBand(
         coverArtId: _showcaseWashCoverId(currentItem),
         coverArtRevision: _showcaseWashCoverRevision(currentItem),
-        borderRadius: NavisRadius.xlAll,
+        borderRadius: NavisShapeData.of(context).xlAll,
         builder: (context, tint) => Theme(
           data: _flatPanelTheme(Theme.of(context), tint),
           child: Padding(
@@ -2606,6 +2607,7 @@ class _DesktopRandomAlbumPage extends ConsumerWidget {
               child: SizedBox(
                 height: pageHeight,
                 child: _desktopPageSurface(
+                  radius: NavisShapeData.of(context).xlAll,
                   flat: flat,
                   colors: colors,
                   child: _DesktopRandomAlbumSongList(album: album),
@@ -2623,6 +2625,7 @@ class _DesktopRandomAlbumPage extends ConsumerWidget {
 /// card normally; under Flat nothing, because the pager's solid panel is the
 /// only surface and the list sits directly on it.
 Widget _desktopPageSurface({
+  required BorderRadius radius,
   required bool flat,
   required ColorScheme colors,
   required Widget child,
@@ -2631,7 +2634,7 @@ Widget _desktopPageSurface({
   return DecoratedBox(
     decoration: BoxDecoration(
       color: colors.surfaceContainerLowest.withValues(alpha: 0.28),
-      borderRadius: NavisRadius.xlAll,
+      borderRadius: radius,
       border: Border.all(color: colors.outlineVariant.withValues(alpha: 0.34)),
     ),
     child: Padding(
@@ -2662,9 +2665,9 @@ class _DesktopRandomAlbumVisual extends ConsumerWidget {
 
     return Material(
       color: Colors.transparent,
-      borderRadius: NavisRadius.lgAll,
+      borderRadius: NavisShapeData.of(context).lgAll,
       child: InkWell(
-        borderRadius: NavisRadius.lgAll,
+        borderRadius: NavisShapeData.of(context).lgAll,
         onTap: () => NavService.openAlbumDetail(
           context,
           ref,
@@ -2806,6 +2809,7 @@ class _DesktopPlaylistPage extends ConsumerWidget {
               child: SizedBox(
                 height: pageHeight,
                 child: _desktopPageSurface(
+                  radius: NavisShapeData.of(context).xlAll,
                   flat: flat,
                   colors: Theme.of(context).colorScheme,
                   child: switch (item) {

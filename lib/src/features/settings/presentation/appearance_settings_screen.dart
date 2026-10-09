@@ -21,6 +21,7 @@ import 'package:navis/src/theme/navis_color_style.dart';
 import 'package:navis/src/theme/navis_theme.dart';
 import 'package:navis/src/theme/navis_tokens.dart';
 import 'package:navis/src/routing/app_routes.dart';
+import 'package:navis/src/theme/navis_shape_data.dart';
 
 class AppearanceSettingsScreen extends ConsumerWidget {
   const new({super.key});
@@ -655,11 +656,11 @@ class _SettingsCollapsibleGroupState extends State<_SettingsCollapsibleGroup> {
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
       child: Material(
         color: theme.colorScheme.surfaceContainerLow,
-        borderRadius: NavisRadius.mdAll,
+        borderRadius: NavisShapeData.of(context).mdAll,
         child: Column(
           children: <Widget>[
             InkWell(
-              borderRadius: NavisRadius.mdAll,
+              borderRadius: NavisShapeData.of(context).mdAll,
               onTap: () {
                 final nextExpanded = !_expanded;
                 setState(() => _expanded = nextExpanded);
@@ -1494,7 +1495,7 @@ class _HueSlider extends StatelessWidget {
         Container(
           height: 24,
           decoration: BoxDecoration(
-            borderRadius: NavisRadius.mdAll,
+            borderRadius: NavisShapeData.of(context).mdAll,
             gradient: LinearGradient(
               colors: List<Color>.generate(
                 360 ~/ 10 + 1,

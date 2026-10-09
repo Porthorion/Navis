@@ -3,6 +3,8 @@ import 'package:material_color_utilities/material_color_utilities.dart'
 import 'package:material_ui/material_ui.dart';
 import 'package:navis/src/theme/navis_color_style.dart';
 import 'package:navis/src/theme/navis_color_style_data.dart';
+import 'package:navis/src/theme/navis_corner_style.dart';
+import 'package:navis/src/theme/navis_shape_data.dart';
 import 'package:navis/src/theme/navis_style_schemes.dart';
 import 'package:navis/src/theme/navis_tokens.dart';
 
@@ -113,13 +115,20 @@ ThemeData buildLightTheme(
   Color seedColor, {
   NavisColorStyle style = NavisColorStyle.neutral,
   bool flat = false,
+  NavisCornerStyle corners = NavisCornerStyle.rounded,
 }) {
   final colorScheme = buildStyledColorScheme(
     seed: seedColor,
     brightness: Brightness.light,
     style: style,
   );
-  return _buildNavisTheme(colorScheme, seedColor, style: style, flat: flat);
+  return _buildNavisTheme(
+    colorScheme,
+    seedColor,
+    style: style,
+    flat: flat,
+    corners: corners,
+  );
 }
 
 /// Build the standard dark [ThemeData] from a seed color.
@@ -127,13 +136,20 @@ ThemeData buildDarkTheme(
   Color seedColor, {
   NavisColorStyle style = NavisColorStyle.neutral,
   bool flat = false,
+  NavisCornerStyle corners = NavisCornerStyle.rounded,
 }) {
   final colorScheme = buildStyledColorScheme(
     seed: seedColor,
     brightness: Brightness.dark,
     style: style,
   );
-  return _buildNavisTheme(colorScheme, seedColor, style: style, flat: flat);
+  return _buildNavisTheme(
+    colorScheme,
+    seedColor,
+    style: style,
+    flat: flat,
+    corners: corners,
+  );
 }
 
 /// Build an OLED (pure black) [ThemeData] from a seed color.
@@ -144,6 +160,7 @@ ThemeData buildOledTheme(
   Color seedColor, {
   NavisColorStyle style = NavisColorStyle.neutral,
   bool flat = false,
+  NavisCornerStyle corners = NavisCornerStyle.rounded,
 }) {
   final colorScheme = buildStyledColorScheme(
     seed: seedColor,
@@ -157,6 +174,7 @@ ThemeData buildOledTheme(
     oled: true,
     style: style,
     flat: flat,
+    corners: corners,
   );
 }
 
@@ -213,7 +231,10 @@ ThemeData _buildNavisTheme(
   bool oled = false,
   NavisColorStyle style = NavisColorStyle.neutral,
   bool flat = false,
+  NavisCornerStyle corners = NavisCornerStyle.rounded,
 }) {
+  final shape = NavisShapeData.forStyle(corners);
+  final roundedCorners = corners == NavisCornerStyle.rounded;
   final styleData = NavisColorStyleData(
     style: style,
     dark: colorScheme.brightness == Brightness.dark,
@@ -229,6 +250,9 @@ ThemeData _buildNavisTheme(
   // Outlines on secondary controls use the softer variant role so they
   // separate controls without competing with filled primary actions.
   final softOutline = BorderSide(color: colorScheme.outlineVariant);
+  final controlShape = WidgetStatePropertyAll<OutlinedBorder>(
+    shape.controlShape,
+  );
   final disabledOutline = BorderSide(
     color: colorScheme.onSurface.withValues(alpha: 0.12),
   );
@@ -249,6 +273,7 @@ ThemeData _buildNavisTheme(
     textTheme: _navisTextTheme,
     outlinedButtonTheme: OutlinedButtonThemeData(
       style: ButtonStyle(
+        shape: roundedCorners ? null : controlShape,
         side: WidgetStateProperty.resolveWith(
           (states) => states.contains(WidgetState.disabled)
               ? disabledOutline
@@ -257,7 +282,7 @@ ThemeData _buildNavisTheme(
       ),
     ),
     chipTheme: ChipThemeData(
-      shape: const StadiumBorder(),
+      shape: shape.controlShape,
       side: WidgetStateBorderSide.resolveWith((states) {
         if (states.contains(WidgetState.selected)) {
           return const BorderSide(color: Colors.transparent);
@@ -270,32 +295,63 @@ ThemeData _buildNavisTheme(
     cardTheme: CardThemeData(
       elevation: 0,
       color: colorScheme.surfaceContainerLow,
-      shape: const RoundedRectangleBorder(borderRadius: NavisRadius.mdAll),
+      shape: shape.mdShape,
     ),
-    popupMenuTheme: const PopupMenuThemeData(
-      shape: RoundedRectangleBorder(borderRadius: NavisRadius.mdAll),
-    ),
-    inputDecorationTheme: const InputDecorationTheme(
+    popupMenuTheme: PopupMenuThemeData(shape: shape.mdShape),
+    inputDecorationTheme: InputDecorationTheme(
       // Only the base border is themed: a themed enabled/focused border
       // would override fields that deliberately pass InputBorder.none.
-      border: OutlineInputBorder(borderRadius: NavisRadius.mdAll),
+      border: OutlineInputBorder(borderRadius: shape.mdAll),
     ),
     scaffoldBackgroundColor: oled ? Colors.black : null,
     cardColor: oled ? colorScheme.surfaceContainerLow : null,
-    dialogTheme: oled
+    dialogTheme: oled || !roundedCorners
         ? DialogThemeData(
-            backgroundColor: colorScheme.surfaceContainer,
-            shadowColor: flat ? Colors.transparent : null,
+            backgroundColor: oled ? colorScheme.surfaceContainer : null,
+            shadowColor: oled && flat ? Colors.transparent : null,
+            shape: roundedCorners ? null : shape.xlShape,
           )
         : null,
-    filledButtonTheme: pastelLight
+    filledButtonTheme: pastelLight || !roundedCorners
         ? FilledButtonThemeData(
             style: FilledButton.styleFrom(
-              backgroundColor: colorScheme.primaryContainer,
-              foregroundColor: colorScheme.onPrimaryContainer,
+              backgroundColor: pastelLight
+                  ? colorScheme.primaryContainer
+                  : null,
+              foregroundColor: pastelLight
+                  ? colorScheme.onPrimaryContainer
+                  : null,
+              shape: roundedCorners ? null : shape.controlShape,
             ),
           )
         : null,
+    // Rounded keeps Material's defaults for everything below so the default
+    // look does not move; other styles take their shapes from the table.
+    textButtonTheme: roundedCorners
+        ? null
+        : TextButtonThemeData(style: ButtonStyle(shape: controlShape)),
+    elevatedButtonTheme: roundedCorners
+        ? null
+        : ElevatedButtonThemeData(style: ButtonStyle(shape: controlShape)),
+    segmentedButtonTheme: roundedCorners
+        ? null
+        : SegmentedButtonThemeData(style: ButtonStyle(shape: controlShape)),
+    menuTheme: roundedCorners
+        ? null
+        : MenuThemeData(
+            style: MenuStyle(
+              shape: WidgetStatePropertyAll<OutlinedBorder>(shape.mdShape),
+            ),
+          ),
+    floatingActionButtonTheme: roundedCorners
+        ? null
+        : FloatingActionButtonThemeData(shape: shape.lgShape),
+    snackBarTheme: roundedCorners
+        ? null
+        : SnackBarThemeData(shape: shape.smShape),
+    navigationRailTheme: roundedCorners
+        ? null
+        : NavigationRailThemeData(indicatorShape: shape.controlShape),
     appBarTheme: oled
         ? const AppBarTheme(
             backgroundColor: Colors.black,
@@ -305,17 +361,29 @@ ThemeData _buildNavisTheme(
     bottomNavigationBarTheme: oled
         ? const BottomNavigationBarThemeData(backgroundColor: Colors.black)
         : null,
-    navigationBarTheme: oled
-        ? const NavigationBarThemeData(
-            backgroundColor: Colors.black,
-            surfaceTintColor: Colors.transparent,
+    navigationBarTheme: oled || !roundedCorners
+        ? NavigationBarThemeData(
+            backgroundColor: oled ? Colors.black : null,
+            surfaceTintColor: oled ? Colors.transparent : null,
+            indicatorShape: roundedCorners ? null : shape.controlShape,
           )
         : null,
-    bottomSheetTheme: oled
-        ? BottomSheetThemeData(backgroundColor: colorScheme.surfaceContainer)
+    bottomSheetTheme: oled || !roundedCorners
+        ? BottomSheetThemeData(
+            backgroundColor: oled ? colorScheme.surfaceContainer : null,
+            shape: roundedCorners
+                ? null
+                : RoundedRectangleBorder(borderRadius: shape.sheetTop),
+          )
         : null,
     extensions: <ThemeExtension<dynamic>>[
-      NavisTokens.forScheme(colorScheme, oled: oled, style: styleData),
+      NavisTokens.forScheme(
+        colorScheme,
+        oled: oled,
+        style: styleData,
+        corners: corners,
+      ),
+      shape,
       NavisAccentColors.fromScheme(
         // Styled schemes reshape the seed, so the brand mark follows the
         // styled accent rather than the raw seed.

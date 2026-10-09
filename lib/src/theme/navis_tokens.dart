@@ -1,6 +1,7 @@
 import 'package:material_ui/material_ui.dart';
 import 'package:navis/src/theme/navis_color_style.dart';
 import 'package:navis/src/theme/navis_color_style_data.dart';
+import 'package:navis/src/theme/navis_corner_style.dart';
 
 /// Spacing scale shared by every layout.
 ///
@@ -68,7 +69,14 @@ class NavisTokens extends ThemeExtension<NavisTokens> {
     ColorScheme scheme, {
     bool oled = false,
     NavisColorStyleData? style,
+    NavisCornerStyle corners = NavisCornerStyle.rounded,
   }) {
+    // Panels and cards follow the corner style's xl and lg steps.
+    final (panelRadius, cardRadius) = switch (corners) {
+      NavisCornerStyle.rounded => (defaults.panelRadius, defaults.cardRadius),
+      NavisCornerStyle.soft => (28.0, 24.0),
+      NavisCornerStyle.square => (6.0, 4.0),
+    };
     final warningBase = oled
         ? scheme.surfaceContainerHighest
         : scheme.surfaceContainerHigh;
@@ -77,8 +85,8 @@ class NavisTokens extends ThemeExtension<NavisTokens> {
       frameMaxWidthStandard: defaults.frameMaxWidthStandard,
       frameMaxWidthUltraWide: defaults.frameMaxWidthUltraWide,
       sidebarWidth: defaults.sidebarWidth,
-      panelRadius: defaults.panelRadius,
-      cardRadius: defaults.cardRadius,
+      panelRadius: panelRadius,
+      cardRadius: cardRadius,
       panelElevation: defaults.panelElevation,
       hoverOpacity: defaults.hoverOpacity,
       focusOpacity: defaults.focusOpacity,

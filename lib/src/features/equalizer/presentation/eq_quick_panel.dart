@@ -8,7 +8,7 @@ import 'package:navis/src/features/equalizer/domain/eq_workspace.dart';
 import 'package:navis/src/features/equalizer/presentation/eq_controller.dart';
 import 'package:navis/src/features/equalizer/presentation/eq_graph_editor.dart';
 import 'package:navis/src/routing/navigation_service.dart';
-import 'package:navis/src/theme/navis_tokens.dart';
+import 'package:navis/src/theme/navis_shape_data.dart';
 
 /// Whether the requested EQ is currently being applied, waiting for audio,
 /// running, or bypassed. Shared by the full page and the quick surfaces.
@@ -274,7 +274,7 @@ class EqQuickCard extends ConsumerWidget {
     return Material(
       key: const ValueKey<String>('eq-quick-card'),
       color: theme.colorScheme.surfaceContainerHigh,
-      borderRadius: NavisRadius.lgAll,
+      borderRadius: NavisShapeData.of(context).lgAll,
       child: Padding(
         padding: const EdgeInsets.fromLTRB(16, 8, 8, 4),
         child: Column(

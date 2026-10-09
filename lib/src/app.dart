@@ -18,6 +18,7 @@ import 'package:navis/src/routing/desktop_presentation_host.dart';
 import 'package:navis/src/theme/dynamic_accent_provider.dart';
 import 'package:navis/src/theme/navis_theme.dart';
 import 'package:navis/src/routing/navigation_service.dart';
+import 'package:navis/src/theme/corner_style_provider.dart';
 import 'package:navis/src/theme/navis_color_style.dart';
 
 /// Root application widget for Navis.
@@ -89,6 +90,7 @@ class _NavisAppState extends ConsumerState<NavisApp>
     final colorStyle = ref.watch(effectiveColorStyleProvider);
     final oledForAuto = ref.watch(oledForAutoProvider);
     final flat = ref.watch(flatSurfacesProvider);
+    final corners = ref.watch(cornerStyleProvider);
     final colorSeed = ref.watch(effectiveColorSchemeSeedProvider);
     // With Dynamic Album Colour, styled schemes repaint backgrounds as well as
     // accents on every track change, so they ease over a longer transition.
@@ -117,11 +119,22 @@ class _NavisAppState extends ConsumerState<NavisApp>
         seedColor,
         style: colorStyle,
         flat: flat,
+        corners: corners,
       ).copyWith(splashFactory: widget.splashFactory),
       darkTheme:
           (isOled
-                  ? buildOledTheme(seedColor, style: colorStyle, flat: flat)
-                  : buildDarkTheme(seedColor, style: colorStyle, flat: flat))
+                  ? buildOledTheme(
+                      seedColor,
+                      style: colorStyle,
+                      flat: flat,
+                      corners: corners,
+                    )
+                  : buildDarkTheme(
+                      seedColor,
+                      style: colorStyle,
+                      flat: flat,
+                      corners: corners,
+                    ))
               .copyWith(splashFactory: widget.splashFactory),
       themeMode: resolvedThemeMode,
       themeAnimationDuration: themeAnimationDuration,

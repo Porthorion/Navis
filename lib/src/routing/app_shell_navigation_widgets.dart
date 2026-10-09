@@ -365,9 +365,9 @@ class _RailNavTile extends StatelessWidget {
       color: selected
           ? colorScheme.secondaryContainer.withValues(alpha: 0.9)
           : Colors.transparent,
-      borderRadius: NavisRadius.lgAll,
+      borderRadius: NavisShapeData.of(context).lgAll,
       child: InkWell(
-        borderRadius: NavisRadius.lgAll,
+        borderRadius: NavisShapeData.of(context).lgAll,
         onTap: onTap,
         child: Padding(
           padding: tilePadding,
@@ -431,9 +431,9 @@ class _RailSubNavTile extends StatelessWidget {
         color: selected
             ? colorScheme.primaryContainer.withValues(alpha: 0.35)
             : Colors.transparent,
-        borderRadius: NavisRadius.mdAll,
+        borderRadius: NavisShapeData.of(context).mdAll,
         child: InkWell(
-          borderRadius: NavisRadius.mdAll,
+          borderRadius: NavisShapeData.of(context).mdAll,
           onTap: onTap,
           child: Padding(
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),

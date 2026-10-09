@@ -3,6 +3,7 @@ import 'package:navis/l10n/app_localizations.dart';
 import 'package:navis/src/theme/navis_color_style.dart';
 import 'package:navis/src/theme/navis_style_schemes.dart';
 import 'package:navis/src/theme/navis_tokens.dart';
+import 'package:navis/src/theme/navis_shape_data.dart';
 
 /// The colour a seed swatch shows under [style]: the accent the style will
 /// actually use, taken from its dark scheme where accents sit at their
@@ -157,7 +158,7 @@ class _ColorStyleTile extends StatelessWidget {
       child: InkWell(
         key: ValueKey<String>('colorStyleTile-${style.storageKey}'),
         onTap: onTap,
-        borderRadius: NavisRadius.mdAll,
+        borderRadius: NavisShapeData.of(context).mdAll,
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: <Widget>[
@@ -165,8 +166,8 @@ class _ColorStyleTile extends StatelessWidget {
               duration: const Duration(milliseconds: 180),
               padding: const EdgeInsets.all(3),
               decoration: BoxDecoration(
-                borderRadius: const BorderRadius.all(
-                  Radius.circular(NavisRadius.md + 3),
+                borderRadius: BorderRadius.all(
+                  Radius.circular(NavisShapeData.of(context).md + 3),
                 ),
                 border: Border.all(
                   color: selected ? outer.primary : outer.outlineVariant,
@@ -207,7 +208,7 @@ class _StylePreview extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return ClipRRect(
-      borderRadius: NavisRadius.mdAll,
+      borderRadius: NavisShapeData.of(context).mdAll,
       child: ColoredBox(
         color: scheme.surface,
         child: LayoutBuilder(
