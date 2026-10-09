@@ -2090,6 +2090,31 @@ void main() {
     },
   );
 
+  testWidgets('phone MiniPlayerStrip rendering is pinned', (tester) async {
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(390, 844);
+    addTearDown(() {
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+    });
+
+    final container = _createContainerWithDatabase(
+      overrides: _authenticatedShellOverrides(),
+    );
+
+    await tester.pumpWidget(
+      UncontrolledProviderScope(container: container, child: testNavisApp),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.byType(NavigationBar), findsOneWidget);
+    await expectLater(
+      find.byKey(const ValueKey<String>('appShellScaffold')),
+      matchesGoldenFile('goldens/phone_mini_player_strip_390x844.png'),
+    );
+    await tester.pump(const Duration(milliseconds: 201));
+  });
+
   testWidgets('expanded player uses bottom-sheet mode on phone', (
     tester,
   ) async {
