@@ -2237,7 +2237,10 @@ restarting refills.
 1. User taps album/track → `QueueController.replace()`
 2. Queue controller calls `NavisAudioHandler.replaceQueue()`
 3. Audio handler resolves sources via `PlaybackSourceResolver`
-4. Source resolver checks: permanent cache → rolling cache → stream
+4. Source resolver checks: completed permanent download → eligible rolling cache
+   → stream. Permanent downloads always win regardless of streaming quality,
+   Cached First, or network settings. Rolling entries retain profile matching
+   unless Cached First, cellular cache preference, or offline playback applies.
 5. Audio handler updates structural state through `playbackSnapshotProvider`
    plus lightweight timeline updates through `positionStream` and the
    track-keyed `bufferStateStream`
@@ -3687,7 +3690,10 @@ contract.
 8. Eviction removes orphan MIME sidecars and garbage-collects unreferenced
    provisional metadata while preserving active partial files and recent
    unowned audio files
-9. Playback prefers permanent → rolling → stream
+9. Playback prefers completed permanent downloads unconditionally → eligible
+   rolling cache → stream. Only rolling entries are filtered by the active
+   streaming profile; Cached First, cellular cache preference, and offline
+   playback permit any completed rolling profile.
 10. Every app major/minor version change renews committed library and recoverable
    rolling-cache metadata through the mandatory full-screen rebuild. Patch
    releases keep the same epoch; legacy cache markers also require renewal.

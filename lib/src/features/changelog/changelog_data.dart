@@ -129,6 +129,10 @@ const List<ChangelogVersion> changelogs = [
     version: '1.4.3',
     entries: [
       ChangelogEntry(
+        'Completed downloads always play before streaming, regardless of quality settings',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
         'A slow queue restore after radio stops or fails keeps the saved music queue',
         type: ChangelogEntryType.fix,
       ),

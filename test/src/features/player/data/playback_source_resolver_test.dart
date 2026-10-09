@@ -97,6 +97,55 @@ void main() {
       );
     }, skip: !sqliteAvailable);
 
+    test(
+      'permanent download wins over a mismatched streaming profile',
+      () async {
+        final song = await _insertSong(
+          database,
+          id: 'permanent-lossy',
+          title: 'Permanent lossy',
+          suffix: 'flac',
+          contentType: 'audio/flac',
+          bitRate: 900,
+        );
+        final file = File(p.join(rollingDir.path, 'permanent.mp3'));
+        await file.writeAsBytes(<int>[1, 2, 3]);
+        await database.cacheDao.upsertCachedTrack(
+          CachedTracksTableCompanion.insert(
+            songId: song.id,
+            filePath: file.path,
+            fileSize: 3,
+            format: 'mp3',
+            bitRate: const Value(192),
+            cacheType: CacheType.permanent,
+            downloadStatus: DownloadStatus.complete,
+            lastAccessedAt: DateTime.now(),
+          ),
+        );
+        for (final canStream in <bool>[true, false]) {
+          for (final cachedFirst in <bool>[true, false]) {
+            final resolver = PlaybackSourceResolver(
+              cacheDao: database.cacheDao,
+              rollingCacheManager: DriftRollingCacheManager(
+                cacheDao: database.cacheDao,
+              ),
+              readApiClient: () => apiClient,
+              readStreamingQuality: () =>
+                  const StreamingQuality(label: 'Original'),
+              readRollingCacheDirectory: () async => rollingDir,
+              readCanStream: () => canStream,
+              readCachedPlaybackFirst: () => cachedFirst,
+            );
+            final resolved = await resolver.resolveForSong(song);
+            expect(resolved.kind, PlaybackSourceKind.file);
+            expect(resolved.cachedFilePath, file.path);
+            expect(resolved.metadata.bitRate, 192);
+          }
+        }
+      },
+      skip: !sqliteAvailable,
+    );
+
     test('resolves a permanent SAF document through its content URI', () async {
       const channel = MethodChannel(
         'com.navis.app/permanent_download_playback',

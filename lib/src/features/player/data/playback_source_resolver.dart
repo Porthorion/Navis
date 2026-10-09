@@ -592,7 +592,8 @@ class PlaybackSourceResolver {
     if (cachedTrack.downloadStatus != DownloadStatus.complete) {
       return false;
     }
-    if (policy.cachedPlaybackFirst ||
+    if (cachedTrack.cacheType == CacheType.permanent ||
+        policy.cachedPlaybackFirst ||
         policy.preferAnyCache ||
         !policy.canStream) {
       return true;
