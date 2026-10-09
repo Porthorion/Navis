@@ -1813,7 +1813,6 @@
   "actionLiked": "Liked",
   "actionMore": "More",
   "remoteSourceActionUnavailable": "Not available for remote tracks.",
-  "remoteSourceInstantMixUnavailable": "Instant Mix requires a locally scanned track.",
 
   "commonSave": "Save",
   "commonDelete": "Delete",

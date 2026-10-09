@@ -1001,6 +1001,43 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
+  testWidgets('desktop Server Mix button accepts a remote current song', (
+    tester,
+  ) async {
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(1008, 640);
+    addTearDown(() {
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+    });
+    final container = _createContainerWithDatabase(
+      overrides: <Override>[
+        ..._authenticatedShellOverrides(
+          desktopRuntime: true,
+          playback: _activePlayback.copyWith(currentSongId: 'ext-remote-1'),
+        ),
+        preferredMixModeProvider.overrideWithValue(
+          PreferredMixMode.legacyInstantMix,
+        ),
+      ],
+    );
+    await tester.pumpWidget(
+      UncontrolledProviderScope(container: container, child: testNavisApp),
+    );
+    await tester.pumpAndSettle();
+
+    final direct = find.byKey(
+      const ValueKey<String>('desktopPlayerInstantMixButton'),
+    );
+    final button = direct.evaluate().first.widget is IconButton
+        ? tester.widget<IconButton>(direct)
+        : desktopActionButton(tester, 'desktopPlayerInstantMixButton');
+    // The recommendation service maps a remote seed to its library copy, so
+    // the bar must not pre-reject it.
+    expect(button.onPressed, isNotNull);
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets('800x600 active Desktop View player golden', (tester) async {
     tester.view.devicePixelRatio = 1;
     tester.view.physicalSize = const Size(800, 600);

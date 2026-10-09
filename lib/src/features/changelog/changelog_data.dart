@@ -202,6 +202,10 @@ const List<ChangelogVersion> changelogs = [
       ),
       ChangelogEntry(
         'System queue controls select and remove the correct song after played tracks leave the player window',
+        'Server Mix can start from a remote song when the server has a library copy of it; the Instant Mix button is no longer greyed out for remote songs',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
         'The full Queue page no longer lets you reorder, remove or play tracks while a new queue is still loading',
         type: ChangelogEntryType.fix,
       ),

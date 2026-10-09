@@ -182,9 +182,6 @@ class _NowPlayingMixButton extends ConsumerWidget {
         ? (instantMix.refilling && instantMix.active)
         : (sameVibes.refilling && sameVibes.active);
     final seedSongId = songId;
-    final isRemote =
-        seedSongId != null && !isServerAddressableSongId(seedSongId);
-    final legacyMixUnavailable = isRemote && legacyMode;
     final label = legacyMode
         ? l10n.nowPlayingInstantMixLabel
         : l10n.nowPlayingSameVibesLabel;
@@ -194,14 +191,10 @@ class _NowPlayingMixButton extends ConsumerWidget {
       visualDensity: compact ? VisualDensity.compact : null,
       tooltip: label,
       isSelected: mixActive,
+      // A remote seed is the recommendation service's call: it mixes from the
+      // seed's library copy and reports unsupported when there is none.
       onPressed: seedSongId == null
           ? null
-          : legacyMixUnavailable
-          ? () => showAppNotice(
-              context,
-              message: l10n.remoteSourceInstantMixUnavailable,
-              level: AppNoticeLevel.error,
-            )
           : () =>
                 unawaited(togglePreferredMixMode(ref, seedSongId: seedSongId)),
       icon: mixLoading
@@ -217,11 +210,7 @@ class _NowPlayingMixButton extends ConsumerWidget {
             )
           : Icon(
               mixActive ? Icons.explore : Icons.explore_outlined,
-              color: mixActive
-                  ? colorScheme.primary
-                  : legacyMixUnavailable
-                  ? colorScheme.onSurfaceVariant.withValues(alpha: 0.42)
-                  : null,
+              color: mixActive ? colorScheme.primary : null,
             ),
     );
   }

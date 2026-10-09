@@ -83,12 +83,6 @@ class _DesktopPlayerBarState extends ConsumerState<_DesktopPlayerBar> {
     final mixSeedSongId = playback.currentSongId;
     final canToggleMix =
         mixSeedSongId != null && mixSeedSongId.trim().isNotEmpty;
-    final isRemoteSeedId =
-        mixSeedSongId != null && !isServerAddressableSongId(mixSeedSongId);
-    final canToggleLegacyMix =
-        canToggleMix &&
-        !(isRemoteSeedId &&
-            preferredMixMode == PreferredMixMode.legacyInstantMix);
 
     final repeatMode = playback.repeatMode;
     String repeatTooltip;
@@ -724,7 +718,7 @@ class _DesktopPlayerBarState extends ConsumerState<_DesktopPlayerBar> {
                                           key: const ValueKey<String>(
                                             'desktopPlayerInstantMixButton',
                                           ),
-                                          tooltip: canToggleLegacyMix
+                                          tooltip: canToggleMix
                                               ? l10n.nowPlayingInstantMixLabel
                                               : l10n.desktopPlaybackUnavailableTooltip,
                                           iconSize: controlIconSize,
@@ -742,7 +736,7 @@ class _DesktopPlayerBarState extends ConsumerState<_DesktopPlayerBar> {
                                           ),
                                           onPressed:
                                               !playback.isRadioMode &&
-                                                  canToggleLegacyMix
+                                                  canToggleMix
                                               ? () => unawaited(
                                                   togglePreferredMixMode(
                                                     ref,

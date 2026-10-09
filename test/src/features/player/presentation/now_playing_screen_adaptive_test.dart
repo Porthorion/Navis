@@ -11,6 +11,7 @@ import 'package:navis/src/features/equalizer/domain/eq_configuration.dart';
 import 'package:navis/src/features/equalizer/presentation/eq_controller.dart';
 import 'package:navis/src/features/equalizer/presentation/eq_quick_panel.dart';
 import 'package:navis/src/features/player/domain/playback_snapshot.dart';
+import 'package:navis/src/features/player/presentation/instant_mix_notifier.dart';
 import 'package:navis/src/features/player/presentation/now_playing_screen.dart';
 import 'package:navis/src/common_widgets/cover_art_image.dart';
 import 'package:navis/src/providers/app_providers.dart';
@@ -34,6 +35,15 @@ const PlaybackSnapshot _songPlayback = PlaybackSnapshot(
   shuffleMode: AudioServiceShuffleMode.none,
   repeatMode: AudioServiceRepeatMode.none,
 );
+
+class _SpyInstantMixNotifier extends InstantMixNotifier {
+  final activations = <String>[];
+
+  @override
+  Future<void> activate(String seedSongId) async {
+    activations.add(seedSongId);
+  }
+}
 
 double _contrastRatio(Color a, Color b) {
   final first = a.computeLuminance();
@@ -138,6 +148,39 @@ Future<void> _pumpNowPlaying(
 void _noopCollapse() {}
 
 void main() {
+  testWidgets('Server Mix starts from a remote song and leaves the rest to the '
+      'recommendation service', (tester) async {
+    if (!sqliteAvailable) {
+      return;
+    }
+    setAdaptiveTestViewport(tester, const Size(390, 844));
+    final spy = _SpyInstantMixNotifier();
+    final container = _createContainer(
+      overrides: <Override>[
+        preferredMixModeProvider.overrideWithValue(
+          PreferredMixMode.legacyInstantMix,
+        ),
+        instantMixProvider.overrideWith(() => spy),
+      ],
+    );
+    container.read(_testPlaybackProvider.notifier).state = _songPlayback
+        .copyWith(
+          queueSongIds: const <String>['ext-remote-1'],
+          currentSongId: 'ext-remote-1',
+        );
+    await _pumpNowPlaying(tester, container);
+
+    await tester.tap(find.byKey(const ValueKey<String>('nowPlayingMixButton')));
+    await tester.pump();
+
+    expect(spy.activations, <String>['ext-remote-1']);
+    expect(
+      find.text('Instant Mix requires a locally scanned track.'),
+      findsNothing,
+    );
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets(
     'desktop runtime follows width parity for now playing wide mode',
     (tester) async {

@@ -6233,12 +6233,6 @@ abstract class AppLocalizations {
   /// **'Not available for remote tracks.'**
   String get remoteSourceActionUnavailable;
 
-  /// No description provided for @remoteSourceInstantMixUnavailable.
-  ///
-  /// In en, this message translates to:
-  /// **'Instant Mix requires a locally scanned track.'**
-  String get remoteSourceInstantMixUnavailable;
-
   /// No description provided for @commonSave.
   ///
   /// In en, this message translates to:

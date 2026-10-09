@@ -82,7 +82,6 @@ import 'package:navis/src/utils/artist_utils.dart';
 import 'package:navis/src/utils/app_logger.dart';
 import 'package:navis/src/utils/connectivity.dart';
 import 'package:navis/src/utils/format_utils.dart';
-import 'package:navis/src/utils/song_id_utils.dart';
 import 'package:navis/src/utils/sync_diagnostics_overrides.dart';
 import 'package:navis/src/theme/artwork_shape.dart';
 
