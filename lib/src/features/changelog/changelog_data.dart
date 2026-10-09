@@ -129,6 +129,12 @@ const List<ChangelogVersion> changelogs = [
     version: '1.4.3',
     entries: [
       ChangelogEntry(
+        'Appearance has a Now Playing Background setting: Art-Tinted keeps the colour from the cover, Artwork shows the blurred cover itself, and Plain uses your theme background',
+      ),
+      ChangelogEntry(
+        'Appearance has a Density setting that tightens spacing on Home, track lists, playlists and artist lists; Comfortable keeps the current look',
+      ),
+      ChangelogEntry(
         'Album cards blend their titles into a colour taken from each cover, so titles stay readable on any artwork in light and dark themes',
       ),
       ChangelogEntry(

@@ -3697,11 +3697,28 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
-  String get appearanceArtTintedLabel => 'Art-tinted Now Playing';
+  String get appearanceNowPlayingBackgroundLabel => 'Now Playing Background';
 
   @override
-  String get appearanceArtTintedSub =>
-      'Now Playing takes its colour from the album art, as a gradient or as a solid colour when Flat Surfaces is on.';
+  String get appearanceNowPlayingBackgroundTinted => 'Art-Tinted';
+
+  @override
+  String get appearanceNowPlayingBackgroundArtwork => 'Artwork';
+
+  @override
+  String get appearanceNowPlayingBackgroundPlain => 'Plain';
+
+  @override
+  String get appearanceNowPlayingBackgroundTintedSub =>
+      'A soft gradient in the album art colour, or one solid colour when Flat Surfaces is on.';
+
+  @override
+  String get appearanceNowPlayingBackgroundArtworkSub =>
+      'The album art, blurred and veiled so text stays easy to read. Flat Surfaces uses one solid colour instead.';
+
+  @override
+  String get appearanceNowPlayingBackgroundPlainSub =>
+      'The plain background of your theme, with no album colour.';
 
   @override
   String get appearanceOledForAutoLabel => 'Use OLED When Dark';
@@ -4214,17 +4231,17 @@ class AppLocalizationsEn extends AppLocalizations {
       'Drag to reorder, toggle to show or hide.';
 
   @override
-  String get appearanceHomeDensityLabel => 'Home Density';
+  String get appearanceDensityLabel => 'Density';
 
   @override
-  String get appearanceHomeDensitySub =>
-      'Choose spacing style for Home cards and lists.';
+  String get appearanceDensitySub =>
+      'Spacing for Home, track lists and library rows.';
 
   @override
-  String get appearanceHomeDensityComfortable => 'Comfortable';
+  String get appearanceDensityComfortable => 'Comfortable';
 
   @override
-  String get appearanceHomeDensityCompact => 'Compact';
+  String get appearanceDensityCompact => 'Compact';
 
   @override
   String get desktopNavbarSectionLabel => 'Desktop Navigation';

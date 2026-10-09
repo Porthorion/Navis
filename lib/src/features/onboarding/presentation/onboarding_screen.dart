@@ -720,6 +720,21 @@ class OnboardingScreenState extends ConsumerState<OnboardingScreen> {
           onChanged: (value) =>
               setState(() => _draft = draft.copyWith(flatSurfaces: value)),
         ),
+        NowPlayingBackgroundOption(
+          value: draft.nowPlayingBackground,
+          adornment: tagFor(SetupHighlight.nowPlayingBackground),
+          titleStyle: Theme.of(context).textTheme.titleMedium,
+          onChanged: (value) => setState(
+            () => _draft = draft.copyWith(nowPlayingBackground: value),
+          ),
+        ),
+        DensityOption(
+          value: draft.density,
+          adornment: tagFor(SetupHighlight.density),
+          titleStyle: Theme.of(context).textTheme.titleMedium,
+          onChanged: (value) =>
+              setState(() => _draft = draft.copyWith(density: value)),
+        ),
         const SizedBox(height: 24),
         Text(
           l10n.onboardingAccentColor,

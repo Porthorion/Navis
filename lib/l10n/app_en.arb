@@ -1666,8 +1666,13 @@
     }
   },
 
-  "appearanceArtTintedLabel": "Art-tinted Now Playing",
-  "appearanceArtTintedSub": "Now Playing takes its colour from the album art, as a gradient or as a solid colour when Flat Surfaces is on.",
+  "appearanceNowPlayingBackgroundLabel": "Now Playing Background",
+  "appearanceNowPlayingBackgroundTinted": "Art-Tinted",
+  "appearanceNowPlayingBackgroundArtwork": "Artwork",
+  "appearanceNowPlayingBackgroundPlain": "Plain",
+  "appearanceNowPlayingBackgroundTintedSub": "A soft gradient in the album art colour, or one solid colour when Flat Surfaces is on.",
+  "appearanceNowPlayingBackgroundArtworkSub": "The album art, blurred and veiled so text stays easy to read. Flat Surfaces uses one solid colour instead.",
+  "appearanceNowPlayingBackgroundPlainSub": "The plain background of your theme, with no album colour.",
   "appearanceOledForAutoLabel": "Use OLED When Dark",
   "appearanceOledForAutoSub": "In Auto, use pure black instead of Dark when your device is in dark mode.",
   "appearanceNightScheduleLabel": "Night Schedule",
@@ -1923,10 +1928,10 @@
 
   "appearanceHomeSectionsLabel": "Home Sections",
   "appearanceHomeSectionsSub": "Drag to reorder, toggle to show or hide.",
-  "appearanceHomeDensityLabel": "Home Density",
-  "appearanceHomeDensitySub": "Choose spacing style for Home cards and lists.",
-  "appearanceHomeDensityComfortable": "Comfortable",
-  "appearanceHomeDensityCompact": "Compact",
+  "appearanceDensityLabel": "Density",
+  "appearanceDensitySub": "Spacing for Home, track lists and library rows.",
+  "appearanceDensityComfortable": "Comfortable",
+  "appearanceDensityCompact": "Compact",
 
   "desktopNavbarSectionLabel": "Desktop Navigation",
   "desktopNavbarStyleLabel": "Navigation Style",

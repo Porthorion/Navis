@@ -6,7 +6,9 @@ enum SetupHighlight {
   colorStyle('1.4.3'),
   oledForAuto('1.4.3'),
   nightSchedule('1.4.3'),
-  flatSurfaces('1.4.3');
+  flatSurfaces('1.4.3'),
+  nowPlayingBackground('1.4.3'),
+  density('1.4.3');
 
   new(this.since);
 

@@ -4,14 +4,22 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:navis/l10n/app_localizations.dart';
 import 'package:navis/l10n/navis_localizations.dart';
 import 'package:navis/src/common_widgets/desktop/desktop_primitives.dart';
+import 'package:navis/src/common_widgets/new_feature_tag.dart';
+import 'package:navis/src/features/onboarding/domain/setup_highlights.dart';
+import 'package:navis/src/features/onboarding/presentation/setup_highlights_provider.dart';
 import 'package:navis/src/features/settings/presentation/settings_screen.dart';
 
 import '../../../../helpers/adaptive_test_harness.dart';
+
+final _noHighlights = [
+  pendingSetupHighlightsProvider.overrideWithValue(const <SetupHighlight>{}),
+];
 
 void main() {
   testWidgets('removed desktop UI toggle is not shown', (tester) async {
     await tester.pumpWidget(
       ProviderScope(
+        overrides: _noHighlights,
         child: MaterialApp(
           localizationsDelegates: navisLocalizationsDelegates,
           supportedLocales: AppLocalizations.supportedLocales,
@@ -30,6 +38,7 @@ void main() {
     setAdaptiveTestViewport(tester, const Size(390, 844));
     await tester.pumpWidget(
       ProviderScope(
+        overrides: _noHighlights,
         child: MaterialApp(
           localizationsDelegates: navisLocalizationsDelegates,
           supportedLocales: AppLocalizations.supportedLocales,
@@ -49,6 +58,7 @@ void main() {
     setAdaptiveTestViewport(tester, const Size(599, 1000));
     await tester.pumpWidget(
       ProviderScope(
+        overrides: _noHighlights,
         child: MaterialApp(
           localizationsDelegates: navisLocalizationsDelegates,
           supportedLocales: AppLocalizations.supportedLocales,
@@ -99,6 +109,7 @@ void main() {
     (tester) async {
       await tester.pumpWidget(
         ProviderScope(
+          overrides: _noHighlights,
           child: MaterialApp(
             localizationsDelegates: navisLocalizationsDelegates,
             supportedLocales: AppLocalizations.supportedLocales,
@@ -123,6 +134,7 @@ void main() {
     setAdaptiveTestViewport(tester, const Size(1200, 1000));
     await tester.pumpWidget(
       ProviderScope(
+        overrides: _noHighlights,
         child: MaterialApp(
           localizationsDelegates: navisLocalizationsDelegates,
           supportedLocales: AppLocalizations.supportedLocales,
@@ -147,6 +159,7 @@ void main() {
     setAdaptiveTestViewport(tester, const Size(390, 844));
     await tester.pumpWidget(
       ProviderScope(
+        overrides: _noHighlights,
         child: MaterialApp(
           localizationsDelegates: navisLocalizationsDelegates,
           supportedLocales: AppLocalizations.supportedLocales,
@@ -171,5 +184,55 @@ void main() {
       find.text('Deezer, Last.fm, ListenBrainz and other online services.'),
       findsOneWidget,
     );
+  });
+
+  group('Appearance entry New tag', () {
+    Future<void> pump(
+      WidgetTester tester,
+      Size size,
+      Set<SetupHighlight> highlights,
+    ) async {
+      setAdaptiveTestViewport(tester, size);
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            pendingSetupHighlightsProvider.overrideWithValue(highlights),
+          ],
+          child: MaterialApp(
+            localizationsDelegates: navisLocalizationsDelegates,
+            supportedLocales: AppLocalizations.supportedLocales,
+            home: const SettingsScreen(),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+    }
+
+    final sizes = <String, Size>{
+      'phone': const Size(390, 1600),
+      'tablet': const Size(700, 1600),
+      'compact wide landscape': const Size(900, 420),
+      'desktop': const Size(1200, 1000),
+    };
+    for (final entry in sizes.entries) {
+      testWidgets('shows on the ${entry.key} layout while pending', (
+        tester,
+      ) async {
+        await pump(tester, entry.value, SetupHighlight.values.toSet());
+        await tester.scrollUntilVisible(
+          find.text('Appearance'),
+          200,
+          scrollable: find.byType(Scrollable).first,
+        );
+        expect(find.byType(NewFeatureTag), findsOneWidget);
+      });
+
+      testWidgets('is absent on the ${entry.key} layout when none pending', (
+        tester,
+      ) async {
+        await pump(tester, entry.value, const <SetupHighlight>{});
+        expect(find.byType(NewFeatureTag), findsNothing);
+      });
+    }
   });
 }

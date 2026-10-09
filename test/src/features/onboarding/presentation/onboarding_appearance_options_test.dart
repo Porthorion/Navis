@@ -154,11 +154,11 @@ Future<_Harness> _pump(
 }
 
 void main() {
-  testWidgets('marks all four options New for an updated user', (tester) async {
+  testWidgets('marks all six options New for an updated user', (tester) async {
     await _pump(tester, seed: (d) => d.updateThemeMode('system'));
 
-    expect(find.byType(NewFeatureTag), findsNWidgets(4));
-    expect(find.text('New'), findsNWidgets(4));
+    expect(find.byType(NewFeatureTag), findsNWidgets(6));
+    expect(find.text('New'), findsNWidgets(6));
     expect(
       find.descendant(
         of: find.byType(NewFeatureTag),
@@ -167,7 +167,7 @@ void main() {
               widget is Semantics && widget.properties.label == 'New option',
         ),
       ),
-      findsNWidgets(4),
+      findsNWidgets(6),
     );
   });
 
@@ -177,7 +177,7 @@ void main() {
     await _pump(tester);
 
     expect(find.text('Use OLED When Dark'), findsNothing);
-    expect(find.byType(NewFeatureTag), findsNWidgets(3));
+    expect(find.byType(NewFeatureTag), findsNWidgets(5));
   });
 
   testWidgets('shows no tags on a fresh install', (tester) async {
@@ -200,6 +200,8 @@ void main() {
     await h.tap(find.text('Use OLED When Dark'));
     await h.tap(find.text('Night Schedule'));
     await h.tap(find.text('Flat Surfaces'));
+    await h.tap(find.text('Artwork'));
+    await h.tap(find.text('Compact'));
     expect(find.byType(ActionChip), findsNWidgets(2));
 
     // Nothing is saved until Finish.
@@ -207,6 +209,8 @@ void main() {
     expect(row.oledForAuto, isFalse);
     expect(row.nightScheduleEnabled, isFalse);
     expect(row.flatSurfaces, isFalse);
+    expect(row.nowPlayingBackground, 'tinted');
+    expect(row.homeDensity, 'comfortable');
 
     await h.finish();
     row = await h.row();
@@ -214,6 +218,8 @@ void main() {
     expect(row.nightScheduleEnabled, isTrue);
     expect(row.nightScheduleStartMinutes, 1320);
     expect(row.flatSurfaces, isTrue);
+    expect(row.nowPlayingBackground, 'artwork');
+    expect(row.homeDensity, 'compact');
     expect(row.setupHighlightsSeenRelease, '1.4.3');
   });
 

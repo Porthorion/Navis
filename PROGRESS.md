@@ -14,6 +14,8 @@ Last updated: 2026-10-02
 - ACP status values: `backlog`, `ready`, `in_progress`, `blocked`, `done`.
 
 ## Current Focus
+- [x] Now Playing Background and Density UI — 2026-10-09 (Appearance/setup controls, Artwork blurred-cover layer, `NavisDensityScope` for track/library/artist rows, Settings New tags; focused widget tests only — runtime, screenshots and full gate remain coordinator-owned).
+- [x] Now Playing background and app-wide Density backend/state — 2026-10-09 (schema 96, legacy tint/home-density compatibility, registry and diagnostics, focused migration/DAO/repository/enum/provider tests; widgets, runtime and full gate remain coordinator-owned).
 - [x] Setup update highlight state — 2026-10-09 (schema 95 release markers, registry/providers/service, Finish/Skip hooks, diagnostics reset and focused persistence/provider/widget tests; UI and runtime/full gate remain coordinator-owned).
 - [x] Lazy cover tint revision refresh and remote-cache Home wash — 2026-10-08 (existing sampler/coordinator/worker/store and caption dispatcher reused; NCF1→NCF2 compatibility, lazy/deduplicated refresh, stale-colour retention, and 600/480/420/96 px remote-cache regression tests. Runtime and full gate remain coordinator-owned for this worktree.)
 > Historical AT-SPI attempts recorded below are failed evidence, not a testing

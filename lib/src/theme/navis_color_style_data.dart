@@ -149,6 +149,18 @@ class NavisColorStyleData extends ThemeExtension<NavisColorStyleData> {
     };
   }
 
+  /// Veil laid over the blurred cover of the Artwork Now Playing background
+  /// so [surface]'s on-colour text stays readable (WCAG 4.5 on any cover).
+  ///
+  /// Dark themes darken with [artworkScrim] (OLED heavier, so it still reads
+  /// as OLED); light themes wash the cover out with [surface].
+  Color nowPlayingArtworkVeil(Color surface) {
+    if (dark) {
+      return artworkScrim.withValues(alpha: oled ? 0.8 : 0.68);
+    }
+    return surface.withValues(alpha: 0.68);
+  }
+
   /// Colour for confirmed, positive states (a completed download, a
   /// successful connection test). Neutral keeps the original greens; the
   /// other styles use a green at the same tone as their accents so it reads

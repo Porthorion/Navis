@@ -19,6 +19,7 @@ import 'package:navis/src/theme/dynamic_accent_provider.dart';
 import 'package:navis/src/theme/navis_theme.dart';
 import 'package:navis/src/routing/navigation_service.dart';
 import 'package:navis/src/theme/navis_color_style.dart';
+import 'package:navis/src/theme/navis_density_scope.dart';
 
 /// Root application widget for Navis.
 class NavisApp extends ConsumerStatefulWidget {
@@ -89,6 +90,7 @@ class _NavisAppState extends ConsumerState<NavisApp>
     final colorStyle = ref.watch(effectiveColorStyleProvider);
     final oledForAuto = ref.watch(oledForAutoProvider);
     final flat = ref.watch(flatSurfacesProvider);
+    final density = ref.watch(densityProvider);
     final colorSeed = ref.watch(effectiveColorSchemeSeedProvider);
     // With Dynamic Album Colour, styled schemes repaint backgrounds as well as
     // accents on every track change, so they ease over a longer transition.
@@ -132,6 +134,7 @@ class _NavisAppState extends ConsumerState<NavisApp>
         if (isDesktopRuntime) {
           content = DesktopPresentationHost(child: content);
         }
+        content = NavisDensityScope(density: density, child: content);
         if (widget.requirePlaybackBootstrap) {
           content = _AppBootstrapOverlay(
             onDismissed: widget.onBootstrapOverlayDismissed,

@@ -14,6 +14,9 @@ import 'package:navis/src/providers/app_providers.dart';
 import 'package:navis/src/routing/desktop_layout.dart';
 import 'package:navis/src/routing/content_layout.dart';
 import 'package:navis/src/routing/navigation_service.dart';
+import 'package:navis/src/common_widgets/new_feature_tag.dart';
+import 'package:navis/src/features/onboarding/domain/setup_highlights.dart';
+import 'package:navis/src/features/onboarding/presentation/setup_highlights_provider.dart';
 import 'package:navis/src/features/settings/presentation/appearance_options.dart';
 import 'package:navis/src/features/settings/presentation/color_style_selector.dart';
 import 'package:navis/src/theme/dynamic_accent_provider.dart';
@@ -64,6 +67,10 @@ class AppearanceSettingsScreen extends ConsumerWidget {
     );
     final libraryPageOrder = ref.watch(libraryPageOrderProvider);
     final isDesktop = resolveAdaptiveContextFor(context).useDesktopShell;
+    final pendingHighlights = ref.watch(pendingSetupHighlightsProvider);
+    Widget? tagFor(SetupHighlight highlight) =>
+        pendingHighlights.contains(highlight) ? const NewFeatureTag() : null;
+    final colorStyleTag = tagFor(SetupHighlight.colorStyle);
     // Quick Actions are now always-visible below the home logo; remove from
     // the section reorder list on all platforms.
     final displayOrder = sanitizedOrder
@@ -131,6 +138,7 @@ class AppearanceSettingsScreen extends ConsumerWidget {
               OledForAutoOption(
                 visible: currentMode == 'system',
                 value: oledForAuto,
+                adornment: tagFor(SetupHighlight.oledForAuto),
                 onChanged: (enabled) async {
                   final db = ref.read(navisDatabaseProvider);
                   await db.appSettingsDao.updateOledForAuto(enabled: enabled);
@@ -140,11 +148,21 @@ class AppearanceSettingsScreen extends ConsumerWidget {
               // ── Color Style ─────────────────────────────────────────
               Padding(
                 padding: const EdgeInsets.fromLTRB(16, 16, 16, 4),
-                child: Text(
-                  l10n.appearanceColorStyleLabel,
-                  style: theme.textTheme.titleSmall?.copyWith(
-                    color: theme.colorScheme.primary,
-                  ),
+                child: Row(
+                  children: <Widget>[
+                    Flexible(
+                      child: Text(
+                        l10n.appearanceColorStyleLabel,
+                        style: theme.textTheme.titleSmall?.copyWith(
+                          color: theme.colorScheme.primary,
+                        ),
+                      ),
+                    ),
+                    if (colorStyleTag != null) ...<Widget>[
+                      const SizedBox(width: 8),
+                      colorStyleTag,
+                    ],
+                  ],
                 ),
               ),
               ColorStyleSelector(
@@ -158,6 +176,7 @@ class AppearanceSettingsScreen extends ConsumerWidget {
                 },
               ),
               NightScheduleSection(
+                adornment: tagFor(SetupHighlight.nightSchedule),
                 schedule: ref.watch(nightScheduleProvider),
                 userStyle: currentStyle,
                 now: ref.watch(nowProvider)(),
@@ -171,6 +190,7 @@ class AppearanceSettingsScreen extends ConsumerWidget {
                 },
               ),
               FlatSurfacesOption(
+                adornment: tagFor(SetupHighlight.flatSurfaces),
                 value: ref.watch(flatSurfacesProvider),
                 onChanged: (enabled) async {
                   final db = ref.read(navisDatabaseProvider);
@@ -275,15 +295,14 @@ class AppearanceSettingsScreen extends ConsumerWidget {
               ),
               const Divider(height: 32),
 
-              // ── Art-Tinted Now Playing ──────────────────────────────
-              SwitchListTile(
-                title: Text(l10n.appearanceArtTintedLabel),
-                subtitle: Text(l10n.appearanceArtTintedSub),
-                value: ref.watch(artTintedNowPlayingProvider),
-                onChanged: (enabled) async {
+              // ── Now Playing Background ──────────────────────────────
+              NowPlayingBackgroundOption(
+                value: ref.watch(nowPlayingBackgroundProvider),
+                adornment: tagFor(SetupHighlight.nowPlayingBackground),
+                onChanged: (background) async {
                   final db = ref.read(navisDatabaseProvider);
-                  await db.appSettingsDao.updateArtTintedNowPlaying(
-                    enabled: enabled,
+                  await db.appSettingsDao.updateNowPlayingBackground(
+                    background.storageKey,
                   );
                 },
               ),
@@ -329,6 +348,14 @@ class AppearanceSettingsScreen extends ConsumerWidget {
                 onChanged: (density) async {
                   final db = ref.read(navisDatabaseProvider);
                   await db.appSettingsDao.updateGridArtworkSize(density.name);
+                },
+              ),
+              DensityOption(
+                value: ref.watch(densityProvider),
+                adornment: tagFor(SetupHighlight.density),
+                onChanged: (density) async {
+                  final db = ref.read(navisDatabaseProvider);
+                  await db.appSettingsDao.updateDensity(density);
                 },
               ),
               const Divider(height: 32),
@@ -418,32 +445,6 @@ class AppearanceSettingsScreen extends ConsumerWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: <Widget>[
-                    Padding(
-                      padding: const EdgeInsets.fromLTRB(16, 8, 16, 4),
-                      child: Text(
-                        l10n.appearanceHomeDensityLabel,
-                        style: theme.textTheme.titleSmall?.copyWith(
-                          color: theme.colorScheme.primary,
-                        ),
-                      ),
-                    ),
-                    Padding(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 16,
-                        vertical: 4,
-                      ),
-                      child: Text(
-                        l10n.appearanceHomeDensitySub,
-                        style: theme.textTheme.bodySmall,
-                      ),
-                    ),
-                    _HomeDensitySelector(
-                      current: ref.watch(homeDensityProvider),
-                      onChanged: (value) async {
-                        final db = ref.read(navisDatabaseProvider);
-                        await db.appSettingsDao.updateHomeDensity(value);
-                      },
-                    ),
                     if (!resolveAdaptiveContextFor(context).desktopRuntime)
                       SwitchListTile(
                         title: Text(l10n.appearanceRecommendationsAutoAdvance),
@@ -1543,67 +1544,6 @@ class _ArtworkSizeSelector extends StatelessWidget {
               materialTapTargetSize: MaterialTapTargetSize.padded,
               onSelected: (_) => onChanged(preset.$1),
             ),
-        ],
-      ),
-    );
-  }
-}
-
-class _HomeDensitySelector extends StatelessWidget {
-  const new({required this.current, required this.onChanged});
-
-  final String current;
-  final ValueChanged<String> onChanged;
-
-  @override
-  Widget build(BuildContext context) {
-    final l10n = AppLocalizations.of(context)!;
-    final selectedValue = current == 'compact' ? 'compact' : 'comfortable';
-    final colorScheme = Theme.of(context).colorScheme;
-
-    Widget option({
-      required String value,
-      required String label,
-      required IconData icon,
-    }) {
-      final selected = selectedValue == value;
-      return Expanded(
-        child: SizedBox(
-          height: 48,
-          child: FilledButton.icon(
-            onPressed: () => onChanged(value),
-            icon: Icon(icon, size: 18),
-            label: Text(label, maxLines: 1, overflow: TextOverflow.ellipsis),
-            style: FilledButton.styleFrom(
-              padding: const EdgeInsets.symmetric(horizontal: 10),
-              backgroundColor: selected
-                  ? colorScheme.primaryContainer
-                  : colorScheme.surfaceContainerLow,
-              foregroundColor: selected
-                  ? colorScheme.onPrimaryContainer
-                  : colorScheme.onSurfaceVariant,
-              shape: RoundedRectangleBorder(borderRadius: NavisRadius.mdAll),
-            ),
-          ),
-        ),
-      );
-    }
-
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-      child: Row(
-        children: <Widget>[
-          option(
-            value: 'comfortable',
-            label: l10n.appearanceHomeDensityComfortable,
-            icon: Icons.view_agenda_outlined,
-          ),
-          const SizedBox(width: 8),
-          option(
-            value: 'compact',
-            label: l10n.appearanceHomeDensityCompact,
-            icon: Icons.view_compact_alt_outlined,
-          ),
         ],
       ),
     );

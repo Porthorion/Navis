@@ -1,4 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:navis/src/features/settings/domain/navis_density.dart';
 import 'package:navis/src/database/daos/app_settings_dao.dart';
 import 'package:navis/src/database/navis_database.dart';
 import 'package:navis/src/features/downloads/domain/download_preferences.dart';
@@ -17,6 +18,55 @@ void main() {
     tearDown(() async {
       await database.close();
     });
+
+    test(
+      'background and density round trip through targeted writers and watches',
+      () async {
+        final dao = database.appSettingsDao;
+        final initial = (await dao.getSettings())!;
+        expect(initial.nowPlayingBackground, 'tinted');
+        expect(initial.homeDensity, 'comfortable');
+        final backgrounds = <String>[];
+        final legacy = <bool>[];
+        final subscription = dao.watchNowPlayingBackground().listen(
+          backgrounds.add,
+        );
+        final legacySubscription = dao.watchArtTintedNowPlaying().listen(
+          legacy.add,
+        );
+        addTearDown(subscription.cancel);
+        addTearDown(legacySubscription.cancel);
+        for (final value in ['artwork', 'plain', 'tinted']) {
+          await dao.updateNowPlayingBackground(value);
+          final row = (await dao.getSettings())!;
+          expect(row.nowPlayingBackground, value);
+          expect(row.artTintedNowPlaying, value != 'plain');
+          expect(row.themeMode, initial.themeMode);
+          expect(await dao.watchNowPlayingBackground().first, value);
+          expect(await dao.watchArtTintedNowPlaying().first, value != 'plain');
+        }
+        await dao.updateNowPlayingBackground('unknown');
+        expect((await dao.getSettings())!.nowPlayingBackground, 'tinted');
+        await dao.updateArtTintedNowPlaying(enabled: false);
+        expect((await dao.getSettings())!.nowPlayingBackground, 'plain');
+        await dao.updateArtTintedNowPlaying(enabled: true);
+        expect((await dao.getSettings())!.nowPlayingBackground, 'tinted');
+        await dao.updateDensity(NavisDensity.compact);
+        expect((await dao.getSettings())!.homeDensity, 'compact');
+        await dao.updateHomeDensity('unknown');
+        expect((await dao.getSettings())!.homeDensity, 'comfortable');
+        await dao.updateHomeDensity('compact');
+        await dao.updateNowPlayingBackground('artwork');
+        await dao.resetDefaults();
+        final reset = (await dao.getSettings())!;
+        expect(reset.nowPlayingBackground, 'tinted');
+        expect(reset.artTintedNowPlaying, isTrue);
+        expect(reset.homeDensity, 'comfortable');
+        expect(backgrounds, containsAll(['tinted', 'artwork', 'plain']));
+        expect(legacy, containsAll([true, false]));
+      },
+      skip: !sqliteAvailable,
+    );
 
     test(
       'setup release writers round trip and preserve other settings',
@@ -160,6 +210,8 @@ void main() {
       expect(first, isNotNull);
       expect(first!.id, AppSettingsDao.primarySettingsId);
       expect(first.wifiMaxBitRate, 320);
+      expect(first.nowPlayingBackground, 'plain');
+      expect(first.artTintedNowPlaying, isFalse);
       expect(first.wifiFormat, 'opus');
       expect(first.cellularMaxBitRate, 128);
       expect(first.cellularFormat, 'aac');
@@ -333,6 +385,7 @@ void main() {
       expect(settings.nightScheduleEndMinutes, 420);
       expect(settings.flatSurfaces, isFalse);
       expect(settings.homeDensity, 'comfortable');
+      expect(settings.nowPlayingBackground, 'tinted');
       final groupListening = await database.appSettingsDao
           .getGroupListeningSettings();
       expect(groupListening.groupListeningEnabled, isFalse);

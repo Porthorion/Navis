@@ -231,7 +231,7 @@ class NavisDatabase extends _$NavisDatabase {
   }
 
   @override
-  int get schemaVersion => 95;
+  int get schemaVersion => 96;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -537,6 +537,24 @@ class NavisDatabase extends _$NavisDatabase {
     }
     if (from < 95 && to >= 95) {
       await from94To95(migrator);
+    }
+    if (from < 96 && to >= 96) {
+      await from95To96(migrator);
+    }
+  }
+
+  /// Adds the background choice while preserving the legacy tint preference.
+  Future<void> from95To96(Migrator migrator) async {
+    if (!await _columnExists('app_settings', 'now_playing_background')) {
+      await migrator.addColumn(
+        appSettingsTable,
+        appSettingsTable.nowPlayingBackground,
+      );
+      await customStatement("""
+        UPDATE app_settings
+        SET now_playing_background = CASE
+          WHEN art_tinted_now_playing = 1 THEN 'tinted' ELSE 'plain' END
+      """);
     }
   }
 

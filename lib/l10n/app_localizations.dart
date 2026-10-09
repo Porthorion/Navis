@@ -5849,17 +5849,47 @@ abstract class AppLocalizations {
   /// **'{label} (long-press to delete)'**
   String appearanceLongPressHint(Object label);
 
-  /// No description provided for @appearanceArtTintedLabel.
+  /// No description provided for @appearanceNowPlayingBackgroundLabel.
   ///
   /// In en, this message translates to:
-  /// **'Art-tinted Now Playing'**
-  String get appearanceArtTintedLabel;
+  /// **'Now Playing Background'**
+  String get appearanceNowPlayingBackgroundLabel;
 
-  /// No description provided for @appearanceArtTintedSub.
+  /// No description provided for @appearanceNowPlayingBackgroundTinted.
   ///
   /// In en, this message translates to:
-  /// **'Now Playing takes its colour from the album art, as a gradient or as a solid colour when Flat Surfaces is on.'**
-  String get appearanceArtTintedSub;
+  /// **'Art-Tinted'**
+  String get appearanceNowPlayingBackgroundTinted;
+
+  /// No description provided for @appearanceNowPlayingBackgroundArtwork.
+  ///
+  /// In en, this message translates to:
+  /// **'Artwork'**
+  String get appearanceNowPlayingBackgroundArtwork;
+
+  /// No description provided for @appearanceNowPlayingBackgroundPlain.
+  ///
+  /// In en, this message translates to:
+  /// **'Plain'**
+  String get appearanceNowPlayingBackgroundPlain;
+
+  /// No description provided for @appearanceNowPlayingBackgroundTintedSub.
+  ///
+  /// In en, this message translates to:
+  /// **'A soft gradient in the album art colour, or one solid colour when Flat Surfaces is on.'**
+  String get appearanceNowPlayingBackgroundTintedSub;
+
+  /// No description provided for @appearanceNowPlayingBackgroundArtworkSub.
+  ///
+  /// In en, this message translates to:
+  /// **'The album art, blurred and veiled so text stays easy to read. Flat Surfaces uses one solid colour instead.'**
+  String get appearanceNowPlayingBackgroundArtworkSub;
+
+  /// No description provided for @appearanceNowPlayingBackgroundPlainSub.
+  ///
+  /// In en, this message translates to:
+  /// **'The plain background of your theme, with no album colour.'**
+  String get appearanceNowPlayingBackgroundPlainSub;
 
   /// No description provided for @appearanceOledForAutoLabel.
   ///
@@ -6701,29 +6731,29 @@ abstract class AppLocalizations {
   /// **'Drag to reorder, toggle to show or hide.'**
   String get appearanceHomeSectionsSub;
 
-  /// No description provided for @appearanceHomeDensityLabel.
+  /// No description provided for @appearanceDensityLabel.
   ///
   /// In en, this message translates to:
-  /// **'Home Density'**
-  String get appearanceHomeDensityLabel;
+  /// **'Density'**
+  String get appearanceDensityLabel;
 
-  /// No description provided for @appearanceHomeDensitySub.
+  /// No description provided for @appearanceDensitySub.
   ///
   /// In en, this message translates to:
-  /// **'Choose spacing style for Home cards and lists.'**
-  String get appearanceHomeDensitySub;
+  /// **'Spacing for Home, track lists and library rows.'**
+  String get appearanceDensitySub;
 
-  /// No description provided for @appearanceHomeDensityComfortable.
+  /// No description provided for @appearanceDensityComfortable.
   ///
   /// In en, this message translates to:
   /// **'Comfortable'**
-  String get appearanceHomeDensityComfortable;
+  String get appearanceDensityComfortable;
 
-  /// No description provided for @appearanceHomeDensityCompact.
+  /// No description provided for @appearanceDensityCompact.
   ///
   /// In en, this message translates to:
   /// **'Compact'**
-  String get appearanceHomeDensityCompact;
+  String get appearanceDensityCompact;
 
   /// No description provided for @desktopNavbarSectionLabel.
   ///
