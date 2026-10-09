@@ -53,43 +53,52 @@ void main() {
         expect(initial.nowPlayingBackground, 'tinted');
         expect(initial.homeDensity, 'comfortable');
         final backgrounds = <String>[];
-        final legacy = <bool>[];
         final subscription = dao.watchNowPlayingBackground().listen(
           backgrounds.add,
         );
-        final legacySubscription = dao.watchArtTintedNowPlaying().listen(
-          legacy.add,
-        );
         addTearDown(subscription.cancel);
-        addTearDown(legacySubscription.cancel);
         for (final value in ['artwork', 'plain', 'tinted']) {
           await dao.updateNowPlayingBackground(value);
           final row = (await dao.getSettings())!;
           expect(row.nowPlayingBackground, value);
-          expect(row.artTintedNowPlaying, value != 'plain');
           expect(row.themeMode, initial.themeMode);
           expect(await dao.watchNowPlayingBackground().first, value);
-          expect(await dao.watchArtTintedNowPlaying().first, value != 'plain');
         }
         await dao.updateNowPlayingBackground('unknown');
         expect((await dao.getSettings())!.nowPlayingBackground, 'tinted');
-        await dao.updateArtTintedNowPlaying(enabled: false);
+        await dao.updateNowPlayingBackground('plain');
         expect((await dao.getSettings())!.nowPlayingBackground, 'plain');
-        await dao.updateArtTintedNowPlaying(enabled: true);
+        await dao.updateNowPlayingBackground('tinted');
         expect((await dao.getSettings())!.nowPlayingBackground, 'tinted');
         await dao.updateDensity(NavisDensity.compact);
         expect((await dao.getSettings())!.homeDensity, 'compact');
-        await dao.updateHomeDensity('unknown');
+        await dao.updateDensity(NavisDensity.comfortable);
         expect((await dao.getSettings())!.homeDensity, 'comfortable');
-        await dao.updateHomeDensity('compact');
+        await dao.updateDensity(NavisDensity.compact);
         await dao.updateNowPlayingBackground('artwork');
         await dao.resetDefaults();
         final reset = (await dao.getSettings())!;
         expect(reset.nowPlayingBackground, 'tinted');
-        expect(reset.artTintedNowPlaying, isTrue);
         expect(reset.homeDensity, 'comfortable');
         expect(backgrounds, containsAll(['tinted', 'artwork', 'plain']));
-        expect(legacy, containsAll([true, false]));
+      },
+      skip: !sqliteAvailable,
+    );
+
+    test(
+      'background writes and resets leave the legacy migration source alone',
+      () async {
+        await database.customStatement(
+          'UPDATE app_settings SET art_tinted_now_playing = 0',
+        );
+        final dao = database.appSettingsDao;
+        await dao.updateNowPlayingBackground('artwork');
+        await dao.resetDefaults();
+        final legacy = await database
+            .customSelect('SELECT art_tinted_now_playing FROM app_settings')
+            .getSingle();
+        expect(legacy.read<int>('art_tinted_now_playing'), 0);
+        expect((await dao.getSettings())!.nowPlayingBackground, 'tinted');
       },
       skip: !sqliteAvailable,
     );
@@ -214,7 +223,7 @@ void main() {
         crossfadeEnabled: false,
         crossfadeDurationSeconds: 5,
         crossfadeType: 'normal',
-        artTintedNowPlaying: false,
+        nowPlayingBackground: 'plain',
         dynamicAlbumColorEnabled: false,
         updateCheckEnabled: true,
         updateChannel: 'stable',
@@ -237,7 +246,7 @@ void main() {
       expect(first!.id, AppSettingsDao.primarySettingsId);
       expect(first.wifiMaxBitRate, 320);
       expect(first.nowPlayingBackground, 'plain');
-      expect(first.artTintedNowPlaying, isFalse);
+      expect(first.nowPlayingBackground, 'plain');
       expect(first.wifiFormat, 'opus');
       expect(first.cellularMaxBitRate, 128);
       expect(first.cellularFormat, 'aac');
@@ -286,7 +295,7 @@ void main() {
         crossfadeEnabled: false,
         crossfadeDurationSeconds: 5,
         crossfadeType: 'normal',
-        artTintedNowPlaying: false,
+        nowPlayingBackground: 'plain',
         dynamicAlbumColorEnabled: false,
         updateCheckEnabled: false,
         updateChannel: 'beta',
@@ -358,7 +367,7 @@ void main() {
         crossfadeEnabled: false,
         crossfadeDurationSeconds: 5,
         crossfadeType: 'normal',
-        artTintedNowPlaying: false,
+        nowPlayingBackground: 'plain',
         dynamicAlbumColorEnabled: false,
         updateCheckEnabled: false,
         updateChannel: 'beta',
@@ -539,7 +548,7 @@ void main() {
         crossfadeEnabled: false,
         crossfadeDurationSeconds: 5,
         crossfadeType: 'normal',
-        artTintedNowPlaying: false,
+        nowPlayingBackground: 'plain',
         dynamicAlbumColorEnabled: false,
         updateCheckEnabled: updateCheckEnabled,
         updateChannel: 'stable',

@@ -1,3 +1,4 @@
+import 'package:navis/src/features/settings/domain/night_schedule.dart';
 import 'package:navis/src/database/tables/annotation_dispatch_lease_table.dart';
 
 import 'dart:async';
@@ -2391,8 +2392,10 @@ FROM scrobble_queue;
         colorStyle: const Value('neutral'),
         oledForAuto: const Value(false),
         nightScheduleEnabled: const Value(false),
-        nightScheduleStartMinutes: const Value(1320),
-        nightScheduleEndMinutes: const Value(420),
+        nightScheduleStartMinutes: const Value(
+          NightSchedule.defaultStartMinutes,
+        ),
+        nightScheduleEndMinutes: const Value(NightSchedule.defaultEndMinutes),
         flatSurfaces: const Value(false),
         colorSchemeSeed: const Value(null),
         onboardingVersion: const Value(0),

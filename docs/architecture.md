@@ -593,12 +593,15 @@ target-selection rules.
 - Schema 97 adds `app_settings.now_playing_background`: `tinted` (default),
   `artwork` or `plain`. The guarded 92→97 migration maps the retained legacy
   `art_tinted_now_playing` boolean to `tinted`/`plain`. The enum model field and
-  `nowPlayingBackgroundProvider` are authoritative; the legacy model getter,
-  DAO watch and `artTintedNowPlayingProvider` derive `background != plain`.
-  Targeted writes, full saves and resets keep the compatibility bool in sync.
+  `nowPlayingBackgroundProvider` are authoritative. The retained boolean is
+  only a historical migration source: active writes, full saves and resets do
+  not update it, and there is no legacy model field, provider or DAO writer.
+  Appearance uses the production DAO's targeted writers consistently;
+  SettingsRepository maps and saves the typed model and onboarding changes.
 - App-wide Density covers Home and lists using the existing `home_density`
   column, with `comfortable` (default) or `compact`. `densityProvider` exposes
-  `NavisDensity`; `homeDensityProvider` remains a string compatibility alias.
+  `NavisDensity`; the model's `homeDensity` is typed too. Home reads the same
+  provider directly, with no string provider or legacy DAO writer.
   Unknown stored values and unloaded settings use the defaults. The background
   choice joins the setup highlights registry for 1.4.3; Density
   is a renamed existing setting (it also tightens playlists and artist lists)

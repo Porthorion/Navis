@@ -91,8 +91,10 @@ class AppearanceSettingsScreen extends ConsumerWidget {
         await db.appSettingsDao.updateFlatSurfaces(enabled: enabled);
       },
       cornerStyle: ref.watch(cornerStyleProvider),
-      onCornerStyleChanged: (style) =>
-          ref.read(settingsRepositoryProvider).updateCornerStyle(style),
+      onCornerStyleChanged: (style) async {
+        final db = ref.read(navisDatabaseProvider);
+        await db.appSettingsDao.updateCornerStyle(style.name);
+      },
       density: ref.watch(densityProvider),
       onDensityChanged: (density) async {
         final db = ref.read(navisDatabaseProvider);

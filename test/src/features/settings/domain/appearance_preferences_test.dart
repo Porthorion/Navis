@@ -25,34 +25,22 @@ void main() {
     },
   );
 
-  test('model copy preserves background and supports the legacy tint flag', () {
+  test('model copy preserves typed background and density', () {
     const defaults = AppSettingsModel.defaults();
     final artwork = defaults.copyWith(
       nowPlayingBackground: NowPlayingBackground.artwork,
-      density: NavisDensity.compact,
+      homeDensity: NavisDensity.compact,
     );
-    expect(artwork.artTintedNowPlaying, isTrue);
-    expect(artwork.homeDensity, 'compact');
+    expect(artwork.homeDensity, NavisDensity.compact);
     expect(
       artwork.copyWith(themeMode: 'light').nowPlayingBackground,
       NowPlayingBackground.artwork,
     );
     expect(
-      artwork.copyWith(artTintedNowPlaying: false).nowPlayingBackground,
-      NowPlayingBackground.plain,
-    );
-    expect(
-      artwork.copyWith(artTintedNowPlaying: true).nowPlayingBackground,
-      NowPlayingBackground.tinted,
-    );
-    expect(
       artwork
-          .copyWith(
-            artTintedNowPlaying: false,
-            nowPlayingBackground: NowPlayingBackground.artwork,
-          )
+          .copyWith(nowPlayingBackground: NowPlayingBackground.plain)
           .nowPlayingBackground,
-      NowPlayingBackground.artwork,
+      NowPlayingBackground.plain,
     );
   });
 }

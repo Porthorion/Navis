@@ -868,12 +868,22 @@ then records Liked scroll position, Small/Large artwork and a filtered collectio
 on both launches. The large window fits within the local 2560×1380 work area;
 window bounds are checked rather than treating a compositor-clamped resize as
 success. It enables Artists/Radio only in the isolated clone. The authenticated,
-clone-only `GET/POST /v1/presentation/appearance` endpoint accepts only
+clone-only `GET/POST /v1/presentation/appearance` endpoint accepts
 `gridArtworkSize` (auto/small/medium/large),
 `homeRecommendationsAutoAdvance` (boolean), `showArtistsPage` and `showRadioPage`
 (booleans), and the shape settings `coverArtShape` (square/rounded),
 `nowPlayingArtShape` and `artistCardShape` (square/rounded/circle). Updates use
-targeted production DAO methods; the response contains only those preferences. It rejects unknown keys/types and primary certification.
+targeted production DAO methods. The same endpoint also accepts `themeMode`
+(system/light/dark/oled), `colorStyle` (neutral/pastel/immersive/night),
+`colorSchemeSeed` (unsigned 32-bit integer or null to clear), `dynamicAlbumColor`,
+`oledForAuto` and `flatSurfaces` (booleans), `cornerStyle`
+(rounded/soft/square), `nowPlayingBackground` (tinted/artwork/plain), and
+`density` (comfortable/compact). `nightSchedule` accepts a nonempty object
+with any of `enabled` (boolean), `start` and `end` (integer minutes 0–1439).
+Omitted fields retain their values. The entire body is validated before any
+write; GET and POST return the resulting appearance values, including the
+complete schedule. Normal authentication and `allowsMutations` gating apply;
+unknown keys/types and primary certification are rejected.
 The script verifies Small and enabled auto-advance persist across clean restart;
 desktop recommendations remain manual even with that touch preference enabled.
 Inspect the additional PNGs as well as the final pair; file validation alone

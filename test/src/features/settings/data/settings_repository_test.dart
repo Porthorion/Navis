@@ -62,7 +62,7 @@ void main() {
         NavisCornerStyle.rounded,
       );
       for (final style in NavisCornerStyle.values) {
-        await repository.updateCornerStyle(style);
+        await database.appSettingsDao.updateCornerStyle(style.name);
         final targeted = await repository.getSettings();
         expect(targeted.cornerStyle, style);
         expect(targeted.copyWith(themeMode: 'oled').cornerStyle, style);
@@ -94,7 +94,7 @@ void main() {
         (await repository.getSettings()).cornerStyle,
         NavisCornerStyle.rounded,
       );
-      await repository.updateCornerStyle(NavisCornerStyle.soft);
+      await database.appSettingsDao.updateCornerStyle('soft');
       await repository.resetDefaults();
       expect(
         (await repository.getSettings()).cornerStyle,
@@ -106,12 +106,11 @@ void main() {
       final defaults = await repository.getSettings();
       expect(defaults.nowPlayingBackground, NowPlayingBackground.tinted);
       expect(defaults.density, NavisDensity.comfortable);
-      await repository.updateNowPlayingBackground(NowPlayingBackground.artwork);
-      await repository.updateDensity(NavisDensity.compact);
+      await database.appSettingsDao.updateNowPlayingBackground('artwork');
+      await database.appSettingsDao.updateDensity(NavisDensity.compact);
       final targeted = await repository.getSettings();
       expect(targeted.nowPlayingBackground, NowPlayingBackground.artwork);
-      expect(targeted.artTintedNowPlaying, isTrue);
-      expect(targeted.homeDensity, 'compact');
+      expect(targeted.homeDensity, NavisDensity.compact);
       await repository.saveSettings(targeted.copyWith(themeMode: 'light'));
       expect(
         (await repository.getSettings()).nowPlayingBackground,
@@ -126,24 +125,15 @@ void main() {
         );
         final watched = await repository.watchSettings().first;
         expect(watched.nowPlayingBackground, background);
-        expect(
-          watched.artTintedNowPlaying,
-          background != NowPlayingBackground.plain,
-        );
         expect(watched.density, NavisDensity.compact);
         final row = (await database.appSettingsDao.getSettings())!;
         expect(row.nowPlayingBackground, background.storageKey);
-        expect(
-          row.artTintedNowPlaying,
-          background != NowPlayingBackground.plain,
-        );
       }
       await database.customStatement(
         "UPDATE app_settings SET now_playing_background = 'unknown', art_tinted_now_playing = 0, home_density = 'unknown'",
       );
       final unknown = await repository.getSettings();
       expect(unknown.nowPlayingBackground, NowPlayingBackground.tinted);
-      expect(unknown.artTintedNowPlaying, isTrue);
       expect(unknown.density, NavisDensity.comfortable);
       await repository.resetDefaults();
       final reset = await repository.getSettings();
