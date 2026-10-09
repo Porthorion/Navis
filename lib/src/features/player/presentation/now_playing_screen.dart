@@ -48,7 +48,6 @@ import 'package:navis/src/features/player/domain/lyrics_resolution.dart';
 import 'package:navis/src/features/playlists/presentation/add_to_playlist_sheet.dart';
 import 'package:navis/src/providers/app_providers.dart';
 import 'package:navis/src/routing/desktop_layout.dart';
-import 'package:navis/src/routing/desktop_window_controller.dart';
 import 'package:navis/src/utils/song_id_utils.dart';
 import 'package:navis/src/utils/sync_diagnostics_overrides.dart';
 import 'package:navis/src/features/search/presentation/search_controller_provider.dart';
@@ -2251,10 +2250,6 @@ class _NowPlayingBodyState extends ConsumerState<_NowPlayingBody>
                         _showWideFullscreenLyrics = false;
                         _widePanel = _WideNowPlayingPanel.settings;
                       }),
-                      onOpenMixPanel: () => _updateWideOverlayState(() {
-                        _showWideFullscreenLyrics = false;
-                        _widePanel = _WideNowPlayingPanel.mix;
-                      }),
                     ),
                   ],
                   if (widget.showEmbeddedVolumeBelowActions) ...<Widget>[
@@ -2318,19 +2313,6 @@ class _NowPlayingBodyState extends ConsumerState<_NowPlayingBody>
                 embeddedMode: true,
                 onClose: _dismissCompactWidePanel,
               ),
-            );
-          } else if (_widePanel == _WideNowPlayingPanel.mix &&
-              playback.currentSongId != null) {
-            compactOverlayKey = const ValueKey<String>('compact-wide-mix');
-            compactOverlayPage = _CompactWideOverlaySheet(
-              key: compactOverlayKey,
-              title: l10n.nowPlayingInstantMixLabel,
-              dismissRequested: _isCompactWidePanelDismissing,
-              onDismiss: () => _updateWideOverlayState(() {
-                _isCompactWidePanelDismissing = false;
-                _widePanel = _WideNowPlayingPanel.none;
-              }),
-              child: _EmbeddedMixPanel(seedSongId: playback.currentSongId!),
             );
           } else if (_widePanel == _WideNowPlayingPanel.settings) {
             compactOverlayKey = const ValueKey<String>('compact-wide-settings');
@@ -2432,9 +2414,6 @@ class _NowPlayingBodyState extends ConsumerState<_NowPlayingBody>
             widget.wideEmbeddedMode &&
             resolveAdaptiveContextFor(context).desktopRuntime &&
             !compactTransport;
-        // Mini Player entry lives in the persistent desktop bar and Desktop
-        // Window settings, so embedded Now Playing does not duplicate it.
-        const showDesktopMiniPlayerToggle = false;
         final compactSpacing =
             tightHeight || layoutMode == _NowPlayingLayoutMode.compact;
         final splitGap =
@@ -2647,7 +2626,6 @@ class _NowPlayingBodyState extends ConsumerState<_NowPlayingBody>
               isRadio: isRadio,
               compact: compactTransport,
               showVolumeControl: showDesktopTransportVolume,
-              showMiniPlayerToggle: showDesktopMiniPlayerToggle,
               onSkipPrevious: _handleManualPreviousButton,
               onSkipNext: _handleManualNextButton,
             ),
@@ -2707,12 +2685,6 @@ class _NowPlayingBodyState extends ConsumerState<_NowPlayingBody>
                     ? () => _updateWideOverlayState(() {
                         _showWideFullscreenLyrics = false;
                         _widePanel = _WideNowPlayingPanel.settings;
-                      })
-                    : null,
-                onOpenMixPanel: supportsSplitPanelOverlay
-                    ? () => _updateWideOverlayState(() {
-                        _showWideFullscreenLyrics = false;
-                        _widePanel = _WideNowPlayingPanel.mix;
                       })
                     : null,
               ),
@@ -2943,7 +2915,6 @@ class _NowPlayingBodyState extends ConsumerState<_NowPlayingBody>
               isRadio: isRadio,
               compact: compactTransport,
               showVolumeControl: showDesktopTransportVolume,
-              showMiniPlayerToggle: showDesktopMiniPlayerToggle,
               onSkipPrevious: _handleManualPreviousButton,
               onSkipNext: _handleManualNextButton,
             ),
@@ -2985,12 +2956,6 @@ class _NowPlayingBodyState extends ConsumerState<_NowPlayingBody>
                     ? () => _updateWideOverlayState(() {
                         _showWideFullscreenLyrics = false;
                         _widePanel = _WideNowPlayingPanel.settings;
-                      })
-                    : null,
-                onOpenMixPanel: supportsSplitPanelOverlay
-                    ? () => _updateWideOverlayState(() {
-                        _showWideFullscreenLyrics = false;
-                        _widePanel = _WideNowPlayingPanel.mix;
                       })
                     : null,
               ),
@@ -3057,13 +3022,6 @@ class _NowPlayingBodyState extends ConsumerState<_NowPlayingBody>
               fullscreenLyricsSongId: playback.currentSongId,
               fullscreenLyricsTitle: title,
               onOpenFullscreenLyrics: openFullscreenLyricsFromSettings,
-            );
-          } else if (_widePanel == _WideNowPlayingPanel.mix &&
-              playback.currentSongId != null) {
-            rightPanePanelTitle = l10n.nowPlayingInstantMixLabel;
-            rightPanePanelHeightFactor = 0.62;
-            rightPanePanelChild = _EmbeddedMixPanel(
-              seedSongId: playback.currentSongId!,
             );
           } else if (_widePanel == _WideNowPlayingPanel.queue) {
             rightPanePanelTitle = l10n.queueTitle;

@@ -2519,9 +2519,6 @@ class AppLocalizationsEn extends AppLocalizations {
   String get nowPlayingInstantMixLabel => 'Instant Mix';
 
   @override
-  String get nowPlayingInstantMixDescription => 'Classic similar-song queueing';
-
-  @override
   String nowPlayingInstantMixStarted(int count) {
     String _temp0 = intl.Intl.pluralLogic(
       count,
@@ -2542,9 +2539,6 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get nowPlayingSameVibesLabel => 'Same Vibes';
-
-  @override
-  String get nowPlayingSameVibesDescription => 'Last.fm similar-song queueing';
 
   @override
   String nowPlayingSameVibesStarted(int count) {

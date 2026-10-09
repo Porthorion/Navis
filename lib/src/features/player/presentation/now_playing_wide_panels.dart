@@ -1,6 +1,6 @@
 part of 'now_playing_screen.dart';
 
-enum _WideNowPlayingPanel { none, settings, mix, queue }
+enum _WideNowPlayingPanel { none, settings, queue }
 
 enum _NowPlayingLayoutMode { compact, standard, split }
 
@@ -900,67 +900,6 @@ class _NowPlayingSettingsPanel extends ConsumerWidget {
             },
           ),
       ],
-    );
-  }
-}
-
-class _EmbeddedMixPanel extends ConsumerWidget {
-  const new({required this.seedSongId});
-
-  final String seedSongId;
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final l10n = AppLocalizations.of(context)!;
-    final instantMix = ref.watch(instantMixProvider);
-    final sameVibes = ref.watch(sameVibesProvider);
-    final preferredMixMode = ref.watch(preferredMixModeProvider);
-    final useLegacy = preferredMixMode == PreferredMixMode.legacyInstantMix;
-    final active = useLegacy ? instantMix.active : sameVibes.active;
-    final loading = useLegacy
-        ? (instantMix.refilling && instantMix.active)
-        : (sameVibes.refilling && sameVibes.active);
-    final title = useLegacy
-        ? l10n.nowPlayingInstantMixLabel
-        : l10n.nowPlayingSameVibesLabel;
-    final subtitle = useLegacy
-        ? l10n.nowPlayingInstantMixDescription
-        : l10n.nowPlayingSameVibesDescription;
-    final legacyMixUnavailable =
-        useLegacy && !serverMixSeedAvailable(ref, seedSongId);
-    final disabledColor = Theme.of(context).colorScheme.onSurface
-        .withValues(alpha: 0.38);
-    final cards = <Widget>[
-      Card(
-        child: ListTile(
-          iconColor: legacyMixUnavailable ? disabledColor : null,
-          textColor: legacyMixUnavailable ? disabledColor : null,
-          leading: loading
-              ? const SizedBox(
-                  width: 22,
-                  height: 22,
-                  child: CircularProgressIndicator(strokeWidth: 2),
-                )
-              : const Icon(Icons.explore_outlined),
-          title: Text(title),
-          subtitle: Text(subtitle),
-          trailing: active ? const Icon(Icons.check_circle) : null,
-          onTap: legacyMixUnavailable
-              ? () => showAppNotice(
-                  context,
-                  message: l10n.remoteSourceInstantMixUnavailable,
-                  level: AppNoticeLevel.error,
-                )
-              : () async {
-                  await togglePreferredMixMode(ref, seedSongId: seedSongId);
-                },
-        ),
-      ),
-    ];
-
-    return ListView(
-      padding: const EdgeInsets.fromLTRB(8, 8, 8, 12),
-      children: cards,
     );
   }
 }

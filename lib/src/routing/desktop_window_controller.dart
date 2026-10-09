@@ -528,8 +528,6 @@ class DesktopWindowController extends ChangeNotifier
     }
   }
 
-  Future<void> toggleMiniPlayerMode() => setMiniPlayerMode(!isMiniPlayerMode);
-
   // Keep the existing method and callback call contract for callers.
   // ignore: avoid_positional_boolean_parameters
   Future<void> setMiniAlwaysOnTop(bool enabled) async {

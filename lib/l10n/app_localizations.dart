@@ -3959,12 +3959,6 @@ abstract class AppLocalizations {
   /// **'Instant Mix'**
   String get nowPlayingInstantMixLabel;
 
-  /// No description provided for @nowPlayingInstantMixDescription.
-  ///
-  /// In en, this message translates to:
-  /// **'Classic similar-song queueing'**
-  String get nowPlayingInstantMixDescription;
-
   /// No description provided for @nowPlayingInstantMixStarted.
   ///
   /// In en, this message translates to:
@@ -3988,12 +3982,6 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Same Vibes'**
   String get nowPlayingSameVibesLabel;
-
-  /// No description provided for @nowPlayingSameVibesDescription.
-  ///
-  /// In en, this message translates to:
-  /// **'Last.fm similar-song queueing'**
-  String get nowPlayingSameVibesDescription;
 
   /// No description provided for @nowPlayingSameVibesStarted.
   ///

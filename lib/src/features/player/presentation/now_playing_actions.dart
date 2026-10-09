@@ -11,7 +11,6 @@ class _ActionRow extends ConsumerStatefulWidget {
     this.onOpenQueuePanel,
     this.onOpenSettingsPanel,
     this.onOpenSettingsSheet,
-    this.onOpenMixPanel,
   });
 
   final SongsTableData? song;
@@ -23,7 +22,6 @@ class _ActionRow extends ConsumerStatefulWidget {
   final VoidCallback? onOpenQueuePanel;
   final VoidCallback? onOpenSettingsPanel;
   final VoidCallback? onOpenSettingsSheet;
-  final VoidCallback? onOpenMixPanel;
 
   @override
   ConsumerState<_ActionRow> createState() => _ActionRowState();

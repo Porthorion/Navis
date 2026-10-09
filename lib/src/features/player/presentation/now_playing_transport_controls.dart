@@ -7,7 +7,6 @@ class _TransportControls extends ConsumerWidget {
     this.isRadio = false,
     this.compact = false,
     this.showVolumeControl = false,
-    this.showMiniPlayerToggle = false,
     this.onSkipPrevious,
     this.onSkipNext,
   });
@@ -17,7 +16,6 @@ class _TransportControls extends ConsumerWidget {
   final bool isRadio;
   final bool compact;
   final bool showVolumeControl;
-  final bool showMiniPlayerToggle;
   final VoidCallback? onSkipPrevious;
   final VoidCallback? onSkipNext;
 
@@ -243,41 +241,6 @@ class _TransportControls extends ConsumerWidget {
                 visualDensity: compact ? VisualDensity.compact : null,
                 dense: tight,
               ),
-            if (showMiniPlayerToggle) ...<Widget>[
-              SizedBox(width: compact ? 4 : 8),
-              Consumer(
-                builder: (context, ref, _) {
-                  final miniPlayerMode = ref.watch(
-                    desktopWindowControllerProvider.select(
-                      (value) => value.isMiniPlayerMode,
-                    ),
-                  );
-                  final busy = ref.watch(
-                    desktopWindowControllerProvider.select(
-                      (value) => value.isApplyingMode,
-                    ),
-                  );
-                  final controller = ref.read(desktopWindowControllerProvider);
-                  return IconButton(
-                    key: const ValueKey<String>(
-                      'desktopNowPlayingMiniPlayerButton',
-                    ),
-                    visualDensity: compact ? VisualDensity.compact : null,
-                    tooltip: miniPlayerMode
-                        ? l10n.desktopReturnToView
-                        : l10n.desktopMiniPlayerOpen,
-                    onPressed: busy
-                        ? null
-                        : () => unawaited(controller.toggleMiniPlayerMode()),
-                    icon: Icon(
-                      miniPlayerMode
-                          ? Icons.close_fullscreen_rounded
-                          : Icons.fit_screen_rounded,
-                    ),
-                  );
-                },
-              ),
-            ],
             if (effectiveShowVolume) ...<Widget>[
               SizedBox(width: compact ? 6 : 10),
               DesktopVolumeSlider(
