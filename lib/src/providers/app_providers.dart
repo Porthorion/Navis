@@ -2748,8 +2748,12 @@ final effectiveColorStyleProvider = Provider<NavisColorStyle>((ref) {
   final schedule = ref.watch(nightScheduleProvider);
   final now = ref.watch(nowProvider)();
   if (schedule.enabled) {
+    final untilBoundary = schedule.nextBoundaryAfter(now).difference(now);
+    // Suspended desktops may resume without advancing Dart timers. Recheck the
+    // wall clock within fifteen minutes even when the boundary was hours away.
+    const recheckCap = Duration(minutes: 15);
     final timer = Timer(
-      schedule.nextBoundaryAfter(now).difference(now),
+      untilBoundary < recheckCap ? untilBoundary : recheckCap,
       ref.invalidateSelf,
     );
     ref.onDispose(timer.cancel);

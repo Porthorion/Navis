@@ -550,6 +550,43 @@ void main() {
       });
     });
 
+    test(
+      'detects a suspended wall-clock jump within fifteen timer minutes',
+      () {
+        fakeAsync((async) {
+          var wallClock = DateTime(2026, 10, 8, 12);
+          final container = ProviderContainer(
+            overrides: [
+              colorStyleProvider.overrideWithValue(NavisColorStyle.pastel),
+              nightScheduleProvider.overrideWithValue(schedule),
+              nowProvider.overrideWithValue(() => wallClock),
+            ],
+          );
+          container.listen(effectiveColorStyleProvider, (_, _) {});
+          expect(
+            container.read(effectiveColorStyleProvider),
+            NavisColorStyle.pastel,
+          );
+          wallClock = DateTime(2026, 10, 8, 23);
+          async.elapse(const Duration(minutes: 15));
+          async.flushMicrotasks();
+          expect(
+            container.read(effectiveColorStyleProvider),
+            NavisColorStyle.night,
+          );
+          wallClock = DateTime(2026, 10, 9, 8);
+          async.elapse(const Duration(minutes: 15));
+          async.flushMicrotasks();
+          expect(
+            container.read(effectiveColorStyleProvider),
+            NavisColorStyle.pastel,
+          );
+          container.dispose();
+          expect(async.nonPeriodicTimerCount, 0);
+        });
+      },
+    );
+
     test('disabled schedule uses the user style without a timer', () {
       fakeAsync((async) {
         final container = ProviderContainer(
