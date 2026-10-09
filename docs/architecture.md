@@ -2266,6 +2266,10 @@ private extensions on the handler within the same library:
 |---|---|
 | Crossfade decks | `navis_audio_handler_crossfade.dart` |
 | Android Auto loading and browse refresh | `navis_audio_handler_android_auto.dart` |
+| Persistence and restore | `navis_audio_handler_persistence.dart` |
+
+Helpers that directly reference class static members remain in the class, as do
+source-guarded player construction and initialization.
 
 `StreamingQuality` belongs to the player domain. The composition root selects
 the active profile and injects it into the source resolver; the resolver does
