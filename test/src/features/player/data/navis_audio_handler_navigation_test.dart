@@ -25,6 +25,7 @@ import 'package:navis/src/features/integrations/domain/integration_artwork.dart'
 import 'package:navis/src/features/integrations/domain/integration_feature.dart';
 import 'package:navis/src/features/player/data/listenbrainz_feedback_service.dart';
 import 'package:navis/src/features/player/data/navis_audio_handler.dart';
+import 'package:navis/src/features/player/data/navis_shuffle_order.dart';
 import 'package:navis/src/features/player/data/playback_source_resolver.dart';
 import 'package:navis/src/features/player/data/real_time_projection_audio_handler.dart';
 import 'package:navis/src/features/player/data/scrobble_service.dart';
@@ -505,6 +506,7 @@ void main() {
     Directory directory,
     int count, {
     bool crossfade = false,
+    bool matchFlow = false,
     int savedQueueIndex = -1,
     NavisQueueWindow queueWindow = const NavisQueueWindow(),
     NavisPlaybackTimeouts timeouts = const NavisPlaybackTimeouts(),
@@ -612,7 +614,7 @@ void main() {
         replayGainPreamp: 0,
         playbackSpeed: 1,
         albumQueueEnabled: false,
-        matchFlowEnabled: false,
+        matchFlowEnabled: matchFlow,
       ),
       adjustmentCapabilities: PlaybackAdjustmentCapabilities.android,
       crossfadePlayerFactory: _ControllableAudioPlayer.new,
@@ -2403,6 +2405,228 @@ void main() {
       });
     }
   }
+
+  group('queue replacement input contracts', () {
+    for (final suppliedRows in [false, true]) {
+      test('admits and saves the logical selection before fill '
+          '(rows=$suppliedRows)', () async {
+        final directory = await Directory.systemTemp.createTemp('navis-admit-');
+        final (handler, player, database) = await createHandler(directory, 4);
+        addTearDown(() async {
+          await handler.disposeHandler();
+          await database.close();
+          await directory.delete(recursive: true);
+        });
+        final ids = List.generate(4, (i) => 'song-$i');
+        final rows = await database.libraryDao.getSongsByIds(ids);
+        final loaded = Completer<void>();
+        final releaseLoad = Completer<void>();
+        final filling = Completer<void>();
+        final releaseFill = Completer<void>();
+        player
+          ..loadEntered = loaded
+          ..loadGate = releaseLoad
+          ..appendEntered = filling
+          ..appendGate = releaseFill;
+        final replacement = suppliedRows
+            ? handler.replaceQueueWithData(
+                rows,
+                startIndex: 1,
+                expandMatchFlows: false,
+              )
+            : handler.replaceQueue(ids, startIndex: 1, expandMatchFlows: false);
+        expect(handler.snapshot.isLoading, isTrue);
+        expect(handler.snapshot.queueSongIds, ids);
+        expect(handler.snapshot.pendingQueueIndex, 1);
+        await loaded.future;
+        await handler.pause();
+        releaseLoad.complete();
+        await filling.future;
+        final state = (await database.playQueueDao.getQueueState())!;
+        expect(state.currentIndex, 1);
+        expect(
+          (await database.playQueueDao.getQueueItems()).map((s) => s.id),
+          ids,
+        );
+        expect(handler.snapshot.currentSongId, 'song-1');
+        expect(handler.snapshot.hasPendingLogicalQueue, isTrue);
+        expect(player.playing, isFalse);
+        releaseFill.complete();
+        await replacement;
+        expect(handler.snapshot.queueSongIds, ids);
+        expect(handler.snapshot.currentIndex, 1);
+        expect(handler.snapshot.isLoading, isFalse);
+        expect(player.playing, isFalse);
+
+        if (suppliedRows) {
+          await handler.replaceQueueWithData([]);
+        } else {
+          await handler.replaceQueue([]);
+        }
+        expect(handler.snapshot.queueSongIds, isEmpty);
+        expect(handler.snapshot.isLoading, isFalse);
+        expect(await database.playQueueDao.getQueueItems(), isEmpty);
+      });
+
+      test('timeout recovery keeps the admitted shuffle order and pause '
+          '(rows=$suppliedRows)', () async {
+        final directory = await Directory.systemTemp.createTemp(
+          'navis-recover-',
+        );
+        final rebuilt = <_ControllableAudioPlayer>[];
+        final (handler, player, database) = await createHandler(
+          directory,
+          5,
+          rebuiltPlayers: rebuilt,
+          timeouts: const NavisPlaybackTimeouts(
+            load: Duration(milliseconds: 300),
+            remoteLoad: Duration(milliseconds: 300),
+            reset: Duration(milliseconds: 100),
+            control: Duration(milliseconds: 100),
+          ),
+        );
+        addTearDown(() async {
+          await handler.disposeHandler();
+          await database.close();
+          await directory.delete(recursive: true);
+        });
+        final ids = List.generate(5, (i) => 'song-$i');
+        final rows = [
+          for (final row in await database.libraryDao.getSongsByIds(ids))
+            row.copyWith(title: 'Supplied ${row.id}', isExternal: true),
+        ];
+        await handler.applySongIdentityAliases({'song-3': 'song-4'});
+        await handler.setShuffleMode(AudioServiceShuffleMode.all);
+        final inputIds = suppliedRows
+            ? ids
+            : ['song-0', 'song-1', 'song-2', 'song-4', 'song-4'];
+        final expected = shuffledFromStart(inputIds, 2, Random(7));
+        final gate = Completer<void>();
+        final entered = Completer<void>();
+        player
+          ..loadGate = gate
+          ..loadEntered = entered;
+        final replacement = suppliedRows
+            ? handler.replaceQueueWithData(rows, startIndex: 2)
+            : handler.replaceQueue(ids, startIndex: 2, expandMatchFlows: false);
+        await entered.future;
+        await handler.pause();
+        await replacement;
+        if (handler.snapshot.isLoading || handler.snapshot.currentIndex != 1) {
+          await handler.snapshotStream.firstWhere(
+            (snapshot) => !snapshot.isLoading && snapshot.currentIndex == 1,
+          );
+        }
+        expect(handler.snapshot.queueSongIds, expected);
+        expect(handler.snapshot.currentSongId, expected[1]);
+        expect(handler.snapshot.playing, isFalse);
+        expect(rebuilt.last.sourceIds, expected);
+        if (suppliedRows) {
+          expect(handler.queue.value.map((item) => item.title), [
+            for (final id in expected) 'Supplied $id',
+          ]);
+        }
+        gate.complete();
+        await handler.setShuffleMode(AudioServiceShuffleMode.none);
+        expect(handler.snapshot.queueSongIds, inputIds);
+        expect(handler.snapshot.currentSongId, expected[1]);
+      });
+    }
+
+    for (final input in [
+      'ids',
+      'expanded rows',
+      'canonical rows',
+      'exact rows',
+    ]) {
+      test('local row resolution preserves its read policy ($input)', () async {
+        final directory = await Directory.systemTemp.createTemp('navis-rows-');
+        final (handler, _, database) = await createHandler(
+          directory,
+          3,
+          matchFlow: true,
+        );
+        addTearDown(() async {
+          await handler.disposeHandler();
+          await database.close();
+          await directory.delete(recursive: true);
+        });
+        final flow = await database.matchFlowDao.createFlow();
+        await database.matchFlowDao.addSong(flow, 'song-0');
+        await database.matchFlowDao.addSong(flow, 'song-1');
+        final rows = await database.libraryDao.getSongsByIds([
+          'song-0',
+          'song-2',
+        ]);
+        final supplied = [
+          for (final row in rows) row.copyWith(title: 'Supplied'),
+        ];
+        if (input == 'ids') {
+          await handler.applySongIdentityAliases({'retired-0': 'song-0'});
+          await handler.replaceQueue(['retired-0', 'song-2'], startIndex: 1);
+        } else {
+          if (input == 'canonical rows') {
+            await handler.applySongIdentityAliases({'retired-0': 'song-0'});
+            supplied[0] = supplied[0].copyWith(id: 'retired-0');
+          }
+          await handler.replaceQueueWithData(
+            supplied,
+            startIndex: 1,
+            expandMatchFlows: input == 'expanded rows',
+          );
+        }
+        final expands = input == 'ids' || input == 'expanded rows';
+        expect(
+          handler.snapshot.queueSongIds,
+          expands ? ['song-0', 'song-1', 'song-2'] : ['song-0', 'song-2'],
+        );
+        expect(handler.snapshot.currentIndex, expands ? 2 : 1);
+        expect(handler.snapshot.currentSongId, 'song-2');
+        expect(
+          handler.currentMediaItem!.title,
+          input == 'exact rows' ? 'Supplied' : 'Song 2',
+        );
+      });
+    }
+
+    test(
+      'mixed rows bypass expansion and retain remote and retired local rows',
+      () async {
+        final directory = await Directory.systemTemp.createTemp('navis-mixed-');
+        final (handler, _, database) = await createHandler(
+          directory,
+          3,
+          matchFlow: true,
+        );
+        addTearDown(() async {
+          await handler.disposeHandler();
+          await database.close();
+          await directory.delete(recursive: true);
+        });
+        final flow = await database.matchFlowDao.createFlow();
+        await database.matchFlowDao.addSong(flow, 'song-0');
+        await database.matchFlowDao.addSong(flow, 'song-2');
+        final rows = await database.libraryDao.getSongsByIds([
+          'song-0',
+          'song-1',
+        ]);
+        await handler.applySongIdentityAliases({
+          'song-0': 'song-2',
+          'song-1': 'song-2',
+        });
+        await handler.replaceQueueWithData([
+          rows[0].copyWith(isExternal: true, title: 'Remote exact'),
+          rows[1].copyWith(title: 'Local exact'),
+        ]);
+        expect(handler.snapshot.queueSongIds, ['song-0', 'song-1']);
+        expect(handler.queue.value.map((item) => item.title), [
+          'Remote exact',
+          'Local exact',
+        ]);
+        expect(handler.snapshot.currentSongId, 'song-0');
+      },
+    );
+  });
 
   test('duplicate song IDs retain the selected queue occurrence', () async {
     final directory = await Directory.systemTemp.createTemp('navis-nav-test-');

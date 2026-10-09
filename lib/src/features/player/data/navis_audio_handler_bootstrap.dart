@@ -266,6 +266,10 @@ class WindowsNavisPlaybackHandler
     );
   }
 
+  @visibleForTesting
+  new forTesting(this._delegate, {required WindowsSmtcBridge bridge})
+    : _smtcBridge = bridge;
+
   final NavisAudioHandler _delegate;
 
   @override
@@ -531,6 +535,10 @@ class LinuxNavisPlaybackHandler
   new(this._delegate) {
     _mprisBridge = LinuxMprisBridge(handler: this);
   }
+
+  @visibleForTesting
+  new forTesting(this._delegate, {required LinuxMprisBridge bridge})
+    : _mprisBridge = bridge;
 
   final NavisAudioHandler _delegate;
 
