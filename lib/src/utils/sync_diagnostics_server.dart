@@ -12,6 +12,7 @@ import 'dart:math';
 
 import 'package:audio_service/audio_service.dart'
     show AudioServiceRepeatMode, AudioServiceShuffleMode;
+import 'package:dio/dio.dart';
 import 'package:drift/drift.dart' show TableUpdate;
 import 'package:flutter/foundation.dart' show defaultTargetPlatform;
 import 'package:flutter/scheduler.dart';
@@ -60,6 +61,7 @@ import 'package:navis/src/features/player/presentation/recommendation_session_co
 import 'package:navis/src/features/player/presentation/same_vibes_notifier.dart';
 import 'package:navis/src/features/search/domain/search_result_ranker.dart';
 import 'package:navis/src/features/search/presentation/search_controller_provider.dart';
+import 'package:navis/src/features/settings/data/update_repository.dart';
 import 'package:navis/src/providers/app_providers.dart';
 import 'package:navis/src/routing/app_router.dart';
 import 'package:navis/src/routing/desktop_commands.dart';
@@ -3060,6 +3062,43 @@ class SyncDiagnosticsServer {
         await _respond(request, HttpStatus.ok, await _localSearchTiming(query));
         return;
       }
+      if (request.method == 'GET' && path == '/v1/diagnostics/update') {
+        await _respond(request, HttpStatus.ok, _updateDiagnosticsJson());
+        return;
+      }
+      if (request.method == 'POST' && path == '/v1/diagnostics/update/check') {
+        if (!allowsMutations) {
+          await _forbidden(request);
+          return;
+        }
+        final settingsSubscription = _container.listen(
+          appSettingsProvider,
+          (_, _) {},
+        );
+        try {
+          await _container.read(appSettingsProvider.future);
+          _container
+              .read(updateForceCheckProvider.notifier)
+              .requestForceCheck();
+          _container.invalidate(updateProvider);
+          final updateSubscription = _container.listen(
+            updateProvider,
+            (_, _) {},
+          );
+          try {
+            await _container.read(updateProvider.future);
+          } on DioException {
+            // The repository records transport failures; diagnostics returns that
+            // record while the UI retains its existing provider error semantics.
+          } finally {
+            updateSubscription.close();
+          }
+        } finally {
+          settingsSubscription.close();
+        }
+        await _respond(request, HttpStatus.ok, _updateDiagnosticsJson());
+        return;
+      }
       if (request.method == 'GET' && path == '/v1/diagnostics/integrations') {
         // Read-only and available in every mode: per-service counters, the
         // last 100 calls and the last 50 spans. Paths only, never query
@@ -3094,6 +3133,24 @@ class SyncDiagnosticsServer {
         'error': error.runtimeType.toString(),
       });
     }
+  }
+
+  Map<String, Object?> _updateDiagnosticsJson() {
+    final record = _container.read(updateRepositoryProvider).lastCheck;
+    return {
+      'manifestUrl': UpdateRepository.manifestUrlFor(),
+      'channel': UpdateRepository.channelFor(),
+      ...record?.toJson() ??
+          {
+            'url': null,
+            'timestamp': null,
+            'signatureValid': null,
+            'payloadVersion': null,
+            'assetKey': null,
+            'rejectReason': null,
+            'tag': null,
+          },
+    };
   }
 
   /// Activates the legacy diagnostics setup controller with a lasting

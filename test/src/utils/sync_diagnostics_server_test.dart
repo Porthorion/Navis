@@ -21,6 +21,7 @@ import 'package:navis/src/database/navis_database.dart';
 import 'package:navis/src/features/auth/domain/server_config.dart';
 import 'package:navis/src/features/auth/presentation/server_config_provider.dart';
 import 'package:navis/src/features/integrations/data/integration_call_recorder.dart';
+import 'package:navis/src/features/integrations/data/integration_guard_interceptor.dart';
 import 'package:navis/src/features/integrations/domain/integration_feature.dart';
 import 'package:navis/src/features/downloads/data/download_service.dart';
 import 'package:navis/src/features/downloads/data/permanent_artwork_store.dart';
@@ -37,8 +38,11 @@ import 'package:navis/src/features/player/data/navis_audio_handler.dart';
 import 'package:navis/src/features/player/domain/playback_snapshot.dart';
 import 'package:navis/src/features/search/presentation/search_controller_provider.dart';
 import 'package:navis/src/features/settings/data/external_scrobble_credentials.dart';
+import 'package:navis/src/features/settings/data/update_check_store.dart';
+import 'package:navis/src/features/settings/data/update_repository.dart';
 import 'package:navis/src/features/settings/domain/app_settings.dart';
 import 'package:dio/dio.dart';
+import 'package:package_info_plus/package_info_plus.dart';
 import 'package:navis/src/providers/app_providers.dart';
 import 'package:navis/src/routing/content_layout.dart';
 import 'package:navis/src/utils/connectivity.dart';
@@ -762,6 +766,155 @@ void main() {
       expect(encoded, isNot(contains('api_key')));
       expect(encoded, isNot(contains('limit=50')));
     });
+  }
+
+  for (final mode in SyncDiagnosticsMode.values) {
+    test(
+      'update diagnostics are authenticated and mode guarded in $mode',
+      () async {
+        PackageInfo.setMockInitialValues(
+          appName: 'Navis',
+          packageName: 'com.navis.app.navis',
+          version: '1.0.0',
+          buildNumber: '1',
+          buildSignature: '',
+        );
+        final dio = _MockUpdateDio();
+        var requests = 0;
+        final store = _DiagnosticsUpdateCheckStore();
+        when(
+          () => dio.get<Object?>(any(), options: any(named: 'options')),
+        ).thenAnswer((invocation) async {
+          requests++;
+          final options = invocation.namedArguments[#options] as Options;
+          expect(options.extra, containsPair(navisUserInitiatedExtraKey, true));
+          return Response<Object?>(
+            data: <String, Object?>{},
+            requestOptions: RequestOptions(path: '/manifest.json'),
+            statusCode: 200,
+          );
+        });
+        final repository = UpdateRepository(dio: dio, updateCheckStore: store);
+        final fixture = await _startFixture(
+          mode,
+          overrides: [
+            appSettingsProvider.overrideWith(
+              (ref) => Stream.value(
+                const AppSettingsModel.defaults().copyWith(
+                  updateCheckEnabled: false,
+                ),
+              ),
+            ),
+            updateRepositoryProvider.overrideWithValue(repository),
+          ],
+        );
+        addTearDown(fixture.close);
+
+        for (final (method, path) in [
+          ('GET', '/v1/diagnostics/update'),
+          ('POST', '/v1/diagnostics/update/check'),
+        ]) {
+          final unauthorized = await _request(
+            fixture.port,
+            path,
+            method: method,
+          );
+          expect(unauthorized.statusCode, HttpStatus.unauthorized);
+        }
+        expect(requests, 0);
+        final before = await _request(
+          fixture.port,
+          '/v1/diagnostics/update',
+          token: fixture.token,
+        );
+        expect(before.statusCode, HttpStatus.ok);
+        expect(before.body, {
+          'manifestUrl': UpdateRepository.manifestUrlFor(),
+          'channel': UpdateRepository.channelFor(),
+          'url': null,
+          'timestamp': null,
+          'signatureValid': null,
+          'payloadVersion': null,
+          'assetKey': null,
+          'rejectReason': null,
+          'tag': null,
+        });
+        final checked = await _request(
+          fixture.port,
+          '/v1/diagnostics/update/check',
+          method: 'POST',
+          token: fixture.token,
+        );
+        if (mode == SyncDiagnosticsMode.primaryCertification) {
+          expect(checked.statusCode, HttpStatus.forbidden);
+          expect(requests, 0);
+          return;
+        }
+        expect(checked.statusCode, HttpStatus.ok);
+        expect(requests, 1);
+        expect(store.forceArguments, [true]);
+        expect(checked.body['url'], UpdateRepository.manifestUrlFor());
+        expect(checked.body['timestamp'], isNotNull);
+        expect(checked.body['signatureValid'], isFalse);
+        expect(checked.body['rejectReason'], 'malformed_envelope');
+        final after = await _request(
+          fixture.port,
+          '/v1/diagnostics/update',
+          token: fixture.token,
+        );
+        expect(after.body, checked.body);
+        expect(requests, 1);
+        expect(
+          fixture.container
+              .read(updateForceCheckProvider.notifier)
+              .consumeForceCheck(),
+          isFalse,
+        );
+      },
+    );
+  }
+
+  for (final settings in [
+    const AppSettingsModel.defaults().copyWith(
+      externalIntegrationsEnabled: false,
+    ),
+    const AppSettingsModel.defaults().copyWith(
+      disabledIntegrations: '["updates"]',
+    ),
+  ]) {
+    test(
+      'diagnostics Check now respects integration policy $settings',
+      () async {
+        final store = _DiagnosticsUpdateCheckStore();
+        final repository = UpdateRepository(
+          dio: _MockUpdateDio(),
+          updateCheckStore: store,
+        );
+        final fixture = await _startFixture(
+          SyncDiagnosticsMode.clone,
+          overrides: [
+            appSettingsProvider.overrideWith((ref) => Stream.value(settings)),
+            updateRepositoryProvider.overrideWithValue(repository),
+          ],
+        );
+        addTearDown(fixture.close);
+        final response = await _request(
+          fixture.port,
+          '/v1/diagnostics/update/check',
+          method: 'POST',
+          token: fixture.token,
+        );
+        expect(response.statusCode, HttpStatus.ok);
+        expect(response.body['timestamp'], isNull);
+        expect(store.forceArguments, isEmpty);
+        expect(
+          fixture.container
+              .read(updateForceCheckProvider.notifier)
+              .consumeForceCheck(),
+          isFalse,
+        );
+      },
+    );
   }
 
   test('integrations diagnostics list the retained call fields', () async {
@@ -3815,4 +3968,19 @@ class _Response {
 
   final int statusCode;
   final Map<String, dynamic> body;
+}
+
+class _MockUpdateDio extends Mock implements Dio;
+
+class _DiagnosticsUpdateCheckStore extends UpdateCheckStore {
+  final List<bool> forceArguments = [];
+
+  @override
+  Future<bool> shouldCheck({bool force = false}) async {
+    forceArguments.add(force);
+    return force;
+  }
+
+  @override
+  Future<void> recordCheck([DateTime? checkedAt]) async {}
 }

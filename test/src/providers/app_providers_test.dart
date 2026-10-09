@@ -2468,6 +2468,31 @@ void main() {
       return store.forceArguments;
     }
 
+    test(
+      'update provider invalidation retains the diagnostics repository',
+      () async {
+        TestWidgetsFlutterBinding.ensureInitialized();
+        final store = _RecordingUpdateCheckStore();
+        final container = ProviderContainer(
+          overrides: [
+            appSettingsProvider.overrideWith(
+              (ref) => Stream.value(const AppSettingsModel.defaults()),
+            ),
+            updateCheckStoreProvider.overrideWithValue(store),
+          ],
+        );
+        addTearDown(container.dispose);
+        container.listen(appSettingsProvider, (_, _) {});
+        await container.read(appSettingsProvider.future);
+        final repository = container.read(updateRepositoryProvider);
+        await container.read(updateProvider.future);
+        container.read(updateForceCheckProvider.notifier).requestForceCheck();
+        await container.refresh(updateProvider.future);
+        expect(container.read(updateRepositoryProvider), same(repository));
+        expect(store.forceArguments, [false, true]);
+      },
+    );
+
     test('Check now works while automatic checks are off', () async {
       final settings = const AppSettingsModel.defaults().copyWith(
         updateCheckEnabled: false,

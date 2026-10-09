@@ -3,7 +3,7 @@ import 'dart:io';
 
 import 'package:path_provider/path_provider.dart';
 
-/// Persists the timestamp of the last successful Forgejo update check.
+/// Persists the timestamp of the last successful update manifest fetch.
 class UpdateCheckStore {
   new({this._throttle = const Duration(hours: 24), DateTime Function()? now})
     : _now = now ?? DateTime.now;
