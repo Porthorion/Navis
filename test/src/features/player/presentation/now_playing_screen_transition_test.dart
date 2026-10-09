@@ -110,10 +110,6 @@ void main() {
   testWidgets('seek bar shows buffered audio as a secondary track', (
     tester,
   ) async {
-    if (!sqliteAvailable) {
-      return;
-    }
-
     tester.view.devicePixelRatio = 1;
     tester.view.physicalSize = const Size(880, 1200);
     addTearDown(() {
@@ -148,15 +144,11 @@ void main() {
     expect(seekSlider.max, _song1Playback.duration.inMilliseconds);
     expect(seekSlider.secondaryTrackValue, 80000);
     expect(seekSlider.secondaryActiveColor, isNotNull);
-  });
+  }, skip: !sqliteAvailable);
 
   testWidgets('manual song changes swap to the new cover-art child', (
     tester,
   ) async {
-    if (!sqliteAvailable) {
-      return;
-    }
-
     tester.view.devicePixelRatio = 1;
     tester.view.physicalSize = const Size(880, 1200);
     addTearDown(() {
@@ -199,13 +191,11 @@ void main() {
     final incomingCover = _findValueKeyPrefix('cover-song:song-2:');
     expect(incomingCover, findsOneWidget);
     expect(find.byKey(const ValueKey<String>('art-shell')), findsOneWidget);
-  });
+  }, skip: !sqliteAvailable);
 
   testWidgets('automatic advances avoid directional artwork travel', (
     tester,
   ) async {
-    if (!sqliteAvailable) return;
-
     tester.view.devicePixelRatio = 1;
     tester.view.physicalSize = const Size(880, 1200);
     addTearDown(() {
@@ -232,15 +222,11 @@ void main() {
     await tester.pump(const Duration(milliseconds: 16));
 
     expect(_findActiveHorizontalSlideTransitions(), findsNothing);
-  });
+  }, skip: !sqliteAvailable);
 
   testWidgets(
     'lyrics close stays neutral even after manual direction was latched',
     (tester) async {
-      if (!sqliteAvailable) {
-        return;
-      }
-
       tester.view.devicePixelRatio = 1;
       tester.view.physicalSize = const Size(880, 1200);
       addTearDown(() {
@@ -290,15 +276,12 @@ void main() {
       expect(_findActiveHorizontalSlideTransitions(), findsNothing);
       expect(_findNonZeroSlideTransitionAncestors(artShell), findsNothing);
     },
+    skip: !sqliteAvailable,
   );
 
   testWidgets('transport outcomes use quiet rewind and edge feedback', (
     tester,
   ) async {
-    if (!sqliteAvailable) {
-      return;
-    }
-
     tester.view.devicePixelRatio = 1;
     tester.view.physicalSize = const Size(880, 1200);
     addTearDown(() {
@@ -389,5 +372,5 @@ void main() {
       ),
       findsNothing,
     );
-  });
+  }, skip: !sqliteAvailable);
 }
