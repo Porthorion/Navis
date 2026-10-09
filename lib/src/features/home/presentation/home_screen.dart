@@ -1236,12 +1236,12 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
           const _HomeActionRow(variant: _HomeActionRowVariant.mobile),
           SizedBox(height: phoneHeader ? 4 : 10),
         ],
-        // One notice at a time: the setup invitation first, then the
-        // Integrations notice, then the What's New row.
-        if (ref.watch(setupHighlightsCardVisibleProvider))
-          const SetupHighlightsCard()
-        else if (ref.watch(integrationsNoticeVisibleProvider))
+        // One notice at a time: the Integrations (privacy) notice first, then
+        // the setup invitation, then the What's New row.
+        if (ref.watch(integrationsNoticeVisibleProvider))
           const IntegrationsNoticeCard()
+        else if (ref.watch(setupHighlightsCardVisibleProvider))
+          const SetupHighlightsCard()
         else
           const ChangelogDiscoveryCard(),
         const _UpdateBanner(),

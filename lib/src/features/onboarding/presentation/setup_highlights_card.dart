@@ -49,9 +49,9 @@ class _SetupHighlightsCardState extends ConsumerState<SetupHighlightsCard> {
     return HomeNoticeCard(
       openKey: const ValueKey<String>('setupHighlightsOpen'),
       dismissKey: const ValueKey<String>('setupHighlightsDismiss'),
-      title: l10n.integrationsNoticeTitle(release),
+      title: l10n.setupHighlightsCardTitle,
       subtitle: l10n.setupHighlightsCardBody,
-      dismissTooltip: l10n.integrationsNoticeDismiss,
+      dismissTooltip: l10n.setupHighlightsCardDismiss,
       onOpen: () => NavService.openOnboardingReview(context, ref),
       onDismiss: _dismiss,
     );

@@ -34,6 +34,19 @@ final pendingSetupHighlightsProvider = Provider<Set<SetupHighlight>>((ref) {
   );
 });
 
+/// Whether Settings home should mark Appearance and Quick Customization as
+/// having new options.
+///
+/// Use OLED When Dark only exists in Auto mode, so while it is hidden it does
+/// not count: the tag must lead to something the user can actually see.
+final settingsHasNewOptionsProvider = Provider<bool>((ref) {
+  final pending = ref.watch(pendingSetupHighlightsProvider);
+  final autoMode = ref.watch(themeModeProvider) == 'system';
+  return pending.any(
+    (highlight) => autoMode || highlight != SetupHighlight.oledForAuto,
+  );
+});
+
 /// Whether Home should invite the updated user to review setup for this release.
 ///
 /// Dismissing the card leaves [pendingSetupHighlightsProvider] unchanged.

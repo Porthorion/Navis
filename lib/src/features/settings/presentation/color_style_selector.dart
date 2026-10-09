@@ -1,5 +1,6 @@
 import 'package:material_ui/material_ui.dart';
 import 'package:navis/l10n/app_localizations.dart';
+import 'package:navis/src/features/settings/presentation/appearance_layout.dart';
 import 'package:navis/src/theme/navis_color_style.dart';
 import 'package:navis/src/theme/navis_style_schemes.dart';
 import 'package:navis/src/theme/navis_tokens.dart';
@@ -72,7 +73,10 @@ class ColorStyleSelector extends StatelessWidget {
     const styles = NavisColorStyle.values;
 
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      padding: EdgeInsets.symmetric(
+        horizontal: AppearanceLayout.gutterOf(context),
+        vertical: 8,
+      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: <Widget>[

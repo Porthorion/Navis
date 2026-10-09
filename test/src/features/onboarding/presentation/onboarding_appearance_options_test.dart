@@ -8,9 +8,12 @@ import 'package:navis/l10n/navis_localizations.dart';
 import 'package:navis/src/common_widgets/new_feature_tag.dart';
 import 'package:navis/src/database/daos/app_settings_dao.dart';
 import 'package:navis/src/database/navis_database.dart';
+import 'package:navis/src/features/onboarding/domain/setup_highlights.dart';
 import 'package:navis/src/features/onboarding/presentation/onboarding_provider.dart';
+import 'package:navis/src/features/onboarding/presentation/setup_highlights_provider.dart';
 import 'package:navis/src/features/onboarding/presentation/onboarding_screen.dart';
 import 'package:navis/src/features/settings/data/external_scrobble_credentials.dart';
+import 'package:navis/src/features/settings/presentation/appearance_options.dart';
 import 'package:navis/src/features/settings/presentation/color_style_selector.dart';
 import 'package:navis/src/providers/app_providers.dart';
 import 'package:navis/src/routing/app_routes.dart';
@@ -19,6 +22,7 @@ import 'package:navis/src/theme/navis_corner_style.dart';
 import 'package:navis/src/theme/navis_shape_data.dart';
 import 'package:navis/src/theme/navis_theme.dart';
 import 'package:package_info_plus/package_info_plus.dart';
+import 'package:visibility_detector/visibility_detector.dart';
 
 import '../../../../helpers/adaptive_test_harness.dart';
 import '../../../../helpers/test_database.dart';
@@ -82,11 +86,17 @@ class _Harness {
       Theme.of(tester.element(find.byType(ColorStyleSelector)));
 }
 
+/// Options reported as shown, in order.
+final _shownOptions = <SetupHighlight>[];
+
 /// [updatedUser] seeds a completed setup, as for someone updating the app.
+/// Shown options are recorded in [_shownOptions]; they only clear their tags
+/// when [clearTagsWhenShown] is set, so tag counts stay stable.
 Future<_Harness> _pump(
   WidgetTester tester, {
   bool updatedUser = true,
   bool reviewMode = true,
+  bool clearTagsWhenShown = false,
   Future<void> Function(AppSettingsDao dao)? seed,
 }) async {
   setAdaptiveTestViewport(tester, const Size(500, 2400));
@@ -107,6 +117,19 @@ Future<_Harness> _pump(
         externalScrobbleCredentialStoreProvider.overrideWithValue(
           _MemoryCredentialStore(),
         ),
+        setupHighlightsServiceProvider.overrideWith((ref) {
+          final repository = ref.watch(settingsRepositoryProvider);
+          return SetupHighlightsService(
+            () => repository.updateSetupHighlightsSeenRelease('1.4.3'),
+            () => repository.updateSetupCardDismissedRelease('1.4.3'),
+            (option) async {
+              _shownOptions.add(option);
+              if (clearTagsWhenShown) {
+                await repository.markSetupHighlightSeen(option.storageKey);
+              }
+            },
+          );
+        }),
         packageInfoProvider.overrideWith(
           (ref) async => PackageInfo(
             appName: 'Navis',
@@ -156,6 +179,11 @@ Future<_Harness> _pump(
 }
 
 void main() {
+  setUp(() {
+    VisibilityDetectorController.instance.updateInterval = Duration.zero;
+    _shownOptions.clear();
+  });
+
   testWidgets('marks all six options New for an updated user', (tester) async {
     await _pump(tester, seed: (d) => d.updateThemeMode('system'));
 
@@ -183,13 +211,16 @@ void main() {
   });
 
   testWidgets('shows no tags on a fresh install', (tester) async {
-    await _pump(
+    final h = await _pump(
       tester,
       updatedUser: false,
       reviewMode: false,
       seed: (d) => d.updateThemeMode('system'),
     );
 
+    expect(find.byType(NewFeatureTag), findsNothing);
+    expect(find.text('Night Schedule'), findsNothing);
+    await h.tap(find.text('More appearance options'));
     expect(find.text('Night Schedule'), findsOneWidget);
     expect(find.byType(NewFeatureTag), findsNothing);
   });
@@ -321,5 +352,137 @@ void main() {
     await h.tap(find.text('Night Schedule'));
 
     expect(h.previewTheme.colorScheme.surface, before);
+  });
+
+  group('More appearance options', () {
+    const expanderKey = ValueKey<String>('onboarding-more-appearance-options');
+
+    testWidgets('keeps Theme Mode, Color Style and Accent Color visible', (
+      tester,
+    ) async {
+      await _pump(tester, updatedUser: false, reviewMode: false);
+
+      expect(find.text('Light'), findsOneWidget);
+      expect(find.text('Color Style'), findsOneWidget);
+      expect(find.text('Accent Color'), findsOneWidget);
+      expect(find.text('More appearance options'), findsOneWidget);
+      for (final hidden in <String>[
+        'Flat Surfaces',
+        'Corner Style',
+        'Density',
+        'Now Playing Background',
+        'Night Schedule',
+      ]) {
+        expect(find.text(hidden), findsNothing, reason: hidden);
+      }
+    });
+
+    testWidgets('is closed for an updated user with nothing pending', (
+      tester,
+    ) async {
+      await _pump(
+        tester,
+        seed: (d) => d.updateSetupHighlightsSeenRelease('1.4.3'),
+      );
+
+      expect(find.byKey(expanderKey), findsOneWidget);
+      expect(find.text('Corner Style'), findsNothing);
+    });
+
+    testWidgets('opens by itself while an option is tagged', (tester) async {
+      await _pump(tester);
+
+      expect(find.text('Corner Style'), findsOneWidget);
+      expect(find.text('Flat Surfaces'), findsOneWidget);
+      expect(find.text('Density'), findsOneWidget);
+      expect(find.text('Use OLED When Dark'), findsNothing);
+    });
+
+    testWidgets('lists the options in Settings order', (tester) async {
+      await _pump(tester, seed: (d) => d.updateThemeMode('system'));
+
+      final labels = <String>[
+        'Use OLED When Dark',
+        'Night Schedule',
+        'Flat Surfaces',
+        'Corner Style',
+        'Density',
+        'Now Playing Background',
+      ];
+      double top(String text) => tester.getTopLeft(find.text(text)).dy;
+      for (var i = 1; i < labels.length; i++) {
+        expect(top(labels[i]), greaterThan(top(labels[i - 1])));
+      }
+      expect(AppearanceOptionKind.values.map((kind) => kind.name), <String>[
+        'oledForAuto',
+        'nightSchedule',
+        'flatSurfaces',
+        'cornerStyle',
+        'density',
+        'nowPlayingBackground',
+      ]);
+    });
+
+    testWidgets('headings and controls share one left edge', (tester) async {
+      await _pump(tester, updatedUser: false, reviewMode: false);
+
+      final edge = tester.getTopLeft(find.text('Choose Your Look')).dx;
+      expect(tester.getTopLeft(find.text('Color Style')).dx, edge);
+      expect(tester.getTopLeft(find.text('Accent Color')).dx, edge);
+      expect(tester.getTopLeft(find.byType(SegmentedButton<String>)).dx, edge);
+      expect(tester.getTopLeft(find.byType(ColorStyleSelector)).dx, edge);
+    });
+
+    testWidgets('shows the scroll hint when the first step overflows', (
+      tester,
+    ) async {
+      setAdaptiveTestViewport(tester, const Size(500, 500));
+      await _pump(tester, updatedUser: false, reviewMode: false);
+      setAdaptiveTestViewport(tester, const Size(500, 500));
+      await tester.pumpAndSettle();
+
+      expect(
+        find.byKey(const ValueKey<String>('onboarding-scroll-hint')),
+        findsOneWidget,
+      );
+    });
+
+    testWidgets('tagged options mark themselves seen once shown', (
+      tester,
+    ) async {
+      await _pump(tester, seed: (d) => d.updateThemeMode('system'));
+
+      expect(_shownOptions.toSet(), <SetupHighlight>{
+        for (final highlight in SetupHighlight.values) highlight,
+      });
+      expect(_shownOptions, hasLength(SetupHighlight.values.length));
+    });
+
+    testWidgets('the hidden OLED option is not marked seen', (tester) async {
+      await _pump(tester);
+
+      expect(_shownOptions, isNot(contains(SetupHighlight.oledForAuto)));
+      expect(_shownOptions, hasLength(SetupHighlight.values.length - 1));
+    });
+
+    testWidgets('a cleared tag disappears and Finish still saves everything', (
+      tester,
+    ) async {
+      final h = await _pump(
+        tester,
+        clearTagsWhenShown: true,
+        seed: (d) => d.updateThemeMode('system'),
+      );
+
+      expect(find.byType(NewFeatureTag), findsNothing);
+      // The group stays open although its tags are gone.
+      expect(find.text('Corner Style'), findsOneWidget);
+      await h.tap(find.text('Flat Surfaces'));
+      await h.tap(find.text('Square'));
+      await h.finish();
+      final row = await h.row();
+      expect(row.flatSurfaces, isTrue);
+      expect(row.cornerStyle, 'square');
+    });
   });
 }

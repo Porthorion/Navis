@@ -601,7 +601,8 @@ target-selection rules.
   `NavisDensity`; `homeDensityProvider` remains a string compatibility alias.
   Unknown stored values and unloaded settings use the defaults. The background
   choice joins the setup highlights registry for 1.4.3; Density
-  is a renamed existing setting and has no New tag. Both appear in diagnostics.
+  is a renamed existing setting (it also tightens playlists and artist lists)
+  and has no New tag. Both appear in diagnostics.
 - Now Playing Background (`now_playing_screen.dart`, `now_playing_artwork_background.dart`):
   Art-Tinted is the existing tint/gradient (solid under Flat). Plain is the
   theme `surface` (black in OLED). Artwork decodes the standard 600 px cover
@@ -767,10 +768,23 @@ target-selection rules.
     anchored popover's black shadow.
   - Decision record:
     [decisions/2026-10-07-colour-styles.md](decisions/2026-10-07-colour-styles.md).
-  - The Use OLED When Dark (Auto only, indented under Theme Mode), Night
-    Schedule (one row of start and end time pills when on) and Flat Surfaces
-    controls live in `appearance_settings_screen.dart`; `app.dart` re-checks
-    the scheduled style when the app resumes.
+  - Settings › Appearance (`appearance_settings_screen.dart`) has four
+    sections under one `AppearanceHeading` (`appearance_layout.dart`):
+    Theme (Theme Mode, Use OLED When Dark in Auto only, Night Schedule),
+    Color (Color Style, Accent Color, then Dynamic Album Color directly under
+    the accent grid, whose note names the switch), Shape & Layout (Flat
+    Surfaces, Corner Style, Artwork Shape with its three selectors, Artwork
+    Size, Density, Artist View Mode) and Now Playing (Now Playing Background).
+    Home Sections, Page Visibility and Desktop Navigation stay collapsed
+    below. Night Schedule shows its explanation while off and the time pills
+    while on; with Night as the chosen style the switch is locked off and says
+    so. `app.dart` re-checks the scheduled style when the app resumes.
+  - Settings and setup share the option widgets and one `AppearanceOptionSet`
+    (`appearance_options.dart`), whose `AppearanceOptionKind` order (OLED,
+    Night Schedule, Flat Surfaces, Corner Style, Density, Now Playing
+    Background) is the relative order in both places. `AppearanceLayout`, an
+    inherited widget, gives every shared control its left gutter (16 in
+    Settings, 0 in setup) so headings and controls share one edge.
 - `navis_tokens.dart`:
   - `NavisSpace` and `NavisRadius` are compile-time spacing and radius
     scales.
@@ -790,9 +804,10 @@ target-selection rules.
     1.5x steps elsewhere; Square uses 4 px controls. Soft and Square add an
     `iconButtonTheme` shaped by `controlShape`, `menuTheme` (md) and
     `snackBarTheme` (sm); play, shuffle, transport and mini-player buttons pass
-    `NavisShapeData.circularIconButtonStyle` (or `CircleBorder`) to stay round. Artwork keeps following Cover Art Shape. Users choose it in Settings > Appearance (after Flat Surfaces, via
-    `CornerStyleOption`) and on the setup Appearance step, whose preview theme
-    uses the draft style.
+    `NavisShapeData.circularIconButtonStyle` (or `CircleBorder`) to stay round. Artwork keeps following Artwork Shape. Users choose it in Settings > Appearance
+    (Shape & Layout, after Flat Surfaces, via `CornerStyleOption`) and on the
+    setup Appearance step under "More appearance options". The setup preview
+    theme uses the draft's color style, Flat Surfaces and Corner Style.
     Screens read radii through `NavisShapeData.of(context)` (named steps,
     `controlAll` for badges/tags, `scaled(n)` for one-off literals that must
     stay identical in `rounded`); circles, dots, drag handles, skeletons and
@@ -806,7 +821,7 @@ target-selection rules.
     `circle`) and the artwork's rendered size to corners with
     `artworkBorderRadius`: rounded is 4 below 40 px, 8 below 96 px and 12
     otherwise, so row thumbnails and cards share one look. `ArtworkShapeRole`
-    names the setting a surface follows (Cover Art Shape for album, song and
+    names the setting a surface follows (Artwork Shape for album, song and
     playlist art, Now Playing Art Shape, Artist Card Shape), and
     `artworkShapeProvider(role)` reads it. `CoverArtImage(shape: role)`
     shapes itself from its width and height; surfaces that clip or decorate
@@ -1258,11 +1273,15 @@ from full settings saves; defaults and resets clear them. The clone-only
 `POST /v1/presentation/setup-highlights/reset` clears the set and both release
 markers in a transaction; the integrations settings dump exposes all three.
 
-The look step shows every appearance option through the same callback-driven
-widgets as Settings › Appearance (`OledForAutoOption`, `NightScheduleSection`,
-`FlatSurfacesOption` in `settings/presentation/appearance_options.dart`), in
-the order Theme Mode, Use OLED When Dark (Auto only), Color Style, Night
-Schedule, Flat Surfaces, then accent. They write only to the draft that Finish
+The look step shows the appearance options through the same callback-driven
+widgets as Settings › Appearance (`settings/presentation/appearance_options.dart`).
+Theme Mode, Color Style and Accent Color are always visible; a "More appearance
+options" group (`SettingsCollapsibleGroup`, children built only while open)
+holds Use OLED When Dark (Auto only), Night Schedule, Flat Surfaces, Corner
+Style, Density and Now Playing Background, in Settings' relative order. It
+starts open when any of them carries a pending tag (OLED only counts in Auto)
+and closed otherwise. The step shows the "Scroll for more" hint like the other
+steps. Choices write only to the draft that Finish
 saves through `SettingsRepository.saveOnboardingChanges`: it compares against
 the hydrated entry snapshot and uses existing targeted DAO writers, preserving
 unchanged fields written elsewhere meanwhile (including desktop volume). Custom
@@ -1270,12 +1289,18 @@ presets and integration switches likewise write only when changed. The preview
 theme mirrors `app.dart`: OLED for OLED mode or Auto with
 OLED When Dark at dark platform brightness, and `flat:` from the draft. The
 night schedule never switches the preview by time. Options whose
-`SetupHighlight` is pending carry a `NewFeatureTag` (`common_widgets/`),
-and Home shows `SetupHighlightsCard` (`HomeNoticeCard`, "New in {version}")
+`SetupHighlight` is pending carry a `NewFeatureTag` (`common_widgets/`).
+`HighlightedAppearanceOption` wraps each tagged option in Settings and setup:
+once at least half of it has been on screen (a `VisibilityDetector`, once per
+screen visit) it calls `markOptionSeen`, so only options the user actually saw
+lose their tag. Hidden options (OLED outside Auto, a closed expander) never
+mark. On Settings home `settingsHasNewOptionsProvider` tags the Appearance and
+Run Quick Customization rows ("Has new options"); OLED does not count while it
+is hidden. Home shows `SetupHighlightsCard` ("New appearance options")
 while `setupHighlightsCardVisibleProvider` is true. Tapping it opens the
 onboarding review without acknowledging anything; its close button only calls
-`dismissCard`. Home shows one notice: the setup card, else the Integrations
-notice, else the What's New row.
+`dismissCard`. Home shows one notice: the Integrations notice, else the setup
+card, else the What's New row.
 
 When a successful required initial-library build or cache renewal immediately
 leads to onboarding, the rebuild route carries only an internal eligibility

@@ -150,7 +150,8 @@ class NavisColorStyleData extends ThemeExtension<NavisColorStyleData> {
   }
 
   /// Veil laid over the blurred cover of the Artwork Now Playing background
-  /// so [surface]'s on-colour text stays readable (WCAG 4.5 on any cover).
+  /// so [surface]'s on-colour text stays readable (aims for 5.0:1, the WCAG
+  /// 4.5:1 minimum plus a margin, on any cover).
   ///
   /// Dark themes darken with [artworkScrim] (OLED heavier, so it still reads
   /// as OLED); light themes wash the cover out with [surface].

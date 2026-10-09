@@ -7,7 +7,7 @@ import 'package:navis/src/features/home/presentation/home_providers.dart';
 import 'package:navis/src/providers/app_providers.dart';
 import 'package:navis/src/theme/artwork_shape.dart';
 
-/// A weekly playlist's cover, shaped by the Cover Art Shape setting:
+/// A weekly playlist's cover, shaped by the Artwork Shape setting:
 /// ListenBrainz's own image when it has one, else [PlaylistCoverMosaic].
 class ListenBrainzPlaylistArtwork extends ConsumerWidget {
   const new({required this.playlist, required this.size, super.key});
@@ -48,7 +48,7 @@ class ListenBrainzPlaylistArtwork extends ConsumerWidget {
 }
 
 /// A virtual playlist's cover: up to four distinct song covers in a grid
-/// (one fills it), shaped by the Cover Art Shape setting, or [fallbackIcon]
+/// (one fills it), shaped by the Artwork Shape setting, or [fallbackIcon]
 /// on the secondary container when there are none. Weekly playlists and
 /// Trending Now share it.
 class PlaylistCoverMosaic extends ConsumerWidget {

@@ -94,10 +94,10 @@ artwork; missing local files use the existing bounded retry path.
 ### New tags in setup
 
 Updated users see "New" on options introduced by the newest eligible setup
-highlight release. The initial 1.4.3 registry includes Color Style, OLED for Auto,
-Night Schedule, Flat Surfaces, Now Playing Background and Corner Style. The
-planned version move to 1.5.0 renames this together with the changelog entry.
-Density is a renamed existing setting, so it has no highlight or New tag.
+highlight release. The initial 1.4.3 registry includes six options: Color Style,
+OLED for Auto, Night Schedule, Flat Surfaces, Now Playing Background and Corner
+Style. The planned version move to 1.5.0 renames this together with the changelog
+entry. Density is a renamed existing setting, so it has no highlight or New tag.
 
 Owner addendum (2026-10-09): tags clear per option after that option has been
 visible. `SetupHighlightsService.markOptionSeen(SetupHighlight)` records its
@@ -113,3 +113,30 @@ Fresh installs suppress tags while onboarding is required; their first Finish or
 Skip acknowledges the release. Required-at-entry is captured when setup hydrates.
 The Home invitation is hidden when no options remain pending and can also be
 dismissed independently via `setup_card_dismissed_release`.
+
+Clearing happens per option: Settings and setup wrap each tagged option in
+`HighlightedAppearanceOption`, which calls `markOptionSeen` once at least half
+of the option has been visible (hidden options and a closed "More appearance
+options" group never count). The Settings home Appearance and Run Quick
+Customization rows show "Has new options" while anything visible is pending;
+Use OLED When Dark does not count outside Auto mode. The Home card is titled
+"New appearance options", and the Integrations notice takes priority over it.
+
+### Corner Style
+
+Corner Style (Rounded, Soft, Square) is a third appearance axis next to color
+style and mode: it changes cards, buttons, sheets and panels but not artwork,
+which follows Artwork Shape. Soft is deliberately distinct from Rounded (14 px
+rounded rectangles instead of pills, larger sheet and dialog radii) so the three
+choices read differently at a glance. Square uses 4 px controls.
+
+### Settings regrouping and setup (2026-10-09)
+
+A UX audit regrouped Settings › Appearance into Theme, Color, Shape & Layout
+and Now Playing under one shared section heading, moved Dynamic Album Color
+under the accent grid it overrides, and moved the former collapsed Cover Art
+Shape group's selectors, renamed Artwork Shape, into Shape & Layout.
+Owner decision for setup: Theme Mode, Color Style and Accent Color stay visible
+and a "More appearance options" group holds the remaining six options, opening
+by itself while any of them is still tagged. Night Schedule is locked off while
+the Night style is chosen, since the style already is the night look.

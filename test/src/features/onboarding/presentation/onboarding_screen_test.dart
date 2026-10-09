@@ -88,6 +88,10 @@ void main() {
   testWidgets('previews appearance changes and exposes detailed crossfade', (
     tester,
   ) async {
+    // Tall enough that the style tiles clear the hint and the action bar.
+    tester.view.physicalSize = const Size(800, 1000);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
