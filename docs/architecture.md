@@ -756,7 +756,9 @@ target-selection rules.
     `NavisShapeData.of(context)`) carries the xs..xl radii and the control
     (button/chip/indicator) corner; component themes and
     `NavisTokens.panelRadius`/`cardRadius` are built from it, and `rounded`
-    leaves Material defaults unset. Artwork keeps following Cover Art Shape.
+    leaves Material defaults unset. Artwork keeps following Cover Art Shape. Users choose it in Settings > Appearance (after Flat Surfaces, via
+    `CornerStyleOption`) and on the setup Appearance step, whose preview theme
+    uses the draft style.
     Screens read radii through `NavisShapeData.of(context)` (named steps,
     `controlAll` for badges/tags, `scaled(n)` for one-off literals that must
     stay identical in `rounded`); circles, dots, drag handles, skeletons and

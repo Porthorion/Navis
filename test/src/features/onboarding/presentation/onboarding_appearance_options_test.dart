@@ -15,6 +15,8 @@ import 'package:navis/src/features/settings/presentation/color_style_selector.da
 import 'package:navis/src/providers/app_providers.dart';
 import 'package:navis/src/routing/app_routes.dart';
 import 'package:navis/src/theme/navis_color_style.dart';
+import 'package:navis/src/theme/navis_corner_style.dart';
+import 'package:navis/src/theme/navis_shape_data.dart';
 import 'package:navis/src/theme/navis_theme.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 
@@ -154,11 +156,13 @@ Future<_Harness> _pump(
 }
 
 void main() {
-  testWidgets('marks all six options New for an updated user', (tester) async {
+  testWidgets('marks all seven options New for an updated user', (
+    tester,
+  ) async {
     await _pump(tester, seed: (d) => d.updateThemeMode('system'));
 
-    expect(find.byType(NewFeatureTag), findsNWidgets(6));
-    expect(find.text('New'), findsNWidgets(6));
+    expect(find.byType(NewFeatureTag), findsNWidgets(7));
+    expect(find.text('New'), findsNWidgets(7));
     expect(
       find.descendant(
         of: find.byType(NewFeatureTag),
@@ -167,7 +171,7 @@ void main() {
               widget is Semantics && widget.properties.label == 'New option',
         ),
       ),
-      findsNWidgets(6),
+      findsNWidgets(7),
     );
   });
 
@@ -177,7 +181,7 @@ void main() {
     await _pump(tester);
 
     expect(find.text('Use OLED When Dark'), findsNothing);
-    expect(find.byType(NewFeatureTag), findsNWidgets(5));
+    expect(find.byType(NewFeatureTag), findsNWidgets(6));
   });
 
   testWidgets('shows no tags on a fresh install', (tester) async {
@@ -200,6 +204,7 @@ void main() {
     await h.tap(find.text('Use OLED When Dark'));
     await h.tap(find.text('Night Schedule'));
     await h.tap(find.text('Flat Surfaces'));
+    await h.tap(find.text('Square'));
     await h.tap(find.text('Artwork'));
     await h.tap(find.text('Compact'));
     expect(find.byType(ActionChip), findsNWidgets(2));
@@ -209,6 +214,7 @@ void main() {
     expect(row.oledForAuto, isFalse);
     expect(row.nightScheduleEnabled, isFalse);
     expect(row.flatSurfaces, isFalse);
+    expect(row.cornerStyle, 'rounded');
     expect(row.nowPlayingBackground, 'tinted');
     expect(row.homeDensity, 'comfortable');
 
@@ -218,6 +224,7 @@ void main() {
     expect(row.nightScheduleEnabled, isTrue);
     expect(row.nightScheduleStartMinutes, 1320);
     expect(row.flatSurfaces, isTrue);
+    expect(row.cornerStyle, 'square');
     expect(row.nowPlayingBackground, 'artwork');
     expect(row.homeDensity, 'compact');
     expect(row.setupHighlightsSeenRelease, '1.4.3');
@@ -264,6 +271,47 @@ void main() {
     expect(h.previewTheme.shadowColor, isNot(Colors.transparent));
     await h.tap(find.text('Flat Surfaces'));
     expect(h.previewTheme.shadowColor, Colors.transparent);
+  });
+
+  for (final style in NavisCornerStyle.values) {
+    testWidgets(
+      'Corner Style ${style.name} drafts, previews and saves on Finish',
+      (tester) async {
+        final h = await _pump(tester);
+        final label = switch (style) {
+          NavisCornerStyle.rounded => 'Rounded',
+          NavisCornerStyle.soft => 'Soft',
+          NavisCornerStyle.square => 'Square',
+        };
+        // Pick another style first so every option is a real change.
+        await h.tap(
+          find.text(style == NavisCornerStyle.soft ? 'Square' : 'Soft'),
+        );
+        await h.tap(find.text(label));
+
+        expect(h.previewTheme.extension<NavisShapeData>()?.style, style);
+        expect((await h.row()).cornerStyle, 'rounded');
+        expect(find.byType(NewFeatureTag), findsWidgets);
+
+        await h.finish();
+        expect((await h.row()).cornerStyle, style.name);
+      },
+    );
+  }
+
+  testWidgets('Corner Style is tagged New and Finish marks the release seen', (
+    tester,
+  ) async {
+    final h = await _pump(tester);
+    final tag = find.descendant(
+      of: find
+          .ancestor(of: find.text('Corner Style'), matching: find.byType(Row))
+          .first,
+      matching: find.byType(NewFeatureTag),
+    );
+    expect(tag, findsOneWidget);
+    await h.finish();
+    expect(await h.row().then((r) => r.setupHighlightsSeenRelease), '1.4.3');
   });
 
   testWidgets('a night schedule does not switch the preview by time', (

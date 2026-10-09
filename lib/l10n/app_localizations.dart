@@ -5951,6 +5951,54 @@ abstract class AppLocalizations {
   /// **'Solid colours without glows, gradients or shadows.'**
   String get appearanceFlatSurfacesSub;
 
+  /// No description provided for @appearanceCornerStyleLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Corner Style'**
+  String get appearanceCornerStyleLabel;
+
+  /// No description provided for @appearanceCornerStyleRounded.
+  ///
+  /// In en, this message translates to:
+  /// **'Rounded'**
+  String get appearanceCornerStyleRounded;
+
+  /// No description provided for @appearanceCornerStyleSoft.
+  ///
+  /// In en, this message translates to:
+  /// **'Soft'**
+  String get appearanceCornerStyleSoft;
+
+  /// No description provided for @appearanceCornerStyleSquare.
+  ///
+  /// In en, this message translates to:
+  /// **'Square'**
+  String get appearanceCornerStyleSquare;
+
+  /// No description provided for @appearanceCornerStyleRoundedSub.
+  ///
+  /// In en, this message translates to:
+  /// **'Gently rounded cards and buttons.'**
+  String get appearanceCornerStyleRoundedSub;
+
+  /// No description provided for @appearanceCornerStyleSoftSub.
+  ///
+  /// In en, this message translates to:
+  /// **'Rounder, softer cards and pill buttons.'**
+  String get appearanceCornerStyleSoftSub;
+
+  /// No description provided for @appearanceCornerStyleSquareSub.
+  ///
+  /// In en, this message translates to:
+  /// **'Crisp corners on cards, buttons and chips.'**
+  String get appearanceCornerStyleSquareSub;
+
+  /// No description provided for @appearanceCornerStyleArtworkNote.
+  ///
+  /// In en, this message translates to:
+  /// **'Artwork follows Cover Art Shape.'**
+  String get appearanceCornerStyleArtworkNote;
+
   /// No description provided for @appearanceDynamicAlbumColorLabel.
   ///
   /// In en, this message translates to:

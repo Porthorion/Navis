@@ -5,6 +5,8 @@ import 'package:navis/src/features/settings/domain/night_schedule.dart';
 import 'package:navis/src/features/settings/domain/now_playing_background.dart';
 import 'package:navis/src/theme/motion_policy.dart';
 import 'package:navis/src/theme/navis_color_style.dart';
+import 'package:navis/src/theme/navis_corner_style.dart';
+import 'package:navis/src/theme/navis_shape_data.dart';
 
 /// Left inset that marks an option as depending on the control above it.
 const double appearanceSubOptionInset = 32;
@@ -468,6 +470,76 @@ class DensityOption extends StatelessWidget {
           ),
         ],
         selected: <NavisDensity>{value},
+        onSelectionChanged: (selection) => onChanged(selection.first),
+      ),
+    );
+  }
+}
+
+/// Corner Style: Rounded, Soft or Square corners for cards, buttons and
+/// panels, with a small corner glyph on each choice. Shared by Appearance
+/// settings and setup.
+class CornerStyleOption extends StatelessWidget {
+  const new({
+    required this.value,
+    required this.onChanged,
+    this.adornment,
+    this.titleStyle,
+    super.key,
+  });
+
+  final NavisCornerStyle value;
+  final ValueChanged<NavisCornerStyle> onChanged;
+
+  /// Shown beside the title, for example a "New" tag.
+  final Widget? adornment;
+  final TextStyle? titleStyle;
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
+    final scheme = Theme.of(context).colorScheme;
+    String name(NavisCornerStyle style) => switch (style) {
+      NavisCornerStyle.rounded => l10n.appearanceCornerStyleRounded,
+      NavisCornerStyle.soft => l10n.appearanceCornerStyleSoft,
+      NavisCornerStyle.square => l10n.appearanceCornerStyleSquare,
+    };
+    // The glyph is a 22 px tile, so the style's md radius is scaled to it.
+    Widget glyph(NavisCornerStyle style) => DecoratedBox(
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(
+          NavisShapeData.forStyle(style).md / 2.5,
+        ),
+        border: Border.all(color: scheme.onSurface, width: 2),
+      ),
+      child: const SizedBox(width: 22, height: 22),
+    );
+    return _AppearanceChoiceSection(
+      title: l10n.appearanceCornerStyleLabel,
+      adornment: adornment,
+      titleStyle: titleStyle,
+      description:
+          '${switch (value) {
+            NavisCornerStyle.rounded => l10n.appearanceCornerStyleRoundedSub,
+            NavisCornerStyle.soft => l10n.appearanceCornerStyleSoftSub,
+            NavisCornerStyle.square => l10n.appearanceCornerStyleSquareSub,
+          }}\n${l10n.appearanceCornerStyleArtworkNote}',
+      selector: SegmentedButton<NavisCornerStyle>(
+        key: const ValueKey<String>('cornerStyleSelector'),
+        showSelectedIcon: false,
+        segments: <ButtonSegment<NavisCornerStyle>>[
+          for (final style in NavisCornerStyle.values)
+            ButtonSegment<NavisCornerStyle>(
+              value: style,
+              icon: glyph(style),
+              label: Text(
+                name(style),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+        ],
+        selected: <NavisCornerStyle>{value},
         onSelectionChanged: (selection) => onChanged(selection.first),
       ),
     );

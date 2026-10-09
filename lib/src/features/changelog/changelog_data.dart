@@ -129,6 +129,9 @@ const List<ChangelogVersion> changelogs = [
     version: '1.4.3',
     entries: [
       ChangelogEntry(
+        'Appearance has a Corner Style setting: Rounded, Soft or Square corners for cards, buttons and panels',
+      ),
+      ChangelogEntry(
         'Appearance has a Now Playing Background setting: Art-Tinted keeps the colour from the cover, Artwork shows the blurred cover itself, and Plain uses your theme background',
       ),
       ChangelogEntry(

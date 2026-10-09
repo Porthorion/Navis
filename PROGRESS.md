@@ -14,6 +14,7 @@ Last updated: 2026-10-02
 - ACP status values: `backlog`, `ready`, `in_progress`, `blocked`, `done`.
 
 ## Current Focus
+- [x] Corner Style UI — 2026-10-09 (`CornerStyleOption` in Appearance settings and setup after Flat Surfaces, New tags, setup preview uses the draft style, changelog line; focused widget tests added)
 - [x] Persisted Corner Style backend/state — 2026-10-09 (schema 97, settings/model/DAO/repository, derived provider, setup registry and diagnostics; 179 focused migration/DAO/repository/provider/registry/diagnostics tests passed; widgets, runtime and full gate remain coordinator-owned).
 - [x] Now Playing Background and Density UI — 2026-10-09 (Appearance/setup controls, Artwork blurred-cover layer, `NavisDensityScope` for track/library/artist rows, Settings New tags; focused widget tests only — runtime, screenshots and full gate remain coordinator-owned).
 - [x] Now Playing background and app-wide Density backend/state — 2026-10-09 (schema 96, legacy tint/home-density compatibility, registry and diagnostics, focused migration/DAO/repository/enum/provider tests; widgets, runtime and full gate remain coordinator-owned).
