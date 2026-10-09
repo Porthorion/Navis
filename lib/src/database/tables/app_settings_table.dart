@@ -344,6 +344,9 @@ class AppSettingsTable extends Table {
   BoolColumn get integrationsNoticeDismissed =>
       boolean().withDefault(const Constant(false))();
 
+  /// JSON array of setup highlight storage keys already shown to the user.
+  TextColumn get setupHighlightsSeen => text().nullable()();
+
   /// Latest setup highlight release acknowledged by completing setup.
   TextColumn get setupHighlightsSeenRelease => text().nullable()();
 

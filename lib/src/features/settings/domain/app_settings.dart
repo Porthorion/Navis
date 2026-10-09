@@ -124,6 +124,7 @@ class AppSettingsModel {
     this.externalIntegrationsEnabled = true,
     this.disabledIntegrations = '[]',
     this.integrationsNoticeDismissed = false,
+    this.setupHighlightsSeen = const <String>{},
     this.setupHighlightsSeenRelease,
     this.setupCardDismissedRelease,
     this.customVoyageServers = const <CustomVoyageServer>[],
@@ -216,6 +217,7 @@ class AppSettingsModel {
       externalIntegrationsEnabled = true,
       disabledIntegrations = '[]',
       integrationsNoticeDismissed = false,
+      setupHighlightsSeen = const <String>{},
       setupHighlightsSeenRelease = null,
       setupCardDismissedRelease = null,
       customVoyageServers = const <CustomVoyageServer>[],
@@ -381,6 +383,9 @@ class AppSettingsModel {
   /// Whether the one-time Integrations notice on Home was dismissed.
   final bool integrationsNoticeDismissed;
 
+  /// Setup highlight storage keys already shown, written only via targeted writes.
+  final Set<String> setupHighlightsSeen;
+
   /// Latest setup highlight release acknowledged by Finish (or first-run Skip).
   ///
   /// Written only through targeted writers, never by a full settings save.
@@ -491,6 +496,7 @@ class AppSettingsModel {
     bool? externalIntegrationsEnabled,
     String? disabledIntegrations,
     bool? integrationsNoticeDismissed,
+    Set<String>? setupHighlightsSeen,
     String? setupHighlightsSeenRelease,
     String? setupCardDismissedRelease,
     bool clearSetupHighlightsSeenRelease = false,
@@ -652,6 +658,7 @@ class AppSettingsModel {
       disabledIntegrations: disabledIntegrations ?? this.disabledIntegrations,
       integrationsNoticeDismissed:
           integrationsNoticeDismissed ?? this.integrationsNoticeDismissed,
+      setupHighlightsSeen: setupHighlightsSeen ?? this.setupHighlightsSeen,
       setupHighlightsSeenRelease: clearSetupHighlightsSeenRelease
           ? null
           : setupHighlightsSeenRelease ?? this.setupHighlightsSeenRelease,

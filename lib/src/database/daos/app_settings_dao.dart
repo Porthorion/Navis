@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:drift/drift.dart';
 import 'package:meta/meta.dart' show visibleForTesting;
 import 'package:navis/src/database/navis_database.dart';
@@ -396,6 +398,9 @@ class AppSettingsDao extends DatabaseAccessor<NavisDatabase>
   }
 
   Future<void> resetDefaults() async {
+    await clearSetupHighlightsSeen();
+    await updateSetupHighlightsSeenRelease(null);
+    await updateSetupCardDismissedRelease(null);
     await updatePlaybackAdjustments(
       speed: 1,
       pitchSemitones: 0,
@@ -487,6 +492,71 @@ class AppSettingsDao extends DatabaseAccessor<NavisDatabase>
       voyageAutoFollowHost: defaultVoyageAutoFollowHost,
     );
   }
+
+  /// Writes changed setup listening and queue options without a full-row save.
+  Future<void> updateSetupListeningPreferences({
+    Value<int?> wifiMaxBitRate = const Value.absent(),
+    Value<String?> wifiFormat = const Value.absent(),
+    Value<int?> cellularMaxBitRate = const Value.absent(),
+    Value<String?> cellularFormat = const Value.absent(),
+    Value<bool> cachedPlaybackFirst = const Value.absent(),
+    Value<bool> scrobbleEnabled = const Value.absent(),
+    Value<bool> gaplessEnabled = const Value.absent(),
+    Value<bool> crossfadeEnabled = const Value.absent(),
+    Value<int> crossfadeDurationSeconds = const Value.absent(),
+    Value<String> crossfadeType = const Value.absent(),
+    Value<bool> albumQueueEnabled = const Value.absent(),
+    Value<bool> likedQueueEnabled = const Value.absent(),
+  }) => (update(appSettingsTable)..where((t) => t.id.equals(primarySettingsId)))
+      .write(
+        AppSettingsTableCompanion(
+          wifiMaxBitRate: wifiMaxBitRate,
+          wifiFormat: wifiFormat,
+          cellularMaxBitRate: cellularMaxBitRate,
+          cellularFormat: cellularFormat,
+          cachedPlaybackFirst: cachedPlaybackFirst,
+          scrobbleEnabled: scrobbleEnabled,
+          gaplessEnabled: gaplessEnabled,
+          crossfadeEnabled: crossfadeEnabled,
+          crossfadeDurationSeconds: crossfadeDurationSeconds,
+          crossfadeType: crossfadeType,
+          albumQueueEnabled: albumQueueEnabled,
+          likedQueueEnabled: likedQueueEnabled,
+          updatedAt: Value(DateTime.now()),
+        ),
+      );
+
+  /// Clears only per-option setup acknowledgements, for reset and diagnostics.
+  Future<void> clearSetupHighlightsSeen() =>
+      (update(
+        appSettingsTable,
+      )..where((t) => t.id.equals(primarySettingsId))).write(
+        AppSettingsTableCompanion(
+          setupHighlightsSeen: const Value(null),
+          updatedAt: Value(DateTime.now()),
+        ),
+      );
+
+  /// Adds one seen option atomically without overwriting simultaneous options.
+  Future<void> markSetupHighlightSeen(String key) => transaction(() async {
+    final row = await getSettings();
+    final seen = <String>{};
+    try {
+      final decoded = jsonDecode(row?.setupHighlightsSeen ?? '[]');
+      if (decoded is List) seen.addAll(decoded.whereType<String>());
+    } on FormatException {
+      // An invalid legacy value has no acknowledged options.
+    }
+    if (!seen.add(key)) return;
+    await (update(
+      appSettingsTable,
+    )..where((t) => t.id.equals(primarySettingsId))).write(
+      AppSettingsTableCompanion(
+        setupHighlightsSeen: Value(jsonEncode(seen.toList())),
+        updatedAt: Value(DateTime.now()),
+      ),
+    );
+  });
 
   /// Writes only the acknowledged setup release; null clears it.
   ///

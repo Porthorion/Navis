@@ -1774,6 +1774,17 @@ class $AppSettingsTableTable extends AppSettingsTable
         ),
         defaultValue: const Constant(false),
       );
+  static const VerificationMeta _setupHighlightsSeenMeta =
+      const VerificationMeta('setupHighlightsSeen');
+  @override
+  late final GeneratedColumn<String> setupHighlightsSeen =
+      GeneratedColumn<String>(
+        'setup_highlights_seen',
+        aliasedName,
+        true,
+        type: DriftSqlType.string,
+        requiredDuringInsert: false,
+      );
   static const VerificationMeta _setupHighlightsSeenReleaseMeta =
       const VerificationMeta('setupHighlightsSeenRelease');
   @override
@@ -1912,6 +1923,7 @@ class $AppSettingsTableTable extends AppSettingsTable
     externalIntegrationsEnabled,
     disabledIntegrations,
     integrationsNoticeDismissed,
+    setupHighlightsSeen,
     setupHighlightsSeenRelease,
     setupCardDismissedRelease,
     lastFullSyncAppBuild,
@@ -2736,6 +2748,15 @@ class $AppSettingsTableTable extends AppSettingsTable
         ),
       );
     }
+    if (data.containsKey('setup_highlights_seen')) {
+      context.handle(
+        _setupHighlightsSeenMeta,
+        setupHighlightsSeen.isAcceptableOrUnknown(
+          data['setup_highlights_seen']!,
+          _setupHighlightsSeenMeta,
+        ),
+      );
+    }
     if (data.containsKey('setup_highlights_seen_release')) {
       context.handle(
         _setupHighlightsSeenReleaseMeta,
@@ -3148,6 +3169,10 @@ class $AppSettingsTableTable extends AppSettingsTable
         DriftSqlType.bool,
         data['${effectivePrefix}integrations_notice_dismissed'],
       )!,
+      setupHighlightsSeen: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}setup_highlights_seen'],
+      ),
       setupHighlightsSeenRelease: attachedDatabase.typeMapping.read(
         DriftSqlType.string,
         data['${effectivePrefix}setup_highlights_seen_release'],
@@ -3441,6 +3466,9 @@ class AppSettingsTableData extends DataClass
   /// True once the one-time Integrations notice on Home was dismissed.
   final bool integrationsNoticeDismissed;
 
+  /// JSON array of setup highlight storage keys already shown to the user.
+  final String? setupHighlightsSeen;
+
   /// Latest setup highlight release acknowledged by completing setup.
   final String? setupHighlightsSeenRelease;
 
@@ -3545,6 +3573,7 @@ class AppSettingsTableData extends DataClass
     required this.externalIntegrationsEnabled,
     required this.disabledIntegrations,
     required this.integrationsNoticeDismissed,
+    this.setupHighlightsSeen,
     this.setupHighlightsSeenRelease,
     this.setupCardDismissedRelease,
     this.lastFullSyncAppBuild,
@@ -3711,6 +3740,9 @@ class AppSettingsTableData extends DataClass
     map['integrations_notice_dismissed'] = Variable<bool>(
       integrationsNoticeDismissed,
     );
+    if (!nullToAbsent || setupHighlightsSeen != null) {
+      map['setup_highlights_seen'] = Variable<String>(setupHighlightsSeen);
+    }
     if (!nullToAbsent || setupHighlightsSeenRelease != null) {
       map['setup_highlights_seen_release'] = Variable<String>(
         setupHighlightsSeenRelease,
@@ -3858,6 +3890,9 @@ class AppSettingsTableData extends DataClass
       externalIntegrationsEnabled: Value(externalIntegrationsEnabled),
       disabledIntegrations: Value(disabledIntegrations),
       integrationsNoticeDismissed: Value(integrationsNoticeDismissed),
+      setupHighlightsSeen: setupHighlightsSeen == null && nullToAbsent
+          ? const Value.absent()
+          : Value(setupHighlightsSeen),
       setupHighlightsSeenRelease:
           setupHighlightsSeenRelease == null && nullToAbsent
           ? const Value.absent()
@@ -4057,6 +4092,9 @@ class AppSettingsTableData extends DataClass
       integrationsNoticeDismissed: serializer.fromJson<bool>(
         json['integrationsNoticeDismissed'],
       ),
+      setupHighlightsSeen: serializer.fromJson<String?>(
+        json['setupHighlightsSeen'],
+      ),
       setupHighlightsSeenRelease: serializer.fromJson<String?>(
         json['setupHighlightsSeenRelease'],
       ),
@@ -4209,6 +4247,7 @@ class AppSettingsTableData extends DataClass
       'integrationsNoticeDismissed': serializer.toJson<bool>(
         integrationsNoticeDismissed,
       ),
+      'setupHighlightsSeen': serializer.toJson<String?>(setupHighlightsSeen),
       'setupHighlightsSeenRelease': serializer.toJson<String?>(
         setupHighlightsSeenRelease,
       ),
@@ -4313,6 +4352,7 @@ class AppSettingsTableData extends DataClass
     bool? externalIntegrationsEnabled,
     String? disabledIntegrations,
     bool? integrationsNoticeDismissed,
+    Value<String?> setupHighlightsSeen = const Value.absent(),
     Value<String?> setupHighlightsSeenRelease = const Value.absent(),
     Value<String?> setupCardDismissedRelease = const Value.absent(),
     Value<String?> lastFullSyncAppBuild = const Value.absent(),
@@ -4463,6 +4503,9 @@ class AppSettingsTableData extends DataClass
     disabledIntegrations: disabledIntegrations ?? this.disabledIntegrations,
     integrationsNoticeDismissed:
         integrationsNoticeDismissed ?? this.integrationsNoticeDismissed,
+    setupHighlightsSeen: setupHighlightsSeen.present
+        ? setupHighlightsSeen.value
+        : this.setupHighlightsSeen,
     setupHighlightsSeenRelease: setupHighlightsSeenRelease.present
         ? setupHighlightsSeenRelease.value
         : this.setupHighlightsSeenRelease,
@@ -4746,6 +4789,9 @@ class AppSettingsTableData extends DataClass
       integrationsNoticeDismissed: data.integrationsNoticeDismissed.present
           ? data.integrationsNoticeDismissed.value
           : this.integrationsNoticeDismissed,
+      setupHighlightsSeen: data.setupHighlightsSeen.present
+          ? data.setupHighlightsSeen.value
+          : this.setupHighlightsSeen,
       setupHighlightsSeenRelease: data.setupHighlightsSeenRelease.present
           ? data.setupHighlightsSeenRelease.value
           : this.setupHighlightsSeenRelease,
@@ -4862,6 +4908,7 @@ class AppSettingsTableData extends DataClass
           ..write('externalIntegrationsEnabled: $externalIntegrationsEnabled, ')
           ..write('disabledIntegrations: $disabledIntegrations, ')
           ..write('integrationsNoticeDismissed: $integrationsNoticeDismissed, ')
+          ..write('setupHighlightsSeen: $setupHighlightsSeen, ')
           ..write('setupHighlightsSeenRelease: $setupHighlightsSeenRelease, ')
           ..write('setupCardDismissedRelease: $setupCardDismissedRelease, ')
           ..write('lastFullSyncAppBuild: $lastFullSyncAppBuild, ')
@@ -4964,6 +5011,7 @@ class AppSettingsTableData extends DataClass
     externalIntegrationsEnabled,
     disabledIntegrations,
     integrationsNoticeDismissed,
+    setupHighlightsSeen,
     setupHighlightsSeenRelease,
     setupCardDismissedRelease,
     lastFullSyncAppBuild,
@@ -5073,6 +5121,7 @@ class AppSettingsTableData extends DataClass
           other.disabledIntegrations == this.disabledIntegrations &&
           other.integrationsNoticeDismissed ==
               this.integrationsNoticeDismissed &&
+          other.setupHighlightsSeen == this.setupHighlightsSeen &&
           other.setupHighlightsSeenRelease == this.setupHighlightsSeenRelease &&
           other.setupCardDismissedRelease == this.setupCardDismissedRelease &&
           other.lastFullSyncAppBuild == this.lastFullSyncAppBuild &&
@@ -5172,6 +5221,7 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
   final Value<bool> externalIntegrationsEnabled;
   final Value<String> disabledIntegrations;
   final Value<bool> integrationsNoticeDismissed;
+  final Value<String?> setupHighlightsSeen;
   final Value<String?> setupHighlightsSeenRelease;
   final Value<String?> setupCardDismissedRelease;
   final Value<String?> lastFullSyncAppBuild;
@@ -5269,6 +5319,7 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
     this.externalIntegrationsEnabled = const Value.absent(),
     this.disabledIntegrations = const Value.absent(),
     this.integrationsNoticeDismissed = const Value.absent(),
+    this.setupHighlightsSeen = const Value.absent(),
     this.setupHighlightsSeenRelease = const Value.absent(),
     this.setupCardDismissedRelease = const Value.absent(),
     this.lastFullSyncAppBuild = const Value.absent(),
@@ -5367,6 +5418,7 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
     this.externalIntegrationsEnabled = const Value.absent(),
     this.disabledIntegrations = const Value.absent(),
     this.integrationsNoticeDismissed = const Value.absent(),
+    this.setupHighlightsSeen = const Value.absent(),
     this.setupHighlightsSeenRelease = const Value.absent(),
     this.setupCardDismissedRelease = const Value.absent(),
     this.lastFullSyncAppBuild = const Value.absent(),
@@ -5465,6 +5517,7 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
     Expression<bool>? externalIntegrationsEnabled,
     Expression<String>? disabledIntegrations,
     Expression<bool>? integrationsNoticeDismissed,
+    Expression<String>? setupHighlightsSeen,
     Expression<String>? setupHighlightsSeenRelease,
     Expression<String>? setupCardDismissedRelease,
     Expression<String>? lastFullSyncAppBuild,
@@ -5610,6 +5663,8 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
         'disabled_integrations': disabledIntegrations,
       if (integrationsNoticeDismissed != null)
         'integrations_notice_dismissed': integrationsNoticeDismissed,
+      if (setupHighlightsSeen != null)
+        'setup_highlights_seen': setupHighlightsSeen,
       if (setupHighlightsSeenRelease != null)
         'setup_highlights_seen_release': setupHighlightsSeenRelease,
       if (setupCardDismissedRelease != null)
@@ -5713,6 +5768,7 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
     Value<bool>? externalIntegrationsEnabled,
     Value<String>? disabledIntegrations,
     Value<bool>? integrationsNoticeDismissed,
+    Value<String?>? setupHighlightsSeen,
     Value<String?>? setupHighlightsSeenRelease,
     Value<String?>? setupCardDismissedRelease,
     Value<String?>? lastFullSyncAppBuild,
@@ -5839,6 +5895,7 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
       disabledIntegrations: disabledIntegrations ?? this.disabledIntegrations,
       integrationsNoticeDismissed:
           integrationsNoticeDismissed ?? this.integrationsNoticeDismissed,
+      setupHighlightsSeen: setupHighlightsSeen ?? this.setupHighlightsSeen,
       setupHighlightsSeenRelease:
           setupHighlightsSeenRelease ?? this.setupHighlightsSeenRelease,
       setupCardDismissedRelease:
@@ -6197,6 +6254,11 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
         integrationsNoticeDismissed.value,
       );
     }
+    if (setupHighlightsSeen.present) {
+      map['setup_highlights_seen'] = Variable<String>(
+        setupHighlightsSeen.value,
+      );
+    }
     if (setupHighlightsSeenRelease.present) {
       map['setup_highlights_seen_release'] = Variable<String>(
         setupHighlightsSeenRelease.value,
@@ -6321,6 +6383,7 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
           ..write('externalIntegrationsEnabled: $externalIntegrationsEnabled, ')
           ..write('disabledIntegrations: $disabledIntegrations, ')
           ..write('integrationsNoticeDismissed: $integrationsNoticeDismissed, ')
+          ..write('setupHighlightsSeen: $setupHighlightsSeen, ')
           ..write('setupHighlightsSeenRelease: $setupHighlightsSeenRelease, ')
           ..write('setupCardDismissedRelease: $setupCardDismissedRelease, ')
           ..write('lastFullSyncAppBuild: $lastFullSyncAppBuild, ')
@@ -35943,6 +36006,7 @@ typedef $$AppSettingsTableTableCreateCompanionBuilder =
       Value<bool> externalIntegrationsEnabled,
       Value<String> disabledIntegrations,
       Value<bool> integrationsNoticeDismissed,
+      Value<String?> setupHighlightsSeen,
       Value<String?> setupHighlightsSeenRelease,
       Value<String?> setupCardDismissedRelease,
       Value<String?> lastFullSyncAppBuild,
@@ -36042,6 +36106,7 @@ typedef $$AppSettingsTableTableUpdateCompanionBuilder =
       Value<bool> externalIntegrationsEnabled,
       Value<String> disabledIntegrations,
       Value<bool> integrationsNoticeDismissed,
+      Value<String?> setupHighlightsSeen,
       Value<String?> setupHighlightsSeenRelease,
       Value<String?> setupCardDismissedRelease,
       Value<String?> lastFullSyncAppBuild,
@@ -36515,6 +36580,11 @@ class $$AppSettingsTableTableFilterComposer
 
   ColumnFilters<bool> get integrationsNoticeDismissed => $composableBuilder(
     column: $table.integrationsNoticeDismissed,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get setupHighlightsSeen => $composableBuilder(
+    column: $table.setupHighlightsSeen,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -37010,6 +37080,11 @@ class $$AppSettingsTableTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<String> get setupHighlightsSeen => $composableBuilder(
+    column: $table.setupHighlightsSeen,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<String> get setupHighlightsSeenRelease => $composableBuilder(
     column: $table.setupHighlightsSeenRelease,
     builder: (column) => ColumnOrderings(column),
@@ -37494,6 +37569,11 @@ class $$AppSettingsTableTableAnnotationComposer
     builder: (column) => column,
   );
 
+  GeneratedColumn<String> get setupHighlightsSeen => $composableBuilder(
+    column: $table.setupHighlightsSeen,
+    builder: (column) => column,
+  );
+
   GeneratedColumn<String> get setupHighlightsSeenRelease => $composableBuilder(
     column: $table.setupHighlightsSeenRelease,
     builder: (column) => column,
@@ -37646,6 +37726,7 @@ class $$AppSettingsTableTableTableManager
                 Value<bool> externalIntegrationsEnabled = const Value.absent(),
                 Value<String> disabledIntegrations = const Value.absent(),
                 Value<bool> integrationsNoticeDismissed = const Value.absent(),
+                Value<String?> setupHighlightsSeen = const Value.absent(),
                 Value<String?> setupHighlightsSeenRelease =
                     const Value.absent(),
                 Value<String?> setupCardDismissedRelease = const Value.absent(),
@@ -37745,6 +37826,7 @@ class $$AppSettingsTableTableTableManager
                 externalIntegrationsEnabled: externalIntegrationsEnabled,
                 disabledIntegrations: disabledIntegrations,
                 integrationsNoticeDismissed: integrationsNoticeDismissed,
+                setupHighlightsSeen: setupHighlightsSeen,
                 setupHighlightsSeenRelease: setupHighlightsSeenRelease,
                 setupCardDismissedRelease: setupCardDismissedRelease,
                 lastFullSyncAppBuild: lastFullSyncAppBuild,
@@ -37848,6 +37930,7 @@ class $$AppSettingsTableTableTableManager
                 Value<bool> externalIntegrationsEnabled = const Value.absent(),
                 Value<String> disabledIntegrations = const Value.absent(),
                 Value<bool> integrationsNoticeDismissed = const Value.absent(),
+                Value<String?> setupHighlightsSeen = const Value.absent(),
                 Value<String?> setupHighlightsSeenRelease =
                     const Value.absent(),
                 Value<String?> setupCardDismissedRelease = const Value.absent(),
@@ -37947,6 +38030,7 @@ class $$AppSettingsTableTableTableManager
                 externalIntegrationsEnabled: externalIntegrationsEnabled,
                 disabledIntegrations: disabledIntegrations,
                 integrationsNoticeDismissed: integrationsNoticeDismissed,
+                setupHighlightsSeen: setupHighlightsSeen,
                 setupHighlightsSeenRelease: setupHighlightsSeenRelease,
                 setupCardDismissedRelease: setupCardDismissedRelease,
                 lastFullSyncAppBuild: lastFullSyncAppBuild,

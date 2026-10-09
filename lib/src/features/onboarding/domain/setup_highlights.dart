@@ -8,18 +8,21 @@ enum SetupHighlight {
   nightSchedule('1.4.3'),
   flatSurfaces('1.4.3'),
   nowPlayingBackground('1.4.3'),
-  cornerStyle('1.4.3'),
-  density('1.4.3');
+  cornerStyle('1.4.3');
 
   new(this.since);
 
   /// Release that introduced this setup option.
   final String since;
+
+  /// Stable key stored in the seen-options JSON array.
+  String get storageKey => name;
 }
 
 /// Newest highlight release at or before [appVersion], ignoring build suffixes.
 ///
-/// A later major without its own highlights clears the previous major's tags.
+/// Tags survive the next minor release, then expire; a new major also clears
+/// them unless it introduces its own highlights.
 String? setupWhatsNewRelease(String appVersion) {
   final app = parseSemver(appVersion);
   if (app == null) return null;
@@ -33,7 +36,11 @@ String? setupWhatsNewRelease(String appVersion) {
       newestParts = parts;
     }
   }
-  if (newestParts == null || app.first > newestParts.first) return null;
+  if (newestParts == null ||
+      app.first > newestParts.first ||
+      app[1] > newestParts[1] + 1) {
+    return null;
+  }
   return newest;
 }
 

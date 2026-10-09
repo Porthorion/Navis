@@ -15,6 +15,130 @@ import 'package:sqlite3/sqlite3.dart';
 import '../../../helpers/test_database.dart';
 
 void main() {
+  for (final from in [92, 93, 94, 95, 96]) {
+    for (final partial in [false, true]) {
+      test(
+        'guarded $from to 97 ${partial ? 'partial' : 'complete'} upgrade',
+        () async {
+          final directory = Directory.systemTemp.createTempSync('navis_92_97_');
+          final file = File(p.join(directory.path, 'fixture.sqlite'));
+          addTearDown(() => directory.deleteSync(recursive: true));
+          final seed = createTestDatabase(file: file);
+          await seed.appSettingsDao.getSettings();
+          await seed.appSettingsDao.updateColorStyle('pastel');
+          await seed.appSettingsDao.updateOledForAuto(enabled: true);
+          await seed.appSettingsDao.updateFlatSurfaces(enabled: true);
+          await seed.appSettingsDao.updateNightSchedule(
+            enabled: true,
+            startMinutes: 1000,
+            endMinutes: 300,
+          );
+          await seed.appSettingsDao.updateSetupHighlightsSeenRelease('1.4.3');
+          await seed.appSettingsDao.updateSetupCardDismissedRelease('1.4.3');
+          await seed.appSettingsDao.markSetupHighlightSeen('colorStyle');
+          await seed.appSettingsDao.updateNowPlayingBackground('artwork');
+          await seed.appSettingsDao.updateCornerStyle('soft');
+          await seed.appSettingsDao.updateDesktopPlaybackVolume(
+            volume: 0.4,
+            lastAudibleVolume: 0.4,
+          );
+          await seed.close();
+          const introduced = <String, int>{
+            'color_style': 93,
+            'oled_for_auto': 94,
+            'night_schedule_enabled': 94,
+            'night_schedule_start_minutes': 94,
+            'night_schedule_end_minutes': 94,
+            'flat_surfaces': 94,
+            'setup_highlights_seen_release': 95,
+            'setup_card_dismissed_release': 95,
+            'now_playing_background': 96,
+            'corner_style': 97,
+            'setup_highlights_seen': 97,
+          };
+          final removed = <String>{};
+          final raw = sqlite3.open(file.path);
+          try {
+            var index = 0;
+            for (final entry in introduced.entries) {
+              if (entry.value > from && (!partial || index.isEven)) {
+                raw.execute(
+                  'ALTER TABLE app_settings DROP COLUMN ${entry.key}',
+                );
+                removed.add(entry.key);
+              }
+              index++;
+            }
+            raw.execute('PRAGMA user_version = $from');
+          } finally {
+            raw.close();
+          }
+          final upgraded = createTestDatabase(file: file);
+          final defaults = <String, Object?>{
+            'color_style': 'neutral',
+            'oled_for_auto': 0,
+            'night_schedule_enabled': 0,
+            'night_schedule_start_minutes': 1320,
+            'night_schedule_end_minutes': 420,
+            'flat_surfaces': 0,
+            'setup_highlights_seen_release': null,
+            'setup_card_dismissed_release': null,
+            'now_playing_background': 'tinted',
+            'corner_style': 'rounded',
+            'setup_highlights_seen': null,
+          };
+          final saved = <String, Object?>{
+            'color_style': 'pastel',
+            'oled_for_auto': 1,
+            'night_schedule_enabled': 1,
+            'night_schedule_start_minutes': 1000,
+            'night_schedule_end_minutes': 300,
+            'flat_surfaces': 1,
+            'setup_highlights_seen_release': '1.4.3',
+            'setup_card_dismissed_release': '1.4.3',
+            'now_playing_background': 'artwork',
+            'corner_style': 'soft',
+            'setup_highlights_seen': '["colorStyle"]',
+          };
+          try {
+            await upgraded.appSettingsDao.getSettings();
+            final row = await upgraded
+                .customSelect('SELECT * FROM app_settings WHERE id = 1')
+                .getSingle();
+            for (final key in introduced.keys) {
+              expect(
+                row.data[key],
+                removed.contains(key) ? defaults[key] : saved[key],
+                reason: key,
+              );
+            }
+            expect(row.read<double>('desktop_playback_volume'), 0.4);
+            await upgraded.from92To97(Migrator(upgraded));
+            final rerun = await upgraded
+                .customSelect('SELECT * FROM app_settings WHERE id = 1')
+                .getSingle();
+            expect(rerun.data, row.data);
+          } finally {
+            await upgraded.close();
+          }
+          final reopened = createTestDatabase(file: file);
+          try {
+            final row = (await reopened.appSettingsDao.getSettings())!;
+            expect(row.desktopPlaybackVolume, 0.4);
+            expect(
+              (await reopened.customSelect('PRAGMA user_version').getSingle())
+                  .read<int>('user_version'),
+              97,
+            );
+          } finally {
+            await reopened.close();
+          }
+        },
+        skip: !sqliteAvailable,
+      );
+    }
+  }
+
   for (final partial in [false, true]) {
     test(
       'v96 to v97 ${partial ? 'preserves an existing column' : 'defaults existing rows to rounded'} and survives reopen',
@@ -78,7 +202,7 @@ void main() {
           expect(fresh.cornerStyle, 'rounded');
           await upgraded.appSettingsDao.updateCornerStyle('square');
           for (var run = 0; run < 2; run++) {
-            await upgraded.from96To97(Migrator(upgraded));
+            await upgraded.from92To97(Migrator(upgraded));
           }
           expect(
             (await upgraded.appSettingsDao.getSettings())!.cornerStyle,
@@ -148,7 +272,7 @@ void main() {
         expect(fresh.nowPlayingBackground, 'tinted');
         await upgraded.appSettingsDao.updateNowPlayingBackground('artwork');
         for (var run = 0; run < 2; run++) {
-          await upgraded.from95To96(Migrator(upgraded));
+          await upgraded.from92To97(Migrator(upgraded));
         }
       } finally {
         await upgraded.close();
@@ -172,7 +296,7 @@ void main() {
       addTearDown(database.close);
       await database.appSettingsDao.updateNowPlayingBackground('artwork');
       await database.customStatement('PRAGMA user_version = 95');
-      await database.from95To96(Migrator(database));
+      await database.from92To97(Migrator(database));
       expect(
         (await database.appSettingsDao.getSettings())!.nowPlayingBackground,
         'artwork',
@@ -230,7 +354,7 @@ void main() {
           );
           // Guarded migration reruns preserve both existing markers.
           for (var run = 0; run < 2; run++) {
-            await upgraded.from94To95(Migrator(upgraded));
+            await upgraded.from92To97(Migrator(upgraded));
           }
         } finally {
           await upgraded.close();
@@ -252,7 +376,7 @@ void main() {
 
   for (final partial in [false, true]) {
     test(
-      'migrates v93 to v96 with ${partial ? 'some' : 'no'} appearance columns',
+      'migrates v93 to v97 with ${partial ? 'some' : 'no'} appearance columns',
       () async {
         final directory = await Directory.systemTemp.createTemp(
           'navis_appearance_upgrade_',
@@ -344,7 +468,7 @@ void main() {
       );
       await database.appSettingsDao.updateFlatSurfaces(enabled: true);
       for (var run = 0; run < 2; run++) {
-        await database.from93To94(Migrator(database));
+        await database.from92To97(Migrator(database));
       }
       final settings = (await database.appSettingsDao.getSettings())!;
       expect(settings.oledForAuto, isTrue);
@@ -357,7 +481,7 @@ void main() {
   );
 
   test(
-    'migrates v92 to v96 with neutral colour style for an existing row',
+    'migrates v92 to v97 with neutral colour style for an existing row',
     () async {
       final directory = await Directory.systemTemp.createTemp(
         'navis_color_style_upgrade_',
@@ -415,7 +539,7 @@ void main() {
       await database.appSettingsDao.getSettings();
       await database.appSettingsDao.updateColorStyle('night');
       for (var run = 0; run < 2; run++) {
-        await database.from92To93(Migrator(database));
+        await database.from92To97(Migrator(database));
       }
       expect(
         (await database.appSettingsDao.getSettings())!.colorStyle,

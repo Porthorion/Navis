@@ -529,63 +529,18 @@ class NavisDatabase extends _$NavisDatabase {
     if (from < 92 && to >= 92) {
       await from91To92(migrator);
     }
-    if (from < 93 && to >= 93) {
-      await from92To93(migrator);
-    }
-    if (from < 94 && to >= 94) {
-      await from93To94(migrator);
-    }
-    if (from < 95 && to >= 95) {
-      await from94To95(migrator);
-    }
-    if (from < 96 && to >= 96) {
-      await from95To96(migrator);
-    }
     if (from < 97 && to >= 97) {
-      await from96To97(migrator);
+      await from92To97(migrator);
     }
   }
 
-  /// Adds the persisted chrome corner style, defaulting existing rows to rounded.
-  Future<void> from96To97(Migrator migrator) async {
-    if (!await _columnExists('app_settings', 'corner_style')) {
-      await migrator.addColumn(appSettingsTable, appSettingsTable.cornerStyle);
+  /// Adds branch-only appearance and setup columns in one guarded upgrade.
+  ///
+  /// Column guards also recover installs already at intermediate versions 93–96.
+  Future<void> from92To97(Migrator migrator) async {
+    if (!await _columnExists('app_settings', 'color_style')) {
+      await migrator.addColumn(appSettingsTable, appSettingsTable.colorStyle);
     }
-  }
-
-  /// Adds the background choice while preserving the legacy tint preference.
-  Future<void> from95To96(Migrator migrator) async {
-    if (!await _columnExists('app_settings', 'now_playing_background')) {
-      await migrator.addColumn(
-        appSettingsTable,
-        appSettingsTable.nowPlayingBackground,
-      );
-      await customStatement("""
-        UPDATE app_settings
-        SET now_playing_background = CASE
-          WHEN art_tinted_now_playing = 1 THEN 'tinted' ELSE 'plain' END
-      """);
-    }
-  }
-
-  /// Adds release-scoped setup acknowledgement and Home card dismissal.
-  Future<void> from94To95(Migrator migrator) async {
-    if (!await _columnExists('app_settings', 'setup_highlights_seen_release')) {
-      await migrator.addColumn(
-        appSettingsTable,
-        appSettingsTable.setupHighlightsSeenRelease,
-      );
-    }
-    if (!await _columnExists('app_settings', 'setup_card_dismissed_release')) {
-      await migrator.addColumn(
-        appSettingsTable,
-        appSettingsTable.setupCardDismissedRelease,
-      );
-    }
-  }
-
-  /// Adds OLED for Auto, the daily Night schedule and flat surfaces.
-  Future<void> from93To94(Migrator migrator) async {
     if (!await _columnExists('app_settings', 'oled_for_auto')) {
       await migrator.addColumn(appSettingsTable, appSettingsTable.oledForAuto);
     }
@@ -610,12 +565,37 @@ class NavisDatabase extends _$NavisDatabase {
     if (!await _columnExists('app_settings', 'flat_surfaces')) {
       await migrator.addColumn(appSettingsTable, appSettingsTable.flatSurfaces);
     }
-  }
-
-  /// Adds the colour style independently of the theme mode.
-  Future<void> from92To93(Migrator migrator) async {
-    if (!await _columnExists('app_settings', 'color_style')) {
-      await migrator.addColumn(appSettingsTable, appSettingsTable.colorStyle);
+    if (!await _columnExists('app_settings', 'setup_highlights_seen_release')) {
+      await migrator.addColumn(
+        appSettingsTable,
+        appSettingsTable.setupHighlightsSeenRelease,
+      );
+    }
+    if (!await _columnExists('app_settings', 'setup_card_dismissed_release')) {
+      await migrator.addColumn(
+        appSettingsTable,
+        appSettingsTable.setupCardDismissedRelease,
+      );
+    }
+    if (!await _columnExists('app_settings', 'now_playing_background')) {
+      await migrator.addColumn(
+        appSettingsTable,
+        appSettingsTable.nowPlayingBackground,
+      );
+      await customStatement("""
+        UPDATE app_settings
+        SET now_playing_background = CASE
+          WHEN art_tinted_now_playing = 1 THEN 'tinted' ELSE 'plain' END
+      """);
+    }
+    if (!await _columnExists('app_settings', 'corner_style')) {
+      await migrator.addColumn(appSettingsTable, appSettingsTable.cornerStyle);
+    }
+    if (!await _columnExists('app_settings', 'setup_highlights_seen')) {
+      await migrator.addColumn(
+        appSettingsTable,
+        appSettingsTable.setupHighlightsSeen,
+      );
     }
   }
 

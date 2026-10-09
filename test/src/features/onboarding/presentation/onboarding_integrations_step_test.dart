@@ -197,6 +197,25 @@ Future<_Harness> _pump(
 }
 
 void main() {
+  testWidgets('Finish preserves runtime settings written after hydration', (
+    tester,
+  ) async {
+    final h = await _pump(tester);
+    await tester.runAsync(() async {
+      await h.database.appSettingsDao.updateDesktopPlaybackVolume(
+        volume: 0.35,
+        lastAudibleVolume: 0.35,
+      );
+      await h.database.appSettingsDao.updateColorStyle('immersive');
+    });
+    await h.finish();
+    final row = await h.row();
+    expect(row.desktopPlaybackVolume, 0.35);
+    expect(row.desktopLastAudibleVolume, 0.35);
+    expect(row.colorStyle, 'immersive');
+    expect(row.onboardingVersion, currentOnboardingVersion);
+  }, skip: !sqliteAvailable);
+
   testWidgets('offers the online services, each saying what it sends', (
     tester,
   ) async {

@@ -572,10 +572,12 @@ class SyncDiagnosticsServer {
         }
         final database = _container.read(navisDatabaseProvider);
         await database.transaction(() async {
+          await database.appSettingsDao.clearSetupHighlightsSeen();
           await database.appSettingsDao.updateSetupHighlightsSeenRelease(null);
           await database.appSettingsDao.updateSetupCardDismissedRelease(null);
         });
         await _respond(request, HttpStatus.ok, <String, Object?>{
+          'setupHighlightsSeen': <String>[],
           'setupHighlightsSeenRelease': null,
           'setupCardDismissedRelease': null,
         });
@@ -4432,6 +4434,7 @@ class SyncDiagnosticsServer {
         settings.disabledIntegrations,
       ).toList()..sort(),
       'noticeDismissed': settings.integrationsNoticeDismissed,
+      'setupHighlightsSeen': settings.setupHighlightsSeen.toList(),
       'setupHighlightsSeenRelease': settings.setupHighlightsSeenRelease,
       'setupCardDismissedRelease': settings.setupCardDismissedRelease,
       'nowPlayingBackground': settings.nowPlayingBackground.storageKey,
