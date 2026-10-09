@@ -2275,9 +2275,11 @@ private extensions on the handler within the same library:
 | Rolling-cache observation and sidecar activity | `navis_audio_handler_cache.dart` |
 | Radio metadata setup and mix dispatch | `navis_audio_handler_radio.dart` |
 | Startup and native queue diagnostics | `navis_audio_handler_diagnostics.dart` |
+| Media-session state, listeners and sound application | `navis_audio_handler_media_session.dart` |
 
 Helpers that directly reference class static members remain in the class, as do
-source-guarded player construction and initialization.
+source-guarded player construction and initialization. Subscription cleanup
+also stays in the class so the analyzer can track cancellation of its fields.
 
 `StreamingQuality` belongs to the player domain. The composition root selects
 the active profile and injects it into the source resolver; the resolver does
