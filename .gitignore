@@ -154,3 +154,6 @@ navis-v*.ipa
 !/dev/ci/**/Gemfile.lock
 **/.DS_Store
 .aider*
+
+# Golden comparison failure output from flutter test
+test/**/failures/
