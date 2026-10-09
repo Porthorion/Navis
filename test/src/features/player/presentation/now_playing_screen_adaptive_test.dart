@@ -10,6 +10,8 @@ import 'package:navis/src/database/navis_database.dart';
 import 'package:navis/src/features/equalizer/domain/eq_configuration.dart';
 import 'package:navis/src/features/equalizer/presentation/eq_controller.dart';
 import 'package:navis/src/features/equalizer/presentation/eq_quick_panel.dart';
+import 'package:navis/src/api/models/models.dart' show LyricsList;
+import 'package:navis/src/features/player/domain/lyrics_resolution.dart';
 import 'package:navis/src/features/player/domain/playback_snapshot.dart';
 import 'package:navis/src/features/player/presentation/instant_mix_notifier.dart';
 import 'package:navis/src/features/player/presentation/now_playing_screen.dart';
@@ -248,6 +250,42 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('Lyrics'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('fullscreen lyrics follow the song that is playing', (
+    tester,
+  ) async {
+    if (!sqliteAvailable) {
+      return;
+    }
+    setAdaptiveTestViewport(tester, const Size(1000, 900));
+    final container = _createContainer(
+      overrides: <Override>[
+        lyricsProvider.overrideWith(
+          (ref, songId) async => LyricsResolution(
+            lyrics: LyricsList(value: 'Words of $songId'),
+            source: LyricsSource.serverPlain,
+          ),
+        ),
+      ],
+    );
+    container.read(_testPlaybackProvider.notifier).state = _songPlayback;
+    await _pumpNowPlaying(tester, container);
+    await tester.tap(find.byTooltip('Lyrics').first);
+    await tester.pumpAndSettle();
+    expect(find.text('Words of song-1'), findsOneWidget);
+
+    container.read(_testPlaybackProvider.notifier).state = _songPlayback
+        .copyWith(
+          queueSongIds: const <String>['song-1', 'song-2'],
+          currentSongId: 'song-2',
+          currentIndex: 1,
+        );
+    await tester.pumpAndSettle();
+
+    expect(find.text('Words of song-2'), findsOneWidget);
+    expect(find.text('Words of song-1'), findsNothing);
     expect(tester.takeException(), isNull);
   });
 

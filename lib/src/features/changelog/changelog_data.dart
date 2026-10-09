@@ -202,6 +202,10 @@ const List<ChangelogVersion> changelogs = [
       ),
       ChangelogEntry(
         'System queue controls select and remove the correct song after played tracks leave the player window',
+        'Fullscreen lyrics follow the song that is playing instead of staying on the one they were opened on, so tapping a line always seeks the lyrics you see',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
         'Restarting Instant Radio while an earlier start or refill is still finishing no longer lets that old run unlock the new one',
         type: ChangelogEntryType.fix,
       ),

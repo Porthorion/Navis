@@ -97,6 +97,9 @@ class _InlineLyrics extends ConsumerWidget {
   }
 }
 
+/// The pinned fullscreen lyrics page. [songId] and [title] are the song it was
+/// opened on; the page then follows the playing song like the standalone
+/// lyrics route, so tap-to-seek always targets the lyrics on screen.
 class _FullscreenLyricsPage extends ConsumerWidget {
   const new({required this.songId, required this.title});
 
@@ -107,7 +110,16 @@ class _FullscreenLyricsPage extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final l10n = AppLocalizations.of(context)!;
     final playback = ref.watch(playerStateProvider);
-    final song = ref.watch(songByIdProvider(songId)).asData?.value;
+    final playingSongId = playback.currentSongId?.trim();
+    final shownSongId = playingSongId == null || playingSongId.isEmpty
+        ? songId
+        : playingSongId;
+    final song = ref.watch(songByIdProvider(shownSongId)).asData?.value;
+    final shownTitle = shownSongId == songId
+        ? title
+        : (song?.title ??
+              ref.watch(currentMediaItemProvider).asData?.value?.title ??
+              l10n.nowPlayingUnknownTrack);
     final backLabel = MaterialLocalizations.of(context).backButtonTooltip;
     return Scaffold(
       appBar: AppBar(
@@ -127,7 +139,7 @@ class _FullscreenLyricsPage extends ConsumerWidget {
           child: Padding(
             padding: const EdgeInsets.fromLTRB(16, 0, 16, 10),
             child: Text(
-              title,
+              shownTitle,
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
               style: Theme.of(context).textTheme.bodySmall?.copyWith(
@@ -143,7 +155,7 @@ class _FullscreenLyricsPage extends ConsumerWidget {
           padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
           child: Column(
             children: <Widget>[
-              Expanded(child: _InlineLyrics(songId: songId)),
+              Expanded(child: _InlineLyrics(songId: shownSongId)),
               const SizedBox(height: 8),
               _TransportControls(
                 playback: playback,
