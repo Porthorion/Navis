@@ -3024,9 +3024,12 @@ for 30 s is abandoned. The app itself keeps the HTTP `artUri`.
 
 The snapshot stored on the handler still receives every timeline update, but
 the broadcast snapshot stream emits only structural changes. Linux MPRIS reads
-position from `positionStream`; Windows SMTC coalesces routine timeline updates
-to about one per second and sends track changes and seek discontinuities
-immediately. The Windows runner assigns `com.navis.app.navis` before Flutter
+position from `positionStream` and detects seek discontinuities there, including
+while paused, emitting `Seeked` in track-time microseconds. Same-track checks
+prevent track changes from being reported as seeks; MPRIS commands suppress
+automatic detection while seeking and emit one explicit signal. Windows SMTC
+coalesces routine timeline updates to about one per second and sends track
+changes and seek discontinuities immediately. The Windows runner assigns `com.navis.app.navis` before Flutter
 creates a window; the owned Rust adapter uses manual SMTC, retains and revokes
 WinRT event tokens, converts incoming seek requests from 100 ns ticks to the
 Dart stream's milliseconds, serializes complete state writes, and omits unusable

@@ -129,6 +129,10 @@ const List<ChangelogVersion> changelogs = [
     version: '1.4.3',
     entries: [
       ChangelogEntry(
+        'Linux media controls update their seek position when you seek while paused',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
         'Permanent downloads keep their offline status when streaming cache writes finish concurrently',
         type: ChangelogEntryType.fix,
       ),

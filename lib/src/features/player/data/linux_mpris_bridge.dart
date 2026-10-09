@@ -20,13 +20,18 @@ import 'package:navis/src/utils/app_logger.dart';
 /// This replaces the incomplete `audio_service_mpris` integration which did
 /// not implement `Seek`, `SetPosition`, `Shuffle`, or `LoopStatus`.
 class LinuxMprisBridge {
-  new({required this._handler, bool Function()? isLinuxRuntime})
-    : _isLinuxRuntime = isLinuxRuntime ?? _defaultIsLinuxRuntime {
+  new({
+    required this._handler,
+    bool Function()? isLinuxRuntime,
+    DBusClient Function()? createClient,
+  }) : _isLinuxRuntime = isLinuxRuntime ?? _defaultIsLinuxRuntime,
+       _createClient = createClient ?? DBusClient.session {
     unawaited(_initialize());
   }
 
   final NavisPlaybackHandler _handler;
   final bool Function() _isLinuxRuntime;
+  final DBusClient Function() _createClient;
 
   DBusClient? _dbusClient;
   _NavisMprisObject? _mprisObject;
@@ -43,7 +48,7 @@ class LinuxMprisBridge {
     }
 
     try {
-      final client = DBusClient.session();
+      final client = _createClient();
       _dbusClient = client;
 
       final obj = _NavisMprisObject(onCommand: _handleCommand);
@@ -131,8 +136,7 @@ class LinuxMprisBridge {
           final base = _handler.snapshot.position;
           final target = base + Duration(microseconds: offsetUs);
           final clamped = target < Duration.zero ? Duration.zero : target;
-          await _handler.seek(clamped);
-          unawaited(_mprisObject?.emitSeeked(clamped));
+          await _seekFromMpris(clamped);
         case _SetPositionCommand(:final trackId, positionUs: final posUs):
           final obj = _mprisObject;
           if (obj == null || trackId != obj.currentTrackId) {
@@ -143,10 +147,7 @@ class LinuxMprisBridge {
           if (target < Duration.zero || (dur > Duration.zero && target > dur)) {
             return;
           }
-          await _handler.seek(target);
-          // Use the nullable field, not the local 'obj', so that a concurrent
-          // dispose() that nulls _mprisObject prevents emitting on a closed client.
-          unawaited(_mprisObject?.emitSeeked(target));
+          await _seekFromMpris(target);
         case _SetLoopStatusCommand(:final loopStatus):
           final repeatMode = switch (loopStatus) {
             'Track' => AudioServiceRepeatMode.one,
@@ -170,6 +171,19 @@ class LinuxMprisBridge {
       AppLogger.warning(
         'Linux MPRIS command handling failed: $error\n$stackTrace',
       );
+    }
+  }
+
+  Future<void> _seekFromMpris(Duration position) async {
+    final obj = _mprisObject;
+    if (obj == null) return;
+    obj._systemSeekDepth++;
+    try {
+      await _handler.seek(position);
+      // A concurrent dispose must prevent signaling on a closed client.
+      unawaited(_mprisObject?.emitSeeked(position));
+    } finally {
+      obj._systemSeekDepth--;
     }
   }
 
@@ -345,6 +359,7 @@ class _NavisMprisObject extends DBusObject {
   Duration _lastSyncedPosition = Duration.zero;
   DateTime _lastSyncedTime = DateTime.fromMillisecondsSinceEpoch(0);
   bool _wasPlaying = false;
+  int _systemSeekDepth = 0;
   String? _lastSyncedTrackId;
 
   // ---- State update API used by LinuxMprisBridge --------------------------
@@ -356,34 +371,8 @@ class _NavisMprisObject extends DBusObject {
     required bool shuffleEnabled,
     required NavisOsControlCapabilities capabilities,
   }) {
-    // Detect position jumps that weren't MPRIS-initiated — e.g. the user
-    // seeked via the Navis UI while the media bar was showing. The MPRIS
-    // spec requires a Seeked signal whenever position deviates from the
-    // expected extrapolation (lastPos + elapsed * rate).
-    //
-    // Guard: only check when the same track is still playing so we don't
-    // false-fire on a normal track advance (where updateMetadata() updates
-    // currentTrackId before syncState() is called, making IDs differ).
-    if (_wasPlaying &&
-        currentTrackId != null &&
-        currentTrackId == _lastSyncedTrackId) {
-      final elapsed = DateTime.now().difference(_lastSyncedTime);
-      final expectedUs =
-          _lastSyncedPosition.inMicroseconds +
-          (elapsed.inMicroseconds * _rate).round();
-      final expectedPosition = Duration(microseconds: math.max(0, expectedUs));
-      if ((position - expectedPosition).abs() > _seekDetectionThreshold) {
-        unawaited(emitSeeked(position));
-      }
-    }
-
-    _lastSyncedPosition = position;
-    _lastSyncedTime = DateTime.now();
+    updatePosition(position);
     _wasPlaying = status == 'Playing';
-    _lastSyncedTrackId = currentTrackId;
-
-    // Position is not part of PropertiesChanged (clients poll it per spec).
-    _position = position;
 
     final changed = <String, DBusValue>{};
 
@@ -474,17 +463,44 @@ class _NavisMprisObject extends DBusObject {
     );
   }
 
-  // Keep the existing method and callback call contract for callers.
-  // ignore: use_setters_to_change_properties
   void updatePosition(Duration position) {
+    // Detect position jumps that weren't MPRIS-initiated — e.g. the user
+    // seeked via the Navis UI while the media bar was showing. The MPRIS
+    // spec requires a Seeked signal whenever position deviates from the
+    // expected extrapolation (lastPos + elapsed * rate).
+    //
+    // Guard: only check when the same track is selected so we don't
+    // false-fire on a normal track advance (where updateMetadata() updates
+    // currentTrackId before syncState() is called, making IDs differ).
+    if (_systemSeekDepth == 0 &&
+        currentTrackId != null &&
+        currentTrackId == _lastSyncedTrackId) {
+      final elapsed = DateTime.now().difference(_lastSyncedTime);
+      final expectedUs =
+          _lastSyncedPosition.inMicroseconds +
+          (_wasPlaying ? (elapsed.inMicroseconds * _rate).round() : 0);
+      final expectedPosition = Duration(microseconds: math.max(0, expectedUs));
+      if ((position - expectedPosition).abs() > _seekDetectionThreshold) {
+        unawaited(emitSeeked(position));
+      }
+    }
+
+    _lastSyncedPosition = position;
+    _lastSyncedTime = DateTime.now();
+    _lastSyncedTrackId = currentTrackId;
+
+    // Position is not part of PropertiesChanged (clients poll it per spec).
     _position = position;
   }
 
-  Future<void> emitSeeked(Duration position) => emitSignal(
-    'org.mpris.MediaPlayer2.Player',
-    'Seeked',
-    [DBusInt64(position.inMicroseconds)],
-  );
+  Future<void> emitSeeked(Duration position) {
+    _lastSyncedPosition = position;
+    _lastSyncedTime = DateTime.now();
+    _lastSyncedTrackId = currentTrackId;
+    return emitSignal('org.mpris.MediaPlayer2.Player', 'Seeked', [
+      DBusInt64(position.inMicroseconds),
+    ]);
+  }
 
   // ---- DBusObject overrides ------------------------------------------------
 
