@@ -129,6 +129,10 @@ const List<ChangelogVersion> changelogs = [
     version: '1.4.3',
     entries: [
       ChangelogEntry(
+        'A timed-out queue selection advances to the next song when library entries are missing',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
         'A cancelled queue selection no longer clears the current or saved queue',
         type: ChangelogEntryType.fix,
       ),

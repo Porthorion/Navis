@@ -4693,6 +4693,7 @@ class NavisAudioHandler extends BaseAudioHandler
       });
     }
     return _queueLane.run((token) async {
+      int? nextRecoveryIndex;
       try {
         await _ready;
         _checkQueueWorkCurrent(token, generation);
@@ -4710,6 +4711,18 @@ class NavisAudioHandler extends BaseAudioHandler
           await _clearQueueInternal(persist: true, generation: generation);
           _completeQueueLoad(generation);
           return;
+        }
+        final nextOccurrence = _nextPlayableIndexAfterFailure(
+          resolvedStartIndex,
+          songs.length,
+        );
+        if (nextOccurrence != null) {
+          // Map the next resolved occurrence back to the adapter's input position.
+          final available = songs.map((song) => song.id).toSet();
+          nextRecoveryIndex = songIds.indexed
+              .where((entry) => available.contains(entry.$2.trim()))
+              .elementAt(nextOccurrence)
+              .$1;
         }
         _navigationIntent.select(resolvedStartIndex);
         _pendingLogicalQueueSongIds = songs.length > 1
@@ -4755,10 +4768,7 @@ class NavisAudioHandler extends BaseAudioHandler
           loadingSongId: error.songId ?? loadingSongId,
           failed: true,
         );
-        final nextIndex = _nextPlayableIndexAfterFailure(
-          normalizedStartIndex,
-          songIds.length,
-        );
+        final nextIndex = nextRecoveryIndex;
         if (nextIndex != null) {
           unawaited(
             recover(

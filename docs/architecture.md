@@ -2597,6 +2597,8 @@ queues containing external rows retain every supplied row and bypass expansion.
 Replacement row resolution checks cancellation before either loading or clearing
 the queue; empty-result clears retain generation ownership across native awaits.
 Timeout recovery retains the adapter's IDs or rows in play order without reshuffling.
+Advancement follows the next resolved occurrence mapped back to its input position,
+preserving duplicate occurrences when rows are missing during resolution.
 Eager queue loading and saved-queue restoration keep their separate contracts.
 If library rows are missing during ID resolution, Match Flow expansion, or a canonical
 reread, the selected occurrence is remapped past those missing rows; duplicate

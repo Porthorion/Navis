@@ -178,6 +178,7 @@ class _ControllableAudioPlayer extends Fake implements AudioPlayer {
   StateError? blockedLoadError;
   Completer<void>? appendGate;
   Completer<void>? appendEntered;
+  String? attemptedSongId;
   int lastSetAudioSourcesCount = 0;
   int maxConcurrentMutations = 0;
   int _activeMutations = 0;
@@ -404,6 +405,11 @@ class _ControllableAudioPlayer extends Fake implements AudioPlayer {
     Duration? initialPosition,
     ShuffleOrder? shuffleOrder,
   }) => _mutate(() async {
+    final source = sources.isEmpty ? null : sources[initialIndex ?? 0];
+    if (source is IndexedAudioSource) {
+      final tag = source.tag;
+      if (tag is MediaItem) attemptedSongId = tag.id;
+    }
     await _hangIf('setAudioSources');
     final failing = failLoadSongId;
     if (failing != null &&
@@ -2656,6 +2662,76 @@ void main() {
         await handler.setShuffleMode(AudioServiceShuffleMode.none);
         expect(handler.snapshot.queueSongIds, inputIds);
         expect(handler.snapshot.currentSongId, expected[1]);
+      });
+    }
+
+    for (final duplicate in [false, true]) {
+      test('timeout advances beyond the resolved missing selection '
+          '(duplicate=$duplicate)', () async {
+        final directory = await Directory.systemTemp.createTemp('navis-next-');
+        final rebuilt = <_ControllableAudioPlayer>[];
+        final (handler, player, database) = await createHandler(
+          directory,
+          3,
+          rebuiltPlayers: rebuilt,
+          timeouts: const NavisPlaybackTimeouts(
+            load: Duration(milliseconds: 100),
+            reset: Duration(milliseconds: 100),
+            control: Duration(milliseconds: 100),
+          ),
+        );
+        final entered = Completer<void>();
+        final releaseLoad = Completer<void>();
+        addTearDown(() async {
+          if (!releaseLoad.isCompleted) releaseLoad.complete();
+          await handler.disposeHandler();
+          await database.close();
+          await directory.delete(recursive: true);
+        });
+        final requested = [
+          'song-0',
+          if (duplicate) 'song-1',
+          'missing',
+          'song-1',
+          'song-2',
+        ];
+        final expected = requested.where((id) => id != 'missing').toList();
+        player
+          ..loadEntered = entered
+          ..loadGate = releaseLoad;
+        final replacement = handler.replaceQueue(
+          requested,
+          startIndex: duplicate ? 2 : 1,
+          expandMatchFlows: false,
+        );
+        await entered.future;
+        expect(player.attemptedSongId, 'song-1');
+        await handler.pause();
+        final recovered = handler.snapshotStream.firstWhere(
+          (snapshot) => !snapshot.isLoading,
+        );
+        await replacement;
+        await recovered;
+        if (handler.snapshot.isLoading) {
+          await handler.snapshotStream.firstWhere(
+            (snapshot) => !snapshot.isLoading,
+          );
+        }
+        await handler.debugFlushQueuePersistence();
+
+        expect(handler.snapshot.currentSongId, 'song-2');
+        expect(handler.snapshot.currentIndex, expected.length - 1);
+        expect(handler.snapshot.queueSongIds, expected);
+        expect(handler.snapshot.playing, isFalse);
+        expect(rebuilt.single.sourceIds, expected);
+        expect(
+          (await database.playQueueDao.getQueueItems()).map((song) => song.id),
+          expected,
+        );
+        expect(
+          (await database.playQueueDao.getQueueState())!.currentIndex,
+          expected.length - 1,
+        );
       });
     }
 
