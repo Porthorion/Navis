@@ -1422,6 +1422,9 @@ class AudioBootstrapController extends Notifier<AudioBootstrapState> {
       }
     }
     await ref.read(audioHandlerStateProvider.notifier).clearHandler();
+    // Session retirement is not a startup failure; the next request may rebuild.
+    _inFlight = null;
+    _didAttempt = false;
     state = AudioBootstrapState.failed(
       'Playback initialization was stopped.',
       attempt: _activeAttempt,

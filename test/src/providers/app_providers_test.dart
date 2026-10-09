@@ -14,6 +14,7 @@ import 'package:navis/src/api/models/models.dart';
 import 'package:navis/src/api/subsonic_api_client.dart';
 import 'package:navis/src/database/navis_database.dart';
 import 'package:navis/src/features/auth/domain/server_config.dart';
+import 'package:navis/src/features/auth/data/server_config_repository.dart';
 import 'package:navis/src/features/auth/presentation/server_config_provider.dart';
 import 'package:navis/src/features/integrations/domain/integration_feature.dart';
 import 'package:navis/src/features/library/presentation/library_scroll_provider.dart';
@@ -31,6 +32,9 @@ import '../../helpers/fake_playback_handler.dart';
 import '../../helpers/test_database.dart';
 
 class _MockSettingsRepository extends Mock implements SettingsRepository;
+
+class _MockServerConfigRepository extends Mock
+    implements ServerConfigRepository;
 
 class _MockLrclibClient extends Mock implements LrclibClient;
 
@@ -1239,6 +1243,101 @@ void main() {
         expect(container.read(audioHandlerStateProvider), same(freshHandler));
       },
     );
+
+    test('saving a new session resumes a retired playback bootstrap', () async {
+      final repository = _MockServerConfigRepository();
+      final first = _FakePlaybackHandler();
+      final fresh = _FakePlaybackHandler();
+      final config = ServerConfigModel(
+        url: 'https://example.com',
+        username: 'fixture',
+        password: 'synthetic',
+        apiVersion: '1.16.1',
+      );
+      ServerConfigModel? active;
+      when(repository.watchActiveServer)
+          .thenAnswer((_) => const Stream.empty());
+      when(repository.getActiveServer).thenAnswer((_) async => active);
+      when(() => repository.save(config))
+          .thenAnswer((_) async => active = config);
+      var calls = 0;
+      final container = ProviderContainer(
+        overrides: [
+          serverConfigRepositoryProvider.overrideWithValue(repository),
+          audioHandlerInitializerProvider.overrideWithValue(
+            () async => ++calls == 1 ? first : fresh,
+          ),
+        ],
+      );
+      addTearDown(() async {
+        container.dispose();
+        await first.dispose();
+        await fresh.dispose();
+      });
+      await container.read(serverConfigProvider.future);
+      final bootstrap = container.read(
+        audioBootstrapControllerProvider.notifier,
+      );
+      await bootstrap.retry();
+      await bootstrap.abortForSessionTeardown();
+
+      await container.read(serverConfigProvider.notifier).save(config);
+      await Future<void>.delayed(Duration.zero);
+
+      expect(calls, 2);
+      expect(container.read(audioBootstrapControllerProvider).isReady, isTrue);
+      expect(container.read(audioHandlerProvider), same(fresh));
+    });
+
+    for (final stuck in [false, true]) {
+      test(
+        'session teardown re-arms normal bootstrap (stuck: $stuck)',
+        () async {
+          final first = _FakePlaybackHandler();
+          final fresh = _FakePlaybackHandler();
+          final pending = Completer<NavisPlaybackHandler>();
+          var calls = 0;
+          final container = ProviderContainer(
+            overrides: [
+              audioHandlerInitializerProvider.overrideWithValue(() {
+                calls++;
+                return calls == 1
+                    ? (stuck ? pending.future : Future.value(first))
+                    : Future.value(fresh);
+              }),
+            ],
+          );
+          addTearDown(() async {
+            if (stuck && !pending.isCompleted) {
+              pending.complete(first);
+              await Future<void>.delayed(Duration.zero);
+            }
+            container.dispose();
+            await first.dispose();
+            await fresh.dispose();
+          });
+          final controller = container.read(
+            audioBootstrapControllerProvider.notifier,
+          );
+          if (stuck) {
+            controller.ensureInitialized();
+            await Future<void>.delayed(Duration.zero);
+          } else {
+            await controller.retry();
+          }
+          await controller.abortForSessionTeardown();
+          controller.ensureInitialized();
+          await Future<void>.delayed(Duration.zero);
+
+          expect(calls, 2);
+          expect(
+            container.read(audioBootstrapControllerProvider).isReady,
+            isTrue,
+          );
+          expect(container.read(audioHandlerProvider), same(fresh));
+        },
+      );
+    }
 
     test(
       'audio bootstrap timeout can recover when initialization completes late',

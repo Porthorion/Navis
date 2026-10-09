@@ -3123,6 +3123,16 @@ playback, startup-observer and batch-editor contracts without wrapping streams.
 Each public wrapper owns its platform bridge. Teardown begins delegate cleanup
 immediately, disposes the bridge, then awaits handler disposal.
 
+On Android and iOS, audio_service is initialized once per process with a
+`SwitchAudioHandler`. Each session attaches a new real-time projection and
+playback handler to that registration. Teardown switches the service to an idle
+handler and closes the old projection's subscriptions and streams, so reconnecting
+in the same process can bootstrap playback again.
+Session teardown also clears the abandoned bootstrap future and attempt gate.
+Saving an authenticated session restarts an existing bootstrap controller; a
+normal playback request can also initialize a fresh handler without a forced
+retry. The stopped bootstrap state remains failed until either request.
+
 Handler teardown starts full cleanup synchronously through `beginTeardown`;
 `disposeHandler` awaits the same cached future, including decks, artwork,
 sidecar, subscriptions, browse notifications and owned stream controllers.

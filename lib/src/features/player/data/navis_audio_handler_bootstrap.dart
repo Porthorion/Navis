@@ -1,6 +1,8 @@
 part of 'navis_audio_handler.dart';
 
 _NavisAudioHandlerInitCacheEntry? _audioHandlerInitCache;
+Future<SwitchAudioHandler>? _audioServiceInitialization;
+SwitchAudioHandler? _audioServiceHandler;
 
 class _NavisAudioHandlerInitCacheEntry {
   new(this.future);
@@ -174,7 +176,7 @@ Future<NavisPlaybackHandler> initNavisAudioHandler({
                 ? PackageInfo.fromPlatform().then((info) => info.packageName)
                 : Future<String?>.value())
             .then(
-              (packageName) => AudioService.init(
+              (packageName) => initNavisAudioServiceHandler(
                 // Never AudioService's default cache, which would fetch any
                 // published URL, a refused redirect target included.
                 cacheManager: createCoverArtCacheManager(
@@ -203,26 +205,9 @@ Future<NavisPlaybackHandler> initNavisAudioHandler({
                           ),
                   );
                 },
-                config: AudioServiceConfig(
-                  androidNotificationChannelId: 'playback',
-                  androidNotificationChannelName: 'Playback',
-                  androidNotificationIcon: 'drawable/ic_stat_navis_light',
-                  androidNotificationOngoing: false,
-                  androidStopForegroundOnPause: false,
-                  androidBrowsableRootExtras: const <String, dynamic>{
-                    AndroidAutoConstants.contentStyleSupportedKey: true,
-                    AndroidAutoConstants.contentStyleBrowsableHintKey:
-                        AndroidAutoConstants.contentStyleGrid,
-                    AndroidAutoConstants.contentStylePlayableHintKey:
-                        AndroidAutoConstants.contentStyleList,
-                    AndroidAutoConstants.searchSupportedKey: true,
-                  },
-                ),
               ),
             )
-            .then<NavisPlaybackHandler>(
-              (handler) => handler.inner as NavisPlaybackHandler,
-            );
+            .then<NavisPlaybackHandler>((initialized) => initialized.handler);
   }
 
   final cache = _NavisAudioHandlerInitCacheEntry(initFuture);
@@ -242,6 +227,55 @@ Future<NavisPlaybackHandler> initNavisAudioHandler({
     ),
   );
   return initFuture;
+}
+
+/// Initializes the mobile media-service path independently of the host platform.
+@visibleForTesting
+Future<({SwitchAudioHandler service, NavisPlaybackHandler handler})>
+initNavisAudioServiceHandler({
+  required RealTimeProjectionAudioHandler Function() builder,
+  required BaseCacheManager cacheManager,
+}) async {
+  // audio_service owns process-wide callbacks and may only be initialized once.
+  final handler = await (_audioServiceInitialization ??=
+      AudioService.init(
+        builder: SwitchAudioHandler.new,
+        cacheManager: cacheManager,
+        config: AudioServiceConfig(
+          androidNotificationChannelId: 'playback',
+          androidNotificationChannelName: 'Playback',
+          androidNotificationIcon: 'drawable/ic_stat_navis_light',
+          androidNotificationOngoing: false,
+          androidStopForegroundOnPause: false,
+          androidBrowsableRootExtras: const <String, dynamic>{
+            AndroidAutoConstants.contentStyleSupportedKey: true,
+            AndroidAutoConstants.contentStyleBrowsableHintKey:
+                AndroidAutoConstants.contentStyleGrid,
+            AndroidAutoConstants.contentStylePlayableHintKey:
+                AndroidAutoConstants.contentStyleList,
+            AndroidAutoConstants.searchSupportedKey: true,
+          },
+        ),
+      ).onError<Object>((error, stackTrace) {
+        _audioServiceInitialization = null;
+        Error.throwWithStackTrace(error, stackTrace);
+      }));
+  _audioServiceHandler = handler;
+  final projection = builder();
+  final base = projection.inner as NavisAudioHandler;
+  base._systemProjection = projection;
+  handler.inner = projection;
+  return (service: handler, handler: base);
+}
+
+Future<void> _detachNavisAudioServiceHandler(NavisAudioHandler handler) {
+  final projection = handler._systemProjection;
+  if (projection == null) return Future<void>.value();
+  final service = _audioServiceHandler;
+  if (service != null && identical(service.inner, projection)) {
+    service.inner = BaseAudioHandler();
+  }
+  return projection.dispose();
 }
 
 abstract class _DelegatingNavisPlaybackHandler

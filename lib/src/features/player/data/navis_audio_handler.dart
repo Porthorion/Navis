@@ -11,6 +11,7 @@ import 'package:dio/dio.dart' show Dio;
 import 'package:drift/drift.dart' show Value;
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_cache_manager/flutter_cache_manager.dart';
 import 'package:just_audio/just_audio.dart';
 import 'package:just_audio_media_kit/just_audio_media_kit.dart';
 import 'package:navis/src/features/equalizer/domain/eq_configuration.dart';
@@ -384,6 +385,7 @@ class NavisAudioHandler extends BaseAudioHandler
   // user's chosen volume.
   double _userVolume;
   int? _interruptedTransportGeneration;
+  RealTimeProjectionAudioHandler? _systemProjection;
   bool _gaplessEnabled = true;
   MediaItem? _activeScrobbleItem;
   int? _activeScrobbleIndex;
@@ -2576,6 +2578,7 @@ class NavisAudioHandler extends BaseAudioHandler
 
   Future<void> _disposeHandler() async {
     _disposeHandlerStarted = true;
+    final projectionDisposal = _detachNavisAudioServiceHandler(this);
     _artCache?.dispose();
     _cancelCrossfade();
     _cancelRemotePlaybackStallWatchdog();
@@ -2602,6 +2605,7 @@ class NavisAudioHandler extends BaseAudioHandler
       await _persistSafely(_persistPosition, context: 'dispose handler');
     }
     await _ensurePlayerDisposalStarted();
+    await projectionDisposal;
     await _androidAutoBrowseNotifier.dispose();
     await _snapshotController.close();
     await _adjustmentController.close();

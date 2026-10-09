@@ -68,6 +68,9 @@ class ServerConfigNotifier extends AsyncNotifier<ServerConfigModel?> {
     final repository = ref.read(serverConfigRepositoryProvider);
     await repository.save(config);
     await refresh();
+    if (ref.exists(audioBootstrapControllerProvider)) {
+      ref.read(audioBootstrapControllerProvider.notifier).ensureInitialized();
+    }
   }
 
   Future<void> updateLastSynced(DateTime value) async {

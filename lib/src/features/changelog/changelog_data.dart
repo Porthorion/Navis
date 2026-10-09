@@ -129,6 +129,10 @@ const List<ChangelogVersion> changelogs = [
     version: '1.4.3',
     entries: [
       ChangelogEntry(
+        'Playback works after signing out and reconnecting without restarting Navis',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
         'System media buttons keep playback paused when a phone call ends',
         type: ChangelogEntryType.fix,
       ),

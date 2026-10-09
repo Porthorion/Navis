@@ -9,6 +9,9 @@ import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
+import 'package:flutter_cache_manager/flutter_cache_manager.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:navis/src/providers/app_providers.dart';
 import 'package:drift/drift.dart' show Value;
 import 'package:navis/src/features/auto/data/auto_media_id.dart';
 import 'package:dio/dio.dart';
@@ -36,6 +39,8 @@ import 'package:navis/src/features/player/domain/streaming_quality.dart';
 import '../../../../helpers/test_database.dart';
 
 class _MockRadioDio extends Mock implements Dio;
+
+class _MockSystemArtCache extends Mock implements BaseCacheManager;
 
 class _GatedLibraryDao extends LibraryDao {
   new(super.attachedDatabase);
@@ -1008,6 +1013,7 @@ void main() {
         handler.debugWireAudioSession(session);
         addTearDown(() async {
           await handler.disposeHandler();
+          await system.dispose();
           await session.close();
           await database.close();
           await directory.delete(recursive: true);
@@ -1038,6 +1044,123 @@ void main() {
       },
     );
   }
+
+  test(
+    'mobile bootstrap rebuilds after begin then dispose in one process',
+    () async {
+      final directory = await Directory.systemTemp.createTemp(
+        'navis-reconnect-',
+      );
+      final fixtures =
+          <(NavisAudioHandler, _ControllableAudioPlayer, NavisDatabase)>[];
+      final cache = _MockSystemArtCache();
+      final services = <SwitchAudioHandler>[];
+      final projections = <RealTimeProjectionAudioHandler>[];
+      final container = ProviderContainer(
+        overrides: [
+          audioHandlerInitializerProvider.overrideWithValue(() async {
+            final fixture = await createHandler(directory, 1);
+            fixtures.add(fixture);
+            final initialized = await initNavisAudioServiceHandler(
+              builder: () {
+                final projection = RealTimeProjectionAudioHandler(fixture.$1);
+                projections.add(projection);
+                return projection;
+              },
+              cacheManager: cache,
+            );
+            services.add(initialized.service);
+            return initialized.handler;
+          }),
+        ],
+      );
+      addTearDown(() async {
+        await container
+            .read(audioBootstrapControllerProvider.notifier)
+            .abortForSessionTeardown();
+        container.dispose();
+        for (final (handler, _, database) in fixtures) {
+          await handler.disposeHandler();
+          await database.close();
+        }
+        await directory.delete(recursive: true);
+      });
+      final bootstrap = container.read(
+        audioBootstrapControllerProvider.notifier,
+      );
+      await bootstrap.retry();
+      expect(container.read(audioBootstrapControllerProvider).isReady, isTrue);
+      final first = fixtures.single.$1;
+      final projectionClosed = projections.single.playbackState
+          .listen((_) {})
+          .asFuture<void>();
+      await first.replaceQueue(['song-0'], expandMatchFlows: false);
+      await bootstrap.abortForSessionTeardown();
+      expect(container.read(audioHandlerProvider), isNull);
+      await projectionClosed.timeout(const Duration(seconds: 1));
+      expect(services.single.inner, isA<BaseAudioHandler>());
+
+      bootstrap.ensureInitialized();
+      await Future.doWhile(() async {
+        await Future<void>.delayed(const Duration(milliseconds: 10));
+        return !container.read(audioBootstrapControllerProvider).isReady;
+      }).timeout(const Duration(seconds: 2));
+
+      expect(container.read(audioBootstrapControllerProvider).isReady, isTrue);
+      final rebuilt = container.read(audioHandlerProvider)!;
+      expect(rebuilt, isNot(same(first)));
+      await rebuilt.waitUntilReady();
+      await rebuilt.replaceQueue(['song-0'], expandMatchFlows: false);
+      expect(fixtures.last.$2.playing, isTrue);
+      expect(services.last, same(services.first));
+      await services.last.pause();
+      expect(fixtures.last.$2.playing, isFalse);
+      await services.last.click();
+      expect(fixtures.last.$2.playing, isTrue);
+    },
+  );
+
+  test(
+    'mobile bootstrap completions retain their own session handler',
+    () async {
+      final directory = await Directory.systemTemp.createTemp(
+        'navis-init-race-',
+      );
+      final first = await createHandler(directory, 1);
+      final second = await createHandler(directory, 1);
+      final projections = [
+        RealTimeProjectionAudioHandler(first.$1),
+        RealTimeProjectionAudioHandler(second.$1),
+      ];
+      addTearDown(() async {
+        for (final (handler, _, database) in [first, second]) {
+          await disposeNavisPlaybackHandler(handler);
+          await database.close();
+        }
+        await directory.delete(recursive: true);
+      });
+      final initializations = await Future.wait([
+        for (final projection in projections)
+          initNavisAudioServiceHandler(
+            builder: () => projection,
+            cacheManager: _MockSystemArtCache(),
+          ),
+      ]);
+      expect(initializations.first.handler, same(first.$1));
+      expect(initializations.last.handler, same(second.$1));
+      expect(initializations.first.service, same(initializations.last.service));
+      final closed = projections.first.queue.listen((_) {}).asFuture<void>();
+
+      beginNavisPlaybackHandlerTeardown(first.$1);
+      await disposeNavisPlaybackHandler(first.$1);
+
+      await closed.timeout(const Duration(seconds: 1));
+      expect(initializations.last.service.inner, same(projections.last));
+      await second.$1.replaceQueue(['song-0'], expandMatchFlows: false);
+      await initializations.last.service.pause();
+      expect(second.$2.playing, isFalse);
+    },
+  );
 
   test(
     'begin then dispose closes all handler streams and browse parents',
