@@ -111,7 +111,10 @@ Shipped builds only read `stable` or `dev`. To test end to end, build with
 `staging` with `tool/r2_publish.sh publish --channel=staging …`, and use the
 diagnostics routes `GET /v1/diagnostics/update`,
 `POST /v1/diagnostics/update/check` and `POST /v1/diagnostics/update/download`
-(download plus size and SHA-256 check, no install) to see what the app decided. Delete the
+(download plus size and SHA-256 check, no install) to see what the app decided.
+`tool/r2_update_diagnostics.sh` automates this on Linux: it launches a profile clone on
+`staging`, then checks a missing manifest, a signed offer, a verified download, a corrupt
+asset, a forged manifest, and a full apply, swap and relaunch. Delete the
 staging objects afterwards.
 
 ## Forgejo during the transition
