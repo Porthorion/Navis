@@ -227,10 +227,12 @@ ImageProvider<Object>? _resolveNowPlayingImageProvider({
       return null;
     }
     final coverUrl = api.getCoverArtUrl(id: trimmedCoverArtId, size: 768);
-    return CachedNetworkImageProvider(
-      coverUrl.toString(),
-      cacheManager: cacheManager,
-      cacheKey: coverArtImageCacheKey(trimmedCoverArtId, 768),
+    return boundedDecode(
+      CachedNetworkImageProvider(
+        coverUrl.toString(),
+        cacheManager: cacheManager,
+        cacheKey: coverArtImageCacheKey(trimmedCoverArtId, 768),
+      ),
     );
   }
 
@@ -250,14 +252,16 @@ ImageProvider<Object>? _resolveNowPlayingImageProvider({
       )) {
     return null;
   }
-  return CachedNetworkImageProvider(
-    trimmedArtUrl,
-    cacheManager: cacheManager,
-    cacheKey: coverArtFeatureCacheKey(
-      IntegrationFeature.radioNowPlaying.key,
+  return boundedDecode(
+    CachedNetworkImageProvider(
       trimmedArtUrl,
+      cacheManager: cacheManager,
+      cacheKey: coverArtFeatureCacheKey(
+        IntegrationFeature.radioNowPlaying.key,
+        trimmedArtUrl,
+      ),
+      headers: coverArtFeatureHeaders(IntegrationFeature.radioNowPlaying.key),
     ),
-    headers: coverArtFeatureHeaders(IntegrationFeature.radioNowPlaying.key),
   );
 }
 
@@ -1482,10 +1486,12 @@ class _NowPlayingBodyState extends ConsumerState<_NowPlayingBody>
         return;
       }
       final cacheManager = ref.read(coverArtCacheManagerProvider);
-      final ImageProvider<Object> imageProvider = CachedNetworkImageProvider(
-        artUrl,
-        cacheManager: cacheManager,
-        cacheKey: coverArtImageCacheKey(trimmedCoverArt, 768),
+      final imageProvider = boundedDecode(
+        CachedNetworkImageProvider(
+          artUrl,
+          cacheManager: cacheManager,
+          cacheKey: coverArtImageCacheKey(trimmedCoverArt, 768),
+        ),
       );
       unawaited(precacheImage(imageProvider, context, onError: (_, _) {}));
     });

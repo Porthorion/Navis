@@ -663,13 +663,7 @@ class _CoverArtImageState extends ConsumerState<CoverArtImage> {
       resolvedSize,
       preferRequestedSize: widget.useRequestedMemCacheSize,
     );
-    if (width == null && height == null) return provider;
-    return ResizeImage(
-      provider,
-      width: width,
-      height: height,
-      policy: ResizeImagePolicy.fit,
-    );
+    return boundedDecode(provider, width: width, height: height);
   }
 
   Widget _clip(Widget child) {
@@ -838,4 +832,28 @@ class _CoverArtImageState extends ConsumerState<CoverArtImage> {
 double placeholderIconSizeFor(double? side) {
   if (side == null) return 20;
   return (side * 0.3).clamp(20.0, 72.0);
+}
+
+/// Largest decode edge for untrusted artwork (radio, Deezer, server covers).
+///
+/// Bounds decoded pixels so a decompression-bomb image cannot exhaust memory.
+const kMaxArtworkDecodeEdge = 1024;
+
+/// Smallest decode edge, enough for palette extraction.
+const kPaletteDecodeEdge = 128;
+
+/// Wraps [provider] so decoding never exceeds [width] x [height], preserving
+/// aspect ratio and never upscaling. Returns [provider] when both are null.
+ImageProvider boundedDecode(
+  ImageProvider provider, {
+  int? width = kMaxArtworkDecodeEdge,
+  int? height = kMaxArtworkDecodeEdge,
+}) {
+  if (width == null && height == null) return provider;
+  return ResizeImage(
+    provider,
+    width: width,
+    height: height,
+    policy: ResizeImagePolicy.fit,
+  );
 }
