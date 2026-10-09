@@ -37,7 +37,7 @@ class _RandomHeroShimmer extends StatelessWidget {
           child: Column(
             children: <Widget>[
               ClipRRect(
-                borderRadius: NavisRadius.xlAll,
+                borderRadius: NavisShapeData.of(context).xlAll,
                 child: ShimmerPlaceholder(
                   height: heroHeight,
                   width: double.infinity,

@@ -1,6 +1,7 @@
 import 'package:material_ui/material_ui.dart';
 import 'package:navis/src/routing/desktop_layout.dart';
 import 'package:navis/src/theme/navis_tokens.dart';
+import 'package:navis/src/theme/navis_shape_data.dart';
 
 /// The frame of a one-time row on Home: a raised rounded surface that opens
 /// on tap, an optional [leading] widget, a bold [title], an optional quiet
@@ -61,7 +62,7 @@ class HomeNoticeCard extends StatelessWidget {
     final leading = this.leading;
     final card = Material(
       color: colorScheme.surfaceContainerHigh,
-      borderRadius: NavisRadius.lgAll,
+      borderRadius: NavisShapeData.of(context).lgAll,
       clipBehavior: Clip.antiAlias,
       child: InkWell(
         key: openKey,

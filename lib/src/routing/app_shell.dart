@@ -86,6 +86,7 @@ import 'package:navis/src/utils/song_id_utils.dart';
 import 'package:navis/src/utils/sync_diagnostics_overrides.dart';
 import 'package:navis/src/theme/artwork_shape.dart';
 import 'package:navis/src/theme/navis_color_style_data.dart';
+import 'package:navis/src/theme/navis_shape_data.dart';
 
 part 'app_shell_support_widgets.dart';
 part 'app_shell_quick_search_overlay.dart';

@@ -489,7 +489,7 @@ extension on _ShowcaseColourWash {
               key: _ShowcaseColourWash.flatFillKey,
               decoration: BoxDecoration(
                 color: value ?? fill,
-                borderRadius: NavisRadius.xlAll,
+                borderRadius: NavisShapeData.of(context).xlAll,
               ),
               child: const SizedBox.expand(),
             ),

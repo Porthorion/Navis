@@ -14,8 +14,8 @@ import 'package:navis/src/features/player/presentation/queue_unavailable_tracks.
 import 'package:navis/src/providers/app_providers.dart'
     show playerStateProvider, songByIdProvider, subsonicApiProvider;
 import 'package:navis/src/routing/navigation_service.dart';
-import 'package:navis/src/theme/navis_tokens.dart';
 import 'package:navis/src/theme/artwork_shape.dart';
+import 'package:navis/src/theme/navis_shape_data.dart';
 
 /// A queue panel. Slide animation and swipe-to-dismiss are driven entirely
 /// by the shell overlay in `app_shell.dart`; this widget has no animation
@@ -146,9 +146,9 @@ class QueueSheet extends ConsumerWidget {
       child: Material(
         color: Theme.of(context).colorScheme.surface,
         elevation: 12,
-        shape: const RoundedRectangleBorder(
+        shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.vertical(
-            top: Radius.circular(NavisRadius.lg),
+            top: Radius.circular(NavisShapeData.of(context).lg),
           ),
         ),
         clipBehavior: Clip.antiAlias,

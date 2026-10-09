@@ -125,11 +125,11 @@ class _RailMiniPlayerState extends ConsumerState<_RailMiniPlayer> {
             children: <Widget>[
               Material(
                 color: Colors.transparent,
-                borderRadius: NavisRadius.xlAll,
+                borderRadius: NavisShapeData.of(context).xlAll,
                 clipBehavior: Clip.antiAlias,
                 child: InkWell(
                   onTap: widget.onOpenPlayer,
-                  borderRadius: NavisRadius.xlAll,
+                  borderRadius: NavisShapeData.of(context).xlAll,
                   child: Stack(
                     children: <Widget>[
                       Padding(
@@ -440,7 +440,7 @@ class _RailMiniPlayerState extends ConsumerState<_RailMiniPlayer> {
                             curve: Curves.easeOut,
                             opacity: _isSeeking && canSeek ? 1 : 0,
                             child: ClipRRect(
-                              borderRadius: NavisRadius.xlAll,
+                              borderRadius: NavisShapeData.of(context).xlAll,
                               child: seekPreview,
                             ),
                           ),
