@@ -1050,8 +1050,8 @@ class NavisAudioHandler extends BaseAudioHandler
             ),
             cacheFilePath: cacheFile.path,
           );
-          _completeRollingCacheActivity(sidecarPath);
         },
+        onTerminated: () => _completeRollingCacheActivity(sidecarPath),
       ),
     );
   }

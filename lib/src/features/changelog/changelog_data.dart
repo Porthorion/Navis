@@ -129,6 +129,10 @@ const List<ChangelogVersion> changelogs = [
     version: '1.4.3',
     entries: [
       ChangelogEntry(
+        'Desktop cache activity clears when a transfer is cancelled or fails',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
         'Completed mobile streams reliably appear in the rolling cache',
         type: ChangelogEntryType.fix,
       ),

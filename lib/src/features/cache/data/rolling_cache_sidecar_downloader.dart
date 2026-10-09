@@ -18,6 +18,7 @@ class RollingCacheSidecarDownloader {
   String? _activeSongId;
   String? _activeCacheFilePath;
   int? _activeReceivedBytes;
+  void Function()? _activeOnTerminated;
 
   String? get activeSongId => _activeSongId;
 
@@ -29,6 +30,7 @@ class RollingCacheSidecarDownloader {
     required String cacheFilePath,
     required void Function(double progress) onProgress,
     required Future<void> Function(File cacheFile) onComplete,
+    required void Function() onTerminated,
   }) async {
     if (_activeSongId == songId && _activeCacheFilePath == cacheFilePath) {
       return;
@@ -40,6 +42,7 @@ class RollingCacheSidecarDownloader {
     _activeSongId = songId;
     _activeCacheFilePath = cacheFilePath;
     _activeReceivedBytes = 0;
+    _activeOnTerminated = onTerminated;
     final client = _httpClientFactory();
     _activeClient = client;
 
@@ -143,10 +146,7 @@ class RollingCacheSidecarDownloader {
   void _cancelActive() {
     _generation++;
     _activeClient?.close(force: true);
-    _activeClient = null;
-    _activeSongId = null;
-    _activeCacheFilePath = null;
-    _activeReceivedBytes = null;
+    _clearActive(_generation);
   }
 
   Future<void> cancel() {
@@ -187,5 +187,8 @@ class RollingCacheSidecarDownloader {
     _activeSongId = null;
     _activeCacheFilePath = null;
     _activeReceivedBytes = null;
+    final onTerminated = _activeOnTerminated;
+    _activeOnTerminated = null;
+    onTerminated?.call();
   }
 }
