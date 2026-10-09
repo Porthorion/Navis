@@ -416,7 +416,12 @@ class _CoverTintLabelState extends ConsumerState<_CoverTintLabel> {
           });
         },
         onError: (Object _) {
-          if (mounted) _derivingKey = null;
+          if (!mounted || _derivingKey != key) return;
+          dispatcher.enqueue(() {
+            if (mounted && _derivingKey == key) {
+              setState(() => _derivingKey = null);
+            }
+          });
         },
       ),
     );

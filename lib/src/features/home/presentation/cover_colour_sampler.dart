@@ -178,6 +178,7 @@ class CoverColourSampler {
   final CoverArtLoadCoordinator coordinator;
   final CoverColourStore store;
 
+  final Map<(String, int), int> _missingArtRetries = <(String, int), int>{};
   final Map<(String, int), _Job> _jobs = <(String, int), _Job>{};
   late final Future<void> _ready;
   bool _disposed = false;
@@ -290,6 +291,7 @@ class CoverColourSampler {
 
   void dispose() {
     _disposed = true;
+    _missingArtRetries.clear();
     for (final job in _jobs.values) {
       for (final request in job.requests) {
         request._interest?.dispose();
@@ -434,8 +436,6 @@ final coverColourSamplerProvider = Provider<CoverColourSampler>((ref) {
   return sampler;
 });
 
-final Map<(String, int), int> _missingArtRetries = <(String, int), int>{};
-
 /// Colour field for a cover, from memory, the persistent store or a bounded
 /// decode of locally stored artwork (see [CoverColourSampler]). Disposing the
 /// provider cancels a request that has not started decoding. A cover that is
@@ -444,23 +444,33 @@ final Map<(String, int), int> _missingArtRetries = <(String, int), int>{};
 final coverColourFieldProvider = FutureProvider.autoDispose
     .family<CoverColourField?, (String, int)>((ref, key) async {
       final (coverId, revision) = key;
-      final request = ref
-          .watch(coverColourSamplerProvider)
-          .request(coverId, revision: revision);
+      final sampler = ref.watch(coverColourSamplerProvider);
+      final request = sampler.request(coverId, revision: revision);
+      Timer? retryTimer;
+      var retryPending = false;
+      ref.onDispose(() {
+        if (!retryPending) {
+          sampler._missingArtRetries.remove(key);
+        }
+        retryTimer?.cancel();
+      });
       ref.onDispose(request.cancel);
       final field = await request.future;
       if (field != null) {
-        _missingArtRetries.remove(key);
+        sampler._missingArtRetries.remove(key);
       } else if (ref.mounted) {
-        final attempt = _missingArtRetries[key] ?? 0;
+        final attempt = sampler._missingArtRetries[key] ?? 0;
         if (attempt < 3) {
-          _missingArtRetries[key] = attempt + 1;
-          final timer = Timer(Duration(seconds: 1 << attempt), () {
-            if (ref.mounted) ref.invalidateSelf();
+          sampler._missingArtRetries[key] = attempt + 1;
+          retryTimer = Timer(Duration(seconds: 1 << attempt), () {
+            if (ref.mounted) {
+              // Keep the attempt count across this deliberate recomputation.
+              retryPending = true;
+              ref.invalidateSelf();
+            }
           });
-          ref.onDispose(timer.cancel);
         } else {
-          _missingArtRetries.remove(key);
+          sampler._missingArtRetries.remove(key);
         }
       }
       return field;

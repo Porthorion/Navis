@@ -9,8 +9,7 @@ final Map<String, CaptionTint> _tintMemo = <String, CaptionTint>{};
 const int _kTintMemoCapacity = 1024;
 
 String _memoKey(Color sampled, NavisColorStyleData style) =>
-    '${sampled.toARGB32()}|${style.style.index}|${style.dark}|${style.flat}|'
-    '${style.oled}|${style.accentHue}';
+    '${sampled.toARGB32()}|${style.style.index}|${style.dark}';
 
 /// The memoised tint of [sampled] in [style], or null if not derived yet.
 CaptionTint? peekCaptionTint(Color sampled, NavisColorStyleData style) =>

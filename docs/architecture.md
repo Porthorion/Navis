@@ -590,8 +590,8 @@ target-selection rules.
 
 ### Theme and design tokens (`lib/src/theme/`)
 
-- Schema 96 adds `app_settings.now_playing_background`: `tinted` (default),
-  `artwork` or `plain`. The guarded 95→96 migration maps the retained legacy
+- Schema 97 adds `app_settings.now_playing_background`: `tinted` (default),
+  `artwork` or `plain`. The guarded 92→97 migration maps the retained legacy
   `art_tinted_now_playing` boolean to `tinted`/`plain`. The enum model field and
   `nowPlayingBackgroundProvider` are authoritative; the legacy model getter,
   DAO watch and `artTintedNowPlayingProvider` derive `background != plain`.
@@ -599,20 +599,27 @@ target-selection rules.
 - App-wide Density covers Home and lists using the existing `home_density`
   column, with `comfortable` (default) or `compact`. `densityProvider` exposes
   `NavisDensity`; `homeDensityProvider` remains a string compatibility alias.
-  Unknown stored values and unloaded settings use the defaults. Both options
-  join the setup highlights registry for 1.4.3 and the diagnostics settings dump.
+  Unknown stored values and unloaded settings use the defaults. The background
+  choice joins the setup highlights registry for 1.4.3; Density
+  is a renamed existing setting and has no New tag. Both appear in diagnostics.
 - Now Playing Background (`now_playing_screen.dart`, `now_playing_artwork_background.dart`):
   Art-Tinted is the existing tint/gradient (solid under Flat). Plain is the
   theme `surface` (black in OLED). Artwork decodes the standard 600 px cover
-  already in the cover cache at 96 px (`ResizeImage`, no second full-size
-  fetch), blurs it (sigma 32, `ImageFiltered` inside a `RepaintBoundary`, not a
+  through the shared `coverArtImageProviderFor` source resolver at 96 px
+  (`ResizeImage`). Permanent downloaded artwork works offline; connected
+  refreshes use the cover revision in the existing cache manager key. The layer
+  blurs the cover (sigma 32, `ImageFiltered` inside a `RepaintBoundary`, not a
   backdrop filter), lays `NavisColorStyleData.nowPlayingArtworkVeil` over it
   (adaptive: the smallest alpha keeping both `onSurface` and the accent-coloured
   title at 5.0:1 against the 96 px average, within dark 0.30-0.80, OLED
   0.72-0.92 so it still reads as OLED, and light 0.58-0.88; fixed
   0.68/0.8/0.68 until the average is known) and adds a 0.15 veil over the
   bottom fifth. The previous cover stays until the next one
-  decodes, then crossfades over `MotionPolicy.surface`. Flat has no blur, so
+  decodes, then crossfades over `MotionPolicy.surface`. The averaging listener
+  disposes every received image handle, including stale callbacks. Failed source
+  keys are remembered by the layer and reported to the screen after the frame,
+  selecting Art-Tinted without retrying on position rebuilds. A new source or
+  revision can resolve again. Flat has no blur, so
   Artwork falls back to the Flat solid tint (OLED + Flat stays black); radio or
   external art uses the same allowed-artwork path as the tint, and with no
   image Artwork falls back to the tinted look. Tint extraction only runs when a
@@ -638,12 +645,12 @@ target-selection rules.
   `navis_color_style_data.dart`) are a second axis next to the theme mode:
   Neutral, Pastel, Immersive and Night each work with Light, Dark, OLED and
   Auto.
-  - Stored in `app_settings.color_style` (schema 93) as `neutral`, `pastel`,
+  - Stored in `app_settings.color_style` (schema 97) as `neutral`, `pastel`,
     `immersive` or `night`; fresh installs, upgraded rows and resets use
     `neutral`. `colorStyleProvider` resolves it through
     `NavisColorStyle.parse`, which falls back to Neutral while settings load
     or for unknown values.
-  - Schema 94 also persists `oled_for_auto`, `night_schedule_enabled`,
+  - Schema 97 also persists `oled_for_auto`, `night_schedule_enabled`,
     `night_schedule_start_minutes`, `night_schedule_end_minutes` and
     `flat_surfaces`. Fresh installs, upgrades and resets disable all three
     switches and use a 22:00–07:00 Night window; DAO writes clamp minutes to
@@ -653,8 +660,9 @@ target-selection rules.
   - `effectiveColorStyleProvider` overrides the user's style with Night inside
     the enabled local-time window, including windows spanning midnight. The
     start is inclusive, the end exclusive, and equal times never activate.
-    An overrideable `nowProvider` and a disposable boundary timer keep the
-    effective style current without changing the saved style. `app.dart`
+    An overrideable `nowProvider` and a disposable boundary timer, capped at
+    fifteen minutes, recheck wall time after suspend without changing the saved
+    style. Resume invalidation in `app.dart` remains in place. `app.dart`
     uses this effective style and selects OLED for Auto's dark theme when
     `oledForAuto` is enabled. `flatSurfacesProvider` drives Flat rendering.
   - Flat (`flatSurfacesProvider`, `NavisColorStyleData.flat`) is orthogonal to
@@ -747,7 +755,7 @@ target-selection rules.
   - `NavisSpace` and `NavisRadius` are compile-time spacing and radius
     scales.
   - Corner Style: `NavisCornerStyle` (`rounded` default, `soft`, `square`) is
-    persisted in `app_settings.corner_style` (schema 97). The guarded 96→97
+    persisted in `app_settings.corner_style` (schema 97). The guarded 92→97
     migration defaults existing rows to `rounded`. `SettingsRepository`
     saves it through `updateCornerStyle` or `saveSettings`; `cornerStyleProvider`
     derives it from `appSettingsProvider`, falling back to `rounded` while
@@ -865,10 +873,14 @@ never pays for it:
   tone search) and all persistence: read, merge, trim to 5000, encode and
   atomic write of the colour file, debounced 2 s. A card derives its tint
   through `resolveCaptionTint` (memoised in `caption_tint_resolver.dart`),
-  so `captionTintFor` never runs in `build`.
+  so `captionTintFor` never runs in `build`. Memo and card dedupe keys contain
+  only sampled ARGB, colour style and darkness; these are the only arguments
+  sent to the worker. Track-driven accent hue changes reuse the tint.
 - *Burst control.* Results reach cards through `FrameBudgetDispatcher`
   (`frame_budget_dispatcher.dart`): at most three tint repaints start per
-  frame, the rest follow on later frames. A card also never starts sampling
+  frame, the rest follow on later frames. A throwing callback rearms remaining
+  work in `finally`, while Flutter still reports the exception. A card also
+  never starts sampling
   while its list is scrolling at all (`isScrollingNotifier`) or Flutter
   recommends deferred loading.
 - *Bounded scheduling.* Each request tracks interest on a dedicated
@@ -885,8 +897,11 @@ never pays for it:
   warm the memory LRU when the store opens. A file, not a Drift table: the
   data is a disposable cache that needs no queries, relations or migration.
   The file records a hash of the server URL and user name (never
-  credentials); another account reads as empty and the sampler resets the
-  memory LRU when the account changes. NCF2 stores the sampled artwork
+  credentials); another account reads as empty. Opening another scope also
+  clears the session-long worker map and pending dirty state before loading;
+  only fresh same-scope entries merge. The sampler resets the memory LRU and
+  its missing-art retry counts when the account changes. NCF2 stores the sampled
+  artwork
   revision alongside each field; NCF1 files load with revision zero and are
   upgraded on the next save.
 - *Lazy artwork refresh.* The provider takes `(coverId, revision)`, while
@@ -1189,27 +1204,44 @@ settings updates must not refresh the router.
 Setup update highlights live in `features/onboarding/domain/setup_highlights.dart`
 and `presentation/setup_highlights_provider.dart`. The registry selects the
 newest eligible release using the shared changelog semver helpers and package
-metadata, ignoring build suffixes. A later highlight release replaces the old
-group; a later major without highlights clears it. Schema 95 adds nullable
-`setup_highlights_seen_release` and `setup_card_dismissed_release`. Their DAO
-and repository targeted writers are excluded from full settings saves, so an
-onboarding draft cannot revert them; defaults and resets clear both.
-`pendingSetupHighlightsProvider` is empty during loading, required onboarding,
-or after acknowledging that release (or a later one).
-`setupHighlightsCardVisibleProvider` additionally checks independent card
-dismissal. Finish in any mode calls `SetupHighlightsService.markSeen`; Skip
-calls it only for non-review setup that was required at hydration. Fresh
-installs thus suppress tags and acknowledge the release on first completion.
-The authenticated clone-only `POST /v1/presentation/setup-highlights/reset`
-clears both markers in a transaction to simulate an updated user whose
-onboarding is already complete; the integrations settings dump exposes them.
+metadata, ignoring build and label suffixes. A newer highlight release replaces
+the group. Highlights survive the next minor release, then expire: the 1.4.x
+registry still applies in 1.5.x, but not in 1.6.0+ or a new major. The six options
+are Color Style, OLED for Auto, Night Schedule, Flat Surfaces, Now Playing
+Background and Corner Style; Density is an existing setting and has no New tag.
+
+Schema 97 persists nullable `setup_highlights_seen` (JSON array of stable
+`SetupHighlight.storageKey` values), `setup_highlights_seen_release` and
+`setup_card_dismissed_release`. Branch-only migrations 93–97 are consolidated
+into one guarded `from92To97`; every column guard allows partially upgraded
+93–96 installs to finish safely. Versions 91–92 remain unchanged. The legacy
+background backfill runs only when `now_playing_background` is newly added.
+
+`pendingSetupHighlightsProvider` subtracts seen options from the current release
+and is empty during loading, required onboarding, expiry, or after acknowledging
+that release (or a later one). `SetupHighlightsService.markOptionSeen(option)`
+atomically adds one key through the existing repository/DAO transaction; it is
+idempotent and preserves concurrent option acknowledgements. Unknown or malformed
+stored keys do not acknowledge other options. `setupHighlightsCardVisibleProvider`
+is hidden when pending is empty or the invitation was dismissed for this release.
+`dismissCard()` hides only the invitation. Finish in any mode calls `markSeen()`
+to clear all tags for the release; Skip calls it only for non-review setup that
+was required at hydration. Fresh installs suppress tags and acknowledge the
+release on first completion. All acknowledgement writes are targeted and excluded
+from full settings saves; defaults and resets clear them. The clone-only
+`POST /v1/presentation/setup-highlights/reset` clears the set and both release
+markers in a transaction; the integrations settings dump exposes all three.
 
 The look step shows every appearance option through the same callback-driven
 widgets as Settings › Appearance (`OledForAutoOption`, `NightScheduleSection`,
 `FlatSurfacesOption` in `settings/presentation/appearance_options.dart`), in
 the order Theme Mode, Use OLED When Dark (Auto only), Color Style, Night
 Schedule, Flat Surfaces, then accent. They write only to the draft that Finish
-saves. The preview theme mirrors `app.dart`: OLED for OLED mode or Auto with
+saves through `SettingsRepository.saveOnboardingChanges`: it compares against
+the hydrated entry snapshot and uses existing targeted DAO writers, preserving
+unchanged fields written elsewhere meanwhile (including desktop volume). Custom
+presets and integration switches likewise write only when changed. The preview
+theme mirrors `app.dart`: OLED for OLED mode or Auto with
 OLED When Dark at dark platform brightness, and `flat:` from the draft. The
 night schedule never switches the preview by time. Options whose
 `SetupHighlight` is pending carry a `NewFeatureTag` (`common_widgets/`),
@@ -1853,7 +1885,7 @@ switch means "Navis only talks to your server" when off. See
   and Updates except on iOS and web) with the same one-line description, and
   "Fine-tune per feature in Settings › Integrations". The choices live in the
   onboarding draft (`externalIntegrationsEnabled`, `disabledIntegrations`) and
-  are written on Finish, after the full-row `saveSettings`, through
+  are written only when changed on Finish, through
   `setExternalIntegrationsEnabled` and `setIntegrationEnabled` (service keys
   only; feature switches are untouched); Finish then writes
   `updateIntegrationsNoticeDismissed(dismissed: true)`. Skip writes nothing, so

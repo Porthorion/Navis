@@ -94,20 +94,22 @@ artwork; missing local files use the existing bounded retry path.
 ### New tags in setup
 
 Updated users see "New" on options introduced by the newest eligible setup
-highlight release. The initial registry groups colour styles, OLED for Auto,
-Night schedule and flat surfaces under 1.4.3; the planned version move to
-1.5.0 renames this together with the changelog entry. A newer release with its
-own highlights replaces the old group. A new major with none clears old tags.
+highlight release. The initial 1.4.3 registry includes Color Style, OLED for Auto,
+Night Schedule, Flat Surfaces, Now Playing Background and Corner Style. The
+planned version move to 1.5.0 renames this together with the changelog entry.
+Density is a renamed existing setting, so it has no highlight or New tag.
 
-The same pending set drives tags in Settings: Appearance shows them beside
-Color Style, OLED When Dark, Night Schedule, Flat Surfaces, Now Playing
-Background and Density, and the Settings home Appearance entry shows one while
-any highlight is pending (all three layouts). There is no separate clearing
-rule; Finish in setup clears both. Setup's appearance step also offers Now
-Playing Background and Density, after Flat Surfaces.
+Owner addendum (2026-10-09): tags clear per option after that option has been
+visible. `SetupHighlightsService.markOptionSeen(SetupHighlight)` records its
+stable storage key in the nullable `setup_highlights_seen` JSON array using an
+idempotent, atomic targeted write. Setup and Settings read the same pending set;
+there is no second clearing rule. A newer highlight release replaces the group.
+Highlights expire after the next minor release: 1.4.x highlights remain in 1.5.x,
+but disappear at 1.6.0+; a new major also clears older highlights.
 
-Tags remain until Finish in setup or review mode; Skip keeps them for updated
-users. Fresh installs never see tags while onboarding is required, and their
-first Finish or Skip records the current highlight release as seen. The
-required-at-entry state is captured once the screen hydrates. A Home invitation
-can be dismissed for that release independently, leaving tags pending.
+Finish in setup or review still acknowledges every option for the release via
+`setup_highlights_seen_release`. Skip keeps pending tags for updated users.
+Fresh installs suppress tags while onboarding is required; their first Finish or
+Skip acknowledges the release. Required-at-entry is captured when setup hydrates.
+The Home invitation is hidden when no options remain pending and can also be
+dismissed independently via `setup_card_dismissed_release`.

@@ -224,6 +224,88 @@ void main() {
     skip: !sqliteAvailable,
   );
 
+  test(
+    'option acknowledgements are idempotent, concurrent and hide an empty card',
+    () async {
+      final database = createTestDatabase();
+      await database.appSettingsDao.getSettings();
+      await database.appSettingsDao.completeOnboarding(
+        currentOnboardingVersion,
+      );
+      final container = ProviderContainer(
+        overrides: withTestDatabase(
+          database,
+          overrides: <Override>[
+            packageInfoProvider.overrideWith((ref) async => _info('1.4.3')),
+          ],
+        ),
+      );
+      addTearDown(() async {
+        container.dispose();
+        await database.close();
+      });
+      container.listen(appSettingsProvider, (_, _) {});
+      container.listen(onboardingRequiredProvider, (_, _) {});
+      await container.read(onboardingVersionProvider.future);
+      await container.read(appSettingsProvider.future);
+      await container.read(packageInfoProvider.future);
+      final service = container.read(setupHighlightsServiceProvider);
+      final repository = container.read(settingsRepositoryProvider);
+      final initial = await repository.getSettings();
+      final firstSeen = repository.watchSettings().firstWhere(
+        (s) => s.setupHighlightsSeen.contains(
+          SetupHighlight.colorStyle.storageKey,
+        ),
+      );
+      await service.markOptionSeen(SetupHighlight.colorStyle);
+      await firstSeen;
+      await Future<void>.delayed(Duration.zero);
+      expect(
+        container.read(pendingSetupHighlightsProvider),
+        SetupHighlight.values
+            .where((h) => h != SetupHighlight.colorStyle)
+            .toSet(),
+      );
+      expect(container.read(setupHighlightsCardVisibleProvider), isTrue);
+      final completed = repository.watchSettings().firstWhere(
+        (s) => s.setupHighlightsSeen.length == SetupHighlight.values.length,
+      );
+      await Future.wait([
+        for (final option in SetupHighlight.values)
+          service.markOptionSeen(option),
+        service.markOptionSeen(SetupHighlight.colorStyle),
+      ]);
+      await completed;
+      await Future<void>.delayed(Duration.zero);
+      expect(container.read(pendingSetupHighlightsProvider), isEmpty);
+      expect(container.read(setupHighlightsCardVisibleProvider), isFalse);
+      expect(
+        (await repository.getSettings()).setupHighlightsSeenRelease,
+        isNull,
+      );
+      await repository.saveSettings(initial);
+      expect(
+        (await repository.getSettings()).setupHighlightsSeen.length,
+        SetupHighlight.values.length,
+      );
+      // Unknown and malformed persisted keys never clear an unrelated option.
+      await database.customStatement(
+        "UPDATE app_settings SET setup_highlights_seen = 'invalid'",
+      );
+      expect((await repository.getSettings()).setupHighlightsSeen, isEmpty);
+      await service.markOptionSeen(SetupHighlight.cornerStyle);
+      expect((await repository.getSettings()).setupHighlightsSeen, {
+        SetupHighlight.cornerStyle.storageKey,
+      });
+      await repository.resetDefaults();
+      final reset = await repository.getSettings();
+      expect(reset.setupHighlightsSeen, isEmpty);
+      expect(reset.setupHighlightsSeenRelease, isNull);
+      expect(reset.setupCardDismissedRelease, isNull);
+    },
+    skip: !sqliteAvailable,
+  );
+
   test('markSeen waits for loading metadata before writing', () async {
     final metadata = Completer<PackageInfo>();
     final database = createTestDatabase();

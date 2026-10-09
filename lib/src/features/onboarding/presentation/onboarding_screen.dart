@@ -72,6 +72,8 @@ class OnboardingScreenState extends ConsumerState<OnboardingScreen> {
   String? _listenBrainzError;
   String? _saveError;
   AppSettingsModel? _draft;
+  late final AppSettingsModel _initialSettings;
+  late final List<int> _initialCustomPresets;
   List<int>? _draftCustomPresets;
   late final TextEditingController _lastFmKey;
   late final TextEditingController _listenBrainzToken;
@@ -150,10 +152,12 @@ class OnboardingScreenState extends ConsumerState<OnboardingScreen> {
     if (_hydrated) return;
     _hydrated = true;
     _onboardingRequiredAtEntry = onboardingRequired;
+    _initialSettings = settings;
     _draft = settings;
     _draftCustomPresets = List<int>.from(
       ref.read(customColorPresetsProvider).asData?.value ?? const <int>[],
     );
+    _initialCustomPresets = List<int>.of(_draftCustomPresets!);
     _lastFmKey.text = settings.lastFmApiKey ?? '';
     unawaited(_readListenBrainzToken());
   }
@@ -176,7 +180,8 @@ class OnboardingScreenState extends ConsumerState<OnboardingScreen> {
     try {
       if (!discardDraft) {
         final customPresets = _draftCustomPresets;
-        if (customPresets != null) {
+        if (customPresets != null &&
+            !listEquals(customPresets, _initialCustomPresets)) {
           await ref
               .read(navisDatabaseProvider)
               .appSettingsDao
@@ -184,7 +189,9 @@ class OnboardingScreenState extends ConsumerState<OnboardingScreen> {
                 customPresets.isEmpty ? null : jsonEncode(customPresets),
               );
         }
-        await ref.read(settingsRepositoryProvider).saveSettings(draft);
+        await ref
+            .read(settingsRepositoryProvider)
+            .saveOnboardingChanges(_initialSettings, draft);
         await _saveIntegrationChoices(draft);
         final handler = ref.read(audioHandlerProvider);
         if (handler != null) await handler.applyRuntimeSettings();
@@ -211,21 +218,37 @@ class OnboardingScreenState extends ConsumerState<OnboardingScreen> {
   }
 
   /// Writes the Integrations step's switches through the targeted writers,
-  /// which the full-row settings save leaves alone, and marks the 1.4.3
+  /// only for changes from the entry snapshot, and marks the 1.4.3
   /// Integrations note as seen: setup has just shown the same choices.
   Future<void> _saveIntegrationChoices(AppSettingsModel draft) async {
     final repository = ref.read(settingsRepositoryProvider);
+    final initial = _initialSettings;
     final policy = _draftIntegrationPolicy(draft);
-    await repository.updateLastFmApiKey(draft.lastFmApiKey);
-    await repository.updateListenBrainzConnection(
-      tokenValid: draft.listenBrainzTokenValid,
-      userName: draft.listenBrainzUserName,
-      scrobblingEnabled: draft.listenBrainzScrobblingEnabled,
-    );
-    await repository.setExternalIntegrationsEnabled(
-      enabled: draft.externalIntegrationsEnabled,
-    );
+    final initialPolicy = _draftIntegrationPolicy(initial);
+    if (draft.lastFmApiKey != initial.lastFmApiKey) {
+      await repository.updateLastFmApiKey(draft.lastFmApiKey);
+    }
+    if (draft.listenBrainzTokenValid != initial.listenBrainzTokenValid ||
+        draft.listenBrainzUserName != initial.listenBrainzUserName ||
+        draft.listenBrainzScrobblingEnabled !=
+            initial.listenBrainzScrobblingEnabled) {
+      await repository.updateListenBrainzConnection(
+        tokenValid: draft.listenBrainzTokenValid,
+        userName: draft.listenBrainzUserName,
+        scrobblingEnabled: draft.listenBrainzScrobblingEnabled,
+      );
+    }
+    if (draft.externalIntegrationsEnabled !=
+        initial.externalIntegrationsEnabled) {
+      await repository.setExternalIntegrationsEnabled(
+        enabled: draft.externalIntegrationsEnabled,
+      );
+    }
     for (final service in _integrationStepServices) {
+      if (policy.isServiceSwitchOn(service) ==
+          initialPolicy.isServiceSwitchOn(service)) {
+        continue;
+      }
       await repository.setIntegrationEnabled(
         service.key,
         enabled: policy.isServiceSwitchOn(service),
@@ -741,7 +764,6 @@ class OnboardingScreenState extends ConsumerState<OnboardingScreen> {
         ),
         DensityOption(
           value: draft.density,
-          adornment: tagFor(SetupHighlight.density),
           titleStyle: Theme.of(context).textTheme.titleMedium,
           onChanged: (value) =>
               setState(() => _draft = draft.copyWith(density: value)),

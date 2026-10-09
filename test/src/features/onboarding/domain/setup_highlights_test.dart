@@ -12,6 +12,9 @@ void main() {
       expect(setupWhatsNewRelease('1.4.3-sidecar'), '1.4.3');
       expect(setupWhatsNewRelease('1.4.10'), '1.4.3');
       expect(setupWhatsNewRelease('1.5.0'), '1.4.3');
+      expect(setupWhatsNewRelease('1.5.9+10509'), '1.4.3');
+      expect(setupWhatsNewRelease('1.6.0'), isNull);
+      expect(setupWhatsNewRelease('1.6.0-sidecar'), isNull);
       expect(setupWhatsNewRelease('invalid'), isNull);
     },
   );
@@ -21,22 +24,17 @@ void main() {
     expect(setupWhatsNewRelease('2.0.0+20000'), isNull);
   });
 
-  test(
-    'background, corner style and app-wide density are introduced in 1.4.3',
-    () {
-      expect(SetupHighlight.nowPlayingBackground.since, '1.4.3');
-      expect(SetupHighlight.density.since, '1.4.3');
-      expect(SetupHighlight.cornerStyle.since, '1.4.3');
-      expect(
-        setupHighlightsFor('1.4.3'),
-        containsAll([
-          SetupHighlight.nowPlayingBackground,
-          SetupHighlight.density,
-          SetupHighlight.cornerStyle,
-        ]),
-      );
-    },
-  );
+  test('background and corner style are introduced in 1.4.3', () {
+    expect(SetupHighlight.nowPlayingBackground.since, '1.4.3');
+    expect(SetupHighlight.cornerStyle.since, '1.4.3');
+    expect(
+      setupHighlightsFor('1.4.3'),
+      containsAll([
+        SetupHighlight.nowPlayingBackground,
+        SetupHighlight.cornerStyle,
+      ]),
+    );
+  });
 
   test('release groups replace old highlights rather than accumulating', () {
     expect(setupHighlightsFor('1.4.3'), SetupHighlight.values.toSet());

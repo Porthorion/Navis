@@ -24,6 +24,36 @@ void main() {
       await database.close();
     });
 
+    test(
+      'setup Finish preserves values changed elsewhere after entry',
+      () async {
+        final initial = await repository.getSettings();
+        await repository.saveDesktopPlaybackVolume(
+          volume: 0.3,
+          lastAudibleVolume: 0.3,
+        );
+        await database.appSettingsDao.updateColorStyle('immersive');
+        await database.appSettingsDao.updateNightSchedule(startMinutes: 1000);
+        final draft = initial.copyWith(
+          themeMode: 'oled',
+          nightScheduleEnabled: true,
+          wifiMaxBitRate: 128,
+          clearWifiFormat: true,
+          albumQueueEnabled: false,
+        );
+        await repository.saveOnboardingChanges(initial, draft);
+        final saved = await repository.getSettings();
+        expect(saved.desktopPlaybackVolume, 0.3);
+        expect(saved.colorStyle, 'immersive');
+        expect(saved.nightScheduleStartMinutes, 1000);
+        expect(saved.nightScheduleEnabled, isTrue);
+        expect(saved.themeMode, 'oled');
+        expect(saved.wifiMaxBitRate, 128);
+        expect(saved.wifiFormat, isNull);
+        expect(saved.albumQueueEnabled, isFalse);
+      },
+    );
+
     test('corner style maps, saves, watches and resets', () async {
       final defaults = await repository.getSettings();
       expect(defaults.cornerStyle, NavisCornerStyle.rounded);

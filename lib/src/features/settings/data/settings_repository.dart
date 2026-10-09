@@ -1,5 +1,7 @@
 import 'dart:convert';
 
+import 'package:drift/drift.dart' show Value;
+
 import 'package:navis/src/database/daos/app_settings_dao.dart';
 import 'package:navis/src/database/navis_database.dart';
 import 'package:navis/src/features/player/domain/playback_adjustments.dart';
@@ -112,6 +114,99 @@ class SettingsRepository {
     );
   }
 
+  /// Saves only setup choices changed from the snapshot captured at entry.
+  Future<void> saveOnboardingChanges(
+    AppSettingsModel initial,
+    AppSettingsModel draft,
+  ) async {
+    if (draft.themeMode != initial.themeMode) {
+      await _dao.updateThemeMode(draft.themeMode);
+    }
+    if (draft.colorStyle != initial.colorStyle) {
+      await _dao.updateColorStyle(draft.colorStyle);
+    }
+    if (draft.oledForAuto != initial.oledForAuto) {
+      await _dao.updateOledForAuto(enabled: draft.oledForAuto);
+    }
+    if (draft.flatSurfaces != initial.flatSurfaces) {
+      await _dao.updateFlatSurfaces(enabled: draft.flatSurfaces);
+    }
+    if (draft.cornerStyle != initial.cornerStyle) {
+      await _dao.updateCornerStyle(draft.cornerStyle.name);
+    }
+    if (draft.nowPlayingBackground != initial.nowPlayingBackground) {
+      await _dao.updateNowPlayingBackground(
+        draft.nowPlayingBackground.storageKey,
+      );
+    }
+    if (draft.colorSchemeSeed != initial.colorSchemeSeed) {
+      await _dao.updateColorSchemeSeed(draft.colorSchemeSeed);
+    }
+    if (draft.wifiOnlyDownloads != initial.wifiOnlyDownloads) {
+      await _dao.updateWifiOnlyDownloads(enabled: draft.wifiOnlyDownloads);
+    }
+    if (draft.density != initial.density) {
+      await _dao.updateDensity(draft.density);
+    }
+    if (draft.nightScheduleEnabled != initial.nightScheduleEnabled ||
+        draft.nightScheduleStartMinutes != initial.nightScheduleStartMinutes ||
+        draft.nightScheduleEndMinutes != initial.nightScheduleEndMinutes) {
+      await _dao.updateNightSchedule(
+        enabled: draft.nightScheduleEnabled != initial.nightScheduleEnabled
+            ? draft.nightScheduleEnabled
+            : null,
+        startMinutes:
+            draft.nightScheduleStartMinutes != initial.nightScheduleStartMinutes
+            ? draft.nightScheduleStartMinutes
+            : null,
+        endMinutes:
+            draft.nightScheduleEndMinutes != initial.nightScheduleEndMinutes
+            ? draft.nightScheduleEndMinutes
+            : null,
+      );
+    }
+    await _dao.updateSetupListeningPreferences(
+      wifiMaxBitRate: draft.wifiMaxBitRate == initial.wifiMaxBitRate
+          ? const Value.absent()
+          : Value(draft.wifiMaxBitRate),
+      wifiFormat: draft.wifiFormat == initial.wifiFormat
+          ? const Value.absent()
+          : Value(draft.wifiFormat),
+      cellularMaxBitRate: draft.cellularMaxBitRate == initial.cellularMaxBitRate
+          ? const Value.absent()
+          : Value(draft.cellularMaxBitRate),
+      cellularFormat: draft.cellularFormat == initial.cellularFormat
+          ? const Value.absent()
+          : Value(draft.cellularFormat),
+      cachedPlaybackFirst:
+          draft.cachedPlaybackFirst == initial.cachedPlaybackFirst
+          ? const Value.absent()
+          : Value(draft.cachedPlaybackFirst),
+      scrobbleEnabled: draft.scrobbleEnabled == initial.scrobbleEnabled
+          ? const Value.absent()
+          : Value(draft.scrobbleEnabled),
+      gaplessEnabled: draft.gaplessEnabled == initial.gaplessEnabled
+          ? const Value.absent()
+          : Value(draft.gaplessEnabled),
+      crossfadeEnabled: draft.crossfadeEnabled == initial.crossfadeEnabled
+          ? const Value.absent()
+          : Value(draft.crossfadeEnabled),
+      crossfadeDurationSeconds:
+          draft.crossfadeDurationSeconds == initial.crossfadeDurationSeconds
+          ? const Value.absent()
+          : Value(draft.crossfadeDurationSeconds),
+      crossfadeType: draft.crossfadeType == initial.crossfadeType
+          ? const Value.absent()
+          : Value(draft.crossfadeType),
+      albumQueueEnabled: draft.albumQueueEnabled == initial.albumQueueEnabled
+          ? const Value.absent()
+          : Value(draft.albumQueueEnabled),
+      likedQueueEnabled: draft.likedQueueEnabled == initial.likedQueueEnabled
+          ? const Value.absent()
+          : Value(draft.likedQueueEnabled),
+    );
+  }
+
   Future<void> updateNowPlayingBackground(NowPlayingBackground background) =>
       _dao.updateNowPlayingBackground(background.storageKey);
 
@@ -175,6 +270,10 @@ class SettingsRepository {
   /// Records whether the one-time 1.4.3 Integrations note on Home was seen.
   Future<void> updateIntegrationsNoticeDismissed({required bool dismissed}) =>
       _dao.updateIntegrationsNoticeDismissed(dismissed: dismissed);
+
+  /// Acknowledges one setup option through an atomic, targeted write.
+  Future<void> markSetupHighlightSeen(String key) =>
+      _dao.markSetupHighlightSeen(key);
 
   /// Records the acknowledged setup release; null clears it.
   Future<void> updateSetupHighlightsSeenRelease(String? release) =>
@@ -296,6 +395,7 @@ class SettingsRepository {
       externalIntegrationsEnabled: row.externalIntegrationsEnabled,
       disabledIntegrations: row.disabledIntegrations,
       integrationsNoticeDismissed: row.integrationsNoticeDismissed,
+      setupHighlightsSeen: _decodeStringSet(row.setupHighlightsSeen),
       setupHighlightsSeenRelease: row.setupHighlightsSeenRelease,
       setupCardDismissedRelease: row.setupCardDismissedRelease,
       customVoyageServers: const <CustomVoyageServer>[],
@@ -305,6 +405,17 @@ class SettingsRepository {
       voyageDeviceLabel: null,
       voyageAutoFollowHost: AppSettingsDao.defaultVoyageAutoFollowHost,
     );
+  }
+
+  Set<String> _decodeStringSet(String? raw) {
+    try {
+      final decoded = jsonDecode(raw ?? '[]');
+      return decoded is List
+          ? Set.unmodifiable(decoded.whereType<String>())
+          : const <String>{};
+    } on FormatException {
+      return const <String>{};
+    }
   }
 
   String? _encodeStringList(List<String>? values) {

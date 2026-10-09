@@ -28,7 +28,10 @@ final pendingSetupHighlightsProvider = Provider<Set<SetupHighlight>>((ref) {
       _atLeast(settings.asData!.value.setupHighlightsSeenRelease, release)) {
     return const <SetupHighlight>{};
   }
-  return setupHighlightsFor(release);
+  final seen = settings.asData!.value.setupHighlightsSeen;
+  return Set.unmodifiable(
+    setupHighlightsFor(release).where((h) => !seen.contains(h.storageKey)),
+  );
 });
 
 /// Whether Home should invite the updated user to review setup for this release.
@@ -47,10 +50,14 @@ final setupHighlightsCardVisibleProvider = Provider<bool>((ref) {
 
 /// Targeted setup acknowledgement and Home invitation dismissal operations.
 class SetupHighlightsService {
-  const new(this._markSeen, this._dismissCard);
+  const new(this._markSeen, this._dismissCard, this._markOptionSeen);
 
   final Future<void> Function() _markSeen;
   final Future<void> Function() _dismissCard;
+  final Future<void> Function(SetupHighlight) _markOptionSeen;
+
+  /// Clears one option after it has been visible; repeated calls are harmless.
+  Future<void> markOptionSeen(SetupHighlight option) => _markOptionSeen(option);
 
   /// Acknowledges the current highlight release after Finish or first-run Skip.
   ///
@@ -78,5 +85,13 @@ final setupHighlightsServiceProvider = Provider<SetupHighlightsService>((ref) {
   return SetupHighlightsService(
     () => writeRelease(seen: true),
     () => writeRelease(seen: false),
+    (option) async {
+      final info = await ref.read(packageInfoProvider.future);
+      final release = setupWhatsNewRelease(info.version);
+      if (release == null || !setupHighlightsFor(release).contains(option)) {
+        return;
+      }
+      await repository.markSetupHighlightSeen(option.storageKey);
+    },
   );
 });

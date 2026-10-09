@@ -3,6 +3,7 @@ import 'dart:ui' as ui;
 
 import 'package:material_ui/material_ui.dart';
 import 'package:navis/src/theme/caption_tint.dart';
+import 'package:navis/src/features/settings/domain/now_playing_background.dart';
 import 'package:navis/src/theme/navis_color_style_data.dart';
 
 /// Width in pixels the cover is decoded at for the Artwork background. The
@@ -53,7 +54,9 @@ Color nowPlayingAdaptiveVeil({
 Future<Color?> averageImageColor(ui.Image image) async {
   final data = await image.toByteData();
   if (data == null || data.lengthInBytes < 4) return null;
-  var r = 0, g = 0, b = 0;
+  var r = 0;
+  var g = 0;
+  var b = 0;
   final count = data.lengthInBytes ~/ 4;
   for (var i = 0; i < count; i++) {
     r += data.getUint8(i * 4);
@@ -61,6 +64,47 @@ Future<Color?> averageImageColor(ui.Image image) async {
     b += data.getUint8(i * 4 + 2);
   }
   return Color.fromARGB(255, r ~/ count, g ~/ count, b ~/ count);
+}
+
+/// Whether the Artwork background draws its blurred cover. Flat has no blur
+/// (it falls back to the solid art colour) and a missing cover falls back to
+/// the tinted look.
+bool nowPlayingShowsArtworkLayer({
+  required NowPlayingBackground background,
+  required bool flat,
+  required bool hasImage,
+}) => background == NowPlayingBackground.artwork && !flat && hasImage;
+
+/// Background of the Now Playing surface.
+///
+/// No [tintColor] (art tint off or no art yet): plain [surfaceColor]. With a
+/// tint: the style-adapted art colour fading into the surface, or under Flat
+/// one solid colour, the adapted tint at the style's alpha composited over
+/// the surface.
+BoxDecoration nowPlayingSurfaceDecoration({
+  required Color? tintColor,
+  required NavisColorStyleData colorStyle,
+  required Color surfaceColor,
+}) {
+  // OLED + Flat stays pure black: a solid tint would lift the whole screen
+  // off black, which defeats OLED. Non-flat OLED keeps its gradient.
+  if (tintColor == null || (colorStyle.flat && colorStyle.oled)) {
+    return BoxDecoration(color: surfaceColor);
+  }
+  final tint = colorStyle
+      .adaptArtColor(tintColor)
+      .withValues(alpha: colorStyle.nowPlayingTintAlpha);
+  if (colorStyle.flat) {
+    return BoxDecoration(color: Color.alphaBlend(tint, surfaceColor));
+  }
+  return BoxDecoration(
+    gradient: LinearGradient(
+      begin: Alignment.topCenter,
+      end: Alignment.bottomCenter,
+      colors: <Color>[tint, surfaceColor],
+      stops: const <double>[0, 0.7],
+    ),
+  );
 }
 
 /// Blurred, veiled cover behind Now Playing (the Artwork background).
@@ -79,8 +123,13 @@ class NowPlayingArtworkBackground extends StatefulWidget {
     required this.onSurfaceColor,
     required this.fadeDuration,
     this.accentColor,
+    this.onAvailabilityChanged,
     super.key,
   });
+
+  /// Reports decode availability after the frame, so parents can select a fallback.
+  final void Function(String key, {required bool available})?
+  onAvailabilityChanged;
 
   /// Identity of [image] (cover id or art URL).
   final String? imageKey;
@@ -110,6 +159,7 @@ class NowPlayingArtworkBackground extends StatefulWidget {
 
 class _NowPlayingArtworkBackgroundState
     extends State<NowPlayingArtworkBackground> {
+  final Set<String> _failedKeys = <String>{};
   String? _shownKey;
   ImageProvider<Object>? _shown;
   Color? _shownAverage;
@@ -132,7 +182,7 @@ class _NowPlayingArtworkBackgroundState
   void _resolve() {
     final key = widget.imageKey;
     final image = widget.image;
-    if (key == null || image == null) return;
+    if (key == null || image == null || _failedKeys.contains(key)) return;
     if (key == _shownKey) {
       _shown = image;
       return;
@@ -145,13 +195,18 @@ class _NowPlayingArtworkBackgroundState
     listener = ImageStreamListener(
       (info, _) {
         stream.removeListener(listener);
-        if (!mounted || _pendingKey != key) return;
+        if (!mounted || _pendingKey != key) {
+          info.dispose();
+          return;
+        }
         unawaited(() async {
           Color? average;
           try {
             average = await averageImageColor(info.image);
           } on Object {
             average = null;
+          } finally {
+            info.dispose();
           }
           if (!mounted || _pendingKey != key) return;
           setState(() {
@@ -160,16 +215,35 @@ class _NowPlayingArtworkBackgroundState
             _shownAverage = average;
             _pendingKey = null;
           });
+          _reportAvailability(key, true);
         }());
       },
       onError: (_, _) {
         stream.removeListener(listener);
-        if (_pendingKey == key) _pendingKey = null;
+        if (!mounted || _pendingKey != key) return;
+        setState(() {
+          _pendingKey = null;
+          _failedKeys.add(key);
+          _shown = null;
+          _shownKey = null;
+          _shownAverage = null;
+        });
+        _reportAvailability(key, false);
       },
     );
     _stream = stream;
     _listener = listener;
     stream.addListener(listener);
+  }
+
+  void _reportAvailability(String key, bool available) {
+    final callback = widget.onAvailabilityChanged;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted && widget.imageKey == key) {
+        callback?.call(key, available: available);
+      }
+    });
+    WidgetsBinding.instance.scheduleFrame();
   }
 
   void _stopListening() {
