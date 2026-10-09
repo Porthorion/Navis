@@ -96,6 +96,7 @@ class _ControllableAudioPlayer extends Fake implements AudioPlayer {
   Completer<void>? seekEntered;
   Completer<void>? loadGate;
   Completer<void>? loadEntered;
+  StateError? blockedLoadError;
   Completer<void>? appendGate;
   Completer<void>? appendEntered;
   int lastSetAudioSourcesCount = 0;
@@ -332,6 +333,7 @@ class _ControllableAudioPlayer extends Fake implements AudioPlayer {
     if (gate != null) {
       loadEntered?.complete();
       await gate.future;
+      if (blockedLoadError case final error?) throw error;
     }
     simulatedPosition = ignoreInitialPosition
         ? Duration.zero
@@ -450,6 +452,8 @@ void main() {
     NavisQueueWindow queueWindow = const NavisQueueWindow(),
     NavisPlaybackTimeouts timeouts = const NavisPlaybackTimeouts(),
     List<_ControllableAudioPlayer>? rebuiltPlayers,
+    _ControllableAudioPlayer? initialPlayer,
+    bool waitForReady = true,
     // Songs stream from a server, with desktop sidecar caching.
     bool sidecarStreams = false,
     Future<void> Function(NavisDatabase database)? seed,
@@ -502,7 +506,7 @@ void main() {
     }
     await seed?.call(database);
     final cache = DriftRollingCacheManager(cacheDao: database.cacheDao);
-    final player = _ControllableAudioPlayer();
+    final player = initialPlayer ?? _ControllableAudioPlayer();
     final handler = NavisAudioHandler(
       readRadioMetadataAllowed: readRadioMetadataAllowed ?? () => false,
       createRadioMetadataDio: createRadioMetadataDio,
@@ -562,7 +566,7 @@ void main() {
               return rebuilt;
             },
     );
-    await handler.waitUntilReady();
+    if (waitForReady) await handler.waitUntilReady();
     return (handler, player, database);
   }
 
@@ -3629,6 +3633,77 @@ void main() {
       expect(handler.debugInactiveDeck!.playing, isFalse);
     });
   });
+
+  for (final (count, lateFailure) in [(3, false), (3, true), (70, false)]) {
+    test('timed-out saved restore cannot change a newer selection '
+        '(count=$count, lateFailure=$lateFailure)', () async {
+      final directory = await Directory.systemTemp.createTemp(
+        'navis-restore-timeout-',
+      );
+      final gate = Completer<void>();
+      final entered = Completer<void>();
+      final initialPlayer = _ControllableAudioPlayer()
+        ..loadGate = gate
+        ..loadEntered = entered
+        ..keepStreamsAfterDispose = true
+        ..blockedLoadError = lateFailure
+            ? StateError('late restore failure')
+            : null;
+      final rebuilt = <_ControllableAudioPlayer>[];
+      final (handler, _, database) = await createHandler(
+        directory,
+        count,
+        savedQueueIndex: 0,
+        initialPlayer: initialPlayer,
+        waitForReady: false,
+        rebuiltPlayers: rebuilt,
+      );
+      addTearDown(() async {
+        if (!gate.isCompleted) gate.complete();
+        await pumpEventQueue();
+        await handler.disposeHandler();
+        initialPlayer.keepStreamsAfterDispose = false;
+        await initialPlayer.dispose();
+        await database.close();
+        await directory.delete(recursive: true);
+      });
+      await entered.future.timeout(const Duration(seconds: 5));
+      await handler.waitUntilReady().timeout(const Duration(seconds: 15));
+      expect(
+        handler.collectPlaybackDiagnostics()['queueRestoreOutcome'],
+        'timeout',
+      );
+      expect((await database.playQueueDao.getQueueItems()).length, count);
+
+      await handler.replaceQueue(['song-2'], expandMatchFlows: false);
+      final selectedPlayer =
+          handler.debugActivePlayer as _ControllableAudioPlayer;
+      expect(selectedPlayer.isPlaying, isTrue);
+      // A two-phase restore also has a native load deadline. Its later
+      // timeout must not rebuild the player that now owns the selection.
+      if (count > 64) {
+        await Future<void>.delayed(const Duration(seconds: 3));
+      }
+      gate.complete();
+      await pumpEventQueue(times: 50);
+
+      expect(identical(handler.debugActivePlayer, selectedPlayer), isTrue);
+      expect(selectedPlayer.isPlaying, isTrue);
+      expect(selectedPlayer.sourceIds, ['song-2']);
+      expect(handler.snapshot.currentSongId, 'song-2');
+      expect(handler.mediaItem.value?.id, 'song-2');
+      expect(handler.snapshot.queueSongIds, ['song-2']);
+      expect(
+        handler.collectPlaybackDiagnostics()['queueRestoreOutcome'],
+        'timeout',
+      );
+      await handler.debugFlushQueuePersistence();
+      expect(
+        (await database.playQueueDao.getQueueItems()).map((song) => song.id),
+        ['song-2'],
+      );
+    });
+  }
 
   group('deferred startup queue restore', () {
     SubsonicApiClient createApiClient() => SubsonicApiClient(

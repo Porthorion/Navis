@@ -1232,23 +1232,47 @@ class NavisAudioHandler extends BaseAudioHandler
   }
 
   Future<void> _restoreQueueAfterStartup() async {
-    await _queueLane.run((_) => _restoreSavedQueue());
+    await _queueLane.run((token) => _restoreSavedQueue(token: token));
   }
 
-  Future<void> _restoreSavedQueue({OperationToken? token}) async {
+  Future<void> _restoreSavedQueue({required OperationToken token}) async {
+    final generation = ++_loadGeneration;
+    _activeLoadGeneration = generation;
     try {
       _queueRestoreOutcome = 'loading';
-      await _restoreQueueFromDisk(token: token)
-          .timeout(const Duration(seconds: 10));
+      await _restoreQueueFromDisk(
+        token: token,
+        ownershipGeneration: generation,
+      ).timeout(const Duration(seconds: 10));
     } on TimeoutException catch (error, stackTrace) {
+      token.cancel();
       _queueRestoreOutcome = 'timeout';
+      if (_isActiveLoadGeneration(generation)) {
+        _completeQueueLoad(generation);
+        _activeLoadGeneration = ++_loadGeneration;
+      }
+      // A native load cannot be cancelled by a Dart timeout. Retire its
+      // player before another command can use it or receive its events.
+      await _recoverPlayersFromTimeout(
+        generation: generation,
+        operation: 'saved queue restore',
+      );
+      await _clearQueueInternal(persist: false);
       // Keep the saved queue: large queues restore their current item
       // first, so a timeout is transient and must not lose the user's queue.
       AppLogger.warning(
         'Queue restore timed out; keeping the saved queue. '
         '$error\n$stackTrace',
       );
+    } on OperationCancelledException {
+      if (_queueRestoreOutcome != 'timeout') {
+        _queueRestoreOutcome = 'superseded';
+      }
     } on Object catch (error, stackTrace) {
+      if (token.isCancelled) {
+        _queueRestoreOutcome = 'superseded';
+        return;
+      }
       _queueRestoreOutcome = 'failed';
       AppLogger.error(
         'Queue restore failed. Clearing persisted queue to keep playback functional.',
@@ -1992,6 +2016,7 @@ class NavisAudioHandler extends BaseAudioHandler
     final startupTrace = _activeStartupTrace;
     startupTrace?.mark('player:$operation:start');
     var timedOut = false;
+    final operationPlayer = _player;
     try {
       final operationFuture = action();
       unawaited(
@@ -2039,11 +2064,14 @@ class NavisAudioHandler extends BaseAudioHandler
         position: _player.position,
         playing: _player.playing,
       );
-      await _recoverPlayersFromTimeout(
-        generation: generation,
-        operation: operation,
-        songId: songId,
-      );
+      // An enclosing restore timeout may already have retired this player.
+      if (identical(_player, operationPlayer)) {
+        await _recoverPlayersFromTimeout(
+          generation: generation,
+          operation: operation,
+          songId: songId,
+        );
+      }
       if (reloadQueueOnTimeout && isCurrent) {
         await _reloadQueueAfterTimeout(capture);
       }
@@ -3146,13 +3174,18 @@ class NavisAudioHandler extends BaseAudioHandler
   }
 
   /// Restores the saved queue paused. With a lane [token], the restore yields
-  /// to a queue command issued while it read the saved queue.
-  Future<void> _restoreQueueFromDisk({OperationToken? token}) async {
+  /// to a queue command issued while reading, resolving, or loading it.
+  Future<void> _restoreQueueFromDisk({
+    OperationToken? token,
+    int? ownershipGeneration,
+  }) async {
     final queueState = await _playQueueDao.getQueueState();
     final entries = await _playQueueDao.getQueueEntries();
     var queuedSongs = <SongsTableData>[for (final entry in entries) entry.song];
     if (token?.isCancelled ?? false) {
-      _queueRestoreOutcome = 'superseded';
+      if (_queueRestoreOutcome != 'timeout') {
+        _queueRestoreOutcome = 'superseded';
+      }
       return;
     }
     if (queuedSongs.isEmpty) {
@@ -3194,7 +3227,7 @@ class NavisAudioHandler extends BaseAudioHandler
     _PreparedQueueItem? restoredStartItem;
     try {
       if (restoreInTwoPhases) {
-        final generation = ++_loadGeneration;
+        final generation = ownershipGeneration ?? ++_loadGeneration;
         fillGeneration = generation;
         _activeLoadGeneration = generation;
         _pendingLogicalQueueSongIds = List<String>.unmodifiable(
@@ -3218,9 +3251,11 @@ class NavisAudioHandler extends BaseAudioHandler
           persist: false,
           preloadWhenPaused: false,
           forcePreloadWhenPaused: true,
+          token: token,
         );
       }
     } on PlaybackSourceUnavailableException catch (error) {
+      token?.checkCancelled();
       _clearPendingLogicalQueue();
       _queueRestoreOutcome = 'deferred_auth';
       _queueRestoreDeferredReason = error.message;
@@ -3232,10 +3267,13 @@ class NavisAudioHandler extends BaseAudioHandler
     } on OperationCancelledException {
       // A newer queue command owns the player, the pending logical queue and
       // the saved queue; leave all of them intact.
-      _queueRestoreOutcome = 'superseded';
+      if (_queueRestoreOutcome != 'timeout') {
+        _queueRestoreOutcome = 'superseded';
+      }
       AppLogger.debug('Queue restore superseded by a newer queue command.');
       return;
     } on Object catch (error, stackTrace) {
+      token?.checkCancelled();
       _queueRestoreOutcome = 'failed';
       AppLogger.warning(
         'Queue restore failed with an unrecoverable source/setup error. '
@@ -3248,6 +3286,7 @@ class NavisAudioHandler extends BaseAudioHandler
       return;
     }
 
+    token?.checkCancelled();
     if (queueState != null) {
       _desiredLoopMode = switch (queueState.repeatMode) {
         schema.RepeatMode.one => LoopMode.one,
@@ -3257,7 +3296,9 @@ class NavisAudioHandler extends BaseAudioHandler
       await _syncNativeLoopMode();
     }
 
+    token?.checkCancelled();
     await _player.pause();
+    token?.checkCancelled();
     _queueRestoreOutcome = 'restored';
     _broadcastPlaybackState();
     _emitSnapshot();
@@ -3592,13 +3633,16 @@ class NavisAudioHandler extends BaseAudioHandler
     bool preloadWhenPaused = true,
     bool forcePreloadWhenPaused = false,
     int generation = 0,
+    OperationToken? token,
   }) async {
     List<_PreparedQueueItem> prepared;
     try {
       prepared = await _prepareQueueItems(songs, preferLockCaching: true);
     } on PlaybackSourceUnavailableException {
+      token?.checkCancelled();
       rethrow;
     } on Object catch (error, stackTrace) {
+      token?.checkCancelled();
       AppLogger.warning(
         'Queue preparation failed while lock-cached sources were enabled. '
         'Retrying with direct-stream sources. '
@@ -3607,6 +3651,7 @@ class NavisAudioHandler extends BaseAudioHandler
       prepared = await _prepareQueueItems(songs, preferLockCaching: false);
     }
 
+    token?.checkCancelled();
     if (prepared.isEmpty) {
       await _clearQueueInternal(persist: persist);
       return;
@@ -3622,8 +3667,10 @@ class NavisAudioHandler extends BaseAudioHandler
         preloadWhenPaused: preloadWhenPaused,
         forcePreloadWhenPaused: forcePreloadWhenPaused,
         generation: generation,
+        token: token,
       );
     } on Object catch (error, stackTrace) {
+      token?.checkCancelled();
       final sourceKinds = prepared
           .map((item) => item.source.kind)
           .toList(growable: false);
@@ -3665,8 +3712,10 @@ class NavisAudioHandler extends BaseAudioHandler
           preloadWhenPaused: preloadWhenPaused,
           forcePreloadWhenPaused: forcePreloadWhenPaused,
           generation: generation,
+          token: token,
         );
       } on Object catch (retryError, retryStackTrace) {
+        token?.checkCancelled();
         if (!_isAndroidDspInitializationFailure(retryError)) {
           rethrow;
         }
@@ -3684,6 +3733,7 @@ class NavisAudioHandler extends BaseAudioHandler
           preloadWhenPaused: preloadWhenPaused,
           forcePreloadWhenPaused: forcePreloadWhenPaused,
           generation: generation,
+          token: token,
         );
       }
     }
@@ -4302,11 +4352,14 @@ class NavisAudioHandler extends BaseAudioHandler
     required bool preloadWhenPaused,
     bool forcePreloadWhenPaused = false,
     int generation = 0,
+    OperationToken? token,
   }) async {
+    token?.checkCancelled();
     _queueItems
       ..clear()
       ..addAll(prepared.map((entry) => entry.mediaItem));
     await _clearDeferredTail();
+    token?.checkCancelled();
 
     final audioSources = prepared
         .map((entry) => entry.audioSource)
@@ -4324,12 +4377,15 @@ class NavisAudioHandler extends BaseAudioHandler
       initialPosition: initialPosition,
       generation: generation,
       songId: prepared[startIndex].song.id,
+      token: token,
     );
+    token?.checkCancelled();
     await _clearInactiveDeckForQueueChange(
       generation: generation,
       songId: prepared[startIndex].song.id,
     );
 
+    token?.checkCancelled();
     queue.add(List<MediaItem>.unmodifiable(_queueItems));
     _setCurrentMediaItem(_queueItems[startIndex]);
 
@@ -4380,7 +4436,9 @@ class NavisAudioHandler extends BaseAudioHandler
     int generation = 0,
     String? songId,
     Duration? timeout,
+    OperationToken? token,
   }) async {
+    token?.checkCancelled();
     try {
       if (generation > 0) {
         await _runTimedPlayerOperation(
@@ -4404,6 +4462,7 @@ class NavisAudioHandler extends BaseAudioHandler
         );
       }
     } on Object catch (error, stackTrace) {
+      token?.checkCancelled();
       if (!_isAndroidDspInitializationFailure(error)) {
         rethrow;
       }
@@ -4436,6 +4495,7 @@ class NavisAudioHandler extends BaseAudioHandler
           );
         }
       } on Object catch (retryError, retryStackTrace) {
+        token?.checkCancelled();
         if (!_isAndroidDspInitializationFailure(retryError)) {
           rethrow;
         }
@@ -4468,6 +4528,7 @@ class NavisAudioHandler extends BaseAudioHandler
         }
       }
     }
+    token?.checkCancelled();
     await _restoreActivePlayerVolume();
   }
 

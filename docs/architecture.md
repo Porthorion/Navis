@@ -2806,7 +2806,13 @@ cost to the materialised part of a queue.
 A saved queue larger than 64 songs is restored the same way at startup: the
 current song is prepared at its saved position first, and the rest is filled
 in the queue lane, so handler readiness and media-session Play do not wait for
-every source. A restore timeout keeps the saved queue instead of deleting it.
+every source. A startup or deferred-retry restore timeout keeps the saved queue
+instead of deleting it. Before releasing the lane it cancels the restore token,
+retires its load generation, and replaces the native player, so a late native
+load or its inner deadline cannot change a newer selection. Eager restores
+(up to 64 songs) carry the same cancellation ownership through source
+preparation and native apply; late completions and failures cannot pause
+playback, publish metadata, or clear saved state.
 Permanent-download pruning and orphan rolling-file cleanup still run before
 readiness because they guard partial-file ownership.
 

@@ -129,6 +129,10 @@ const List<ChangelogVersion> changelogs = [
     version: '1.4.3',
     entries: [
       ChangelogEntry(
+        'A timed-out startup queue restore can no longer stop or overwrite a newer selection',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
         'Queue selections keep the chosen song and occurrence when earlier library rows are missing',
         type: ChangelogEntryType.fix,
       ),
