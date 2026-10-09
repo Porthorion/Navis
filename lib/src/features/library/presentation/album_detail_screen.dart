@@ -39,7 +39,7 @@ import 'package:navis/src/providers/app_providers.dart';
 import 'package:navis/src/api/models/artist_ref.dart';
 import 'package:navis/src/common_widgets/entity_action_bar.dart';
 import 'package:navis/src/common_widgets/entity_meta_line.dart';
-import 'package:url_launcher/url_launcher.dart';
+import 'package:navis/src/utils/external_url.dart';
 import 'package:navis/src/routing/app_routes.dart';
 import 'package:navis/src/theme/artwork_shape.dart';
 
@@ -490,7 +490,7 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen> {
                     final hasNotes = notes.trim().isNotEmpty;
                     final hasLinks =
                         (info.lastFmUrl ?? '').trim().isNotEmpty ||
-                        (info.musicBrainzId ?? '').trim().isNotEmpty;
+                        isMusicBrainzUuid(info.musicBrainzId);
                     if (!hasNotes && !hasLinks) return const SizedBox.shrink();
                     return Padding(
                       padding: const EdgeInsets.fromLTRB(16, 16, 16, 4),
@@ -532,9 +532,7 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen> {
                                       _openExternalLink(info.lastFmUrl!),
                                     ),
                                   ),
-                                if ((info.musicBrainzId ?? '')
-                                    .trim()
-                                    .isNotEmpty)
+                                if (isMusicBrainzUuid(info.musicBrainzId))
                                   ActionChip(
                                     avatar: const Icon(
                                       Icons.album_outlined,
@@ -790,7 +788,7 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen> {
                     final hasNotes = notes.trim().isNotEmpty;
                     final hasLinks =
                         (info.lastFmUrl ?? '').trim().isNotEmpty ||
-                        (info.musicBrainzId ?? '').trim().isNotEmpty;
+                        isMusicBrainzUuid(info.musicBrainzId);
                     if (!hasNotes && !hasLinks) {
                       return const SliverToBoxAdapter();
                     }
@@ -838,9 +836,7 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen> {
                                         _openExternalLink(info.lastFmUrl!),
                                       ),
                                     ),
-                                  if ((info.musicBrainzId ?? '')
-                                      .trim()
-                                      .isNotEmpty)
+                                  if (isMusicBrainzUuid(info.musicBrainzId))
                                     ActionChip(
                                       avatar: const Icon(
                                         Icons.album_outlined,
@@ -1383,7 +1379,7 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen> {
                             final hasNotes = notes.trim().isNotEmpty;
                             final hasLinks =
                                 (info.lastFmUrl ?? '').trim().isNotEmpty ||
-                                (info.musicBrainzId ?? '').trim().isNotEmpty;
+                                isMusicBrainzUuid(info.musicBrainzId);
                             if (!hasNotes && !hasLinks) {
                               return const SizedBox.shrink();
                             }
@@ -1431,9 +1427,9 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen> {
                                                   ),
                                                 ),
                                               ),
-                                            if ((info.musicBrainzId ?? '')
-                                                .trim()
-                                                .isNotEmpty)
+                                            if (isMusicBrainzUuid(
+                                              info.musicBrainzId,
+                                            ))
                                               ActionChip(
                                                 avatar: const Icon(
                                                   Icons.album_outlined,
@@ -2058,11 +2054,7 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen> {
   }
 
   Future<void> _openExternalLink(String url) async {
-    final uri = Uri.tryParse(url);
-    if (uri == null) return;
-    if (await canLaunchUrl(uri)) {
-      await launchUrl(uri, mode: LaunchMode.externalApplication);
-    }
+    await launchExternalHttpUrl(url);
   }
 
   String _stripHtml(String input) {

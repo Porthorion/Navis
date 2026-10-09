@@ -1338,6 +1338,9 @@ layouts.
 
 ## External integration policy
 
+External browser links use `launchExternalHttpUrl`, which accepts only hosted
+HTTP(S) addresses. MusicBrainz release-group links require a UUID identifier.
+
 Navis talks to its own Subsonic server and, optionally, to external services:
 Deezer, Last.fm, ListenBrainz, LRCLIB, the update feed, AutoEQ, radio station
 streams and artwork the server links to. The user decides which, per service

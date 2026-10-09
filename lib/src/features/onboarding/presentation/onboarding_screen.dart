@@ -22,7 +22,7 @@ import 'package:navis/src/providers/app_providers.dart';
 import 'package:navis/src/theme/motion_policy.dart';
 import 'package:navis/src/theme/navis_theme.dart';
 import 'package:navis/src/theme/navis_tokens.dart';
-import 'package:url_launcher/url_launcher.dart';
+import 'package:navis/src/utils/external_url.dart';
 import 'package:navis/src/routing/app_routes.dart';
 import 'package:navis/src/routing/navigation_service.dart';
 
@@ -1312,6 +1312,5 @@ class OnboardingScreenState extends ConsumerState<OnboardingScreen> {
     );
   }
 
-  Future<void> _openExternal(String url) =>
-      launchUrl(Uri.parse(url), mode: LaunchMode.externalApplication);
+  Future<void> _openExternal(String url) => launchExternalHttpUrl(url);
 }

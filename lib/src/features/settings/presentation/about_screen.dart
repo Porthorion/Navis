@@ -17,7 +17,7 @@ import 'package:navis/src/routing/navigation_service.dart';
 import 'package:navis/src/utils/network_usage_meter.dart';
 import 'package:navis/src/utils/format_utils.dart';
 
-import 'package:url_launcher/url_launcher.dart';
+import 'package:navis/src/utils/external_url.dart';
 import 'package:navis/src/routing/app_routes.dart';
 
 /// Displays app version, open-source licenses, and repository links.
@@ -206,10 +206,7 @@ class _AboutScreenState extends ConsumerState<AboutScreen> {
       return;
     }
 
-    await launchUrl(
-      Uri.parse(info.htmlUrl),
-      mode: LaunchMode.externalApplication,
-    );
+    await launchExternalHttpUrl(info.htmlUrl);
   }
 
   Widget _buildDataUsageSection(BuildContext context) {

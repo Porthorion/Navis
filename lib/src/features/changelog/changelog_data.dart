@@ -129,6 +129,10 @@ const List<ChangelogVersion> changelogs = [
     version: '1.4.3',
     entries: [
       ChangelogEntry(
+        'External links from servers and integrations open only valid HTTP or HTTPS addresses',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
         'Downloads and playback caches safely handle malformed server filenames and refuse exhausted filename collisions',
         type: ChangelogEntryType.fix,
       ),
