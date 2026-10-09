@@ -3455,7 +3455,9 @@ The shared cover-art manager strips URL user info and Subsonic authentication
 parameters before passing URLs and default URL keys to `flutter_cache_manager`.
 Its guarded HTTP service signs only the active server's exact cover endpoint
 with current credentials, after queue admission and before dispatch. URLs for
-other origins or paths never receive server authentication. HTTPS redirects to
+other origins or paths never receive server authentication. AudioService uses the
+same request-time signing through the current API accessor for HTTP session art
+on iOS/macOS. HTTPS redirects to
 HTTP are refused. The repository key is `navis_cover_art_cache_v2`; startup
 removes the old JSON/SQLite repositories (including temporary and journal files)
 once, with a marker written only after successful cleanup. Ordinary artwork is

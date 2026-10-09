@@ -2,6 +2,8 @@ import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
+import 'package:navis/src/api/subsonic_api_client.dart';
+import 'package:navis/src/api/subsonic_auth_interceptor.dart';
 import 'package:navis/src/common_widgets/cover_art_cache_manager.dart';
 import 'package:navis/src/features/integrations/domain/integration_artwork.dart';
 import 'package:navis/src/features/integrations/data/integration_call_recorder.dart';
@@ -67,6 +69,65 @@ void main() {
     addTearDown(service.close);
     return service;
   }
+
+  test(
+    'system artwork signs only the active cover endpoint after queue admission',
+    () async {
+      final received = <Uri>[];
+      final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
+      addTearDown(() => server.close(force: true));
+      server.listen((request) {
+        received.add(request.uri);
+        request.response.headers.contentType = ContentType('image', 'jpeg');
+        request.response.add([0xff, 0xd8, 0xff, 1]);
+        unawaited(request.response.close());
+      });
+      SubsonicApiClient client(String username) => SubsonicApiClient(
+        baseUrl: 'http://127.0.0.1:${server.port}',
+        authConfig: SubsonicAuthConfig(
+          username: username,
+          password: 'fixture-password',
+          apiVersion: '1.16.1',
+        ),
+        enableLogging: false,
+      );
+      final oldApi = client('old-fixture');
+      final newApi = client('new-fixture');
+      addTearDown(() => oldApi.close(force: true));
+      addTearDown(() => newApi.close(force: true));
+      var api = oldApi;
+      final coordinator = CoverArtLoadCoordinator(
+        maxActiveDownloads: 1,
+        criticalReserve: 0,
+      );
+      final blocker = await coordinator.acquire('blocker');
+      final service = createSystemArtworkFileService(
+        allowUri: (_) => true,
+        loadCoordinator: coordinator,
+        authenticateUri: (uri) => api.authenticateCoverArtUri(uri),
+      );
+      addTearDown(service.close);
+      final pending = service.get(
+        'http://127.0.0.1:${server.port}/rest/getCoverArt.view?id=fixture',
+      );
+      await Future<void>.delayed(Duration.zero);
+      expect(coordinator.queuedCount, 1);
+      api = newApi;
+      blocker.release();
+      await (await pending).content.drain<void>();
+      expect(received.single.queryParameters['u'], 'new-fixture');
+      expect(received.single.queryParameters['t'], isNotEmpty);
+      expect(received.single.queryParameters['s'], isNotEmpty);
+
+      for (final host in ['127.0.0.1', 'localhost']) {
+        final response = await service.get(
+          'http://$host:${server.port}/external.jpg',
+        );
+        await response.content.drain<void>();
+        expect(received.last.queryParameters, isEmpty);
+      }
+    },
+  );
 
   test('an allowed URL redirecting to a refused host is stopped', () async {
     redirects = true;

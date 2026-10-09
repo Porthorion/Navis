@@ -18,6 +18,16 @@
 | M-3 (redaction) | Fixed on fix/security-audit | Request logs and free-text redaction strip URL user info; credential checks treat it as authentication. Storage/transport migration remains deferred below. |
 | M-1, L-1 (cover-art redirects) | Fixed on fix/security-audit | The shared cache manager strips credentials from all insertion URLs and URL keys; the HTTP service re-signs only the active server's exact cover endpoint at dispatch. Startup purges old app-owned JSON/SQLite metadata once and uses the v2 repository key. Both sign-out modes clear covers. HTTPS→HTTP artwork redirects are refused. |
 
+### Independent review follow-up
+
+| Gap | Status | Change |
+|---|---|---|
+| A | Fixed | AudioService artwork signs the active server's cover endpoint with current credentials after queue admission; external paths and hosts remain unsigned. |
+| B | Pending | Purge and clear the system-artwork repository. |
+| C | Pending | Delete orphaned image directories and verify current cache accounting/clearing. |
+| D | Pending | Bound both external image dimensions and share the radio prewarm/display provider. |
+| E | Pending | Cap declared and streamed artwork response bytes. |
+
 **Deferred:** M-3's server URL storage and transport still retain `user:pass@`.
 Moving those credentials into secure storage and an `Authorization: Basic`
 header is a separate change; the redaction fix does not claim that migration.

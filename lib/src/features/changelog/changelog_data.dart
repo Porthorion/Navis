@@ -129,6 +129,10 @@ const List<ChangelogVersion> changelogs = [
     version: '1.4.3',
     entries: [
       ChangelogEntry(
+        'System playback artwork uses current server authentication on iOS and macOS',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
         'Cover caches no longer store server credentials, old cache metadata is removed on startup, and every sign-out clears cached covers',
         type: ChangelogEntryType.fix,
       ),

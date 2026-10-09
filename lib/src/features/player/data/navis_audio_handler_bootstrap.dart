@@ -83,10 +83,12 @@ CoverArtHttpFileService createSystemArtworkFileService({
   CoverArtLoadCoordinator? loadCoordinator,
   IntegrationCallRecorder? recorder,
   bool Function(Uri)? isServerUri,
+  Uri Function(Uri)? authenticateUri,
 }) => CoverArtHttpFileService(
   loadCoordinator: loadCoordinator,
   recorder: recorder,
   isServerUri: isServerUri,
+  authenticateUri: authenticateUri,
   reportNetworkUsage: reportNetworkUsage,
   allowUri: allowUri,
 );
@@ -195,6 +197,8 @@ Future<NavisPlaybackHandler> initNavisAudioHandler({
                     reportNetworkUsage: reportNetworkUsage,
                     recorder: artworkRecorder,
                     isServerUri: isServerArtworkUri,
+                    authenticateUri: (uri) =>
+                        readApiClient()?.authenticateCoverArtUri(uri) ?? uri,
                   ),
                 ),
                 builder: () {
