@@ -2088,6 +2088,39 @@ void main() {
     }
 
     test(
+      'OS Next is unavailable at the logical end after releasing history',
+      () async {
+        final (handler, player, _) = await windowed(60);
+        await handler.replaceQueue(ids(60), expandMatchFlows: false);
+        await handler.playFromIndex(59);
+        await until(
+          () =>
+              !handler.snapshot.isLoading &&
+              handler.snapshot.currentIndex == 59,
+        );
+        expect(
+          handler.collectPlaybackDiagnostics()['deferredHeadLength'],
+          greaterThan(0),
+        );
+        expect(handler.collectPlaybackDiagnostics()['deferredLength'], 0);
+        expect(player.index, lessThan(59));
+        expect(handler.playbackState.value.queueIndex, player.index);
+        expect(
+          handler.playbackState.value.controls.map((control) => control.action),
+          isNot(contains(MediaAction.skipToNext)),
+        );
+        expect(
+          handler.playbackState.value.systemActions,
+          isNot(contains(MediaAction.skipToNext)),
+        );
+        expect(
+          handler.playbackState.value.systemActions,
+          contains(MediaAction.skipToPrevious),
+        );
+      },
+    );
+
+    test(
       'system projection composes its window offset with the deferred head',
       () async {
         final directory = await Directory.systemTemp.createTemp(

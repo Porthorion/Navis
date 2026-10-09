@@ -2588,7 +2588,9 @@ head + materialised + tail, so a logical index is the native index plus the
 head's length; snapshots, persistence and every index-based API (jumps,
 remove, reorder, insert runs, merges) use logical indices, while
 `playbackState.queueIndex` stays native, paired with the materialised `queue`
-that MPRIS, SMTC and Android media sessions see. System queue skips,
+that MPRIS, SMTC and Android media sessions see. Skip capabilities compare
+the logical index with the logical length, so Next is unavailable at the end
+even when played history has been released. System queue skips,
 removals and inserts convert materialised positions to logical positions at the
 handler boundary, after the projection wrapper adds its queue-window offset.
 System remove-at and insert commands use the logical queue edit API; inserting

@@ -7764,7 +7764,9 @@ class NavisAudioHandler extends BaseAudioHandler
     final effectiveDuration = _effectivePlaybackDuration(currentItem);
     final capabilities = navisOsControlCapabilities(
       queueLength: _radioStation == null ? _logicalQueueIds.length : 0,
-      currentIndex: _radioStation == null ? currentIndex : null,
+      currentIndex: _radioStation == null
+          ? _logicalIndexOf(currentIndex)
+          : null,
       isRadioMode: _radioStation != null,
       duration: effectiveDuration,
       processingState: processingState,

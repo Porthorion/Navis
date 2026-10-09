@@ -129,6 +129,10 @@ const List<ChangelogVersion> changelogs = [
     version: '1.4.3',
     entries: [
       ChangelogEntry(
+        'System media controls correctly disable Next at the end of long queues',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
         'Pausing during an audio interruption keeps playback paused when the interruption ends',
         type: ChangelogEntryType.fix,
       ),
