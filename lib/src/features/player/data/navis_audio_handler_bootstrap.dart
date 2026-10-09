@@ -178,8 +178,9 @@ Future<NavisPlaybackHandler> initNavisAudioHandler({
         (_isAndroidRuntime
                 ? PackageInfo.fromPlatform().then((info) => info.packageName)
                 : Future<String?>.value())
-            .then(
-              (packageName) => AudioService.init(
+            .then((packageName) async {
+              await PlaybackArtCache.initializeKey();
+              return await AudioService.init(
                 // Never AudioService's default cache, which would fetch any
                 // published URL, a refused redirect target included.
                 cacheManager: readSystemArtworkCacheManager(),
@@ -212,8 +213,8 @@ Future<NavisPlaybackHandler> initNavisAudioHandler({
                     AndroidAutoConstants.searchSupportedKey: true,
                   },
                 ),
-              ),
-            )
+              );
+            })
             .then<NavisPlaybackHandler>(
               (handler) => handler.inner as NavisPlaybackHandler,
             );

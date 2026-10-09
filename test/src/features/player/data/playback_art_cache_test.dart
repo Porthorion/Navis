@@ -1,5 +1,8 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:io';
+
+import 'package:crypto/crypto.dart';
 
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -11,9 +14,16 @@ import 'package:navis/src/features/player/data/playback_art_cache.dart';
 /// Points path_provider's temporary directory at a fresh folder.
 Future<Directory> _tempCacheDir() async {
   final temp = await Directory.systemTemp.createTemp('navis-art-cache-');
+  final support = await Directory.systemTemp.createTemp('navis-art-support-');
+  addTearDown(() => support.delete(recursive: true));
   const channel = MethodChannel('plugins.flutter.io/path_provider');
   TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
-      .setMockMethodCallHandler(channel, (call) async => temp.path);
+      .setMockMethodCallHandler(
+        channel,
+        (call) async => call.method == 'getApplicationSupportDirectory'
+            ? support.path
+            : temp.path,
+      );
   addTearDown(() async {
     TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
         .setMockMethodCallHandler(channel, null);
@@ -27,6 +37,38 @@ void main() {
   // The test binding replaces HttpClient with a mock that answers 400; this
   // test talks to a real loopback server.
   setUpAll(() => HttpOverrides.global = null);
+  setUp(PlaybackArtCache.resetKeyForTesting);
+
+  test('artwork HMAC persists, varies by secret, and matches Kotlin keys', () async {
+    final directory = await _tempCacheDir();
+    await PlaybackArtCache.initializeKey(supportDirectory: directory);
+    final key = PlaybackArtCache.fileKey('al-1/x');
+    expect(key, matches(RegExp(r'^[a-f0-9]{32}$')));
+    expect(PlaybackArtCache.fileKey('al-1_x'), isNot(key));
+    PlaybackArtCache.resetKeyForTesting();
+    await PlaybackArtCache.initializeKey(supportDirectory: directory);
+    expect(PlaybackArtCache.fileKey('al-1/x'), key);
+    await File('${directory.path}/navis_art_key')
+        .writeAsBytes(List<int>.filled(32, 7));
+    PlaybackArtCache.resetKeyForTesting();
+    await PlaybackArtCache.initializeKey(supportDirectory: directory);
+    expect(PlaybackArtCache.fileKey('al-1/x'), isNot(key));
+    expect(
+      PlaybackArtCache.fileKey('al-1/x'),
+      Hmac(
+        sha256,
+        List<int>.filled(32, 7),
+      ).convert(utf8.encode('al-1/x')).toString().substring(0, 32),
+    );
+    final kotlin = await File(
+      'android/app/src/main/kotlin/com/navis/app/navis/NavisArtworkProvider.kt',
+    ).readAsString();
+    final pattern = RegExp(r'COVER_KEY = Regex\("([^"\n]+)"\)')
+        .firstMatch(kotlin)![1]!;
+    expect(RegExp('^(?:$pattern)\$').hasMatch(key), isTrue);
+    expect(RegExp('^(?:$pattern)\$').hasMatch('album-1'), isFalse);
+    expect(RegExp('^(?:$pattern)\$').hasMatch('${key}a'), isFalse);
+  });
 
   for (final allowed in [true, false]) {
     test('playback art uses the shared recorder (allowed=$allowed)', () async {
@@ -129,7 +171,10 @@ void main() {
 
     // Android's artwork provider serves this file to other apps by name, so
     // a half-written cover must never sit there.
-    final cover = File('${temp.path}/navis_art_album-1.jpg');
+    await PlaybackArtCache.initializeKey(supportDirectory: temp);
+    final cover = File(
+      '${temp.path}/navis_art_v2_${PlaybackArtCache.fileKey('album-1')}.jpg',
+    );
     expect(cover.existsSync(), isFalse);
     expect(cache.cachedPath('album-1'), isNull);
 
@@ -256,7 +301,10 @@ void main() {
     );
 
     expect(path, isNotNull);
-    expect(path, endsWith('navis_art_al-1.jpg'));
+    expect(
+      path,
+      endsWith('navis_art_v2_${PlaybackArtCache.fileKey('al-1')}.jpg'),
+    );
     expect(File(path!).readAsBytesSync(), stored.readAsBytesSync());
     // Copied through a partial file that is renamed into place.
     expect(File('$path.part').existsSync(), isFalse);

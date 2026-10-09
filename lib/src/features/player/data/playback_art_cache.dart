@@ -17,7 +17,12 @@
 library;
 
 import 'dart:async';
+import 'dart:convert';
 import 'dart:io';
+import 'dart:math';
+
+import 'package:crypto/crypto.dart';
+import 'package:flutter/foundation.dart' show visibleForTesting;
 
 import 'package:navis/src/common_widgets/cover_art_cache_manager.dart';
 import 'package:navis/src/utils/app_logger.dart';
@@ -40,12 +45,61 @@ class PlaybackArtCache {
              reportNetworkUsage: reportNetworkUsage,
            );
 
-  /// The file-name key of [coverArtId]'s cached file
-  /// (`<temporary dir>/navis_art_<key>.jpg`). Android's
-  /// `NavisArtworkProvider` serves `content://<package>.artwork/cover/<key>`
-  /// from the same file and accepts only keys of this form.
-  static String fileKey(String coverArtId) =>
-      coverArtId.replaceAll(RegExp(r'[^a-zA-Z0-9_\-]'), '_');
+  static List<int>? _keySecret;
+  static Future<void>? _keyInitialization;
+
+  /// Loads the per-install key before Android publishes any content URIs.
+  static Future<void> initializeKey({Directory? supportDirectory}) {
+    return _keyInitialization ??= _loadKey(supportDirectory)
+        .catchError((Object error, StackTrace stackTrace) {
+          _keyInitialization = null;
+          Error.throwWithStackTrace(error, stackTrace);
+        });
+  }
+
+  static Future<void> _loadKey(Directory? supportDirectory) async {
+    final directory =
+        supportDirectory ?? await getApplicationSupportDirectory();
+    await directory.create(recursive: true);
+    final file = File(p.join(directory.path, 'navis_art_key'));
+    final handle = await file.open(mode: FileMode.append);
+    try {
+      await handle.lock(FileLock.blockingExclusive);
+      // Keep every operation on the locked handle: a separate handle can
+      // violate Windows locks, and closing it releases POSIX process locks.
+      await handle.setPosition(0);
+      List<int> secret;
+      if (await handle.length() == 32) {
+        secret = await handle.read(32);
+      } else {
+        final random = Random.secure();
+        secret = List<int>.generate(32, (_) => random.nextInt(256));
+        await handle.truncate(0);
+        await handle.setPosition(0);
+        await handle.writeFrom(secret);
+        await handle.flush();
+      }
+      _keySecret = List<int>.unmodifiable(secret);
+    } finally {
+      await handle.close();
+    }
+  }
+
+  /// An opaque 128-bit HMAC key shared with Android's artwork provider.
+  static String fileKey(String coverArtId) {
+    final secret = _keySecret;
+    if (secret == null) throw StateError('Artwork key is not initialized.');
+    return Hmac(
+      sha256,
+      secret,
+    ).convert(utf8.encode(coverArtId)).toString().substring(0, 32);
+  }
+
+  @visibleForTesting
+  static void resetKeyForTesting() {
+    _keySecret = null;
+    _keyInitialization = null;
+  }
 
   static const Duration _connectionTimeout = Duration(seconds: 10);
   static const Duration _responseTimeout = Duration(seconds: 15);
@@ -101,9 +155,10 @@ class PlaybackArtCache {
 
   Future<String?> _fetch(String coverArtId, Uri artUri) async {
     try {
+      await initializeKey();
       final cacheDir = await getTemporaryDirectory();
       final file = File(
-        p.join(cacheDir.path, 'navis_art_${fileKey(coverArtId)}.jpg'),
+        p.join(cacheDir.path, 'navis_art_v2_${fileKey(coverArtId)}.jpg'),
       );
 
       // Reuse a previously downloaded file if it is non-empty and already

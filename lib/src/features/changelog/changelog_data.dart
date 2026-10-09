@@ -129,6 +129,10 @@ const List<ChangelogVersion> changelogs = [
     version: '1.4.3',
     entries: [
       ChangelogEntry(
+        'Android system artwork uses private per-install keys to prevent other apps from probing album IDs',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
         'Reverse-proxy URL credentials are kept in secure storage instead of the library database',
         type: ChangelogEntryType.fix,
       ),

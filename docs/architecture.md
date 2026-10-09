@@ -2959,8 +2959,12 @@ On Android, `RealTimeProjectionAudioHandler` maps
 every credential-bearing `artUri` it publishes (metadata, the queue window,
 browse, search and `getMediaItem` results) through `AndroidSystemArt` to
 `content://<applicationId>.artwork/cover/<key>`, served read-only by the
-exported `NavisArtworkProvider` from the same cache, which Android Auto can
-open from its own process. The content URI is published only once the cover
+exported `NavisArtworkProvider` from the same cache. Keys are the first 32 hex
+characters of HMAC-SHA256 over the cover ID, with a random 32-byte per-install
+secret persisted in app support storage and loaded before media-service setup.
+The provider accepts exactly 32 lowercase hex characters, so other apps cannot
+probe known cover IDs. Old cache filenames are ignored through a `navis_art_v2_` file prefix. Android
+Auto can open these URIs from its own process. The content URI is published only once the cover
 is on disk (the item carries `artCacheFile`, or `PlaybackArtCache.cachedPath`
 knows it); until then the item has no art and the download starts. A URI the
 provider cannot open yet made audio_service store empty
