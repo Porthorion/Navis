@@ -3631,18 +3631,7 @@ class NavisAudioHandler extends BaseAudioHandler
       }
     }
 
-    for (final entry in prepared) {
-      if (entry.source.kind == PlaybackSourceKind.lockCachedStream &&
-          entry.source.lockCachingAudioSource != null &&
-          entry.source.cachedFilePath != null) {
-        _observeLockCachingSource(
-          song: entry.song,
-          resolvedSource: entry.source,
-          source: entry.source.lockCachingAudioSource!,
-          cacheFilePath: entry.source.cachedFilePath!,
-        );
-      }
-    }
+    _observeLockCacheForPrepared(prepared);
 
     if (persist) {
       await _persistSafely(
@@ -3931,16 +3920,7 @@ class NavisAudioHandler extends BaseAudioHandler
       await _player.pause();
     }
 
-    if (startItem.source.kind == PlaybackSourceKind.lockCachedStream &&
-        startItem.source.lockCachingAudioSource != null &&
-        startItem.source.cachedFilePath != null) {
-      _observeLockCachingSource(
-        song: startItem.song,
-        resolvedSource: startItem.source,
-        source: startItem.source.lockCachingAudioSource!,
-        cacheFilePath: startItem.source.cachedFilePath!,
-      );
-    }
+    _observeLockCacheForPrepared([startItem]);
 
     _broadcastPlaybackState();
     _emitSnapshot();
