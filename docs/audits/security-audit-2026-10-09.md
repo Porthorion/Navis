@@ -34,12 +34,7 @@
 | D | Fixed | External artwork and radio prewarm use one provider wrapped by `boundedDecode` with a 1024×1024 fit bound. A decoded-frame regression checks tall/wide images and immediate reuse after prewarm. The artist detail golden is updated for the Image layout. |
 | E | Fixed | A shared 20 MiB response cap rejects oversized Content-Length and aborts cumulative streamed overflow, including chunked, redirected and discarded bodies. Rejections record an error outcome and release the download slot. |
 
-**Open owner decision:** Existing accounts with stored `useLegacyAuth=true`
-over non-loopback `http` still send `p=enc:` on reconnect, media requests and
-Android background sync (`app_providers.dart`, `subsonicApiProvider`, and
-`android_background_sync_entrypoint.dart`, client construction). The probe guard
-covers only new logins; it does not migrate or block those stored accounts.
-The owner must decide how to handle existing insecure legacy configurations.
+**Owner decision 2026-10-09:** keep existing accounts working; the server settings page shows a permanent small HTTPS reminder for non-loopback http (stronger with legacy auth).
 
 **Thin-artwork follow-up (fixed):** Material's async palette listener can throw
 `Invalid image dimensions` outside its returned future when its 112px scaling
@@ -67,7 +62,7 @@ rules. No model/schema change required generation.
 
 **Deferred:** L-8 remains deferred while AudioMuse is dormant; fix its API-key
 storage and guarded transport before re-enabling it. The legacy-auth owner
-decision above remains open. Updater/tooling files remain with their assigned
+decision above is resolved. Updater/tooling files remain with their assigned
 branch. Cleanup is confined to app-owned repository files; archived or Trash
 copies outside app storage are not modified.
 

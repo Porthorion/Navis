@@ -10,6 +10,7 @@ import 'package:navis/src/features/auth/data/sign_out_service.dart';
 import 'package:navis/src/features/auth/domain/server_config.dart';
 import 'package:navis/src/features/auth/presentation/server_config_provider.dart';
 import 'package:navis/src/features/auth/presentation/server_connection_provider.dart';
+import 'package:navis/src/features/auth/presentation/server_url_validation.dart';
 import 'package:navis/src/routing/desktop_layout.dart';
 import 'package:navis/src/routing/navigation_service.dart';
 import 'package:navis/src/routing/app_routes.dart';
@@ -170,6 +171,30 @@ class _ServerSettingsScreenState extends ConsumerState<ServerSettingsScreen> {
                             ),
                           ),
                         ),
+                        if (isInsecureRemoteHttpUrl(config.url)) ...<Widget>[
+                          const SizedBox(height: 8),
+                          Row(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: <Widget>[
+                              Icon(
+                                Icons.lock_open_outlined,
+                                size: 16,
+                                color: cs.tertiary,
+                              ),
+                              const SizedBox(width: 6),
+                              Expanded(
+                                child: Text(
+                                  config.useLegacyAuth
+                                      ? l10n.serverSettingsHttpLegacyReminder
+                                      : l10n.serverSettingsHttpReminder,
+                                  style: theme.textTheme.bodySmall?.copyWith(
+                                    color: cs.onSurfaceVariant,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ],
                         sectionGap,
 
                         if (desktopMode) ...<Widget>[

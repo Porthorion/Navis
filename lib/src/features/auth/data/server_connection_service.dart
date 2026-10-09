@@ -1,10 +1,9 @@
-import 'dart:io';
-
 import 'package:dio/dio.dart';
 import 'package:navis/src/api/models/models.dart';
 import 'package:navis/src/api/subsonic_api_client.dart';
 import 'package:navis/src/api/subsonic_auth_interceptor.dart';
 import 'package:navis/src/api/subsonic_error.dart';
+import 'package:navis/src/features/auth/presentation/server_url_validation.dart';
 
 class ServerConnectionProbeResult {
   const new({
@@ -57,12 +56,7 @@ class SubsonicServerConnectionService extends ServerConnectionService {
         authType: SubsonicAuthType.token,
       );
     } on SubsonicTokenAuthUnsupportedException {
-      final uri = Uri.parse(url);
-      final address = InternetAddress.tryParse(uri.host);
-      final loopback =
-          uri.host.toLowerCase() == 'localhost' ||
-          (address?.isLoopback ?? false);
-      if (uri.scheme == 'http' && !loopback) {
+      if (isInsecureRemoteHttpUrl(url)) {
         throw const SubsonicInsecureLegacyAuthException();
       }
       final fallback = await _probeWithAuthType(

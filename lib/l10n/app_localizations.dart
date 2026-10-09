@@ -238,6 +238,18 @@ abstract class AppLocalizations {
   /// **'HTTP does not encrypt traffic. Use HTTPS when possible.'**
   String get loginInsecureHttpWarning;
 
+  /// Small permanent reminder on the server settings page when the server URL is http:// to a non-local host.
+  ///
+  /// In en, this message translates to:
+  /// **'This server uses HTTP. HTTPS is safer.'**
+  String get serverSettingsHttpReminder;
+
+  /// Stronger permanent reminder on the server settings page when an http:// non-local server also uses legacy password authentication.
+  ///
+  /// In en, this message translates to:
+  /// **'This server uses HTTP and your password is sent in readable form. Switch the server to HTTPS.'**
+  String get serverSettingsHttpLegacyReminder;
+
   /// No description provided for @loginValidationUsernameRequired.
   ///
   /// In en, this message translates to:
