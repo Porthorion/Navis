@@ -202,6 +202,9 @@ const List<ChangelogVersion> changelogs = [
       ),
       ChangelogEntry(
         'System queue controls select and remove the correct song after played tracks leave the player window',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
         'Fullscreen lyrics follow the song that is playing instead of staying on the one they were opened on, so tapping a line always seeks the lyrics you see',
         type: ChangelogEntryType.fix,
       ),
