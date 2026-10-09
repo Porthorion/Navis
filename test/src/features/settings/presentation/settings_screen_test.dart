@@ -8,11 +8,16 @@ import 'package:navis/src/common_widgets/new_feature_tag.dart';
 import 'package:navis/src/features/onboarding/domain/setup_highlights.dart';
 import 'package:navis/src/features/onboarding/presentation/setup_highlights_provider.dart';
 import 'package:navis/src/features/settings/presentation/settings_screen.dart';
+import 'package:navis/src/features/settings/domain/app_settings.dart';
+import 'package:navis/src/providers/app_providers.dart';
 
 import '../../../../helpers/adaptive_test_harness.dart';
 
 final _noHighlights = [
   pendingSetupHighlightsProvider.overrideWithValue(const <SetupHighlight>{}),
+  appSettingsProvider.overrideWithValue(
+    const AsyncData(AppSettingsModel.defaults()),
+  ),
 ];
 
 void main() {
@@ -190,13 +195,21 @@ void main() {
     Future<void> pump(
       WidgetTester tester,
       Size size,
-      Set<SetupHighlight> highlights,
-    ) async {
+      Set<SetupHighlight> highlights, {
+      String themeMode = 'system',
+    }) async {
       setAdaptiveTestViewport(tester, size);
       await tester.pumpWidget(
         ProviderScope(
           overrides: [
             pendingSetupHighlightsProvider.overrideWithValue(highlights),
+            appSettingsProvider.overrideWithValue(
+              AsyncData(
+                const AppSettingsModel.defaults().copyWith(
+                  themeMode: themeMode,
+                ),
+              ),
+            ),
           ],
           child: MaterialApp(
             localizationsDelegates: navisLocalizationsDelegates,
@@ -224,7 +237,7 @@ void main() {
           200,
           scrollable: find.byType(Scrollable).first,
         );
-        expect(find.byType(NewFeatureTag), findsOneWidget);
+        expect(find.byType(NewFeatureTag), findsNWidgets(2));
       });
 
       testWidgets('is absent on the ${entry.key} layout when none pending', (
@@ -234,5 +247,70 @@ void main() {
         expect(find.byType(NewFeatureTag), findsNothing);
       });
     }
+
+    testWidgets('Appearance and Quick Customization say "Has new options"', (
+      tester,
+    ) async {
+      final handle = tester.ensureSemantics();
+      await pump(tester, const Size(390, 1600), SetupHighlight.values.toSet());
+      await tester.scrollUntilVisible(
+        find.text('Run Quick Customization'),
+        200,
+        scrollable: find.byType(Scrollable).first,
+      );
+
+      for (final title in <String>['Appearance', 'Run Quick Customization']) {
+        final row = find.ancestor(
+          of: find.text(title),
+          matching: find.byType(ListTile),
+        );
+        expect(
+          find.descendant(of: row.first, matching: find.byType(NewFeatureTag)),
+          findsOneWidget,
+          reason: title,
+        );
+      }
+      expect(
+        find.byWidgetPredicate(
+          (widget) =>
+              widget is Semantics &&
+              widget.properties.label == 'Has new options',
+        ),
+        findsNWidgets(2),
+      );
+      handle.dispose();
+    });
+
+    testWidgets('OLED alone does not tag outside Auto mode', (tester) async {
+      await pump(tester, const Size(390, 1600), const <SetupHighlight>{
+        SetupHighlight.oledForAuto,
+      }, themeMode: 'dark');
+      expect(find.byType(NewFeatureTag), findsNothing);
+    });
+
+    testWidgets('OLED alone tags in Auto mode', (tester) async {
+      await pump(tester, const Size(390, 1600), const <SetupHighlight>{
+        SetupHighlight.oledForAuto,
+      });
+      await tester.scrollUntilVisible(
+        find.text('Appearance'),
+        200,
+        scrollable: find.byType(Scrollable).first,
+      );
+      expect(find.byType(NewFeatureTag), findsNWidgets(2));
+    });
+
+    testWidgets('OLED does not hide other pending options', (tester) async {
+      await pump(tester, const Size(390, 1600), const <SetupHighlight>{
+        SetupHighlight.oledForAuto,
+        SetupHighlight.flatSurfaces,
+      }, themeMode: 'dark');
+      await tester.scrollUntilVisible(
+        find.text('Appearance'),
+        200,
+        scrollable: find.byType(Scrollable).first,
+      );
+      expect(find.byType(NewFeatureTag), findsNWidgets(2));
+    });
   });
 }

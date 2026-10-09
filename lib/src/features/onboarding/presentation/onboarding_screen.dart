@@ -13,11 +13,10 @@ import 'package:navis/src/features/integrations/data/integration_guard_intercept
 import 'package:navis/src/features/integrations/domain/integration_feature.dart';
 import 'package:navis/src/features/integrations/presentation/integration_copy.dart';
 import 'package:navis/src/features/onboarding/presentation/onboarding_provider.dart';
-import 'package:navis/src/features/onboarding/domain/setup_highlights.dart';
 import 'package:navis/src/features/onboarding/presentation/setup_highlights_provider.dart';
 import 'package:navis/src/features/settings/domain/night_schedule.dart';
+import 'package:navis/src/features/settings/presentation/appearance_layout.dart';
 import 'package:navis/src/features/settings/presentation/appearance_options.dart';
-import 'package:navis/src/common_widgets/new_feature_tag.dart';
 import 'package:navis/src/features/settings/presentation/appearance_settings_screen.dart';
 import 'package:navis/src/features/settings/presentation/external_service_messages.dart';
 import 'package:navis/src/features/settings/presentation/listenbrainz_connection_status.dart';
@@ -31,7 +30,6 @@ import 'package:navis/src/theme/navis_tokens.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:navis/src/routing/app_routes.dart';
 import 'package:navis/src/routing/navigation_service.dart';
-import 'package:navis/src/features/settings/presentation/color_style_selector.dart';
 import 'package:navis/src/theme/navis_color_style.dart';
 
 /// A deliberately shell-free, one-time customization experience.
@@ -674,144 +672,146 @@ class OnboardingScreenState extends ConsumerState<OnboardingScreen> {
 
   Widget _appearanceStep(BuildContext context, AppSettingsModel draft) {
     final l10n = AppLocalizations.of(context)!;
+    final theme = Theme.of(context);
     final customPresets = _draftCustomPresets ?? const <int>[];
-    final pending = ref.watch(pendingSetupHighlightsProvider);
-    Widget? tagFor(SetupHighlight highlight) =>
-        pending.contains(highlight) ? const NewFeatureTag() : null;
-    final colorStyleTag = tagFor(SetupHighlight.colorStyle);
-    return _scrollStep(
-      children: [
-        Text(
-          l10n.onboardingAppearanceTitle,
-          style: Theme.of(context).textTheme.titleLarge,
+    final colorStyle = NavisColorStyle.parse(draft.colorStyle);
+    final previewOled = _previewOled(context, draft);
+    final optionTitleStyle = theme.textTheme.titleMedium;
+    // The same builders as Settings > Appearance, fed from the draft.
+    final options = AppearanceOptionSet(
+      oledForAutoVisible: draft.themeMode == 'system',
+      oledForAuto: draft.oledForAuto,
+      onOledForAutoChanged: (value) =>
+          setState(() => _draft = draft.copyWith(oledForAuto: value)),
+      nightSchedule: NightSchedule(
+        enabled: draft.nightScheduleEnabled,
+        startMinutes: draft.nightScheduleStartMinutes,
+        endMinutes: draft.nightScheduleEndMinutes,
+      ),
+      userStyle: colorStyle,
+      now: ref.watch(nowProvider)(),
+      onNightScheduleChanged: (schedule) => setState(
+        () => _draft = draft.copyWith(
+          nightScheduleEnabled: schedule.enabled,
+          nightScheduleStartMinutes: schedule.startMinutes,
+          nightScheduleEndMinutes: schedule.endMinutes,
         ),
-        const SizedBox(height: 8),
-        Text(l10n.onboardingAppearanceDescription),
-        const SizedBox(height: 16),
-        ThemeModeSelector(
-          currentMode: draft.themeMode,
-          onChanged: (value) =>
-              setState(() => _draft = draft.copyWith(themeMode: value)),
-        ),
-        OledForAutoOption(
-          visible: draft.themeMode == 'system',
-          value: draft.oledForAuto,
-          adornment: tagFor(SetupHighlight.oledForAuto),
-          onChanged: (value) =>
-              setState(() => _draft = draft.copyWith(oledForAuto: value)),
-        ),
-        const SizedBox(height: 16),
-        Row(
-          children: [
-            Flexible(
-              child: Text(
-                l10n.appearanceColorStyleLabel,
-                style: Theme.of(context).textTheme.titleMedium,
+      ),
+      flatSurfaces: draft.flatSurfaces,
+      onFlatSurfacesChanged: (value) =>
+          setState(() => _draft = draft.copyWith(flatSurfaces: value)),
+      cornerStyle: draft.cornerStyle,
+      onCornerStyleChanged: (value) =>
+          setState(() => _draft = draft.copyWith(cornerStyle: value)),
+      density: draft.density,
+      onDensityChanged: (value) =>
+          setState(() => _draft = draft.copyWith(density: value)),
+      nowPlayingBackground: draft.nowPlayingBackground,
+      onNowPlayingBackgroundChanged: (value) =>
+          setState(() => _draft = draft.copyWith(nowPlayingBackground: value)),
+      previewOled: previewOled,
+    );
+    return AppearanceLayout(
+      gutter: 0,
+      optionTitleStyle: optionTitleStyle,
+      child: _scrollStep(
+        children: [
+          Text(
+            l10n.onboardingAppearanceTitle,
+            style: theme.textTheme.titleLarge,
+          ),
+          const SizedBox(height: 8),
+          Text(l10n.onboardingAppearanceDescription),
+          const SizedBox(height: 16),
+          ThemeModeSelector(
+            currentMode: draft.themeMode,
+            onChanged: (value) =>
+                setState(() => _draft = draft.copyWith(themeMode: value)),
+          ),
+          const SizedBox(height: 8),
+          ColorStyleOption(
+            currentStyle: colorStyle,
+            seed: resolveColorSchemeSeedColor(draft.colorSchemeSeed),
+            brightness: theme.brightness,
+            oled: previewOled,
+            onChanged: (style) => setState(
+              () => _draft = draft.copyWith(colorStyle: style.storageKey),
+            ),
+          ),
+          AppearanceHeading(
+            title: l10n.onboardingAccentColor,
+            topPadding: NavisSpace.lg,
+          ),
+          ColorSchemeGrid(
+            currentSeed: draft.colorSchemeSeed,
+            style: colorStyle,
+            dynamicAlbumColorEnabled: false,
+            customPresets: customPresets,
+            onSelected: (seed) => setState(
+              () => _draft = draft.copyWith(
+                colorSchemeSeed: seed,
+                clearColorSchemeSeed: seed == null,
               ),
             ),
-            if (colorStyleTag != null) ...[
-              const SizedBox(width: 8),
-              colorStyleTag,
-            ],
-          ],
-        ),
-        ColorStyleSelector(
-          currentStyle: NavisColorStyle.parse(draft.colorStyle),
-          seed: resolveColorSchemeSeedColor(draft.colorSchemeSeed),
-          brightness: Theme.of(context).brightness,
-          oled: _previewOled(context, draft),
-          onChanged: (style) => setState(
-            () => _draft = draft.copyWith(colorStyle: style.storageKey),
+            onCustomColorPicked: (value) =>
+                setState(() => _draft = draft.copyWith(colorSchemeSeed: value)),
+            onSavePreset: (value) => setState(() {
+              if (!_draftCustomPresets!.contains(value)) {
+                _draftCustomPresets = [..._draftCustomPresets!, value];
+              }
+            }),
+            onDeletePreset: (value) => setState(() {
+              _draftCustomPresets = _draftCustomPresets!
+                  .where((preset) => preset != value)
+                  .toList(growable: false);
+              if (draft.colorSchemeSeed == value) {
+                _draft = draft.copyWith(
+                  clearColorSchemeSeed: true,
+                  colorSchemeSeed: null,
+                );
+              }
+            }),
           ),
-        ),
-        NightScheduleSection(
-          schedule: NightSchedule(
-            enabled: draft.nightScheduleEnabled,
-            startMinutes: draft.nightScheduleStartMinutes,
-            endMinutes: draft.nightScheduleEndMinutes,
+          const SizedBox(height: 12),
+          Text(
+            l10n.onboardingAppearanceColorPickerHint,
+            style: theme.textTheme.bodySmall,
           ),
-          userStyle: NavisColorStyle.parse(draft.colorStyle),
-          now: ref.watch(nowProvider)(),
-          adornment: tagFor(SetupHighlight.nightSchedule),
-          onChanged: (schedule) => setState(
-            () => _draft = draft.copyWith(
-              nightScheduleEnabled: schedule.enabled,
-              nightScheduleStartMinutes: schedule.startMinutes,
-              nightScheduleEndMinutes: schedule.endMinutes,
+          const SizedBox(height: 16),
+          SettingsCollapsibleGroup(
+            key: const ValueKey<String>('onboarding-more-appearance-options'),
+            leading: const Icon(Icons.tune),
+            title: l10n.onboardingMoreAppearanceOptions,
+            // Open when something in it still carries a New tag, so updated
+            // users see what changed. It only ever opens by itself: clearing tags
+            // must not close the group while they are looking at it.
+            initiallyExpanded: _hasPendingMoreOptions(draft),
+            outerPadding: EdgeInsets.zero,
+            buildCollapsed: false,
+            child: AppearanceLayout(
+              gutter: 14,
+              optionTitleStyle: optionTitleStyle,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: options.buildAll(AppearanceOptionKind.values),
+              ),
             ),
           ),
-        ),
-        FlatSurfacesOption(
-          value: draft.flatSurfaces,
-          adornment: tagFor(SetupHighlight.flatSurfaces),
-          onChanged: (value) =>
-              setState(() => _draft = draft.copyWith(flatSurfaces: value)),
-        ),
-        CornerStyleOption(
-          value: draft.cornerStyle,
-          adornment: tagFor(SetupHighlight.cornerStyle),
-          titleStyle: Theme.of(context).textTheme.titleMedium,
-          onChanged: (value) =>
-              setState(() => _draft = draft.copyWith(cornerStyle: value)),
-        ),
-        NowPlayingBackgroundOption(
-          value: draft.nowPlayingBackground,
-          oled: _previewOled(context, draft),
-          flat: draft.flatSurfaces,
-          adornment: tagFor(SetupHighlight.nowPlayingBackground),
-          titleStyle: Theme.of(context).textTheme.titleMedium,
-          onChanged: (value) => setState(
-            () => _draft = draft.copyWith(nowPlayingBackground: value),
-          ),
-        ),
-        DensityOption(
-          value: draft.density,
-          titleStyle: Theme.of(context).textTheme.titleMedium,
-          onChanged: (value) =>
-              setState(() => _draft = draft.copyWith(density: value)),
-        ),
-        const SizedBox(height: 24),
-        Text(
-          l10n.onboardingAccentColor,
-          style: Theme.of(context).textTheme.titleMedium,
-        ),
-        ColorSchemeGrid(
-          currentSeed: draft.colorSchemeSeed,
-          style: NavisColorStyle.parse(draft.colorStyle),
-          dynamicAlbumColorEnabled: false,
-          customPresets: customPresets,
-          onSelected: (seed) => setState(
-            () => _draft = draft.copyWith(
-              colorSchemeSeed: seed,
-              clearColorSchemeSeed: seed == null,
-            ),
-          ),
-          onCustomColorPicked: (value) =>
-              setState(() => _draft = draft.copyWith(colorSchemeSeed: value)),
-          onSavePreset: (value) => setState(() {
-            if (!_draftCustomPresets!.contains(value)) {
-              _draftCustomPresets = [..._draftCustomPresets!, value];
-            }
-          }),
-          onDeletePreset: (value) => setState(() {
-            _draftCustomPresets = _draftCustomPresets!
-                .where((preset) => preset != value)
-                .toList(growable: false);
-            if (draft.colorSchemeSeed == value) {
-              _draft = draft.copyWith(
-                clearColorSchemeSeed: true,
-                colorSchemeSeed: null,
-              );
-            }
-          }),
-        ),
-        const SizedBox(height: 12),
-        Text(
-          l10n.onboardingAppearanceColorPickerHint,
-          style: Theme.of(context).textTheme.bodySmall,
-        ),
-      ],
+        ],
+      ),
     );
+  }
+
+  /// Whether any option under "More appearance options" is tagged and shown.
+  /// Use OLED When Dark only counts in Auto, where it is visible.
+  bool _hasPendingMoreOptions(AppSettingsModel draft) {
+    final pending = ref.watch(pendingSetupHighlightsProvider);
+    return AppearanceOptionKind.values.any((kind) {
+      final highlight = kind.highlight;
+      if (highlight == null || !pending.contains(highlight)) return false;
+      return kind != AppearanceOptionKind.oledForAuto ||
+          draft.themeMode == 'system';
+    });
   }
 
   void _updateStepScrollability() {
@@ -842,7 +842,7 @@ class OnboardingScreenState extends ConsumerState<OnboardingScreen> {
       context,
       children: children,
       showHint:
-          (_step == 1 || _step == integrationsStep) &&
+          (_step == 0 || _step == 1 || _step == integrationsStep) &&
           _stepHasMoreBelow[_step] &&
           MediaQuery.viewInsetsOf(context).bottom == 0 &&
           constraints.maxHeight >= _minStepHeightForScrollHint,

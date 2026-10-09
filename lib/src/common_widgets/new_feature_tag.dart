@@ -8,7 +8,11 @@ import 'package:navis/src/theme/navis_tokens.dart';
 /// Uses the primary container pair, so it follows every colour style and
 /// brightness, and keeps a fixed small height so it never grows a row.
 class NewFeatureTag extends StatelessWidget {
-  const new({super.key});
+  const new({super.key, this.semanticsLabel});
+
+  /// Spoken label; defaults to "New option". Rows that lead to several new
+  /// options pass a broader label such as "Has new options".
+  final String? semanticsLabel;
 
   @override
   Widget build(BuildContext context) {
@@ -16,7 +20,7 @@ class NewFeatureTag extends StatelessWidget {
     final theme = Theme.of(context);
     final scheme = theme.colorScheme;
     return Semantics(
-      label: l10n.newFeatureTagSemantics,
+      label: semanticsLabel ?? l10n.newFeatureTagSemantics,
       excludeSemantics: true,
       child: DecoratedBox(
         decoration: BoxDecoration(

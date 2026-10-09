@@ -54,6 +54,10 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
         l10n.settingsGroupLibrarySynchronization;
     final groupOther = l10n.settingsGroupOther;
     final groupDesktop = l10n.settingsGroupDesktop;
+    final hasNewOptions = ref.watch(settingsHasNewOptionsProvider);
+    final newOptionsTag = NewFeatureTag(
+      semanticsLabel: l10n.settingsAppearanceNewOptionsSemantics,
+    );
     final coreEntries = <_SettingsEntry>[
       _SettingsEntry(
         icon: Icons.storage_outlined,
@@ -114,9 +118,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
         page: SettingsPage.appearance,
         group: groupOther,
         // Every setup highlight is an Appearance option.
-        adornment: ref.watch(pendingSetupHighlightsProvider).isEmpty
-            ? null
-            : const NewFeatureTag(),
+        adornment: hasNewOptions ? newOptionsTag : null,
       ),
     ];
     final desktopEntries = <_SettingsEntry>[
@@ -149,6 +151,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
       title: l10n.settingsRunQuickCustomizationTitle,
       subtitle: l10n.settingsRunQuickCustomizationSubtitle,
       group: groupOther,
+      adornment: hasNewOptions ? newOptionsTag : null,
     );
     // Desktop entries come between core and About so About is always last.
     final entries = <_SettingsEntry>[

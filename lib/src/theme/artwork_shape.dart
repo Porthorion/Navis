@@ -3,7 +3,7 @@ import 'package:navis/src/theme/navis_tokens.dart';
 
 /// Which Appearance shape setting a piece of artwork follows.
 enum ArtworkShapeRole {
-  /// Album, song and playlist covers (Cover Art Shape: square or rounded).
+  /// Album, song and playlist covers (Artwork Shape: square or rounded).
   cover,
 
   /// The Now Playing cover (Now Playing Art Shape).

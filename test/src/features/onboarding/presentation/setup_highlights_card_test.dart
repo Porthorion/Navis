@@ -94,14 +94,16 @@ void main() {
     await pump(tester);
 
     expect(open, findsOneWidget);
-    expect(find.text('New in 1.4.3'), findsOneWidget);
+    expect(find.text('New appearance options'), findsOneWidget);
+    expect(find.text('New in 1.4.3'), findsNothing);
     expect(
       find.text(
-        'Pastel, Immersive and Night styles, Flat Surfaces and a night '
-        'schedule. Try them in setup.',
+        'Color styles, corner style, Now Playing background and more. Try '
+        'them in Quick Customization.',
       ),
       findsOneWidget,
     );
+    expect(find.byTooltip('Dismiss'), findsOneWidget);
   });
 
   testWidgets('opens the setup review without acknowledging anything', (

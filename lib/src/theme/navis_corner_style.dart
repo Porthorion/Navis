@@ -1,7 +1,7 @@
 /// How rounded the app's chrome (cards, panels, sheets, dialogs, menus,
 /// buttons, chips, inputs and navigation indicators) is.
 ///
-/// Artwork corners are separate: they follow the Cover Art Shape settings (see
+/// Artwork corners are separate: they follow the Artwork Shape settings (see
 /// `artworkBorderRadius`). Circular things such as avatars, round play
 /// buttons, switches and progress rings stay circular in every style.
 enum NavisCornerStyle {

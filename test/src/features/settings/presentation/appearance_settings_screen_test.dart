@@ -15,6 +15,7 @@ import 'package:navis/src/routing/desktop_layout.dart';
 import 'package:navis/src/theme/navis_corner_style.dart';
 import 'package:navis/src/theme/navis_theme.dart';
 import 'package:flutter_riverpod/misc.dart' show Override;
+import 'package:visibility_detector/visibility_detector.dart';
 
 import '../../../../helpers/adaptive_test_harness.dart';
 import '../../../../helpers/test_database.dart';
@@ -22,6 +23,13 @@ import '../../../../helpers/test_theme.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
+
+  final seenOptions = <SetupHighlight>[];
+
+  setUp(() {
+    VisibilityDetectorController.instance.updateInterval = Duration.zero;
+    seenOptions.clear();
+  });
 
   Future<ProviderContainer> pumpAppearance(
     WidgetTester tester, {
@@ -32,6 +40,7 @@ void main() {
     TextScaler textScaler = TextScaler.noScaling,
     List<String>? homeSectionOrder,
     String? themeMode,
+    String? colorStyle,
     bool nightScheduleEnabled = false,
     int? nightStartMinutes,
     int? nightEndMinutes,
@@ -54,6 +63,7 @@ void main() {
       dynamicAlbumColorEnabled: dynamicAlbumColorEnabled,
       homeSectionOrder: homeSectionOrder,
       themeMode: themeMode,
+      colorStyle: colorStyle,
       nowPlayingBackground: nowPlayingBackground,
       nightScheduleEnabled: nightScheduleEnabled,
       nightScheduleStartMinutes: nightStartMinutes,
@@ -65,6 +75,13 @@ void main() {
         overrides: <Override>[
           appSettingsProvider.overrideWithValue(AsyncData(settings)),
           pendingSetupHighlightsProvider.overrideWithValue(highlights),
+          setupHighlightsServiceProvider.overrideWithValue(
+            SetupHighlightsService(
+              () async {},
+              () async {},
+              (option) async => seenOptions.add(option),
+            ),
+          ),
           customColorPresetsProvider.overrideWithValue(
             AsyncData(customPresets),
           ),
@@ -330,23 +347,27 @@ void main() {
     expect(settings?.colorStyle, 'pastel');
   });
 
-  testWidgets('dynamic album color explains selected color fallback', (
+  testWidgets('dynamic album color sits directly under the accent grid', (
     tester,
   ) async {
     await pumpAppearance(tester, dynamicAlbumColorEnabled: true);
 
     final l10n = lookupAppLocalizations(const Locale('en'));
+    final dynamicRow = find.text(l10n.appearanceDynamicAlbumColorLabel);
     await tester.scrollUntilVisible(
-      find.text(l10n.appearanceDynamicAlbumColorEnabledSub),
+      dynamicRow,
       200,
       scrollable: find.byType(Scrollable).first,
     );
 
-    expect(
-      find.text(l10n.appearanceDynamicAlbumColorEnabledSub),
-      findsOneWidget,
-    );
+    expect(find.text(l10n.appearanceDynamicAlbumColorSub), findsOneWidget);
     expect(find.text(l10n.appearanceColorSchemeDynamicSub), findsOneWidget);
+    expect(
+      l10n.appearanceColorSchemeDynamicSub,
+      startsWith('Dynamic Album Color is on'),
+    );
+    final custom = tester.getBottomLeft(find.byIcon(Icons.add).first);
+    expect(tester.getTopLeft(dynamicRow).dy, greaterThan(custom.dy));
   });
 
   testWidgets('artwork choices wrap and save on a phone with large text', (
@@ -492,10 +513,125 @@ void main() {
     },
   );
 
+  group('sections', () {
+    final l10n = lookupAppLocalizations(const Locale('en'));
+
+    void tallView(WidgetTester tester) {
+      tester.view.physicalSize = const Size(800, 4000);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.reset);
+    }
+
+    double top(WidgetTester tester, String text) =>
+        tester.getTopLeft(find.text(text)).dy;
+
+    testWidgets('four sections in order with the expected controls', (
+      tester,
+    ) async {
+      tallView(tester);
+      await pumpAppearance(tester, themeMode: 'system', settle: false);
+      final ordered = <String>[
+        l10n.appearanceSectionTheme,
+        l10n.appearanceThemeModeLabel,
+        l10n.appearanceOledForAutoLabel,
+        l10n.appearanceNightScheduleLabel,
+        l10n.appearanceSectionColor,
+        l10n.appearanceColorStyleLabel,
+        l10n.appearanceColorSchemeLabel,
+        l10n.appearanceDynamicAlbumColorLabel,
+        l10n.appearanceSectionShapeLayout,
+        l10n.appearanceFlatSurfacesLabel,
+        l10n.appearanceCornerStyleLabel,
+        l10n.appearanceCoverArtShapeLabel,
+        l10n.appearanceArtworkSizeLabel,
+        l10n.appearanceDensityLabel,
+        l10n.appearanceArtistViewModeLabel,
+        l10n.appearanceSectionNowPlaying,
+        l10n.appearanceNowPlayingBackgroundLabel,
+        l10n.appearanceHomeSectionsLabel,
+        l10n.appearancePagesSectionLabel,
+      ];
+      for (final text in ordered) {
+        expect(find.text(text), findsOneWidget, reason: text);
+      }
+      for (var i = 1; i < ordered.length; i++) {
+        expect(
+          top(tester, ordered[i]),
+          greaterThan(top(tester, ordered[i - 1])),
+          reason: '${ordered[i - 1]} before ${ordered[i]}',
+        );
+      }
+    });
+
+    testWidgets('Artwork Shape selectors are visible without expanding', (
+      tester,
+    ) async {
+      tallView(tester);
+      await pumpAppearance(tester, settle: false);
+      expect(l10n.appearanceCoverArtShapeLabel, 'Artwork Shape');
+      expect(find.text('Cover Art Shape'), findsNothing);
+      expect(find.text(l10n.appearanceCoverArtShapeSubLabel), findsOneWidget);
+      expect(find.text(l10n.appearanceNpArtShapeLabel), findsOneWidget);
+      expect(find.text(l10n.appearanceArtistCardShapeLabel), findsOneWidget);
+      expect(find.text(l10n.appearanceCoverArtShapeNote), findsOneWidget);
+      expect(
+        l10n.appearanceCoverArtShapeNote,
+        'Cards and buttons follow Corner Style.',
+      );
+    });
+
+    testWidgets('Night schedule is locked off while Night is the style', (
+      tester,
+    ) async {
+      tallView(tester);
+      await pumpAppearance(tester, colorStyle: 'night', settle: false);
+      final switchTile = tester.widget<SwitchListTile>(
+        find.ancestor(
+          of: find.text(l10n.appearanceNightScheduleLabel),
+          matching: find.byType(SwitchListTile),
+        ),
+      );
+      expect(switchTile.onChanged, isNull);
+      expect(
+        find.text(l10n.appearanceNightScheduleAlreadyNight),
+        findsOneWidget,
+      );
+    });
+
+    testWidgets('Night schedule explains itself only while off', (
+      tester,
+    ) async {
+      tallView(tester);
+      await pumpAppearance(tester, settle: false);
+      expect(
+        find.textContaining('Switches the color style to Night from'),
+        findsOneWidget,
+      );
+    });
+
+    testWidgets('custom color button is a labelled button', (tester) async {
+      tallView(tester);
+      final handle = tester.ensureSemantics();
+      await pumpAppearance(tester, settle: false);
+      expect(
+        tester.getSemantics(find.bySemanticsLabel(l10n.appearanceColorCustom)),
+        isSemantics(label: l10n.appearanceColorCustom, isButton: true),
+      );
+      handle.dispose();
+    });
+  });
+
   group('appearance switches', () {
     final l10n = lookupAppLocalizations(const Locale('en'));
 
     Future<void> reveal(WidgetTester tester, Finder finder) async {
+      if (finder.evaluate().isEmpty) {
+        await tester.scrollUntilVisible(
+          finder,
+          200,
+          scrollable: find.byType(Scrollable).first,
+        );
+      }
       await tester.ensureVisible(finder);
       await tester.pump();
     }
@@ -636,13 +772,17 @@ void main() {
           find.textContaining(l10n.appearanceCornerStyleRoundedSub),
           findsOneWidget,
         );
-        await tester.tap(
-          find.text(
+        final choice = find.descendant(
+          of: selector,
+          matching: find.text(
             style == NavisCornerStyle.soft
                 ? l10n.appearanceCornerStyleSoft
                 : l10n.appearanceCornerStyleSquare,
           ),
         );
+        await tester.ensureVisible(choice);
+        await tester.pump();
+        await tester.tap(choice);
         await tester.pump(const Duration(milliseconds: 100));
         final settings = await tester.runAsync(
           container.read(navisDatabaseProvider).appSettingsDao.getSettings,
@@ -765,6 +905,40 @@ void main() {
           settle: false,
         );
         expect(find.byType(NewFeatureTag), findsNWidgets(2));
+      });
+
+      testWidgets('clear per option once shown', (tester) async {
+        tallView(tester);
+        await pumpAppearance(
+          tester,
+          themeMode: 'system',
+          highlights: SetupHighlight.values.toSet(),
+          settle: false,
+        );
+        await tester.pump();
+        expect(seenOptions.toSet(), SetupHighlight.values.toSet());
+        expect(seenOptions, hasLength(SetupHighlight.values.length));
+      });
+
+      testWidgets('hidden OLED option is never marked', (tester) async {
+        tallView(tester);
+        await pumpAppearance(
+          tester,
+          highlights: <SetupHighlight>{SetupHighlight.oledForAuto},
+          settle: false,
+        );
+        await tester.pump();
+        expect(seenOptions, isEmpty);
+      });
+
+      testWidgets('options outside the viewport stay unmarked', (tester) async {
+        await pumpAppearance(
+          tester,
+          highlights: <SetupHighlight>{SetupHighlight.nowPlayingBackground},
+          settle: false,
+        );
+        await tester.pump();
+        expect(seenOptions, isEmpty);
       });
 
       testWidgets('absent when nothing is pending', (tester) async {
