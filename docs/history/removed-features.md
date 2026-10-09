@@ -166,3 +166,14 @@ a choice made on the new page. Configuration keeps a link row, About keeps
 "Check now" (disabled while update checks are off) and a link, and the retired
 `/settings/external-services` path now redirects to Integrations. See
 [architecture.md](../architecture.md#external-integration-policy).
+
+## 2026-10-09 — Duplicate appearance compatibility APIs removed
+
+The old `artTintedNowPlaying` model/save parameter, provider and DAO writer/watch
+are removed. `NowPlayingBackground` and its targeted DAO writer are the single
+source; the database column remains unchanged for historical migrations,
+including the guarded 92→97 conversion, and active writes no longer mirror it.
+The Home density string provider/writer are also removed in favour of typed
+`NavisDensity` and `densityProvider`. Appearance consistently uses DAO writers,
+so redundant repository wrappers are removed. No user setting or schema column
+is removed. `NavisShapeData` replaces the duplicate panel-radius token.

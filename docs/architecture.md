@@ -593,12 +593,15 @@ target-selection rules.
 - Schema 97 adds `app_settings.now_playing_background`: `tinted` (default),
   `artwork` or `plain`. The guarded 92→97 migration maps the retained legacy
   `art_tinted_now_playing` boolean to `tinted`/`plain`. The enum model field and
-  `nowPlayingBackgroundProvider` are authoritative; the legacy model getter,
-  DAO watch and `artTintedNowPlayingProvider` derive `background != plain`.
-  Targeted writes, full saves and resets keep the compatibility bool in sync.
+  `nowPlayingBackgroundProvider` are authoritative. The retained boolean is
+  only a historical migration source: active writes, full saves and resets do
+  not update it, and there is no legacy model field, provider or DAO writer.
+  Appearance uses the production DAO's targeted writers consistently;
+  SettingsRepository maps and saves the typed model and onboarding changes.
 - App-wide Density covers Home and lists using the existing `home_density`
   column, with `comfortable` (default) or `compact`. `densityProvider` exposes
-  `NavisDensity`; `homeDensityProvider` remains a string compatibility alias.
+  `NavisDensity`; the model's `homeDensity` is typed too. Home reads the same
+  provider directly, with no string provider or legacy DAO writer.
   Unknown stored values and unloaded settings use the defaults. The background
   choice joins the setup highlights registry for 1.4.3; Density
   is a renamed existing setting (it also tightens playlists and artist lists)
@@ -612,11 +615,14 @@ target-selection rules.
   blurs the cover (sigma 32, `ImageFiltered` inside a `RepaintBoundary`, not a
   backdrop filter), lays `NavisColorStyleData.nowPlayingArtworkVeil` over it
   (adaptive: the smallest alpha keeping both `onSurface` and the accent-coloured
-  title at 5.0:1 against the 96 px average, within dark 0.30-0.80, OLED
+  title at 5.0:1 against the shared cover field's usable-cell average (from
+  `coverColourFieldProvider((id, revision))`), within dark 0.30-0.80, OLED
   0.72-0.92 so it still reads as OLED, and light 0.58-0.88; fixed
   0.68/0.8/0.68 until the average is known) and adds a 0.15 veil over the
   bottom fifth. The previous cover stays until the next one
-  decodes, then crossfades over `MotionPolicy.surface`. The averaging listener
+  decodes, then crossfades over `MotionPolicy.surface`. Cover-id art reuses
+  the worker's field instead of reading bitmap pixels on the UI isolate;
+  radio/URL art retains its thumbnail bitmap average. The decode listener
   disposes every received image handle, including stale callbacks. Failed source
   keys are remembered by the layer and reported to the screen after the frame,
   selecting Art-Tinted without retrying on position rebuilds. A new source or
@@ -648,7 +654,12 @@ target-selection rules.
   `buildOledTheme` take the user's seed (or the dynamic album colour) and a
   colour style, get a `ColorScheme` from `buildStyledColorScheme`, and
   delegate to one shared builder. Typography, component themes and theme
-  extensions are defined only in that builder. OLED cards, dialogs and sheets
+  extensions are defined only in that builder. `NavisApp` constructs only the
+  active brightness/OLED variant and reuses a per-app eight-entry LRU cache
+  (`NavisThemeCache`) keyed by seed, brightness, OLED, style, Flat and corners.
+  Unrelated settings rebuilds reuse complete themes; new album seeds build
+  only the visible variant, and switching back can reuse a cached theme.
+  OLED cards, dialogs and sheets
   take their colours from the scheme's container roles, whose chroma styled
   schemes cap at 2 so they read black-ish. OLED chrome is true black: the
   phone mini player, desktop sidebar and desktop player bar are `surface`
@@ -709,9 +720,10 @@ target-selection rules.
     shadows and the seek-preview blur are dropped for opaque container fills.
     Exceptions that stay: the desktop/tablet Home wash is a rounded panel
     (`NavisRadius.xl`) inset to the 16 px content margins, and a wash colour with HCT chroma
-    below 6 (grey covers) takes 25% of `secondaryContainer` so it carries the
-    style; OLED + Flat Now Playing is plain `surface` (black), never the solid
-    tint (`NavisColorStyleData.oled`, set by `buildOledTheme`); the legibility
+    below 6 (grey covers) takes 25% of `secondaryContainer` into the raw sample
+    before adaptation, through `styledCoverSample` shared by wash and band;
+    coloured samples are adapted once; OLED + Flat Now Playing is plain
+    `surface` (black), never the solid tint (`NavisColorStyleData.oled`, set by `buildOledTheme`); the legibility
     gradients behind white text over artwork stay under Flat (see
     `NavisColorStyleData.artworkScrim` below).
     Kept deliberately: the shimmer animation, the scroll-edge fade mask
@@ -842,6 +854,14 @@ target-selection rules.
 - Decision record:
   [decisions/2026-09-30-design-foundation.md](decisions/2026-09-30-design-foundation.md).
 
+Shared utility ownership: `utils/semver.dart` parses and compares release cores
+for changelog/setup discovery and update selection, accepting leading `v`,
+build and label suffixes. `captionContrast` owns WCAG contrast maths for
+captions, veils and theme brand roles (the latter compare raw RGB as before).
+`NightSchedule` owns Dart schedule defaults; Drift table defaults retain their
+SQL literals. `NavisShapeData.xl` owns panel radii, including desktop panels and
+anchored popovers; `NavisTokens` no longer duplicates that shape value.
+
 ### Home: You Might Like
 
 `you_might_like_widgets.dart` (a part of `home_screen.dart`) renders the
@@ -892,10 +912,12 @@ never pays for it:
 - *Sampling gate.* `AlbumCard` passes `CoverArtImage.onImageReady` to its
   `AlbumCardLabel` as `coverReady`, so a card samples only after the same
   visibility and load-window logic that loads its artwork has shown the
-  cover. It then waits `kCoverTintSettleDelay` (150 ms) built, and while
-  `Scrollable.recommendDeferredLoadingForContext` says a fast scroll is under
-  way it keeps waiting. Cards that fly past never request. Known colours are
-  read synchronously from `peekCoverColourField` on the first frame.
+  cover. It waits `kCoverTintSettleDelay` (150 ms) built and idle before
+  requesting. The existing `isScrollingNotifier` cancels that one-shot wait
+  when scrolling starts and schedules it when scrolling stops; there is no
+  per-card polling timer. Flutter's deferred-loading recommendation remains
+  a final check before sampling. Cards that fly past never request. Known
+  colours are read synchronously from `peekCoverColourField` on the first frame.
 - *Local files only.* `decodeLocalCoverColour` reads the permanent artwork
   store file or the rolling-cache file (`getFileFromCache`) and decodes it
   natively at 24 px (`ImmutableBuffer.fromFilePath`, `ImageDescriptor`,
@@ -914,8 +936,10 @@ never pays for it:
   tone search) and all persistence: read, merge, trim to 5000, encode and
   atomic write of the colour file, debounced 2 s. A card derives its tint
   through `resolveCaptionTint` (memoised in `caption_tint_resolver.dart`),
-  so `captionTintFor` never runs in `build`. Memo and card dedupe keys contain
-  only sampled ARGB, colour style and darkness; these are the only arguments
+  during dependency/widget changes and field subscription callbacks. Build
+  only renders the applied tint. Each applied tint resets its instant/fade
+  decision; queued results stay behind the frame dispatcher. Memo and card
+  dedupe keys contain only sampled ARGB, colour style and darkness; these are the only arguments
   sent to the worker. Track-driven accent hue changes reuse the tint.
 - *Burst control.* Results reach cards through `FrameBudgetDispatcher`
   (`frame_budget_dispatcher.dart`): at most three tint repaints start per

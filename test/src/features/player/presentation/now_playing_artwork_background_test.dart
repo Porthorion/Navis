@@ -9,7 +9,6 @@ import 'package:material_color_utilities/material_color_utilities.dart'
 import 'package:material_ui/material_ui.dart';
 import 'package:navis/src/features/player/presentation/now_playing_artwork_background.dart';
 import 'package:navis/src/features/player/presentation/now_playing_artwork_scope.dart';
-import 'package:navis/src/features/player/presentation/now_playing_screen.dart';
 import 'package:navis/src/theme/navis_theme.dart';
 import 'package:navis/src/features/settings/domain/now_playing_background.dart';
 import 'package:navis/src/theme/caption_tint.dart';
@@ -299,6 +298,8 @@ void main() {
       required String? key,
       required ImageProvider? image,
       Duration fade = const Duration(milliseconds: 200),
+      Color? average,
+      bool useCoverAverage = false,
       void Function(String, {required bool available})? onAvailabilityChanged,
     }) => Directionality(
       textDirection: TextDirection.ltr,
@@ -308,6 +309,8 @@ void main() {
         child: NowPlayingArtworkBackground(
           imageKey: key,
           image: image,
+          coverAverage: average,
+          useCoverAverage: useCoverAverage,
           onAvailabilityChanged: onAvailabilityChanged,
           colorStyle: const NavisColorStyleData(
             style: NavisColorStyle.neutral,
@@ -337,6 +340,61 @@ void main() {
         final stale = (await tester.runAsync(_countingInfo))!;
         listener.onImage(stale, false);
         expect(stale.disposals, 1);
+      },
+    );
+
+    testWidgets(
+      'cover art uses the shared field average and updates its veil',
+      (tester) async {
+        final provider = _ControlledImage();
+        await tester.pumpWidget(
+          host(key: 'cover', image: provider, useCoverAverage: true),
+        );
+        final info = (await tester.runAsync(_countingInfo))!;
+        provider.completer.listeners.single.onImage(info, false);
+        await tester.pump();
+        const data = NavisColorStyleData.neutralDark;
+        Color veil() =>
+            tester.widget<ColoredBox>(find.byType(ColoredBox)).color;
+        expect(veil(), data.nowPlayingArtworkVeil(const Color(0xFF101418)));
+        expect(info.disposals, 1);
+        final resolutions = provider.resolutions;
+        await tester.pumpWidget(
+          host(
+            key: 'cover',
+            image: provider,
+            average: Colors.black,
+            useCoverAverage: true,
+          ),
+        );
+        expect(
+          veil(),
+          nowPlayingAdaptiveVeil(
+            colorStyle: data,
+            surface: const Color(0xFF101418),
+            onSurface: Colors.white,
+            average: Colors.black,
+          ),
+        );
+        expect(provider.resolutions, resolutions);
+        await tester.pumpWidget(
+          host(
+            key: 'cover',
+            image: provider,
+            average: Colors.white,
+            useCoverAverage: true,
+          ),
+        );
+        expect(
+          veil(),
+          nowPlayingAdaptiveVeil(
+            colorStyle: data,
+            surface: const Color(0xFF101418),
+            onSurface: Colors.white,
+            average: Colors.white,
+          ),
+        );
+        expect(provider.resolutions, resolutions);
       },
     );
 

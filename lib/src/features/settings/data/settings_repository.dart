@@ -61,7 +61,6 @@ class SettingsRepository {
       crossfadeEnabled: settings.crossfadeEnabled,
       crossfadeDurationSeconds: settings.crossfadeDurationSeconds,
       crossfadeType: settings.crossfadeType,
-      artTintedNowPlaying: settings.artTintedNowPlaying,
       nowPlayingBackground: settings.nowPlayingBackground.storageKey,
       cornerStyle: settings.cornerStyle.name,
       dynamicAlbumColorEnabled: settings.dynamicAlbumColorEnabled,
@@ -89,7 +88,7 @@ class SettingsRepository {
       desktopLastAudibleVolume: sanitizeDesktopLastAudibleVolume(
         settings.desktopLastAudibleVolume,
       ),
-      homeDensity: settings.homeDensity,
+      homeDensity: settings.homeDensity.storageKey,
       homeSectionOrder: _encodeStringList(settings.homeSectionOrder),
       homeSectionsHidden: _encodeStringList(settings.homeSectionsHidden),
       libraryPageOrder: _encodeStringList(settings.libraryPageOrder),
@@ -206,15 +205,6 @@ class SettingsRepository {
           : Value(draft.likedQueueEnabled),
     );
   }
-
-  Future<void> updateNowPlayingBackground(NowPlayingBackground background) =>
-      _dao.updateNowPlayingBackground(background.storageKey);
-
-  Future<void> updateCornerStyle(NavisCornerStyle style) =>
-      _dao.updateCornerStyle(style.name);
-
-  Future<void> updateDensity(NavisDensity density) =>
-      _dao.updateDensity(density);
 
   /// Writes only the custom Last.fm API key; null clears it. The full-row
   /// [saveSettings] leaves the key alone.
@@ -377,7 +367,7 @@ class SettingsRepository {
       desktopLastAudibleVolume: sanitizeDesktopLastAudibleVolume(
         row.desktopLastAudibleVolume,
       ),
-      homeDensity: NavisDensity.parse(row.homeDensity).storageKey,
+      homeDensity: NavisDensity.parse(row.homeDensity),
       homeSectionOrder: _decodeStringList(row.homeSectionOrder),
       homeSectionsHidden: _decodeStringList(row.homeSectionsHidden),
       libraryPageOrder: _decodeStringList(row.libraryPageOrder),

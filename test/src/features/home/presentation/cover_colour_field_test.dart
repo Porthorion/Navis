@@ -3,6 +3,7 @@ import 'dart:typed_data';
 import 'package:material_ui/material_ui.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:navis/src/features/home/presentation/cover_colour_field.dart';
+import 'package:navis/src/features/home/presentation/cover_colour_worker.dart';
 
 ByteData _blocks(int size, List<Color> cells, {int transparentCell = -1}) {
   final bytes = ByteData(size * size * 4);
@@ -35,7 +36,11 @@ void main() {
   ];
 
   test('averages each third of the cover into its grid cell', () {
-    final colors = averageColourGrid(_blocks(24, cells), 24, 24);
+    final colors = averageArgbGrid(
+      _blocks(24, cells).buffer.asUint8List(),
+      24,
+      24,
+    ).map(Color.new).toList();
     expect(colors, cells);
   });
 
@@ -54,19 +59,33 @@ void main() {
           ..setUint8(offset + 3, 255);
       }
     }
-    final colors = averageColourGrid(bytes, width, width);
+    final colors = averageArgbGrid(
+      bytes.buffer.asUint8List(),
+      width,
+      width,
+    ).map(Color.new).toList();
     expect(colors.first, const Color(0xFF7F7F7F));
     expect(colors[1], const Color(0xFF000000));
   });
 
   test('ignores transparent pixels', () {
-    final colors = averageColourGrid(
-      _blocks(24, cells, transparentCell: 4),
+    final colors = averageArgbGrid(
+      _blocks(24, cells, transparentCell: 4).buffer.asUint8List(),
       24,
       24,
     );
-    expect(colors[4].a, 0);
-    expect(colors[0], cells[0]);
+    expect(colors[4], 0);
+    expect(colors[0], cells[0].toARGB32());
+  });
+
+  test('field average skips empty cells and returns null without art', () {
+    expect(CoverColourField.uniform(Colors.transparent).average, isNull);
+    final field = CoverColourField([
+      const Color(0xFFFF0000),
+      const Color(0xFF0000FF),
+      ...List<Color>.filled(7, Colors.transparent),
+    ]);
+    expect(field.average, Color.from(alpha: 1, red: 0.5, green: 0, blue: 0.5));
   });
 
   test('cache keeps the most recently used covers', () {

@@ -3,8 +3,6 @@ import 'dart:math' as math;
 
 import 'package:flutter/foundation.dart' show listEquals;
 import 'package:intl/intl.dart' show DateFormat;
-import 'package:material_color_utilities/material_color_utilities.dart'
-    show Hct;
 import 'package:drift/drift.dart' show Value;
 import 'package:material_ui/material_ui.dart';
 import 'package:navis/src/common_widgets/adaptive_track_row.dart';
@@ -1143,7 +1141,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
     // You Might Like is visible; tablet portrait keeps the roomier one.
     final phoneHeader = adaptiveLayoutClass == AdaptiveLayoutClass.phoneCompact;
     final useCustomHomePullRefresh = !desktopMode;
-    final homeDensity = ref.watch(homeDensityProvider);
+    final homeDensity = ref.watch(densityProvider).storageKey;
     final persistedOrder = ref.watch(homeSectionOrderProvider);
     final order = HomeSectionIds.resolveOrder(persistedOrder);
     final hidden = HomeSectionIds.resolveHidden(

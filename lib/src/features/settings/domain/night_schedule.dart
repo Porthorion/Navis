@@ -8,6 +8,9 @@ class NightSchedule {
     required this.endMinutes,
   });
 
+  static const int defaultStartMinutes = 22 * 60;
+  static const int defaultEndMinutes = 7 * 60;
+
   final bool enabled;
   final int startMinutes;
   final int endMinutes;

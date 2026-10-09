@@ -318,6 +318,8 @@ class _CoverTintLabelState extends ConsumerState<_CoverTintLabel> {
   CaptionTint? _appliedTint;
   String? _derivingKey;
   bool _instant = false;
+  ValueNotifier<bool>? _scrolling;
+  ProviderSubscription<AsyncValue<CoverColourField?>>? _fieldSubscription;
 
   String? get _id {
     final id = widget.coverArtId;
@@ -329,7 +331,28 @@ class _CoverTintLabelState extends ConsumerState<_CoverTintLabel> {
     super.initState();
     _known = _lookup();
     widget.coverReady?.addListener(_maybeSettle);
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final scrolling = Scrollable.maybeOf(context)?.position.isScrollingNotifier;
+    if (_scrolling != scrolling) {
+      _scrolling?.removeListener(_scrollChanged);
+      _scrolling = scrolling;
+      _scrolling?.addListener(_scrollChanged);
+    }
+    _refreshTint();
     _maybeSettle();
+  }
+
+  void _scrollChanged() {
+    if (_scrolling?.value ?? false) {
+      _settleTimer?.cancel();
+      _settleTimer = null;
+    } else {
+      _maybeSettle();
+    }
   }
 
   @override
@@ -343,16 +366,23 @@ class _CoverTintLabelState extends ConsumerState<_CoverTintLabel> {
         oldWidget.coverArtRevision != widget.coverArtRevision) {
       _settleTimer?.cancel();
       _settleTimer = null;
+      _fieldSubscription?.close();
+      _fieldSubscription = null;
+      _derivingKey = null;
+      _instant = false;
       _requested = false;
       _known = _lookup();
       if (oldWidget.coverArtId != widget.coverArtId) _appliedTint = null;
     }
+    _refreshTint();
     _maybeSettle();
   }
 
   @override
   void dispose() {
     _settleTimer?.cancel();
+    _fieldSubscription?.close();
+    _scrolling?.removeListener(_scrollChanged);
     widget.coverReady?.removeListener(_maybeSettle);
     super.dispose();
   }
@@ -368,7 +398,8 @@ class _CoverTintLabelState extends ConsumerState<_CoverTintLabel> {
         _requested ||
         _settleTimer != null ||
         _id == null ||
-        !(widget.coverReady?.value ?? true)) {
+        !(widget.coverReady?.value ?? true) ||
+        (_scrolling?.value ?? false)) {
       return;
     }
     _settleTimer = Timer(kCoverTintSettleDelay, _settled);
@@ -383,10 +414,46 @@ class _CoverTintLabelState extends ConsumerState<_CoverTintLabel> {
     if (Scrollable.recommendDeferredLoadingForContext(context) ||
         (Scrollable.maybeOf(context)?.position.isScrollingNotifier.value ??
             false)) {
-      _settleTimer = Timer(kCoverTintSettleDelay, _settled);
       return;
     }
-    setState(() => _requested = true);
+    _requested = true;
+    _fieldSubscription = ref.listenManual(
+      coverColourFieldProvider((_id!, widget.coverArtRevision)),
+      (_, next) {
+        if (!mounted) return;
+        _known = next.value ?? _known;
+        setState(_refreshTint);
+      },
+      fireImmediately: true,
+    );
+  }
+
+  void _refreshTint() {
+    final field = _known;
+    if (field == null) {
+      _derivingKey = null;
+      return;
+    }
+    final style = NavisColorStyleData.of(context);
+    final sampled = field.bottomRowAverage;
+    final known = peekCaptionTint(sampled, style);
+    if (known != null) {
+      final key = '${sampled.toARGB32()}|${style.style.index}|${style.dark}';
+      // A resolved memo can precede the dispatcher's frame-budgeted repaint.
+      if (_derivingKey == key) return;
+      _derivingKey = null;
+      _applyTint(known, instant: _scrolling?.value ?? false);
+    } else {
+      _deriveTint(sampled, style);
+    }
+  }
+
+  void _applyTint(CaptionTint tint, {required bool instant}) {
+    if (_appliedTint == tint) return;
+    _appliedTint = tint;
+    // Each application makes its own motion decision; a previous burst must
+    // not disable the next lone arrival's transition.
+    _instant = instant;
   }
 
   /// Derives the caption tint in the worker isolate and repaints through the
@@ -400,7 +467,7 @@ class _CoverTintLabelState extends ConsumerState<_CoverTintLabel> {
     final dispatcher = ref.read(frameBudgetDispatcherProvider);
     unawaited(
       resolveCaptionTint(worker, sampled, style).then(
-        (_) {
+        (tint) {
           if (!mounted || _derivingKey != key) return;
           dispatcher.enqueue(() {
             if (!mounted || _derivingKey != key) return;
@@ -415,7 +482,7 @@ class _CoverTintLabelState extends ConsumerState<_CoverTintLabel> {
                 false;
             setState(() {
               _derivingKey = null;
-              _instant = dispatcher.inBurst || scrolling;
+              _applyTint(tint, instant: dispatcher.inBurst || scrolling);
             });
           });
         },
@@ -435,27 +502,13 @@ class _CoverTintLabelState extends ConsumerState<_CoverTintLabel> {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
-    final id = _id;
-    final field = id == null
-        ? null
-        : (_requested
-                  ? ref
-                        .watch(
-                          coverColourFieldProvider((
-                            id,
-                            widget.coverArtRevision,
-                          )),
-                        )
-                        .value
-                  : null) ??
-              _known ??
-              peekCoverColourField(id);
     final fallback = CaptionTint(
       fill: theme.scaffoldBackgroundColor,
       text: colorScheme.onSurface,
       subtext: colorScheme.onSurfaceVariant,
     );
-    if (field == null) {
+    final target = _appliedTint;
+    if (target == null) {
       return _OverlayFadeLabel(
         tint: fallback,
         title: widget.title,
@@ -463,24 +516,6 @@ class _CoverTintLabelState extends ConsumerState<_CoverTintLabel> {
         titleMaxLines: widget.titleMaxLines,
       );
     }
-    final style = NavisColorStyleData.of(context);
-    final sampled = field.bottomRowAverage;
-    var target = peekCaptionTint(sampled, style);
-    // A tint derived for this card is held back until the dispatcher applies
-    // it, so the decision to fade or not is made once, at that moment.
-    if (target == null || _derivingKey != null) {
-      if (target == null) _deriveTint(sampled, style);
-      target = _appliedTint;
-      if (target == null) {
-        return _OverlayFadeLabel(
-          tint: fallback,
-          title: widget.title,
-          subtitle: widget.subtitle,
-          titleMaxLines: widget.titleMaxLines,
-        );
-      }
-    }
-    _appliedTint = target;
     return TweenAnimationBuilder<CaptionTint>(
       key: const ValueKey<String>('albumCardCoverTint'),
       tween: _CaptionTintTween(begin: fallback, end: target),

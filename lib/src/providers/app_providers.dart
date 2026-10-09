@@ -2785,11 +2785,6 @@ final nowPlayingBackgroundProvider = Provider<NowPlayingBackground>((ref) {
   return settings.nowPlayingBackground;
 });
 
-/// Compatibility view of whether Now Playing uses an artwork-based background.
-final artTintedNowPlayingProvider = Provider<bool>((ref) {
-  return ref.watch(nowPlayingBackgroundProvider) != NowPlayingBackground.plain;
-});
-
 /// Whether lyrics should open in fullscreen mode by default.
 ///
 /// Backed by a persisted compatibility boolean in app settings.
@@ -2882,11 +2877,6 @@ final densityProvider = Provider<NavisDensity>((ref) {
       ref.watch(appSettingsProvider).asData?.value ??
       const AppSettingsModel.defaults();
   return settings.density;
-});
-
-/// Compatibility alias reading the same app-wide Density value.
-final homeDensityProvider = Provider<String>((ref) {
-  return ref.watch(densityProvider).storageKey;
 });
 
 /// Desktop navigation sidebar style: 'comfortable', 'compact', or 'icons'.

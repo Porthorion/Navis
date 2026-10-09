@@ -34,83 +34,62 @@ void main() {
           container.read(nowPlayingBackgroundProvider),
           NowPlayingBackground.tinted,
         );
-        expect(container.read(artTintedNowPlayingProvider), isTrue);
         expect(container.read(densityProvider), NavisDensity.comfortable);
-        expect(container.read(homeDensityProvider), 'comfortable');
       },
     );
   }
 
   for (final background in NowPlayingBackground.values) {
     for (final density in NavisDensity.values) {
-      test(
-        'providers expose $background and $density with legacy aliases',
-        () async {
-          final settings = const AppSettingsModel.defaults().copyWith(
-            nowPlayingBackground: background,
-            density: density,
-          );
-          final container = ProviderContainer(
-            overrides: [
-              appSettingsProvider.overrideWith((ref) => Stream.value(settings)),
-            ],
-          );
-          addTearDown(container.dispose);
-          container.listen(appSettingsProvider, (_, _) {});
-          await container.read(appSettingsProvider.future);
-          expect(container.read(nowPlayingBackgroundProvider), background);
-          expect(
-            container.read(artTintedNowPlayingProvider),
-            background != NowPlayingBackground.plain,
-          );
-          expect(container.read(densityProvider), density);
-          expect(container.read(homeDensityProvider), density.storageKey);
-        },
-      );
+      test('providers expose $background and $density', () async {
+        final settings = const AppSettingsModel.defaults().copyWith(
+          nowPlayingBackground: background,
+          density: density,
+        );
+        final container = ProviderContainer(
+          overrides: [
+            appSettingsProvider.overrideWith((ref) => Stream.value(settings)),
+          ],
+        );
+        addTearDown(container.dispose);
+        container.listen(appSettingsProvider, (_, _) {});
+        await container.read(appSettingsProvider.future);
+        expect(container.read(nowPlayingBackgroundProvider), background);
+        expect(container.read(densityProvider), density);
+      });
     }
   }
 
-  test(
-    'targeted persistence updates reach providers and compatibility aliases',
-    () async {
-      final database = createTestDatabase();
-      final container = ProviderContainer(
-        overrides: withTestDatabase(database),
-      );
-      addTearDown(() async {
-        container.dispose();
-        await database.close();
-      });
-      container.listen(appSettingsProvider, (_, _) {});
-      await container.read(appSettingsProvider.future);
-      final dao = container.read(navisDatabaseProvider).appSettingsDao;
-      for (final (background, density) in [
-        (NowPlayingBackground.artwork, NavisDensity.compact),
-        (NowPlayingBackground.plain, NavisDensity.comfortable),
-      ]) {
-        final updated = Completer<void>();
-        final subscription = container.listen(appSettingsProvider, (_, next) {
-          next.whenData((settings) {
-            if (settings.nowPlayingBackground == background &&
-                settings.density == density &&
-                !updated.isCompleted) {
-              updated.complete();
-            }
-          });
+  test('targeted persistence updates reach providers', () async {
+    final database = createTestDatabase();
+    final container = ProviderContainer(overrides: withTestDatabase(database));
+    addTearDown(() async {
+      container.dispose();
+      await database.close();
+    });
+    container.listen(appSettingsProvider, (_, _) {});
+    await container.read(appSettingsProvider.future);
+    final dao = container.read(navisDatabaseProvider).appSettingsDao;
+    for (final (background, density) in [
+      (NowPlayingBackground.artwork, NavisDensity.compact),
+      (NowPlayingBackground.plain, NavisDensity.comfortable),
+    ]) {
+      final updated = Completer<void>();
+      final subscription = container.listen(appSettingsProvider, (_, next) {
+        next.whenData((settings) {
+          if (settings.nowPlayingBackground == background &&
+              settings.density == density &&
+              !updated.isCompleted) {
+            updated.complete();
+          }
         });
-        await dao.updateNowPlayingBackground(background.storageKey);
-        await dao.updateDensity(density);
-        await updated.future;
-        subscription.close();
-        expect(container.read(nowPlayingBackgroundProvider), background);
-        expect(
-          container.read(artTintedNowPlayingProvider),
-          background != NowPlayingBackground.plain,
-        );
-        expect(container.read(densityProvider), density);
-        expect(container.read(homeDensityProvider), density.storageKey);
-      }
-    },
-    skip: !sqliteAvailable,
-  );
+      });
+      await dao.updateNowPlayingBackground(background.storageKey);
+      await dao.updateDensity(density);
+      await updated.future;
+      subscription.close();
+      expect(container.read(nowPlayingBackgroundProvider), background);
+      expect(container.read(densityProvider), density);
+    }
+  }, skip: !sqliteAvailable);
 }

@@ -1,4 +1,4 @@
-import 'package:navis/src/features/changelog/changelog_provider.dart';
+import 'package:navis/src/utils/semver.dart';
 
 /// Setup options introduced together in a release, shown to updated users.
 enum SetupHighlight {

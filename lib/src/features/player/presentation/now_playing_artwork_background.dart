@@ -145,6 +145,8 @@ class NowPlayingArtworkBackground extends StatefulWidget {
     required this.onSurfaceColor,
     required this.fadeDuration,
     this.accentColor,
+    this.coverAverage,
+    this.useCoverAverage = false,
     this.onAvailabilityChanged,
     this.onSurfaceVariantColor,
     super.key,
@@ -159,6 +161,10 @@ class NowPlayingArtworkBackground extends StatefulWidget {
 
   /// Small decoded cover, or null while there is none.
   final ImageProvider<Object>? image;
+
+  /// Shared colour-field average for server cover art. URL art samples pixels.
+  final Color? coverAverage;
+  final bool useCoverAverage;
 
   /// Style that picks the veil colour and its alpha range.
   final NavisColorStyleData colorStyle;
@@ -212,6 +218,7 @@ class _NowPlayingArtworkBackgroundState
     if (key == null || image == null || _failedKeys.contains(key)) return;
     if (key == _shownKey) {
       _shown = image;
+      if (widget.useCoverAverage) _shownAverage = widget.coverAverage;
       return;
     }
     if (key == _pendingKey) return;
@@ -229,7 +236,9 @@ class _NowPlayingArtworkBackgroundState
         unawaited(() async {
           Color? average;
           try {
-            average = await averageImageColor(info.image);
+            average = widget.useCoverAverage
+                ? widget.coverAverage
+                : await averageImageColor(info.image);
           } on Object {
             average = null;
           } finally {

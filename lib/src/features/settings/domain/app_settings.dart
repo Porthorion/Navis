@@ -1,4 +1,5 @@
 import 'package:flutter/foundation.dart';
+import 'package:navis/src/features/settings/domain/night_schedule.dart';
 import 'package:navis/src/database/daos/app_settings_dao.dart';
 import 'package:navis/src/features/player/domain/playback_adjustments.dart';
 import 'package:navis/src/features/settings/domain/navis_density.dart';
@@ -68,16 +69,15 @@ class AppSettingsModel {
     this.colorStyle = 'neutral',
     this.oledForAuto = false,
     this.nightScheduleEnabled = false,
-    this.nightScheduleStartMinutes = 1320,
-    this.nightScheduleEndMinutes = 420,
+    this.nightScheduleStartMinutes = NightSchedule.defaultStartMinutes,
+    this.nightScheduleEndMinutes = NightSchedule.defaultEndMinutes,
     this.flatSurfaces = false,
     required this.colorSchemeSeed,
     required this.appLocale,
     required this.crossfadeEnabled,
     required this.crossfadeDurationSeconds,
     required this.crossfadeType,
-    bool artTintedNowPlaying = true,
-    NowPlayingBackground? nowPlayingBackground,
+    this.nowPlayingBackground = NowPlayingBackground.tinted,
     this.cornerStyle = NavisCornerStyle.rounded,
     required this.dynamicAlbumColorEnabled,
     required this.updateCheckEnabled,
@@ -106,7 +106,7 @@ class AppSettingsModel {
     this.desktopFocusPlayerModeEnabled = false,
     this.desktopPlaybackVolume = AppSettingsDao.defaultDesktopPlaybackVolume,
     this.desktopLastAudibleVolume = AppSettingsDao.defaultDesktopPlaybackVolume,
-    this.homeDensity = 'comfortable',
+    this.homeDensity = NavisDensity.comfortable,
     required this.homeSectionOrder,
     required this.homeSectionsHidden,
     required this.libraryPageOrder,
@@ -133,11 +133,7 @@ class AppSettingsModel {
     this.voyageDisplayName,
     this.voyageDeviceLabel,
     this.voyageAutoFollowHost = true,
-  }) : nowPlayingBackground =
-           nowPlayingBackground ??
-           (artTintedNowPlaying
-               ? NowPlayingBackground.tinted
-               : NowPlayingBackground.plain);
+  });
 
   const new defaults()
     : wifiMaxBitRate = null,
@@ -162,8 +158,8 @@ class AppSettingsModel {
       colorStyle = 'neutral',
       oledForAuto = false,
       nightScheduleEnabled = false,
-      nightScheduleStartMinutes = 1320,
-      nightScheduleEndMinutes = 420,
+      nightScheduleStartMinutes = NightSchedule.defaultStartMinutes,
+      nightScheduleEndMinutes = NightSchedule.defaultEndMinutes,
       flatSurfaces = false,
       colorSchemeSeed = null,
       appLocale = null,
@@ -199,7 +195,7 @@ class AppSettingsModel {
       desktopFocusPlayerModeEnabled = false,
       desktopPlaybackVolume = AppSettingsDao.defaultDesktopPlaybackVolume,
       desktopLastAudibleVolume = AppSettingsDao.defaultDesktopPlaybackVolume,
-      homeDensity = 'comfortable',
+      homeDensity = NavisDensity.comfortable,
       homeSectionOrder = null,
       homeSectionsHidden = null,
       libraryPageOrder = null,
@@ -262,9 +258,6 @@ class AppSettingsModel {
   final NowPlayingBackground nowPlayingBackground;
   final NavisCornerStyle cornerStyle;
 
-  /// Compatibility view of the background choice for existing callers.
-  bool get artTintedNowPlaying =>
-      nowPlayingBackground != NowPlayingBackground.plain;
   final bool dynamicAlbumColorEnabled;
   final bool updateCheckEnabled;
   final String updateChannel;
@@ -321,9 +314,9 @@ class AppSettingsModel {
   final double desktopLastAudibleVolume;
 
   /// Density now covers Home and lists; the legacy storage name is retained.
-  final String homeDensity;
+  final NavisDensity homeDensity;
 
-  NavisDensity get density => NavisDensity.parse(homeDensity);
+  NavisDensity get density => homeDensity;
 
   /// Ordered list of home section IDs, or null for default order.
   final List<String>? homeSectionOrder;
@@ -446,7 +439,6 @@ class AppSettingsModel {
     bool? crossfadeEnabled,
     int? crossfadeDurationSeconds,
     String? crossfadeType,
-    bool? artTintedNowPlaying,
     NowPlayingBackground? nowPlayingBackground,
     NavisCornerStyle? cornerStyle,
     bool? dynamicAlbumColorEnabled,
@@ -477,7 +469,7 @@ class AppSettingsModel {
     bool? desktopFocusPlayerModeEnabled,
     double? desktopPlaybackVolume,
     double? desktopLastAudibleVolume,
-    String? homeDensity,
+    NavisDensity? homeDensity,
     NavisDensity? density,
     List<String>? homeSectionOrder,
     List<String>? homeSectionsHidden,
@@ -572,13 +564,7 @@ class AppSettingsModel {
       crossfadeDurationSeconds:
           crossfadeDurationSeconds ?? this.crossfadeDurationSeconds,
       crossfadeType: crossfadeType ?? this.crossfadeType,
-      nowPlayingBackground:
-          nowPlayingBackground ??
-          (artTintedNowPlaying == null
-              ? this.nowPlayingBackground
-              : artTintedNowPlaying
-              ? NowPlayingBackground.tinted
-              : NowPlayingBackground.plain),
+      nowPlayingBackground: nowPlayingBackground ?? this.nowPlayingBackground,
       cornerStyle: cornerStyle ?? this.cornerStyle,
       dynamicAlbumColorEnabled:
           dynamicAlbumColorEnabled ?? this.dynamicAlbumColorEnabled,
@@ -623,7 +609,7 @@ class AppSettingsModel {
           desktopPlaybackVolume ?? this.desktopPlaybackVolume,
       desktopLastAudibleVolume:
           desktopLastAudibleVolume ?? this.desktopLastAudibleVolume,
-      homeDensity: density?.storageKey ?? homeDensity ?? this.homeDensity,
+      homeDensity: density ?? homeDensity ?? this.homeDensity,
       homeSectionOrder: clearHomeSectionOrder
           ? null
           : homeSectionOrder ?? this.homeSectionOrder,

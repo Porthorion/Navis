@@ -1,3 +1,4 @@
+import 'package:navis/src/features/settings/domain/navis_density.dart';
 import 'package:navis/src/features/equalizer/data/eq_repository.dart';
 import 'package:navis/src/features/equalizer/domain/eq_configuration.dart';
 
@@ -233,8 +234,11 @@ void main() {
       final file = File(p.join(directory.path, 'fixture.sqlite'));
       addTearDown(() => directory.delete(recursive: true));
       final seed = createTestDatabase(file: file);
-      await seed.appSettingsDao.updateArtTintedNowPlaying(enabled: tinted);
-      await seed.appSettingsDao.updateHomeDensity('compact');
+      await seed.customStatement(
+        'UPDATE app_settings SET art_tinted_now_playing = ?',
+        [if (tinted) 1 else 0],
+      );
+      await seed.appSettingsDao.updateDensity(NavisDensity.compact);
       await seed.close();
       final raw = sqlite3.open(file.path);
       try {
@@ -281,7 +285,7 @@ void main() {
       try {
         final row = (await reopened.appSettingsDao.getSettings())!;
         expect(row.nowPlayingBackground, 'artwork');
-        expect(row.artTintedNowPlaying, isTrue);
+        expect(row.artTintedNowPlaying, tinted);
         expect(row.homeDensity, 'compact');
       } finally {
         await reopened.close();

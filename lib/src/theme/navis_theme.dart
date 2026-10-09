@@ -1,12 +1,50 @@
 import 'package:material_color_utilities/material_color_utilities.dart'
     show Hct;
 import 'package:material_ui/material_ui.dart';
+import 'package:navis/src/theme/caption_tint.dart';
 import 'package:navis/src/theme/navis_color_style.dart';
 import 'package:navis/src/theme/navis_color_style_data.dart';
 import 'package:navis/src/theme/navis_corner_style.dart';
 import 'package:navis/src/theme/navis_shape_data.dart';
 import 'package:navis/src/theme/navis_style_schemes.dart';
 import 'package:navis/src/theme/navis_tokens.dart';
+
+/// Bounded per-app cache of complete themes, keyed only by theme inputs.
+class NavisThemeCache {
+  new({this.capacity = 8})
+    : assert(capacity > 0, 'The theme cache needs at least one entry.');
+
+  final int capacity;
+  final Map<
+    (Color, Brightness, bool, NavisColorStyle, bool, NavisCornerStyle),
+    ThemeData
+  >
+  _themes = {};
+
+  ThemeData resolve({
+    required Color seed,
+    required Brightness brightness,
+    required bool oled,
+    required NavisColorStyle style,
+    required bool flat,
+    required NavisCornerStyle corners,
+  }) {
+    final key = (seed, brightness, oled, style, flat, corners);
+    final known = _themes.remove(key);
+    if (known != null) {
+      _themes[key] = known;
+      return known;
+    }
+    final theme = brightness == Brightness.light
+        ? buildLightTheme(seed, style: style, flat: flat, corners: corners)
+        : oled
+        ? buildOledTheme(seed, style: style, flat: flat, corners: corners)
+        : buildDarkTheme(seed, style: style, flat: flat, corners: corners);
+    _themes[key] = theme;
+    if (_themes.length > capacity) _themes.remove(_themes.keys.first);
+    return theme;
+  }
+}
 
 /// Default seed used when no explicit color has been saved.
 const Color defaultColorSchemeSeedColor = Colors.white;
@@ -57,21 +95,23 @@ class NavisAccentColors extends ThemeExtension<NavisAccentColors> {
   }
 
   static Color _resolveBrandColor(Color source, ColorScheme colorScheme) {
-    if (_contrastRatio(source, colorScheme.surface) >= 3.0) {
+    if (captionContrast(
+          source,
+          colorScheme.surface,
+          compositeForeground: false,
+        ) >=
+        3.0) {
       return source;
     }
-    if (_contrastRatio(colorScheme.primary, colorScheme.surface) >= 3.0) {
+    if (captionContrast(
+          colorScheme.primary,
+          colorScheme.surface,
+          compositeForeground: false,
+        ) >=
+        3.0) {
       return colorScheme.primary;
     }
     return colorScheme.onSurface;
-  }
-
-  static double _contrastRatio(Color a, Color b) {
-    final aLuminance = a.computeLuminance();
-    final bLuminance = b.computeLuminance();
-    final lighter = aLuminance > bLuminance ? aLuminance : bLuminance;
-    final darker = aLuminance > bLuminance ? bLuminance : aLuminance;
-    return (lighter + 0.05) / (darker + 0.05);
   }
 
   @override
@@ -388,12 +428,7 @@ ThemeData _buildNavisTheme(
           )
         : null,
     extensions: <ThemeExtension<dynamic>>[
-      NavisTokens.forScheme(
-        colorScheme,
-        oled: oled,
-        style: styleData,
-        corners: corners,
-      ),
+      NavisTokens.forScheme(colorScheme, oled: oled, style: styleData),
       shape,
       NavisAccentColors.fromScheme(
         // Styled schemes reshape the seed, so the brand mark follows the

@@ -2,6 +2,7 @@ import 'dart:convert';
 
 import 'package:drift/drift.dart';
 import 'package:meta/meta.dart' show visibleForTesting;
+import 'package:navis/src/features/settings/domain/night_schedule.dart';
 import 'package:navis/src/database/navis_database.dart';
 import 'package:navis/src/database/tables/app_settings_table.dart';
 import 'package:navis/src/features/downloads/domain/download_preferences.dart';
@@ -184,8 +185,7 @@ class AppSettingsDao extends DatabaseAccessor<NavisDatabase>
     required bool crossfadeEnabled,
     required int crossfadeDurationSeconds,
     required String crossfadeType,
-    required bool artTintedNowPlaying,
-    String? nowPlayingBackground,
+    String nowPlayingBackground = 'tinted',
     String? cornerStyle,
     required bool dynamicAlbumColorEnabled,
     bool? updateCheckEnabled,
@@ -227,11 +227,7 @@ class AppSettingsDao extends DatabaseAccessor<NavisDatabase>
     String? listenBrainzUserName,
     String? customVoyageServers,
   }) {
-    final background = nowPlayingBackground == null
-        ? (artTintedNowPlaying
-              ? NowPlayingBackground.tinted
-              : NowPlayingBackground.plain)
-        : NowPlayingBackground.parse(nowPlayingBackground);
+    final background = NowPlayingBackground.parse(nowPlayingBackground);
     return into(appSettingsTable).insertOnConflictUpdate(
       AppSettingsTableCompanion.insert(
         id: Value(primarySettingsId),
@@ -267,7 +263,6 @@ class AppSettingsDao extends DatabaseAccessor<NavisDatabase>
         crossfadeEnabled: Value(crossfadeEnabled),
         crossfadeDurationSeconds: Value(crossfadeDurationSeconds),
         crossfadeType: Value(crossfadeType),
-        artTintedNowPlaying: Value(background != NowPlayingBackground.plain),
         nowPlayingBackground: Value(background.storageKey),
         cornerStyle: cornerStyle == null
             ? const Value.absent()
@@ -437,15 +432,14 @@ class AppSettingsDao extends DatabaseAccessor<NavisDatabase>
       colorStyle: 'neutral',
       oledForAuto: false,
       nightScheduleEnabled: false,
-      nightScheduleStartMinutes: 1320,
-      nightScheduleEndMinutes: 420,
+      nightScheduleStartMinutes: NightSchedule.defaultStartMinutes,
+      nightScheduleEndMinutes: NightSchedule.defaultEndMinutes,
       flatSurfaces: false,
       colorSchemeSeed: null,
       appLocale: null,
       crossfadeEnabled: false,
       crossfadeDurationSeconds: 5,
       crossfadeType: 'normal',
-      artTintedNowPlaying: true,
       nowPlayingBackground: 'tinted',
       cornerStyle: 'rounded',
       dynamicAlbumColorEnabled: false,
@@ -1070,7 +1064,7 @@ class AppSettingsDao extends DatabaseAccessor<NavisDatabase>
     );
   }
 
-  /// Writes the background choice and its legacy compatibility flag together.
+  /// Writes the canonical background choice.
   Future<void> updateNowPlayingBackground(String value) {
     final background = NowPlayingBackground.parse(value);
     return (update(
@@ -1078,7 +1072,6 @@ class AppSettingsDao extends DatabaseAccessor<NavisDatabase>
     )..where((t) => t.id.equals(primarySettingsId))).write(
       AppSettingsTableCompanion(
         nowPlayingBackground: Value(background.storageKey),
-        artTintedNowPlaying: Value(background != NowPlayingBackground.plain),
         updatedAt: Value(DateTime.now()),
       ),
     );
@@ -1087,15 +1080,6 @@ class AppSettingsDao extends DatabaseAccessor<NavisDatabase>
   /// Streams the canonical background storage value.
   Stream<String> watchNowPlayingBackground() => watchSettings().map(
     (s) => NowPlayingBackground.parse(s?.nowPlayingBackground).storageKey,
-  );
-
-  /// Compatibility writer for the original tint switch.
-  Future<void> updateArtTintedNowPlaying({required bool enabled}) =>
-      updateNowPlayingBackground(enabled ? 'tinted' : 'plain');
-
-  /// Compatibility view derived from the background choice.
-  Stream<bool> watchArtTintedNowPlaying() => watchNowPlayingBackground().map(
-    (value) => value != NowPlayingBackground.plain.storageKey,
   );
 
   /// Targeted update for dynamic album-color theming.
@@ -1250,10 +1234,6 @@ class AppSettingsDao extends DatabaseAccessor<NavisDatabase>
       ),
     );
   }
-
-  /// Compatibility writer for app-wide Density, covering Home and lists.
-  Future<void> updateHomeDensity(String density) =>
-      updateDensity(NavisDensity.parse(density));
 
   Future<void> updateDensity(NavisDensity density) {
     return (update(

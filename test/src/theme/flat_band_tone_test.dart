@@ -13,6 +13,28 @@ const _eps = 0.2;
 double _tone(Color c) => Hct.fromInt(c.toARGB32()).tone;
 
 void main() {
+  test('styled sample preserves coloured art and the previous grey band', () {
+    const secondary = Color(0xFF456F80);
+    for (final style in NavisColorStyle.values) {
+      for (final dark in [false, true]) {
+        final data = NavisColorStyleData(style: style, dark: dark);
+        for (final sample in [Colors.grey, Colors.red, Colors.blue]) {
+          final adapted = data.adaptArtColor(sample);
+          final grey = Hct.fromInt(adapted.toARGB32()).chroma < 6;
+          final oldSample = grey
+              ? Color.lerp(sample, secondary, 0.25)!
+              : sample;
+          final actual = styledCoverSample(sample, data, secondary);
+          expect(actual, data.adaptArtColor(oldSample));
+          expect(
+            flatBandSample(actual, data, adapted: true),
+            flatBandSample(oldSample, data),
+          );
+        }
+      }
+    }
+  });
+
   const light = Color(0xFFF5E6C8);
   const dark = Color(0xFF14202B);
   const yellow = Color(0xFFFFEB3B);

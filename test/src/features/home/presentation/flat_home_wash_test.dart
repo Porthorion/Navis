@@ -192,11 +192,9 @@ void main() {
       );
       var adapted = data.adaptArtColor(average);
       if (Hct.fromInt(adapted.toARGB32()).chroma < 6) {
-        adapted = Color.lerp(
-          adapted,
-          theme.colorScheme.secondaryContainer,
-          .25,
-        )!;
+        adapted = data.adaptArtColor(
+          Color.lerp(average, theme.colorScheme.secondaryContainer, .25)!,
+        );
       }
       final expected = Color.alphaBlend(
         adapted.withValues(alpha: 1 - data.artWashVeil(subtle: false)),
@@ -210,6 +208,31 @@ void main() {
         tester.getSize(find.byKey(flatFill)).width,
         300 - 2 * NavisSpace.md,
       );
+    });
+  }
+
+  for (final style in NavisColorStyle.values) {
+    testWidgets('Flat ${style.name} keeps non-grey wash colours unchanged', (
+      tester,
+    ) async {
+      const sample = Color(0xFF1976D2);
+      final theme = await _pump(
+        tester,
+        flat: true,
+        style: style,
+        field: CoverColourField.uniform(sample),
+      );
+      final data = theme.extension<NavisColorStyleData>()!;
+      final adapted = data.adaptArtColor(sample);
+      expect(Hct.fromInt(adapted.toARGB32()).chroma, greaterThanOrEqualTo(6));
+      final expected = Color.alphaBlend(
+        adapted.withValues(alpha: 1 - data.artWashVeil(subtle: false)),
+        theme.scaffoldBackgroundColor,
+      );
+      final box =
+          tester.widget<DecoratedBox>(find.byKey(flatFill)).decoration
+              as BoxDecoration;
+      expect(box.color!.toARGB32(), expected.toARGB32());
     });
   }
 
@@ -238,11 +261,13 @@ void main() {
         field: CoverColourField(List<Color>.filled(9, const Color(0xFF808080))),
       );
       final data = theme.extension<NavisColorStyleData>()!;
-      final adapted = Color.lerp(
-        data.adaptArtColor(const Color(0xFF808080)),
-        theme.colorScheme.secondaryContainer,
-        0.25,
-      )!;
+      final adapted = data.adaptArtColor(
+        Color.lerp(
+          const Color(0xFF808080),
+          theme.colorScheme.secondaryContainer,
+          0.25,
+        )!,
+      );
       final expected = Color.alphaBlend(
         adapted.withValues(alpha: 1 - data.artWashVeil(subtle: false)),
         theme.scaffoldBackgroundColor,

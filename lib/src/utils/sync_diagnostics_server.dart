@@ -1,3 +1,4 @@
+import 'package:navis/src/features/settings/domain/night_schedule.dart';
 import 'package:navis/src/features/downloads/presentation/custom_download_folder_controller.dart';
 import 'package:navis/src/features/downloads/presentation/manual_download_matching_provider.dart';
 import 'package:navis/src/features/equalizer/domain/eq_configuration.dart';
@@ -68,6 +69,7 @@ import 'package:navis/src/routing/desktop_commands.dart';
 import 'package:navis/src/routing/desktop_layout.dart';
 import 'package:navis/src/routing/desktop_window_controller.dart';
 import 'package:navis/src/theme/navis_corner_style.dart';
+import 'package:navis/src/theme/navis_color_style.dart';
 import 'package:navis/src/utils/catalog_source.dart';
 import 'package:navis/src/utils/diagnostics_presentation_controller.dart';
 import 'package:navis/src/utils/diagnostics_provider_counter.dart';
@@ -799,9 +801,77 @@ class SyncDiagnosticsServer {
           final coverShape = body['coverArtShape'];
           final nowPlayingShape = body['nowPlayingArtShape'];
           final artistShape = body['artistCardShape'];
+          final themeMode = body['themeMode'];
+          final colorStyle = body['colorStyle'];
+          final seed = body['colorSchemeSeed'];
+          final dynamicColor = body['dynamicAlbumColor'];
+          final oled = body['oledForAuto'];
+          final night = body['nightSchedule'];
+          final flat = body['flatSurfaces'];
+          final corners = body['cornerStyle'];
+          final background = body['nowPlayingBackground'];
+          final density = body['density'];
+          final choices = <String, Iterable<String>>{
+            'themeMode': ['system', 'light', 'dark', 'oled'],
+            'colorStyle': NavisColorStyle.values.map(
+              (style) => style.storageKey,
+            ),
+            'cornerStyle': NavisCornerStyle.values.map((style) => style.name),
+            'nowPlayingBackground': NowPlayingBackground.values.map(
+              (value) => value.storageKey,
+            ),
+            'density': NavisDensity.values.map((value) => value.storageKey),
+          };
+          for (final entry in choices.entries) {
+            if (body.containsKey(entry.key) &&
+                !entry.value.contains(body[entry.key])) {
+              throw const FormatException();
+            }
+          }
+          for (final key in [
+            'dynamicAlbumColor',
+            'oledForAuto',
+            'flatSurfaces',
+          ]) {
+            if (body.containsKey(key) && body[key] is! bool) {
+              throw const FormatException();
+            }
+          }
+          if (seed != null && (seed is! int || seed < 0 || seed > 0xFFFFFFFF)) {
+            throw const FormatException();
+          }
+          if (body.containsKey('nightSchedule')) {
+            if (night is! Map<String, dynamic> ||
+                night.isEmpty ||
+                night.keys.any(
+                  (key) => !const {'enabled', 'start', 'end'}.contains(key),
+                )) {
+              throw const FormatException();
+            }
+            if (night.containsKey('enabled') && night['enabled'] is! bool) {
+              throw const FormatException();
+            }
+            for (final key in ['start', 'end']) {
+              if (!night.containsKey(key)) continue;
+              final minutes = night[key];
+              if (minutes is! int || minutes < 0 || minutes > 1439) {
+                throw const FormatException();
+              }
+            }
+          }
           const shapes = ['square', 'rounded', 'circle'];
           if (body.keys.any(
                 (key) => !const {
+                  'themeMode',
+                  'colorStyle',
+                  'colorSchemeSeed',
+                  'dynamicAlbumColor',
+                  'oledForAuto',
+                  'nightSchedule',
+                  'flatSurfaces',
+                  'cornerStyle',
+                  'nowPlayingBackground',
+                  'density',
                   'gridArtworkSize',
                   'homeRecommendationsAutoAdvance',
                   'showArtistsPage',
@@ -824,6 +894,30 @@ class SyncDiagnosticsServer {
               body.isEmpty) {
             throw const FormatException();
           }
+          if (themeMode is String) await dao.updateThemeMode(themeMode);
+          if (colorStyle is String) await dao.updateColorStyle(colorStyle);
+          if (body.containsKey('colorSchemeSeed')) {
+            await dao.updateColorSchemeSeed(seed as int?);
+          }
+          if (dynamicColor is bool) {
+            await dao.updateDynamicAlbumColorEnabled(enabled: dynamicColor);
+          }
+          if (oled is bool) await dao.updateOledForAuto(enabled: oled);
+          if (night is Map<String, dynamic>) {
+            await dao.updateNightSchedule(
+              enabled: night['enabled'] as bool?,
+              startMinutes: night['start'] as int?,
+              endMinutes: night['end'] as int?,
+            );
+          }
+          if (flat is bool) await dao.updateFlatSurfaces(enabled: flat);
+          if (corners is String) await dao.updateCornerStyle(corners);
+          if (background is String) {
+            await dao.updateNowPlayingBackground(background);
+          }
+          if (density is String) {
+            await dao.updateDensity(NavisDensity.parse(density));
+          }
           if (coverShape is String) await dao.updateCoverArtShape(coverShape);
           if (nowPlayingShape is String) {
             await dao.updateNowPlayingArtShape(nowPlayingShape);
@@ -845,6 +939,21 @@ class SyncDiagnosticsServer {
         }
         final settings = await dao.getSettings();
         await _respond(request, HttpStatus.ok, <String, Object?>{
+          'themeMode': settings?.themeMode ?? 'dark',
+          'colorStyle': settings?.colorStyle ?? 'neutral',
+          'colorSchemeSeed': settings?.colorSchemeSeed,
+          'dynamicAlbumColor': settings?.dynamicAlbumColorEnabled ?? false,
+          'oledForAuto': settings?.oledForAuto ?? false,
+          'nightSchedule': {
+            'enabled': settings?.nightScheduleEnabled ?? false,
+            'start':
+                settings?.nightScheduleStartMinutes ??
+                NightSchedule.defaultStartMinutes,
+            'end':
+                settings?.nightScheduleEndMinutes ??
+                NightSchedule.defaultEndMinutes,
+          },
+          'flatSurfaces': settings?.flatSurfaces ?? false,
           'gridArtworkSize': settings?.gridArtworkSize ?? 'auto',
           'showArtistsPage': settings?.showArtistsPage ?? true,
           'showRadioPage': settings?.showRadioPage ?? true,

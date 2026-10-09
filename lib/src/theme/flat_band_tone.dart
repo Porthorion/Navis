@@ -22,28 +22,39 @@ const double kFlatBandLightMaxTone = 92;
 /// rather than brown (the same cap Immersive applies).
 const double _warmDarkMaxChroma = 22;
 
-/// Moves the Flat band's [sampled] cover colour to a tone that sits with the
-/// page: dusky in dark themes (near black in OLED, tone 6-10), soft in light
-/// ones.
-///
-/// The colour is adapted to [style] first, then only its HCT tone is clamped
-/// (hue and chroma are kept). In dark themes yellows are rotated with
-/// [mudGuardHue] and warm chroma is capped. Feed the result to
-/// `captionTintFor(..., adapted: true)`, which picks readable text and nudges the tone if needed.
-Color flatBandSample(Color sampled, NavisColorStyleData style) {
-  final adapted = Hct.fromInt(style.adaptArtColor(sampled).toARGB32());
+/// Adapts a cover sample, mixing grey covers toward the theme before adapting.
+Color styledCoverSample(
+  Color sampled,
+  NavisColorStyleData style,
+  Color secondaryContainer,
+) {
+  final adapted = style.adaptArtColor(sampled);
+  if (Hct.fromInt(adapted.toARGB32()).chroma >= 6) return adapted;
+  return style.adaptArtColor(Color.lerp(sampled, secondaryContainer, 0.25)!);
+}
+
+/// Moves the Flat band's sample to a theme tone, retaining hue and chroma.
+/// Dark warm hues use the mud guard and chroma cap. Set [adapted] when the
+/// sample has already passed through [styledCoverSample].
+Color flatBandSample(
+  Color sampled,
+  NavisColorStyleData style, {
+  bool adapted = false,
+}) {
+  final source = adapted ? sampled : style.adaptArtColor(sampled);
+  final hctSample = Hct.fromInt(source.toARGB32());
   if (!style.dark) {
     return hct(
-      adapted.hue,
-      adapted.chroma,
-      adapted.tone.clamp(kFlatBandLightMinTone, kFlatBandLightMaxTone),
+      hctSample.hue,
+      hctSample.chroma,
+      hctSample.tone.clamp(kFlatBandLightMinTone, kFlatBandLightMaxTone),
     );
   }
   final tone = style.oled
-      ? adapted.tone.clamp(kFlatBandOledMinTone, kFlatBandOledMaxTone)
-      : adapted.tone.clamp(kFlatBandDarkMinTone, kFlatBandDarkMaxTone);
-  final chroma = isWarmHue(adapted.hue)
-      ? math.min(adapted.chroma, _warmDarkMaxChroma)
-      : adapted.chroma;
-  return hct(mudGuardHue(adapted.hue, tone), chroma, tone);
+      ? hctSample.tone.clamp(kFlatBandOledMinTone, kFlatBandOledMaxTone)
+      : hctSample.tone.clamp(kFlatBandDarkMinTone, kFlatBandDarkMaxTone);
+  final chroma = isWarmHue(hctSample.hue)
+      ? math.min(hctSample.chroma, _warmDarkMaxChroma)
+      : hctSample.chroma;
+  return hct(mudGuardHue(hctSample.hue, tone), chroma, tone);
 }

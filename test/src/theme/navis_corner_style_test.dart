@@ -31,7 +31,10 @@ void main() {
         ],
       );
       expect(data.controlShape, isA<StadiumBorder>());
-      expect(NavisTokens.defaults.panelRadius, NavisRadius.xl);
+      expect(
+        NavisShapeData.forStyle(NavisCornerStyle.rounded).xl,
+        NavisRadius.xl,
+      );
     });
 
     test('soft is larger and softer with 14 px rectangular controls', () {
@@ -80,7 +83,7 @@ void main() {
       expect(theme.segmentedButtonTheme.style, isNull);
       expect(radiusOf(theme.cardTheme.shape), NavisRadius.mdAll);
       expect(theme.chipTheme.shape, isA<StadiumBorder>());
-      expect(theme.extension<NavisTokens>()!.panelRadius, 20);
+      expect(theme.extension<NavisShapeData>()!.xl, 20);
       expect(theme.iconButtonTheme.style, isNull);
       // Menus keep the 4 px shape Material renders today.
       expect(
@@ -123,7 +126,7 @@ void main() {
             theme.outlinedButtonTheme.style!.shape!.resolve(<WidgetState>{}),
             data.controlShape,
           );
-          expect(theme.extension<NavisTokens>()!.panelRadius, data.xl);
+          expect(theme.extension<NavisShapeData>()!.xl, data.xl);
           expect(
             theme.iconButtonTheme.style!.shape!.resolve(<WidgetState>{}),
             data.controlShape,
@@ -261,13 +264,12 @@ void main() {
       });
       container.listen(cornerStyleProvider, (_, _) {});
       await container.read(appSettingsProvider.future);
-      final repository = container.read(settingsRepositoryProvider);
       for (final style in [NavisCornerStyle.soft, NavisCornerStyle.square]) {
         final updated = Completer<void>();
         final subscription = container.listen(cornerStyleProvider, (_, next) {
           if (next == style && !updated.isCompleted) updated.complete();
         });
-        await repository.updateCornerStyle(style);
+        await database.appSettingsDao.updateCornerStyle(style.name);
         await updated.future;
         subscription.close();
         expect(container.read(cornerStyleProvider), style);

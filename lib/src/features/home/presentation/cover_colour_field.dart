@@ -1,6 +1,4 @@
-import 'dart:async';
 import 'dart:collection';
-import 'dart:typed_data';
 import 'dart:ui' as ui;
 
 import 'package:material_ui/material_ui.dart';
@@ -42,21 +40,29 @@ class CoverColourField {
 
   /// Average of the bottom row of the grid: the colour under a caption drawn
   /// along the cover's lower edge.
-  Color get bottomRowAverage {
+  Color get bottomRowAverage =>
+      _averageColors(colors.skip((kCoverColourGrid - 1) * kCoverColourGrid))!;
+
+  /// Opaque average of usable cells, or null for an entirely transparent field.
+  Color? get average => _averageColors(colors.where((color) => color.a > 0));
+
+  static Color? _averageColors(Iterable<Color> colors) {
     var r = 0.0;
     var g = 0.0;
     var b = 0.0;
-    for (var column = 0; column < kCoverColourGrid; column++) {
-      final color = colors[(kCoverColourGrid - 1) * kCoverColourGrid + column];
+    var count = 0;
+    for (final color in colors) {
       r += color.r;
       g += color.g;
       b += color.b;
+      count++;
     }
+    if (count == 0) return null;
     return Color.from(
       alpha: 1,
-      red: r / kCoverColourGrid,
-      green: g / kCoverColourGrid,
-      blue: b / kCoverColourGrid,
+      red: r / count,
+      green: g / count,
+      blue: b / count,
     );
   }
 
@@ -74,44 +80,6 @@ class CoverColourField {
     }
     return true;
   }
-}
-
-/// Averages an RGBA buffer into a [grid]×[grid] row-major colour grid.
-///
-/// Transparent pixels are ignored so letterboxed covers do not wash out.
-List<Color> averageColourGrid(
-  ByteData rgba,
-  int width,
-  int height, {
-  int grid = kCoverColourGrid,
-}) {
-  final sums = List<List<int>>.generate(grid * grid, (_) => [0, 0, 0, 0]);
-  for (var y = 0; y < height; y++) {
-    final row = (y * grid ~/ height).clamp(0, grid - 1);
-    for (var x = 0; x < width; x++) {
-      final column = (x * grid ~/ width).clamp(0, grid - 1);
-      final offset = (y * width + x) * 4;
-      final alpha = rgba.getUint8(offset + 3);
-      if (alpha == 0) continue;
-      final cell = sums[row * grid + column];
-      cell[0] += rgba.getUint8(offset);
-      cell[1] += rgba.getUint8(offset + 1);
-      cell[2] += rgba.getUint8(offset + 2);
-      cell[3] += 1;
-    }
-  }
-  return <Color>[
-    for (final cell in sums)
-      if (cell[3] == 0)
-        Colors.transparent
-      else
-        Color.fromARGB(
-          255,
-          cell[0] ~/ cell[3],
-          cell[1] ~/ cell[3],
-          cell[2] ~/ cell[3],
-        ),
-  ];
 }
 
 /// Fields kept in memory. Each is nine colours, so a few hundred cost
@@ -157,25 +125,6 @@ final CoverColourFieldCache sharedCoverColourFieldCache =
 /// paint its final colours on first build instead of flashing the fallback.
 CoverColourField? peekCoverColourField(String coverId) =>
     sharedCoverColourFieldCache.get(coverId);
-
-/// Resolves [provider] to its first decoded frame, or null on error.
-Future<ImageInfo?> resolveImageInfo(ImageProvider provider) {
-  final completer = Completer<ImageInfo?>();
-  final stream = provider.resolve(ImageConfiguration.empty);
-  late final ImageStreamListener listener;
-  listener = ImageStreamListener(
-    (info, _) {
-      stream.removeListener(listener);
-      if (!completer.isCompleted) completer.complete(info);
-    },
-    onError: (_, _) {
-      stream.removeListener(listener);
-      if (!completer.isCompleted) completer.complete(null);
-    },
-  );
-  stream.addListener(listener);
-  return completer.future;
-}
 
 /// Paints [field] as a smoothly shaded mesh.
 ///

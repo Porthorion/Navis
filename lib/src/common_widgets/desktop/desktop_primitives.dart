@@ -43,7 +43,7 @@ class DesktopPanel extends StatelessWidget {
     return Material(
       color: color ?? colors.surfaceContainerLow,
       elevation: tokens.panelElevation,
-      borderRadius: BorderRadius.circular(tokens.panelRadius),
+      borderRadius: NavisShapeData.of(context).xlAll,
       clipBehavior: Clip.antiAlias,
       child: Padding(padding: padding, child: child),
     );

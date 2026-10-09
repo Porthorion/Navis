@@ -42,9 +42,16 @@ class CaptionTint {
 }
 
 /// WCAG contrast ratio of [foreground] over [background]; a translucent
-/// foreground is composited onto the (opaque) background first.
-double captionContrast(Color foreground, Color background) {
-  final shown = Color.alphaBlend(foreground, background);
+/// foreground is composited onto the (opaque) background first. Disable
+/// [compositeForeground] when comparing raw RGB channels, as the theme seed roles do.
+double captionContrast(
+  Color foreground,
+  Color background, {
+  bool compositeForeground = true,
+}) {
+  final shown = compositeForeground
+      ? Color.alphaBlend(foreground, background)
+      : foreground;
   final a = shown.computeLuminance();
   final b = background.computeLuminance();
   final lighter = a > b ? a : b;

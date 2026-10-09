@@ -1,9 +1,12 @@
 import 'dart:io';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:navis/src/utils/semver.dart';
 import 'package:navis/src/features/changelog/changelog_data.dart';
 import 'package:navis/src/providers/app_providers.dart';
 import 'package:path_provider/path_provider.dart';
+
+export 'package:navis/src/utils/semver.dart';
 
 const _fileName = 'changelog_seen_version.txt';
 
@@ -45,28 +48,6 @@ class ChangelogDiscovery {
 
   /// The version the Home card marks as seen: always [current].
   String get seenVersion => current.version;
-}
-
-/// Parses a three-part release version, ignoring a build suffix (`+10403`)
-/// and a label suffix such as the diagnostics builds' `-sidecar`.
-///
-/// Returns null for a missing or malformed version.
-List<int>? parseSemver(String? version) {
-  if (version == null) return null;
-  final parts = version.split('+').first.split('-').first.split('.');
-  if (parts.length != 3) return null;
-  final numbers = parts.map(int.tryParse).toList();
-  if (numbers.any((n) => n == null)) return null;
-  return numbers.cast<int>();
-}
-
-/// Compares versions returned by [parseSemver] in release order.
-int compareSemver(List<int> a, List<int> b) {
-  for (var i = 0; i < 3; i++) {
-    final diff = a[i] - b[i];
-    if (diff != 0) return diff;
-  }
-  return 0;
 }
 
 /// Resolves what to announce for [currentVersion], or null when there is

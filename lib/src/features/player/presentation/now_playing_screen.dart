@@ -1,6 +1,8 @@
 /// @docImport 'package:navis/src/common_widgets/expandable_player_sheet.dart';
 library;
 
+import 'package:navis/src/features/home/presentation/cover_colour_field.dart';
+
 export 'now_playing_artwork_background.dart'
     show nowPlayingShowsArtworkLayer, nowPlayingSurfaceDecoration;
 
@@ -510,6 +512,8 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen> {
 
   Widget _withArtworkBackground({
     required bool showArtworkLayer,
+    required String? coverArtId,
+    required int coverArtRevision,
     required ImageProvider<Object>? image,
     required NavisColorStyleData colorStyle,
     required Color surfaceColor,
@@ -520,6 +524,13 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen> {
     required Widget child,
   }) {
     if (!showArtworkLayer) return child;
+    final id = coverArtId?.trim();
+    final hasCoverId = id != null && id.isNotEmpty;
+    final average = hasCoverId
+        ? (ref.watch(coverColourFieldProvider((id, coverArtRevision))).value ??
+                  peekCoverColourField(id))
+              ?.average
+        : null;
     return Stack(
       fit: StackFit.expand,
       children: <Widget>[
@@ -528,6 +539,8 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen> {
             key: const ValueKey<String>('nowPlayingArtworkBackground'),
             imageKey: _artworkBackdropKey,
             image: image,
+            coverAverage: average,
+            useCoverAverage: hasCoverId,
             onAvailabilityChanged: (key, {required available}) {
               if (!mounted || key != _artworkBackdropKey) return;
               setState(() {
@@ -711,6 +724,8 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen> {
         // camera cutouts and the status bar.
         child: _withArtworkBackground(
           showArtworkLayer: showArtworkLayer,
+          coverArtId: playback.isRadioMode ? null : song?.coverArt,
+          coverArtRevision: song?.coverArtRevision ?? 0,
           image: artworkImage,
           colorStyle: colorStyle,
           surfaceColor: surfaceColor,
