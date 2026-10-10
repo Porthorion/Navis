@@ -810,6 +810,8 @@ class SyncDiagnosticsServer {
           final oled = body['oledForAuto'];
           final night = body['nightSchedule'];
           final flat = body['flatSurfaces'];
+          final flatAreas = body['flatAreas'];
+          final coloredShade = body['albumArtColoredShade'];
           final corners = body['cornerStyle'];
           final background = body['nowPlayingBackground'];
           final density = body['density'];
@@ -834,10 +836,15 @@ class SyncDiagnosticsServer {
             'dynamicAlbumColor',
             'oledForAuto',
             'flatSurfaces',
+            'albumArtColoredShade',
           ]) {
             if (body.containsKey(key) && body[key] is! bool) {
               throw const FormatException();
             }
+          }
+          if (body.containsKey('flatAreas') &&
+              (flatAreas is! int || flatAreas < 0 || flatAreas > 7)) {
+            throw const FormatException();
           }
           if (seed != null && (seed is! int || seed < 0 || seed > 0xFFFFFFFF)) {
             throw const FormatException();
@@ -871,6 +878,8 @@ class SyncDiagnosticsServer {
                   'oledForAuto',
                   'nightSchedule',
                   'flatSurfaces',
+                  'flatAreas',
+                  'albumArtColoredShade',
                   'cornerStyle',
                   'nowPlayingBackground',
                   'density',
@@ -913,6 +922,10 @@ class SyncDiagnosticsServer {
             );
           }
           if (flat is bool) await dao.updateFlatSurfaces(enabled: flat);
+          if (flatAreas is int) await dao.updateFlatAreas(flatAreas);
+          if (coloredShade is bool) {
+            await dao.updateAlbumArtColoredShade(enabled: coloredShade);
+          }
           if (corners is String) await dao.updateCornerStyle(corners);
           if (background is String) {
             await dao.updateNowPlayingBackground(background);
@@ -956,6 +969,8 @@ class SyncDiagnosticsServer {
                 NightSchedule.defaultEndMinutes,
           },
           'flatSurfaces': settings?.flatSurfaces ?? false,
+          'flatAreas': settings?.flatAreas ?? 7,
+          'albumArtColoredShade': settings?.albumArtColoredShade ?? false,
           'gridArtworkSize': settings?.gridArtworkSize ?? 'auto',
           'showArtistsPage': settings?.showArtistsPage ?? true,
           'showRadioPage': settings?.showRadioPage ?? true,

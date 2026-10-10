@@ -646,10 +646,10 @@ class _ArtistDetailLoadingState extends StatelessWidget {
                   child: DecoratedBox(
                     decoration: BoxDecoration(
                       // Flat: the solid end colour instead of the gradient.
-                      color: NavisColorStyleData.of(context).flat
+                      color: NavisColorStyleData.of(context).flatSurfaces
                           ? colorScheme.surface
                           : null,
-                      gradient: NavisColorStyleData.of(context).flat
+                      gradient: NavisColorStyleData.of(context).flatSurfaces
                           ? null
                           : LinearGradient(
                               begin: Alignment.topLeft,

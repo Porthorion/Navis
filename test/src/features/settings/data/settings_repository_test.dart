@@ -1,4 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:navis/src/features/settings/domain/flat_areas.dart';
 import 'package:navis/src/features/settings/domain/navis_density.dart';
 import 'package:navis/src/features/settings/domain/now_playing_background.dart';
 import 'package:navis/src/database/navis_database.dart';
@@ -50,6 +51,59 @@ void main() {
         expect(saved.wifiFormat, isNull);
         expect(saved.albumQueueEnabled, isFalse);
       },
+    );
+
+    test('Flat areas and shade round trip and reset independently', () async {
+      final initial = await repository.getSettings();
+      expect(initial.flatAreas.bits, 7);
+      expect(initial.albumArtColoredShade, isFalse);
+      for (var bits = 0; bits <= 7; bits++) {
+        final areas = FlatAreas.fromBits(bits);
+        await repository.saveSettings(
+          initial.copyWith(flatAreas: areas, albumArtColoredShade: true),
+        );
+        final saved = await repository.getSettings();
+        expect(saved.flatAreas, areas);
+        expect(saved.albumArtColoredShade, isTrue);
+        expect((await repository.watchSettings().first).flatAreas, areas);
+        expect((await database.appSettingsDao.getSettings())!.flatAreas, bits);
+      }
+      await repository.resetDefaults();
+      final reset = await repository.getSettings();
+      expect(reset.flatAreas.bits, 7);
+      expect(reset.albumArtColoredShade, isFalse);
+    }, skip: !sqliteAvailable);
+
+    test(
+      'setup diffs preserve concurrent area/shade writes until changed',
+      () async {
+        final initial = await repository.getSettings();
+        await database.appSettingsDao.updateFlatAreas(0);
+        await database.appSettingsDao.updateAlbumArtColoredShade(enabled: true);
+        await repository.saveOnboardingChanges(
+          initial,
+          initial.copyWith(themeMode: 'oled'),
+        );
+        var saved = await repository.getSettings();
+        expect(saved.flatAreas.bits, 0);
+        expect(saved.albumArtColoredShade, isTrue);
+        await repository.saveOnboardingChanges(
+          initial,
+          initial.copyWith(
+            flatAreas: const FlatAreas(nowPlaying: false),
+            albumArtColoredShade: true,
+          ),
+        );
+        saved = await repository.getSettings();
+        expect(saved.flatAreas.bits, 5);
+        expect(saved.albumArtColoredShade, isTrue);
+        await repository.saveOnboardingChanges(
+          saved,
+          saved.copyWith(albumArtColoredShade: false),
+        );
+        expect((await repository.getSettings()).albumArtColoredShade, isFalse);
+      },
+      skip: !sqliteAvailable,
     );
 
     test('corner style maps, saves, watches and resets', () async {

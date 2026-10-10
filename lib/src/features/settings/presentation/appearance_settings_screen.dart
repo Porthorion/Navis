@@ -1126,7 +1126,8 @@ class _ColorChip extends StatelessWidget {
                   : theme.colorScheme.outlineVariant,
               width: isSelected ? 3 : 1,
             ),
-            boxShadow: isSelected && !NavisColorStyleData.of(context).flat
+            boxShadow:
+                isSelected && !NavisColorStyleData.of(context).flatSurfaces
                 ? <BoxShadow>[
                     BoxShadow(
                       color: theme.colorScheme.primary.withAlpha(72),

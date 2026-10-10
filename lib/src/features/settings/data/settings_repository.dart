@@ -6,6 +6,7 @@ import 'package:navis/src/database/daos/app_settings_dao.dart';
 import 'package:navis/src/database/navis_database.dart';
 import 'package:navis/src/features/player/domain/playback_adjustments.dart';
 import 'package:navis/src/features/settings/domain/app_settings.dart';
+import 'package:navis/src/features/settings/domain/flat_areas.dart';
 import 'package:navis/src/features/settings/domain/navis_density.dart';
 import 'package:navis/src/features/settings/domain/now_playing_background.dart';
 import 'package:navis/src/routing/content_layout.dart';
@@ -56,6 +57,8 @@ class SettingsRepository {
       nightScheduleStartMinutes: settings.nightScheduleStartMinutes,
       nightScheduleEndMinutes: settings.nightScheduleEndMinutes,
       flatSurfaces: settings.flatSurfaces,
+      flatAreas: settings.flatAreas.bits,
+      albumArtColoredShade: settings.albumArtColoredShade,
       colorSchemeSeed: settings.colorSchemeSeed,
       appLocale: settings.appLocale,
       crossfadeEnabled: settings.crossfadeEnabled,
@@ -118,6 +121,14 @@ class SettingsRepository {
     }
     if (draft.flatSurfaces != initial.flatSurfaces) {
       await _dao.updateFlatSurfaces(enabled: draft.flatSurfaces);
+    }
+    if (draft.flatAreas != initial.flatAreas) {
+      await _dao.updateFlatAreas(draft.flatAreas.bits);
+    }
+    if (draft.albumArtColoredShade != initial.albumArtColoredShade) {
+      await _dao.updateAlbumArtColoredShade(
+        enabled: draft.albumArtColoredShade,
+      );
     }
     if (draft.cornerStyle != initial.cornerStyle) {
       await _dao.updateCornerStyle(draft.cornerStyle.name);
@@ -316,6 +327,8 @@ class SettingsRepository {
       nightScheduleStartMinutes: row.nightScheduleStartMinutes,
       nightScheduleEndMinutes: row.nightScheduleEndMinutes,
       flatSurfaces: row.flatSurfaces,
+      flatAreas: FlatAreas.fromBits(row.flatAreas),
+      albumArtColoredShade: row.albumArtColoredShade,
       colorSchemeSeed: row.colorSchemeSeed,
       appLocale: row.appLocale,
       crossfadeEnabled: row.crossfadeEnabled,

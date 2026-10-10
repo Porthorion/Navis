@@ -747,7 +747,8 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen> {
                         Container(
                           height: 28,
                           // Flat: a hard step to the solid end colour.
-                          decoration: NavisColorStyleData.of(context).flat
+                          decoration:
+                              NavisColorStyleData.of(context).flatSurfaces
                               ? BoxDecoration(color: colors.surface)
                               : BoxDecoration(
                                   gradient: LinearGradient(
@@ -1200,7 +1201,7 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen> {
                             fit: BoxFit.cover,
                             fadeInDuration: Duration.zero,
                           ),
-                          if (NavisColorStyleData.of(context).flat)
+                          if (NavisColorStyleData.of(context).flatArtworkText)
                             // Flat: a hard-edged solid block under the title
                             // instead of the fade into the page.
                             Positioned.fill(
@@ -1258,7 +1259,7 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen> {
                                         shadows:
                                             isLightTheme ||
                                                 NavisColorStyleData.of(context)
-                                                    .flat
+                                                    .flatArtworkText
                                             ? null
                                             : <Shadow>[
                                                 Shadow(

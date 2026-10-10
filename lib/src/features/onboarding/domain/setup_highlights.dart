@@ -6,6 +6,8 @@ enum SetupHighlight {
   oledForAuto('1.5.0'),
   nightSchedule('1.5.0'),
   flatSurfaces('1.5.0'),
+  flatAreas('1.5.0'),
+  albumArtColoredShade('1.5.0'),
   nowPlayingBackground('1.5.0'),
   cornerStyle('1.5.0');
 

@@ -105,7 +105,7 @@ BoxDecoration nowPlayingSurfaceDecoration({
 }) {
   // OLED + Flat stays pure black: a solid tint would lift the whole screen
   // off black, which defeats OLED. Non-flat OLED keeps its gradient.
-  if (tintColor == null || (colorStyle.flat && colorStyle.oled)) {
+  if (tintColor == null || (colorStyle.flatNowPlaying && colorStyle.oled)) {
     return BoxDecoration(color: surfaceColor);
   }
   var adaptedTint = colorStyle.adaptArtColor(tintColor);
@@ -123,7 +123,7 @@ BoxDecoration nowPlayingSurfaceDecoration({
     }
   }
   final tint = adaptedTint.withValues(alpha: colorStyle.nowPlayingTintAlpha);
-  if (colorStyle.flat) {
+  if (colorStyle.flatNowPlaying) {
     return BoxDecoration(color: Color.alphaBlend(tint, surfaceColor));
   }
   return BoxDecoration(

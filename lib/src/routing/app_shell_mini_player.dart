@@ -201,7 +201,7 @@ class _RailMiniPlayerState extends ConsumerState<_RailMiniPlayer> {
           ?.copyWith(fontWeight: FontWeight.w700),
     );
     // Flat drops the blur: the preview sits on an opaque container fill.
-    final seekPreview = NavisColorStyleData.of(context).flat
+    final seekPreview = NavisColorStyleData.of(context).flatNowPlaying
         ? ColoredBox(
             color: cs.surfaceContainerHigh,
             child: Center(child: seekPreviewText),

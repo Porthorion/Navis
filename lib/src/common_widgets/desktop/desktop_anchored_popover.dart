@@ -75,7 +75,7 @@ Future<T?> showDesktopAnchoredPopover<T>({
               color: colors.surfaceContainerHigh,
               elevation: 12,
               // Flat drops the hand-set black shadow.
-              shadowColor: NavisColorStyleData.of(context).flat
+              shadowColor: NavisColorStyleData.of(context).flatSurfaces
                   ? Colors.transparent
                   : Colors.black.withValues(alpha: 0.5),
               shape: RoundedRectangleBorder(

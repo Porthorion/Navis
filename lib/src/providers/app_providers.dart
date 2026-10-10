@@ -74,6 +74,7 @@ import 'package:navis/src/features/settings/data/update_check_store.dart';
 import 'package:navis/src/features/settings/data/update_repository.dart';
 import 'package:navis/src/features/settings/data/update_service.dart';
 import 'package:navis/src/features/settings/domain/app_settings.dart';
+import 'package:navis/src/features/settings/domain/flat_areas.dart';
 import 'package:navis/src/features/settings/domain/navis_density.dart';
 import 'package:navis/src/features/settings/domain/night_schedule.dart';
 import 'package:navis/src/features/settings/domain/now_playing_background.dart';
@@ -2646,6 +2647,22 @@ final flatSurfacesProvider = Provider<bool>((ref) {
       ref.watch(appSettingsProvider).asData?.value ??
       const AppSettingsModel.defaults();
   return settings.flatSurfaces;
+});
+
+/// Areas affected when the Flat Surfaces switch is enabled.
+final flatAreasProvider = Provider<FlatAreas>((ref) {
+  final settings =
+      ref.watch(appSettingsProvider).asData?.value ??
+      const AppSettingsModel.defaults();
+  return settings.flatAreas;
+});
+
+/// Whether album-card captions use a cover tint instead of the page colour.
+final albumArtColoredShadeProvider = Provider<bool>((ref) {
+  final settings =
+      ref.watch(appSettingsProvider).asData?.value ??
+      const AppSettingsModel.defaults();
+  return settings.albumArtColoredShade;
 });
 
 /// Daily window for the Night colour style.

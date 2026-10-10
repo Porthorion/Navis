@@ -97,6 +97,7 @@ class _NavisAppState extends ConsumerState<NavisApp>
     final colorStyle = ref.watch(effectiveColorStyleProvider);
     final oledForAuto = ref.watch(oledForAutoProvider);
     final flat = ref.watch(flatSurfacesProvider);
+    final flatAreas = ref.watch(flatAreasProvider);
     final density = ref.watch(densityProvider);
     final corners = ref.watch(cornerStyleProvider);
     final colorSeed = ref.watch(effectiveColorSchemeSeedProvider);
@@ -130,6 +131,7 @@ class _NavisAppState extends ConsumerState<NavisApp>
           oled: brightness == Brightness.dark && isOled,
           style: colorStyle,
           flat: flat,
+          flatAreas: flatAreas,
           corners: corners,
         )
         .copyWith(splashFactory: widget.splashFactory);

@@ -714,7 +714,8 @@ target-selection rules.
   delegate to one shared builder. Typography, component themes and theme
   extensions are defined only in that builder. `NavisApp` constructs only the
   active brightness/OLED variant and reuses a per-app eight-entry LRU cache
-  (`NavisThemeCache`) keyed by seed, brightness, OLED, style, Flat and corners.
+  (`NavisThemeCache`) keyed by seed, brightness, OLED, style, Flat, Flat areas
+  and corners.
   Unrelated settings rebuilds reuse complete themes; new album seeds build
   only the visible variant, and switching back can reuse a cached theme.
   OLED cards, dialogs and sheets
@@ -747,13 +748,34 @@ target-selection rules.
     style. Resume invalidation in `app.dart` remains in place. `app.dart`
     uses this effective style and selects OLED for Auto's dark theme when
     `oledForAuto` is enabled. `flatSurfacesProvider` drives Flat rendering.
+  - Schema 99 adds `flat_areas` (integer mask, default 7) and
+    `album_art_colored_shade` (boolean, default false) in one guarded upgrade.
+    `FlatAreas` is the immutable model value: bit 1 selects surfaces (panels,
+    shadows, glows and fade strips), bit 2 selects Now Playing (backgrounds,
+    panels and mini player), and bit 4 selects text over artwork (album-card
+    captions and album/playlist headers). The mask accepts only 0–7; resets
+    restore all areas and disable coloured shade. `flatAreasProvider` and
+    `albumArtColoredShadeProvider` expose the defaults while settings load or
+    fail. DAO targeted writers preserve unrelated settings; onboarding Finish
+    writes these settings only when changed from the entry snapshot.
+    `NavisColorStyleData.flat` remains the master switch; `flatSurfaces`,
+    `flatNowPlaying` and `flatArtworkText` each combine it with the corresponding
+    area. All three theme builders, the theme cache key and setup preview carry
+    the mask. With all areas selected, Flat retains its previous behaviour.
+    The coloured-shade preference is persisted for the caption UI: false means
+    the classic page-coloured fade, true means cover-tinted captions; caption
+    layout/control work is separate from this persistence change.
+    The authenticated, clone-gated `/v1/presentation/appearance` endpoint
+    returns `flatAreas` as an integer and `albumArtColoredShade` as a boolean;
+    POST validates their types and mask bounds before any targeted writes.
   - Flat (`flatSurfacesProvider`, `NavisColorStyleData.flat`) is orthogonal to
     theme mode and colour style: it removes depth effects so the style's solid
     colours read stronger. `app.dart` passes it to `buildLightTheme`,
     `buildDarkTheme` and `buildOledTheme`, which record it in the extension and
     make `ColorScheme.shadow`, `ThemeData.shadowColor` and the OLED dialog
-    shadow transparent. Under Flat: the Home cover wash is one solid block. On
-    phones (`phoneCompact`, not desktop) the You Might Like wash is a
+    shadow transparent when the surfaces area is selected. The following Flat
+    behaviour applies within each selected area: the Home cover wash is one
+    solid block. On phones (`phoneCompact`, not desktop) the You Might Like wash is a
     full-bleed, hard-edged colour band (`_ShowcaseFlatBand`) that wraps the
     carousel, title lines and page dots with `NavisSpace.lg` vertical padding,
     so its height follows the content; its fill is

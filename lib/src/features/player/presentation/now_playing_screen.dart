@@ -1361,7 +1361,9 @@ class _NowPlayingBodyState extends ConsumerState<_NowPlayingBody>
                                   decoration: BoxDecoration(
                                     // Flat: the glow becomes a solid edge
                                     // bar that still fades with progress.
-                                    color: NavisColorStyleData.of(context).flat
+                                    color:
+                                        NavisColorStyleData.of(context)
+                                            .flatNowPlaying
                                         ? colorScheme.primary.withValues(
                                             alpha:
                                                 (reducedMotion
@@ -1372,7 +1374,8 @@ class _NowPlayingBodyState extends ConsumerState<_NowPlayingBody>
                                           )
                                         : null,
                                     gradient:
-                                        NavisColorStyleData.of(context).flat
+                                        NavisColorStyleData.of(context)
+                                            .flatNowPlaying
                                         ? null
                                         : LinearGradient(
                                             begin: feedbackDirection > 0
@@ -2427,11 +2430,12 @@ class _NowPlayingBodyState extends ConsumerState<_NowPlayingBody>
             // Flat: the gradient's end colour as a solid fill.
             color: artworkPanelsActive
                 ? artworkLyricsFill
-                : (NavisColorStyleData.of(context).flat
+                : (NavisColorStyleData.of(context).flatNowPlaying
                       ? colorScheme.surfaceContainerLow
                       : null),
             gradient:
-                artworkPanelsActive || NavisColorStyleData.of(context).flat
+                artworkPanelsActive ||
+                    NavisColorStyleData.of(context).flatNowPlaying
                 ? null
                 : LinearGradient(
                     begin: Alignment.topCenter,
@@ -2671,7 +2675,8 @@ class _NowPlayingBodyState extends ConsumerState<_NowPlayingBody>
                               alpha: 0.5,
                             ),
                           ),
-                          boxShadow: NavisColorStyleData.of(context).flat
+                          boxShadow:
+                              NavisColorStyleData.of(context).flatNowPlaying
                               ? null
                               : <BoxShadow>[
                                   BoxShadow(

@@ -3,6 +3,7 @@ import 'dart:math' as math;
 import 'package:material_color_utilities/material_color_utilities.dart'
     show Hct;
 import 'package:material_ui/material_ui.dart';
+import 'package:navis/src/features/settings/domain/flat_areas.dart';
 import 'package:navis/src/theme/navis_color_style.dart';
 import 'package:navis/src/theme/navis_style_schemes.dart';
 
@@ -16,6 +17,7 @@ class NavisColorStyleData extends ThemeExtension<NavisColorStyleData> {
     required this.style,
     required this.dark,
     this.flat = false,
+    this.flatAreas = const FlatAreas(),
     this.oled = false,
     this.accentHue = seaGlassHue,
   });
@@ -25,9 +27,15 @@ class NavisColorStyleData extends ThemeExtension<NavisColorStyleData> {
   /// Whether the theme is dark (Dark or OLED).
   final bool dark;
 
-  /// Whether Flat rendering is on: no glows, gradients, shadows or blur,
-  /// solid colour fields instead. Orthogonal to the theme mode and [style].
+  /// Whether the Flat Surfaces switch is on, independent of [flatAreas].
+  /// Orthogonal to the theme mode and [style].
   final bool flat;
+
+  final FlatAreas flatAreas;
+
+  bool get flatSurfaces => flat && flatAreas.surfaces;
+  bool get flatNowPlaying => flat && flatAreas.nowPlaying;
+  bool get flatArtworkText => flat && flatAreas.artworkText;
 
   /// Whether the theme is OLED (pure black backgrounds). Implies [dark].
   final bool oled;
@@ -207,6 +215,7 @@ class NavisColorStyleData extends ThemeExtension<NavisColorStyleData> {
     NavisColorStyle? style,
     bool? dark,
     bool? flat,
+    FlatAreas? flatAreas,
     bool? oled,
     double? accentHue,
   }) {
@@ -214,6 +223,7 @@ class NavisColorStyleData extends ThemeExtension<NavisColorStyleData> {
       style: style ?? this.style,
       dark: dark ?? this.dark,
       flat: flat ?? this.flat,
+      flatAreas: flatAreas ?? this.flatAreas,
       oled: oled ?? this.oled,
       accentHue: accentHue ?? this.accentHue,
     );
