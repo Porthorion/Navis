@@ -85,6 +85,7 @@ import 'package:navis/src/routing/desktop_layout.dart' show isDesktopRuntime;
 import 'package:navis/src/theme/artwork_shape.dart';
 import 'package:navis/src/theme/navis_color_style.dart';
 import 'package:navis/src/utils/app_logger.dart';
+import 'package:navis/src/utils/notifications/notification_localizations.dart';
 import 'package:navis/src/utils/connectivity.dart';
 import 'package:navis/src/utils/constants.dart';
 import 'package:navis/src/utils/network_cost_bridge.dart';
@@ -300,12 +301,6 @@ final coverArtCacheManagerProvider = Provider<CacheManager>((ref) {
   );
   final manager = createCoverArtCacheManager(
     maxNrOfCacheObjects: maxObjects,
-    cacheKey:
-        _syncDiagnosticsEnabled &&
-            _syncDiagnosticsMode == 'clone' &&
-            _syncDiagnosticsRoot.isNotEmpty
-        ? '${coverArtCacheKey}_${sha256.convert(utf8.encode(_syncDiagnosticsRoot)).toString().substring(0, 16)}'
-        : coverArtCacheKey,
     fileService: service,
   );
   ref.onDispose(() {
@@ -2547,6 +2542,8 @@ final downloadServiceProvider = Provider<DownloadService>((ref) {
     },
     readApplicationSupportDirectory: _downloadSupportDirectoryOverride,
     artworkStore: ref.read(permanentArtworkStoreProvider),
+    readLocalizations: () =>
+        resolveNotificationLocalizations(ref.read(appLocaleProvider)),
     reportNetworkUsage: _networkUsageReporter(networkUsageMeter),
   );
   ref.listen<bool>(wifiOnlyDownloadsProvider, (previous, next) {

@@ -130,24 +130,25 @@ const List<ChangelogVersion> changelogs = [
     codename: 'Chromatic',
     iconAsset: 'assets/changelog/chromatic.svg',
     summary:
-        'Make Navis look the way you want with new color styles, corners, '
-        'density and Now Playing backgrounds, on top of signed updates and a '
-        'large round of playback, sync and security fixes.',
+        'Make Navis look the way you want with color styles, corner shapes, '
+        'density and Now Playing backgrounds; discover more with Trending '
+        'Now, New Releases and richer artist pages; and get signed updates '
+        'plus a large round of playback, sync and privacy fixes.',
     highlights: [
       ChangelogHighlight(
         icon: ChangelogHighlightIcon.sparkle,
-        title: 'Color Styles',
-        body: 'Pastel, Immersive and Night, plus OLED for Auto on a schedule',
-      ),
-      ChangelogHighlight(
-        icon: ChangelogHighlightIcon.library,
-        title: 'Shape and density',
-        body: 'Pill, Soft or Square corners, Density and Flat Surfaces',
+        title: 'Your look',
+        body: 'Color styles, corner shapes, density and Flat Surfaces',
       ),
       ChangelogHighlight(
         icon: ChangelogHighlightIcon.player,
         title: 'Now Playing backgrounds',
         body: 'Art-tinted, blurred artwork or your plain theme background',
+      ),
+      ChangelogHighlight(
+        icon: ChangelogHighlightIcon.search,
+        title: 'More to discover',
+        body: 'Trending Now, New Releases, Fans Also Like and Missing Albums',
       ),
       ChangelogHighlight(
         icon: ChangelogHighlightIcon.download,
@@ -157,588 +158,222 @@ const List<ChangelogVersion> changelogs = [
       ChangelogHighlight(
         icon: ChangelogHighlightIcon.queue,
         title: 'Steadier playback',
-        body: 'Dozens of queue, recovery and system-control fixes',
+        body: 'Dozens of queue, shuffle, seeking and system-control fixes',
       ),
     ],
     entries: [
+      // New
       ChangelogEntry(
-        'Switching Now Playing to the Artwork background no longer stutters',
-        type: ChangelogEntryType.fix,
-      ),
-      ChangelogEntry(
-        'Skipping to a song that is still being fetched no longer jumps past it',
-        type: ChangelogEntryType.fix,
-      ),
-      ChangelogEntry(
-        'Shuffle no longer shows the next song while the previous one keeps playing',
-        type: ChangelogEntryType.fix,
-      ),
-      ChangelogEntry(
-        'Corner Style Rounded is now Pill, and switching corner styles animates smoothly',
-      ),
-      ChangelogEntry(
-        'Night Schedule now sits under Color in Settings and next to Color Style in setup',
-      ),
-      ChangelogEntry(
-        'The fullscreen lyrics title and song name are centered',
-        type: ChangelogEntryType.fix,
-      ),
-      ChangelogEntry(
-        'Pull to refresh no longer leaves its spinner on screen for the whole sync; progress shows in the sync banner',
-        type: ChangelogEntryType.fix,
-      ),
-      ChangelogEntry(
-        'The server unreachable banner can be dismissed into a small Offline chip, and tapping the chip brings it back',
-      ),
-      ChangelogEntry(
-        'Album Queue now applies to every song list, including Trending Now, playlists, downloads and Home lists',
-      ),
-      ChangelogEntry(
-        'Album art on screen loads first again',
-        type: ChangelogEntryType.fix,
-      ),
-      ChangelogEntry(
-        'Now Playing Background also applies to the queue and to the desktop lyrics view',
-      ),
-      ChangelogEntry(
-        'Flat Surfaces can be limited to panels and shadows, Now Playing, or text over artwork, and keeps album art fully visible with titles below the cover',
-      ),
-      ChangelogEntry(
-        'Album titles stay on one line and scroll when they are too long over a see-through shade that keeps the whole cover visible; Album Art Shade makes the shade solid for easier reading, and Use Cover Color tints it from each cover',
-      ),
-      ChangelogEntry(
-        'The player shows Play once the queue has finished, so one press restarts it instead of two',
-        type: ChangelogEntryType.fix,
-      ),
-      ChangelogEntry(
-        'Android no longer signs you out when opening an artist page soon after signing back in',
-        type: ChangelogEntryType.fix,
-      ),
-      ChangelogEntry(
-        'Mobile playback can recover when a streamed byte range has no known length',
-        type: ChangelogEntryType.fix,
-      ),
-      ChangelogEntry(
-        'Playback works after signing out and reconnecting without restarting Navis',
-        type: ChangelogEntryType.fix,
-      ),
-      ChangelogEntry(
-        'System media buttons keep playback paused when a phone call ends',
-        type: ChangelogEntryType.fix,
-      ),
-      ChangelogEntry(
-        'A timed-out queue selection advances to the next song when library entries are missing',
-        type: ChangelogEntryType.fix,
-      ),
-      ChangelogEntry(
-        'A cancelled queue selection no longer clears the current or saved queue',
-        type: ChangelogEntryType.fix,
-      ),
-      ChangelogEntry(
-        'Linux media controls update their seek position when you seek while paused',
-        type: ChangelogEntryType.fix,
-      ),
-      ChangelogEntry(
-        'Permanent downloads keep their offline status when streaming cache writes finish concurrently',
-        type: ChangelogEntryType.fix,
-      ),
-      ChangelogEntry(
-        'Remote songs start promptly when the server ignores range requests',
-        type: ChangelogEntryType.fix,
-      ),
-      ChangelogEntry(
-        'Desktop cache activity clears when a transfer is cancelled or fails',
-        type: ChangelogEntryType.fix,
-      ),
-      ChangelogEntry(
-        'Completed mobile streams reliably appear in the rolling cache',
-        type: ChangelogEntryType.fix,
-      ),
-      ChangelogEntry(
-        'Completed downloads always play before streaming, regardless of quality settings',
-        type: ChangelogEntryType.fix,
-      ),
-      ChangelogEntry(
-        'A slow queue restore after radio stops or fails keeps the saved music queue',
-        type: ChangelogEntryType.fix,
-      ),
-      ChangelogEntry(
-        'Previous restarts the first queued song even within its first three seconds',
-        type: ChangelogEntryType.fix,
-      ),
-      ChangelogEntry(
-        'System media controls correctly disable Next at the end of long queues',
-        type: ChangelogEntryType.fix,
-      ),
-      ChangelogEntry(
-        'Pausing during an audio interruption keeps playback paused when the interruption ends',
-        type: ChangelogEntryType.fix,
-      ),
-      ChangelogEntry(
-        'A stalled crossfade preparation falls back to normal playback instead of blocking future fades',
-        type: ChangelogEntryType.fix,
-      ),
-      ChangelogEntry(
-        'Radio stream URLs stay private instead of being shared with system media controls',
-        type: ChangelogEntryType.fix,
-      ),
-      ChangelogEntry(
-        'Failed stream recovery respects Pause and newer song selections',
-        type: ChangelogEntryType.fix,
-      ),
-      ChangelogEntry(
-        'A timed-out startup queue restore can no longer stop or overwrite a newer selection',
-        type: ChangelogEntryType.fix,
-      ),
-      ChangelogEntry(
-        'Queue selections keep the chosen song and occurrence when earlier library rows are missing',
-        type: ChangelogEntryType.fix,
-      ),
-      ChangelogEntry(
-        'Jumping backward offline keeps played songs queued when their audio is temporarily unavailable',
-        type: ChangelogEntryType.fix,
-      ),
-      ChangelogEntry(
-        'Starting a mix clears played queue history when only the seed remains in the player',
-        type: ChangelogEntryType.fix,
-      ),
-      ChangelogEntry(
-        'System queue insert and remove-at controls now edit the playback queue',
-        type: ChangelogEntryType.fix,
-      ),
-      ChangelogEntry(
-        'System queue controls select and remove the correct song after played tracks leave the player window',
-        type: ChangelogEntryType.fix,
-      ),
-      ChangelogEntry(
-        'Fullscreen lyrics follow the song that is playing instead of staying on the one they were opened on, so tapping a line always seeks the lyrics you see',
-        type: ChangelogEntryType.fix,
-      ),
-      ChangelogEntry(
-        'Restarting Instant Radio while an earlier start or refill is still finishing no longer lets that old run unlock the new one',
-        type: ChangelogEntryType.fix,
-      ),
-      ChangelogEntry(
-        'Same Vibes and Server Mix stop refilling after five failed refills in a row instead of resuming later; start the mix again to continue',
-        type: ChangelogEntryType.fix,
-      ),
-      ChangelogEntry(
-        'Same Vibes started from a remote song with no library copy no longer mixes from an unrelated song in the queue',
-        type: ChangelogEntryType.fix,
-      ),
-      ChangelogEntry(
-        'Server Mix can start from a remote song when the server has a library copy of it; without one the Instant Mix button stays greyed out with an explanation',
-        type: ChangelogEntryType.fix,
-      ),
-      ChangelogEntry(
-        'The full Queue page no longer lets you reorder, remove or play tracks while a new queue is still loading',
-        type: ChangelogEntryType.fix,
-      ),
-      ChangelogEntry(
-        'Automatic library checks look further back when recent additions exceed the discovery window',
-        type: ChangelogEntryType.fix,
-      ),
-      ChangelogEntry(
-        'Changing the server backend clears stale sync cursors before the next library check',
-        type: ChangelogEntryType.fix,
-      ),
-      ChangelogEntry(
-        'Automatic library checks can continue while playback is paused; Check for updates keeps queued repairs waiting for Repair Library',
-        type: ChangelogEntryType.fix,
-      ),
-      ChangelogEntry(
-        'Liked items and playlist updates wait for network policy or mobile-data limits without reporting a sync failure',
-        type: ChangelogEntryType.fix,
-      ),
-      ChangelogEntry(
-        'Library identity repairs keep one current alias per item, preserve existing song replacements during upgrades, and resetting server data clears repaired identities',
-        type: ChangelogEntryType.fix,
-      ),
-      ChangelogEntry(
-        'Library cache renewal stops waiting after five seconds when app version metadata is unavailable',
-        type: ChangelogEntryType.fix,
-      ),
-      ChangelogEntry(
-        'Library repair reduces simultaneous album requests when the server is busy or requests need a transport retry',
-        type: ChangelogEntryType.fix,
-      ),
-      ChangelogEntry(
-        'Library cache renewal runs automatically on major or minor app upgrades; patch releases keep the same cache epoch',
-      ),
-      ChangelogEntry(
-        'Upgrading a pre-1.0 test installation starts with a fresh database and setup',
-        type: ChangelogEntryType.improvement,
-      ),
-      ChangelogEntry(
-        'Song identity repairs keep an existing download-queue entry instead of creating a duplicate',
-        type: ChangelogEntryType.fix,
-      ),
-      ChangelogEntry(
-        'Album and artist identity recovery recognizes MusicBrainz IDs regardless of letter case',
-        type: ChangelogEntryType.fix,
-      ),
-      ChangelogEntry(
-        'Cancelling album or liked-item refreshes stops hydration reliably and clears loading status',
-        type: ChangelogEntryType.fix,
-      ),
-      ChangelogEntry(
-        'Android background sync uses the same freshness window as foreground sync, including manual-only settings',
-        type: ChangelogEntryType.fix,
-      ),
-      ChangelogEntry(
-        'Songs missing from the server keep cached audio when saved state retains them, and failed library updates leave files intact',
-        type: ChangelogEntryType.fix,
-      ),
-      ChangelogEntry(
-        'Android folder downloads keep their storage type when a server song ID changes',
-        type: ChangelogEntryType.fix,
-      ),
-      ChangelogEntry(
-        'Missing album and artist artwork now refreshes its server metadata once through library sync',
-        type: ChangelogEntryType.fix,
-      ),
-      ChangelogEntry(
-        'Windows updates restore the previous installation if copying fails and restart Navis without administrator privileges',
-        type: ChangelogEntryType.fix,
-      ),
-      ChangelogEntry(
-        'Desktop updates keep downloads and installer scripts in private temporary folders',
-        type: ChangelogEntryType.fix,
-      ),
-      ChangelogEntry(
-        'Updates now come from downloads.porthorion.com, and every update is checked against a signed release list before it installs',
-        type: ChangelogEntryType.fix,
-      ),
-      ChangelogEntry(
-        'A damaged update download is discarded with a clear message instead of being installed',
-        type: ChangelogEntryType.fix,
-      ),
-      ChangelogEntry(
-        'Linux playback and the equalizer now work without installing a separate audio library',
-        type: ChangelogEntryType.fix,
-      ),
-      ChangelogEntry(
-        'ListenBrainz scrobbles resume after the service asks Navis to wait',
-        type: ChangelogEntryType.fix,
-      ),
-      ChangelogEntry(
-        'Same Vibes and Instant Radio remember recommendations for a day, reducing repeated online requests',
-        type: ChangelogEntryType.fix,
-      ),
-      ChangelogEntry(
-        'Lyrics searches and downloads wait before retrying when the lyrics service is busy',
-        type: ChangelogEntryType.fix,
-      ),
-      ChangelogEntry(
-        'Setup, Integrations and Privacy explain which online services Navis uses, including when you skip setup',
-        type: ChangelogEntryType.fix,
-      ),
-      ChangelogEntry(
-        "Desktop library data moves out of Documents into Navis's app data folder without losing your library or settings",
-        type: ChangelogEntryType.fix,
-      ),
-      ChangelogEntry(
-        'Android keeps Navis data out of system backups and device transfers',
-        type: ChangelogEntryType.fix,
-      ),
-      ChangelogEntry(
-        'Contact Support can now open your email app on Android',
-        type: ChangelogEntryType.fix,
-      ),
-      ChangelogEntry(
-        'Signing out also disconnects ListenBrainz, and disconnecting warns if your saved sign-in could not be cleared',
-        type: ChangelogEntryType.fix,
-      ),
-      ChangelogEntry(
-        'Artist pages and New Releases say when their details come from Deezer or Last.fm, and Last.fm songs link to the artist on Last.fm',
-        type: ChangelogEntryType.fix,
-      ),
-      ChangelogEntry(
-        'About links to the Navis website, privacy policy, terms of use and support, and Privacy links to the full policy',
-        type: ChangelogEntryType.fix,
-      ),
-      ChangelogEntry(
-        'Skipping setup still shows which online services Navis may use, and setup now lists every one of them',
-        type: ChangelogEntryType.fix,
-      ),
-      ChangelogEntry(
-        'Stations outside your server now need Online services turned on, and explain how to enable it',
-        type: ChangelogEntryType.fix,
-      ),
-      ChangelogEntry(
-        'About includes complete third-party licence notices, and desktop packages credit Porthorion',
-        type: ChangelogEntryType.fix,
-      ),
-      ChangelogEntry(
-        'Navis is now proprietary freeware by Porthorion under the Navis End User Licence Agreement; earlier releases retain their GPL licence',
-      ),
-      ChangelogEntry('Custom accent colours have more accurate names'),
-      ChangelogEntry(
-        'Extremely thin artwork keeps the default tint instead of crashing palette extraction',
-        type: ChangelogEntryType.fix,
-      ),
-      ChangelogEntry(
-        'Android system artwork uses private per-install keys to prevent other apps from probing album IDs',
-        type: ChangelogEntryType.fix,
-      ),
-      ChangelogEntry(
-        'Reverse-proxy URL credentials are kept in secure storage instead of the library database',
-        type: ChangelogEntryType.fix,
-      ),
-      ChangelogEntry(
-        'Artwork responses have a size limit, external images respect memory limits in both dimensions, and radio artwork displays immediately after prewarming',
-        type: ChangelogEntryType.fix,
-      ),
-      ChangelogEntry(
-        'System playback artwork uses current server authentication on iOS and macOS',
-        type: ChangelogEntryType.fix,
-      ),
-      ChangelogEntry(
-        'Cover caches no longer store server credentials, old cover and system-artwork caches are removed on startup, and every sign-out clears both caches',
-        type: ChangelogEntryType.fix,
-      ),
-      ChangelogEntry(
-        'Login retries legacy authentication only when the server explicitly requires it, and requires HTTPS outside loopback',
-        type: ChangelogEntryType.fix,
-      ),
-      ChangelogEntry(
-        'Radio requires HTTP or HTTPS streams and discovers AzuraCast metadata only from stream addresses',
-        type: ChangelogEntryType.fix,
-      ),
-      ChangelogEntry(
-        'External links from servers and integrations open only valid HTTP or HTTPS addresses',
-        type: ChangelogEntryType.fix,
-      ),
-      ChangelogEntry(
-        'Downloads and playback caches safely handle malformed server filenames and refuse exhausted filename collisions',
-        type: ChangelogEntryType.fix,
-      ),
-      ChangelogEntry(
-        'Appearance has a Color Style setting: Pastel, Immersive and Night restyle Light, Dark and OLED, and Neutral keeps the current look',
+        'Color Styles: Pastel, Immersive and Night restyle Light, Dark and OLED, and Neutral keeps the classic look',
         type: ChangelogEntryType.newFeature,
       ),
       ChangelogEntry(
-        'Appearance can use OLED black when Auto is dark, switch to the Night style on a daily schedule, and turn on Flat Surfaces for solid colors without glows, shadows or blur',
+        'Use OLED When Dark switches Auto to pure black whenever your device is in dark mode, and Night Schedule switches to the Night style between the times you choose',
         type: ChangelogEntryType.newFeature,
       ),
       ChangelogEntry(
-        'Appearance has a Corner Style setting: Rounded, Soft or Square corners for cards, buttons and panels',
+        'Flat Surfaces replaces glows, gradients, shadows and blur with solid colors, and can be limited to panels and shadows, Now Playing, or text over artwork, where album titles move below the cover',
         type: ChangelogEntryType.newFeature,
       ),
       ChangelogEntry(
-        'Appearance has a Now Playing Background setting: Art-Tinted keeps the color from the cover, Artwork shows the blurred cover itself, and Plain uses your theme background',
+        'Corner Style: Pill, Soft or Square corners for cards, buttons and panels; artwork keeps its own Artwork Shape',
         type: ChangelogEntryType.newFeature,
       ),
       ChangelogEntry(
-        'Home Density is now Density and also tightens track lists, playlists and artist lists; Comfortable keeps the current look',
+        'Now Playing Background: Art-Tinted, Artwork (a soft blur of the cover) or Plain, also used by the queue and the desktop lyrics view',
+        type: ChangelogEntryType.newFeature,
       ),
       ChangelogEntry(
-        'Color Scheme is now Accent Color, and Appearance groups its options into Theme, Color, Shape & Layout and Now Playing',
+        'Density: Comfortable or Compact spacing for Home, track lists and library rows',
+        type: ChangelogEntryType.newFeature,
       ),
       ChangelogEntry(
-        'Album card captions blend into a color taken from each cover, so titles stay readable on any artwork in light and dark themes',
+        'Album titles stay on one line and scroll when they are long, over a see-through shade that keeps the whole cover visible; Album Art Shade makes the shade solid for easier reading, and Use Cover Color tints it from each cover',
+        type: ChangelogEntryType.newFeature,
       ),
       ChangelogEntry(
-        'Setup shows the new appearance options, marked New for people updating until you have seen them, and Home invites you to try them',
+        'Trending Now joins You Might Like and Library › Playlists: Deezer\'s chart matched to your library and your server, with songs your server lacks kept in place',
+        type: ChangelogEntryType.newFeature,
+      ),
+      ChangelogEntry(
+        "New Releases on Home shows the last month's releases from the artists you play most",
+        type: ChangelogEntryType.newFeature,
+      ),
+      ChangelogEntry(
+        'Artist pages add Fans Also Like (related artists, yours first) and Missing Albums (releases your server lacks, playable through your server\'s remote catalog)',
+        type: ChangelogEntryType.newFeature,
+      ),
+      ChangelogEntry(
+        'Settings › Integrations shows what each online service receives, lets you switch any service or feature off, or turn off Online services so Navis only talks to your server',
+        type: ChangelogEntryType.newFeature,
+      ),
+      ChangelogEntry(
+        'Updates now come from downloads.porthorion.com and are checked against a signed release list before they install',
+        type: ChangelogEntryType.newFeature,
+      ),
+
+      // Improved
+      ChangelogEntry(
+        'Appearance is grouped into Theme, Color, Shape & Layout and Now Playing; Color Scheme is now Accent Color, its swatches preview your style, and custom accent colors have more accurate names',
+      ),
+      ChangelogEntry(
+        'Setup shows the new appearance options and Integrations, new options are marked New after an update until you have seen them, and Home invites you to try them',
+      ),
+      ChangelogEntry(
+        'Album Queue applies to every song list, including Trending Now, playlists, downloads and Home lists; with it off, tapping a song plays just that song',
+      ),
+      ChangelogEntry(
+        'The offline banner has a Retry button and can be tucked into a small Offline chip, and it no longer covers the status bar',
       ),
       ChangelogEntry(
         'Home on phones has a slimmer header, so more of You Might Like fits on screen',
       ),
       ChangelogEntry(
-        'First setup no longer stops at an error when some albums on the server have incomplete details',
+        "Artist pages show every release your server offers, the artist's Deezer photo when your server has none, and the Deezer fan count",
+      ),
+      ChangelogEntry(
+        'Top Tracks come from Deezer, topped up from Last.fm, appear sooner and prefer copies in your library; songs your server lacks are marked Not on server',
+      ),
+      ChangelogEntry(
+        'Remote artists and albums open on a loading page and fill in as details arrive, instead of showing Not Found',
+      ),
+      ChangelogEntry(
+        'Same Vibes starts from the song you chose, Server Mix works from remote songs with a library copy, and recommendations are remembered for a day to reduce online requests',
+      ),
+      ChangelogEntry(
+        'ListenBrainz scrobbling, likes and weekly playlists each have their own switch, and Settings › Configuration is now Server Information',
+      ),
+      ChangelogEntry(
+        'The library cache renews automatically on major and minor upgrades, and very old test installations start fresh',
+      ),
+      ChangelogEntry(
+        'Linux playback and the equalizer work without installing a separate audio library',
+      ),
+      ChangelogEntry(
+        "Desktop library data moves out of Documents into Navis's app data folder, and Android keeps Navis data out of system backups",
+      ),
+      ChangelogEntry(
+        'About links to the Navis website, privacy policy, terms of use and support, and lists complete third-party licence notices',
+      ),
+      ChangelogEntry(
+        'Navis is now proprietary freeware by Porthorion under the Navis End User Licence Agreement; earlier releases keep their GPL licence',
+      ),
+
+      // Fixed: playback
+      ChangelogEntry(
+        'Skipping to a remote song that your server is still fetching plays it instead of jumping past it, and remote songs start promptly on first play',
         type: ChangelogEntryType.fix,
       ),
       ChangelogEntry(
-        'The offline banner on phones and tablets no longer covers the status bar or leaves an empty gap above the page',
+        'Shuffle keeps the song shown in sync with the song playing, and turning shuffle off restores the original order',
         type: ChangelogEntryType.fix,
       ),
       ChangelogEntry(
-        'The offline banner has a Retry button to check the server right away instead of waiting for the next automatic check',
-      ),
-      ChangelogEntry(
-        'Library no longer shows a permanent notice about albums still loading details; Sync settings now shows how many albums are still waiting for their track lists, and says when incomplete server data is the cause',
+        'Seeking in a song that is still streaming no longer restarts it, sticks or stops playback, and the song keeps caching afterwards',
         type: ChangelogEntryType.fix,
       ),
       ChangelogEntry(
-        'External artwork requests and blocked loads now appear in integration diagnostics without exposing URL credentials',
+        'Dozens of queue fixes: Previous and Next at the ends of the queue, selections with missing library entries, cancelled or slow queue restores, and the Queue page while a new queue loads',
         type: ChangelogEntryType.fix,
       ),
       ChangelogEntry(
-        'Windows no longer freezes while playing internet radio with station artwork',
+        'Playback stays paused after a phone call or audio interruption, and the player shows Play once the queue has finished',
         type: ChangelogEntryType.fix,
       ),
       ChangelogEntry(
-        'Radio diagnostics hide artwork URLs and credentials while keeping artwork comparisons available',
+        'Completed downloads always play before streaming and keep their offline status, and finished streams reliably join the rolling cache',
         type: ChangelogEntryType.fix,
       ),
       ChangelogEntry(
-        'Song-title navigation falls back to search when unrelated artists have matching song and album names',
+        'Playback works after signing out and back in without restarting Navis, and a stalled crossfade falls back to normal playback',
         type: ChangelogEntryType.fix,
       ),
       ChangelogEntry(
-        'Radio keeps the station name until a real stream title arrives and clears earlier playback errors after a successful station switch',
+        'Instant Radio, Same Vibes and Server Mix restart cleanly and stop refilling after repeated failures',
         type: ChangelogEntryType.fix,
       ),
       ChangelogEntry(
-        'Internet radio shows live song titles on desktop and falls back to stream titles or the station name when radio now-playing lookups are turned off',
+        'System media controls keep the right position, queue edits and Next state, and Linux media controls send one update per seek',
         type: ChangelogEntryType.fix,
       ),
       ChangelogEntry(
-        'Likes, ratings, hydrated playlists and synced library updates refresh immediately after saving without unnecessary refreshes; identity repairs also refresh saved queue and playlist references',
+        'Fullscreen lyrics follow the song that is playing and have a centered title',
         type: ChangelogEntryType.fix,
       ),
       ChangelogEntry(
-        'Artist Top Songs keeps available Deezer tracks when the search that fills the list fails',
+        'Album art on screen loads first, switching to the Artwork background no longer stutters, and pull to refresh no longer leaves a spinner on screen',
         type: ChangelogEntryType.fix,
       ),
       ChangelogEntry(
-        'Deezer quota retries back off once per pause even when several requests hit the limit together, and cancelled requests promptly release their start budget',
+        'On Android, skipping songs on a slow connection no longer leaves earlier songs downloading in the background',
         type: ChangelogEntryType.fix,
       ),
       ChangelogEntry(
-        'Switching radio stations no longer shows the previous station’s song, and changing artwork permissions keeps the current song on the lock screen',
+        'Internet radio keeps the station name until a song title arrives, shows live titles on desktop, never shows the previous station\'s song, and no longer freezes Windows with station artwork',
+        type: ChangelogEntryType.fix,
+      ),
+
+      // Fixed: library and sync
+      ChangelogEntry(
+        'First setup no longer stops on albums with incomplete server details or runs a second full sync, and those albums no longer hold up later syncs',
         type: ChangelogEntryType.fix,
       ),
       ChangelogEntry(
-        'Radio now-playing resumes when turned back on for stations with a working now-playing service; restarting the station retries detection',
+        'Sync settings show how many albums are still waiting for their track lists and when the library was last checked',
         type: ChangelogEntryType.fix,
       ),
       ChangelogEntry(
-        'Internet radio falls back to stream titles when a station website does not provide an AzuraCast now-playing API',
+        'Library checks are more reliable: they look further back after big additions, continue while playback is paused, wait for network limits without reporting a failure, and recover cleanly after a server change',
         type: ChangelogEntryType.fix,
       ),
       ChangelogEntry(
-        'Local search reuses existing search text while upgraded matching keys refresh in the background, returning results before checking for stale keys and skipping that check during a refresh',
+        'Android background sync follows the same freshness rules as foreground sync and waits while music is playing',
         type: ChangelogEntryType.fix,
       ),
       ChangelogEntry(
-        'Matching drops square-bracketed featured credits and handles unclosed brackets; Last.fm accepts symbol-only artist names when the raw names agree',
+        'Library repairs keep downloads, cached audio and queue entries intact, and missing album and artist artwork refreshes once',
         type: ChangelogEntryType.fix,
       ),
       ChangelogEntry(
-        'Lyrics cached before edition-aware LRCLIB matching are cleared once on upgrade so another language version cannot stay cached forever; downloaded songs refetch missing LRCLIB lyrics through the Wi-Fi-only backfill',
+        'Likes, ratings and playlists refresh right after saving, and Home sections added in an update appear even if you reordered yours',
         type: ChangelogEntryType.fix,
       ),
       ChangelogEntry(
-        'Library matching refreshes old keys in the background with a two-second wait limit and skips refresh writes when the index is current',
+        'Matching is more accurate for Japanese and other non-Latin titles, language editions, featured credits, accents and punctuation in artist names',
         type: ChangelogEntryType.fix,
       ),
       ChangelogEntry(
-        'Same Vibes keeps passing matches when an edition tie is too weak; song navigation handles remaster duplicates within artist or album context, leaves unrelated namesakes to search, and matches single-character Unicode artists consistently',
+        'A cover that timed out while loading is tried again instead of staying blank',
+        type: ChangelogEntryType.fix,
+      ),
+
+      // Fixed: updates, privacy and security
+      ChangelogEntry(
+        'A damaged update download is discarded with a clear message, Windows updates roll back if copying fails, and desktop updates use private temporary folders',
         type: ChangelogEntryType.fix,
       ),
       ChangelogEntry(
-        'Last.fm artist checks now distinguish Japanese names and accept accent variants such as Sigur Rós and Sigur Ros',
+        'Server credentials stay out of cover caches and the library database, and every sign-out clears the caches and disconnects ListenBrainz',
         type: ChangelogEntryType.fix,
       ),
       ChangelogEntry(
-        'Matching and search now fold half-width Japanese kana and decomposed voicing marks, and live editions keep locations such as Ft. Worth',
+        'Login uses legacy authentication only when the server requires it, and Settings › Server reminds you when a connection is not using HTTPS',
         type: ChangelogEntryType.fix,
       ),
       ChangelogEntry(
-        'Fans Also Like and Go to artist match leading articles, ampersands and punctuation word boundaries; Go to artist leaves duplicate names ambiguous, while Fans Also Like prefers the server entry. Joining words such as Black Star and Blackstar requires album evidence',
+        'Radio streams and links from servers and integrations open only valid HTTP or HTTPS addresses, and radio stream URLs stay private',
         type: ChangelogEntryType.fix,
       ),
       ChangelogEntry(
-        'New Settings › Integrations page: see what each online service receives and where, switch any service or feature off, or turn off Online services so Navis only talks to your server',
-        type: ChangelogEntryType.newFeature,
-      ),
-      ChangelogEntry(
-        'The LRCLIB lyrics, Same Vibes mix and automatic update check switches moved to Integrations, along with the Last.fm key and ListenBrainz token',
-      ),
-      ChangelogEntry(
-        'Settings › Configuration is now Server Information and only shows your server connection; Integrations has its own entry and groups its services under Discovery, Listening history, Now Playing and App',
-      ),
-      ChangelogEntry(
-        'ListenBrainz scrobbling, likes and weekly playlists each have their own switch, and Instant Radio only asks Last.fm while its switch is on',
-      ),
-      ChangelogEntry(
-        'Seeking in a song that is still streaming no longer restarts it from the beginning, gets stuck on the seek bar or stops playback; on a slow connection the seek waits for the song instead of reloading it',
+        'Artwork downloads have size and memory limits, and downloads safely handle malformed server filenames',
         type: ChangelogEntryType.fix,
       ),
       ChangelogEntry(
-        'On Linux and Windows, a brief decoding glitch right after a seek no longer stops playback',
+        'ListenBrainz, Deezer and lyrics requests wait and retry politely when a service is busy',
         type: ChangelogEntryType.fix,
       ),
       ChangelogEntry(
-        'Remote songs that the server fetches on first play start playing instead of failing after a few seconds',
-        type: ChangelogEntryType.fix,
-      ),
-      ChangelogEntry(
-        'A song keeps caching after a seek, so later seeks in it use the downloaded copy',
-        type: ChangelogEntryType.fix,
-      ),
-      ChangelogEntry(
-        "An artist's Top Tracks now come from Deezer (topped up from Last.fm when Deezer has only a few) and appear much sooner: songs in your library show first, and matches are remembered between visits",
-      ),
-      ChangelogEntry(
-        'When no top tracks are available, such as with Online services off, the "This Is <Artist>" card is left out; the Shuffle button on the artist page still shuffles their songs',
-      ),
-      ChangelogEntry(
-        "Artist pages show the artist's Deezer photo when your server has none, only Last.fm's grey star or one that fails to load, and the Deezer fan count next to the album count",
-      ),
-      ChangelogEntry(
-        'Deezer recognises artists it names a little differently, such as "Black Eyed Peas" for "The Black Eyed Peas" or "Simon & Garfunkel" for "Simon and Garfunkel"',
-      ),
-      ChangelogEntry(
-        '"Fans Also Like" on artist pages shows Deezer\'s related artists, those in your library first; one you don\'t have opens its page from your server\'s remote catalogue, or a search when your server cannot provide it',
-        type: ChangelogEntryType.newFeature,
-      ),
-      ChangelogEntry(
-        "Missing Albums on artist pages lists the albums and EPs on Deezer that your server lacks, with language editions such as Japanese versions kept apart; tap one to open it like any album and play it through your server's remote catalogue",
-        type: ChangelogEntryType.newFeature,
-      ),
-      ChangelogEntry(
-        "New Releases on Home, right under You Might Like, shows the last month's releases from the artists you play most, or from your library's main artists while you have played little; tap one to open it like any album, from your library or your server's remote catalogue",
-        type: ChangelogEntryType.newFeature,
-      ),
-      ChangelogEntry(
-        "Trending Now joins You Might Like and Library › Playlists, right under the weekly playlists: Deezer's chart, matched to your library and your server (remote sources included) like the weekly playlists, with songs your server lacks kept in place and a Search button",
-        type: ChangelogEntryType.newFeature,
-      ),
-      ChangelogEntry(
-        'An artist\'s top songs prefer a copy on your server over a remote one, and on "This Is" pages songs your server lacks are marked "Not on server" like in the weekly playlists, while every playable song opens the song menu',
-      ),
-      ChangelogEntry(
-        'A one-time note on Home tells you what Navis 1.4.3 can now use Deezer for and opens Integrations',
-      ),
-      ChangelogEntry(
-        'Setup now ends with Integrations: turn Online services or any service off before Navis contacts it',
-      ),
-      ChangelogEntry(
-        'Typing your ListenBrainz token during setup now works on phones: the keyboard no longer closes as soon as it opens, and the field stays in view above it',
-        type: ChangelogEntryType.fix,
-      ),
-      ChangelogEntry(
-        'The fullscreen radio artwork shows the radio icon instead of a blank screen when the station art is turned off or cannot load',
-        type: ChangelogEntryType.fix,
-      ),
-      ChangelogEntry(
-        'A cover that timed out while loading from your server is tried once more instead of staying blank until you reopen the page',
-        type: ChangelogEntryType.fix,
-      ),
-      ChangelogEntry(
-        'Home sections added in an update now appear even if you reordered or hid sections before',
-        type: ChangelogEntryType.fix,
-      ),
-      ChangelogEntry(
-        'Japanese and other non-Latin titles now match correctly (top songs, ListenBrainz playlists, mixes), and language versions are no longer mixed up',
-        type: ChangelogEntryType.fix,
-      ),
-      ChangelogEntry(
-        'On Android, skipping songs on a slow connection no longer leaves the previous songs downloading in the background and stalls the new one',
-        type: ChangelogEntryType.improvement,
-      ),
-      ChangelogEntry(
-        'Artist pages now show every release your server offers, including remote ones such as Japanese editions, without needing a manual refresh, and the album count under the name counts them as they appear',
-        type: ChangelogEntryType.fix,
-      ),
-      ChangelogEntry(
-        'Remote artists and albums, and ones your library has not stored yet, open on a "Loading Remote Artist…" or "Loading Remote Album…" page with a back button while Navis fetches them from your server, then fill in as details arrive, instead of showing "Not Found"; Refresh fetches them again, and a search is offered only when your server cannot provide them',
-        type: ChangelogEntryType.improvement,
-      ),
-      ChangelogEntry(
-        'Same Vibes now starts from the song you chose (for example from Android Auto), and Server Mix works from remote songs that have a library copy',
+        'Typing your ListenBrainz token during setup works on phones, and Contact Support opens your email app on Android',
         type: ChangelogEntryType.fix,
       ),
     ],

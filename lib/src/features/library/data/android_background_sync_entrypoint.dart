@@ -96,7 +96,7 @@ class _HeadlessBackgroundSyncRunner {
     final container = ProviderContainer(retry: navisProviderRetry);
     final database = container.read(navisDatabaseProvider);
     SubsonicApiClient? client;
-    BackgroundNetworkPolicyTracker? policyTracker;
+    BackgroundSyncPolicyTracker? policyTracker;
     int? activeServerId;
     var startedAt = DateTime.now();
     Future<Map<String, Object?>> finish(
@@ -170,7 +170,7 @@ class _HeadlessBackgroundSyncRunner {
 
       final settings = await database.appSettingsDao.getSettings();
       final unmeteredOnly = settings?.backgroundSyncUnmeteredOnly ?? true;
-      final tracker = await BackgroundNetworkPolicyTracker.create(
+      final tracker = await BackgroundSyncPolicyTracker.create(
         readConnectivity: Connectivity().checkConnectivity,
         connectivityChanges: Connectivity().onConnectivityChanged,
         readNativeMetered: () async =>
@@ -178,6 +178,9 @@ class _HeadlessBackgroundSyncRunner {
         backgroundSyncUnmeteredOnly: unmeteredOnly,
       );
       policyTracker = tracker;
+      if (tracker.hasActivePlayback) {
+        return await finish('deferredPlayback');
+      }
       if (!tracker.current.allowsBackgroundSync) {
         return await finish('deferredPolicy');
       }
@@ -209,7 +212,7 @@ class _HeadlessBackgroundSyncRunner {
         staleAfter: syncStaleAfterForInterval(
           settings?.syncIntervalMinutes ?? 60,
         ),
-        readHasActivePlayback: () => false,
+        readHasActivePlayback: () => tracker.hasActivePlayback,
         readIsForeground: () => false,
         executionOwnerKind: 'androidWorker',
         isBackgroundExecution: true,
@@ -218,7 +221,10 @@ class _HeadlessBackgroundSyncRunner {
       final state = await coordinator.requestSync(
         const LibrarySyncRequest.automatic(),
       );
-      return await finish(_categoryFor(state), state: state);
+      return await finish(
+        _categoryFor(state, hasActivePlayback: tracker.hasActivePlayback),
+        state: state,
+      );
     } on SyncCancelledException {
       return await finish('stoppedBySystem');
     } on Object {
@@ -232,7 +238,10 @@ class _HeadlessBackgroundSyncRunner {
     }
   }
 
-  String _categoryFor(LibrarySyncState state) {
+  String _categoryFor(
+    LibrarySyncState state, {
+    required bool hasActivePlayback,
+  }) {
     if (state.planReason == 'leaseHeld') {
       return 'leaseHeld';
     }
@@ -240,7 +249,8 @@ class _HeadlessBackgroundSyncRunner {
       LibrarySyncStatus.succeeded ||
       LibrarySyncStatus.partial ||
       LibrarySyncStatus.skipped => 'succeeded',
-      LibrarySyncStatus.deferred => 'deferredPolicy',
+      LibrarySyncStatus.deferred =>
+        hasActivePlayback ? 'deferredPlayback' : 'deferredPolicy',
       LibrarySyncStatus.failed => 'permanentFailure',
       LibrarySyncStatus.cancelled => 'stoppedBySystem',
       LibrarySyncStatus.idle || LibrarySyncStatus.running => 'noWorkDue',
@@ -261,15 +271,17 @@ class _HeadlessBackgroundSyncRunner {
   }
 }
 
-/// Keeps a headless worker's policy current without retaining a UI provider.
+/// Keeps a headless worker's network and playback policy current.
 ///
 /// The coordinator and engine invoke their supplied policy reader at their
 /// existing execution gates. This tracker makes those reads reflect both a
 /// connectivity transition and a native metering change that occurs after the
-/// worker has started.
-class BackgroundNetworkPolicyTracker {
+/// worker has started. Native playback is polled on the same two-second timer;
+/// live sessions, including paused playback, reach the existing admission gates.
+class BackgroundSyncPolicyTracker {
   new _({
     required SyncNetworkPolicy initialPolicy,
+    required this._hasActivePlayback,
     required this._readConnectivity,
     required this._connectivityChanges,
     required this._readNativeMetered,
@@ -277,14 +289,15 @@ class BackgroundNetworkPolicyTracker {
     required this._refreshInterval,
   }) : _current = initialPolicy;
 
-  static Future<BackgroundNetworkPolicyTracker> create({
+  static Future<BackgroundSyncPolicyTracker> create({
     required Future<List<ConnectivityResult>> Function() readConnectivity,
     required Stream<List<ConnectivityResult>> connectivityChanges,
     required Future<bool> Function() readNativeMetered,
     required bool backgroundSyncUnmeteredOnly,
     Duration refreshInterval = const Duration(seconds: 2),
   }) async {
-    final tracker = BackgroundNetworkPolicyTracker._(
+    final tracker = BackgroundSyncPolicyTracker._(
+      hasActivePlayback: await _readPlaybackActive(),
       initialPolicy: await _resolve(
         readConnectivity: readConnectivity,
         readNativeMetered: readNativeMetered,
@@ -306,11 +319,14 @@ class BackgroundNetworkPolicyTracker {
   final bool _backgroundSyncUnmeteredOnly;
   final Duration _refreshInterval;
   SyncNetworkPolicy _current;
+  bool _hasActivePlayback;
   StreamSubscription<List<ConnectivityResult>>? _subscription;
   Timer? _refreshTimer;
   Future<void> _pendingRefresh = Future<void>.value();
 
   SyncNetworkPolicy get current => _current;
+
+  bool get hasActivePlayback => _hasActivePlayback;
 
   void _start() {
     _subscription = _connectivityChanges.listen((_) => _queueRefresh());
@@ -318,6 +334,7 @@ class BackgroundNetworkPolicyTracker {
   }
 
   Future<void> refresh() async {
+    _hasActivePlayback = await _readPlaybackActive();
     _current = await _resolve(
       readConnectivity: _readConnectivity,
       readNativeMetered: _readNativeMetered,
@@ -333,6 +350,19 @@ class BackgroundNetworkPolicyTracker {
     _refreshTimer?.cancel();
     await _subscription?.cancel();
     await _pendingRefresh;
+  }
+
+  static Future<bool> _readPlaybackActive() async {
+    try {
+      return await _backgroundSyncChannel.invokeMethod<bool>(
+            'isPlaybackActive',
+          ) ??
+          true;
+    } on PlatformException {
+      return true;
+    } on MissingPluginException {
+      return true;
+    }
   }
 
   static Future<SyncNetworkPolicy> _resolve({

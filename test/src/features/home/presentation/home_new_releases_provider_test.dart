@@ -288,10 +288,17 @@ void main() {
     final searched = deezer.calls
         .where((call) => call.startsWith('search/artist:'))
         .toList();
+    // The three workers each read the disk cache before searching, so the
+    // order of the searches is not deterministic: assert the set. It is the
+    // played artist plus the library artists with the most songs (Library 34
+    // down to Library 6), and nothing below that window.
     expect(searched, hasLength(kNewReleasesCandidateArtists));
-    expect(searched.first, 'search/artist:Played Artist');
-    expect(searched[1], 'search/artist:Library 34');
-    expect(searched, isNot(contains('search/artist:Library 4')));
+    expect(searched.toSet(), <String>{
+      'search/artist:Played Artist',
+      for (var i = 34; i > 34 - (kNewReleasesCandidateArtists - 1); i--)
+        'search/artist:Library $i',
+    });
+    expect(searched, isNot(contains('search/artist:Library 5')));
     // The played artist ranks first on a tie; the window still applies.
     expect(releases.map((r) => r.album.id), <int>[11, 21]);
     final span = recorder.recentSpans().lastWhere(

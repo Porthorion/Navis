@@ -40,7 +40,15 @@ final cacheSystemUpgradeServiceProvider = Provider<CacheSystemUpgradeService>((
   );
   return CacheSystemUpgradeService(
     database: database,
-    currentEpoch: () => ref.read(libraryCacheEpochProvider.future),
+    currentEpoch: () async {
+      final epoch = await ref.read(libraryCacheEpochProvider.future);
+      if (!ref.mounted) return null;
+      // A first catalog can publish lastSynced before its readiness stamps.
+      await ref
+          .read(librarySyncControllerProvider.notifier)
+          .waitForActiveCatalogSync();
+      return epoch;
+    },
     hasCommittedCatalog: () async {
       final config = ref.read(serverConfigStateProvider).asData?.value;
       return config?.id != null &&

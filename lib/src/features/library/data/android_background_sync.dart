@@ -190,6 +190,7 @@ class AndroidBackgroundScheduleObservation {
       'bootstrapRetryExhausted',
       'retryCapReached',
       'alreadyDispatching',
+      'deferredPlayback',
     };
     final category = value?.toString();
     return allowed.contains(category) ? category : null;

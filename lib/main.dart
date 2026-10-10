@@ -21,6 +21,7 @@ import 'package:navis/src/features/settings/data/update_service.dart';
 import 'package:navis/src/providers/app_providers.dart';
 import 'package:navis/src/providers/provider_retry.dart';
 import 'package:navis/src/routing/desktop_window_controller.dart';
+import 'package:navis/src/utils/android_diagnostics_startup.dart';
 import 'package:navis/src/utils/app_logger.dart';
 import 'package:navis/src/utils/clone_diagnostics_path_provider.dart';
 import 'package:navis/src/utils/credential_redaction.dart';
@@ -70,14 +71,12 @@ Future<void> _runNavis() async {
   if (_syncDiagnosticsRuntimeEnabled &&
       _isAndroidRuntime &&
       _syncDiagnosticsMode == SyncDiagnosticsMode.clone) {
-    final sidecar = await _androidDiagnosticsIsSidecar();
-    if (sidecar != true) {
+    final sidecar = await androidDiagnosticsIsSidecar();
+    if (!sidecar) {
       throw StateError('Android clone diagnostics require a sidecar package.');
     }
     // Android must prepare its own scoped directory before Drift opens there.
-    await _androidDiagnosticsHandshakeChannel.invokeMethod<String>(
-      'artifactRoot',
-    );
+    await androidDiagnosticsArtifactRoot();
   }
   try {
     await purgeLegacyCoverArtCredentials();
@@ -350,8 +349,8 @@ Future<void> _startSyncDiagnostics({
     throw StateError('Sync diagnostics mode and handshake path are required.');
   }
   if (_isAndroidRuntime && mode == SyncDiagnosticsMode.clone) {
-    final isSidecar = await _androidDiagnosticsIsSidecar();
-    if (isSidecar != true) {
+    final isSidecar = await androidDiagnosticsIsSidecar();
+    if (!isSidecar) {
       throw StateError(
         'Android clone diagnostics require a non-empty sidecar app-id suffix.',
       );
@@ -394,22 +393,6 @@ const MethodChannel _androidDiagnosticsHandshakeChannel = MethodChannel(
   'com.navis.app/diagnostics_handshake',
 );
 
-/// audio_service warms the Flutter engine, and so runs `main`, before
-/// MainActivity attaches it and registers the diagnostics channel. Wait for
-/// the registration instead of failing clone startup on that race.
-Future<bool?> _androidDiagnosticsIsSidecar() async {
-  for (var attempt = 0; ; attempt++) {
-    try {
-      return await _androidDiagnosticsHandshakeChannel.invokeMethod<bool>(
-        'isSidecar',
-      );
-    } on MissingPluginException {
-      if (attempt >= 100) rethrow;
-      await Future<void>.delayed(const Duration(milliseconds: 100));
-    }
-  }
-}
-
 Future<void> _publishAndroidDiagnosticsHandshake(
   Map<String, Object?> handshake,
 ) async {
@@ -434,17 +417,11 @@ _createDiagnosticsPresentationController() async {
   }
   // Primary Android certification cannot mutate navigation or application
   // state, but app-owned screenshot capture is a required read-only evidence
-  // surface. Keep artifacts in the sidecar's scoped external files directory.
+  // surface. Keep artifacts in this package's scoped external files directory.
   if (_isAndroidRuntime &&
       _syncDiagnosticsMode == SyncDiagnosticsMode.primaryCertification) {
-    final artifactRoot = await _androidDiagnosticsHandshakeChannel
-        .invokeMethod<String>('artifactRoot');
-    if (artifactRoot == null || artifactRoot.isEmpty) {
-      return null;
-    }
-    return DiagnosticsPresentationController(
-      artifactRoot: Directory(artifactRoot),
-    );
+    final artifactRoot = await androidDiagnosticsArtifactRoot();
+    return DiagnosticsPresentationController(artifactRoot: artifactRoot);
   }
   return null;
 }

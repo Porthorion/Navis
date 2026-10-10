@@ -119,6 +119,7 @@ class MediaKitPlayer extends AudioPlayerPlatform {
         }
       }),
       _player.stream.duration.listen((duration) {
+        if (duration > Duration.zero) _playbackInitialized = true;
         if (_currentMedia?.extras?['overrideDuration'] == null) {
           _updateDuration(duration);
         }
@@ -268,8 +269,8 @@ class MediaKitPlayer extends AudioPlayerPlatform {
   /// disposed player, which surfaced as an unhandled exception.
   bool _released = false;
 
-  /// Whether mpv has initialized playback of the loaded file. Seeks sent
-  /// before that are rejected, so retained positions wait for it.
+  /// Whether mpv has initialized playback or reported a duration for this file.
+  /// Seeks sent before that are rejected, so retained positions wait for it.
   bool _playbackInitialized = false;
 
   /// The entry and position mpv starts the next load of that entry at.
@@ -286,12 +287,11 @@ class MediaKitPlayer extends AudioPlayerPlatform {
 
   late final DeferredSeek _deferredSeek = DeferredSeek(
     // Progressive streams can become playable without a native duration, so
-    // readiness is mpv's own playback initialization. The buffering flag
+    // readiness comes from native initialization or a fresh duration event,
+    // never the previous entry's cached duration. The buffering flag
     // cannot stand in for it: media_kit resets it while opening, before mpv
     // has loaded the file.
-    isReady: () =>
-        _mediaOpened &&
-        (_playbackInitialized || _player.state.duration > Duration.zero),
+    isReady: () => _mediaOpened && _playbackInitialized,
     // Only native position events report a landed seek. The command's
     // completion can precede decoding or represent a native no-op.
     apply: (position) async {
@@ -635,6 +635,9 @@ class MediaKitPlayer extends AudioPlayerPlatform {
     if (_released) return SeekResponse();
     if (request.index != null) {
       final position = request.position;
+      _playbackInitialized = false;
+      // A fresh entry starts at zero; only non-zero positions need a seek.
+      _deferredSeek.beginLoad(position);
       _nativeStart =
           _nativeStartSupported && position != null && position > Duration.zero
               ? (index: request.index!, position: position)
@@ -645,7 +648,7 @@ class MediaKitPlayer extends AudioPlayerPlatform {
 
     final position = request.position;
     if (position != null) {
-      _deferredSeek.request(position);
+      if (request.index == null) _deferredSeek.request(position);
       await _deferredSeek.flush();
     } else {
       _position = Duration.zero;

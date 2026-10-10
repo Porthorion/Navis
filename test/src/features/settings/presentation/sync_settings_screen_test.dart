@@ -1,3 +1,4 @@
+import 'package:drift/drift.dart' show Value;
 import 'package:material_ui/material_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_riverpod/misc.dart' show Override;
@@ -5,6 +6,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 import 'package:navis/l10n/app_localizations.dart';
 import 'package:navis/l10n/navis_localizations.dart';
+import 'package:navis/src/api/models/models.dart';
 import 'package:navis/src/database/navis_database.dart';
 import 'package:navis/src/features/auth/domain/server_config.dart';
 import 'package:navis/src/features/auth/presentation/server_config_provider.dart';
@@ -16,6 +18,8 @@ import 'package:navis/src/providers/app_providers.dart';
 import 'package:navis/src/utils/connectivity.dart';
 
 import '../../../../helpers/test_database.dart';
+import '../../../../helpers/library_sync_fakes.dart';
+import '../../../../helpers/library_sync_plan.dart';
 import '../../../../helpers/test_theme.dart';
 
 class _FakeLibrarySyncController extends LibrarySyncController {
@@ -143,6 +147,146 @@ Future<void> _pumpSyncSettings(
 }
 
 void main() {
+  testWidgets('unchanged probe keeps current freshness and the server notice', (
+    tester,
+  ) async {
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(1200, 900);
+    addTearDown(() {
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+    });
+    final database = createTestDatabase();
+    addTearDown(database.close);
+    final repository = await seedSyncSession(database);
+    const album = Album(id: 'incomplete', name: 'Incomplete', songCount: 2);
+    final api = FakeLibrarySyncApi()
+      ..fastPathPages[0] = [album]
+      ..albumDetails[album.id] = album.copyWith(
+        songs: [const Song(id: 'one', title: 'One', albumId: 'incomplete')],
+      )
+      ..indexes = Indexes(
+        lastModified: FakeLibrarySyncApi.defaultIndexesCursor,
+      );
+    final engine = serialDriftEngine(
+      api: api,
+      database: database,
+      repository: repository,
+    );
+    final first = await tester.runAsync(
+      () => engine.executeSyncPlan(
+        syncPlanForTest(LibrarySyncPlanKind.fullRepair),
+      ),
+    );
+    expect(first!.status, LibrarySyncStatus.succeeded);
+    expect(first.onlyIncompleteAlbumDetails, isTrue);
+    final probe = await tester.runAsync(engine.probeCatalog);
+    await _pumpSyncSettings(
+      tester,
+      database,
+      state: probe,
+      server: (await repository.getActiveServer())!,
+    );
+    expect(find.textContaining(' • Current'), findsOneWidget);
+    expect(find.textContaining('Verification pending'), findsNothing);
+    expect(
+      find.textContaining('A server rescan usually fixes this.'),
+      findsOneWidget,
+    );
+    expect(
+      find.textContaining("1 album's track list couldn't be loaded"),
+      findsOneWidget,
+    );
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pump();
+  }, skip: !sqliteAvailable);
+
+  for (final dateSource in [
+    'initial catalog',
+    'server sync',
+    'state sync',
+    'catalog update',
+  ]) {
+    testWidgets('last catalog date uses $dateSource evidence', (tester) async {
+      tester.view.devicePixelRatio = 1;
+      tester.view.physicalSize = const Size(1200, 900);
+      addTearDown(() {
+        tester.view.resetPhysicalSize();
+        tester.view.resetDevicePixelRatio();
+      });
+      final database = createTestDatabase();
+      addTearDown(database.close);
+      final serverId = await database
+          .into(database.serverConfigTable)
+          .insert(
+            ServerConfigTableCompanion.insert(
+              url: 'https://example.com',
+              username: 'alice',
+              apiVersion: '1.16.1',
+            ),
+          );
+      final initialDate = DateTime(2026, 2, 1, 12);
+      final serverDate = DateTime(2026, 2, 2, 12);
+      final stateDate = DateTime(2026, 2, 3, 12);
+      final catalogDate = DateTime(2026, 2, 4, 12);
+      await database.librarySyncDao.writeState(
+        LibrarySyncStateTableCompanion(
+          serverId: Value(serverId),
+          currentGeneration: const Value(1),
+          initialCatalogUsableAt: Value(initialDate),
+        ),
+      );
+      final expectedDate = switch (dateSource) {
+        'catalog update' => catalogDate,
+        'state sync' => stateDate,
+        'server sync' => serverDate,
+        _ => initialDate,
+      };
+      await _pumpSyncSettings(
+        tester,
+        database,
+        server: _defaultServer.copyWith(
+          id: serverId,
+          lastSynced: dateSource == 'initial catalog' ? null : serverDate,
+        ),
+        state: LibrarySyncState(
+          status: LibrarySyncStatus.idle,
+          stage: LibrarySyncStage.idle,
+          lastSyncedAt:
+              dateSource == 'state sync' || dateSource == 'catalog update'
+              ? stateDate
+              : null,
+          lastCatalogUpdatedAt: dateSource == 'catalog update'
+              ? catalogDate
+              : null,
+        ),
+      );
+      final catalogTile = find.ancestor(
+        of: find.text('Last Catalog Update'),
+        matching: find.byType(ListTile),
+      );
+      final material = MaterialLocalizations.of(
+        tester.element(find.byType(SyncSettingsScreen)),
+      );
+      expect(
+        find.descendant(
+          of: catalogTile,
+          matching: find.textContaining(material.formatFullDate(expectedDate)),
+        ),
+        findsOneWidget,
+      );
+      expect(
+        find.descendant(
+          of: catalogTile,
+          matching: find.textContaining('Never synced'),
+        ),
+        findsNothing,
+      );
+      await tester.pumpWidget(const SizedBox.shrink());
+      await tester.pump(const Duration(milliseconds: 1));
+    });
+  }
+
   testWidgets('shows the latest destructive library change from the ledger', (
     tester,
   ) async {
@@ -486,6 +630,12 @@ void main() {
     );
     await tester.pumpAndSettle();
     expect(find.text('Outcome: waiting for first setup'), findsOneWidget);
+    await database.librarySyncDao.writeAndroidBackgroundStatus(
+      serverId: serverId,
+      workerResult: 'deferredPlayback',
+    );
+    await tester.pumpAndSettle();
+    expect(find.text('Outcome: deferred playback'), findsOneWidget);
 
     await tester.pumpWidget(const SizedBox.shrink());
     await tester.pump(const Duration(milliseconds: 1));

@@ -90,6 +90,7 @@ void main() {
         lrclibClient: LrclibClient(),
         readCoverArtCacheManager: _MockCacheManager.new,
         artworkStore: _OfflineArtworkStore(),
+        readLocalizations: () => throw StateError('unexpected locale read'),
       );
     });
 

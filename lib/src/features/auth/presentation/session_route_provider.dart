@@ -41,11 +41,11 @@ Future<bool> isInitialCatalogSetupPending(
   );
 }
 
-/// A first-setup run cannot dismiss the required screen while catalog work or
-/// verification is still outstanding, even when a candidate was promoted.
+/// A first-setup run completes once no blocking catalog work or verification
+/// remains, even if server-incomplete album details still need retries.
 bool isCompletedInitialSyncRun(LibrarySyncState result) =>
     result.status == LibrarySyncStatus.succeeded &&
-    (result.pendingHydrationCount ?? 0) == 0 &&
+    !result.hasBlockingPendingAlbums &&
     result.remainingVerificationCount == 0 &&
     result.candidateGeneration == null &&
     result.candidateStatus == null;
@@ -54,7 +54,8 @@ bool isCompletedInitialSyncRun(LibrarySyncState result) =>
 /// after the authoritative catalog has been published. Other partial work
 /// remains on the full-screen route.
 bool isUsableIncompleteAlbumSyncRun(LibrarySyncState result) =>
-    result.status == LibrarySyncStatus.partial &&
+    (result.status == LibrarySyncStatus.partial ||
+        result.status == LibrarySyncStatus.succeeded) &&
     result.stage == LibrarySyncStage.completed &&
     result.metadataReady &&
     !result.isHydrating &&
@@ -94,7 +95,8 @@ Future<bool> recordInitialCatalogReadiness({
       )) {
         return false;
       }
-    } else {
+    }
+    if (isUsableIncompleteAlbumSyncRun(result)) {
       if (await database.libraryDao.countPendingHydrationAlbums() !=
           result.pendingHydrationCount) {
         return false;
