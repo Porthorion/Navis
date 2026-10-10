@@ -15,11 +15,11 @@ import 'package:navis/src/theme/navis_tokens.dart';
 /// and setup.
 ///
 /// Each ruler is the Speed and Pitch ruler ([AdjustmentRuler]) in whole-step
-/// mode, so its scale is a picture of the result: eleven stepped swatches,
-/// one per step, painted from the style's real scheme at that step. The
-/// swatches are computed from [seed], [style], [brightness], [oled] and the
-/// other axis, never from the ambient theme, so they hold still while the app
-/// recolours around them.
+/// mode, so its scale is a picture of the result: one gradient strip through
+/// eleven colours, one per step, taken from the style's real scheme at that
+/// step. The colours are computed from [seed], [style], [brightness], [oled]
+/// and the other axis, never from the ambient theme, so they hold still while
+/// the app recolours around them.
 ///
 /// The widget keeps the values it shows. While a ruler moves it reports each
 /// whole step through [onPreview]; when input ends (drag release, stepper,
@@ -374,9 +374,10 @@ class _TuningRow extends StatelessWidget {
                   onChangeEnd: onEnd,
                   range: const AdjustmentRange(minimum: -5, maximum: 5),
                   snapStep: 1,
-                  // 32 px a step keeps about six steps in view, so the
-                  // swatches ahead of the needle preview where it is going.
-                  pixelsPerUnit: 32,
+                  // 64 px a step keeps about six steps in view, so the
+                  // colours ahead of the needle preview where it is going,
+                  // and leaves room for a click every 8 px between steps.
+                  pixelsPerUnit: 64,
                   interactionToken: resetToken,
                   labelBuilder: signed,
                   band: band,

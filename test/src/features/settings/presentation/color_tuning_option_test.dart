@@ -216,7 +216,7 @@ void main() {
         tester.getCenter(_ruler('color')),
       );
       for (var i = 0; i < 8; i++) {
-        await gesture.moveBy(const Offset(-16, 0));
+        await gesture.moveBy(const Offset(-32, 0));
         await tester.pump();
       }
       expect(commits, isEmpty, reason: 'nothing is saved mid-drag');
@@ -235,6 +235,62 @@ void main() {
       expect(key('color-value'), findsOneWidget);
       expect(tester.widget<Text>(key('color-value')).data, '+${steps.last}');
     });
+
+    testWidgets(
+      'feel like Speed: clicks on lines, taps when the colour changes',
+      (tester) async {
+        final haptics = <Object?>[];
+        tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+          SystemChannels.platform,
+          (call) async {
+            if (call.method == 'HapticFeedback.vibrate') {
+              haptics.add(call.arguments);
+            }
+            return null;
+          },
+        );
+        addTearDown(
+          () => tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+            SystemChannels.platform,
+            null,
+          ),
+        );
+        final previews = <ColorAdjustment>[];
+        await pump(
+          tester,
+          _Harness(
+            mode: _Mode.dark,
+            initial: const ColorAdjustment(vividness: -1),
+            previews: previews,
+          ),
+        );
+        int count(String type) =>
+            haptics.where((h) => h == 'HapticFeedbackType.$type').length;
+
+        final gesture = await tester.startGesture(
+          tester.getCenter(_ruler('color')),
+        );
+        // Get past the drag slop, which starts the drag without moving it.
+        await gesture.moveBy(const Offset(-30, 0), timeStamp: Duration.zero);
+        await tester.pump();
+        haptics.clear();
+        previews.clear();
+        var time = Duration.zero;
+        // -1 to 0.56: the colour changes at -0.5 (to the default) and at 0.5.
+        for (var i = 0; i < 20; i++) {
+          time += const Duration(milliseconds: 40);
+          await gesture.moveBy(const Offset(-5, 0), timeStamp: time);
+          await tester.pump();
+        }
+        expect(previews.map((p) => p.vividness), [0, 1]);
+        expect(count('mediumImpact'), 1, reason: 'reaching the default');
+        expect(count('lightImpact'), 1, reason: 'changing to +1');
+        expect(count('selectionClick'), 10);
+        await gesture.up();
+        await tester.pumpAndSettle();
+        expect(count('mediumImpact'), 1, reason: 'releasing is silent');
+      },
+    );
 
     testWidgets('steppers step once, preview and save', (tester) async {
       final previews = <ColorAdjustment>[];

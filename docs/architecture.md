@@ -1020,13 +1020,19 @@ target-selection rules.
   - Fine-Tune Colors (`color_tuning_option.dart`, `ColorTuningOption`) holds
     the Color (Muted to Vivid) and Brightness (Lighter to Deeper) rulers. Each
     is the Speed and Pitch `AdjustmentRuler` in whole-step mode (`snapStep: 1`,
-    value = the step −5…+5, 32 px a step, a minor haptic tick per step and the
-    firmer neutral tick at 0), laid out like the Speed and Pitch row (− stepper,
-    ruler, + stepper via the shared `RulerStepButton`) with end captions and a
-    readout ("Default", "+2", "−3"). The scale carries a `RulerBand`: eleven
-    stepped swatches, one per step, built with `buildStyledColorScheme` from the
-    previewed seed, style, brightness, OLED flag and the other axis, never from
-    the ambient theme, so they hold still while the app recolours around them.
+    value = the step −5…+5, 64 px a step, with small ticks every 8 px between
+    the steps and the haptics described under the ruler below), laid out like
+    the Speed and Pitch row (− stepper, ruler, + stepper via the shared
+    `RulerStepButton`) with end captions and a readout ("Default", "+2", "−3").
+    The scale carries a `RulerBand`: eleven colours, one per step, built with
+    `buildStyledColorScheme` from the previewed seed, style, brightness, OLED
+    flag and the other axis, never from the ambient theme, so they hold still
+    while the app recolours around them. The ruler paints them as one linear
+    gradient with a stop on each step's tick, so the colour under a tick is
+    that step's own and it blends smoothly between ticks (the half step past
+    each end holds its end colour), clipped to the rounded strip and faded at
+    the edges like the ticks, with a hairline frame. Each tick, small or main,
+    takes the ink of the nearest step.
     Color paints `primary` (its needle is the live primary, with `onPrimary`
     ticks); Brightness paints `surface`, or `surfaceContainerHigh` in OLED
     where surface stays black. The widget keeps the values it shows; while a
@@ -1044,20 +1050,17 @@ target-selection rules.
     [decisions/2026-10-07-colour-styles.md](decisions/2026-10-07-colour-styles.md).
   - Settings › Appearance (`appearance_settings_screen.dart`) has four
     sections under one `AppearanceHeading` (`appearance_layout.dart`):
-    Theme (Theme Mode, Use OLED When Dark in Auto only),
-    Color (Color Style, Fine-Tune Colors, Night Schedule, Accent Color, then Dynamic Album Color
-    directly under the accent grid, whose note names the switch), Shape & Layout (Flat
-    Surfaces, Corner Style, Artwork Shape with its three selectors, Artwork
-    Theme (Theme Mode, Use OLED When Dark in Auto only, Night Schedule),
-    Color (Color Style, Accent Color, then Dynamic Album Color directly under
-    the accent grid, whose note names the switch, then Album Art Shade with its
-    Use Cover Color sub-switch), Shape & Layout (Flat Surfaces with its three area switches
-    revealed while Flat is on, Corner Style, Artwork Shape with its three selectors, Artwork
-    Size, Density, Artist View Mode) and Now Playing (Now Playing Background).
-    Home Sections, Page Visibility and Desktop Navigation stay collapsed
-    below. Night Schedule shows its explanation while off and the time pills
-    while on; with Night as the chosen style the switch is locked off and says
-    so. `app.dart` re-checks the scheduled style when the app resumes.
+    Theme (Theme Mode, Use OLED When Dark in Auto only), Color (Color Style,
+    Fine-Tune Colors, Night Schedule, Accent Color, then Dynamic Album Color
+    directly under the accent grid, whose note names the switch, then Album Art
+    Shade with its Use Cover Color sub-switch), Shape & Layout (Flat Surfaces
+    with its three area switches revealed while Flat is on, Corner Style,
+    Artwork Shape with its three selectors, Artwork Size, Density, Artist View
+    Mode) and Now Playing (Now Playing Background). Home Sections, Page
+    Visibility and Desktop Navigation stay collapsed below. Night Schedule
+    shows its explanation while off and the time pills while on; with Night as
+    the chosen style the switch is locked off and says so. `app.dart` re-checks
+    the scheduled style when the app resumes.
   - Settings and setup share the option widgets and one `AppearanceOptionSet`
     (`appearance_options.dart`), whose `AppearanceOptionKind` order (OLED,
     Fine-Tune Colors, Night Schedule, Flat Surfaces, Corner Style, Density,
@@ -1399,6 +1402,8 @@ Reusable UI components used across features:
 - **Actions**
   - `star_button.dart` - Star/unstar action
   - `context_menu.dart` - Bottom sheet context menu
+  - `preset_picker.dart` - `PresetPicker` (dropdown plus save, update, rename
+    and delete menu over any named presets) and `TextEntryDialog`
 
 ### Hero Animation Pattern
 
@@ -1643,20 +1648,15 @@ markers in a transaction; the integrations settings dump exposes all three.
 
 The look step shows the appearance options through the same callback-driven
 widgets as Settings › Appearance (`settings/presentation/appearance_options.dart`).
-Theme Mode, Color Style, Night Schedule and Accent Color are always visible; a
-"More appearance options" group (`SettingsCollapsibleGroup`, children built
-only while open) holds Use OLED When Dark (Auto only), Fine-Tune Colors, Flat Surfaces, Corner
-Style, Density and Now Playing Background, in Settings' relative order. It
-starts open when any of them carries a pending tag (OLED only counts in Auto)
-and closed otherwise. The step shows the "Scroll for more" hint like the other
-Theme Mode, Color Style and Accent Color are always visible; a "More appearance
-options" group (`SettingsCollapsibleGroup`, children built only while open)
-holds Use OLED When Dark (Auto only), Fine-Tune Colors, Night Schedule, Flat Surfaces (with its
-Panels and Shadows, Now Playing and Text Over Artwork switches while Flat is
-on), Corner Style, Density and Now Playing Background, in Settings' relative
-order; Album Art Shade (with Use Cover Color) sits after the accent hint, outside the group.
-It starts open when any of them carries a pending tag (OLED only counts in
-Auto, the Flat areas only while Flat is on) and closed otherwise. The step shows the "Scroll for more" hint like the other
+Theme Mode, Color Style, Night Schedule and Accent Color are always visible;
+Album Art Shade (with Use Cover Color) sits after the accent hint. A "More
+appearance options" group (`SettingsCollapsibleGroup`, children built only
+while open) holds Use OLED When Dark (Auto only), Fine-Tune Colors, Flat
+Surfaces (with its Panels and Shadows, Now Playing and Text Over Artwork
+switches while Flat is on), Corner Style, Density and Now Playing Background,
+in Settings' relative order. It starts open when any of them carries a pending
+tag (OLED only counts in Auto, the Flat areas only while Flat is on) and closed
+otherwise. The step shows the "Scroll for more" hint like the other
 steps. Choices write only to the draft that Finish
 saves through `SettingsRepository.saveOnboardingChanges`: it compares against
 the hydrated entry snapshot and uses existing targeted DAO writers, preserving
@@ -3305,10 +3305,17 @@ Shift+Arrow and speed buttons step 0.10, independent pitch buttons step one
 semitone; holding a − or + button repeats every 120 ms and persists once on
 release. Speed quick-pick chips (0.5×, 0.75×, 1×, 1.25× and 1.5×, filtered by the
 backend range) select values in one tap. The chips sit in equal-width slots, so
-1× stays centred. Large text falls back to a centred wrap. Presets use a `DropdownMenu` (Custom while edited, Normal,
-then saved presets; unsupported ones disabled) with a ⋮ menu to save, update,
-rename or delete (with confirmation) the current or originating preset. Exact entry allows two decimals and decimal
-commas, validated inline.
+1× stays centred. Large text falls back to a centred wrap. Presets use the shared, data-driven `PresetPicker`
+(`common_widgets/preset_picker.dart`): a `DropdownMenu` over `PresetPickerEntry`
+values (Custom while `selectedId` is null, Normal, then saved presets;
+unsupported ones disabled with a tooltip) and a ⋮ menu to save as new, update,
+rename or delete (with confirmation) the current or originating preset
+(`updateId` and `manageId`). `PresetPickerLabels` carries every string, and the
+async callbacks (`onSelect`, `onSaveNew`, `onUpdate`, `onRename`, `onDelete`)
+own persistence; `onSaveNew` and `onRename` return the error shown inline in
+the name dialog. The panel supplies the Speed and Pitch wording and
+`PlaybackAdjustmentController` calls. Its `TextEntryDialog` also serves exact
+entry, which allows two decimals and decimal commas, validated inline.
 
 Rulers move continuously under a fixed marker with ticks at 0.01 and labels at
 0.10 (eight logical pixels per minor tick). They sit flat on the panel with no
@@ -3329,7 +3336,12 @@ finite bounds so reversing at an endpoint responds immediately. While dragging,
 0.01 line gives a selection click (throttled to one per 12 ms of pointer time),
 0.10 lines a light impact and the neutral value a medium impact; release
 settling and keyboard steps stay silent, and the platform touch-feedback setting
-applies. The − and + buttons sit at the ends of the ruler they move, in a row
+applies. A whole-step ruler (`snapStep`, the colour rulers) uses
+`snapTickFeedback` instead: a selection click on each line, one every 8 px
+(same 12 ms throttle) and drawn as small ticks, a light impact exactly when the
+rounded step changes, which is when the preview colour changes, and a medium
+impact when that step is the reset value (0); crossing the zero line itself
+stays a click. The − and + buttons sit at the ends of the ruler they move, in a row
 kept left-to-right because the scale always puts lower values on the left.
 Speed has no separate Reset (its 1× chip does that); Pitch shows Reset beside
 its heading only while it differs from 0 semitones. Endpoint feedback and the

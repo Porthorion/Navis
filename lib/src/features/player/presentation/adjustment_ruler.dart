@@ -19,12 +19,13 @@ enum RulerTick { none, minor, major, neutral }
 /// or 0 semitones) outranks a major line, which outranks a minor one.
 ///
 /// A whole-step ruler ([AdjustmentRuler.snapStep]) passes its own [perUnit]
-/// line density and a null [majorEvery], so every step is a minor tick.
+/// line density and a null [majorEvery], so every line is a minor tick. A null
+/// [resetValue] has no neutral line.
 @visibleForTesting
 RulerTick rulerTickFeedback(
   double from,
   double to,
-  double resetValue, {
+  double? resetValue, {
   int perUnit = 100,
   int? majorEvery = 10,
 }) {
@@ -42,12 +43,46 @@ RulerTick rulerTickFeedback(
     last = (start - epsilon).ceil() - 1;
   }
   if (last < first) return RulerTick.none;
-  final reset = (resetValue * perUnit).round();
-  if (reset >= first && reset <= last) return RulerTick.neutral;
+  if (resetValue != null) {
+    final reset = (resetValue * perUnit).round();
+    if (reset >= first && reset <= last) return RulerTick.neutral;
+  }
   if (majorEvery != null && (first / majorEvery).ceil() * majorEvery <= last) {
     return RulerTick.major;
   }
   return RulerTick.minor;
+}
+
+/// Haptics for a whole-step ruler ([AdjustmentRuler.snapStep]) dragged from
+/// [from] to [to], where the value settles on the nearest of [perUnit] steps
+/// per unit.
+///
+/// Every one of the [subdivisions] lines per step is a selection click
+/// ([RulerTick.minor]). The moment the rounded step changes, which is when the
+/// previewed value does, is a light impact ([RulerTick.major]), or a medium one
+/// ([RulerTick.neutral]) when it lands on [resetValue]. A stronger tick
+/// replaces the click of the line it coincides with.
+@visibleForTesting
+RulerTick snapTickFeedback(
+  double from,
+  double to,
+  double resetValue, {
+  required int perUnit,
+  required int subdivisions,
+}) {
+  final rounded = (to * perUnit).round();
+  if ((from * perUnit).round() != rounded) {
+    return rounded == (resetValue * perUnit).round()
+        ? RulerTick.neutral
+        : RulerTick.major;
+  }
+  return rulerTickFeedback(
+    from,
+    to,
+    null,
+    perUnit: perUnit * subdivisions,
+    majorEvery: null,
+  );
 }
 
 /// A stepped colour strip painted behind a whole-step ruler's scale.
@@ -116,9 +151,11 @@ class AdjustmentRuler extends StatefulWidget {
   final bool readOnly;
 
   /// Spacing of the supported values when they are whole steps rather than
-  /// hundredths. Dragging settles on a step, every step is one minor haptic
-  /// tick (stronger on [resetValue]) and keyboard and wheel input move a step
-  /// at a time.
+  /// hundredths. Dragging settles on a step and keyboard and wheel input move
+  /// a step at a time. Small ticks every 8 logical pixels divide
+  /// each step; a drag clicks on each, taps harder the moment the
+  /// rounded step changes and harder again when that step is [resetValue]
+  /// (see [snapTickFeedback]).
   final double? snapStep;
 
   /// Text for a tick label and for the semantics of the next value.
@@ -178,12 +215,24 @@ class _AdjustmentRulerState extends State<AdjustmentRuler>
 
   static const _settleDuration = Duration(milliseconds: 140);
 
+  /// Spacing of the small ticks between the steps of a whole-step ruler.
+  static const _snapMinorSpacing = 8.0;
+
   /// Lines per unit of value: hundredths, or one per snap step.
   int get _perUnit =>
       widget.snapStep == null ? 100 : (1 / widget.snapStep!).round();
 
   /// Every tenth line is labelled and stronger; whole steps have none.
   int? get _majorEvery => widget.snapStep == null ? 10 : null;
+
+  /// Small lines per step on a whole-step ruler, one every
+  /// [_snapMinorSpacing] px; 1 means none.
+  int get _subdivisions => widget.snapStep == null
+      ? 1
+      : math.max(
+          1,
+          (widget.pixelsPerUnit / _perUnit / _snapMinorSpacing).round(),
+        );
 
   /// [value] moved by [steps] lines, without accumulating float drift.
   double _stepBy(double value, int steps) => widget.snapStep == null
@@ -198,13 +247,21 @@ class _AdjustmentRulerState extends State<AdjustmentRuler>
     );
   }
 
-  RulerTick _feedback(double from, double to) => rulerTickFeedback(
-    from,
-    to,
-    widget.resetValue,
-    perUnit: _perUnit,
-    majorEvery: _majorEvery,
-  );
+  RulerTick _feedback(double from, double to) => widget.snapStep == null
+      ? rulerTickFeedback(
+          from,
+          to,
+          widget.resetValue,
+          perUnit: _perUnit,
+          majorEvery: _majorEvery,
+        )
+      : snapTickFeedback(
+          from,
+          to,
+          widget.resetValue,
+          perUnit: _perUnit,
+          subdivisions: _subdivisions,
+        );
 
   @override
   void didUpdateWidget(AdjustmentRuler oldWidget) {
@@ -452,6 +509,7 @@ class _AdjustmentRulerState extends State<AdjustmentRuler>
                           ? widget.accent ?? colors.primary
                           : colors.outline,
                       perUnit: _perUnit,
+                      subdivisions: _subdivisions,
                       majorEvery: _majorEvery,
                       labelBuilder: widget.labelBuilder,
                       band: widget.band,
@@ -492,6 +550,7 @@ class _RulerPainter extends CustomPainter {
     required this.textDirection,
     required this.textScaler,
     required this.perUnit,
+    required this.subdivisions,
     required this.majorEvery,
     required this.labelBuilder,
     required this.band,
@@ -514,6 +573,9 @@ class _RulerPainter extends CustomPainter {
   /// ones sit (null when every line is minor).
   final int perUnit;
   final int? majorEvery;
+
+  /// Small ticks per line on a whole-step ruler (1 draws none).
+  final int subdivisions;
   final String Function(double value) labelBuilder;
   final RulerBand? band;
   final double bandRadius;
@@ -523,6 +585,7 @@ class _RulerPainter extends CustomPainter {
   static const _bandTop = 14.0;
   static const _bandBottom = 38.0;
   static const _bandTickTop = 29.0;
+  static const _minorTickHeight = 4.0;
 
   /// The band swatch index for [tickValue], clamped to the strip.
   int _bandIndex(RulerBand band, double tickValue) {
@@ -548,28 +611,19 @@ class _RulerPainter extends CustomPainter {
     // The strip fades at the edges exactly like the ticks do, so the scale
     // reads as sliding past rather than being cut off.
     final bounds = Offset.zero & size;
+    // One gradient with a stop on each step's tick, so the colour under a
+    // tick is that step's own and the strip blends smoothly between them. The
+    // half step beyond each end holds its end colour.
+    final count = band.colors.length;
+    final fill = Paint()
+      ..shader = LinearGradient(
+        colors: band.colors,
+        stops: [for (var i = 0; i < count; i++) (i + 0.5) / count],
+      ).createShader(strip.outerRect);
     canvas
       ..saveLayer(bounds, Paint())
-      ..save()
-      ..clipRRect(strip);
-    final paint = Paint();
-    for (var i = 0; i < band.colors.length; i++) {
-      final centre = x(minimum + i / perUnit);
-      if (centre + half < 0 || centre - half > size.width) continue;
-      paint.color = band.colors[i];
-      // A hair of overlap hides the seam between neighbouring swatches.
-      canvas.drawRect(
-        Rect.fromLTRB(
-          centre - half,
-          _bandTop,
-          centre + half + 0.5,
-          _bandBottom,
-        ),
-        paint,
-      );
-    }
+      ..drawRRect(strip, fill);
     canvas
-      ..restore()
       // A hairline frames the strip, so near-surface swatches (light paper,
       // dark panels) still read as a scale against the page.
       ..drawRRect(
@@ -594,6 +648,42 @@ class _RulerPainter extends CustomPainter {
           ).createShader(bounds),
       )
       ..restore();
+  }
+
+  /// Short lines between the steps of a whole-step ruler: texture that matches
+  /// the clicks of a drag. They span the strip, including its half step past
+  /// either end, and read against the nearest step like the main ticks.
+  void _paintMinorTicks(Canvas canvas, Size size, RulerBand? band) {
+    final center = size.width / 2;
+    final lines = perUnit * subdivisions;
+    final radius = size.width / (2 * pixelsPerUnit);
+    final minimum = range.minimum;
+    final maximum = range.maximum;
+    final margin = 0.5 / perUnit;
+    final paint = Paint()..strokeWidth = 1;
+    for (
+      var line = ((value - radius) * lines).floor();
+      line <= ((value + radius) * lines).ceil();
+      line++
+    ) {
+      if (line % subdivisions == 0) continue;
+      final lineValue = line / lines;
+      if ((minimum != null && lineValue < minimum - margin) ||
+          (maximum != null && lineValue > maximum + margin)) {
+        continue;
+      }
+      final x = center + (lineValue - value) * pixelsPerUnit;
+      final opacity = (math.min(x, size.width - x) / (size.width * 0.15)).clamp(
+        0.0,
+        1.0,
+      );
+      final ink = band != null ? band.inks[_bandIndex(band, lineValue)] : color;
+      canvas.drawLine(
+        Offset(x, _bandBottom - _minorTickHeight),
+        Offset(x, _bandBottom),
+        paint..color = ink.withValues(alpha: opacity * 0.4),
+      );
+    }
   }
 
   @override
@@ -653,6 +743,7 @@ class _RulerPainter extends CustomPainter {
         label.paint(canvas, Offset(x - label.width / 2, 44));
       }
     }
+    if (subdivisions > 1) _paintMinorTicks(canvas, size, band);
     paint
       ..color = accent
       ..strokeWidth = 2;
@@ -685,6 +776,7 @@ class _RulerPainter extends CustomPainter {
       range.minimum != old.range.minimum ||
       range.maximum != old.range.maximum ||
       perUnit != old.perUnit ||
+      subdivisions != old.subdivisions ||
       majorEvery != old.majorEvery ||
       band != old.band ||
       bandRadius != old.bandRadius;
