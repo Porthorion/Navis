@@ -26,6 +26,7 @@ class _FullscreenLyricsPage extends ConsumerWidget {
     final backLabel = MaterialLocalizations.of(context).backButtonTooltip;
     return Scaffold(
       appBar: AppBar(
+        centerTitle: true,
         leadingWidth: 108,
         leading: TextButton.icon(
           onPressed: () => Navigator.of(context).maybePop(),
@@ -43,6 +44,7 @@ class _FullscreenLyricsPage extends ConsumerWidget {
             padding: const EdgeInsets.fromLTRB(16, 0, 16, 10),
             child: Text(
               shownTitle,
+              textAlign: TextAlign.center,
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
               style: Theme.of(context).textTheme.bodySmall?.copyWith(

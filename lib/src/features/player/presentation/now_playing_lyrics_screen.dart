@@ -14,7 +14,7 @@ class NowPlayingLyricsScreen extends ConsumerWidget {
       playerStateProvider.select((playback) => playback.currentSongId),
     );
     return Scaffold(
-      appBar: AppBar(title: Text(l10n.lyricsTitle)),
+      appBar: AppBar(centerTitle: true, title: Text(l10n.lyricsTitle)),
       body: songId == null
           ? Center(
               child: Text(
