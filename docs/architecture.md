@@ -487,8 +487,8 @@ and Android profile builds:
    valid mode and a desktop handshake path when applicable. Android supports
    read-only `primary-certification` observation with a handshake in the app-specific
    external files directory; host tooling reaches loopback through `adb
-   forward`. Clone diagnostics remain desktop-only because their isolated
-   database/cache contract is filesystem-owned by the launcher.
+   forward`. Android clone diagnostics require a sidecar package and an
+   isolated database/cache root in that package's scoped storage.
 2. Clone mode opens an isolated database and cache tree. Primary certification
    uses the normal profile only with the launcher's backup and mutation
    restrictions.
@@ -498,11 +498,16 @@ and Android profile builds:
    relies on its per-user diagnostics directory and does not invoke a POSIX
    permission command before starting the request loop. On Android, the host
    receives the handshake from the app-owned native bridge in
-   `getExternalFilesDir()/navis-diagnostics`; raw Dart I/O cannot create the
-   scoped-storage path. Clone Android bootstrap now asks that existing native
-   bridge to prepare the scoped directory before Drift opens, and checks the
-   sidecar identity first. The bridge validates the bounded record and replaces
-   it before the loopback server begins serving.
+   `getExternalFilesDir(null)/navis-diagnostics`. Android startup resolves
+   `isSidecar` by comparing `PackageInfo.packageName` with `com.navis.app.navis`
+   and creates `artifactRoot` below `getExternalStorageDirectory()`, which maps
+   to the same app-specific external files directory. These lookups use the
+   application context and do not wait for MainActivity to attach to
+   audio_service's warmed engine. Clone bootstrap checks identity and creates
+   the directory before Drift opens. The `com.navis.app/diagnostics_handshake`
+   activity channel retains `publish`/`clear` and the sidecar fixture-tree
+   lookup; the bridge validates and replaces the bounded handshake before
+   the loopback server begins serving.
    The headless background-sync callback is also retained as a
    `@pragma('vm:entry-point')` root-library forwarder in `main.dart`: Android's
    named `DartEntrypoint` resolves from that root library in profile/release
@@ -519,7 +524,7 @@ and Android profile builds:
 Clone diagnostics wrap the root Flutter application in a diagnostics-owned
 `RepaintBoundary`. Android primary certification uses that same boundary only
 for authenticated, read-only screenshot capture; its artifacts stay below the
-sidecar's scoped external diagnostics directory, while all route and feature
+package's scoped external diagnostics directory, while all route and feature
 controls remain disabled. `GET /v1/presentation/status` reports the live route and
 viewport plus post-bootstrap app readiness,
 `POST /v1/presentation/navigate` drives the real `GoRouter`, and

@@ -1318,7 +1318,11 @@ Every diagnostic or agent-control surface must:
   their isolated per-user diagnostics directory and must not wait for a POSIX
   permission command before serving requests. Android publishes the same
   bounded handshake through an app-owned native bridge to its external-files
-  directory; do not attempt to create `/sdcard/Android/data/...` with Dart I/O.
+  directory. Startup reads package identity through `package_info_plus` and
+  creates `navis-diagnostics` below `getExternalStorageDirectory()` (Android's
+  `getExternalFilesDir(null)`), without waiting for the activity's
+  `com.navis.app/diagnostics_handshake` channel. Keep scoped-storage paths
+  platform-resolved rather than hard-coding `/sdcard/Android/data/...`.
 - Use an isolated clone of the configured database and cache by default. Use
   primary certification only when explicitly justified, after the clone
   scenario passes, with its backup and mutation restrictions intact.
