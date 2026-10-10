@@ -2,10 +2,22 @@ package com.navis.app.navis
 
 import androidx.work.NetworkType
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
 import org.junit.Test
 import org.junit.Assert.assertThrows
 
 class AndroidBackgroundSyncSchedulerTest {
+    @Test
+    fun `active audio sessions defer engine creation until a later dispatch`() {
+        val outcome = backgroundSyncPlaybackDeferral(true)
+        assertEquals(BackgroundSyncNativeOutcome("deferredPlayback", "deferredPlayback"), outcome)
+        assertEquals(
+            BackgroundSyncWorkerDirective.SUCCESS,
+            BackgroundSyncWorkerResultMapper.directiveFor(outcome?.result),
+        )
+        assertNull(backgroundSyncPlaybackDeferral(false))
+    }
+
     @Test
     fun `periodic spec uses opaque versioned names and unmetered constraint`() {
         val spec = BackgroundSyncScheduleSpec(

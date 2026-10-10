@@ -10,6 +10,7 @@ import 'package:navis/src/features/auth/domain/server_config.dart';
 import 'package:navis/src/features/auth/domain/server_reachability.dart';
 import 'package:navis/src/features/auth/presentation/server_config_provider.dart';
 import 'package:navis/src/features/auth/presentation/session_route_provider.dart';
+import 'package:navis/src/features/cache/presentation/library_cache_reset_provider.dart';
 import 'package:navis/src/features/auth/presentation/server_reachability_provider.dart';
 import 'package:navis/src/features/library/data/library_sync_engine.dart';
 import 'package:navis/src/features/library/data/adaptive_library_sync_coordinator.dart';
@@ -24,6 +25,7 @@ import 'package:navis/src/utils/catalog_source.dart';
 import 'package:navis/src/utils/app_logger.dart';
 import 'package:navis/src/utils/connectivity.dart';
 import 'package:navis/src/utils/notifications/library_sync_notifier.dart';
+import 'package:navis/src/utils/notifications/notification_localizations.dart';
 import 'package:navis/src/utils/sync_diagnostics_overrides.dart';
 
 /// Sync interval in minutes from user settings (0 = manual only).
@@ -66,7 +68,10 @@ final librarySyncOperationLedgerProvider =
     });
 
 final librarySyncNotifierProvider = Provider<SystemLibrarySyncNotifier>((ref) {
-  return const SystemLibrarySyncNotifier();
+  return SystemLibrarySyncNotifier(
+    readLocalizations: () =>
+        resolveNotificationLocalizations(ref.read(appLocaleProvider)),
+  );
 });
 
 final androidBackgroundSyncAvailableProvider = Provider<bool>((ref) {
@@ -365,29 +370,36 @@ class LibrarySyncController extends Notifier<LibrarySyncState> {
         .read(serverReachabilityControllerProvider)
         .status;
 
+    // Drift notifications can arrive inside the executor's lease zone;
+    // scheduling belongs to the controller's zone, outside that write fence.
     ref.listen<AsyncValue<ServerConfigModel?>>(
       serverConfigStateProvider,
-      (_, next) => _onServerConfigChanged(next),
+      Zone.current.bindBinaryCallback(
+        (_, next) => _onServerConfigChanged(next),
+      ),
     );
     ref.listen<ServerReachabilityState>(
       serverReachabilityControllerProvider,
       (_, next) => _onReachabilityChanged(next),
     );
-    ref.listen<AsyncValue<bool>>(initialSyncRequiredProvider, (previous, next) {
-      if (previous?.value == true && next.asData?.value == false) {
-        final epoch = _startupSyncEpoch;
-        _trackSyncStateTask(() async {
-          await _resetAutomaticCheckSchedule(
-            ref.read(syncIntervalMinutesProvider),
-          );
-          if (ref.mounted &&
-              !_startupSyncSuppressed &&
-              epoch == _startupSyncEpoch) {
-            _scheduleStartupSync();
-          }
-        }());
-      }
-    });
+    ref.listen<AsyncValue<bool>>(
+      initialSyncRequiredProvider,
+      Zone.current.bindBinaryCallback((previous, next) {
+        if (previous?.value == true && next.asData?.value == false) {
+          final epoch = _startupSyncEpoch;
+          _trackSyncStateTask(() async {
+            await _resetAutomaticCheckSchedule(
+              ref.read(syncIntervalMinutesProvider),
+            );
+            if (ref.mounted &&
+                !_startupSyncSuppressed &&
+                epoch == _startupSyncEpoch) {
+              _scheduleStartupSync();
+            }
+          }());
+        }
+      }),
+    );
     ref.listen<int>(syncIntervalMinutesProvider, (previous, next) {
       // App settings hydrate asynchronously. That first value is not a user
       // changing their preference and must not erase a server's persisted
@@ -1031,6 +1043,12 @@ class LibrarySyncController extends Notifier<LibrarySyncState> {
       return;
     }
 
+    // The engine can publish lastSynced before first-setup readiness is
+    // stamped. Drain the controller's catalog pass before reading those stamps.
+    await waitForActiveCatalogSync();
+    if (!ref.mounted || _startupSyncSuppressed || epoch != _startupSyncEpoch) {
+      return;
+    }
     final config = ref.read(serverConfigStateProvider).asData?.value;
     if (config == null) {
       return;
@@ -1376,6 +1394,9 @@ class LibrarySyncController extends Notifier<LibrarySyncState> {
       return state;
     }
 
+    final setupConfig = ref.read(serverConfigStateProvider).asData?.value;
+    final completingSetup = setupConfig?.id != null && await _setupPending();
+    if (!ref.mounted) return state;
     final stateBeforeRequest = state;
     // Planning performs durable work before its first detailed frame. Make an
     // explicit rescan visibly running immediately instead of leaving the UI
@@ -1434,6 +1455,18 @@ class LibrarySyncController extends Notifier<LibrarySyncState> {
     );
     if (!ref.mounted) {
       return result;
+    }
+    if (completingSetup &&
+        (isCompletedInitialSyncRun(result) ||
+            isUsableIncompleteAlbumSyncRun(result))) {
+      await recordInitialCatalogReadiness(
+        database: ref.read(navisDatabaseProvider),
+        serverId: setupConfig!.id!,
+        result: result,
+        syncModelVersion: ref.read(requiredLibrarySyncModelVersionProvider),
+        cacheEpoch: await ref.read(libraryCacheEpochProvider.future),
+      );
+      if (!ref.mounted) return result;
     }
     if (result.status == LibrarySyncStatus.succeeded &&
         result.startedAt != null) {

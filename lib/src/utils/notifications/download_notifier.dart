@@ -1,14 +1,13 @@
-import 'package:flutter/foundation.dart';
+import 'dart:io';
+
 import 'package:material_ui/material_ui.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
+import 'package:navis/l10n/app_localizations.dart';
 
 /// Manages download-progress and completion notifications on the
 /// `downloads` Android notification channel.
 class DownloadNotifier {
   new _();
-
-  /// Notification titles must not include internal song IDs or backend detail.
-  static const String failureNotificationTitle = 'Download failed';
 
   static final FlutterLocalNotificationsPlugin _plugin =
       FlutterLocalNotificationsPlugin();
@@ -29,11 +28,12 @@ class DownloadNotifier {
   ///
   /// Throttled to avoid flooding the notification system with updates.
   static Future<void> showProgress({
-    required String title,
+    required AppLocalizations Function() readLocalizations,
+    required String Function(AppLocalizations) title,
     required int received,
     required int total,
   }) async {
-    if (defaultTargetPlatform != TargetPlatform.android) return;
+    if (!Platform.isAndroid) return;
 
     // Throttle updates to avoid overwhelming the notification system.
     final now = DateTime.now();
@@ -48,10 +48,11 @@ class DownloadNotifier {
         ? (received * normMax ~/ total).clamp(0, normMax)
         : 0;
 
+    final l10n = readLocalizations();
     final androidDetails = AndroidNotificationDetails(
       'downloads',
-      'Downloads',
-      channelDescription: 'Download queue and progress updates',
+      l10n.notificationDownloadsChannelName,
+      channelDescription: l10n.notificationDownloadsChannelDescription,
       icon: 'ic_stat_navis_light',
       color: Colors.white,
       importance: Importance.low,
@@ -67,8 +68,10 @@ class DownloadNotifier {
     try {
       await _plugin.show(
         id: _progressId,
-        title: title,
-        body: '${received * 100 ~/ (total > 0 ? total : 1)}%',
+        title: title(l10n),
+        body: l10n.notificationDownloadProgressPercent(
+          received * 100 ~/ (total > 0 ? total : 1),
+        ),
         notificationDetails: NotificationDetails(android: androidDetails),
       );
     } on Object {
@@ -78,7 +81,7 @@ class DownloadNotifier {
 
   /// Dismiss the ongoing progress notification.
   static Future<void> dismissProgress() async {
-    if (defaultTargetPlatform != TargetPlatform.android) return;
+    if (!Platform.isAndroid) return;
     try {
       await _plugin.cancel(id: _progressId);
     } on Object {
@@ -87,13 +90,17 @@ class DownloadNotifier {
   }
 
   /// Show a notification when a download completes successfully.
-  static Future<void> showComplete({required String title}) async {
-    if (defaultTargetPlatform != TargetPlatform.android) return;
+  static Future<void> showComplete({
+    required AppLocalizations Function() readLocalizations,
+    required String Function(AppLocalizations) title,
+  }) async {
+    if (!Platform.isAndroid) return;
 
-    const androidDetails = AndroidNotificationDetails(
+    final l10n = readLocalizations();
+    final androidDetails = AndroidNotificationDetails(
       'downloads',
-      'Downloads',
-      channelDescription: 'Download queue and progress updates',
+      l10n.notificationDownloadsChannelName,
+      channelDescription: l10n.notificationDownloadsChannelDescription,
       icon: 'ic_stat_navis_light',
       color: Colors.white,
       importance: Importance.defaultImportance,
@@ -103,8 +110,8 @@ class DownloadNotifier {
     try {
       await _plugin.show(
         id: _summaryId,
-        title: title,
-        notificationDetails: const NotificationDetails(android: androidDetails),
+        title: title(l10n),
+        notificationDetails: NotificationDetails(android: androidDetails),
       );
     } on Object {
       // Notifications are best-effort in tests and unsupported environments.
@@ -112,13 +119,17 @@ class DownloadNotifier {
   }
 
   /// Show a notification when a download fails.
-  static Future<void> showFailed() async {
-    if (defaultTargetPlatform != TargetPlatform.android) return;
+  /// Notification titles must not include internal song IDs or backend detail.
+  static Future<void> showFailed({
+    required AppLocalizations Function() readLocalizations,
+  }) async {
+    if (!Platform.isAndroid) return;
 
-    const androidDetails = AndroidNotificationDetails(
+    final l10n = readLocalizations();
+    final androidDetails = AndroidNotificationDetails(
       'downloads',
-      'Downloads',
-      channelDescription: 'Download queue and progress updates',
+      l10n.notificationDownloadsChannelName,
+      channelDescription: l10n.notificationDownloadsChannelDescription,
       icon: 'ic_stat_navis_light',
       color: Colors.white,
       importance: Importance.defaultImportance,
@@ -128,8 +139,8 @@ class DownloadNotifier {
     try {
       await _plugin.show(
         id: _summaryId,
-        title: failureNotificationTitle,
-        notificationDetails: const NotificationDetails(android: androidDetails),
+        title: l10n.notificationDownloadFailedTitle,
+        notificationDetails: NotificationDetails(android: androidDetails),
       );
     } on Object {
       // Notifications are best-effort in tests and unsupported environments.

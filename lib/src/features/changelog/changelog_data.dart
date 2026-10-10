@@ -207,6 +207,14 @@ const List<ChangelogVersion> changelogs = [
         'Album titles stay on one line and scroll when they are too long over a see-through shade that keeps the whole cover visible; Album Art Shade makes the shade solid for easier reading, and Use Cover Color tints it from each cover',
       ),
       ChangelogEntry(
+        'Android background sync waits while a playback session is active, including when paused',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
+        'Sync completes and update checks stay quick when a few albums have incomplete server details; Sync Settings remembers the first catalog date',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
         'The player shows Play once the queue has finished, so one press restarts it instead of two',
         type: ChangelogEntryType.fix,
       ),

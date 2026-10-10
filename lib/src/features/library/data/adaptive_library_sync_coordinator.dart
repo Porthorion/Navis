@@ -937,7 +937,7 @@ class AdaptiveLibrarySyncCoordinator implements LibrarySyncEngine {
             final cancelled = result.status == LibrarySyncStatus.cancelled;
             final deferred = result.status == LibrarySyncStatus.deferred;
             final hasPending =
-                (result.pendingHydrationCount ?? 0) > 0 ||
+                result.hasBlockingPendingAlbums ||
                 result.remainingVerificationCount > 0;
             final status = cancelled
                 ? LibrarySyncStatus.cancelled

@@ -26,7 +26,9 @@ import 'package:navis/src/features/downloads/data/android_saf_storage.dart';
 import 'package:navis/src/features/downloads/data/permanent_artwork_store.dart';
 import 'package:navis/src/features/downloads/domain/download_preferences.dart';
 import 'package:navis/src/features/player/data/lyrics_resolver.dart';
+import 'package:navis/l10n/app_localizations.dart';
 import 'package:navis/src/utils/app_logger.dart';
+import 'package:navis/src/utils/notifications/notification_localizations.dart';
 import 'package:navis/src/utils/file_utils.dart';
 import 'package:navis/src/utils/network_usage_meter.dart';
 import 'package:navis/src/utils/notifications/download_notifier.dart';
@@ -83,6 +85,7 @@ class DownloadService {
     required this._readCoverArtCacheManager,
     bool Function()? readLyricsAllowed,
     String? Function()? readProfileIdentity,
+    AppLocalizations Function()? readLocalizations,
     this._reportNetworkUsage,
     Future<Directory> Function()? readApplicationSupportDirectory,
     PermanentArtworkStore? artworkStore,
@@ -94,6 +97,8 @@ class DownloadService {
        _readCustomDownloadFolderEnabled = readCustomDownloadFolderEnabled,
        _readCustomDownloadFolderPath = readCustomDownloadFolderPath,
        _readLyricsAllowed = readLyricsAllowed ?? (() => true),
+       _readLocalizations =
+           readLocalizations ?? (() => resolveNotificationLocalizations(null)),
        _dio = dio ?? Dio(),
        _artworkStore =
            artworkStore ??
@@ -123,6 +128,9 @@ class DownloadService {
   final bool Function() _readCustomDownloadFolderEnabled;
   final String? Function() _readCustomDownloadFolderPath;
   final LrclibClient _lrclibClient;
+
+  /// Resolves notification strings when a notification is raised.
+  final AppLocalizations Function() _readLocalizations;
 
   /// Whether lyrics prefetch may use LRCLIB, per the integration policy.
   final bool Function() _readLyricsAllowed;
@@ -1027,9 +1035,10 @@ class DownloadService {
     final receivedBytes = transfers.fold<int>(0, (sum, t) => sum + t.received);
     unawaited(
       DownloadNotifier.showProgress(
-        title: transfers.length == 1
+        readLocalizations: _readLocalizations,
+        title: (l10n) => transfers.length == 1
             ? transfers.single.title
-            : 'Downloading ${transfers.length} songs',
+            : l10n.notificationDownloadProgressMultiple(transfers.length),
         received: receivedBytes,
         total: totalBytes,
       ),
@@ -1285,8 +1294,11 @@ class DownloadService {
           _trackBackgroundTask(_precacheCoverArt(song, api));
 
           _trackBackgroundTask(
-            DownloadNotifier.showComplete(title: 'Downloaded: $songTitle')
-                .catchError((_) {}),
+            DownloadNotifier.showComplete(
+              readLocalizations: _readLocalizations,
+              title: (l10n) =>
+                  l10n.notificationDownloadCompleteTitle(songTitle),
+            ).catchError((_) {}),
           );
 
           // Best-effort: pre-fetch lyrics so they're available offline.
@@ -1308,7 +1320,9 @@ class DownloadService {
           // validated catalog evidence must confirm absence.
           await _libraryDao.markSongsSuspectedMissing(<String>[songId]);
           await _downloadQueueDao.updateStatus(item.id, DownloadStatus.failed);
-          await DownloadNotifier.showFailed().catchError((_) {});
+          await DownloadNotifier.showFailed(
+            readLocalizations: _readLocalizations,
+          ).catchError((_) {});
         } else {
           await _handleFailure(item, 'HTTP $statusCode');
         }
@@ -1486,7 +1500,8 @@ class DownloadService {
       await _downloadQueueDao.markForRetry(item.id);
     } else {
       await _downloadQueueDao.updateStatus(item.id, DownloadStatus.failed);
-      await DownloadNotifier.showFailed().catchError((_) {});
+      await DownloadNotifier.showFailed(readLocalizations: _readLocalizations)
+          .catchError((_) {});
       AppLogger.warning(
         'DownloadService: Permanently failed ${item.songId}: $reason',
       );

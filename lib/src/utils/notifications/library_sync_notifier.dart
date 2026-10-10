@@ -1,18 +1,24 @@
-import 'package:flutter/foundation.dart';
+import 'dart:io';
+
 import 'package:material_ui/material_ui.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
+import 'package:navis/l10n/app_localizations.dart';
 import 'package:navis/src/features/library/domain/library_sync_state.dart';
+import 'package:navis/src/utils/notifications/notification_localizations.dart';
 
 class SystemLibrarySyncNotifier {
-  const new();
+  const new({this.readLocalizations = _defaultLocalizations});
+
+  /// Resolves the strings at notification time so a language change applies.
+  final AppLocalizations Function() readLocalizations;
+
+  static AppLocalizations _defaultLocalizations() =>
+      resolveNotificationLocalizations(null);
 
   static final FlutterLocalNotificationsPlugin _plugin =
       FlutterLocalNotificationsPlugin();
 
   static const String _silentChannelId = 'library_sync_silent';
-  static const String _silentChannelName = 'Library Scan';
-  static const String _silentChannelDescription =
-      'Library scan progress and completion updates';
   static const int _progressId = 9101;
   static const int _summaryId = 9102;
   static const int _progressScale = 1000;
@@ -21,6 +27,7 @@ class SystemLibrarySyncNotifier {
   static DateTime _lastProgressUpdate = DateTime.fromMillisecondsSinceEpoch(0);
 
   Future<void> showProgress(LibrarySyncState state) async {
+    if (!Platform.isAndroid) return;
     final now = DateTime.now();
     final elapsed = now.difference(_lastProgressUpdate);
     final total = state.total ?? 0;
@@ -32,15 +39,17 @@ class SystemLibrarySyncNotifier {
     }
     _lastProgressUpdate = now;
 
+    final l10n = readLocalizations();
     final hasProgress = total > 0;
     final normProgress = hasProgress
         ? (processed * _progressScale ~/ total).clamp(0, _progressScale)
         : 0;
     await _safeShow(
       _progressId,
-      title: 'Scanning library',
-      body: _progressBody(state),
+      title: l10n.notificationLibraryScanProgressTitle,
+      body: _progressBody(l10n, state),
       details: _details(
+        l10n,
         progress: true,
         determinate: hasProgress,
         value: normProgress,
@@ -49,9 +58,7 @@ class SystemLibrarySyncNotifier {
   }
 
   Future<void> dismissProgress() async {
-    if (defaultTargetPlatform != TargetPlatform.android) {
-      return;
-    }
+    if (!Platform.isAndroid) return;
     try {
       await _plugin.cancel(id: _progressId);
     } on Object {
@@ -60,36 +67,41 @@ class SystemLibrarySyncNotifier {
   }
 
   Future<void> showComplete(LibrarySyncState state) async {
+    if (!Platform.isAndroid) return;
     await dismissProgress();
+    final l10n = readLocalizations();
     await _safeShow(
       _summaryId,
-      title: 'Library scan complete',
-      body: _completionBody(state),
-      details: _details(progress: false),
+      title: l10n.notificationLibraryScanCompleteTitle,
+      body: _completionBody(l10n, state),
+      details: _details(l10n, progress: false),
     );
   }
 
   Future<void> showFailed(LibrarySyncState state) async {
+    if (!Platform.isAndroid) return;
     await dismissProgress();
+    final l10n = readLocalizations();
     await _safeShow(
       _summaryId,
-      title: librarySyncNotificationFailureTitle(state),
-      body: librarySyncNotificationFailureBody(state),
-      details: _details(progress: false),
+      title: librarySyncNotificationFailureTitle(l10n, state),
+      body: librarySyncNotificationFailureBody(l10n, state),
+      details: _details(l10n, progress: false),
     );
   }
 
   /// Silent low-priority details. [progress] makes the notification the
   /// ongoing scan-progress one; [determinate] adds a bar at [value] of 1000.
-  static AndroidNotificationDetails _details({
+  static AndroidNotificationDetails _details(
+    AppLocalizations l10n, {
     required bool progress,
     bool determinate = false,
     int value = 0,
   }) {
     return AndroidNotificationDetails(
       _silentChannelId,
-      _silentChannelName,
-      channelDescription: _silentChannelDescription,
+      l10n.notificationLibraryScanChannelName,
+      channelDescription: l10n.notificationLibraryScanChannelDescription,
       icon: 'ic_stat_navis_light',
       color: Colors.white,
       importance: Importance.low,
@@ -112,9 +124,6 @@ class SystemLibrarySyncNotifier {
     required String body,
     required AndroidNotificationDetails details,
   }) async {
-    if (defaultTargetPlatform != TargetPlatform.android) {
-      return;
-    }
     try {
       await _plugin.show(
         id: id,
@@ -128,63 +137,79 @@ class SystemLibrarySyncNotifier {
   }
 }
 
-String _progressBody(LibrarySyncState state) {
-  final label = _stageLabel(state);
+String _progressBody(AppLocalizations l10n, LibrarySyncState state) {
+  final label = _stageLabel(l10n, state);
   final processed = state.processed;
   final total = state.total;
   if (processed != null && total != null && total > 0) {
-    return '$label • $processed/$total';
+    return l10n.notificationLibraryScanProgressBody(label, processed, total);
   }
   return label;
 }
 
-String _completionBody(LibrarySyncState state) {
+String _completionBody(AppLocalizations l10n, LibrarySyncState state) {
   final hydratedAlbums = state.hydratedAlbums ?? 0;
   final requestCount = state.apiRequests;
   if (hydratedAlbums > 0) {
-    return 'Updated metadata and hydrated $hydratedAlbums albums.';
+    return l10n.notificationLibraryScanCompleteHydrated(hydratedAlbums);
   }
   if (requestCount > 0) {
-    return 'Metadata refresh finished successfully.';
+    return l10n.notificationLibraryScanCompleteRefreshed;
   }
-  return 'Library is already up to date.';
+  return l10n.notificationLibraryScanCompleteUpToDate;
 }
 
-String librarySyncNotificationFailureTitle(LibrarySyncState state) {
+String librarySyncNotificationFailureTitle(
+  AppLocalizations l10n,
+  LibrarySyncState state,
+) {
   if (librarySyncNotificationWasCancelled(state)) {
-    return 'Library scan cancelled';
+    return l10n.notificationLibraryScanCancelledTitle;
   }
-  return 'Library scan failed';
+  return l10n.notificationLibraryScanFailedTitle;
 }
 
-String librarySyncNotificationFailureBody(LibrarySyncState state) {
+String librarySyncNotificationFailureBody(
+  AppLocalizations l10n,
+  LibrarySyncState state,
+) {
   // Sync state keeps raw transport and backend detail for diagnostics, but a
   // system notification is a recovery surface, not a log viewer. Preserve a
   // stable, safe next step instead of exposing server implementation detail.
   return librarySyncNotificationWasCancelled(state)
-      ? 'The scan stopped before it finished. Open Navis to try again.'
-      : 'The scan could not finish. Open Navis to try again.';
+      ? l10n.notificationLibraryScanCancelledBody
+      : l10n.notificationLibraryScanFailedBody;
 }
 
 bool librarySyncNotificationWasCancelled(LibrarySyncState state) {
   return (state.errorMessage?.toLowerCase() ?? '').contains('cancel');
 }
 
-String _stageLabel(LibrarySyncState state) {
+String _stageLabel(AppLocalizations l10n, LibrarySyncState state) {
   return switch (state.stage) {
-    LibrarySyncStage.preparing => 'Preparing scan',
-    LibrarySyncStage.fetchingArtists => 'Refreshing artists',
-    LibrarySyncStage.fetchingAlbums => 'Refreshing albums',
-    LibrarySyncStage.persistingMetadata => 'Saving metadata',
-    LibrarySyncStage.fetchingSongs => 'Hydrating songs',
-    LibrarySyncStage.fetchingStarred => 'Updating liked items',
-    LibrarySyncStage.fetchingPlaylists => 'Updating playlists',
-    LibrarySyncStage.collectingCandidate => 'Building catalog update',
-    LibrarySyncStage.validatingCandidate => 'Validating catalog update',
-    LibrarySyncStage.applyingCandidate => 'Applying catalog update',
-    LibrarySyncStage.cleaningCandidate => 'Cleaning up catalog update',
-    LibrarySyncStage.finalizing => 'Finalizing scan',
-    LibrarySyncStage.completed => 'Scan complete',
-    LibrarySyncStage.idle => 'Waiting to scan',
+    LibrarySyncStage.preparing => l10n.notificationLibraryScanStagePreparing,
+    LibrarySyncStage.fetchingArtists =>
+      l10n.notificationLibraryScanStageFetchingArtists,
+    LibrarySyncStage.fetchingAlbums =>
+      l10n.notificationLibraryScanStageFetchingAlbums,
+    LibrarySyncStage.persistingMetadata =>
+      l10n.notificationLibraryScanStagePersistingMetadata,
+    LibrarySyncStage.fetchingSongs =>
+      l10n.notificationLibraryScanStageFetchingSongs,
+    LibrarySyncStage.fetchingStarred =>
+      l10n.notificationLibraryScanStageFetchingStarred,
+    LibrarySyncStage.fetchingPlaylists =>
+      l10n.notificationLibraryScanStageFetchingPlaylists,
+    LibrarySyncStage.collectingCandidate =>
+      l10n.notificationLibraryScanStageCollectingCandidate,
+    LibrarySyncStage.validatingCandidate =>
+      l10n.notificationLibraryScanStageValidatingCandidate,
+    LibrarySyncStage.applyingCandidate =>
+      l10n.notificationLibraryScanStageApplyingCandidate,
+    LibrarySyncStage.cleaningCandidate =>
+      l10n.notificationLibraryScanStageCleaningCandidate,
+    LibrarySyncStage.finalizing => l10n.notificationLibraryScanStageFinalizing,
+    LibrarySyncStage.completed => l10n.notificationLibraryScanStageCompleted,
+    LibrarySyncStage.idle => l10n.notificationLibraryScanStageIdle,
   };
 }

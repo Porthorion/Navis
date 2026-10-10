@@ -220,20 +220,6 @@ class MainActivity : AudioServiceActivity() {
                         )
                     }
                 }
-                "artifactRoot" -> {
-                    try {
-                        result.success(diagnosticsArtifactDirectory().absolutePath)
-                    } catch (_: Exception) {
-                        result.error(
-                            "DIAGNOSTICS_DIRECTORY_UNAVAILABLE",
-                            "Could not resolve diagnostics artifact directory.",
-                            null,
-                        )
-                    }
-                }
-                "isSidecar" -> result.success(
-                    BuildConfig.APPLICATION_ID != "com.navis.app.navis",
-                )
                 "diagnosticsFixtureTree" -> {
                     if (BuildConfig.BUILD_TYPE != "profile" ||
                         BuildConfig.APPLICATION_ID == "com.navis.app.navis"

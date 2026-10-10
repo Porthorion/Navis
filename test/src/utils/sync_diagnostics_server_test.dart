@@ -21,6 +21,7 @@ import 'package:navis/src/common_widgets/song_playback_indicator.dart';
 import 'package:navis/src/database/navis_database.dart';
 import 'package:navis/src/features/auth/domain/server_config.dart';
 import 'package:navis/src/features/auth/presentation/server_config_provider.dart';
+import 'package:navis/src/features/auth/presentation/server_reachability_provider.dart';
 import 'package:navis/src/features/auth/presentation/session_route_provider.dart';
 import 'package:navis/src/features/integrations/data/integration_call_recorder.dart';
 import 'package:navis/src/features/integrations/data/integration_guard_interceptor.dart';
@@ -1464,6 +1465,46 @@ void main() {
       expect(start.statusCode, HttpStatus.accepted);
       expect(controller.repairGrants, [true]);
       expect(controller.forceFullCalls, 0);
+    },
+  );
+
+  test(
+    'Android playback deferral is exposed as a bounded diagnostic outcome',
+    () async {
+      final fixture = await _startFixture(
+        SyncDiagnosticsMode.clone,
+        overrides: [
+          pingServerProvider.overrideWithValue(() async => 'fixture'),
+        ],
+        serverConfig: const ServerConfigModel(
+          id: 1,
+          url: 'https://example.test',
+          username: 'fixture',
+          password: 'fixture',
+          apiVersion: '1.16.1',
+        ),
+      );
+      addTearDown(fixture.close);
+      final database = fixture.database as NavisDatabase;
+      await database.serverDao.saveServer(
+        ServerConfigTableCompanion.insert(
+          url: 'https://example.test',
+          username: 'fixture',
+          apiVersion: '1.16.1',
+        ),
+      );
+      await database.librarySyncDao.writeAndroidBackgroundStatus(
+        serverId: 1,
+        workerResult: 'deferredPlayback',
+        workerStopReason: 'deferredPlayback',
+      );
+
+      final response = await fixture.get('/v1/sync/status');
+      expect(response.statusCode, HttpStatus.ok);
+      final background = response.body['androidBackground']! as Map;
+      expect(background['result'], 'deferredPlayback');
+      expect(background['stopReason'], 'deferredPlayback');
+      expect(background, isNot(contains('profileKey')));
     },
   );
 

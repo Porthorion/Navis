@@ -305,36 +305,39 @@ void main() {
     });
   }
 
-  test('incomplete detail survives coordinator as partial and retries incrementally', () async {
-    final serverId = await session(initial: true);
-    await seed();
-    api.albumDetails['a'] = album.copyWith(songs: [song1]);
+  test(
+    'incomplete detail succeeds through coordinator and retries incrementally',
+    () async {
+      final serverId = await session(initial: true);
+      await seed();
+      api.albumDetails['a'] = album.copyWith(songs: [song1]);
 
-    final first = await coordinator.requestSync(
-      const LibrarySyncRequest(
-        origin: SyncRunOrigin.settingsRepair,
-        intent: SyncRunIntent.repairLibrary,
-      ),
-    );
-    expect(first.status, LibrarySyncStatus.partial);
-    expect(first.onlyIncompleteAlbumDetails, isTrue);
-    expect(first.pendingHydrationCount, 1);
-    expect(
-      (await db.librarySyncDao.getOrCreateState(serverId)).currentGeneration,
-      greaterThan(0),
-    );
-    expect((await repo.getActiveServer())!.lastSynced, isNull);
+      final first = await coordinator.requestSync(
+        const LibrarySyncRequest(
+          origin: SyncRunOrigin.settingsRepair,
+          intent: SyncRunIntent.repairLibrary,
+        ),
+      );
+      expect(first.status, LibrarySyncStatus.succeeded);
+      expect(first.onlyIncompleteAlbumDetails, isTrue);
+      expect(first.pendingHydrationCount, 1);
+      expect(
+        (await db.librarySyncDao.getOrCreateState(serverId)).currentGeneration,
+        greaterThan(0),
+      );
+      expect((await repo.getActiveServer())!.lastSynced, isNotNull);
 
-    api.albumDetails['a'] = album.copyWith(songs: [song1, song2]);
-    api.calls.clear();
-    final recovered = await coordinator.requestSync(
-      const LibrarySyncRequest.automatic(),
-    );
-    expect(recovered.pendingHydrationCount, 0);
-    expect(recovered.onlyIncompleteAlbumDetails, isFalse);
-    expect(api.calls, contains('getAlbum:a'));
-    expect((await repo.getActiveServer())!.lastSynced, isNotNull);
-  });
+      api.albumDetails['a'] = album.copyWith(songs: [song1, song2]);
+      api.calls.clear();
+      final recovered = await coordinator.requestSync(
+        const LibrarySyncRequest.automatic(),
+      );
+      expect(recovered.pendingHydrationCount, 0);
+      expect(recovered.onlyIncompleteAlbumDetails, isFalse);
+      expect(api.calls, contains('getAlbum:a'));
+      expect((await repo.getActiveServer())!.lastSynced, isNotNull);
+    },
+  );
 
   test(
     'F22 fresh deletion observations compare identities and expire',

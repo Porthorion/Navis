@@ -39,10 +39,11 @@ Located in `lib/src/providers/app_providers.dart`:
     opaque native profile key before any request and holds the same durable
     execution lease as foreground catalog work, so a late worker cannot run a
     replaced account or overlap a visible sync.
-  - Its `BackgroundNetworkPolicyTracker` observes connectivity changes and
-    refreshes native metering during the pass. The coordinator and engine
-    consume that current policy at their existing eligibility gates, so a
-    metered transition defers later broad work instead of retaining startup
+  - Its `BackgroundSyncPolicyTracker` observes connectivity changes and
+    refreshes native metering and audio-session activity every two seconds during
+    the pass. The coordinator and engine consume that current policy at their
+    existing eligibility gates, so a metered transition defers later broad
+    work instead of retaining startup
     Wi-Fi policy.
   - If engine bootstrap fails before Dart can update the database, the worker
     writes a bounded native fallback outcome under its opaque profile key. The
@@ -214,6 +215,8 @@ Located in `lib/src/providers/app_providers.dart`:
   from full-sync timestamps. A validated, promoted first catalog may be usable
   while isolated incomplete album details remain pending; the timestamp is
   written only after the full-screen controller verifies that outcome.
+  Sync Settings uses this first usable-catalog date only when no later catalog
+  update, sync-state timestamp, or server-config sync timestamp exists.
 - `requiredLibrarySyncModelVersionProvider` - One-time sync model `57` repair
   gate. It rebuilds the complete server newest feed after the v73 external-row
   repair so persisted libraries receive authoritative Recently Added ranks.
@@ -408,27 +411,34 @@ example an artist page's targeted sync) signed the user out again.
 
 Routing derives a compact `SessionRoutePhase`. A newly authenticated profile
 without a usable catalog stays on the full-screen `/initial-sync` rebuild route.
-Promotion alone does not admit Home. A complete run requires no pending album
+Promotion alone does not admit Home. A complete run requires no blocking album
 hydration, artist verification, or candidate and durable full-sync evidence
 (`server_config.last_synced` or `library_sync_state.last_catalog_synced_at`).
-The sole partial exception is a validated catalog published in that run whose every
-remaining canonical album was attempted in the current run and returned
-incomplete detail. The controller then stores
-`library_sync_state.initial_catalog_usable_at`; routing can admit onboarding
+Pending albums with valid persisted incomplete server-detail classifications
+do not block completion or freshness; they remain queued for retries.
+A validated catalog published in that run is also usable when every remaining
+canonical album has a valid incomplete-detail classification. The controller
+stores `library_sync_state.initial_catalog_usable_at` for both successful and
+partial incomplete-detail completion, and keeps the completion warning.
+Successful completion remains current; the partial exception admits onboarding
 or Home across restarts without claiming full freshness. All full-screen rebuild
-reasons share this partial exception. Other failed, deferred, or partial runs
-keep retry and sign-out actions; offline and metered conditions retain their
-retry/consent behavior. Pending albums continue through eligible incremental
+reasons share the incomplete-detail completion predicate. Other failed, deferred,
+or partial runs keep retry and sign-out actions; offline and metered conditions
+retain their retry/consent behavior. Pending albums continue through eligible incremental
 checks. First setup owns catalog sync until readiness: startup, automatic
 checks, and Android workers defer without arming or persisting a new automatic
 deadline. Android reports this as `deferredSetup`. Setup waits for any active
 catalog run and queued successor before reading the committed generation and
 choosing its first-catalog request or full scan. Successful readiness records
-also stamp the required sync model, then restart the automatic schedule at
-now plus the configured interval and resume the startup pass, avoiding a
-redundant sync-model repair. Without that gate an automatic run started at
-launch could publish the catalog first and turn setup's queued request into
-discovery that cannot publish, ending setup at "could not be set up". First
+also stamp the required sync model and cache epoch before the controller's
+catalog future completes. Startup and cache-upgrade checks drain active catalog
+work before reading readiness and installation stamps, including when the engine
+has already published `last_synced`. Server-state and readiness listeners schedule work in
+the controller's async zone rather than inheriting the executor's write fence.
+Readiness restarts the automatic schedule at now plus the configured interval
+and resumes the startup pass, avoiding a redundant sync-model repair. Without
+that gate an automatic run started at launch could publish the catalog first and
+turn setup's queued request into discovery that cannot publish, ending setup at "could not be set up". First
 setup without a committed catalog requests the planner's first-catalog
 snapshot. When a committed generation (or `last_synced`) already exists
 without readiness evidence, for example after an interrupted setup and
@@ -487,8 +497,8 @@ and Android profile builds:
    valid mode and a desktop handshake path when applicable. Android supports
    read-only `primary-certification` observation with a handshake in the app-specific
    external files directory; host tooling reaches loopback through `adb
-   forward`. Clone diagnostics remain desktop-only because their isolated
-   database/cache contract is filesystem-owned by the launcher.
+   forward`. Android clone diagnostics require a sidecar package and an
+   isolated database/cache root in that package's scoped storage.
 2. Clone mode opens an isolated database and cache tree. Primary certification
    uses the normal profile only with the launcher's backup and mutation
    restrictions.
@@ -498,11 +508,16 @@ and Android profile builds:
    relies on its per-user diagnostics directory and does not invoke a POSIX
    permission command before starting the request loop. On Android, the host
    receives the handshake from the app-owned native bridge in
-   `getExternalFilesDir()/navis-diagnostics`; raw Dart I/O cannot create the
-   scoped-storage path. Clone Android bootstrap now asks that existing native
-   bridge to prepare the scoped directory before Drift opens, and checks the
-   sidecar identity first. The bridge validates the bounded record and replaces
-   it before the loopback server begins serving.
+   `getExternalFilesDir(null)/navis-diagnostics`. Android startup resolves
+   `isSidecar` by comparing `PackageInfo.packageName` with `com.navis.app.navis`
+   and creates `artifactRoot` below `getExternalStorageDirectory()`, which maps
+   to the same app-specific external files directory. These lookups use the
+   application context and do not wait for MainActivity to attach to
+   audio_service's warmed engine. Clone bootstrap checks identity and creates
+   the directory before Drift opens. The `com.navis.app/diagnostics_handshake`
+   activity channel retains `publish`/`clear` and the sidecar fixture-tree
+   lookup; the bridge validates and replaces the bounded handshake before
+   the loopback server begins serving.
    The headless background-sync callback is also retained as a
    `@pragma('vm:entry-point')` root-library forwarder in `main.dart`: Android's
    named `DartEntrypoint` resolves from that root library in profile/release
@@ -519,7 +534,7 @@ and Android profile builds:
 Clone diagnostics wrap the root Flutter application in a diagnostics-owned
 `RepaintBoundary`. Android primary certification uses that same boundary only
 for authenticated, read-only screenshot capture; its artifacts stay below the
-sidecar's scoped external diagnostics directory, while all route and feature
+package's scoped external diagnostics directory, while all route and feature
 controls remain disabled. `GET /v1/presentation/status` reports the live route and
 viewport plus post-bootstrap app readiness,
 `POST /v1/presentation/navigate` drives the real `GoRouter`, and
@@ -3475,6 +3490,11 @@ duration), not media_kit's buffering flag, which `open()` resets to false
 before the file loads. Retained positions survive opening and duration events
 in either order, including progressive streams that become playable before
 native duration is known; one already reached natively is not seeked again.
+An indexed jump resets this readiness and replaces the pending position before
+loading the entry. A zero position accompanying the jump needs no native seek,
+since the entry starts at zero; non-zero positions wait for the new entry's
+initialization or duration event, rather than the previous cached duration.
+Seeks on the current entry without a jump keep their existing behavior.
 media_kit's 5 s `network-timeout` is raised to 60 s, above the handler's own
 deadlines, so a server that prepares the file before its first byte does not
 fail the stream, and its on-disk demuxer cache, which libmpv cannot create
@@ -3581,7 +3601,9 @@ in the queue lane, so handler readiness and media-session Play do not wait for
 every source. A startup, deferred-retry or post-radio restore timeout keeps the
 saved queue instead of deleting it. Radio Stop returns after stopping the stream; its
 background restore and the restore after radio failure share this preservation
-policy. Before releasing the lane it cancels the restore token,
+policy. Stopping radio, or a radio failure, restores the previous queue
+paused, exactly like startup restore: it never resumes playback on its own.
+This is intended (owner decision 2026-10-09), not a gap to close. Before releasing the lane it cancels the restore token,
 retires its load generation, and replaces the native player, so a late native
 load or its inner deadline cannot change a newer selection. Eager restores
 (up to 64 songs) carry the same cancellation ownership through source
@@ -3797,7 +3819,10 @@ for 30 s is abandoned. The app itself keeps the HTTP `artUri`.
 The snapshot stored on the handler still receives every timeline update, but
 the broadcast snapshot stream emits only structural changes. Linux MPRIS reads
 position from `positionStream` and detects seek discontinuities there, including
-while paused, emitting `Seeked` in track-time microseconds. Same-track checks
+while paused, emitting `Seeked` in track-time microseconds. A handler seek's
+pending target suppresses intermediate timeline and snapshot jumps; clearing
+that target at settlement emits one signal when the same track reached it.
+Successive seeks remain independent without a debounce timer. Same-track checks
 prevent track changes from being reported as seeks; MPRIS commands suppress
 automatic detection while seeking and emit one explicit signal. Windows SMTC
 coalesces routine timeline updates to about one per second and sends track
@@ -3879,6 +3904,12 @@ states without starting audio or modifying a queue.
 
 ### Sync Flow
 
+Android library-sync and download notifications resolve localized strings through
+callbacks only when a notification is about to be shown, after Android runtime and
+progress-throttle checks. They use the current app language override, otherwise
+the platform language, with English fallback. Constructing the notification
+collaborators does not read locale settings or open the database for localization.
+
 1. Callers submit a `LibrarySyncRequest` through the coordinator-facing
    `LibrarySyncEngine.requestSync` interface. This immutable request carries
    origin, intent, target, and an ephemeral network grant shared by
@@ -3928,9 +3959,18 @@ states without starting audio or modifying a queue.
    during playback. Its durable checkpoint restores intent, never a network
    grant: metered admission needs permission from the current request. The
    constrained Android background executor may run while hidden when playback
-   is idle. An explicit user refresh may resume queued broad work in the
-   foreground, including during playback. Explicit catalog and auxiliary work
-   continues if the app is then hidden, including with current mobile-data
+   is idle. Before creating its Flutter engine, the native worker probes the
+   same-process audio_service session and records `deferredPlayback` when its
+   processing state is non-idle, including paused sessions. It returns success
+   so the next periodic dispatch can try again. During a pass, the headless
+   policy tracker polls `isPlaybackActive` on the background-sync channel every
+   two seconds; coordinator and engine gates read that cached flag. Hard probes
+   retain their existing playback exemption at these gates. An unavailable
+   playback probe conservatively defers work. Sync Settings presents the
+   `deferredPlayback` outcome as "deferred playback", and diagnostics retains
+   that bounded category. An explicit user refresh may resume queued broad work
+   in the foreground, including during playback. Explicit catalog and auxiliary
+   work continues if the app is then hidden, including with current mobile-data
    grants. Automatic visibility/playback gates and the idle-only hidden Android
    worker limit still apply. Interactive entity hydration can
    run during foreground playback; hidden foreground execution defers it,
@@ -3961,10 +4001,20 @@ states without starting audio or modifying a queue.
    `partial` and preserves its checkpoint for the next pass. The same limit on
    automatic work remains `deferred`; offline, metered, playback, and
    background policy gates always remain `deferred`.
+   Pending album details downgrade a successful catalog run to `partial` and
+   withhold its catalog timestamp only when they block freshness. Albums whose
+   incomplete server-detail classification still matches their current metadata
+   do not block; other failures and unclassified pending work still do.
 3. Reliable providers use conditional `getIndexes(ifModifiedSince)` as a cheap
    automatic check. The response is a conditional artist index, not a change
-   feed, so its cursor advances only after every candidate and hydration
-   completes. An explicit refresh is not freshness-gated: it runs bounded
+   feed, so its cursor advances only after every candidate and blocking
+   hydration completes. Server-incomplete album details do not withhold the
+   cursor after full promotion, hydration-only continuation, or incremental
+   verification. Hard probes restore persisted freshness and classify the
+   current pending albums against the same durable evidence, so unchanged
+   probes preserve the Sync Settings server-incomplete notice. The next manual
+   check can therefore use the saved cursor instead of restarting a full artist audit. An explicit refresh is not
+   freshness-gated: it runs bounded
    delta reconciliation and always scans the first five
    `getAlbumList2(type=newest)` pages (500 entries), even when the artist
    cursor is unchanged. Their server positions are the primary Recently Added
@@ -4008,7 +4058,25 @@ states without starting audio or modifying a queue.
    Between runs the remaining backlog (`pendingHydrationCount`) appears as a
    status line in Sync settings, worded as a server-data problem when
    `onlyIncompleteAlbumDetails` says every pending album returned incomplete
-   details; a Library notice would never clear, because runs are budgeted and
+   details with evidence matching their current metadata. The server-scoped
+   `capabilitiesJson` Navis namespace stores `libraryIncompleteAlbumEvidence`,
+   an album-ID-to-fingerprint map encoded as JSON. Fingerprints use the same
+   name, artist ID/name, song count, duration, and cover art fields as song
+   hydration change detection. Only non-conflicting incomplete responses add
+   entries. Unchanged, unattempted albums retain them across runs; a new detail
+   attempt revokes its entry before requesting data. Hydration, 404, transient,
+   conflict, fatal, or interrupted attempts leave it revoked unless a new
+   non-conflicting incomplete response is observed. Metadata changes, hydrated
+   rows, and catalog removals invalidate entries when the pending set is read.
+   Capability writes merge into the latest server JSON through the engine's
+   existing helper. Classification is separate from transport, 404,
+   authentication, network, and budget failures. Identity or track-membership
+   conflicts are marked as conflicting snapshots by album validation and still
+   block verification.
+   Such server-incomplete albums stay in `pendingHydrationCount`
+   and are retried on later eligible runs, but do not block current freshness,
+   sync timestamps, or the artist-index cursor. A Library notice would never
+   clear, because runs are budgeted and
    such albums stay pending. Catalog discovery remains indeterminate because
    its page total is an estimate and does not share a stable denominator with
    song hydration.
@@ -4410,8 +4478,11 @@ which ran the earlier v2 metadata-only cleanup also receive the complete purge.
 Ordinary artwork is refetched; permanent download artwork remains in its separate
 durable store. Both keep-data and full sign-out, server-data reset, library-cache
 reset, and Settings “clear covers” clear both managers. Cover storage accounting
-sums both current directories without following links. External artwork display
-and radio Now Playing prewarm share `externalArtworkImageProvider`, wrapped by
+sums both current directories without following links. Desktop diagnostics clones
+use the same cache keys below their redirected `<root>/cache` temporary directory,
+so the managers and storage accounting share the isolated artwork folders.
+External artwork display and radio Now Playing prewarm share
+`externalArtworkImageProvider`, wrapped by
 `boundedDecode` with a 1024×1024 fit bound. Both edges are capped without
 upscaling, and display reuses the prewarmed decode without an image fade. The
 HTTP file service rejects a declared body larger than 20 MiB and aborts when

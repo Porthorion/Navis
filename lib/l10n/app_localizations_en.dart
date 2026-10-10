@@ -5553,4 +5553,134 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get integrationsListenBrainzDisconnectFailed =>
       'Couldn\'t remove the ListenBrainz token. Try again.';
+
+  @override
+  String get notificationLibraryScanChannelName => 'Library Scan';
+
+  @override
+  String get notificationLibraryScanChannelDescription =>
+      'Library scan progress and completion updates';
+
+  @override
+  String get notificationLibraryScanProgressTitle => 'Scanning library';
+
+  @override
+  String notificationLibraryScanProgressBody(
+    Object stage,
+    int processed,
+    int total,
+  ) {
+    return '$stage • $processed/$total';
+  }
+
+  @override
+  String get notificationLibraryScanCompleteTitle => 'Library scan complete';
+
+  @override
+  String notificationLibraryScanCompleteHydrated(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count albums',
+      one: '1 album',
+    );
+    return 'Updated metadata and hydrated $_temp0.';
+  }
+
+  @override
+  String get notificationLibraryScanCompleteRefreshed =>
+      'Metadata refresh finished successfully.';
+
+  @override
+  String get notificationLibraryScanCompleteUpToDate =>
+      'Library is already up to date.';
+
+  @override
+  String get notificationLibraryScanFailedTitle => 'Library scan failed';
+
+  @override
+  String get notificationLibraryScanFailedBody =>
+      'The scan could not finish. Open Navis to try again.';
+
+  @override
+  String get notificationLibraryScanCancelledTitle => 'Library scan cancelled';
+
+  @override
+  String get notificationLibraryScanCancelledBody =>
+      'The scan stopped before it finished. Open Navis to try again.';
+
+  @override
+  String get notificationLibraryScanStagePreparing => 'Preparing scan';
+
+  @override
+  String get notificationLibraryScanStageFetchingArtists =>
+      'Refreshing artists';
+
+  @override
+  String get notificationLibraryScanStageFetchingAlbums => 'Refreshing albums';
+
+  @override
+  String get notificationLibraryScanStagePersistingMetadata =>
+      'Saving metadata';
+
+  @override
+  String get notificationLibraryScanStageFetchingSongs => 'Hydrating songs';
+
+  @override
+  String get notificationLibraryScanStageFetchingStarred =>
+      'Updating liked items';
+
+  @override
+  String get notificationLibraryScanStageFetchingPlaylists =>
+      'Updating playlists';
+
+  @override
+  String get notificationLibraryScanStageCollectingCandidate =>
+      'Building catalog update';
+
+  @override
+  String get notificationLibraryScanStageValidatingCandidate =>
+      'Validating catalog update';
+
+  @override
+  String get notificationLibraryScanStageApplyingCandidate =>
+      'Applying catalog update';
+
+  @override
+  String get notificationLibraryScanStageCleaningCandidate =>
+      'Cleaning up catalog update';
+
+  @override
+  String get notificationLibraryScanStageFinalizing => 'Finalizing scan';
+
+  @override
+  String get notificationLibraryScanStageCompleted => 'Scan complete';
+
+  @override
+  String get notificationLibraryScanStageIdle => 'Waiting to scan';
+
+  @override
+  String get notificationDownloadsChannelName => 'Downloads';
+
+  @override
+  String get notificationDownloadsChannelDescription =>
+      'Download queue and progress updates';
+
+  @override
+  String get notificationDownloadFailedTitle => 'Download failed';
+
+  @override
+  String notificationDownloadCompleteTitle(Object title) {
+    return 'Downloaded: $title';
+  }
+
+  @override
+  String notificationDownloadProgressMultiple(int count) {
+    return 'Downloading $count songs';
+  }
+
+  @override
+  String notificationDownloadProgressPercent(int percent) {
+    return '$percent%';
+  }
 }

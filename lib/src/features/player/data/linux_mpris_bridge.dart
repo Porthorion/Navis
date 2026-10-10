@@ -210,6 +210,7 @@ class LinuxMprisBridge {
     obj.syncState(
       status: status,
       position: snapshot.position,
+      pendingSeekPosition: snapshot.pendingSeekPosition,
       loopStatus: loopStatus,
       shuffleEnabled: snapshot.shuffleMode == AudioServiceShuffleMode.all,
       capabilities: navisOsControlCapabilitiesForSnapshot(snapshot),
@@ -361,17 +362,38 @@ class _NavisMprisObject extends DBusObject {
   bool _wasPlaying = false;
   int _systemSeekDepth = 0;
   String? _lastSyncedTrackId;
+  Duration? _pendingSeekPosition;
+  String? _pendingSeekTrackId;
 
   // ---- State update API used by LinuxMprisBridge --------------------------
 
   void syncState({
     required String status,
     required Duration position,
+    required Duration? pendingSeekPosition,
     required String loopStatus,
     required bool shuffleEnabled,
     required NavisOsControlCapabilities capabilities,
   }) {
-    updatePosition(position);
+    final previousTarget = _pendingSeekPosition;
+    updatePosition(
+      position,
+      detectSeek: previousTarget == null && pendingSeekPosition == null,
+    );
+    // The handler retains its target through native settlement. Intermediate
+    // snapshots and timeline events can alternate old and new positions.
+    if (previousTarget != null &&
+        pendingSeekPosition == null &&
+        _pendingSeekTrackId == currentTrackId &&
+        currentTrackId != null &&
+        _systemSeekDepth == 0 &&
+        (position - previousTarget).abs() <= _seekDetectionThreshold) {
+      unawaited(emitSeeked(position));
+    }
+    if (pendingSeekPosition != previousTarget) {
+      _pendingSeekTrackId = pendingSeekPosition == null ? null : currentTrackId;
+    }
+    _pendingSeekPosition = pendingSeekPosition;
     _wasPlaying = status == 'Playing';
 
     final changed = <String, DBusValue>{};
@@ -463,7 +485,7 @@ class _NavisMprisObject extends DBusObject {
     );
   }
 
-  void updatePosition(Duration position) {
+  void updatePosition(Duration position, {bool detectSeek = true}) {
     // Detect position jumps that weren't MPRIS-initiated — e.g. the user
     // seeked via the Navis UI while the media bar was showing. The MPRIS
     // spec requires a Seeked signal whenever position deviates from the
@@ -472,7 +494,9 @@ class _NavisMprisObject extends DBusObject {
     // Guard: only check when the same track is selected so we don't
     // false-fire on a normal track advance (where updateMetadata() updates
     // currentTrackId before syncState() is called, making IDs differ).
-    if (_systemSeekDepth == 0 &&
+    if (detectSeek &&
+        _pendingSeekPosition == null &&
+        _systemSeekDepth == 0 &&
         currentTrackId != null &&
         currentTrackId == _lastSyncedTrackId) {
       final elapsed = DateTime.now().difference(_lastSyncedTime);

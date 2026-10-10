@@ -10,6 +10,7 @@ import java.util.concurrent.ConcurrentHashMap
 import androidx.work.CoroutineWorker
 import androidx.work.Data
 import androidx.work.WorkerParameters
+import com.ryanheise.audioservice.NavisAudioServiceProbe
 import io.flutter.FlutterInjector
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.embedding.engine.dart.DartExecutor
@@ -66,6 +67,11 @@ class NavisBackgroundSyncWorker(
             }
             var session: BackgroundSyncFlutterSession? = null
             try {
+                val deferral = backgroundSyncPlaybackDeferral(NavisAudioServiceProbe.sessionActive())
+                if (deferral != null) {
+                    outcomeStore.record(profileKey, deferral.result, deferral.stopReason)
+                    return@coroutineScope Result.success()
+                }
                 val activeSession = BackgroundSyncFlutterSessions.create(applicationContext)
                 session = activeSession
                 activeSession.start()
@@ -168,6 +174,8 @@ private class FlutterEngineBackgroundSyncSession(
             if (call.method == "ready") {
                 if (!ready.isCompleted) ready.complete(Unit)
                 result.success(true)
+            } else if (call.method == "isPlaybackActive") {
+                result.success(NavisAudioServiceProbe.sessionActive())
             } else {
                 result.notImplemented()
             }
@@ -222,6 +230,9 @@ internal data class BackgroundSyncNativeOutcome(
     val result: String,
     val stopReason: String,
 )
+
+internal fun backgroundSyncPlaybackDeferral(sessionActive: Boolean): BackgroundSyncNativeOutcome? =
+    if (sessionActive) BackgroundSyncNativeOutcome("deferredPlayback", "deferredPlayback") else null
 
 /** Prevents periodic and catch-up work from booting duplicate Flutter engines. */
 internal object BackgroundSyncDispatchGate {

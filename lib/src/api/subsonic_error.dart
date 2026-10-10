@@ -63,7 +63,10 @@ class SubsonicSyncLimitException extends SubsonicException {
 
 /// A successful envelope did not contain a trustworthy scoped snapshot.
 class SubsonicIncompleteResponseException extends SubsonicException {
-  const new(super.message);
+  const new(super.message, {this.isConflictingSnapshot = false});
+
+  /// Identity or membership conflicts still require catalog verification.
+  final bool isConflictingSnapshot;
 }
 
 /// A Subsonic response exceeded the configured byte budget.
