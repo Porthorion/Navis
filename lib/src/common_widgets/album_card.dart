@@ -66,11 +66,22 @@ class AlbumCard extends ConsumerStatefulWidget {
   ConsumerState<AlbumCard> createState() => _AlbumCardState();
 }
 
+class _CoverReadyNotifier extends ValueNotifier<bool> {
+  new() : super(false);
+
+  bool synchronouslyLoaded = false;
+
+  void markReady({required bool synchronouslyLoaded}) {
+    this.synchronouslyLoaded = synchronouslyLoaded;
+    value = true;
+  }
+}
+
 class _AlbumCardState extends ConsumerState<AlbumCard> {
   /// Whether this card's cover has loaded and is on the device. The
   /// cover-tinted caption samples colours only after that, so it never starts
   /// work for a cover that has not been shown and never fetches artwork.
-  final ValueNotifier<bool> _coverReady = ValueNotifier<bool>(false);
+  final _CoverReadyNotifier _coverReady = _CoverReadyNotifier();
 
   @override
   void didUpdateWidget(AlbumCard oldWidget) {
@@ -105,7 +116,7 @@ class _AlbumCardState extends ConsumerState<AlbumCard> {
     final cardWidth = extent ?? size.extent;
 
     final titleMaxLines = size == AlbumCardSize.library ? 2 : 1;
-    return SizedBox(
+    final card = SizedBox(
       width: cardWidth,
       child: AspectRatio(
         aspectRatio: 1,
@@ -175,6 +186,13 @@ class _AlbumCardState extends ConsumerState<AlbumCard> {
           ),
         ),
       ),
+    );
+    return NotificationListener<CoverArtImageReadyNotification>(
+      onNotification: (ready) {
+        _coverReady.markReady(synchronouslyLoaded: ready.synchronouslyLoaded);
+        return true;
+      },
+      child: card,
     );
   }
 }
@@ -314,6 +332,7 @@ const Duration kCoverTintSettleDelay = Duration(milliseconds: 150);
 class _CoverTintLabelState extends ConsumerState<_CoverTintLabel> {
   Timer? _settleTimer;
   bool _requested = false;
+  bool _readySynchronously = false;
   CoverColourField? _known;
   CaptionTint? _appliedTint;
   String? _derivingKey;
@@ -330,7 +349,8 @@ class _CoverTintLabelState extends ConsumerState<_CoverTintLabel> {
   void initState() {
     super.initState();
     _known = _lookup();
-    widget.coverReady?.addListener(_maybeSettle);
+    _readySynchronously = widget.coverReady?.value ?? false;
+    widget.coverReady?.addListener(_coverBecameReady);
   }
 
   @override
@@ -359,8 +379,8 @@ class _CoverTintLabelState extends ConsumerState<_CoverTintLabel> {
   void didUpdateWidget(_CoverTintLabel oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.coverReady != widget.coverReady) {
-      oldWidget.coverReady?.removeListener(_maybeSettle);
-      widget.coverReady?.addListener(_maybeSettle);
+      oldWidget.coverReady?.removeListener(_coverBecameReady);
+      widget.coverReady?.addListener(_coverBecameReady);
     }
     if (oldWidget.coverArtId != widget.coverArtId ||
         oldWidget.coverArtRevision != widget.coverArtRevision) {
@@ -371,6 +391,7 @@ class _CoverTintLabelState extends ConsumerState<_CoverTintLabel> {
       _derivingKey = null;
       _instant = false;
       _requested = false;
+      _readySynchronously = false;
       _known = _lookup();
       if (oldWidget.coverArtId != widget.coverArtId) _appliedTint = null;
     }
@@ -383,7 +404,7 @@ class _CoverTintLabelState extends ConsumerState<_CoverTintLabel> {
     _settleTimer?.cancel();
     _fieldSubscription?.close();
     _scrolling?.removeListener(_scrollChanged);
-    widget.coverReady?.removeListener(_maybeSettle);
+    widget.coverReady?.removeListener(_coverBecameReady);
     super.dispose();
   }
 
@@ -391,6 +412,13 @@ class _CoverTintLabelState extends ConsumerState<_CoverTintLabel> {
   CoverColourField? _lookup() {
     final id = _id;
     return id == null ? null : peekCoverColourField(id);
+  }
+
+  void _coverBecameReady() {
+    final ready = widget.coverReady;
+    _readySynchronously =
+        ready is _CoverReadyNotifier && ready.synchronouslyLoaded;
+    _maybeSettle();
   }
 
   void _maybeSettle() {
@@ -402,7 +430,12 @@ class _CoverTintLabelState extends ConsumerState<_CoverTintLabel> {
         (_scrolling?.value ?? false)) {
       return;
     }
-    _settleTimer = Timer(kCoverTintSettleDelay, _settled);
+    // A synchronously resolved cached image has already paid its load cost.
+    // Defer to the event queue so provider work still stays outside build.
+    _settleTimer = Timer(
+      _readySynchronously ? Duration.zero : kCoverTintSettleDelay,
+      _settled,
+    );
   }
 
   void _settled() {

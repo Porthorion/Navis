@@ -4,7 +4,7 @@ import 'dart:ui' as ui;
 import 'package:material_ui/material_ui.dart';
 
 export 'package:navis/src/features/home/presentation/cover_colour_sampler.dart'
-    show coverColourFieldProvider;
+    show backgroundCoverColourFieldProvider, coverColourFieldProvider;
 
 /// Side of the colour grid sampled from a cover.
 const int kCoverColourGrid = 3;

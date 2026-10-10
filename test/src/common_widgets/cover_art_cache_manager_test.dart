@@ -717,6 +717,65 @@ void main() {
     });
 
     test(
+      'cancels interested background work when its preload leaves',
+      () async {
+        final coordinator = CoverArtLoadCoordinator(
+          maxActiveDownloads: 1,
+          criticalReserve: 0,
+        );
+        final blocker = await coordinator.acquire('warmup');
+        final interest = coordinator.trackInterest(
+          'preload:600',
+          CoverArtLoadPriority.background,
+        );
+        final queued = coordinator.acquire('preload:600');
+        final canceled = expectLater(
+          queued,
+          throwsA(isA<CoverArtLoadCanceledException>()),
+        );
+        interest.dispose();
+        await canceled;
+        expect(coordinator.queuedCount, 0);
+        blocker.release();
+      },
+    );
+
+    test('background work leaves a shared slot for visible covers', () async {
+      final coordinator = CoverArtLoadCoordinator();
+      final first = await coordinator.acquire('background-1');
+      final second = await coordinator.acquire('background-2');
+      var thirdStarted = false;
+      final third = coordinator.acquire('background-3').then((lease) {
+        thirdStarted = true;
+        return lease;
+      });
+      final interest = coordinator.trackInterest(
+        'visible:600',
+        CoverArtLoadPriority.visible,
+      );
+      final visible = await coordinator.acquire('visible:600');
+      expect(coordinator.activeCount, 3);
+      expect(coordinator.queuedCount, 1);
+      expect(thirdStarted, isFalse);
+      final criticalInterest = coordinator.trackInterest(
+        'now-playing:768',
+        CoverArtLoadPriority.critical,
+      );
+      final critical = await coordinator.acquire('now-playing:768');
+      expect(coordinator.activeCount, 4);
+      critical.release();
+      criticalInterest.dispose();
+      visible.release();
+      await Future<void>.delayed(Duration.zero);
+      expect(thirdStarted, isFalse);
+      first.release();
+      (await third).release();
+      second.release();
+      interest.dispose();
+      expect(coordinator.activeCount, 0);
+    });
+
+    test(
       'newly visible requests jump ahead of older background work',
       () async {
         final coordinator = CoverArtLoadCoordinator(

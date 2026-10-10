@@ -317,7 +317,7 @@ Future<void> prewarmNowPlayingVisuals({
               .read(coverArtLoadCoordinatorProvider)
               .trackInterest(
                 coverArtImageCacheKey(trimmedCoverArtId, 768),
-                CoverArtLoadPriority.critical,
+                CoverArtLoadPriority.background,
               );
     try {
       await precacheImage(imageProvider, context, onError: (_, _) {});

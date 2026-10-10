@@ -261,7 +261,10 @@ class _NowPlayingBackdropState extends ConsumerState<NowPlayingBackdrop> {
     final average = hasCoverId
         ? (ref
                       .watch(
-                        coverColourFieldProvider((id, widget.coverArtRevision)),
+                        backgroundCoverColourFieldProvider((
+                          id,
+                          widget.coverArtRevision,
+                        )),
                       )
                       .value ??
                   peekCoverColourField(id))

@@ -190,6 +190,10 @@ const List<ChangelogVersion> changelogs = [
         'Album Queue now applies to every song list, including Trending Now, playlists, downloads and Home lists',
       ),
       ChangelogEntry(
+        'Album art on screen loads first again',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
         'Now Playing Background also applies to the queue and to the desktop lyrics view',
       ),
       ChangelogEntry(

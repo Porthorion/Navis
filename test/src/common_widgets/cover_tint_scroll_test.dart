@@ -1,9 +1,15 @@
+import 'dart:convert';
+import 'dart:io';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:navis/l10n/app_localizations.dart';
 import 'package:navis/l10n/navis_localizations.dart';
 import 'package:navis/src/common_widgets/album_card.dart';
+import 'package:navis/src/database/navis_database.dart';
+import 'package:navis/src/features/downloads/data/permanent_artwork_store.dart';
+import 'package:path/path.dart' as p;
 import 'package:navis/src/common_widgets/caption_tint_resolver.dart';
 import 'package:navis/src/features/home/presentation/cover_colour_field.dart';
 import 'package:navis/src/features/home/presentation/cover_colour_sampler.dart';
@@ -21,10 +27,26 @@ class _Counter {
   }
 }
 
-Widget _app(_Counter counter, Widget home) {
+class _StoredArtwork extends PermanentArtworkStore {
+  new(this.file)
+    : super(readApplicationSupportDirectory: Directory.systemTemp.createTemp);
+
+  final File file;
+
+  @override
+  File? loadedFileFor(String? coverArtId) => file;
+
+  @override
+  Future<File?> fileFor(String? coverArtId) async => file;
+}
+
+Widget _app(_Counter counter, Widget home, {PermanentArtworkStore? artwork}) {
   return ProviderScope(
     overrides: [
       subsonicApiProvider.overrideWithValue(null),
+      coverArtShapeProvider.overrideWithValue('rounded'),
+      if (artwork != null)
+        permanentArtworkStoreProvider.overrideWithValue(artwork),
       coverColourDecoderProvider.overrideWithValue(counter.call),
       coverColourStoreProvider.overrideWithValue(const NullCoverColourStore()),
       coverColourWorkerProvider.overrideWithValue(InlineCoverColourWorker()),
@@ -106,6 +128,138 @@ void main() {
     );
   });
 
+  testWidgets('a cached cover ready synchronously requests without settling', (
+    tester,
+  ) async {
+    final counter = _Counter();
+    final ready = ValueNotifier<bool>(true);
+    addTearDown(ready.dispose);
+    await tester.pumpWidget(
+      _app(
+        counter,
+        SizedBox(
+          height: 120,
+          child: Stack(
+            children: <Widget>[
+              AlbumCardLabel(
+                title: 'A',
+                subtitle: 'B',
+                coverArtId: 'cached',
+                coverReady: ready,
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+    await tester.pump(const Duration(milliseconds: 1));
+    await tester.pump();
+    expect(counter.requested, <String>['cached']);
+    await tester.pumpWidget(const SizedBox());
+  });
+
+  testWidgets('a synchronous cached cover still defers while scrolling', (
+    tester,
+  ) async {
+    final counter = _Counter();
+    final ready = ValueNotifier<bool>(true);
+    addTearDown(ready.dispose);
+    await tester.pumpWidget(
+      _app(
+        counter,
+        ListView(
+          children: <Widget>[
+            SizedBox(
+              height: 120,
+              child: Stack(
+                children: <Widget>[
+                  AlbumCardLabel(
+                    title: 'Cached',
+                    subtitle: 'Artist',
+                    coverArtId: 'cached',
+                    coverReady: ready,
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 1000),
+          ],
+        ),
+      ),
+    );
+    final gesture = await tester.startGesture(
+      tester.getCenter(find.byType(ListView)),
+    );
+    await gesture.moveBy(const Offset(0, -50));
+    await tester.pump(const Duration(milliseconds: 1));
+    expect(counter.requested, isEmpty);
+    await gesture.up();
+    await tester.pumpAndSettle();
+    expect(counter.requested, <String>['cached']);
+    await tester.pumpWidget(const SizedBox());
+  });
+
+  for (final hero in [false, true]) {
+    testWidgets(
+      'a decoded cached ${hero ? 'hero' : 'regular'} cover skips settling',
+      (tester) async {
+        final directory = Directory.systemTemp.createTempSync(
+          'navis-tint-ready-',
+        );
+        addTearDown(() => directory.deleteSync(recursive: true));
+        final file = File(p.join(directory.path, 'cover.png'))
+          ..writeAsBytesSync(
+            base64Decode(
+              'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==',
+            ),
+          );
+        final counter = _Counter();
+        final artwork = _StoredArtwork(file);
+        final card = AlbumCard(
+          extent: 120,
+          heroTag: hero ? 'cached-hero' : null,
+          album: AlbumsTableData(
+            id: 'cached-album',
+            name: 'Cached',
+            coverArt: 'cached-cover',
+            artists: const [],
+            songsHydrated: true,
+            isProvisional: false,
+            isExternal: false,
+          ),
+        );
+        // Decode once, then remount a fresh card with the image still cached.
+        Widget app() => _app(counter, card, artwork: artwork);
+        await tester.pumpWidget(app());
+        for (
+          var i = 0;
+          i < 50 &&
+              !tester
+                  .widgetList<RawImage>(find.byType(RawImage))
+                  .any((image) => image.image != null);
+          i++
+        ) {
+          await tester.runAsync(
+            () => Future<void>.delayed(const Duration(milliseconds: 20)),
+          );
+          await tester.pump();
+        }
+        await tester.pump();
+        final raw = tester.widget<RawImage>(find.byType(RawImage).first);
+        expect(raw.image, isNotNull);
+        expect(counter.requested, isEmpty);
+        await tester.pumpWidget(const SizedBox());
+        await tester.pumpWidget(app());
+        await tester.pump(const Duration(milliseconds: 1));
+        await tester.pump();
+        expect(counter.requested, <String>['cached-cover']);
+        await tester.pumpWidget(const SizedBox());
+        PaintingBinding.instance.imageCache.clear();
+        PaintingBinding.instance.imageCache.clearLiveImages();
+      },
+    );
+  }
+
   testWidgets('a card waits for its cover before sampling', (tester) async {
     final counter = _Counter();
     final ready = ValueNotifier<bool>(false);
@@ -131,7 +285,9 @@ void main() {
     await tester.pump(const Duration(seconds: 1));
     expect(counter.requested, isEmpty);
     ready.value = true;
-    await tester.pump(kCoverTintSettleDelay + const Duration(milliseconds: 10));
+    await tester.pump(kCoverTintSettleDelay - const Duration(milliseconds: 1));
+    expect(counter.requested, isEmpty);
+    await tester.pump(const Duration(milliseconds: 11));
     await tester.pump();
     expect(counter.requested, <String>['x']);
   });

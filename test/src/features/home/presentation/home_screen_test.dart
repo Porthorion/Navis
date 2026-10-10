@@ -2172,7 +2172,7 @@ void main() {
         baseTheme: theme,
         textScale: scale,
         overrides: <Override>[
-          coverColourFieldProvider.overrideWith(
+          backgroundCoverColourFieldProvider.overrideWith(
             (ref, id) async => CoverColourField(
               List<Color>.filled(9, const Color(0xFFD32F2F)),
             ),
@@ -2238,7 +2238,7 @@ void main() {
     ];
 
     List<Override> overridesFor() => <Override>[
-      coverColourFieldProvider.overrideWith(
+      backgroundCoverColourFieldProvider.overrideWith(
         (ref, id) async =>
             CoverColourField(List<Color>.filled(9, const Color(0xFFD32F2F))),
       ),

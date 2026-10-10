@@ -276,6 +276,10 @@ class CoverArtLoadCoordinator {
   @visibleForTesting
   int interestCount(String key) => _interests[key]?.total ?? 0;
 
+  @visibleForTesting
+  CoverArtLoadPriority? interestPriority(String key) =>
+      _interestPriorityFor(key);
+
   CoverArtLoadInterest trackInterest(
     String key,
     CoverArtLoadPriority priority,
@@ -314,7 +318,7 @@ class CoverArtLoadCoordinator {
       key: key,
       sequence: _nextSequence++,
       priority: priority,
-      requiresLiveInterest: priority != CoverArtLoadPriority.background,
+      requiresLiveInterest: _interests.containsKey(key),
     );
     _requestsByKey[key] = request;
     _queued.add(request);
@@ -398,6 +402,13 @@ class CoverArtLoadCoordinator {
     final nonCriticalActive = _active
         .where((active) => active.priority != CoverArtLoadPriority.critical)
         .length;
+    if (request.priority == CoverArtLoadPriority.background) {
+      final backgroundLimit = (nonCriticalLimit - 1).clamp(1, nonCriticalLimit);
+      final backgroundActive = _active
+          .where((active) => active.priority == CoverArtLoadPriority.background)
+          .length;
+      if (backgroundActive >= backgroundLimit) return false;
+    }
     return nonCriticalActive < nonCriticalLimit;
   }
 

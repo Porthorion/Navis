@@ -178,7 +178,8 @@ class CoverColourSampler {
   final CoverArtLoadCoordinator coordinator;
   final CoverColourStore store;
 
-  final Map<(String, int), int> _missingArtRetries = <(String, int), int>{};
+  final Map<(String, int, CoverArtLoadPriority), int> _missingArtRetries =
+      <(String, int, CoverArtLoadPriority), int>{};
   final Map<(String, int), _Job> _jobs = <(String, int), _Job>{};
   late final Future<void> _ready;
   bool _disposed = false;
@@ -200,7 +201,11 @@ class CoverColourSampler {
 
   /// Asks for [coverId]'s [revision]. Current memory hits complete without
   /// scheduling; stale fields stay cached until the replacement is ready.
-  CoverColourRequest request(String coverId, {int revision = 0}) {
+  CoverColourRequest request(
+    String coverId, {
+    int revision = 0,
+    CoverArtLoadPriority priority = CoverArtLoadPriority.visible,
+  }) {
     final request = CoverColourRequest._(this, coverId, revision);
     final cached = cache.get(coverId);
     if ((cached != null && cached.revision >= revision) || _disposed) {
@@ -213,7 +218,7 @@ class CoverColourSampler {
     job.requests.add(request);
     request._interest = coordinator.trackInterest(
       coverColourLoadKey(coverId, revision: revision),
-      CoverArtLoadPriority.visible,
+      priority,
     );
     if (existing == null) {
       _jobs[key] = job;
@@ -442,36 +447,57 @@ final coverColourSamplerProvider = Provider<CoverColourSampler>((ref) {
 /// not on the device yet is retried a few times, one, two and four seconds
 /// apart, while something still watches it.
 final coverColourFieldProvider = FutureProvider.autoDispose
-    .family<CoverColourField?, (String, int)>((ref, key) async {
-      final (coverId, revision) = key;
-      final sampler = ref.watch(coverColourSamplerProvider);
-      final request = sampler.request(coverId, revision: revision);
-      Timer? retryTimer;
-      var retryPending = false;
-      ref.onDispose(() {
-        if (!retryPending) {
-          sampler._missingArtRetries.remove(key);
+    .family<CoverColourField?, (String, int)>(
+      (ref, key) => _loadColourField(ref, key, CoverArtLoadPriority.visible),
+    );
+
+/// Best-effort colour fields for decorative meshes and backdrops.
+///
+/// Captions retain visible priority on the same sampler and coordinator.
+final backgroundCoverColourFieldProvider = FutureProvider.autoDispose
+    .family<CoverColourField?, (String, int)>(
+      (ref, key) => _loadColourField(ref, key, CoverArtLoadPriority.background),
+    );
+
+Future<CoverColourField?> _loadColourField(
+  Ref ref,
+  (String, int) cover,
+  CoverArtLoadPriority priority,
+) async {
+  final (coverId, revision) = cover;
+  final key = (coverId, revision, priority);
+  final sampler = ref.watch(coverColourSamplerProvider);
+  final request = sampler.request(
+    coverId,
+    revision: revision,
+    priority: priority,
+  );
+  Timer? retryTimer;
+  var retryPending = false;
+  ref.onDispose(() {
+    if (!retryPending) {
+      sampler._missingArtRetries.remove(key);
+    }
+    retryTimer?.cancel();
+  });
+  ref.onDispose(request.cancel);
+  final field = await request.future;
+  if (field != null) {
+    sampler._missingArtRetries.remove(key);
+  } else if (ref.mounted) {
+    final attempt = sampler._missingArtRetries[key] ?? 0;
+    if (attempt < 3) {
+      sampler._missingArtRetries[key] = attempt + 1;
+      retryTimer = Timer(Duration(seconds: 1 << attempt), () {
+        if (ref.mounted) {
+          // Keep the attempt count across this deliberate recomputation.
+          retryPending = true;
+          ref.invalidateSelf();
         }
-        retryTimer?.cancel();
       });
-      ref.onDispose(request.cancel);
-      final field = await request.future;
-      if (field != null) {
-        sampler._missingArtRetries.remove(key);
-      } else if (ref.mounted) {
-        final attempt = sampler._missingArtRetries[key] ?? 0;
-        if (attempt < 3) {
-          sampler._missingArtRetries[key] = attempt + 1;
-          retryTimer = Timer(Duration(seconds: 1 << attempt), () {
-            if (ref.mounted) {
-              // Keep the attempt count across this deliberate recomputation.
-              retryPending = true;
-              ref.invalidateSelf();
-            }
-          });
-        } else {
-          sampler._missingArtRetries.remove(key);
-        }
-      }
-      return field;
-    });
+    } else {
+      sampler._missingArtRetries.remove(key);
+    }
+  }
+  return field;
+}

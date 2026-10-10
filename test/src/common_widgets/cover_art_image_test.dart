@@ -15,11 +15,13 @@ import 'package:navis/src/common_widgets/cover_art_cache_manager.dart';
 import 'package:navis/src/common_widgets/cover_art_image.dart';
 import 'package:navis/src/common_widgets/hero_cover_art.dart';
 import 'package:navis/src/providers/app_providers.dart';
+import 'package:navis/src/features/player/presentation/now_playing_screen.dart';
 import 'package:navis/l10n/app_localizations.dart';
 import 'package:navis/l10n/navis_localizations.dart';
 import 'package:navis/src/common_widgets/remote_source_indicator.dart';
 import 'package:navis/src/features/downloads/data/permanent_artwork_store.dart';
 import 'package:octo_image/octo_image.dart';
+import 'package:path/path.dart' as p;
 import 'package:visibility_detector/visibility_detector.dart';
 
 class _FakeSubsonicApiClient extends SubsonicApiClient {
@@ -340,6 +342,108 @@ void main() {
       expect(files, contains(stored.path));
     });
 
+    testWidgets('track-change visual prewarm registers background interest', (
+      tester,
+    ) async {
+      final file = File(p.join(cacheDirectory.path, 'prewarm-priority.png'))
+        ..writeAsBytesSync(_onePixelPng);
+      final manager = _TimingOutCacheManager(file, timeouts: 0);
+      final coordinator = CoverArtLoadCoordinator();
+      var done = false;
+      await tester.pumpWidget(
+        _buildWidget(
+          overrides: <Object>[
+            subsonicApiProvider.overrideWithValue(_FakeSubsonicApiClient()),
+            coverArtCacheManagerProvider.overrideWithValue(manager),
+            coverArtLoadCoordinatorProvider.overrideWithValue(coordinator),
+          ],
+          child: Consumer(
+            builder: (context, ref, _) => TextButton(
+              onPressed: () {
+                unawaited(
+                  prewarmNowPlayingVisuals(
+                    context: context,
+                    ref: ref,
+                    brightness: Brightness.light,
+                    coverArtId: 'prewarm-priority',
+                  ).whenComplete(() => done = true),
+                );
+                expect(
+                  coordinator.interestPriority(
+                    coverArtImageCacheKey('prewarm-priority', 768),
+                  ),
+                  CoverArtLoadPriority.background,
+                );
+              },
+              child: const Text('Warm'),
+            ),
+          ),
+        ),
+      );
+      await tester.tap(find.text('Warm'));
+      for (var i = 0; i < 50 && !done; i++) {
+        await tester.runAsync(
+          () => Future<void>.delayed(const Duration(milliseconds: 20)),
+        );
+        await tester.pump();
+      }
+      expect(done, isTrue);
+      expect(
+        coordinator.interestCount(
+          coverArtImageCacheKey('prewarm-priority', 768),
+        ),
+        0,
+      );
+      await tester.pumpWidget(const SizedBox());
+      PaintingBinding.instance.imageCache.clear();
+      PaintingBinding.instance.imageCache.clearLiveImages();
+    });
+
+    testWidgets('network rendering reports synchronous decoded cache hits', (
+      tester,
+    ) async {
+      final file = File(p.join(cacheDirectory.path, 'network-readiness.png'))
+        ..writeAsBytesSync(_onePixelPng);
+      final manager = _TimingOutCacheManager(file, timeouts: 0);
+      final readiness = <bool>[];
+      Widget app() => _buildWidget(
+        overrides: <Object>[
+          subsonicApiProvider.overrideWithValue(_FakeSubsonicApiClient()),
+          coverArtCacheManagerProvider.overrideWithValue(manager),
+        ],
+        child: NotificationListener<CoverArtImageReadyNotification>(
+          onNotification: (notification) {
+            readiness.add(notification.synchronouslyLoaded);
+            return true;
+          },
+          child: CoverArtImage(
+            coverArtId: 'network-readiness',
+            size: 600,
+            width: 64,
+            height: 64,
+            loadPriority: CoverArtLoadPriority.critical,
+            onImageReady: () {},
+          ),
+        ),
+      );
+      await tester.pumpWidget(app());
+      for (var i = 0; i < 50 && readiness.isEmpty; i++) {
+        await tester.runAsync(
+          () => Future<void>.delayed(const Duration(milliseconds: 20)),
+        );
+        await tester.pump();
+      }
+      expect(readiness, <bool>[false]);
+      await tester.pumpWidget(const SizedBox());
+      await tester.pumpWidget(app());
+      await tester.pump();
+      expect(readiness, <bool>[false, true]);
+      expect(manager.downloads, 1);
+      await tester.pumpWidget(const SizedBox());
+      PaintingBinding.instance.imageCache.clear();
+      PaintingBinding.instance.imageCache.clearLiveImages();
+    });
+
     group('a server cover that times out', () {
       Future<_TimingOutCacheManager> pumpTimingOut(
         WidgetTester tester, {
@@ -470,49 +574,63 @@ void main() {
       });
     });
 
-    testWidgets('visibility changes register and unregister interest', (
-      tester,
-    ) async {
-      final coordinator = CoverArtLoadCoordinator();
-      final manager = await _createCacheManager(tester, coordinator);
-      addTearDown(manager.dispose);
+    testWidgets(
+      'revision covers register and unregister under the request key',
+      (tester) async {
+        final coordinator = CoverArtLoadCoordinator();
+        final manager = await _createCacheManager(tester, coordinator);
+        addTearDown(manager.dispose);
 
-      await tester.pumpWidget(
-        _buildWidget(
-          overrides: <Object>[
-            subsonicApiProvider.overrideWithValue(_FakeSubsonicApiClient()),
-            coverArtLoadCoordinatorProvider.overrideWithValue(coordinator),
-            coverArtCacheManagerProvider.overrideWithValue(manager),
-          ],
-          child: const CoverArtImage(
-            coverArtId: 'cover-1',
-            size: kCoverArtStandardSize,
-            width: 64,
-            height: 64,
+        await tester.pumpWidget(
+          _buildWidget(
+            overrides: <Object>[
+              subsonicApiProvider.overrideWithValue(_FakeSubsonicApiClient()),
+              coverArtLoadCoordinatorProvider.overrideWithValue(coordinator),
+              coverArtCacheManagerProvider.overrideWithValue(manager),
+            ],
+            child: const CoverArtImage(
+              coverArtId: 'cover-1',
+              revision: 2,
+              size: kCoverArtStandardSize,
+              width: 64,
+              height: 64,
+            ),
           ),
-        ),
-      );
-      await tester.pump();
-      await tester.pump();
+        );
+        await tester.pump();
+        await tester.pump();
 
-      expect(
-        coordinator.interestCount(coverArtImageCacheKey('cover-1', 600)),
-        1,
-      );
+        expect(
+          coordinator.interestCount(coverArtImageCacheKey('cover-1', 600)),
+          1,
+        );
 
-      await tester.pumpWidget(const SizedBox.shrink());
-      await tester.pump();
+        expect(
+          coordinator.interestCount(
+            coverArtImageCacheKey('cover-1', 600, revision: 2),
+          ),
+          0,
+        );
+        expect(
+          coordinator.interestPriority(coverArtImageCacheKey('cover-1', 600)),
+          CoverArtLoadPriority.visible,
+        );
+        await tester.pumpWidget(const SizedBox.shrink());
+        await tester.pump();
 
-      expect(
-        coordinator.interestCount(coverArtImageCacheKey('cover-1', 600)),
-        0,
-      );
-    });
+        expect(
+          coordinator.interestCount(coverArtImageCacheKey('cover-1', 600)),
+          0,
+        );
+      },
+    );
 
-    testWidgets('near-viewport covers register visible interest', (
+    testWidgets('preload interest becomes visible only inside the viewport', (
       tester,
     ) async {
       final coordinator = CoverArtLoadCoordinator();
+      final scroll = ScrollController();
+      addTearDown(scroll.dispose);
       final manager = await _createCacheManager(tester, coordinator);
       addTearDown(manager.dispose);
 
@@ -527,6 +645,7 @@ void main() {
             height: 100,
             width: 100,
             child: ListView(
+              controller: scroll,
               scrollCacheExtent: const ScrollCacheExtent.pixels(400),
               children: const <Widget>[
                 SizedBox(height: 150),
@@ -548,6 +667,24 @@ void main() {
       expect(
         coordinator.interestCount(coverArtImageCacheKey('cover-near', 600)),
         1,
+      );
+      expect(
+        coordinator.interestPriority(coverArtImageCacheKey('cover-near', 600)),
+        CoverArtLoadPriority.background,
+      );
+      scroll.jumpTo(100);
+      await tester.pump();
+      await tester.pump();
+      expect(
+        coordinator.interestPriority(coverArtImageCacheKey('cover-near', 600)),
+        CoverArtLoadPriority.visible,
+      );
+      scroll.jumpTo(400);
+      await tester.pump();
+      await tester.pump();
+      expect(
+        coordinator.interestCount(coverArtImageCacheKey('cover-near', 600)),
+        0,
       );
     });
 
