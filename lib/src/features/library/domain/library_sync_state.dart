@@ -119,13 +119,13 @@ class LibrarySyncState {
   final int? hydratedAlbums;
   final int? pendingHydrationCount;
 
-  /// Every still-pending canonical album was attempted in this run and its
-  /// detail response was incomplete. Conflicting snapshots, transport, and
-  /// other failures never set it.
+  /// Every still-pending canonical album has a persisted incomplete detail
+  /// response classification matching its current metadata. Conflicting
+  /// snapshots, transport, and other failures never set it.
   final bool onlyIncompleteAlbumDetails;
 
-  /// Pending albums block freshness unless their last attempts in this run
-  /// all returned incomplete server details. The full backlog still retries.
+  /// Pending albums block freshness unless all have valid persisted
+  /// incomplete server-detail classifications. The full backlog still retries.
   bool get hasBlockingPendingAlbums =>
       (pendingHydrationCount ?? 0) > 0 && !onlyIncompleteAlbumDetails;
 

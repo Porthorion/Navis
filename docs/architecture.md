@@ -413,9 +413,8 @@ without a usable catalog stays on the full-screen `/initial-sync` rebuild route.
 Promotion alone does not admit Home. A complete run requires no blocking album
 hydration, artist verification, or candidate and durable full-sync evidence
 (`server_config.last_synced` or `library_sync_state.last_catalog_synced_at`).
-Pending albums whose detail attempts in that run all returned incomplete
-server details do not block completion or freshness; they remain queued for
-retries.
+Pending albums with valid persisted incomplete server-detail classifications
+do not block completion or freshness; they remain queued for retries.
 The sole partial exception is a validated catalog published in that run whose every
 remaining canonical album was attempted in the current run and returned
 incomplete detail. The controller then stores
@@ -3815,8 +3814,8 @@ states without starting audio or modifying a queue.
    background policy gates always remain `deferred`.
    Pending album details downgrade a successful catalog run to `partial` and
    withhold its catalog timestamp only when they block freshness. Albums whose
-   last detail attempt in the run was classified as incomplete server details
-   do not block; other failures and unattempted work still do.
+   incomplete server-detail classification still matches their current metadata
+   do not block; other failures and unclassified pending work still do.
 3. Reliable providers use conditional `getIndexes(ifModifiedSince)` as a cheap
    automatic check. The response is a conditional artist index, not a change
    feed, so its cursor advances only after every candidate and blocking
@@ -3868,10 +3867,21 @@ states without starting audio or modifying a queue.
    Between runs the remaining backlog (`pendingHydrationCount`) appears as a
    status line in Sync settings, worded as a server-data problem when
    `onlyIncompleteAlbumDetails` says every pending album returned incomplete
-   details in that run. That classification comes from the engine's incomplete
-   response IDs, separate from transport, 404, authentication, network, and
-   budget failures. Identity or track-membership conflicts are marked as
-   conflicting snapshots by album validation and still block verification.
+   details with evidence matching their current metadata. The server-scoped
+   `capabilitiesJson` Navis namespace stores `libraryIncompleteAlbumEvidence`,
+   an album-ID-to-fingerprint map encoded as JSON. Fingerprints use the same
+   name, artist ID/name, song count, duration, and cover art fields as song
+   hydration change detection. Only non-conflicting incomplete responses add
+   entries. Unchanged, unattempted albums retain them across runs; a new detail
+   attempt revokes its entry before requesting data. Hydration, 404, transient,
+   conflict, fatal, or interrupted attempts leave it revoked unless a new
+   non-conflicting incomplete response is observed. Metadata changes, hydrated
+   rows, and catalog removals invalidate entries when the pending set is read.
+   Capability writes merge into the latest server JSON through the engine's
+   existing helper. Classification is separate from transport, 404,
+   authentication, network, and budget failures. Identity or track-membership
+   conflicts are marked as conflicting snapshots by album validation and still
+   block verification.
    Such server-incomplete albums stay in `pendingHydrationCount`
    and are retried on later eligible runs, but do not block current freshness,
    sync timestamps, or the artist-index cursor. A Library notice would never

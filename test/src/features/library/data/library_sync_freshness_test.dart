@@ -1,5 +1,6 @@
 import 'dart:convert';
 
+import 'package:drift/drift.dart' hide isNotNull, isNull;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:navis/src/api/models/models.dart';
 import 'package:navis/src/api/subsonic_error.dart';
@@ -76,6 +77,207 @@ void main() {
     final config = (await repository.getActiveServer())!;
     final root = jsonDecode(config.capabilitiesJson!) as Map<String, dynamic>;
     return root['navis'] as Map<String, dynamic>;
+  }
+
+  Future<LibrarySyncState> classifyFourAlbums() async {
+    final albums = [
+      for (var i = 0; i < 4; i++)
+        Album(
+          id: 'incomplete-$i',
+          name: 'Incomplete $i',
+          artistId: 'artist-0',
+          songCount: 2,
+        ),
+    ];
+    api.fastPathPages[0] = albums;
+    api.artistDetails['artist-0'] = api.artists.first.copyWith(albums: albums);
+    for (final album in albums) {
+      api.albumDetails[album.id] = album.copyWith(
+        songs: [Song(id: '${album.id}-one', title: 'One', albumId: album.id)],
+      );
+    }
+    final first = await coordinator.requestSync(
+      const LibrarySyncRequest(
+        origin: SyncRunOrigin.settingsRepair,
+        intent: SyncRunIntent.repairLibrary,
+      ),
+    );
+    expect(first.status, LibrarySyncStatus.succeeded);
+    expect(first.pendingHydrationCount, 4);
+    expect(first.onlyIncompleteAlbumDetails, isTrue);
+    return first;
+  }
+
+  Future<LibrarySyncState> boundedCheck() async {
+    api.calls.clear();
+    api.newestPages[0] = const [
+      Album(id: 'healthy', name: 'Healthy', songCount: 1),
+    ];
+    api.albumDetails['healthy'] = const Album(
+      id: 'healthy',
+      name: 'Healthy',
+      songCount: 1,
+      songs: [Song(id: 'healthy-one', title: 'One', albumId: 'healthy')],
+    );
+    // A new executor has no classification left in run metrics.
+    final engine = meteredDriftEngine(
+      api: api,
+      database: database,
+      repository: repository,
+    );
+    final meteredCoordinator = AdaptiveLibrarySyncCoordinator(
+      executor: engine,
+      database: database,
+      serverConfigRepository: repository,
+      networkType: NetworkType.cellular,
+      staleAfter: const Duration(hours: 1),
+      readHasActivePlayback: () => false,
+    );
+    return await meteredCoordinator.requestSync(
+      const LibrarySyncRequest.checkForUpdates(),
+    );
+  }
+
+  test(
+    'unattempted incomplete albums stay current across bounded checks',
+    () async {
+      final first = await classifyFourAlbums();
+      final next = await boundedCheck();
+      expect(next.status, LibrarySyncStatus.succeeded);
+      expect(next.pendingHydrationCount, 4);
+      expect(next.onlyIncompleteAlbumDetails, isTrue);
+      expect(next.freshness, LibrarySyncFreshness.current);
+      expect(next.lastSyncedAt!.isAfter(first.lastSyncedAt!), isTrue);
+      expect(
+        next.lastCatalogUpdatedAt!.isAfter(first.lastCatalogUpdatedAt!),
+        isTrue,
+      );
+      expect(
+        api.calls.where((call) => call.startsWith('getAlbum:incomplete')),
+        isEmpty,
+      );
+      final classified = jsonDecode(
+        (await capabilities())['libraryIncompleteAlbumEvidence'] as String,
+      ) as Map<String, dynamic>;
+      expect(
+        classified.keys,
+        unorderedEquals([for (var i = 0; i < 4; i++) 'incomplete-$i']),
+      );
+    },
+    skip: !sqliteAvailable,
+  );
+
+  test(
+    'changed metadata revokes an unattempted incomplete exemption',
+    () async {
+      await classifyFourAlbums();
+      await database.libraryDao.upsertAlbums([
+        const AlbumsTableCompanion(
+          id: Value('incomplete-0'),
+          name: Value('Changed'),
+        ),
+      ]);
+      final next = await boundedCheck();
+      expect(next.onlyIncompleteAlbumDetails, isFalse);
+      expect(next.hasBlockingPendingAlbums, isTrue);
+      expect(next.freshness, LibrarySyncFreshness.verificationPending);
+      final classified = jsonDecode(
+        (await capabilities())['libraryIncompleteAlbumEvidence'] as String,
+      ) as Map<String, dynamic>;
+      expect(classified, isNot(contains('incomplete-0')));
+    },
+    skip: !sqliteAvailable,
+  );
+
+  test('an unclassified unattempted pending album still blocks', () async {
+    await classifyFourAlbums();
+    await database.libraryDao.upsertAlbums([
+      AlbumsTableCompanion.insert(id: 'unknown', name: 'Unknown'),
+    ]);
+    final next = await boundedCheck();
+    expect(next.pendingHydrationCount, 5);
+    expect(next.onlyIncompleteAlbumDetails, isFalse);
+    expect(next.hasBlockingPendingAlbums, isTrue);
+    expect(next.freshness, LibrarySyncFreshness.verificationPending);
+  }, skip: !sqliteAvailable);
+
+  test('removed albums lose their persisted classification', () async {
+    await classifyFourAlbums();
+    await database.libraryDao.deleteAlbumsByIds(['incomplete-0']);
+    final next = await boundedCheck();
+    expect(next.pendingHydrationCount, 3);
+    expect(next.onlyIncompleteAlbumDetails, isTrue);
+    final classified = jsonDecode(
+      (await capabilities())['libraryIncompleteAlbumEvidence'] as String,
+    ) as Map<String, dynamic>;
+    expect(classified, isNot(contains('incomplete-0')));
+  }, skip: !sqliteAvailable);
+
+  test(
+    'targeted detail retries revoke classifications before other failures',
+    () async {
+      await classifyFourAlbums();
+      final engine = serialDriftEngine(
+        api: api,
+        database: database,
+        repository: repository,
+      );
+      final incomplete = await engine.hydrateAlbum('incomplete-0');
+      expect(incomplete.status, LibrarySyncStatus.partial);
+      api.albumErrors['incomplete-0'] = const SubsonicNotFoundException(
+        message: 'Missing',
+      );
+      await engine.hydrateAlbum('incomplete-0');
+      final next = await boundedCheck();
+      expect(next.onlyIncompleteAlbumDetails, isFalse);
+      expect(next.hasBlockingPendingAlbums, isTrue);
+    },
+    skip: !sqliteAvailable,
+  );
+
+  for (final outcome in ['404', 'transient', 'conflict', 'hydrated']) {
+    test('a later $outcome revokes the persisted exemption', () async {
+      await classifyFourAlbums();
+      if (outcome == '404') {
+        api.albumErrors['incomplete-0'] = const SubsonicNotFoundException(
+          message: 'Missing',
+        );
+      } else if (outcome == 'transient') {
+        api.albumErrors['incomplete-0'] = const SubsonicGenericException(
+          code: 503,
+          message: 'Unavailable',
+        );
+      } else {
+        api.albumDetails['incomplete-0'] = api.albumDetails['incomplete-0']!
+            .copyWith(
+              songCount: outcome == 'hydrated' ? 1 : 2,
+              songs: [
+                Song(
+                  id: 'one',
+                  title: 'One',
+                  albumId: outcome == 'conflict' ? 'wrong' : 'incomplete-0',
+                ),
+              ],
+            );
+      }
+      final next = await serialDriftEngine(
+        api: api,
+        database: database,
+        repository: repository,
+      ).executeSyncPlan(syncPlanForTest(LibrarySyncPlanKind.targetedHydration));
+      expect(next.onlyIncompleteAlbumDetails, outcome == 'hydrated');
+      expect(next.hasBlockingPendingAlbums, outcome != 'hydrated');
+      expect(
+        next.freshness,
+        outcome == 'hydrated'
+            ? LibrarySyncFreshness.current
+            : LibrarySyncFreshness.verificationPending,
+      );
+      final classified = jsonDecode(
+        (await capabilities())['libraryIncompleteAlbumEvidence'] as String,
+      ) as Map<String, dynamic>;
+      expect(classified, isNot(contains('incomplete-0')));
+    }, skip: !sqliteAvailable);
   }
 
   test(
