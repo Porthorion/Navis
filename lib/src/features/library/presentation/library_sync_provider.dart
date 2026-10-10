@@ -20,6 +20,7 @@ import 'package:navis/src/features/library/data/song_identity_cache_epoch.dart';
 import 'package:navis/src/features/library/domain/library_sync_request.dart';
 import 'package:navis/src/features/library/domain/library_sync_state.dart';
 import 'package:navis/src/features/settings/domain/app_settings.dart';
+import 'package:navis/src/features/settings/presentation/update_pull_check.dart';
 import 'package:navis/src/providers/app_providers.dart';
 import 'package:navis/src/utils/catalog_source.dart';
 import 'package:navis/src/utils/app_logger.dart';

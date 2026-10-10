@@ -14,6 +14,7 @@ import 'package:navis/src/features/settings/data/update_service.dart';
 import 'package:navis/src/features/settings/domain/app_settings.dart';
 import 'package:navis/src/features/settings/domain/update_delivery.dart';
 import 'package:navis/src/features/settings/domain/update_info.dart';
+import 'package:navis/src/features/settings/presentation/update_pull_check.dart';
 import 'package:navis/src/providers/app_providers.dart';
 
 class _Sync extends LibrarySyncController {

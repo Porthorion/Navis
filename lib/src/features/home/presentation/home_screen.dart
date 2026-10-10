@@ -65,6 +65,7 @@ import 'package:navis/src/features/player/presentation/player_sheet_provider.dar
 import 'package:navis/src/features/settings/domain/update_delivery.dart';
 import 'package:navis/src/features/settings/domain/update_info.dart';
 import 'package:navis/src/features/settings/presentation/update_dialog.dart';
+import 'package:navis/src/features/settings/presentation/update_pull_check.dart';
 import 'package:navis/src/providers/app_providers.dart';
 import 'package:navis/src/routing/desktop_layout.dart';
 import 'package:navis/src/routing/navigation_service.dart';
