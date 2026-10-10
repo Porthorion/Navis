@@ -14,6 +14,7 @@ Last updated: 2026-10-02
 - ACP status values: `backlog`, `ready`, `in_progress`, `blocked`, `done`.
 
 ## Current Focus
+- [x] Flat areas and Album Art Colored Shade UI — 2026-10-10 (area switches under Flat Surfaces and the colored-shade switch in Settings and setup with New tags, classic fade default with no sampling, caption-below layout and host heights under Flat text over artwork, unobstructed phone album/playlist headers, Now Playing note follows its area, changelog; focused widget/golden tests added; runtime and `check.sh` omitted per machine rules).
 - [x] Flat areas and album-art coloured-shade persistence/plumbing — 2026-10-10 (schema 99 guarded upgrade, settings/DAO/repository/provider/diagnostics/registry, per-area theme cache and rendering checks; 668 persistence/theme tests passed, rendering 1488 passed/1 skipped/3 New-tag accounting failures pending the new controls; switches/caption layouts/changelog remain UI-agent-owned; runtime and `check.sh` omitted per machine rules).
 - [x] Now Playing backdrop gaps — 2026-10-10 (shared screen/desktop lyrics backdrop and Artwork reuse in the shell queue, with visibility/disposal cleanup and failure fallback; player/routing/common_widgets/theme suites and dead-code gate passed, existing goldens unchanged; runtime and `check.sh` omitted per machine rules).
 - [x] Corner Style UI — 2026-10-09 (`CornerStyleOption` in Appearance settings and setup after Flat Surfaces, New tags, setup preview uses the draft style, changelog line; focused widget tests added)
