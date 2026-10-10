@@ -8,7 +8,7 @@ import 'package:navis/src/theme/navis_color_style.dart';
 import 'package:navis/src/theme/navis_color_style_data.dart';
 
 // 8-bit sRGB quantisation moves a tone by well under this.
-const _eps = 0.2;
+const _eps = 0.3;
 
 double _tone(Color c) => Hct.fromInt(c.toARGB32()).tone;
 

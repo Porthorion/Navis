@@ -87,8 +87,8 @@ class NavisColorStyleData extends ThemeExtension<NavisColorStyleData> {
     final source = Hct.fromInt(raw.toARGB32());
     final achromatic = source.chroma < 6;
     final (maxChroma, minTone, maxTone) = switch ((style, dark)) {
-      (NavisColorStyle.pastel, true) => (16.0, 24.0, 32.0),
-      (NavisColorStyle.pastel, false) => (30.0, 84.0, 90.0),
+      (NavisColorStyle.pastel, true) => (12.0, 26.0, 34.0),
+      (NavisColorStyle.pastel, false) => (13.0, 88.0, 94.0),
       (NavisColorStyle.immersive, true) => (32.0, 16.0, 24.0),
       (NavisColorStyle.immersive, false) => (40.0, 78.0, 88.0),
       (NavisColorStyle.night, true) => (20.0, 20.0, 30.0),
@@ -139,8 +139,8 @@ class NavisColorStyleData extends ThemeExtension<NavisColorStyleData> {
     return switch ((style, dark)) {
       (NavisColorStyle.neutral, false) => subtle ? 0.9 : 0.84,
       (NavisColorStyle.neutral, true) => subtle ? 0.78 : 0.66,
-      (NavisColorStyle.pastel, false) => subtle ? 0.78 : 0.62,
-      (NavisColorStyle.pastel, true) => subtle ? 0.7 : 0.5,
+      (NavisColorStyle.pastel, false) => subtle ? 0.6 : 0.42,
+      (NavisColorStyle.pastel, true) => subtle ? 0.64 : 0.46,
       (NavisColorStyle.immersive, false) => subtle ? 0.74 : 0.56,
       (NavisColorStyle.immersive, true) => subtle ? 0.62 : 0.42,
       (NavisColorStyle.night, false) => subtle ? 0.8 : 0.66,
@@ -173,7 +173,7 @@ class NavisColorStyleData extends ThemeExtension<NavisColorStyleData> {
 
   /// Whether the main Play buttons use the solid `primary`/`onPrimary` pair
   /// instead of the container pair. Light Pastel's `primaryContainer` sits
-  /// about 1.2:1 against the raised surfaces the mini player and Now Playing
+  /// about 1.1:1 against the raised surfaces the mini player and Now Playing
   /// use, so Play takes the deeper primary there; other styles are unchanged.
   bool get solidPlayButton => style == NavisColorStyle.pastel && !dark;
 
@@ -201,8 +201,8 @@ class NavisColorStyleData extends ThemeExtension<NavisColorStyleData> {
     return switch ((style, dark)) {
       (NavisColorStyle.neutral, true) => const Color(0xFF81C995),
       (NavisColorStyle.neutral, false) => const Color(0xFF2E7D32),
-      (NavisColorStyle.pastel, true) => hct(150, 34, 82),
-      (NavisColorStyle.pastel, false) => hct(150, 36, 42),
+      (NavisColorStyle.pastel, true) => hct(150, 22, 86),
+      (NavisColorStyle.pastel, false) => hct(150, 24, 46),
       (NavisColorStyle.immersive, true) => hct(150, 48, 80),
       (NavisColorStyle.immersive, false) => hct(150, 48, 40),
       (NavisColorStyle.night, true) => hct(125, 30, 80),

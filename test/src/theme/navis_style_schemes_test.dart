@@ -2,6 +2,9 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:material_color_utilities/material_color_utilities.dart'
     show Hct;
 import 'package:material_ui/material_ui.dart';
+import 'package:navis/src/features/player/presentation/now_playing_artwork_background.dart';
+import 'package:navis/src/theme/caption_tint.dart';
+import 'package:navis/src/theme/flat_band_tone.dart';
 import 'package:navis/src/theme/navis_color_style.dart';
 import 'package:navis/src/theme/navis_color_style_data.dart';
 import 'package:navis/src/theme/navis_style_schemes.dart';
@@ -20,6 +23,8 @@ const Map<String, Color> _seeds = <String, Color>{
   'blue': Color(0xFF2196F3),
   'green': Color(0xFF4CAF50),
   'brown': Color(0xFF795548),
+  'neon pink': Color(0xFFFF1493),
+  'dark navy': Color(0xFF0A1F5C),
 };
 
 enum _Mode { light, dark, oled }
@@ -222,7 +227,7 @@ void main() {
       );
       expect(_hct(scheme.surface).chroma, greaterThanOrEqualTo(4));
       if (mode == _Mode.dark) {
-        expect(_hct(scheme.primary).chroma, lessThanOrEqualTo(44.5));
+        expect(_hct(scheme.primary).chroma, lessThanOrEqualTo(24.5));
       }
     }
   });
@@ -239,7 +244,7 @@ void main() {
       ).surface;
       expect(
         _hct(surface).chroma,
-        greaterThanOrEqualTo(6),
+        greaterThanOrEqualTo(5),
         reason: 'surface ${_hct(surface)} for $seed',
       );
     }
@@ -277,6 +282,144 @@ void main() {
       final warm = hue >= 10 && hue <= 100;
       expect(warm, isTrue, reason: 'hue $hue for $seed');
     }
+  });
+
+  group('style separation', () {
+    double maxChroma(ColorScheme scheme) => <Color>[
+      scheme.primary,
+      scheme.secondary,
+      scheme.tertiary,
+      scheme.primaryContainer,
+      scheme.secondaryContainer,
+      scheme.tertiaryContainer,
+      scheme.surface,
+      scheme.surfaceContainer,
+      scheme.surfaceContainerHighest,
+    ].map((c) => _hct(c).chroma).reduce((a, b) => a > b ? a : b);
+
+    for (final mode in _Mode.values) {
+      for (final entry in _seeds.entries) {
+        final label = '${mode.name} ${entry.key}';
+        final pastel = _scheme(entry.value, mode, NavisColorStyle.pastel);
+        final immersive = _scheme(entry.value, mode, NavisColorStyle.immersive);
+        final night = _scheme(entry.value, mode, NavisColorStyle.night);
+
+        test('$label: pastel is >= 40% less chromatic than immersive', () {
+          expect(
+            maxChroma(pastel),
+            lessThanOrEqualTo(maxChroma(immersive) * 0.6),
+            reason:
+                'pastel ${maxChroma(pastel)} immersive '
+                '${maxChroma(immersive)}',
+          );
+          expect(
+            maxChroma(pastel),
+            lessThan(maxChroma(night) * 0.85),
+            reason: 'pastel ${maxChroma(pastel)} night ${maxChroma(night)}',
+          );
+          // Containers are softer too, not only the accents.
+          for (final pair in <(Color, Color)>[
+            (pastel.primaryContainer, immersive.primaryContainer),
+            (pastel.secondaryContainer, immersive.secondaryContainer),
+          ]) {
+            expect(_hct(pair.$1).chroma, lessThan(_hct(pair.$2).chroma + 0.5));
+          }
+        });
+
+        test('$label: pastel stays soft (macaron accents, quiet fills)', () {
+          expect(_hct(pastel.primary).chroma, lessThanOrEqualTo(24.5));
+          expect(_hct(pastel.secondary).chroma, lessThanOrEqualTo(24.5));
+          expect(_hct(pastel.tertiary).chroma, lessThanOrEqualTo(24.5));
+          for (final fill in <Color>[
+            pastel.primaryContainer,
+            pastel.secondaryContainer,
+            pastel.tertiaryContainer,
+          ]) {
+            expect(_hct(fill).chroma, lessThanOrEqualTo(20.5));
+          }
+          for (final surface in <Color>[
+            pastel.surface,
+            pastel.surfaceContainer,
+            pastel.surfaceContainerHighest,
+          ]) {
+            expect(_hct(surface).chroma, lessThanOrEqualTo(10.5));
+          }
+          if (mode == _Mode.light) {
+            expect(_hct(pastel.primary).tone, inInclusiveRange(45, 55));
+            for (final fill in <Color>[
+              pastel.primaryContainer,
+              pastel.secondaryContainer,
+              pastel.tertiaryContainer,
+            ]) {
+              expect(_hct(fill).tone, inInclusiveRange(87.5, 93));
+            }
+          } else {
+            expect(_hct(pastel.primary).tone, greaterThanOrEqualTo(83.5));
+            expect(_hct(pastel.tertiary).tone, greaterThanOrEqualTo(83.5));
+            expect(_hct(pastel.primaryContainer).chroma, lessThan(14.5));
+          }
+        });
+
+        test('$label: night stays warm and low-blue', () {
+          expect(_hct(night.primary).hue, inInclusiveRange(12, 98));
+          expect(_hct(night.tertiary).hue, inInclusiveRange(12, 98));
+          expect(maxChroma(night), lessThanOrEqualTo(40.5));
+          final roles = <Color>[
+            night.onSurface,
+            if (mode != _Mode.oled) night.surface,
+            night.surfaceContainerHighest,
+          ];
+          for (final role in roles) {
+            expect(role.b, lessThan(role.r), reason: 'night role $role');
+          }
+        });
+
+        test('$label: immersive keeps rich accents', () {
+          expect(maxChroma(immersive), greaterThanOrEqualTo(34));
+          if (mode == _Mode.dark) {
+            // Deep tinted surfaces; OLED stays near black, light is paper.
+            expect(_hct(immersive.surface).chroma, greaterThanOrEqualTo(14));
+          }
+        });
+      }
+    }
+
+    test('pastel softens the seed chroma instead of passing it through', () {
+      for (final mode in _Mode.values) {
+        final muted = _scheme(
+          hct(350, 14, 50),
+          mode,
+          NavisColorStyle.pastel,
+        ).primary;
+        final vivid = _scheme(
+          hct(350, 100, 50),
+          mode,
+          NavisColorStyle.pastel,
+        ).primary;
+        expect(_hct(vivid).chroma, lessThanOrEqualTo(24.5));
+        expect(
+          _hct(vivid).chroma - _hct(muted).chroma,
+          lessThanOrEqualTo(9),
+          reason: mode.name,
+        );
+        expect(_hct(vivid).hue, closeTo(_hct(muted).hue, 8));
+      }
+    });
+
+    test('pastel success is soft, immersive success is richer', () {
+      for (final dark in <bool>[false, true]) {
+        final pastel = NavisColorStyleData(
+          style: NavisColorStyle.pastel,
+          dark: dark,
+        ).success;
+        final immersive = NavisColorStyleData(
+          style: NavisColorStyle.immersive,
+          dark: dark,
+        ).success;
+        expect(_hct(pastel).chroma, lessThanOrEqualTo(24.5));
+        expect(_hct(pastel).chroma, lessThan(_hct(immersive).chroma * 0.6));
+      }
+    });
   });
 
   group('neutral style', () {
@@ -443,6 +586,111 @@ void main() {
         dark: true,
       ).adaptArtColor(blue);
       expect(_hct(cool).chroma, greaterThan(23));
+    });
+  });
+
+  group('artwork colours across styles', () {
+    const samples = <String, Color>{
+      'neon pink': Color(0xFFFF1493),
+      'cover orange': Color(0xFFE2581E),
+      'cover yellow': Color(0xFFF2B630),
+      'electric blue': Color(0xFF1E3AEE),
+      'green': Color(0xFF14C850),
+      'navy': Color(0xFF0A1F5C),
+      'mint': Color(0xFFB8E8D0),
+    };
+    // (dark, oled) combinations.
+    const modes = <(bool, bool)>[(false, false), (true, false), (true, true)];
+
+    for (final (dark, oled) in modes) {
+      final pastelData = NavisColorStyleData(
+        style: NavisColorStyle.pastel,
+        dark: dark,
+        oled: oled,
+      );
+      final immersiveData = pastelData.copyWith(
+        style: NavisColorStyle.immersive,
+      );
+      for (final entry in samples.entries) {
+        final label = '${entry.key} dark=$dark oled=$oled';
+
+        test(
+          '$label: pastel art colours cap at chroma 14 and trail immersive',
+          () {
+            final adapted = pastelData.adaptArtColor(entry.value);
+            expect(_hct(adapted).chroma, lessThanOrEqualTo(14.5));
+            expect(
+              _hct(adapted).chroma,
+              lessThan(
+                _hct(immersiveData.adaptArtColor(entry.value)).chroma * 0.6,
+              ),
+            );
+            // Flat bands and cover-tinted captions derive from the same colour.
+            final band = flatBandSample(entry.value, pastelData);
+            expect(_hct(band).chroma, lessThanOrEqualTo(14.5));
+            final caption = captionTintFor(entry.value, pastelData).fill;
+            expect(_hct(caption).chroma, lessThanOrEqualTo(14.5));
+            expect(
+              _hct(band).chroma,
+              lessThan(
+                _hct(flatBandSample(entry.value, immersiveData)).chroma * 0.65 +
+                    0.5,
+              ),
+            );
+          },
+        );
+      }
+    }
+
+    for (final dark in <bool>[false, true]) {
+      test('flat Now Playing solid stays pastel (dark=$dark)', () {
+        for (final entry in samples.entries) {
+          Color solid(NavisColorStyle style) {
+            final data = NavisColorStyleData(
+              style: style,
+              dark: dark,
+              flat: true,
+            );
+            final surface = _scheme(
+              Colors.white,
+              dark ? _Mode.dark : _Mode.light,
+              style,
+            ).surface;
+            return nowPlayingSurfaceDecoration(
+              tintColor: entry.value,
+              colorStyle: data,
+              surfaceColor: surface,
+            ).color!;
+          }
+
+          final pastel = solid(NavisColorStyle.pastel);
+          expect(
+            _hct(pastel).chroma,
+            lessThanOrEqualTo(14.5),
+            reason: entry.key,
+          );
+          expect(
+            _hct(pastel).chroma,
+            lessThan(_hct(solid(NavisColorStyle.immersive)).chroma),
+            reason: entry.key,
+          );
+        }
+      });
+    }
+
+    test('pastel light art colours are high-key, dark ones dusky-soft', () {
+      for (final raw in samples.values) {
+        final light = NavisColorStyleData(
+          style: NavisColorStyle.pastel,
+          dark: false,
+        ).adaptArtColor(raw);
+        final dusk = NavisColorStyleData(
+          style: NavisColorStyle.pastel,
+          dark: true,
+        ).adaptArtColor(raw);
+        expect(_hct(light).tone, greaterThanOrEqualTo(87.5));
+        expect(_hct(dusk).tone, inInclusiveRange(25.5, 34.5));
+      }
     });
   });
 

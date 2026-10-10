@@ -235,6 +235,11 @@ class _Recipe {
     required this.textHue,
     required this.textChroma,
     this.errorChroma = 44,
+    this.lightErrorChroma,
+    this.darkAccentTone = 82,
+    this.darkContainerTone = 26,
+    this.lightInkTone = 42,
+    this.lightContainerTone = 88,
   });
 
   final _Hue accent;
@@ -271,6 +276,23 @@ class _Recipe {
   final double textChroma;
   final double errorChroma;
 
+  /// Chroma of the error ink on light schemes; defaults to [errorChroma] + 12.
+  final double? lightErrorChroma;
+
+  /// Tone of accent fills on dark schemes (primary, tertiary, tint).
+  final double darkAccentTone;
+
+  /// Tone of primary and tertiary containers on dark schemes; the secondary
+  /// container sits 2 steps lower.
+  final double darkContainerTone;
+
+  /// Tone of accent ink on light schemes (white text on it keeps 4.5:1).
+  final double lightInkTone;
+
+  /// Tone of primary and tertiary containers on light schemes; the secondary
+  /// container sits 2 steps higher.
+  final double lightContainerTone;
+
   ColorScheme build({required bool dark, required bool oled}) {
     return dark ? _dark(oled: oled) : _light();
   }
@@ -280,6 +302,8 @@ class _Recipe {
     final s = darkSurfaceChroma;
     final c = containerChromaDark;
     const error = _Hue(_errorHue);
+    final tone = darkAccentTone;
+    final ct = darkContainerTone;
     const black = Colors.black;
     // OLED keeps pure black backgrounds; cards and sheets step up through
     // near-black tones that still carry the style's hue.
@@ -288,28 +312,28 @@ class _Recipe {
     final oledStep = math.min<double>(s, 2);
     return ColorScheme(
       brightness: Brightness.dark,
-      primary: accent.at(accentChroma, 82),
+      primary: accent.at(accentChroma, tone),
       onPrimary: accent.at(math.min<double>(accentChroma, 18), 14),
-      primaryContainer: accent.at(c, 26),
+      primaryContainer: accent.at(c, ct),
       onPrimaryContainer: accent.at(accentChroma * 0.7, 90),
       primaryFixed: accent.at(accentChroma * 0.7, 90),
-      primaryFixedDim: accent.at(accentChroma, 80),
+      primaryFixedDim: accent.at(accentChroma, tone - 2),
       onPrimaryFixed: accent.at(16, 12),
       onPrimaryFixedVariant: accent.at(c, 24),
-      secondary: accent.at(secondaryChroma, 80),
+      secondary: accent.at(secondaryChroma, tone - 2),
       onSecondary: accent.at(math.min<double>(secondaryChroma, 14), 16),
-      secondaryContainer: accent.at(c, 24),
+      secondaryContainer: accent.at(c, ct - 2),
       onSecondaryContainer: accent.at(secondaryChroma, 90),
       secondaryFixed: accent.at(secondaryChroma, 90),
       secondaryFixedDim: accent.at(secondaryChroma, 80),
       onSecondaryFixed: accent.at(12, 12),
       onSecondaryFixedVariant: accent.at(c, 24),
-      tertiary: tertiary.at(tertiaryChroma, 82),
+      tertiary: tertiary.at(tertiaryChroma, tone),
       onTertiary: tertiary.at(math.min<double>(tertiaryChroma, 18), 14),
-      tertiaryContainer: tertiary.at(c, 26),
+      tertiaryContainer: tertiary.at(c, ct),
       onTertiaryContainer: tertiary.at(tertiaryChroma * 0.7, 90),
       tertiaryFixed: tertiary.at(tertiaryChroma * 0.7, 90),
-      tertiaryFixedDim: tertiary.at(tertiaryChroma, 80),
+      tertiaryFixedDim: tertiary.at(tertiaryChroma, tone - 2),
       onTertiaryFixed: tertiary.at(16, 12),
       onTertiaryFixedVariant: tertiary.at(c, 24),
       error: error.at(errorChroma, 80),
@@ -333,7 +357,7 @@ class _Recipe {
       inverseSurface: n.at(math.min<double>(s, 8), 90),
       onInverseSurface: n.at(math.min<double>(s, 10), 20),
       inversePrimary: accent.at(lightAccentChroma, 40),
-      surfaceTint: accent.at(accentChroma, 82),
+      surfaceTint: accent.at(accentChroma, tone),
     );
   }
 
@@ -344,42 +368,44 @@ class _Recipe {
     const error = _Hue(_errorHue);
     final ink = lightAccentChroma;
     final t = lightSurfaceTone;
+    final it = lightInkTone;
+    final lct = lightContainerTone;
     return ColorScheme(
       brightness: Brightness.light,
-      primary: accent.at(ink, 42),
+      primary: accent.at(ink, it),
       onPrimary: Colors.white,
-      primaryContainer: accent.at(c, 88),
+      primaryContainer: accent.at(c, lct),
       onPrimaryContainer: accent.at(math.min<double>(ink, 24), 20),
-      primaryFixed: accent.at(c, 88),
+      primaryFixed: accent.at(c, lct),
       primaryFixedDim: accent.at(c + 4, 78),
       onPrimaryFixed: accent.at(16, 12),
       onPrimaryFixedVariant: accent.at(math.min<double>(ink, 24), 22),
-      secondary: accent.at(secondaryChroma + 4, 42),
+      secondary: accent.at(secondaryChroma + 4, it),
       onSecondary: Colors.white,
       secondaryContainer: accent.at(
         math.max<double>(secondaryChroma, c * 0.75),
-        90,
+        lct + 2,
       ),
       onSecondaryContainer: accent.at(16, 20),
       secondaryFixed: accent.at(secondaryChroma, 90),
       secondaryFixedDim: accent.at(secondaryChroma, 80),
       onSecondaryFixed: accent.at(12, 12),
       onSecondaryFixedVariant: accent.at(16, 22),
-      tertiary: tertiary.at(math.min<double>(tertiaryChroma, ink), 42),
+      tertiary: tertiary.at(math.min<double>(tertiaryChroma, ink), it),
       onTertiary: Colors.white,
-      tertiaryContainer: tertiary.at(c, 88),
+      tertiaryContainer: tertiary.at(c, lct),
       onTertiaryContainer: tertiary.at(
         math.min<double>(tertiaryChroma, 24),
         20,
       ),
-      tertiaryFixed: tertiary.at(c, 88),
+      tertiaryFixed: tertiary.at(c, lct),
       tertiaryFixedDim: tertiary.at(c + 4, 78),
       onTertiaryFixed: tertiary.at(16, 12),
       onTertiaryFixedVariant: tertiary.at(
         math.min<double>(tertiaryChroma, 24),
         22,
       ),
-      error: error.at(errorChroma + 12, 42),
+      error: error.at(lightErrorChroma ?? errorChroma + 12, 42),
       onError: Colors.white,
       errorContainer: error.at(math.min<double>(errorChroma, 26), 90),
       onErrorContainer: error.at(24, 20),
@@ -403,37 +429,46 @@ class _Recipe {
       inverseSurface: n.at(math.min<double>(s, 10), 20),
       onInverseSurface: n.at(math.min<double>(s, 8), 94),
       inversePrimary: accent.at(accentChroma, 82),
-      surfaceTint: accent.at(ink, 42),
+      surfaceTint: accent.at(ink, it),
     );
   }
 }
 
-/// Chalk pastels on tinted paper: soft accents, gently tinted backgrounds,
-/// and a pastel family that shares one tone.
+/// Chalk pastels: macaron accents at high tones and low chroma, a faintly
+/// tinted paper (light) or soft plum dusk (dark), and quiet containers.
+///
+/// The seed supplies the hue only. Its chroma never passes through: the
+/// accent chroma is 16 for a muted seed up to 24 for a vivid one, so a neon
+/// cover gives a sugared pink, not a hot one. Dark accents sit at tone 86,
+/// light ink at tone 47 (white text keeps 4.5:1), light fills at tone 89-91.
 _Recipe _pastelRecipe(Hct source, bool achromatic) {
   final hue = achromatic ? seaGlassHue : source.hue;
-  final chroma = achromatic ? 36.0 : source.chroma.clamp(28.0, 44.0);
+  final chroma = achromatic ? 20.0 : 16 + source.chroma.clamp(0.0, 48.0) / 6;
   return _Recipe(
     accent: _Hue(hue),
     accentChroma: chroma,
-    secondaryChroma: 18,
+    secondaryChroma: 11,
     tertiary: _Hue(hue + 48),
-    tertiaryChroma: chroma * 0.85,
+    tertiaryChroma: chroma * 0.9,
     neutral: _Hue(hue),
     darkNeutral: _Hue(pastelDuskHue(hue)),
     lightNeutral: _Hue(pastelPaperHue(hue)),
-    darkSurfaceChroma: 10,
+    darkSurfaceChroma: 7,
     // Warm hues are gamut-limited at this tone; the paper takes what fits.
-    lightSurfaceChroma: 12,
-    containerChromaDark: 14,
-    containerChromaLight: 28,
-    // Light accents double as text, so they stay at ink tone; enough chroma
-    // keeps warm hues coral or rose instead of brown.
-    lightAccentChroma: math.max<double>(chroma, 48),
+    lightSurfaceChroma: 6,
+    containerChromaDark: 12,
+    containerChromaLight: 15,
+    // Light accents double as text, so they stay at ink tone.
+    lightAccentChroma: chroma,
     lightSurfaceTone: 95,
     textHue: _Hue(hue),
-    textChroma: 4,
-    errorChroma: 40,
+    textChroma: 3,
+    errorChroma: 26,
+    lightErrorChroma: 30,
+    darkAccentTone: 86,
+    darkContainerTone: 30,
+    lightInkTone: 47,
+    lightContainerTone: 89,
   );
 }
 
@@ -442,7 +477,7 @@ _Recipe _pastelRecipe(Hct source, bool achromatic) {
 /// keeps the seed's full chroma.
 _Recipe _immersiveRecipe(Hct source, bool achromatic) {
   final hue = achromatic ? seaGlassHue : source.hue;
-  final chroma = achromatic ? 48.0 : math.max<double>(source.chroma, 32);
+  final chroma = achromatic ? 48.0 : math.max<double>(source.chroma, 36);
   return _Recipe(
     accent: _Hue(hue),
     accentChroma: chroma,
@@ -459,6 +494,8 @@ _Recipe _immersiveRecipe(Hct source, bool achromatic) {
     textHue: _Hue(hue),
     textChroma: 6,
     errorChroma: 56,
+    // Deeper than Pastel's tone 86, so the accent keeps its full chroma.
+    darkAccentTone: 77,
   );
 }
 
