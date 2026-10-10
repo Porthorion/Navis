@@ -228,7 +228,7 @@ void main() {
     expect(changes, 0);
   });
 
-  testWidgets('the scale sits flat and outlines itself only when focused', (
+  testWidgets('the scale sits flat and outlines itself only for the keyboard', (
     tester,
   ) async {
     await tester.pumpWidget(
@@ -260,9 +260,31 @@ void main() {
     expect(decoration().gradient, isNull);
     expect(decoration().color, isNull);
     expect(decoration().border, isNull);
+
+    // Touch input focuses the ruler without outlining it, tap or drag.
+    FocusManager.instance.highlightStrategy =
+        FocusHighlightStrategy.alwaysTouch;
+    addTearDown(
+      () => FocusManager.instance.highlightStrategy =
+          FocusHighlightStrategy.automatic,
+    );
     await tester.tap(find.byType(AdjustmentRuler));
     await tester.pump();
+    expect(FocusManager.instance.primaryFocus, isNotNull);
+    expect(decoration().border, isNull);
+    await tester.drag(find.byType(AdjustmentRuler), const Offset(-40, 0));
+    await tester.pump();
+    expect(decoration().border, isNull);
+
+    // Keyboard focus draws it, and it goes again when touch takes over.
+    FocusManager.instance.highlightStrategy =
+        FocusHighlightStrategy.alwaysTraditional;
+    await tester.pump();
     expect(decoration().border, isNotNull);
+    FocusManager.instance.highlightStrategy =
+        FocusHighlightStrategy.alwaysTouch;
+    await tester.pump();
+    expect(decoration().border, isNull);
   });
 
   group('external value changes glide like a swipe', () {

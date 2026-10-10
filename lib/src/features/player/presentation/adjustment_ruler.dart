@@ -190,9 +190,20 @@ class _AdjustmentRulerState extends State<AdjustmentRuler>
   bool _dragging = false;
   bool _focused = false;
 
+  /// Whether input is currently keyboard-like. A tap or drag focuses the ruler
+  /// too, but only keyboard focus earns the ring.
+  bool _keyboardMode =
+      FocusManager.instance.highlightMode == FocusHighlightMode.traditional;
+
+  void _highlightModeChanged(FocusHighlightMode mode) {
+    final keyboard = mode == FocusHighlightMode.traditional;
+    if (keyboard != _keyboardMode) setState(() => _keyboardMode = keyboard);
+  }
+
   @override
   void initState() {
     super.initState();
+    FocusManager.instance.addHighlightModeListener(_highlightModeChanged);
     _visualValue = widget.value;
     _settle = AnimationController(vsync: this, duration: _settleDuration)
       ..addListener(() {
@@ -483,7 +494,9 @@ class _AdjustmentRulerState extends State<AdjustmentRuler>
             child: DecoratedBox(
               decoration: BoxDecoration(
                 borderRadius: NavisShapeData.of(context).mdAll,
-                border: _focused ? Border.all(color: colors.primary) : null,
+                border: _focused && _keyboardMode
+                    ? Border.all(color: colors.primary)
+                    : null,
               ),
               child: SizedBox(
                 width: double.infinity,
@@ -532,6 +545,7 @@ class _AdjustmentRulerState extends State<AdjustmentRuler>
 
   @override
   void dispose() {
+    FocusManager.instance.removeHighlightModeListener(_highlightModeChanged);
     _settle.dispose();
     _focus.dispose();
     super.dispose();
