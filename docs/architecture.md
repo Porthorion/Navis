@@ -968,12 +968,35 @@ target-selection rules.
     other styles are unchanged. Flat also drops the album-card caption fade
     for a solid `CaptionTint.fill` block, the selected-swatch glow and the
     anchored popover's black shadow.
+  - Fine-Tune Colors (`color_tuning_option.dart`, `ColorTuningOption`) holds
+    the Color (Muted to Vivid) and Brightness (Lighter to Deeper) rulers. Each
+    is the Speed and Pitch `AdjustmentRuler` in whole-step mode (`snapStep: 1`,
+    value = the step −5…+5, 32 px a step, a minor haptic tick per step and the
+    firmer neutral tick at 0), laid out like the Speed and Pitch row (− stepper,
+    ruler, + stepper via the shared `RulerStepButton`) with end captions and a
+    readout ("Default", "+2", "−3"). The scale carries a `RulerBand`: eleven
+    stepped swatches, one per step, built with `buildStyledColorScheme` from the
+    previewed seed, style, brightness, OLED flag and the other axis, never from
+    the ambient theme, so they hold still while the app recolours around them.
+    Color paints `primary` (its needle is the live primary, with `onPrimary`
+    ticks); Brightness paints `surface`, or `surfaceContainerHigh` in OLED
+    where surface stays black. The widget keeps the values it shows; while a
+    ruler moves it reports each whole step through `onPreview`, and on drag
+    release, stepper, keyboard or Reset it reports the value through
+    `onChanged` (Reset appears only while a value is not 0 and glides both
+    rulers back). Settings maps `onPreview` to
+    `colorAdjustmentPreviewProvider.preview` and `onChanged` to
+    `updateColorAdjustment`, clearing the preview once the saved value is
+    observed (or at once when it equals the saved value, and on disposal);
+    setup writes both to its draft. The rulers stop growing at 480 dp on wide
+    pages. The ruler's band, whole-step snapping, label and accent hooks default
+    to Speed and Pitch behaviour.
   - Decision record:
     [decisions/2026-10-07-colour-styles.md](decisions/2026-10-07-colour-styles.md).
   - Settings › Appearance (`appearance_settings_screen.dart`) has four
     sections under one `AppearanceHeading` (`appearance_layout.dart`):
     Theme (Theme Mode, Use OLED When Dark in Auto only),
-    Color (Color Style, Night Schedule, Accent Color, then Dynamic Album Color
+    Color (Color Style, Fine-Tune Colors, Night Schedule, Accent Color, then Dynamic Album Color
     directly under the accent grid, whose note names the switch), Shape & Layout (Flat
     Surfaces, Corner Style, Artwork Shape with its three selectors, Artwork
     Theme (Theme Mode, Use OLED When Dark in Auto only, Night Schedule),
@@ -988,9 +1011,11 @@ target-selection rules.
     so. `app.dart` re-checks the scheduled style when the app resumes.
   - Settings and setup share the option widgets and one `AppearanceOptionSet`
     (`appearance_options.dart`), whose `AppearanceOptionKind` order (OLED,
-    Night Schedule, Flat Surfaces, Corner Style, Density, Now Playing
-    Background) is the relative order in both places; Night Schedule sits under
-    Color in Settings and beside Color Style in setup. `AppearanceLayout`, an
+    Fine-Tune Colors, Night Schedule, Flat Surfaces, Corner Style, Density,
+    Now Playing Background) is the relative order in both places; Fine-Tune
+    Colors and Night Schedule sit under Color Style in Settings, Night
+    Schedule beside Color Style in setup and Fine-Tune Colors under "More
+    appearance options". `AppearanceLayout`, an
     inherited widget, gives every shared control its left gutter (16 in
     Settings, 0 in setup) so headings and controls share one edge.
 - `navis_tokens.dart`:
@@ -1571,13 +1596,13 @@ The look step shows the appearance options through the same callback-driven
 widgets as Settings › Appearance (`settings/presentation/appearance_options.dart`).
 Theme Mode, Color Style, Night Schedule and Accent Color are always visible; a
 "More appearance options" group (`SettingsCollapsibleGroup`, children built
-only while open) holds Use OLED When Dark (Auto only), Flat Surfaces, Corner
+only while open) holds Use OLED When Dark (Auto only), Fine-Tune Colors, Flat Surfaces, Corner
 Style, Density and Now Playing Background, in Settings' relative order. It
 starts open when any of them carries a pending tag (OLED only counts in Auto)
 and closed otherwise. The step shows the "Scroll for more" hint like the other
 Theme Mode, Color Style and Accent Color are always visible; a "More appearance
 options" group (`SettingsCollapsibleGroup`, children built only while open)
-holds Use OLED When Dark (Auto only), Night Schedule, Flat Surfaces (with its
+holds Use OLED When Dark (Auto only), Fine-Tune Colors, Night Schedule, Flat Surfaces (with its
 Panels and Shadows, Now Playing and Text Over Artwork switches while Flat is
 on), Corner Style, Density and Now Playing Background, in Settings' relative
 order; Album Art Shade (with Use Cover Color) sits after the accent hint, outside the group.

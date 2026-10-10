@@ -226,3 +226,20 @@ A nullable Riverpod preview temporarily overrides persisted tuning during
 dragging. Existing theme-cache, caption memo and dedupe keys, and worker
 messages carry both axes; artwork tone windows/chroma caps follow tuning,
 while the existing scrim recipes and OLED Now Playing cap remain in place.
+
+### Fine-Tune Colors controls (2026-10-10)
+
+The two tuning axes are one option, Fine-Tune Colors, under Color Style in
+Settings › Appearance and under "More appearance options" in setup, with its
+own New tag. Each axis is the Speed and Pitch ruler in whole-step mode rather
+than a new slider: the scale is eleven stepped swatches of what that step
+really produces (the live primary for Color; `surface`, or
+`surfaceContainerHigh` in OLED, for Brightness), computed from the previewed
+theme's inputs so they hold still while the app recolours. A smooth gradient
+was rejected because the setting is eleven discrete steps and a gradient would
+imply values between them. The rulers dispatch a preview per whole step and
+save on release; Reset (shown only while a value is not Default) returns both.
+The ruler stops growing at 480 dp so its steppers stay beside the strip on wide
+pages. Dark and OLED Pastel accents sit at the gamut ceiling for some hues, so
+the Vivid half of the Color scale can show little change there; the strip
+reports the real result rather than exaggerating it.

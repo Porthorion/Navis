@@ -168,6 +168,10 @@ const List<ChangelogVersion> changelogs = [
         type: ChangelogEntryType.newFeature,
       ),
       ChangelogEntry(
+        'Color and Brightness rulers fine-tune any color style in Light, Dark and OLED',
+        type: ChangelogEntryType.newFeature,
+      ),
+      ChangelogEntry(
         'Use OLED When Dark switches Auto to pure black whenever your device is in dark mode, and Night Schedule switches to the Night style between the times you choose',
         type: ChangelogEntryType.newFeature,
       ),
