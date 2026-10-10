@@ -3741,6 +3741,12 @@ states without starting audio or modifying a queue.
 
 ### Sync Flow
 
+Android library-sync and download notifications resolve localized strings through
+callbacks only when a notification is about to be shown, after Android runtime and
+progress-throttle checks. They use the current app language override, otherwise
+the platform language, with English fallback. Constructing the notification
+collaborators does not read locale settings or open the database for localization.
+
 1. Callers submit a `LibrarySyncRequest` through the coordinator-facing
    `LibrarySyncEngine.requestSync` interface. This immutable request carries
    origin, intent, target, and an ephemeral network grant shared by

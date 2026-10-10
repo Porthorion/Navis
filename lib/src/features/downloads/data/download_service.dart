@@ -1031,13 +1031,12 @@ class DownloadService {
   void _reportTransferProgress(int id, String title, int received, int total) {
     _transferProgress[id] = (title: title, received: received, total: total);
     final transfers = _transferProgress.values;
-    final l10n = _readLocalizations();
     final totalBytes = transfers.fold<int>(0, (sum, t) => sum + t.total);
     final receivedBytes = transfers.fold<int>(0, (sum, t) => sum + t.received);
     unawaited(
       DownloadNotifier.showProgress(
-        l10n: l10n,
-        title: transfers.length == 1
+        readLocalizations: _readLocalizations,
+        title: (l10n) => transfers.length == 1
             ? transfers.single.title
             : l10n.notificationDownloadProgressMultiple(transfers.length),
         received: receivedBytes,
@@ -1294,11 +1293,11 @@ class DownloadService {
           // Keep cover art alongside the audio (best-effort).
           _trackBackgroundTask(_precacheCoverArt(song, api));
 
-          final l10n = _readLocalizations();
           _trackBackgroundTask(
             DownloadNotifier.showComplete(
-              l10n: l10n,
-              title: l10n.notificationDownloadCompleteTitle(songTitle),
+              readLocalizations: _readLocalizations,
+              title: (l10n) =>
+                  l10n.notificationDownloadCompleteTitle(songTitle),
             ).catchError((_) {}),
           );
 
@@ -1321,8 +1320,9 @@ class DownloadService {
           // validated catalog evidence must confirm absence.
           await _libraryDao.markSongsSuspectedMissing(<String>[songId]);
           await _downloadQueueDao.updateStatus(item.id, DownloadStatus.failed);
-          await DownloadNotifier.showFailed(l10n: _readLocalizations())
-              .catchError((_) {});
+          await DownloadNotifier.showFailed(
+            readLocalizations: _readLocalizations,
+          ).catchError((_) {});
         } else {
           await _handleFailure(item, 'HTTP $statusCode');
         }
@@ -1500,7 +1500,7 @@ class DownloadService {
       await _downloadQueueDao.markForRetry(item.id);
     } else {
       await _downloadQueueDao.updateStatus(item.id, DownloadStatus.failed);
-      await DownloadNotifier.showFailed(l10n: _readLocalizations())
+      await DownloadNotifier.showFailed(readLocalizations: _readLocalizations)
           .catchError((_) {});
       AppLogger.warning(
         'DownloadService: Permanently failed ${item.songId}: $reason',

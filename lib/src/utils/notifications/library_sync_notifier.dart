@@ -1,4 +1,5 @@
-import 'package:flutter/foundation.dart';
+import 'dart:io';
+
 import 'package:material_ui/material_ui.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:navis/l10n/app_localizations.dart';
@@ -26,6 +27,7 @@ class SystemLibrarySyncNotifier {
   static DateTime _lastProgressUpdate = DateTime.fromMillisecondsSinceEpoch(0);
 
   Future<void> showProgress(LibrarySyncState state) async {
+    if (!Platform.isAndroid) return;
     final now = DateTime.now();
     final elapsed = now.difference(_lastProgressUpdate);
     final total = state.total ?? 0;
@@ -56,9 +58,7 @@ class SystemLibrarySyncNotifier {
   }
 
   Future<void> dismissProgress() async {
-    if (defaultTargetPlatform != TargetPlatform.android) {
-      return;
-    }
+    if (!Platform.isAndroid) return;
     try {
       await _plugin.cancel(id: _progressId);
     } on Object {
@@ -67,6 +67,7 @@ class SystemLibrarySyncNotifier {
   }
 
   Future<void> showComplete(LibrarySyncState state) async {
+    if (!Platform.isAndroid) return;
     await dismissProgress();
     final l10n = readLocalizations();
     await _safeShow(
@@ -78,6 +79,7 @@ class SystemLibrarySyncNotifier {
   }
 
   Future<void> showFailed(LibrarySyncState state) async {
+    if (!Platform.isAndroid) return;
     await dismissProgress();
     final l10n = readLocalizations();
     await _safeShow(
@@ -122,9 +124,6 @@ class SystemLibrarySyncNotifier {
     required String body,
     required AndroidNotificationDetails details,
   }) async {
-    if (defaultTargetPlatform != TargetPlatform.android) {
-      return;
-    }
     try {
       await _plugin.show(
         id: id,
