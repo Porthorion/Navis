@@ -256,9 +256,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
     super.dispose();
   }
 
-  Future<void> _refreshLibrary() {
-    return ref.read(librarySyncControllerProvider.notifier).syncNow();
-  }
+  Future<void> _refreshLibrary() => triggerLibrarySyncFromPull(ref);
 
   void _updateDownloadedOnly(bool value) {
     if (ref.read(downloadedOnlyFilterProvider) == value) {
@@ -638,7 +636,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
             // Only the banner follows sync progress, so progress updates do not
             // rebuild the active tab.
             Consumer(
-              builder: (context, ref, _) => _SyncStatusBanner(
+              builder: (context, ref, _) => LibrarySyncStatusBanner(
                 syncState: ref.watch(librarySyncControllerProvider),
                 onRetry: _refreshLibrary,
                 onCancel: () {

@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:material_ui/material_ui.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -71,6 +73,24 @@ class _FakeLibrarySyncController extends LibrarySyncController {
 
   @override
   void cancelSync() => onCancel?.call();
+}
+
+/// A sync that reports running at once and finishes only when [finish] runs,
+/// like a real catalog sync that outlasts a pull to refresh.
+class _LongSyncController extends LibrarySyncController {
+  static Completer<LibrarySyncState>? pending;
+
+  @override
+  LibrarySyncState build() => const LibrarySyncState.idle();
+
+  @override
+  Future<LibrarySyncState> syncNow({bool allowMeteredBroadOverride = false}) {
+    state = const LibrarySyncState(
+      status: LibrarySyncStatus.running,
+      stage: LibrarySyncStage.preparing,
+    );
+    return (pending = Completer<LibrarySyncState>()).future;
+  }
 }
 
 class _ShowRadioToggle extends Notifier<bool> {
@@ -1110,6 +1130,99 @@ void main() {
 
       expect(syncNowCalls, 1);
     });
+
+    for (final page in <String>[
+      'albums tab',
+      'liked albums',
+      'liked artists',
+    ]) {
+      _testWidgetsWithCleanup(
+        'pull to refresh on $page retracts while the sync keeps running',
+        (tester) async {
+          setAdaptiveTestViewport(tester, const Size(390, 844));
+          final overrides = <Object?>[
+            librarySyncControllerProvider.overrideWith(_LongSyncController.new),
+            artistsProvider.overrideWithValue(
+              const AsyncData(<ArtistsTableData>[]),
+            ),
+            albumCountProvider.overrideWithValue(const AsyncData(0)),
+            pagedAlbumsProvider.overrideWith(
+              (ref, request) => Stream.value(
+                page == 'albums tab'
+                    ? <AlbumsTableData>[
+                        for (var i = 0; i < 30; i++)
+                          _likedAlbum(id: 'album-$i', name: 'Album $i'),
+                      ]
+                    : const <AlbumsTableData>[],
+              ),
+            ),
+            likedAlbumsProvider.overrideWithValue(
+              AsyncData(<AlbumsTableData>[
+                for (var i = 0; i < 30; i++)
+                  _likedAlbum(id: 'liked-$i', name: 'Liked $i'),
+              ]),
+            ),
+            likedArtistsProvider.overrideWithValue(
+              AsyncData(<ArtistsTableData>[
+                for (var i = 0; i < 30; i++)
+                  ArtistsTableData(
+                    id: 'artist-$i',
+                    name: 'Artist $i',
+                    isExternal: false,
+                    isProvisional: false,
+                  ),
+              ]),
+            ),
+          ];
+          if (page == 'albums tab') {
+            await _pumpLibraryScreen(tester, overrides: overrides);
+          } else {
+            await tester.pumpWidget(
+              ProviderScope(
+                overrides: withTestDatabase(
+                  _testDatabase,
+                  overrides: <Object?>[
+                    serverConfigStateProvider.overrideWithValue(
+                      const AsyncData<ServerConfigModel?>(null),
+                    ),
+                    subsonicApiProvider.overrideWithValue(null),
+                    ...overrides,
+                  ].cast(),
+                ),
+                child: MaterialApp(
+                  theme: testTheme(),
+                  localizationsDelegates: navisLocalizationsDelegates,
+                  supportedLocales: AppLocalizations.supportedLocales,
+                  home: page == 'liked albums'
+                      ? const LikedAlbumsAllScreen()
+                      : const LikedArtistsAllScreen(),
+                ),
+              ),
+            );
+            await tester.pumpAndSettle();
+          }
+
+          await tester.fling(
+            find.byType(Scrollable).last,
+            const Offset(0, 400),
+            1000,
+          );
+          // The sync is still running (its future is pending), yet the pull
+          // spinner must be gone within a second.
+          await tester.pump(const Duration(milliseconds: 100));
+          await tester.pump(const Duration(seconds: 1));
+          await tester.pump(const Duration(seconds: 1));
+          expect(_LongSyncController.pending, isNotNull);
+          expect(find.byType(RefreshProgressIndicator), findsNothing);
+          expect(
+            find.byKey(const ValueKey<String>('library-sync-status-banner')),
+            findsOneWidget,
+          );
+          _LongSyncController.pending!.complete(const LibrarySyncState.idle());
+          await tester.pump();
+        },
+      );
+    }
 
     _testWidgetsWithCleanup(
       'sync banner shows a live song-index reference without a progress bar',

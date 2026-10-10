@@ -3800,7 +3800,14 @@ states without starting audio or modifying a queue.
    song ID cannot veto an otherwise eligible automatic pass.
    `LibrarySyncController` also coalesces overlapping app-level requests onto
    one terminal result, so setup, startup, user, and reconnect callers cannot
-   mistake an in-flight state for a failed sync. One startup task owns the pass
+   mistake an in-flight state for a failed sync. A pull to refresh on the
+   Library tabs and the Liked "see all" pages starts its sync through
+   `triggerLibrarySyncFromPull` (`library_sync_provider.dart`), which returns
+   once the controller reports running or failed (at most 800 ms) so the pull
+   spinner does not stay for the whole sync; progress and failures show in
+   `LibrarySyncStatusBanner`, which those Liked pages show too. Artist detail
+   uses `RefreshIndicator.noSpinner` because its own header shows the refresh.
+   One startup task owns the pass
    through session resets; epoch checks reject stale completion, and engine
    readiness schedules a successor only after that task drains. Pending durable
    work resumes only through the configured automatic interval or an explicit action; there

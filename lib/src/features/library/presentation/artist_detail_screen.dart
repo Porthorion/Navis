@@ -390,7 +390,7 @@ class _ArtistDetailScreenState extends ConsumerState<ArtistDetailScreen> {
           if (fanCount > 0) l10n.artistDetailFanCount(fanCount),
         ].join(' • ');
 
-        return RefreshIndicator(
+        return RefreshIndicator.noSpinner(
           onRefresh: _refresh,
           child: CustomScrollView(
             physics: const AlwaysScrollableScrollPhysics(),

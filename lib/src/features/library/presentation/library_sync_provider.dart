@@ -241,6 +241,49 @@ final librarySyncControllerProvider =
       LibrarySyncController.new,
     );
 
+/// Longest a pull to refresh waits for the sync to report running or failed.
+@visibleForTesting
+const Duration librarySyncPullStartTimeout = Duration(milliseconds: 800);
+
+/// Starts a library sync for a pull to refresh without waiting for it to
+/// finish, so the pull spinner retracts quickly while the sync banner shows
+/// the progress. Returns once the controller reports running or failed, or
+/// after [librarySyncPullStartTimeout]. A sync failure is logged here and
+/// shown by the banner, never thrown into the refresh indicator.
+Future<void> triggerLibrarySyncFromPull(WidgetRef ref) async {
+  final started = Completer<void>();
+  bool reported(LibrarySyncState state) =>
+      state.isRunning || state.status == LibrarySyncStatus.failed;
+  unawaited(
+    ref
+        .read(librarySyncControllerProvider.notifier)
+        .syncNow()
+        .then<void>(
+          (_) {},
+          onError: (Object error, StackTrace stackTrace) => AppLogger.error(
+            'Pull-to-refresh library sync failed',
+            error,
+            stackTrace,
+          ),
+        )
+        .whenComplete(() {
+          if (!started.isCompleted) started.complete();
+        }),
+  );
+  if (reported(ref.read(librarySyncControllerProvider))) return;
+  final subscription = ref.listenManual<LibrarySyncState>(
+    librarySyncControllerProvider,
+    (_, next) {
+      if (reported(next) && !started.isCompleted) started.complete();
+    },
+  );
+  try {
+    await started.future.timeout(librarySyncPullStartTimeout, onTimeout: () {});
+  } finally {
+    subscription.close();
+  }
+}
+
 /// Minimum interval between count-only sync progress publications.
 @visibleForTesting
 const Duration librarySyncProgressPublishInterval = Duration(milliseconds: 250);
