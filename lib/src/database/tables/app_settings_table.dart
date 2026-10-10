@@ -118,6 +118,11 @@ class AppSettingsTable extends Table {
   /// Disables surface glows, gradients and shadows when rendered.
   BoolColumn get flatSurfaces => boolean().withDefault(const Constant(false))();
 
+  IntColumn get flatAreas => integer().withDefault(const Constant(7))();
+
+  BoolColumn get albumArtColoredShade =>
+      boolean().withDefault(const Constant(false))();
+
   /// Seed color for the app's ColorScheme. Null = dynamic / default white.
   IntColumn get colorSchemeSeed => integer().nullable()();
 

@@ -2,6 +2,7 @@ import 'dart:convert';
 
 import 'package:drift/drift.dart';
 import 'package:meta/meta.dart' show visibleForTesting;
+import 'package:navis/src/features/settings/domain/flat_areas.dart';
 import 'package:navis/src/features/settings/domain/night_schedule.dart';
 import 'package:navis/src/database/navis_database.dart';
 import 'package:navis/src/database/tables/app_settings_table.dart';
@@ -144,6 +145,8 @@ class AppSettingsDao extends DatabaseAccessor<NavisDatabase>
     required int nightScheduleStartMinutes,
     required int nightScheduleEndMinutes,
     required bool flatSurfaces,
+    int? flatAreas,
+    bool? albumArtColoredShade,
     int? colorSchemeSeed,
     String? appLocale,
     required bool crossfadeEnabled,
@@ -218,6 +221,12 @@ class AppSettingsDao extends DatabaseAccessor<NavisDatabase>
         ),
         nightScheduleEndMinutes: Value(nightScheduleEndMinutes.clamp(0, 1439)),
         flatSurfaces: Value(flatSurfaces),
+        flatAreas: flatAreas == null
+            ? const Value.absent()
+            : Value(FlatAreas.fromBits(flatAreas).bits),
+        albumArtColoredShade: albumArtColoredShade == null
+            ? const Value.absent()
+            : Value(albumArtColoredShade),
         colorSchemeSeed: Value(colorSchemeSeed),
         appLocale: Value(appLocale),
         crossfadeEnabled: Value(crossfadeEnabled),
@@ -351,6 +360,8 @@ class AppSettingsDao extends DatabaseAccessor<NavisDatabase>
       nightScheduleStartMinutes: NightSchedule.defaultStartMinutes,
       nightScheduleEndMinutes: NightSchedule.defaultEndMinutes,
       flatSurfaces: false,
+      flatAreas: 7,
+      albumArtColoredShade: false,
       colorSchemeSeed: null,
       appLocale: null,
       crossfadeEnabled: false,
@@ -811,7 +822,31 @@ class AppSettingsDao extends DatabaseAccessor<NavisDatabase>
     );
   }
 
-  /// Targeted update for flat surfaces.
+  /// Targeted update for the Flat area mask.
+  Future<void> updateFlatAreas(int bits) async {
+    final areas = FlatAreas.fromBits(bits);
+    await (update(
+      appSettingsTable,
+    )..where((tbl) => tbl.id.equals(primarySettingsId))).write(
+      AppSettingsTableCompanion(
+        flatAreas: Value(areas.bits),
+        updatedAt: Value(DateTime.now()),
+      ),
+    );
+  }
+
+  Future<void> updateAlbumArtColoredShade({required bool enabled}) async {
+    await (update(
+      appSettingsTable,
+    )..where((tbl) => tbl.id.equals(primarySettingsId))).write(
+      AppSettingsTableCompanion(
+        albumArtColoredShade: Value(enabled),
+        updatedAt: Value(DateTime.now()),
+      ),
+    );
+  }
+
+  /// Targeted update for the Flat Surfaces switch.
   Future<void> updateFlatSurfaces({required bool enabled}) {
     return (update(
       appSettingsTable,

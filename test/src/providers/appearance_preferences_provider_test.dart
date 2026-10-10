@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:navis/src/features/settings/domain/app_settings.dart';
+import 'package:navis/src/features/settings/domain/flat_areas.dart';
 import 'package:navis/src/features/settings/domain/navis_density.dart';
 import 'package:navis/src/features/settings/domain/now_playing_background.dart';
 import 'package:navis/src/providers/app_providers.dart';
@@ -35,9 +36,27 @@ void main() {
           NowPlayingBackground.tinted,
         );
         expect(container.read(densityProvider), NavisDensity.comfortable);
+        expect(container.read(flatAreasProvider), const FlatAreas());
+        expect(container.read(albumArtColoredShadeProvider), isFalse);
       },
     );
   }
+
+  test('area and shade providers expose persisted values', () async {
+    final database = createTestDatabase();
+    final container = ProviderContainer(overrides: withTestDatabase(database));
+    addTearDown(() async {
+      container.dispose();
+      await database.close();
+    });
+    await database.appSettingsDao.getSettings();
+    await database.appSettingsDao.updateFlatAreas(2);
+    await database.appSettingsDao.updateAlbumArtColoredShade(enabled: true);
+    container.listen(appSettingsProvider, (_, _) {});
+    await container.read(appSettingsProvider.future);
+    expect(container.read(flatAreasProvider), FlatAreas.fromBits(2));
+    expect(container.read(albumArtColoredShadeProvider), isTrue);
+  }, skip: !sqliteAvailable);
 
   for (final background in NowPlayingBackground.values) {
     for (final density in NavisDensity.values) {

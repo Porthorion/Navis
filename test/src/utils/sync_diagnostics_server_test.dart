@@ -444,6 +444,8 @@ void main() {
         'oledForAuto': false,
         'nightSchedule': {'enabled': false, 'start': 1320, 'end': 420},
         'flatSurfaces': false,
+        'flatAreas': 7,
+        'albumArtColoredShade': false,
       });
       final observed = await fixture.get('/v1/presentation/appearance');
       expect(observed.body, changed.body);
@@ -486,6 +488,8 @@ void main() {
       'oledForAuto': true,
       'nightSchedule': {'enabled': true, 'start': 1200, 'end': 300},
       'flatSurfaces': true,
+      'flatAreas': 2,
+      'albumArtColoredShade': true,
       'cornerStyle': 'square',
       'nowPlayingBackground': 'artwork',
       'density': 'compact',
@@ -513,6 +517,10 @@ void main() {
         .appSettingsDao
         .getSettings();
     expect(persisted!.colorSchemeSeed, 0xFF567890);
+    expect(persisted.flatAreas, 2);
+    expect(persisted.albumArtColoredShade, isTrue);
+    final observed = await fixture.get(path);
+    expect(observed.body, changed.body);
     expect(persisted.colorStyle, 'immersive');
     expect(persisted.nightScheduleStartMinutes, 1200);
     for (final invalid in <Map<String, Object?>>[
@@ -524,6 +532,13 @@ void main() {
       {'dynamicAlbumColor': null},
       {'oledForAuto': 'true'},
       {'flatSurfaces': 1},
+      {'flatAreas': -1},
+      {'flatAreas': 8},
+      {'flatAreas': 1.5},
+      {'flatAreas': null},
+      {'flatAreas': '2'},
+      {'albumArtColoredShade': 1},
+      {'albumArtColoredShade': null},
       {'cornerStyle': 'circle'},
       {'nowPlayingBackground': 'blur'},
       {'density': null},

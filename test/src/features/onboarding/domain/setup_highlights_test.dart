@@ -27,6 +27,8 @@ void main() {
   test('background and corner style are introduced in 1.5.0', () {
     expect(SetupHighlight.nowPlayingBackground.since, '1.5.0');
     expect(SetupHighlight.cornerStyle.since, '1.5.0');
+    expect(SetupHighlight.flatAreas.since, '1.5.0');
+    expect(SetupHighlight.albumArtColoredShade.since, '1.5.0');
     expect(
       setupHighlightsFor('1.5.0'),
       containsAll([

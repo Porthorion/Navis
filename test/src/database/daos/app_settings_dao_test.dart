@@ -141,6 +141,31 @@ void main() {
       skip: !sqliteAvailable,
     );
 
+    test('Flat areas and shade targeted writes preserve the switch', () async {
+      final dao = database.appSettingsDao;
+      final initial = (await dao.getSettings())!;
+      expect(initial.flatAreas, 7);
+      expect(initial.albumArtColoredShade, isFalse);
+      await dao.updateFlatSurfaces(enabled: true);
+      for (var bits = 0; bits <= 7; bits++) {
+        await dao.updateFlatAreas(bits);
+        await dao.updateAlbumArtColoredShade(enabled: bits.isOdd);
+        final saved = (await dao.watchSettings().first)!;
+        expect(saved.flatAreas, bits);
+        expect(saved.albumArtColoredShade, bits.isOdd);
+        expect(saved.flatSurfaces, isTrue);
+      }
+      for (final bits in [-1, 8]) {
+        await expectLater(dao.updateFlatAreas(bits), throwsRangeError);
+      }
+      expect((await dao.getSettings())!.flatAreas, 7);
+      await dao.resetDefaults();
+      final reset = (await dao.getSettings())!;
+      expect(reset.flatAreas, 7);
+      expect(reset.albumArtColoredShade, isFalse);
+      expect(reset.flatSurfaces, isFalse);
+    }, skip: !sqliteAvailable);
+
     test('appearance settings default and update independently', () async {
       final initial = (await database.appSettingsDao.getSettings())!;
       expect(initial.oledForAuto, isFalse);

@@ -1,4 +1,5 @@
 import 'package:flutter/foundation.dart';
+import 'package:navis/src/features/settings/domain/flat_areas.dart';
 import 'package:navis/src/features/settings/domain/night_schedule.dart';
 import 'package:navis/src/database/daos/app_settings_dao.dart';
 import 'package:navis/src/features/player/domain/playback_adjustments.dart';
@@ -50,6 +51,8 @@ class AppSettingsModel {
     this.nightScheduleStartMinutes = NightSchedule.defaultStartMinutes,
     this.nightScheduleEndMinutes = NightSchedule.defaultEndMinutes,
     this.flatSurfaces = false,
+    this.flatAreas = const FlatAreas(),
+    this.albumArtColoredShade = false,
     required this.colorSchemeSeed,
     required this.appLocale,
     required this.crossfadeEnabled,
@@ -130,6 +133,8 @@ class AppSettingsModel {
       nightScheduleStartMinutes = NightSchedule.defaultStartMinutes,
       nightScheduleEndMinutes = NightSchedule.defaultEndMinutes,
       flatSurfaces = false,
+      flatAreas = const FlatAreas(),
+      albumArtColoredShade = false,
       colorSchemeSeed = null,
       appLocale = null,
       crossfadeEnabled = false,
@@ -210,6 +215,8 @@ class AppSettingsModel {
   final int nightScheduleStartMinutes;
   final int nightScheduleEndMinutes;
   final bool flatSurfaces;
+  final FlatAreas flatAreas;
+  final bool albumArtColoredShade;
   final int? colorSchemeSeed;
   final String? appLocale;
   final bool crossfadeEnabled;
@@ -372,6 +379,8 @@ class AppSettingsModel {
     int? nightScheduleStartMinutes,
     int? nightScheduleEndMinutes,
     bool? flatSurfaces,
+    FlatAreas? flatAreas,
+    bool? albumArtColoredShade,
     int? colorSchemeSeed,
     String? appLocale,
     bool? crossfadeEnabled,
@@ -480,6 +489,8 @@ class AppSettingsModel {
       nightScheduleEndMinutes:
           nightScheduleEndMinutes ?? this.nightScheduleEndMinutes,
       flatSurfaces: flatSurfaces ?? this.flatSurfaces,
+      flatAreas: flatAreas ?? this.flatAreas,
+      albumArtColoredShade: albumArtColoredShade ?? this.albumArtColoredShade,
       colorSchemeSeed: clearColorSchemeSeed
           ? null
           : colorSchemeSeed ?? this.colorSchemeSeed,

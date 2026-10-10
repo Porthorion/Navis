@@ -222,7 +222,7 @@ class NavisDatabase extends _$NavisDatabase {
   }
 
   @override
-  int get schemaVersion => 98;
+  int get schemaVersion => 99;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -330,6 +330,7 @@ class NavisDatabase extends _$NavisDatabase {
       _noMigration,
       _noMigration,
       from97To98,
+      from98To99,
     ];
     for (var version = from; version < to; version++) {
       await steps[version - firstStepFrom](migrator);
@@ -367,6 +368,18 @@ class NavisDatabase extends _$NavisDatabase {
   Future<void> from92To93(Migrator migrator) async {
     await customStatement('DROP TABLE IF EXISTS library_sync_provider_profile');
     await customStatement('DROP TABLE IF EXISTS library_sync_repair_session');
+  }
+
+  Future<void> from98To99(Migrator migrator) async {
+    if (!await _columnExists('app_settings', 'flat_areas')) {
+      await migrator.addColumn(appSettingsTable, appSettingsTable.flatAreas);
+    }
+    if (!await _columnExists('app_settings', 'album_art_colored_shade')) {
+      await migrator.addColumn(
+        appSettingsTable,
+        appSettingsTable.albumArtColoredShade,
+      );
+    }
   }
 
   Future<void> _noMigration(Migrator _) async {}
@@ -1633,6 +1646,8 @@ FROM scrobble_queue;
         ),
         nightScheduleEndMinutes: const Value(NightSchedule.defaultEndMinutes),
         flatSurfaces: const Value(false),
+        flatAreas: const Value(7),
+        albumArtColoredShade: const Value(false),
         colorSchemeSeed: const Value(null),
         onboardingVersion: const Value(0),
         setupHighlightsSeenRelease: const Value(null),
