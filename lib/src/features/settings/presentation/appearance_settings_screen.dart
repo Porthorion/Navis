@@ -73,9 +73,6 @@ class AppearanceSettingsScreen extends ConsumerWidget {
     final libraryPageOrder = ref.watch(libraryPageOrderProvider);
     final isDesktop = resolveAdaptiveContextFor(context).useDesktopShell;
     final tuningState = ref.watch(colorTuningControllerProvider);
-    final tuningPreset = tuningState.presets
-        .where((preset) => preset.id == tuningState.selectedPresetId)
-        .firstOrNull;
     final options = AppearanceOptionSet(
       oledForAutoVisible: currentMode == 'system',
       oledForAuto: oledForAuto,
@@ -132,7 +129,6 @@ class AppearanceSettingsScreen extends ConsumerWidget {
         );
       },
       colorTuning: tuningState.tuning,
-      colorTuningPresetName: tuningPreset?.name,
       onOpenColorTuning: (anchor) => unawaited(
         _openColorTuning(
           anchor,
@@ -845,7 +841,7 @@ class _BlinkingEyeIconState extends State<_BlinkingEyeIcon>
 }
 
 /// Opens Fine-Tune Colors over the Settings controller: the rulers preview
-/// through it, save through it, and follow its tuning when a preset is chosen.
+/// through it, save through it, and follow its tuning when a Look is applied.
 Future<void> _openColorTuning(
   BuildContext anchor,
   WidgetRef ref,
@@ -875,7 +871,6 @@ Future<void> _openColorTuning(
         );
       },
       onPreviewEnd: controller.clearPreview,
-      presetsBuilder: (_) => const ColorTuningPresetPicker(),
     );
   } finally {
     subscription.close();

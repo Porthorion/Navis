@@ -451,8 +451,6 @@ void main() {
         'colorVividness': 0,
         'surfaceDepthLight': 0,
         'surfaceDepthDark': 0,
-        'selectedColorTuningPresetId': 'default',
-        'colorTuningPresetCount': 0,
         'selectedAppearanceLookId': null,
         'appearanceLookCount': 0,
         'albumArtShade': false,
@@ -497,7 +495,6 @@ void main() {
       await tuning.commit(const ColorTuning(lightDepth: -2, darkDepth: 3)),
       isNull,
     );
-    final preset = (await tuning.saveAsNew('Tuning')).value!;
     final controller = fixture.container.read(
       appearanceLooksControllerProvider.notifier,
     );
@@ -510,8 +507,8 @@ void main() {
       ],
     });
     final appearance = await fixture.get('/v1/presentation/appearance');
-    expect(appearance.body['selectedColorTuningPresetId'], preset.id);
-    expect(appearance.body['colorTuningPresetCount'], 1);
+    expect(appearance.body, isNot(contains('selectedColorTuningPresetId')));
+    expect(appearance.body, isNot(contains('colorTuningPresetCount')));
     expect(appearance.body['selectedAppearanceLookId'], look.id);
     expect(appearance.body['appearanceLookCount'], 1);
     await fixture.post('/v1/presentation/appearance', {'themeMode': 'light'});

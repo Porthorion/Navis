@@ -829,8 +829,10 @@ target-selection rules.
     the existing 3:1 accent contrast on Pastel's highest surface.
   - Schema 101 (unreleased) stores `color_vividness`,
     `surface_depth_light`, and `surface_depth_dark` with zero defaults, plus
-    `color_tuning_presets` / `appearance_looks` JSON TEXT libraries (default
-    `[]`) and nullable selected ids. Every 100→101 column addition is guarded;
+    the `appearance_looks` JSON TEXT library (default `[]`) and nullable
+    `selected_appearance_look_id`. Tuning presets and their selected id were
+    removed from this unshipped schema; Looks are the only appearance preset
+    system. Every 100→101 column addition is guarded;
     the branch-only `surface_depth` definition was replaced before shipping.
     `ColorTuning` clamps all three integer steps to −5…+5 and resolves to the
     unchanged `ColorAdjustment` with `forMode(dark:)`: Light uses light depth,
@@ -844,25 +846,19 @@ target-selection rules.
     changes to unedited axes. Settings uses the effective colour style for the
     Fine-Tune band, so a scheduled Night window agrees with the rendered app;
     the Night Schedule control still receives the saved style.
-  - Tuning presets (`ColorTuningPreset`, `ColorTuningController`) store intensity
-    and both brightness values. Built-in Default (`default`, zero/zero/zero)
-    is derived and never stored. Selection is derived by value: Default for
-    zero tuning, the first matching user preset otherwise, or null (Custom).
-    `preview`, `commit`, `select`, `saveAsNew`, `update`, `rename` and `delete`
-    share the existing settings stream, preview provider and targeted DAO
-    writes. Libraries decode leniently, discarding corrupt records and
-    duplicate ids or case-insensitive names. Playback and appearance naming
-    reuse `validatePresetName` in `common/preset_names.dart` (trim, nonempty,
-    reserved built-in names, case-insensitive uniqueness excluding the target).
-    Appearance commands return nullable `PresetFailure` (null means success);
-    `saveAsNew` returns `PresetResult<T>` with either `value` or `failure`.
-    Failures distinguish empty, duplicate and reserved names, missing ids, and
-    persistence errors. Playback keeps its existing boolean/failure-state API.
+  - `ColorTuningController` exposes tuning state, `preview`, `clearPreview`
+    and `commit`, sharing the existing settings stream, preview provider and
+    targeted DAO writes. It has no preset library or selection state.
+    Look names reuse playback's `validatePresetName` in `common/preset_names.dart`
+    (trim, nonempty, reserved Default, case-insensitive uniqueness excluding
+    the target). Look libraries decode leniently, discarding corrupt records
+    and duplicate ids or names. Save returns `PresetResult<AppearanceLook>`;
+    update, rename, delete and restore return nullable `PresetFailure`.
   - Looks (`AppearanceLook`, version 1, `AppearanceSnapshot`,
     `AppearanceLooksController`) capture all appearance choices: theme mode,
     OLED-for-Auto, saved colour style, nullable accent seed, dynamic album
     colour, Night Schedule enable/start/end, both album-title shade flags,
-    all three tuning values and optional tuning preset reference, Flat switch
+    all three tuning values directly, Flat switch
     and area mask, corners, library/carousel/Now Playing/artist artwork shapes,
     artwork size and legacy grid-column override, density, artist view mode,
     and Now Playing background. Excluded: Home section order/visibility,
@@ -875,15 +871,21 @@ target-selection rules.
     unknown or invalid values preserve current settings; explicit null clears
     those two nullable settings. Unsupported Look versions are discarded.
     `applyAppearanceSnapshot` writes supplied appearance columns in one DAO
-    transaction. If a referenced tuning preset still exists, its **current**
-    values win; otherwise captured tuning values apply. The controller offers
-    `apply`, `saveAsNew`, `update`, `rename` and `delete`; its selected id is the
-    first Look exactly matching a fresh capture, ignoring the preset reference.
-    Changing a referenced preset can therefore make an applied Look no longer
-    match its old values until updated. Reset restores appearance defaults and
-    retains both libraries, like playback presets. Controllers serialize their
-    writes and acknowledge the committed row through the existing settings
-    watch before publishing results; there is no second persistence store.
+    transaction. Decoding silently ignores the retired `tuningPresetId` key;
+    captured tuning values always apply. The controller offers `apply`,
+    `restore`, `saveAsNew`, `update`, `rename` and `delete`; its selected id is
+    the first Look exactly matching a fresh capture by value.
+    `apply(id)` returns the complete appearance captured **before** applying
+    the Look, or null for an unknown id or failure. The UI can keep that
+    snapshot for Undo and pass it to `restore(previous)`. Apply and restore
+    update appearance and the derived selected marker in one DAO transaction.
+    Restoration includes theme mode, automatic (null) accent seed, null legacy
+    grid-column override, and all three tuning values. Undo restores Custom
+    when no Look matches, or re-selects a previously matching Look by value.
+    Reset restores appearance defaults and retains the Look library.
+    Controllers serialize writes and acknowledge the committed row through
+    the existing settings watch before publishing results; there is no second
+    persistence store.
   - Artwork adaptation scales each style's maximum chroma with vividness and
     shifts its Light/Dark tone window by depth; Neutral only scales chroma.
     Artwork scrims keep their existing recipe and Now Playing retains its OLED
@@ -1023,14 +1025,13 @@ target-selection rules.
     (`color_tuning_panel.dart`, `showColorTuningPanel`) through the Speed and
     Pitch shell, `showQuickPanel`: an anchored popover (440 wide, up to 680
     high) on desktop, a sheet capped at 88% on touch layouts, with the title,
-    a live summary and Reset pinned. The row's summary is "Default", the name
-    of the preset the values match, or the steps that are not zero ("Intensity
-    +2 · Brightness −1", Brightness being the mode on screen; with only the
-    other mode adjusted, "Light Brightness +3"); the panel header shows the
-    same without the preset name.
-    The panel body is the preset picker (Settings only, below), a divider,
-    then two rulers, **Intensity** (Muted to Vivid) and **Brightness** (Lighter
-    to Deeper), each `ColorTuningRulerRow`: the Speed and Pitch `AdjustmentRuler`
+    a live summary and Reset pinned. The row's summary is "Default" or the
+    steps that are not zero ("Intensity +2 · Brightness −1", Brightness being
+    the mode on screen; with only the other mode adjusted, "Light Brightness
+    +3"); the panel header shows the
+    same summary.
+    The panel body contains two rulers, **Intensity** (Muted to Vivid) and
+    **Brightness** (Lighter to Deeper), each `ColorTuningRulerRow`: the Speed and Pitch `AdjustmentRuler`
     in whole-step mode (`snapStep: 1`, value = the step −5…+5, 64 px a step,
     small ticks every 8 px between steps, the haptics described under the
     ruler below), laid out like the Speed and Pitch row (− stepper, ruler, +
@@ -1057,7 +1058,7 @@ target-selection rules.
     step while a ruler moves), `onCommit` (drag release, stepper, keyboard,
     Reset) and `onPreviewEnd` (the panel went away mid-drag). The body keeps
     what it shows, follows the notifier when something else changes the value
-    (choosing a preset, a failed save restoring the old one) and glides the
+    (applying a Look, a failed save restoring the old value) and glides the
     rulers there, and never yanks a ruler mid-gesture for the echo of an
     earlier preview. Reset commits `ColorTuning.none` and is disabled at
     Default. Settings keeps the notifier in step with
@@ -1067,19 +1068,9 @@ target-selection rules.
     and passes `onPreviewEnd: clearPreview`; setup keeps a notifier of its own
     over its draft and writes `colorVividness` and both depths on every call.
     The swatch basis is captured when the panel opens.
-  - Tuning presets in the panel (`ColorTuningPresetPicker` in
-    `appearance_preset_pickers.dart`) are the shared `PresetPicker`, as in
-    Speed and Pitch: Default first and the saved presets, "Custom" while the
-    values match none (so a drag off a preset reads Custom and returning to it
-    reads its name again), and a ⋮ menu with Save as New, Update, Rename and
-    Delete acting through `ColorTuningController`. Update is offered while the
-    values are Custom and came from a preset, Rename and Delete act on the
-    chosen preset (or that origin); neither exists for Default. A name refused
-    by `validatePresetName`, or a failed write, is shown inline in the name
-    dialog with `PresetFailure` mapped to `appearancePreset*` strings; failures
-    of the other commands show an error notice. Setup leaves the picker out:
-    presets save straight to settings, while setup edits a draft that Finish
-    saves.
+  - Fine-Tune Colors has no preset picker. Its intensity and Light/Dark
+    brightness values are saved as part of Looks. Setup continues to edit its
+    draft until Finish.
   - Looks have one control, `AppearanceLooksOption` (same file), at the top of
     Settings › Appearance above Theme and tagged by
     `SetupHighlight.appearanceLooks`: a heading, a subtitle and a

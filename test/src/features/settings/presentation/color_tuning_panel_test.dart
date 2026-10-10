@@ -143,12 +143,11 @@ void main() {
     late AppLocalizations l10n;
     setUpAll(() => l10n = lookupAppLocalizations(const Locale('en')));
 
-    String summary(ColorTuning tuning, {bool dark = true, String? name}) =>
-        colorTuningSummary(l10n, tuning, dark: dark, presetName: name);
+    String summary(ColorTuning tuning, {bool dark = true}) =>
+        colorTuningSummary(l10n, tuning, dark: dark);
 
-    test('is Default for no tuning, even when a preset is named', () {
+    test('is Default for no tuning', () {
       expect(summary(ColorTuning.none), 'Default');
-      expect(summary(ColorTuning.none, name: 'Soft'), 'Default');
     });
 
     test('lists the steps that are not zero, with a true minus', () {
@@ -172,10 +171,6 @@ void main() {
         summary(const ColorTuning(darkDepth: -1), dark: false),
         'Dark Brightness −1',
       );
-    });
-
-    test('a preset name stands for its values', () {
-      expect(summary(const ColorTuning(vividness: 1), name: 'Soft'), 'Soft');
     });
   });
 

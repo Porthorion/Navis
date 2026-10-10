@@ -358,8 +358,6 @@ class SettingsRepository {
       colorVividness: row.colorVividness,
       surfaceDepthLight: row.surfaceDepthLight,
       surfaceDepthDark: row.surfaceDepthDark,
-      colorTuningPresets: decodeColorTuningPresets(row.colorTuningPresets),
-      selectedColorTuningPresetId: row.selectedColorTuningPresetId,
       appearanceLooks: decodeAppearanceLooks(row.appearanceLooks),
       selectedAppearanceLookId: row.selectedAppearanceLookId,
       customColorPresets: decodeAccentSeeds(row.customColorPresets),

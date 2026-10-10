@@ -1,5 +1,3 @@
-import 'dart:convert';
-
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_riverpod/misc.dart' show Override;
@@ -15,8 +13,6 @@ import 'package:navis/src/database/navis_database.dart';
 import 'package:navis/src/features/onboarding/domain/setup_highlights.dart';
 import 'package:navis/src/features/onboarding/presentation/setup_highlights_provider.dart';
 import 'package:navis/src/features/player/presentation/adjustment_ruler.dart';
-import 'package:navis/src/features/settings/domain/appearance_presets.dart';
-import 'package:navis/src/features/settings/presentation/appearance_preset_controller.dart';
 import 'package:navis/src/features/settings/presentation/appearance_settings_screen.dart';
 import 'package:navis/src/providers/app_providers.dart';
 import 'package:navis/src/routing/desktop_layout.dart';
@@ -140,70 +136,15 @@ void main() {
   String readout(WidgetTester tester, String axis) =>
       tester.widget<Text>(key('$axis-value')).data!;
 
-  Future<void> seedTuning(
-    WidgetTester tester,
-    ColorTuning tuning, {
-    List<ColorTuningPreset> presets = const <ColorTuningPreset>[],
-  }) async {
+  Future<void> seedTuning(WidgetTester tester, ColorTuning tuning) async {
     await tester.runAsync(
-      () => database.appSettingsDao.updateColorTuning(
-        tuning,
-        selectedPresetId: matchingColorTuningPresetId(tuning, presets),
-        presetsJson: presets.isEmpty
-            ? null
-            : jsonEncode(presets.map((p) => p.toJson()).toList()),
-      ),
+      () => database.appSettingsDao.updateColorTuning(tuning),
     );
     await settleWrites(tester);
   }
 
   RulerBand band(WidgetTester tester, String name) =>
       tester.widget<AdjustmentRuler>(key('$name-ruler')).band!;
-
-  String presetText(WidgetTester tester) => tester
-      .widget<TextField>(
-        find.descendant(
-          of: find.byKey(const ValueKey<String>('colorTuningPresetDropdown')),
-          matching: find.byType(TextField),
-        ),
-      )
-      .controller!
-      .text;
-
-  Future<void> presetAction(WidgetTester tester, String action) async {
-    await tester.tap(
-      find.byKey(const ValueKey<String>('colorTuningPresetActions')),
-    );
-    await tester.pumpAndSettle();
-    await tester.tap(find.byKey(ValueKey<String>('colorTuningPreset$action')));
-    await tester.pumpAndSettle();
-  }
-
-  /// Types [name] in the open name dialog and saves; returns the inline error
-  /// the dialog shows, or null once the dialog has closed.
-  Future<String?> submitName(WidgetTester tester, String name) async {
-    final input = find.byKey(
-      const ValueKey<String>('colorTuningPresetNameInput'),
-    );
-    await tester.enterText(input, name);
-    await tester.tap(find.widgetWithText(FilledButton, 'Save'));
-    await tester.pump();
-    await settleWrites(tester);
-    await tester.pumpAndSettle();
-    if (input.evaluate().isEmpty) return null;
-    return tester.widget<TextField>(input).decoration?.errorText;
-  }
-
-  Future<void> choosePreset(WidgetTester tester, String label) async {
-    await tester.tap(
-      find.byKey(const ValueKey<String>('colorTuningPresetDropdown')),
-    );
-    await tester.pumpAndSettle();
-    await tester.tap(find.text(label).last);
-    await tester.pump();
-    await settleWrites(tester);
-    await tester.pumpAndSettle();
-  }
 
   group('row', () {
     testWidgets('sits under Color Style, above Night Schedule, and holds '
@@ -245,21 +186,6 @@ void main() {
         const ColorTuning(vividness: 2, lightDepth: 3, darkDepth: -1),
       );
       expect(summary(tester), 'Intensity +2 · Brightness +3');
-    });
-
-    testWidgets('names the preset the tuning matches', (tester) async {
-      const warm = ColorTuning(vividness: 2, darkDepth: 1);
-      await pumpScreen(tester);
-      await seedTuning(
-        tester,
-        warm,
-        presets: const [
-          ColorTuningPreset(id: 'warm', name: 'Warm', tuning: warm),
-        ],
-      );
-      expect(summary(tester), 'Warm');
-      await seedTuning(tester, const ColorTuning(vividness: 1));
-      expect(summary(tester), 'Intensity +1');
     });
 
     testWidgets('shows its New tag and clears it through the seen mechanism', (
@@ -548,201 +474,6 @@ void main() {
     });
   });
 
-  group('presets', () {
-    const warm = ColorTuning(vividness: 2, lightDepth: -1, darkDepth: 1);
-    const soft = ColorTuning(vividness: -2);
-    const presets = <ColorTuningPreset>[
-      ColorTuningPreset(id: 'warm', name: 'Warm', tuning: warm),
-      ColorTuningPreset(id: 'soft', name: 'Soft', tuning: soft),
-    ];
-
-    testWidgets('lists Default first and reads Default for no tuning', (
-      tester,
-    ) async {
-      await pumpScreen(tester);
-      await seedTuning(tester, ColorTuning.none, presets: presets);
-      await openPanel(tester);
-      expect(presetText(tester), 'Default');
-      await tester.tap(
-        find.byKey(const ValueKey<String>('colorTuningPresetDropdown')),
-      );
-      await tester.pumpAndSettle();
-      expect(find.text('Warm'), findsWidgets);
-      expect(find.text('Soft'), findsWidgets);
-    });
-
-    testWidgets('choosing one moves the rulers and the app', (tester) async {
-      await pumpScreen(tester);
-      await seedTuning(tester, ColorTuning.none, presets: presets);
-      await openPanel(tester);
-      await choosePreset(tester, 'Warm');
-      expect(container.read(colorTuningProvider), warm);
-      expect(presetText(tester), 'Warm');
-      expect(readout(tester, 'color'), '+2');
-      expect(readout(tester, 'brightness'), '+1');
-      expect(summary(tester), 'Warm');
-
-      await choosePreset(tester, 'Default');
-      expect(container.read(colorTuningProvider), ColorTuning.none);
-      expect(readout(tester, 'color'), 'Default');
-    });
-
-    testWidgets('a drag off a preset reads Custom; back on it reads the '
-        'preset; Reset reads Default', (tester) async {
-      await pumpScreen(tester);
-      await seedTuning(tester, warm, presets: presets);
-      await openPanel(tester);
-      expect(presetText(tester), 'Warm');
-
-      await tester.tap(key('color-plus'));
-      await tester.pumpAndSettle();
-      await settleWrites(tester);
-      expect(presetText(tester), 'Custom');
-      expect(
-        container.read(colorTuningControllerProvider).selectedPresetId,
-        isNull,
-      );
-
-      await tester.tap(key('color-minus'));
-      await tester.pumpAndSettle();
-      await settleWrites(tester);
-      expect(presetText(tester), 'Warm');
-
-      await tester.tap(key('reset'));
-      await tester.pumpAndSettle();
-      await settleWrites(tester);
-      expect(presetText(tester), 'Default');
-    });
-
-    testWidgets('Save as New names the current values and selects them', (
-      tester,
-    ) async {
-      await pumpScreen(tester);
-      await openPanel(tester);
-      await tester.tap(key('color-plus'));
-      await tester.pumpAndSettle();
-      await settleWrites(tester);
-      expect(presetText(tester), 'Custom');
-
-      await presetAction(tester, 'SaveNew');
-      expect(await submitName(tester, '  Bright  '), isNull);
-      expect(find.byType(AlertDialog), findsNothing);
-      final state = container.read(colorTuningControllerProvider);
-      expect(state.presets.single.name, 'Bright');
-      expect(state.presets.single.tuning, const ColorTuning(vividness: 1));
-      expect(presetText(tester), 'Bright');
-      expect(summary(tester), 'Bright');
-    });
-
-    testWidgets('names are validated inline', (tester) async {
-      await pumpScreen(tester);
-      await seedTuning(tester, soft, presets: presets);
-      await openPanel(tester);
-      await presetAction(tester, 'SaveNew');
-
-      expect(await submitName(tester, '   '), 'Enter a name.');
-      expect(await submitName(tester, 'warm'), 'That name is already in use.');
-      expect(
-        await submitName(tester, 'Default'),
-        'Default is reserved. Choose another name.',
-      );
-      expect(
-        container.read(colorTuningControllerProvider).presets,
-        hasLength(2),
-      );
-      expect(await submitName(tester, 'Hush'), isNull);
-      expect(
-        container.read(colorTuningControllerProvider).presets,
-        hasLength(3),
-      );
-    });
-
-    testWidgets('Update writes the Custom values over the preset they came '
-        'from', (tester) async {
-      await pumpScreen(tester);
-      await seedTuning(tester, warm, presets: presets);
-      await openPanel(tester);
-      await tester.tap(key('color-plus'));
-      await tester.pumpAndSettle();
-      await settleWrites(tester);
-
-      await presetAction(tester, 'Update');
-      await settleWrites(tester);
-      await tester.pumpAndSettle();
-      final state = container.read(colorTuningControllerProvider);
-      expect(
-        state.presets.firstWhere((p) => p.id == 'warm').tuning,
-        const ColorTuning(vividness: 3, lightDepth: -1, darkDepth: 1),
-      );
-      expect(presetText(tester), 'Warm');
-    });
-
-    testWidgets('Rename keeps the values and validates the name', (
-      tester,
-    ) async {
-      await pumpScreen(tester);
-      await seedTuning(tester, warm, presets: presets);
-      await openPanel(tester);
-      await presetAction(tester, 'Rename');
-      expect(await submitName(tester, 'Soft'), 'That name is already in use.');
-      expect(await submitName(tester, 'Toasty'), isNull);
-      final state = container.read(colorTuningControllerProvider);
-      expect(state.presets.first.name, 'Toasty');
-      expect(state.presets.first.tuning, warm);
-      expect(presetText(tester), 'Toasty');
-    });
-
-    testWidgets('Delete asks first, then leaves the values as Custom', (
-      tester,
-    ) async {
-      await pumpScreen(tester);
-      await seedTuning(tester, warm, presets: presets);
-      await openPanel(tester);
-      await presetAction(tester, 'Delete');
-      expect(find.text('Delete “Warm”?'), findsOneWidget);
-      await tester.tap(find.text('Cancel'));
-      await tester.pumpAndSettle();
-      expect(
-        container.read(colorTuningControllerProvider).presets,
-        hasLength(2),
-      );
-
-      await presetAction(tester, 'Delete');
-      await tester.tap(
-        find.byKey(const ValueKey<String>('colorTuningPresetDeleteConfirm')),
-      );
-      await tester.pump();
-      await settleWrites(tester);
-      await tester.pumpAndSettle();
-      final state = container.read(colorTuningControllerProvider);
-      expect(state.presets.map((p) => p.id), ['soft']);
-      expect(state.tuning, warm);
-      expect(presetText(tester), 'Custom');
-    });
-
-    testWidgets('Default with nothing saved offers only Save as New', (
-      tester,
-    ) async {
-      await pumpScreen(tester);
-      await openPanel(tester);
-      await tester.tap(
-        find.byKey(const ValueKey<String>('colorTuningPresetActions')),
-      );
-      await tester.pumpAndSettle();
-      expect(
-        find.byKey(const ValueKey<String>('colorTuningPresetSaveNew')),
-        findsOneWidget,
-      );
-      for (final action in <String>['Update', 'Rename', 'Delete']) {
-        expect(
-          find.byKey(ValueKey<String>('colorTuningPreset$action')),
-          findsNothing,
-          reason: action,
-        );
-      }
-    });
-  });
-
   group('layout', () {
     for (final scale in <double>[1.3, 2]) {
       testWidgets('fits a phone at ${scale * 100}% text', (tester) async {
@@ -753,7 +484,7 @@ void main() {
         );
         await openPanel(tester);
         expect(tester.takeException(), isNull);
-        expect(find.byType(PresetPicker), findsOneWidget);
+        expect(find.byType(PresetPicker), findsNothing);
         expect(find.byType(QuickPanelScaffold), findsOneWidget);
       });
     }
@@ -764,13 +495,7 @@ void main() {
       testWidgets('panel in $mode (Pastel)', (tester) async {
         const soft = ColorTuning(vividness: -2, lightDepth: 1, darkDepth: 1);
         await pumpScreen(tester, mode: mode, size: const Size(390, 844));
-        await seedTuning(
-          tester,
-          soft,
-          presets: const <ColorTuningPreset>[
-            ColorTuningPreset(id: 'soft', name: 'Soft', tuning: soft),
-          ],
-        );
+        await seedTuning(tester, soft);
         await openPanel(tester);
         await expectLater(
           find.byType(MaterialApp),

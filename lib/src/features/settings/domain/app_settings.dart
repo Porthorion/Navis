@@ -56,8 +56,6 @@ class AppSettingsModel {
     this.flatAreas = const FlatAreas(),
     this.colorVividness = 0,
     this.surfaceDepthDark = 0,
-    this.colorTuningPresets = const [],
-    this.selectedColorTuningPresetId,
     this.appearanceLooks = const [],
     this.selectedAppearanceLookId,
     this.customColorPresets = const [],
@@ -147,8 +145,6 @@ class AppSettingsModel {
       flatAreas = const FlatAreas(),
       colorVividness = 0,
       surfaceDepthDark = 0,
-      colorTuningPresets = const [],
-      selectedColorTuningPresetId = null,
       appearanceLooks = const [],
       selectedAppearanceLookId = null,
       customColorPresets = const [],
@@ -238,8 +234,6 @@ class AppSettingsModel {
   final FlatAreas flatAreas;
   final int colorVividness;
   final int surfaceDepthDark;
-  final List<ColorTuningPreset> colorTuningPresets;
-  final String? selectedColorTuningPresetId;
   final List<AppearanceLook> appearanceLooks;
   final String? selectedAppearanceLookId;
   final List<int> customColorPresets;
@@ -417,9 +411,6 @@ class AppSettingsModel {
     FlatAreas? flatAreas,
     int? colorVividness,
     int? surfaceDepthDark,
-    List<ColorTuningPreset>? colorTuningPresets,
-    String? selectedColorTuningPresetId,
-    bool clearSelectedColorTuningPresetId = false,
     List<AppearanceLook>? appearanceLooks,
     String? selectedAppearanceLookId,
     bool clearSelectedAppearanceLookId = false,
@@ -538,10 +529,6 @@ class AppSettingsModel {
       flatAreas: flatAreas ?? this.flatAreas,
       colorVividness: colorVividness ?? this.colorVividness,
       surfaceDepthDark: surfaceDepthDark ?? this.surfaceDepthDark,
-      colorTuningPresets: colorTuningPresets ?? this.colorTuningPresets,
-      selectedColorTuningPresetId: clearSelectedColorTuningPresetId
-          ? null
-          : selectedColorTuningPresetId ?? this.selectedColorTuningPresetId,
       appearanceLooks: appearanceLooks ?? this.appearanceLooks,
       selectedAppearanceLookId: clearSelectedAppearanceLookId
           ? null

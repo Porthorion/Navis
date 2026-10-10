@@ -40,8 +40,6 @@ void main() {
         for (final column in [
           'surface_depth_light',
           'surface_depth_dark',
-          'color_tuning_presets',
-          'selected_color_tuning_preset_id',
           'appearance_looks',
           'selected_appearance_look_id',
         ]) {
@@ -59,8 +57,6 @@ void main() {
           expect(row.colorVividness, partial ? 3 : 0);
           expect(row.surfaceDepthLight, 0);
           expect(row.surfaceDepthDark, 0);
-          expect(row.colorTuningPresets, '[]');
-          expect(row.selectedColorTuningPresetId, isNull);
           expect(row.appearanceLooks, '[]');
           expect(row.selectedAppearanceLookId, isNull);
           expect(row.colorStyle, 'night');
@@ -73,8 +69,6 @@ void main() {
         );
         await upgraded.appSettingsDao.updateColorTuning(
           const ColorTuning(vividness: -4, lightDepth: 5, darkDepth: -3),
-          selectedPresetId: 'tuning-id',
-          presetsJson: '[{"id":"tuning-id"}]',
         );
         await upgraded.appSettingsDao.updateAppearanceLooks(
           selectedLookId: 'look-id',
@@ -86,14 +80,18 @@ void main() {
             .get();
         expect(
           columns.map((column) => column.read<String>('name')),
-          isNot(contains('surface_depth')),
+          isNot(
+            anyOf(
+              contains('surface_depth'),
+              contains('color_tuning_presets'),
+              contains('selected_color_tuning_preset_id'),
+            ),
+          ),
         );
         final row = (await upgraded.appSettingsDao.getSettings())!;
         expect(row.colorVividness, -4);
         expect(row.surfaceDepthLight, 5);
         expect(row.surfaceDepthDark, -3);
-        expect(row.colorTuningPresets, '[{"id":"tuning-id"}]');
-        expect(row.selectedColorTuningPresetId, 'tuning-id');
         expect(row.appearanceLooks, '[{"id":"look-id"}]');
         expect(row.selectedAppearanceLookId, 'look-id');
       } finally {

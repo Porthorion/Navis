@@ -4,62 +4,6 @@ import 'package:collection/collection.dart';
 import 'package:flutter/foundation.dart';
 import 'package:navis/src/common/preset_names.dart';
 import 'package:navis/src/features/settings/domain/app_settings.dart';
-import 'package:navis/src/theme/color_adjustment.dart';
-
-@immutable
-class ColorTuningPreset {
-  const new({required this.id, required this.name, required this.tuning});
-  static const defaultId = 'default';
-  static const defaultPreset = ColorTuningPreset(
-    id: defaultId,
-    name: 'Default',
-    tuning: ColorTuning.none,
-  );
-  final String id;
-  final String name;
-  final ColorTuning tuning;
-  Map<String, Object> toJson() => {
-    'id': id,
-    'name': name,
-    'vividness': tuning.vividness,
-    'lightDepth': tuning.lightDepth,
-    'darkDepth': tuning.darkDepth,
-  };
-  static ColorTuningPreset? fromJson(Object? raw) {
-    if (raw is! Map<String, dynamic>) {
-      return null;
-    }
-    final id = raw['id'];
-    final name = raw['name'];
-    final vividness = _integer(raw['vividness'], -5, 5);
-    final light = _integer(raw['lightDepth'], -5, 5);
-    final dark = _integer(raw['darkDepth'], -5, 5);
-    if (id is! String ||
-        id.trim().isEmpty ||
-        id == defaultId ||
-        name is! String ||
-        validatePresetName(
-              name,
-              presets: const [],
-              reservedNames: const {'default'},
-            ) !=
-            null ||
-        vividness == null ||
-        light == null ||
-        dark == null) {
-      return null;
-    }
-    return ColorTuningPreset(
-      id: id,
-      name: name.trim(),
-      tuning: ColorTuning(
-        vividness: vividness,
-        lightDepth: light,
-        darkDepth: dark,
-      ),
-    );
-  }
-}
 
 /// A partial appearance snapshot. Null fields preserve current settings.
 /// Explicitly cleared nullable settings use the corresponding clear flag.
@@ -90,43 +34,38 @@ class AppearanceSnapshot {
     this.density,
     this.artistViewMode,
     this.nowPlayingBackground,
-    this.tuningPresetId,
     this.clearColorSchemeSeed = false,
     this.clearAlbumGridDensity = false,
   });
 
-  factory capture(AppSettingsModel s, {String? tuningPresetId}) =>
-      AppearanceSnapshot(
-        themeMode: s.themeMode,
-        oledForAuto: s.oledForAuto,
-        colorStyle: s.colorStyle,
-        colorSchemeSeed: s.colorSchemeSeed,
-        dynamicAlbumColorEnabled: s.dynamicAlbumColorEnabled,
-        nightScheduleEnabled: s.nightScheduleEnabled,
-        nightScheduleStartMinutes: s.nightScheduleStartMinutes,
-        nightScheduleEndMinutes: s.nightScheduleEndMinutes,
-        albumArtShade: s.albumArtShade,
-        albumArtColoredShade: s.albumArtColoredShade,
-        colorVividness: s.colorVividness,
-        surfaceDepthLight: s.surfaceDepthLight,
-        surfaceDepthDark: s.surfaceDepthDark,
-        flatSurfaces: s.flatSurfaces,
-        flatAreas: s.flatAreas.bits,
-        cornerStyle: s.cornerStyle.name,
-        coverArtShape: s.coverArtShape,
-        nowPlayingArtShape: s.nowPlayingArtShape,
-        artistCardShape: s.artistCardShape,
-        gridArtworkSize: s.gridArtworkSize.name,
-        albumGridDensity: s.albumGridDensity,
-        density: s.density.storageKey,
-        artistViewMode: s.artistViewMode,
-        nowPlayingBackground: s.nowPlayingBackground.storageKey,
-        tuningPresetId:
-            tuningPresetId ??
-            matchingColorTuningPresetId(s.colorTuning, s.colorTuningPresets),
-        clearColorSchemeSeed: s.colorSchemeSeed == null,
-        clearAlbumGridDensity: s.albumGridDensity == null,
-      );
+  factory capture(AppSettingsModel s) => AppearanceSnapshot(
+    themeMode: s.themeMode,
+    oledForAuto: s.oledForAuto,
+    colorStyle: s.colorStyle,
+    colorSchemeSeed: s.colorSchemeSeed,
+    dynamicAlbumColorEnabled: s.dynamicAlbumColorEnabled,
+    nightScheduleEnabled: s.nightScheduleEnabled,
+    nightScheduleStartMinutes: s.nightScheduleStartMinutes,
+    nightScheduleEndMinutes: s.nightScheduleEndMinutes,
+    albumArtShade: s.albumArtShade,
+    albumArtColoredShade: s.albumArtColoredShade,
+    colorVividness: s.colorVividness,
+    surfaceDepthLight: s.surfaceDepthLight,
+    surfaceDepthDark: s.surfaceDepthDark,
+    flatSurfaces: s.flatSurfaces,
+    flatAreas: s.flatAreas.bits,
+    cornerStyle: s.cornerStyle.name,
+    coverArtShape: s.coverArtShape,
+    nowPlayingArtShape: s.nowPlayingArtShape,
+    artistCardShape: s.artistCardShape,
+    gridArtworkSize: s.gridArtworkSize.name,
+    albumGridDensity: s.albumGridDensity,
+    density: s.density.storageKey,
+    artistViewMode: s.artistViewMode,
+    nowPlayingBackground: s.nowPlayingBackground.storageKey,
+    clearColorSchemeSeed: s.colorSchemeSeed == null,
+    clearAlbumGridDensity: s.albumGridDensity == null,
+  );
 
   factory fromJson(Map<String, dynamic> raw) => AppearanceSnapshot(
     themeMode: _choice(raw['themeMode'], const [
@@ -192,9 +131,6 @@ class AppearanceSnapshot {
       'artwork',
       'plain',
     ]),
-    tuningPresetId: raw['tuningPresetId'] is String
-        ? raw['tuningPresetId'] as String
-        : null,
     clearColorSchemeSeed:
         raw.containsKey('colorSchemeSeed') && raw['colorSchemeSeed'] == null,
     clearAlbumGridDensity:
@@ -225,11 +161,10 @@ class AppearanceSnapshot {
   final String? density;
   final String? artistViewMode;
   final String? nowPlayingBackground;
-  final String? tuningPresetId;
   final bool clearColorSchemeSeed;
   final bool clearAlbumGridDensity;
 
-  Map<String, Object?> toJson({bool includeTuningPresetId = true}) => {
+  Map<String, Object?> toJson() => {
     if (themeMode != null) 'themeMode': themeMode,
     if (oledForAuto != null) 'oledForAuto': oledForAuto,
     if (colorStyle != null) 'colorStyle': colorStyle,
@@ -262,21 +197,14 @@ class AppearanceSnapshot {
     if (artistViewMode != null) 'artistViewMode': artistViewMode,
     if (nowPlayingBackground != null)
       'nowPlayingBackground': nowPlayingBackground,
-    if (includeTuningPresetId && tuningPresetId != null)
-      'tuningPresetId': tuningPresetId,
   };
 
-  /// Compares values only; a preset reference is apply metadata.
   @override
   bool operator ==(Object other) =>
       other is AppearanceSnapshot &&
-      const DeepCollectionEquality().equals(
-        toJson(includeTuningPresetId: false),
-        other.toJson(includeTuningPresetId: false),
-      );
+      const DeepCollectionEquality().equals(toJson(), other.toJson());
   @override
-  int get hashCode =>
-      const DeepCollectionEquality().hash(toJson(includeTuningPresetId: false));
+  int get hashCode => const DeepCollectionEquality().hash(toJson());
 }
 
 @immutable
@@ -326,16 +254,6 @@ class AppearanceLook {
   }
 }
 
-String? matchingColorTuningPresetId(
-  ColorTuning tuning,
-  List<ColorTuningPreset> presets,
-) {
-  if (tuning == ColorTuning.none) {
-    return ColorTuningPreset.defaultId;
-  }
-  return presets.where((p) => p.tuning == tuning).firstOrNull?.id;
-}
-
 String? matchingAppearanceLookId(AppSettingsModel settings) {
   final current = AppearanceSnapshot.capture(settings);
   return settings.appearanceLooks
@@ -344,11 +262,6 @@ String? matchingAppearanceLookId(AppSettingsModel settings) {
       ?.id;
 }
 
-List<ColorTuningPreset> decodeColorTuningPresets(String raw) => _decodePresets(
-  raw,
-  ColorTuningPreset.fromJson,
-  (p) => (id: p.id, name: p.name),
-);
 List<AppearanceLook> decodeAppearanceLooks(String raw) => _decodePresets(
   raw,
   AppearanceLook.fromJson,

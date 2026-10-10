@@ -129,52 +129,13 @@ void main() {
     skip: !sqliteAvailable,
   );
 
-  test('live tuning reference uses current values, deleted reference uses snapshot values', () async {
-    final database = createTestDatabase();
-    addTearDown(database.close);
-    final dao = database.appSettingsDao;
-    final repository = SettingsRepository(dao);
-    const stored = ColorTuningPreset(
-      id: 't',
-      name: 'Warm',
-      tuning: ColorTuning(vividness: -2, lightDepth: -4, darkDepth: -5),
-    );
-    const captured = ColorTuning(vividness: 1, lightDepth: 2, darkDepth: 3);
-    final snapshot = AppearanceSnapshot.capture(
-      const AppSettingsModel.defaults().copyWith(
-        colorVividness: captured.vividness,
-        surfaceDepthLight: captured.lightDepth,
-        surfaceDepthDark: captured.darkDepth,
-      ),
-      tuningPresetId: 't',
-    );
-    await dao.updateColorTuning(
-      ColorTuning.none,
-      presetsJson: jsonEncode([stored.toJson()]),
-    );
-    await dao.applyAppearanceSnapshot(snapshot);
-    var settings = await repository.getSettings();
-    expect(settings.colorTuning, stored.tuning);
-    expect(settings.selectedColorTuningPresetId, 't');
-    await dao.updateColorTuning(ColorTuning.none, presetsJson: '[]');
-    await dao.applyAppearanceSnapshot(snapshot);
-    settings = await repository.getSettings();
-    expect(settings.colorTuning, captured);
-    expect(settings.selectedColorTuningPresetId, isNull);
-  }, skip: !sqliteAvailable);
-
   test(
-    'reset retains tuning and Look libraries and resets selected markers',
+    'reset retains the Look library and resets its selected marker',
     () async {
       final database = createTestDatabase();
       addTearDown(database.close);
       final dao = database.appSettingsDao;
       final repository = SettingsRepository(dao);
-      const tuning = ColorTuningPreset(
-        id: 'a',
-        name: 'Warm',
-        tuning: ColorTuning(darkDepth: 3),
-      );
       final look = AppearanceLook(
         id: 'l',
         name: 'My look',
@@ -183,9 +144,7 @@ void main() {
         ),
       );
       await dao.updateColorTuning(
-        tuning.tuning,
-        selectedPresetId: tuning.id,
-        presetsJson: jsonEncode([tuning.toJson()]),
+        const ColorTuning(vividness: 2, lightDepth: -3, darkDepth: 4),
       );
       await dao.updateAppearanceLooks(
         selectedLookId: look.id,
@@ -194,9 +153,7 @@ void main() {
       await repository.resetDefaults();
       final settings = await repository.getSettings();
       expect(settings.colorTuning, ColorTuning.none);
-      expect(settings.colorTuningPresets.single.id, 'a');
       expect(settings.appearanceLooks.single.id, 'l');
-      expect(settings.selectedColorTuningPresetId, isNull);
       expect(settings.selectedAppearanceLookId, isNull);
     },
     skip: !sqliteAvailable,

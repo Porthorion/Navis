@@ -44,18 +44,16 @@ class ColorTuningBasis {
 String signedStep(int step) =>
     step == 0 ? '0' : '${step > 0 ? '+' : '−'}${step.abs()}';
 
-/// One line for Fine-Tune Colors: "Default", the saved preset's [presetName],
-/// or the steps that are not zero ("Intensity +2 · Brightness −1"). Brightness
+/// One line for Fine-Tune Colors: "Default" or the steps that are not zero
+/// ("Intensity +2 · Brightness −1"). Brightness
 /// is the mode shown now ([dark]); with only the other mode adjusted, that
 /// mode is named.
 String colorTuningSummary(
   AppLocalizations l10n,
   ColorTuning tuning, {
   required bool dark,
-  String? presetName,
 }) {
   if (tuning == ColorTuning.none) return l10n.appearanceColorTuningDefault;
-  if (presetName != null) return presetName;
   final depth = dark ? tuning.darkDepth : tuning.lightDepth;
   final other = dark ? tuning.lightDepth : tuning.darkDepth;
   final parts = <String>[
@@ -79,8 +77,7 @@ String colorTuningSummary(
 /// and previewed tuning; setup its draft). The panel reports each whole step
 /// while a ruler moves through [onPreview]; drag release, stepper, keyboard
 /// and Reset report through [onCommit]. [onPreviewEnd] fires if the panel goes
-/// away mid-drag. [presetsBuilder] adds the preset picker above the rulers;
-/// setup edits a draft and leaves it out.
+/// away mid-drag.
 Future<void> showColorTuningPanel(
   BuildContext anchorContext, {
   required ColorTuningBasis basis,
@@ -88,7 +85,6 @@ Future<void> showColorTuningPanel(
   required ValueChanged<ColorTuning> onPreview,
   required ValueChanged<ColorTuning> onCommit,
   VoidCallback? onPreviewEnd,
-  WidgetBuilder? presetsBuilder,
 }) {
   final l10n = AppLocalizations.of(anchorContext)!;
   return showQuickPanel(
@@ -114,7 +110,6 @@ Future<void> showColorTuningPanel(
       onPreview: onPreview,
       onCommit: onCommit,
       onPreviewEnd: onPreviewEnd,
-      presetsBuilder: presetsBuilder,
     ),
     footerBuilder: (_) => ValueListenableBuilder<ColorTuning>(
       valueListenable: tuning,
@@ -140,7 +135,6 @@ class _PanelBody extends StatefulWidget {
     required this.onPreview,
     required this.onCommit,
     this.onPreviewEnd,
-    this.presetsBuilder,
   });
 
   final ColorTuningBasis basis;
@@ -148,7 +142,6 @@ class _PanelBody extends StatefulWidget {
   final ValueChanged<ColorTuning> onPreview;
   final ValueChanged<ColorTuning> onCommit;
   final VoidCallback? onPreviewEnd;
-  final WidgetBuilder? presetsBuilder;
 
   @override
   State<_PanelBody> createState() => _PanelBodyState();
@@ -192,7 +185,7 @@ class _PanelBodyState extends State<_PanelBody> {
     super.dispose();
   }
 
-  /// Follows a change made elsewhere (choosing a preset, a failed save putting
+  /// Follows a change made elsewhere (applying a Look, a failed save putting
   /// the old value back), but never yanks a ruler mid-gesture for the echo of
   /// an earlier preview.
   void _follow() {
@@ -309,10 +302,6 @@ class _PanelBodyState extends State<_PanelBody> {
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: <Widget>[
-        if (widget.presetsBuilder != null) ...<Widget>[
-          widget.presetsBuilder!(context),
-          const Divider(height: 24),
-        ],
         ColorTuningRulerRow(
           keyName: 'color',
           label: l10n.appearanceColorTuningColor,

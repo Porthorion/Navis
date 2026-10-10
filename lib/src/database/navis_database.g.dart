@@ -1067,29 +1067,6 @@ class $AppSettingsTableTable extends AppSettingsTable
     requiredDuringInsert: false,
     defaultValue: const Constant(0),
   );
-  static const VerificationMeta _colorTuningPresetsMeta =
-      const VerificationMeta('colorTuningPresets');
-  @override
-  late final GeneratedColumn<String> colorTuningPresets =
-      GeneratedColumn<String>(
-        'color_tuning_presets',
-        aliasedName,
-        false,
-        type: DriftSqlType.string,
-        requiredDuringInsert: false,
-        defaultValue: const Constant('[]'),
-      );
-  static const VerificationMeta _selectedColorTuningPresetIdMeta =
-      const VerificationMeta('selectedColorTuningPresetId');
-  @override
-  late final GeneratedColumn<String> selectedColorTuningPresetId =
-      GeneratedColumn<String>(
-        'selected_color_tuning_preset_id',
-        aliasedName,
-        true,
-        type: DriftSqlType.string,
-        requiredDuringInsert: false,
-      );
   static const VerificationMeta _appearanceLooksMeta = const VerificationMeta(
     'appearanceLooks',
   );
@@ -1991,8 +1968,6 @@ class $AppSettingsTableTable extends AppSettingsTable
     colorVividness,
     surfaceDepthLight,
     surfaceDepthDark,
-    colorTuningPresets,
-    selectedColorTuningPresetId,
     appearanceLooks,
     selectedAppearanceLookId,
     flatAreas,
@@ -2389,24 +2364,6 @@ class $AppSettingsTableTable extends AppSettingsTable
         surfaceDepthDark.isAcceptableOrUnknown(
           data['surface_depth_dark']!,
           _surfaceDepthDarkMeta,
-        ),
-      );
-    }
-    if (data.containsKey('color_tuning_presets')) {
-      context.handle(
-        _colorTuningPresetsMeta,
-        colorTuningPresets.isAcceptableOrUnknown(
-          data['color_tuning_presets']!,
-          _colorTuningPresetsMeta,
-        ),
-      );
-    }
-    if (data.containsKey('selected_color_tuning_preset_id')) {
-      context.handle(
-        _selectedColorTuningPresetIdMeta,
-        selectedColorTuningPresetId.isAcceptableOrUnknown(
-          data['selected_color_tuning_preset_id']!,
-          _selectedColorTuningPresetIdMeta,
         ),
       );
     }
@@ -3169,14 +3126,6 @@ class $AppSettingsTableTable extends AppSettingsTable
         DriftSqlType.int,
         data['${effectivePrefix}surface_depth_dark'],
       )!,
-      colorTuningPresets: attachedDatabase.typeMapping.read(
-        DriftSqlType.string,
-        data['${effectivePrefix}color_tuning_presets'],
-      )!,
-      selectedColorTuningPresetId: attachedDatabase.typeMapping.read(
-        DriftSqlType.string,
-        data['${effectivePrefix}selected_color_tuning_preset_id'],
-      ),
       appearanceLooks: attachedDatabase.typeMapping.read(
         DriftSqlType.string,
         data['${effectivePrefix}appearance_looks'],
@@ -3544,8 +3493,6 @@ class AppSettingsTableData extends DataClass
   final int colorVividness;
   final int surfaceDepthLight;
   final int surfaceDepthDark;
-  final String colorTuningPresets;
-  final String? selectedColorTuningPresetId;
   final String appearanceLooks;
   final String? selectedAppearanceLookId;
   final int flatAreas;
@@ -3788,8 +3735,6 @@ class AppSettingsTableData extends DataClass
     required this.colorVividness,
     required this.surfaceDepthLight,
     required this.surfaceDepthDark,
-    required this.colorTuningPresets,
-    this.selectedColorTuningPresetId,
     required this.appearanceLooks,
     this.selectedAppearanceLookId,
     required this.flatAreas,
@@ -3919,12 +3864,6 @@ class AppSettingsTableData extends DataClass
     map['color_vividness'] = Variable<int>(colorVividness);
     map['surface_depth_light'] = Variable<int>(surfaceDepthLight);
     map['surface_depth_dark'] = Variable<int>(surfaceDepthDark);
-    map['color_tuning_presets'] = Variable<String>(colorTuningPresets);
-    if (!nullToAbsent || selectedColorTuningPresetId != null) {
-      map['selected_color_tuning_preset_id'] = Variable<String>(
-        selectedColorTuningPresetId,
-      );
-    }
     map['appearance_looks'] = Variable<String>(appearanceLooks);
     if (!nullToAbsent || selectedAppearanceLookId != null) {
       map['selected_appearance_look_id'] = Variable<String>(
@@ -4107,11 +4046,6 @@ class AppSettingsTableData extends DataClass
       colorVividness: Value(colorVividness),
       surfaceDepthLight: Value(surfaceDepthLight),
       surfaceDepthDark: Value(surfaceDepthDark),
-      colorTuningPresets: Value(colorTuningPresets),
-      selectedColorTuningPresetId:
-          selectedColorTuningPresetId == null && nullToAbsent
-          ? const Value.absent()
-          : Value(selectedColorTuningPresetId),
       appearanceLooks: Value(appearanceLooks),
       selectedAppearanceLookId: selectedAppearanceLookId == null && nullToAbsent
           ? const Value.absent()
@@ -4288,12 +4222,6 @@ class AppSettingsTableData extends DataClass
       colorVividness: serializer.fromJson<int>(json['colorVividness']),
       surfaceDepthLight: serializer.fromJson<int>(json['surfaceDepthLight']),
       surfaceDepthDark: serializer.fromJson<int>(json['surfaceDepthDark']),
-      colorTuningPresets: serializer.fromJson<String>(
-        json['colorTuningPresets'],
-      ),
-      selectedColorTuningPresetId: serializer.fromJson<String?>(
-        json['selectedColorTuningPresetId'],
-      ),
       appearanceLooks: serializer.fromJson<String>(json['appearanceLooks']),
       selectedAppearanceLookId: serializer.fromJson<String?>(
         json['selectedAppearanceLookId'],
@@ -4493,10 +4421,6 @@ class AppSettingsTableData extends DataClass
       'colorVividness': serializer.toJson<int>(colorVividness),
       'surfaceDepthLight': serializer.toJson<int>(surfaceDepthLight),
       'surfaceDepthDark': serializer.toJson<int>(surfaceDepthDark),
-      'colorTuningPresets': serializer.toJson<String>(colorTuningPresets),
-      'selectedColorTuningPresetId': serializer.toJson<String?>(
-        selectedColorTuningPresetId,
-      ),
       'appearanceLooks': serializer.toJson<String>(appearanceLooks),
       'selectedAppearanceLookId': serializer.toJson<String?>(
         selectedAppearanceLookId,
@@ -4642,8 +4566,6 @@ class AppSettingsTableData extends DataClass
     int? colorVividness,
     int? surfaceDepthLight,
     int? surfaceDepthDark,
-    String? colorTuningPresets,
-    Value<String?> selectedColorTuningPresetId = const Value.absent(),
     String? appearanceLooks,
     Value<String?> selectedAppearanceLookId = const Value.absent(),
     int? flatAreas,
@@ -4765,10 +4687,6 @@ class AppSettingsTableData extends DataClass
     colorVividness: colorVividness ?? this.colorVividness,
     surfaceDepthLight: surfaceDepthLight ?? this.surfaceDepthLight,
     surfaceDepthDark: surfaceDepthDark ?? this.surfaceDepthDark,
-    colorTuningPresets: colorTuningPresets ?? this.colorTuningPresets,
-    selectedColorTuningPresetId: selectedColorTuningPresetId.present
-        ? selectedColorTuningPresetId.value
-        : this.selectedColorTuningPresetId,
     appearanceLooks: appearanceLooks ?? this.appearanceLooks,
     selectedAppearanceLookId: selectedAppearanceLookId.present
         ? selectedAppearanceLookId.value
@@ -4996,12 +4914,6 @@ class AppSettingsTableData extends DataClass
       surfaceDepthDark: data.surfaceDepthDark.present
           ? data.surfaceDepthDark.value
           : this.surfaceDepthDark,
-      colorTuningPresets: data.colorTuningPresets.present
-          ? data.colorTuningPresets.value
-          : this.colorTuningPresets,
-      selectedColorTuningPresetId: data.selectedColorTuningPresetId.present
-          ? data.selectedColorTuningPresetId.value
-          : this.selectedColorTuningPresetId,
       appearanceLooks: data.appearanceLooks.present
           ? data.appearanceLooks.value
           : this.appearanceLooks,
@@ -5244,8 +5156,6 @@ class AppSettingsTableData extends DataClass
           ..write('colorVividness: $colorVividness, ')
           ..write('surfaceDepthLight: $surfaceDepthLight, ')
           ..write('surfaceDepthDark: $surfaceDepthDark, ')
-          ..write('colorTuningPresets: $colorTuningPresets, ')
-          ..write('selectedColorTuningPresetId: $selectedColorTuningPresetId, ')
           ..write('appearanceLooks: $appearanceLooks, ')
           ..write('selectedAppearanceLookId: $selectedAppearanceLookId, ')
           ..write('flatAreas: $flatAreas, ')
@@ -5363,8 +5273,6 @@ class AppSettingsTableData extends DataClass
     colorVividness,
     surfaceDepthLight,
     surfaceDepthDark,
-    colorTuningPresets,
-    selectedColorTuningPresetId,
     appearanceLooks,
     selectedAppearanceLookId,
     flatAreas,
@@ -5477,9 +5385,6 @@ class AppSettingsTableData extends DataClass
           other.colorVividness == this.colorVividness &&
           other.surfaceDepthLight == this.surfaceDepthLight &&
           other.surfaceDepthDark == this.surfaceDepthDark &&
-          other.colorTuningPresets == this.colorTuningPresets &&
-          other.selectedColorTuningPresetId ==
-              this.selectedColorTuningPresetId &&
           other.appearanceLooks == this.appearanceLooks &&
           other.selectedAppearanceLookId == this.selectedAppearanceLookId &&
           other.flatAreas == this.flatAreas &&
@@ -5594,8 +5499,6 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
   final Value<int> colorVividness;
   final Value<int> surfaceDepthLight;
   final Value<int> surfaceDepthDark;
-  final Value<String> colorTuningPresets;
-  final Value<String?> selectedColorTuningPresetId;
   final Value<String> appearanceLooks;
   final Value<String?> selectedAppearanceLookId;
   final Value<int> flatAreas;
@@ -5702,8 +5605,6 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
     this.colorVividness = const Value.absent(),
     this.surfaceDepthLight = const Value.absent(),
     this.surfaceDepthDark = const Value.absent(),
-    this.colorTuningPresets = const Value.absent(),
-    this.selectedColorTuningPresetId = const Value.absent(),
     this.appearanceLooks = const Value.absent(),
     this.selectedAppearanceLookId = const Value.absent(),
     this.flatAreas = const Value.absent(),
@@ -5811,8 +5712,6 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
     this.colorVividness = const Value.absent(),
     this.surfaceDepthLight = const Value.absent(),
     this.surfaceDepthDark = const Value.absent(),
-    this.colorTuningPresets = const Value.absent(),
-    this.selectedColorTuningPresetId = const Value.absent(),
     this.appearanceLooks = const Value.absent(),
     this.selectedAppearanceLookId = const Value.absent(),
     this.flatAreas = const Value.absent(),
@@ -5920,8 +5819,6 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
     Expression<int>? colorVividness,
     Expression<int>? surfaceDepthLight,
     Expression<int>? surfaceDepthDark,
-    Expression<String>? colorTuningPresets,
-    Expression<String>? selectedColorTuningPresetId,
     Expression<String>? appearanceLooks,
     Expression<String>? selectedAppearanceLookId,
     Expression<int>? flatAreas,
@@ -6044,10 +5941,6 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
       if (colorVividness != null) 'color_vividness': colorVividness,
       if (surfaceDepthLight != null) 'surface_depth_light': surfaceDepthLight,
       if (surfaceDepthDark != null) 'surface_depth_dark': surfaceDepthDark,
-      if (colorTuningPresets != null)
-        'color_tuning_presets': colorTuningPresets,
-      if (selectedColorTuningPresetId != null)
-        'selected_color_tuning_preset_id': selectedColorTuningPresetId,
       if (appearanceLooks != null) 'appearance_looks': appearanceLooks,
       if (selectedAppearanceLookId != null)
         'selected_appearance_look_id': selectedAppearanceLookId,
@@ -6195,8 +6088,6 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
     Value<int>? colorVividness,
     Value<int>? surfaceDepthLight,
     Value<int>? surfaceDepthDark,
-    Value<String>? colorTuningPresets,
-    Value<String?>? selectedColorTuningPresetId,
     Value<String>? appearanceLooks,
     Value<String?>? selectedAppearanceLookId,
     Value<int>? flatAreas,
@@ -6313,9 +6204,6 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
       colorVividness: colorVividness ?? this.colorVividness,
       surfaceDepthLight: surfaceDepthLight ?? this.surfaceDepthLight,
       surfaceDepthDark: surfaceDepthDark ?? this.surfaceDepthDark,
-      colorTuningPresets: colorTuningPresets ?? this.colorTuningPresets,
-      selectedColorTuningPresetId:
-          selectedColorTuningPresetId ?? this.selectedColorTuningPresetId,
       appearanceLooks: appearanceLooks ?? this.appearanceLooks,
       selectedAppearanceLookId:
           selectedAppearanceLookId ?? this.selectedAppearanceLookId,
@@ -6544,14 +6432,6 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
     }
     if (surfaceDepthDark.present) {
       map['surface_depth_dark'] = Variable<int>(surfaceDepthDark.value);
-    }
-    if (colorTuningPresets.present) {
-      map['color_tuning_presets'] = Variable<String>(colorTuningPresets.value);
-    }
-    if (selectedColorTuningPresetId.present) {
-      map['selected_color_tuning_preset_id'] = Variable<String>(
-        selectedColorTuningPresetId.value,
-      );
     }
     if (appearanceLooks.present) {
       map['appearance_looks'] = Variable<String>(appearanceLooks.value);
@@ -6862,8 +6742,6 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
           ..write('colorVividness: $colorVividness, ')
           ..write('surfaceDepthLight: $surfaceDepthLight, ')
           ..write('surfaceDepthDark: $surfaceDepthDark, ')
-          ..write('colorTuningPresets: $colorTuningPresets, ')
-          ..write('selectedColorTuningPresetId: $selectedColorTuningPresetId, ')
           ..write('appearanceLooks: $appearanceLooks, ')
           ..write('selectedAppearanceLookId: $selectedAppearanceLookId, ')
           ..write('flatAreas: $flatAreas, ')
@@ -34962,8 +34840,6 @@ typedef $$AppSettingsTableTableCreateCompanionBuilder =
       Value<int> colorVividness,
       Value<int> surfaceDepthLight,
       Value<int> surfaceDepthDark,
-      Value<String> colorTuningPresets,
-      Value<String?> selectedColorTuningPresetId,
       Value<String> appearanceLooks,
       Value<String?> selectedAppearanceLookId,
       Value<int> flatAreas,
@@ -35072,8 +34948,6 @@ typedef $$AppSettingsTableTableUpdateCompanionBuilder =
       Value<int> colorVividness,
       Value<int> surfaceDepthLight,
       Value<int> surfaceDepthDark,
-      Value<String> colorTuningPresets,
-      Value<String?> selectedColorTuningPresetId,
       Value<String> appearanceLooks,
       Value<String?> selectedAppearanceLookId,
       Value<int> flatAreas,
@@ -35336,16 +35210,6 @@ class $$AppSettingsTableTableFilterComposer
 
   ColumnFilters<int> get surfaceDepthDark => $composableBuilder(
     column: $table.surfaceDepthDark,
-    builder: (column) => ColumnFilters(column),
-  );
-
-  ColumnFilters<String> get colorTuningPresets => $composableBuilder(
-    column: $table.colorTuningPresets,
-    builder: (column) => ColumnFilters(column),
-  );
-
-  ColumnFilters<String> get selectedColorTuningPresetId => $composableBuilder(
-    column: $table.selectedColorTuningPresetId,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -35885,16 +35749,6 @@ class $$AppSettingsTableTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
-  ColumnOrderings<String> get colorTuningPresets => $composableBuilder(
-    column: $table.colorTuningPresets,
-    builder: (column) => ColumnOrderings(column),
-  );
-
-  ColumnOrderings<String> get selectedColorTuningPresetId => $composableBuilder(
-    column: $table.selectedColorTuningPresetId,
-    builder: (column) => ColumnOrderings(column),
-  );
-
   ColumnOrderings<String> get appearanceLooks => $composableBuilder(
     column: $table.appearanceLooks,
     builder: (column) => ColumnOrderings(column),
@@ -36428,16 +36282,6 @@ class $$AppSettingsTableTableAnnotationComposer
     builder: (column) => column,
   );
 
-  GeneratedColumn<String> get colorTuningPresets => $composableBuilder(
-    column: $table.colorTuningPresets,
-    builder: (column) => column,
-  );
-
-  GeneratedColumn<String> get selectedColorTuningPresetId => $composableBuilder(
-    column: $table.selectedColorTuningPresetId,
-    builder: (column) => column,
-  );
-
   GeneratedColumn<String> get appearanceLooks => $composableBuilder(
     column: $table.appearanceLooks,
     builder: (column) => column,
@@ -36847,9 +36691,6 @@ class $$AppSettingsTableTableTableManager
                 Value<int> colorVividness = const Value.absent(),
                 Value<int> surfaceDepthLight = const Value.absent(),
                 Value<int> surfaceDepthDark = const Value.absent(),
-                Value<String> colorTuningPresets = const Value.absent(),
-                Value<String?> selectedColorTuningPresetId =
-                    const Value.absent(),
                 Value<String> appearanceLooks = const Value.absent(),
                 Value<String?> selectedAppearanceLookId = const Value.absent(),
                 Value<int> flatAreas = const Value.absent(),
@@ -36961,8 +36802,6 @@ class $$AppSettingsTableTableTableManager
                 colorVividness: colorVividness,
                 surfaceDepthLight: surfaceDepthLight,
                 surfaceDepthDark: surfaceDepthDark,
-                colorTuningPresets: colorTuningPresets,
-                selectedColorTuningPresetId: selectedColorTuningPresetId,
                 appearanceLooks: appearanceLooks,
                 selectedAppearanceLookId: selectedAppearanceLookId,
                 flatAreas: flatAreas,
@@ -37072,9 +36911,6 @@ class $$AppSettingsTableTableTableManager
                 Value<int> colorVividness = const Value.absent(),
                 Value<int> surfaceDepthLight = const Value.absent(),
                 Value<int> surfaceDepthDark = const Value.absent(),
-                Value<String> colorTuningPresets = const Value.absent(),
-                Value<String?> selectedColorTuningPresetId =
-                    const Value.absent(),
                 Value<String> appearanceLooks = const Value.absent(),
                 Value<String?> selectedAppearanceLookId = const Value.absent(),
                 Value<int> flatAreas = const Value.absent(),
@@ -37186,8 +37022,6 @@ class $$AppSettingsTableTableTableManager
                 colorVividness: colorVividness,
                 surfaceDepthLight: surfaceDepthLight,
                 surfaceDepthDark: surfaceDepthDark,
-                colorTuningPresets: colorTuningPresets,
-                selectedColorTuningPresetId: selectedColorTuningPresetId,
                 appearanceLooks: appearanceLooks,
                 selectedAppearanceLookId: selectedAppearanceLookId,
                 flatAreas: flatAreas,

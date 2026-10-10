@@ -293,3 +293,18 @@ Owner decisions, implemented over the v2 persistence:
   Looks: both write settings immediately, whereas setup edits a draft that
   Finish saves (and Skip discards). Presets and Looks are managed in Settings.
 - Looks sit above Theme because they act on everything below them.
+
+### Looks as the only appearance presets and Undo (2026-10-10)
+
+Owner decision superseding the v2 preset-library proposal above: fold
+Fine-Tune presets into Looks. Two preset layers made it unclear whether a
+saved choice controlled only tuning or the full appearance. Looks now store
+intensity and both brightness values directly, with no preset references;
+Fine-Tune remains preview/clear/commit controls. The unshipped schema 101
+retains the three tuning columns and Look library/selected id only.
+Old snapshot JSON silently ignores `tuningPresetId` and uses captured values.
+
+Applying a Look returns the full pre-apply snapshot for Undo. Restoring it
+uses the same transactional DAO path, including automatic accent and legacy
+grid-size nulls. Selection remains derived by value, so Undo returns Custom
+or the previous matching Look without storing a second selection history.

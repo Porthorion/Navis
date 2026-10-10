@@ -317,14 +317,13 @@ class FlatAreasOption extends StatelessWidget {
 }
 
 /// Fine-Tune Colors: one row, like its neighbours, whose subtitle sums up the
-/// current tuning and which opens the panel with the rulers and presets.
+/// current tuning and which opens the panel with the rulers.
 /// Shared by Appearance settings and setup.
 class ColorTuningOption extends StatelessWidget {
   const new({
     required this.tuning,
     required this.dark,
     required this.onOpen,
-    this.presetName,
     this.adornment,
     super.key,
   });
@@ -333,9 +332,6 @@ class ColorTuningOption extends StatelessWidget {
 
   /// Whether the app is showing a dark mode; Brightness is summed up for it.
   final bool dark;
-
-  /// The preset the tuning matches, shown instead of its values.
-  final String? presetName;
 
   /// Opens the panel; the row's own context anchors the desktop popover.
   final ValueChanged<BuildContext> onOpen;
@@ -351,7 +347,7 @@ class ColorTuningOption extends StatelessWidget {
       contentPadding: appearanceSwitchPadding(context),
       title: _titleWithAdornment(l10n.appearanceColorTuningLabel, adornment),
       subtitle: Text(
-        colorTuningSummary(l10n, tuning, dark: dark, presetName: presetName),
+        colorTuningSummary(l10n, tuning, dark: dark),
         key: const ValueKey<String>('colorTuningOption-summary'),
       ),
       trailing: const Icon(Icons.chevron_right),
@@ -933,7 +929,6 @@ class AppearanceOptionSet {
     required this.onOpenColorTuning,
     required this.previewBrightness,
     required this.previewOled,
-    this.colorTuningPresetName,
   });
 
   /// Whether the OLED switch applies (Auto theme mode).
@@ -961,10 +956,8 @@ class AppearanceOptionSet {
   final NowPlayingBackground nowPlayingBackground;
   final ValueChanged<NowPlayingBackground> onNowPlayingBackgroundChanged;
 
-  /// The saved (or drafted) Fine-Tune Colors values, and the name of the
-  /// preset they match, if any, for the row's summary.
+  /// The saved (or drafted) Fine-Tune Colors values for the row's summary.
   final ColorTuning colorTuning;
-  final String? colorTuningPresetName;
 
   /// Opens the Fine-Tune Colors panel, anchored to the row.
   final ValueChanged<BuildContext> onOpenColorTuning;
@@ -998,7 +991,6 @@ class AppearanceOptionSet {
         SetupHighlight.colorTuning,
         (adornment) => ColorTuningOption(
           tuning: colorTuning,
-          presetName: colorTuningPresetName,
           dark: previewBrightness == Brightness.dark,
           adornment: adornment,
           onOpen: onOpenColorTuning,

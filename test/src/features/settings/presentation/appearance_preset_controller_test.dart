@@ -13,83 +13,27 @@ import '../../../../helpers/test_database.dart';
 class _MockSettingsRepository extends Mock implements SettingsRepository;
 
 void main() {
-  test('tuning save select update rename delete and value matching', () async {
+  test('tuning previews, clears and commits the three values', () async {
     final database = createTestDatabase();
     addTearDown(database.close);
     final container = ProviderContainer(overrides: withTestDatabase(database));
     addTearDown(container.dispose);
     container.listen(colorTuningControllerProvider, (_, _) {});
-    container.listen(appearanceLooksControllerProvider, (_, _) {});
-    final controller = container.read(colorTuningControllerProvider.notifier);
     await container.read(appSettingsProvider.future);
+    final controller = container.read(colorTuningControllerProvider.notifier);
+    const tuning = ColorTuning(vividness: 1, lightDepth: 2, darkDepth: -3);
+    controller.preview(tuning);
+    expect(container.read(effectiveColorTuningProvider), tuning);
     expect(
-      container.read(colorTuningControllerProvider).selectedPresetId,
-      'default',
+      (await container.read(settingsRepositoryProvider).getSettings())
+          .colorTuning,
+      ColorTuning.none,
     );
-    const first = ColorTuning(vividness: 1, lightDepth: 2, darkDepth: -3);
-    controller.preview(first);
-    expect(container.read(effectiveColorTuningProvider), first);
-    expect(
-      container.read(colorTuningControllerProvider).selectedPresetId,
-      isNull,
-    );
-    final saved = await controller.saveAsNew('  Warm  ');
-    expect(saved.failure, isNull);
-    final id = saved.value!.id;
-    expect(saved.value!.name, 'Warm');
-    expect(saved.value!.tuning, first);
-    expect(container.read(colorTuningControllerProvider).selectedPresetId, id);
-    expect(
-      (await controller.saveAsNew('warm')).failure,
-      PresetFailure.duplicateName,
-    );
-    expect(
-      (await controller.saveAsNew('DEFAULT')).failure,
-      PresetFailure.reservedName,
-    );
-    expect((await controller.saveAsNew(' ')).failure, PresetFailure.emptyName);
-    expect(await controller.select('missing'), PresetFailure.notFound);
-    expect(await controller.update('default'), PresetFailure.notFound);
-    expect(await controller.rename(id, 'Default'), PresetFailure.reservedName);
-    expect(await controller.select('default'), isNull);
-    expect(
-      container.read(colorTuningControllerProvider).selectedPresetId,
-      'default',
-    );
-    expect(await controller.select(id), isNull);
-    expect(container.read(colorTuningControllerProvider).tuning, first);
-    const second = ColorTuning(vividness: 3, lightDepth: -2, darkDepth: 4);
-    expect(await controller.commit(second), isNull);
-    expect(
-      container.read(colorTuningControllerProvider).selectedPresetId,
-      isNull,
-    );
-    expect(await controller.update(id), isNull);
-    expect(
-      container.read(colorTuningControllerProvider).presets.single.tuning,
-      second,
-    );
-    expect(await controller.rename(id, '  Evening  '), isNull);
-    expect(
-      container.read(colorTuningControllerProvider).presets.single.name,
-      'Evening',
-    );
-    expect(await controller.commit(ColorTuning.none), isNull);
-    expect(await controller.commit(second), isNull);
-    expect(container.read(colorTuningControllerProvider).selectedPresetId, id);
-    expect(await controller.delete(id), isNull);
-    expect(container.read(colorTuningControllerProvider).tuning, second);
-    expect(
-      container.read(colorTuningControllerProvider).selectedPresetId,
-      isNull,
-    );
-    expect(await controller.delete(id), PresetFailure.notFound);
-    final settings = await container
-        .read(settingsRepositoryProvider)
-        .getSettings();
-    expect(settings.colorTuningPresets, isEmpty);
-    expect(settings.colorTuning, second);
-    expect(settings.selectedColorTuningPresetId, isNull);
+    controller.clearPreview();
+    expect(container.read(effectiveColorTuningProvider), ColorTuning.none);
+    expect(await controller.commit(tuning), isNull);
+    expect(container.read(colorTuningControllerProvider).tuning, tuning);
+    expect(container.read(colorTuningPreviewProvider), isNull);
   }, skip: !sqliteAvailable);
 
   test(
@@ -130,42 +74,26 @@ void main() {
     skip: !sqliteAvailable,
   );
 
-  test(
-    'queued commits and library operations preserve both new presets',
-    () async {
-      final database = createTestDatabase();
-      addTearDown(database.close);
-      final container = ProviderContainer(
-        overrides: withTestDatabase(database),
-      );
-      addTearDown(container.dispose);
-      container.listen(colorTuningControllerProvider, (_, _) {});
-      container.listen(appearanceLooksControllerProvider, (_, _) {});
-      final controller = container.read(colorTuningControllerProvider.notifier);
-      final results = await Future.wait([
-        controller.saveAsNew('One'),
-        controller.saveAsNew('Two'),
-      ]);
-      expect(results.every((r) => r.failure == null), isTrue);
-      expect(
-        (await container.read(settingsRepositoryProvider).getSettings())
-            .colorTuningPresets,
-        hasLength(2),
-      );
-      const one = ColorTuning(lightDepth: 1);
-      const two = ColorTuning(darkDepth: 2);
-      expect(
-        await Future.wait([controller.commit(one), controller.commit(two)]),
-        [null, null],
-      );
-      expect(
-        (await container.read(settingsRepositoryProvider).getSettings())
-            .colorTuning,
-        two,
-      );
-    },
-    skip: !sqliteAvailable,
-  );
+  test('queued tuning commits preserve the last requested values', () async {
+    final database = createTestDatabase();
+    addTearDown(database.close);
+    final container = ProviderContainer(overrides: withTestDatabase(database));
+    addTearDown(container.dispose);
+    container.listen(colorTuningControllerProvider, (_, _) {});
+    container.listen(appearanceLooksControllerProvider, (_, _) {});
+    final controller = container.read(colorTuningControllerProvider.notifier);
+    const one = ColorTuning(lightDepth: 1);
+    const two = ColorTuning(darkDepth: 2);
+    expect(
+      await Future.wait([controller.commit(one), controller.commit(two)]),
+      [null, null],
+    );
+    expect(
+      (await container.read(settingsRepositoryProvider).getSettings())
+          .colorTuning,
+      two,
+    );
+  }, skip: !sqliteAvailable);
 
   test(
     'tuning and Looks state follows external targeted settings writes',
@@ -213,7 +141,7 @@ void main() {
         await container
             .read(appearanceLooksControllerProvider.notifier)
             .apply(look.id),
-        isNull,
+        isA<AppearanceSnapshot>(),
       );
     },
     skip: !sqliteAvailable,
@@ -237,7 +165,7 @@ void main() {
       expect(saved.failure, isNull);
       final id = saved.value!.id;
       expect(saved.value!.version, 1);
-      expect(saved.value!.snapshot.tuningPresetId, 'default');
+      expect(saved.value!.snapshot.colorVividness, 0);
       expect(
         container.read(appearanceLooksControllerProvider).selectedLookId,
         id,
@@ -281,7 +209,7 @@ void main() {
         'Sunny',
       );
       await database.appSettingsDao.updateThemeMode('oled');
-      expect(await controller.apply(id), isNull);
+      expect(await controller.apply(id), isA<AppearanceSnapshot>());
       expect(
         (await container.read(settingsRepositoryProvider).getSettings())
             .themeMode,
@@ -291,7 +219,10 @@ void main() {
         container.read(appearanceLooksControllerProvider).selectedLookId,
         id,
       );
-      expect(await controller.apply(duplicateValues.id), isNull);
+      expect(
+        await controller.apply(duplicateValues.id),
+        isA<AppearanceSnapshot>(),
+      );
       expect(
         (await container.read(settingsRepositoryProvider).getSettings())
             .themeMode,
@@ -304,7 +235,7 @@ void main() {
       );
       expect(await controller.delete(id), isNull);
       expect(container.read(appearanceLooksControllerProvider).looks, isEmpty);
-      expect(await controller.apply(id), PresetFailure.notFound);
+      expect(await controller.apply(id), isNull);
       expect(await controller.update(id), PresetFailure.notFound);
       expect(await controller.rename(id, 'Gone'), PresetFailure.notFound);
       expect(await controller.delete(id), PresetFailure.notFound);
@@ -312,54 +243,195 @@ void main() {
     skip: !sqliteAvailable,
   );
 
-  test('Looks capture includes selected tuning preset metadata', () async {
+  test('Looks capture tuning values directly', () async {
     final database = createTestDatabase();
     addTearDown(database.close);
     final container = ProviderContainer(overrides: withTestDatabase(database));
     addTearDown(container.dispose);
     container.listen(colorTuningControllerProvider, (_, _) {});
     container.listen(appearanceLooksControllerProvider, (_, _) {});
+    const saved = ColorTuning(vividness: 2, lightDepth: -3, darkDepth: 4);
     final tuning = container.read(colorTuningControllerProvider.notifier);
-    await tuning.commit(
-      const ColorTuning(vividness: 2, lightDepth: -3, darkDepth: 4),
-    );
-    final preset = (await tuning.saveAsNew('Warm')).value!;
-    final look =
-        (await container
-                .read(appearanceLooksControllerProvider.notifier)
-                .saveAsNew('My look'))
-            .value!;
-    expect(look.snapshot.tuningPresetId, preset.id);
+    await tuning.commit(saved);
+    final looks = container.read(appearanceLooksControllerProvider.notifier);
+    final look = (await looks.saveAsNew('My look')).value!;
+    expect(look.snapshot.colorVividness, 2);
     expect(look.snapshot.surfaceDepthLight, -3);
     expect(look.snapshot.surfaceDepthDark, 4);
-    expect(matchingColorTuningPresetId(ColorTuning.none, [preset]), 'default');
-    const changed = ColorTuning(vividness: -1, lightDepth: 4, darkDepth: -2);
-    await tuning.commit(changed);
-    await tuning.update(preset.id);
-    final looks = container.read(appearanceLooksControllerProvider.notifier);
-    expect(await looks.apply(look.id), isNull);
-    expect(container.read(colorTuningControllerProvider).tuning, changed);
-    expect(
-      container.read(colorTuningControllerProvider).selectedPresetId,
-      preset.id,
+    await tuning.commit(
+      const ColorTuning(vividness: -1, lightDepth: 4, darkDepth: -2),
     );
-    expect(
-      container.read(appearanceLooksControllerProvider).selectedLookId,
-      isNull,
-    );
-    await tuning.delete(preset.id);
-    expect(await looks.apply(look.id), isNull);
-    expect(
-      container.read(colorTuningControllerProvider).tuning,
-      const ColorTuning(vividness: 2, lightDepth: -3, darkDepth: 4),
-    );
-    expect(
-      container.read(colorTuningControllerProvider).selectedPresetId,
-      isNull,
-    );
+    expect(await looks.apply(look.id), isA<AppearanceSnapshot>());
+    expect(container.read(colorTuningControllerProvider).tuning, saved);
     expect(
       container.read(appearanceLooksControllerProvider).selectedLookId,
       look.id,
     );
   }, skip: !sqliteAvailable);
+
+  for (final matchedLook in [false, true]) {
+    test(
+      'apply and restore round-trip every snapshot field, matched Look=$matchedLook',
+      () async {
+        final database = createTestDatabase();
+        addTearDown(database.close);
+        final container = ProviderContainer(
+          overrides: withTestDatabase(database),
+        );
+        addTearDown(container.dispose);
+        container.listen(appearanceLooksControllerProvider, (_, _) {});
+        final controller = container.read(
+          appearanceLooksControllerProvider.notifier,
+        );
+        final repository = container.read(settingsRepositoryProvider);
+        final target = (await controller.saveAsNew('Target')).value!;
+        // Exercise all 24 fields, including both explicit nulls.
+        final before = AppearanceSnapshot.fromJson(const {
+          'themeMode': 'system',
+          'oledForAuto': true,
+          'colorStyle': 'immersive',
+          'colorSchemeSeed': null,
+          'dynamicAlbumColorEnabled': true,
+          'nightScheduleEnabled': true,
+          'nightScheduleStartMinutes': 123,
+          'nightScheduleEndMinutes': 456,
+          'albumArtShade': true,
+          'albumArtColoredShade': true,
+          'colorVividness': 4,
+          'surfaceDepthLight': -2,
+          'surfaceDepthDark': 3,
+          'flatSurfaces': true,
+          'flatAreas': 2,
+          'cornerStyle': 'square',
+          'coverArtShape': 'rounded',
+          'nowPlayingArtShape': 'circle',
+          'artistCardShape': 'square',
+          'gridArtworkSize': 'large',
+          'albumGridDensity': null,
+          'density': 'compact',
+          'artistViewMode': 'list',
+          'nowPlayingBackground': 'artwork',
+        });
+        expect(before.toJson(), hasLength(24));
+        await database.appSettingsDao.applyAppearanceSnapshot(before);
+        String? previousLookId;
+        if (matchedLook) {
+          previousLookId = (await controller.saveAsNew('Previous')).value!.id;
+        }
+        await database.appSettingsDao.applyAppearanceSnapshot(target.snapshot);
+        await database.appSettingsDao.applyAppearanceSnapshot(
+          const AppearanceSnapshot(colorSchemeSeed: 1, albumGridDensity: 6),
+        );
+        await controller.update(target.id);
+        final updatedTarget = AppearanceSnapshot.capture(
+          await repository.getSettings(),
+        );
+        await database.appSettingsDao.applyAppearanceSnapshot(before);
+        final previous = await controller.apply(target.id);
+        expect(previous, before);
+        expect(
+          AppearanceSnapshot.capture(await repository.getSettings()),
+          updatedTarget,
+        );
+        expect(await controller.restore(previous!), isNull);
+        final restored = await repository.getSettings();
+        expect(AppearanceSnapshot.capture(restored).toJson(), before.toJson());
+        expect(restored.themeMode, 'system');
+        expect(restored.colorSchemeSeed, isNull);
+        expect(restored.albumGridDensity, isNull);
+        expect(
+          restored.colorTuning,
+          const ColorTuning(vividness: 4, lightDepth: -2, darkDepth: 3),
+        );
+        expect(
+          container.read(appearanceLooksControllerProvider).selectedLookId,
+          previousLookId,
+        );
+        expect(restored.selectedAppearanceLookId, previousLookId);
+      },
+      skip: !sqliteAvailable,
+    );
+  }
+
+  test(
+    'failure after snapshot write rolls back the appearance transaction',
+    () async {
+      final database = createTestDatabase();
+      addTearDown(database.close);
+      final repository = SettingsRepository(database.appSettingsDao);
+      final seed = ProviderContainer(overrides: withTestDatabase(database));
+      addTearDown(seed.dispose);
+      final look =
+          (await seed
+                  .read(appearanceLooksControllerProvider.notifier)
+                  .saveAsNew('Original'))
+              .value!;
+      await database.appSettingsDao.updateThemeMode('light');
+      final before = AppearanceSnapshot.capture(await repository.getSettings());
+      final mock = _MockSettingsRepository();
+      when(mock.watchSettings).thenAnswer((_) => repository.watchSettings());
+      var reads = 0;
+      when(mock.getSettings).thenAnswer((_) async {
+        if (++reads == 3) {
+          throw StateError('Post-write read failure');
+        }
+        return await repository.getSettings();
+      });
+      final container = ProviderContainer(
+        overrides: withTestDatabase(
+          database,
+          overrides: [settingsRepositoryProvider.overrideWithValue(mock)],
+        ),
+      );
+      addTearDown(container.dispose);
+      final controller = container.read(
+        appearanceLooksControllerProvider.notifier,
+      );
+      expect(await controller.apply(look.id), isNull);
+      expect(
+        AppearanceSnapshot.capture(await repository.getSettings()),
+        before,
+      );
+      // Restore enters the transaction without the initial Look lookup.
+      reads = 1;
+      expect(
+        await controller.restore(look.snapshot),
+        PresetFailure.persistence,
+      );
+      expect(
+        AppearanceSnapshot.capture(await repository.getSettings()),
+        before,
+      );
+    },
+    skip: !sqliteAvailable,
+  );
+
+  test(
+    'failed apply and restore report failure without changing appearance',
+    () async {
+      final database = createTestDatabase();
+      addTearDown(database.close);
+      final repository = SettingsRepository(database.appSettingsDao);
+      final mock = _MockSettingsRepository();
+      when(mock.watchSettings).thenAnswer((_) => repository.watchSettings());
+      when(mock.getSettings).thenThrow(StateError('Unavailable settings'));
+      final container = ProviderContainer(
+        overrides: withTestDatabase(
+          database,
+          overrides: [settingsRepositoryProvider.overrideWithValue(mock)],
+        ),
+      );
+      addTearDown(container.dispose);
+      final controller = container.read(
+        appearanceLooksControllerProvider.notifier,
+      );
+      expect(await controller.apply('missing'), isNull);
+      expect(
+        await controller.restore(const AppearanceSnapshot(themeMode: 'light')),
+        PresetFailure.persistence,
+      );
+      expect((await repository.getSettings()).themeMode, 'dark');
+    },
+    skip: !sqliteAvailable,
+  );
 }

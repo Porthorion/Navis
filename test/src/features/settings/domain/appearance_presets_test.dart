@@ -43,37 +43,6 @@ void main() {
     }
   });
 
-  test('tuning JSON drops corrupt records, duplicate ids and names', () {
-    const preset = ColorTuningPreset(
-      id: 'a',
-      name: ' Warm ',
-      tuning: ColorTuning(vividness: 2, lightDepth: -1, darkDepth: 3),
-    );
-    final json = preset.toJson();
-    final decoded = decodeColorTuningPresets(
-      jsonEncode([
-        json,
-        null,
-        1,
-        <String, Object?>{},
-        {...json, 'id': 'b', 'name': 'warm'},
-        {...json, 'name': 'Other'},
-        {...json, 'id': 'c', 'vividness': 6},
-        {...json, 'id': 'd', 'darkDepth': 1.5},
-        {...json, 'id': 'default'},
-        {...json, 'id': 'e', 'name': 'Default'},
-        {...json, 'id': '', 'name': 'Empty'},
-        {...json, 'id': 'f', 'name': 'Second'},
-      ]),
-    );
-    expect(decoded.map((p) => p.id), ['a', 'f']);
-    expect(decoded.first.name, 'Warm');
-    expect(decoded.first.tuning, preset.tuning);
-    for (final raw in ['bad', '{}', 'null']) {
-      expect(decodeColorTuningPresets(raw), isEmpty);
-    }
-  });
-
   test(
     'Looks decode version 1 only, keep valid optional fields and dedupe',
     () {
@@ -123,29 +92,32 @@ void main() {
     },
   );
 
-  test(
-    'snapshot identity ignores tuning reference, includes every captured value',
-    () {
-      final captured = AppearanceSnapshot.capture(
-        const AppSettingsModel.defaults(),
-      );
-      final json = captured.toJson();
-      expect(AppearanceSnapshot.fromJson(json), captured);
+  test('snapshot ignores retired tuning reference and includes every captured value', () {
+    final captured = AppearanceSnapshot.capture(
+      const AppSettingsModel.defaults(),
+    );
+    final json = captured.toJson();
+    expect(AppearanceSnapshot.fromJson(json), captured);
+    expect(
+      AppearanceSnapshot.fromJson({...json, 'tuningPresetId': 'deleted'}),
+      captured,
+    );
+    expect(
+      AppearanceSnapshot.fromJson({...json, 'tuningPresetId': 'deleted'})
+          .toJson(),
+      json,
+    );
+    expect(json, isNot(contains('tuningPresetId')));
+    for (final key in json.keys) {
+      final modified = {...json}..remove(key);
       expect(
-        AppearanceSnapshot.fromJson({...json, 'tuningPresetId': 'deleted'}),
-        captured,
+        AppearanceSnapshot.fromJson(modified),
+        isNot(captured),
+        reason: key,
       );
-      for (final key in json.keys.where((k) => k != 'tuningPresetId')) {
-        final modified = {...json}..remove(key);
-        expect(
-          AppearanceSnapshot.fromJson(modified),
-          isNot(captured),
-          reason: key,
-        );
-      }
-      expect(json.keys, isNot(contains('homeSectionsHidden')));
-      expect(json.keys, isNot(contains('showArtistsPage')));
-      expect(json.keys, isNot(contains('desktopNavbarStyle')));
-    },
-  );
+    }
+    expect(json.keys, isNot(contains('homeSectionsHidden')));
+    expect(json.keys, isNot(contains('showArtistsPage')));
+    expect(json.keys, isNot(contains('desktopNavbarStyle')));
+  });
 }

@@ -417,21 +417,6 @@ class NavisDatabase extends _$NavisDatabase {
         appSettingsTable.surfaceDepthDark,
       );
     }
-    if (!await _columnExists('app_settings', 'color_tuning_presets')) {
-      await migrator.addColumn(
-        appSettingsTable,
-        appSettingsTable.colorTuningPresets,
-      );
-    }
-    if (!await _columnExists(
-      'app_settings',
-      'selected_color_tuning_preset_id',
-    )) {
-      await migrator.addColumn(
-        appSettingsTable,
-        appSettingsTable.selectedColorTuningPresetId,
-      );
-    }
     if (!await _columnExists('app_settings', 'appearance_looks')) {
       await migrator.addColumn(
         appSettingsTable,
@@ -1714,8 +1699,6 @@ FROM scrobble_queue;
         colorVividness: const Value(0),
         surfaceDepthLight: const Value(0),
         surfaceDepthDark: const Value(0),
-        colorTuningPresets: const Value('[]'),
-        selectedColorTuningPresetId: const Value(null),
         appearanceLooks: const Value('[]'),
         selectedAppearanceLookId: const Value(null),
         albumArtShade: const Value(false),

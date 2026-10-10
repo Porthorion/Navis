@@ -1,6 +1,5 @@
 import 'package:navis/src/features/settings/presentation/appearance_preset_controller.dart';
 import 'package:navis/src/features/settings/domain/appearance_presets.dart';
-import 'package:navis/src/common/preset_names.dart';
 import 'package:navis/src/features/settings/domain/night_schedule.dart';
 import 'package:navis/src/features/downloads/presentation/custom_download_folder_controller.dart';
 import 'package:navis/src/features/downloads/presentation/manual_download_matching_provider.dart';
@@ -814,14 +813,17 @@ class SyncDiagnosticsServer {
           if (id is! String || id.isEmpty || body.length != 1) {
             throw const FormatException();
           }
-          final failure = await _container
-              .read(appearanceLooksControllerProvider.notifier)
-              .apply(id);
-          if (failure == PresetFailure.notFound) {
+          final settings = await _container
+              .read(settingsRepositoryProvider)
+              .getSettings();
+          if (!settings.appearanceLooks.any((look) => look.id == id)) {
             await _respond(request, HttpStatus.notFound, <String, Object?>{
               'error': 'unknown_look',
             });
-          } else if (failure != null) {
+          } else if (await _container
+                  .read(appearanceLooksControllerProvider.notifier)
+                  .apply(id) ==
+              null) {
             await _respond(
               request,
               HttpStatus.internalServerError,
@@ -1061,11 +1063,6 @@ class SyncDiagnosticsServer {
           'colorVividness': settings?.colorVividness ?? 0,
           'surfaceDepthLight': settings?.surfaceDepthLight ?? 0,
           'surfaceDepthDark': settings?.surfaceDepthDark ?? 0,
-          'selectedColorTuningPresetId': matchingColorTuningPresetId(
-            model.colorTuning,
-            model.colorTuningPresets,
-          ),
-          'colorTuningPresetCount': model.colorTuningPresets.length,
           'selectedAppearanceLookId': matchingAppearanceLookId(model),
           'appearanceLookCount': model.appearanceLooks.length,
           'albumArtShade': settings?.albumArtShade ?? false,

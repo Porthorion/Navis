@@ -10,11 +10,8 @@ import 'package:navis/src/theme/color_adjustment.dart';
 import 'package:uuid/uuid.dart';
 
 class ColorTuningState {
-  new({required this.tuning, required List<ColorTuningPreset> presets})
-    : presets = List.unmodifiable(presets);
+  const new({required this.tuning});
   final ColorTuning tuning;
-  final List<ColorTuningPreset> presets;
-  String? get selectedPresetId => matchingColorTuningPresetId(tuning, presets);
 }
 
 /// Shares the existing settings stream and preview; serializes targeted writes.
@@ -23,31 +20,17 @@ class ColorTuningController extends Notifier<ColorTuningState> {
 
   @override
   ColorTuningState build() {
-    ref.listen(appSettingsProvider, (_, _) => _refresh());
     ref.listen(effectiveColorTuningProvider, (_, _) => _refresh());
-    final settings =
-        ref.read(appSettingsProvider).asData?.value ??
-        const AppSettingsModel.defaults();
     ref.listen(colorTuningProvider, (_, saved) {
       if (ref.read(colorTuningPreviewProvider) == saved) {
-        ref.read(colorTuningPreviewProvider.notifier).clear();
+        clearPreview();
       }
     });
-    return ColorTuningState(
-      tuning: ref.read(effectiveColorTuningProvider),
-      presets: settings.colorTuningPresets,
-    );
+    return ColorTuningState(tuning: ref.read(effectiveColorTuningProvider));
   }
 
-  void _refresh() {
-    final settings =
-        ref.read(appSettingsProvider).asData?.value ??
-        const AppSettingsModel.defaults();
-    state = ColorTuningState(
-      tuning: ref.read(effectiveColorTuningProvider),
-      presets: settings.colorTuningPresets,
-    );
-  }
+  void _refresh() =>
+      state = ColorTuningState(tuning: ref.read(effectiveColorTuningProvider));
 
   void preview(ColorTuning tuning) =>
       ref.read(colorTuningPreviewProvider.notifier).preview(tuning);
@@ -57,10 +40,21 @@ class ColorTuningController extends Notifier<ColorTuningState> {
     preview(tuning);
     return _writes.run(() async {
       try {
-        final settings = await ref
-            .read(settingsRepositoryProvider)
-            .getSettings();
-        await _write(tuning, settings.colorTuningPresets);
+        await ref.read(settingsRepositoryProvider).getSettings();
+        await ref
+            .read(navisDatabaseProvider)
+            .appSettingsDao
+            .updateColorTuning(tuning);
+        await _observeSettings(ref, (s) => s.colorTuning == tuning);
+        if (ref.mounted) {
+          state = ColorTuningState(
+            tuning: ref.read(colorTuningPreviewProvider) ?? tuning,
+          );
+          if (ref.read(colorTuningProvider) ==
+              ref.read(colorTuningPreviewProvider)) {
+            clearPreview();
+          }
+        }
         return null;
       } on Object {
         if (ref.mounted && ref.read(colorTuningPreviewProvider) == tuning) {
@@ -69,134 +63,6 @@ class ColorTuningController extends Notifier<ColorTuningState> {
         return PresetFailure.persistence;
       }
     });
-  }
-
-  Future<PresetFailure?> select(String id) => _writes.run(() async {
-    try {
-      final settings = await ref.read(settingsRepositoryProvider).getSettings();
-      final preset = id == ColorTuningPreset.defaultId
-          ? ColorTuningPreset.defaultPreset
-          : settings.colorTuningPresets.where((p) => p.id == id).firstOrNull;
-      if (preset == null) {
-        return PresetFailure.notFound;
-      }
-      if (ref.mounted) {
-        preview(preset.tuning);
-      }
-      await _write(preset.tuning, settings.colorTuningPresets);
-      return null;
-    } on Object {
-      if (ref.mounted) {
-        clearPreview();
-      }
-      return PresetFailure.persistence;
-    }
-  });
-
-  Future<PresetResult<ColorTuningPreset>> saveAsNew(String name) =>
-      _save(name: name);
-  Future<PresetFailure?> update(String id) async =>
-      (await _save(id: id)).failure;
-  Future<PresetFailure?> rename(String id, String name) async =>
-      (await _save(id: id, name: name, renameOnly: true)).failure;
-
-  Future<PresetResult<ColorTuningPreset>> _save({
-    String? id,
-    String? name,
-    bool renameOnly = false,
-  }) => _writes.run(() async {
-    try {
-      final settings = await ref.read(settingsRepositoryProvider).getSettings();
-      final old = settings.colorTuningPresets
-          .where((p) => p.id == id)
-          .firstOrNull;
-      if (id != null && old == null) {
-        return const PresetResult.failure(PresetFailure.notFound);
-      }
-      final label = name ?? old!.name;
-      final failure = validatePresetName(
-        label,
-        presets: settings.colorTuningPresets.map(
-          (p) => (id: p.id, name: p.name),
-        ),
-        excludingId: id,
-        reservedNames: const {'default'},
-      );
-      if (failure != null) {
-        return PresetResult.failure(failure);
-      }
-      final tuning =
-          ref.read(colorTuningPreviewProvider) ?? settings.colorTuning;
-      final preset = ColorTuningPreset(
-        id: id ?? const Uuid().v4(),
-        name: label.trim(),
-        tuning: renameOnly ? old!.tuning : tuning,
-      );
-      final presets = [...settings.colorTuningPresets];
-      final index = presets.indexWhere((p) => p.id == id);
-      if (index < 0) {
-        presets.add(preset);
-      } else {
-        presets[index] = preset;
-      }
-      await _write(
-        renameOnly ? settings.colorTuning : tuning,
-        presets,
-        saveLibrary: true,
-      );
-      return PresetResult.success(preset);
-    } on Object {
-      return const PresetResult.failure(PresetFailure.persistence);
-    }
-  });
-
-  Future<PresetFailure?> delete(String id) => _writes.run(() async {
-    try {
-      final settings = await ref.read(settingsRepositoryProvider).getSettings();
-      if (!settings.colorTuningPresets.any((p) => p.id == id)) {
-        return PresetFailure.notFound;
-      }
-      await _write(
-        settings.colorTuning,
-        settings.colorTuningPresets.where((p) => p.id != id).toList(),
-        saveLibrary: true,
-      );
-      return null;
-    } on Object {
-      return PresetFailure.persistence;
-    }
-  });
-
-  Future<void> _write(
-    ColorTuning tuning,
-    List<ColorTuningPreset> presets, {
-    bool saveLibrary = false,
-  }) async {
-    await ref
-        .read(navisDatabaseProvider)
-        .appSettingsDao
-        .updateColorTuning(
-          tuning,
-          selectedPresetId: matchingColorTuningPresetId(tuning, presets),
-          presetsJson: saveLibrary
-              ? jsonEncode(presets.map((p) => p.toJson()).toList())
-              : null,
-        );
-    await _observeSettings(
-      ref,
-      (s) =>
-          s.colorTuning == tuning &&
-          jsonEncode(s.colorTuningPresets.map((p) => p.toJson()).toList()) ==
-              jsonEncode(presets.map((p) => p.toJson()).toList()),
-    );
-    if (!ref.mounted) return;
-    state = ColorTuningState(
-      tuning: ref.read(colorTuningPreviewProvider) ?? tuning,
-      presets: presets,
-    );
-    if (ref.read(colorTuningProvider) == ref.read(colorTuningPreviewProvider)) {
-      clearPreview();
-    }
   }
 }
 
@@ -228,34 +94,57 @@ class AppearanceLooksController extends Notifier<AppearanceLooksState> {
     );
   }
 
-  Future<PresetFailure?> apply(String id) => _writes.run(() async {
+  /// Applies a saved Look and returns the appearance to use for Undo.
+  ///
+  /// Unknown ids and failed applications return null.
+  Future<AppearanceSnapshot?> apply(String id) => _writes.run(() async {
     try {
       final settings = await ref.read(settingsRepositoryProvider).getSettings();
       final look = settings.appearanceLooks
           .where((p) => p.id == id)
           .firstOrNull;
-      if (look == null) {
-        return PresetFailure.notFound;
-      }
-      final dao = ref.read(navisDatabaseProvider).appSettingsDao;
-      await dao.applyAppearanceSnapshot(look.snapshot);
-      if (ref.mounted) ref.read(colorTuningPreviewProvider.notifier).clear();
-      final applied = await ref.read(settingsRepositoryProvider).getSettings();
-      await _observeSettings(
-        ref,
-        (s) =>
-            AppearanceSnapshot.capture(s) ==
-            AppearanceSnapshot.capture(applied),
-      );
+      if (look == null) return null;
+      return await _applySnapshot(look.snapshot);
+    } on Object {
+      return null;
+    }
+  });
+
+  /// Restores the captured appearance, including automatic nullable settings.
+  ///
+  /// Returns null on success or [PresetFailure.persistence] on failure.
+  Future<PresetFailure?> restore(AppearanceSnapshot previous) =>
+      _writes.run(() async {
+        try {
+          await _applySnapshot(previous);
+          return null;
+        } on Object {
+          return PresetFailure.persistence;
+        }
+      });
+
+  Future<AppearanceSnapshot> _applySnapshot(AppearanceSnapshot snapshot) async {
+    final dao = ref.read(navisDatabaseProvider).appSettingsDao;
+    final repository = ref.read(settingsRepositoryProvider);
+    late AppSettingsModel applied;
+    final previous = await dao.transaction(() async {
+      final before = AppearanceSnapshot.capture(await repository.getSettings());
+      await dao.applyAppearanceSnapshot(snapshot);
+      applied = await repository.getSettings();
       await dao.updateAppearanceLooks(
         selectedLookId: matchingAppearanceLookId(applied),
       );
-      if (ref.mounted) state = AppearanceLooksState(applied);
-      return null;
-    } on Object {
-      return PresetFailure.persistence;
-    }
-  });
+      return before;
+    });
+    if (ref.mounted) ref.read(colorTuningPreviewProvider.notifier).clear();
+    await _observeSettings(
+      ref,
+      (s) =>
+          AppearanceSnapshot.capture(s) == AppearanceSnapshot.capture(applied),
+    );
+    if (ref.mounted) state = AppearanceLooksState(applied);
+    return previous;
+  }
 
   Future<PresetResult<AppearanceLook>> saveAsNew(String name) =>
       _save(name: name);

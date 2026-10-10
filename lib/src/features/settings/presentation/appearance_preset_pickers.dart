@@ -5,7 +5,6 @@ import 'package:navis/src/common/preset_names.dart';
 import 'package:navis/src/common_widgets/app_notice.dart';
 import 'package:navis/src/common_widgets/preset_picker.dart';
 import 'package:navis/src/features/onboarding/domain/setup_highlights.dart';
-import 'package:navis/src/features/settings/domain/appearance_presets.dart';
 import 'package:navis/src/features/settings/presentation/appearance_options.dart';
 import 'package:navis/src/features/settings/presentation/appearance_preset_controller.dart';
 
@@ -24,7 +23,7 @@ String presetFailureMessage(
   PresetFailure.persistence => l10n.appearancePresetSaveFailure,
 };
 
-/// Shared wording of the two pickers; the named items read the same in both.
+/// Shared wording for saved Looks.
 PresetPickerLabels _labels(
   AppLocalizations l10n, {
   required String picker,
@@ -59,84 +58,6 @@ PresetPickerLabels _labels(
   final chosen = known.contains(selected) ? selected : null;
   final edited = selected == null && known.contains(origin) ? origin : null;
   return (update: edited, manage: chosen ?? edited);
-}
-
-/// Preset picker for Fine-Tune Colors: the built-in Default and the saved
-/// tuning presets, acting through [ColorTuningController].
-///
-/// The rulers follow the controller's tuning, so choosing a preset moves them.
-class ColorTuningPresetPicker extends ConsumerStatefulWidget {
-  const new({super.key});
-
-  @override
-  ConsumerState<ColorTuningPresetPicker> createState() =>
-      _ColorTuningPresetPickerState();
-}
-
-class _ColorTuningPresetPickerState
-    extends ConsumerState<ColorTuningPresetPicker> {
-  /// The preset the values were last on, so Update can write them back after
-  /// the rulers moved off it.
-  String? _origin;
-
-  void _notice(PresetFailure? failure) {
-    if (failure == null || !mounted) return;
-    showAppNotice(
-      context,
-      message: presetFailureMessage(AppLocalizations.of(context)!, failure),
-      level: AppNoticeLevel.error,
-    );
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final l10n = AppLocalizations.of(context)!;
-    final state = ref.watch(colorTuningControllerProvider);
-    final controller = ref.read(colorTuningControllerProvider.notifier);
-    final selected = state.selectedPresetId;
-    if (selected != null) {
-      _origin = selected == ColorTuningPreset.defaultId ? null : selected;
-    }
-    final targets = _targets(
-      selected: selected,
-      origin: _origin,
-      known: {for (final preset in state.presets) preset.id},
-    );
-    return PresetPicker(
-      keyPrefix: 'colorTuningPreset',
-      icon: Icons.palette_outlined,
-      selectedId: selected,
-      entries: <PresetPickerEntry>[
-        PresetPickerEntry(
-          id: ColorTuningPreset.defaultId,
-          label: l10n.appearanceColorTuningDefault,
-          icon: Icons.restart_alt,
-        ),
-        for (final preset in state.presets)
-          PresetPickerEntry(id: preset.id, label: preset.name),
-      ],
-      updateId: targets.update,
-      manageId: targets.manage,
-      labels: _labels(
-        l10n,
-        picker: l10n.appearanceTuningPresetLabel,
-        actions: l10n.appearanceTuningPresetActions,
-        saveNew: l10n.appearanceTuningPresetSaveNew,
-        nameField: l10n.appearanceTuningPresetName,
-      ),
-      onSelect: (id) async => _notice(await controller.select(id)),
-      onSaveNew: (name) async {
-        final failure = (await controller.saveAsNew(name)).failure;
-        return failure == null ? null : presetFailureMessage(l10n, failure);
-      },
-      onUpdate: (id) async => _notice(await controller.update(id)),
-      onRename: (id, name) async {
-        final failure = await controller.rename(id, name);
-        return failure == null ? null : presetFailureMessage(l10n, failure);
-      },
-      onDelete: (id) async => _notice(await controller.delete(id)),
-    );
-  }
 }
 
 /// Looks: saved snapshots of the whole appearance, at the top of Appearance
@@ -208,7 +129,11 @@ class _AppearanceLooksOptionState extends ConsumerState<AppearanceLooksOption> {
             saveNew: l10n.appearanceLooksSaveNew,
             nameField: l10n.appearanceLooksName,
           ),
-          onSelect: (id) async => _notice(await controller.apply(id)),
+          onSelect: (id) async {
+            if (await controller.apply(id) == null) {
+              _notice(PresetFailure.persistence);
+            }
+          },
           onSaveNew: (name) async {
             final failure = (await controller.saveAsNew(name)).failure;
             return failure == null
