@@ -446,6 +446,8 @@ void main() {
         'nightSchedule': {'enabled': false, 'start': 1320, 'end': 420},
         'flatSurfaces': false,
         'flatAreas': 7,
+        'colorVividness': 0,
+        'surfaceDepth': 0,
         'albumArtShade': false,
         'albumArtColoredShade': false,
       });
@@ -491,6 +493,8 @@ void main() {
       'nightSchedule': {'enabled': true, 'start': 1200, 'end': 300},
       'flatSurfaces': true,
       'flatAreas': 2,
+      'colorVividness': -5,
+      'surfaceDepth': 5,
       'albumArtShade': true,
       'albumArtColoredShade': true,
       'cornerStyle': 'square',
@@ -521,6 +525,8 @@ void main() {
         .getSettings();
     expect(persisted!.colorSchemeSeed, 0xFF567890);
     expect(persisted.flatAreas, 2);
+    expect(persisted.colorVividness, -5);
+    expect(persisted.surfaceDepth, 5);
     expect(persisted.albumArtShade, isTrue);
     expect(persisted.albumArtColoredShade, isTrue);
     final observed = await fixture.get(path);
@@ -536,6 +542,16 @@ void main() {
       {'dynamicAlbumColor': null},
       {'oledForAuto': 'true'},
       {'flatSurfaces': 1},
+      {'colorVividness': -6},
+      {'colorVividness': 6},
+      {'colorVividness': 1.5},
+      {'colorVividness': null},
+      {'colorVividness': '2'},
+      {'surfaceDepth': -6},
+      {'surfaceDepth': 6},
+      {'surfaceDepth': 1.5},
+      {'surfaceDepth': null},
+      {'surfaceDepth': '2'},
       {'flatAreas': -1},
       {'flatAreas': 8},
       {'flatAreas': 1.5},
@@ -596,6 +612,10 @@ void main() {
       'end': 450,
     });
     expect(cleared.body['colorStyle'], 'immersive');
+    final partial = await fixture.post(path, {'colorVividness': 3});
+    expect(partial.statusCode, HttpStatus.ok);
+    expect(partial.body['colorVividness'], 3);
+    expect(partial.body['surfaceDepth'], 5);
     for (final (shade, colored) in [(false, true), (true, false)]) {
       final toggled = await fixture.post(path, {
         'albumArtShade': shade,

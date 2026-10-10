@@ -10,6 +10,7 @@ import 'package:navis/src/features/downloads/domain/download_preferences.dart';
 import 'package:navis/src/features/integrations/domain/integration_feature.dart';
 import 'package:navis/src/features/settings/domain/navis_density.dart';
 import 'package:navis/src/features/settings/domain/now_playing_background.dart';
+import 'package:navis/src/theme/color_adjustment.dart';
 import 'package:navis/src/theme/navis_corner_style.dart';
 import 'package:path/path.dart' as p;
 
@@ -146,6 +147,8 @@ class AppSettingsDao extends DatabaseAccessor<NavisDatabase>
     required int nightScheduleEndMinutes,
     required bool flatSurfaces,
     int? flatAreas,
+    int? colorVividness,
+    int? surfaceDepth,
     bool? albumArtShade,
     bool? albumArtColoredShade,
     int? colorSchemeSeed,
@@ -222,6 +225,12 @@ class AppSettingsDao extends DatabaseAccessor<NavisDatabase>
         ),
         nightScheduleEndMinutes: Value(nightScheduleEndMinutes.clamp(0, 1439)),
         flatSurfaces: Value(flatSurfaces),
+        colorVividness: colorVividness == null
+            ? const Value.absent()
+            : Value(colorVividness.clamp(-5, 5)),
+        surfaceDepth: surfaceDepth == null
+            ? const Value.absent()
+            : Value(surfaceDepth.clamp(-5, 5)),
         flatAreas: flatAreas == null
             ? const Value.absent()
             : Value(FlatAreas.fromBits(flatAreas).bits),
@@ -365,6 +374,8 @@ class AppSettingsDao extends DatabaseAccessor<NavisDatabase>
       nightScheduleEndMinutes: NightSchedule.defaultEndMinutes,
       flatSurfaces: false,
       flatAreas: 7,
+      colorVividness: 0,
+      surfaceDepth: 0,
       albumArtShade: false,
       albumArtColoredShade: false,
       colorSchemeSeed: null,
@@ -835,6 +846,19 @@ class AppSettingsDao extends DatabaseAccessor<NavisDatabase>
     )..where((tbl) => tbl.id.equals(primarySettingsId))).write(
       AppSettingsTableCompanion(
         flatAreas: Value(areas.bits),
+        updatedAt: Value(DateTime.now()),
+      ),
+    );
+  }
+
+  /// Writes both colour tuning values atomically, preserving other settings.
+  Future<void> updateColorAdjustment(ColorAdjustment adjustment) async {
+    await (update(
+      appSettingsTable,
+    )..where((tbl) => tbl.id.equals(primarySettingsId))).write(
+      AppSettingsTableCompanion(
+        colorVividness: Value(adjustment.vividness),
+        surfaceDepth: Value(adjustment.depth),
         updatedAt: Value(DateTime.now()),
       ),
     );

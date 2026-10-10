@@ -742,8 +742,8 @@ target-selection rules.
   delegate to one shared builder. Typography, component themes and theme
   extensions are defined only in that builder. `NavisApp` constructs only the
   active brightness/OLED variant and reuses a per-app eight-entry LRU cache
-  (`NavisThemeCache`) keyed by seed, brightness, OLED, style, Flat, Flat areas
-  and corners.
+  (`NavisThemeCache`) keyed by seed, brightness, OLED, style, Flat, Flat areas,
+  corners and colour adjustment.
   Unrelated settings rebuilds reuse complete themes; new album seeds build
   only the visible variant, and switching back can reuse a cached theme.
   OLED cards, dialogs and sheets
@@ -807,6 +807,50 @@ target-selection rules.
     returns `flatAreas` as an integer and `albumArtShade` / `albumArtColoredShade`
     as booleans; POST validates their types and mask bounds before any targeted
     writes. Either shade flag can be set independently.
+  - Colour and Brightness tuning (`ColorAdjustment`) layer on every style,
+    including Neutral, in Light, Dark and OLED. Vividness and depth are integer
+    steps −5…+5, default zero. `buildStyledColorScheme` runs the HCT
+    `adjustColorScheme` post-pass after the style recipe. Zero/zero returns the
+    original scheme without round-tripping any channels. Vividness multiplies
+    accent/fixed/container, surface and outline chroma by `1 + 0.1 × vividness`;
+    errors and on-colour text stay unchanged, as do pure black and white roles.
+    Mid-tone roles use a chroma ceiling of 24 (24.5–50.5 tone guard bounds
+    account for RGB rounding); muting also scales that ceiling so saturated
+    accents can soften. Exact default preservation means an existing high-chroma
+    mid-tone accent at zero can exceed the cap applied to a tuned scheme:
+    vividness is monotonic between the muted/vivid endpoints, but cannot be
+    guaranteed across the untouched zero scheme under a universal role cap.
+    Pure black/white accents remain unchanged at every value.
+    OLED containers target chroma at most 1.5 to keep decoded RGB chroma
+    below 3. Depth moves the surface family and outlineVariant:
+    Light +5 lowers tone by 4.5, −5 lifts by 4 (cap 99); Dark ±5 moves tone
+    by ∓6 (floor 2). OLED surface, surfaceDim and surfaceContainerLowest stay
+    black; the other surface containers move at most ±3 tones (floor 2).
+    The Light deeper range is smaller than the initial −7 proposal to preserve
+    the existing 3:1 accent contrast on Pastel's highest surface.
+  - Schema 101 adds guarded `color_vividness` and `surface_depth` integer
+    columns, default zero. `AppSettingsModel.colorVividness` / `surfaceDepth`
+    round-trip through the existing settings repository. The targeted
+    `AppSettingsDao.updateColorAdjustment` writes both values atomically and
+    preserves unrelated settings; setup Finish diffs each axis and preserves
+    concurrent changes to the unchanged axis. `colorAdjustmentProvider` exposes
+    the saved value (identity while loading or failed).
+    `colorAdjustmentPreviewProvider` holds nullable drag state with `preview`
+    and `clear`; `effectiveColorAdjustmentProvider` combines preview ?? saved.
+    Controls must clear preview after the saved value is observed, or on cancel
+    and disposal. `app.dart` watches the effective value, carried through the
+    existing theme cache and theme extension. Setup preview uses its draft.
+    Style tiles and seed swatches use the preview theme's adjustment.
+  - Artwork adaptation scales each style's maximum chroma with vividness and
+    shifts its Light/Dark tone window by depth; Neutral only scales chroma.
+    Artwork scrims keep their existing recipe and Now Playing retains its OLED
+    tint-tone cap. Caption worker messages carry vividness and depth, and the
+    existing caption memo and album-card dedupe keys include both values.
+    No separate cover cache is introduced. `SetupHighlight.colorTuning`
+    uses the stable `colorTuning` key for the 1.5.0 setup registry.
+    `/v1/presentation/appearance` accepts/returns `colorVividness` and
+    `surfaceDepth`; both must be integers −5…+5, with the whole request
+    validated before DAO writes. Omitting an axis preserves its saved value.
   - Flat (`flatSurfacesProvider`, `NavisColorStyleData.flat`) is orthogonal to
     theme mode and colour style: it removes depth effects so the style's solid
     colours read stronger. `app.dart` passes it to `buildLightTheme`,

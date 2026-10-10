@@ -962,7 +962,11 @@ targeted production DAO methods. The same endpoint also accepts `themeMode`
 `colorSchemeSeed` (unsigned 32-bit integer or null to clear), `dynamicAlbumColor`,
 `oledForAuto` and `flatSurfaces` (booleans), `cornerStyle`
 (rounded/soft/square), `nowPlayingBackground` (tinted/artwork/plain), and
-`density` (comfortable/compact). `nightSchedule` accepts a nonempty object
+`density` (comfortable/compact). `flatAreas` is an integer mask 0–7;
+`albumArtShade` and `albumArtColoredShade` are booleans. Colour tuning uses
+`colorVividness` and `surfaceDepth` (integers −5…+5, default 0); omitted axes
+retain their values and targeted writes use `updateColorAdjustment`.
+`nightSchedule` accepts a nonempty object
 with any of `enabled` (boolean), `start` and `end` (integer minutes 0–1439).
 Omitted fields retain their values. The entire body is validated before any
 write; GET and POST return the resulting appearance values, including the

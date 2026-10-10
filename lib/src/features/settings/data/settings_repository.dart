@@ -10,6 +10,7 @@ import 'package:navis/src/features/settings/domain/flat_areas.dart';
 import 'package:navis/src/features/settings/domain/navis_density.dart';
 import 'package:navis/src/features/settings/domain/now_playing_background.dart';
 import 'package:navis/src/routing/content_layout.dart';
+import 'package:navis/src/theme/color_adjustment.dart';
 import 'package:navis/src/theme/navis_corner_style.dart';
 
 class SettingsRepository {
@@ -58,6 +59,8 @@ class SettingsRepository {
       nightScheduleEndMinutes: settings.nightScheduleEndMinutes,
       flatSurfaces: settings.flatSurfaces,
       flatAreas: settings.flatAreas.bits,
+      colorVividness: settings.colorVividness,
+      surfaceDepth: settings.surfaceDepth,
       albumArtShade: settings.albumArtShade,
       albumArtColoredShade: settings.albumArtColoredShade,
       colorSchemeSeed: settings.colorSchemeSeed,
@@ -122,6 +125,21 @@ class SettingsRepository {
     }
     if (draft.flatSurfaces != initial.flatSurfaces) {
       await _dao.updateFlatSurfaces(enabled: draft.flatSurfaces);
+    }
+    if (draft.colorVividness != initial.colorVividness ||
+        draft.surfaceDepth != initial.surfaceDepth) {
+      // Preserve concurrent changes to the axis the setup draft did not edit.
+      final current = await _dao.getSettings();
+      await _dao.updateColorAdjustment(
+        ColorAdjustment(
+          vividness: draft.colorVividness != initial.colorVividness
+              ? draft.colorVividness
+              : current?.colorVividness ?? 0,
+          depth: draft.surfaceDepth != initial.surfaceDepth
+              ? draft.surfaceDepth
+              : current?.surfaceDepth ?? 0,
+        ),
+      );
     }
     if (draft.flatAreas != initial.flatAreas) {
       await _dao.updateFlatAreas(draft.flatAreas.bits);
@@ -332,6 +350,8 @@ class SettingsRepository {
       nightScheduleEndMinutes: row.nightScheduleEndMinutes,
       flatSurfaces: row.flatSurfaces,
       flatAreas: FlatAreas.fromBits(row.flatAreas),
+      colorVividness: row.colorVividness,
+      surfaceDepth: row.surfaceDepth,
       albumArtShade: row.albumArtShade,
       albumArtColoredShade: row.albumArtColoredShade,
       colorSchemeSeed: row.colorSchemeSeed,

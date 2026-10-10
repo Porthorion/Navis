@@ -2,6 +2,7 @@ import 'package:material_color_utilities/material_color_utilities.dart'
     show Hct;
 import 'package:material_ui/material_ui.dart';
 import 'package:navis/src/features/settings/domain/flat_areas.dart';
+import 'package:navis/src/theme/color_adjustment.dart';
 import 'package:navis/src/theme/caption_tint.dart';
 import 'package:navis/src/theme/navis_color_style.dart';
 import 'package:navis/src/theme/navis_color_style_data.dart';
@@ -25,6 +26,7 @@ class NavisThemeCache {
       bool,
       FlatAreas,
       NavisCornerStyle,
+      ColorAdjustment,
     ),
     ThemeData
   >
@@ -37,9 +39,19 @@ class NavisThemeCache {
     required NavisColorStyle style,
     required bool flat,
     FlatAreas flatAreas = const FlatAreas(),
+    ColorAdjustment adjustment = ColorAdjustment.none,
     required NavisCornerStyle corners,
   }) {
-    final key = (seed, brightness, oled, style, flat, flatAreas, corners);
+    final key = (
+      seed,
+      brightness,
+      oled,
+      style,
+      flat,
+      flatAreas,
+      corners,
+      adjustment,
+    );
     final known = _themes.remove(key);
     if (known != null) {
       _themes[key] = known;
@@ -49,6 +61,7 @@ class NavisThemeCache {
         ? buildLightTheme(
             seed,
             style: style,
+            adjustment: adjustment,
             flat: flat,
             flatAreas: flatAreas,
             corners: corners,
@@ -57,6 +70,7 @@ class NavisThemeCache {
         ? buildOledTheme(
             seed,
             style: style,
+            adjustment: adjustment,
             flat: flat,
             flatAreas: flatAreas,
             corners: corners,
@@ -64,6 +78,7 @@ class NavisThemeCache {
         : buildDarkTheme(
             seed,
             style: style,
+            adjustment: adjustment,
             flat: flat,
             flatAreas: flatAreas,
             corners: corners,
@@ -184,17 +199,20 @@ ThemeData buildLightTheme(
   NavisColorStyle style = NavisColorStyle.neutral,
   bool flat = false,
   FlatAreas flatAreas = const FlatAreas(),
+  ColorAdjustment adjustment = ColorAdjustment.none,
   NavisCornerStyle corners = NavisCornerStyle.rounded,
 }) {
   final colorScheme = buildStyledColorScheme(
     seed: seedColor,
     brightness: Brightness.light,
     style: style,
+    adjustment: adjustment,
   );
   return _buildNavisTheme(
     colorScheme,
     seedColor,
     style: style,
+    adjustment: adjustment,
     flat: flat,
     flatAreas: flatAreas,
     corners: corners,
@@ -207,17 +225,20 @@ ThemeData buildDarkTheme(
   NavisColorStyle style = NavisColorStyle.neutral,
   bool flat = false,
   FlatAreas flatAreas = const FlatAreas(),
+  ColorAdjustment adjustment = ColorAdjustment.none,
   NavisCornerStyle corners = NavisCornerStyle.rounded,
 }) {
   final colorScheme = buildStyledColorScheme(
     seed: seedColor,
     brightness: Brightness.dark,
     style: style,
+    adjustment: adjustment,
   );
   return _buildNavisTheme(
     colorScheme,
     seedColor,
     style: style,
+    adjustment: adjustment,
     flat: flat,
     flatAreas: flatAreas,
     corners: corners,
@@ -233,6 +254,7 @@ ThemeData buildOledTheme(
   NavisColorStyle style = NavisColorStyle.neutral,
   bool flat = false,
   FlatAreas flatAreas = const FlatAreas(),
+  ColorAdjustment adjustment = ColorAdjustment.none,
   NavisCornerStyle corners = NavisCornerStyle.rounded,
 }) {
   final colorScheme = buildStyledColorScheme(
@@ -240,12 +262,14 @@ ThemeData buildOledTheme(
     brightness: Brightness.dark,
     oled: true,
     style: style,
+    adjustment: adjustment,
   );
   return _buildNavisTheme(
     colorScheme,
     seedColor,
     oled: true,
     style: style,
+    adjustment: adjustment,
     flat: flat,
     flatAreas: flatAreas,
     corners: corners,
@@ -306,12 +330,14 @@ ThemeData _buildNavisTheme(
   NavisColorStyle style = NavisColorStyle.neutral,
   bool flat = false,
   FlatAreas flatAreas = const FlatAreas(),
+  ColorAdjustment adjustment = ColorAdjustment.none,
   NavisCornerStyle corners = NavisCornerStyle.rounded,
 }) {
   final shape = NavisShapeData.forStyle(corners);
   final roundedCorners = corners == NavisCornerStyle.rounded;
   final styleData = NavisColorStyleData(
     style: style,
+    adjustment: adjustment,
     dark: colorScheme.brightness == Brightness.dark,
     flat: flat,
     flatAreas: flatAreas,

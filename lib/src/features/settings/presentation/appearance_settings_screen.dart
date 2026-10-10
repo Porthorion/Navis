@@ -932,7 +932,11 @@ class ColorSchemeGrid extends StatelessWidget {
             runSpacing: 12,
             children: <Widget>[
               _ColorChip(
-                color: styledSwatchColor(defaultColorSchemeSeedColor, style),
+                color: styledSwatchColor(
+                  defaultColorSchemeSeedColor,
+                  style,
+                  adjustment: NavisColorStyleData.of(context).adjustment,
+                ),
                 seedColor: defaultColorSchemeSeedColor,
                 label: l10n.appearanceColorDefault,
                 isSelected: _normalizeColorSchemeSeed(currentSeed) == null,
@@ -942,7 +946,11 @@ class ColorSchemeGrid extends StatelessWidget {
               ),
               for (final swatch in swatches)
                 _ColorChip(
-                  color: styledSwatchColor(swatch.color, style),
+                  color: styledSwatchColor(
+                    swatch.color,
+                    style,
+                    adjustment: NavisColorStyleData.of(context).adjustment,
+                  ),
                   seedColor: swatch.color,
                   label: swatch.label,
                   isSelected: currentSeed == swatch.colorValue,

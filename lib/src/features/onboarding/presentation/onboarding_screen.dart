@@ -24,6 +24,7 @@ import 'package:navis/src/features/settings/presentation/listenbrainz_connection
 import 'package:navis/src/features/settings/domain/app_settings.dart';
 import 'package:navis/src/utils/app_logger.dart';
 import 'package:navis/src/providers/app_providers.dart';
+import 'package:navis/src/theme/color_adjustment.dart';
 import 'package:navis/src/theme/navis_shape_data.dart';
 import 'package:navis/src/theme/motion_policy.dart';
 import 'package:navis/src/theme/navis_theme.dart';
@@ -672,6 +673,10 @@ class OnboardingScreenState extends ConsumerState<OnboardingScreen> {
         style: style,
         flat: flat,
         flatAreas: draft.flatAreas,
+        adjustment: ColorAdjustment(
+          vividness: draft.colorVividness,
+          depth: draft.surfaceDepth,
+        ),
         corners: corners,
       );
     }
@@ -681,6 +686,10 @@ class OnboardingScreenState extends ConsumerState<OnboardingScreen> {
             style: style,
             flat: flat,
             flatAreas: draft.flatAreas,
+            adjustment: ColorAdjustment(
+              vividness: draft.colorVividness,
+              depth: draft.surfaceDepth,
+            ),
             corners: corners,
           )
         : buildDarkTheme(
@@ -688,6 +697,10 @@ class OnboardingScreenState extends ConsumerState<OnboardingScreen> {
             style: style,
             flat: flat,
             flatAreas: draft.flatAreas,
+            adjustment: ColorAdjustment(
+              vividness: draft.colorVividness,
+              depth: draft.surfaceDepth,
+            ),
             corners: corners,
           );
   }

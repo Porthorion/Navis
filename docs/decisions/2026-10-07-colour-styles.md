@@ -204,3 +204,26 @@ Decision:
   softened Immersive's and Night's accents, which are intended to be rich or
   warm) and lowering only the seed chroma clamp (it does not fix the light
   ink, containers or artwork colours).
+
+### Colour and Brightness tuning (2026-10-10)
+
+Owner decision: add two independent integer adjustments, −5…+5, to every
+style and theme mode. Color controls vividness (chroma × 0.5…1.5); Brightness
+controls depth (positive is deeper). An HCT post-pass keeps zero/zero
+bit-identical, preserves errors and text colours and bounds mid-tone chroma.
+Pure-black OLED surfaces stay black. Extreme contrast tests reduced Light's
++5 shift from −7 to −4.5 tones; Light −5 remains +4, Dark ±5 remains ∓6,
+and OLED containers use at most ∓3 (floor 2). OLED's target chroma ceiling is
+1.5 so RGB quantisation keeps measured chroma below 3. Muting scales the
+mid-tone ceiling too, so saturated accents can soften without losing the
+mud guard. Pure black/white roles remain unchanged, including Neutral's
+white primary for a saturated yellow seed. With the universal mid-tone cap,
+an existing accent above chroma 24 at zero can become less chromatic when
+tuning is enabled; exact zero defaults and strict monotonicity through zero
+cannot both hold for that case without exempting accents from the cap.
+
+Schema 101 stores `color_vividness` and `surface_depth`, both zero by default.
+A nullable Riverpod preview temporarily overrides persisted tuning during
+dragging. Existing theme-cache, caption memo and dedupe keys, and worker
+messages carry both axes; artwork tone windows/chroma caps follow tuning,
+while the existing scrim recipes and OLED Now Playing cap remain in place.

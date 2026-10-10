@@ -637,7 +637,9 @@ class _CoverTintLabelState extends ConsumerState<_CoverTintLabel> {
     final sampled = field.bottomRowAverage;
     final known = peekCaptionTint(sampled, style);
     if (known != null) {
-      final key = '${sampled.toARGB32()}|${style.style.index}|${style.dark}';
+      final key =
+          '${sampled.toARGB32()}|${style.style.index}|${style.dark}|'
+          '${style.adjustment.vividness}|${style.adjustment.depth}';
       // A resolved memo can precede the dispatcher's frame-budgeted repaint.
       if (_derivingKey == key) return;
       _derivingKey = null;
@@ -659,7 +661,9 @@ class _CoverTintLabelState extends ConsumerState<_CoverTintLabel> {
   /// frame-budgeted dispatcher, so a burst of arrivals does not rebuild
   /// every card in one frame.
   void _deriveTint(Color sampled, NavisColorStyleData style) {
-    final key = '${sampled.toARGB32()}|${style.style.index}|${style.dark}';
+    final key =
+        '${sampled.toARGB32()}|${style.style.index}|${style.dark}|'
+        '${style.adjustment.vividness}|${style.adjustment.depth}';
     if (_derivingKey == key) return;
     _derivingKey = key;
     final worker = ref.read(coverColourWorkerProvider);

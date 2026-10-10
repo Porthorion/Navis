@@ -72,6 +72,7 @@ import 'package:navis/src/routing/app_router.dart';
 import 'package:navis/src/routing/desktop_commands.dart';
 import 'package:navis/src/routing/desktop_layout.dart';
 import 'package:navis/src/routing/desktop_window_controller.dart';
+import 'package:navis/src/theme/color_adjustment.dart';
 import 'package:navis/src/theme/navis_corner_style.dart';
 import 'package:navis/src/theme/navis_color_style.dart';
 import 'package:navis/src/utils/catalog_source.dart';
@@ -811,6 +812,8 @@ class SyncDiagnosticsServer {
           final night = body['nightSchedule'];
           final flat = body['flatSurfaces'];
           final flatAreas = body['flatAreas'];
+          final colorVividness = body['colorVividness'];
+          final surfaceDepth = body['surfaceDepth'];
           final shade = body['albumArtShade'];
           final coloredShade = body['albumArtColoredShade'];
           final corners = body['cornerStyle'];
@@ -841,6 +844,13 @@ class SyncDiagnosticsServer {
             'albumArtColoredShade',
           ]) {
             if (body.containsKey(key) && body[key] is! bool) {
+              throw const FormatException();
+            }
+          }
+          for (final key in ['colorVividness', 'surfaceDepth']) {
+            if (!body.containsKey(key)) continue;
+            final value = body[key];
+            if (value is! int || value < -5 || value > 5) {
               throw const FormatException();
             }
           }
@@ -881,6 +891,8 @@ class SyncDiagnosticsServer {
                   'nightSchedule',
                   'flatSurfaces',
                   'flatAreas',
+                  'colorVividness',
+                  'surfaceDepth',
                   'albumArtShade',
                   'albumArtColoredShade',
                   'cornerStyle',
@@ -926,6 +938,16 @@ class SyncDiagnosticsServer {
           }
           if (flat is bool) await dao.updateFlatSurfaces(enabled: flat);
           if (flatAreas is int) await dao.updateFlatAreas(flatAreas);
+          if (colorVividness is int || surfaceDepth is int) {
+            final current = await dao.getSettings();
+            await dao.updateColorAdjustment(
+              ColorAdjustment(
+                vividness:
+                    colorVividness as int? ?? current?.colorVividness ?? 0,
+                depth: surfaceDepth as int? ?? current?.surfaceDepth ?? 0,
+              ),
+            );
+          }
           if (shade is bool) await dao.updateAlbumArtShade(enabled: shade);
           if (coloredShade is bool) {
             await dao.updateAlbumArtColoredShade(enabled: coloredShade);
@@ -974,6 +996,8 @@ class SyncDiagnosticsServer {
           },
           'flatSurfaces': settings?.flatSurfaces ?? false,
           'flatAreas': settings?.flatAreas ?? 7,
+          'colorVividness': settings?.colorVividness ?? 0,
+          'surfaceDepth': settings?.surfaceDepth ?? 0,
           'albumArtShade': settings?.albumArtShade ?? false,
           'albumArtColoredShade': settings?.albumArtColoredShade ?? false,
           'gridArtworkSize': settings?.gridArtworkSize ?? 'auto',

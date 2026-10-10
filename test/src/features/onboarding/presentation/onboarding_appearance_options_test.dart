@@ -591,10 +591,12 @@ void main() {
         },
       );
 
-      expect(_shownOptions.toSet(), <SetupHighlight>{
-        for (final highlight in SetupHighlight.values) highlight,
-      });
-      expect(_shownOptions, hasLength(SetupHighlight.values.length));
+      // Tuning is registered now; its controls are added by the UI task.
+      final visible = SetupHighlight.values.toSet()
+        ..remove(SetupHighlight.colorTuning);
+      expect(_shownOptions.toSet(), visible);
+      expect(_shownOptions, hasLength(visible.length));
+      expect(_shownOptions, isNot(contains(SetupHighlight.colorTuning)));
     });
 
     testWidgets('the hidden OLED and Flat area options are not marked seen', (
@@ -604,7 +606,8 @@ void main() {
 
       expect(_shownOptions, isNot(contains(SetupHighlight.oledForAuto)));
       expect(_shownOptions, isNot(contains(SetupHighlight.flatAreas)));
-      expect(_shownOptions, hasLength(SetupHighlight.values.length - 2));
+      expect(_shownOptions, isNot(contains(SetupHighlight.colorTuning)));
+      expect(_shownOptions, hasLength(SetupHighlight.values.length - 3));
     });
 
     testWidgets(

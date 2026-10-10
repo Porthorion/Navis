@@ -1031,6 +1031,30 @@ class $AppSettingsTableTable extends AppSettingsTable
     ),
     defaultValue: const Constant(false),
   );
+  static const VerificationMeta _colorVividnessMeta = const VerificationMeta(
+    'colorVividness',
+  );
+  @override
+  late final GeneratedColumn<int> colorVividness = GeneratedColumn<int>(
+    'color_vividness',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(0),
+  );
+  static const VerificationMeta _surfaceDepthMeta = const VerificationMeta(
+    'surfaceDepth',
+  );
+  @override
+  late final GeneratedColumn<int> surfaceDepth = GeneratedColumn<int>(
+    'surface_depth',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(0),
+  );
   static const VerificationMeta _flatAreasMeta = const VerificationMeta(
     'flatAreas',
   );
@@ -1906,6 +1930,8 @@ class $AppSettingsTableTable extends AppSettingsTable
     nightScheduleStartMinutes,
     nightScheduleEndMinutes,
     flatSurfaces,
+    colorVividness,
+    surfaceDepth,
     flatAreas,
     albumArtShade,
     albumArtColoredShade,
@@ -2273,6 +2299,24 @@ class $AppSettingsTableTable extends AppSettingsTable
         flatSurfaces.isAcceptableOrUnknown(
           data['flat_surfaces']!,
           _flatSurfacesMeta,
+        ),
+      );
+    }
+    if (data.containsKey('color_vividness')) {
+      context.handle(
+        _colorVividnessMeta,
+        colorVividness.isAcceptableOrUnknown(
+          data['color_vividness']!,
+          _colorVividnessMeta,
+        ),
+      );
+    }
+    if (data.containsKey('surface_depth')) {
+      context.handle(
+        _surfaceDepthMeta,
+        surfaceDepth.isAcceptableOrUnknown(
+          data['surface_depth']!,
+          _surfaceDepthMeta,
         ),
       );
     }
@@ -3005,6 +3049,14 @@ class $AppSettingsTableTable extends AppSettingsTable
         DriftSqlType.bool,
         data['${effectivePrefix}flat_surfaces'],
       )!,
+      colorVividness: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}color_vividness'],
+      )!,
+      surfaceDepth: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}surface_depth'],
+      )!,
       flatAreas: attachedDatabase.typeMapping.read(
         DriftSqlType.int,
         data['${effectivePrefix}flat_areas'],
@@ -3361,6 +3413,8 @@ class AppSettingsTableData extends DataClass
 
   /// Disables surface glows, gradients and shadows when rendered.
   final bool flatSurfaces;
+  final int colorVividness;
+  final int surfaceDepth;
   final int flatAreas;
   final bool albumArtShade;
   final bool albumArtColoredShade;
@@ -3598,6 +3652,8 @@ class AppSettingsTableData extends DataClass
     required this.nightScheduleStartMinutes,
     required this.nightScheduleEndMinutes,
     required this.flatSurfaces,
+    required this.colorVividness,
+    required this.surfaceDepth,
     required this.flatAreas,
     required this.albumArtShade,
     required this.albumArtColoredShade,
@@ -3722,6 +3778,8 @@ class AppSettingsTableData extends DataClass
     );
     map['night_schedule_end_minutes'] = Variable<int>(nightScheduleEndMinutes);
     map['flat_surfaces'] = Variable<bool>(flatSurfaces);
+    map['color_vividness'] = Variable<int>(colorVividness);
+    map['surface_depth'] = Variable<int>(surfaceDepth);
     map['flat_areas'] = Variable<int>(flatAreas);
     map['album_art_shade'] = Variable<bool>(albumArtShade);
     map['album_art_colored_shade'] = Variable<bool>(albumArtColoredShade);
@@ -3895,6 +3953,8 @@ class AppSettingsTableData extends DataClass
       nightScheduleStartMinutes: Value(nightScheduleStartMinutes),
       nightScheduleEndMinutes: Value(nightScheduleEndMinutes),
       flatSurfaces: Value(flatSurfaces),
+      colorVividness: Value(colorVividness),
+      surfaceDepth: Value(surfaceDepth),
       flatAreas: Value(flatAreas),
       albumArtShade: Value(albumArtShade),
       albumArtColoredShade: Value(albumArtColoredShade),
@@ -4064,6 +4124,8 @@ class AppSettingsTableData extends DataClass
         json['nightScheduleEndMinutes'],
       ),
       flatSurfaces: serializer.fromJson<bool>(json['flatSurfaces']),
+      colorVividness: serializer.fromJson<int>(json['colorVividness']),
+      surfaceDepth: serializer.fromJson<int>(json['surfaceDepth']),
       flatAreas: serializer.fromJson<int>(json['flatAreas']),
       albumArtShade: serializer.fromJson<bool>(json['albumArtShade']),
       albumArtColoredShade: serializer.fromJson<bool>(
@@ -4256,6 +4318,8 @@ class AppSettingsTableData extends DataClass
         nightScheduleEndMinutes,
       ),
       'flatSurfaces': serializer.toJson<bool>(flatSurfaces),
+      'colorVividness': serializer.toJson<int>(colorVividness),
+      'surfaceDepth': serializer.toJson<int>(surfaceDepth),
       'flatAreas': serializer.toJson<int>(flatAreas),
       'albumArtShade': serializer.toJson<bool>(albumArtShade),
       'albumArtColoredShade': serializer.toJson<bool>(albumArtColoredShade),
@@ -4394,6 +4458,8 @@ class AppSettingsTableData extends DataClass
     int? nightScheduleStartMinutes,
     int? nightScheduleEndMinutes,
     bool? flatSurfaces,
+    int? colorVividness,
+    int? surfaceDepth,
     int? flatAreas,
     bool? albumArtShade,
     bool? albumArtColoredShade,
@@ -4510,6 +4576,8 @@ class AppSettingsTableData extends DataClass
     nightScheduleEndMinutes:
         nightScheduleEndMinutes ?? this.nightScheduleEndMinutes,
     flatSurfaces: flatSurfaces ?? this.flatSurfaces,
+    colorVividness: colorVividness ?? this.colorVividness,
+    surfaceDepth: surfaceDepth ?? this.surfaceDepth,
     flatAreas: flatAreas ?? this.flatAreas,
     albumArtShade: albumArtShade ?? this.albumArtShade,
     albumArtColoredShade: albumArtColoredShade ?? this.albumArtColoredShade,
@@ -4724,6 +4792,12 @@ class AppSettingsTableData extends DataClass
       flatSurfaces: data.flatSurfaces.present
           ? data.flatSurfaces.value
           : this.flatSurfaces,
+      colorVividness: data.colorVividness.present
+          ? data.colorVividness.value
+          : this.colorVividness,
+      surfaceDepth: data.surfaceDepth.present
+          ? data.surfaceDepth.value
+          : this.surfaceDepth,
       flatAreas: data.flatAreas.present ? data.flatAreas.value : this.flatAreas,
       albumArtShade: data.albumArtShade.present
           ? data.albumArtShade.value
@@ -4957,6 +5031,8 @@ class AppSettingsTableData extends DataClass
           ..write('nightScheduleStartMinutes: $nightScheduleStartMinutes, ')
           ..write('nightScheduleEndMinutes: $nightScheduleEndMinutes, ')
           ..write('flatSurfaces: $flatSurfaces, ')
+          ..write('colorVividness: $colorVividness, ')
+          ..write('surfaceDepth: $surfaceDepth, ')
           ..write('flatAreas: $flatAreas, ')
           ..write('albumArtShade: $albumArtShade, ')
           ..write('albumArtColoredShade: $albumArtColoredShade, ')
@@ -5069,6 +5145,8 @@ class AppSettingsTableData extends DataClass
     nightScheduleStartMinutes,
     nightScheduleEndMinutes,
     flatSurfaces,
+    colorVividness,
+    surfaceDepth,
     flatAreas,
     albumArtShade,
     albumArtColoredShade,
@@ -5176,6 +5254,8 @@ class AppSettingsTableData extends DataClass
           other.nightScheduleStartMinutes == this.nightScheduleStartMinutes &&
           other.nightScheduleEndMinutes == this.nightScheduleEndMinutes &&
           other.flatSurfaces == this.flatSurfaces &&
+          other.colorVividness == this.colorVividness &&
+          other.surfaceDepth == this.surfaceDepth &&
           other.flatAreas == this.flatAreas &&
           other.albumArtShade == this.albumArtShade &&
           other.albumArtColoredShade == this.albumArtColoredShade &&
@@ -5285,6 +5365,8 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
   final Value<int> nightScheduleStartMinutes;
   final Value<int> nightScheduleEndMinutes;
   final Value<bool> flatSurfaces;
+  final Value<int> colorVividness;
+  final Value<int> surfaceDepth;
   final Value<int> flatAreas;
   final Value<bool> albumArtShade;
   final Value<bool> albumArtColoredShade;
@@ -5386,6 +5468,8 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
     this.nightScheduleStartMinutes = const Value.absent(),
     this.nightScheduleEndMinutes = const Value.absent(),
     this.flatSurfaces = const Value.absent(),
+    this.colorVividness = const Value.absent(),
+    this.surfaceDepth = const Value.absent(),
     this.flatAreas = const Value.absent(),
     this.albumArtShade = const Value.absent(),
     this.albumArtColoredShade = const Value.absent(),
@@ -5488,6 +5572,8 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
     this.nightScheduleStartMinutes = const Value.absent(),
     this.nightScheduleEndMinutes = const Value.absent(),
     this.flatSurfaces = const Value.absent(),
+    this.colorVividness = const Value.absent(),
+    this.surfaceDepth = const Value.absent(),
     this.flatAreas = const Value.absent(),
     this.albumArtShade = const Value.absent(),
     this.albumArtColoredShade = const Value.absent(),
@@ -5590,6 +5676,8 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
     Expression<int>? nightScheduleStartMinutes,
     Expression<int>? nightScheduleEndMinutes,
     Expression<bool>? flatSurfaces,
+    Expression<int>? colorVividness,
+    Expression<int>? surfaceDepth,
     Expression<int>? flatAreas,
     Expression<bool>? albumArtShade,
     Expression<bool>? albumArtColoredShade,
@@ -5707,6 +5795,8 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
       if (nightScheduleEndMinutes != null)
         'night_schedule_end_minutes': nightScheduleEndMinutes,
       if (flatSurfaces != null) 'flat_surfaces': flatSurfaces,
+      if (colorVividness != null) 'color_vividness': colorVividness,
+      if (surfaceDepth != null) 'surface_depth': surfaceDepth,
       if (flatAreas != null) 'flat_areas': flatAreas,
       if (albumArtShade != null) 'album_art_shade': albumArtShade,
       if (albumArtColoredShade != null)
@@ -5848,6 +5938,8 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
     Value<int>? nightScheduleStartMinutes,
     Value<int>? nightScheduleEndMinutes,
     Value<bool>? flatSurfaces,
+    Value<int>? colorVividness,
+    Value<int>? surfaceDepth,
     Value<int>? flatAreas,
     Value<bool>? albumArtShade,
     Value<bool>? albumArtColoredShade,
@@ -5959,6 +6051,8 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
       nightScheduleEndMinutes:
           nightScheduleEndMinutes ?? this.nightScheduleEndMinutes,
       flatSurfaces: flatSurfaces ?? this.flatSurfaces,
+      colorVividness: colorVividness ?? this.colorVividness,
+      surfaceDepth: surfaceDepth ?? this.surfaceDepth,
       flatAreas: flatAreas ?? this.flatAreas,
       albumArtShade: albumArtShade ?? this.albumArtShade,
       albumArtColoredShade: albumArtColoredShade ?? this.albumArtColoredShade,
@@ -6175,6 +6269,12 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
     }
     if (flatSurfaces.present) {
       map['flat_surfaces'] = Variable<bool>(flatSurfaces.value);
+    }
+    if (colorVividness.present) {
+      map['color_vividness'] = Variable<int>(colorVividness.value);
+    }
+    if (surfaceDepth.present) {
+      map['surface_depth'] = Variable<int>(surfaceDepth.value);
     }
     if (flatAreas.present) {
       map['flat_areas'] = Variable<int>(flatAreas.value);
@@ -6474,6 +6574,8 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
           ..write('nightScheduleStartMinutes: $nightScheduleStartMinutes, ')
           ..write('nightScheduleEndMinutes: $nightScheduleEndMinutes, ')
           ..write('flatSurfaces: $flatSurfaces, ')
+          ..write('colorVividness: $colorVividness, ')
+          ..write('surfaceDepth: $surfaceDepth, ')
           ..write('flatAreas: $flatAreas, ')
           ..write('albumArtShade: $albumArtShade, ')
           ..write('albumArtColoredShade: $albumArtColoredShade, ')
@@ -34567,6 +34669,8 @@ typedef $$AppSettingsTableTableCreateCompanionBuilder =
       Value<int> nightScheduleStartMinutes,
       Value<int> nightScheduleEndMinutes,
       Value<bool> flatSurfaces,
+      Value<int> colorVividness,
+      Value<int> surfaceDepth,
       Value<int> flatAreas,
       Value<bool> albumArtShade,
       Value<bool> albumArtColoredShade,
@@ -34670,6 +34774,8 @@ typedef $$AppSettingsTableTableUpdateCompanionBuilder =
       Value<int> nightScheduleStartMinutes,
       Value<int> nightScheduleEndMinutes,
       Value<bool> flatSurfaces,
+      Value<int> colorVividness,
+      Value<int> surfaceDepth,
       Value<int> flatAreas,
       Value<bool> albumArtShade,
       Value<bool> albumArtColoredShade,
@@ -34915,6 +35021,16 @@ class $$AppSettingsTableTableFilterComposer
 
   ColumnFilters<bool> get flatSurfaces => $composableBuilder(
     column: $table.flatSurfaces,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get colorVividness => $composableBuilder(
+    column: $table.colorVividness,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get surfaceDepth => $composableBuilder(
+    column: $table.surfaceDepth,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -35429,6 +35545,16 @@ class $$AppSettingsTableTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<int> get colorVividness => $composableBuilder(
+    column: $table.colorVividness,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get surfaceDepth => $composableBuilder(
+    column: $table.surfaceDepth,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<int> get flatAreas => $composableBuilder(
     column: $table.flatAreas,
     builder: (column) => ColumnOrderings(column),
@@ -35937,6 +36063,16 @@ class $$AppSettingsTableTableAnnotationComposer
     builder: (column) => column,
   );
 
+  GeneratedColumn<int> get colorVividness => $composableBuilder(
+    column: $table.colorVividness,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get surfaceDepth => $composableBuilder(
+    column: $table.surfaceDepth,
+    builder: (column) => column,
+  );
+
   GeneratedColumn<int> get flatAreas =>
       $composableBuilder(column: $table.flatAreas, builder: (column) => column);
 
@@ -36333,6 +36469,8 @@ class $$AppSettingsTableTableTableManager
                 Value<int> nightScheduleStartMinutes = const Value.absent(),
                 Value<int> nightScheduleEndMinutes = const Value.absent(),
                 Value<bool> flatSurfaces = const Value.absent(),
+                Value<int> colorVividness = const Value.absent(),
+                Value<int> surfaceDepth = const Value.absent(),
                 Value<int> flatAreas = const Value.absent(),
                 Value<bool> albumArtShade = const Value.absent(),
                 Value<bool> albumArtColoredShade = const Value.absent(),
@@ -36439,6 +36577,8 @@ class $$AppSettingsTableTableTableManager
                 nightScheduleStartMinutes: nightScheduleStartMinutes,
                 nightScheduleEndMinutes: nightScheduleEndMinutes,
                 flatSurfaces: flatSurfaces,
+                colorVividness: colorVividness,
+                surfaceDepth: surfaceDepth,
                 flatAreas: flatAreas,
                 albumArtShade: albumArtShade,
                 albumArtColoredShade: albumArtColoredShade,
@@ -36543,6 +36683,8 @@ class $$AppSettingsTableTableTableManager
                 Value<int> nightScheduleStartMinutes = const Value.absent(),
                 Value<int> nightScheduleEndMinutes = const Value.absent(),
                 Value<bool> flatSurfaces = const Value.absent(),
+                Value<int> colorVividness = const Value.absent(),
+                Value<int> surfaceDepth = const Value.absent(),
                 Value<int> flatAreas = const Value.absent(),
                 Value<bool> albumArtShade = const Value.absent(),
                 Value<bool> albumArtColoredShade = const Value.absent(),
@@ -36649,6 +36791,8 @@ class $$AppSettingsTableTableTableManager
                 nightScheduleStartMinutes: nightScheduleStartMinutes,
                 nightScheduleEndMinutes: nightScheduleEndMinutes,
                 flatSurfaces: flatSurfaces,
+                colorVividness: colorVividness,
+                surfaceDepth: surfaceDepth,
                 flatAreas: flatAreas,
                 albumArtShade: albumArtShade,
                 albumArtColoredShade: albumArtColoredShade,

@@ -85,6 +85,7 @@ import 'package:navis/src/features/settings/domain/now_playing_background.dart';
 import 'package:navis/src/features/settings/domain/update_info.dart';
 import 'package:navis/src/routing/content_layout.dart';
 import 'package:navis/src/routing/desktop_layout.dart' show isDesktopRuntime;
+import 'package:navis/src/theme/color_adjustment.dart';
 import 'package:navis/src/theme/artwork_shape.dart';
 import 'package:navis/src/theme/navis_color_style.dart';
 import 'package:navis/src/utils/app_logger.dart';
@@ -2656,6 +2657,37 @@ final flatAreasProvider = Provider<FlatAreas>((ref) {
       ref.watch(appSettingsProvider).asData?.value ??
       const AppSettingsModel.defaults();
   return settings.flatAreas;
+});
+
+/// Saved colour tuning, using the identity while settings load or fail.
+final colorAdjustmentProvider = Provider<ColorAdjustment>((ref) {
+  final settings = ref.watch(appSettingsProvider).asData?.value;
+  return ColorAdjustment(
+    vividness: settings?.colorVividness ?? 0,
+    depth: settings?.surfaceDepth ?? 0,
+  );
+});
+
+/// Temporary drag state; callers clear it after persistence or cancellation.
+class ColorAdjustmentPreviewNotifier extends Notifier<ColorAdjustment?> {
+  @override
+  ColorAdjustment? build() => null;
+
+  // Drag commands pair with clear(); this is the preview API shared by controls.
+  // ignore: use_setters_to_change_properties
+  void preview(ColorAdjustment adjustment) => state = adjustment;
+  void clear() => state = null;
+}
+
+final colorAdjustmentPreviewProvider =
+    NotifierProvider<ColorAdjustmentPreviewNotifier, ColorAdjustment?>(
+      ColorAdjustmentPreviewNotifier.new,
+    );
+
+final effectiveColorAdjustmentProvider = Provider<ColorAdjustment>((ref) {
+  final preview = ref.watch(colorAdjustmentPreviewProvider);
+  final persisted = ref.watch(colorAdjustmentProvider);
+  return preview ?? persisted;
 });
 
 /// Whether album-card captions use the optional title shade.

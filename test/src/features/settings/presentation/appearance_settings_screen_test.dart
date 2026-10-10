@@ -1178,8 +1178,13 @@ void main() {
           settle: false,
         );
         await tester.pump();
-        expect(seenOptions.toSet(), SetupHighlight.values.toSet());
-        expect(seenOptions, hasLength(SetupHighlight.values.length));
+        // Color tuning is registered ahead of its separately owned controls.
+        // It must remain unseen until those controls are rendered.
+        final visible = SetupHighlight.values.toSet()
+          ..remove(SetupHighlight.colorTuning);
+        expect(seenOptions.toSet(), visible);
+        expect(seenOptions, hasLength(visible.length));
+        expect(seenOptions, isNot(contains(SetupHighlight.colorTuning)));
       });
 
       testWidgets('hidden OLED option is never marked', (tester) async {

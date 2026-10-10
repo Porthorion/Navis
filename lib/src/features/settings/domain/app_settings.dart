@@ -52,6 +52,8 @@ class AppSettingsModel {
     this.nightScheduleEndMinutes = NightSchedule.defaultEndMinutes,
     this.flatSurfaces = false,
     this.flatAreas = const FlatAreas(),
+    this.colorVividness = 0,
+    this.surfaceDepth = 0,
     this.albumArtShade = false,
     this.albumArtColoredShade = false,
     required this.colorSchemeSeed,
@@ -135,6 +137,8 @@ class AppSettingsModel {
       nightScheduleEndMinutes = NightSchedule.defaultEndMinutes,
       flatSurfaces = false,
       flatAreas = const FlatAreas(),
+      colorVividness = 0,
+      surfaceDepth = 0,
       albumArtShade = false,
       albumArtColoredShade = false,
       colorSchemeSeed = null,
@@ -218,6 +222,8 @@ class AppSettingsModel {
   final int nightScheduleEndMinutes;
   final bool flatSurfaces;
   final FlatAreas flatAreas;
+  final int colorVividness;
+  final int surfaceDepth;
   final bool albumArtShade;
   final bool albumArtColoredShade;
   final int? colorSchemeSeed;
@@ -383,6 +389,8 @@ class AppSettingsModel {
     int? nightScheduleEndMinutes,
     bool? flatSurfaces,
     FlatAreas? flatAreas,
+    int? colorVividness,
+    int? surfaceDepth,
     bool? albumArtShade,
     bool? albumArtColoredShade,
     int? colorSchemeSeed,
@@ -494,6 +502,8 @@ class AppSettingsModel {
           nightScheduleEndMinutes ?? this.nightScheduleEndMinutes,
       flatSurfaces: flatSurfaces ?? this.flatSurfaces,
       flatAreas: flatAreas ?? this.flatAreas,
+      colorVividness: colorVividness ?? this.colorVividness,
+      surfaceDepth: surfaceDepth ?? this.surfaceDepth,
       albumArtShade: albumArtShade ?? this.albumArtShade,
       albumArtColoredShade: albumArtColoredShade ?? this.albumArtColoredShade,
       colorSchemeSeed: clearColorSchemeSeed

@@ -118,6 +118,9 @@ class AppSettingsTable extends Table {
   /// Disables surface glows, gradients and shadows when rendered.
   BoolColumn get flatSurfaces => boolean().withDefault(const Constant(false))();
 
+  IntColumn get colorVividness => integer().withDefault(const Constant(0))();
+  IntColumn get surfaceDepth => integer().withDefault(const Constant(0))();
+
   IntColumn get flatAreas => integer().withDefault(const Constant(7))();
 
   BoolColumn get albumArtShade =>
