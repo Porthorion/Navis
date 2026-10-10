@@ -168,11 +168,11 @@ const List<ChangelogVersion> changelogs = [
         type: ChangelogEntryType.newFeature,
       ),
       ChangelogEntry(
-        'Fine-Tune Colors opens a panel like Speed & Pitch, with Intensity and Brightness rulers for any color style, a separate Brightness for Light and for Dark and OLED, and presets you can save, rename and update',
+        'Fine-Tune Colors opens a panel like Speed & Pitch, with Intensity and Brightness rulers for any color style, a separate Brightness for Light and for Dark and OLED',
         type: ChangelogEntryType.newFeature,
       ),
       ChangelogEntry(
-        'Looks save your whole appearance under a name, so you can switch between them in one tap at the top of Settings › Appearance',
+        'Looks save your whole appearance, Fine-Tune values included, under a name, so you can switch between them in one tap at the top of Settings › Appearance and undo it right after applying',
         type: ChangelogEntryType.newFeature,
       ),
       ChangelogEntry(

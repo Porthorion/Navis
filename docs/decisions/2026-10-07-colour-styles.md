@@ -308,3 +308,24 @@ Applying a Look returns the full pre-apply snapshot for Undo. Restoring it
 uses the same transactional DAO path, including automatic accent and legacy
 grid-size nulls. Selection remains derived by value, so Undo returns Custom
 or the previous matching Look without storing a second selection history.
+
+### Undo, live strips and the Intensity hint (2026-10-10)
+
+Owner decisions on the folded UI:
+
+- Choosing a Look raises a six-second "Applied {name}" notice with Undo,
+  through the existing `showAppNotice` action and `restore(previous)`. Undo
+  is not offered for the diagnostics apply endpoint, which has no one to ask.
+- Because Fine-Tune presets are gone, the panel says where saving happens:
+  beside Reset, while values are not Default, "Save this as part of a Look in
+  Appearance." Setup has no Looks and omits it.
+- Settings' strips follow the effective theme, including the Dynamic Album
+  Color, while the panel is open; the earlier snapshot-at-open basis went
+  stale when the track changed. Setup keeps its draft basis.
+- Intensity can have almost no effect (a colourless seed in Neutral Dark/OLED,
+  Pastel Dark in warm hues), which reads as a broken ruler. The panel measures
+  the −5/+5 primary chroma span in HCT and explains it below 11, choosing
+  between "no accent" and "style at its limit" by the seed's own chroma
+  (`achromaticSeedChroma`, 8).
+- A ruler outlines itself for keyboard focus only; a tap or drag focuses it
+  without the outline.

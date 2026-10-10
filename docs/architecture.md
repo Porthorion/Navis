@@ -1053,32 +1053,53 @@ target-selection rules.
     primary, with `onPrimary` ticks). Brightness paints the selected mode's
     `surface`, so Light shows paper and Dark its own surfaces, or
     `surfaceContainerHigh` for OLED, where surface stays black.
-    The host owns the value: `showColorTuningPanel` takes a
-    `ValueListenable<ColorTuning>` that it keeps, plus `onPreview` (each whole
+    The host owns the values: `showColorTuningPanel` takes a
+    `ValueListenable<ColorTuningBasis>` and a `ValueListenable<ColorTuning>`
+    that it keeps, plus `onPreview` (each whole
     step while a ruler moves), `onCommit` (drag release, stepper, keyboard,
     Reset) and `onPreviewEnd` (the panel went away mid-drag). The body keeps
     what it shows, follows the notifier when something else changes the value
     (applying a Look, a failed save restoring the old value) and glides the
     rulers there, and never yanks a ruler mid-gesture for the echo of an
     earlier preview. Reset commits `ColorTuning.none` and is disabled at
-    Default. Settings keeps the notifier in step with
+    Default. Settings keeps the tuning notifier in step with
     `colorTuningControllerProvider`, maps `onPreview` to
     `ColorTuningController.preview` and `onCommit` to `commit` (a persistence
     failure shows an error notice and the controller restores the saved value),
     and passes `onPreviewEnd: clearPreview`; setup keeps a notifier of its own
     over its draft and writes `colorVividness` and both depths on every call.
-    The swatch basis is captured when the panel opens.
+    Settings also feeds the basis from providers (`effectiveColorSchemeSeedProvider`,
+    which includes the Dynamic Album Color, `effectiveColorStyleProvider`,
+    theme mode and Use OLED When Dark), so the strips, the needle and the
+    hint follow the track while the panel is open; setup passes a fixed basis
+    built from its draft.
+  - The panel adds two one-line `bodySmall` notes. Beside Reset, only where the
+    host has Looks (`looksHint`, Settings) and the values are not Default:
+    "Save this as part of a Look in Appearance." Under the Intensity captions,
+    when the −5 and +5 primaries of the current basis (same depth and mode)
+    differ by less than 11 HCT chroma: "Pick an accent color to see
+    Intensity." when the seed's own chroma is under `achromaticSeedChroma`
+    (8), else "This style is already close to its most colorful here." The
+    threshold comes from measuring the spread over hues, seed chromas, styles
+    and Light/Dark/OLED: only a colourless seed in Neutral Dark/OLED and
+    Pastel Dark in warm hues (about 10) fall below it.
   - Fine-Tune Colors has no preset picker. Its intensity and Light/Dark
     brightness values are saved as part of Looks. Setup continues to edit its
     draft until Finish.
+  - `AdjustmentRuler` (Speed and Pitch and Fine-Tune) draws its focus outline
+    only while `FocusManager.highlightMode` is traditional (keyboard), so a
+    tap or drag leaves no outline.
   - Looks have one control, `AppearanceLooksOption` (same file), at the top of
     Settings › Appearance above Theme and tagged by
     `SetupHighlight.appearanceLooks`: a heading, a subtitle and a
     `PresetPicker` over the saved Looks, with "Custom" while the appearance
     matches none and a ⋮ menu offering Save Current as New Look, Update,
     Rename and Delete through `AppearanceLooksController`; choosing a Look
-    applies it. With no Looks the picker reads Custom and the subtitle points
-    at the menu. Setup does not show Looks (they write settings directly).
+    applies it and raises an "Applied {name}" notice with Undo (six seconds,
+    `showAppNotice`) that calls `restore` with the snapshot `apply` returned;
+    a failed restore shows the existing failure notice. The clone-only apply
+    endpoint offers no Undo. With no Looks the picker reads Custom and the
+    subtitle points at the menu. Setup does not show Looks (they write settings directly).
   - Decision record:
     [decisions/2026-10-07-colour-styles.md](decisions/2026-10-07-colour-styles.md).
   - Settings › Appearance (`appearance_settings_screen.dart`) has four
