@@ -482,7 +482,7 @@ class _PlaybackAdjustmentPanelState
           child: IconButton(onPressed: null, icon: Icon(icon)),
         );
       }
-      return _RepeatingStepButton(
+      return RulerStepButton(
         key: ValueKey('adjustment-$keyName-$keySuffix'),
         icon: icon,
         tooltip: tooltip,
@@ -833,85 +833,6 @@ class _AdjustmentInputDialogState extends State<_AdjustmentInputDialog> {
   @override
   void dispose() {
     _input.dispose();
-    super.dispose();
-  }
-}
-
-/// An icon stepper that repeats while held and reports when input ends.
-class _RepeatingStepButton extends StatefulWidget {
-  const new({
-    required this.icon,
-    required this.tooltip,
-    required this.enabled,
-    required this.onStep,
-    required this.onEnd,
-    super.key,
-  });
-
-  final IconData icon;
-  final String tooltip;
-  final bool enabled;
-
-  /// Applies one step; returns false once a limit stops further steps.
-  final bool Function() onStep;
-  final VoidCallback onEnd;
-
-  @override
-  State<_RepeatingStepButton> createState() => _RepeatingStepButtonState();
-}
-
-class _RepeatingStepButtonState extends State<_RepeatingStepButton> {
-  static const _repeatInterval = Duration(milliseconds: 120);
-  Timer? _repeat;
-
-  void _startRepeat() {
-    if (!widget.onStep()) return;
-    _repeat?.cancel();
-    _repeat = Timer.periodic(_repeatInterval, (_) {
-      if (!mounted || !widget.onStep()) _stopRepeat();
-    });
-  }
-
-  void _stopRepeat() {
-    final wasRepeating = _repeat != null;
-    _repeat?.cancel();
-    _repeat = null;
-    if (wasRepeating) widget.onEnd();
-  }
-
-  @override
-  void didUpdateWidget(_RepeatingStepButton oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    if (!widget.enabled) _stopRepeat();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    // A manual tooltip keeps hover hints without competing with hold-to-repeat
-    // for the long-press gesture.
-    return Tooltip(
-      message: widget.tooltip,
-      triggerMode: TooltipTriggerMode.manual,
-      child: GestureDetector(
-        onLongPressStart: widget.enabled ? (_) => _startRepeat() : null,
-        onLongPressEnd: widget.enabled ? (_) => _stopRepeat() : null,
-        onLongPressCancel: widget.enabled ? _stopRepeat : null,
-        child: IconButton(
-          onPressed: widget.enabled
-              ? () {
-                  if (widget.onStep()) widget.onEnd();
-                }
-              : null,
-          icon: Icon(widget.icon),
-        ),
-      ),
-    );
-  }
-
-  @override
-  void dispose() {
-    _repeat?.cancel();
-    _repeat = null;
     super.dispose();
   }
 }

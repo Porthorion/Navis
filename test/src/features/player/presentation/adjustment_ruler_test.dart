@@ -372,4 +372,133 @@ void main() {
       expect(haptics, isEmpty);
     });
   });
+
+  group('whole-step mode', () {
+    test('every step is a minor tick and zero is the neutral one', () {
+      RulerTick step(double from, double to) =>
+          rulerTickFeedback(from, to, 0, perUnit: 1, majorEvery: null);
+      expect(step(1.2, 1.8), RulerTick.none);
+      expect(step(1.2, 2.1), RulerTick.minor);
+      expect(step(2.1, 0.9), RulerTick.minor);
+      expect(step(-0.4, 0.4), RulerTick.neutral);
+      expect(step(0.4, -0.4), RulerTick.neutral);
+      expect(step(-3.2, 4.6), RulerTick.neutral);
+      expect(step(2, 2), RulerTick.none);
+    });
+
+    testWidgets('drag settles on steps with a tick each and a firmer zero', (
+      tester,
+    ) async {
+      final haptics = <Object?>[];
+      tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+        SystemChannels.platform,
+        (call) async {
+          if (call.method == 'HapticFeedback.vibrate') {
+            haptics.add(call.arguments);
+          }
+          return null;
+        },
+      );
+      addTearDown(
+        () => tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+          SystemChannels.platform,
+          null,
+        ),
+      );
+      var value = -2.0;
+      final sent = <double>[];
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: StatefulBuilder(
+              builder: (context, setState) => AdjustmentRuler(
+                value: value,
+                label: 'Color',
+                valueLabel: '$value',
+                range: const AdjustmentRange(minimum: -5, maximum: 5),
+                snapStep: 1,
+                pixelsPerUnit: 32,
+                labelBuilder: (v) => '${v.round()}',
+                onChanged: (next) {
+                  sent.add(next);
+                  setState(() => value = next);
+                },
+                onChangeEnd: () {},
+              ),
+            ),
+          ),
+        ),
+      );
+      final drag = await tester.startGesture(
+        tester.getCenter(find.byType(AdjustmentRuler)),
+      );
+      await drag.moveBy(const Offset(-30, 0), timeStamp: Duration.zero);
+      await tester.pump();
+      haptics.clear();
+      var time = Duration.zero;
+      for (var i = 0; i < 5; i++) {
+        time += const Duration(milliseconds: 40);
+        await drag.moveBy(const Offset(-16, 0), timeStamp: time);
+        await tester.pump();
+      }
+      await drag.up();
+      await tester.pumpAndSettle();
+
+      expect(
+        sent,
+        everyElement(predicate<double>((v) => v == v.roundToDouble())),
+      );
+      expect(value, greaterThan(-2));
+      expect(
+        haptics.where((h) => h == 'HapticFeedbackType.mediumImpact'),
+        hasLength(1),
+        reason: 'zero is crossed once',
+      );
+      expect(
+        haptics.where((h) => h == 'HapticFeedbackType.lightImpact'),
+        isEmpty,
+        reason: 'no step is a major line',
+      );
+    });
+
+    testWidgets('keyboard moves a step and the next value is announced', (
+      tester,
+    ) async {
+      final handle = tester.ensureSemantics();
+      var value = 1.0;
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: StatefulBuilder(
+              builder: (context, setState) => AdjustmentRuler(
+                value: value,
+                label: 'Color',
+                valueLabel: '$value',
+                range: const AdjustmentRange(minimum: -5, maximum: 5),
+                snapStep: 1,
+                pixelsPerUnit: 32,
+                labelBuilder: (v) => 'step ${v.round()}',
+                onChanged: (next) => setState(() => value = next),
+                onChangeEnd: () {},
+              ),
+            ),
+          ),
+        ),
+      );
+      final data = tester
+          .getSemantics(find.byType(AdjustmentRuler))
+          .getSemanticsData();
+      expect(data.increasedValue, 'step 2');
+      expect(data.decreasedValue, 'step 0');
+      await tester.tap(find.byType(AdjustmentRuler));
+      await tester.pump();
+      await tester.sendKeyEvent(LogicalKeyboardKey.arrowRight);
+      await tester.pumpAndSettle();
+      expect(value, 2);
+      await tester.sendKeyEvent(LogicalKeyboardKey.home);
+      await tester.pumpAndSettle();
+      expect(value, 0);
+      handle.dispose();
+    });
+  });
 }
