@@ -57,7 +57,7 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
-  testWidgets('album caption fallback follows the selected theme', (
+  testWidgets('album caption shade fill follows the selected theme', (
     tester,
   ) async {
     final themes = <ThemeData>[
@@ -67,40 +67,56 @@ void main() {
     ];
 
     for (final theme in themes) {
-      await tester.pumpWidget(
-        ProviderScope(
-          overrides: [
-            subsonicApiProvider.overrideWithValue(null),
-            coverArtShapeProvider.overrideWithValue('rounded'),
-            albumTitleShadeModeProvider.overrideWithValue(
-              AlbumTitleShade.classic,
-            ),
-          ],
-          child: MaterialApp(
-            theme: theme,
-            localizationsDelegates: navisLocalizationsDelegates,
-            supportedLocales: AppLocalizations.supportedLocales,
-            home: const Scaffold(
-              body: Center(child: AlbumCard(album: _album)),
+      // Light themes shade with the page colour; dark ones darken it by 35%.
+      final expectedFill = theme.brightness == Brightness.light
+          ? theme.scaffoldBackgroundColor
+          : Color.alphaBlend(
+              Colors.black.withValues(alpha: 0.35),
+              theme.scaffoldBackgroundColor,
+            );
+      // The dark tier shades staged; the color tier shows the same shade as
+      // its fallback while a cover without art has no colours to sample.
+      for (final mode in <AlbumTitleShade>[
+        AlbumTitleShade.dark,
+        AlbumTitleShade.color,
+      ]) {
+        await tester.pumpWidget(
+          ProviderScope(
+            overrides: [
+              subsonicApiProvider.overrideWithValue(null),
+              coverArtShapeProvider.overrideWithValue('rounded'),
+              albumTitleShadeModeProvider.overrideWithValue(mode),
+            ],
+            child: MaterialApp(
+              theme: theme,
+              localizationsDelegates: navisLocalizationsDelegates,
+              supportedLocales: AppLocalizations.supportedLocales,
+              home: const Scaffold(
+                body: Center(child: AlbumCard(album: _album)),
+              ),
             ),
           ),
-        ),
-      );
-      await tester.pump(const Duration(milliseconds: 250));
+        );
+        await tester.pump(const Duration(milliseconds: 250));
 
-      final title = tester.widget<Text>(find.text(_album.name));
-      final artist = tester.widget<Text>(find.text(_album.artistName!));
-      final fade = tester.widget<DecoratedBox>(
-        find.byKey(const ValueKey<String>('albumCardTitleSurfaceFade')),
-      );
-      final decoration = fade.decoration as BoxDecoration;
-      final gradient = decoration.gradient! as LinearGradient;
+        final title = tester.widget<Text>(find.text(_album.name));
+        final artist = tester.widget<Text>(find.text(_album.artistName!));
+        final fade = tester.widget<DecoratedBox>(
+          find.byKey(
+            ValueKey<String>(
+              mode == AlbumTitleShade.dark
+                  ? 'albumCardTintText'
+                  : 'albumCardTitleSurfaceFade',
+            ),
+          ),
+        );
+        final decoration = fade.decoration as BoxDecoration;
+        final gradient = decoration.gradient! as LinearGradient;
 
-      // Without a cover id, the fallback uses the page background and
-      // scheme text roles in every theme.
-      expect(title.style!.color, theme.colorScheme.onSurface);
-      expect(artist.style!.color, theme.colorScheme.onSurfaceVariant);
-      expect(gradient.colors.last, theme.scaffoldBackgroundColor);
+        expect(title.style!.color, theme.colorScheme.onSurface);
+        expect(artist.style!.color, theme.colorScheme.onSurfaceVariant);
+        expect(gradient.colors.last, expectedFill, reason: mode.name);
+      }
     }
     expect(tester.takeException(), isNull);
   });

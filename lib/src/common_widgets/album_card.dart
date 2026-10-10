@@ -351,10 +351,11 @@ class _CaptionTexts extends StatelessWidget {
 }
 
 /// The title and subtitle at the bottom of an album card, drawn over the
-/// cover. [albumTitleShadeModeProvider] picks the shade: a fade into the page
-/// colour (classic, Shade off), a dark gradient behind white text (dark, Shade
-/// on) or a fade into a colour sampled from the cover (color, Shade and Use
-/// Cover Color on). The title is one line and scrolls when too long. It draws
+/// cover. [albumTitleShadeModeProvider] picks the shade: a see-through
+/// artwork scrim behind white text that keeps the whole cover visible
+/// (classic, Shade off), a solid, slightly darkened page-colour shade with the
+/// same shape as the colour shade (dark, Shade on) or that shade tinted with a
+/// colour sampled from the cover (color, Shade and Use Cover Color on). The title is one line and scrolls when too long. It draws
 /// nothing under Flat text over artwork, where [AlbumCardCaptionLayout] places
 /// the caption under the cover. Shared by [AlbumCard], `ExternalAlbumCard` and
 /// the Home shelf's server album card; place it directly in the card's
@@ -389,15 +390,17 @@ class AlbumCardLabel extends ConsumerWidget {
     final Widget label;
     switch (ref.watch(albumTitleShadeModeProvider)) {
       case AlbumTitleShade.classic:
-        // The title sits on a fade of the page background, not on the
-        // artwork, so it uses the scheme's text colours in every theme.
+        label = _DarkShadeLabel(title: title, subtitle: subtitle);
+      case AlbumTitleShade.dark:
+        // The colour shade's shape (a short fade, then solid under the text)
+        // in the page colour, a little darker in dark themes, so the text
+        // reads on any cover.
         label = _OverlayFadeLabel(
-          tint: _pageTint(Theme.of(context)),
+          tint: _shadeTint(Theme.of(context)),
           title: title,
           subtitle: subtitle,
+          stagedFade: true,
         );
-      case AlbumTitleShade.dark:
-        label = _DarkShadeLabel(title: title, subtitle: subtitle);
       case AlbumTitleShade.color:
         // Its own layer: a tint change repaints only the caption, never
         // the cover or the rest of the grid.
@@ -445,8 +448,20 @@ class _DarkShadeLabel extends StatelessWidget {
   }
 }
 
-/// The page-coloured fade the caption shows by default and before a cover's
-/// colours are known.
+/// The page-colour shade (Album Art Shade on), darkened slightly in dark
+/// themes; its text uses the scheme's colours.
+CaptionTint _shadeTint(ThemeData theme) {
+  final page = _pageTint(theme);
+  if (theme.brightness == Brightness.light) return page;
+  return CaptionTint(
+    fill: Color.alphaBlend(Colors.black.withValues(alpha: 0.35), page.fill),
+    text: page.text,
+    subtext: page.subtext,
+  );
+}
+
+/// The page-coloured fade the colour shade shows before a cover's colours
+/// are known.
 CaptionTint _pageTint(ThemeData theme) => CaptionTint(
   fill: theme.scaffoldBackgroundColor,
   text: theme.colorScheme.onSurface,
@@ -684,7 +699,7 @@ class _CoverTintLabelState extends ConsumerState<_CoverTintLabel> {
 
   @override
   Widget build(BuildContext context) {
-    final fallback = _pageTint(Theme.of(context));
+    final fallback = _shadeTint(Theme.of(context));
     final target = _appliedTint;
     if (target == null) {
       return _OverlayFadeLabel(

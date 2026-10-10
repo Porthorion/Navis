@@ -219,7 +219,7 @@ void main() {
   );
 
   for (final entry in themes.entries) {
-    testWidgets('caption fallback stays over the cover in ${entry.key}', (
+    testWidgets('default caption stays over the cover in ${entry.key}', (
       tester,
     ) async {
       await _pump(tester, entry.value);
@@ -232,11 +232,11 @@ void main() {
         find.byKey(const ValueKey('albumCardTapTarget')).first,
       );
       expect(
-        find.byKey(const ValueKey<String>('albumCardTitleSurfaceFade')),
+        find.byKey(const ValueKey<String>('albumCardDarkShade')),
         findsWidgets,
       );
       final text = tester.widget<Text>(firstTitle);
-      expect(text.style!.color, entry.value.colorScheme.onSurface);
+      expect(text.style!.color!.withValues(alpha: 1), Colors.white);
       expect(titleRect.bottom, lessThanOrEqualTo(coverRect.bottom));
     });
 
@@ -317,7 +317,7 @@ void main() {
     });
   }
 
-  testWidgets('the classic fade never asks for cover colours', (tester) async {
+  testWidgets('the classic scrim never asks for cover colours', (tester) async {
     tester.view.physicalSize = const Size(390, 844);
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.reset);
@@ -361,7 +361,7 @@ void main() {
     await tester.pump(const Duration(milliseconds: 400));
 
     expect(
-      find.byKey(const ValueKey<String>('albumCardTitleSurfaceFade')),
+      find.byKey(const ValueKey<String>('albumCardDarkShade')),
       findsOneWidget,
     );
     expect(
@@ -476,7 +476,7 @@ void main() {
         findsNothing,
       );
       expect(
-        find.byKey(const ValueKey<String>('albumCardTitleSurfaceFade')),
+        find.byKey(const ValueKey<String>('albumCardDarkShade')),
         findsOneWidget,
       );
       expect(tester.getSize(find.byType(AlbumCard)), const Size(160, 160));
@@ -507,7 +507,7 @@ void main() {
     });
   });
 
-  group('dark shade', () {
+  group('classic scrim and dark page shade', () {
     final album = AlbumsTableData(
       id: 'dark',
       name: 'Dark',
@@ -519,7 +519,84 @@ void main() {
       coverArt: 'cover-1',
     );
 
-    testWidgets('draws white text on the style scrim and samples nothing', (
+    testWidgets(
+      'classic draws white text on the style scrim, samples nothing',
+      (tester) async {
+        tester.view.physicalSize = const Size(390, 844);
+        tester.view.devicePixelRatio = 1;
+        addTearDown(tester.view.reset);
+        final worker = _CountingTintWorker();
+        var fieldRequests = 0;
+        final theme = buildDarkTheme(
+          Colors.teal,
+          style: NavisColorStyle.pastel,
+        );
+        await tester.pumpWidget(
+          ProviderScope(
+            overrides: [
+              subsonicApiProvider.overrideWithValue(null),
+              coverArtShapeProvider.overrideWithValue('rounded'),
+              albumTitleShadeModeProvider.overrideWithValue(
+                AlbumTitleShade.classic,
+              ),
+              coverColourWorkerProvider.overrideWithValue(worker),
+              coverColourFieldProvider.overrideWith((ref, id) async {
+                fieldRequests++;
+                return CoverColourField.uniform(const Color(0xFFE53935));
+              }),
+            ],
+            child: MaterialApp(
+              theme: theme,
+              localizationsDelegates: navisLocalizationsDelegates,
+              supportedLocales: AppLocalizations.supportedLocales,
+              home: Scaffold(
+                body: Center(child: AlbumCard(album: album, extent: 160)),
+              ),
+            ),
+          ),
+        );
+        await tester.pump(kCoverTintSettleDelay * 3);
+        await tester.pump(const Duration(milliseconds: 400));
+
+        expect(
+          find.byKey(const ValueKey<String>('albumCardDarkShade')),
+          findsOneWidget,
+        );
+        for (final key in <String>[
+          'albumCardTitleSurfaceFade',
+          'albumCardTintText',
+          'albumCardCaptionLayer',
+        ]) {
+          expect(find.byKey(ValueKey<String>(key)), findsNothing, reason: key);
+        }
+        final scrim = tester.widget<DecoratedBox>(
+          find.descendant(
+            of: find.byType(ArtworkScrim),
+            matching: find.byType(DecoratedBox),
+          ),
+        );
+        final gradient =
+            (scrim.decoration as BoxDecoration).gradient! as LinearGradient;
+        final style = theme.extension<NavisColorStyleData>()!;
+        expect(gradient.colors.first.a, 0);
+        expect(gradient.colors.last.a, greaterThan(0.7));
+        expect(
+          gradient.colors.last.withValues(alpha: 1),
+          style.artworkScrim.withValues(alpha: 1),
+        );
+        final title = tester.widget<Text>(find.text('Dark'));
+        expect(title.style!.color!.withValues(alpha: 1), Colors.white);
+        expect(
+          captionContrast(title.style!.color!, gradient.colors.last),
+          greaterThan(4.5),
+        );
+        expect(fieldRequests, 0);
+        expect(worker.requests, 0);
+        expect(tester.getSize(find.byType(AlbumCard)), const Size(160, 160));
+      },
+    );
+
+    testWidgets('dark draws the staged page shade and samples nothing', (
       tester,
     ) async {
       tester.view.physicalSize = const Size(390, 844);
@@ -554,37 +631,29 @@ void main() {
       await tester.pump(const Duration(milliseconds: 400));
 
       expect(
-        find.byKey(const ValueKey<String>('albumCardDarkShade')),
+        find.byKey(const ValueKey<String>('albumCardTintFade')),
         findsOneWidget,
       );
       for (final key in <String>[
+        'albumCardDarkShade',
         'albumCardTitleSurfaceFade',
-        'albumCardTintText',
         'albumCardCaptionLayer',
       ]) {
         expect(find.byKey(ValueKey<String>(key)), findsNothing, reason: key);
       }
-      final scrim = tester.widget<DecoratedBox>(
-        find.descendant(
-          of: find.byType(ArtworkScrim),
-          matching: find.byType(DecoratedBox),
-        ),
+      final fill = Color.alphaBlend(
+        Colors.black.withValues(alpha: 0.35),
+        theme.scaffoldBackgroundColor,
+      );
+      final text = tester.widget<DecoratedBox>(
+        find.byKey(const ValueKey<String>('albumCardTintText')),
       );
       final gradient =
-          (scrim.decoration as BoxDecoration).gradient! as LinearGradient;
-      final style = theme.extension<NavisColorStyleData>()!;
-      expect(gradient.colors.first.a, 0);
-      expect(gradient.colors.last.a, greaterThan(0.7));
-      expect(
-        gradient.colors.last.withValues(alpha: 1),
-        style.artworkScrim.withValues(alpha: 1),
-      );
+          (text.decoration as BoxDecoration).gradient! as LinearGradient;
+      expect(gradient.colors.last, fill);
       final title = tester.widget<Text>(find.text('Dark'));
-      expect(title.style!.color!.withValues(alpha: 1), Colors.white);
-      expect(
-        captionContrast(title.style!.color!, gradient.colors.last),
-        greaterThan(4.5),
-      );
+      expect(title.style!.color, theme.colorScheme.onSurface);
+      expect(captionContrast(title.style!.color!, fill), greaterThan(4.5));
       expect(fieldRequests, 0);
       expect(worker.requests, 0);
       expect(tester.getSize(find.byType(AlbumCard)), const Size(160, 160));

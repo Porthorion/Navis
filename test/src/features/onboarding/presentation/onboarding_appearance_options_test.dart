@@ -425,7 +425,7 @@ void main() {
       final h = await _pump(tester, updatedUser: false, reviewMode: false);
       expect(find.text('Album Art Shade'), findsOneWidget);
       expect(
-        find.text('A dark gradient behind album titles for easier reading.'),
+        find.text('A solid shade behind album titles for easier reading.'),
         findsOneWidget,
       );
       expect(find.text('Corner Style'), findsNothing);

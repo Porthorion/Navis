@@ -204,7 +204,7 @@ const List<ChangelogVersion> changelogs = [
         'Flat Surfaces can be limited to panels and shadows, Now Playing, or text over artwork, and keeps album art fully visible with titles below the cover',
       ),
       ChangelogEntry(
-        'Album titles stay on one line and scroll when they are too long; Album Art Shade adds a dark gradient behind them, and Use Cover Color tints it from each cover',
+        'Album titles stay on one line and scroll when they are too long over a see-through shade that keeps the whole cover visible; Album Art Shade makes the shade solid for easier reading, and Use Cover Color tints it from each cover',
       ),
       ChangelogEntry(
         'The player shows Play once the queue has finished, so one press restarts it instead of two',

@@ -65,9 +65,11 @@ dark scrim as the album-card caption for everyone (measured on a phone emulator
 with 40 jump-scrolls: 0 frames over 33 ms, and the same over-16 ms profile as
 the plain fade, cold and warm). Owner decision 2026-10-10 revises this: the
 classic page-coloured fade is the default again, and the shade is opt-in in
-two tiers: Album Art Shade adds a dark gradient behind white text (the style's
-artwork scrim, no colour sampling) and its sub-option Use Cover Color tints it
-from the cover, so the default and dark paths sample no cover colours. Album
+two tiers. Revised again the same day: the default is the see-through artwork
+scrim behind white text, which keeps the whole cover visible; Album Art Shade
+switches to a solid page-colour shade (darkened in dark themes) with the same
+shape as the colour shade; its sub-option Use Cover Color tints that shade from
+the cover. The default and Shade tiers sample no cover colours. Album
 titles are never more than one line: a longer one scrolls (a calm marquee that
 pauses at both ends and stops off screen or under reduced motion), which also
 keeps the shade and the caption-below height uniform. Flat text over artwork (a

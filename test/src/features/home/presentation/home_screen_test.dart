@@ -4520,23 +4520,29 @@ void main() {
 
     Finder key(String name) => find.byKey(ValueKey<String>(name));
 
-    testWidgets('classic keeps the page-coloured fade', (tester) async {
+    testWidgets('classic puts white text on the see-through style scrim', (
+      tester,
+    ) async {
       await pumpRecentlyAdded(tester, mode: AlbumTitleShade.classic);
-
-      expect(key('albumCardTitleSurfaceFade'), findsOneWidget);
-      expect(key('albumCardDarkShade'), findsNothing);
-      expect(key('albumCardCaptionLayer'), findsNothing);
-      expect(key('albumCardCaptionBelow'), findsNothing);
-    });
-
-    testWidgets('dark puts white text on the style scrim', (tester) async {
-      await pumpRecentlyAdded(tester, mode: AlbumTitleShade.dark);
 
       expect(key('albumCardDarkShade'), findsOneWidget);
       expect(key('albumCardTitleSurfaceFade'), findsNothing);
+      expect(key('albumCardTintText'), findsNothing);
+      expect(key('albumCardCaptionLayer'), findsNothing);
+      expect(key('albumCardCaptionBelow'), findsNothing);
       final title = tester.widget<Text>(find.text(album.name));
       expect(title.style!.color!.a, greaterThan(0.9));
       expect(title.style!.color!.r, 1);
+    });
+
+    testWidgets('dark uses the staged page-colour shade', (tester) async {
+      await pumpRecentlyAdded(tester, mode: AlbumTitleShade.dark);
+
+      expect(key('albumCardTintFade'), findsOneWidget);
+      expect(key('albumCardTintText'), findsOneWidget);
+      expect(key('albumCardDarkShade'), findsNothing);
+      expect(key('albumCardTitleSurfaceFade'), findsNothing);
+      expect(key('albumCardCaptionLayer'), findsNothing);
     });
 
     testWidgets('color uses the cover-tinted caption layer', (tester) async {

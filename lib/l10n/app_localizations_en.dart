@@ -3566,7 +3566,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get appearanceAlbumArtShadeSub =>
-      'A dark gradient behind album titles for easier reading.';
+      'A solid shade behind album titles for easier reading.';
 
   @override
   String get appearanceAlbumArtShadeFlatNote =>

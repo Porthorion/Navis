@@ -5618,7 +5618,7 @@ abstract class AppLocalizations {
   /// No description provided for @appearanceAlbumArtShadeSub.
   ///
   /// In en, this message translates to:
-  /// **'A dark gradient behind album titles for easier reading.'**
+  /// **'A solid shade behind album titles for easier reading.'**
   String get appearanceAlbumArtShadeSub;
 
   /// No description provided for @appearanceAlbumArtShadeFlatNote.

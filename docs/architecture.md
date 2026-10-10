@@ -1032,14 +1032,15 @@ header adds the same reason line and a compact Play/Shuffle pair.
 
 **Album card captions.** The shade plumbing exposes three tiers through
 `albumTitleShadeModeProvider` (`settings/domain/album_title_shade.dart`):
-classic uses the page-coloured fade and scheme text colours with Shade off;
-dark uses a dark gradient behind white text with Album Art Shade on and Use
-Cover Color off; color uses a cover-tinted gradient with both switches on,
-with fill and text adjusted for 4.5:1 contrast. Classic and dark require no
-cover sampling. `AlbumCardLabel` switches on the mode: classic and color reuse
-`_OverlayFadeLabel` (color through `_CoverTintLabel`), dark is `_DarkShadeLabel`
-(key `albumCardDarkShade`), white text over `ArtworkScrim` (the style's
-`artworkScrim`, as on the artist hero). Settings › Appearance and setup show
+classic (Shade off, the default) is `_DarkShadeLabel` (key
+`albumCardDarkShade`): white text over a see-through `ArtworkScrim` (the style's
+`artworkScrim`, as on the artist hero) that keeps the whole cover visible; dark
+(Album Art Shade on, Use Cover Color off) is `_OverlayFadeLabel` with
+`stagedFade` in the page colour, darkened by 35% black in dark themes, the same
+shape as the colour shade (a short fade, then solid under the text); color
+(both on) is that shade tinted from the cover through `_CoverTintLabel`, with
+fill and text adjusted for 4.5:1 contrast. Classic and dark require no cover
+sampling. Settings › Appearance and setup show
 Album Art Shade (New tag) with an indented Use Cover Color switch revealed by
 `AppearanceSubOptionReveal` while Shade is on; both are disabled with a note
 under Flat text over artwork. An album title is never more than one line:

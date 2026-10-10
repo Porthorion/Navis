@@ -1635,7 +1635,7 @@
   "appearanceDynamicAlbumColorLabel": "Dynamic Album Color",
   "appearanceDynamicAlbumColorSub": "Album art replaces your accent when a cover has one.",
   "appearanceAlbumArtShadeLabel": "Album Art Shade",
-  "appearanceAlbumArtShadeSub": "A dark gradient behind album titles for easier reading.",
+  "appearanceAlbumArtShadeSub": "A solid shade behind album titles for easier reading.",
   "appearanceAlbumArtShadeFlatNote": "Album titles sit below the art while Flat text over artwork is on.",
   "appearanceAlbumArtCoverColorLabel": "Use Cover Color",
   "appearanceAlbumArtCoverColorSub": "Tint the shade with a color from each cover.",
