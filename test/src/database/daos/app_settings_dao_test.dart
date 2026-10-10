@@ -141,6 +141,29 @@ void main() {
       skip: !sqliteAvailable,
     );
 
+    test('shade writes preserve colour and unrelated settings', () async {
+      final dao = database.appSettingsDao;
+      final initial = (await dao.getSettings())!;
+      expect(initial.albumArtShade, isFalse);
+      await dao.updateThemeMode('oled');
+      await dao.updateAlbumArtColoredShade(enabled: true);
+      for (final enabled in [true, false]) {
+        await dao.updateAlbumArtShade(enabled: enabled);
+        final row = (await dao.watchSettings().first)!;
+        expect(row.albumArtShade, enabled);
+        expect(row.albumArtColoredShade, isTrue);
+        expect(row.themeMode, 'oled');
+        expect(row.updatedAt.isBefore(initial.updatedAt), isFalse);
+      }
+      await dao.updateAlbumArtShade(enabled: true);
+      await dao.updateAlbumArtColoredShade(enabled: false);
+      expect((await dao.getSettings())!.albumArtShade, isTrue);
+      await dao.resetDefaults();
+      final reset = (await dao.getSettings())!;
+      expect(reset.albumArtShade, isFalse);
+      expect(reset.albumArtColoredShade, isFalse);
+    }, skip: !sqliteAvailable);
+
     test('Flat areas and shade targeted writes preserve the switch', () async {
       final dao = database.appSettingsDao;
       final initial = (await dao.getSettings())!;

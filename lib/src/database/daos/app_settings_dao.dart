@@ -146,6 +146,7 @@ class AppSettingsDao extends DatabaseAccessor<NavisDatabase>
     required int nightScheduleEndMinutes,
     required bool flatSurfaces,
     int? flatAreas,
+    bool? albumArtShade,
     bool? albumArtColoredShade,
     int? colorSchemeSeed,
     String? appLocale,
@@ -224,6 +225,9 @@ class AppSettingsDao extends DatabaseAccessor<NavisDatabase>
         flatAreas: flatAreas == null
             ? const Value.absent()
             : Value(FlatAreas.fromBits(flatAreas).bits),
+        albumArtShade: albumArtShade == null
+            ? const Value.absent()
+            : Value(albumArtShade),
         albumArtColoredShade: albumArtColoredShade == null
             ? const Value.absent()
             : Value(albumArtColoredShade),
@@ -361,6 +365,7 @@ class AppSettingsDao extends DatabaseAccessor<NavisDatabase>
       nightScheduleEndMinutes: NightSchedule.defaultEndMinutes,
       flatSurfaces: false,
       flatAreas: 7,
+      albumArtShade: false,
       albumArtColoredShade: false,
       colorSchemeSeed: null,
       appLocale: null,
@@ -830,6 +835,17 @@ class AppSettingsDao extends DatabaseAccessor<NavisDatabase>
     )..where((tbl) => tbl.id.equals(primarySettingsId))).write(
       AppSettingsTableCompanion(
         flatAreas: Value(areas.bits),
+        updatedAt: Value(DateTime.now()),
+      ),
+    );
+  }
+
+  Future<void> updateAlbumArtShade({required bool enabled}) async {
+    await (update(
+      appSettingsTable,
+    )..where((tbl) => tbl.id.equals(primarySettingsId))).write(
+      AppSettingsTableCompanion(
+        albumArtShade: Value(enabled),
         updatedAt: Value(DateTime.now()),
       ),
     );

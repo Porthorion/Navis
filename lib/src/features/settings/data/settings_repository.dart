@@ -58,6 +58,7 @@ class SettingsRepository {
       nightScheduleEndMinutes: settings.nightScheduleEndMinutes,
       flatSurfaces: settings.flatSurfaces,
       flatAreas: settings.flatAreas.bits,
+      albumArtShade: settings.albumArtShade,
       albumArtColoredShade: settings.albumArtColoredShade,
       colorSchemeSeed: settings.colorSchemeSeed,
       appLocale: settings.appLocale,
@@ -124,6 +125,9 @@ class SettingsRepository {
     }
     if (draft.flatAreas != initial.flatAreas) {
       await _dao.updateFlatAreas(draft.flatAreas.bits);
+    }
+    if (draft.albumArtShade != initial.albumArtShade) {
+      await _dao.updateAlbumArtShade(enabled: draft.albumArtShade);
     }
     if (draft.albumArtColoredShade != initial.albumArtColoredShade) {
       await _dao.updateAlbumArtColoredShade(
@@ -328,6 +332,7 @@ class SettingsRepository {
       nightScheduleEndMinutes: row.nightScheduleEndMinutes,
       flatSurfaces: row.flatSurfaces,
       flatAreas: FlatAreas.fromBits(row.flatAreas),
+      albumArtShade: row.albumArtShade,
       albumArtColoredShade: row.albumArtColoredShade,
       colorSchemeSeed: row.colorSchemeSeed,
       appLocale: row.appLocale,

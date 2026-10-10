@@ -445,6 +445,7 @@ void main() {
         'nightSchedule': {'enabled': false, 'start': 1320, 'end': 420},
         'flatSurfaces': false,
         'flatAreas': 7,
+        'albumArtShade': false,
         'albumArtColoredShade': false,
       });
       final observed = await fixture.get('/v1/presentation/appearance');
@@ -489,6 +490,7 @@ void main() {
       'nightSchedule': {'enabled': true, 'start': 1200, 'end': 300},
       'flatSurfaces': true,
       'flatAreas': 2,
+      'albumArtShade': true,
       'albumArtColoredShade': true,
       'cornerStyle': 'square',
       'nowPlayingBackground': 'artwork',
@@ -518,6 +520,7 @@ void main() {
         .getSettings();
     expect(persisted!.colorSchemeSeed, 0xFF567890);
     expect(persisted.flatAreas, 2);
+    expect(persisted.albumArtShade, isTrue);
     expect(persisted.albumArtColoredShade, isTrue);
     final observed = await fixture.get(path);
     expect(observed.body, changed.body);
@@ -537,6 +540,9 @@ void main() {
       {'flatAreas': 1.5},
       {'flatAreas': null},
       {'flatAreas': '2'},
+      {'albumArtShade': 1},
+      {'albumArtShade': null},
+      {'albumArtShade': 'true'},
       {'albumArtColoredShade': 1},
       {'albumArtColoredShade': null},
       {'cornerStyle': 'circle'},
@@ -589,6 +595,22 @@ void main() {
       'end': 450,
     });
     expect(cleared.body['colorStyle'], 'immersive');
+    for (final (shade, colored) in [(false, true), (true, false)]) {
+      final toggled = await fixture.post(path, {
+        'albumArtShade': shade,
+        'albumArtColoredShade': colored,
+      });
+      expect(toggled.statusCode, HttpStatus.ok);
+      expect(toggled.body['albumArtShade'], shade);
+      expect(toggled.body['albumArtColoredShade'], colored);
+      expect((await fixture.get(path)).body, toggled.body);
+    }
+    final parentOnly = await fixture.post(path, {'albumArtShade': false});
+    expect(parentOnly.body['albumArtShade'], isFalse);
+    expect(parentOnly.body['albumArtColoredShade'], isFalse);
+    final colorOnly = await fixture.post(path, {'albumArtColoredShade': true});
+    expect(colorOnly.body['albumArtShade'], isFalse);
+    expect(colorOnly.body['albumArtColoredShade'], isTrue);
     await fixture.close();
     final primary = await _startFixture(
       SyncDiagnosticsMode.primaryCertification,

@@ -811,6 +811,7 @@ class SyncDiagnosticsServer {
           final night = body['nightSchedule'];
           final flat = body['flatSurfaces'];
           final flatAreas = body['flatAreas'];
+          final shade = body['albumArtShade'];
           final coloredShade = body['albumArtColoredShade'];
           final corners = body['cornerStyle'];
           final background = body['nowPlayingBackground'];
@@ -836,6 +837,7 @@ class SyncDiagnosticsServer {
             'dynamicAlbumColor',
             'oledForAuto',
             'flatSurfaces',
+            'albumArtShade',
             'albumArtColoredShade',
           ]) {
             if (body.containsKey(key) && body[key] is! bool) {
@@ -879,6 +881,7 @@ class SyncDiagnosticsServer {
                   'nightSchedule',
                   'flatSurfaces',
                   'flatAreas',
+                  'albumArtShade',
                   'albumArtColoredShade',
                   'cornerStyle',
                   'nowPlayingBackground',
@@ -923,6 +926,7 @@ class SyncDiagnosticsServer {
           }
           if (flat is bool) await dao.updateFlatSurfaces(enabled: flat);
           if (flatAreas is int) await dao.updateFlatAreas(flatAreas);
+          if (shade is bool) await dao.updateAlbumArtShade(enabled: shade);
           if (coloredShade is bool) {
             await dao.updateAlbumArtColoredShade(enabled: coloredShade);
           }
@@ -970,6 +974,7 @@ class SyncDiagnosticsServer {
           },
           'flatSurfaces': settings?.flatSurfaces ?? false,
           'flatAreas': settings?.flatAreas ?? 7,
+          'albumArtShade': settings?.albumArtShade ?? false,
           'albumArtColoredShade': settings?.albumArtColoredShade ?? false,
           'gridArtworkSize': settings?.gridArtworkSize ?? 'auto',
           'showArtistsPage': settings?.showArtistsPage ?? true,

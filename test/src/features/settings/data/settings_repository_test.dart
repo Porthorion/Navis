@@ -53,6 +53,64 @@ void main() {
       },
     );
 
+    test(
+      'shade flags round trip independently through save and watch',
+      () async {
+        final defaults = await repository.getSettings();
+        expect(defaults.albumArtShade, isFalse);
+        expect(const AppSettingsModel.defaults().albumArtShade, isFalse);
+        for (final shade in [false, true]) {
+          for (final colored in [false, true]) {
+            final draft = defaults.copyWith(
+              albumArtShade: shade,
+              albumArtColoredShade: colored,
+            );
+            expect(draft.copyWith(themeMode: 'oled').albumArtShade, shade);
+            await repository.saveSettings(draft);
+            final saved = await repository.getSettings();
+            final watched = await repository.watchSettings().first;
+            final row = (await database.appSettingsDao.getSettings())!;
+            expect(saved.albumArtShade, shade);
+            expect(saved.albumArtColoredShade, colored);
+            expect(watched.albumArtShade, shade);
+            expect(watched.albumArtColoredShade, colored);
+            expect(row.albumArtShade, shade);
+            expect(row.albumArtColoredShade, colored);
+          }
+        }
+        await repository.resetDefaults();
+        expect((await repository.getSettings()).albumArtShade, isFalse);
+      },
+      skip: !sqliteAvailable,
+    );
+
+    test('setup shade diff preserves concurrent flags until changed', () async {
+      final initial = await repository.getSettings();
+      await database.appSettingsDao.updateAlbumArtShade(enabled: true);
+      await database.appSettingsDao.updateAlbumArtColoredShade(enabled: true);
+      await repository.saveOnboardingChanges(
+        initial,
+        initial.copyWith(themeMode: 'oled'),
+      );
+      var saved = await repository.getSettings();
+      expect(saved.albumArtShade, isTrue);
+      expect(saved.albumArtColoredShade, isTrue);
+      await repository.saveOnboardingChanges(
+        saved,
+        saved.copyWith(albumArtShade: false),
+      );
+      saved = await repository.getSettings();
+      expect(saved.albumArtShade, isFalse);
+      expect(saved.albumArtColoredShade, isTrue);
+      await repository.saveOnboardingChanges(
+        saved,
+        saved.copyWith(albumArtShade: true, albumArtColoredShade: false),
+      );
+      saved = await repository.getSettings();
+      expect(saved.albumArtShade, isTrue);
+      expect(saved.albumArtColoredShade, isFalse);
+    }, skip: !sqliteAvailable);
+
     test('Flat areas and shade round trip and reset independently', () async {
       final initial = await repository.getSettings();
       expect(initial.flatAreas.bits, 7);

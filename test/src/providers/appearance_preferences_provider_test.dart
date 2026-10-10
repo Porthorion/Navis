@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:navis/src/features/settings/domain/album_title_shade.dart';
 import 'package:navis/src/features/settings/domain/app_settings.dart';
 import 'package:navis/src/features/settings/domain/flat_areas.dart';
 import 'package:navis/src/features/settings/domain/navis_density.dart';
@@ -38,9 +39,50 @@ void main() {
         expect(container.read(densityProvider), NavisDensity.comfortable);
         expect(container.read(flatAreasProvider), const FlatAreas());
         expect(container.read(albumArtColoredShadeProvider), isFalse);
+        expect(container.read(albumArtShadeProvider), isFalse);
+        expect(
+          container.read(albumTitleShadeModeProvider),
+          AlbumTitleShade.classic,
+        );
       },
     );
   }
+
+  test('shade mode follows persisted parent and colour toggles', () async {
+    final database = createTestDatabase();
+    final container = ProviderContainer(overrides: withTestDatabase(database));
+    addTearDown(() async {
+      container.dispose();
+      await database.close();
+    });
+    container.listen(appSettingsProvider, (_, _) {});
+    await container.read(appSettingsProvider.future);
+    final dao = database.appSettingsDao;
+    for (final (shade, colored, mode) in [
+      (false, true, AlbumTitleShade.classic),
+      (true, true, AlbumTitleShade.color),
+      (true, false, AlbumTitleShade.dark),
+      (false, false, AlbumTitleShade.classic),
+    ]) {
+      final updated = Completer<void>();
+      final subscription = container.listen(appSettingsProvider, (_, next) {
+        next.whenData((settings) {
+          if (settings.albumArtShade == shade &&
+              settings.albumArtColoredShade == colored &&
+              !updated.isCompleted) {
+            updated.complete();
+          }
+        });
+      });
+      await dao.updateAlbumArtShade(enabled: shade);
+      await dao.updateAlbumArtColoredShade(enabled: colored);
+      await updated.future;
+      subscription.close();
+      expect(container.read(albumArtShadeProvider), shade);
+      expect(container.read(albumArtColoredShadeProvider), colored);
+      expect(container.read(albumTitleShadeModeProvider), mode);
+    }
+  }, skip: !sqliteAvailable);
 
   test('area and shade providers expose persisted values', () async {
     final database = createTestDatabase();

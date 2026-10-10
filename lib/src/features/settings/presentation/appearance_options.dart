@@ -962,7 +962,7 @@ class AppearanceOptionSet {
   /// Album Art Colored Shade, which both screens place in their Color group
   /// rather than in [AppearanceOptionKind]'s order.
   Widget buildAlbumArtColoredShade() => _tagged(
-    SetupHighlight.albumArtColoredShade,
+    SetupHighlight.albumArtShade,
     (adornment) => AlbumArtColoredShadeOption(
       value: albumArtColoredShade,
       enabled: !(flatSurfaces && flatAreas.artworkText),

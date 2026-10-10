@@ -74,6 +74,7 @@ import 'package:navis/src/features/settings/data/update_check_store.dart';
 import 'package:navis/src/features/settings/data/update_repository.dart';
 import 'package:navis/src/features/settings/data/update_service.dart';
 import 'package:navis/src/features/settings/domain/app_settings.dart';
+import 'package:navis/src/features/settings/domain/album_title_shade.dart';
 import 'package:navis/src/features/settings/domain/flat_areas.dart';
 import 'package:navis/src/features/settings/domain/navis_density.dart';
 import 'package:navis/src/features/settings/domain/night_schedule.dart';
@@ -2657,7 +2658,23 @@ final flatAreasProvider = Provider<FlatAreas>((ref) {
   return settings.flatAreas;
 });
 
-/// Whether album-card captions use a cover tint instead of the page colour.
+/// Whether album-card captions use the optional title shade.
+final albumArtShadeProvider = Provider<bool>((ref) {
+  final settings =
+      ref.watch(appSettingsProvider).asData?.value ??
+      const AppSettingsModel.defaults();
+  return settings.albumArtShade;
+});
+
+/// Effective caption shade; cover colour applies only while Shade is enabled.
+final albumTitleShadeModeProvider = Provider<AlbumTitleShade>((ref) {
+  if (!ref.watch(albumArtShadeProvider)) return AlbumTitleShade.classic;
+  return ref.watch(albumArtColoredShadeProvider)
+      ? AlbumTitleShade.color
+      : AlbumTitleShade.dark;
+});
+
+/// Saved Use Cover Color preference, meaningful while Shade is enabled.
 final albumArtColoredShadeProvider = Provider<bool>((ref) {
   final settings =
       ref.watch(appSettingsProvider).asData?.value ??

@@ -52,6 +52,7 @@ class AppSettingsModel {
     this.nightScheduleEndMinutes = NightSchedule.defaultEndMinutes,
     this.flatSurfaces = false,
     this.flatAreas = const FlatAreas(),
+    this.albumArtShade = false,
     this.albumArtColoredShade = false,
     required this.colorSchemeSeed,
     required this.appLocale,
@@ -134,6 +135,7 @@ class AppSettingsModel {
       nightScheduleEndMinutes = NightSchedule.defaultEndMinutes,
       flatSurfaces = false,
       flatAreas = const FlatAreas(),
+      albumArtShade = false,
       albumArtColoredShade = false,
       colorSchemeSeed = null,
       appLocale = null,
@@ -216,6 +218,7 @@ class AppSettingsModel {
   final int nightScheduleEndMinutes;
   final bool flatSurfaces;
   final FlatAreas flatAreas;
+  final bool albumArtShade;
   final bool albumArtColoredShade;
   final int? colorSchemeSeed;
   final String? appLocale;
@@ -380,6 +383,7 @@ class AppSettingsModel {
     int? nightScheduleEndMinutes,
     bool? flatSurfaces,
     FlatAreas? flatAreas,
+    bool? albumArtShade,
     bool? albumArtColoredShade,
     int? colorSchemeSeed,
     String? appLocale,
@@ -490,6 +494,7 @@ class AppSettingsModel {
           nightScheduleEndMinutes ?? this.nightScheduleEndMinutes,
       flatSurfaces: flatSurfaces ?? this.flatSurfaces,
       flatAreas: flatAreas ?? this.flatAreas,
+      albumArtShade: albumArtShade ?? this.albumArtShade,
       albumArtColoredShade: albumArtColoredShade ?? this.albumArtColoredShade,
       colorSchemeSeed: clearColorSchemeSeed
           ? null

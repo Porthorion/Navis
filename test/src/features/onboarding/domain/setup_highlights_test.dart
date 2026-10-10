@@ -28,7 +28,13 @@ void main() {
     expect(SetupHighlight.nowPlayingBackground.since, '1.5.0');
     expect(SetupHighlight.cornerStyle.since, '1.5.0');
     expect(SetupHighlight.flatAreas.since, '1.5.0');
-    expect(SetupHighlight.albumArtColoredShade.since, '1.5.0');
+    expect(SetupHighlight.albumArtShade.since, '1.5.0');
+    expect(SetupHighlight.albumArtShade.storageKey, 'albumArtColoredShade');
+    expect(
+      setupHighlightsFor('1.5.0')
+          .where((h) => h == SetupHighlight.albumArtShade),
+      hasLength(1),
+    );
     expect(
       setupHighlightsFor('1.5.0'),
       containsAll([

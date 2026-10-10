@@ -7,7 +7,7 @@ enum SetupHighlight {
   nightSchedule('1.5.0'),
   flatSurfaces('1.5.0'),
   flatAreas('1.5.0'),
-  albumArtColoredShade('1.5.0'),
+  albumArtShade('1.5.0'),
   nowPlayingBackground('1.5.0'),
   cornerStyle('1.5.0');
 
@@ -17,7 +17,8 @@ enum SetupHighlight {
   final String since;
 
   /// Stable key stored in the seen-options JSON array.
-  String get storageKey => name;
+  String get storageKey =>
+      this == albumArtShade ? 'albumArtColoredShade' : name;
 }
 
 /// Newest highlight release at or before [appVersion], ignoring build suffixes.

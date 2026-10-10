@@ -775,11 +775,23 @@ target-selection rules.
     `flatNowPlaying` and `flatArtworkText` each combine it with the corresponding
     area. All three theme builders, the theme cache key and setup preview carry
     the mask. With all areas selected, Flat retains its previous behaviour.
-    The coloured-shade preference selects the album-card caption: false (the
-    default) is the classic page-coloured fade, true the cover-tinted caption.
+    Schema 100 adds `album_art_shade` (boolean, default false); its guarded
+    99→100 step enables it for rows with `album_art_colored_shade = 1`, preserving
+    existing colour choices. Replaying the step preserves later shade choices.
+    `AppSettingsModel.albumArtShade`, `updateAlbumArtShade(enabled:)` and
+    `albumArtShadeProvider` carry the parent setting. `albumArtColoredShade`
+    remains the independent Use Cover Color flag; disabling Shade retains it.
+    `albumTitleShadeModeProvider` exposes `AlbumTitleShade.classic` when Shade
+    is off, `dark` when only Shade is on, and `color` when both are on. Loading
+    and failed settings resolve to classic; resets disable both flags.
+    Onboarding Finish diffs each flag against its entry snapshot, preserving
+    concurrent writes to unchanged choices. `SetupHighlight.albumArtShade`
+    owns the single 1.5.0 parent tag and retains the `albumArtColoredShade`
+    storage key so existing acknowledgements survive.
     The authenticated, clone-gated `/v1/presentation/appearance` endpoint
-    returns `flatAreas` as an integer and `albumArtColoredShade` as a boolean;
-    POST validates their types and mask bounds before any targeted writes.
+    returns `flatAreas` as an integer and `albumArtShade` / `albumArtColoredShade`
+    as booleans; POST validates their types and mask bounds before any targeted
+    writes. Either shade flag can be set independently.
   - Flat (`flatSurfacesProvider`, `NavisColorStyleData.flat`) is orthogonal to
     theme mode and colour style: it removes depth effects so the style's solid
     colours read stronger. `app.dart` passes it to `buildLightTheme`,
@@ -1018,12 +1030,15 @@ header adds the same reason line and a compact Play/Shuffle pair.
 - Changing covers interpolates the nine colours over 400 ms; reduced motion
   switches instantly.
 
-**Album card captions.** `AlbumCardLabel` picks the caption from two settings.
-By default the title and subtitle sit over a fade into the page background in
-scheme text colours and no cover colour is ever sampled. With Album Art Colored
-Shade (`albumArtColoredShadeProvider`) they sit over a fade into a colour
-sampled from the cover's bottom edge, with fill and text adjusted for 4.5:1
-contrast. With Flat text over artwork (`NavisColorStyleData.flatArtworkText`)
+**Album card captions.** The shade plumbing exposes three tiers through
+`albumTitleShadeModeProvider` (`settings/domain/album_title_shade.dart`):
+classic uses the page-coloured fade and scheme text colours with Shade off;
+dark uses a dark gradient behind white text with Album Art Shade on and Use
+Cover Color off; color uses a cover-tinted gradient with both switches on,
+with fill and text adjusted for 4.5:1 contrast. Classic and dark require no
+cover sampling. Switches and caption rendering for this two-tier setting are
+pending the separate UI change; `AlbumCardLabel` currently reads the colour
+flag directly. With Flat text over artwork (`NavisColorStyleData.flatArtworkText`)
 the caption moves below an unobstructed cover (`AlbumCardCaptionLayout`, key
 `albumCardCaptionBelow`) and nothing is sampled. In that layout every host
 reserves `albumCardExtraHeight` (measured at the ambient text scale) under its

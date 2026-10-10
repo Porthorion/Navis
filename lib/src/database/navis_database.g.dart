@@ -1043,6 +1043,21 @@ class $AppSettingsTableTable extends AppSettingsTable
     requiredDuringInsert: false,
     defaultValue: const Constant(7),
   );
+  static const VerificationMeta _albumArtShadeMeta = const VerificationMeta(
+    'albumArtShade',
+  );
+  @override
+  late final GeneratedColumn<bool> albumArtShade = GeneratedColumn<bool>(
+    'album_art_shade',
+    aliasedName,
+    false,
+    type: DriftSqlType.bool,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'CHECK ("album_art_shade" IN (0, 1))',
+    ),
+    defaultValue: const Constant(false),
+  );
   static const VerificationMeta _albumArtColoredShadeMeta =
       const VerificationMeta('albumArtColoredShade');
   @override
@@ -1892,6 +1907,7 @@ class $AppSettingsTableTable extends AppSettingsTable
     nightScheduleEndMinutes,
     flatSurfaces,
     flatAreas,
+    albumArtShade,
     albumArtColoredShade,
     colorSchemeSeed,
     customColorPresets,
@@ -2264,6 +2280,15 @@ class $AppSettingsTableTable extends AppSettingsTable
       context.handle(
         _flatAreasMeta,
         flatAreas.isAcceptableOrUnknown(data['flat_areas']!, _flatAreasMeta),
+      );
+    }
+    if (data.containsKey('album_art_shade')) {
+      context.handle(
+        _albumArtShadeMeta,
+        albumArtShade.isAcceptableOrUnknown(
+          data['album_art_shade']!,
+          _albumArtShadeMeta,
+        ),
       );
     }
     if (data.containsKey('album_art_colored_shade')) {
@@ -2984,6 +3009,10 @@ class $AppSettingsTableTable extends AppSettingsTable
         DriftSqlType.int,
         data['${effectivePrefix}flat_areas'],
       )!,
+      albumArtShade: attachedDatabase.typeMapping.read(
+        DriftSqlType.bool,
+        data['${effectivePrefix}album_art_shade'],
+      )!,
       albumArtColoredShade: attachedDatabase.typeMapping.read(
         DriftSqlType.bool,
         data['${effectivePrefix}album_art_colored_shade'],
@@ -3333,6 +3362,7 @@ class AppSettingsTableData extends DataClass
   /// Disables surface glows, gradients and shadows when rendered.
   final bool flatSurfaces;
   final int flatAreas;
+  final bool albumArtShade;
   final bool albumArtColoredShade;
 
   /// Seed color for the app's ColorScheme. Null = dynamic / default white.
@@ -3569,6 +3599,7 @@ class AppSettingsTableData extends DataClass
     required this.nightScheduleEndMinutes,
     required this.flatSurfaces,
     required this.flatAreas,
+    required this.albumArtShade,
     required this.albumArtColoredShade,
     this.colorSchemeSeed,
     this.customColorPresets,
@@ -3692,6 +3723,7 @@ class AppSettingsTableData extends DataClass
     map['night_schedule_end_minutes'] = Variable<int>(nightScheduleEndMinutes);
     map['flat_surfaces'] = Variable<bool>(flatSurfaces);
     map['flat_areas'] = Variable<int>(flatAreas);
+    map['album_art_shade'] = Variable<bool>(albumArtShade);
     map['album_art_colored_shade'] = Variable<bool>(albumArtColoredShade);
     if (!nullToAbsent || colorSchemeSeed != null) {
       map['color_scheme_seed'] = Variable<int>(colorSchemeSeed);
@@ -3864,6 +3896,7 @@ class AppSettingsTableData extends DataClass
       nightScheduleEndMinutes: Value(nightScheduleEndMinutes),
       flatSurfaces: Value(flatSurfaces),
       flatAreas: Value(flatAreas),
+      albumArtShade: Value(albumArtShade),
       albumArtColoredShade: Value(albumArtColoredShade),
       colorSchemeSeed: colorSchemeSeed == null && nullToAbsent
           ? const Value.absent()
@@ -4032,6 +4065,7 @@ class AppSettingsTableData extends DataClass
       ),
       flatSurfaces: serializer.fromJson<bool>(json['flatSurfaces']),
       flatAreas: serializer.fromJson<int>(json['flatAreas']),
+      albumArtShade: serializer.fromJson<bool>(json['albumArtShade']),
       albumArtColoredShade: serializer.fromJson<bool>(
         json['albumArtColoredShade'],
       ),
@@ -4223,6 +4257,7 @@ class AppSettingsTableData extends DataClass
       ),
       'flatSurfaces': serializer.toJson<bool>(flatSurfaces),
       'flatAreas': serializer.toJson<int>(flatAreas),
+      'albumArtShade': serializer.toJson<bool>(albumArtShade),
       'albumArtColoredShade': serializer.toJson<bool>(albumArtColoredShade),
       'colorSchemeSeed': serializer.toJson<int?>(colorSchemeSeed),
       'customColorPresets': serializer.toJson<String?>(customColorPresets),
@@ -4360,6 +4395,7 @@ class AppSettingsTableData extends DataClass
     int? nightScheduleEndMinutes,
     bool? flatSurfaces,
     int? flatAreas,
+    bool? albumArtShade,
     bool? albumArtColoredShade,
     Value<int?> colorSchemeSeed = const Value.absent(),
     Value<String?> customColorPresets = const Value.absent(),
@@ -4475,6 +4511,7 @@ class AppSettingsTableData extends DataClass
         nightScheduleEndMinutes ?? this.nightScheduleEndMinutes,
     flatSurfaces: flatSurfaces ?? this.flatSurfaces,
     flatAreas: flatAreas ?? this.flatAreas,
+    albumArtShade: albumArtShade ?? this.albumArtShade,
     albumArtColoredShade: albumArtColoredShade ?? this.albumArtColoredShade,
     colorSchemeSeed: colorSchemeSeed.present
         ? colorSchemeSeed.value
@@ -4688,6 +4725,9 @@ class AppSettingsTableData extends DataClass
           ? data.flatSurfaces.value
           : this.flatSurfaces,
       flatAreas: data.flatAreas.present ? data.flatAreas.value : this.flatAreas,
+      albumArtShade: data.albumArtShade.present
+          ? data.albumArtShade.value
+          : this.albumArtShade,
       albumArtColoredShade: data.albumArtColoredShade.present
           ? data.albumArtColoredShade.value
           : this.albumArtColoredShade,
@@ -4918,6 +4958,7 @@ class AppSettingsTableData extends DataClass
           ..write('nightScheduleEndMinutes: $nightScheduleEndMinutes, ')
           ..write('flatSurfaces: $flatSurfaces, ')
           ..write('flatAreas: $flatAreas, ')
+          ..write('albumArtShade: $albumArtShade, ')
           ..write('albumArtColoredShade: $albumArtColoredShade, ')
           ..write('colorSchemeSeed: $colorSchemeSeed, ')
           ..write('customColorPresets: $customColorPresets, ')
@@ -5029,6 +5070,7 @@ class AppSettingsTableData extends DataClass
     nightScheduleEndMinutes,
     flatSurfaces,
     flatAreas,
+    albumArtShade,
     albumArtColoredShade,
     colorSchemeSeed,
     customColorPresets,
@@ -5135,6 +5177,7 @@ class AppSettingsTableData extends DataClass
           other.nightScheduleEndMinutes == this.nightScheduleEndMinutes &&
           other.flatSurfaces == this.flatSurfaces &&
           other.flatAreas == this.flatAreas &&
+          other.albumArtShade == this.albumArtShade &&
           other.albumArtColoredShade == this.albumArtColoredShade &&
           other.colorSchemeSeed == this.colorSchemeSeed &&
           other.customColorPresets == this.customColorPresets &&
@@ -5243,6 +5286,7 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
   final Value<int> nightScheduleEndMinutes;
   final Value<bool> flatSurfaces;
   final Value<int> flatAreas;
+  final Value<bool> albumArtShade;
   final Value<bool> albumArtColoredShade;
   final Value<int?> colorSchemeSeed;
   final Value<String?> customColorPresets;
@@ -5343,6 +5387,7 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
     this.nightScheduleEndMinutes = const Value.absent(),
     this.flatSurfaces = const Value.absent(),
     this.flatAreas = const Value.absent(),
+    this.albumArtShade = const Value.absent(),
     this.albumArtColoredShade = const Value.absent(),
     this.colorSchemeSeed = const Value.absent(),
     this.customColorPresets = const Value.absent(),
@@ -5444,6 +5489,7 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
     this.nightScheduleEndMinutes = const Value.absent(),
     this.flatSurfaces = const Value.absent(),
     this.flatAreas = const Value.absent(),
+    this.albumArtShade = const Value.absent(),
     this.albumArtColoredShade = const Value.absent(),
     this.colorSchemeSeed = const Value.absent(),
     this.customColorPresets = const Value.absent(),
@@ -5545,6 +5591,7 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
     Expression<int>? nightScheduleEndMinutes,
     Expression<bool>? flatSurfaces,
     Expression<int>? flatAreas,
+    Expression<bool>? albumArtShade,
     Expression<bool>? albumArtColoredShade,
     Expression<int>? colorSchemeSeed,
     Expression<String>? customColorPresets,
@@ -5661,6 +5708,7 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
         'night_schedule_end_minutes': nightScheduleEndMinutes,
       if (flatSurfaces != null) 'flat_surfaces': flatSurfaces,
       if (flatAreas != null) 'flat_areas': flatAreas,
+      if (albumArtShade != null) 'album_art_shade': albumArtShade,
       if (albumArtColoredShade != null)
         'album_art_colored_shade': albumArtColoredShade,
       if (colorSchemeSeed != null) 'color_scheme_seed': colorSchemeSeed,
@@ -5801,6 +5849,7 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
     Value<int>? nightScheduleEndMinutes,
     Value<bool>? flatSurfaces,
     Value<int>? flatAreas,
+    Value<bool>? albumArtShade,
     Value<bool>? albumArtColoredShade,
     Value<int?>? colorSchemeSeed,
     Value<String?>? customColorPresets,
@@ -5911,6 +5960,7 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
           nightScheduleEndMinutes ?? this.nightScheduleEndMinutes,
       flatSurfaces: flatSurfaces ?? this.flatSurfaces,
       flatAreas: flatAreas ?? this.flatAreas,
+      albumArtShade: albumArtShade ?? this.albumArtShade,
       albumArtColoredShade: albumArtColoredShade ?? this.albumArtColoredShade,
       colorSchemeSeed: colorSchemeSeed ?? this.colorSchemeSeed,
       customColorPresets: customColorPresets ?? this.customColorPresets,
@@ -6128,6 +6178,9 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
     }
     if (flatAreas.present) {
       map['flat_areas'] = Variable<int>(flatAreas.value);
+    }
+    if (albumArtShade.present) {
+      map['album_art_shade'] = Variable<bool>(albumArtShade.value);
     }
     if (albumArtColoredShade.present) {
       map['album_art_colored_shade'] = Variable<bool>(
@@ -6422,6 +6475,7 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
           ..write('nightScheduleEndMinutes: $nightScheduleEndMinutes, ')
           ..write('flatSurfaces: $flatSurfaces, ')
           ..write('flatAreas: $flatAreas, ')
+          ..write('albumArtShade: $albumArtShade, ')
           ..write('albumArtColoredShade: $albumArtColoredShade, ')
           ..write('colorSchemeSeed: $colorSchemeSeed, ')
           ..write('customColorPresets: $customColorPresets, ')
@@ -34514,6 +34568,7 @@ typedef $$AppSettingsTableTableCreateCompanionBuilder =
       Value<int> nightScheduleEndMinutes,
       Value<bool> flatSurfaces,
       Value<int> flatAreas,
+      Value<bool> albumArtShade,
       Value<bool> albumArtColoredShade,
       Value<int?> colorSchemeSeed,
       Value<String?> customColorPresets,
@@ -34616,6 +34671,7 @@ typedef $$AppSettingsTableTableUpdateCompanionBuilder =
       Value<int> nightScheduleEndMinutes,
       Value<bool> flatSurfaces,
       Value<int> flatAreas,
+      Value<bool> albumArtShade,
       Value<bool> albumArtColoredShade,
       Value<int?> colorSchemeSeed,
       Value<String?> customColorPresets,
@@ -34864,6 +34920,11 @@ class $$AppSettingsTableTableFilterComposer
 
   ColumnFilters<int> get flatAreas => $composableBuilder(
     column: $table.flatAreas,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<bool> get albumArtShade => $composableBuilder(
+    column: $table.albumArtShade,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -35373,6 +35434,11 @@ class $$AppSettingsTableTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<bool> get albumArtShade => $composableBuilder(
+    column: $table.albumArtShade,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<bool> get albumArtColoredShade => $composableBuilder(
     column: $table.albumArtColoredShade,
     builder: (column) => ColumnOrderings(column),
@@ -35874,6 +35940,11 @@ class $$AppSettingsTableTableAnnotationComposer
   GeneratedColumn<int> get flatAreas =>
       $composableBuilder(column: $table.flatAreas, builder: (column) => column);
 
+  GeneratedColumn<bool> get albumArtShade => $composableBuilder(
+    column: $table.albumArtShade,
+    builder: (column) => column,
+  );
+
   GeneratedColumn<bool> get albumArtColoredShade => $composableBuilder(
     column: $table.albumArtColoredShade,
     builder: (column) => column,
@@ -36263,6 +36334,7 @@ class $$AppSettingsTableTableTableManager
                 Value<int> nightScheduleEndMinutes = const Value.absent(),
                 Value<bool> flatSurfaces = const Value.absent(),
                 Value<int> flatAreas = const Value.absent(),
+                Value<bool> albumArtShade = const Value.absent(),
                 Value<bool> albumArtColoredShade = const Value.absent(),
                 Value<int?> colorSchemeSeed = const Value.absent(),
                 Value<String?> customColorPresets = const Value.absent(),
@@ -36368,6 +36440,7 @@ class $$AppSettingsTableTableTableManager
                 nightScheduleEndMinutes: nightScheduleEndMinutes,
                 flatSurfaces: flatSurfaces,
                 flatAreas: flatAreas,
+                albumArtShade: albumArtShade,
                 albumArtColoredShade: albumArtColoredShade,
                 colorSchemeSeed: colorSchemeSeed,
                 customColorPresets: customColorPresets,
@@ -36471,6 +36544,7 @@ class $$AppSettingsTableTableTableManager
                 Value<int> nightScheduleEndMinutes = const Value.absent(),
                 Value<bool> flatSurfaces = const Value.absent(),
                 Value<int> flatAreas = const Value.absent(),
+                Value<bool> albumArtShade = const Value.absent(),
                 Value<bool> albumArtColoredShade = const Value.absent(),
                 Value<int?> colorSchemeSeed = const Value.absent(),
                 Value<String?> customColorPresets = const Value.absent(),
@@ -36576,6 +36650,7 @@ class $$AppSettingsTableTableTableManager
                 nightScheduleEndMinutes: nightScheduleEndMinutes,
                 flatSurfaces: flatSurfaces,
                 flatAreas: flatAreas,
+                albumArtShade: albumArtShade,
                 albumArtColoredShade: albumArtColoredShade,
                 colorSchemeSeed: colorSchemeSeed,
                 customColorPresets: customColorPresets,

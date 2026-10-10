@@ -120,6 +120,9 @@ class AppSettingsTable extends Table {
 
   IntColumn get flatAreas => integer().withDefault(const Constant(7))();
 
+  BoolColumn get albumArtShade =>
+      boolean().withDefault(const Constant(false))();
+
   BoolColumn get albumArtColoredShade =>
       boolean().withDefault(const Constant(false))();
 

@@ -222,7 +222,7 @@ class NavisDatabase extends _$NavisDatabase {
   }
 
   @override
-  int get schemaVersion => 99;
+  int get schemaVersion => 100;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -331,6 +331,7 @@ class NavisDatabase extends _$NavisDatabase {
       _noMigration,
       from97To98,
       from98To99,
+      from99To100,
     ];
     for (var version = from; version < to; version++) {
       await steps[version - firstStepFrom](migrator);
@@ -378,6 +379,20 @@ class NavisDatabase extends _$NavisDatabase {
       await migrator.addColumn(
         appSettingsTable,
         appSettingsTable.albumArtColoredShade,
+      );
+    }
+  }
+
+  Future<void> from99To100(Migrator migrator) async {
+    if (!await _columnExists('app_settings', 'album_art_shade')) {
+      await migrator.addColumn(
+        appSettingsTable,
+        appSettingsTable.albumArtShade,
+      );
+      // Preserve enabled cover colour without overwriting later shade choices.
+      await customStatement(
+        'UPDATE app_settings SET album_art_shade = 1 '
+        'WHERE album_art_colored_shade = 1',
       );
     }
   }
@@ -1647,6 +1662,7 @@ FROM scrobble_queue;
         nightScheduleEndMinutes: const Value(NightSchedule.defaultEndMinutes),
         flatSurfaces: const Value(false),
         flatAreas: const Value(7),
+        albumArtShade: const Value(false),
         albumArtColoredShade: const Value(false),
         colorSchemeSeed: const Value(null),
         onboardingVersion: const Value(0),
