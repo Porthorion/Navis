@@ -855,6 +855,7 @@ extension _NavisMediaSession on NavisAudioHandler {
     }
     if (!_snapshotController.isClosed) {
       _snapshotBroadcastCount++;
+      debugSnapshotObserver?.call(_snapshot);
       _snapshotController.add(_snapshot);
     }
   }

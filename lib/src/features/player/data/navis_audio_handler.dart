@@ -2463,6 +2463,12 @@ class NavisAudioHandler extends BaseAudioHandler
   void debugWireAudioSession(AudioSession session) =>
       _wireAudioSession(session);
 
+  /// The observer of structural state before asynchronous delivery.
+  ///
+  /// Tests compare it with the native players at the instant of publication.
+  @visibleForTesting
+  void Function(PlaybackSnapshot)? debugSnapshotObserver;
+
   /// Whether no queue work, including idle releases and trims, is running
   /// or waiting.
   @visibleForTesting
@@ -2501,10 +2507,18 @@ class NavisAudioHandler extends BaseAudioHandler
         reason: 'remote playback stalled',
       );
 
-  /// Writes any coalesced queue save now and waits for the persistence lane.
+  /// Writes coalesced queue and transport saves and waits for persistence.
   @visibleForTesting
   Future<void> debugFlushQueuePersistence() async {
     await _flushQueueItemsPersistence();
+    if (_transportPersistTimer != null) {
+      _transportPersistTimer?.cancel();
+      _transportPersistTimer = null;
+      await _persistSafely(
+        _persistPosition,
+        context: 'flush transport persistence',
+      );
+    }
     await _persistTail;
   }
 
