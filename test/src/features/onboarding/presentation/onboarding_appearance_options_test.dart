@@ -219,9 +219,9 @@ void main() {
     );
 
     expect(find.byType(NewFeatureTag), findsNothing);
-    expect(find.text('Night Schedule'), findsNothing);
-    await h.tap(find.text('More appearance options'));
     expect(find.text('Night Schedule'), findsOneWidget);
+    await h.tap(find.text('More appearance options'));
+    expect(find.text('Flat Surfaces'), findsOneWidget);
     expect(find.byType(NewFeatureTag), findsNothing);
   });
 
@@ -364,6 +364,7 @@ void main() {
 
       expect(find.text('Light'), findsOneWidget);
       expect(find.text('Color Style'), findsOneWidget);
+      expect(find.text('Night Schedule'), findsOneWidget);
       expect(find.text('Accent Color'), findsOneWidget);
       expect(find.text('More appearance options'), findsOneWidget);
       for (final hidden in <String>[
@@ -371,7 +372,6 @@ void main() {
         'Corner Style',
         'Density',
         'Now Playing Background',
-        'Night Schedule',
       ]) {
         expect(find.text(hidden), findsNothing, reason: hidden);
       }
@@ -403,7 +403,6 @@ void main() {
 
       final labels = <String>[
         'Use OLED When Dark',
-        'Night Schedule',
         'Flat Surfaces',
         'Corner Style',
         'Density',
@@ -413,6 +412,22 @@ void main() {
       for (var i = 1; i < labels.length; i++) {
         expect(top(labels[i]), greaterThan(top(labels[i - 1])));
       }
+      // Night Schedule sits beside Color Style, above the collapsed group.
+      expect(
+        top('Night Schedule'),
+        greaterThan(top('Color Style')),
+        reason: 'Night Schedule follows Color Style',
+      );
+      expect(top('Night Schedule'), lessThan(top('Use OLED When Dark')));
+      expect(
+        find.ancestor(
+          of: find.text('Night Schedule'),
+          matching: find.byKey(
+            const ValueKey<String>('onboarding-more-appearance-options'),
+          ),
+        ),
+        findsNothing,
+      );
       expect(AppearanceOptionKind.values.map((kind) => kind.name), <String>[
         'oledForAuto',
         'nightSchedule',

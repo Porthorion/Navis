@@ -696,9 +696,10 @@ class CornerStyleOption extends StatelessWidget {
 
 /// The options that Settings and setup both show, in the order they share.
 ///
-/// Setup lists them all under "More appearance options"; Settings spreads
-/// them over its Theme, Shape & Layout and Now Playing sections but keeps this
-/// relative order, which a test pins.
+/// Setup lists them under "More appearance options" except Night Schedule,
+/// which sits beside Color Style; Settings spreads them over its Theme, Color,
+/// Shape & Layout and Now Playing sections. Both keep this relative order,
+/// which a test pins.
 enum AppearanceOptionKind {
   oledForAuto(SetupHighlight.oledForAuto),
   nightSchedule(SetupHighlight.nightSchedule),

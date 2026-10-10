@@ -840,9 +840,9 @@ target-selection rules.
     [decisions/2026-10-07-colour-styles.md](decisions/2026-10-07-colour-styles.md).
   - Settings › Appearance (`appearance_settings_screen.dart`) has four
     sections under one `AppearanceHeading` (`appearance_layout.dart`):
-    Theme (Theme Mode, Use OLED When Dark in Auto only, Night Schedule),
-    Color (Color Style, Accent Color, then Dynamic Album Color directly under
-    the accent grid, whose note names the switch), Shape & Layout (Flat
+    Theme (Theme Mode, Use OLED When Dark in Auto only),
+    Color (Color Style, Night Schedule, Accent Color, then Dynamic Album Color
+    directly under the accent grid, whose note names the switch), Shape & Layout (Flat
     Surfaces, Corner Style, Artwork Shape with its three selectors, Artwork
     Size, Density, Artist View Mode) and Now Playing (Now Playing Background).
     Home Sections, Page Visibility and Desktop Navigation stay collapsed
@@ -852,7 +852,8 @@ target-selection rules.
   - Settings and setup share the option widgets and one `AppearanceOptionSet`
     (`appearance_options.dart`), whose `AppearanceOptionKind` order (OLED,
     Night Schedule, Flat Surfaces, Corner Style, Density, Now Playing
-    Background) is the relative order in both places. `AppearanceLayout`, an
+    Background) is the relative order in both places; Night Schedule sits under
+    Color in Settings and beside Color Style in setup. `AppearanceLayout`, an
     inherited widget, gives every shared control its left gutter (16 in
     Settings, 0 in setup) so headings and controls share one edge.
 - `navis_tokens.dart`:
@@ -1385,9 +1386,9 @@ markers in a transaction; the integrations settings dump exposes all three.
 
 The look step shows the appearance options through the same callback-driven
 widgets as Settings › Appearance (`settings/presentation/appearance_options.dart`).
-Theme Mode, Color Style and Accent Color are always visible; a "More appearance
-options" group (`SettingsCollapsibleGroup`, children built only while open)
-holds Use OLED When Dark (Auto only), Night Schedule, Flat Surfaces, Corner
+Theme Mode, Color Style, Night Schedule and Accent Color are always visible; a
+"More appearance options" group (`SettingsCollapsibleGroup`, children built
+only while open) holds Use OLED When Dark (Auto only), Flat Surfaces, Corner
 Style, Density and Now Playing Background, in Settings' relative order. It
 starts open when any of them carries a pending tag (OLED only counts in Auto)
 and closed otherwise. The step shows the "Scroll for more" hint like the other
