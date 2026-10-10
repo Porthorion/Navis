@@ -1,9 +1,10 @@
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
 
-/// Persists the timestamp of the last successful update manifest fetch.
+/// Persists update-check timing and the last update announced in Library.
 class UpdateCheckStore {
   new({this._throttle = const Duration(hours: 24), DateTime Function()? now})
     : _now = now ?? DateTime.now;
@@ -12,6 +13,7 @@ class UpdateCheckStore {
 
   final Duration _throttle;
   final DateTime Function() _now;
+  Future<void> _writes = Future<void>.value();
 
   Future<bool> shouldCheck({bool force = false}) async {
     if (force) {
@@ -25,37 +27,50 @@ class UpdateCheckStore {
   }
 
   Future<DateTime?> readLastCheckAt() async {
-    final file = await _stateFile();
-    if (!file.existsSync()) {
-      return null;
-    }
-    try {
-      final decoded = jsonDecode(await file.readAsString());
-      if (decoded is! Map) {
-        return null;
-      }
-      final raw = decoded['lastCheckAt']?.toString();
-      if (raw == null || raw.isEmpty) {
-        return null;
-      }
-      return DateTime.tryParse(raw);
-    } on Object {
-      return null;
-    }
+    final raw = (await _readState())['lastCheckAt'];
+    return raw is String ? DateTime.tryParse(raw) : null;
   }
 
-  Future<void> recordCheck([DateTime? checkedAt]) async {
-    final file = await _stateFile();
-    await file.parent.create(recursive: true);
-    await file.writeAsString(
-      jsonEncode(<String, String>{
-        'lastCheckAt': (checkedAt ?? _now()).toIso8601String(),
-      }),
+  /// Reads the version and build key last announced by a Library pull.
+  Future<String?> readNotifiedVersion() async {
+    final raw = (await _readState())['notifiedVersion'];
+    return raw is String ? raw : null;
+  }
+
+  Future<void> recordCheck([DateTime? checkedAt]) =>
+      _mergeState('lastCheckAt', (checkedAt ?? _now()).toIso8601String());
+
+  /// Records a notice without changing the last manifest-fetch timestamp.
+  Future<void> recordNotifiedVersion(String version) =>
+      _mergeState('notifiedVersion', version);
+
+  Future<void> _mergeState(String key, String value) {
+    final write = _writes.then((_) async {
+      final state = await _readState();
+      state[key] = value;
+      final file = await _stateFile();
+      await file.parent.create(recursive: true);
+      await file.writeAsString(jsonEncode(state));
+    });
+    _writes = write.then<void>(
+      (_) {},
+      onError: (Object error, StackTrace stack) {},
     );
+    return write;
+  }
+
+  Future<Map<String, dynamic>> _readState() async {
+    final file = await _stateFile();
+    try {
+      final decoded = jsonDecode(await file.readAsString());
+      return decoded is Map<String, dynamic> ? decoded : <String, dynamic>{};
+    } on Object {
+      return <String, dynamic>{};
+    }
   }
 
   Future<File> _stateFile() async {
     final dir = await getApplicationSupportDirectory();
-    return File('${dir.path}/$_fileName');
+    return File(p.join(dir.path, _fileName));
   }
 }

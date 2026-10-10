@@ -2910,7 +2910,13 @@ service and `updates.automatic` switches are on. A temporary manual listener
 keeps the auto-disposed provider active until it resolves and closes on
 completion or widget disposal. Home uses its existing update banner; Library
 shows an info notice, “Update available”, with a View action opening the
-existing update dialog. Null and error results are silent. Neither refresh
+existing update dialog, once per available version and build. `UpdateInfo`
+retains the verified manifest version and build in `notificationKey`, so a
+newer dev build sharing a version can show another notice. `UpdateCheckStore`
+reads and merges `lastCheckAt` and `notifiedVersion` in the same JSON file;
+both writers tolerate corrupt state and preserve the other key. Only Library
+notice calls record the key after showing; Home's banner is unchanged.
+Null and error results are silent. Neither refresh
 callback waits for the update check.
 
 - `data/update_repository.dart` — fetches the channel's signed manifest from

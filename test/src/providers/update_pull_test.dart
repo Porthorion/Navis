@@ -29,6 +29,17 @@ class _Sync extends LibrarySyncController {
 
 class _Store extends UpdateCheckStore {
   final forces = <bool>[];
+  String? notifiedVersion;
+  final recordedNotices = <String>[];
+
+  @override
+  Future<String?> readNotifiedVersion() async => notifiedVersion;
+
+  @override
+  Future<void> recordNotifiedVersion(String version) async {
+    notifiedVersion = version;
+    recordedNotices.add(version);
+  }
 
   @override
   Future<bool> shouldCheck({bool force = false}) async {
@@ -78,6 +89,7 @@ void main() {
               ),
               librarySyncControllerProvider.overrideWith(_Sync.new),
               updateServiceProvider.overrideWithValue(UpdateService()),
+              updateCheckStoreProvider.overrideWithValue(store),
               updateRepositoryProvider.overrideWithValue(
                 _Repository(store, result),
               ),
@@ -127,6 +139,95 @@ void main() {
       },
     );
   }
+  testWidgets('Library notice shows once and again for a newer dev build', (
+    tester,
+  ) async {
+    final store = _Store();
+    final notices = AppNoticeController();
+    addTearDown(notices.dispose);
+    var build = 43;
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          appSettingsProvider.overrideWithValue(
+            const AsyncData(AppSettingsModel.defaults()),
+          ),
+          updateCheckStoreProvider.overrideWithValue(store),
+          updateServiceProvider.overrideWithValue(UpdateService()),
+          updateProvider.overrideWith(
+            (ref) async => UpdateInfo(
+              tagName: 'v1.5.0-dev',
+              version: '1.5.0',
+              buildNumber: build,
+              htmlUrl: _update.htmlUrl,
+              delivery: _update.delivery,
+              sha256: null,
+              size: null,
+            ),
+          ),
+        ],
+        child: MaterialApp(
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
+          home: AppNoticeScope(
+            notifier: notices,
+            child: Consumer(
+              builder: (context, ref, _) => TextButton(
+                onPressed: () => checkForUpdatesFromPull(ref, showNotice: true),
+                child: const Text('Pull'),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Pull'));
+    await tester.tap(find.text('Pull'));
+    await tester.pumpAndSettle();
+    expect(notices.notice?.message, 'Update available');
+    expect(store.recordedNotices, ['1.5.0+43']);
+    notices.dismiss();
+    await tester.tap(find.text('Pull'));
+    await tester.pumpAndSettle();
+    expect(notices.notice, isNull);
+    expect(store.recordedNotices, ['1.5.0+43']);
+    build = 44;
+    await tester.tap(find.text('Pull'));
+    await tester.pumpAndSettle();
+    expect(notices.notice?.message, 'Update available');
+    expect(store.recordedNotices, ['1.5.0+43', '1.5.0+44']);
+    notices.dismiss();
+    await tester.pumpWidget(const SizedBox());
+  });
+
+  testWidgets('Home pull does not record a Library notice', (tester) async {
+    final store = _Store();
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          appSettingsProvider.overrideWithValue(
+            const AsyncData(AppSettingsModel.defaults()),
+          ),
+          updateCheckStoreProvider.overrideWithValue(store),
+          updateProvider.overrideWith((ref) async => _update),
+        ],
+        child: MaterialApp(
+          home: Consumer(
+            builder: (context, ref, _) => TextButton(
+              onPressed: () => checkForUpdatesFromPull(ref),
+              child: const Text('Pull'),
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.tap(find.text('Pull'));
+    await tester.pumpAndSettle();
+    expect(store.recordedNotices, isEmpty);
+    await tester.pumpWidget(const SizedBox());
+  });
+
   for (final disabled in ['master', 'updates', 'updates.automatic']) {
     testWidgets('pull respects $disabled switch', (tester) async {
       final store = _Store();
