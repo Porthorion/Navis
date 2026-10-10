@@ -221,7 +221,8 @@ every step is monotonic and Brightness alone never changes the accents. Pure
 black/white roles remain unchanged, including Neutral's white primary for a
 saturated yellow seed.
 
-Schema 101 stores `color_vividness` and `surface_depth`, both zero by default.
+The initial branch proposal stored one brightness value; the v2 addendum below
+redefines the unshipped schema 101 with separate Light and Dark values.
 A nullable Riverpod preview temporarily overrides persisted tuning during
 dragging. Existing theme-cache, caption memo and dedupe keys, and worker
 messages carry both axes; artwork tone windows/chroma caps follow tuning,
@@ -243,3 +244,29 @@ The ruler stops growing at 480 dp so its steppers stay beside the strip on wide
 pages. Dark and OLED Pastel accents sit at the gamut ceiling for some hues, so
 the Vivid half of the Color scale can show little change there; the strip
 reports the real result rather than exaggerating it.
+
+### Fine-Tune Colors v2 and Looks (2026-10-10)
+
+Owner decision: keep intensity shared, separate Light brightness from
+Dark/OLED brightness, and move the rulers into a panel in the subsequent UI
+pass. `ColorTuning` resolves into the unchanged rendering adjustment; theme,
+worker and caption caches keep their existing resolved keys. Schema 101 was
+never shipped and is redefined, rather than adding schema 102.
+
+There are two independent preset libraries using the existing playback JSON
+TEXT and targeted-writer pattern. Tuning presets contain only intensity and
+Light/Dark brightness, with a derived Default. Looks capture the complete
+appearance, including tuning values and its optional preset id; content and
+navigation organization (Home Sections, Page Visibility, Desktop Navbar)
+stays independent. The capture also includes language, custom accent swatches,
+Home recommendation auto-advance and the legacy grid-column setting found in
+Appearance. The full field contract lives in `docs/architecture.md`.
+
+Applying a Look writes supplied columns in one transaction. Missing, unknown
+or invalid fields preserve current values, so partial snapshots survive
+schema evolution. A still-existing tuning reference uses its current values;
+a deleted reference falls back to captured values. Look selection compares
+current values against saved snapshots while ignoring reference metadata.
+Reset keeps both libraries. Shared name validation preserves playback rules
+and reserves Default for appearance presets. Settings' tuning swatches read
+the effective scheduled style; setup remains an explicit draft preview.

@@ -11,6 +11,7 @@ import 'package:navis/src/features/settings/domain/navis_density.dart';
 import 'package:navis/src/features/settings/domain/now_playing_background.dart';
 import 'package:navis/src/routing/content_layout.dart';
 import 'package:navis/src/theme/color_adjustment.dart';
+import 'package:navis/src/features/settings/domain/appearance_presets.dart';
 import 'package:navis/src/theme/navis_corner_style.dart';
 
 class SettingsRepository {
@@ -60,7 +61,8 @@ class SettingsRepository {
       flatSurfaces: settings.flatSurfaces,
       flatAreas: settings.flatAreas.bits,
       colorVividness: settings.colorVividness,
-      surfaceDepth: settings.surfaceDepth,
+      surfaceDepthLight: settings.surfaceDepthLight,
+      surfaceDepthDark: settings.surfaceDepthDark,
       albumArtShade: settings.albumArtShade,
       albumArtColoredShade: settings.albumArtColoredShade,
       colorSchemeSeed: settings.colorSchemeSeed,
@@ -127,17 +129,20 @@ class SettingsRepository {
       await _dao.updateFlatSurfaces(enabled: draft.flatSurfaces);
     }
     if (draft.colorVividness != initial.colorVividness ||
-        draft.surfaceDepth != initial.surfaceDepth) {
-      // Preserve concurrent changes to the axis the setup draft did not edit.
-      final current = await _dao.getSettings();
-      await _dao.updateColorAdjustment(
-        ColorAdjustment(
+        draft.surfaceDepthLight != initial.surfaceDepthLight ||
+        draft.surfaceDepthDark != initial.surfaceDepthDark) {
+      final current = await getSettings();
+      await _dao.updateColorTuning(
+        ColorTuning(
           vividness: draft.colorVividness != initial.colorVividness
               ? draft.colorVividness
-              : current?.colorVividness ?? 0,
-          depth: draft.surfaceDepth != initial.surfaceDepth
-              ? draft.surfaceDepth
-              : current?.surfaceDepth ?? 0,
+              : current.colorVividness,
+          lightDepth: draft.surfaceDepthLight != initial.surfaceDepthLight
+              ? draft.surfaceDepthLight
+              : current.surfaceDepthLight,
+          darkDepth: draft.surfaceDepthDark != initial.surfaceDepthDark
+              ? draft.surfaceDepthDark
+              : current.surfaceDepthDark,
         ),
       );
     }
@@ -351,7 +356,13 @@ class SettingsRepository {
       flatSurfaces: row.flatSurfaces,
       flatAreas: FlatAreas.fromBits(row.flatAreas),
       colorVividness: row.colorVividness,
-      surfaceDepth: row.surfaceDepth,
+      surfaceDepthLight: row.surfaceDepthLight,
+      surfaceDepthDark: row.surfaceDepthDark,
+      colorTuningPresets: decodeColorTuningPresets(row.colorTuningPresets),
+      selectedColorTuningPresetId: row.selectedColorTuningPresetId,
+      appearanceLooks: decodeAppearanceLooks(row.appearanceLooks),
+      selectedAppearanceLookId: row.selectedAppearanceLookId,
+      customColorPresets: decodeAccentSeeds(row.customColorPresets),
       albumArtShade: row.albumArtShade,
       albumArtColoredShade: row.albumArtColoredShade,
       colorSchemeSeed: row.colorSchemeSeed,

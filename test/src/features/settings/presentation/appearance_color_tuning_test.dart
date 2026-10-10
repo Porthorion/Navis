@@ -1,3 +1,5 @@
+import 'package:navis/src/features/settings/presentation/color_tuning_option.dart';
+import 'package:navis/src/theme/navis_color_style.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_riverpod/misc.dart' show Override;
 import 'package:flutter_test/flutter_test.dart';
@@ -32,6 +34,7 @@ void main() {
   Future<void> pumpScreen(
     WidgetTester tester, {
     Set<SetupHighlight> highlights = const <SetupHighlight>{},
+    NavisColorStyle? effectiveStyle,
   }) async {
     tester.view
       ..physicalSize = const Size(800, 1300)
@@ -44,6 +47,9 @@ void main() {
         database,
         overrides: <Override>[
           pendingSetupHighlightsProvider.overrideWithValue(highlights),
+          if (effectiveStyle != null)
+            effectiveColorStyleProvider.overrideWithValue(effectiveStyle),
+          nowProvider.overrideWithValue(() => DateTime(2026, 10, 10, 23)),
           setupHighlightsServiceProvider.overrideWith(
             (ref) => SetupHighlightsService(
               () async {},
@@ -76,6 +82,7 @@ void main() {
     await tester.pump(const Duration(milliseconds: 500));
   }
 
+  // Flush Drift's invalidations in the fake async zone between real writes.
   Future<void> settleWrites(WidgetTester tester) async {
     await tester.runAsync(() => Future<void>.delayed(Duration.zero));
     await tester.pump();
@@ -97,9 +104,9 @@ void main() {
   testWidgets('a drag recolours the app live, release saves it, then the '
       'preview hands over to the saved value', (tester) async {
     await pumpScreen(tester);
-    final seenPreviews = <ColorAdjustment?>[];
+    final seenPreviews = <ColorTuning?>[];
     container.listen(
-      colorAdjustmentPreviewProvider,
+      colorTuningPreviewProvider,
       (_, next) => seenPreviews.add(next),
     );
 
@@ -110,15 +117,15 @@ void main() {
       await gesture.moveBy(const Offset(-16, 0));
       await tester.pump();
     }
-    final live = container.read(effectiveColorAdjustmentProvider);
+    final live = container.read(effectiveColorTuningProvider);
     expect(live.vividness, greaterThanOrEqualTo(3));
-    expect(live.depth, 0);
+    expect(live.darkDepth, 0);
     expect(
-      container.read(colorAdjustmentProvider),
-      ColorAdjustment.none,
+      container.read(colorTuningProvider),
+      ColorTuning.none,
       reason: 'nothing is saved mid-drag',
     );
-    final steps = seenPreviews.whereType<ColorAdjustment>().toList();
+    final steps = seenPreviews.whereType<ColorTuning>().toList();
     expect(steps.map((p) => p.vividness), [
       for (var v = 1; v <= live.vividness; v++) v,
     ]);
@@ -129,10 +136,10 @@ void main() {
 
     final row = await tester.runAsync(database.appSettingsDao.getSettings);
     expect(row?.colorVividness, live.vividness);
-    expect(row?.surfaceDepth, 0);
-    expect(container.read(colorAdjustmentProvider), live);
-    expect(container.read(colorAdjustmentPreviewProvider), isNull);
-    expect(container.read(effectiveColorAdjustmentProvider), live);
+    expect(row?.surfaceDepthDark, 0);
+    expect(container.read(colorTuningProvider), live);
+    expect(container.read(colorTuningPreviewProvider), isNull);
+    expect(container.read(effectiveColorTuningProvider), live);
     expect(seenPreviews.last, isNull);
   });
 
@@ -146,19 +153,80 @@ void main() {
     await tester.pumpAndSettle();
     await settleWrites(tester);
     expect(
-      container.read(colorAdjustmentProvider),
-      const ColorAdjustment(depth: 1),
+      container.read(colorTuningProvider),
+      const ColorTuning(darkDepth: 1),
     );
-    expect(container.read(colorAdjustmentPreviewProvider), isNull);
+    expect(container.read(colorTuningPreviewProvider), isNull);
     expect(key('reset'), findsOneWidget);
 
     await tester.tap(key('reset'));
     await tester.pumpAndSettle();
     await settleWrites(tester);
-    expect(container.read(colorAdjustmentProvider), ColorAdjustment.none);
-    expect(container.read(colorAdjustmentPreviewProvider), isNull);
+    expect(container.read(colorTuningProvider), ColorTuning.none);
+    expect(container.read(colorTuningPreviewProvider), isNull);
     expect(key('reset'), findsNothing);
   });
+
+  testWidgets(
+    'Fine-Tune band uses the active Night style during the schedule',
+    (tester) async {
+      // The schedule provider's boundary timer is covered separately; simulate
+      // its active style while exercising the real caller and saved settings.
+      await pumpScreen(tester, effectiveStyle: NavisColorStyle.night);
+      await tester.runAsync(
+        () => database.appSettingsDao.updateColorStyle('pastel'),
+      );
+      await settleWrites(tester);
+      await tester.runAsync(
+        () => database.appSettingsDao.updateNightSchedule(
+          enabled: true,
+          startMinutes: 1320,
+          endMinutes: 420,
+        ),
+      );
+      await settleWrites(tester);
+      expect(container.read(colorStyleProvider), NavisColorStyle.pastel);
+      expect(
+        tester.widget<ColorTuningOption>(find.byType(ColorTuningOption)).style,
+        NavisColorStyle.night,
+      );
+    },
+  );
+
+  testWidgets(
+    'Light edits retain Dark/OLED brightness and mode switches resolve it',
+    (tester) async {
+      await pumpScreen(tester);
+      await tester.runAsync(
+        () => database.appSettingsDao.updateColorTuning(
+          const ColorTuning(darkDepth: 3),
+        ),
+      );
+      await settleWrites(tester);
+      await tester.runAsync(
+        () => database.appSettingsDao.updateThemeMode('light'),
+      );
+      await settleWrites(tester);
+      await tester.tap(key('brightness-plus'));
+      await tester.pumpAndSettle();
+      await settleWrites(tester);
+      final tuning = container.read(colorTuningProvider);
+      expect(tuning, const ColorTuning(lightDepth: 1, darkDepth: 3));
+      for (final mode in ['dark', 'oled']) {
+        await tester.runAsync(
+          () => database.appSettingsDao.updateThemeMode(mode),
+        );
+        await settleWrites(tester);
+        expect(
+          tester
+              .widget<ColorTuningOption>(find.byType(ColorTuningOption))
+              .value
+              .depth,
+          3,
+        );
+      }
+    },
+  );
 
   testWidgets('shows its New tag and clears it through the seen mechanism', (
     tester,
@@ -189,11 +257,11 @@ void main() {
       await gesture.moveBy(const Offset(-20, 0));
       await tester.pump();
     }
-    expect(container.read(colorAdjustmentPreviewProvider), isNotNull);
+    expect(container.read(colorTuningPreviewProvider), isNotNull);
 
     await tester.pumpWidget(const SizedBox());
     await tester.pump();
-    expect(container.read(colorAdjustmentPreviewProvider), isNull);
+    expect(container.read(colorTuningPreviewProvider), isNull);
     await gesture.up();
   });
 }

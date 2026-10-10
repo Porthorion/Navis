@@ -32,3 +32,40 @@ class ColorAdjustment {
   @override
   int get hashCode => Object.hash(vividness, depth);
 }
+
+/// Persisted tuning with independent Light and Dark/OLED brightness.
+@immutable
+class ColorTuning {
+  const new({int vividness = 0, int lightDepth = 0, int darkDepth = 0})
+    : vividness = vividness < -5 ? -5 : (vividness > 5 ? 5 : vividness),
+      lightDepth = lightDepth < -5 ? -5 : (lightDepth > 5 ? 5 : lightDepth),
+      darkDepth = darkDepth < -5 ? -5 : (darkDepth > 5 ? 5 : darkDepth);
+
+  static const none = ColorTuning();
+  final int vividness;
+  final int lightDepth;
+  final int darkDepth;
+
+  ColorAdjustment forMode({required bool dark}) => ColorAdjustment(
+    vividness: vividness,
+    depth: dark ? darkDepth : lightDepth,
+  );
+
+  ColorTuning withAdjustment(
+    ColorAdjustment adjustment, {
+    required bool dark,
+  }) => ColorTuning(
+    vividness: adjustment.vividness,
+    lightDepth: dark ? lightDepth : adjustment.depth,
+    darkDepth: dark ? adjustment.depth : darkDepth,
+  );
+
+  @override
+  bool operator ==(Object other) =>
+      other is ColorTuning &&
+      other.vividness == vividness &&
+      other.lightDepth == lightDepth &&
+      other.darkDepth == darkDepth;
+  @override
+  int get hashCode => Object.hash(vividness, lightDepth, darkDepth);
+}

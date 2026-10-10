@@ -14,11 +14,8 @@ void main() {
         overrides: [appSettingsProvider.overrideWithValue(settings)],
       );
       addTearDown(container.dispose);
-      expect(container.read(colorAdjustmentProvider), ColorAdjustment.none);
-      expect(
-        container.read(effectiveColorAdjustmentProvider),
-        ColorAdjustment.none,
-      );
+      expect(container.read(colorTuningProvider), ColorTuning.none);
+      expect(container.read(effectiveColorTuningProvider), ColorTuning.none);
     });
   }
   test(
@@ -30,23 +27,23 @@ void main() {
             AsyncData(
               const AppSettingsModel.defaults().copyWith(
                 colorVividness: -3,
-                surfaceDepth: 4,
+                surfaceDepthLight: 4,
               ),
             ),
           ),
         ],
       );
       addTearDown(container.dispose);
-      const saved = ColorAdjustment(vividness: -3, depth: 4);
-      const preview = ColorAdjustment(vividness: 5, depth: -5);
-      expect(container.read(colorAdjustmentProvider), saved);
-      final notifier = container.read(colorAdjustmentPreviewProvider.notifier);
+      const saved = ColorTuning(vividness: -3, lightDepth: 4);
+      const preview = ColorTuning(vividness: 5, lightDepth: -5);
+      expect(container.read(colorTuningProvider), saved);
+      final notifier = container.read(colorTuningPreviewProvider.notifier);
       notifier.preview(preview);
-      expect(container.read(colorAdjustmentProvider), saved);
-      expect(container.read(effectiveColorAdjustmentProvider), preview);
+      expect(container.read(colorTuningProvider), saved);
+      expect(container.read(effectiveColorTuningProvider), preview);
       notifier.clear();
-      expect(container.read(colorAdjustmentPreviewProvider), isNull);
-      expect(container.read(effectiveColorAdjustmentProvider), saved);
+      expect(container.read(colorTuningPreviewProvider), isNull);
+      expect(container.read(effectiveColorTuningProvider), saved);
     },
   );
 }

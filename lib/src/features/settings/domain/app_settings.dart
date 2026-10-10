@@ -1,4 +1,6 @@
 import 'package:flutter/foundation.dart';
+import 'package:navis/src/theme/color_adjustment.dart';
+import 'package:navis/src/features/settings/domain/appearance_presets.dart';
 import 'package:navis/src/features/settings/domain/flat_areas.dart';
 import 'package:navis/src/features/settings/domain/night_schedule.dart';
 import 'package:navis/src/database/daos/app_settings_dao.dart';
@@ -53,7 +55,13 @@ class AppSettingsModel {
     this.flatSurfaces = false,
     this.flatAreas = const FlatAreas(),
     this.colorVividness = 0,
-    this.surfaceDepth = 0,
+    this.surfaceDepthDark = 0,
+    this.colorTuningPresets = const [],
+    this.selectedColorTuningPresetId,
+    this.appearanceLooks = const [],
+    this.selectedAppearanceLookId,
+    this.customColorPresets = const [],
+    this.surfaceDepthLight = 0,
     this.albumArtShade = false,
     this.albumArtColoredShade = false,
     required this.colorSchemeSeed,
@@ -138,7 +146,13 @@ class AppSettingsModel {
       flatSurfaces = false,
       flatAreas = const FlatAreas(),
       colorVividness = 0,
-      surfaceDepth = 0,
+      surfaceDepthDark = 0,
+      colorTuningPresets = const [],
+      selectedColorTuningPresetId = null,
+      appearanceLooks = const [],
+      selectedAppearanceLookId = null,
+      customColorPresets = const [],
+      surfaceDepthLight = 0,
       albumArtShade = false,
       albumArtColoredShade = false,
       colorSchemeSeed = null,
@@ -223,7 +237,19 @@ class AppSettingsModel {
   final bool flatSurfaces;
   final FlatAreas flatAreas;
   final int colorVividness;
-  final int surfaceDepth;
+  final int surfaceDepthDark;
+  final List<ColorTuningPreset> colorTuningPresets;
+  final String? selectedColorTuningPresetId;
+  final List<AppearanceLook> appearanceLooks;
+  final String? selectedAppearanceLookId;
+  final List<int> customColorPresets;
+  final int surfaceDepthLight;
+  ColorTuning get colorTuning => ColorTuning(
+    vividness: colorVividness,
+    lightDepth: surfaceDepthLight,
+    darkDepth: surfaceDepthDark,
+  );
+
   final bool albumArtShade;
   final bool albumArtColoredShade;
   final int? colorSchemeSeed;
@@ -390,7 +416,15 @@ class AppSettingsModel {
     bool? flatSurfaces,
     FlatAreas? flatAreas,
     int? colorVividness,
-    int? surfaceDepth,
+    int? surfaceDepthDark,
+    List<ColorTuningPreset>? colorTuningPresets,
+    String? selectedColorTuningPresetId,
+    bool clearSelectedColorTuningPresetId = false,
+    List<AppearanceLook>? appearanceLooks,
+    String? selectedAppearanceLookId,
+    bool clearSelectedAppearanceLookId = false,
+    List<int>? customColorPresets,
+    int? surfaceDepthLight,
     bool? albumArtShade,
     bool? albumArtColoredShade,
     int? colorSchemeSeed,
@@ -503,7 +537,17 @@ class AppSettingsModel {
       flatSurfaces: flatSurfaces ?? this.flatSurfaces,
       flatAreas: flatAreas ?? this.flatAreas,
       colorVividness: colorVividness ?? this.colorVividness,
-      surfaceDepth: surfaceDepth ?? this.surfaceDepth,
+      surfaceDepthDark: surfaceDepthDark ?? this.surfaceDepthDark,
+      colorTuningPresets: colorTuningPresets ?? this.colorTuningPresets,
+      selectedColorTuningPresetId: clearSelectedColorTuningPresetId
+          ? null
+          : selectedColorTuningPresetId ?? this.selectedColorTuningPresetId,
+      appearanceLooks: appearanceLooks ?? this.appearanceLooks,
+      selectedAppearanceLookId: clearSelectedAppearanceLookId
+          ? null
+          : selectedAppearanceLookId ?? this.selectedAppearanceLookId,
+      customColorPresets: customColorPresets ?? this.customColorPresets,
+      surfaceDepthLight: surfaceDepthLight ?? this.surfaceDepthLight,
       albumArtShade: albumArtShade ?? this.albumArtShade,
       albumArtColoredShade: albumArtColoredShade ?? this.albumArtColoredShade,
       colorSchemeSeed: clearColorSchemeSeed

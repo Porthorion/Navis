@@ -394,20 +394,49 @@ void main() {
       expect(find.text('+2'), findsWidgets);
       var row = await h.row();
       expect(row.colorVividness, 0);
-      expect(row.surfaceDepth, 0);
+      expect(row.surfaceDepthDark, 0);
 
       await h.finish();
       row = await h.row();
       expect(row.colorVividness, 2);
-      expect(row.surfaceDepth, 1);
+      expect(row.surfaceDepthDark, 1);
     });
+
+    for (final mode in ['light', 'dark', 'oled']) {
+      testWidgets('$mode drafts only its own brightness', (tester) async {
+        final h = await _pump(
+          tester,
+          seed: (dao) async {
+            await dao.updateThemeMode(mode);
+            await dao.updateColorTuning(
+              const ColorTuning(lightDepth: -2, darkDepth: 3),
+            );
+          },
+        );
+        await h.tap(plus('brightness'));
+        final beforeFinish = await h.row();
+        expect(beforeFinish.surfaceDepthLight, -2);
+        expect(beforeFinish.surfaceDepthDark, 3);
+        final adjustment = ColorAdjustment(depth: mode == 'light' ? -1 : 4);
+        final seed = resolveColorSchemeSeedColor(null);
+        final expected = switch (mode) {
+          'light' => buildLightTheme(seed, adjustment: adjustment),
+          'oled' => buildOledTheme(seed, adjustment: adjustment),
+          _ => buildDarkTheme(seed, adjustment: adjustment),
+        };
+        expect(h.previewTheme.colorScheme, expected.colorScheme);
+        await h.finish();
+        final saved = await h.row();
+        expect(saved.surfaceDepthLight, mode == 'light' ? -1 : -2);
+        expect(saved.surfaceDepthDark, mode == 'light' ? 3 : 4);
+      });
+    }
 
     testWidgets('Reset returns both axes to Default', (tester) async {
       final h = await _pump(
         tester,
-        seed: (d) => d.updateColorAdjustment(
-          const ColorAdjustment(vividness: -3, depth: 4),
-        ),
+        seed: (d) =>
+            d.updateColorTuning(const ColorTuning(vividness: -3, darkDepth: 4)),
       );
       expect(reset(), findsOneWidget);
 
@@ -419,7 +448,7 @@ void main() {
       await h.finish();
       final row = await h.row();
       expect(row.colorVividness, 0);
-      expect(row.surfaceDepth, 0);
+      expect(row.surfaceDepthDark, 0);
     });
   });
 
@@ -659,6 +688,7 @@ void main() {
       );
     });
 
+    // Temporary: Looks has a registry entry; its visible control lands in the UI pass.
     testWidgets('tagged options mark themselves seen once shown', (
       tester,
     ) async {
@@ -670,8 +700,13 @@ void main() {
         },
       );
 
-      expect(_shownOptions.toSet(), SetupHighlight.values.toSet());
-      expect(_shownOptions, hasLength(SetupHighlight.values.length));
+      expect(
+        _shownOptions.toSet(),
+        SetupHighlight.values
+            .where((h) => h != SetupHighlight.appearanceLooks)
+            .toSet(),
+      );
+      expect(_shownOptions, hasLength(SetupHighlight.values.length - 1));
     });
 
     testWidgets('the hidden OLED and Flat area options are not marked seen', (
@@ -682,7 +717,7 @@ void main() {
       expect(_shownOptions, isNot(contains(SetupHighlight.oledForAuto)));
       expect(_shownOptions, isNot(contains(SetupHighlight.flatAreas)));
       expect(_shownOptions, contains(SetupHighlight.colorTuning));
-      expect(_shownOptions, hasLength(SetupHighlight.values.length - 2));
+      expect(_shownOptions, hasLength(SetupHighlight.values.length - 3));
     });
 
     testWidgets(

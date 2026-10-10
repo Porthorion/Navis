@@ -1043,18 +1043,76 @@ class $AppSettingsTableTable extends AppSettingsTable
     requiredDuringInsert: false,
     defaultValue: const Constant(0),
   );
-  static const VerificationMeta _surfaceDepthMeta = const VerificationMeta(
-    'surfaceDepth',
+  static const VerificationMeta _surfaceDepthLightMeta = const VerificationMeta(
+    'surfaceDepthLight',
   );
   @override
-  late final GeneratedColumn<int> surfaceDepth = GeneratedColumn<int>(
-    'surface_depth',
+  late final GeneratedColumn<int> surfaceDepthLight = GeneratedColumn<int>(
+    'surface_depth_light',
     aliasedName,
     false,
     type: DriftSqlType.int,
     requiredDuringInsert: false,
     defaultValue: const Constant(0),
   );
+  static const VerificationMeta _surfaceDepthDarkMeta = const VerificationMeta(
+    'surfaceDepthDark',
+  );
+  @override
+  late final GeneratedColumn<int> surfaceDepthDark = GeneratedColumn<int>(
+    'surface_depth_dark',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(0),
+  );
+  static const VerificationMeta _colorTuningPresetsMeta =
+      const VerificationMeta('colorTuningPresets');
+  @override
+  late final GeneratedColumn<String> colorTuningPresets =
+      GeneratedColumn<String>(
+        'color_tuning_presets',
+        aliasedName,
+        false,
+        type: DriftSqlType.string,
+        requiredDuringInsert: false,
+        defaultValue: const Constant('[]'),
+      );
+  static const VerificationMeta _selectedColorTuningPresetIdMeta =
+      const VerificationMeta('selectedColorTuningPresetId');
+  @override
+  late final GeneratedColumn<String> selectedColorTuningPresetId =
+      GeneratedColumn<String>(
+        'selected_color_tuning_preset_id',
+        aliasedName,
+        true,
+        type: DriftSqlType.string,
+        requiredDuringInsert: false,
+      );
+  static const VerificationMeta _appearanceLooksMeta = const VerificationMeta(
+    'appearanceLooks',
+  );
+  @override
+  late final GeneratedColumn<String> appearanceLooks = GeneratedColumn<String>(
+    'appearance_looks',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant('[]'),
+  );
+  static const VerificationMeta _selectedAppearanceLookIdMeta =
+      const VerificationMeta('selectedAppearanceLookId');
+  @override
+  late final GeneratedColumn<String> selectedAppearanceLookId =
+      GeneratedColumn<String>(
+        'selected_appearance_look_id',
+        aliasedName,
+        true,
+        type: DriftSqlType.string,
+        requiredDuringInsert: false,
+      );
   static const VerificationMeta _flatAreasMeta = const VerificationMeta(
     'flatAreas',
   );
@@ -1931,7 +1989,12 @@ class $AppSettingsTableTable extends AppSettingsTable
     nightScheduleEndMinutes,
     flatSurfaces,
     colorVividness,
-    surfaceDepth,
+    surfaceDepthLight,
+    surfaceDepthDark,
+    colorTuningPresets,
+    selectedColorTuningPresetId,
+    appearanceLooks,
+    selectedAppearanceLookId,
     flatAreas,
     albumArtShade,
     albumArtColoredShade,
@@ -2311,12 +2374,57 @@ class $AppSettingsTableTable extends AppSettingsTable
         ),
       );
     }
-    if (data.containsKey('surface_depth')) {
+    if (data.containsKey('surface_depth_light')) {
       context.handle(
-        _surfaceDepthMeta,
-        surfaceDepth.isAcceptableOrUnknown(
-          data['surface_depth']!,
-          _surfaceDepthMeta,
+        _surfaceDepthLightMeta,
+        surfaceDepthLight.isAcceptableOrUnknown(
+          data['surface_depth_light']!,
+          _surfaceDepthLightMeta,
+        ),
+      );
+    }
+    if (data.containsKey('surface_depth_dark')) {
+      context.handle(
+        _surfaceDepthDarkMeta,
+        surfaceDepthDark.isAcceptableOrUnknown(
+          data['surface_depth_dark']!,
+          _surfaceDepthDarkMeta,
+        ),
+      );
+    }
+    if (data.containsKey('color_tuning_presets')) {
+      context.handle(
+        _colorTuningPresetsMeta,
+        colorTuningPresets.isAcceptableOrUnknown(
+          data['color_tuning_presets']!,
+          _colorTuningPresetsMeta,
+        ),
+      );
+    }
+    if (data.containsKey('selected_color_tuning_preset_id')) {
+      context.handle(
+        _selectedColorTuningPresetIdMeta,
+        selectedColorTuningPresetId.isAcceptableOrUnknown(
+          data['selected_color_tuning_preset_id']!,
+          _selectedColorTuningPresetIdMeta,
+        ),
+      );
+    }
+    if (data.containsKey('appearance_looks')) {
+      context.handle(
+        _appearanceLooksMeta,
+        appearanceLooks.isAcceptableOrUnknown(
+          data['appearance_looks']!,
+          _appearanceLooksMeta,
+        ),
+      );
+    }
+    if (data.containsKey('selected_appearance_look_id')) {
+      context.handle(
+        _selectedAppearanceLookIdMeta,
+        selectedAppearanceLookId.isAcceptableOrUnknown(
+          data['selected_appearance_look_id']!,
+          _selectedAppearanceLookIdMeta,
         ),
       );
     }
@@ -3053,10 +3161,30 @@ class $AppSettingsTableTable extends AppSettingsTable
         DriftSqlType.int,
         data['${effectivePrefix}color_vividness'],
       )!,
-      surfaceDepth: attachedDatabase.typeMapping.read(
+      surfaceDepthLight: attachedDatabase.typeMapping.read(
         DriftSqlType.int,
-        data['${effectivePrefix}surface_depth'],
+        data['${effectivePrefix}surface_depth_light'],
       )!,
+      surfaceDepthDark: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}surface_depth_dark'],
+      )!,
+      colorTuningPresets: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}color_tuning_presets'],
+      )!,
+      selectedColorTuningPresetId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}selected_color_tuning_preset_id'],
+      ),
+      appearanceLooks: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}appearance_looks'],
+      )!,
+      selectedAppearanceLookId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}selected_appearance_look_id'],
+      ),
       flatAreas: attachedDatabase.typeMapping.read(
         DriftSqlType.int,
         data['${effectivePrefix}flat_areas'],
@@ -3414,7 +3542,12 @@ class AppSettingsTableData extends DataClass
   /// Disables surface glows, gradients and shadows when rendered.
   final bool flatSurfaces;
   final int colorVividness;
-  final int surfaceDepth;
+  final int surfaceDepthLight;
+  final int surfaceDepthDark;
+  final String colorTuningPresets;
+  final String? selectedColorTuningPresetId;
+  final String appearanceLooks;
+  final String? selectedAppearanceLookId;
   final int flatAreas;
   final bool albumArtShade;
   final bool albumArtColoredShade;
@@ -3653,7 +3786,12 @@ class AppSettingsTableData extends DataClass
     required this.nightScheduleEndMinutes,
     required this.flatSurfaces,
     required this.colorVividness,
-    required this.surfaceDepth,
+    required this.surfaceDepthLight,
+    required this.surfaceDepthDark,
+    required this.colorTuningPresets,
+    this.selectedColorTuningPresetId,
+    required this.appearanceLooks,
+    this.selectedAppearanceLookId,
     required this.flatAreas,
     required this.albumArtShade,
     required this.albumArtColoredShade,
@@ -3779,7 +3917,20 @@ class AppSettingsTableData extends DataClass
     map['night_schedule_end_minutes'] = Variable<int>(nightScheduleEndMinutes);
     map['flat_surfaces'] = Variable<bool>(flatSurfaces);
     map['color_vividness'] = Variable<int>(colorVividness);
-    map['surface_depth'] = Variable<int>(surfaceDepth);
+    map['surface_depth_light'] = Variable<int>(surfaceDepthLight);
+    map['surface_depth_dark'] = Variable<int>(surfaceDepthDark);
+    map['color_tuning_presets'] = Variable<String>(colorTuningPresets);
+    if (!nullToAbsent || selectedColorTuningPresetId != null) {
+      map['selected_color_tuning_preset_id'] = Variable<String>(
+        selectedColorTuningPresetId,
+      );
+    }
+    map['appearance_looks'] = Variable<String>(appearanceLooks);
+    if (!nullToAbsent || selectedAppearanceLookId != null) {
+      map['selected_appearance_look_id'] = Variable<String>(
+        selectedAppearanceLookId,
+      );
+    }
     map['flat_areas'] = Variable<int>(flatAreas);
     map['album_art_shade'] = Variable<bool>(albumArtShade);
     map['album_art_colored_shade'] = Variable<bool>(albumArtColoredShade);
@@ -3954,7 +4105,17 @@ class AppSettingsTableData extends DataClass
       nightScheduleEndMinutes: Value(nightScheduleEndMinutes),
       flatSurfaces: Value(flatSurfaces),
       colorVividness: Value(colorVividness),
-      surfaceDepth: Value(surfaceDepth),
+      surfaceDepthLight: Value(surfaceDepthLight),
+      surfaceDepthDark: Value(surfaceDepthDark),
+      colorTuningPresets: Value(colorTuningPresets),
+      selectedColorTuningPresetId:
+          selectedColorTuningPresetId == null && nullToAbsent
+          ? const Value.absent()
+          : Value(selectedColorTuningPresetId),
+      appearanceLooks: Value(appearanceLooks),
+      selectedAppearanceLookId: selectedAppearanceLookId == null && nullToAbsent
+          ? const Value.absent()
+          : Value(selectedAppearanceLookId),
       flatAreas: Value(flatAreas),
       albumArtShade: Value(albumArtShade),
       albumArtColoredShade: Value(albumArtColoredShade),
@@ -4125,7 +4286,18 @@ class AppSettingsTableData extends DataClass
       ),
       flatSurfaces: serializer.fromJson<bool>(json['flatSurfaces']),
       colorVividness: serializer.fromJson<int>(json['colorVividness']),
-      surfaceDepth: serializer.fromJson<int>(json['surfaceDepth']),
+      surfaceDepthLight: serializer.fromJson<int>(json['surfaceDepthLight']),
+      surfaceDepthDark: serializer.fromJson<int>(json['surfaceDepthDark']),
+      colorTuningPresets: serializer.fromJson<String>(
+        json['colorTuningPresets'],
+      ),
+      selectedColorTuningPresetId: serializer.fromJson<String?>(
+        json['selectedColorTuningPresetId'],
+      ),
+      appearanceLooks: serializer.fromJson<String>(json['appearanceLooks']),
+      selectedAppearanceLookId: serializer.fromJson<String?>(
+        json['selectedAppearanceLookId'],
+      ),
       flatAreas: serializer.fromJson<int>(json['flatAreas']),
       albumArtShade: serializer.fromJson<bool>(json['albumArtShade']),
       albumArtColoredShade: serializer.fromJson<bool>(
@@ -4319,7 +4491,16 @@ class AppSettingsTableData extends DataClass
       ),
       'flatSurfaces': serializer.toJson<bool>(flatSurfaces),
       'colorVividness': serializer.toJson<int>(colorVividness),
-      'surfaceDepth': serializer.toJson<int>(surfaceDepth),
+      'surfaceDepthLight': serializer.toJson<int>(surfaceDepthLight),
+      'surfaceDepthDark': serializer.toJson<int>(surfaceDepthDark),
+      'colorTuningPresets': serializer.toJson<String>(colorTuningPresets),
+      'selectedColorTuningPresetId': serializer.toJson<String?>(
+        selectedColorTuningPresetId,
+      ),
+      'appearanceLooks': serializer.toJson<String>(appearanceLooks),
+      'selectedAppearanceLookId': serializer.toJson<String?>(
+        selectedAppearanceLookId,
+      ),
       'flatAreas': serializer.toJson<int>(flatAreas),
       'albumArtShade': serializer.toJson<bool>(albumArtShade),
       'albumArtColoredShade': serializer.toJson<bool>(albumArtColoredShade),
@@ -4459,7 +4640,12 @@ class AppSettingsTableData extends DataClass
     int? nightScheduleEndMinutes,
     bool? flatSurfaces,
     int? colorVividness,
-    int? surfaceDepth,
+    int? surfaceDepthLight,
+    int? surfaceDepthDark,
+    String? colorTuningPresets,
+    Value<String?> selectedColorTuningPresetId = const Value.absent(),
+    String? appearanceLooks,
+    Value<String?> selectedAppearanceLookId = const Value.absent(),
     int? flatAreas,
     bool? albumArtShade,
     bool? albumArtColoredShade,
@@ -4577,7 +4763,16 @@ class AppSettingsTableData extends DataClass
         nightScheduleEndMinutes ?? this.nightScheduleEndMinutes,
     flatSurfaces: flatSurfaces ?? this.flatSurfaces,
     colorVividness: colorVividness ?? this.colorVividness,
-    surfaceDepth: surfaceDepth ?? this.surfaceDepth,
+    surfaceDepthLight: surfaceDepthLight ?? this.surfaceDepthLight,
+    surfaceDepthDark: surfaceDepthDark ?? this.surfaceDepthDark,
+    colorTuningPresets: colorTuningPresets ?? this.colorTuningPresets,
+    selectedColorTuningPresetId: selectedColorTuningPresetId.present
+        ? selectedColorTuningPresetId.value
+        : this.selectedColorTuningPresetId,
+    appearanceLooks: appearanceLooks ?? this.appearanceLooks,
+    selectedAppearanceLookId: selectedAppearanceLookId.present
+        ? selectedAppearanceLookId.value
+        : this.selectedAppearanceLookId,
     flatAreas: flatAreas ?? this.flatAreas,
     albumArtShade: albumArtShade ?? this.albumArtShade,
     albumArtColoredShade: albumArtColoredShade ?? this.albumArtColoredShade,
@@ -4795,9 +4990,24 @@ class AppSettingsTableData extends DataClass
       colorVividness: data.colorVividness.present
           ? data.colorVividness.value
           : this.colorVividness,
-      surfaceDepth: data.surfaceDepth.present
-          ? data.surfaceDepth.value
-          : this.surfaceDepth,
+      surfaceDepthLight: data.surfaceDepthLight.present
+          ? data.surfaceDepthLight.value
+          : this.surfaceDepthLight,
+      surfaceDepthDark: data.surfaceDepthDark.present
+          ? data.surfaceDepthDark.value
+          : this.surfaceDepthDark,
+      colorTuningPresets: data.colorTuningPresets.present
+          ? data.colorTuningPresets.value
+          : this.colorTuningPresets,
+      selectedColorTuningPresetId: data.selectedColorTuningPresetId.present
+          ? data.selectedColorTuningPresetId.value
+          : this.selectedColorTuningPresetId,
+      appearanceLooks: data.appearanceLooks.present
+          ? data.appearanceLooks.value
+          : this.appearanceLooks,
+      selectedAppearanceLookId: data.selectedAppearanceLookId.present
+          ? data.selectedAppearanceLookId.value
+          : this.selectedAppearanceLookId,
       flatAreas: data.flatAreas.present ? data.flatAreas.value : this.flatAreas,
       albumArtShade: data.albumArtShade.present
           ? data.albumArtShade.value
@@ -5032,7 +5242,12 @@ class AppSettingsTableData extends DataClass
           ..write('nightScheduleEndMinutes: $nightScheduleEndMinutes, ')
           ..write('flatSurfaces: $flatSurfaces, ')
           ..write('colorVividness: $colorVividness, ')
-          ..write('surfaceDepth: $surfaceDepth, ')
+          ..write('surfaceDepthLight: $surfaceDepthLight, ')
+          ..write('surfaceDepthDark: $surfaceDepthDark, ')
+          ..write('colorTuningPresets: $colorTuningPresets, ')
+          ..write('selectedColorTuningPresetId: $selectedColorTuningPresetId, ')
+          ..write('appearanceLooks: $appearanceLooks, ')
+          ..write('selectedAppearanceLookId: $selectedAppearanceLookId, ')
           ..write('flatAreas: $flatAreas, ')
           ..write('albumArtShade: $albumArtShade, ')
           ..write('albumArtColoredShade: $albumArtColoredShade, ')
@@ -5146,7 +5361,12 @@ class AppSettingsTableData extends DataClass
     nightScheduleEndMinutes,
     flatSurfaces,
     colorVividness,
-    surfaceDepth,
+    surfaceDepthLight,
+    surfaceDepthDark,
+    colorTuningPresets,
+    selectedColorTuningPresetId,
+    appearanceLooks,
+    selectedAppearanceLookId,
     flatAreas,
     albumArtShade,
     albumArtColoredShade,
@@ -5255,7 +5475,13 @@ class AppSettingsTableData extends DataClass
           other.nightScheduleEndMinutes == this.nightScheduleEndMinutes &&
           other.flatSurfaces == this.flatSurfaces &&
           other.colorVividness == this.colorVividness &&
-          other.surfaceDepth == this.surfaceDepth &&
+          other.surfaceDepthLight == this.surfaceDepthLight &&
+          other.surfaceDepthDark == this.surfaceDepthDark &&
+          other.colorTuningPresets == this.colorTuningPresets &&
+          other.selectedColorTuningPresetId ==
+              this.selectedColorTuningPresetId &&
+          other.appearanceLooks == this.appearanceLooks &&
+          other.selectedAppearanceLookId == this.selectedAppearanceLookId &&
           other.flatAreas == this.flatAreas &&
           other.albumArtShade == this.albumArtShade &&
           other.albumArtColoredShade == this.albumArtColoredShade &&
@@ -5366,7 +5592,12 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
   final Value<int> nightScheduleEndMinutes;
   final Value<bool> flatSurfaces;
   final Value<int> colorVividness;
-  final Value<int> surfaceDepth;
+  final Value<int> surfaceDepthLight;
+  final Value<int> surfaceDepthDark;
+  final Value<String> colorTuningPresets;
+  final Value<String?> selectedColorTuningPresetId;
+  final Value<String> appearanceLooks;
+  final Value<String?> selectedAppearanceLookId;
   final Value<int> flatAreas;
   final Value<bool> albumArtShade;
   final Value<bool> albumArtColoredShade;
@@ -5469,7 +5700,12 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
     this.nightScheduleEndMinutes = const Value.absent(),
     this.flatSurfaces = const Value.absent(),
     this.colorVividness = const Value.absent(),
-    this.surfaceDepth = const Value.absent(),
+    this.surfaceDepthLight = const Value.absent(),
+    this.surfaceDepthDark = const Value.absent(),
+    this.colorTuningPresets = const Value.absent(),
+    this.selectedColorTuningPresetId = const Value.absent(),
+    this.appearanceLooks = const Value.absent(),
+    this.selectedAppearanceLookId = const Value.absent(),
     this.flatAreas = const Value.absent(),
     this.albumArtShade = const Value.absent(),
     this.albumArtColoredShade = const Value.absent(),
@@ -5573,7 +5809,12 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
     this.nightScheduleEndMinutes = const Value.absent(),
     this.flatSurfaces = const Value.absent(),
     this.colorVividness = const Value.absent(),
-    this.surfaceDepth = const Value.absent(),
+    this.surfaceDepthLight = const Value.absent(),
+    this.surfaceDepthDark = const Value.absent(),
+    this.colorTuningPresets = const Value.absent(),
+    this.selectedColorTuningPresetId = const Value.absent(),
+    this.appearanceLooks = const Value.absent(),
+    this.selectedAppearanceLookId = const Value.absent(),
     this.flatAreas = const Value.absent(),
     this.albumArtShade = const Value.absent(),
     this.albumArtColoredShade = const Value.absent(),
@@ -5677,7 +5918,12 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
     Expression<int>? nightScheduleEndMinutes,
     Expression<bool>? flatSurfaces,
     Expression<int>? colorVividness,
-    Expression<int>? surfaceDepth,
+    Expression<int>? surfaceDepthLight,
+    Expression<int>? surfaceDepthDark,
+    Expression<String>? colorTuningPresets,
+    Expression<String>? selectedColorTuningPresetId,
+    Expression<String>? appearanceLooks,
+    Expression<String>? selectedAppearanceLookId,
     Expression<int>? flatAreas,
     Expression<bool>? albumArtShade,
     Expression<bool>? albumArtColoredShade,
@@ -5796,7 +6042,15 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
         'night_schedule_end_minutes': nightScheduleEndMinutes,
       if (flatSurfaces != null) 'flat_surfaces': flatSurfaces,
       if (colorVividness != null) 'color_vividness': colorVividness,
-      if (surfaceDepth != null) 'surface_depth': surfaceDepth,
+      if (surfaceDepthLight != null) 'surface_depth_light': surfaceDepthLight,
+      if (surfaceDepthDark != null) 'surface_depth_dark': surfaceDepthDark,
+      if (colorTuningPresets != null)
+        'color_tuning_presets': colorTuningPresets,
+      if (selectedColorTuningPresetId != null)
+        'selected_color_tuning_preset_id': selectedColorTuningPresetId,
+      if (appearanceLooks != null) 'appearance_looks': appearanceLooks,
+      if (selectedAppearanceLookId != null)
+        'selected_appearance_look_id': selectedAppearanceLookId,
       if (flatAreas != null) 'flat_areas': flatAreas,
       if (albumArtShade != null) 'album_art_shade': albumArtShade,
       if (albumArtColoredShade != null)
@@ -5939,7 +6193,12 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
     Value<int>? nightScheduleEndMinutes,
     Value<bool>? flatSurfaces,
     Value<int>? colorVividness,
-    Value<int>? surfaceDepth,
+    Value<int>? surfaceDepthLight,
+    Value<int>? surfaceDepthDark,
+    Value<String>? colorTuningPresets,
+    Value<String?>? selectedColorTuningPresetId,
+    Value<String>? appearanceLooks,
+    Value<String?>? selectedAppearanceLookId,
     Value<int>? flatAreas,
     Value<bool>? albumArtShade,
     Value<bool>? albumArtColoredShade,
@@ -6052,7 +6311,14 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
           nightScheduleEndMinutes ?? this.nightScheduleEndMinutes,
       flatSurfaces: flatSurfaces ?? this.flatSurfaces,
       colorVividness: colorVividness ?? this.colorVividness,
-      surfaceDepth: surfaceDepth ?? this.surfaceDepth,
+      surfaceDepthLight: surfaceDepthLight ?? this.surfaceDepthLight,
+      surfaceDepthDark: surfaceDepthDark ?? this.surfaceDepthDark,
+      colorTuningPresets: colorTuningPresets ?? this.colorTuningPresets,
+      selectedColorTuningPresetId:
+          selectedColorTuningPresetId ?? this.selectedColorTuningPresetId,
+      appearanceLooks: appearanceLooks ?? this.appearanceLooks,
+      selectedAppearanceLookId:
+          selectedAppearanceLookId ?? this.selectedAppearanceLookId,
       flatAreas: flatAreas ?? this.flatAreas,
       albumArtShade: albumArtShade ?? this.albumArtShade,
       albumArtColoredShade: albumArtColoredShade ?? this.albumArtColoredShade,
@@ -6273,8 +6539,27 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
     if (colorVividness.present) {
       map['color_vividness'] = Variable<int>(colorVividness.value);
     }
-    if (surfaceDepth.present) {
-      map['surface_depth'] = Variable<int>(surfaceDepth.value);
+    if (surfaceDepthLight.present) {
+      map['surface_depth_light'] = Variable<int>(surfaceDepthLight.value);
+    }
+    if (surfaceDepthDark.present) {
+      map['surface_depth_dark'] = Variable<int>(surfaceDepthDark.value);
+    }
+    if (colorTuningPresets.present) {
+      map['color_tuning_presets'] = Variable<String>(colorTuningPresets.value);
+    }
+    if (selectedColorTuningPresetId.present) {
+      map['selected_color_tuning_preset_id'] = Variable<String>(
+        selectedColorTuningPresetId.value,
+      );
+    }
+    if (appearanceLooks.present) {
+      map['appearance_looks'] = Variable<String>(appearanceLooks.value);
+    }
+    if (selectedAppearanceLookId.present) {
+      map['selected_appearance_look_id'] = Variable<String>(
+        selectedAppearanceLookId.value,
+      );
     }
     if (flatAreas.present) {
       map['flat_areas'] = Variable<int>(flatAreas.value);
@@ -6575,7 +6860,12 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
           ..write('nightScheduleEndMinutes: $nightScheduleEndMinutes, ')
           ..write('flatSurfaces: $flatSurfaces, ')
           ..write('colorVividness: $colorVividness, ')
-          ..write('surfaceDepth: $surfaceDepth, ')
+          ..write('surfaceDepthLight: $surfaceDepthLight, ')
+          ..write('surfaceDepthDark: $surfaceDepthDark, ')
+          ..write('colorTuningPresets: $colorTuningPresets, ')
+          ..write('selectedColorTuningPresetId: $selectedColorTuningPresetId, ')
+          ..write('appearanceLooks: $appearanceLooks, ')
+          ..write('selectedAppearanceLookId: $selectedAppearanceLookId, ')
           ..write('flatAreas: $flatAreas, ')
           ..write('albumArtShade: $albumArtShade, ')
           ..write('albumArtColoredShade: $albumArtColoredShade, ')
@@ -34670,7 +34960,12 @@ typedef $$AppSettingsTableTableCreateCompanionBuilder =
       Value<int> nightScheduleEndMinutes,
       Value<bool> flatSurfaces,
       Value<int> colorVividness,
-      Value<int> surfaceDepth,
+      Value<int> surfaceDepthLight,
+      Value<int> surfaceDepthDark,
+      Value<String> colorTuningPresets,
+      Value<String?> selectedColorTuningPresetId,
+      Value<String> appearanceLooks,
+      Value<String?> selectedAppearanceLookId,
       Value<int> flatAreas,
       Value<bool> albumArtShade,
       Value<bool> albumArtColoredShade,
@@ -34775,7 +35070,12 @@ typedef $$AppSettingsTableTableUpdateCompanionBuilder =
       Value<int> nightScheduleEndMinutes,
       Value<bool> flatSurfaces,
       Value<int> colorVividness,
-      Value<int> surfaceDepth,
+      Value<int> surfaceDepthLight,
+      Value<int> surfaceDepthDark,
+      Value<String> colorTuningPresets,
+      Value<String?> selectedColorTuningPresetId,
+      Value<String> appearanceLooks,
+      Value<String?> selectedAppearanceLookId,
       Value<int> flatAreas,
       Value<bool> albumArtShade,
       Value<bool> albumArtColoredShade,
@@ -35029,8 +35329,33 @@ class $$AppSettingsTableTableFilterComposer
     builder: (column) => ColumnFilters(column),
   );
 
-  ColumnFilters<int> get surfaceDepth => $composableBuilder(
-    column: $table.surfaceDepth,
+  ColumnFilters<int> get surfaceDepthLight => $composableBuilder(
+    column: $table.surfaceDepthLight,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get surfaceDepthDark => $composableBuilder(
+    column: $table.surfaceDepthDark,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get colorTuningPresets => $composableBuilder(
+    column: $table.colorTuningPresets,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get selectedColorTuningPresetId => $composableBuilder(
+    column: $table.selectedColorTuningPresetId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get appearanceLooks => $composableBuilder(
+    column: $table.appearanceLooks,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get selectedAppearanceLookId => $composableBuilder(
+    column: $table.selectedAppearanceLookId,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -35550,8 +35875,33 @@ class $$AppSettingsTableTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
-  ColumnOrderings<int> get surfaceDepth => $composableBuilder(
-    column: $table.surfaceDepth,
+  ColumnOrderings<int> get surfaceDepthLight => $composableBuilder(
+    column: $table.surfaceDepthLight,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get surfaceDepthDark => $composableBuilder(
+    column: $table.surfaceDepthDark,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get colorTuningPresets => $composableBuilder(
+    column: $table.colorTuningPresets,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get selectedColorTuningPresetId => $composableBuilder(
+    column: $table.selectedColorTuningPresetId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get appearanceLooks => $composableBuilder(
+    column: $table.appearanceLooks,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get selectedAppearanceLookId => $composableBuilder(
+    column: $table.selectedAppearanceLookId,
     builder: (column) => ColumnOrderings(column),
   );
 
@@ -36068,8 +36418,33 @@ class $$AppSettingsTableTableAnnotationComposer
     builder: (column) => column,
   );
 
-  GeneratedColumn<int> get surfaceDepth => $composableBuilder(
-    column: $table.surfaceDepth,
+  GeneratedColumn<int> get surfaceDepthLight => $composableBuilder(
+    column: $table.surfaceDepthLight,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get surfaceDepthDark => $composableBuilder(
+    column: $table.surfaceDepthDark,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get colorTuningPresets => $composableBuilder(
+    column: $table.colorTuningPresets,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get selectedColorTuningPresetId => $composableBuilder(
+    column: $table.selectedColorTuningPresetId,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get appearanceLooks => $composableBuilder(
+    column: $table.appearanceLooks,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get selectedAppearanceLookId => $composableBuilder(
+    column: $table.selectedAppearanceLookId,
     builder: (column) => column,
   );
 
@@ -36470,7 +36845,13 @@ class $$AppSettingsTableTableTableManager
                 Value<int> nightScheduleEndMinutes = const Value.absent(),
                 Value<bool> flatSurfaces = const Value.absent(),
                 Value<int> colorVividness = const Value.absent(),
-                Value<int> surfaceDepth = const Value.absent(),
+                Value<int> surfaceDepthLight = const Value.absent(),
+                Value<int> surfaceDepthDark = const Value.absent(),
+                Value<String> colorTuningPresets = const Value.absent(),
+                Value<String?> selectedColorTuningPresetId =
+                    const Value.absent(),
+                Value<String> appearanceLooks = const Value.absent(),
+                Value<String?> selectedAppearanceLookId = const Value.absent(),
                 Value<int> flatAreas = const Value.absent(),
                 Value<bool> albumArtShade = const Value.absent(),
                 Value<bool> albumArtColoredShade = const Value.absent(),
@@ -36578,7 +36959,12 @@ class $$AppSettingsTableTableTableManager
                 nightScheduleEndMinutes: nightScheduleEndMinutes,
                 flatSurfaces: flatSurfaces,
                 colorVividness: colorVividness,
-                surfaceDepth: surfaceDepth,
+                surfaceDepthLight: surfaceDepthLight,
+                surfaceDepthDark: surfaceDepthDark,
+                colorTuningPresets: colorTuningPresets,
+                selectedColorTuningPresetId: selectedColorTuningPresetId,
+                appearanceLooks: appearanceLooks,
+                selectedAppearanceLookId: selectedAppearanceLookId,
                 flatAreas: flatAreas,
                 albumArtShade: albumArtShade,
                 albumArtColoredShade: albumArtColoredShade,
@@ -36684,7 +37070,13 @@ class $$AppSettingsTableTableTableManager
                 Value<int> nightScheduleEndMinutes = const Value.absent(),
                 Value<bool> flatSurfaces = const Value.absent(),
                 Value<int> colorVividness = const Value.absent(),
-                Value<int> surfaceDepth = const Value.absent(),
+                Value<int> surfaceDepthLight = const Value.absent(),
+                Value<int> surfaceDepthDark = const Value.absent(),
+                Value<String> colorTuningPresets = const Value.absent(),
+                Value<String?> selectedColorTuningPresetId =
+                    const Value.absent(),
+                Value<String> appearanceLooks = const Value.absent(),
+                Value<String?> selectedAppearanceLookId = const Value.absent(),
                 Value<int> flatAreas = const Value.absent(),
                 Value<bool> albumArtShade = const Value.absent(),
                 Value<bool> albumArtColoredShade = const Value.absent(),
@@ -36792,7 +37184,12 @@ class $$AppSettingsTableTableTableManager
                 nightScheduleEndMinutes: nightScheduleEndMinutes,
                 flatSurfaces: flatSurfaces,
                 colorVividness: colorVividness,
-                surfaceDepth: surfaceDepth,
+                surfaceDepthLight: surfaceDepthLight,
+                surfaceDepthDark: surfaceDepthDark,
+                colorTuningPresets: colorTuningPresets,
+                selectedColorTuningPresetId: selectedColorTuningPresetId,
+                appearanceLooks: appearanceLooks,
+                selectedAppearanceLookId: selectedAppearanceLookId,
                 flatAreas: flatAreas,
                 albumArtShade: albumArtShade,
                 albumArtColoredShade: albumArtColoredShade,

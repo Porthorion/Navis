@@ -74,6 +74,7 @@ import 'package:navis/src/features/settings/data/update_check_store.dart';
 import 'package:navis/src/features/settings/data/update_repository.dart';
 import 'package:navis/src/features/settings/data/update_service.dart';
 import 'package:navis/src/features/settings/domain/app_settings.dart';
+import 'package:navis/src/features/settings/domain/appearance_presets.dart';
 import 'package:navis/src/features/settings/domain/album_title_shade.dart';
 import 'package:navis/src/features/settings/domain/flat_areas.dart';
 import 'package:navis/src/features/settings/domain/navis_density.dart';
@@ -2657,33 +2658,30 @@ final flatAreasProvider = Provider<FlatAreas>((ref) {
 });
 
 /// Saved colour tuning, using the identity while settings load or fail.
-final colorAdjustmentProvider = Provider<ColorAdjustment>((ref) {
+final colorTuningProvider = Provider<ColorTuning>((ref) {
   final settings = ref.watch(appSettingsProvider).asData?.value;
-  return ColorAdjustment(
-    vividness: settings?.colorVividness ?? 0,
-    depth: settings?.surfaceDepth ?? 0,
-  );
+  return settings?.colorTuning ?? ColorTuning.none;
 });
 
 /// Temporary drag state; callers clear it after persistence or cancellation.
-class ColorAdjustmentPreviewNotifier extends Notifier<ColorAdjustment?> {
+class ColorTuningPreviewNotifier extends Notifier<ColorTuning?> {
   @override
-  ColorAdjustment? build() => null;
+  ColorTuning? build() => null;
 
   // Drag commands pair with clear(); this is the preview API shared by controls.
   // ignore: use_setters_to_change_properties
-  void preview(ColorAdjustment adjustment) => state = adjustment;
+  void preview(ColorTuning adjustment) => state = adjustment;
   void clear() => state = null;
 }
 
-final colorAdjustmentPreviewProvider =
-    NotifierProvider<ColorAdjustmentPreviewNotifier, ColorAdjustment?>(
-      ColorAdjustmentPreviewNotifier.new,
+final colorTuningPreviewProvider =
+    NotifierProvider<ColorTuningPreviewNotifier, ColorTuning?>(
+      ColorTuningPreviewNotifier.new,
     );
 
-final effectiveColorAdjustmentProvider = Provider<ColorAdjustment>((ref) {
-  final preview = ref.watch(colorAdjustmentPreviewProvider);
-  final persisted = ref.watch(colorAdjustmentProvider);
+final effectiveColorTuningProvider = Provider<ColorTuning>((ref) {
+  final preview = ref.watch(colorTuningPreviewProvider);
+  final persisted = ref.watch(colorTuningProvider);
   return preview ?? persisted;
 });
 
@@ -2910,15 +2908,7 @@ final visibleLibrarySectionsProvider = Provider<List<LibrarySection>>((ref) {
 /// Custom color presets stored as a JSON list of ARGB32 ints.
 final customColorPresetsProvider = StreamProvider<List<int>>((ref) {
   final dao = ref.watch(navisDatabaseProvider).appSettingsDao;
-  return dao.watchCustomColorPresets().map((json) {
-    if (json == null || json.trim().isEmpty) return <int>[];
-    try {
-      final decoded = (jsonDecode(json) as List).cast<int>();
-      return decoded;
-    } on Object {
-      return <int>[];
-    }
-  });
+  return dao.watchCustomColorPresets().map(decodeAccentSeeds);
 });
 
 /// The app's own package metadata (version, build number, etc.).

@@ -869,6 +869,7 @@ class AppearanceOptionSet {
     required this.onOledForAutoChanged,
     required this.nightSchedule,
     required this.userStyle,
+    this.tuningStyle,
     required this.now,
     required this.onNightScheduleChanged,
     required this.flatSurfaces,
@@ -900,6 +901,7 @@ class AppearanceOptionSet {
   final ValueChanged<bool> onOledForAutoChanged;
   final NightSchedule nightSchedule;
   final NavisColorStyle userStyle;
+  final NavisColorStyle? tuningStyle;
   final DateTime now;
   final ValueChanged<NightSchedule> onNightScheduleChanged;
   final bool flatSurfaces;
@@ -961,7 +963,7 @@ class AppearanceOptionSet {
         (adornment) => ColorTuningOption(
           value: colorAdjustment,
           seed: previewSeed,
-          style: userStyle,
+          style: tuningStyle ?? userStyle,
           brightness: previewBrightness,
           oled: previewOled,
           adornment: adornment,

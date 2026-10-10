@@ -827,19 +827,64 @@ target-selection rules.
     black; the other surface containers move at most ±3 tones (floor 2).
     The Light deeper range is smaller than the initial −7 proposal to preserve
     the existing 3:1 accent contrast on Pastel's highest surface.
-  - Schema 101 adds guarded `color_vividness` and `surface_depth` integer
-    columns, default zero. `AppSettingsModel.colorVividness` / `surfaceDepth`
-    round-trip through the existing settings repository. The targeted
-    `AppSettingsDao.updateColorAdjustment` writes both values atomically and
-    preserves unrelated settings; setup Finish diffs each axis and preserves
-    concurrent changes to the unchanged axis. `colorAdjustmentProvider` exposes
-    the saved value (identity while loading or failed).
-    `colorAdjustmentPreviewProvider` holds nullable drag state with `preview`
-    and `clear`; `effectiveColorAdjustmentProvider` combines preview ?? saved.
-    Controls must clear preview after the saved value is observed, or on cancel
-    and disposal. `app.dart` watches the effective value, carried through the
-    existing theme cache and theme extension. Setup preview uses its draft.
-    Style tiles and seed swatches use the preview theme's adjustment.
+  - Schema 101 (unreleased) stores `color_vividness`,
+    `surface_depth_light`, and `surface_depth_dark` with zero defaults, plus
+    `color_tuning_presets` / `appearance_looks` JSON TEXT libraries (default
+    `[]`) and nullable selected ids. Every 100→101 column addition is guarded;
+    the branch-only `surface_depth` definition was replaced before shipping.
+    `ColorTuning` clamps all three integer steps to −5…+5 and resolves to the
+    unchanged `ColorAdjustment` with `forMode(dark:)`: Light uses light depth,
+    Dark and OLED share dark depth. `app.dart` resolves the active variant
+    before looking up the existing theme cache. Theme extensions, caption
+    workers, memo keys and cover caches still carry only resolved adjustments.
+    `colorTuningProvider` exposes persisted tuning (identity while loading or
+    failed); `colorTuningPreviewProvider` offers nullable `preview` / `clear`,
+    and `effectiveColorTuningProvider` combines preview ?? persisted. Setup
+    previews its draft and Finish diffs all three axes, preserving concurrent
+    changes to unedited axes. Settings uses the effective colour style for the
+    Fine-Tune band, so a scheduled Night window agrees with the rendered app;
+    the Night Schedule control still receives the saved style.
+  - Tuning presets (`ColorTuningPreset`, `ColorTuningController`) store intensity
+    and both brightness values. Built-in Default (`default`, zero/zero/zero)
+    is derived and never stored. Selection is derived by value: Default for
+    zero tuning, the first matching user preset otherwise, or null (Custom).
+    `preview`, `commit`, `select`, `saveAsNew`, `update`, `rename` and `delete`
+    share the existing settings stream, preview provider and targeted DAO
+    writes. Libraries decode leniently, discarding corrupt records and
+    duplicate ids or case-insensitive names. Playback and appearance naming
+    reuse `validatePresetName` in `common/preset_names.dart` (trim, nonempty,
+    reserved built-in names, case-insensitive uniqueness excluding the target).
+    Appearance commands return nullable `PresetFailure` (null means success);
+    `saveAsNew` returns `PresetResult<T>` with either `value` or `failure`.
+    Failures distinguish empty, duplicate and reserved names, missing ids, and
+    persistence errors. Playback keeps its existing boolean/failure-state API.
+  - Looks (`AppearanceLook`, version 1, `AppearanceSnapshot`,
+    `AppearanceLooksController`) capture all appearance choices: theme mode,
+    OLED-for-Auto, saved colour style, nullable accent seed, dynamic album
+    colour, Night Schedule enable/start/end, both album-title shade flags,
+    all three tuning values and optional tuning preset reference, Flat switch
+    and area mask, corners, library/carousel/Now Playing/artist artwork shapes,
+    artwork size and legacy grid-column override, density, artist view mode,
+    Now Playing background, language, custom accent swatches, and Home
+    recommendation auto-advance. Custom accent swatches keep their existing
+    JSON column and provider; the provider and repository share one lenient
+    ARGB decoder. Home section order/visibility, page
+    visibility/order, and Desktop Navbar are excluded because they organize
+    content and navigation rather than its appearance.
+    `capture` records nullable-setting clear flags so a saved automatic seed,
+    language or grid size can be restored. JSON decoding is per field: missing,
+    unknown or invalid values preserve current settings; explicit null clears
+    those three nullable settings. Unsupported Look versions are discarded.
+    `applyAppearanceSnapshot` writes supplied appearance columns in one DAO
+    transaction. If a referenced tuning preset still exists, its **current**
+    values win; otherwise captured tuning values apply. The controller offers
+    `apply`, `saveAsNew`, `update`, `rename` and `delete`; its selected id is the
+    first Look exactly matching a fresh capture, ignoring the preset reference.
+    Changing a referenced preset can therefore make an applied Look no longer
+    match its old values until updated. Reset restores appearance defaults and
+    retains both libraries, like playback presets. Controllers serialize their
+    writes and acknowledge the committed row through the existing settings
+    watch before publishing results; there is no second persistence store.
   - Artwork adaptation scales each style's maximum chroma with vividness and
     shifts its Light/Dark tone window by depth; Neutral only scales chroma.
     Artwork scrims keep their existing recipe and Now Playing retains its OLED
@@ -848,8 +893,13 @@ target-selection rules.
     No separate cover cache is introduced. `SetupHighlight.colorTuning`
     uses the stable `colorTuning` key for the 1.5.0 setup registry.
     `/v1/presentation/appearance` accepts/returns `colorVividness` and
-    `surfaceDepth`; both must be integers −5…+5, with the whole request
+    `surfaceDepthLight` / `surfaceDepthDark`; all must be integers −5…+5,
+    with the whole request
     validated before DAO writes. Omitting an axis preserves its saved value.
+    GET also returns derived selected tuning/Look ids and library counts.
+    Clone-only `GET /v1/presentation/looks` lists ids and names;
+    `POST /v1/presentation/looks/apply` applies `{"id":"..."}` through the
+    production controller, returning 404 for an unknown id.
   - Flat (`flatSurfacesProvider`, `NavisColorStyleData.flat`) is orthogonal to
     theme mode and colour style: it removes depth effects so the style's solid
     colours read stronger. `app.dart` passes it to `buildLightTheme`,
@@ -985,9 +1035,9 @@ target-selection rules.
     release, stepper, keyboard or Reset it reports the value through
     `onChanged` (Reset appears only while a value is not 0 and glides both
     rulers back). Settings maps `onPreview` to
-    `colorAdjustmentPreviewProvider.preview` and `onChanged` to
-    `updateColorAdjustment`, clearing the preview once the saved value is
-    observed (or at once when it equals the saved value, and on disposal);
+    `colorTuningPreviewProvider.preview` and `onChanged` to
+    `ColorTuningController.commit`, clearing the preview once the saved value is
+    observed, or on cancellation and disposal;
     setup writes both to its draft. The rulers stop growing at 480 dp on wide
     pages. The ruler's band, whole-step snapping, label and accent hooks default
     to Speed and Pitch behaviour.

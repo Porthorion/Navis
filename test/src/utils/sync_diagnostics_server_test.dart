@@ -1,3 +1,5 @@
+import 'package:navis/src/features/settings/presentation/appearance_preset_controller.dart';
+import 'package:navis/src/theme/color_adjustment.dart';
 import 'package:navis/src/features/settings/domain/navis_density.dart';
 import 'package:navis/src/features/player/domain/playback_adjustments.dart';
 
@@ -447,7 +449,12 @@ void main() {
         'flatSurfaces': false,
         'flatAreas': 7,
         'colorVividness': 0,
-        'surfaceDepth': 0,
+        'surfaceDepthLight': 0,
+        'surfaceDepthDark': 0,
+        'selectedColorTuningPresetId': 'default',
+        'colorTuningPresetCount': 0,
+        'selectedAppearanceLookId': null,
+        'appearanceLookCount': 0,
         'albumArtShade': false,
         'albumArtColoredShade': false,
       });
@@ -480,6 +487,96 @@ void main() {
     },
   );
 
+  test('Looks diagnostics lists ids and names, applies, counts and rejects unknown ids', () async {
+    final fixture = await _startFixture(SyncDiagnosticsMode.clone);
+    addTearDown(fixture.close);
+    final tuning = fixture.container.read(
+      colorTuningControllerProvider.notifier,
+    );
+    expect(
+      await tuning.commit(const ColorTuning(lightDepth: -2, darkDepth: 3)),
+      isNull,
+    );
+    final preset = (await tuning.saveAsNew('Tuning')).value!;
+    final controller = fixture.container.read(
+      appearanceLooksControllerProvider.notifier,
+    );
+    final look = (await controller.saveAsNew('My look')).value!;
+    final listed = await fixture.get('/v1/presentation/looks');
+    expect(listed.statusCode, HttpStatus.ok);
+    expect(listed.body, {
+      'looks': [
+        {'id': look.id, 'name': look.name},
+      ],
+    });
+    final appearance = await fixture.get('/v1/presentation/appearance');
+    expect(appearance.body['selectedColorTuningPresetId'], preset.id);
+    expect(appearance.body['colorTuningPresetCount'], 1);
+    expect(appearance.body['selectedAppearanceLookId'], look.id);
+    expect(appearance.body['appearanceLookCount'], 1);
+    await fixture.post('/v1/presentation/appearance', {'themeMode': 'light'});
+    expect(
+      (await fixture.get('/v1/presentation/appearance'))
+          .body['selectedAppearanceLookId'],
+      isNull,
+    );
+    expect(
+      (await fixture.post('/v1/presentation/looks/apply', {
+        'id': look.id,
+      })).statusCode,
+      HttpStatus.ok,
+    );
+    expect(
+      (await fixture.get('/v1/presentation/appearance'))
+          .body['selectedAppearanceLookId'],
+      look.id,
+    );
+    expect(
+      (await fixture.post('/v1/presentation/looks/apply', {
+        'id': 'missing',
+      })).statusCode,
+      HttpStatus.notFound,
+    );
+    for (final body in <Map<String, Object?>>[
+      {},
+      {'id': 1},
+      {'id': ''},
+      {'id': look.id, 'extra': true},
+    ]) {
+      expect(
+        (await fixture.post('/v1/presentation/looks/apply', body)).statusCode,
+        HttpStatus.badRequest,
+      );
+    }
+    expect(
+      (await _request(fixture.port, '/v1/presentation/looks')).statusCode,
+      HttpStatus.unauthorized,
+    );
+    expect(
+      (await _request(
+        fixture.port,
+        '/v1/presentation/looks/apply',
+        method: 'POST',
+        body: {'id': look.id},
+      )).statusCode,
+      HttpStatus.unauthorized,
+    );
+    final primary = await _startFixture(
+      SyncDiagnosticsMode.primaryCertification,
+    );
+    addTearDown(primary.close);
+    expect(
+      (await primary.get('/v1/presentation/looks')).statusCode,
+      HttpStatus.forbidden,
+    );
+    expect(
+      (await primary.post('/v1/presentation/looks/apply', {
+        'id': look.id,
+      })).statusCode,
+      HttpStatus.forbidden,
+    );
+  });
+
   test('appearance theme controls validate before writes and persist targeted values', () async {
     final fixture = await _startFixture(SyncDiagnosticsMode.clone);
     addTearDown(fixture.close);
@@ -494,7 +591,8 @@ void main() {
       'flatSurfaces': true,
       'flatAreas': 2,
       'colorVividness': -5,
-      'surfaceDepth': 5,
+      'surfaceDepthLight': 5,
+      'surfaceDepthDark': -3,
       'albumArtShade': true,
       'albumArtColoredShade': true,
       'cornerStyle': 'square',
@@ -526,7 +624,7 @@ void main() {
     expect(persisted!.colorSchemeSeed, 0xFF567890);
     expect(persisted.flatAreas, 2);
     expect(persisted.colorVividness, -5);
-    expect(persisted.surfaceDepth, 5);
+    expect(persisted.surfaceDepthLight, 5);
     expect(persisted.albumArtShade, isTrue);
     expect(persisted.albumArtColoredShade, isTrue);
     final observed = await fixture.get(path);
@@ -547,11 +645,17 @@ void main() {
       {'colorVividness': 1.5},
       {'colorVividness': null},
       {'colorVividness': '2'},
-      {'surfaceDepth': -6},
-      {'surfaceDepth': 6},
-      {'surfaceDepth': 1.5},
-      {'surfaceDepth': null},
-      {'surfaceDepth': '2'},
+      {'surfaceDepthLight': -6},
+      {'surfaceDepthLight': 6},
+      {'surfaceDepthLight': 1.5},
+      {'surfaceDepthLight': null},
+      {'surfaceDepthLight': '2'},
+      {'surfaceDepthDark': -6},
+      {'surfaceDepthDark': 6},
+      {'surfaceDepthDark': 1.5},
+      {'surfaceDepthDark': null},
+      {'surfaceDepthDark': '2'},
+      {'surfaceDepth': 2},
       {'flatAreas': -1},
       {'flatAreas': 8},
       {'flatAreas': 1.5},
@@ -615,7 +719,8 @@ void main() {
     final partial = await fixture.post(path, {'colorVividness': 3});
     expect(partial.statusCode, HttpStatus.ok);
     expect(partial.body['colorVividness'], 3);
-    expect(partial.body['surfaceDepth'], 5);
+    expect(partial.body['surfaceDepthLight'], 5);
+    expect(partial.body['surfaceDepthDark'], -3);
     for (final (shade, colored) in [(false, true), (true, false)]) {
       final toggled = await fixture.post(path, {
         'albumArtShade': shade,

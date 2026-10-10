@@ -675,7 +675,7 @@ class OnboardingScreenState extends ConsumerState<OnboardingScreen> {
         flatAreas: draft.flatAreas,
         adjustment: ColorAdjustment(
           vividness: draft.colorVividness,
-          depth: draft.surfaceDepth,
+          depth: draft.surfaceDepthLight,
         ),
         corners: corners,
       );
@@ -688,7 +688,7 @@ class OnboardingScreenState extends ConsumerState<OnboardingScreen> {
             flatAreas: draft.flatAreas,
             adjustment: ColorAdjustment(
               vividness: draft.colorVividness,
-              depth: draft.surfaceDepth,
+              depth: draft.surfaceDepthDark,
             ),
             corners: corners,
           )
@@ -699,7 +699,7 @@ class OnboardingScreenState extends ConsumerState<OnboardingScreen> {
             flatAreas: draft.flatAreas,
             adjustment: ColorAdjustment(
               vividness: draft.colorVividness,
-              depth: draft.surfaceDepth,
+              depth: draft.surfaceDepthDark,
             ),
             corners: corners,
           );
@@ -775,7 +775,9 @@ class OnboardingScreenState extends ConsumerState<OnboardingScreen> {
           setState(() => _draft = draft.copyWith(nowPlayingBackground: value)),
       colorAdjustment: ColorAdjustment(
         vividness: draft.colorVividness,
-        depth: draft.surfaceDepth,
+        depth: theme.brightness == Brightness.dark
+            ? draft.surfaceDepthDark
+            : draft.surfaceDepthLight,
       ),
       // The draft is the preview: the page recolours as a ruler moves.
       onColorAdjustmentPreview: _draftColorAdjustment,
@@ -888,10 +890,16 @@ class OnboardingScreenState extends ConsumerState<OnboardingScreen> {
     );
   }
 
+  bool get _draftIsDark =>
+      _draft?.themeMode != 'light' &&
+      (_draft?.themeMode != 'system' ||
+          MediaQuery.platformBrightnessOf(context) == Brightness.dark);
+
   void _draftColorAdjustment(ColorAdjustment adjustment) => setState(
     () => _draft = _draft?.copyWith(
       colorVividness: adjustment.vividness,
-      surfaceDepth: adjustment.depth,
+      surfaceDepthLight: _draftIsDark ? null : adjustment.depth,
+      surfaceDepthDark: _draftIsDark ? adjustment.depth : null,
     ),
   );
 

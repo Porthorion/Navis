@@ -29,17 +29,20 @@ void main() {
       () async {
         final initial = await repository.getSettings();
         expect(initial.colorVividness, 0);
-        expect(initial.surfaceDepth, 0);
-        final draft = initial.copyWith(colorVividness: -3, surfaceDepth: 4);
+        expect(initial.surfaceDepthLight, 0);
+        final draft = initial.copyWith(
+          colorVividness: -3,
+          surfaceDepthLight: 4,
+        );
         await repository.saveSettings(draft);
         final saved = await repository.getSettings();
         final watched = await repository.watchSettings().first;
         expect(saved.colorVividness, -3);
-        expect(saved.surfaceDepth, 4);
+        expect(saved.surfaceDepthLight, 4);
         expect(watched.colorVividness, -3);
-        expect(watched.surfaceDepth, 4);
-        await database.appSettingsDao.updateColorAdjustment(
-          const ColorAdjustment(vividness: 2, depth: -5),
+        expect(watched.surfaceDepthLight, 4);
+        await database.appSettingsDao.updateColorTuning(
+          const ColorTuning(vividness: 2, lightDepth: -5, darkDepth: 3),
         );
         await repository.saveOnboardingChanges(
           saved,
@@ -47,16 +50,27 @@ void main() {
         );
         final setup = await repository.getSettings();
         expect(setup.colorVividness, 5);
-        expect(setup.surfaceDepth, -5);
+        expect(setup.surfaceDepthLight, -5);
+        expect(setup.surfaceDepthDark, 3);
         await repository.saveOnboardingChanges(
           saved,
           saved.copyWith(themeMode: 'light'),
         );
         expect((await repository.getSettings()).colorVividness, 5);
-        expect((await repository.getSettings()).surfaceDepth, -5);
+        expect((await repository.getSettings()).surfaceDepthLight, -5);
+        await repository.saveOnboardingChanges(
+          saved,
+          saved.copyWith(surfaceDepthDark: -4),
+        );
+        final darkEdited = await repository.getSettings();
+        expect(
+          darkEdited.colorTuning,
+          const ColorTuning(vividness: 5, lightDepth: -5, darkDepth: -4),
+        );
         await repository.resetDefaults();
         expect((await repository.getSettings()).colorVividness, 0);
-        expect((await repository.getSettings()).surfaceDepth, 0);
+        expect((await repository.getSettings()).surfaceDepthLight, 0);
+        expect((await repository.getSettings()).surfaceDepthDark, 0);
       },
       skip: !sqliteAvailable,
     );

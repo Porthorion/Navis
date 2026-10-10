@@ -1,3 +1,6 @@
+import 'package:navis/src/features/settings/presentation/appearance_preset_controller.dart';
+import 'package:navis/src/features/settings/domain/appearance_presets.dart';
+import 'package:navis/src/common/preset_names.dart';
 import 'package:navis/src/features/settings/domain/night_schedule.dart';
 import 'package:navis/src/features/downloads/presentation/custom_download_folder_controller.dart';
 import 'package:navis/src/features/downloads/presentation/manual_download_matching_provider.dart';
@@ -788,6 +791,49 @@ class SyncDiagnosticsServer {
         });
         return;
       }
+      if ((request.method == 'GET' && path == '/v1/presentation/looks') ||
+          (request.method == 'POST' &&
+              path == '/v1/presentation/looks/apply')) {
+        if (!allowsMutations) {
+          await _forbidden(request);
+          return;
+        }
+        if (request.method == 'GET') {
+          final settings = await _container
+              .read(settingsRepositoryProvider)
+              .getSettings();
+          await _respond(request, HttpStatus.ok, <String, Object?>{
+            'looks': [
+              for (final look in settings.appearanceLooks)
+                {'id': look.id, 'name': look.name},
+            ],
+          });
+        } else {
+          final body = await _readJson(request);
+          final id = body['id'];
+          if (id is! String || id.isEmpty || body.length != 1) {
+            throw const FormatException();
+          }
+          final failure = await _container
+              .read(appearanceLooksControllerProvider.notifier)
+              .apply(id);
+          if (failure == PresetFailure.notFound) {
+            await _respond(request, HttpStatus.notFound, <String, Object?>{
+              'error': 'unknown_look',
+            });
+          } else if (failure != null) {
+            await _respond(
+              request,
+              HttpStatus.internalServerError,
+              <String, Object?>{'error': 'appearance_apply_failed'},
+            );
+          } else {
+            await presentationController?.waitForFrame();
+            await _respond(request, HttpStatus.ok, <String, Object?>{'id': id});
+          }
+        }
+        return;
+      }
       if ((request.method == 'GET' || request.method == 'POST') &&
           path == '/v1/presentation/appearance') {
         if (!allowsMutations) {
@@ -813,7 +859,8 @@ class SyncDiagnosticsServer {
           final flat = body['flatSurfaces'];
           final flatAreas = body['flatAreas'];
           final colorVividness = body['colorVividness'];
-          final surfaceDepth = body['surfaceDepth'];
+          final surfaceDepthLight = body['surfaceDepthLight'];
+          final surfaceDepthDark = body['surfaceDepthDark'];
           final shade = body['albumArtShade'];
           final coloredShade = body['albumArtColoredShade'];
           final corners = body['cornerStyle'];
@@ -847,7 +894,11 @@ class SyncDiagnosticsServer {
               throw const FormatException();
             }
           }
-          for (final key in ['colorVividness', 'surfaceDepth']) {
+          for (final key in [
+            'colorVividness',
+            'surfaceDepthLight',
+            'surfaceDepthDark',
+          ]) {
             if (!body.containsKey(key)) continue;
             final value = body[key];
             if (value is! int || value < -5 || value > 5) {
@@ -892,7 +943,8 @@ class SyncDiagnosticsServer {
                   'flatSurfaces',
                   'flatAreas',
                   'colorVividness',
-                  'surfaceDepth',
+                  'surfaceDepthLight',
+                  'surfaceDepthDark',
                   'albumArtShade',
                   'albumArtColoredShade',
                   'cornerStyle',
@@ -938,13 +990,20 @@ class SyncDiagnosticsServer {
           }
           if (flat is bool) await dao.updateFlatSurfaces(enabled: flat);
           if (flatAreas is int) await dao.updateFlatAreas(flatAreas);
-          if (colorVividness is int || surfaceDepth is int) {
+          if (colorVividness is int ||
+              surfaceDepthLight is int ||
+              surfaceDepthDark is int) {
             final current = await dao.getSettings();
-            await dao.updateColorAdjustment(
-              ColorAdjustment(
+            await dao.updateColorTuning(
+              ColorTuning(
                 vividness:
                     colorVividness as int? ?? current?.colorVividness ?? 0,
-                depth: surfaceDepth as int? ?? current?.surfaceDepth ?? 0,
+                lightDepth:
+                    surfaceDepthLight as int? ??
+                    current?.surfaceDepthLight ??
+                    0,
+                darkDepth:
+                    surfaceDepthDark as int? ?? current?.surfaceDepthDark ?? 0,
               ),
             );
           }
@@ -979,6 +1038,9 @@ class SyncDiagnosticsServer {
           await presentationController?.waitForFrame();
         }
         final settings = await dao.getSettings();
+        final model = await _container
+            .read(settingsRepositoryProvider)
+            .getSettings();
         await _respond(request, HttpStatus.ok, <String, Object?>{
           'themeMode': settings?.themeMode ?? 'dark',
           'colorStyle': settings?.colorStyle ?? 'neutral',
@@ -997,7 +1059,15 @@ class SyncDiagnosticsServer {
           'flatSurfaces': settings?.flatSurfaces ?? false,
           'flatAreas': settings?.flatAreas ?? 7,
           'colorVividness': settings?.colorVividness ?? 0,
-          'surfaceDepth': settings?.surfaceDepth ?? 0,
+          'surfaceDepthLight': settings?.surfaceDepthLight ?? 0,
+          'surfaceDepthDark': settings?.surfaceDepthDark ?? 0,
+          'selectedColorTuningPresetId': matchingColorTuningPresetId(
+            model.colorTuning,
+            model.colorTuningPresets,
+          ),
+          'colorTuningPresetCount': model.colorTuningPresets.length,
+          'selectedAppearanceLookId': matchingAppearanceLookId(model),
+          'appearanceLookCount': model.appearanceLooks.length,
           'albumArtShade': settings?.albumArtShade ?? false,
           'albumArtColoredShade': settings?.albumArtColoredShade ?? false,
           'gridArtworkSize': settings?.gridArtworkSize ?? 'auto',

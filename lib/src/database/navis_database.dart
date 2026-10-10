@@ -405,8 +405,44 @@ class NavisDatabase extends _$NavisDatabase {
         appSettingsTable.colorVividness,
       );
     }
-    if (!await _columnExists('app_settings', 'surface_depth')) {
-      await migrator.addColumn(appSettingsTable, appSettingsTable.surfaceDepth);
+    if (!await _columnExists('app_settings', 'surface_depth_light')) {
+      await migrator.addColumn(
+        appSettingsTable,
+        appSettingsTable.surfaceDepthLight,
+      );
+    }
+    if (!await _columnExists('app_settings', 'surface_depth_dark')) {
+      await migrator.addColumn(
+        appSettingsTable,
+        appSettingsTable.surfaceDepthDark,
+      );
+    }
+    if (!await _columnExists('app_settings', 'color_tuning_presets')) {
+      await migrator.addColumn(
+        appSettingsTable,
+        appSettingsTable.colorTuningPresets,
+      );
+    }
+    if (!await _columnExists(
+      'app_settings',
+      'selected_color_tuning_preset_id',
+    )) {
+      await migrator.addColumn(
+        appSettingsTable,
+        appSettingsTable.selectedColorTuningPresetId,
+      );
+    }
+    if (!await _columnExists('app_settings', 'appearance_looks')) {
+      await migrator.addColumn(
+        appSettingsTable,
+        appSettingsTable.appearanceLooks,
+      );
+    }
+    if (!await _columnExists('app_settings', 'selected_appearance_look_id')) {
+      await migrator.addColumn(
+        appSettingsTable,
+        appSettingsTable.selectedAppearanceLookId,
+      );
     }
   }
 
@@ -1676,7 +1712,12 @@ FROM scrobble_queue;
         flatSurfaces: const Value(false),
         flatAreas: const Value(7),
         colorVividness: const Value(0),
-        surfaceDepth: const Value(0),
+        surfaceDepthLight: const Value(0),
+        surfaceDepthDark: const Value(0),
+        colorTuningPresets: const Value('[]'),
+        selectedColorTuningPresetId: const Value(null),
+        appearanceLooks: const Value('[]'),
+        selectedAppearanceLookId: const Value(null),
         albumArtShade: const Value(false),
         albumArtColoredShade: const Value(false),
         colorSchemeSeed: const Value(null),

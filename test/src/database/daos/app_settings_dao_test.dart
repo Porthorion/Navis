@@ -24,29 +24,32 @@ void main() {
       final dao = database.appSettingsDao;
       final initial = (await dao.getSettings())!;
       expect(initial.colorVividness, 0);
-      expect(initial.surfaceDepth, 0);
+      expect(initial.surfaceDepthLight, 0);
       await dao.updateThemeMode('oled');
       for (final adj in [
-        const ColorAdjustment(vividness: -5, depth: 5),
-        const ColorAdjustment(vividness: 50, depth: -50),
-        ColorAdjustment.none,
+        const ColorTuning(vividness: -5, lightDepth: 5, darkDepth: -3),
+        const ColorTuning(vividness: 50, lightDepth: -50, darkDepth: 50),
+        ColorTuning.none,
       ]) {
-        await dao.updateColorAdjustment(adj);
+        await dao.updateColorTuning(adj);
         final row = (await dao.getSettings())!;
         final watched = (await dao.watchSettings().first)!;
         expect(row.colorVividness, adj.vividness);
-        expect(row.surfaceDepth, adj.depth);
+        expect(row.surfaceDepthLight, adj.lightDepth);
+        expect(row.surfaceDepthDark, adj.darkDepth);
         expect(watched.colorVividness, adj.vividness);
-        expect(watched.surfaceDepth, adj.depth);
+        expect(watched.surfaceDepthLight, adj.lightDepth);
+        expect(watched.surfaceDepthDark, adj.darkDepth);
         expect(row.themeMode, 'oled');
       }
-      await dao.updateColorAdjustment(
-        const ColorAdjustment(vividness: 3, depth: 4),
+      await dao.updateColorTuning(
+        const ColorTuning(vividness: 3, lightDepth: 4),
       );
       await dao.resetDefaults();
       final reset = (await dao.getSettings())!;
       expect(reset.colorVividness, 0);
-      expect(reset.surfaceDepth, 0);
+      expect(reset.surfaceDepthLight, 0);
+      expect(reset.surfaceDepthDark, 0);
     }, skip: !sqliteAvailable);
 
     test(

@@ -1,5 +1,7 @@
 import 'dart:convert';
 
+import 'package:navis/src/features/settings/domain/appearance_presets.dart';
+
 import 'package:drift/drift.dart';
 import 'package:meta/meta.dart' show visibleForTesting;
 import 'package:navis/src/features/settings/domain/flat_areas.dart';
@@ -148,7 +150,8 @@ class AppSettingsDao extends DatabaseAccessor<NavisDatabase>
     required bool flatSurfaces,
     int? flatAreas,
     int? colorVividness,
-    int? surfaceDepth,
+    int? surfaceDepthLight,
+    int? surfaceDepthDark,
     bool? albumArtShade,
     bool? albumArtColoredShade,
     int? colorSchemeSeed,
@@ -228,12 +231,15 @@ class AppSettingsDao extends DatabaseAccessor<NavisDatabase>
         colorVividness: colorVividness == null
             ? const Value.absent()
             : Value(colorVividness.clamp(-5, 5)),
-        surfaceDepth: surfaceDepth == null
+        surfaceDepthLight: surfaceDepthLight == null
             ? const Value.absent()
-            : Value(surfaceDepth.clamp(-5, 5)),
+            : Value(surfaceDepthLight.clamp(-5, 5)),
         flatAreas: flatAreas == null
             ? const Value.absent()
             : Value(FlatAreas.fromBits(flatAreas).bits),
+        surfaceDepthDark: surfaceDepthDark == null
+            ? const Value.absent()
+            : Value(surfaceDepthDark.clamp(-5, 5)),
         albumArtShade: albumArtShade == null
             ? const Value.absent()
             : Value(albumArtShade),
@@ -331,6 +337,8 @@ class AppSettingsDao extends DatabaseAccessor<NavisDatabase>
   }
 
   Future<void> resetDefaults() async {
+    await updateColorTuning(ColorTuning.none);
+    await updateAppearanceLooks(selectedLookId: null);
     await clearSetupHighlightsSeen();
     await updateSetupHighlightsSeenRelease(null);
     await updateSetupCardDismissedRelease(null);
@@ -375,7 +383,8 @@ class AppSettingsDao extends DatabaseAccessor<NavisDatabase>
       flatSurfaces: false,
       flatAreas: 7,
       colorVividness: 0,
-      surfaceDepth: 0,
+      surfaceDepthLight: 0,
+      surfaceDepthDark: 0,
       albumArtShade: false,
       albumArtColoredShade: false,
       colorSchemeSeed: null,
@@ -851,18 +860,155 @@ class AppSettingsDao extends DatabaseAccessor<NavisDatabase>
     );
   }
 
-  /// Writes both colour tuning values atomically, preserving other settings.
-  Future<void> updateColorAdjustment(ColorAdjustment adjustment) async {
+  /// Writes tuning and optionally its library without touching other settings.
+  Future<void> updateColorTuning(
+    ColorTuning tuning, {
+    String? selectedPresetId,
+    String? presetsJson,
+  }) async {
+    await getSettings();
     await (update(
       appSettingsTable,
-    )..where((tbl) => tbl.id.equals(primarySettingsId))).write(
+    )..where((t) => t.id.equals(primarySettingsId))).write(
       AppSettingsTableCompanion(
-        colorVividness: Value(adjustment.vividness),
-        surfaceDepth: Value(adjustment.depth),
+        colorVividness: Value(tuning.vividness),
+        surfaceDepthLight: Value(tuning.lightDepth),
+        surfaceDepthDark: Value(tuning.darkDepth),
+        selectedColorTuningPresetId: Value(selectedPresetId),
+        colorTuningPresets: presetsJson == null
+            ? const Value.absent()
+            : Value(presetsJson),
         updatedAt: Value(DateTime.now()),
       ),
     );
   }
+
+  Future<void> updateAppearanceLooks({
+    required String? selectedLookId,
+    String? looksJson,
+  }) async {
+    await getSettings();
+    await (update(
+      appSettingsTable,
+    )..where((t) => t.id.equals(primarySettingsId))).write(
+      AppSettingsTableCompanion(
+        selectedAppearanceLookId: Value(selectedLookId),
+        appearanceLooks: looksJson == null
+            ? const Value.absent()
+            : Value(looksJson),
+      ),
+    );
+  }
+
+  /// Applies only supplied appearance fields atomically, resolving live tuning presets.
+  Future<void> applyAppearanceSnapshot(
+    AppearanceSnapshot snapshot,
+  ) => transaction(() async {
+    final current = (await getSettings())!;
+    final presets = decodeColorTuningPresets(current.colorTuningPresets);
+    final referenced = presets
+        .where((p) => p.id == snapshot.tuningPresetId)
+        .firstOrNull;
+    final tuning =
+        referenced?.tuning ??
+        ColorTuning(
+          vividness: snapshot.colorVividness ?? current.colorVividness,
+          lightDepth: snapshot.surfaceDepthLight ?? current.surfaceDepthLight,
+          darkDepth: snapshot.surfaceDepthDark ?? current.surfaceDepthDark,
+        );
+    await (update(
+      appSettingsTable,
+    )..where((t) => t.id.equals(primarySettingsId))).write(
+      AppSettingsTableCompanion(
+        themeMode: snapshot.themeMode == null
+            ? const Value.absent()
+            : Value(snapshot.themeMode!),
+        oledForAuto: snapshot.oledForAuto == null
+            ? const Value.absent()
+            : Value(snapshot.oledForAuto!),
+        colorStyle: snapshot.colorStyle == null
+            ? const Value.absent()
+            : Value(snapshot.colorStyle!),
+        colorSchemeSeed: snapshot.clearColorSchemeSeed
+            ? const Value(null)
+            : snapshot.colorSchemeSeed == null
+            ? const Value.absent()
+            : Value(snapshot.colorSchemeSeed),
+        dynamicAlbumColorEnabled: snapshot.dynamicAlbumColorEnabled == null
+            ? const Value.absent()
+            : Value(snapshot.dynamicAlbumColorEnabled!),
+        nightScheduleEnabled: snapshot.nightScheduleEnabled == null
+            ? const Value.absent()
+            : Value(snapshot.nightScheduleEnabled!),
+        nightScheduleStartMinutes: snapshot.nightScheduleStartMinutes == null
+            ? const Value.absent()
+            : Value(snapshot.nightScheduleStartMinutes!),
+        nightScheduleEndMinutes: snapshot.nightScheduleEndMinutes == null
+            ? const Value.absent()
+            : Value(snapshot.nightScheduleEndMinutes!),
+        albumArtShade: snapshot.albumArtShade == null
+            ? const Value.absent()
+            : Value(snapshot.albumArtShade!),
+        albumArtColoredShade: snapshot.albumArtColoredShade == null
+            ? const Value.absent()
+            : Value(snapshot.albumArtColoredShade!),
+        colorVividness: Value(tuning.vividness),
+        surfaceDepthLight: Value(tuning.lightDepth),
+        surfaceDepthDark: Value(tuning.darkDepth),
+        flatSurfaces: snapshot.flatSurfaces == null
+            ? const Value.absent()
+            : Value(snapshot.flatSurfaces!),
+        flatAreas: snapshot.flatAreas == null
+            ? const Value.absent()
+            : Value(snapshot.flatAreas!),
+        cornerStyle: snapshot.cornerStyle == null
+            ? const Value.absent()
+            : Value(snapshot.cornerStyle!),
+        coverArtShape: snapshot.coverArtShape == null
+            ? const Value.absent()
+            : Value(snapshot.coverArtShape!),
+        nowPlayingArtShape: snapshot.nowPlayingArtShape == null
+            ? const Value.absent()
+            : Value(snapshot.nowPlayingArtShape!),
+        artistCardShape: snapshot.artistCardShape == null
+            ? const Value.absent()
+            : Value(snapshot.artistCardShape!),
+        gridArtworkSize: snapshot.gridArtworkSize == null
+            ? const Value.absent()
+            : Value(snapshot.gridArtworkSize!),
+        albumGridDensity: snapshot.clearAlbumGridDensity
+            ? const Value(null)
+            : snapshot.albumGridDensity == null
+            ? const Value.absent()
+            : Value(snapshot.albumGridDensity),
+        homeDensity: snapshot.density == null
+            ? const Value.absent()
+            : Value(snapshot.density!),
+        artistViewMode: snapshot.artistViewMode == null
+            ? const Value.absent()
+            : Value(snapshot.artistViewMode!),
+        nowPlayingBackground: snapshot.nowPlayingBackground == null
+            ? const Value.absent()
+            : Value(snapshot.nowPlayingBackground!),
+        appLocale: snapshot.clearAppLocale
+            ? const Value(null)
+            : snapshot.appLocale == null
+            ? const Value.absent()
+            : Value(snapshot.appLocale),
+        homeRecommendationsAutoAdvance:
+            snapshot.homeRecommendationsAutoAdvance == null
+            ? const Value.absent()
+            : Value(snapshot.homeRecommendationsAutoAdvance!),
+        customColorPresets: snapshot.customColorPresets == null
+            ? const Value.absent()
+            : Value(jsonEncode(snapshot.customColorPresets)),
+        selectedColorTuningPresetId: Value(
+          matchingColorTuningPresetId(tuning, presets),
+        ),
+        updatedAt: Value(DateTime.now()),
+      ),
+    );
+  });
 
   Future<void> updateAlbumArtShade({required bool enabled}) async {
     await (update(

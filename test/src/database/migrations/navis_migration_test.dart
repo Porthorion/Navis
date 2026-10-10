@@ -26,8 +26,8 @@ void main() {
       await seed.appSettingsDao.getSettings();
       await seed.appSettingsDao.updateColorStyle('night');
       await seed.appSettingsDao.updateAlbumArtShade(enabled: true);
-      await seed.appSettingsDao.updateColorAdjustment(
-        const ColorAdjustment(vividness: 3, depth: -2),
+      await seed.appSettingsDao.updateColorTuning(
+        const ColorTuning(vividness: 3, lightDepth: -2),
       );
       final other = (await seed.appSettingsDao.getSettings())!.copyWith(id: 2);
       await seed.into(seed.appSettingsTable).insert(other);
@@ -37,7 +37,16 @@ void main() {
         if (!partial) {
           raw.execute('ALTER TABLE app_settings DROP COLUMN color_vividness');
         }
-        raw.execute('ALTER TABLE app_settings DROP COLUMN surface_depth');
+        for (final column in [
+          'surface_depth_light',
+          'surface_depth_dark',
+          'color_tuning_presets',
+          'selected_color_tuning_preset_id',
+          'appearance_looks',
+          'selected_appearance_look_id',
+        ]) {
+          raw.execute('ALTER TABLE app_settings DROP COLUMN $column');
+        }
         raw.execute('PRAGMA user_version = 100');
       } finally {
         raw.close();
@@ -48,7 +57,12 @@ void main() {
         expect(rows, hasLength(2));
         for (final row in rows) {
           expect(row.colorVividness, partial ? 3 : 0);
-          expect(row.surfaceDepth, 0);
+          expect(row.surfaceDepthLight, 0);
+          expect(row.surfaceDepthDark, 0);
+          expect(row.colorTuningPresets, '[]');
+          expect(row.selectedColorTuningPresetId, isNull);
+          expect(row.appearanceLooks, '[]');
+          expect(row.selectedAppearanceLookId, isNull);
           expect(row.colorStyle, 'night');
           expect(row.albumArtShade, isTrue);
         }
@@ -57,13 +71,31 @@ void main() {
               .read<int>('user_version'),
           101,
         );
-        await upgraded.appSettingsDao.updateColorAdjustment(
-          const ColorAdjustment(vividness: -4, depth: 5),
+        await upgraded.appSettingsDao.updateColorTuning(
+          const ColorTuning(vividness: -4, lightDepth: 5, darkDepth: -3),
+          selectedPresetId: 'tuning-id',
+          presetsJson: '[{"id":"tuning-id"}]',
+        );
+        await upgraded.appSettingsDao.updateAppearanceLooks(
+          selectedLookId: 'look-id',
+          looksJson: '[{"id":"look-id"}]',
         );
         await upgraded.from100To101(Migrator(upgraded));
+        final columns = await upgraded
+            .customSelect('PRAGMA table_info(app_settings)')
+            .get();
+        expect(
+          columns.map((column) => column.read<String>('name')),
+          isNot(contains('surface_depth')),
+        );
         final row = (await upgraded.appSettingsDao.getSettings())!;
         expect(row.colorVividness, -4);
-        expect(row.surfaceDepth, 5);
+        expect(row.surfaceDepthLight, 5);
+        expect(row.surfaceDepthDark, -3);
+        expect(row.colorTuningPresets, '[{"id":"tuning-id"}]');
+        expect(row.selectedColorTuningPresetId, 'tuning-id');
+        expect(row.appearanceLooks, '[{"id":"look-id"}]');
+        expect(row.selectedAppearanceLookId, 'look-id');
       } finally {
         await upgraded.close();
       }
