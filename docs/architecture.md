@@ -214,6 +214,8 @@ Located in `lib/src/providers/app_providers.dart`:
   from full-sync timestamps. A validated, promoted first catalog may be usable
   while isolated incomplete album details remain pending; the timestamp is
   written only after the full-screen controller verifies that outcome.
+  Sync Settings uses this first usable-catalog date only when no later catalog
+  update, sync-state timestamp, or server-config sync timestamp exists.
 - `requiredLibrarySyncModelVersionProvider` - One-time sync model `57` repair
   gate. It rebuilds the complete server newest feed after the v73 external-row
   repair so persisted libraries receive authoritative Recently Added ranks.

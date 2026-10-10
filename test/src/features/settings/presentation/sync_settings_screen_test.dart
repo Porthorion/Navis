@@ -1,3 +1,4 @@
+import 'package:drift/drift.dart' show Value;
 import 'package:material_ui/material_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_riverpod/misc.dart' show Override;
@@ -143,6 +144,92 @@ Future<void> _pumpSyncSettings(
 }
 
 void main() {
+  for (final dateSource in [
+    'initial catalog',
+    'server sync',
+    'state sync',
+    'catalog update',
+  ]) {
+    testWidgets('last catalog date uses $dateSource evidence', (tester) async {
+      tester.view.devicePixelRatio = 1;
+      tester.view.physicalSize = const Size(1200, 900);
+      addTearDown(() {
+        tester.view.resetPhysicalSize();
+        tester.view.resetDevicePixelRatio();
+      });
+      final database = createTestDatabase();
+      addTearDown(database.close);
+      final serverId = await database
+          .into(database.serverConfigTable)
+          .insert(
+            ServerConfigTableCompanion.insert(
+              url: 'https://example.com',
+              username: 'alice',
+              apiVersion: '1.16.1',
+            ),
+          );
+      final initialDate = DateTime(2026, 2, 1, 12);
+      final serverDate = DateTime(2026, 2, 2, 12);
+      final stateDate = DateTime(2026, 2, 3, 12);
+      final catalogDate = DateTime(2026, 2, 4, 12);
+      await database.librarySyncDao.writeState(
+        LibrarySyncStateTableCompanion(
+          serverId: Value(serverId),
+          currentGeneration: const Value(1),
+          initialCatalogUsableAt: Value(initialDate),
+        ),
+      );
+      final expectedDate = switch (dateSource) {
+        'catalog update' => catalogDate,
+        'state sync' => stateDate,
+        'server sync' => serverDate,
+        _ => initialDate,
+      };
+      await _pumpSyncSettings(
+        tester,
+        database,
+        server: _defaultServer.copyWith(
+          id: serverId,
+          lastSynced: dateSource == 'initial catalog' ? null : serverDate,
+        ),
+        state: LibrarySyncState(
+          status: LibrarySyncStatus.idle,
+          stage: LibrarySyncStage.idle,
+          lastSyncedAt:
+              dateSource == 'state sync' || dateSource == 'catalog update'
+              ? stateDate
+              : null,
+          lastCatalogUpdatedAt: dateSource == 'catalog update'
+              ? catalogDate
+              : null,
+        ),
+      );
+      final catalogTile = find.ancestor(
+        of: find.text('Last Catalog Update'),
+        matching: find.byType(ListTile),
+      );
+      final material = MaterialLocalizations.of(
+        tester.element(find.byType(SyncSettingsScreen)),
+      );
+      expect(
+        find.descendant(
+          of: catalogTile,
+          matching: find.textContaining(material.formatFullDate(expectedDate)),
+        ),
+        findsOneWidget,
+      );
+      expect(
+        find.descendant(
+          of: catalogTile,
+          matching: find.textContaining('Never synced'),
+        ),
+        findsNothing,
+      );
+      await tester.pumpWidget(const SizedBox.shrink());
+      await tester.pump(const Duration(milliseconds: 1));
+    });
+  }
+
   testWidgets('shows the latest destructive library change from the ledger', (
     tester,
   ) async {

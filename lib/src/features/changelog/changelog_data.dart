@@ -162,7 +162,7 @@ const List<ChangelogVersion> changelogs = [
     ],
     entries: [
       ChangelogEntry(
-        'Sync completes and update checks stay quick when a few albums have incomplete server details',
+        'Sync completes and update checks stay quick when a few albums have incomplete server details; Sync Settings remembers the first catalog date',
         type: ChangelogEntryType.fix,
       ),
       ChangelogEntry(

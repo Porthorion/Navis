@@ -33,10 +33,15 @@ class SyncSettingsScreen extends ConsumerWidget {
       backgroundSyncUnmeteredOnlyProvider,
     );
     final serverConfig = ref.watch(serverConfigStateProvider).asData?.value;
+    final androidBackgroundState = ref
+        .watch(androidBackgroundSyncStatusProvider)
+        .asData
+        ?.value;
     final lastCatalogUpdate =
         syncState.lastCatalogUpdatedAt ??
         syncState.lastSyncedAt ??
-        serverConfig?.lastSynced;
+        serverConfig?.lastSynced ??
+        androidBackgroundState?.initialCatalogUsableAt;
     final lastChecked = syncState.lastCheckedAt ?? syncState.completedAt;
     final isRunning = syncState.isRunning;
     final hasFailure = syncState.status == LibrarySyncStatus.failed;
@@ -52,10 +57,6 @@ class SyncSettingsScreen extends ConsumerWidget {
       ref.watch(librarySyncOperationLedgerProvider).asData?.value ??
           const <LibrarySyncOperationLedgerTableData>[],
     );
-    final androidBackgroundState = ref
-        .watch(androidBackgroundSyncStatusProvider)
-        .asData
-        ?.value;
     final androidBackgroundAvailable = ref.watch(
       androidBackgroundSyncAvailableProvider,
     );
