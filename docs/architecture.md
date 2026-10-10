@@ -3441,7 +3441,9 @@ in the queue lane, so handler readiness and media-session Play do not wait for
 every source. A startup, deferred-retry or post-radio restore timeout keeps the
 saved queue instead of deleting it. Radio Stop returns after stopping the stream; its
 background restore and the restore after radio failure share this preservation
-policy. Before releasing the lane it cancels the restore token,
+policy. Stopping radio, or a radio failure, restores the previous queue
+paused, exactly like startup restore: it never resumes playback on its own.
+This is intended (owner decision 2026-10-09), not a gap to close. Before releasing the lane it cancels the restore token,
 retires its load generation, and replaces the native player, so a late native
 load or its inner deadline cannot change a newer selection. Eager restores
 (up to 64 songs) carry the same cancellation ownership through source
