@@ -26,6 +26,7 @@ class QueueReplaceSpy extends QueueController {
     bool autoPlay = true,
     bool expandMatchFlows = true,
     bool notifyMixSessionReset = true,
+    List<String>? originalOrder,
   }) async => _record(ids, startIndex);
 
   @override
@@ -35,6 +36,7 @@ class QueueReplaceSpy extends QueueController {
     bool autoPlay = true,
     bool expandMatchFlows = true,
     bool notifyMixSessionReset = true,
+    List<String>? originalOrder,
   }) async => _record(songs.map((s) => s.id).toList(), startIndex);
 
   @override
@@ -44,5 +46,6 @@ class QueueReplaceSpy extends QueueController {
     bool autoPlay = true,
     bool expandMatchFlows = true,
     bool notifyMixSessionReset = true,
+    List<String>? originalOrder,
   }) async => _record(songs.map((s) => s.id).toList(), startIndex);
 }
