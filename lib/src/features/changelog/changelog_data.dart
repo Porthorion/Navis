@@ -128,6 +128,7 @@ const List<ChangelogVersion> changelogs = [
   ChangelogVersion(
     version: '1.5.0',
     codename: 'Chromatic',
+    iconAsset: 'assets/changelog/chromatic.svg',
     summary:
         'Make Navis look the way you want with new color styles, corners, '
         'density and Now Playing backgrounds, on top of signed updates and a '
