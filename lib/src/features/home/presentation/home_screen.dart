@@ -970,6 +970,9 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
   }
 
   Future<void> _runHomeRefresh() async {
+    // The update check runs alongside the sync instead of after it, so a
+    // long sync never delays the update banner.
+    checkForUpdatesFromPull(ref);
     ref.read(homeRandomShowcaseShuffleSeedProvider.notifier).reshuffle();
     await ref.read(librarySyncControllerProvider.notifier).syncNow();
     ref.invalidate(homeRecentlyAddedProvider);
@@ -980,7 +983,6 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
     ref.invalidate(homeNewReleasesProvider);
     ref.read(homeTrendingRefreshProvider.notifier).refresh(manual: true);
     ref.read(listenBrainzDiscoverRefreshEpochProvider.notifier).refreshFull();
-    checkForUpdatesFromPull(ref);
   }
 
   void _setHomePullProgress(double value) {
