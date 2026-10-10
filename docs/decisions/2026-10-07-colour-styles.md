@@ -270,3 +270,26 @@ current values against saved snapshots while ignoring reference metadata.
 Reset keeps both libraries. Shared name validation preserves playback rules
 and reserves Default for appearance presets. Settings' tuning swatches read
 the effective scheduled style; setup remains an explicit draft preview.
+
+### Fine-Tune Colors panel, Light/Dark brightness and Looks UI (2026-10-10)
+
+Owner decisions, implemented over the v2 persistence:
+
+- The two rulers leave the Appearance page for a panel, as Speed and Pitch
+  did: one row (title, New tag, summary, chevron) opens the shared
+  `showQuickPanel` shell (popover on desktop, sheet on touch). The inline
+  rulers made the Color section long and gave presets no room. The rulers,
+  band and haptics are unchanged; they moved, they were not rebuilt.
+- Brightness is edited per mode through a compact Light | Dark switch under
+  the ruler instead of two more rulers or one value that silently meant "the
+  mode you happen to be in". Dark covers OLED. The strip shows the selected
+  mode's real surfaces, and a caption says where the change shows when that is
+  not the mode on screen, because dragging it would otherwise appear to do
+  nothing. Intensity stays one shared ruler.
+- Tuning presets and Looks reuse `PresetPicker`, the Speed and Pitch picker,
+  so naming, Custom, Update, Rename and Delete behave identically. Custom is
+  derived by value: it appears the moment the values match no preset.
+- Setup keeps the row and the panel but not the preset picker, and has no
+  Looks: both write settings immediately, whereas setup edits a draft that
+  Finish saves (and Skip discards). Presets and Looks are managed in Settings.
+- Looks sit above Theme because they act on everything below them.

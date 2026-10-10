@@ -138,7 +138,7 @@ const List<ChangelogVersion> changelogs = [
       ChangelogHighlight(
         icon: ChangelogHighlightIcon.sparkle,
         title: 'Your look',
-        body: 'Color styles, corner shapes, density and Flat Surfaces',
+        body: 'Color styles, fine-tuned colors, saved Looks, corner shapes and density',
       ),
       ChangelogHighlight(
         icon: ChangelogHighlightIcon.player,
@@ -168,7 +168,11 @@ const List<ChangelogVersion> changelogs = [
         type: ChangelogEntryType.newFeature,
       ),
       ChangelogEntry(
-        'Color and Brightness rulers fine-tune any color style in Light, Dark and OLED',
+        'Fine-Tune Colors opens a panel like Speed & Pitch, with Intensity and Brightness rulers for any color style, a separate Brightness for Light and for Dark and OLED, and presets you can save, rename and update',
+        type: ChangelogEntryType.newFeature,
+      ),
+      ChangelogEntry(
+        'Looks save your whole appearance under a name, so you can switch between them in one tap at the top of Settings › Appearance',
         type: ChangelogEntryType.newFeature,
       ),
       ChangelogEntry(

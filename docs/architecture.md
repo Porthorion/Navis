@@ -1017,41 +1017,84 @@ target-selection rules.
     other styles are unchanged. Flat also drops the album-card caption fade
     for a solid `CaptionTint.fill` block, the selected-swatch glow and the
     anchored popover's black shadow.
-  - Fine-Tune Colors (`color_tuning_option.dart`, `ColorTuningOption`) holds
-    the Color (Muted to Vivid) and Brightness (Lighter to Deeper) rulers. Each
-    is the Speed and Pitch `AdjustmentRuler` in whole-step mode (`snapStep: 1`,
-    value = the step −5…+5, 64 px a step, with small ticks every 8 px between
-    the steps and the haptics described under the ruler below), laid out like
-    the Speed and Pitch row (− stepper, ruler, + stepper via the shared
-    `RulerStepButton`) with end captions and a readout ("Default", "+2", "−3").
-    The scale carries a `RulerBand`: eleven colours, one per step, built with
-    `buildStyledColorScheme` from the previewed seed, style, brightness, OLED
-    flag and the other axis, never from the ambient theme, so they hold still
-    while the app recolours around them. The ruler paints them as one linear
-    gradient with a stop on each step's tick, so the colour under a tick is
-    that step's own and it blends smoothly between ticks (the half step past
-    each end holds its end colour), clipped to the rounded strip and faded at
-    the edges like the ticks, with a hairline frame. Each tick, small or main,
-    takes the ink of the nearest step.
-    Color paints `primary` (its needle is the live primary, with `onPrimary`
-    ticks); Brightness paints `surface`, or `surfaceContainerHigh` in OLED
-    where surface stays black. The widget keeps the values it shows; while a
-    ruler moves it reports each whole step through `onPreview`, and on drag
-    release, stepper, keyboard or Reset it reports the value through
-    `onChanged` (Reset appears only while a value is not 0 and glides both
-    rulers back). Settings maps `onPreview` to
-    `colorTuningPreviewProvider.preview` and `onChanged` to
-    `ColorTuningController.commit`, clearing the preview once the saved value is
-    observed, or on cancellation and disposal;
-    setup writes both to its draft. The rulers stop growing at 480 dp on wide
-    pages. The ruler's band, whole-step snapping, label and accent hooks default
-    to Speed and Pitch behaviour.
+  - Fine-Tune Colors is one row in Appearance (`ColorTuningOption` in
+    `appearance_options.dart`: title, New tag, a summary subtitle and a
+    trailing chevron, like the switch rows beside it) that opens a panel
+    (`color_tuning_panel.dart`, `showColorTuningPanel`) through the Speed and
+    Pitch shell, `showQuickPanel`: an anchored popover (440 wide, up to 680
+    high) on desktop, a sheet capped at 88% on touch layouts, with the title,
+    a live summary and Reset pinned. The row's summary is "Default", the name
+    of the preset the values match, or the steps that are not zero ("Intensity
+    +2 · Brightness −1", Brightness being the mode on screen; with only the
+    other mode adjusted, "Light Brightness +3"); the panel header shows the
+    same without the preset name.
+    The panel body is the preset picker (Settings only, below), a divider,
+    then two rulers, **Intensity** (Muted to Vivid) and **Brightness** (Lighter
+    to Deeper), each `ColorTuningRulerRow`: the Speed and Pitch `AdjustmentRuler`
+    in whole-step mode (`snapStep: 1`, value = the step −5…+5, 64 px a step,
+    small ticks every 8 px between steps, the haptics described under the
+    ruler below), laid out like the Speed and Pitch row (− stepper, ruler, +
+    stepper via the shared `RulerStepButton`, a readout of "Default", "+2",
+    "−3", end captions that stay left-to-right in RTL). A compact **Light |
+    Dark** `SegmentedButton` under Brightness picks which mode's value that
+    ruler edits (Dark covers OLED, which shares Dark's value); it starts on the
+    mode on screen and changes no value by itself. When it is on the other
+    mode, a one-line caption says where the change shows ("Applies in Light
+    mode", "Applies in Dark and OLED"). Intensity is shared by every mode.
+    Each ruler carries a `RulerBand`: eleven colours, one per step, built with
+    `buildStyledColorScheme` from a `ColorTuningBasis` (previewed seed, style,
+    the mode on screen and whether it is OLED, and whether Dark would be OLED)
+    and the other axis, never from the ambient theme, so they hold still while
+    the app recolours around them. The ruler paints them as one linear gradient
+    with a stop on each step's tick (clipped to the rounded strip, faded at the
+    edges, hairline frame; each tick takes the ink of the nearest step).
+    Intensity paints `primary` in the mode on screen (its needle is the live
+    primary, with `onPrimary` ticks). Brightness paints the selected mode's
+    `surface`, so Light shows paper and Dark its own surfaces, or
+    `surfaceContainerHigh` for OLED, where surface stays black.
+    The host owns the value: `showColorTuningPanel` takes a
+    `ValueListenable<ColorTuning>` that it keeps, plus `onPreview` (each whole
+    step while a ruler moves), `onCommit` (drag release, stepper, keyboard,
+    Reset) and `onPreviewEnd` (the panel went away mid-drag). The body keeps
+    what it shows, follows the notifier when something else changes the value
+    (choosing a preset, a failed save restoring the old one) and glides the
+    rulers there, and never yanks a ruler mid-gesture for the echo of an
+    earlier preview. Reset commits `ColorTuning.none` and is disabled at
+    Default. Settings keeps the notifier in step with
+    `colorTuningControllerProvider`, maps `onPreview` to
+    `ColorTuningController.preview` and `onCommit` to `commit` (a persistence
+    failure shows an error notice and the controller restores the saved value),
+    and passes `onPreviewEnd: clearPreview`; setup keeps a notifier of its own
+    over its draft and writes `colorVividness` and both depths on every call.
+    The swatch basis is captured when the panel opens.
+  - Tuning presets in the panel (`ColorTuningPresetPicker` in
+    `appearance_preset_pickers.dart`) are the shared `PresetPicker`, as in
+    Speed and Pitch: Default first and the saved presets, "Custom" while the
+    values match none (so a drag off a preset reads Custom and returning to it
+    reads its name again), and a ⋮ menu with Save as New, Update, Rename and
+    Delete acting through `ColorTuningController`. Update is offered while the
+    values are Custom and came from a preset, Rename and Delete act on the
+    chosen preset (or that origin); neither exists for Default. A name refused
+    by `validatePresetName`, or a failed write, is shown inline in the name
+    dialog with `PresetFailure` mapped to `appearancePreset*` strings; failures
+    of the other commands show an error notice. Setup leaves the picker out:
+    presets save straight to settings, while setup edits a draft that Finish
+    saves.
+  - Looks have one control, `AppearanceLooksOption` (same file), at the top of
+    Settings › Appearance above Theme and tagged by
+    `SetupHighlight.appearanceLooks`: a heading, a subtitle and a
+    `PresetPicker` over the saved Looks, with "Custom" while the appearance
+    matches none and a ⋮ menu offering Save Current as New Look, Update,
+    Rename and Delete through `AppearanceLooksController`; choosing a Look
+    applies it. With no Looks the picker reads Custom and the subtitle points
+    at the menu. Setup does not show Looks (they write settings directly).
   - Decision record:
     [decisions/2026-10-07-colour-styles.md](decisions/2026-10-07-colour-styles.md).
   - Settings › Appearance (`appearance_settings_screen.dart`) has four
-    sections under one `AppearanceHeading` (`appearance_layout.dart`):
+    sections under one `AppearanceHeading` (`appearance_layout.dart`), below
+    the Looks picker:
     Theme (Theme Mode, Use OLED When Dark in Auto only), Color (Color Style,
-    Fine-Tune Colors, Night Schedule, Accent Color, then Dynamic Album Color
+    the Fine-Tune Colors row, Night Schedule, Accent Color, then Dynamic Album Color
     directly under the accent grid, whose note names the switch, then Album Art
     Shade with its Use Cover Color sub-switch), Shape & Layout (Flat Surfaces
     with its three area switches revealed while Flat is on, Corner Style,
@@ -1651,7 +1694,8 @@ widgets as Settings › Appearance (`settings/presentation/appearance_options.da
 Theme Mode, Color Style, Night Schedule and Accent Color are always visible;
 Album Art Shade (with Use Cover Color) sits after the accent hint. A "More
 appearance options" group (`SettingsCollapsibleGroup`, children built only
-while open) holds Use OLED When Dark (Auto only), Fine-Tune Colors, Flat
+while open) holds Use OLED When Dark (Auto only), the Fine-Tune Colors row
+(its panel edits the draft and has no preset picker), Flat
 Surfaces (with its Panels and Shadows, Now Playing and Text Over Artwork
 switches while Flat is on), Corner Style, Density and Now Playing Background,
 in Settings' relative order. It starts open when any of them carries a pending
