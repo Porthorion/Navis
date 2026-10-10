@@ -874,7 +874,9 @@ extension _NavisRecovery on NavisAudioHandler {
       _seekFailureBlocksRecovery = false;
       _seekFailurePosition = null;
     }
-    if (_pendingSeek != null ||
+    if (_isLoading ||
+        _pendingLogicalQueueSongIds != null ||
+        _pendingSeek != null ||
         _seekFailureBlocksRecovery ||
         _radioStation != null ||
         _queueItems.isEmpty) {
@@ -928,7 +930,9 @@ extension _NavisRecovery on NavisAudioHandler {
     Object? error,
     StackTrace? stackTrace,
   }) async {
-    if (_pendingSeek != null ||
+    if (_isLoading ||
+        _pendingLogicalQueueSongIds != null ||
+        _pendingSeek != null ||
         _seekFailureBlocksRecovery ||
         _remotePlaybackRecoveryInProgress ||
         _radioStation != null) {

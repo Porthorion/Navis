@@ -72,23 +72,30 @@ abstract class NavisPlaybackHandler {
   /// source was available yet. A no-op once the user has started playback.
   Future<void> retryDeferredQueueRestore();
 
+  /// Replaces the queue with [songIds].
+  ///
+  /// [originalOrder] supplies pre-shuffle occurrence IDs when the caller
+  /// already shuffled [songIds]; the handler preserves that play order.
   Future<void> replaceQueue(
     List<String> songIds, {
     int startIndex,
     bool autoPlay,
     bool expandMatchFlows,
+    List<String>? originalOrder,
   });
 
   /// Replaces the queue using pre-fetched [SongsTableData] rows.
   ///
   /// Exact supplied sources bypass the library read. Local retired identities
   /// and Match Flow expansion reread rows; queues containing external rows
-  /// retain every supplied row and bypass expansion.
+  /// retain every supplied row and bypass expansion. [originalOrder] supplies
+  /// pre-shuffle occurrence IDs for an already shuffled entity selection.
   Future<void> replaceQueueWithData(
     List<SongsTableData> songs, {
     int startIndex,
     bool autoPlay,
     bool expandMatchFlows,
+    List<String>? originalOrder,
   });
 
   Future<void> addToQueue(List<String> songIds, {bool expandMatchFlows});

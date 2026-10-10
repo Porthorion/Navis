@@ -355,11 +355,13 @@ abstract class _DelegatingNavisPlaybackHandler
     int startIndex = 0,
     bool autoPlay = true,
     bool expandMatchFlows = true,
+    List<String>? originalOrder,
   }) => _delegate.replaceQueue(
     songIds,
     startIndex: startIndex,
     autoPlay: autoPlay,
     expandMatchFlows: expandMatchFlows,
+    originalOrder: originalOrder,
   );
 
   @override
@@ -368,11 +370,13 @@ abstract class _DelegatingNavisPlaybackHandler
     int startIndex = 0,
     bool autoPlay = true,
     bool expandMatchFlows = true,
+    List<String>? originalOrder,
   }) => _delegate.replaceQueueWithData(
     songs,
     startIndex: startIndex,
     autoPlay: autoPlay,
     expandMatchFlows: expandMatchFlows,
+    originalOrder: originalOrder,
   );
 
   @override

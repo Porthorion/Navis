@@ -110,6 +110,7 @@ class _DelayedReplaceHandler implements NavisPlaybackHandler {
     int startIndex = 0,
     bool autoPlay = true,
     bool expandMatchFlows = true,
+    List<String>? originalOrder,
   }) async {
     replaceCalls += 1;
     await gate.future;
@@ -121,6 +122,7 @@ class _DelayedReplaceHandler implements NavisPlaybackHandler {
     int startIndex = 0,
     bool autoPlay = true,
     bool expandMatchFlows = true,
+    List<String>? originalOrder,
   }) async {
     replaceCalls += 1;
     await gate.future;

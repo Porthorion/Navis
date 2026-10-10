@@ -208,6 +208,7 @@ class _FakePlaybackHandler extends InertPlaybackHandler {
     int startIndex = 0,
     bool autoPlay = true,
     bool expandMatchFlows = true,
+    List<String>? originalOrder,
   }) async {
     replaceQueueExpandFlags.add(expandMatchFlows);
     final current = songIds.isEmpty
@@ -234,6 +235,7 @@ class _FakePlaybackHandler extends InertPlaybackHandler {
     int startIndex = 0,
     bool autoPlay = true,
     bool expandMatchFlows = true,
+    List<String>? originalOrder,
   }) async {
     final ids = songs.map((s) => s.id).toList(growable: false);
     await replaceQueue(

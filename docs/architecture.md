@@ -3159,7 +3159,12 @@ arrive. It then cancels the probe body even when the server ignores Range,
 rather than downloading the whole song before playback. This is needed because
 the players give up on a silent connection long before the server has the file
 (ExoPlayer after 8 s, also through the lock-cache proxy) and the server answers
-at once afterwards.
+at once afterwards. Manual Next, Previous and queue taps use the same
+warm-up for an external target backed by a remote source (including remembered
+remote rows), with the remote-load deadline for both native seek and reload.
+Local files retain the four-second control deadline. A timed-out navigation
+rebuilds at the requested occurrence first; only a failed rebuild advances.
+The requested `loadingSongId` remains visible through that recovery.
 
 On Android a lock-cache download otherwise ran to completion after the player
 had moved on; on a slow link a skipped song's download starved the new song,
@@ -3176,8 +3181,20 @@ retry with direct streaming instead of leaving the native request unanswered.
 Sized ranges and reads from the completed cache file keep their normal responses.
 
 Album-style queue replacement is lazy: the active transport queue prepares the
-tapped song first, then fills the remaining sources in phase 2. ID and supplied-row
-inputs share one replacement lifecycle for admission, lane execution, early logical
+tapped song first, then fills the remaining sources in phase 2. Phase 1 pauses
+and stops the active player and cancels/pauses the crossfade deck before remote
+warm-up. It keeps the previous metadata visible, paused, with the selected
+`loadingSongId`; late idle-player index events cannot notify or scrobble a third
+song. The selected materialised item and metadata anchor are published only
+immediately before `setAudioSources`. A hung stop retires the deck and continues
+loading the selected song on the rebuilt player. Failed phase-1 loads realign
+the materialised queue and current item with an empty rebuilt player before
+recovery. Abandoned players receive independent fire-and-forget mute and pause
+requests before stop/dispose, so a hung cleanup cannot leave them playing.
+Stall watching, remote failure recovery and ReplayGain lookup wait while a
+selection is loading or a logical queue replacement is pending. Snapshot and
+media-session metadata are published from the same resolved queue item.
+ID and supplied-row inputs share one replacement lifecycle for admission, lane execution, early logical
 persistence, fill, completion and timeout advance. The ID adapter canonicalizes
 identities before Match Flow expansion and reads rows inside the lane. The row
 adapter rereads local retired identities and local Match Flow expansions; mixed
@@ -3246,8 +3263,11 @@ the end of the last song Navis wraps to the first itself.
 (`queue window model` in
 `test/src/features/player/data/navis_audio_handler_navigation_test.dart`)
 runs 500 seeded random sequences of navigation, auto-advance, edits and
-shuffle against a tiny window and checks the queue, index, native playlist
-and saved queue after every step; `NAVIS_QUEUE_MODEL_SEEDS` changes the count.
+shuffle and pre-shuffled replacements (including cold external HTTP selections)
+against a tiny window. It checks all active, inactive and retired players against
+snapshot/media-session metadata on every structural emission, then the queue,
+index, native playlist and saved queue after each settled step;
+`NAVIS_QUEUE_MODEL_SEEDS` changes the count.
 
 Shuffle is owned by Navis, not the player (`_shuffleEnabled`,
 `navis_shuffle_order.dart`). Native shuffle is never enabled: it can order
@@ -3258,11 +3278,17 @@ always the play order, so the Queue shows the real order and next/previous
 step by one. Turning shuffle on keeps the history and the current song and
 shuffles the rest; a queue started with shuffle on begins at the chosen song
 with the others shuffled. The unshuffled order is kept in `_originalOrder`
-and reconciled lazily with edits made while shuffled
+(entity Shuffle callers pass the optional `originalOrder` of their unshuffled
+IDs alongside pre-shuffled rows, so the handler preserves the supplied order
+and never shuffles it twice). Android Auto’s Shuffle liked projection passes
+the same original order through the row-loading adapter. It is reconciled lazily with edits
 (`reconcileOriginalRanks`: songs matched by occurrence, a song played next
 lands after the current song, appended songs go last, removed songs drop).
 Turning shuffle off restores that order around the current song without
-interrupting it (`_rearrangeQueue`). Schema v88 saves each queue row's
+interrupting it (`_rearrangeQueue`). If a native rearrangement times out, the
+handler restores the captured queue/current occurrence and rolls back shuffle
+mode and original ranks; the resulting state is still persisted and emitted.
+Schema v88 saves each queue row's
 unshuffled position in `play_queue_items.original_order` next to its play
 position, so a shuffled queue restores in the order it was playing; a queue
 saved by an older build (shuffle on, no original order) keeps its history and
@@ -3273,8 +3299,11 @@ handler remembers the rows of materialised remote songs instead of re-reading
 their ids, which would drop them or swap in a matched local song.
 
 Every native queue edit runs under a timeout, including single removals and
-moves. A timeout rebuilds both players, which leaves the active one empty, so
-queue edits reload the materialised queue into the rebuilt player at the same
+moves. Native index/playback events wait until a queue edit's Dart mirror agrees with
+the native sequence, so an insertion cannot temporarily publish another song.
+Song-scoped state is refreshed when the mirror commits. A timeout rebuilds both
+players, leaving the active one empty, so queue edits reload the materialised
+queue into the rebuilt player at the same
 song, position and play state before the edit reports its failure, keeping
 later edits in the lane consistent. Songs past the release window go back to
 the tail. An edit the Dart queue applied first (remove, move) stays applied;

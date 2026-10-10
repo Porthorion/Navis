@@ -60,11 +60,12 @@ extension _NavisQueueLoading on NavisAudioHandler {
 
   NavisResolvedQueueMetadata _resolveCurrentQueueMetadata() {
     final backendCurrentIndex = _player.currentIndex;
-    if (navisIsQueueReplacementMetadataAnchorConfirmed(
-      queueItems: _queueItems,
-      backendCurrentIndex: backendCurrentIndex,
-      anchor: _queueReplacementMetadataAnchor,
-    )) {
+    if (!(_isLoading && _player.processingState == ProcessingState.idle) &&
+        navisIsQueueReplacementMetadataAnchorConfirmed(
+          queueItems: _queueItems,
+          backendCurrentIndex: backendCurrentIndex,
+          anchor: _queueReplacementMetadataAnchor,
+        )) {
       _clearQueueReplacementMetadataAnchor();
     }
     return navisResolveQueueMetadata(
@@ -96,6 +97,8 @@ extension _NavisQueueLoading on NavisAudioHandler {
     _loadingSongId = null;
     _clearPendingLogicalQueue();
     _pendingLogicalQueueSongs = null;
+    _applyReplayGainVolume();
+    _syncRemotePlaybackStallWatchdog();
     if (_navigationIntent.isPending &&
         _navigationIntent.desiredIndex == _logicalCurrentIndex) {
       _navigationIntent.confirm(_navigationIntent.revision);
@@ -135,7 +138,17 @@ extension _NavisQueueLoading on NavisAudioHandler {
     );
   }
 
+  void _silenceAbandonedPlayer(AudioPlayer player) {
+    // A stuck stop/dispose must never leave an orphan audible. Neither
+    // operation depends on the other completing.
+    unawaited(
+      Future<void>.sync(() => player.setVolume(0)).catchError((Object _) {}),
+    );
+    unawaited(Future<void>.sync(player.pause).catchError((Object _) {}));
+  }
+
   Future<void> _disposeAbandonedPlayer(AudioPlayer player) async {
+    _silenceAbandonedPlayer(player);
     try {
       await player.stop().timeout(_playerResetTimeout);
     } on Object {
@@ -166,6 +179,9 @@ extension _NavisQueueLoading on NavisAudioHandler {
       '(song=${songId ?? 'n/a'} generation=$generation).',
     );
     _cancelCrossfade();
+    _silenceAbandonedPlayer(_player);
+    final inactive = _crossfadePlayer;
+    if (inactive != null) _silenceAbandonedPlayer(inactive);
     await _disposePlayerListeners();
 
     final previousPlayer = _player;
@@ -693,22 +709,58 @@ extension _NavisQueueLoading on NavisAudioHandler {
       }
     }
 
-    // Phase 1 loads only the start song's audio source into the player at
-    // index 0.  _queueItems must contain only that one item so that the
-    // currentIndexStream listener (which fires at index 0 immediately after
-    // setAudioSource) maps index 0 → startItem.mediaItem, not the first
-    // album track.  Phase 2 will insert/append the remaining items.
-    _queueItems.clear();
-    await _clearDeferredTail();
-    _queueItems.add(startItem.mediaItem);
-    if (songs.length > 1) {
-      _setQueueReplacementMetadataAnchor(
-        expectedIndex: clampedIndex,
-        mediaItem: startItem.mediaItem,
+    final previous = _currentMediaItem;
+    if (previous != null) {
+      final previousIndex = _queueItems.indexWhere(
+        (item) => item.id == previous.id,
       );
+      if (previousIndex >= 0) {
+        _setQueueReplacementMetadataAnchor(
+          expectedIndex: previousIndex,
+          mediaItem: previous,
+        );
+      }
     }
+    // Keep the previous metadata until the new source is ready to apply.
+    // Pause independently of stop so a hung native stop cannot stay audible.
+    _checkQueueWorkCurrent(token, generation);
+    _cancelCrossfade();
+    try {
+      await _runTimedPlayerOperation(
+        generation: generation,
+        operation: 'replace queue phase 1 pause',
+        action: _player.pause,
+        songId: startSong.id,
+        timeout: _playerControlTimeout,
+      );
+      final deck = _crossfadePlayer;
+      if (deck != null) {
+        await _runTimedPlayerOperation(
+          generation: generation,
+          operation: 'replace queue phase 1 pause deck',
+          action: deck.pause,
+          songId: startSong.id,
+          timeout: _playerControlTimeout,
+        );
+      }
+      await _runTimedPlayerOperation(
+        generation: generation,
+        operation: 'replace queue phase 1 stop',
+        action: _player.stop,
+        songId: startSong.id,
+        timeout: _playerResetTimeout,
+      );
+    } on PlaybackLoadTimeoutException {
+      // Reset retired the hung deck and rebuilt an empty player. The selected
+      // source has not failed: continue loading it on the replacement player.
+      _checkQueueWorkCurrent(token, generation);
+    }
+    _broadcastPlaybackState();
+    _emitSnapshot();
 
-    if (startItem.song.isExternal && !startItem.source.isLocal) {
+    if ((startItem.song.isExternal ||
+            isExternalCatalogSource(id: startItem.song.id)) &&
+        !startItem.source.isLocal) {
       await _warmRemoteStream(
         startItem.source.uri ?? startItem.source.lockCachingStreamUri,
         stillWanted: () =>
@@ -717,16 +769,19 @@ extension _NavisQueueLoading on NavisAudioHandler {
       startupTrace?.mark('remoteWarmupComplete');
     }
 
-    // Set a single audio source on the player and start playback.
     _checkQueueWorkCurrent(token, generation);
-    startupTrace?.mark('selectedSourceApplyStart');
-    await _runTimedPlayerOperation(
-      generation: generation,
-      operation: 'replace queue phase 1 stop',
-      action: _player.stop,
-      songId: startSong.id,
-      timeout: _playerResetTimeout,
+    await _clearDeferredTail();
+    _checkQueueWorkCurrent(token, generation);
+    // Native index 0 must resolve to the selected occurrence as soon as
+    // setAudioSources starts emitting events, including single-song loads.
+    _queueItems
+      ..clear()
+      ..add(startItem.mediaItem);
+    _setQueueReplacementMetadataAnchor(
+      expectedIndex: clampedIndex,
+      mediaItem: startItem.mediaItem,
     );
+    startupTrace?.mark('selectedSourceApplyStart');
     try {
       await _setAudioSourcesWithFallback(
         audioSources: <AudioSource>[startItem.audioSource],
@@ -1029,7 +1084,8 @@ extension _NavisQueueLoading on NavisAudioHandler {
 
   /// The native load deadline for a queue starting at [item].
   Duration _loadTimeoutFor(_PreparedQueueItem item) =>
-      item.song.isExternal && !item.source.isLocal
+      (item.song.isExternal || isExternalCatalogSource(id: item.song.id)) &&
+          !item.source.isLocal
       ? _timeouts.remoteLoad
       : _playerLoadTimeout;
 
@@ -1100,6 +1156,7 @@ extension _NavisQueueLoading on NavisAudioHandler {
     required bool inPlayOrder,
     List<SongsTableData>? suppliedRows,
   }) {
+    _cancelCrossfade();
     _navigationIntent.reset();
     _pendingLogicalQueueSongs = suppliedRows;
     _supersedeTransportIntent(shouldPlay: autoPlay);
@@ -1130,6 +1187,7 @@ extension _NavisQueueLoading on NavisAudioHandler {
     bool autoPlay = true,
     bool expandMatchFlows = true,
     required bool inPlayOrder,
+    List<String>? originalOrder,
   }) async {
     final canonicalIds = songIds.map(_canonicalSongId).toList(growable: false);
     final admittedGeneration = _admitQueueReplacement(
@@ -1149,6 +1207,9 @@ extension _NavisQueueLoading on NavisAudioHandler {
       expansion.startIndex,
       (id) => id,
       inPlayOrder: inPlayOrder,
+      originalOrder: originalOrder
+          ?.map(_canonicalSongId)
+          .toList(growable: false),
     );
     await _runQueueReplacement(
       songIds: orderedIds,
@@ -1179,6 +1240,7 @@ extension _NavisQueueLoading on NavisAudioHandler {
     bool autoPlay = true,
     bool expandMatchFlows = true,
     required bool inPlayOrder,
+    List<String>? originalOrder,
   }) async {
     // Whole-entity playback retains supplied remote sources even when they
     // have since been matched to a local identity.
@@ -1213,6 +1275,9 @@ extension _NavisQueueLoading on NavisAudioHandler {
         autoPlay: autoPlay,
         expandMatchFlows: expandMatchFlows,
         inPlayOrder: inPlayOrder,
+        originalOrder: originalOrder
+            ?.map(_canonicalSongId)
+            .toList(growable: false),
       );
       return;
     }
@@ -1234,6 +1299,7 @@ extension _NavisQueueLoading on NavisAudioHandler {
         autoPlay: autoPlay,
         expandMatchFlows: false,
         inPlayOrder: inPlayOrder,
+        originalOrder: originalOrder,
       );
       return;
     }
@@ -1243,6 +1309,7 @@ extension _NavisQueueLoading on NavisAudioHandler {
       startIndex,
       (song) => song.id,
       inPlayOrder: inPlayOrder,
+      originalOrder: originalOrder,
     );
     await _runQueueReplacement(
       songIds: orderedSongs.map((song) => song.id).toList(growable: false),
@@ -1366,18 +1433,27 @@ extension _NavisQueueLoading on NavisAudioHandler {
         AppLogger.debug('$context cancelled — superseded by newer command.');
       } on PlaybackLoadTimeoutException catch (error) {
         if (!_isActiveLoadGeneration(generation)) return;
-        _completeQueueLoad(
-          generation,
-          loadingSongId: error.songId ?? loadingSongId,
-          failed: true,
-        );
+        if (_player.audioSources.isEmpty) {
+          _queueItems.clear();
+          _clearQueueReplacementMetadataAnchor();
+          _setCurrentMediaItem(null);
+          queue.add(const <MediaItem>[]);
+        }
         final nextIndex = nextRecoveryIndex;
         if (nextIndex != null) {
+          // Admission of the recovery owns the next loading target; do not
+          // publish a settled song backed by the empty retired player first.
           unawaited(
             recover(
               startIndex: nextIndex,
               autoPlay: _latestExplicitTransportPlaying ?? autoPlay,
             ),
+          );
+        } else {
+          _completeQueueLoad(
+            generation,
+            loadingSongId: error.songId ?? loadingSongId,
+            failed: true,
           );
         }
       } on Object {
@@ -1399,7 +1475,14 @@ extension _NavisQueueLoading on NavisAudioHandler {
     int startIndex,
     String Function(T item) idOf, {
     required bool inPlayOrder,
+    List<String>? originalOrder,
   }) {
+    if (originalOrder != null && !inPlayOrder) {
+      // Entity Shuffle supplies its play order and its pre-shuffle ranks.
+      // Never shuffle it twice or record randomized ranks as the original.
+      _originalOrder = _shuffleEnabled ? List<String>.of(originalOrder) : null;
+      return (items, startIndex);
+    }
     if (inPlayOrder || items.isEmpty) return (items, startIndex);
     if (!_shuffleEnabled) {
       _originalOrder = null;

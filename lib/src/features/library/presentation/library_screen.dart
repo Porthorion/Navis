@@ -2109,7 +2109,13 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
     try {
       await ref
           .read(queueProvider.notifier)
-          .replaceWithTableData(songsToQueue, autoPlay: true);
+          .replaceWithTableData(
+            songsToQueue,
+            autoPlay: true,
+            originalOrder: shuffle
+                ? songs.map((song) => song.id).toList()
+                : null,
+          );
     } on Object {
       if (!mounted) {
         return;

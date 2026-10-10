@@ -26,6 +26,7 @@ class _RecordingPlaybackHandler extends InertPlaybackHandler {
     int startIndex = 0,
     bool autoPlay = true,
     bool expandMatchFlows = true,
+    List<String>? originalOrder,
   }) async {
     replaceQueueCalls += 1;
     lastQueue = List<String>.from(songIds);
@@ -40,6 +41,7 @@ class _RecordingPlaybackHandler extends InertPlaybackHandler {
     int startIndex = 0,
     bool autoPlay = true,
     bool expandMatchFlows = true,
+    List<String>? originalOrder,
   }) async {
     replaceQueueCalls += 1;
     replaceQueueWithDataCalls += 1;

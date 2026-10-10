@@ -1315,11 +1315,13 @@ class NavisAudioHandler extends BaseAudioHandler
     int startIndex = 0,
     bool autoPlay = true,
     bool expandMatchFlows = true,
+    List<String>? originalOrder,
   }) => _replaceQueueIds(
     songIds,
     startIndex: startIndex,
     autoPlay: autoPlay,
     expandMatchFlows: expandMatchFlows,
+    originalOrder: originalOrder,
     inPlayOrder: false,
   );
 
@@ -1329,11 +1331,13 @@ class NavisAudioHandler extends BaseAudioHandler
     int startIndex = 0,
     bool autoPlay = true,
     bool expandMatchFlows = true,
+    List<String>? originalOrder,
   }) => _replaceQueueRows(
     songs,
     startIndex: startIndex,
     autoPlay: autoPlay,
     expandMatchFlows: expandMatchFlows,
+    originalOrder: originalOrder,
     inPlayOrder: false,
   );
 
@@ -2283,6 +2287,7 @@ class NavisAudioHandler extends BaseAudioHandler
     final enabled = shuffleMode == AudioServiceShuffleMode.all;
     await _enqueueQueueEdit((token) async {
       if (enabled == _shuffleEnabled) return;
+      _cancelCrossfade();
       final entries = _logicalQueueEntries();
       final current = _logicalCurrentIndex;
       if (entries.isEmpty || current == null) {
@@ -2294,11 +2299,14 @@ class NavisAudioHandler extends BaseAudioHandler
         return;
       }
       final ids = entries.map((entry) => entry.id).toList(growable: false);
+      final previousEnabled = _shuffleEnabled;
+      final previousOriginalOrder = _originalOrder;
+      bool rearranged;
       if (enabled) {
         // History and the current song stay; the rest is shuffled.
         _originalOrder = ids;
         _shuffleEnabled = true;
-        await _rearrangeQueue(
+        rearranged = await _rearrangeQueue(
           shuffledAfter(entries, current, _shuffleRandom),
           current: current,
           newCurrent: current,
@@ -2311,12 +2319,16 @@ class NavisAudioHandler extends BaseAudioHandler
         final order = unshuffledIndices(ranks);
         _shuffleEnabled = false;
         _originalOrder = null;
-        await _rearrangeQueue(
+        rearranged = await _rearrangeQueue(
           <_DeferredQueueEntry>[for (final i in order) entries[i]],
           current: current,
           newCurrent: order.indexOf(current),
           token: token,
         );
+      }
+      if (!rearranged) {
+        _shuffleEnabled = previousEnabled;
+        _originalOrder = previousOriginalOrder;
       }
     });
     await _persistSafely(
@@ -2451,6 +2463,12 @@ class NavisAudioHandler extends BaseAudioHandler
   void debugWireAudioSession(AudioSession session) =>
       _wireAudioSession(session);
 
+  /// The observer of structural state before asynchronous delivery.
+  ///
+  /// Tests compare it with the native players at the instant of publication.
+  @visibleForTesting
+  void Function(PlaybackSnapshot)? debugSnapshotObserver;
+
   /// Whether no queue work, including idle releases and trims, is running
   /// or waiting.
   @visibleForTesting
@@ -2489,10 +2507,18 @@ class NavisAudioHandler extends BaseAudioHandler
         reason: 'remote playback stalled',
       );
 
-  /// Writes any coalesced queue save now and waits for the persistence lane.
+  /// Writes coalesced queue and transport saves and waits for persistence.
   @visibleForTesting
   Future<void> debugFlushQueuePersistence() async {
     await _flushQueueItemsPersistence();
+    if (_transportPersistTimer != null) {
+      _transportPersistTimer?.cancel();
+      _transportPersistTimer = null;
+      await _persistSafely(
+        _persistPosition,
+        context: 'flush transport persistence',
+      );
+    }
     await _persistTail;
   }
 

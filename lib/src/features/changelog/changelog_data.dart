@@ -162,6 +162,14 @@ const List<ChangelogVersion> changelogs = [
     ],
     entries: [
       ChangelogEntry(
+        'Skipping to a song that is still being fetched no longer jumps past it',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
+        'Shuffle no longer shows the next song while the previous one keeps playing',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
         'Now Playing Background also applies to the queue and to the desktop lyrics view',
       ),
       ChangelogEntry(

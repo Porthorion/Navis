@@ -59,6 +59,7 @@ class _QueueSpy extends QueueController {
     bool autoPlay = true,
     bool expandMatchFlows = true,
     bool notifyMixSessionReset = true,
+    List<String>? originalOrder,
   }) async {
     calls++;
     state = songs.map((song) => song.id).toList();

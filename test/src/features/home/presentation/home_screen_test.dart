@@ -156,6 +156,7 @@ class _QueueSpyController extends QueueController {
     bool autoPlay = true,
     bool expandMatchFlows = true,
     bool notifyMixSessionReset = true,
+    List<String>? originalOrder,
   }) async {
     lastReplaceIds = List<String>.unmodifiable(ids);
     lastStartIndex = startIndex;
@@ -171,6 +172,7 @@ class _QueueSpyController extends QueueController {
     bool autoPlay = true,
     bool expandMatchFlows = true,
     bool notifyMixSessionReset = true,
+    List<String>? originalOrder,
   }) async {
     final ids = songs.map((s) => s.id).toList(growable: false);
     lastReplaceIds = List<String>.unmodifiable(ids);
@@ -187,6 +189,7 @@ class _QueueSpyController extends QueueController {
     bool autoPlay = true,
     bool expandMatchFlows = true,
     bool notifyMixSessionReset = true,
+    List<String>? originalOrder,
   }) async {
     final ids = songs.map((s) => s.id).toList(growable: false);
     lastReplaceIds = List<String>.unmodifiable(ids);
