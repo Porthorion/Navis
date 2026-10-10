@@ -168,8 +168,7 @@ void main() {
     return container;
   }
 
-  /// The accent grid's custom-colour button; the Fine-Tune Colors steppers
-  /// use the same icon.
+  /// The accent grid's custom-colour button.
   final customColorAdd = find.descendant(
     of: find.byType(ColorSchemeGrid),
     matching: find.byIcon(Icons.add),
@@ -1151,8 +1150,9 @@ void main() {
           highlights: SetupHighlight.values.toSet(),
           settle: false,
         );
-        expect(find.byType(NewFeatureTag), findsNWidgets(9));
+        expect(find.byType(NewFeatureTag), findsNWidgets(10));
         for (final label in <String>[
+          l10n.appearanceLooksLabel,
           l10n.appearanceColorStyleLabel,
           l10n.appearanceColorTuningLabel,
           l10n.appearanceOledForAutoLabel,
@@ -1201,14 +1201,8 @@ void main() {
           settle: false,
         );
         await tester.pump();
-        // Temporary until the Looks control lands in the UI pass.
-        expect(
-          seenOptions.toSet(),
-          SetupHighlight.values
-              .where((h) => h != SetupHighlight.appearanceLooks)
-              .toSet(),
-        );
-        expect(seenOptions, hasLength(SetupHighlight.values.length - 1));
+        expect(seenOptions.toSet(), SetupHighlight.values.toSet());
+        expect(seenOptions, hasLength(SetupHighlight.values.length));
       });
 
       testWidgets('hidden OLED option is never marked', (tester) async {

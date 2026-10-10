@@ -348,9 +348,22 @@ void main() {
   });
 
   group('Fine-Tune Colors', () {
-    Finder plus(String axis) =>
-        find.byKey(ValueKey<String>('colorTuning-$axis-plus'));
-    Finder reset() => find.byKey(const ValueKey<String>('colorTuning-reset'));
+    final row = find.byKey(const ValueKey<String>('colorTuningOption'));
+    final summary = find.byKey(
+      const ValueKey<String>('colorTuningOption-summary'),
+    );
+    Finder control(String name) =>
+        find.byKey(ValueKey<String>('colorTuning-$name'));
+    Finder plus(String axis) => control('$axis-plus');
+    Finder reset() => control('reset');
+
+    Future<void> openPanel(_Harness h) => h.tap(row);
+
+    Future<void> closePanel(_Harness h) =>
+        h.tap(find.byKey(const ValueKey<String>('quickPanelClose')));
+
+    String summaryText(WidgetTester tester) =>
+        tester.widget<Text>(summary).data!;
 
     testWidgets('is tagged New in the open group and clears with Finish', (
       tester,
@@ -371,12 +384,40 @@ void main() {
       expect((await h.row()).setupHighlightsSeenRelease, '1.5.0');
     });
 
+    testWidgets('is one row with a summary, and the rulers wait in a panel', (
+      tester,
+    ) async {
+      await _pump(
+        tester,
+        seed: (d) =>
+            d.updateColorTuning(const ColorTuning(vividness: 2, darkDepth: -1)),
+      );
+      expect(row, findsOneWidget);
+      expect(summaryText(tester), 'Intensity +2 · Brightness −1');
+      expect(control('color-ruler'), findsNothing);
+    });
+
+    testWidgets('opens its panel without presets, which setup leaves to '
+        'Settings', (tester) async {
+      final h = await _pump(tester);
+      await openPanel(h);
+      expect(
+        find.byKey(const ValueKey<String>('colorTuningPanel')),
+        findsOneWidget,
+      );
+      expect(control('color-ruler'), findsOneWidget);
+      expect(control('brightness-ruler'), findsOneWidget);
+      expect(find.byType(DropdownMenu<String>), findsNothing);
+      expect(find.text('Preset'), findsNothing);
+    });
+
     testWidgets('drafts both axes, previews them and saves on Finish', (
       tester,
     ) async {
       final h = await _pump(tester);
       final before = h.previewTheme.colorScheme.surface;
-      expect(reset(), findsNothing);
+      await openPanel(h);
+      expect(tester.widget<TextButton>(reset()).onPressed, isNull);
 
       await h.tap(plus('color'));
       await h.tap(plus('color'));
@@ -396,6 +437,8 @@ void main() {
       expect(row.colorVividness, 0);
       expect(row.surfaceDepthDark, 0);
 
+      await closePanel(h);
+      expect(summaryText(tester), 'Intensity +2 · Brightness +1');
       await h.finish();
       row = await h.row();
       expect(row.colorVividness, 2);
@@ -413,6 +456,7 @@ void main() {
             );
           },
         );
+        await openPanel(h);
         await h.tap(plus('brightness'));
         final beforeFinish = await h.row();
         expect(beforeFinish.surfaceDepthLight, -2);
@@ -425,6 +469,7 @@ void main() {
           _ => buildDarkTheme(seed, adjustment: adjustment),
         };
         expect(h.previewTheme.colorScheme, expected.colorScheme);
+        await closePanel(h);
         await h.finish();
         final saved = await h.row();
         expect(saved.surfaceDepthLight, mode == 'light' ? -1 : -2);
@@ -432,22 +477,57 @@ void main() {
       });
     }
 
-    testWidgets('Reset returns both axes to Default', (tester) async {
+    testWidgets('the Brightness switch drafts the other mode too', (
+      tester,
+    ) async {
       final h = await _pump(
         tester,
-        seed: (d) =>
-            d.updateColorTuning(const ColorTuning(vividness: -3, darkDepth: 4)),
+        seed: (d) => d.updateColorTuning(const ColorTuning(darkDepth: 3)),
       );
-      expect(reset(), findsOneWidget);
+      await openPanel(h);
+      await h.tap(
+        find.descendant(of: control('mode'), matching: find.text('Light')),
+      );
+      await h.tap(plus('brightness'));
+      await h.tap(plus('brightness'));
+      expect(
+        find.byKey(const ValueKey<String>('colorTuning-applies')),
+        findsOneWidget,
+      );
+      await closePanel(h);
+      await h.finish();
+      final saved = await h.row();
+      expect(saved.surfaceDepthLight, 2);
+      expect(saved.surfaceDepthDark, 3);
+    });
+
+    testWidgets('Reset returns every value to Default', (tester) async {
+      final h = await _pump(
+        tester,
+        seed: (d) => d.updateColorTuning(
+          const ColorTuning(vividness: -3, lightDepth: 1, darkDepth: 4),
+        ),
+      );
+      await openPanel(h);
+      expect(tester.widget<TextButton>(reset()).onPressed, isNotNull);
 
       await h.tap(reset());
       await tester.pumpAndSettle();
 
-      expect(reset(), findsNothing);
-      expect(find.text('Default'), findsNWidgets(2));
+      expect(tester.widget<TextButton>(reset()).onPressed, isNull);
+      expect(
+        find.descendant(
+          of: find.byKey(const ValueKey<String>('colorTuningPanel')),
+          matching: find.text('Default'),
+        ),
+        findsNWidgets(3),
+      );
+      await closePanel(h);
+      expect(summaryText(tester), 'Default');
       await h.finish();
       final row = await h.row();
       expect(row.colorVividness, 0);
+      expect(row.surfaceDepthLight, 0);
       expect(row.surfaceDepthDark, 0);
     });
   });
@@ -688,7 +768,8 @@ void main() {
       );
     });
 
-    // Temporary: Looks has a registry entry; its visible control lands in the UI pass.
+    // Looks live in Settings only: they save straight to settings, which a
+    // setup draft must not do, so setup never shows (or marks) that option.
     testWidgets('tagged options mark themselves seen once shown', (
       tester,
     ) async {
