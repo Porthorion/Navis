@@ -13,11 +13,7 @@ void validateAlbumSnapshot(
   if (album.id != requestedId || album.id.trim().isEmpty) {
     throw const SubsonicIncompleteResponseException(
       'Album detail identity does not match the request.',
-    );
-  }
-  if (album.songCount != null && album.songCount != album.songs.length) {
-    throw const SubsonicIncompleteResponseException(
-      'Album detail track count is incomplete.',
+      isConflictingSnapshot: true,
     );
   }
   final external = isExternalCatalogSource(
@@ -27,6 +23,7 @@ void validateAlbumSnapshot(
   if (requireCanonical && external) {
     throw const SubsonicIncompleteResponseException(
       'External album detail cannot replace a canonical catalog album.',
+      isConflictingSnapshot: true,
     );
   }
   final ids = <String>{};
@@ -40,6 +37,7 @@ void validateAlbumSnapshot(
             song.albumId != requestedId)) {
       throw const SubsonicIncompleteResponseException(
         'Album detail has invalid track membership.',
+        isConflictingSnapshot: true,
       );
     }
     if (!external &&
@@ -47,8 +45,14 @@ void validateAlbumSnapshot(
         isExternalCatalogSource(id: song.id, apiIsExternal: song.isExternal)) {
       throw const SubsonicIncompleteResponseException(
         'External tracks cannot replace canonical album membership.',
+        isConflictingSnapshot: true,
       );
     }
+  }
+  if (album.songCount != null && album.songCount != album.songs.length) {
+    throw const SubsonicIncompleteResponseException(
+      'Album detail track count is incomplete.',
+    );
   }
 }
 

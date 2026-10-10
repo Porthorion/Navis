@@ -162,6 +162,10 @@ const List<ChangelogVersion> changelogs = [
     ],
     entries: [
       ChangelogEntry(
+        'Sync completes and update checks stay quick when a few albums have incomplete server details',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
         'The player shows Play once the queue has finished, so one press restarts it instead of two',
         type: ChangelogEntryType.fix,
       ),

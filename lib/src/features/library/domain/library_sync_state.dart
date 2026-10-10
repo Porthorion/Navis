@@ -120,8 +120,14 @@ class LibrarySyncState {
   final int? pendingHydrationCount;
 
   /// Every still-pending canonical album was attempted in this run and its
-  /// detail response was incomplete. Transport and other failures never set it.
+  /// detail response was incomplete. Conflicting snapshots, transport, and
+  /// other failures never set it.
   final bool onlyIncompleteAlbumDetails;
+
+  /// Pending albums block freshness unless their last attempts in this run
+  /// all returned incomplete server details. The full backlog still retries.
+  bool get hasBlockingPendingAlbums =>
+      (pendingHydrationCount ?? 0) > 0 && !onlyIncompleteAlbumDetails;
 
   /// A validated full candidate became the committed catalog during this run.
   final bool catalogPublishedThisRun;

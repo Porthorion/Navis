@@ -408,9 +408,12 @@ example an artist page's targeted sync) signed the user out again.
 
 Routing derives a compact `SessionRoutePhase`. A newly authenticated profile
 without a usable catalog stays on the full-screen `/initial-sync` rebuild route.
-Promotion alone does not admit Home. A complete run requires no pending album
+Promotion alone does not admit Home. A complete run requires no blocking album
 hydration, artist verification, or candidate and durable full-sync evidence
 (`server_config.last_synced` or `library_sync_state.last_catalog_synced_at`).
+Pending albums whose detail attempts in that run all returned incomplete
+server details do not block completion or freshness; they remain queued for
+retries.
 The sole partial exception is a validated catalog published in that run whose every
 remaining canonical album was attempted in the current run and returned
 incomplete detail. The controller then stores
@@ -3803,10 +3806,18 @@ states without starting audio or modifying a queue.
    `partial` and preserves its checkpoint for the next pass. The same limit on
    automatic work remains `deferred`; offline, metered, playback, and
    background policy gates always remain `deferred`.
+   Pending album details downgrade a successful catalog run to `partial` and
+   withhold its catalog timestamp only when they block freshness. Albums whose
+   last detail attempt in the run was classified as incomplete server details
+   do not block; other failures and unattempted work still do.
 3. Reliable providers use conditional `getIndexes(ifModifiedSince)` as a cheap
    automatic check. The response is a conditional artist index, not a change
-   feed, so its cursor advances only after every candidate and hydration
-   completes. An explicit refresh is not freshness-gated: it runs bounded
+   feed, so its cursor advances only after every candidate and blocking
+   hydration completes. Server-incomplete album details do not withhold the
+   cursor after full promotion, hydration-only continuation, or incremental
+   verification. The next manual check can therefore use the saved cursor
+   instead of restarting a full artist audit. An explicit refresh is not
+   freshness-gated: it runs bounded
    delta reconciliation and always scans the first five
    `getAlbumList2(type=newest)` pages (500 entries), even when the artist
    cursor is unchanged. Their server positions are the primary Recently Added
@@ -3850,7 +3861,14 @@ states without starting audio or modifying a queue.
    Between runs the remaining backlog (`pendingHydrationCount`) appears as a
    status line in Sync settings, worded as a server-data problem when
    `onlyIncompleteAlbumDetails` says every pending album returned incomplete
-   details; a Library notice would never clear, because runs are budgeted and
+   details in that run. That classification comes from the engine's incomplete
+   response IDs, separate from transport, 404, authentication, network, and
+   budget failures. Identity or track-membership conflicts are marked as
+   conflicting snapshots by album validation and still block verification.
+   Such server-incomplete albums stay in `pendingHydrationCount`
+   and are retried on later eligible runs, but do not block current freshness,
+   sync timestamps, or the artist-index cursor. A Library notice would never
+   clear, because runs are budgeted and
    such albums stay pending. Catalog discovery remains indeterminate because
    its page total is an estimate and does not share a stable denominator with
    song hydration.
