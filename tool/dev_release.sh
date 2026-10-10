@@ -51,7 +51,10 @@ BADGING="$("${TOOLS_DIR}/aapt" dump badging "${APK}")"
 APK_PACKAGE="$(sed -n "s/^package: name='\([^']*\)'.*/\1/p" <<< "${BADGING}")"
 APK_CODE="$(sed -n "s/^package:.* versionCode='\([^']*\)'.*/\1/p" <<< "${BADGING}")"
 APK_VERSION="$(sed -n "s/^package:.* versionName='\([^']*\)'.*/\1/p" <<< "${BADGING}")"
-[[ "${APK_PACKAGE}" == com.navis.app.navis.dev && "${APK_CODE}" == "${BUILD}" && "${APK_VERSION}" == "${VERSION}" ]] || {
+# Sidecar builds carry Gradle's "-sidecar" versionNameSuffix; the updater
+# ignores that label when comparing versions.
+[[ "${APK_PACKAGE}" == com.navis.app.navis.dev && "${APK_CODE}" == "${BUILD}" \
+  && ( "${APK_VERSION}" == "${VERSION}" || "${APK_VERSION}" == "${VERSION}-sidecar" ) ]] || {
   echo "Error: dev APK package/version metadata does not match the release plan." >&2; exit 1;
 }
 STORE_FILE="$(sed -n 's/^storeFile=//p' android/key.properties)"
