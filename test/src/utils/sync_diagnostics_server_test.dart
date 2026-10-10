@@ -558,6 +558,8 @@ void main() {
       )).statusCode,
       HttpStatus.unauthorized,
     );
+    // One test database at a time: close the clone before the primary opens.
+    await fixture.close();
     final primary = await _startFixture(
       SyncDiagnosticsMode.primaryCertification,
     );
