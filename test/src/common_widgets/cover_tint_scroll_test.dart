@@ -25,6 +25,7 @@ Widget _app(_Counter counter, Widget home) {
   return ProviderScope(
     overrides: [
       subsonicApiProvider.overrideWithValue(null),
+      albumArtColoredShadeProvider.overrideWithValue(true),
       coverColourDecoderProvider.overrideWithValue(counter.call),
       coverColourStoreProvider.overrideWithValue(const NullCoverColourStore()),
       coverColourWorkerProvider.overrideWithValue(InlineCoverColourWorker()),

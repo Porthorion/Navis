@@ -1557,23 +1557,17 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: <Widget>[
                                 Expanded(
-                                  child: AspectRatio(
-                                    aspectRatio: 1,
-                                    child: _buildYearAlbumCard(
-                                      context,
-                                      item.albums[0],
-                                    ),
+                                  child: _buildYearAlbumCard(
+                                    context,
+                                    item.albums[0],
                                   ),
                                 ),
                                 const SizedBox(width: 8),
                                 Expanded(
                                   child: item.albums.length > 1
-                                      ? AspectRatio(
-                                          aspectRatio: 1,
-                                          child: _buildYearAlbumCard(
-                                            context,
-                                            item.albums[1],
-                                          ),
+                                      ? _buildYearAlbumCard(
+                                          context,
+                                          item.albums[1],
                                         )
                                       : const SizedBox.shrink(),
                                 ),
@@ -1891,7 +1885,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
                         key: const ValueKey('liked-albums-shelf'),
                         showNextTooltip: false,
                         extent: albumExtent,
-                        height: albumExtent,
+                        height: albumExtent + albumCardExtraHeight(context),
                         gap: gap,
                         itemCount: albumPreview.length,
                         itemBuilder: (context, index) {

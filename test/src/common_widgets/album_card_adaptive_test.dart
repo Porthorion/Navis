@@ -29,6 +29,7 @@ void main() {
         overrides: [
           subsonicApiProvider.overrideWithValue(null),
           coverArtShapeProvider.overrideWithValue('rounded'),
+          albumArtColoredShadeProvider.overrideWithValue(false),
         ],
         child: MaterialApp(
           localizationsDelegates: navisLocalizationsDelegates,
@@ -68,6 +69,7 @@ void main() {
           overrides: [
             subsonicApiProvider.overrideWithValue(null),
             coverArtShapeProvider.overrideWithValue('rounded'),
+            albumArtColoredShadeProvider.overrideWithValue(false),
           ],
           child: MaterialApp(
             theme: theme,
@@ -104,6 +106,7 @@ void main() {
         overrides: [
           subsonicApiProvider.overrideWithValue(null),
           coverArtShapeProvider.overrideWithValue('rounded'),
+          albumArtColoredShadeProvider.overrideWithValue(false),
         ],
         child: MaterialApp(
           localizationsDelegates: AppLocalizations.localizationsDelegates,

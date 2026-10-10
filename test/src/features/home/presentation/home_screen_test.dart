@@ -742,6 +742,7 @@ Future<void> _pumpWeeklyDetail(
   required Stream<List<ListenBrainzDiscoverPlaylist>> playlists,
   String sourcePatch = 'weekly-jams',
   NavisDatabase? database,
+  ThemeData? theme,
 }) async {
   await tester.pumpWidget(
     ProviderScope(
@@ -765,7 +766,7 @@ Future<void> _pumpWeeklyDetail(
               ],
             ),
       child: MaterialApp(
-        theme: testTheme(),
+        theme: theme ?? testTheme(),
         localizationsDelegates: navisLocalizationsDelegates,
         supportedLocales: AppLocalizations.supportedLocales,
         builder: (ctx, child) => MediaQuery(
@@ -890,6 +891,72 @@ void main() {
 
   tearDownAll(() async {
     await database.close();
+  });
+
+  group('weekly detail phone header', () {
+    const appBarKey = ValueKey<String>('albumDetailMobileExpandedArtAppBar');
+    const playlist = ListenBrainzDiscoverPlaylist(
+      playlist: ListenBrainzPlaylist(
+        identifier: 'jams',
+        title: 'Weekly Jams for alice',
+        sourcePatch: 'weekly-jams',
+        tracks: <ListenBrainzPlaylistTrack>[
+          ListenBrainzPlaylistTrack(title: 'Header track'),
+        ],
+      ),
+      recommendations: <ListenBrainzResolvedRecommendation>[
+        ListenBrainzResolvedRecommendation(
+          track: ListenBrainzPlaylistTrack(title: 'Header track'),
+          status: ListenBrainzRecommendationMatchStatus.pending,
+        ),
+      ],
+    );
+
+    Future<void> pump(WidgetTester tester, ThemeData theme) async {
+      setAdaptiveTestViewport(tester, const Size(390, 844));
+      await _pumpWeeklyDetail(
+        tester,
+        playlists: Stream<List<ListenBrainzDiscoverPlaylist>>.value(
+          const <ListenBrainzDiscoverPlaylist>[playlist],
+        ),
+        theme: theme,
+      );
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 120));
+    }
+
+    Finder inAppBar(Finder finder) =>
+        find.descendant(of: find.byKey(appBarKey), matching: finder);
+    final title = find.text('Weekly Jams');
+    final gradient = find.byWidgetPredicate(
+      (widget) =>
+          widget is DecoratedBox &&
+          widget.decoration is BoxDecoration &&
+          (widget.decoration as BoxDecoration).gradient != null,
+    );
+
+    testWidgets('overlays the title on a fade by default', (tester) async {
+      await pump(tester, buildDarkTheme(Colors.teal));
+
+      // The collapsed toolbar title and the overlay.
+      expect(inAppBar(title), findsNWidgets(2));
+      expect(inAppBar(gradient), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('keeps the art clear under Flat text over artwork', (
+      tester,
+    ) async {
+      await pump(tester, buildDarkTheme(Colors.teal, flat: true));
+
+      // Only the collapsed toolbar title stays in the app bar.
+      expect(inAppBar(title), findsOneWidget);
+      expect(inAppBar(gradient), findsNothing);
+      expect(title, findsNWidgets(2));
+      // The expanded art is as tall as the 390 px wide screen.
+      expect(tester.getTopLeft(title.last).dy, greaterThanOrEqualTo(390));
+      expect(tester.takeException(), isNull);
+    });
   });
 
   testWidgets('weekly detail uses a track skeleton while loading', (
