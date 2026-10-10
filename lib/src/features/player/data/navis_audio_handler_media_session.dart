@@ -161,6 +161,12 @@ extension _NavisMediaSession on NavisAudioHandler {
     _playbackEventSubscription = _player.playbackEventStream.listen(
       (_) {
         if (!identical(_player, wiredPlayer)) return;
+        // Native playlist edits can emit before the Dart mirror commits.
+        if (!_queueLane.isIdle &&
+            _queueReplacementMetadataAnchor == null &&
+            !_sequenceMatchesQueue(_player)) {
+          return;
+        }
         final processing = _player.processingState;
         final index = _player.currentIndex;
         if (processing == ProcessingState.completed) {
@@ -249,7 +255,18 @@ extension _NavisMediaSession on NavisAudioHandler {
     );
 
     _currentIndexSubscription = _player.currentIndexStream.listen((index) {
-      if (!identical(_player, wiredPlayer)) return;
+      if (!identical(_player, wiredPlayer) ||
+          index != wiredPlayer.currentIndex) {
+        return;
+      }
+      // Stop may deliver old playlist indices during remote warm-up. Native
+      // edits also emit indices before their materialised mirror commits.
+      if ((_isLoading && _player.processingState == ProcessingState.idle) ||
+          (!_queueLane.isIdle &&
+              _queueReplacementMetadataAnchor == null &&
+              !_sequenceMatchesQueue(_player))) {
+        return;
+      }
       if (navisIsQueueReplacementMetadataAnchorConfirmed(
         queueItems: _queueItems,
         backendCurrentIndex: index,
@@ -422,7 +439,9 @@ extension _NavisMediaSession on NavisAudioHandler {
   /// sets it on the player, scaled by the current user volume.
   /// When the mode is 'off' (or metadata is missing), restores to _userVolume.
   void _applyReplayGainVolume({bool forceDuringCrossfade = false}) {
-    if (_isCrossfading && !forceDuringCrossfade) {
+    if (_isLoading ||
+        _pendingLogicalQueueSongIds != null ||
+        (_isCrossfading && !forceDuringCrossfade)) {
       return;
     }
     final base = _isDucked ? _userVolume * 2 / 5 : _userVolume;
@@ -786,6 +805,11 @@ extension _NavisMediaSession on NavisAudioHandler {
   void _emitSnapshot() {
     final resolved = _resolveCurrentQueueMetadata();
     final currentItem = resolved.mediaItem;
+    // Native seek/playlist events may settle before their index subscription.
+    // Publish media-session metadata from the same authority as this snapshot.
+    if (_currentMediaItem?.id != currentItem?.id) {
+      _setCurrentMediaItem(currentItem);
+    }
     final isLiked = currentItem?.extras?['liked'] as bool? ?? false;
     final nextSnapshot = PlaybackSnapshot(
       queueSongIds: _radioStation != null ? const <String>[] : _logicalQueueIds,

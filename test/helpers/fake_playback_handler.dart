@@ -72,6 +72,7 @@ class InertPlaybackHandler implements NavisPlaybackHandler {
     int startIndex = 0,
     bool autoPlay = true,
     bool expandMatchFlows = true,
+    List<String>? originalOrder,
   }) async {}
   @override
   Future<void> replaceQueueWithData(
@@ -79,6 +80,7 @@ class InertPlaybackHandler implements NavisPlaybackHandler {
     int startIndex = 0,
     bool autoPlay = true,
     bool expandMatchFlows = true,
+    List<String>? originalOrder,
   }) async {}
   @override
   Future<void> addToQueue(

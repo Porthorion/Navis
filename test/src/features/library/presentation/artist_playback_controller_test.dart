@@ -63,6 +63,7 @@ class QueueSpy extends QueueController {
     bool autoPlay = true,
     bool expandMatchFlows = true,
     bool notifyMixSessionReset = true,
+    List<String>? originalOrder,
   }) async {
     reserveSelection();
     ref.read(regularQueueReplacementEpochProvider.notifier).bump();

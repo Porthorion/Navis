@@ -751,7 +751,11 @@ class _ListenBrainzWeeklyDetailContentState
     // Saves remote matches as provisional rows before queueing them.
     ref
         .read(queueProvider.notifier)
-        .replaceWithSongs(queueSongs, expandMatchFlows: false)
+        .replaceWithSongs(
+          queueSongs,
+          expandMatchFlows: false,
+          originalOrder: shuffle ? songs.map((song) => song.id).toList() : null,
+        )
         .ignore();
   }
 
@@ -3228,7 +3232,14 @@ class _DesktopRandomAlbumSongList extends ConsumerWidget {
       ref
           .read(librarySyncControllerProvider.notifier)
           .registerAlbumInteraction(album.id);
-      return ref.read(queueProvider.notifier).replaceWithTableData(songs);
+      return ref
+          .read(queueProvider.notifier)
+          .replaceWithTableData(
+            songs,
+            originalOrder: shuffle
+                ? allSongs.map((song) => song.id).toList()
+                : null,
+          );
     }
 
     return Column(

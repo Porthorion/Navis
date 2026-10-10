@@ -197,7 +197,14 @@ class RankedVirtualPlaylistContent extends ConsumerWidget {
     ref
         .read(queueProvider.notifier)
         .fireAndForget(
-          () => ref.read(queueProvider.notifier).replaceWithSongs(queueSongs),
+          () => ref
+              .read(queueProvider.notifier)
+              .replaceWithSongs(
+                queueSongs,
+                originalOrder: shuffle
+                    ? songs.map((song) => song.id).toList()
+                    : null,
+              ),
           label: 'replace',
         );
   }

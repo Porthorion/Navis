@@ -127,6 +127,7 @@ class QueueController extends Notifier<List<String>> {
     bool autoPlay = true,
     bool expandMatchFlows = true,
     bool notifyMixSessionReset = true,
+    List<String>? originalOrder,
   }) async {
     final selectionEpoch = ++_regularSelectionEpoch;
     final handler = _requireHandler();
@@ -142,6 +143,7 @@ class QueueController extends Notifier<List<String>> {
       startIndex: normalizedStartIndex,
       autoPlay: autoPlay,
       expandMatchFlows: expandMatchFlows,
+      originalOrder: originalOrder,
     );
     if (selectionEpoch != _regularSelectionEpoch) return;
     _prewarmLyricsForIds(
@@ -159,6 +161,7 @@ class QueueController extends Notifier<List<String>> {
     bool autoPlay = true,
     bool expandMatchFlows = true,
     bool notifyMixSessionReset = true,
+    List<String>? originalOrder,
   }) async {
     final selectionEpoch = ++_regularSelectionEpoch;
     final handler = _requireHandler();
@@ -173,6 +176,7 @@ class QueueController extends Notifier<List<String>> {
       startIndex: normalizedStartIndex,
       autoPlay: autoPlay,
       expandMatchFlows: expandMatchFlows,
+      originalOrder: originalOrder,
     );
     if (selectionEpoch != _regularSelectionEpoch) return;
     _prewarmLyricsForIds(
@@ -258,6 +262,7 @@ class QueueController extends Notifier<List<String>> {
     bool autoPlay = true,
     bool expandMatchFlows = true,
     bool notifyMixSessionReset = true,
+    List<String>? originalOrder,
   }) async {
     final selectionEpoch = ++_regularSelectionEpoch;
     final handler = _requireHandler();
@@ -319,6 +324,7 @@ class QueueController extends Notifier<List<String>> {
         startIndex: startIndex,
         autoPlay: autoPlay,
         expandMatchFlows: expandMatchFlows,
+        originalOrder: originalOrder,
         notifyMixSessionReset: false,
       );
       return;
@@ -328,6 +334,7 @@ class QueueController extends Notifier<List<String>> {
       startIndex: startIndex,
       autoPlay: autoPlay,
       expandMatchFlows: expandMatchFlows,
+      originalOrder: originalOrder,
       notifyMixSessionReset: false,
     );
   }

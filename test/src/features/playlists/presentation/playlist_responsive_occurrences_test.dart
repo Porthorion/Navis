@@ -31,6 +31,7 @@ class _Queue extends QueueController {
     bool autoPlay = true,
     bool expandMatchFlows = true,
     bool notifyMixSessionReset = true,
+    List<String>? originalOrder,
   }) async {
     this.startIndex = startIndex;
     ids = songs.map((song) => song.id).toList();

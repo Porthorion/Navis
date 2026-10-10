@@ -14,6 +14,7 @@ Last updated: 2026-10-02
 - ACP status values: `backlog`, `ready`, `in_progress`, `blocked`, `done`.
 
 ## Current Focus
+- [x] Cold remote navigation and shuffle metadata reliability — 2026-10-10 (warm-up/deadline reuse, deck retirement, shuffle rollback and original entity order, per-emission audio/metadata invariants and gated HTTP/queue-window regressions; runtime and full gate remain coordinator-owned).
 - [x] Now Playing backdrop gaps — 2026-10-10 (shared screen/desktop lyrics backdrop and Artwork reuse in the shell queue, with visibility/disposal cleanup and failure fallback; player/routing/common_widgets/theme suites and dead-code gate passed, existing goldens unchanged; runtime and `check.sh` omitted per machine rules).
 - [x] Corner Style UI — 2026-10-09 (`CornerStyleOption` in Appearance settings and setup after Flat Surfaces, New tags, setup preview uses the draft style, changelog line; focused widget tests added)
 - [x] Persisted Corner Style backend/state — 2026-10-09 (schema 97, settings/model/DAO/repository, derived provider, setup registry and diagnostics; 179 focused migration/DAO/repository/provider/registry/diagnostics tests passed; widgets, runtime and full gate remain coordinator-owned).

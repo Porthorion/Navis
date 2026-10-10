@@ -5263,33 +5263,34 @@ void main() {
         final events =
             handler.collectPlaybackDiagnostics()['seekEvents']!
                 as List<Map<String, Object?>>;
-        if (startIndex == 0) {
-          expect(events.last['outcome'], 'reloaded');
-        } else {
-          // Until the fill places the start song, the song cannot be located
-          // for recovery; the stall watchdog retries once it has.
-          expect(events, isEmpty);
-        }
+        // Queue fill owns the selected source; recovery must wait for it.
+        expect(events, isEmpty);
       });
     }
 
-    test('a stalled song that cannot be reloaded while the queue fills keeps '
-        'the queue and moves on', () async {
-      final (handler, player, _) = await recovering(6);
-      final gate = await fillHeldOpen(handler, player, 6, startIndex: 0);
-      player.failLoadSongId = 'song-0';
+    test(
+      'a stalled song waits for queue fill before retrying and moving on',
+      () async {
+        final (handler, player, _) = await recovering(6);
+        final gate = await fillHeldOpen(handler, player, 6, startIndex: 0);
+        player.failLoadSongId = 'song-0';
 
-      final recovery = handler.debugRecoverCurrentSong();
-      gate.complete();
-      await recovery;
+        final recovery = handler.debugRecoverCurrentSong();
+        gate.complete();
+        await recovery;
+        await settleQueue(handler);
+        expect(handler.snapshot.currentSongId, 'song-0');
+        expect(handler.collectPlaybackDiagnostics()['seekEvents'], isEmpty);
+        await handler.debugRecoverCurrentSong();
 
-      await until(
-        () =>
-            handler.snapshot.currentSongId == 'song-1' &&
-            !handler.snapshot.isLoading,
-      );
-      expect(handler.snapshot.queueSongIds, ids(6));
-    });
+        await until(
+          () =>
+              handler.snapshot.currentSongId == 'song-1' &&
+              !handler.snapshot.isLoading,
+        );
+        expect(handler.snapshot.queueSongIds, ids(6));
+      },
+    );
 
     test('a skip rebuilds a player that lost its songs', () async {
       final (handler, player, _) = await recovering(5);

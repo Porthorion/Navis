@@ -463,7 +463,12 @@ class _PlaylistDetailScreenState extends ConsumerState<PlaylistDetailScreen> {
         .fireAndForget(
           () => ref
               .read(queueProvider.notifier)
-              .replaceWithTableData(songsToQueue),
+              .replaceWithTableData(
+                songsToQueue,
+                originalOrder: shuffle
+                    ? songs.map((song) => song.id).toList()
+                    : null,
+              ),
           label: 'replace',
         );
   }

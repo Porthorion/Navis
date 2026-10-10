@@ -28,6 +28,7 @@ class _QueueSpyController extends QueueController {
     bool autoPlay = true,
     bool expandMatchFlows = true,
     bool notifyMixSessionReset = true,
+    List<String>? originalOrder,
   }) async {
     replacedSongIds = songs.map((song) => song.id).toList(growable: false);
   }

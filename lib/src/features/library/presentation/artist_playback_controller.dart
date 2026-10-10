@@ -437,6 +437,9 @@ class ArtistPlaybackController extends Notifier<ArtistPlaybackState> {
       final songs = incoming
           .where((song) => !selection.unavailableSongIds.contains(song.id))
           .toList();
+      final originalOrder = action == ArtistPlaybackAction.shuffle
+          ? songs.map((song) => song.id).toList(growable: false)
+          : null;
       if (action == ArtistPlaybackAction.shuffle) songs.shuffle(random);
       final append =
           started || (action == ArtistPlaybackAction.add && before.isNotEmpty);
@@ -521,6 +524,7 @@ class ArtistPlaybackController extends Notifier<ArtistPlaybackState> {
             try {
               replacement = queue.replaceWithTableData(
                 songs,
+                originalOrder: originalOrder,
                 expandMatchFlows: false,
               );
               _queueSelection = queue.selectionGeneration;

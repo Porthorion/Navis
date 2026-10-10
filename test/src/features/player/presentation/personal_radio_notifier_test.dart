@@ -49,6 +49,7 @@ class _QueueController extends QueueController {
     bool autoPlay = true,
     bool expandMatchFlows = true,
     bool notifyMixSessionReset = true,
+    List<String>? originalOrder,
   }) async {
     replacementCount++;
     onReplace(songs.map((song) => song.id).toList());
