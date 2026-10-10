@@ -662,20 +662,33 @@ target-selection rules.
   through the shared `coverArtImageProviderFor` source resolver at 96 px
   (`ResizeImage`). Permanent downloaded artwork works offline; connected
   refreshes use the cover revision in the existing cache manager key. The layer
-  blurs the cover (sigma 32, `ImageFiltered` inside a `RepaintBoundary`, not a
-  backdrop filter), lays `NavisColorStyleData.nowPlayingArtworkVeil` over it
+  renders the decoded thumbnail once through a `PictureRecorder` with a
+  clamped Gaussian blur (sigma 5 in thumbnail pixels), then draws it with
+  `RawImage`/`BoxFit.cover` and medium filtering inside a `RepaintBoundary`.
+  There is no live blur or overscale during playback or crossfades. The
+  keep-alive `nowPlayingArtworkCacheProvider` coalesces pending preparation
+  by source/revision key and keeps a four-entry LRU; eviction and provider
+  disposal release cache-owned images, while each mounted/fading layer owns
+  a clone until disposal. The app shell watches
+  `nowPlayingArtworkPrewarmProvider` on Artwork setting and track/source
+  changes, outside the paused player sheet, with background cover-load
+  interest. Both the player and queue keep their Stack and artwork scope
+  mounted across tinted/Artwork/plain changes, retaining body state. The layer
+  lays `NavisColorStyleData.nowPlayingArtworkVeil` over it
   (adaptive: the smallest alpha keeping both `onSurface` and the accent-coloured
   title at 5.0:1 against the shared cover field's usable-cell average (from
   `coverColourFieldProvider((id, revision))`), within dark 0.30-0.80, OLED
   0.72-0.92 so it still reads as OLED, and light 0.58-0.88; fixed
   0.68/0.8/0.68 until the average is known) and adds a 0.15 veil over the
   bottom fifth. The previous cover stays until the next one
-  decodes, then crossfades over `MotionPolicy.surface`. Cover-id art reuses
-  the worker's field instead of reading bitmap pixels on the UI isolate;
-  radio/URL art retains its thumbnail bitmap average. The decode listener
-  disposes every received image handle, including stale callbacks, and detaches
-  each decode listener once on success or failure. Failed source keys are
-  remembered by the layer and reported to the shared backdrop after the frame,
+  decodes, then crossfades over `MotionPolicy.surface`. Cover-id art uses
+  the worker's field for its veil; radio/URL art uses the cached average
+  computed from the same decoded thumbnail.
+  Veil colour changes animate over `MotionPolicy.tint` (zero with reduced
+  motion); desktop lyrics retains its higher text-across-cover floor.
+  The decode listener disposes every received image handle, including stale
+  callbacks, and detaches once on success or failure. Failed source keys are
+  remembered by the layer and reported after async preparation,
   selecting Art-Tinted without retrying on position rebuilds. A new source or
   revision can resolve again. Flat has no blur, so
   Artwork falls back to the Flat solid tint (OLED + Flat stays black); radio or
@@ -691,7 +704,7 @@ target-selection rules.
   image provider, source key and cover average after the frame through
   `nowPlayingPublishedBackdropProvider`, with owner-checked cleanup when hidden,
   switched away from Artwork, or disposed. The phone queue overlay outside the
-  Now Playing subtree reuses that same image provider (and cached decode) in
+  Now Playing subtree reuses that same prepared blur through the shared cache in
   `NowPlayingArtworkBackground` beneath its own active artwork scope. A queue
   opened from Home with Now Playing collapsed, or under Flat, stays opaque.
   The adaptive veil keeps `onSurface`,

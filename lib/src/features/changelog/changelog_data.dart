@@ -162,6 +162,10 @@ const List<ChangelogVersion> changelogs = [
     ],
     entries: [
       ChangelogEntry(
+        'Switching Now Playing to the Artwork background no longer stutters',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
         'Skipping to a song that is still being fetched no longer jumps past it',
         type: ChangelogEntryType.fix,
       ),

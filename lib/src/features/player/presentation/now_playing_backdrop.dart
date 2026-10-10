@@ -177,9 +177,12 @@ class _NowPlayingBackdropState extends ConsumerState<NowPlayingBackdrop> {
         size: kCoverArtStandardSize,
       );
     }
-    final key = trimmedId.isNotEmpty
-        ? 'id:$trimmedId:$revision:${base?.hashCode}'
-        : 'url:$trimmedUrl:${base?.hashCode}';
+    final key = nowPlayingArtworkImageKey(
+      coverArtId: trimmedId,
+      artUrl: trimmedUrl,
+      revision: revision,
+      source: base,
+    );
     if (key == _artworkBackdropKey && _artworkBackdropImage != null) {
       return _artworkBackdropImage;
     }
@@ -253,13 +256,9 @@ class _NowPlayingBackdropState extends ConsumerState<NowPlayingBackdrop> {
     required Duration fadeDuration,
     required Widget child,
   }) {
-    if (!showArtworkLayer) {
-      _publish(null);
-      return child;
-    }
     final id = widget.coverArtId?.trim();
     final hasCoverId = id != null && id.isNotEmpty;
-    final average = hasCoverId
+    final average = showArtworkLayer && hasCoverId
         ? (ref
                       .watch(
                         backgroundCoverColourFieldProvider((
@@ -271,7 +270,7 @@ class _NowPlayingBackdropState extends ConsumerState<NowPlayingBackdrop> {
                   peekCoverColourField(id))
               ?.average
         : null;
-    if (widget.publishToQueueOverlay) {
+    if (showArtworkLayer && widget.publishToQueueOverlay) {
       _publish(
         NowPlayingPublishedBackdrop(
           owner: this,
@@ -288,34 +287,32 @@ class _NowPlayingBackdropState extends ConsumerState<NowPlayingBackdrop> {
       fit: StackFit.expand,
       children: <Widget>[
         Positioned.fill(
-          child: NowPlayingArtworkBackground(
-            key: const ValueKey<String>('nowPlayingArtworkBackground'),
-            imageKey: _artworkBackdropKey,
-            image: image,
-            coverAverage: average,
-            useCoverAverage: hasCoverId,
-            onAvailabilityChanged: (key, {required available}) {
-              if (!mounted || key != _artworkBackdropKey) return;
-              setState(() {
-                if (available) {
-                  _failedArtworkBackdropKeys.remove(key);
-                } else {
-                  _failedArtworkBackdropKeys.add(key);
-                }
-              });
-            },
-            colorStyle: colorStyle,
-            surfaceColor: colors.surface,
-            onSurfaceColor: colors.onSurface,
-            accentColor: colors.primary,
-            onSurfaceVariantColor: colors.onSurfaceVariant,
-            minVeilAlpha: widget.textAcrossCover
-                ? nowPlayingTextAcrossCoverVeilFloor(colorStyle)
-                : null,
-            fadeDuration: fadeDuration,
-          ),
+          child: showArtworkLayer
+              ? NowPlayingArtworkBackground(
+                  key: const ValueKey<String>('nowPlayingArtworkBackground'),
+                  imageKey: _artworkBackdropKey,
+                  image: image,
+                  coverAverage: average,
+                  useCoverAverage: hasCoverId,
+                  onAvailabilityChanged: (key, {required available}) {
+                    if (!mounted || key != _artworkBackdropKey) return;
+                    if (!available && _failedArtworkBackdropKeys.add(key)) {
+                      setState(() {});
+                    }
+                  },
+                  colorStyle: colorStyle,
+                  surfaceColor: colors.surface,
+                  onSurfaceColor: colors.onSurface,
+                  accentColor: colors.primary,
+                  onSurfaceVariantColor: colors.onSurfaceVariant,
+                  minVeilAlpha: widget.textAcrossCover
+                      ? nowPlayingTextAcrossCoverVeilFloor(colorStyle)
+                      : null,
+                  fadeDuration: fadeDuration,
+                )
+              : const SizedBox.shrink(),
         ),
-        NowPlayingArtworkLayerScope(active: true, child: child),
+        NowPlayingArtworkLayerScope(active: showArtworkLayer, child: child),
       ],
     );
   }
@@ -443,3 +440,44 @@ class _NowPlayingBackdropState extends ConsumerState<NowPlayingBackdrop> {
 /// 0.8, light 0.72.
 double nowPlayingTextAcrossCoverVeilFloor(NavisColorStyleData style) =>
     !style.dark ? 0.72 : (style.oled ? 0.8 : 0.6);
+
+/// Matches prewarming and visible layers, including durable-source/revision changes.
+String nowPlayingArtworkImageKey({
+  required String? coverArtId,
+  required String? artUrl,
+  required int revision,
+  required ImageProvider<Object>? source,
+}) {
+  final id = coverArtId?.trim() ?? '';
+  return id.isNotEmpty
+      ? 'id:$id:$revision:${source?.hashCode}'
+      : 'url:${artUrl?.trim() ?? ''}:${source?.hashCode}';
+}
+
+/// Shell-owned warming runs even while the collapsed player listener is paused.
+final nowPlayingArtworkPrewarmProvider = FutureProvider.autoDispose
+    .family<void, (String, ImageProvider<Object>, String?)>((
+      ref,
+      request,
+    ) async {
+      final (key, source, coverRequestKey) = request;
+      final cache = ref.read(nowPlayingArtworkCacheProvider);
+      final interest = coverRequestKey == null
+          ? null
+          : ref
+                .read(coverArtLoadCoordinatorProvider)
+                .trackInterest(
+                  coverRequestKey,
+                  CoverArtLoadPriority.background,
+                );
+      ref.onDispose(() => interest?.dispose());
+      try {
+        await cache.prewarm(
+          key,
+          ResizeImage(source, width: kNowPlayingArtworkDecodeWidth),
+          ImageConfiguration.empty,
+        );
+      } finally {
+        interest?.dispose();
+      }
+    });

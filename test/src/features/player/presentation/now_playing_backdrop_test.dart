@@ -49,6 +49,7 @@ void main() {
     ValueNotifier<bool>? publishing,
     ValueNotifier<NowPlayingBackground>? backgroundSetting,
     ImageProvider<Object>? image,
+    Widget? body,
   }) async {
     final publication = publishing ?? ValueNotifier(publish);
     if (publishing == null) addTearDown(publication.dispose);
@@ -94,12 +95,16 @@ void main() {
               coverArtRevision: 0,
               artUrl: null,
               publishToQueueOverlay: publish,
-              child: Builder(
-                builder: (context) => Text(
-                  NowPlayingArtworkLayerScope.of(context) ? 'scoped' : 'bare',
-                  textDirection: TextDirection.ltr,
-                ),
-              ),
+              child:
+                  body ??
+                  Builder(
+                    builder: (context) => Text(
+                      NowPlayingArtworkLayerScope.of(context)
+                          ? 'scoped'
+                          : 'bare',
+                      textDirection: TextDirection.ltr,
+                    ),
+                  ),
             ),
           ),
         ),
@@ -110,6 +115,9 @@ void main() {
       () => Future<void>.delayed(const Duration(milliseconds: 100)),
     );
     await tester.pump();
+    await tester.runAsync(
+      () => Future<void>.delayed(const Duration(milliseconds: 100)),
+    );
     await tester.pump(const Duration(milliseconds: 500));
     return container;
   }
@@ -130,7 +138,8 @@ void main() {
   ) async {
     await pump(tester, background: NowPlayingBackground.artwork);
     expect(find.byKey(_artworkKey), findsOneWidget);
-    expect(find.byType(ImageFiltered), findsOneWidget);
+    expect(find.byType(ImageFiltered), findsNothing);
+    expect(find.byType(RawImage), findsOneWidget);
     expect(find.text('scoped'), findsOneWidget);
     expect(decoration(tester).gradient, isNull);
   });
@@ -241,6 +250,34 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
+  testWidgets('background changes retain the unkeyed player body state', (
+    tester,
+  ) async {
+    final background = ValueNotifier(NowPlayingBackground.tinted);
+    addTearDown(background.dispose);
+    await pump(
+      tester,
+      background: background.value,
+      backgroundSetting: background,
+      body: const _BodyIdentity(),
+    );
+    final state = tester.state(find.byType(_BodyIdentity));
+    for (final mode in [
+      NowPlayingBackground.artwork,
+      NowPlayingBackground.plain,
+      NowPlayingBackground.tinted,
+      NowPlayingBackground.artwork,
+    ]) {
+      background.value = mode;
+      await tester.pump();
+      await tester.runAsync(
+        () => Future<void>.delayed(const Duration(milliseconds: 100)),
+      );
+      await tester.pumpAndSettle();
+      expect(tester.state(find.byType(_BodyIdentity)), same(state));
+    }
+  });
+
   testWidgets('switching away from Artwork clears the shared layer', (
     tester,
   ) async {
@@ -313,4 +350,15 @@ void main() {
     expect(container.read(nowPlayingPublishedBackdropProvider), isNull);
     expect(tester.takeException(), isNull);
   });
+}
+
+class _BodyIdentity extends StatefulWidget {
+  const new();
+  @override
+  State<_BodyIdentity> createState() => _BodyIdentityState();
+}
+
+class _BodyIdentityState extends State<_BodyIdentity> {
+  @override
+  Widget build(BuildContext context) => const SizedBox.expand();
 }

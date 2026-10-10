@@ -2,6 +2,8 @@ import 'dart:async';
 import 'dart:math' as math;
 import 'dart:ui' as ui;
 
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:navis/src/theme/motion_policy.dart';
 import 'package:material_color_utilities/material_color_utilities.dart'
     show Hct;
 import 'package:material_ui/material_ui.dart';
@@ -13,12 +15,8 @@ import 'package:navis/src/theme/navis_color_style_data.dart';
 /// image is blurred beyond recognition, so a thumbnail is plenty.
 const int kNowPlayingArtworkDecodeWidth = 96;
 
-/// Blur radius of the Artwork background, in logical pixels.
-const double kNowPlayingArtworkBlurSigma = 32;
-
-/// The image is drawn this much larger than the screen so the blur never
-/// shows transparent edges.
-const double kNowPlayingArtworkOverscale = 1.2;
+/// Blur sigma in thumbnail pixels (about 40 logical pixels on a phone).
+const double kNowPlayingArtworkBlurSigma = 5;
 
 /// Contrast the adaptive veil aims for: the WCAG minimum plus a margin for
 /// bright areas the average hides.
@@ -138,12 +136,12 @@ BoxDecoration nowPlayingSurfaceDecoration({
 
 /// Blurred, veiled cover behind Now Playing (the Artwork background).
 ///
-/// The caller passes a small decoded [image] identified by [imageKey]. A new
+/// The caller passes a thumbnail provider [image] identified by [imageKey]. A new
 /// image replaces the shown one only once it has decoded, with a crossfade of
 /// [fadeDuration], so track changes never flash through the plain surface. A
 /// null [image] keeps whatever is shown. The veil keeps text legible; the
 /// bottom gets a gentle extra veil to calm the controls.
-class NowPlayingArtworkBackground extends StatefulWidget {
+class NowPlayingArtworkBackground extends ConsumerStatefulWidget {
   const new({
     required this.imageKey,
     required this.image,
@@ -160,14 +158,14 @@ class NowPlayingArtworkBackground extends StatefulWidget {
     super.key,
   });
 
-  /// Reports decode availability after the frame, so parents can select a fallback.
+  /// Reports async preparation availability so parents can select a fallback.
   final void Function(String key, {required bool available})?
   onAvailabilityChanged;
 
   /// Identity of [image] (cover id or art URL).
   final String? imageKey;
 
-  /// Small decoded cover, or null while there is none.
+  /// Thumbnail cover source, or null while there is none.
   final ImageProvider<Object>? image;
 
   /// Shared colour-field average for server cover art. URL art samples pixels.
@@ -197,19 +195,17 @@ class NowPlayingArtworkBackground extends StatefulWidget {
   final Duration fadeDuration;
 
   @override
-  State<NowPlayingArtworkBackground> createState() =>
+  ConsumerState<NowPlayingArtworkBackground> createState() =>
       _NowPlayingArtworkBackgroundState();
 }
 
 class _NowPlayingArtworkBackgroundState
-    extends State<NowPlayingArtworkBackground> {
+    extends ConsumerState<NowPlayingArtworkBackground> {
   final Set<String> _failedKeys = <String>{};
   String? _shownKey;
-  ImageProvider<Object>? _shown;
+  BlurredNowPlayingArtwork? _shown;
   Color? _shownAverage;
   String? _pendingKey;
-  ImageStream? _stream;
-  ImageStreamListener? _listener;
 
   @override
   void didChangeDependencies() {
@@ -228,46 +224,35 @@ class _NowPlayingArtworkBackgroundState
     final image = widget.image;
     if (key == null || image == null || _failedKeys.contains(key)) return;
     if (key == _shownKey) {
-      _shown = image;
       if (widget.useCoverAverage) _shownAverage = widget.coverAverage;
+      _pendingKey = null;
       return;
     }
     if (key == _pendingKey) return;
-    _stopListening();
     _pendingKey = key;
-    final stream = image.resolve(createLocalImageConfiguration(context));
-    late final ImageStreamListener listener;
-    listener = ImageStreamListener(
-      (info, _) {
-        _detachListener(stream, listener);
+    final cache = ref.read(nowPlayingArtworkCacheProvider);
+    final configuration = createLocalImageConfiguration(context);
+    unawaited(() async {
+      try {
+        final prepared = await cache.acquire(key, image, configuration);
         if (!mounted || _pendingKey != key) {
-          info.dispose();
+          prepared.image.dispose();
           return;
         }
-        unawaited(() async {
-          Color? average;
-          try {
-            average = widget.useCoverAverage
-                ? widget.coverAverage
-                : await averageImageColor(info.image);
-          } on Object {
-            average = null;
-          } finally {
-            info.dispose();
-          }
-          if (!mounted || _pendingKey != key) return;
-          setState(() {
-            _shownKey = key;
-            _shown = image;
-            _shownAverage = average;
-            _pendingKey = null;
-          });
-          _reportAvailability(key, true);
-        }());
-      },
-      onError: (_, _) {
-        _detachListener(stream, listener);
+        final previous = _shown;
+        setState(() {
+          _shownKey = key;
+          _shown = prepared;
+          _shownAverage = widget.useCoverAverage
+              ? widget.coverAverage
+              : prepared.average;
+          _pendingKey = null;
+        });
+        previous?.image.dispose();
+        widget.onAvailabilityChanged?.call(key, available: true);
+      } on Object {
         if (!mounted || _pendingKey != key) return;
+        final previous = _shown;
         setState(() {
           _pendingKey = null;
           _failedKeys.add(key);
@@ -275,45 +260,15 @@ class _NowPlayingArtworkBackgroundState
           _shownKey = null;
           _shownAverage = null;
         });
-        _reportAvailability(key, false);
-      },
-    );
-    _stream = stream;
-    _listener = listener;
-    stream.addListener(listener);
-  }
-
-  void _reportAvailability(String key, bool available) {
-    final callback = widget.onAvailabilityChanged;
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted && widget.imageKey == key) {
-        callback?.call(key, available: available);
+        previous?.image.dispose();
+        widget.onAvailabilityChanged?.call(key, available: false);
       }
-    });
-    WidgetsBinding.instance.scheduleFrame();
-  }
-
-  void _detachListener(ImageStream stream, ImageStreamListener listener) {
-    if (!identical(_stream, stream) || !identical(_listener, listener)) return;
-    // Error completers can dispose themselves when their last listener leaves.
-    // Clear ownership first so disposal never removes the same listener twice.
-    _stream = null;
-    _listener = null;
-    stream.removeListener(listener);
-  }
-
-  void _stopListening() {
-    final listener = _listener;
-    final stream = _stream;
-    if (listener != null && stream != null) _detachListener(stream, listener);
-    _stream = null;
-    _listener = null;
-    _pendingKey = null;
+    }());
   }
 
   @override
   void dispose() {
-    _stopListening();
+    _shown?.image.dispose();
     super.dispose();
   }
 
@@ -333,57 +288,262 @@ class _NowPlayingArtworkBackgroundState
     final bottom = widget.colorStyle.nowPlayingArtworkVeilBase(
       widget.surfaceColor,
     );
-    // The image is overscaled against blur edges; clip it to this box so it
-    // never spills past a panel that is smaller than the screen.
-    return ClipRect(
-      child: RepaintBoundary(
-        child: Stack(
-          fit: StackFit.expand,
-          children: <Widget>[
-            AnimatedSwitcher(
-              duration: widget.fadeDuration,
-              layoutBuilder: (current, previous) => Stack(
-                fit: StackFit.expand,
-                children: <Widget>[...previous, ?current],
-              ),
-              child: ImageFiltered(
-                key: ValueKey<String?>(_shownKey),
-                imageFilter: ui.ImageFilter.blur(
-                  sigmaX: kNowPlayingArtworkBlurSigma,
-                  sigmaY: kNowPlayingArtworkBlurSigma,
-                  tileMode: TileMode.clamp,
-                ),
-                child: SizedBox.expand(
-                  child: Transform.scale(
-                    scale: kNowPlayingArtworkOverscale,
-                    child: Image(
-                      image: shown,
-                      fit: BoxFit.cover,
-                      filterQuality: FilterQuality.low,
-                      gaplessPlayback: true,
-                      excludeFromSemantics: true,
-                    ),
-                  ),
-                ),
+    return RepaintBoundary(
+      child: Stack(
+        fit: StackFit.expand,
+        children: <Widget>[
+          AnimatedSwitcher(
+            duration: widget.fadeDuration,
+            layoutBuilder: (current, previous) => Stack(
+              fit: StackFit.expand,
+              children: <Widget>[...previous, ?current],
+            ),
+            child: _StaticArtworkImage(
+              key: ValueKey<String?>(_shownKey),
+              image: shown.image,
+            ),
+          ),
+          AnimatedContainer(
+            duration: MotionPolicy.of(context).tint,
+            curve: Curves.easeInOutCubic,
+            color: veil,
+          ),
+          DecoratedBox(
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topCenter,
+                end: Alignment.bottomCenter,
+                colors: <Color>[
+                  bottom.withValues(alpha: 0),
+                  bottom.withValues(alpha: kNowPlayingArtworkBottomVeilAlpha),
+                ],
+                stops: const <double>[0.8, 1],
               ),
             ),
-            ColoredBox(color: veil),
-            DecoratedBox(
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  begin: Alignment.topCenter,
-                  end: Alignment.bottomCenter,
-                  colors: <Color>[
-                    bottom.withValues(alpha: 0),
-                    bottom.withValues(alpha: kNowPlayingArtworkBottomVeilAlpha),
-                  ],
-                  stops: const <double>[0.8, 1],
-                ),
-              ),
-            ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }
 }
+
+// Each switcher child retains its own handle until its fade has finished.
+class _StaticArtworkImage extends StatefulWidget {
+  const new({required this.image, super.key});
+  final ui.Image image;
+
+  @override
+  State<_StaticArtworkImage> createState() => _StaticArtworkImageState();
+}
+
+class _StaticArtworkImageState extends State<_StaticArtworkImage> {
+  late ui.Image _image;
+
+  @override
+  void initState() {
+    super.initState();
+    _image = widget.image.clone();
+  }
+
+  @override
+  void dispose() {
+    _image.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => RawImage(
+    image: _image,
+    fit: BoxFit.cover,
+    filterQuality: FilterQuality.medium,
+  );
+}
+
+/// A prepared thumbnail. Handles returned by the cache belong to the caller.
+class BlurredNowPlayingArtwork {
+  const new(this.image, this.average);
+  final ui.Image image;
+  final Color? average;
+
+  BlurredNowPlayingArtwork _clone() =>
+      BlurredNowPlayingArtwork(image.clone(), average);
+}
+
+class _PendingArtwork {
+  new(this.future);
+  final Future<BlurredNowPlayingArtwork> future;
+  int users = 0;
+}
+
+/// Keeps four prepared covers and coalesces concurrent decodes/blur renders.
+/// Eviction releases the cache's handle; mounted layers retain their clones.
+class NowPlayingArtworkCache {
+  new({this.capacity = 4});
+  final int capacity;
+  final _entries = <String, BlurredNowPlayingArtwork>{};
+  final _pending = <String, _PendingArtwork>{};
+  final _cancelLoads = <void Function()>{};
+  bool _disposed = false;
+  int _renders = 0;
+  int _hits = 0;
+
+  @visibleForTesting
+  int get debugRenderCount => _renders;
+  @visibleForTesting
+  int get debugHitCount => _hits;
+  @visibleForTesting
+  ui.Image? debugCachedImage(String key) => _entries[key]?.image;
+
+  Future<BlurredNowPlayingArtwork> acquire(
+    String key,
+    ImageProvider<Object> source,
+    ImageConfiguration configuration,
+  ) async {
+    if (_disposed) throw StateError('Artwork cache disposed');
+    final cached = _entries.remove(key);
+    if (cached != null) {
+      _entries[key] = cached;
+      _hits++;
+      return cached._clone();
+    }
+    var pending = _pending[key];
+    if (pending == null) {
+      pending = _PendingArtwork(_render(source, configuration));
+      _pending[key] = pending;
+    } else {
+      _hits++;
+    }
+    pending.users++;
+    BlurredNowPlayingArtwork? result;
+    try {
+      result = await pending.future;
+      if (_disposed) throw StateError('Artwork cache disposed');
+      return result._clone();
+    } finally {
+      // The original remains alive until every waiter has acquired its clone,
+      // even when many covers finish together or the provider is disposed.
+      if (--pending.users == 0) {
+        _pending.remove(key);
+        if (result != null) {
+          if (_disposed) {
+            result.image.dispose();
+          } else {
+            _entries[key] = result;
+            while (_entries.length > capacity) {
+              _entries.remove(_entries.keys.first)!.image.dispose();
+            }
+          }
+        }
+      }
+    }
+  }
+
+  Future<void> prewarm(
+    String key,
+    ImageProvider<Object> source,
+    ImageConfiguration configuration,
+  ) async {
+    try {
+      final result = await acquire(key, source, configuration);
+      result.image.dispose();
+    } on Object {
+      // Best effort. Visible layers retain their normal tinted fallback.
+    }
+  }
+
+  Future<BlurredNowPlayingArtwork> _render(
+    ImageProvider<Object> source,
+    ImageConfiguration configuration,
+  ) async {
+    final info = await _decode(source, configuration);
+    try {
+      Color? average;
+      try {
+        average = await averageImageColor(info.image);
+      } on Object {
+        average = null;
+      }
+      if (_disposed) throw StateError('Artwork cache disposed');
+      final recorder = ui.PictureRecorder();
+      Canvas(recorder).drawImage(
+        info.image,
+        Offset.zero,
+        Paint()
+          ..imageFilter = ui.ImageFilter.blur(
+            sigmaX: kNowPlayingArtworkBlurSigma,
+            sigmaY: kNowPlayingArtworkBlurSigma,
+            tileMode: TileMode.clamp,
+          ),
+      );
+      final picture = recorder.endRecording();
+      try {
+        final blurred = await picture.toImage(
+          info.image.width,
+          info.image.height,
+        );
+        _renders++;
+        return BlurredNowPlayingArtwork(blurred, average);
+      } finally {
+        picture.dispose();
+      }
+    } finally {
+      info.dispose();
+    }
+  }
+
+  Future<ImageInfo> _decode(
+    ImageProvider<Object> source,
+    ImageConfiguration configuration,
+  ) {
+    final completion = Completer<ImageInfo>();
+    final stream = source.resolve(configuration);
+    late final ImageStreamListener listener;
+    late final void Function() cancel;
+    void detach() {
+      _cancelLoads.remove(cancel);
+      stream.removeListener(listener);
+    }
+
+    cancel = () {
+      if (completion.isCompleted) return;
+      detach();
+      completion.completeError(StateError('Artwork cache disposed'));
+    };
+    listener = ImageStreamListener(
+      (info, _) {
+        if (completion.isCompleted) {
+          info.dispose();
+          return;
+        }
+        detach();
+        completion.complete(info);
+      },
+      onError: (error, stack) {
+        if (completion.isCompleted) return;
+        detach();
+        completion.completeError(error, stack);
+      },
+    );
+    _cancelLoads.add(cancel);
+    stream.addListener(listener);
+    return completion.future;
+  }
+
+  void dispose() {
+    _disposed = true;
+    for (final cancel in _cancelLoads.toList()) {
+      cancel();
+    }
+    for (final entry in _entries.values) {
+      entry.image.dispose();
+    }
+    _entries.clear();
+  }
+}
+
+/// App-scoped, keep-alive ownership shared by player, queue and desktop lyrics.
+final nowPlayingArtworkCacheProvider = Provider<NowPlayingArtworkCache>((ref) {
+  final cache = NowPlayingArtworkCache();
+  ref.onDispose(cache.dispose);
+  return cache;
+});

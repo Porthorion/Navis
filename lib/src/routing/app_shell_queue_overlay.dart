@@ -454,39 +454,46 @@ class _QueueArtworkSurface extends ConsumerWidget {
     final nowPlayingExpanded = ref.watch(playerSheetExpandedProvider);
     final published = ref.watch(nowPlayingPublishedBackdropProvider);
     final backdrop = nowPlayingExpanded ? published : null;
-    if (backdrop == null) {
-      return fullscreen ? Material(color: colors.surface, child: child) : child;
-    }
+    final show = backdrop != null;
     final surface = Material(
-      color: Colors.transparent,
+      color: show
+          ? Colors.transparent
+          : (fullscreen ? colors.surface : Colors.transparent),
       child: Stack(
         fit: StackFit.expand,
         children: <Widget>[
           Positioned.fill(
-            child: NowPlayingArtworkBackground(
-              key: const ValueKey<String>('queueArtworkBackground'),
-              imageKey: backdrop.imageKey,
-              image: backdrop.image,
-              coverAverage: backdrop.coverAverage,
-              useCoverAverage: backdrop.useCoverAverage,
-              colorStyle: NavisColorStyleData.of(context),
-              surfaceColor: colors.surface,
-              onSurfaceColor: colors.onSurface,
-              accentColor: colors.primary,
-              onSurfaceVariantColor: colors.onSurfaceVariant,
-              fadeDuration: Duration.zero,
-            ),
+            child: show
+                ? NowPlayingArtworkBackground(
+                    key: const ValueKey<String>('queueArtworkBackground'),
+                    imageKey: backdrop.imageKey,
+                    image: backdrop.image,
+                    coverAverage: backdrop.coverAverage,
+                    useCoverAverage: backdrop.useCoverAverage,
+                    colorStyle: NavisColorStyleData.of(context),
+                    surfaceColor: colors.surface,
+                    onSurfaceColor: colors.onSurface,
+                    accentColor: colors.primary,
+                    onSurfaceVariantColor: colors.onSurfaceVariant,
+                    fadeDuration: Duration.zero,
+                  )
+                : const SizedBox.shrink(),
           ),
-          NowPlayingArtworkLayerScope(active: true, child: child),
+          NowPlayingArtworkLayerScope(active: show, child: child),
         ],
       ),
     );
     return fullscreen
         ? surface
         : SafeArea(
+            top: show,
+            left: show,
+            right: show,
             bottom: false,
             child: ClipRRect(
-              borderRadius: NavisShapeData.of(context).sheetTop,
+              borderRadius: show
+                  ? NavisShapeData.of(context).sheetTop
+                  : BorderRadius.zero,
               child: surface,
             ),
           );

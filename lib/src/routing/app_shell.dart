@@ -18,6 +18,8 @@ import 'package:go_router/go_router.dart';
 import 'package:navis/l10n/app_localizations.dart';
 import 'package:navis/src/common_widgets/app_notice.dart';
 import 'package:navis/src/common_widgets/cover_art_image.dart';
+import 'package:navis/src/common_widgets/cover_art_source.dart';
+import 'package:navis/src/features/settings/domain/now_playing_background.dart';
 import 'package:navis/src/common_widgets/external_artwork_image.dart';
 import 'package:navis/src/features/integrations/domain/integration_feature.dart';
 import 'package:navis/src/common_widgets/cover_art_viewer.dart';
@@ -1080,6 +1082,52 @@ class _AppShellState extends ConsumerState<AppShell> {
         );
         _closeQuickSearchOverlay();
       });
+    }
+    final background = ref.watch(nowPlayingBackgroundProvider);
+    if (showPlayer &&
+        background == NowPlayingBackground.artwork &&
+        !NavisColorStyleData.of(context).flatNowPlaying) {
+      final id = coverArtId?.trim() ?? '';
+      final revision = currentSongAsync.asData?.value?.coverArtRevision ?? 0;
+      final source = id.isNotEmpty
+          ? ref
+                .watch(
+                  coverArtImageSourceProvider((
+                    id,
+                    kCoverArtStandardSize,
+                    revision,
+                  )),
+                )
+                .asData
+                ?.value
+          : (nowPlayingArtUrl?.trim().isNotEmpty ?? false)
+          ? resolveNowPlayingImageProvider(
+              ref: ref,
+              artUrl: nowPlayingArtUrl,
+              size: kCoverArtStandardSize,
+            )
+          : null;
+      if (source != null) {
+        final key = nowPlayingArtworkImageKey(
+          coverArtId: id,
+          artUrl: nowPlayingArtUrl,
+          revision: revision,
+          source: source,
+        );
+        ref.watch(
+          nowPlayingArtworkPrewarmProvider((
+            key,
+            source,
+            id.isEmpty
+                ? null
+                : coverArtImageCacheKey(
+                    id,
+                    kCoverArtStandardSize,
+                    revision: revision,
+                  ),
+          )),
+        );
+      }
     }
     final brightness = Theme.of(context).brightness;
     final nowPlayingVisualPrewarmKey = showPlayer

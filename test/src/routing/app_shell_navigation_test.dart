@@ -170,6 +170,7 @@ ProviderContainer _createContainerWithDatabase({
 
 List<Override> _authenticatedShellOverrides({
   PlaybackSnapshot playback = _activePlayback,
+  ValueNotifier<PlaybackSnapshot>? playing,
   ServerReachabilityStatus reachability = ServerReachabilityStatus.online,
   bool desktopRuntime = false,
 }) {
@@ -214,7 +215,13 @@ List<Override> _authenticatedShellOverrides({
     scrobbleDispatchControllerProvider.overrideWith(
       _NoopScrobbleDispatchController.new,
     ),
-    playbackSnapshotProvider.overrideWith((ref) => Stream.value(playback)),
+    playbackSnapshotProvider.overrideWith((ref) {
+      if (playing == null) return Stream.value(playback);
+      void changed() => ref.invalidateSelf();
+      playing.addListener(changed);
+      ref.onDispose(() => playing.removeListener(changed));
+      return Stream.value(playing.value);
+    }),
     lyricsProvider.overrideWith(
       (ref, songId) async => const LyricsResolution(
         lyrics: LyricsList(),
@@ -3568,6 +3575,8 @@ void main() {
       bool desktop = false,
       bool flat = false,
       bool oled = false,
+      ValueNotifier<NowPlayingBackground>? backgroundSetting,
+      ValueNotifier<PlaybackSnapshot>? playing,
     }) async {
       tester.view.devicePixelRatio = 1;
       tester.view.physicalSize = desktop
@@ -3582,9 +3591,18 @@ void main() {
       );
       final container = _createContainerWithDatabase(
         overrides: <Override>[
-          ..._authenticatedShellOverrides(desktopRuntime: desktop),
+          ..._authenticatedShellOverrides(
+            desktopRuntime: desktop,
+            playing: playing,
+          ),
           subsonicApiProvider.overrideWithValue(null),
-          nowPlayingBackgroundProvider.overrideWithValue(background),
+          nowPlayingBackgroundProvider.overrideWith((ref) {
+            if (backgroundSetting == null) return background;
+            void changed() => ref.invalidateSelf();
+            backgroundSetting.addListener(changed);
+            ref.onDispose(() => backgroundSetting.removeListener(changed));
+            return backgroundSetting.value;
+          }),
           appSettingsProvider.overrideWithValue(
             AsyncData(
               const AppSettingsModel.defaults().copyWith(
@@ -3595,8 +3613,16 @@ void main() {
             ),
           ),
           songByIdProvider.overrideWith(
-            (ref, songId) =>
-                Stream.value(songId == coverSong.id ? coverSong : null),
+            (ref, songId) => Stream.value(
+              songId == coverSong.id
+                  ? coverSong
+                  : songId == 'song-2'
+                  ? coverSong.copyWith(
+                      id: 'song-2',
+                      coverArt: const Value('c-2'),
+                    )
+                  : null,
+            ),
           ),
           coverArtImageSourceProvider.overrideWith((ref, key) async => cover),
           coverColourFieldProvider.overrideWith(
@@ -3617,10 +3643,12 @@ void main() {
     }
 
     Future<void> settleImages(WidgetTester tester) async {
-      await tester.runAsync(
-        () => Future<void>.delayed(const Duration(milliseconds: 150)),
-      );
-      await tester.pump();
+      for (var i = 0; i < 4; i++) {
+        await tester.runAsync(
+          () => Future<void>.delayed(const Duration(milliseconds: 40)),
+        );
+        await tester.pump();
+      }
       await tester.pumpAndSettle();
     }
 
@@ -3644,6 +3672,61 @@ void main() {
         )
         .color!;
 
+    testWidgets(
+      'shell prewarms setting and track changes while collapsed; body state survives toggles',
+      (tester) async {
+        final background = ValueNotifier(NowPlayingBackground.plain);
+        final playing = ValueNotifier(_activePlayback);
+        addTearDown(background.dispose);
+        addTearDown(playing.dispose);
+        debugSeedNowPlayingTint(
+          brightness: Brightness.dark,
+          coverArtId: 'c-2',
+          tint: const Color(0xFFD32F2F),
+        );
+        final container = await pumpShell(
+          tester,
+          background: background.value,
+          backgroundSetting: background,
+          playing: playing,
+        );
+        final cache = container.read(nowPlayingArtworkCacheProvider);
+        expect(cache.debugRenderCount, 0);
+        background.value = NowPlayingBackground.artwork;
+        await tester.pumpAndSettle();
+        await settleImages(tester);
+        expect(container.read(playerSheetExpandedProvider), isFalse);
+        expect(cache.debugRenderCount, 1);
+        playing.value = _activePlayback.copyWith(
+          currentSongId: 'song-2',
+          currentIndex: 1,
+        );
+        await tester.pumpAndSettle();
+        await settleImages(tester);
+        expect(container.read(playerSheetExpandedProvider), isFalse);
+        expect(cache.debugRenderCount, 2);
+        container.read(playerOverlayStackProvider.notifier).expand();
+        await tester.pumpAndSettle();
+        await settleImages(tester);
+        final body = find.byWidgetPredicate(
+          (widget) => widget.runtimeType.toString() == '_NowPlayingBody',
+        );
+        final state = tester.state(body);
+        for (final mode in [
+          NowPlayingBackground.tinted,
+          NowPlayingBackground.plain,
+          NowPlayingBackground.artwork,
+        ]) {
+          background.value = mode;
+          await tester.pumpAndSettle();
+          await settleImages(tester);
+          expect(tester.state(body), same(state));
+          expect(cache.debugRenderCount, 2);
+        }
+        await unmountShell(tester, container);
+      },
+    );
+
     testWidgets('phone queue over expanded Artwork shows the blurred cover', (
       tester,
     ) async {
@@ -3651,6 +3734,10 @@ void main() {
         tester,
         background: NowPlayingBackground.artwork,
       );
+      await settleImages(tester);
+      final cache = container.read(nowPlayingArtworkCacheProvider);
+      expect(container.read(playerSheetExpandedProvider), isFalse);
+      expect(cache.debugRenderCount, 1);
       container.read(playerOverlayStackProvider.notifier).expand();
       await tester.pumpAndSettle();
       await settleImages(tester);
@@ -3669,11 +3756,26 @@ void main() {
       expect(
         find.descendant(
           of: find.byKey(queueBackdropKey),
-          matching: find.byType(ImageFiltered),
+          matching: find.byType(RawImage),
         ),
         findsOneWidget,
       );
       expect(find.byType(QueueSheet), findsOneWidget);
+      expect(cache.debugRenderCount, 1);
+      expect(cache.debugHitCount, greaterThanOrEqualTo(2));
+      final queueState = tester.state(find.byType(QueueSheet));
+      container
+          .read(nowPlayingPublishedBackdropProvider.notifier)
+          .clear(published.owner);
+      await tester.pump();
+      expect(tester.state(find.byType(QueueSheet)), same(queueState));
+      container
+          .read(nowPlayingPublishedBackdropProvider.notifier)
+          .publish(published);
+      await tester.pump();
+      await settleImages(tester);
+      expect(tester.state(find.byType(QueueSheet)), same(queueState));
+      expect(cache.debugRenderCount, 1);
       expect(
         queuePanelFill(tester).a,
         closeTo(kNowPlayingArtworkPanelAlpha, 0.001),
@@ -3752,6 +3854,9 @@ void main() {
         background: NowPlayingBackground.artwork,
         desktop: true,
       );
+      await settleImages(tester);
+      final cache = container.read(nowPlayingArtworkCacheProvider);
+      expect(cache.debugRenderCount, 1);
       await tester.tap(
         find.byKey(const ValueKey<String>('desktopPlayerLyricsButton')),
       );
@@ -3759,6 +3864,8 @@ void main() {
       await settleImages(tester);
 
       expect(find.byKey(desktopBackdropKey), findsOneWidget);
+      expect(cache.debugRenderCount, 1);
+      expect(cache.debugHitCount, greaterThanOrEqualTo(1));
       expect(
         find.byKey(const ValueKey<String>('nowPlayingSurfaceTint')),
         findsOneWidget,

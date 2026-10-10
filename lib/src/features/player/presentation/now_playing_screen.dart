@@ -1550,8 +1550,11 @@ class _NowPlayingBodyState extends ConsumerState<_NowPlayingBody>
         ? ref.watch(albumProvider(song.albumId!)).asData?.value?.album
         : null;
     final currentMediaItem = ref.watch(currentMediaItemProvider).asData?.value;
-    final playbackSpeed =
-        ref.watch(appSettingsProvider).asData?.value.playbackSpeed ?? 1;
+    final playbackSpeed = ref.watch(
+      appSettingsProvider.select(
+        (settings) => settings.asData?.value.playbackSpeed ?? 1,
+      ),
+    );
     final fullscreenLyricsMode = ref.watch(fullscreenModeLyricsProvider);
     ref.listen<AsyncValue<TransportVisualCue>>(transportVisualCueProvider, (
       _,

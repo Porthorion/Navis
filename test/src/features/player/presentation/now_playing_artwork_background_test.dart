@@ -3,6 +3,7 @@ import 'dart:typed_data';
 import 'dart:ui' as ui;
 
 import 'package:flutter_test/flutter_test.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter/foundation.dart' show SynchronousFuture;
 import 'package:material_color_utilities/material_color_utilities.dart'
     show Hct;
@@ -31,6 +32,17 @@ Future<ImageProvider> _solid(Color color) async {
   final bytes = (await image.toByteData(format: ui.ImageByteFormat.png))!;
   image.dispose();
   return MemoryImage(Uint8List.view(bytes.buffer));
+}
+
+Future<void> _finishRasterWork(WidgetTester tester) async {
+  // Decode, pixel readback and picture rasterization each complete outside
+  // the fake clock. Pump between them to advance their awaiting continuations.
+  for (var i = 0; i < 4; i++) {
+    await tester.runAsync(
+      () => Future<void>.delayed(const Duration(milliseconds: 30)),
+    );
+    await tester.pump();
+  }
 }
 
 void main() {
@@ -354,24 +366,26 @@ void main() {
       Color? average,
       bool useCoverAverage = false,
       void Function(String, {required bool available})? onAvailabilityChanged,
-    }) => Directionality(
-      textDirection: TextDirection.ltr,
-      child: SizedBox(
-        width: 200,
-        height: 400,
-        child: NowPlayingArtworkBackground(
-          imageKey: key,
-          image: image,
-          coverAverage: average,
-          useCoverAverage: useCoverAverage,
-          onAvailabilityChanged: onAvailabilityChanged,
-          colorStyle: const NavisColorStyleData(
-            style: NavisColorStyle.neutral,
-            dark: true,
+    }) => ProviderScope(
+      child: Directionality(
+        textDirection: TextDirection.ltr,
+        child: SizedBox(
+          width: 200,
+          height: 400,
+          child: NowPlayingArtworkBackground(
+            imageKey: key,
+            image: image,
+            coverAverage: average,
+            useCoverAverage: useCoverAverage,
+            onAvailabilityChanged: onAvailabilityChanged,
+            colorStyle: const NavisColorStyleData(
+              style: NavisColorStyle.neutral,
+              dark: true,
+            ),
+            surfaceColor: const Color(0xFF101418),
+            onSurfaceColor: Colors.white,
+            fadeDuration: fade,
           ),
-          surfaceColor: const Color(0xFF101418),
-          onSurfaceColor: Colors.white,
-          fadeDuration: fade,
         ),
       ),
     );
@@ -387,6 +401,7 @@ void main() {
         await tester.runAsync(() async {
           await Future<void>.delayed(const Duration(milliseconds: 50));
         });
+        await _finishRasterWork(tester);
         expect(first.disposals, 1);
         await tester.pumpWidget(const SizedBox.shrink());
         // A callback queued before disposal still owns its image handle.
@@ -405,10 +420,20 @@ void main() {
         );
         final info = (await tester.runAsync(_countingInfo))!;
         provider.completer.listeners.single.onImage(info, false);
+        await tester.runAsync(
+          () => Future<void>.delayed(const Duration(milliseconds: 100)),
+        );
         await tester.pump();
+        await _finishRasterWork(tester);
         const data = NavisColorStyleData.neutralDark;
         Color veil() =>
-            tester.widget<ColoredBox>(find.byType(ColoredBox)).color;
+            (tester
+                        .widget<AnimatedContainer>(
+                          find.byType(AnimatedContainer),
+                        )
+                        .decoration!
+                    as BoxDecoration)
+                .color!;
         expect(veil(), data.nowPlayingArtworkVeil(const Color(0xFF101418)));
         expect(info.disposals, 1);
         final resolutions = provider.resolutions;
@@ -430,6 +455,21 @@ void main() {
           ),
         );
         expect(provider.resolutions, resolutions);
+        await tester.pump(const Duration(milliseconds: 200));
+        Color renderedVeil() =>
+            (tester
+                        .widget<DecoratedBox>(
+                          find
+                              .descendant(
+                                of: find.byType(AnimatedContainer),
+                                matching: find.byType(DecoratedBox),
+                              )
+                              .first,
+                        )
+                        .decoration
+                    as BoxDecoration)
+                .color!;
+        final previousVeil = renderedVeil();
         await tester.pumpWidget(
           host(
             key: 'cover',
@@ -447,6 +487,12 @@ void main() {
             average: Colors.white,
           ),
         );
+        expect(renderedVeil(), previousVeil);
+        await tester.pump(const Duration(milliseconds: 100));
+        expect(renderedVeil(), isNot(previousVeil));
+        expect(renderedVeil(), isNot(veil()));
+        await tester.pump(const Duration(milliseconds: 100));
+        expect(renderedVeil(), veil());
         expect(provider.resolutions, resolutions);
       },
     );
@@ -481,7 +527,7 @@ void main() {
         );
       }
       expect(provider.resolutions, 1);
-      expect(find.byType(Image), findsNothing);
+      expect(find.byType(RawImage), findsNothing);
       await tester.pumpWidget(
         host(
           key: 'new-revision',
@@ -502,9 +548,10 @@ void main() {
       await tester.runAsync(
         () => Future<void>.delayed(const Duration(milliseconds: 150)),
       );
+      await _finishRasterWork(tester);
       await tester.pumpAndSettle();
-      expect(find.byType(ImageFiltered), findsOneWidget);
-      expect(find.byType(Image), findsOneWidget);
+      expect(find.byType(ImageFiltered), findsNothing);
+      expect(find.byType(RawImage), findsOneWidget);
       expect(find.byType(RepaintBoundary), findsWidgets);
     });
 
@@ -518,20 +565,22 @@ void main() {
       await tester.runAsync(
         () => Future<void>.delayed(const Duration(milliseconds: 150)),
       );
+      await _finishRasterWork(tester);
       await tester.pumpAndSettle();
-      expect(find.byType(Image), findsOneWidget);
+      expect(find.byType(RawImage), findsOneWidget);
 
+      final shown = tester.widget<RawImage>(find.byType(RawImage)).image;
       // A cover that never decodes: the old one stays, nothing flashes plain.
       final never = _NeverImage();
       await tester.pumpWidget(host(key: 'b', image: never));
       await tester.pump(const Duration(milliseconds: 500));
-      expect(find.byType(Image), findsOneWidget);
-      expect(tester.widget<Image>(find.byType(Image)).image, same(red));
+      expect(find.byType(RawImage), findsOneWidget);
+      expect(tester.widget<RawImage>(find.byType(RawImage)).image, same(shown));
 
       // A null image (metadata gap) also keeps it.
       await tester.pumpWidget(host(key: null, image: null));
       await tester.pump();
-      expect(find.byType(Image), findsOneWidget);
+      expect(find.byType(RawImage), findsOneWidget);
     });
 
     testWidgets('crossfades to the next cover and honours reduced motion', (
@@ -547,6 +596,7 @@ void main() {
       await tester.runAsync(
         () => Future<void>.delayed(const Duration(milliseconds: 150)),
       );
+      await _finishRasterWork(tester);
       await tester.pumpAndSettle();
 
       await tester.pumpWidget(host(key: 'b', image: yellow));
@@ -558,11 +608,17 @@ void main() {
         () => Future<void>.delayed(const Duration(milliseconds: 150)),
       );
       await tester.pump();
+      await _finishRasterWork(tester);
       await tester.pump(const Duration(milliseconds: 100));
-      expect(find.byType(Image), findsNWidgets(2));
+      expect(find.byType(RawImage), findsNWidgets(2));
       await tester.pumpAndSettle();
-      expect(find.byType(Image), findsOneWidget);
-      expect(tester.widget<Image>(find.byType(Image)).image, same(yellow));
+      expect(find.byType(RawImage), findsOneWidget);
+      final pixel = (await tester.runAsync(
+        () =>
+            tester.widget<RawImage>(find.byType(RawImage)).image!.toByteData(),
+      ))!;
+      expect(pixel.getUint8(0), 255);
+      expect(pixel.getUint8(1), 235);
 
       await tester.pumpWidget(host(key: 'c', image: red, fade: Duration.zero));
       expect(
