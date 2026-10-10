@@ -941,14 +941,16 @@ void main() {
         expect(settings?.albumArtColoredShade, isFalse);
       });
 
-      testWidgets('Use Cover Color appears only while Shade is on', (
+      testWidgets('Use Cover Color is hidden while Shade is off', (
         tester,
       ) async {
         await pumpAppearance(tester);
         await reveal(tester, find.text(l10n.appearanceAlbumArtShadeLabel));
         expect(coverKey, findsNothing);
         expect(find.text(l10n.appearanceAlbumArtCoverColorLabel), findsNothing);
+      });
 
+      testWidgets('Use Cover Color appears while Shade is on', (tester) async {
         await pumpAppearance(tester, albumArtShade: true);
         await reveal(tester, find.text(l10n.appearanceAlbumArtShadeLabel));
         await tester.pump(const Duration(milliseconds: 300));
