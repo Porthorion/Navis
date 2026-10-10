@@ -3329,6 +3329,11 @@ duration), not media_kit's buffering flag, which `open()` resets to false
 before the file loads. Retained positions survive opening and duration events
 in either order, including progressive streams that become playable before
 native duration is known; one already reached natively is not seeked again.
+An indexed jump resets this readiness and replaces the pending position before
+loading the entry. A zero position accompanying the jump needs no native seek,
+since the entry starts at zero; non-zero positions wait for the new entry's
+initialization or duration event, rather than the previous cached duration.
+Seeks on the current entry without a jump keep their existing behavior.
 media_kit's 5 s `network-timeout` is raised to 60 s, above the handler's own
 deadlines, so a server that prepares the file before its first byte does not
 fail the stream, and its on-disk demuxer cache, which libmpv cannot create
