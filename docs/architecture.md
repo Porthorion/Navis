@@ -3280,7 +3280,8 @@ shuffles the rest; a queue started with shuffle on begins at the chosen song
 with the others shuffled. The unshuffled order is kept in `_originalOrder`
 (entity Shuffle callers pass the optional `originalOrder` of their unshuffled
 IDs alongside pre-shuffled rows, so the handler preserves the supplied order
-and never shuffles it twice). It is reconciled lazily with edits
+and never shuffles it twice). Android Auto’s Shuffle liked projection passes
+the same original order through the row-loading adapter. It is reconciled lazily with edits
 (`reconcileOriginalRanks`: songs matched by occurrence, a song played next
 lands after the current song, appended songs go last, removed songs drop).
 Turning shuffle off restores that order around the current song without

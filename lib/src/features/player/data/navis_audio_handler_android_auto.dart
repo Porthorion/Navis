@@ -20,6 +20,7 @@ extension _NavisAndroidAuto on NavisAudioHandler {
     required bool autoPlay,
     int startIndex = 0,
     bool expandMatchFlows = true,
+    List<String>? originalOrder,
   }) async {
     if (songs.isEmpty) return false;
     await replaceQueueWithData(
@@ -27,6 +28,7 @@ extension _NavisAndroidAuto on NavisAudioHandler {
       startIndex: startIndex,
       autoPlay: autoPlay,
       expandMatchFlows: expandMatchFlows,
+      originalOrder: originalOrder,
     );
     return _queueItems.isNotEmpty;
   }
@@ -40,9 +42,11 @@ extension _NavisAndroidAuto on NavisAudioHandler {
       case AutoMediaRoot.shuffleLiked:
         final songs = await _libraryDao.watchAllStarredSongs().first;
         if (songs.isEmpty) return false;
-        final shuffled = List<SongsTableData>.of(songs)..shuffle();
+        final shuffled = List<SongsTableData>.of(songs)
+          ..shuffle(_shuffleRandom);
         return await _loadAutoRows(
           shuffled,
+          originalOrder: songs.map((song) => song.id).toList(growable: false),
           autoPlay: autoPlay,
           expandMatchFlows: false,
         );
