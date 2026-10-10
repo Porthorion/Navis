@@ -8,6 +8,7 @@ import 'package:navis/src/features/onboarding/domain/setup_highlights.dart';
 import 'package:navis/src/features/onboarding/presentation/setup_highlights_provider.dart';
 import 'package:navis/src/features/settings/presentation/appearance_layout.dart';
 import 'package:navis/src/features/settings/presentation/color_style_selector.dart';
+import 'package:navis/src/features/settings/domain/flat_areas.dart';
 import 'package:navis/src/features/settings/domain/navis_density.dart';
 import 'package:navis/src/features/settings/domain/night_schedule.dart';
 import 'package:navis/src/features/settings/domain/now_playing_background.dart';
@@ -233,6 +234,124 @@ class FlatSurfacesOption extends StatelessWidget {
       subtitle: Text(l10n.appearanceFlatSurfacesSub),
       value: value,
       onChanged: onChanged,
+    );
+  }
+}
+
+/// The areas Flat Surfaces applies to, revealed under the Flat Surfaces
+/// switch while [visible]. The tag, if any, sits on the first switch. Shared
+/// by Appearance settings and setup.
+class FlatAreasOption extends StatelessWidget {
+  const new({
+    required this.visible,
+    required this.value,
+    required this.onChanged,
+    this.adornment,
+    super.key,
+  });
+
+  final bool visible;
+  final FlatAreas value;
+  final ValueChanged<FlatAreas> onChanged;
+
+  /// Shown beside the first title, for example a "New" tag.
+  final Widget? adornment;
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
+    Widget area({
+      required Key key,
+      required String title,
+      required String subtitle,
+      required bool selected,
+      required ValueChanged<bool> onChanged,
+      Widget? adornment,
+    }) => SwitchListTile(
+      key: key,
+      contentPadding: EdgeInsetsDirectional.only(
+        start: AppearanceLayout.subOptionInsetOf(context),
+        end: AppearanceLayout.gutterOf(context),
+      ),
+      title: _titleWithAdornment(title, adornment),
+      subtitle: Text(subtitle),
+      value: selected,
+      onChanged: onChanged,
+    );
+    return AppearanceSubOptionReveal(
+      visible: visible,
+      child: Column(
+        children: <Widget>[
+          area(
+            key: const ValueKey<String>('flatAreaSurfaces'),
+            title: l10n.appearanceFlatAreaSurfacesLabel,
+            subtitle: l10n.appearanceFlatAreaSurfacesSub,
+            selected: value.surfaces,
+            adornment: adornment,
+            onChanged: (selected) =>
+                onChanged(value.copyWith(surfaces: selected)),
+          ),
+          area(
+            key: const ValueKey<String>('flatAreaNowPlaying'),
+            title: l10n.appearanceFlatAreaNowPlayingLabel,
+            subtitle: l10n.appearanceFlatAreaNowPlayingSub,
+            selected: value.nowPlaying,
+            onChanged: (selected) =>
+                onChanged(value.copyWith(nowPlaying: selected)),
+          ),
+          area(
+            key: const ValueKey<String>('flatAreaArtworkText'),
+            title: l10n.appearanceFlatAreaArtworkTextLabel,
+            subtitle: l10n.appearanceFlatAreaArtworkTextSub,
+            selected: value.artworkText,
+            onChanged: (selected) =>
+                onChanged(value.copyWith(artworkText: selected)),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Album Art Colored Shade switch. Disabled with a note while Flat text over
+/// artwork puts album titles below the art. Shared by Appearance settings and
+/// setup.
+class AlbumArtColoredShadeOption extends StatelessWidget {
+  const new({
+    required this.value,
+    required this.enabled,
+    required this.onChanged,
+    this.adornment,
+    super.key,
+  });
+
+  final bool value;
+
+  /// False while the titles sit below the art, where there is nothing to tint.
+  final bool enabled;
+  final ValueChanged<bool> onChanged;
+
+  /// Shown beside the title, for example a "New" tag.
+  final Widget? adornment;
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
+    return SwitchListTile(
+      contentPadding: appearanceSwitchPadding(context),
+      title: _titleWithAdornment(
+        l10n.appearanceAlbumArtColoredShadeLabel,
+        adornment,
+      ),
+      subtitle: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: <Widget>[
+          Text(l10n.appearanceAlbumArtColoredShadeSub),
+          if (!enabled) Text(l10n.appearanceAlbumArtColoredShadeFlatNote),
+        ],
+      ),
+      value: value,
+      onChanged: enabled ? onChanged : null,
     );
   }
 }
@@ -724,6 +843,10 @@ class AppearanceOptionSet {
     required this.onNightScheduleChanged,
     required this.flatSurfaces,
     required this.onFlatSurfacesChanged,
+    required this.flatAreas,
+    required this.onFlatAreasChanged,
+    required this.albumArtColoredShade,
+    required this.onAlbumArtColoredShadeChanged,
     required this.cornerStyle,
     required this.onCornerStyleChanged,
     required this.density,
@@ -743,6 +866,10 @@ class AppearanceOptionSet {
   final ValueChanged<NightSchedule> onNightScheduleChanged;
   final bool flatSurfaces;
   final ValueChanged<bool> onFlatSurfacesChanged;
+  final FlatAreas flatAreas;
+  final ValueChanged<FlatAreas> onFlatAreasChanged;
+  final bool albumArtColoredShade;
+  final ValueChanged<bool> onAlbumArtColoredShadeChanged;
   final NavisCornerStyle cornerStyle;
   final ValueChanged<NavisCornerStyle> onCornerStyleChanged;
   final NavisDensity density;
@@ -753,16 +880,17 @@ class AppearanceOptionSet {
   /// Whether the previewed dark theme is OLED (for the Now Playing note).
   final bool previewOled;
 
+  static Widget _tagged(
+    SetupHighlight highlight,
+    Widget Function(Widget? adornment) builder,
+  ) => HighlightedAppearanceOption(
+    highlight: highlight,
+    builder: (context, adornment) => builder(adornment),
+  );
+
   Widget build(AppearanceOptionKind kind) {
-    Widget tagged(
-      SetupHighlight highlight,
-      Widget Function(Widget? adornment) builder,
-    ) => HighlightedAppearanceOption(
-      highlight: highlight,
-      builder: (context, adornment) => builder(adornment),
-    );
     return switch (kind) {
-      AppearanceOptionKind.oledForAuto => tagged(
+      AppearanceOptionKind.oledForAuto => _tagged(
         SetupHighlight.oledForAuto,
         (adornment) => OledForAutoOption(
           visible: oledForAutoVisible,
@@ -771,7 +899,7 @@ class AppearanceOptionSet {
           onChanged: onOledForAutoChanged,
         ),
       ),
-      AppearanceOptionKind.nightSchedule => tagged(
+      AppearanceOptionKind.nightSchedule => _tagged(
         SetupHighlight.nightSchedule,
         (adornment) => NightScheduleSection(
           schedule: nightSchedule,
@@ -781,15 +909,28 @@ class AppearanceOptionSet {
           onChanged: onNightScheduleChanged,
         ),
       ),
-      AppearanceOptionKind.flatSurfaces => tagged(
-        SetupHighlight.flatSurfaces,
-        (adornment) => FlatSurfacesOption(
-          value: flatSurfaces,
-          adornment: adornment,
-          onChanged: onFlatSurfacesChanged,
-        ),
+      AppearanceOptionKind.flatSurfaces => Column(
+        children: <Widget>[
+          _tagged(
+            SetupHighlight.flatSurfaces,
+            (adornment) => FlatSurfacesOption(
+              value: flatSurfaces,
+              adornment: adornment,
+              onChanged: onFlatSurfacesChanged,
+            ),
+          ),
+          _tagged(
+            SetupHighlight.flatAreas,
+            (adornment) => FlatAreasOption(
+              visible: flatSurfaces,
+              value: flatAreas,
+              adornment: adornment,
+              onChanged: onFlatAreasChanged,
+            ),
+          ),
+        ],
       ),
-      AppearanceOptionKind.cornerStyle => tagged(
+      AppearanceOptionKind.cornerStyle => _tagged(
         SetupHighlight.cornerStyle,
         (adornment) => CornerStyleOption(
           value: cornerStyle,
@@ -801,18 +942,30 @@ class AppearanceOptionSet {
         value: density,
         onChanged: onDensityChanged,
       ),
-      AppearanceOptionKind.nowPlayingBackground => tagged(
+      AppearanceOptionKind.nowPlayingBackground => _tagged(
         SetupHighlight.nowPlayingBackground,
         (adornment) => NowPlayingBackgroundOption(
           value: nowPlayingBackground,
           oled: previewOled,
-          flat: flatSurfaces,
+          flat: flatSurfaces && flatAreas.nowPlaying,
           adornment: adornment,
           onChanged: onNowPlayingBackgroundChanged,
         ),
       ),
     };
   }
+
+  /// Album Art Colored Shade, which both screens place in their Color group
+  /// rather than in [AppearanceOptionKind]'s order.
+  Widget buildAlbumArtColoredShade() => _tagged(
+    SetupHighlight.albumArtColoredShade,
+    (adornment) => AlbumArtColoredShadeOption(
+      value: albumArtColoredShade,
+      enabled: !(flatSurfaces && flatAreas.artworkText),
+      adornment: adornment,
+      onChanged: onAlbumArtColoredShadeChanged,
+    ),
+  );
 
   /// The option widgets for [kinds], keyed by kind so reorders keep state.
   List<Widget> buildAll(Iterable<AppearanceOptionKind> kinds) => <Widget>[

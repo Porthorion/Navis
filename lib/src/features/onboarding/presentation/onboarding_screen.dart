@@ -742,6 +742,12 @@ class OnboardingScreenState extends ConsumerState<OnboardingScreen> {
       flatSurfaces: draft.flatSurfaces,
       onFlatSurfacesChanged: (value) =>
           setState(() => _draft = draft.copyWith(flatSurfaces: value)),
+      flatAreas: draft.flatAreas,
+      onFlatAreasChanged: (value) =>
+          setState(() => _draft = draft.copyWith(flatAreas: value)),
+      albumArtColoredShade: draft.albumArtColoredShade,
+      onAlbumArtColoredShadeChanged: (value) =>
+          setState(() => _draft = draft.copyWith(albumArtColoredShade: value)),
       cornerStyle: draft.cornerStyle,
       onCornerStyleChanged: (value) =>
           setState(() => _draft = draft.copyWith(cornerStyle: value)),
@@ -821,6 +827,7 @@ class OnboardingScreenState extends ConsumerState<OnboardingScreen> {
               l10n.onboardingAppearanceColorPickerHint,
               style: theme.textTheme.bodySmall,
             ),
+            options.buildAlbumArtColoredShade(),
             const SizedBox(height: 16),
             Builder(
               builder: (context) => SettingsCollapsibleGroup(
@@ -857,6 +864,10 @@ class OnboardingScreenState extends ConsumerState<OnboardingScreen> {
     final Set<SetupHighlight> pending;
     final visit = AppearanceVisitScope.maybeOf(context);
     pending = visit ?? ref.watch(pendingSetupHighlightsProvider);
+    // The Flat areas are tagged only while Flat is on, where they show.
+    if (draft.flatSurfaces && pending.contains(SetupHighlight.flatAreas)) {
+      return true;
+    }
     return AppearanceOptionKind.values.any((kind) {
       final highlight = kind.highlight;
       if (highlight == null || !pending.contains(highlight)) return false;

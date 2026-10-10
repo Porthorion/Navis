@@ -37,13 +37,19 @@ final pendingSetupHighlightsProvider = Provider<Set<SetupHighlight>>((ref) {
 /// Whether Settings home should mark Appearance and Quick Customization as
 /// having new options.
 ///
-/// Use OLED When Dark only exists in Auto mode, so while it is hidden it does
-/// not count: the tag must lead to something the user can actually see.
+/// Use OLED When Dark only exists in Auto mode and the Flat areas only while
+/// Flat Surfaces is on, so while they are hidden they do not count: the tag
+/// must lead to something the user can actually see.
 final settingsHasNewOptionsProvider = Provider<bool>((ref) {
   final pending = ref.watch(pendingSetupHighlightsProvider);
   final autoMode = ref.watch(themeModeProvider) == 'system';
+  final flat = ref.watch(flatSurfacesProvider);
   return pending.any(
-    (highlight) => autoMode || highlight != SetupHighlight.oledForAuto,
+    (highlight) => switch (highlight) {
+      SetupHighlight.oledForAuto => autoMode,
+      SetupHighlight.flatAreas => flat,
+      _ => true,
+    },
   );
 });
 
