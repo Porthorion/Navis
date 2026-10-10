@@ -430,11 +430,15 @@ checks, and Android workers defer without arming or persisting a new automatic
 deadline. Android reports this as `deferredSetup`. Setup waits for any active
 catalog run and queued successor before reading the committed generation and
 choosing its first-catalog request or full scan. Successful readiness records
-also stamp the required sync model, then restart the automatic schedule at
-now plus the configured interval and resume the startup pass, avoiding a
-redundant sync-model repair. Without that gate an automatic run started at
-launch could publish the catalog first and turn setup's queued request into
-discovery that cannot publish, ending setup at "could not be set up". First
+also stamp the required sync model and cache epoch before the controller's
+catalog future completes. Startup and cache-upgrade checks drain active catalog
+work before reading readiness and installation stamps, including when the engine
+has already published `last_synced`. Server-state and readiness listeners schedule work in
+the controller's async zone rather than inheriting the executor's write fence.
+Readiness restarts the automatic schedule at now plus the configured interval
+and resumes the startup pass, avoiding a redundant sync-model repair. Without
+that gate an automatic run started at launch could publish the catalog first and
+turn setup's queued request into discovery that cannot publish, ending setup at "could not be set up". First
 setup without a committed catalog requests the planner's first-catalog
 snapshot. When a committed generation (or `last_synced`) already exists
 without readiness evidence, for example after an interrupted setup and
