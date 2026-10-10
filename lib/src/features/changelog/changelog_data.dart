@@ -214,6 +214,9 @@ const List<ChangelogVersion> changelogs = [
 
       // Improved
       ChangelogEntry(
+        'Pulling down to refresh Home or Library also checks for app updates',
+      ),
+      ChangelogEntry(
         'Appearance is grouped into Theme, Color, Shape & Layout and Now Playing; Color Scheme is now Accent Color, its swatches preview your style, and custom accent colors have more accurate names',
       ),
       ChangelogEntry(

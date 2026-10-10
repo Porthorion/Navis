@@ -3883,6 +3883,12 @@ class AppLocalizationsEn extends AppLocalizations {
   String get updateDismiss => 'Dismiss';
 
   @override
+  String get updateAvailableNotice => 'Update available';
+
+  @override
+  String get updateView => 'View';
+
+  @override
   String get updateUpToDate => 'Navis is up to date.';
 
   @override

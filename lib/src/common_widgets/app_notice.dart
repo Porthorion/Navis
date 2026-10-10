@@ -42,12 +42,16 @@ class AppNoticeData {
     required this.message,
     required this.level,
     required this.duration,
+    this.actionLabel,
+    this.onAction,
   });
 
   final int id;
   final String message;
   final AppNoticeLevel level;
   final Duration duration;
+  final String? actionLabel;
+  final VoidCallback? onAction;
 }
 
 class AppNoticeController extends ChangeNotifier {
@@ -62,6 +66,8 @@ class AppNoticeController extends ChangeNotifier {
     AppNoticeLevel level = AppNoticeLevel.info,
     Duration duration = const Duration(seconds: 2),
     bool replaceCurrent = true,
+    String? actionLabel,
+    VoidCallback? onAction,
   }) {
     if (message.trim().isEmpty) {
       return;
@@ -83,6 +89,8 @@ class AppNoticeController extends ChangeNotifier {
       message: message,
       level: level,
       duration: duration,
+      actionLabel: actionLabel,
+      onAction: onAction,
     );
     notifyListeners();
     if (level != AppNoticeLevel.error) {
@@ -123,6 +131,8 @@ void showAppNotice(
   AppNoticeLevel level = AppNoticeLevel.info,
   Duration duration = const Duration(seconds: 2),
   bool replaceCurrent = true,
+  String? actionLabel,
+  VoidCallback? onAction,
 }) {
   final controller = AppNoticeScope.maybeOf(context);
   if (controller == null) {
@@ -133,6 +143,8 @@ void showAppNotice(
     level: level,
     duration: duration,
     replaceCurrent: replaceCurrent,
+    actionLabel: actionLabel,
+    onAction: onAction,
   );
 }
 
@@ -298,6 +310,14 @@ class _NoticePill extends StatelessWidget {
                         ),
                       ),
                     ),
+                    if (notice.actionLabel != null && notice.onAction != null)
+                      TextButton(
+                        onPressed: () {
+                          onDismissed();
+                          notice.onAction!();
+                        },
+                        child: Text(notice.actionLabel!),
+                      ),
                     if (isError) ...<Widget>[
                       const SizedBox(width: 6),
                       TextButton(

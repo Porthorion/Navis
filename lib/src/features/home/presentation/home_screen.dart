@@ -979,7 +979,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
     ref.invalidate(homeNewReleasesProvider);
     ref.read(homeTrendingRefreshProvider.notifier).refresh(manual: true);
     ref.read(listenBrainzDiscoverRefreshEpochProvider.notifier).refreshFull();
-    ref.invalidate(updateProvider);
+    checkForUpdatesFromPull(ref);
   }
 
   void _setHomePullProgress(double value) {

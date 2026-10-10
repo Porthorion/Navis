@@ -256,6 +256,7 @@ const Duration librarySyncPullStartTimeout = Duration(milliseconds: 800);
 /// after [librarySyncPullStartTimeout]. A sync failure is logged here and
 /// shown by the banner, never thrown into the refresh indicator.
 Future<void> triggerLibrarySyncFromPull(WidgetRef ref) async {
+  checkForUpdatesFromPull(ref, showNotice: true);
   final started = Completer<void>();
   bool reported(LibrarySyncState state) =>
       state.isRunning || state.status == LibrarySyncStatus.failed;

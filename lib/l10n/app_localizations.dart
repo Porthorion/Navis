@@ -6119,6 +6119,18 @@ abstract class AppLocalizations {
   /// **'Dismiss'**
   String get updateDismiss;
 
+  /// No description provided for @updateAvailableNotice.
+  ///
+  /// In en, this message translates to:
+  /// **'Update available'**
+  String get updateAvailableNotice;
+
+  /// No description provided for @updateView.
+  ///
+  /// In en, this message translates to:
+  /// **'View'**
+  String get updateView;
+
   /// No description provided for @updateUpToDate.
   ///
   /// In en, this message translates to:

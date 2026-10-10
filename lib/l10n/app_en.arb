@@ -1814,6 +1814,8 @@
   },
   "updateDownload": "Download",
   "updateDismiss": "Dismiss",
+  "updateAvailableNotice": "Update available",
+  "updateView": "View",
   "updateUpToDate": "Navis is up to date.",
   "updateInstall": "Install",
   "updateRetry": "Retry",

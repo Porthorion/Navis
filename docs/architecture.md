@@ -2751,6 +2751,16 @@ Settings › Integrations › Updates holds the automatic check
 (`updates.automatic`); About keeps "Check now", which only the master and
 `updates` service switches block.
 
+Home and Library pulls (including Library tabs and Liked see-all pages) call
+`checkForUpdatesFromPull`. This uses the same integrations policy and forced
+check request, bypassing the 24-hour throttle only when the master, Updates
+service and `updates.automatic` switches are on. A temporary manual listener
+keeps the auto-disposed provider active until it resolves and closes on
+completion or widget disposal. Home uses its existing update banner; Library
+shows an info notice, “Update available”, with a View action opening the
+existing update dialog. Null and error results are silent. Neither refresh
+callback waits for the update check.
+
 - `data/update_repository.dart` — fetches the channel's signed manifest from
   `AppConstants.updateBaseUrl` (R2, see [release-r2.md](release-r2.md)), verifies it,
   and selects the platform asset by manifest key using `detectInstallMode()`. Returns
@@ -4012,7 +4022,10 @@ collaborators does not read locale settings or open the database for localizatio
    `triggerLibrarySyncFromPull` (`library_sync_provider.dart`), which returns
    once the controller reports running or failed (at most 800 ms) so the pull
    spinner does not stay for the whole sync; progress and failures show in
-   `LibrarySyncStatusBanner`, which those Liked pages show too. Artist detail
+   `LibrarySyncStatusBanner`, which those Liked pages show too. Home and these
+   Library pulls also start a policy-gated, forced app update check without
+   waiting for it; Library shows a notice only when an update is available
+   (see Update Checker). Artist detail
    uses `RefreshIndicator.noSpinner` because its own header shows the refresh.
    One startup task owns the pass
    through session resets; epoch checks reject stale completion, and engine
