@@ -3603,6 +3603,10 @@ void main() {
             (ref, key) async =>
                 CoverColourField.uniform(const Color(0xFF3F7F6F)),
           ),
+          backgroundCoverColourFieldProvider.overrideWith(
+            (ref, key) async =>
+                CoverColourField.uniform(const Color(0xFF3F7F6F)),
+          ),
         ],
       );
       await tester.pumpWidget(
