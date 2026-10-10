@@ -4235,8 +4235,11 @@ which ran the earlier v2 metadata-only cleanup also receive the complete purge.
 Ordinary artwork is refetched; permanent download artwork remains in its separate
 durable store. Both keep-data and full sign-out, server-data reset, library-cache
 reset, and Settings “clear covers” clear both managers. Cover storage accounting
-sums both current directories without following links. External artwork display
-and radio Now Playing prewarm share `externalArtworkImageProvider`, wrapped by
+sums both current directories without following links. Desktop diagnostics clones
+use the same cache keys below their redirected `<root>/cache` temporary directory,
+so the managers and storage accounting share the isolated artwork folders.
+External artwork display and radio Now Playing prewarm share
+`externalArtworkImageProvider`, wrapped by
 `boundedDecode` with a 1024×1024 fit bound. Both edges are capped without
 upscaling, and display reuses the prewarmed decode without an image fade. The
 HTTP file service rejects a declared body larger than 20 MiB and aborts when

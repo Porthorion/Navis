@@ -298,12 +298,6 @@ final coverArtCacheManagerProvider = Provider<CacheManager>((ref) {
   );
   final manager = createCoverArtCacheManager(
     maxNrOfCacheObjects: maxObjects,
-    cacheKey:
-        _syncDiagnosticsEnabled &&
-            _syncDiagnosticsMode == 'clone' &&
-            _syncDiagnosticsRoot.isNotEmpty
-        ? '${coverArtCacheKey}_${sha256.convert(utf8.encode(_syncDiagnosticsRoot)).toString().substring(0, 16)}'
-        : coverArtCacheKey,
     fileService: service,
   );
   ref.onDispose(() {
