@@ -1,4 +1,5 @@
 import 'package:audio_service/audio_service.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 import 'package:material_ui/material_ui.dart';
@@ -261,6 +262,30 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('Lyrics'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  }, skip: !sqliteAvailable);
+
+  testWidgets('fullscreen lyrics title and song name are centred on Android', (
+    tester,
+  ) async {
+    debugDefaultTargetPlatformOverride = TargetPlatform.android;
+    setAdaptiveTestViewport(tester, const Size(1000, 900));
+    final container = _createContainer();
+    container.read(nowPlayingTestPlaybackProvider.notifier).state =
+        _songPlayback;
+    await _pumpNowPlaying(tester, container);
+    await tester.tap(find.byTooltip('Lyrics').first);
+    await tester.pumpAndSettle();
+    debugDefaultTargetPlatformOverride = null;
+
+    final texts = find.descendant(
+      of: find.byType(AppBar),
+      matching: find.byType(Text),
+    );
+    final title = tester.getCenter(find.text('Lyrics'));
+    final subtitle = tester.getCenter(texts.last);
+    expect(title.dx, closeTo(500, 1));
+    expect(subtitle.dx, closeTo(500, 1));
     expect(tester.takeException(), isNull);
   }, skip: !sqliteAvailable);
 

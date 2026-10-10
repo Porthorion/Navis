@@ -436,11 +436,11 @@ abstract class AppLocalizations {
   /// **'Server unreachable. Retrying every 30s.'**
   String get serverOfflineBanner;
 
-  /// No description provided for @serverOfflineQuietBanner.
+  /// No description provided for @serverOfflineChip.
   ///
   /// In en, this message translates to:
-  /// **'Offline mode'**
-  String get serverOfflineQuietBanner;
+  /// **'Offline'**
+  String get serverOfflineChip;
 
   /// No description provided for @batteryOptimizationPromptTitle.
   ///
@@ -1725,7 +1725,7 @@ abstract class AppLocalizations {
   /// No description provided for @playbackSettingsAlbumQueueSubtitle.
   ///
   /// In en, this message translates to:
-  /// **'Tapping a track in an album queues the entire album and starts playback at that track.'**
+  /// **'Tapping a track in an album or playlist queues the whole list and starts playback at that track.'**
   String get playbackSettingsAlbumQueueSubtitle;
 
   /// No description provided for @playbackSettingsExperimentalTitle.
@@ -5522,7 +5522,7 @@ abstract class AppLocalizations {
   /// No description provided for @appearanceCornerStyleRounded.
   ///
   /// In en, this message translates to:
-  /// **'Rounded'**
+  /// **'Pill'**
   String get appearanceCornerStyleRounded;
 
   /// No description provided for @appearanceCornerStyleSoft.
@@ -5540,7 +5540,7 @@ abstract class AppLocalizations {
   /// No description provided for @appearanceCornerStyleRoundedSub.
   ///
   /// In en, this message translates to:
-  /// **'Gently rounded cards and pill buttons.'**
+  /// **'Pill-shaped buttons, chips and tags; gently rounded cards.'**
   String get appearanceCornerStyleRoundedSub;
 
   /// No description provided for @appearanceCornerStyleSoftSub.

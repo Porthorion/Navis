@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math' as math;
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:material_ui/material_ui.dart';
@@ -622,7 +623,7 @@ class DensityOption extends StatelessWidget {
   }
 }
 
-/// Corner Style: Rounded, Soft or Square corners for cards, buttons and
+/// Corner Style: Pill, Soft or Square corners for cards, buttons and
 /// panels, with a small corner glyph on each choice. Shared by Appearance
 /// settings and setup.
 class CornerStyleOption extends StatelessWidget {
@@ -648,15 +649,17 @@ class CornerStyleOption extends StatelessWidget {
       NavisCornerStyle.soft => l10n.appearanceCornerStyleSoft,
       NavisCornerStyle.square => l10n.appearanceCornerStyleSquare,
     };
-    // The glyph is a 22 px tile, so the style's md radius is scaled to it.
+    // The glyph is a small button-shaped tile drawn from the style's control
+    // corner (scaled down, capped at half its height) so Pill reads as a
+    // stadium, Soft as a rounded rectangle and Square as nearly sharp.
     Widget glyph(NavisCornerStyle style) => DecoratedBox(
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(
-          NavisShapeData.forStyle(style).md / 2.5,
+          math.min(NavisShapeData.forStyle(style).control / 2.5, 9),
         ),
         border: Border.all(color: scheme.onSurface, width: 2),
       ),
-      child: const SizedBox(width: 22, height: 22),
+      child: const SizedBox(width: 30, height: 18),
     );
     return AppearanceChoiceSection(
       title: l10n.appearanceCornerStyleLabel,
@@ -693,9 +696,10 @@ class CornerStyleOption extends StatelessWidget {
 
 /// The options that Settings and setup both show, in the order they share.
 ///
-/// Setup lists them all under "More appearance options"; Settings spreads
-/// them over its Theme, Shape & Layout and Now Playing sections but keeps this
-/// relative order, which a test pins.
+/// Setup lists them under "More appearance options" except Night Schedule,
+/// which sits beside Color Style; Settings spreads them over its Theme, Color,
+/// Shape & Layout and Now Playing sections. Both keep this relative order,
+/// which a test pins.
 enum AppearanceOptionKind {
   oledForAuto(SetupHighlight.oledForAuto),
   nightSchedule(SetupHighlight.nightSchedule),

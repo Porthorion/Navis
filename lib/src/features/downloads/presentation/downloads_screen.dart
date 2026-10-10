@@ -19,6 +19,7 @@ import 'package:navis/src/common_widgets/error_state.dart';
 import 'package:navis/src/common_widgets/song_playback_indicator.dart';
 import 'package:navis/src/database/navis_database.dart';
 import 'package:navis/src/database/tables/schema_enums.dart';
+import 'package:navis/src/features/player/presentation/play_song_in_collection.dart';
 import 'package:navis/src/features/player/presentation/queue_provider.dart';
 import 'package:navis/src/providers/app_providers.dart';
 import 'package:navis/src/routing/desktop_layout.dart';
@@ -660,14 +661,7 @@ class _DownloadedTrackTile extends ConsumerWidget {
         tooltip: l10n.downloadsRemoveAction,
         onPressed: () => _confirmAndDelete(context, ref, track, l10n),
       ),
-      onTap: () {
-        final queue = allTracks.map((t) => t.songId).toList(growable: false);
-        unawaited(
-          ref
-              .read(queueProvider.notifier)
-              .replace(queue, startIndex: trackIndex, autoPlay: true),
-        );
-      },
+      onTap: () => _playTrack(ref),
       onLongPress: () => _showTrackMenu(context, ref, track, l10n),
     );
     final interactiveTile = !isDesktopRuntime
@@ -864,6 +858,14 @@ class _DownloadedTrackTile extends ConsumerWidget {
     );
   }
 
+  /// Plays this download, with the whole downloads list when Album Queue is on.
+  void _playTrack(WidgetRef ref) => playSongIdInCollection(
+    ref,
+    allTracks.map((t) => t.songId).toList(growable: false),
+    trackIndex,
+    expandMatchFlows: true,
+  );
+
   Future<void> _handleTrackMenuAction(
     BuildContext context,
     WidgetRef ref,
@@ -873,10 +875,7 @@ class _DownloadedTrackTile extends ConsumerWidget {
   ) async {
     switch (action) {
       case _DownloadedTrackAction.playNow:
-        final queue = allTracks.map((t) => t.songId).toList(growable: false);
-        await ref
-            .read(queueProvider.notifier)
-            .replace(queue, startIndex: trackIndex, autoPlay: true);
+        _playTrack(ref);
         return;
       case _DownloadedTrackAction.changeQuality:
         final currentChoice = downloadedQualityChoice(

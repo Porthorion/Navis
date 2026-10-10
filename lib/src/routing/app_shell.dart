@@ -880,12 +880,14 @@ class _AppShellState extends ConsumerState<AppShell> {
     final isAuthenticated =
         ref.watch(serverConfigStateProvider).asData?.value != null;
     final reachability = ref.watch(serverReachabilityControllerProvider);
-    final showOfflineBanner =
+    final isOffline =
         isAuthenticated &&
         reachability.status == ServerReachabilityStatus.offline;
-    final offlineBannerText = reachability.showRetryBanner
-        ? l10n.serverOfflineBanner
-        : l10n.serverOfflineQuietBanner;
+    final offlineBannerDismissed = ref.watch(
+      shellOfflineBannerDismissedProvider,
+    );
+    final showOfflineBanner = isOffline && !offlineBannerDismissed;
+    final showOfflineChip = isOffline && offlineBannerDismissed;
     // Queue-only changes (songs merged or released while an artist loads)
     // must not rebuild the whole shell; nothing here renders the queue.
     final playback = ref
@@ -1476,7 +1478,7 @@ class _AppShellState extends ConsumerState<AppShell> {
                       !useCompactWideLandscape && !(showPlayer && isExpanded),
                   body: ShellOfflineBannerScope(
                     visible: showOfflineBanner,
-                    message: offlineBannerText,
+                    message: l10n.serverOfflineBanner,
                     child: Stack(
                       children: <Widget>[
                         if (useDesktopShell &&
@@ -2015,6 +2017,16 @@ class _AppShellState extends ConsumerState<AppShell> {
                                   ? DesktopWindowMode.miniPlayer
                                   : DesktopWindowMode.desktop,
                               request: desktopWindowTransition,
+                            ),
+                          ),
+                        if (showOfflineChip)
+                          Positioned(
+                            top: MediaQuery.paddingOf(context).top,
+                            left: 0,
+                            right: 0,
+                            child: const Align(
+                              alignment: Alignment.topCenter,
+                              child: ShellOfflineChip(),
                             ),
                           ),
                         // Notices follow the offline banner's animation, so

@@ -840,9 +840,9 @@ target-selection rules.
     [decisions/2026-10-07-colour-styles.md](decisions/2026-10-07-colour-styles.md).
   - Settings › Appearance (`appearance_settings_screen.dart`) has four
     sections under one `AppearanceHeading` (`appearance_layout.dart`):
-    Theme (Theme Mode, Use OLED When Dark in Auto only, Night Schedule),
-    Color (Color Style, Accent Color, then Dynamic Album Color directly under
-    the accent grid, whose note names the switch), Shape & Layout (Flat
+    Theme (Theme Mode, Use OLED When Dark in Auto only),
+    Color (Color Style, Night Schedule, Accent Color, then Dynamic Album Color
+    directly under the accent grid, whose note names the switch), Shape & Layout (Flat
     Surfaces, Corner Style, Artwork Shape with its three selectors, Artwork
     Size, Density, Artist View Mode) and Now Playing (Now Playing Background).
     Home Sections, Page Visibility and Desktop Navigation stay collapsed
@@ -852,7 +852,8 @@ target-selection rules.
   - Settings and setup share the option widgets and one `AppearanceOptionSet`
     (`appearance_options.dart`), whose `AppearanceOptionKind` order (OLED,
     Night Schedule, Flat Surfaces, Corner Style, Density, Now Playing
-    Background) is the relative order in both places. `AppearanceLayout`, an
+    Background) is the relative order in both places; Night Schedule sits under
+    Color in Settings and beside Color Style in setup. `AppearanceLayout`, an
     inherited widget, gives every shared control its left gutter (16 in
     Settings, 0 in setup) so headings and controls share one edge.
 - `navis_tokens.dart`:
@@ -868,12 +869,17 @@ target-selection rules.
     `NavisShapeData.of(context)`) carries the xs..xl radii and the control
     (button/chip/indicator) corner; component themes and
     `NavisTokens.panelRadius` (the style's `xl`) are built from it, and
-    `rounded` leaves Material defaults unset except `menuTheme`, which encodes
-    the 4 px shape Material renders today. Soft is distinct from Rounded: 14 px
-    rounded-rectangle controls (not pills), `xl` 32 for dialogs and sheets and
-    1.5x steps elsewhere; Square uses 4 px controls. Soft and Square add an
-    `iconButtonTheme` shaped by `controlShape`, `menuTheme` (md) and
-    `snackBarTheme` (sm); play, shuffle, transport and mini-player buttons pass
+    every style sets explicit component shapes so a Corner Style switch
+    interpolates real shapes (a null shape would lerp through a square one and
+    snap). `rounded` (labelled "Pill" in the UI; the stored key stays
+    `rounded`) encodes the shapes Material renders today: stadium buttons,
+    segmented buttons, icon buttons and navigation indicators, a 16 px FAB, a
+    28 px dialog and 28 px top sheet corners, and the 4 px `menuTheme`; only
+    `snackBarTheme` stays unset. `NavisShapeData.lerp` interpolates the radii
+    and the `scaled()` mapping (`softWeight`/`squareWeight`). Soft is distinct
+    from Pill: 14 px rounded-rectangle controls (not pills), `xl` 32 for
+    dialogs and sheets and 1.5x steps elsewhere; Square uses 4 px controls.
+    Soft and Square also theme `menuTheme` (md) and `snackBarTheme` (sm); play, shuffle, transport and mini-player buttons pass
     `NavisShapeData.circularIconButtonStyle` (or `CircleBorder`) to stay round. Artwork keeps following Artwork Shape. Users choose it in Settings > Appearance
     (Shape & Layout, after Flat Surfaces, via `CornerStyleOption`) and on the
     setup Appearance step under "More appearance options". The setup preview
@@ -1380,9 +1386,9 @@ markers in a transaction; the integrations settings dump exposes all three.
 
 The look step shows the appearance options through the same callback-driven
 widgets as Settings › Appearance (`settings/presentation/appearance_options.dart`).
-Theme Mode, Color Style and Accent Color are always visible; a "More appearance
-options" group (`SettingsCollapsibleGroup`, children built only while open)
-holds Use OLED When Dark (Auto only), Night Schedule, Flat Surfaces, Corner
+Theme Mode, Color Style, Night Schedule and Accent Color are always visible; a
+"More appearance options" group (`SettingsCollapsibleGroup`, children built
+only while open) holds Use OLED When Dark (Auto only), Flat Surfaces, Corner
 Style, Density and Now Playing Background, in Settings' relative order. It
 starts open when any of them carries a pending tag (OLED only counts in Auto)
 and closed otherwise. The step shows the "Scroll for more" hint like the other
@@ -1613,6 +1619,8 @@ Pages keep using `SafeArea` and primary `AppBar`s as usual, and do not add the s
 The banner's Retry action calls `ServerReachabilityController.retryNow()`. That method:
 - checks the server at once, or joins a check that is already running;
 - leaves the status at `offline` until the check finishes, so the banner stays up while the check runs.
+
+The banner's message is one line, and its close button tucks it away: `shellOfflineBannerDismissedProvider` (`ShellOfflineBannerDismissed`) holds a dismissed flag that collapses the banner through the same animation (notices follow it) and shows `ShellOfflineChip`, a small floating "Offline" chip in the shell's body `Stack` that takes no layout space on phone, rail or desktop. Tapping the chip clears the flag and expands the banner. The flag also turns on by itself when `showRetryBanner` becomes false after repeated failures (the former "Offline mode" strip is gone), and is reset whenever the status leaves `offline`, so the next outage shows the banner again.
 
 `ShellOfflineBannerScope` wraps the shell's `Scaffold` body and owns the one animation that reveals and hides the banner. The shell places `AppNoticeHost` through `ShellOfflineBannerExtentBuilder`, which follows that same animation, so a notice stays 12 px below the banner on every frame. Interrupted toggles and reduced motion are included, and a notice never moves over a banner that is still collapsing. The extent assumes the banner's one-line `contentHeight`. With very large text the message wraps and the banner grows taller.
 
@@ -3823,7 +3831,14 @@ states without starting audio or modifying a queue.
    song ID cannot veto an otherwise eligible automatic pass.
    `LibrarySyncController` also coalesces overlapping app-level requests onto
    one terminal result, so setup, startup, user, and reconnect callers cannot
-   mistake an in-flight state for a failed sync. One startup task owns the pass
+   mistake an in-flight state for a failed sync. A pull to refresh on the
+   Library tabs and the Liked "see all" pages starts its sync through
+   `triggerLibrarySyncFromPull` (`library_sync_provider.dart`), which returns
+   once the controller reports running or failed (at most 800 ms) so the pull
+   spinner does not stay for the whole sync; progress and failures show in
+   `LibrarySyncStatusBanner`, which those Liked pages show too. Artist detail
+   uses `RefreshIndicator.noSpinner` because its own header shows the refresh.
+   One startup task owns the pass
    through session resets; epoch checks reject stale completion, and engine
    readiness schedules a successor only after that task drains. Pending durable
    work resumes only through the configured automatic interval or an explicit action; there
@@ -4020,6 +4035,18 @@ states without starting audio or modifying a queue.
    from that row, as Artist Top Tracks does; off, only that song. Before
    1.4.1 Play and Shuffle skipped remote matches and taps always played one
    song (single-song taps came from commit `a8b639af`).
+   Album Queue applies to every song list the same way: a tap queues the
+   whole list from that row when it is on and plays only that song when it is
+   off. The shared helpers in `play_song_in_collection.dart`
+   (`playSongInCollection`, `playTableSongInCollection`,
+   `playSongIdInCollection`) hold that rule for Trending and "This Is" rows
+   (index among the resolved songs; unresolved rows do not play), Home Most
+   Played, Recently Played and the desktop album list, album and playlist
+   detail rows, Artist Top Tracks, weekly playlists and Downloads. Liked lists
+   keep their own `shouldQueueLikedPlayback` rule (Album Queue and Liked
+   Queue), and Play, Shuffle, search results and the song context menu's
+   "Play now" keep their own behaviour. Downloads "Play now" follows Album
+   Queue, like its row taps.
 9. With **Background Sync Only on Unmetered Networks** enabled and no broad
    mobile-data grant, fresh metered automation is a hard probe: one conditional
    `getIndexes` request with retries disabled. Turning that setting off permits

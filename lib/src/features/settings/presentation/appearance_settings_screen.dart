@@ -165,7 +165,6 @@ class AppearanceSettingsScreen extends ConsumerWidget {
                 ),
                 ...options.buildAll(const <AppearanceOptionKind>[
                   AppearanceOptionKind.oledForAuto,
-                  AppearanceOptionKind.nightSchedule,
                 ]),
                 const Divider(height: 32),
 
@@ -185,6 +184,9 @@ class AppearanceSettingsScreen extends ConsumerWidget {
                     await db.appSettingsDao.updateColorStyle(style.storageKey);
                   },
                 ),
+                ...options.buildAll(const <AppearanceOptionKind>[
+                  AppearanceOptionKind.nightSchedule,
+                ]),
                 AppearanceHeading(
                   title: l10n.appearanceColorSchemeLabel,
                   topPadding: NavisSpace.md,

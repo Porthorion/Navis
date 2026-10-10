@@ -1,9 +1,44 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:navis/l10n/app_localizations.dart';
+import 'package:navis/src/features/auth/domain/server_reachability.dart';
 import 'package:navis/src/features/auth/presentation/server_reachability_provider.dart';
 import 'package:navis/src/theme/motion_policy.dart';
 import 'package:navis/src/theme/navis_tokens.dart';
+
+/// Whether the offline banner is tucked away into [ShellOfflineChip].
+///
+/// Set by the banner's close button, and automatically when the reachability
+/// state stops showing the retry banner (after repeated failures). Cleared
+/// when the server is no longer offline, so the next outage shows the banner
+/// again.
+final shellOfflineBannerDismissedProvider =
+    NotifierProvider<ShellOfflineBannerDismissed, bool>(
+      ShellOfflineBannerDismissed.new,
+    );
+
+class ShellOfflineBannerDismissed extends Notifier<bool> {
+  @override
+  bool build() {
+    ref.listen<ServerReachabilityState>(serverReachabilityControllerProvider, (
+      previous,
+      next,
+    ) {
+      if (next.status != ServerReachabilityStatus.offline) {
+        state = false;
+      } else if ((previous?.showRetryBanner ?? true) && !next.showRetryBanner) {
+        state = true;
+      }
+    });
+    final reachability = ref.read(serverReachabilityControllerProvider);
+    return reachability.status == ServerReachabilityStatus.offline &&
+        !reachability.showRetryBanner;
+  }
+
+  void dismiss() => state = true;
+
+  void expand() => state = false;
+}
 
 /// Drives the shell's offline banner for everything below it.
 ///
@@ -225,6 +260,7 @@ class ShellOfflineBanner extends ConsumerStatefulWidget {
 
   static const Key bannerKey = ValueKey<String>('shell-offline-banner');
   static const Key retryKey = ValueKey<String>('shell-offline-retry');
+  static const Key dismissKey = ValueKey<String>('shell-offline-dismiss');
 
   @override
   ConsumerState<ShellOfflineBanner> createState() => _ShellOfflineBannerState();
@@ -271,7 +307,7 @@ class _ShellOfflineBannerState extends ConsumerState<ShellOfflineBanner> {
                 liveRegion: true,
                 child: Text(
                   widget.message,
-                  maxLines: 2,
+                  maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: theme.textTheme.labelLarge?.copyWith(
                     color: colors.onSurfaceVariant,
@@ -289,6 +325,14 @@ class _ShellOfflineBannerState extends ConsumerState<ShellOfflineBanner> {
                       child: CircularProgressIndicator(strokeWidth: 2),
                     )
                   : Text(l10n.commonRetry),
+            ),
+            IconButton(
+              key: ShellOfflineBanner.dismissKey,
+              tooltip: l10n.updateDismiss,
+              onPressed: () => ref
+                  .read(shellOfflineBannerDismissedProvider.notifier)
+                  .dismiss(),
+              icon: const Icon(Icons.close_rounded, size: 20),
             ),
           ],
         ),
@@ -309,6 +353,59 @@ class _ShellOfflineBannerState extends ConsumerState<ShellOfflineBanner> {
                 alignment: AlignmentDirectional.bottomStart,
                 child: content,
               ),
+      ),
+    );
+  }
+}
+
+/// The small "Offline" chip shown while the offline banner is dismissed.
+///
+/// It floats over the content (place it in a [Stack]) and takes no layout
+/// space; tapping it expands the banner again.
+class ShellOfflineChip extends ConsumerWidget {
+  const new({super.key});
+
+  static const Key chipKey = ValueKey<String>('shell-offline-chip');
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final l10n = AppLocalizations.of(context)!;
+    final theme = Theme.of(context);
+    final colors = theme.colorScheme;
+    return Semantics(
+      button: true,
+      label: l10n.serverOfflineBanner,
+      excludeSemantics: true,
+      child: Material(
+        key: chipKey,
+        color: colors.surfaceContainerHigh,
+        elevation: 2,
+        shape: const StadiumBorder(),
+        child: InkWell(
+          customBorder: const StadiumBorder(),
+          onTap: () =>
+              ref.read(shellOfflineBannerDismissedProvider.notifier).expand(),
+          child: Padding(
+            padding: const EdgeInsetsDirectional.fromSTEB(8, 2, 10, 2),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: <Widget>[
+                Icon(
+                  Icons.cloud_off_outlined,
+                  size: 14,
+                  color: colors.onSurfaceVariant,
+                ),
+                const SizedBox(width: NavisSpace.xxs),
+                Text(
+                  l10n.serverOfflineChip,
+                  style: theme.textTheme.labelSmall?.copyWith(
+                    color: colors.onSurfaceVariant,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
       ),
     );
   }

@@ -49,6 +49,7 @@ import 'package:navis/src/theme/navis_tokens.dart';
 import 'package:flutter_riverpod/misc.dart' show Override;
 
 import '../../../../helpers/adaptive_test_harness.dart';
+import '../../../../helpers/queue_replace_spy.dart';
 import '../../../../helpers/test_database.dart';
 import '../../../../helpers/test_theme.dart';
 
@@ -790,6 +791,8 @@ Future<void> _pumpHomeWithAppSettings(
   AppSettingsModel appSettings = const AppSettingsModel.defaults(),
   List<SongsTableData> homeLikedSongs = const <SongsTableData>[],
   List<SongsTableData> likedSongs = const <SongsTableData>[],
+  List<SongsTableData> mostPlayedSongs = const <SongsTableData>[],
+  List<SongsTableData> recentlyPlayedSongs = const <SongsTableData>[],
   List<Override> overrides = const <Override>[],
   TextScaler? textScaler,
 }) async {
@@ -836,7 +839,7 @@ Future<void> _pumpHomeWithAppSettings(
             (ref, filters) => const AsyncData(<HomeRandomShowcaseItem>[]),
           ),
           homeMostPlayedSongsProvider.overrideWithValue(
-            const AsyncData(<SongsTableData>[]),
+            AsyncData(mostPlayedSongs),
           ),
           homeDownloadedLikedSongsProvider.overrideWithValue(
             const AsyncData(<SongsTableData>[]),
@@ -845,7 +848,7 @@ Future<void> _pumpHomeWithAppSettings(
             const AsyncData(<SongsTableData>[]),
           ),
           homeRecentlyPlayedProvider.overrideWithValue(
-            const AsyncData(<SongsTableData>[]),
+            AsyncData(recentlyPlayedSongs),
           ),
           likedAlbumsRecentProvider.overrideWithValue(
             const AsyncData(<AlbumsTableData>[]),
@@ -1821,6 +1824,55 @@ void main() {
       expect(queueSpy.lastAutoPlay, isTrue);
     },
   );
+
+  for (final albumQueue in <bool>[true, false]) {
+    for (final sectionId in <String>[
+      HomeSectionIds.mostPlayed,
+      HomeSectionIds.recentlyPlayedTracks,
+    ]) {
+      testWidgets(
+        '$sectionId row tap ${albumQueue ? 'queues the list from it' : 'plays only it'} '
+        'with Album Queue ${albumQueue ? 'on' : 'off'}',
+        (tester) async {
+          final songs = <SongsTableData>[
+            _songRow(id: 'row-1', title: 'Row one', albumId: 'rows'),
+            _songRow(id: 'row-2', title: 'Row two', albumId: 'rows'),
+            _songRow(id: 'row-3', title: 'Row three', albumId: 'rows'),
+          ];
+          final settings = const AppSettingsModel.defaults().copyWith(
+            homeSectionOrder: <String>[sectionId],
+            homeSectionsHidden: _hiddenExcept(<String>[sectionId]),
+          );
+
+          await _pumpHomeWithAppSettings(
+            tester,
+            database: database,
+            appSettings: settings,
+            mostPlayedSongs: songs,
+            recentlyPlayedSongs: songs,
+            overrides: <Override>[
+              albumQueueEnabledProvider.overrideWithValue(albumQueue),
+              queueProvider.overrideWith(QueueReplaceSpy.new),
+            ],
+          );
+
+          await tester.tap(find.text('Row two'));
+          await tester.pumpAndSettle();
+
+          final queueSpy = ProviderScope.containerOf(
+            tester.element(find.byType(HomeScreen, skipOffstage: false)),
+          ).read(queueProvider.notifier) as QueueReplaceSpy;
+          expect(
+            queueSpy.lastReplaceIds,
+            albumQueue
+                ? <String>['row-1', 'row-2', 'row-3']
+                : <String>['row-2'],
+          );
+          expect(queueSpy.lastStartIndex, albumQueue ? 1 : 0);
+        },
+      );
+    }
+  }
 
   testWidgets(
     'default home shows default-on sections and keeps optional sections hidden',

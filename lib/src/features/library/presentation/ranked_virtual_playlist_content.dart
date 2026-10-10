@@ -17,6 +17,7 @@ import 'package:navis/src/common_widgets/track_match_status_label.dart';
 import 'package:navis/src/features/downloads/presentation/download_quality_sheet.dart';
 import 'package:navis/src/features/library/data/provisional_search_songs.dart';
 import 'package:navis/src/features/library/domain/artist_top_track.dart';
+import 'package:navis/src/features/player/presentation/play_song_in_collection.dart';
 import 'package:navis/src/features/player/presentation/queue_provider.dart';
 import 'package:navis/src/providers/app_providers.dart';
 import 'package:navis/src/routing/desktop_layout.dart';
@@ -62,6 +63,10 @@ class RankedVirtualPlaylistContent extends ConsumerWidget {
         .map((track) => track.resolvedSong)
         .nonNulls
         .toList(growable: false);
+    final playIndexes = <int, int>{};
+    for (var i = 0; i < tracks.length; i++) {
+      if (tracks[i].resolvedSong != null) playIndexes[i] = playIndexes.length;
+    }
     final coverArtIds = resolvedSongs
         .map((song) => song.coverArt)
         .nonNulls
@@ -181,7 +186,21 @@ class RankedVirtualPlaylistContent extends ConsumerWidget {
             itemCount: tracks.length,
             itemBuilder: (context, index) {
               final track = tracks[index];
-              return _RankedTopTrackRow(track: track);
+              final song = track.resolvedSong;
+              // Unresolved rows are not in the queue: index among the rest.
+              final playIndex = song == null ? -1 : playIndexes[index]!;
+              return _RankedTopTrackRow(
+                track: track,
+                onPlay: song == null
+                    ? null
+                    : () => playSongInCollection(
+                        ref,
+                        resolvedSongs,
+                        playIndex,
+                        // Like this page's Play button.
+                        expandMatchFlows: true,
+                      ),
+              );
             },
           ),
         ),
@@ -298,9 +317,12 @@ class _PlaylistHeaderText extends StatelessWidget {
 }
 
 class _RankedTopTrackRow extends ConsumerWidget {
-  const new({required this.track});
+  const new({required this.track, required this.onPlay});
 
   final ResolvedArtistTopTrack track;
+
+  /// Plays this row's song through Album Queue; null for an unresolved row.
+  final VoidCallback? onPlay;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -366,16 +388,7 @@ class _RankedTopTrackRow extends ConsumerWidget {
           ],
         ),
       ),
-      onTap: song == null
-          ? null
-          : () => ref
-                .read(queueProvider.notifier)
-                .fireAndForget(
-                  () => ref.read(queueProvider.notifier).replaceWithSongs([
-                    song,
-                  ], autoPlay: true),
-                  label: 'playNow',
-                ),
+      onTap: onPlay,
       onLongPress: song == null
           ? null
           : () => unawaited(_showMenu(context, ref, song)),

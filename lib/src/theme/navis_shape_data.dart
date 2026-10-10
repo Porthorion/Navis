@@ -18,6 +18,8 @@ class NavisShapeData extends ThemeExtension<NavisShapeData> {
     required this.lg,
     required this.xl,
     required this.control,
+    this.softWeight = 0,
+    this.squareWeight = 0,
   });
 
   /// The radius table for [style].
@@ -29,7 +31,8 @@ class NavisShapeData extends ThemeExtension<NavisShapeData> {
     };
   }
 
-  /// Exactly today's [NavisRadius] scale; buttons and indicators are pills.
+  /// Exactly today's [NavisRadius] scale; buttons and indicators are pills
+  /// (shown as "Pill" in settings; the stored key stays `rounded`).
   static const NavisShapeData rounded = NavisShapeData(
     style: NavisCornerStyle.rounded,
     xs: NavisRadius.xs,
@@ -47,8 +50,9 @@ class NavisShapeData extends ThemeExtension<NavisShapeData> {
     md: 18,
     lg: 24,
     xl: 32,
-    // A rounded rectangle, distinct from Rounded's pills.
+    // A rounded rectangle, distinct from Pill's stadiums.
     control: 14,
+    softWeight: 1,
   );
 
   static const NavisShapeData square = NavisShapeData(
@@ -59,6 +63,7 @@ class NavisShapeData extends ThemeExtension<NavisShapeData> {
     lg: 4,
     xl: 6,
     control: 4,
+    squareWeight: 1,
   );
 
   final NavisCornerStyle style;
@@ -72,6 +77,12 @@ class NavisShapeData extends ThemeExtension<NavisShapeData> {
   /// a pill in `rounded`, 14 px in `soft`, 4 px in `square`.
   final double control;
 
+  /// How much of [scaled]'s `soft` / `square` mapping applies. 0 / 0 is
+  /// `rounded`, 1 / 0 is `soft` and 0 / 1 is `square`; [lerp] mixes them so
+  /// one-off radii animate instead of jumping when the style flips.
+  final double softWeight;
+  final double squareWeight;
+
   BorderRadius get xsAll => BorderRadius.circular(xs);
   BorderRadius get smAll => BorderRadius.circular(sm);
   BorderRadius get mdAll => BorderRadius.circular(md);
@@ -82,13 +93,13 @@ class NavisShapeData extends ThemeExtension<NavisShapeData> {
   /// Maps a one-off [roundedRadius] that has no semantic step onto this
   /// style: unchanged for `rounded`, 1.5x for `soft`, and a crisp quarter
   /// (2..6 px) for `square`. Prefer the named steps; use this only where a
-  /// literal such as 22 or 28 must stay pixel-identical in `rounded`.
+  /// literal such as 22 or 28 must stay pixel-identical in `rounded`. While
+  /// a theme animates between styles the three mappings are blended.
   double scaled(double roundedRadius) {
-    return switch (style) {
-      NavisCornerStyle.rounded => roundedRadius,
-      NavisCornerStyle.soft => roundedRadius * 1.5,
-      NavisCornerStyle.square => (roundedRadius / 4).clamp(2.0, 6.0),
-    };
+    final roundedWeight = 1 - softWeight - squareWeight;
+    return roundedRadius * roundedWeight +
+        roundedRadius * 1.5 * softWeight +
+        (roundedRadius / 4).clamp(2.0, 6.0) * squareWeight;
   }
 
   /// [scaled] as a uniform [BorderRadius].
@@ -133,6 +144,8 @@ class NavisShapeData extends ThemeExtension<NavisShapeData> {
     double? lg,
     double? xl,
     double? control,
+    double? softWeight,
+    double? squareWeight,
   }) {
     return NavisShapeData(
       style: style ?? this.style,
@@ -142,6 +155,8 @@ class NavisShapeData extends ThemeExtension<NavisShapeData> {
       lg: lg ?? this.lg,
       xl: xl ?? this.xl,
       control: control ?? this.control,
+      softWeight: softWeight ?? this.softWeight,
+      squareWeight: squareWeight ?? this.squareWeight,
     );
   }
 
@@ -159,6 +174,8 @@ class NavisShapeData extends ThemeExtension<NavisShapeData> {
       lg: mix(lg, other.lg),
       xl: mix(xl, other.xl),
       control: mix(control, other.control),
+      softWeight: mix(softWeight, other.softWeight),
+      squareWeight: mix(squareWeight, other.squareWeight),
     );
   }
 }

@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math' as math;
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -73,24 +74,143 @@ void main() {
     BorderRadius? radiusOf(ShapeBorder? shape) =>
         (shape as RoundedRectangleBorder?)?.borderRadius as BorderRadius?;
 
-    test('rounded leaves Material defaults unset', () {
+    test('pill sets explicit shapes equal to the Material defaults', () {
       final theme = buildDarkTheme(_seed);
-      expect(theme.dialogTheme.shape, isNull);
-      expect(theme.bottomSheetTheme.shape, isNull);
-      expect(theme.floatingActionButtonTheme.shape, isNull);
+      RoundedRectangleBorder? rrect(ShapeBorder? shape) =>
+          shape as RoundedRectangleBorder?;
+      ShapeBorder? resolved(ButtonStyle? style) =>
+          style!.shape!.resolve(<WidgetState>{});
+      expect(radiusOf(theme.dialogTheme.shape), BorderRadius.circular(28));
+      expect(
+        rrect(theme.bottomSheetTheme.shape)!.borderRadius,
+        const BorderRadius.vertical(top: Radius.circular(28)),
+      );
+      expect(
+        radiusOf(theme.floatingActionButtonTheme.shape),
+        BorderRadius.circular(16),
+      );
       expect(theme.snackBarTheme.shape, isNull);
-      expect(theme.navigationBarTheme.indicatorShape, isNull);
-      expect(theme.segmentedButtonTheme.style, isNull);
+      expect(theme.navigationBarTheme.indicatorShape, isA<StadiumBorder>());
+      expect(theme.navigationRailTheme.indicatorShape, isA<StadiumBorder>());
+      expect(resolved(theme.segmentedButtonTheme.style), isA<StadiumBorder>());
+      for (final style in <ButtonStyle?>[
+        theme.outlinedButtonTheme.style,
+        theme.filledButtonTheme.style,
+        theme.textButtonTheme.style,
+        theme.elevatedButtonTheme.style,
+        theme.iconButtonTheme.style,
+      ]) {
+        expect(resolved(style), isA<StadiumBorder>());
+      }
       expect(radiusOf(theme.cardTheme.shape), NavisRadius.mdAll);
       expect(theme.chipTheme.shape, isA<StadiumBorder>());
       expect(theme.extension<NavisShapeData>()!.xl, 20);
-      expect(theme.iconButtonTheme.style, isNull);
       // Menus keep the 4 px shape Material renders today.
       expect(
         radiusOf(theme.menuTheme.style!.shape!.resolve(<WidgetState>{})),
         NavisRadius.xsAll,
       );
     });
+
+    test('every style sets every shape so theme switches never lerp null', () {
+      for (final style in NavisCornerStyle.values) {
+        final theme = buildLightTheme(_seed, corners: style);
+        expect(theme.dialogTheme.shape, isNotNull, reason: '$style');
+        expect(theme.bottomSheetTheme.shape, isNotNull, reason: '$style');
+        expect(theme.floatingActionButtonTheme.shape, isNotNull);
+        expect(theme.navigationBarTheme.indicatorShape, isNotNull);
+        expect(theme.navigationRailTheme.indicatorShape, isNotNull);
+        for (final button in <ButtonStyle?>[
+          theme.outlinedButtonTheme.style,
+          theme.filledButtonTheme.style,
+          theme.textButtonTheme.style,
+          theme.elevatedButtonTheme.style,
+          theme.iconButtonTheme.style,
+          theme.segmentedButtonTheme.style,
+        ]) {
+          expect(button?.shape, isNotNull, reason: '$style');
+        }
+      }
+    });
+
+    test('lerping between styles keeps buttons rounded in between', () {
+      double radius(ShapeBorder? shape, Rect rect) {
+        final path = shape!.getOuterPath(rect);
+        // Sample the top-left corner: a point on the left edge near the top.
+        // The distance the outline is inset from the corner grows with radius.
+        var inset = 0.0;
+        while (inset < rect.height / 2 && !path.contains(Offset(0.5, inset))) {
+          inset += 0.25;
+        }
+        return inset;
+      }
+
+      const rect = Rect.fromLTWH(0, 0, 120, 40);
+      for (final from in NavisCornerStyle.values) {
+        for (final to in NavisCornerStyle.values) {
+          if (from == to) continue;
+          final a = buildLightTheme(_seed, corners: from);
+          final b = buildLightTheme(_seed, corners: to);
+          final before = radius(
+            a.filledButtonTheme.style!.shape!.resolve(<WidgetState>{}),
+            rect,
+          );
+          final after = radius(
+            b.filledButtonTheme.style!.shape!.resolve(<WidgetState>{}),
+            rect,
+          );
+          for (final t in <double>[0.25, 0.5, 0.75]) {
+            final mid = ThemeData.lerp(a, b, t);
+            final shape = mid.filledButtonTheme.style!.shape!.resolve(
+              <WidgetState>{},
+            );
+            // Flutter's intermediate Stadium<->RoundedRectangle shapes are
+            // private classes; what matters is that the outline stays
+            // rounded between the endpoints, never square.
+            expect(shape, isA<OutlinedBorder>(), reason: '$from -> $to at $t');
+            final inset = radius(shape, rect);
+            expect(
+              inset,
+              inInclusiveRange(
+                math.min(before, after) - 0.5,
+                math.max(before, after) + 0.5,
+              ),
+              reason: '$from -> $to at $t',
+            );
+          }
+          final midShape = ThemeData.lerp(a, b, 0.5);
+          expect(midShape.dialogTheme.shape, isA<RoundedRectangleBorder>());
+          expect(
+            midShape.bottomSheetTheme.shape,
+            isA<RoundedRectangleBorder>(),
+          );
+        }
+      }
+    });
+
+    test(
+      'shape data lerp interpolates radii and scaled() instead of flipping',
+      () {
+        final mid = NavisShapeData.rounded.lerp(NavisShapeData.soft, 0.5);
+        expect(
+          mid.md,
+          (NavisShapeData.rounded.md + NavisShapeData.soft.md) / 2,
+        );
+        expect(mid.scaled(20), 25);
+        expect(
+          NavisShapeData.soft.lerp(NavisShapeData.square, 0.5).scaled(20),
+          closeTo((30 + 5) / 2, 0.001),
+        );
+        expect(
+          NavisShapeData.rounded.lerp(NavisShapeData.soft, 0).scaled(20),
+          20,
+        );
+        expect(
+          NavisShapeData.rounded.lerp(NavisShapeData.soft, 1).scaled(20),
+          30,
+        );
+      },
+    );
 
     test('soft and square thread the table into component themes', () {
       for (final entry in <NavisCornerStyle, NavisShapeData>{
@@ -129,6 +249,10 @@ void main() {
           expect(theme.extension<NavisShapeData>()!.xl, data.xl);
           expect(
             theme.iconButtonTheme.style!.shape!.resolve(<WidgetState>{}),
+            data.controlShape,
+          );
+          expect(
+            theme.filledButtonTheme.style!.shape!.resolve(<WidgetState>{}),
             data.controlShape,
           );
           expect(

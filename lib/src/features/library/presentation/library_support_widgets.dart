@@ -47,8 +47,13 @@ class _TypeFilterBadge extends StatelessWidget {
   }
 }
 
-class _SyncStatusBanner extends StatefulWidget {
-  const new({required this.syncState, required this.onRetry, this.onCancel});
+class LibrarySyncStatusBanner extends StatefulWidget {
+  const new({
+    super.key,
+    required this.syncState,
+    required this.onRetry,
+    this.onCancel,
+  });
 
   final LibrarySyncState syncState;
   final Future<void> Function() onRetry;
@@ -63,14 +68,15 @@ class _SyncStatusBanner extends StatefulWidget {
   static const Key dismissKey = ValueKey<String>('library-sync-status-dismiss');
 
   @override
-  State<_SyncStatusBanner> createState() => _SyncStatusBannerState();
+  State<LibrarySyncStatusBanner> createState() =>
+      _LibrarySyncStatusBannerState();
 }
 
-class _SyncStatusBannerState extends State<_SyncStatusBanner> {
+class _LibrarySyncStatusBannerState extends State<LibrarySyncStatusBanner> {
   bool _failureDismissed = false;
 
   @override
-  void didUpdateWidget(covariant _SyncStatusBanner oldWidget) {
+  void didUpdateWidget(covariant LibrarySyncStatusBanner oldWidget) {
     super.didUpdateWidget(oldWidget);
     // A dismissed failure stays hidden only until the sync state moves on,
     // so a later failure is always shown.
@@ -98,7 +104,7 @@ class _SyncStatusBannerState extends State<_SyncStatusBanner> {
         liveRegion: true,
         label: l10n.syncSettingsStatusFailed,
         child: Material(
-          key: _SyncStatusBanner.bannerKey,
+          key: LibrarySyncStatusBanner.bannerKey,
           color: tokens.quietWarningContainer,
           child: Padding(
             padding: const EdgeInsetsDirectional.fromSTEB(16, 8, 4, 8),
@@ -134,13 +140,13 @@ class _SyncStatusBannerState extends State<_SyncStatusBanner> {
                 ),
                 const SizedBox(width: NavisSpace.xs),
                 TextButton.icon(
-                  key: _SyncStatusBanner.retryKey,
+                  key: LibrarySyncStatusBanner.retryKey,
                   onPressed: widget.onRetry,
                   icon: const Icon(Icons.refresh_rounded, size: 18),
                   label: Text(l10n.commonRetry),
                 ),
                 IconButton(
-                  key: _SyncStatusBanner.dismissKey,
+                  key: LibrarySyncStatusBanner.dismissKey,
                   tooltip: l10n.updateDismiss,
                   onPressed: () => setState(() => _failureDismissed = true),
                   icon: const Icon(Icons.close_rounded, size: 20),
@@ -181,7 +187,7 @@ class _SyncStatusBannerState extends State<_SyncStatusBanner> {
         liveRegion: true,
         label: label,
         child: Material(
-          key: _SyncStatusBanner.bannerKey,
+          key: LibrarySyncStatusBanner.bannerKey,
           color: colors.surfaceContainerHigh,
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -216,7 +222,7 @@ class _SyncStatusBannerState extends State<_SyncStatusBanner> {
                     ),
                     if (widget.onCancel != null)
                       TextButton.icon(
-                        key: _SyncStatusBanner.cancelKey,
+                        key: LibrarySyncStatusBanner.cancelKey,
                         onPressed: widget.onCancel,
                         icon: const Icon(Icons.close_rounded, size: 18),
                         label: Text(l10n.commonCancel),
@@ -226,7 +232,7 @@ class _SyncStatusBannerState extends State<_SyncStatusBanner> {
               ),
               if (!scanningSongIndex)
                 LinearProgressIndicator(
-                  key: _SyncStatusBanner.progressKey,
+                  key: LibrarySyncStatusBanner.progressKey,
                   value: progress,
                   minHeight: 3,
                   color: colors.primary,

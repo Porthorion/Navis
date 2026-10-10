@@ -763,6 +763,11 @@ class OnboardingScreenState extends ConsumerState<OnboardingScreen> {
                 () => _draft = draft.copyWith(colorStyle: style.storageKey),
               ),
             ),
+            // Night Schedule sits with Color Style (it switches to the Night
+            // style on a schedule), not under "More appearance options".
+            ...options.buildAll(const <AppearanceOptionKind>[
+              AppearanceOptionKind.nightSchedule,
+            ]),
             AppearanceHeading(
               title: l10n.onboardingAccentColor,
               topPadding: NavisSpace.lg,
@@ -822,7 +827,7 @@ class OnboardingScreenState extends ConsumerState<OnboardingScreen> {
                   optionTitleStyle: optionTitleStyle,
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
-                    children: options.buildAll(AppearanceOptionKind.values),
+                    children: options.buildAll(_moreOptionKinds),
                   ),
                 ),
               ),
@@ -833,13 +838,20 @@ class OnboardingScreenState extends ConsumerState<OnboardingScreen> {
     );
   }
 
+  /// The options under "More appearance options": everything except Night
+  /// Schedule, which is shown beside Color Style.
+  static final List<AppearanceOptionKind> _moreOptionKinds =
+      AppearanceOptionKind.values
+          .where((kind) => kind != AppearanceOptionKind.nightSchedule)
+          .toList(growable: false);
+
   /// Whether any option under "More appearance options" is tagged and shown.
   /// Use OLED When Dark only counts in Auto, where it is visible.
   bool _hasPendingMoreOptions(BuildContext context, AppSettingsModel draft) {
     final Set<SetupHighlight> pending;
     final visit = AppearanceVisitScope.maybeOf(context);
     pending = visit ?? ref.watch(pendingSetupHighlightsProvider);
-    return AppearanceOptionKind.values.any((kind) {
+    return _moreOptionKinds.any((kind) {
       final highlight = kind.highlight;
       if (highlight == null || !pending.contains(highlight)) return false;
       return kind != AppearanceOptionKind.oledForAuto ||

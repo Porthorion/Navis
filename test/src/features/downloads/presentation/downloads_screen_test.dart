@@ -17,9 +17,12 @@ import 'package:navis/src/features/downloads/data/permanent_download_import_serv
 import 'package:navis/src/features/downloads/domain/download_preferences.dart';
 import 'package:navis/src/features/downloads/presentation/downloads_screen.dart';
 import 'package:navis/src/features/player/domain/playback_snapshot.dart';
+import 'package:navis/src/features/player/presentation/queue_provider.dart';
 import 'package:navis/src/providers/app_providers.dart';
 import 'package:navis/src/routing/desktop_layout.dart';
 
+import '../../../../helpers/adaptive_test_harness.dart';
+import '../../../../helpers/queue_replace_spy.dart';
 import '../../../../helpers/test_database.dart';
 import '../../../../helpers/test_theme.dart';
 
@@ -33,6 +36,116 @@ void main() {
   tearDown(() async {
     await database.close();
   });
+
+  for (final albumQueue in <bool>[true, false]) {
+    for (final fromMenu in <bool>[false, true]) {
+      testWidgets(
+        'download ${fromMenu ? 'Play now menu' : 'row tap'} with Album Queue '
+        '${albumQueue ? 'on' : 'off'}',
+        (tester) async {
+          setAdaptiveTestViewport(tester, const Size(390, 844));
+          const songs = <SongsTableData>[
+            SongsTableData(
+              id: 'download-1',
+              title: 'First download',
+              isProvisional: false,
+              isExternal: false,
+            ),
+            SongsTableData(
+              id: 'download-2',
+              title: 'Second download',
+              isProvisional: false,
+              isExternal: false,
+            ),
+            SongsTableData(
+              id: 'download-3',
+              title: 'Third download',
+              isProvisional: false,
+              isExternal: false,
+            ),
+          ];
+          final tracks = songs
+              .map(
+                (song) => CachedTracksTableData(
+                  songId: song.id,
+                  filePath: '/tmp/${song.id}.mp3',
+                  storageKind: 'filesystem',
+                  fileSize: 1000000,
+                  format: 'mp3',
+                  bitRate: 320,
+                  lastAccessedAt: DateTime(2026),
+                  cacheType: CacheType.permanent,
+                  downloadStatus: DownloadStatus.complete,
+                ),
+              )
+              .toList(growable: false);
+          await tester.pumpWidget(
+            ProviderScope(
+              overrides: withTestDatabase(
+                database,
+                overrides: [
+                  albumQueueEnabledProvider.overrideWithValue(albumQueue),
+                  queueProvider.overrideWith(QueueReplaceSpy.new),
+                  downloadQueueProvider.overrideWithValue(
+                    const AsyncData(<DownloadQueueTableData>[]),
+                  ),
+                  permanentCachedTracksProvider.overrideWithValue(
+                    AsyncData(tracks),
+                  ),
+                  downloadRelatedSongsProvider.overrideWith(
+                    (ref) => Stream.value({for (final s in songs) s.id: s}),
+                  ),
+                  songByIdProvider.overrideWith(
+                    (ref, id) =>
+                        Stream.value(songs.firstWhere((s) => s.id == id)),
+                  ),
+                ],
+              ),
+              child: MaterialApp(
+                theme: testTheme(),
+                localizationsDelegates: navisLocalizationsDelegates,
+                supportedLocales: AppLocalizations.supportedLocales,
+                home: AdaptiveContextScope(
+                  adaptiveContext: resolveAdaptiveContext(
+                    desktopRuntime: false,
+                    viewportSize: const Size(390, 844),
+                    safePadding: EdgeInsets.zero,
+                  ),
+                  child: const DownloadsScreen(),
+                ),
+              ),
+            ),
+          );
+          await tester.pumpAndSettle();
+          await tester.tap(find.text('Downloaded'));
+          await tester.pumpAndSettle();
+          final queue = ProviderScope.containerOf(
+            tester.element(find.byType(DownloadsScreen)),
+          ).read(queueProvider.notifier) as QueueReplaceSpy;
+
+          if (fromMenu) {
+            await tester.longPress(find.text('Second download'));
+            await tester.pumpAndSettle();
+            await tester.tap(find.text('Play now'));
+          } else {
+            await tester.tap(find.text('Second download'));
+          }
+          await tester.pumpAndSettle();
+
+          expect(
+            queue.lastReplaceIds,
+            albumQueue
+                ? <String>['download-1', 'download-2', 'download-3']
+                : <String>['download-2'],
+          );
+          expect(queue.lastStartIndex, albumQueue ? 1 : 0);
+          expect(tester.takeException(), isNull);
+          await tester.pumpWidget(const SizedBox.shrink());
+          await tester.pump();
+        },
+      );
+    }
+  }
 
   testWidgets(
     'a custom folder finishes setting up when the Settings tab is left',

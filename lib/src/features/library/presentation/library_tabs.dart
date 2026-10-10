@@ -638,112 +638,136 @@ class LikedAlbumsAllScreen extends ConsumerWidget {
         ? ref.watch(downloadedContentIdsProvider).asData?.value
         : null;
 
-    Future<void> refresh() {
-      return ref.read(librarySyncControllerProvider.notifier).syncNow();
-    }
+    Future<void> refresh() => triggerLibrarySyncFromPull(ref);
 
     return Scaffold(
       appBar: AppBar(title: Text(l10n.libraryLikedAlbumsAllTitle)),
-      body: RefreshIndicator(
-        onRefresh: refresh,
-        child: likedAlbumsAsync.when(
-          loading: () => const _LoadingListPlaceholder(),
-          error: (error, _) => ListView(
-            physics: const AlwaysScrollableScrollPhysics(),
-            children: [
-              ErrorState(
-                title: l10n.libraryAlbumsErrorTitle,
-                onRetry: refresh,
-                retryLabel: l10n.commonRetry,
-              ),
-            ],
-          ),
-          data: (albums) {
-            final filteredAlbums = downloadedOnly
-                ? albums
-                      .where(
-                        (album) =>
-                            downloadedContentIds?.albumIds.contains(album.id) ??
-                            false,
-                      )
-                      .toList(growable: false)
-                : albums;
-            if (filteredAlbums.isEmpty) {
-              return ListView(
-                physics: const AlwaysScrollableScrollPhysics(),
-                children: [
-                  SizedBox(
-                    height: MediaQuery.of(context).size.height * 0.6,
-                    child: EmptyState(
-                      title: downloadedOnly
-                          ? l10n.libraryDownloadedOnlyEmpty
-                          : l10n.libraryLikedEmptyTitle,
-                      subtitle: downloadedOnly
-                          ? l10n.libraryDownloadedOnlyEmptySubtitle
-                          : l10n.libraryLikedEmptySubtitle,
-                      icon: downloadedOnly
-                          ? Icons.download_done_outlined
-                          : Icons.favorite_border_outlined,
-                    ),
-                  ),
-                ],
-              );
-            }
-            return LayoutBuilder(
-              builder: (context, constraints) {
-                return CustomScrollView(
+      body: Column(
+        children: <Widget>[
+          _likedSyncBanner(refresh),
+          Expanded(
+            child: RefreshIndicator(
+              onRefresh: refresh,
+              child: likedAlbumsAsync.when(
+                loading: () => const _LoadingListPlaceholder(),
+                error: (error, _) => ListView(
                   physics: const AlwaysScrollableScrollPhysics(),
-                  slivers: [
-                    ResponsiveContentSliverGrid(
-                      itemCount: filteredAlbums.length,
-                      itemBuilder: (context, index) {
-                        final album = filteredAlbums[index];
-                        final heroTag = buildCoverArtHeroTag(
-                          coverArtId: album.coverArt,
-                          context: 'liked_all_album',
-                          entityId: album.id,
-                        );
-                        return RepaintBoundary(
-                          child: AlbumCard(
-                            key: ValueKey('liked-all-album-${album.id}'),
-                            album: album,
-                            size: AlbumCardSize.library,
-                            heroTag: heroTag,
-                            badge: AlbumDownloadBadge(albumId: album.id),
-                            onTap: () {
-                              ref
-                                  .read(librarySyncControllerProvider.notifier)
-                                  .registerAlbumInteraction(album.id);
-                              NavService.openAlbumDetail(
-                                context,
-                                ref,
-                                album.id,
-                                heroTag: heroTag,
-                              );
-                            },
-                            onLongPress: () =>
-                                showAlbumContextMenu(context, ref, album.id),
-                            onSecondaryTapDown: (details) =>
-                                showAlbumContextMenu(
-                                  context,
-                                  ref,
-                                  album.id,
-                                  anchor: details.globalPosition,
-                                ),
-                          ),
-                        );
-                      },
+                  children: [
+                    ErrorState(
+                      title: l10n.libraryAlbumsErrorTitle,
+                      onRetry: refresh,
+                      retryLabel: l10n.commonRetry,
                     ),
                   ],
-                );
-              },
-            );
-          },
-        ),
+                ),
+                data: (albums) {
+                  final filteredAlbums = downloadedOnly
+                      ? albums
+                            .where(
+                              (album) =>
+                                  downloadedContentIds?.albumIds.contains(
+                                    album.id,
+                                  ) ??
+                                  false,
+                            )
+                            .toList(growable: false)
+                      : albums;
+                  if (filteredAlbums.isEmpty) {
+                    return ListView(
+                      physics: const AlwaysScrollableScrollPhysics(),
+                      children: [
+                        SizedBox(
+                          height: MediaQuery.of(context).size.height * 0.6,
+                          child: EmptyState(
+                            title: downloadedOnly
+                                ? l10n.libraryDownloadedOnlyEmpty
+                                : l10n.libraryLikedEmptyTitle,
+                            subtitle: downloadedOnly
+                                ? l10n.libraryDownloadedOnlyEmptySubtitle
+                                : l10n.libraryLikedEmptySubtitle,
+                            icon: downloadedOnly
+                                ? Icons.download_done_outlined
+                                : Icons.favorite_border_outlined,
+                          ),
+                        ),
+                      ],
+                    );
+                  }
+                  return LayoutBuilder(
+                    builder: (context, constraints) {
+                      return CustomScrollView(
+                        physics: const AlwaysScrollableScrollPhysics(),
+                        slivers: [
+                          ResponsiveContentSliverGrid(
+                            itemCount: filteredAlbums.length,
+                            itemBuilder: (context, index) {
+                              final album = filteredAlbums[index];
+                              final heroTag = buildCoverArtHeroTag(
+                                coverArtId: album.coverArt,
+                                context: 'liked_all_album',
+                                entityId: album.id,
+                              );
+                              return RepaintBoundary(
+                                child: AlbumCard(
+                                  key: ValueKey('liked-all-album-${album.id}'),
+                                  album: album,
+                                  size: AlbumCardSize.library,
+                                  heroTag: heroTag,
+                                  badge: AlbumDownloadBadge(albumId: album.id),
+                                  onTap: () {
+                                    ref
+                                        .read(
+                                          librarySyncControllerProvider
+                                              .notifier,
+                                        )
+                                        .registerAlbumInteraction(album.id);
+                                    NavService.openAlbumDetail(
+                                      context,
+                                      ref,
+                                      album.id,
+                                      heroTag: heroTag,
+                                    );
+                                  },
+                                  onLongPress: () => showAlbumContextMenu(
+                                    context,
+                                    ref,
+                                    album.id,
+                                  ),
+                                  onSecondaryTapDown: (details) =>
+                                      showAlbumContextMenu(
+                                        context,
+                                        ref,
+                                        album.id,
+                                        anchor: details.globalPosition,
+                                      ),
+                                ),
+                              );
+                            },
+                          ),
+                        ],
+                      );
+                    },
+                  );
+                },
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }
 }
+
+/// The sync banner under a Liked "see all" app bar; only the banner follows
+/// sync progress, so the list below does not rebuild with it.
+Widget _likedSyncBanner(Future<void> Function() onRetry) => Consumer(
+  builder: (context, ref, _) => LibrarySyncStatusBanner(
+    syncState: ref.watch(librarySyncControllerProvider),
+    onRetry: onRetry,
+    onCancel: () =>
+        ref.read(librarySyncControllerProvider.notifier).cancelSync(),
+  ),
+);
 
 /// A liked-artist destination when the general Artists page is hidden.
 class LikedArtistsAllScreen extends ConsumerWidget {
@@ -757,77 +781,88 @@ class LikedArtistsAllScreen extends ConsumerWidget {
     final downloaded = downloadedOnly
         ? ref.watch(downloadedContentIdsProvider).asData?.value
         : null;
-    Future<void> refresh() =>
-        ref.read(librarySyncControllerProvider.notifier).syncNow();
+    Future<void> refresh() => triggerLibrarySyncFromPull(ref);
     return Scaffold(
       appBar: AppBar(title: Text(l10n.libraryLikedArtistsSectionTitle)),
-      body: RefreshIndicator(
-        onRefresh: refresh,
-        child: artists.when(
-          loading: () => const _LoadingListPlaceholder(),
-          error: (error, stack) => ListView(
-            physics: const AlwaysScrollableScrollPhysics(),
-            children: [
-              ErrorState(
-                title: l10n.libraryArtistsErrorTitle,
-                onRetry: refresh,
-              ),
-            ],
-          ),
-          data: (items) {
-            final visible = downloadedOnly
-                ? items
-                      .where(
-                        (artist) =>
-                            downloaded?.artistIds.contains(artist.id) ?? false,
-                      )
-                      .toList(growable: false)
-                : items;
-            return CustomScrollView(
-              physics: const AlwaysScrollableScrollPhysics(),
-              slivers: [
-                if (visible.isEmpty)
-                  SliverFillRemaining(
-                    hasScrollBody: false,
-                    child: EmptyState(
-                      title: downloadedOnly
-                          ? l10n.libraryDownloadedOnlyEmpty
-                          : l10n.libraryLikedEmptyTitle,
-                      subtitle: downloadedOnly
-                          ? l10n.libraryDownloadedOnlyEmptySubtitle
-                          : l10n.libraryLikedEmptySubtitle,
-                      icon: Icons.person_outline,
+      body: Column(
+        children: <Widget>[
+          _likedSyncBanner(refresh),
+          Expanded(
+            child: RefreshIndicator(
+              onRefresh: refresh,
+              child: artists.when(
+                loading: () => const _LoadingListPlaceholder(),
+                error: (error, stack) => ListView(
+                  physics: const AlwaysScrollableScrollPhysics(),
+                  children: [
+                    ErrorState(
+                      title: l10n.libraryArtistsErrorTitle,
+                      onRetry: refresh,
                     ),
-                  )
-                else
-                  ResponsiveContentSliverGrid(
-                    artists: true,
-                    itemCount: visible.length,
-                    itemBuilder: (context, index) {
-                      final artist = visible[index];
-                      return ArtistGridCard(
-                        key: ValueKey('liked-all-artist-${artist.id}'),
-                        artist: artist,
-                        onTap: () => NavService.openArtistDetail(
-                          context,
-                          ref,
-                          artist.id,
+                  ],
+                ),
+                data: (items) {
+                  final visible = downloadedOnly
+                      ? items
+                            .where(
+                              (artist) =>
+                                  downloaded?.artistIds.contains(artist.id) ??
+                                  false,
+                            )
+                            .toList(growable: false)
+                      : items;
+                  return CustomScrollView(
+                    physics: const AlwaysScrollableScrollPhysics(),
+                    slivers: [
+                      if (visible.isEmpty)
+                        SliverFillRemaining(
+                          hasScrollBody: false,
+                          child: EmptyState(
+                            title: downloadedOnly
+                                ? l10n.libraryDownloadedOnlyEmpty
+                                : l10n.libraryLikedEmptyTitle,
+                            subtitle: downloadedOnly
+                                ? l10n.libraryDownloadedOnlyEmptySubtitle
+                                : l10n.libraryLikedEmptySubtitle,
+                            icon: Icons.person_outline,
+                          ),
+                        )
+                      else
+                        ResponsiveContentSliverGrid(
+                          artists: true,
+                          itemCount: visible.length,
+                          itemBuilder: (context, index) {
+                            final artist = visible[index];
+                            return ArtistGridCard(
+                              key: ValueKey('liked-all-artist-${artist.id}'),
+                              artist: artist,
+                              onTap: () => NavService.openArtistDetail(
+                                context,
+                                ref,
+                                artist.id,
+                              ),
+                              onLongPress: () => showArtistContextMenu(
+                                context,
+                                ref,
+                                artist.id,
+                              ),
+                              onSecondaryTapDown: (details) =>
+                                  showArtistContextMenu(
+                                    context,
+                                    ref,
+                                    artist.id,
+                                    anchor: details.globalPosition,
+                                  ),
+                            );
+                          },
                         ),
-                        onLongPress: () =>
-                            showArtistContextMenu(context, ref, artist.id),
-                        onSecondaryTapDown: (details) => showArtistContextMenu(
-                          context,
-                          ref,
-                          artist.id,
-                          anchor: details.globalPosition,
-                        ),
-                      );
-                    },
-                  ),
-              ],
-            );
-          },
-        ),
+                    ],
+                  );
+                },
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }

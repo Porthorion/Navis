@@ -198,7 +198,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get serverOfflineBanner => 'Server unreachable. Retrying every 30s.';
 
   @override
-  String get serverOfflineQuietBanner => 'Offline mode';
+  String get serverOfflineChip => 'Offline';
 
   @override
   String get batteryOptimizationPromptTitle => 'Keep Background Sync Alive';
@@ -1162,7 +1162,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get playbackSettingsAlbumQueueSubtitle =>
-      'Tapping a track in an album queues the entire album and starts playback at that track.';
+      'Tapping a track in an album or playlist queues the whole list and starts playback at that track.';
 
   @override
   String get playbackSettingsExperimentalTitle => 'Experimental';
@@ -3509,7 +3509,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get appearanceCornerStyleLabel => 'Corner Style';
 
   @override
-  String get appearanceCornerStyleRounded => 'Rounded';
+  String get appearanceCornerStyleRounded => 'Pill';
 
   @override
   String get appearanceCornerStyleSoft => 'Soft';
@@ -3519,7 +3519,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get appearanceCornerStyleRoundedSub =>
-      'Gently rounded cards and pill buttons.';
+      'Pill-shaped buttons, chips and tags; gently rounded cards.';
 
   @override
   String get appearanceCornerStyleSoftSub =>

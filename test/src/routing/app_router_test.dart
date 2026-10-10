@@ -817,6 +817,52 @@ void main() {
       await tester.tap(find.byKey(ShellOfflineBanner.retryKey));
       await tester.pumpAndSettle();
       expect(reachability.retryCalls, 1);
+
+      // Dismissing tucks the banner into a chip that takes no layout space.
+      final chip = find.byKey(ShellOfflineChip.chipKey);
+      expect(chip, findsNothing);
+      await tester.tap(find.byKey(ShellOfflineBanner.dismissKey));
+      await tester.pumpAndSettle();
+      expect(banner, findsNothing);
+      expect(chip, findsOneWidget);
+      expect(find.text('Offline'), findsOneWidget);
+      expect(
+        MediaQuery.paddingOf(tester.element(page)).top,
+        topInset,
+        reason: 'the chip floats and gives the inset back',
+      );
+
+      // Tapping the chip expands the banner again.
+      await tester.tap(chip);
+      await tester.pumpAndSettle();
+      expect(banner, findsOneWidget);
+      expect(chip, findsNothing);
+
+      // Dismissed, then back online: the next outage shows the banner.
+      await tester.tap(find.byKey(ShellOfflineBanner.dismissKey));
+      await tester.pumpAndSettle();
+      reachability.set(
+        const ServerReachabilityState(status: ServerReachabilityStatus.online),
+      );
+      await tester.pumpAndSettle();
+      expect(chip, findsNothing);
+      reachability.set(
+        const ServerReachabilityState(status: ServerReachabilityStatus.offline),
+      );
+      await tester.pumpAndSettle();
+      expect(banner, findsOneWidget);
+
+      // Once the retry banner stops being offered it compacts by itself.
+      reachability.set(
+        const ServerReachabilityState(
+          status: ServerReachabilityStatus.offline,
+          consecutiveFailureCount: 4,
+          showRetryBanner: false,
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(banner, findsNothing);
+      expect(chip, findsOneWidget);
     });
   }
 

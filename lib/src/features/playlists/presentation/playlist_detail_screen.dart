@@ -18,6 +18,7 @@ import 'package:navis/src/common_widgets/song_download_status_icon.dart';
 import 'package:navis/src/common_widgets/track_list_tile.dart';
 import 'package:navis/src/database/navis_database.dart';
 import 'package:navis/src/features/downloads/presentation/download_quality_sheet.dart';
+import 'package:navis/src/features/player/presentation/play_song_in_collection.dart';
 import 'package:navis/src/features/player/presentation/queue_provider.dart';
 import 'package:navis/src/features/playlists/presentation/add_to_playlist_sheet.dart';
 import 'package:navis/src/features/playlists/presentation/playlist_providers.dart';
@@ -325,7 +326,12 @@ class _PlaylistDetailScreenState extends ConsumerState<PlaylistDetailScreen> {
                     child: TrackListTile(
                       song: song,
                       actionExtent: desktopMode ? null : 96,
-                      onTap: () => _playNow(visibleSongs, index),
+                      onTap: () => playTableSongInCollection(
+                        ref,
+                        visibleSongs,
+                        index,
+                        expandMatchFlows: true,
+                      ),
                       onLongPress: () =>
                           _showSongActions(song, entry.playlistIndex),
                       onSecondaryTapDown: (details) => _showSongActions(
@@ -378,7 +384,12 @@ class _PlaylistDetailScreenState extends ConsumerState<PlaylistDetailScreen> {
                     child: TrackListTile(
                       song: song,
                       actionExtent: desktopMode ? null : 144,
-                      onTap: () => _playNow(songs, index),
+                      onTap: () => playTableSongInCollection(
+                        ref,
+                        songs,
+                        index,
+                        expandMatchFlows: true,
+                      ),
                       onLongPress: () => _showSongActions(song, index),
                       onSecondaryTapDown: (details) => _showSongActions(
                         song,
