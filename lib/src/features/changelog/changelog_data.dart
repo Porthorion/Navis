@@ -201,6 +201,12 @@ const List<ChangelogVersion> changelogs = [
         'Now Playing Background also applies to the queue and to the desktop lyrics view',
       ),
       ChangelogEntry(
+        'Flat Surfaces can be limited to panels and shadows, Now Playing, or text over artwork, and keeps album art fully visible with titles below the cover',
+      ),
+      ChangelogEntry(
+        'Album titles keep the classic shading by default; turn on Album Art Colored Shade for titles tinted by each cover',
+      ),
+      ChangelogEntry(
         'The player shows Play once the queue has finished, so one press restarts it instead of two',
         type: ChangelogEntryType.fix,
       ),

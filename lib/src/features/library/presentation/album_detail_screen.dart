@@ -1125,6 +1125,8 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen> {
               final mobileColors = theme.colorScheme;
               final mobileTextTheme = theme.textTheme;
               final isLightTheme = theme.brightness == Brightness.light;
+              final flatArtworkText = NavisColorStyleData.of(context)
+                  .flatArtworkText;
               // Keep _screenWidth in sync so the scroll listener can compute progress.
               _screenWidth = screenWidth;
 
@@ -1201,23 +1203,10 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen> {
                             fit: BoxFit.cover,
                             fadeInDuration: Duration.zero,
                           ),
-                          if (NavisColorStyleData.of(context).flatArtworkText)
-                            // Flat: a hard-edged solid block under the title
-                            // instead of the fade into the page.
-                            Positioned.fill(
-                              child: Align(
-                                alignment: Alignment.bottomCenter,
-                                child: FractionallySizedBox(
-                                  heightFactor: 0.4,
-                                  widthFactor: 1,
-                                  child: ColoredBox(
-                                    color: Theme.of(context)
-                                        .scaffoldBackgroundColor,
-                                  ),
-                                ),
-                              ),
-                            )
-                          else
+                          // Flat text over artwork keeps the art unobstructed:
+                          // no fade and no overlaid title; the title sits
+                          // under the art in the content below.
+                          if (!flatArtworkText) ...<Widget>[
                             Positioned.fill(
                               child: DecoratedBox(
                                 decoration: BoxDecoration(
@@ -1234,50 +1223,49 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen> {
                                 ),
                               ),
                             ),
-                          // The title scrolls out with the lower gradient.
-                          Positioned(
-                            bottom: 0,
-                            left: 0,
-                            right: 0,
-                            child: Opacity(
-                              opacity: gradientScrollFade,
-                              child: Padding(
-                                padding: const EdgeInsets.fromLTRB(
-                                  16,
-                                  0,
-                                  16,
-                                  16,
-                                ),
-                                child: _buildMobileAlbumTitle(
-                                  title: details.name,
-                                  style: mobileTextTheme.displayMedium
-                                      ?.copyWith(
-                                        fontWeight: FontWeight.bold,
-                                        color: isLightTheme
-                                            ? mobileColors.onSurface
-                                            : Colors.white,
-                                        shadows:
-                                            isLightTheme ||
-                                                NavisColorStyleData.of(context)
-                                                    .flatArtworkText
-                                            ? null
-                                            : <Shadow>[
-                                                Shadow(
-                                                  color:
-                                                      NavisColorStyleData.of(
-                                                        context,
-                                                      ).artworkScrim.withValues(
-                                                        alpha: 0.55,
-                                                      ),
-                                                  blurRadius: 12,
-                                                  offset: const Offset(0, 2),
-                                                ),
-                                              ],
-                                      ),
+                            // The title scrolls out with the lower gradient.
+                            Positioned(
+                              bottom: 0,
+                              left: 0,
+                              right: 0,
+                              child: Opacity(
+                                opacity: gradientScrollFade,
+                                child: Padding(
+                                  padding: const EdgeInsets.fromLTRB(
+                                    16,
+                                    0,
+                                    16,
+                                    16,
+                                  ),
+                                  child: _buildMobileAlbumTitle(
+                                    title: details.name,
+                                    style: mobileTextTheme.displayMedium
+                                        ?.copyWith(
+                                          fontWeight: FontWeight.bold,
+                                          color: isLightTheme
+                                              ? mobileColors.onSurface
+                                              : Colors.white,
+                                          shadows: isLightTheme
+                                              ? null
+                                              : <Shadow>[
+                                                  Shadow(
+                                                    color:
+                                                        NavisColorStyleData.of(
+                                                              context,
+                                                            ).artworkScrim
+                                                            .withValues(
+                                                              alpha: 0.55,
+                                                            ),
+                                                    blurRadius: 12,
+                                                    offset: const Offset(0, 2),
+                                                  ),
+                                                ],
+                                        ),
+                                  ),
                                 ),
                               ),
                             ),
-                          ),
+                          ],
                         ],
                       ),
                     ),
@@ -1286,9 +1274,25 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: <Widget>[
+                        if (flatArtworkText)
+                          Padding(
+                            padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
+                            child: _buildMobileAlbumTitle(
+                              title: details.name,
+                              style: mobileTextTheme.displayMedium?.copyWith(
+                                fontWeight: FontWeight.bold,
+                                color: mobileColors.onSurface,
+                              ),
+                            ),
+                          ),
                         // Artist names (each individually clickable)
                         Padding(
-                          padding: const EdgeInsets.fromLTRB(16, 16, 16, 2),
+                          padding: EdgeInsets.fromLTRB(
+                            16,
+                            flatArtworkText ? 8 : 16,
+                            16,
+                            2,
+                          ),
                           child: Wrap(
                             crossAxisAlignment: WrapCrossAlignment.center,
                             runSpacing: 2,

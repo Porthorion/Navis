@@ -99,7 +99,7 @@ Future<_Harness> _pump(
   bool clearTagsWhenShown = false,
   Future<void> Function(AppSettingsDao dao)? seed,
 }) async {
-  setAdaptiveTestViewport(tester, const Size(500, 2400));
+  setAdaptiveTestViewport(tester, const Size(500, 3000));
   final database = createTestDatabase();
   await tester.runAsync(() async {
     await database.appSettingsDao.getSettings();
@@ -184,11 +184,14 @@ void main() {
     _shownOptions.clear();
   });
 
-  testWidgets('marks all six options New for an updated user', (tester) async {
+  testWidgets('marks every visible option New for an updated user', (
+    tester,
+  ) async {
     await _pump(tester, seed: (d) => d.updateThemeMode('system'));
 
-    expect(find.byType(NewFeatureTag), findsNWidgets(6));
-    expect(find.text('New'), findsNWidgets(6));
+    // The Flat areas only show, and so only carry their tag, while Flat is on.
+    expect(find.byType(NewFeatureTag), findsNWidgets(7));
+    expect(find.text('New'), findsNWidgets(7));
     expect(
       find.descendant(
         of: find.byType(NewFeatureTag),
@@ -197,7 +200,7 @@ void main() {
               widget is Semantics && widget.properties.label == 'New option',
         ),
       ),
-      findsNWidgets(6),
+      findsNWidgets(7),
     );
   });
 
@@ -207,7 +210,7 @@ void main() {
     await _pump(tester);
 
     expect(find.text('Use OLED When Dark'), findsNothing);
-    expect(find.byType(NewFeatureTag), findsNWidgets(5));
+    expect(find.byType(NewFeatureTag), findsNWidgets(6));
   });
 
   testWidgets('shows no tags on a fresh install', (tester) async {
@@ -354,6 +357,105 @@ void main() {
     expect(h.previewTheme.colorScheme.surface, before);
   });
 
+  group('Flat areas', () {
+    const areas = <String>[
+      'Panels and Shadows',
+      'Now Playing',
+      'Text Over Artwork',
+    ];
+
+    testWidgets('reveal with Flat Surfaces and save on Finish', (tester) async {
+      final h = await _pump(tester);
+      for (final label in areas) {
+        expect(find.text(label), findsNothing, reason: label);
+      }
+
+      await h.tap(find.text('Flat Surfaces'));
+      for (final label in areas) {
+        expect(find.text(label), findsOneWidget, reason: label);
+      }
+      await h.tap(find.text('Text Over Artwork'));
+      await h.tap(find.text('Now Playing'));
+      expect((await h.row()).flatAreas, 7);
+
+      await h.finish();
+      final row = await h.row();
+      expect(row.flatSurfaces, isTrue);
+      expect(row.flatAreas, 1);
+    });
+
+    testWidgets('the preview follows the selected areas', (tester) async {
+      final h = await _pump(tester);
+      await h.tap(find.text('Flat Surfaces'));
+      expect(h.previewTheme.shadowColor, Colors.transparent);
+
+      await h.tap(find.text('Panels and Shadows'));
+      expect(h.previewTheme.shadowColor, isNot(Colors.transparent));
+    });
+
+    testWidgets('an open group shows a pending tag for them', (tester) async {
+      await _pump(
+        tester,
+        seed: (d) async {
+          await d.updateFlatSurfaces(enabled: true);
+          for (final option in SetupHighlight.values) {
+            if (option != SetupHighlight.flatAreas) {
+              await d.markSetupHighlightSeen(option.storageKey);
+            }
+          }
+        },
+      );
+
+      expect(find.text('Panels and Shadows'), findsOneWidget);
+      expect(find.byType(NewFeatureTag), findsOneWidget);
+    });
+  });
+
+  group('Album Art Colored Shade', () {
+    SwitchListTile shade(WidgetTester tester) => tester.widget(
+      find.ancestor(
+        of: find.text('Album Art Colored Shade'),
+        matching: find.byType(SwitchListTile),
+      ),
+    );
+
+    testWidgets('sits outside More appearance options and saves on Finish', (
+      tester,
+    ) async {
+      final h = await _pump(tester, updatedUser: false, reviewMode: false);
+      expect(find.text('Album Art Colored Shade'), findsOneWidget);
+      expect(
+        find.text('Tint album titles with a color from each cover.'),
+        findsOneWidget,
+      );
+      expect(find.text('Corner Style'), findsNothing);
+
+      await h.tap(find.text('Album Art Colored Shade'));
+      expect((await h.row()).albumArtColoredShade, isFalse);
+      await h.finish();
+      expect((await h.row()).albumArtColoredShade, isTrue);
+    });
+
+    testWidgets('is disabled with a note under Flat text over artwork', (
+      tester,
+    ) async {
+      final h = await _pump(tester);
+      const note =
+          'Album titles sit below the art while Flat text over '
+          'artwork is on.';
+      expect(find.text(note), findsNothing);
+      expect(shade(tester).onChanged, isNotNull);
+
+      await h.tap(find.text('Flat Surfaces'));
+      expect(find.text(note), findsOneWidget);
+      expect(shade(tester).onChanged, isNull);
+
+      await h.tap(find.text('Text Over Artwork'));
+      expect(find.text(note), findsNothing);
+      expect(shade(tester).onChanged, isNotNull);
+    });
+  });
+
   group('More appearance options', () {
     const expanderKey = ValueKey<String>('onboarding-more-appearance-options');
 
@@ -465,7 +567,13 @@ void main() {
     testWidgets('tagged options mark themselves seen once shown', (
       tester,
     ) async {
-      await _pump(tester, seed: (d) => d.updateThemeMode('system'));
+      await _pump(
+        tester,
+        seed: (d) async {
+          await d.updateThemeMode('system');
+          await d.updateFlatSurfaces(enabled: true);
+        },
+      );
 
       expect(_shownOptions.toSet(), <SetupHighlight>{
         for (final highlight in SetupHighlight.values) highlight,
@@ -473,11 +581,14 @@ void main() {
       expect(_shownOptions, hasLength(SetupHighlight.values.length));
     });
 
-    testWidgets('the hidden OLED option is not marked seen', (tester) async {
+    testWidgets('the hidden OLED and Flat area options are not marked seen', (
+      tester,
+    ) async {
       await _pump(tester);
 
       expect(_shownOptions, isNot(contains(SetupHighlight.oledForAuto)));
-      expect(_shownOptions, hasLength(SetupHighlight.values.length - 1));
+      expect(_shownOptions, isNot(contains(SetupHighlight.flatAreas)));
+      expect(_shownOptions, hasLength(SetupHighlight.values.length - 2));
     });
 
     testWidgets(

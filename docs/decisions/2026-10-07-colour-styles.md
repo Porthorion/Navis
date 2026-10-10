@@ -60,12 +60,26 @@ indicator, and a yellow cover produced an olive Home wash.
 
 ### Album card captions
 
-The cover-tinted fade was chosen over caption-below, a solid band and a dark
-scrim as the album-card caption for everyone. The temporary variant selector
-and caption-below height plumbing are removed; the plain fade remains the
-fallback until a cover's tint is known or when no cover-art id is available.
-Measured on a phone emulator with 40 jump-scrolls: 0 frames over 33 ms, and
-the same over-16 ms profile as the plain fade, cold and warm.
+The cover-tinted fade was first chosen over caption-below, a solid band and a
+dark scrim as the album-card caption for everyone (measured on a phone emulator
+with 40 jump-scrolls: 0 frames over 33 ms, and the same over-16 ms profile as
+the plain fade, cold and warm). Owner decision 2026-10-10 revises this: the
+classic page-coloured fade is the default again and the cover-tinted caption
+is the opt-in Album Art Colored Shade setting, so the default path samples no
+cover colours. Flat text over artwork (a Flat Surfaces area) restores the
+caption-below layout, with its height plumbing keyed on the theme's
+`flatArtworkText`, because a solid block over the art defeated the point of
+Flat; the colored shade has nothing to tint there and is disabled with a note.
+The plain fade remains the fallback until a cover's tint is known or when no
+cover-art id is available.
+
+### Flat areas
+
+Flat Surfaces keeps its master switch and gains three area switches (Panels
+and Shadows, Now Playing, Text Over Artwork), all on by default so existing
+Flat users see no change. Turning every area off is valid and has no effect.
+Text Over Artwork covers album-card captions and the phone album and weekly
+playlist headers, which show the art unobstructed with the title below it.
 
 ### Cover tint refresh and local cache coverage
 
@@ -94,9 +108,9 @@ artwork; missing local files use the existing bounded retry path.
 ### New tags in setup
 
 Updated users see "New" on options introduced by the newest eligible setup
-highlight release. The initial 1.5.0 registry includes six options: Color Style,
-OLED for Auto, Night Schedule, Flat Surfaces, Now Playing Background and Corner
-Style. The planned version move to 1.5.0 renames this together with the changelog
+highlight release. The 1.5.0 registry includes eight options: Color Style,
+OLED for Auto, Night Schedule, Flat Surfaces, Flat areas, Album Art Colored
+Shade, Now Playing Background and Corner Style. The planned version move to 1.5.0 renames this together with the changelog
 entry. Density is a renamed existing setting, so it has no highlight or New tag.
 
 Owner addendum (2026-10-09): tags clear per option after that option has been

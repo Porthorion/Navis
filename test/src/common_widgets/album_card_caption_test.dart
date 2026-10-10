@@ -15,6 +15,7 @@ import 'package:navis/src/providers/app_providers.dart';
 import 'package:navis/src/routing/content_layout.dart';
 import 'package:navis/src/features/home/presentation/cover_colour_field.dart';
 import 'package:navis/src/features/home/presentation/cover_colour_worker.dart';
+import 'package:navis/src/features/settings/domain/flat_areas.dart';
 import 'package:navis/src/theme/caption_tint.dart';
 import 'package:navis/src/theme/navis_color_style.dart';
 import 'package:navis/src/theme/navis_color_style_data.dart';
@@ -33,7 +34,11 @@ final List<AlbumsTableData> _albums = List<AlbumsTableData>.generate(
   ),
 );
 
-Future<void> _pump(WidgetTester tester, ThemeData theme) async {
+Future<void> _pump(
+  WidgetTester tester,
+  ThemeData theme, {
+  bool coloredShade = false,
+}) async {
   tester.view.physicalSize = const Size(390, 844);
   tester.view.devicePixelRatio = 1;
   addTearDown(tester.view.reset);
@@ -42,6 +47,7 @@ Future<void> _pump(WidgetTester tester, ThemeData theme) async {
       overrides: [
         subsonicApiProvider.overrideWithValue(null),
         coverArtShapeProvider.overrideWithValue('rounded'),
+        albumArtColoredShadeProvider.overrideWithValue(coloredShade),
         gridArtworkSizeProvider.overrideWithValue(GridArtworkSize.auto),
       ],
       child: MaterialApp(
@@ -119,6 +125,7 @@ void main() {
       await tester.pumpWidget(
         ProviderScope(
           overrides: [
+            albumArtColoredShadeProvider.overrideWithValue(true),
             coverColourSamplerProvider.overrideWithValue(sampler),
             coverColourWorkerProvider.overrideWithValue(worker),
           ],
@@ -249,6 +256,7 @@ void main() {
           overrides: [
             subsonicApiProvider.overrideWithValue(null),
             coverArtShapeProvider.overrideWithValue('rounded'),
+            albumArtColoredShadeProvider.overrideWithValue(true),
             coverColourWorkerProvider.overrideWithValue(
               InlineCoverColourWorker(),
             ),
@@ -289,24 +297,14 @@ void main() {
     });
   }
 
-  testWidgets('Flat coverTint caption is a solid fill block, not a fade', (
-    tester,
-  ) async {
+  testWidgets('the classic fade never asks for cover colours', (tester) async {
     tester.view.physicalSize = const Size(390, 844);
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.reset);
-    const sampled = Color(0xFFE53935);
-    final field = CoverColourField.uniform(sampled);
-    sharedCoverColourFieldCache.put('cover-1', field);
-    addTearDown(sharedCoverColourFieldCache.clear);
-    final theme = buildDarkTheme(Colors.teal, flat: true);
-    final expected = captionTintFor(
-      sampled,
-      theme.extension<NavisColorStyleData>()!,
-    );
+    final worker = _CountingTintWorker();
     final album = AlbumsTableData(
-      id: 'tinted',
-      name: 'Tinted',
+      id: 'classic',
+      name: 'Classic',
       artistName: 'Artist',
       artists: const [],
       songsHydrated: true,
@@ -314,18 +312,21 @@ void main() {
       isExternal: false,
       coverArt: 'cover-1',
     );
+    var fieldRequests = 0;
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
           subsonicApiProvider.overrideWithValue(null),
           coverArtShapeProvider.overrideWithValue('rounded'),
-          coverColourWorkerProvider.overrideWithValue(
-            InlineCoverColourWorker(),
-          ),
-          coverColourFieldProvider.overrideWith((ref, id) async => field),
+          albumArtColoredShadeProvider.overrideWithValue(false),
+          coverColourWorkerProvider.overrideWithValue(worker),
+          coverColourFieldProvider.overrideWith((ref, id) async {
+            fieldRequests++;
+            return CoverColourField.uniform(const Color(0xFFE53935));
+          }),
         ],
         child: MaterialApp(
-          theme: theme,
+          theme: buildDarkTheme(Colors.teal),
           localizationsDelegates: navisLocalizationsDelegates,
           supportedLocales: AppLocalizations.supportedLocales,
           home: Scaffold(
@@ -334,22 +335,168 @@ void main() {
         ),
       ),
     );
-    await tester.pump();
-    await tester.pump();
-    await tester.pump();
+    await tester.pump(kCoverTintSettleDelay * 3);
     await tester.pump(const Duration(milliseconds: 400));
 
-    final solid = tester.widget<DecoratedBox>(
-      find.byKey(const ValueKey<String>('albumCardTintSolid')),
-    );
-    final decoration = solid.decoration as BoxDecoration;
-    expect(decoration.gradient, isNull);
-    expect(decoration.color, expected.fill);
     expect(
-      find.byKey(const ValueKey<String>('albumCardTintFade')),
+      find.byKey(const ValueKey<String>('albumCardTitleSurfaceFade')),
+      findsOneWidget,
+    );
+    expect(
+      find.byKey(const ValueKey<String>('albumCardCaptionLayer')),
       findsNothing,
     );
+    expect(fieldRequests, 0);
+    expect(worker.requests, 0);
   });
+
+  group('Flat text over artwork', () {
+    final album = AlbumsTableData(
+      id: 'below',
+      name: 'Below',
+      artistName: 'Artist',
+      artists: const [],
+      songsHydrated: true,
+      isProvisional: false,
+      isExternal: false,
+      coverArt: 'cover-1',
+    );
+
+    Future<_CountingTintWorker> pumpFlat(
+      WidgetTester tester, {
+      required bool coloredShade,
+      FlatAreas areas = const FlatAreas(),
+      double textScale = 1,
+    }) async {
+      tester.view.physicalSize = const Size(390, 844);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.reset);
+      final worker = _CountingTintWorker();
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            subsonicApiProvider.overrideWithValue(null),
+            coverArtShapeProvider.overrideWithValue('rounded'),
+            albumArtColoredShadeProvider.overrideWithValue(coloredShade),
+            coverColourWorkerProvider.overrideWithValue(worker),
+            coverColourFieldProvider.overrideWith(
+              (ref, id) async =>
+                  CoverColourField.uniform(const Color(0xFFE53935)),
+            ),
+          ],
+          child: MaterialApp(
+            theme: buildDarkTheme(Colors.teal, flat: true, flatAreas: areas),
+            localizationsDelegates: navisLocalizationsDelegates,
+            supportedLocales: AppLocalizations.supportedLocales,
+            builder: (context, child) => MediaQuery(
+              data: MediaQuery.of(context)
+                  .copyWith(textScaler: TextScaler.linear(textScale)),
+              child: child!,
+            ),
+            home: Scaffold(
+              body: Align(
+                alignment: Alignment.topLeft,
+                child: AlbumCard(album: album, extent: 160),
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.pump(kCoverTintSettleDelay * 3);
+      await tester.pump(const Duration(milliseconds: 400));
+      return worker;
+    }
+
+    for (final coloredShade in <bool>[false, true]) {
+      testWidgets('puts the caption below an unobstructed cover '
+          '(colored shade: $coloredShade)', (tester) async {
+        final worker = await pumpFlat(tester, coloredShade: coloredShade);
+
+        final cover = tester.getRect(
+          find.byKey(const ValueKey('albumCardTapTarget')),
+        );
+        final caption = find.byKey(
+          const ValueKey<String>('albumCardCaptionBelow'),
+        );
+        expect(caption, findsOneWidget);
+        final captionRect = tester.getRect(caption);
+        expect(cover.size, const Size(160, 160));
+        expect(captionRect.top, closeTo(cover.bottom, 0.01));
+        final title = tester.getRect(find.text('Below'));
+        expect(title.top, greaterThanOrEqualTo(cover.bottom));
+        // Nothing is drawn over the art, and no cover colour is sampled.
+        for (final key in <String>[
+          'albumCardTitleSurfaceFade',
+          'albumCardTintFade',
+          'albumCardTintText',
+          'albumCardCaptionLayer',
+        ]) {
+          expect(find.byKey(ValueKey<String>(key)), findsNothing, reason: key);
+        }
+        expect(worker.requests, 0);
+        expect(tester.takeException(), isNull);
+      });
+    }
+
+    testWidgets('keeps the overlay when only other areas are flat', (
+      tester,
+    ) async {
+      await pumpFlat(
+        tester,
+        coloredShade: false,
+        areas: const FlatAreas(artworkText: false),
+      );
+
+      expect(
+        find.byKey(const ValueKey<String>('albumCardCaptionBelow')),
+        findsNothing,
+      );
+      expect(
+        find.byKey(const ValueKey<String>('albumCardTitleSurfaceFade')),
+        findsOneWidget,
+      );
+      expect(tester.getSize(find.byType(AlbumCard)), const Size(160, 160));
+    });
+
+    testWidgets('caption height follows the text scale', (tester) async {
+      const key = ValueKey<String>('albumCardCaptionBelow');
+      await pumpFlat(tester, coloredShade: false);
+      final normal = tester.getSize(find.byKey(key)).height;
+      await pumpFlat(tester, coloredShade: false, textScale: 2);
+
+      expect(tester.getSize(find.byKey(key)).height, greaterThan(normal));
+      expect(tester.takeException(), isNull);
+    });
+  });
+
+  group('colored shade', () {
+    testWidgets('keeps a card square and overlays the tint', (tester) async {
+      await _pump(
+        tester,
+        buildDarkTheme(defaultColorSchemeSeedColor),
+        coloredShade: true,
+      );
+
+      expect(
+        find.byKey(const ValueKey<String>('albumCardCaptionLayer')),
+        findsWidgets,
+      );
+      expect(
+        find.byKey(const ValueKey<String>('albumCardCaptionBelow')),
+        findsNothing,
+      );
+    });
+  });
+}
+
+class _CountingTintWorker extends InlineCoverColourWorker {
+  int requests = 0;
+
+  @override
+  Future<List<double>> captionTint(Color sampled, NavisColorStyleData style) {
+    requests++;
+    return super.captionTint(sampled, style);
+  }
 }
 
 class _GatedTintWorker extends InlineCoverColourWorker {

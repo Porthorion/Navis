@@ -3506,6 +3506,27 @@ class AppLocalizationsEn extends AppLocalizations {
       'Solid colors without glows, gradients, shadows or blur. Now Playing Artwork becomes a solid color.';
 
   @override
+  String get appearanceFlatAreaSurfacesLabel => 'Panels and Shadows';
+
+  @override
+  String get appearanceFlatAreaSurfacesSub =>
+      'Solid panels and washes with no shadows, gradients or blur.';
+
+  @override
+  String get appearanceFlatAreaNowPlayingLabel => 'Now Playing';
+
+  @override
+  String get appearanceFlatAreaNowPlayingSub =>
+      'A solid Now Playing screen and mini player.';
+
+  @override
+  String get appearanceFlatAreaArtworkTextLabel => 'Text Over Artwork';
+
+  @override
+  String get appearanceFlatAreaArtworkTextSub =>
+      'Keep album art clear, with titles below the cover.';
+
+  @override
   String get appearanceCornerStyleLabel => 'Corner Style';
 
   @override
@@ -3539,6 +3560,17 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get appearanceDynamicAlbumColorSub =>
       'Album art replaces your accent when a cover has one.';
+
+  @override
+  String get appearanceAlbumArtColoredShadeLabel => 'Album Art Colored Shade';
+
+  @override
+  String get appearanceAlbumArtColoredShadeSub =>
+      'Tint album titles with a color from each cover.';
+
+  @override
+  String get appearanceAlbumArtColoredShadeFlatNote =>
+      'Album titles sit below the art while Flat text over artwork is on.';
 
   @override
   String get cacheSettingsCoverArtSection => 'Cover Art Cache';

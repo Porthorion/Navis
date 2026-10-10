@@ -775,9 +775,8 @@ target-selection rules.
     `flatNowPlaying` and `flatArtworkText` each combine it with the corresponding
     area. All three theme builders, the theme cache key and setup preview carry
     the mask. With all areas selected, Flat retains its previous behaviour.
-    The coloured-shade preference is persisted for the caption UI: false means
-    the classic page-coloured fade, true means cover-tinted captions; caption
-    layout/control work is separate from this persistence change.
+    The coloured-shade preference selects the album-card caption: false (the
+    default) is the classic page-coloured fade, true the cover-tinted caption.
     The authenticated, clone-gated `/v1/presentation/appearance` endpoint
     returns `flatAreas` as an integer and `albumArtColoredShade` as a boolean;
     POST validates their types and mask bounds before any targeted writes.
@@ -879,6 +878,11 @@ target-selection rules.
     Color (Color Style, Night Schedule, Accent Color, then Dynamic Album Color
     directly under the accent grid, whose note names the switch), Shape & Layout (Flat
     Surfaces, Corner Style, Artwork Shape with its three selectors, Artwork
+    Theme (Theme Mode, Use OLED When Dark in Auto only, Night Schedule),
+    Color (Color Style, Accent Color, then Dynamic Album Color directly under
+    the accent grid, whose note names the switch, then Album Art Colored
+    Shade), Shape & Layout (Flat Surfaces with its three area switches
+    revealed while Flat is on, Corner Style, Artwork Shape with its three selectors, Artwork
     Size, Density, Artist View Mode) and Now Playing (Now Playing Background).
     Home Sections, Page Visibility and Desktop Navigation stay collapsed
     below. Night Schedule shows its explanation while off and the time pills
@@ -1014,13 +1018,28 @@ header adds the same reason line and a compact Play/Shuffle pair.
 - Changing covers interpolates the nine colours over 400 ms; reduced motion
   switches instantly.
 
+**Album card captions.** `AlbumCardLabel` picks the caption from two settings.
+By default the title and subtitle sit over a fade into the page background in
+scheme text colours and no cover colour is ever sampled. With Album Art Colored
+Shade (`albumArtColoredShadeProvider`) they sit over a fade into a colour
+sampled from the cover's bottom edge, with fill and text adjusted for 4.5:1
+contrast. With Flat text over artwork (`NavisColorStyleData.flatArtworkText`)
+the caption moves below an unobstructed cover (`AlbumCardCaptionLayout`, key
+`albumCardCaptionBelow`) and nothing is sampled. In that layout every host
+reserves `albumCardExtraHeight` (measured at the ambient text scale) under its
+square cover: `ResponsiveContentSliverGrid` (`mainAxisExtent`), the Home New
+releases and local album shelves, the artist page's missing-albums shelf, the
+Library liked-albums shelf and the By Year pairs (which size themselves). The
+phone album and weekly playlist headers likewise show the art with no fade or
+overlaid title under Flat text over artwork and put the title at the top of the
+content under it.
+
 **Cover colour sampling (`cover_colour_sampler.dart`).** Shared by this wash
-and the cover-tinted album-card caption, the shared design for all album
-cards. Titles and subtitles sit over a fade into a colour sampled from the
-cover's bottom edge, with fill and text adjusted for 4.5:1 contrast. Until the
+and the cover-tinted album-card caption (Album Art Colored Shade). Until the
 tint is known, and for cards without a cover-art id (including external album
 cards), the caption falls back to the page-background fade and scheme text
-colours. Cards remain square in grids and rails. Each caption has its own
+colours. Cards remain square in grids and rails unless the caption sits below
+the art. Each caption has its own
 `RepaintBoundary`; a lone tint on an idle list fades in, while bursts and
 arrivals during scrolling apply instantly. Sampling is built so that scrolling
 never pays for it:
@@ -1400,8 +1419,9 @@ and `presentation/setup_highlights_provider.dart`. The registry selects the
 newest eligible release using the shared changelog semver helpers and package
 metadata, ignoring build and label suffixes. A newer highlight release replaces
 the group. Highlights survive the next minor release, then expire: the 1.4.x
-registry still applies in 1.5.x, but not in 1.6.0+ or a new major. The six options
-are Color Style, OLED for Auto, Night Schedule, Flat Surfaces, Now Playing
+registry still applies in 1.5.x, but not in 1.6.0+ or a new major. The eight options
+are Color Style, OLED for Auto, Night Schedule, Flat Surfaces, Flat areas
+(tagged on the first area switch), Album Art Colored Shade, Now Playing
 Background and Corner Style; Density is an existing setting and has no New tag.
 
 Schema 97 persists nullable `setup_highlights_seen` (JSON array of stable
@@ -1434,6 +1454,14 @@ only while open) holds Use OLED When Dark (Auto only), Flat Surfaces, Corner
 Style, Density and Now Playing Background, in Settings' relative order. It
 starts open when any of them carries a pending tag (OLED only counts in Auto)
 and closed otherwise. The step shows the "Scroll for more" hint like the other
+Theme Mode, Color Style and Accent Color are always visible; a "More appearance
+options" group (`SettingsCollapsibleGroup`, children built only while open)
+holds Use OLED When Dark (Auto only), Night Schedule, Flat Surfaces (with its
+Panels and Shadows, Now Playing and Text Over Artwork switches while Flat is
+on), Corner Style, Density and Now Playing Background, in Settings' relative
+order; Album Art Colored Shade sits after the accent hint, outside the group.
+It starts open when any of them carries a pending tag (OLED only counts in
+Auto, the Flat areas only while Flat is on) and closed otherwise. The step shows the "Scroll for more" hint like the other
 steps. Choices write only to the draft that Finish
 saves through `SettingsRepository.saveOnboardingChanges`: it compares against
 the hydrated entry snapshot and uses existing targeted DAO writers, preserving

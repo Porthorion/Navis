@@ -5513,6 +5513,42 @@ abstract class AppLocalizations {
   /// **'Solid colors without glows, gradients, shadows or blur. Now Playing Artwork becomes a solid color.'**
   String get appearanceFlatSurfacesSub;
 
+  /// No description provided for @appearanceFlatAreaSurfacesLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Panels and Shadows'**
+  String get appearanceFlatAreaSurfacesLabel;
+
+  /// No description provided for @appearanceFlatAreaSurfacesSub.
+  ///
+  /// In en, this message translates to:
+  /// **'Solid panels and washes with no shadows, gradients or blur.'**
+  String get appearanceFlatAreaSurfacesSub;
+
+  /// No description provided for @appearanceFlatAreaNowPlayingLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Now Playing'**
+  String get appearanceFlatAreaNowPlayingLabel;
+
+  /// No description provided for @appearanceFlatAreaNowPlayingSub.
+  ///
+  /// In en, this message translates to:
+  /// **'A solid Now Playing screen and mini player.'**
+  String get appearanceFlatAreaNowPlayingSub;
+
+  /// No description provided for @appearanceFlatAreaArtworkTextLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Text Over Artwork'**
+  String get appearanceFlatAreaArtworkTextLabel;
+
+  /// No description provided for @appearanceFlatAreaArtworkTextSub.
+  ///
+  /// In en, this message translates to:
+  /// **'Keep album art clear, with titles below the cover.'**
+  String get appearanceFlatAreaArtworkTextSub;
+
   /// No description provided for @appearanceCornerStyleLabel.
   ///
   /// In en, this message translates to:
@@ -5572,6 +5608,24 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Album art replaces your accent when a cover has one.'**
   String get appearanceDynamicAlbumColorSub;
+
+  /// No description provided for @appearanceAlbumArtColoredShadeLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Album Art Colored Shade'**
+  String get appearanceAlbumArtColoredShadeLabel;
+
+  /// No description provided for @appearanceAlbumArtColoredShadeSub.
+  ///
+  /// In en, this message translates to:
+  /// **'Tint album titles with a color from each cover.'**
+  String get appearanceAlbumArtColoredShadeSub;
+
+  /// No description provided for @appearanceAlbumArtColoredShadeFlatNote.
+  ///
+  /// In en, this message translates to:
+  /// **'Album titles sit below the art while Flat text over artwork is on.'**
+  String get appearanceAlbumArtColoredShadeFlatNote;
 
   /// No description provided for @cacheSettingsCoverArtSection.
   ///

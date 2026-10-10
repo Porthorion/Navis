@@ -1458,7 +1458,7 @@ class _MissingAlbumsSection extends ConsumerWidget {
                 // The album grids' insets, bottom included.
                 padding: EdgeInsets.fromLTRB(padding, 0, padding, padding),
                 child: ContentShelf(
-                  height: extent,
+                  height: extent + albumCardExtraHeight(context),
                   extent: extent,
                   gap: ContentLayout.gap(width - padding * 2),
                   itemCount: albums.length,

@@ -387,6 +387,7 @@ class _ListenBrainzWeeklyDetailContentState
 
     final screenWidth = MediaQuery.sizeOf(context).width;
     _screenWidth = screenWidth;
+    final flatArtworkText = NavisColorStyleData.of(context).flatArtworkText;
     final gradientScrollFade = ((0.9 - _headerProgress) / 0.3).clamp(0.0, 1.0);
     final toolbarTitleOpacity = ((_headerProgress - 0.8) / 0.2).clamp(0.0, 1.0);
 
@@ -423,22 +424,9 @@ class _ListenBrainzWeeklyDetailContentState
               fit: StackFit.expand,
               children: <Widget>[
                 _ListenBrainzArtwork(playlist: playlist, size: screenWidth),
-                if (NavisColorStyleData.of(context).flatArtworkText)
-                  // Flat: a hard-edged solid block under the title instead
-                  // of the fade into the page.
-                  Positioned.fill(
-                    child: Align(
-                      alignment: Alignment.bottomCenter,
-                      child: FractionallySizedBox(
-                        heightFactor: 0.4,
-                        widthFactor: 1,
-                        child: ColoredBox(
-                          color: Theme.of(context).scaffoldBackgroundColor,
-                        ),
-                      ),
-                    ),
-                  )
-                else
+                // Flat text over artwork keeps the art unobstructed: no fade
+                // and no overlaid title; the title sits under the art.
+                if (!flatArtworkText) ...<Widget>[
                   Positioned.fill(
                     child: DecoratedBox(
                       decoration: BoxDecoration(
@@ -455,38 +443,38 @@ class _ListenBrainzWeeklyDetailContentState
                       ),
                     ),
                   ),
-                Positioned(
-                  bottom: 0,
-                  left: 0,
-                  right: 0,
-                  child: Opacity(
-                    opacity: gradientScrollFade,
-                    child: Padding(
-                      padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-                      child: Text(
-                        playlist.localizedTitle(AppLocalizations.of(context)!),
-                        style: textTheme.displayMedium?.copyWith(
-                          color: Colors.white,
-                          shadows:
-                              NavisColorStyleData.of(context).flatArtworkText
-                              ? null
-                              : <Shadow>[
-                                  Shadow(
-                                    color: NavisColorStyleData.of(context)
-                                        .artworkScrim
-                                        .withValues(alpha: 0.55),
-                                    blurRadius: 12,
-                                    offset: const Offset(0, 2),
-                                  ),
-                                ],
+                  Positioned(
+                    bottom: 0,
+                    left: 0,
+                    right: 0,
+                    child: Opacity(
+                      opacity: gradientScrollFade,
+                      child: Padding(
+                        padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+                        child: Text(
+                          playlist.localizedTitle(
+                            AppLocalizations.of(context)!,
+                          ),
+                          style: textTheme.displayMedium?.copyWith(
+                            color: Colors.white,
+                            shadows: <Shadow>[
+                              Shadow(
+                                color: NavisColorStyleData.of(context)
+                                    .artworkScrim
+                                    .withValues(alpha: 0.55),
+                                blurRadius: 12,
+                                offset: const Offset(0, 2),
+                              ),
+                            ],
+                          ),
+                          textAlign: TextAlign.center,
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
                         ),
-                        textAlign: TextAlign.center,
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
                       ),
                     ),
                   ),
-                ),
+                ],
               ],
             ),
           ),
@@ -496,7 +484,7 @@ class _ListenBrainzWeeklyDetailContentState
             padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
             child: _VirtualAlbumHeaderText(
               playlist: playlist,
-              showTitle: false,
+              showTitle: flatArtworkText,
               titleStyle: textTheme.headlineMedium?.copyWith(
                 fontWeight: FontWeight.w800,
               ),
@@ -2257,7 +2245,7 @@ class _LocalAlbumCarousel extends ConsumerWidget {
         return Padding(
           padding: EdgeInsets.symmetric(horizontal: horizontalPadding),
           child: ContentShelf(
-            height: cardSize,
+            height: cardSize + albumCardExtraHeight(context),
             extent: cardSize,
             gap: ContentLayout.gap(usableWidth),
             itemCount: visibleAlbums.length,

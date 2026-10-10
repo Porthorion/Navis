@@ -7,6 +7,7 @@ import 'package:navis/src/common_widgets/new_feature_tag.dart';
 import 'package:navis/src/features/onboarding/domain/setup_highlights.dart';
 import 'package:navis/src/features/onboarding/presentation/setup_highlights_provider.dart';
 import 'package:navis/src/features/settings/domain/app_settings.dart';
+import 'package:navis/src/features/settings/domain/flat_areas.dart';
 import 'package:navis/src/features/settings/domain/navis_density.dart';
 import 'package:navis/src/features/settings/domain/now_playing_background.dart';
 import 'package:navis/src/features/settings/presentation/appearance_settings_screen.dart';
@@ -67,6 +68,9 @@ void main() {
     bool clearWhenSeen = false,
     bool settle = true,
     NowPlayingBackground? nowPlayingBackground,
+    bool flatSurfaces = false,
+    FlatAreas flatAreas = const FlatAreas(),
+    bool albumArtColoredShade = false,
   }) async {
     if (adaptiveContext == null &&
         tester.view.physicalSize / tester.view.devicePixelRatio ==
@@ -85,6 +89,9 @@ void main() {
       themeMode: themeMode,
       colorStyle: colorStyle,
       nowPlayingBackground: nowPlayingBackground,
+      flatSurfaces: flatSurfaces,
+      flatAreas: flatAreas,
+      albumArtColoredShade: albumArtColoredShade,
       nightScheduleEnabled: nightScheduleEnabled,
       nightScheduleStartMinutes: nightStartMinutes,
       nightScheduleEndMinutes: nightEndMinutes,
@@ -568,6 +575,7 @@ void main() {
         l10n.appearanceNightScheduleLabel,
         l10n.appearanceColorSchemeLabel,
         l10n.appearanceDynamicAlbumColorLabel,
+        l10n.appearanceAlbumArtColoredShadeLabel,
         l10n.appearanceSectionShapeLayout,
         l10n.appearanceFlatSurfacesLabel,
         l10n.appearanceCornerStyleLabel,
@@ -781,6 +789,190 @@ void main() {
       expect(settings?.flatSurfaces, isTrue);
     });
 
+    group('Flat areas', () {
+      final areaLabels = <String>[
+        l10n.appearanceFlatAreaSurfacesLabel,
+        l10n.appearanceFlatAreaNowPlayingLabel,
+        l10n.appearanceFlatAreaArtworkTextLabel,
+      ];
+
+      testWidgets('stay hidden until Flat Surfaces is on', (tester) async {
+        await pumpAppearance(tester);
+        for (final label in areaLabels) {
+          expect(find.text(label), findsNothing, reason: label);
+        }
+      });
+
+      testWidgets('reveal under the Flat Surfaces switch', (tester) async {
+        await pumpAppearance(tester, flatSurfaces: true);
+        await reveal(tester, find.text(l10n.appearanceFlatSurfacesLabel));
+        final tops = <double>[
+          tester.getTopLeft(find.text(l10n.appearanceFlatSurfacesLabel)).dy,
+          for (final label in areaLabels)
+            tester.getTopLeft(find.text(label)).dy,
+        ];
+        for (var i = 1; i < tops.length; i++) {
+          expect(tops[i], greaterThan(tops[i - 1]));
+        }
+        // Sub-options are inset from their parent.
+        expect(
+          tester.getTopLeft(find.text(areaLabels.first)).dx,
+          greaterThan(
+            tester.getTopLeft(find.text(l10n.appearanceFlatSurfacesLabel)).dx,
+          ),
+        );
+      });
+
+      for (final entry in <(String, FlatAreas)>[
+        (
+          l10n.appearanceFlatAreaSurfacesLabel,
+          const FlatAreas(surfaces: false),
+        ),
+        (
+          l10n.appearanceFlatAreaNowPlayingLabel,
+          const FlatAreas(nowPlaying: false),
+        ),
+        (
+          l10n.appearanceFlatAreaArtworkTextLabel,
+          const FlatAreas(artworkText: false),
+        ),
+      ]) {
+        testWidgets('${entry.$1} switch saves its bit', (tester) async {
+          final container = await pumpAppearance(tester, flatSurfaces: true);
+          final finder = find.text(entry.$1);
+          await reveal(tester, finder);
+          await tester.tap(finder);
+          await tester.pump(const Duration(milliseconds: 100));
+          final settings = await tester.runAsync(
+            container.read(navisDatabaseProvider).appSettingsDao.getSettings,
+          );
+          expect(settings?.flatAreas, entry.$2.bits);
+        });
+      }
+
+      for (final entry in <(String, FlatAreas, bool)>[
+        ('shows', const FlatAreas(), true),
+        ('hides', const FlatAreas(nowPlaying: false), false),
+      ]) {
+        testWidgets('the OLED note ${entry.$1} with the Now Playing area', (
+          tester,
+        ) async {
+          await pumpAppearance(
+            tester,
+            themeMode: 'oled',
+            flatSurfaces: true,
+            flatAreas: entry.$2,
+          );
+          final note = find.text(
+            l10n.appearanceNowPlayingBackgroundOledFlatNote,
+          );
+          if (entry.$3) {
+            await reveal(tester, note);
+            expect(note, findsOneWidget);
+          } else {
+            await reveal(
+              tester,
+              find.text(l10n.appearanceNowPlayingBackgroundLabel),
+            );
+            expect(note, findsNothing);
+          }
+        });
+      }
+
+      testWidgets('turning every area off stays valid', (tester) async {
+        await pumpAppearance(
+          tester,
+          flatSurfaces: true,
+          flatAreas: const FlatAreas(
+            surfaces: false,
+            nowPlaying: false,
+            artworkText: false,
+          ),
+        );
+        for (final label in areaLabels) {
+          await reveal(tester, find.text(label));
+          expect(
+            tester
+                .widget<SwitchListTile>(
+                  find.ancestor(
+                    of: find.text(label),
+                    matching: find.byType(SwitchListTile),
+                  ),
+                )
+                .value,
+            isFalse,
+            reason: label,
+          );
+        }
+        expect(tester.takeException(), isNull);
+      });
+    });
+
+    group('Album Art Colored Shade', () {
+      SwitchListTile shadeSwitch(WidgetTester tester) => tester.widget(
+        find.ancestor(
+          of: find.text(l10n.appearanceAlbumArtColoredShadeLabel),
+          matching: find.byType(SwitchListTile),
+        ),
+      );
+
+      testWidgets('sits after Dynamic Album Color and saves', (tester) async {
+        final container = await pumpAppearance(tester);
+        final finder = find.text(l10n.appearanceAlbumArtColoredShadeLabel);
+        await reveal(tester, finder);
+        expect(
+          find.text(l10n.appearanceAlbumArtColoredShadeSub),
+          findsOneWidget,
+        );
+        expect(
+          find.text(l10n.appearanceAlbumArtColoredShadeFlatNote),
+          findsNothing,
+        );
+        expect(shadeSwitch(tester).onChanged, isNotNull);
+        await tester.tap(finder);
+        await tester.pump(const Duration(milliseconds: 100));
+        final settings = await tester.runAsync(
+          container.read(navisDatabaseProvider).appSettingsDao.getSettings,
+        );
+        expect(settings?.albumArtColoredShade, isTrue);
+      });
+
+      testWidgets('is disabled with a note under Flat text over artwork', (
+        tester,
+      ) async {
+        await pumpAppearance(
+          tester,
+          flatSurfaces: true,
+          albumArtColoredShade: true,
+        );
+        await reveal(
+          tester,
+          find.text(l10n.appearanceAlbumArtColoredShadeLabel),
+        );
+        expect(shadeSwitch(tester).onChanged, isNull);
+        expect(shadeSwitch(tester).value, isTrue);
+        expect(
+          find.text(l10n.appearanceAlbumArtColoredShadeFlatNote),
+          findsOneWidget,
+        );
+      });
+
+      testWidgets('stays enabled when Flat leaves text over artwork alone', (
+        tester,
+      ) async {
+        await pumpAppearance(
+          tester,
+          flatSurfaces: true,
+          flatAreas: const FlatAreas(artworkText: false),
+        );
+        await reveal(
+          tester,
+          find.text(l10n.appearanceAlbumArtColoredShadeLabel),
+        );
+        expect(shadeSwitch(tester).onChanged, isNotNull);
+      });
+    });
+
     // The provider is overridden with defaults (Rounded), so only the
     // changes away from Rounded fire a selection.
     for (final style in <NavisCornerStyle>[
@@ -875,6 +1067,8 @@ void main() {
       expect(find.text(l10n.appearanceDensityLabel), findsOneWidget);
       expect(find.text(l10n.appearanceDensitySub), findsOneWidget);
       expect(find.text('Home Density'), findsNothing);
+      await tester.ensureVisible(find.text(l10n.appearanceDensityCompact));
+      await tester.pump();
       await tester.tap(find.text(l10n.appearanceDensityCompact));
       await tester.pump(const Duration(milliseconds: 100));
       final settings = await tester.runAsync(
@@ -886,7 +1080,7 @@ void main() {
 
     group('New tags', () {
       void tallView(WidgetTester tester) {
-        tester.view.physicalSize = const Size(800, 2400);
+        tester.view.physicalSize = const Size(800, 3200);
         tester.view.devicePixelRatio = 1;
         addTearDown(tester.view.reset);
       }
@@ -896,15 +1090,18 @@ void main() {
         await pumpAppearance(
           tester,
           themeMode: 'system',
+          flatSurfaces: true,
           highlights: SetupHighlight.values.toSet(),
           settle: false,
         );
-        expect(find.byType(NewFeatureTag), findsNWidgets(6));
+        expect(find.byType(NewFeatureTag), findsNWidgets(8));
         for (final label in <String>[
           l10n.appearanceColorStyleLabel,
           l10n.appearanceOledForAutoLabel,
           l10n.appearanceNightScheduleLabel,
           l10n.appearanceFlatSurfacesLabel,
+          l10n.appearanceFlatAreaSurfacesLabel,
+          l10n.appearanceAlbumArtColoredShadeLabel,
           l10n.appearanceCornerStyleLabel,
           l10n.appearanceNowPlayingBackgroundLabel,
         ]) {
@@ -941,6 +1138,7 @@ void main() {
         await pumpAppearance(
           tester,
           themeMode: 'system',
+          flatSurfaces: true,
           highlights: SetupHighlight.values.toSet(),
           settle: false,
         );
@@ -957,6 +1155,18 @@ void main() {
           settle: false,
         );
         await tester.pump();
+        expect(seenOptions, isEmpty);
+      });
+
+      testWidgets('hidden Flat areas are never marked', (tester) async {
+        tallView(tester);
+        await pumpAppearance(
+          tester,
+          highlights: <SetupHighlight>{SetupHighlight.flatAreas},
+          settle: false,
+        );
+        await tester.pump();
+        expect(find.byType(NewFeatureTag), findsNothing);
         expect(seenOptions, isEmpty);
       });
 

@@ -47,6 +47,7 @@ Widget _app(_Counter counter, Widget home, {PermanentArtworkStore? artwork}) {
       coverArtShapeProvider.overrideWithValue('rounded'),
       if (artwork != null)
         permanentArtworkStoreProvider.overrideWithValue(artwork),
+      albumArtColoredShadeProvider.overrideWithValue(true),
       coverColourDecoderProvider.overrideWithValue(counter.call),
       coverColourStoreProvider.overrideWithValue(const NullCoverColourStore()),
       coverColourWorkerProvider.overrideWithValue(InlineCoverColourWorker()),

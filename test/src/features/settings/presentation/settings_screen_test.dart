@@ -197,6 +197,7 @@ void main() {
       Size size,
       Set<SetupHighlight> highlights, {
       String themeMode = 'system',
+      bool flatSurfaces = false,
     }) async {
       setAdaptiveTestViewport(tester, size);
       await tester.pumpWidget(
@@ -207,6 +208,7 @@ void main() {
               AsyncData(
                 const AppSettingsModel.defaults().copyWith(
                   themeMode: themeMode,
+                  flatSurfaces: flatSurfaces,
                 ),
               ),
             ),
@@ -292,6 +294,27 @@ void main() {
       await pump(tester, const Size(390, 1600), const <SetupHighlight>{
         SetupHighlight.oledForAuto,
       });
+      await tester.scrollUntilVisible(
+        find.text('Appearance'),
+        200,
+        scrollable: find.byType(Scrollable).first,
+      );
+      expect(find.byType(NewFeatureTag), findsNWidgets(2));
+    });
+
+    testWidgets('Flat areas alone do not tag while Flat is off', (
+      tester,
+    ) async {
+      await pump(tester, const Size(390, 1600), const <SetupHighlight>{
+        SetupHighlight.flatAreas,
+      });
+      expect(find.byType(NewFeatureTag), findsNothing);
+    });
+
+    testWidgets('Flat areas alone tag while Flat is on', (tester) async {
+      await pump(tester, const Size(390, 1600), const <SetupHighlight>{
+        SetupHighlight.flatAreas,
+      }, flatSurfaces: true);
       await tester.scrollUntilVisible(
         find.text('Appearance'),
         200,

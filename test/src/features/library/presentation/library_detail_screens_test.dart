@@ -34,6 +34,7 @@ import 'package:navis/src/common_widgets/track_list_tile.dart';
 import 'package:navis/src/common_widgets/adaptive_track_row.dart';
 import 'package:navis/src/providers/app_providers.dart';
 import 'package:navis/src/routing/desktop_layout.dart';
+import 'package:navis/src/features/settings/domain/flat_areas.dart';
 import 'package:navis/src/theme/navis_theme.dart';
 import 'package:navis/src/utils/connectivity.dart';
 
@@ -1668,6 +1669,79 @@ void main() {
         );
         await _disposeApp(tester);
       }
+    });
+
+    group('mobile album header under Flat text over artwork', () {
+      const appBarKey = ValueKey<String>('albumDetailMobileExpandedArtAppBar');
+      const titleKey = ValueKey<String>('albumDetailMobileHeaderTitle');
+      final hasGradient = find.descendant(
+        of: find.byKey(appBarKey),
+        matching: find.byWidgetPredicate(
+          (widget) =>
+              widget is DecoratedBox &&
+              widget.decoration is BoxDecoration &&
+              (widget.decoration as BoxDecoration).gradient != null,
+        ),
+      );
+
+      Future<void> pump(WidgetTester tester, ThemeData theme) async {
+        setAdaptiveTestViewport(tester, const Size(390, 844));
+        await _pumpAlbumDetail(
+          tester,
+          database: database,
+          adaptiveContext: _mobileContext,
+          album: _albumWithSongs(const <SongsTableData>[]),
+          theme: theme,
+        );
+      }
+
+      testWidgets('keeps the art clear and moves the title below it', (
+        tester,
+      ) async {
+        await pump(tester, buildDarkTheme(Colors.teal, flat: true));
+
+        final appBar = find.byKey(appBarKey);
+        expect(
+          find.descendant(of: appBar, matching: find.byKey(titleKey)),
+          findsNothing,
+        );
+        expect(hasGradient, findsNothing);
+        expect(find.byKey(titleKey), findsOneWidget);
+        expect(
+          tester.getTopLeft(find.byKey(titleKey)).dy,
+          // The expanded art is as tall as the 390 px wide screen.
+          greaterThanOrEqualTo(390),
+        );
+        final title = tester.widget<Text>(find.byKey(titleKey));
+        expect(title.style!.color, isNot(Colors.white));
+        expect(title.style!.shadows, isNull);
+        expect(tester.takeException(), isNull);
+        await _disposeApp(tester);
+      });
+
+      testWidgets('keeps the overlaid title when other areas are flat', (
+        tester,
+      ) async {
+        await pump(
+          tester,
+          buildDarkTheme(
+            Colors.teal,
+            flat: true,
+            flatAreas: const FlatAreas(artworkText: false),
+          ),
+        );
+
+        expect(
+          find.descendant(
+            of: find.byKey(appBarKey),
+            matching: find.byKey(titleKey),
+          ),
+          findsOneWidget,
+        );
+        expect(hasGradient, findsOneWidget);
+        expect(find.byKey(titleKey), findsOneWidget);
+        await _disposeApp(tester);
+      });
     });
 
     testWidgets(
