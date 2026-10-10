@@ -107,7 +107,7 @@ void main() {
       tester.getCenter(key('color-ruler')),
     );
     for (var i = 0; i < 8; i++) {
-      await gesture.moveBy(const Offset(-16, 0));
+      await gesture.moveBy(const Offset(-32, 0));
       await tester.pump();
     }
     final live = container.read(effectiveColorAdjustmentProvider);
