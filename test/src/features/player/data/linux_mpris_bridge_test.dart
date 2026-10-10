@@ -218,6 +218,65 @@ void main() {
     expect(client.seeked, hasLength(1));
   });
 
+  test('paused handler seek emits once after interleaved timeline updates', () async {
+    await handler.seek(const Duration(seconds: 45));
+    expect(client.seeked, [const DBusInt64(45000000)]);
+    final response = await client.object.getProperty(
+      'org.mpris.MediaPlayer2.Player',
+      'Position',
+    );
+    expect(response.returnValues, [const DBusVariant(DBusInt64(45000000))]);
+
+    // A second completed seek is independent, even within the same event burst.
+    await handler.seek(const Duration(seconds: 10));
+    await handler.seek(const Duration(seconds: 45));
+    await handler.seek(const Duration(seconds: 46));
+    await handler.seek(const Duration(seconds: 46));
+    expect(client.seeked, [
+      const DBusInt64(45000000),
+      const DBusInt64(10000000),
+      const DBusInt64(45000000),
+      const DBusInt64(46000000),
+      const DBusInt64(46000000),
+    ]);
+  });
+
+  test(
+    'failed handler seek and a track switch do not report completion',
+    () async {
+      handler.emitSnapshot(
+        handler.snapshot.copyWith(
+          pendingSeekPosition: const Duration(seconds: 45),
+        ),
+      );
+      await pumpEventQueue();
+      handler.emitSnapshot(
+        handler.snapshot.copyWith(pendingSeekPosition: null),
+      );
+      await pumpEventQueue();
+      expect(client.seeked, isEmpty);
+
+      handler.emitSnapshot(
+        handler.snapshot.copyWith(
+          pendingSeekPosition: const Duration(seconds: 45),
+        ),
+      );
+      await pumpEventQueue();
+      handler.items.add(const MediaItem(id: 'song-2', title: 'Second'));
+      await pumpEventQueue();
+      handler.emitSnapshot(handler.snapshot);
+      await pumpEventQueue();
+      handler.emitSnapshot(
+        handler.snapshot.copyWith(
+          position: const Duration(seconds: 45),
+          pendingSeekPosition: null,
+        ),
+      );
+      await pumpEventQueue();
+      expect(client.seeked, isEmpty);
+    },
+  );
+
   test(
     'playing UI timeline seek emits Seeked without a structural snapshot',
     () async {
@@ -324,8 +383,19 @@ class _Handler extends Fake implements NavisPlaybackHandler {
 
   @override
   Future<void> seek(Duration position) async {
+    final before = snapshot.position;
+    emitSnapshot(snapshot.copyWith(pendingSeekPosition: position));
+    await pumpEventQueue(times: 1);
+    for (var i = 0; i < 2; i++) {
+      emitPosition(position);
+      await pumpEventQueue(times: 1);
+      emitSnapshot(snapshot.copyWith(position: before));
+      await pumpEventQueue(times: 1);
+    }
     emitPosition(position);
-    await pumpEventQueue();
+    await pumpEventQueue(times: 1);
+    emitSnapshot(snapshot.copyWith(pendingSeekPosition: null));
+    await pumpEventQueue(times: 1);
   }
 
   Future<void> close() async {

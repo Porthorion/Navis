@@ -3663,7 +3663,10 @@ for 30 s is abandoned. The app itself keeps the HTTP `artUri`.
 The snapshot stored on the handler still receives every timeline update, but
 the broadcast snapshot stream emits only structural changes. Linux MPRIS reads
 position from `positionStream` and detects seek discontinuities there, including
-while paused, emitting `Seeked` in track-time microseconds. Same-track checks
+while paused, emitting `Seeked` in track-time microseconds. A handler seek's
+pending target suppresses intermediate timeline and snapshot jumps; clearing
+that target at settlement emits one signal when the same track reached it.
+Successive seeks remain independent without a debounce timer. Same-track checks
 prevent track changes from being reported as seeks; MPRIS commands suppress
 automatic detection while seeking and emit one explicit signal. Windows SMTC
 coalesces routine timeline updates to about one per second and sends track
