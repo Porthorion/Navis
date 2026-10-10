@@ -162,6 +162,10 @@ const List<ChangelogVersion> changelogs = [
     ],
     entries: [
       ChangelogEntry(
+        'Android background sync waits while a playback session is active, including when paused',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
         'Sync completes and update checks stay quick when a few albums have incomplete server details; Sync Settings remembers the first catalog date',
         type: ChangelogEntryType.fix,
       ),

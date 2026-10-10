@@ -39,10 +39,11 @@ Located in `lib/src/providers/app_providers.dart`:
     opaque native profile key before any request and holds the same durable
     execution lease as foreground catalog work, so a late worker cannot run a
     replaced account or overlap a visible sync.
-  - Its `BackgroundNetworkPolicyTracker` observes connectivity changes and
-    refreshes native metering during the pass. The coordinator and engine
-    consume that current policy at their existing eligibility gates, so a
-    metered transition defers later broad work instead of retaining startup
+  - Its `BackgroundSyncPolicyTracker` observes connectivity changes and
+    refreshes native metering and audio-session activity every two seconds during
+    the pass. The coordinator and engine consume that current policy at their
+    existing eligibility gates, so a metered transition defers later broad
+    work instead of retaining startup
     Wi-Fi policy.
   - If engine bootstrap fails before Dart can update the database, the worker
     writes a bounded native fallback outcome under its opaque profile key. The
@@ -3787,9 +3788,18 @@ states without starting audio or modifying a queue.
    during playback. Its durable checkpoint restores intent, never a network
    grant: metered admission needs permission from the current request. The
    constrained Android background executor may run while hidden when playback
-   is idle. An explicit user refresh may resume queued broad work in the
-   foreground, including during playback. Explicit catalog and auxiliary work
-   continues if the app is then hidden, including with current mobile-data
+   is idle. Before creating its Flutter engine, the native worker probes the
+   same-process audio_service session and records `deferredPlayback` when its
+   processing state is non-idle, including paused sessions. It returns success
+   so the next periodic dispatch can try again. During a pass, the headless
+   policy tracker polls `isPlaybackActive` on the background-sync channel every
+   two seconds; coordinator and engine gates read that cached flag. Hard probes
+   retain their existing playback exemption at these gates. An unavailable
+   playback probe conservatively defers work. Sync Settings presents the
+   `deferredPlayback` outcome as "deferred playback", and diagnostics retains
+   that bounded category. An explicit user refresh may resume queued broad work
+   in the foreground, including during playback. Explicit catalog and auxiliary
+   work continues if the app is then hidden, including with current mobile-data
    grants. Automatic visibility/playback gates and the idle-only hidden Android
    worker limit still apply. Interactive entity hydration can
    run during foreground playback; hidden foreground execution defers it,
