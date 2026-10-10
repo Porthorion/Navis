@@ -6,6 +6,7 @@ import 'package:material_ui/material_ui.dart';
 import 'package:navis/l10n/app_localizations.dart';
 import 'package:navis/l10n/navis_localizations.dart';
 import 'package:navis/src/common/preset_names.dart';
+import 'package:navis/src/common_widgets/app_notice.dart';
 import 'package:navis/src/common_widgets/new_feature_tag.dart';
 import 'package:navis/src/database/navis_database.dart';
 import 'package:navis/src/features/onboarding/domain/setup_highlights.dart';
@@ -33,6 +34,7 @@ void main() {
   final seen = <SetupHighlight>[];
   late NavisDatabase database;
   late ProviderContainer container;
+  late AppNoticeController notices;
 
   setUpAll(() async {
     final inter = FontLoader(navisFontFamily)
@@ -45,6 +47,8 @@ void main() {
   setUp(() {
     VisibilityDetectorController.instance.updateInterval = Duration.zero;
     seen.clear();
+    notices = AppNoticeController();
+    addTearDown(notices.dispose);
   });
 
   /// The option alone, or the whole Appearance screen when [screen] is set.
@@ -95,6 +99,19 @@ void main() {
           debugShowCheckedModeBanner: false,
           localizationsDelegates: navisLocalizationsDelegates,
           supportedLocales: AppLocalizations.supportedLocales,
+          builder: (context, child) => AppNoticeScope(
+            notifier: notices,
+            child: Material(
+              type: MaterialType.transparency,
+              child: Stack(
+                fit: StackFit.expand,
+                children: <Widget>[
+                  child!,
+                  AppNoticeHost(controller: notices),
+                ],
+              ),
+            ),
+          ),
           theme: buildDarkTheme(
             resolveColorSchemeSeedColor(null),
             style: NavisColorStyle.pastel,
@@ -198,13 +215,23 @@ void main() {
     return tester.widget<TextField>(input).decoration?.errorText;
   }
 
-  Future<void> chooseLook(WidgetTester tester, String name) async {
+  /// Picks a Look. The Undo notice it raises is dismissed (its timer would
+  /// outlive the test) unless the test is about it.
+  Future<void> chooseLook(
+    WidgetTester tester,
+    String name, {
+    bool keepNotice = false,
+  }) async {
     await tester.tap(dropdown);
     await tester.pumpAndSettle();
     await tester.tap(find.text(name).last);
     await tester.pump();
     await settleWrites(tester);
     await tester.pumpAndSettle();
+    if (!keepNotice) {
+      notices.dismiss();
+      await tester.pumpAndSettle();
+    }
   }
 
   group('empty state', () {
@@ -318,6 +345,105 @@ void main() {
         const ColorTuning(vividness: 2, darkDepth: -1),
       );
       expect(pickerText(tester), 'Crisp');
+    });
+
+    group('Undo', () {
+      /// A Custom appearance, a saved Look with different values, and the
+      /// Custom one's snapshot, so a test can apply the Look and come back.
+      Future<AppearanceSnapshot> customThenLook(WidgetTester tester) async {
+        await pump(tester);
+        await change(tester, [
+          () => database.appSettingsDao.updateCornerStyle('square'),
+          () => database.appSettingsDao.updateDensity(NavisDensity.compact),
+          () => database.appSettingsDao.updateColorTuning(
+            const ColorTuning(vividness: 2, darkDepth: -1),
+          ),
+        ]);
+        await saveLook(tester, 'Crisp');
+        await change(tester, [
+          () => database.appSettingsDao.updateCornerStyle('rounded'),
+          () => database.appSettingsDao.updateDensity(NavisDensity.comfortable),
+          () => database.appSettingsDao.updateColorTuning(
+            const ColorTuning(vividness: -3, lightDepth: 1),
+          ),
+        ]);
+        expect(pickerText(tester), 'Custom');
+        return AppearanceSnapshot.capture(
+          container.read(appSettingsProvider).requireValue,
+        );
+      }
+
+      AppearanceSnapshot current() => AppearanceSnapshot.capture(
+        container.read(appSettingsProvider).requireValue,
+      );
+
+      testWidgets('applying a Look offers Undo for six seconds', (
+        tester,
+      ) async {
+        await customThenLook(tester);
+        expect(notices.notice, isNull);
+        await chooseLook(tester, 'Crisp', keepNotice: true);
+        expect(find.text('Applied Crisp'), findsOneWidget);
+        expect(find.text('Undo'), findsOneWidget);
+        expect(notices.notice?.duration, const Duration(seconds: 6));
+        expect(notices.notice?.level, AppNoticeLevel.info);
+        await tester.pump(const Duration(seconds: 7));
+        await tester.pumpAndSettle();
+        expect(find.text('Undo'), findsNothing);
+      });
+
+      testWidgets('Undo restores every visible setting and Custom comes '
+          'back', (tester) async {
+        final before = await customThenLook(tester);
+        await chooseLook(tester, 'Crisp', keepNotice: true);
+        expect(pickerText(tester), 'Crisp');
+        expect(current(), isNot(before));
+
+        await tester.tap(find.text('Undo'));
+        await tester.pump();
+        await settleWrites(tester);
+        await tester.pumpAndSettle();
+
+        expect(current(), before);
+        final settings = container.read(appSettingsProvider).requireValue;
+        expect(settings.cornerStyle.name, 'rounded');
+        expect(settings.density, NavisDensity.comfortable);
+        expect(
+          settings.colorTuning,
+          const ColorTuning(vividness: -3, lightDepth: 1),
+        );
+        expect(pickerText(tester), 'Custom');
+        expect(looks().selectedLookId, isNull);
+        expect(find.text('Undo'), findsNothing);
+      });
+
+      testWidgets('Undo goes back to the Look that was selected', (
+        tester,
+      ) async {
+        await customThenLook(tester);
+        await saveLook(tester, 'Soft');
+        expect(pickerText(tester), 'Soft');
+        await chooseLook(tester, 'Crisp', keepNotice: true);
+        await tester.tap(find.text('Undo'));
+        await tester.pump();
+        await settleWrites(tester);
+        await tester.pumpAndSettle();
+        expect(pickerText(tester), 'Soft');
+      });
+
+      testWidgets('a failed Undo says so', (tester) async {
+        await customThenLook(tester);
+        await chooseLook(tester, 'Crisp', keepNotice: true);
+        await tester.runAsync(database.close);
+        await tester.tap(find.text('Undo'));
+        await tester.pump();
+        await settleWrites(tester);
+        expect(
+          find.text('Could not save your changes. Try again.'),
+          findsOneWidget,
+        );
+        expect(notices.notice?.level, AppNoticeLevel.error);
+      });
     });
 
     testWidgets('changing anything afterwards reads Custom', (tester) async {

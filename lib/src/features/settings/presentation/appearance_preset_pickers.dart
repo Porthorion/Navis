@@ -130,9 +130,20 @@ class _AppearanceLooksOptionState extends ConsumerState<AppearanceLooksOption> {
             nameField: l10n.appearanceLooksName,
           ),
           onSelect: (id) async {
-            if (await controller.apply(id) == null) {
-              _notice(PresetFailure.persistence);
-            }
+            final name = state.looks
+                .where((look) => look.id == id)
+                .firstOrNull
+                ?.name;
+            final previous = await controller.apply(id);
+            if (previous == null) return _notice(PresetFailure.persistence);
+            if (name == null || !context.mounted) return;
+            showAppNotice(
+              context,
+              message: l10n.appearanceLooksApplied(name),
+              duration: const Duration(seconds: 6),
+              actionLabel: l10n.commonUndo,
+              onAction: () async => _notice(await controller.restore(previous)),
+            );
           },
           onSaveNew: (name) async {
             final failure = (await controller.saveAsNew(name)).failure;
