@@ -129,21 +129,7 @@ class AppearanceSettingsScreen extends ConsumerWidget {
         );
       },
       colorTuning: tuningState.tuning,
-      onOpenColorTuning: (anchor) => unawaited(
-        _openColorTuning(
-          anchor,
-          ref,
-          ColorTuningBasis(
-            seed: previewSeed,
-            style: ref.read(effectiveColorStyleProvider),
-            brightness: previewBrightness,
-            oled: previewOled,
-            darkIsOled:
-                currentMode == 'oled' ||
-                (currentMode == 'system' && oledForAuto),
-          ),
-        ),
-      ),
+      onOpenColorTuning: (anchor) => unawaited(_openColorTuning(anchor, ref)),
       previewBrightness: previewBrightness,
       previewOled: previewOled,
     );
@@ -840,25 +826,57 @@ class _BlinkingEyeIconState extends State<_BlinkingEyeIcon>
   }
 }
 
+/// What Fine-Tune Colors paints from in Settings: the theme the app shows,
+/// including the dynamic album colour, read fresh from the providers.
+ColorTuningBasis _settingsTuningBasis(WidgetRef ref, Brightness platform) {
+  final mode = ref.read(themeModeProvider);
+  final oledForAuto = ref.read(oledForAutoProvider);
+  final brightness = switch (mode) {
+    'light' => Brightness.light,
+    'system' => platform,
+    _ => Brightness.dark,
+  };
+  return ColorTuningBasis(
+    seed: resolveColorSchemeSeedColor(
+      ref.read(effectiveColorSchemeSeedProvider),
+    ),
+    style: ref.read(effectiveColorStyleProvider),
+    brightness: brightness,
+    oled:
+        mode == 'oled' ||
+        (mode == 'system' && oledForAuto && brightness == Brightness.dark),
+    darkIsOled: mode == 'oled' || (mode == 'system' && oledForAuto),
+  );
+}
+
 /// Opens Fine-Tune Colors over the Settings controller: the rulers preview
-/// through it, save through it, and follow its tuning when a Look is applied.
-Future<void> _openColorTuning(
-  BuildContext anchor,
-  WidgetRef ref,
-  ColorTuningBasis basis,
-) async {
+/// through it, save through it, and follow its tuning when a Look is applied,
+/// and the strips follow the effective theme (a new track's album colour).
+Future<void> _openColorTuning(BuildContext anchor, WidgetRef ref) async {
   final controller = ref.read(colorTuningControllerProvider.notifier);
+  final platform = MediaQuery.platformBrightnessOf(anchor);
+  final basis = ValueNotifier<ColorTuningBasis>(
+    _settingsTuningBasis(ref, platform),
+  );
   final live = ValueNotifier<ColorTuning>(
     ref.read(colorTuningControllerProvider).tuning,
   );
-  final subscription = ref.listenManual(
-    colorTuningControllerProvider,
-    (_, state) => live.value = state.tuning,
-  );
+  void refresh() => basis.value = _settingsTuningBasis(ref, platform);
+  final subscriptions = [
+    ref.listenManual(
+      colorTuningControllerProvider,
+      (_, state) => live.value = state.tuning,
+    ),
+    ref.listenManual(effectiveColorSchemeSeedProvider, (_, _) => refresh()),
+    ref.listenManual(effectiveColorStyleProvider, (_, _) => refresh()),
+    ref.listenManual(themeModeProvider, (_, _) => refresh()),
+    ref.listenManual(oledForAutoProvider, (_, _) => refresh()),
+  ];
   try {
     await showColorTuningPanel(
       anchor,
       basis: basis,
+      looksHint: true,
       tuning: live,
       onPreview: controller.preview,
       onCommit: (tuning) async {
@@ -873,8 +891,11 @@ Future<void> _openColorTuning(
       onPreviewEnd: controller.clearPreview,
     );
   } finally {
-    subscription.close();
+    for (final subscription in subscriptions) {
+      subscription.close();
+    }
     live.dispose();
+    basis.dispose();
   }
 }
 

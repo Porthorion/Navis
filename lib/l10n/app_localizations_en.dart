@@ -1892,6 +1892,9 @@ class AppLocalizationsEn extends AppLocalizations {
   String get commonCancel => 'Cancel';
 
   @override
+  String get commonUndo => 'Undo';
+
+  @override
   String get libraryTitle => 'Library';
 
   @override
@@ -3430,16 +3433,16 @@ class AppLocalizationsEn extends AppLocalizations {
   String get appearanceColorTuningAppliesDark => 'Applies in Dark and OLED';
 
   @override
-  String get appearanceTuningPresetLabel => 'Preset';
+  String get appearanceColorTuningLooksHint =>
+      'Save this as part of a Look in Appearance.';
 
   @override
-  String get appearanceTuningPresetActions => 'Preset actions';
+  String get appearanceColorTuningHintNoAccent =>
+      'Pick an accent color to see Intensity.';
 
   @override
-  String get appearanceTuningPresetSaveNew => 'Save as New';
-
-  @override
-  String get appearanceTuningPresetName => 'Preset name';
+  String get appearanceColorTuningHintMaxed =>
+      'This style is already close to its most colorful here.';
 
   @override
   String get appearanceLooksLabel => 'Looks';
@@ -3465,6 +3468,11 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get appearanceLooksMissing => 'That Look no longer exists.';
+
+  @override
+  String appearanceLooksApplied(String name) {
+    return 'Applied $name';
+  }
 
   @override
   String get appearancePresetCustom => 'Custom';

@@ -2940,6 +2940,12 @@ abstract class AppLocalizations {
   /// **'Cancel'**
   String get commonCancel;
 
+  /// No description provided for @commonUndo.
+  ///
+  /// In en, this message translates to:
+  /// **'Undo'**
+  String get commonUndo;
+
   /// No description provided for @libraryTitle.
   ///
   /// In en, this message translates to:
@@ -5393,29 +5399,23 @@ abstract class AppLocalizations {
   /// **'Applies in Dark and OLED'**
   String get appearanceColorTuningAppliesDark;
 
-  /// No description provided for @appearanceTuningPresetLabel.
+  /// No description provided for @appearanceColorTuningLooksHint.
   ///
   /// In en, this message translates to:
-  /// **'Preset'**
-  String get appearanceTuningPresetLabel;
+  /// **'Save this as part of a Look in Appearance.'**
+  String get appearanceColorTuningLooksHint;
 
-  /// No description provided for @appearanceTuningPresetActions.
+  /// No description provided for @appearanceColorTuningHintNoAccent.
   ///
   /// In en, this message translates to:
-  /// **'Preset actions'**
-  String get appearanceTuningPresetActions;
+  /// **'Pick an accent color to see Intensity.'**
+  String get appearanceColorTuningHintNoAccent;
 
-  /// No description provided for @appearanceTuningPresetSaveNew.
+  /// No description provided for @appearanceColorTuningHintMaxed.
   ///
   /// In en, this message translates to:
-  /// **'Save as New'**
-  String get appearanceTuningPresetSaveNew;
-
-  /// No description provided for @appearanceTuningPresetName.
-  ///
-  /// In en, this message translates to:
-  /// **'Preset name'**
-  String get appearanceTuningPresetName;
+  /// **'This style is already close to its most colorful here.'**
+  String get appearanceColorTuningHintMaxed;
 
   /// No description provided for @appearanceLooksLabel.
   ///
@@ -5464,6 +5464,12 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'That Look no longer exists.'**
   String get appearanceLooksMissing;
+
+  /// No description provided for @appearanceLooksApplied.
+  ///
+  /// In en, this message translates to:
+  /// **'Applied {name}'**
+  String appearanceLooksApplied(String name);
 
   /// No description provided for @appearancePresetCustom.
   ///

@@ -903,6 +903,7 @@ class OnboardingScreenState extends ConsumerState<OnboardingScreen> {
     BuildContext anchor,
     ColorTuningBasis basis,
   ) async {
+    final fixedBasis = ValueNotifier<ColorTuningBasis>(basis);
     final live = ValueNotifier<ColorTuning>(
       _draft?.colorTuning ?? ColorTuning.none,
     );
@@ -920,12 +921,13 @@ class OnboardingScreenState extends ConsumerState<OnboardingScreen> {
     try {
       await showColorTuningPanel(
         anchor,
-        basis: basis,
+        basis: fixedBasis,
         tuning: live,
         onPreview: apply,
         onCommit: apply,
       );
     } finally {
+      fixedBasis.dispose();
       live.dispose();
     }
   }

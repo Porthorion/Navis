@@ -15,20 +15,37 @@ import '../../../../helpers/adaptive_test_harness.dart';
 
 const _seed = Color(0xFF3F7BE0);
 
-/// The panel with a plain host: no presets, a notifier for the live tuning and
+ColorTuningBasis _basis({
+  Color seed = _seed,
+  NavisColorStyle style = NavisColorStyle.pastel,
+  bool dark = true,
+  bool oled = false,
+}) => ColorTuningBasis(
+  seed: seed,
+  style: style,
+  brightness: dark ? Brightness.dark : Brightness.light,
+  oled: oled,
+  darkIsOled: oled,
+);
+
+/// The panel with a plain host: notifiers for the live basis and tuning and
 /// recorded callbacks, the way setup drives it from its draft.
 class _Host extends StatefulWidget {
   const new({
     required this.live,
+    required this.basis,
     required this.previews,
     required this.commits,
     this.previewEnds,
     this.dark = true,
     this.textScale = 1,
     this.textDirection = TextDirection.ltr,
+    this.looksHint = false,
   });
 
   final ValueNotifier<ColorTuning> live;
+  final ValueNotifier<ColorTuningBasis> basis;
+  final bool looksHint;
   final List<ColorTuning> previews;
   final List<ColorTuning> commits;
   final List<int>? previewEnds;
@@ -71,13 +88,8 @@ class _HostState extends State<_Host> {
             key: const ValueKey('open'),
             onPressed: () => showColorTuningPanel(
               context,
-              basis: ColorTuningBasis(
-                seed: _seed,
-                style: NavisColorStyle.pastel,
-                brightness: widget.dark ? Brightness.dark : Brightness.light,
-                oled: false,
-                darkIsOled: false,
-              ),
+              basis: widget.basis,
+              looksHint: widget.looksHint,
               tuning: widget.live,
               onPreview: (tuning) {
                 widget.previews.add(tuning);
@@ -99,14 +111,19 @@ class _HostState extends State<_Host> {
 
 Finder _key(String name) => find.byKey(ValueKey<String>('colorTuning-$name'));
 Finder _ruler(String name) => _key('$name-ruler');
+RulerBand band(WidgetTester tester, String name) =>
+    tester.widget<AdjustmentRuler>(_ruler(name)).band!;
 
 void main() {
   late ValueNotifier<ColorTuning> live;
   late List<ColorTuning> previews;
   late List<ColorTuning> commits;
   late List<int> previewEnds;
+  late ValueNotifier<ColorTuningBasis> basis;
 
   setUp(() {
+    basis = ValueNotifier<ColorTuningBasis>(_basis());
+    addTearDown(basis.dispose);
     live = ValueNotifier<ColorTuning>(ColorTuning.none);
     previews = <ColorTuning>[];
     commits = <ColorTuning>[];
@@ -121,12 +138,17 @@ void main() {
     double textScale = 1,
     TextDirection textDirection = TextDirection.ltr,
     Size size = const Size(390, 844),
+    bool looksHint = false,
+    ColorTuningBasis? from,
   }) async {
     live.value = tuning;
+    basis.value = from ?? _basis(dark: dark);
     setAdaptiveTestViewport(tester, size);
     await tester.pumpWidget(
       _Host(
         live: live,
+        basis: basis,
+        looksHint: looksHint,
         previews: previews,
         commits: commits,
         previewEnds: previewEnds,
@@ -344,12 +366,14 @@ void main() {
                 key: const ValueKey('open'),
                 onPressed: () => showColorTuningPanel(
                   context,
-                  basis: ColorTuningBasis(
-                    seed: _seed,
-                    style: NavisColorStyle.pastel,
-                    brightness: Brightness.light,
-                    oled: false,
-                    darkIsOled: darkIsOled,
+                  basis: ValueNotifier(
+                    ColorTuningBasis(
+                      seed: _seed,
+                      style: NavisColorStyle.pastel,
+                      brightness: Brightness.light,
+                      oled: false,
+                      darkIsOled: darkIsOled,
+                    ),
                   ),
                   tuning: live,
                   onPreview: (_) {},
@@ -426,6 +450,150 @@ void main() {
       await tester.tap(_key('brightness-plus'));
       await tester.pumpAndSettle();
       expect(tester.widget<AdjustmentRuler>(_ruler('color')).band, before);
+    });
+  });
+
+  group('Looks hint', () {
+    testWidgets('appears beside Reset only while the values are not Default', (
+      tester,
+    ) async {
+      await open(tester, looksHint: true);
+      expect(_key('looksHint'), findsNothing);
+
+      live.value = const ColorTuning(vividness: 1);
+      await tester.pumpAndSettle();
+      expect(
+        tester.widget<Text>(_key('looksHint')).data,
+        'Save this as part of a Look in Appearance.',
+      );
+      expect(
+        tester.getTopLeft(_key('looksHint')).dx,
+        greaterThan(tester.getTopRight(_key('reset')).dx),
+      );
+
+      await tester.tap(_key('reset'));
+      await tester.pumpAndSettle();
+      expect(_key('looksHint'), findsNothing);
+    });
+
+    testWidgets('is left out where the host has no Looks', (tester) async {
+      await open(tester, tuning: const ColorTuning(vividness: 1));
+      expect(_key('looksHint'), findsNothing);
+    });
+  });
+
+  group('Intensity hint', () {
+    String? hint(WidgetTester tester) {
+      final finder = _key('color-hint');
+      return finder.evaluate().isEmpty
+          ? null
+          : tester.widget<Text>(finder).data;
+    }
+
+    const noAccent = 'Pick an accent color to see Intensity.';
+    const maxed = 'This style is already close to its most colorful here.';
+    const red = Color(0xFFE53935);
+
+    testWidgets('asks for an accent when the seed has none (Neutral, white)', (
+      tester,
+    ) async {
+      await open(
+        tester,
+        from: _basis(
+          seed: const Color(0xFFFFFFFF),
+          style: NavisColorStyle.neutral,
+        ),
+      );
+      expect(hint(tester), noAccent);
+    });
+
+    testWidgets('says the style is at its limit for a saturated seed '
+        '(Pastel dark, red)', (tester) async {
+      await open(tester, from: _basis(seed: red));
+      expect(hint(tester), maxed);
+    });
+
+    testWidgets('also covers Neutral OLED with a dark yellow primary', (
+      tester,
+    ) async {
+      await open(
+        tester,
+        from: _basis(
+          seed: const Color(0xFFFFD600),
+          style: NavisColorStyle.neutral,
+          oled: true,
+        ),
+      );
+      expect(hint(tester), maxed);
+    });
+
+    testWidgets('stays away when Intensity has room (Immersive light, red; '
+        'Pastel dark, blue)', (tester) async {
+      await open(
+        tester,
+        from: _basis(seed: red, style: NavisColorStyle.immersive, dark: false),
+      );
+      expect(hint(tester), isNull);
+      basis.value = _basis();
+      await tester.pumpAndSettle();
+      expect(hint(tester), isNull);
+    });
+
+    testWidgets('follows the basis when the theme changes under the panel', (
+      tester,
+    ) async {
+      await open(
+        tester,
+        from: _basis(
+          seed: const Color(0xFFFFFFFF),
+          style: NavisColorStyle.neutral,
+        ),
+      );
+      expect(hint(tester), noAccent);
+      basis.value = _basis(
+        seed: red,
+        style: NavisColorStyle.immersive,
+        dark: false,
+      );
+      await tester.pumpAndSettle();
+      expect(hint(tester), isNull);
+    });
+  });
+
+  group('live basis', () {
+    testWidgets('strips, needle colour and summary follow a new basis', (
+      tester,
+    ) async {
+      await open(tester, tuning: const ColorTuning(darkDepth: 2));
+      const orange = Color(0xFFFF6D00);
+      ColorScheme scheme(Color seed) => buildStyledColorScheme(
+        seed: seed,
+        brightness: Brightness.dark,
+        style: NavisColorStyle.pastel,
+        adjustment: const ColorAdjustment(depth: 2),
+      );
+      expect(band(tester, 'color').colors[5], scheme(_seed).primary);
+
+      basis.value = _basis(seed: orange);
+      await tester.pumpAndSettle();
+      expect(band(tester, 'color').colors[5], scheme(orange).primary);
+      expect(
+        band(tester, 'brightness').colors[5],
+        buildStyledColorScheme(
+          seed: orange,
+          brightness: Brightness.dark,
+          style: NavisColorStyle.pastel,
+        ).surface,
+      );
+      expect(
+        tester.widget<AdjustmentRuler>(_ruler('color')).accent,
+        scheme(orange).primary,
+      );
+
+      // The mode shown flips: the summary names the right Brightness.
+      basis.value = _basis(seed: orange, dark: false);
+      await tester.pumpAndSettle();
+      expect(tester.widget<Text>(_key('summary')).data, 'Dark Brightness +2');
     });
   });
 

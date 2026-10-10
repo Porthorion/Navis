@@ -15,7 +15,7 @@ const Color _oledContainerHighest = Color(0xFF121212);
 const double seaGlassHue = 190;
 
 /// Below this HCT chroma a seed is treated as achromatic.
-const double _achromaticChroma = 8;
+const double achromaticSeedChroma = 8;
 
 /// Hue of the error family: a soft rose rather than Material's signal red.
 const double _errorHue = 22;
@@ -51,7 +51,7 @@ ColorScheme buildStyledColorScheme({
     );
   }
   final source = Hct.fromInt(seed.toARGB32());
-  final achromatic = source.chroma < _achromaticChroma;
+  final achromatic = source.chroma < achromaticSeedChroma;
   final recipe = switch (style) {
     NavisColorStyle.pastel => _pastelRecipe(source, achromatic),
     NavisColorStyle.immersive => _immersiveRecipe(source, achromatic),

@@ -28,7 +28,7 @@ import '../../../../helpers/test_database.dart';
 
 /// Appearance > Color > Fine-Tune Colors against a real settings stream: the
 /// summary row, the panel it opens (a sheet on touch, a popover on desktop),
-/// its rulers, Light and Dark brightness and its tuning presets, with the app
+/// its rulers and Light and Dark brightness, with the app
 /// recolouring around it as it does at runtime.
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -86,6 +86,9 @@ void main() {
               () async {},
               (option) async => seen.add(option),
             ),
+          ),
+          dynamicAccentSeedColorProvider.overrideWith(
+            (ref) => ref.watch(_dynamicSeed),
           ),
           customColorPresetsProvider.overrideWithValue(
             const AsyncData(<int>[]),
@@ -370,6 +373,41 @@ void main() {
     });
   });
 
+  group('dynamic album colour', () {
+    testWidgets('moves the open panel\'s strips, needle and hint with the '
+        'track', (tester) async {
+      await pumpScreen(tester);
+      await openPanel(tester);
+      ColorScheme pastel(Color seed) => buildStyledColorScheme(
+        seed: seed,
+        brightness: Brightness.dark,
+        oled: false,
+        style: NavisColorStyle.pastel,
+      );
+      final white = resolveColorSchemeSeedColor(null);
+      expect(band(tester, 'color').colors[5], pastel(white).primary);
+
+      const red = Color(0xFFE53935);
+      container.read(_dynamicSeed.notifier).set(red.toARGB32());
+      await tester.pumpAndSettle();
+      expect(band(tester, 'color').colors[5], pastel(red).primary);
+      expect(band(tester, 'brightness').colors[5], pastel(red).surface);
+      expect(
+        tester.widget<AdjustmentRuler>(key('color-ruler')).accent,
+        pastel(red).primary,
+      );
+      // Pastel dark with a saturated seed barely moves: the hint explains.
+      expect(
+        tester.widget<Text>(key('color-hint')).data,
+        'This style is already close to its most colorful here.',
+      );
+
+      container.read(_dynamicSeed.notifier).set(null);
+      await tester.pumpAndSettle();
+      expect(band(tester, 'color').colors[5], pastel(white).primary);
+    });
+  });
+
   group('Light and Dark brightness', () {
     for (final mode in <String>['light', 'dark', 'oled']) {
       testWidgets('start on the mode shown ($mode), with no caption', (
@@ -504,6 +542,19 @@ void main() {
       });
     }
 
+    testWidgets('panel with the Intensity hint (Neutral, no accent)', (
+      tester,
+    ) async {
+      await pumpScreen(tester, style: 'neutral', size: const Size(390, 844));
+      await seedTuning(tester, const ColorTuning(darkDepth: 1));
+      await openPanel(tester);
+      expect(key('color-hint'), findsOneWidget);
+      await expectLater(
+        find.byType(MaterialApp),
+        matchesGoldenFile('goldens/color_tuning_panel_hint.png'),
+      );
+    });
+
     testWidgets('panel on desktop with the other mode selected', (
       tester,
     ) async {
@@ -519,6 +570,15 @@ void main() {
     });
   });
 }
+
+class _DynamicSeed extends Notifier<int?> {
+  @override
+  int? build() => null;
+
+  void set(int? seed) => state = seed;
+}
+
+final _dynamicSeed = NotifierProvider<_DynamicSeed, int?>(_DynamicSeed.new);
 
 /// The app around the screen: MaterialApp themed from the saved settings and
 /// the live tuning, so a preview recolours the page as it does at runtime.

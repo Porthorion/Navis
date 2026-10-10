@@ -1,6 +1,8 @@
 import 'dart:async';
 
 import 'package:flutter/foundation.dart' show ValueListenable;
+import 'package:material_color_utilities/material_color_utilities.dart'
+    show Hct;
 import 'package:material_ui/material_ui.dart';
 import 'package:navis/l10n/app_localizations.dart';
 import 'package:navis/src/common_widgets/quick_panel.dart';
@@ -40,6 +42,13 @@ class ColorTuningBasis {
   bool get dark => brightness == Brightness.dark;
 }
 
+/// Intensity is reported as having little effect when the whole −5…+5 strip
+/// spans less primary chroma than this (HCT). Measured across hues, seeds,
+/// styles and modes: only a colourless seed in Neutral dark and OLED
+/// (0 to 7) and Pastel dark in warm hues (about 10) fall below it; every other
+/// combination spans 13 or more.
+const double _intensityMinSpread = 11;
+
 /// "+2" and "−3", the true minus sign the ruler's tick labels use.
 String signedStep(int step) =>
     step == 0 ? '0' : '${step > 0 ? '+' : '−'}${step.abs()}';
@@ -73,18 +82,21 @@ String colorTuningSummary(
 /// Opens Fine-Tune Colors from [anchorContext]: a sheet on touch layouts, an
 /// anchored popover on desktop (the Speed and Pitch shell).
 ///
-/// [tuning] is the live value, kept by the host (Settings follows the saved
-/// and previewed tuning; setup its draft). The panel reports each whole step
+/// [basis] and [tuning] are the live values, kept by the host (Settings follows
+/// the effective theme and the saved and previewed tuning; setup its draft).
+/// [looksHint] adds a note that Looks save the values, where the host has
+/// Looks. The panel reports each whole step
 /// while a ruler moves through [onPreview]; drag release, stepper, keyboard
 /// and Reset report through [onCommit]. [onPreviewEnd] fires if the panel goes
 /// away mid-drag.
 Future<void> showColorTuningPanel(
   BuildContext anchorContext, {
-  required ColorTuningBasis basis,
+  required ValueListenable<ColorTuningBasis> basis,
   required ValueListenable<ColorTuning> tuning,
   required ValueChanged<ColorTuning> onPreview,
   required ValueChanged<ColorTuning> onCommit,
   VoidCallback? onPreviewEnd,
+  bool looksHint = false,
 }) {
   final l10n = AppLocalizations.of(anchorContext)!;
   return showQuickPanel(
@@ -93,13 +105,13 @@ Future<void> showColorTuningPanel(
     title: l10n.appearanceColorTuningLabel,
     width: 440,
     maxHeight: 680,
-    subtitleBuilder: (_) => ValueListenableBuilder<ColorTuning>(
-      valueListenable: tuning,
-      builder: (context, value, _) => Text(
+    subtitleBuilder: (_) => ListenableBuilder(
+      listenable: Listenable.merge(<Listenable>[tuning, basis]),
+      builder: (context, _) => Text(
         colorTuningSummary(
           AppLocalizations.of(context)!,
-          value,
-          dark: basis.dark,
+          tuning.value,
+          dark: basis.value.dark,
         ),
         key: const ValueKey<String>('colorTuning-summary'),
       ),
@@ -113,17 +125,30 @@ Future<void> showColorTuningPanel(
     ),
     footerBuilder: (_) => ValueListenableBuilder<ColorTuning>(
       valueListenable: tuning,
-      builder: (context, value, _) => Align(
-        alignment: AlignmentDirectional.centerStart,
-        child: TextButton.icon(
-          key: const ValueKey<String>('colorTuning-reset'),
-          onPressed: value == ColorTuning.none
-              ? null
-              : () => onCommit(ColorTuning.none),
-          icon: const Icon(Icons.restart_alt),
-          label: Text(AppLocalizations.of(context)!.appearanceColorTuningReset),
-        ),
-      ),
+      builder: (context, value, _) {
+        final l10n = AppLocalizations.of(context)!;
+        final custom = value != ColorTuning.none;
+        return Row(
+          children: <Widget>[
+            TextButton.icon(
+              key: const ValueKey<String>('colorTuning-reset'),
+              onPressed: custom ? () => onCommit(ColorTuning.none) : null,
+              icon: const Icon(Icons.restart_alt),
+              label: Text(l10n.appearanceColorTuningReset),
+            ),
+            if (looksHint && custom) ...<Widget>[
+              const SizedBox(width: NavisSpace.sm),
+              Expanded(
+                child: Text(
+                  l10n.appearanceColorTuningLooksHint,
+                  key: const ValueKey<String>('colorTuning-looksHint'),
+                  style: Theme.of(context).textTheme.bodySmall,
+                ),
+              ),
+            ],
+          ],
+        );
+      },
     ),
   );
 }
@@ -137,7 +162,7 @@ class _PanelBody extends StatefulWidget {
     this.onPreviewEnd,
   });
 
-  final ColorTuningBasis basis;
+  final ValueListenable<ColorTuningBasis> basis;
   final ValueListenable<ColorTuning> tuning;
   final ValueChanged<ColorTuning> onPreview;
   final ValueChanged<ColorTuning> onCommit;
@@ -151,7 +176,7 @@ class _PanelBodyState extends State<_PanelBody> {
   late ColorTuning _shown = widget.tuning.value;
 
   /// Which mode's Brightness the second ruler edits; starts on the mode shown.
-  late bool _darkMode = widget.basis.dark;
+  late bool _darkMode = widget.basis.value.dark;
   bool _previewing = false;
 
   late RulerBand _colorBand;
@@ -163,6 +188,7 @@ class _PanelBodyState extends State<_PanelBody> {
   void initState() {
     super.initState();
     widget.tuning.addListener(_follow);
+    widget.basis.addListener(_basisChanged);
   }
 
   @override
@@ -172,11 +198,16 @@ class _PanelBodyState extends State<_PanelBody> {
       oldWidget.tuning.removeListener(_follow);
       widget.tuning.addListener(_follow);
     }
+    if (widget.basis != oldWidget.basis) {
+      oldWidget.basis.removeListener(_basisChanged);
+      widget.basis.addListener(_basisChanged);
+    }
   }
 
   @override
   void dispose() {
     widget.tuning.removeListener(_follow);
+    widget.basis.removeListener(_basisChanged);
     if (_previewing) {
       // A provider cannot change while the tree is being torn down.
       final end = widget.onPreviewEnd;
@@ -184,6 +215,10 @@ class _PanelBodyState extends State<_PanelBody> {
     }
     super.dispose();
   }
+
+  /// The theme moved under the panel (a new track's album colour): the bands
+  /// rebuild from the new basis on the next frame.
+  void _basisChanged() => setState(() {});
 
   /// Follows a change made elsewhere (applying a Look, a failed save putting
   /// the old value back), but never yanks a ruler mid-gesture for the echo of
@@ -227,10 +262,10 @@ class _PanelBodyState extends State<_PanelBody> {
     final schemes = [
       for (var step = -5; step <= 5; step++)
         buildStyledColorScheme(
-          seed: widget.basis.seed,
+          seed: widget.basis.value.seed,
           brightness: dark ? Brightness.dark : Brightness.light,
           oled: oled,
-          style: widget.basis.style,
+          style: widget.basis.value.style,
           adjustment: at(step),
         ),
     ];
@@ -243,7 +278,7 @@ class _PanelBodyState extends State<_PanelBody> {
   /// Intensity, in the mode shown now. Rebuilt only when an input changes, not
   /// on every theme frame.
   RulerBand get _intensityBand {
-    final basis = widget.basis;
+    final basis = widget.basis.value;
     final depth = _shown.forMode(dark: basis.dark).depth;
     final key = (
       basis.seed.toARGB32(),
@@ -268,7 +303,7 @@ class _PanelBodyState extends State<_PanelBody> {
   /// Brightness, in the mode the switch is on, so Light shows paper and Dark
   /// or OLED their own surfaces.
   RulerBand get _depthBand {
-    final basis = widget.basis;
+    final basis = widget.basis.value;
     final oled = _darkMode && basis.darkIsOled;
     final key = (
       basis.seed.toARGB32(),
@@ -291,11 +326,29 @@ class _PanelBodyState extends State<_PanelBody> {
     return _brightnessBand;
   }
 
+  /// Why the Intensity strip barely moves, when it spans too little chroma
+  /// to be worth dragging: no accent to intensify, or a style that is
+  /// already at its limit for this seed and mode.
+  String? _intensityHint(
+    AppLocalizations l10n,
+    RulerBand band,
+    ColorTuningBasis basis,
+  ) {
+    double chroma(Color color) => Hct.fromInt(color.toARGB32()).chroma;
+    if (chroma(band.colors.last) - chroma(band.colors.first) >=
+        _intensityMinSpread) {
+      return null;
+    }
+    return chroma(basis.seed) < achromaticSeedChroma
+        ? l10n.appearanceColorTuningHintNoAccent
+        : l10n.appearanceColorTuningHintMaxed;
+  }
+
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context)!;
     final theme = Theme.of(context);
-    final basis = widget.basis;
+    final basis = widget.basis.value;
     final intensityBand = _intensityBand;
     final elsewhere = _darkMode != basis.dark;
     return Column(
@@ -313,6 +366,7 @@ class _PanelBodyState extends State<_PanelBody> {
           band: intensityBand,
           // The needle is the live primary: the swatch under it.
           accent: intensityBand.colors[_shown.vividness + 5],
+          hint: _intensityHint(l10n, intensityBand, basis),
           onStep: (step) => _preview(_with(vividness: step)),
           onEnd: _commit,
         ),
@@ -397,6 +451,7 @@ class ColorTuningRulerRow extends StatelessWidget {
     required this.onEnd,
     this.accent,
     this.belowTitle,
+    this.hint,
     super.key,
   });
 
@@ -418,6 +473,9 @@ class ColorTuningRulerRow extends StatelessWidget {
 
   /// Shown between the title and the ruler, for example a mode switch.
   final Widget? belowTitle;
+
+  /// A note under the captions, for example why the ruler barely moves.
+  final String? hint;
 
   static const int _limit = 5;
 
@@ -529,6 +587,20 @@ class ColorTuningRulerRow extends StatelessWidget {
             const SizedBox(width: kMinInteractiveDimension),
           ],
         ),
+        if (hint != null)
+          Padding(
+            padding: const EdgeInsets.fromLTRB(
+              kMinInteractiveDimension,
+              NavisSpace.xs,
+              kMinInteractiveDimension,
+              0,
+            ),
+            child: Text(
+              hint!,
+              key: ValueKey<String>('colorTuning-$keyName-hint'),
+              style: theme.textTheme.bodySmall,
+            ),
+          ),
       ],
     );
   }
