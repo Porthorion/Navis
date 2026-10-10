@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math' as math;
 import 'dart:ui' as ui;
 
 import 'package:material_color_utilities/material_color_utilities.dart'
@@ -29,7 +30,8 @@ const double kNowPlayingArtworkBottomVeilAlpha = 0.15;
 /// The lightest veil that keeps [onSurface], [onSurfaceVariant] (secondary
 /// lines such as the format line) and [accent] (the accent-coloured title)
 /// readable over a cover averaging [average], within [colorStyle]'s
-/// alpha range. With no [average] it is the fixed veil.
+/// alpha range. With no [average] it is the fixed veil. [minAlpha] raises
+/// the floor for views where text runs across the whole cover (lyrics).
 Color nowPlayingAdaptiveVeil({
   required NavisColorStyleData colorStyle,
   required Color surface,
@@ -37,10 +39,15 @@ Color nowPlayingAdaptiveVeil({
   required Color? average,
   Color? accent,
   Color? onSurfaceVariant,
+  double? minAlpha,
 }) {
-  if (average == null) return colorStyle.nowPlayingArtworkVeil(surface);
   final base = colorStyle.nowPlayingArtworkVeilBase(surface);
-  final (min, max) = colorStyle.nowPlayingArtworkVeilRange;
+  final (rangeMin, max) = colorStyle.nowPlayingArtworkVeilRange;
+  final min = minAlpha == null ? rangeMin : math.max(rangeMin, minAlpha);
+  if (average == null) {
+    final fixed = colorStyle.nowPlayingArtworkVeil(surface);
+    return fixed.a >= min ? fixed : base.withValues(alpha: min);
+  }
   for (var alpha = min; alpha < max; alpha += 0.01) {
     final veiled = Color.alphaBlend(base.withValues(alpha: alpha), average);
     if (captionContrast(onSurface, veiled) >=
@@ -145,6 +152,7 @@ class NowPlayingArtworkBackground extends StatefulWidget {
     required this.onSurfaceColor,
     required this.fadeDuration,
     this.accentColor,
+    this.minVeilAlpha,
     this.coverAverage,
     this.useCoverAverage = false,
     this.onAvailabilityChanged,
@@ -181,6 +189,9 @@ class NowPlayingArtworkBackground extends StatefulWidget {
 
   /// Accent text colour (the track title) the veil must also keep readable.
   final Color? accentColor;
+
+  /// Floor for the veil alpha, for views with text across the whole cover.
+  final double? minVeilAlpha;
 
   /// Crossfade between covers; zero under reduced motion.
   final Duration fadeDuration;
@@ -317,56 +328,61 @@ class _NowPlayingArtworkBackgroundState
       accent: widget.accentColor,
       onSurfaceVariant: widget.onSurfaceVariantColor,
       average: _shownAverage,
+      minAlpha: widget.minVeilAlpha,
     );
     final bottom = widget.colorStyle.nowPlayingArtworkVeilBase(
       widget.surfaceColor,
     );
-    return RepaintBoundary(
-      child: Stack(
-        fit: StackFit.expand,
-        children: <Widget>[
-          AnimatedSwitcher(
-            duration: widget.fadeDuration,
-            layoutBuilder: (current, previous) => Stack(
-              fit: StackFit.expand,
-              children: <Widget>[...previous, ?current],
-            ),
-            child: ImageFiltered(
-              key: ValueKey<String?>(_shownKey),
-              imageFilter: ui.ImageFilter.blur(
-                sigmaX: kNowPlayingArtworkBlurSigma,
-                sigmaY: kNowPlayingArtworkBlurSigma,
-                tileMode: TileMode.clamp,
+    // The image is overscaled against blur edges; clip it to this box so it
+    // never spills past a panel that is smaller than the screen.
+    return ClipRect(
+      child: RepaintBoundary(
+        child: Stack(
+          fit: StackFit.expand,
+          children: <Widget>[
+            AnimatedSwitcher(
+              duration: widget.fadeDuration,
+              layoutBuilder: (current, previous) => Stack(
+                fit: StackFit.expand,
+                children: <Widget>[...previous, ?current],
               ),
-              child: SizedBox.expand(
-                child: Transform.scale(
-                  scale: kNowPlayingArtworkOverscale,
-                  child: Image(
-                    image: shown,
-                    fit: BoxFit.cover,
-                    filterQuality: FilterQuality.low,
-                    gaplessPlayback: true,
-                    excludeFromSemantics: true,
+              child: ImageFiltered(
+                key: ValueKey<String?>(_shownKey),
+                imageFilter: ui.ImageFilter.blur(
+                  sigmaX: kNowPlayingArtworkBlurSigma,
+                  sigmaY: kNowPlayingArtworkBlurSigma,
+                  tileMode: TileMode.clamp,
+                ),
+                child: SizedBox.expand(
+                  child: Transform.scale(
+                    scale: kNowPlayingArtworkOverscale,
+                    child: Image(
+                      image: shown,
+                      fit: BoxFit.cover,
+                      filterQuality: FilterQuality.low,
+                      gaplessPlayback: true,
+                      excludeFromSemantics: true,
+                    ),
                   ),
                 ),
               ),
             ),
-          ),
-          ColoredBox(color: veil),
-          DecoratedBox(
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                begin: Alignment.topCenter,
-                end: Alignment.bottomCenter,
-                colors: <Color>[
-                  bottom.withValues(alpha: 0),
-                  bottom.withValues(alpha: kNowPlayingArtworkBottomVeilAlpha),
-                ],
-                stops: const <double>[0.8, 1],
+            ColoredBox(color: veil),
+            DecoratedBox(
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                  colors: <Color>[
+                    bottom.withValues(alpha: 0),
+                    bottom.withValues(alpha: kNowPlayingArtworkBottomVeilAlpha),
+                  ],
+                  stops: const <double>[0.8, 1],
+                ),
               ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }

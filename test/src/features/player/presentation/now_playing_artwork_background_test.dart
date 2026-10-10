@@ -8,6 +8,7 @@ import 'package:material_color_utilities/material_color_utilities.dart'
     show Hct;
 import 'package:material_ui/material_ui.dart';
 import 'package:navis/src/features/player/presentation/now_playing_artwork_background.dart';
+import 'package:navis/src/features/player/presentation/now_playing_backdrop.dart';
 import 'package:navis/src/features/player/presentation/now_playing_artwork_scope.dart';
 import 'package:navis/src/theme/navis_theme.dart';
 import 'package:navis/src/features/settings/domain/now_playing_background.dart';
@@ -249,6 +250,58 @@ void main() {
 
     testWidgets('stay opaque under Flat', (tester) async {
       expect(await fill(tester, scoped: true, flat: true), Colors.red);
+    });
+  });
+
+  group('text across the cover', () {
+    test('the veil floor holds even for a dark cover', () {
+      const style = NavisColorStyleData(
+        style: NavisColorStyle.pastel,
+        dark: true,
+      );
+      final veil = nowPlayingAdaptiveVeil(
+        colorStyle: style,
+        surface: const Color(0xFF1A1418),
+        onSurface: const Color(0xFFEDE0E6),
+        average: const Color(0xFF050505),
+        minAlpha: 0.6,
+      );
+      expect(veil.a, greaterThanOrEqualTo(0.6));
+      final plain = nowPlayingAdaptiveVeil(
+        colorStyle: style,
+        surface: const Color(0xFF1A1418),
+        onSurface: const Color(0xFFEDE0E6),
+        average: const Color(0xFF050505),
+      );
+      expect(plain.a, lessThan(0.6));
+    });
+
+    test('the desktop lyrics floor is higher in light and OLED', () {
+      expect(
+        nowPlayingTextAcrossCoverVeilFloor(
+          const NavisColorStyleData(style: NavisColorStyle.neutral, dark: true),
+        ),
+        0.6,
+      );
+      expect(
+        nowPlayingTextAcrossCoverVeilFloor(
+          const NavisColorStyleData(
+            style: NavisColorStyle.neutral,
+            dark: true,
+            oled: true,
+          ),
+        ),
+        0.8,
+      );
+      expect(
+        nowPlayingTextAcrossCoverVeilFloor(
+          const NavisColorStyleData(
+            style: NavisColorStyle.neutral,
+            dark: false,
+          ),
+        ),
+        0.72,
+      );
     });
   });
 

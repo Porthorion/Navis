@@ -34,6 +34,7 @@ class _DesktopLyricsOverlay extends ConsumerWidget {
         : songArtist!.trim();
 
     return NowPlayingBackdrop(
+      textAcrossCover: true,
       hasActivePlayback: playback.hasActivePlayback,
       coverArtId: playback.isRadioMode ? null : song?.coverArt,
       coverArtRevision: song?.coverArtRevision ?? 0,

@@ -91,6 +91,7 @@ class NowPlayingBackdrop extends ConsumerStatefulWidget {
     required this.artUrl,
     required this.child,
     this.publishToQueueOverlay = false,
+    this.textAcrossCover = false,
     super.key,
   });
 
@@ -103,6 +104,11 @@ class NowPlayingBackdrop extends ConsumerStatefulWidget {
   /// Art URL of the playing item (radio art or media-item art).
   final String? artUrl;
   final bool publishToQueueOverlay;
+
+  /// Text runs across the whole cover (the desktop lyrics view), so the
+  /// Artwork veil keeps a higher floor than on Now Playing, where text sits
+  /// below the cover art.
+  final bool textAcrossCover;
   final Widget child;
 
   @override
@@ -299,6 +305,9 @@ class _NowPlayingBackdropState extends ConsumerState<NowPlayingBackdrop> {
             onSurfaceColor: colors.onSurface,
             accentColor: colors.primary,
             onSurfaceVariantColor: colors.onSurfaceVariant,
+            minVeilAlpha: widget.textAcrossCover
+                ? nowPlayingTextAcrossCoverVeilFloor(colorStyle)
+                : null,
             fadeDuration: fadeDuration,
           ),
         ),
@@ -425,3 +434,8 @@ class _NowPlayingBackdropState extends ConsumerState<NowPlayingBackdrop> {
     );
   }
 }
+
+/// Veil floor for views with text across the whole cover: dark 0.6, OLED
+/// 0.8, light 0.72.
+double nowPlayingTextAcrossCoverVeilFloor(NavisColorStyleData style) =>
+    !style.dark ? 0.72 : (style.oled ? 0.8 : 0.6);
