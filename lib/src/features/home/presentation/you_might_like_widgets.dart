@@ -184,7 +184,7 @@ class _ShowcaseCoverCard extends ConsumerWidget {
         decoration: BoxDecoration(
           borderRadius: radius,
           // Flat: no drop shadow under the showcase artwork.
-          boxShadow: NavisColorStyleData.of(context).flat
+          boxShadow: NavisColorStyleData.of(context).flatSurfaces
               ? null
               : <BoxShadow>[
                   BoxShadow(
@@ -382,7 +382,7 @@ class _ShowcaseColourWash extends ConsumerWidget {
                   .watch(coverColourFieldProvider((coverId, coverArtRevision)))
                   .value ??
               peekCoverColourField(coverId);
-    if (style.flat) {
+    if (style.flatSurfaces) {
       return _buildFlat(context, background, style, field, veil);
     }
     final target = field == null

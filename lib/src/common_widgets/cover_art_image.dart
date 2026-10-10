@@ -733,10 +733,10 @@ class _CoverArtImageState extends ConsumerState<CoverArtImage> {
       height: widget.height,
       decoration: BoxDecoration(
         // Flat: the gradient's end colour as a solid fill.
-        color: NavisColorStyleData.of(context).flat
+        color: NavisColorStyleData.of(context).flatSurfaces
             ? colors.surfaceContainerHighest
             : null,
-        gradient: NavisColorStyleData.of(context).flat
+        gradient: NavisColorStyleData.of(context).flatSurfaces
             ? null
             : LinearGradient(
                 begin: AlignmentDirectional.topStart,

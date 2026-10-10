@@ -77,7 +77,8 @@ final nowPlayingPublishedBackdropProvider =
 
 /// The Now Playing background: art-tinted surface, Artwork (blurred cover,
 /// veil and [NowPlayingArtworkLayerScope]) or plain surface, following the
-/// Now Playing Background setting, [NavisColorStyleData.flat] and OLED rules.
+/// Now Playing Background setting, [NavisColorStyleData.flatNowPlaying] and
+/// OLED rules.
 ///
 /// Owns the tint lookup/prewarm and the backdrop image resolution, so the
 /// Now Playing screen and the desktop lyrics view share one implementation.
@@ -341,7 +342,7 @@ class _NowPlayingBackdropState extends ConsumerState<NowPlayingBackdrop> {
     }
     final showArtworkLayer = nowPlayingShowsArtworkLayer(
       background: background,
-      flat: colorStyle.flat,
+      flat: colorStyle.flatNowPlaying,
       hasImage:
           artworkImage != null &&
           !_failedArtworkBackdropKeys.contains(_artworkBackdropKey),

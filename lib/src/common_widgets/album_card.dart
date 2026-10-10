@@ -572,7 +572,7 @@ class _OverlayFadeLabel extends StatelessWidget {
       end: Alignment.bottomCenter,
       colors: <Color>[from, to],
     );
-    if (NavisColorStyleData.of(context).flat) {
+    if (NavisColorStyleData.of(context).flatArtworkText) {
       return DecoratedBox(
         key: const ValueKey<String>('albumCardTintSolid'),
         decoration: BoxDecoration(color: fill),

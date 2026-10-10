@@ -667,11 +667,29 @@ class OnboardingScreenState extends ConsumerState<OnboardingScreen> {
     final flat = draft.flatSurfaces;
     final corners = draft.cornerStyle;
     if (!dark) {
-      return buildLightTheme(seed, style: style, flat: flat, corners: corners);
+      return buildLightTheme(
+        seed,
+        style: style,
+        flat: flat,
+        flatAreas: draft.flatAreas,
+        corners: corners,
+      );
     }
     return _previewOled(context, draft)
-        ? buildOledTheme(seed, style: style, flat: flat, corners: corners)
-        : buildDarkTheme(seed, style: style, flat: flat, corners: corners);
+        ? buildOledTheme(
+            seed,
+            style: style,
+            flat: flat,
+            flatAreas: draft.flatAreas,
+            corners: corners,
+          )
+        : buildDarkTheme(
+            seed,
+            style: style,
+            flat: flat,
+            flatAreas: draft.flatAreas,
+            corners: corners,
+          );
   }
 
   /// Mirrors app.dart: OLED mode, or Auto with "OLED when dark" while the

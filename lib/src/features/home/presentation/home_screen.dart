@@ -282,7 +282,7 @@ class _ListenBrainzWeeklyDetailContentState
               Container(
                 height: 28,
                 // Flat: a hard step to the solid end colour.
-                decoration: NavisColorStyleData.of(context).flat
+                decoration: NavisColorStyleData.of(context).flatSurfaces
                     ? BoxDecoration(color: colors.surface)
                     : BoxDecoration(
                         gradient: LinearGradient(
@@ -422,7 +422,7 @@ class _ListenBrainzWeeklyDetailContentState
               fit: StackFit.expand,
               children: <Widget>[
                 _ListenBrainzArtwork(playlist: playlist, size: screenWidth),
-                if (NavisColorStyleData.of(context).flat)
+                if (NavisColorStyleData.of(context).flatArtworkText)
                   // Flat: a hard-edged solid block under the title instead
                   // of the fade into the page.
                   Positioned.fill(
@@ -466,7 +466,8 @@ class _ListenBrainzWeeklyDetailContentState
                         playlist.localizedTitle(AppLocalizations.of(context)!),
                         style: textTheme.displayMedium?.copyWith(
                           color: Colors.white,
-                          shadows: NavisColorStyleData.of(context).flat
+                          shadows:
+                              NavisColorStyleData.of(context).flatArtworkText
                               ? null
                               : <Shadow>[
                                   Shadow(
@@ -2434,7 +2435,7 @@ class _DesktopRandomAlbumsPagerState
 
     final currentItem =
         _displayedAlbums[_currentPage.clamp(0, _displayedAlbums.length - 1)];
-    final flat = NavisColorStyleData.of(context).flat;
+    final flat = NavisColorStyleData.of(context).flatSurfaces;
     final pager = Column(
       key: const ValueKey<String>('home-random-desktop-pager'),
       children: <Widget>[
@@ -2543,7 +2544,7 @@ class _DesktopRandomAlbumsPagerState
     // (the heading's left edge), that contains the cover, the track list and
     // the thumbnail strip with even NavisSpace.md padding. The pages draw no
     // surface of their own inside it and read their colours from the panel.
-    if (NavisColorStyleData.of(context).flat) {
+    if (NavisColorStyleData.of(context).flatSurfaces) {
       return _ShowcaseFlatBand(
         coverArtId: _showcaseWashCoverId(currentItem),
         coverArtRevision: _showcaseWashCoverRevision(currentItem),
@@ -2588,7 +2589,7 @@ class _DesktopRandomAlbumPage extends ConsumerWidget {
 
   Widget _albumPage(BuildContext context, HomeRandomShowcaseAlbum album) {
     final colors = Theme.of(context).colorScheme;
-    final flat = NavisColorStyleData.of(context).flat;
+    final flat = NavisColorStyleData.of(context).flatSurfaces;
     return LayoutBuilder(
       builder: (context, constraints) {
         final pageHeight = constraints.maxHeight.isFinite
@@ -2686,7 +2687,7 @@ class _DesktopRandomAlbumVisual extends ConsumerWidget {
           anchor: details.globalPosition,
         ),
         child: Padding(
-          padding: NavisColorStyleData.of(context).flat
+          padding: NavisColorStyleData.of(context).flatSurfaces
               ? EdgeInsets.zero
               : const EdgeInsets.fromLTRB(2, 4, 2, 4),
           child: SizedBox.expand(
@@ -2793,7 +2794,7 @@ class _DesktopPlaylistPage extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final flat = NavisColorStyleData.of(context).flat;
+    final flat = NavisColorStyleData.of(context).flatSurfaces;
     return LayoutBuilder(
       builder: (context, constraints) {
         final pageHeight = constraints.maxHeight.isFinite
@@ -3284,7 +3285,8 @@ class _DesktopRandomAlbumSongList extends ConsumerWidget {
               // Flat has no card edge to clip against, so a half-cut last row
               // reads as a glitch: show only whole rows.
               final height = constraints.maxHeight;
-              if (!NavisColorStyleData.of(context).flat || !height.isFinite) {
+              if (!NavisColorStyleData.of(context).flatSurfaces ||
+                  !height.isFinite) {
                 return list;
               }
               final snapped = snapDesktopSongListHeight(
@@ -4066,7 +4068,7 @@ class _RandomAlbumsHeroCarouselState
     final phone =
         !widget.desktopMode &&
         widget.adaptiveLayoutClass == AdaptiveLayoutClass.phoneCompact;
-    if (phone && NavisColorStyleData.of(context).flat) {
+    if (phone && NavisColorStyleData.of(context).flatSurfaces) {
       return _ShowcaseFlatBand(
         coverArtId: _showcaseWashCoverId(currentItem),
         coverArtRevision: _showcaseWashCoverRevision(currentItem),

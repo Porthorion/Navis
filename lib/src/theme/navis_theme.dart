@@ -1,6 +1,7 @@
 import 'package:material_color_utilities/material_color_utilities.dart'
     show Hct;
 import 'package:material_ui/material_ui.dart';
+import 'package:navis/src/features/settings/domain/flat_areas.dart';
 import 'package:navis/src/theme/caption_tint.dart';
 import 'package:navis/src/theme/navis_color_style.dart';
 import 'package:navis/src/theme/navis_color_style_data.dart';
@@ -16,7 +17,15 @@ class NavisThemeCache {
 
   final int capacity;
   final Map<
-    (Color, Brightness, bool, NavisColorStyle, bool, NavisCornerStyle),
+    (
+      Color,
+      Brightness,
+      bool,
+      NavisColorStyle,
+      bool,
+      FlatAreas,
+      NavisCornerStyle,
+    ),
     ThemeData
   >
   _themes = {};
@@ -27,19 +36,38 @@ class NavisThemeCache {
     required bool oled,
     required NavisColorStyle style,
     required bool flat,
+    FlatAreas flatAreas = const FlatAreas(),
     required NavisCornerStyle corners,
   }) {
-    final key = (seed, brightness, oled, style, flat, corners);
+    final key = (seed, brightness, oled, style, flat, flatAreas, corners);
     final known = _themes.remove(key);
     if (known != null) {
       _themes[key] = known;
       return known;
     }
     final theme = brightness == Brightness.light
-        ? buildLightTheme(seed, style: style, flat: flat, corners: corners)
+        ? buildLightTheme(
+            seed,
+            style: style,
+            flat: flat,
+            flatAreas: flatAreas,
+            corners: corners,
+          )
         : oled
-        ? buildOledTheme(seed, style: style, flat: flat, corners: corners)
-        : buildDarkTheme(seed, style: style, flat: flat, corners: corners);
+        ? buildOledTheme(
+            seed,
+            style: style,
+            flat: flat,
+            flatAreas: flatAreas,
+            corners: corners,
+          )
+        : buildDarkTheme(
+            seed,
+            style: style,
+            flat: flat,
+            flatAreas: flatAreas,
+            corners: corners,
+          );
     _themes[key] = theme;
     if (_themes.length > capacity) _themes.remove(_themes.keys.first);
     return theme;
@@ -155,6 +183,7 @@ ThemeData buildLightTheme(
   Color seedColor, {
   NavisColorStyle style = NavisColorStyle.neutral,
   bool flat = false,
+  FlatAreas flatAreas = const FlatAreas(),
   NavisCornerStyle corners = NavisCornerStyle.rounded,
 }) {
   final colorScheme = buildStyledColorScheme(
@@ -167,6 +196,7 @@ ThemeData buildLightTheme(
     seedColor,
     style: style,
     flat: flat,
+    flatAreas: flatAreas,
     corners: corners,
   );
 }
@@ -176,6 +206,7 @@ ThemeData buildDarkTheme(
   Color seedColor, {
   NavisColorStyle style = NavisColorStyle.neutral,
   bool flat = false,
+  FlatAreas flatAreas = const FlatAreas(),
   NavisCornerStyle corners = NavisCornerStyle.rounded,
 }) {
   final colorScheme = buildStyledColorScheme(
@@ -188,6 +219,7 @@ ThemeData buildDarkTheme(
     seedColor,
     style: style,
     flat: flat,
+    flatAreas: flatAreas,
     corners: corners,
   );
 }
@@ -200,6 +232,7 @@ ThemeData buildOledTheme(
   Color seedColor, {
   NavisColorStyle style = NavisColorStyle.neutral,
   bool flat = false,
+  FlatAreas flatAreas = const FlatAreas(),
   NavisCornerStyle corners = NavisCornerStyle.rounded,
 }) {
   final colorScheme = buildStyledColorScheme(
@@ -214,6 +247,7 @@ ThemeData buildOledTheme(
     oled: true,
     style: style,
     flat: flat,
+    flatAreas: flatAreas,
     corners: corners,
   );
 }
@@ -271,6 +305,7 @@ ThemeData _buildNavisTheme(
   bool oled = false,
   NavisColorStyle style = NavisColorStyle.neutral,
   bool flat = false,
+  FlatAreas flatAreas = const FlatAreas(),
   NavisCornerStyle corners = NavisCornerStyle.rounded,
 }) {
   final shape = NavisShapeData.forStyle(corners);
@@ -279,6 +314,7 @@ ThemeData _buildNavisTheme(
     style: style,
     dark: colorScheme.brightness == Brightness.dark,
     flat: flat,
+    flatAreas: flatAreas,
     oled: oled,
     accentHue: Hct.fromInt(colorScheme.primary.toARGB32()).hue,
   );
@@ -301,14 +337,14 @@ ThemeData _buildNavisTheme(
   // `ThemeData.shadowColor`), so making both transparent flattens cards,
   // buttons, FABs, menus, dialogs, sheets and app bars at once. Elevation
   // values stay, so surface-tint behaviour is unchanged.
-  final effectiveScheme = flat
+  final effectiveScheme = styleData.flatSurfaces
       ? colorScheme.copyWith(shadow: Colors.transparent)
       : colorScheme;
   return ThemeData(
     useMaterial3: true,
     brightness: colorScheme.brightness,
     colorScheme: effectiveScheme,
-    shadowColor: flat ? Colors.transparent : null,
+    shadowColor: styleData.flatSurfaces ? Colors.transparent : null,
     fontFamily: navisFontFamily,
     textTheme: _navisTextTheme,
     outlinedButtonTheme: OutlinedButtonThemeData(
@@ -348,7 +384,9 @@ ThemeData _buildNavisTheme(
     dialogTheme: oled || !roundedCorners
         ? DialogThemeData(
             backgroundColor: oled ? colorScheme.surfaceContainer : null,
-            shadowColor: oled && flat ? Colors.transparent : null,
+            shadowColor: oled && styleData.flatSurfaces
+                ? Colors.transparent
+                : null,
             shape: roundedCorners ? null : shape.xlShape,
           )
         : null,

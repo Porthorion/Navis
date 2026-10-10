@@ -217,7 +217,7 @@ class _NavisTooltipBubble extends StatelessWidget {
           decoration: BoxDecoration(
             color: colors.inverseSurface,
             borderRadius: NavisShapeData.of(context).xsAll,
-            boxShadow: NavisColorStyleData.of(context).flat
+            boxShadow: NavisColorStyleData.of(context).flatSurfaces
                 ? null
                 : const <BoxShadow>[
                     BoxShadow(

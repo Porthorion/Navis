@@ -151,7 +151,7 @@ class RankedVirtualPlaylistContent extends ConsumerWidget {
               key: ValueKey<String>('$keyPrefix-desktop-fade'),
               height: 28,
               // Flat: a hard step to the solid end colour instead of a fade.
-              decoration: NavisColorStyleData.of(context).flat
+              decoration: NavisColorStyleData.of(context).flatSurfaces
                   ? BoxDecoration(color: colors.surface)
                   : BoxDecoration(
                       gradient: LinearGradient(

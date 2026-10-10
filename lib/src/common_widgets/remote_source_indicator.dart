@@ -166,7 +166,7 @@ class _ArtworkIndicator extends StatelessWidget {
         border: Border.all(
           color: colors.outlineVariant.withValues(alpha: 0.72),
         ),
-        boxShadow: NavisColorStyleData.of(context).flat
+        boxShadow: NavisColorStyleData.of(context).flatSurfaces
             ? null
             : const <BoxShadow>[
                 BoxShadow(
@@ -211,7 +211,7 @@ class _CompactArtworkIndicator extends StatelessWidget {
         border: Border.all(
           color: colors.outlineVariant.withValues(alpha: 0.72),
         ),
-        boxShadow: NavisColorStyleData.of(context).flat
+        boxShadow: NavisColorStyleData.of(context).flatSurfaces
             ? null
             : const <BoxShadow>[
                 BoxShadow(

@@ -34,7 +34,7 @@ class NowPlayingArtworkLayerScope extends InheritedWidget {
 Color nowPlayingArtworkPanelFill(BuildContext context, Color fallback) {
   if (!NowPlayingArtworkLayerScope.of(context)) return fallback;
   final style = NavisColorStyleData.of(context);
-  if (style.flat) return fallback;
+  if (style.flatNowPlaying) return fallback;
   return style
       .nowPlayingArtworkVeilBase(Theme.of(context).colorScheme.surface)
       .withValues(alpha: kNowPlayingArtworkPanelAlpha);
