@@ -161,6 +161,9 @@ const List<ChangelogVersion> changelogs = [
     ],
     entries: [
       ChangelogEntry(
+        'Now Playing Background also applies to the queue and to the desktop lyrics view',
+      ),
+      ChangelogEntry(
         'The player shows Play once the queue has finished, so one press restarts it instead of two',
         type: ChangelogEntryType.fix,
       ),

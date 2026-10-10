@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:ui' as ui;
 import 'dart:ui' show SemanticsAction;
 
 import 'package:audio_service/audio_service.dart';
@@ -29,6 +30,13 @@ import 'package:navis/src/features/player/data/navis_audio_handler.dart';
 import 'package:navis/src/features/player/domain/playback_snapshot.dart';
 import 'package:navis/src/features/equalizer/domain/eq_configuration.dart';
 import 'package:navis/src/features/player/domain/lyrics_resolution.dart';
+import 'package:drift/drift.dart' show Value;
+import 'package:navis/src/common_widgets/cover_art_source.dart';
+import 'package:navis/src/features/home/presentation/cover_colour_field.dart';
+import 'package:navis/src/features/player/presentation/now_playing_artwork_scope.dart';
+import 'package:navis/src/features/player/presentation/now_playing_artwork_background.dart';
+import 'package:navis/src/features/player/presentation/now_playing_backdrop.dart';
+import 'package:navis/src/features/settings/domain/now_playing_background.dart';
 import 'package:navis/src/features/player/presentation/now_playing_screen.dart';
 import 'package:navis/src/features/player/presentation/player_sheet_provider.dart';
 import 'package:navis/src/features/player/presentation/queue_sheet.dart';
@@ -3536,4 +3544,298 @@ void main() {
       }
     },
   );
+
+  group('Now Playing Background beyond the Now Playing screen', () {
+    const queueBackdropKey = ValueKey<String>('queueArtworkBackground');
+    const desktopBackdropKey = ValueKey<String>('nowPlayingArtworkBackground');
+    final coverSong = _longMetadataSong.copyWith(coverArt: const Value('c-1'));
+
+    Future<ImageProvider<Object>> solidCover() async {
+      final recorder = ui.PictureRecorder();
+      Canvas(recorder).drawRect(
+        const Rect.fromLTWH(0, 0, 4, 4),
+        Paint()..color = const Color(0xFF3F7F6F),
+      );
+      final image = await recorder.endRecording().toImage(4, 4);
+      final bytes = (await image.toByteData(format: ui.ImageByteFormat.png))!;
+      image.dispose();
+      return MemoryImage(Uint8List.view(bytes.buffer));
+    }
+
+    Future<ProviderContainer> pumpShell(
+      WidgetTester tester, {
+      required NowPlayingBackground background,
+      bool desktop = false,
+      bool flat = false,
+      bool oled = false,
+    }) async {
+      tester.view.devicePixelRatio = 1;
+      tester.view.physicalSize = desktop
+          ? const Size(1200, 800)
+          : const Size(599, 1000);
+      addTearDown(tester.view.reset);
+      final cover = (await tester.runAsync(solidCover))!;
+      debugSeedNowPlayingTint(
+        brightness: Brightness.dark,
+        coverArtId: 'c-1',
+        tint: const Color(0xFFD32F2F),
+      );
+      final container = _createContainerWithDatabase(
+        overrides: <Override>[
+          ..._authenticatedShellOverrides(desktopRuntime: desktop),
+          subsonicApiProvider.overrideWithValue(null),
+          nowPlayingBackgroundProvider.overrideWithValue(background),
+          appSettingsProvider.overrideWithValue(
+            AsyncData(
+              const AppSettingsModel.defaults().copyWith(
+                themeMode: oled ? 'oled' : 'dark',
+                colorStyle: 'pastel',
+                flatSurfaces: flat,
+              ),
+            ),
+          ),
+          songByIdProvider.overrideWith(
+            (ref, songId) =>
+                Stream.value(songId == coverSong.id ? coverSong : null),
+          ),
+          coverArtImageSourceProvider.overrideWith((ref, key) async => cover),
+          coverColourFieldProvider.overrideWith(
+            (ref, key) async =>
+                CoverColourField.uniform(const Color(0xFF3F7F6F)),
+          ),
+        ],
+      );
+      await tester.pumpWidget(
+        UncontrolledProviderScope(container: container, child: testNavisApp),
+      );
+      await tester.pumpAndSettle();
+      return container;
+    }
+
+    Future<void> settleImages(WidgetTester tester) async {
+      await tester.runAsync(
+        () => Future<void>.delayed(const Duration(milliseconds: 150)),
+      );
+      await tester.pump();
+      await tester.pumpAndSettle();
+    }
+
+    Future<void> unmountShell(
+      WidgetTester tester,
+      ProviderContainer container,
+    ) async {
+      await tester.pumpWidget(const SizedBox.shrink());
+      container.dispose();
+      await tester.pump();
+    }
+
+    Color queuePanelFill(WidgetTester tester) => tester
+        .widget<Material>(
+          find
+              .descendant(
+                of: find.byType(QueueSheet),
+                matching: find.byType(Material),
+              )
+              .first,
+        )
+        .color!;
+
+    testWidgets('phone queue over expanded Artwork shows the blurred cover', (
+      tester,
+    ) async {
+      final container = await pumpShell(
+        tester,
+        background: NowPlayingBackground.artwork,
+      );
+      container.read(playerOverlayStackProvider.notifier).expand();
+      await tester.pumpAndSettle();
+      await settleImages(tester);
+      container.read(playerOverlayStackProvider.notifier).showQueue();
+      await tester.pumpAndSettle();
+      await settleImages(tester);
+
+      expect(find.byKey(queueBackdropKey), findsOneWidget);
+      final published = container.read(nowPlayingPublishedBackdropProvider)!;
+      final queueBackdrop = tester.widget<NowPlayingArtworkBackground>(
+        find.byKey(queueBackdropKey),
+      );
+      expect(identical(queueBackdrop.image, published.image), isTrue);
+      expect(queueBackdrop.imageKey, published.imageKey);
+      expect(queueBackdrop.coverAverage, published.coverAverage);
+      expect(
+        find.descendant(
+          of: find.byKey(queueBackdropKey),
+          matching: find.byType(ImageFiltered),
+        ),
+        findsOneWidget,
+      );
+      expect(find.byType(QueueSheet), findsOneWidget);
+      expect(
+        queuePanelFill(tester).a,
+        closeTo(kNowPlayingArtworkPanelAlpha, 0.001),
+      );
+
+      container.read(playerOverlayStackProvider.notifier).hideQueue();
+      await tester.pumpAndSettle();
+      container.read(playerOverlayStackProvider.notifier).collapse();
+      await tester.pumpAndSettle();
+      await tester.pumpAndSettle();
+      expect(container.read(nowPlayingPublishedBackdropProvider), isNull);
+      container.read(playerOverlayStackProvider.notifier).showQueueOnly();
+      await tester.pumpAndSettle();
+      expect(find.byKey(queueBackdropKey), findsNothing);
+      expect(queuePanelFill(tester).a, 1);
+      await unmountShell(tester, container);
+    });
+
+    testWidgets('phone queue from Home keeps the opaque sheet', (tester) async {
+      final container = await pumpShell(
+        tester,
+        background: NowPlayingBackground.artwork,
+      );
+      container.read(playerOverlayStackProvider.notifier).showQueueOnly();
+      await tester.pumpAndSettle();
+      await settleImages(tester);
+
+      expect(container.read(playerSheetExpandedProvider), isFalse);
+      expect(container.read(nowPlayingPublishedBackdropProvider), isNull);
+      expect(find.byType(QueueSheet), findsOneWidget);
+      expect(find.byKey(queueBackdropKey), findsNothing);
+      expect(queuePanelFill(tester).a, 1);
+      await unmountShell(tester, container);
+    });
+
+    testWidgets('phone queue keeps the opaque sheet with Art-tinted', (
+      tester,
+    ) async {
+      final container = await pumpShell(
+        tester,
+        background: NowPlayingBackground.tinted,
+      );
+      container.read(playerOverlayStackProvider.notifier).showQueue();
+      await tester.pumpAndSettle();
+      await settleImages(tester);
+
+      expect(find.byKey(queueBackdropKey), findsNothing);
+      expect(queuePanelFill(tester).a, 1);
+      await unmountShell(tester, container);
+    });
+
+    testWidgets('phone queue over expanded Artwork stays opaque under Flat', (
+      tester,
+    ) async {
+      final container = await pumpShell(
+        tester,
+        background: NowPlayingBackground.artwork,
+        flat: true,
+      );
+      container.read(playerOverlayStackProvider.notifier).expand();
+      await tester.pumpAndSettle();
+      container.read(playerOverlayStackProvider.notifier).showQueue();
+      await tester.pumpAndSettle();
+      expect(container.read(playerSheetExpandedProvider), isTrue);
+      expect(container.read(nowPlayingPublishedBackdropProvider), isNull);
+      expect(find.byKey(queueBackdropKey), findsNothing);
+      expect(queuePanelFill(tester).a, 1);
+      await unmountShell(tester, container);
+    });
+
+    testWidgets('desktop lyrics view draws the Artwork background', (
+      tester,
+    ) async {
+      final container = await pumpShell(
+        tester,
+        background: NowPlayingBackground.artwork,
+        desktop: true,
+      );
+      await tester.tap(
+        find.byKey(const ValueKey<String>('desktopPlayerLyricsButton')),
+      );
+      await tester.pumpAndSettle();
+      await settleImages(tester);
+
+      expect(find.byKey(desktopBackdropKey), findsOneWidget);
+      expect(
+        find.byKey(const ValueKey<String>('nowPlayingSurfaceTint')),
+        findsOneWidget,
+      );
+      final header = tester.widget<DecoratedBox>(
+        find
+            .ancestor(
+              of: find.byKey(
+                const ValueKey<String>('desktopLyricsTrackContext'),
+              ),
+              matching: find.byType(DecoratedBox),
+            )
+            .first,
+      );
+      expect(
+        (header.decoration as BoxDecoration).color!.a,
+        closeTo(kNowPlayingArtworkPanelAlpha, 0.001),
+      );
+      await unmountShell(tester, container);
+    });
+
+    testWidgets('desktop lyrics view is plain with Plain', (tester) async {
+      final container = await pumpShell(
+        tester,
+        background: NowPlayingBackground.plain,
+        desktop: true,
+      );
+      await tester.tap(
+        find.byKey(const ValueKey<String>('desktopPlayerLyricsButton')),
+      );
+      await tester.pumpAndSettle();
+      await settleImages(tester);
+
+      expect(find.byKey(desktopBackdropKey), findsNothing);
+      final surface = tester.widget<AnimatedContainer>(
+        find.byKey(const ValueKey<String>('nowPlayingSurfaceTint')),
+      );
+      expect(
+        (surface.decoration! as BoxDecoration).color,
+        Theme.of(tester.element(find.byKey(surface.key!))).colorScheme.surface,
+      );
+      expect((surface.decoration! as BoxDecoration).gradient, isNull);
+      await unmountShell(tester, container);
+    });
+
+    for (final background in <NowPlayingBackground>[
+      NowPlayingBackground.tinted,
+      NowPlayingBackground.artwork,
+    ]) {
+      for (final oledFlat in <bool>[false, true]) {
+        testWidgets('desktop lyrics ${background.name} '
+            '(OLED + Flat: $oledFlat)', (tester) async {
+          final container = await pumpShell(
+            tester,
+            background: background,
+            desktop: true,
+            oled: oledFlat,
+            flat: oledFlat,
+          );
+          await tester.tap(
+            find.byKey(const ValueKey<String>('desktopPlayerLyricsButton')),
+          );
+          await tester.pumpAndSettle();
+          await settleImages(tester);
+          final surface = tester.widget<AnimatedContainer>(
+            find.byKey(const ValueKey<String>('nowPlayingSurfaceTint')),
+          );
+          final decoration = surface.decoration! as BoxDecoration;
+          if (oledFlat) {
+            expect(find.byKey(desktopBackdropKey), findsNothing);
+            expect(decoration.color, Colors.black);
+            expect(decoration.gradient, isNull);
+          } else if (background == NowPlayingBackground.tinted) {
+            expect(find.byKey(desktopBackdropKey), findsNothing);
+            expect(decoration.gradient, isNotNull);
+          } else {
+            expect(find.byKey(desktopBackdropKey), findsOneWidget);
+          }
+          await unmountShell(tester, container);
+        });
+      }
+    }
+  });
 }

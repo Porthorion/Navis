@@ -15,9 +15,17 @@ class _DesktopLyricsOverlay extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final l10n = AppLocalizations.of(context)!;
     final colors = Theme.of(context).colorScheme;
-    final songId = ref.watch(
-      playerStateProvider.select((playback) => playback.currentSongId),
-    );
+    final playback = ref.watch<PlaybackSnapshot>(playerStateProvider);
+    final songId = playback.currentSongId;
+    final song = songId == null
+        ? null
+        : ref.watch(songByIdProvider(songId)).asData?.value;
+    final mediaArtUrl = ref
+        .watch(currentMediaItemProvider)
+        .asData
+        ?.value
+        ?.artUri
+        ?.toString();
     final title = (songTitle ?? '').trim().isEmpty
         ? l10n.miniPlayerUnknownTrack
         : songTitle!.trim();
@@ -25,73 +33,88 @@ class _DesktopLyricsOverlay extends ConsumerWidget {
         ? l10n.miniPlayerUnknownArtist
         : songArtist!.trim();
 
-    return Material(
-      color: colors.surface,
+    return NowPlayingBackdrop(
+      hasActivePlayback: playback.hasActivePlayback,
+      coverArtId: playback.isRadioMode ? null : song?.coverArt,
+      coverArtRevision: song?.coverArtRevision ?? 0,
+      artUrl: playback.isRadioMode
+          ? playback.radioStation?.nowPlayingArtUrl
+          : mediaArtUrl,
       child: Column(
         children: <Widget>[
           // ── Header bar ──────────────────────────────────────────────
-          DecoratedBox(
-            decoration: BoxDecoration(
-              border: Border(
-                bottom: BorderSide(
-                  color: colors.outlineVariant.withValues(alpha: 0.4),
+          // Translucent while the Artwork background shows its cover.
+          Builder(
+            builder: (context) => DecoratedBox(
+              decoration: BoxDecoration(
+                color: nowPlayingArtworkPanelFill(context, Colors.transparent),
+                border: Border(
+                  bottom: BorderSide(
+                    color: colors.outlineVariant.withValues(alpha: 0.4),
+                  ),
                 ),
               ),
-            ),
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(20, 10, 8, 10),
-              child: Row(
-                children: <Widget>[
-                  Icon(Icons.lyrics_outlined, color: colors.primary, size: 20),
-                  const SizedBox(width: 10),
-                  Text(
-                    l10n.nowPlayingLyrics,
-                    style: Theme.of(context).textTheme.titleSmall,
-                  ),
-                  const SizedBox(width: 16),
-                  Container(
-                    width: 1,
-                    height: 28,
-                    color: colors.outlineVariant.withValues(alpha: 0.56),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Semantics(
-                      key: const ValueKey<String>('desktopLyricsTrackContext'),
-                      container: true,
-                      label: '$title, $artist',
-                      child: ExcludeSemantics(
-                        child: Column(
-                          mainAxisSize: MainAxisSize.min,
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: <Widget>[
-                            Text(
-                              title,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: Theme.of(context).textTheme.labelLarge,
-                            ),
-                            const SizedBox(height: 1),
-                            Text(
-                              artist,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: Theme.of(context).textTheme.labelSmall
-                                  ?.copyWith(color: colors.onSurfaceVariant),
-                            ),
-                          ],
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(20, 10, 8, 10),
+                child: Row(
+                  children: <Widget>[
+                    Icon(
+                      Icons.lyrics_outlined,
+                      color: colors.primary,
+                      size: 20,
+                    ),
+                    const SizedBox(width: 10),
+                    Text(
+                      l10n.nowPlayingLyrics,
+                      style: Theme.of(context).textTheme.titleSmall,
+                    ),
+                    const SizedBox(width: 16),
+                    Container(
+                      width: 1,
+                      height: 28,
+                      color: colors.outlineVariant.withValues(alpha: 0.56),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Semantics(
+                        key: const ValueKey<String>(
+                          'desktopLyricsTrackContext',
+                        ),
+                        container: true,
+                        label: '$title, $artist',
+                        child: ExcludeSemantics(
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: <Widget>[
+                              Text(
+                                title,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: Theme.of(context).textTheme.labelLarge,
+                              ),
+                              const SizedBox(height: 1),
+                              Text(
+                                artist,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: Theme.of(context).textTheme.labelSmall
+                                    ?.copyWith(color: colors.onSurfaceVariant),
+                              ),
+                            ],
+                          ),
                         ),
                       ),
                     ),
-                  ),
-                  const SizedBox(width: 8),
-                  IconButton(
-                    tooltip: MaterialLocalizations.of(context)
-                        .closeButtonTooltip,
-                    icon: const Icon(Icons.close),
-                    onPressed: onClose,
-                  ),
-                ],
+                    const SizedBox(width: 8),
+                    IconButton(
+                      tooltip: MaterialLocalizations.of(context)
+                          .closeButtonTooltip,
+                      icon: const Icon(Icons.close),
+                      onPressed: onClose,
+                    ),
+                  ],
+                ),
               ),
             ),
           ),

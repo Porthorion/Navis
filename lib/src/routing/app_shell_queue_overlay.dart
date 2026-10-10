@@ -316,16 +316,13 @@ class _QueueOverlayState extends State<_QueueOverlay>
             : (useFloatingWindow ? 0.72 : _sheetHeightFactor);
 
         final queueContent = widget.fullscreen
-            ? Material(
-                color: Theme.of(context).colorScheme.surface,
-                child: SafeArea(
-                  child: QueueSheet(
-                    scrollController: _scrollController,
-                    sheetDragActive: _draggingSheet,
-                    onReorderDragChanged: _setQueueReorderActive,
-                    onItemSwipeActiveChanged: _setQueueItemSwiping,
-                    onClose: _dismiss,
-                  ),
+            ? SafeArea(
+                child: QueueSheet(
+                  scrollController: _scrollController,
+                  sheetDragActive: _draggingSheet,
+                  onReorderDragChanged: _setQueueReorderActive,
+                  onItemSwipeActiveChanged: _setQueueItemSwiping,
+                  onClose: _dismiss,
                 ),
               )
             : QueueSheet(
@@ -345,7 +342,10 @@ class _QueueOverlayState extends State<_QueueOverlay>
                 clipBehavior: Clip.antiAlias,
                 child: queueContent,
               )
-            : queueContent;
+            : _QueueArtworkSurface(
+                fullscreen: widget.fullscreen,
+                child: queueContent,
+              );
 
         return FocusScope(
           autofocus: true,
@@ -432,5 +432,63 @@ class _QueueOverlayState extends State<_QueueOverlay>
         );
       },
     );
+  }
+}
+
+/// Surface of the phone queue overlay.
+///
+/// Opaque `surface` normally. While Now Playing is expanded and showing its
+/// Artwork layer, it paints the same blurred cover (published by
+/// [NowPlayingBackdrop]) underneath and marks the content with
+/// [NowPlayingArtworkLayerScope], so the queue's translucent panel fill
+/// applies and the cover stays visible through it.
+class _QueueArtworkSurface extends ConsumerWidget {
+  const new({required this.fullscreen, required this.child});
+
+  final bool fullscreen;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final colors = Theme.of(context).colorScheme;
+    final nowPlayingExpanded = ref.watch(playerSheetExpandedProvider);
+    final published = ref.watch(nowPlayingPublishedBackdropProvider);
+    final backdrop = nowPlayingExpanded ? published : null;
+    if (backdrop == null) {
+      return fullscreen ? Material(color: colors.surface, child: child) : child;
+    }
+    final surface = Material(
+      color: Colors.transparent,
+      child: Stack(
+        fit: StackFit.expand,
+        children: <Widget>[
+          Positioned.fill(
+            child: NowPlayingArtworkBackground(
+              key: const ValueKey<String>('queueArtworkBackground'),
+              imageKey: backdrop.imageKey,
+              image: backdrop.image,
+              coverAverage: backdrop.coverAverage,
+              useCoverAverage: backdrop.useCoverAverage,
+              colorStyle: NavisColorStyleData.of(context),
+              surfaceColor: colors.surface,
+              onSurfaceColor: colors.onSurface,
+              accentColor: colors.primary,
+              onSurfaceVariantColor: colors.onSurfaceVariant,
+              fadeDuration: Duration.zero,
+            ),
+          ),
+          NowPlayingArtworkLayerScope(active: true, child: child),
+        ],
+      ),
+    );
+    return fullscreen
+        ? surface
+        : SafeArea(
+            bottom: false,
+            child: ClipRRect(
+              borderRadius: NavisShapeData.of(context).sheetTop,
+              child: surface,
+            ),
+          );
   }
 }

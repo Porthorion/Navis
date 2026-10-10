@@ -653,7 +653,10 @@ target-selection rules.
   choice joins the setup highlights registry for 1.5.0; Density
   is a renamed existing setting (it also tightens playlists and artist lists)
   and has no New tag. Both appear in diagnostics.
-- Now Playing Background (`now_playing_screen.dart`, `now_playing_artwork_background.dart`):
+- Now Playing Background (`now_playing_backdrop.dart`, `now_playing_artwork_background.dart`):
+  `NowPlayingBackdrop` owns image resolution, tint prewarming, failure fallback
+  and surface decoration for both `NowPlayingScreen` and the desktop lyrics
+  view. The desktop lyrics header uses `nowPlayingArtworkPanelFill` too.
   Art-Tinted is the existing tint/gradient (solid under Flat). Plain is the
   theme `surface` (black in OLED). Artwork decodes the standard 600 px cover
   through the shared `coverArtImageProviderFor` source resolver at 96 px
@@ -670,8 +673,9 @@ target-selection rules.
   decodes, then crossfades over `MotionPolicy.surface`. Cover-id art reuses
   the worker's field instead of reading bitmap pixels on the UI isolate;
   radio/URL art retains its thumbnail bitmap average. The decode listener
-  disposes every received image handle, including stale callbacks. Failed source
-  keys are remembered by the layer and reported to the screen after the frame,
+  disposes every received image handle, including stale callbacks, and detaches
+  each decode listener once on success or failure. Failed source keys are
+  remembered by the layer and reported to the shared backdrop after the frame,
   selecting Art-Tinted without retrying on position rebuilds. A new source or
   revision can resolve again. Flat has no blur, so
   Artwork falls back to the Flat solid tint (OLED + Flat stays black); radio or
@@ -683,7 +687,14 @@ target-selection rules.
   an opaque surface so the art stays visible: `NowPlayingArtworkLayerScope`
   (`now_playing_artwork_scope.dart`) is set around the Now Playing body and
   panels read it through `nowPlayingArtworkPanelFill`. Without the layer, and
-  under Flat, they stay opaque. The adaptive veil keeps `onSurface`,
+  under Flat, they stay opaque. The expanded Now Playing backdrop publishes its
+  image provider, source key and cover average after the frame through
+  `nowPlayingPublishedBackdropProvider`, with owner-checked cleanup when hidden,
+  switched away from Artwork, or disposed. The phone queue overlay outside the
+  Now Playing subtree reuses that same image provider (and cached decode) in
+  `NowPlayingArtworkBackground` beneath its own active artwork scope. A queue
+  opened from Home with Now Playing collapsed, or under Flat, stays opaque.
+  The adaptive veil keeps `onSurface`,
   `onSurfaceVariant` and the accent title at 5.0:1. In OLED the Art-Tinted
   gradient's top colour is capped at HCT tone 10, and with OLED + Flat the
   Now Playing Background selector notes that Now Playing stays black.

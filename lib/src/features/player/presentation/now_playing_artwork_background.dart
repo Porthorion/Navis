@@ -228,7 +228,7 @@ class _NowPlayingArtworkBackgroundState
     late final ImageStreamListener listener;
     listener = ImageStreamListener(
       (info, _) {
-        stream.removeListener(listener);
+        _detachListener(stream, listener);
         if (!mounted || _pendingKey != key) {
           info.dispose();
           return;
@@ -255,7 +255,7 @@ class _NowPlayingArtworkBackgroundState
         }());
       },
       onError: (_, _) {
-        stream.removeListener(listener);
+        _detachListener(stream, listener);
         if (!mounted || _pendingKey != key) return;
         setState(() {
           _pendingKey = null;
@@ -282,9 +282,19 @@ class _NowPlayingArtworkBackgroundState
     WidgetsBinding.instance.scheduleFrame();
   }
 
+  void _detachListener(ImageStream stream, ImageStreamListener listener) {
+    if (!identical(_stream, stream) || !identical(_listener, listener)) return;
+    // Error completers can dispose themselves when their last listener leaves.
+    // Clear ownership first so disposal never removes the same listener twice.
+    _stream = null;
+    _listener = null;
+    stream.removeListener(listener);
+  }
+
   void _stopListening() {
     final listener = _listener;
-    if (listener != null) _stream?.removeListener(listener);
+    final stream = _stream;
+    if (listener != null && stream != null) _detachListener(stream, listener);
     _stream = null;
     _listener = null;
     _pendingKey = null;
