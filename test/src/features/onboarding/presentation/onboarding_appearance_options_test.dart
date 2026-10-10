@@ -411,32 +411,44 @@ void main() {
     });
   });
 
-  group('Album Art Colored Shade', () {
-    SwitchListTile shade(WidgetTester tester) => tester.widget(
-      find.ancestor(
-        of: find.text('Album Art Colored Shade'),
-        matching: find.byType(SwitchListTile),
-      ),
+  group('Album Art Shade', () {
+    final shadeKey = find.byKey(const ValueKey<String>('albumArtShadeSwitch'));
+    final coverKey = find.byKey(
+      const ValueKey<String>('albumArtCoverColorSwitch'),
     );
+    SwitchListTile switchOf(WidgetTester tester, Finder finder) =>
+        tester.widget(finder);
 
     testWidgets('sits outside More appearance options and saves on Finish', (
       tester,
     ) async {
       final h = await _pump(tester, updatedUser: false, reviewMode: false);
-      expect(find.text('Album Art Colored Shade'), findsOneWidget);
+      expect(find.text('Album Art Shade'), findsOneWidget);
       expect(
-        find.text('Tint album titles with a color from each cover.'),
+        find.text('A dark gradient behind album titles for easier reading.'),
         findsOneWidget,
       );
       expect(find.text('Corner Style'), findsNothing);
+      // Use Cover Color only appears once Shade is on.
+      expect(find.text('Use Cover Color'), findsNothing);
 
-      await h.tap(find.text('Album Art Colored Shade'));
-      expect((await h.row()).albumArtColoredShade, isFalse);
+      await h.tap(shadeKey);
+      expect(find.text('Use Cover Color'), findsOneWidget);
+      expect(
+        find.text('Tint the shade with a color from each cover.'),
+        findsOneWidget,
+      );
+      await h.tap(coverKey);
+      var row = await h.row();
+      expect(row.albumArtShade, isFalse);
+      expect(row.albumArtColoredShade, isFalse);
       await h.finish();
-      expect((await h.row()).albumArtColoredShade, isTrue);
+      row = await h.row();
+      expect(row.albumArtShade, isTrue);
+      expect(row.albumArtColoredShade, isTrue);
     });
 
-    testWidgets('is disabled with a note under Flat text over artwork', (
+    testWidgets('both are disabled with a note under Flat text over art', (
       tester,
     ) async {
       final h = await _pump(tester);
@@ -444,15 +456,19 @@ void main() {
           'Album titles sit below the art while Flat text over '
           'artwork is on.';
       expect(find.text(note), findsNothing);
-      expect(shade(tester).onChanged, isNotNull);
+      expect(switchOf(tester, shadeKey).onChanged, isNotNull);
+      await h.tap(shadeKey);
+      expect(switchOf(tester, coverKey).onChanged, isNotNull);
 
       await h.tap(find.text('Flat Surfaces'));
       expect(find.text(note), findsOneWidget);
-      expect(shade(tester).onChanged, isNull);
+      expect(switchOf(tester, shadeKey).onChanged, isNull);
+      expect(switchOf(tester, coverKey).onChanged, isNull);
 
       await h.tap(find.text('Text Over Artwork'));
       expect(find.text(note), findsNothing);
-      expect(shade(tester).onChanged, isNotNull);
+      expect(switchOf(tester, shadeKey).onChanged, isNotNull);
+      expect(switchOf(tester, coverKey).onChanged, isNotNull);
     });
   });
 

@@ -7,15 +7,18 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:navis/l10n/app_localizations.dart';
 import 'package:navis/src/common_widgets/album_context_menu.dart';
+import 'package:navis/src/common_widgets/artwork_scrim.dart';
 import 'package:navis/src/common_widgets/caption_tint_resolver.dart';
 import 'package:navis/src/common_widgets/frame_budget_dispatcher.dart';
 import 'package:navis/src/features/home/presentation/cover_colour_worker.dart';
 import 'package:navis/src/common_widgets/cover_art_image.dart';
 import 'package:navis/src/common_widgets/hero_cover_art.dart';
+import 'package:navis/src/common_widgets/marquee_text.dart';
 import 'package:navis/src/database/navis_database.dart';
 import 'package:navis/src/providers/app_providers.dart';
 import 'package:navis/src/routing/desktop_layout.dart';
 import 'package:navis/src/features/home/presentation/cover_colour_field.dart';
+import 'package:navis/src/features/settings/domain/album_title_shade.dart';
 import 'package:navis/src/theme/caption_tint.dart';
 import 'package:navis/src/theme/motion_policy.dart';
 import 'package:navis/src/theme/navis_color_style_data.dart';
@@ -36,11 +39,11 @@ enum AlbumCardSize {
 
 /// A modern album card.
 ///
-/// Album art fills the square card.  The title and artist name are overlaid at
-/// the bottom where the artwork fades into the page colour (or, with Album Art
-/// Colored Shade, a colour sampled from the cover); under Flat text over
-/// artwork they sit below the art instead.
-class AlbumCard extends ConsumerStatefulWidget {
+/// Album art fills the square card.  The title (one line, scrolling when too
+/// long) and artist name are overlaid at the bottom, shaded per Album Art
+/// Shade (see [AlbumCardLabel]); under Flat text over artwork they sit below
+/// the art instead.
+class AlbumCard extends ConsumerWidget {
   const new({
     required this.album,
     super.key,
@@ -65,10 +68,93 @@ class AlbumCard extends ConsumerStatefulWidget {
   final GestureTapDownCallback? onSecondaryTapDown;
 
   @override
-  ConsumerState<AlbumCard> createState() => _AlbumCardState();
+  Widget build(BuildContext context, WidgetRef ref) {
+    final shape = ref.watch(coverArtShapeProvider);
+    final cardBorderRadius = artworkBorderRadius(
+      shape,
+      extent: double.infinity,
+    );
+    final cardWidth = extent ?? size.extent;
+
+    return CoverReadyScope(
+      coverKey: (album.coverArt, album.coverArtRevision),
+      builder: (context, coverReady) => AlbumCardCaptionLayout(
+        width: cardWidth,
+        title: album.name,
+        subtitle: album.artistName ?? '',
+        card: Card(
+          clipBehavior: Clip.antiAlias,
+          margin: EdgeInsets.zero,
+          shape: RoundedRectangleBorder(borderRadius: cardBorderRadius),
+          child: InkWell(
+            key: const ValueKey('albumCardTapTarget'),
+            onTap: onTap,
+            onSecondaryTapDown: onSecondaryTapDown,
+            onLongPress: onLongPress == null
+                ? null
+                : () {
+                    unawaited(HapticFeedback.mediumImpact());
+                    onLongPress!();
+                  },
+            child: Stack(
+              fit: StackFit.expand,
+              children: <Widget>[
+                if (heroTag != null)
+                  HeroCoverArt(
+                    coverArtId: album.coverArt,
+                    revision: album.coverArtRevision ?? 0,
+                    heroTag: heroTag!,
+                    size: kCoverArtStandardSize,
+                    fit: BoxFit.cover,
+                    placeholderIcon: Icons.album_outlined,
+                    borderRadius: cardBorderRadius,
+                    isExternalSource: album.isExternal,
+                    onImageReady: () => coverReady.value = true,
+                  )
+                else
+                  CoverArtImage(
+                    coverArtId: album.coverArt,
+                    revision: album.coverArtRevision ?? 0,
+                    size: kCoverArtStandardSize,
+                    fit: BoxFit.cover,
+                    placeholderIcon: Icons.album_outlined,
+                    isExternalSource: album.isExternal,
+                    onImageReady: () => coverReady.value = true,
+                  ),
+                HeroRouteChrome(
+                  heroTag: heroTag,
+                  child: Stack(
+                    fit: StackFit.expand,
+                    children: <Widget>[
+                      if (badge != null)
+                        Positioned(top: 8, right: 8, child: badge!),
+                      AlbumCardLabel(
+                        title: album.name,
+                        subtitle: album.artistName ?? '',
+                        coverArtId: album.coverArt,
+                        coverArtRevision: album.coverArtRevision ?? 0,
+                        coverReady: coverReady,
+                      ),
+                      if (onTap != null && isDesktopRuntime)
+                        Positioned.fill(
+                          child: _AlbumCardHoverPlay(albumId: album.id),
+                        ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
 }
 
-class _CoverReadyNotifier extends ValueNotifier<bool> {
+/// Whether a card's cover has loaded and is on the device. The cover-tinted
+/// caption samples colours only after that, so it never starts work for a
+/// cover that has not been shown and never fetches artwork.
+class CoverReadyNotifier extends ValueNotifier<bool> {
   new() : super(false);
 
   bool synchronouslyLoaded = false;
@@ -79,122 +165,44 @@ class _CoverReadyNotifier extends ValueNotifier<bool> {
   }
 }
 
-class _AlbumCardState extends ConsumerState<AlbumCard> {
-  /// Whether this card's cover has loaded and is on the device. The
-  /// cover-tinted caption samples colours only after that, so it never starts
-  /// work for a cover that has not been shown and never fetches artwork.
-  final _CoverReadyNotifier _coverReady = _CoverReadyNotifier();
+/// Owns a [CoverReadyNotifier] for one cover: it turns ready when the cover
+/// below reports `CoverArtImageReadyNotification` (or the caller sets it from
+/// an `onImageReady` callback) and resets when [coverKey] changes. Shared by
+/// [AlbumCard] and the Home shelf's server album card.
+class CoverReadyScope extends StatefulWidget {
+  const new({required this.coverKey, required this.builder, super.key});
+
+  /// Identifies the cover (id and revision); a change resets readiness.
+  final Object? coverKey;
+  final Widget Function(BuildContext context, CoverReadyNotifier ready) builder;
 
   @override
-  void didUpdateWidget(AlbumCard oldWidget) {
+  State<CoverReadyScope> createState() => _CoverReadyScopeState();
+}
+
+class _CoverReadyScopeState extends State<CoverReadyScope> {
+  final CoverReadyNotifier _ready = CoverReadyNotifier();
+
+  @override
+  void didUpdateWidget(CoverReadyScope oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (oldWidget.album.coverArt != widget.album.coverArt ||
-        oldWidget.album.coverArtRevision != widget.album.coverArtRevision) {
-      _coverReady.value = false;
-    }
+    if (oldWidget.coverKey != widget.coverKey) _ready.value = false;
   }
 
   @override
   void dispose() {
-    _coverReady.dispose();
+    _ready.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
-    final album = widget.album;
-    final size = widget.size;
-    final heroTag = widget.heroTag;
-    final badge = widget.badge;
-    final onTap = widget.onTap;
-    final onLongPress = widget.onLongPress;
-    final onSecondaryTapDown = widget.onSecondaryTapDown;
-    final extent = widget.extent;
-    final shape = ref.watch(coverArtShapeProvider);
-    final cardBorderRadius = artworkBorderRadius(
-      shape,
-      extent: double.infinity,
-    );
-    final cardWidth = extent ?? size.extent;
-
-    final titleMaxLines = size == AlbumCardSize.library ? 2 : 1;
-    final card = AlbumCardCaptionLayout(
-      width: cardWidth,
-      title: album.name,
-      subtitle: album.artistName ?? '',
-      titleMaxLines: titleMaxLines,
-      card: Card(
-        clipBehavior: Clip.antiAlias,
-        margin: EdgeInsets.zero,
-        shape: RoundedRectangleBorder(borderRadius: cardBorderRadius),
-        child: InkWell(
-          key: const ValueKey('albumCardTapTarget'),
-          onTap: onTap,
-          onSecondaryTapDown: onSecondaryTapDown,
-          onLongPress: onLongPress == null
-              ? null
-              : () {
-                  unawaited(HapticFeedback.mediumImpact());
-                  onLongPress();
-                },
-          child: Stack(
-            fit: StackFit.expand,
-            children: <Widget>[
-              if (heroTag != null)
-                HeroCoverArt(
-                  coverArtId: album.coverArt,
-                  revision: album.coverArtRevision ?? 0,
-                  heroTag: heroTag,
-                  size: kCoverArtStandardSize,
-                  fit: BoxFit.cover,
-                  placeholderIcon: Icons.album_outlined,
-                  borderRadius: cardBorderRadius,
-                  isExternalSource: album.isExternal,
-                  onImageReady: () => _coverReady.value = true,
-                )
-              else
-                CoverArtImage(
-                  coverArtId: album.coverArt,
-                  revision: album.coverArtRevision ?? 0,
-                  size: kCoverArtStandardSize,
-                  fit: BoxFit.cover,
-                  placeholderIcon: Icons.album_outlined,
-                  isExternalSource: album.isExternal,
-                  onImageReady: () => _coverReady.value = true,
-                ),
-              HeroRouteChrome(
-                heroTag: heroTag,
-                child: Stack(
-                  fit: StackFit.expand,
-                  children: <Widget>[
-                    if (badge != null)
-                      Positioned(top: 8, right: 8, child: badge),
-                    AlbumCardLabel(
-                      title: album.name,
-                      subtitle: album.artistName ?? '',
-                      titleMaxLines: titleMaxLines,
-                      coverArtId: album.coverArt,
-                      coverArtRevision: album.coverArtRevision ?? 0,
-                      coverReady: _coverReady,
-                    ),
-                    if (onTap != null && isDesktopRuntime)
-                      Positioned.fill(
-                        child: _AlbumCardHoverPlay(albumId: album.id),
-                      ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
     return NotificationListener<CoverArtImageReadyNotification>(
       onNotification: (ready) {
-        _coverReady.markReady(synchronouslyLoaded: ready.synchronouslyLoaded);
+        _ready.markReady(synchronouslyLoaded: ready.synchronouslyLoaded);
         return true;
       },
-      child: card,
+      child: widget.builder(context, _ready),
     );
   }
 }
@@ -215,18 +223,18 @@ TextStyle? _subtitleStyle(ThemeData theme, Color color) => theme
     .labelSmall
     ?.copyWith(color: color, fontWeight: FontWeight.w400);
 
-/// The height the caption below a cover needs: top gap, up to
-/// [titleMaxLines] title lines and one subtitle line, at the ambient text
-/// scale. Grids and rails add it to their cover extent while Flat text over
-/// artwork is on (see [albumCardExtraHeight]).
-double albumCardCaptionHeight(BuildContext context, int titleMaxLines) {
+/// The height the caption below a cover needs: top gap, one title line (a
+/// longer title scrolls, see [MarqueeText]) and one subtitle line, at the
+/// ambient text scale. Grids and rails add it to their cover extent while Flat
+/// text over artwork is on (see [albumCardExtraHeight]).
+double albumCardCaptionHeight(BuildContext context) {
   final theme = Theme.of(context);
   final base = DefaultTextStyle.of(context).style;
   final scaler = MediaQuery.textScalerOf(context);
   final direction = Directionality.of(context);
-  double measure(TextStyle style, int lines) {
+  double measure(TextStyle style) {
     final painter = TextPainter(
-      text: TextSpan(text: List.filled(lines, 'Ag').join('\n'), style: style),
+      text: TextSpan(text: 'Ag', style: style),
       textDirection: direction,
       textScaler: scaler,
     )..layout();
@@ -235,8 +243,8 @@ double albumCardCaptionHeight(BuildContext context, int titleMaxLines) {
     return height;
   }
 
-  final title = measure(base.merge(_titleStyle(Colors.black)), titleMaxLines);
-  final subtitle = measure(base.merge(_subtitleStyle(theme, Colors.black)), 1);
+  final title = measure(base.merge(_titleStyle(Colors.black)));
+  final subtitle = measure(base.merge(_subtitleStyle(theme, Colors.black)));
   // A little slack for rounding so the caption never overflows its box.
   return (_captionTopGap + title + _captionLineGap + subtitle + 1)
       .ceilToDouble();
@@ -244,9 +252,9 @@ double albumCardCaptionHeight(BuildContext context, int titleMaxLines) {
 
 /// Extra card height a grid or rail must reserve under the cover: zero except
 /// while Flat text over artwork puts the caption below the art.
-double albumCardExtraHeight(BuildContext context, {int titleMaxLines = 1}) =>
+double albumCardExtraHeight(BuildContext context) =>
     NavisColorStyleData.of(context).flatArtworkText
-    ? albumCardCaptionHeight(context, titleMaxLines)
+    ? albumCardCaptionHeight(context)
     : 0;
 
 /// Lays out a cover [card] with its caption. Shared by [AlbumCard] and
@@ -262,7 +270,6 @@ class AlbumCardCaptionLayout extends StatelessWidget {
     required this.card,
     required this.title,
     required this.subtitle,
-    this.titleMaxLines = 1,
     super.key,
   });
 
@@ -270,7 +277,6 @@ class AlbumCardCaptionLayout extends StatelessWidget {
   final Widget card;
   final String title;
   final String subtitle;
-  final int titleMaxLines;
 
   @override
   Widget build(BuildContext context) {
@@ -290,7 +296,7 @@ class AlbumCardCaptionLayout extends StatelessWidget {
           AspectRatio(aspectRatio: 1, child: card),
           SizedBox(
             key: const ValueKey<String>('albumCardCaptionBelow'),
-            height: albumCardCaptionHeight(context, titleMaxLines),
+            height: albumCardCaptionHeight(context),
             child: Padding(
               padding: const EdgeInsets.only(
                 top: _captionTopGap,
@@ -300,7 +306,6 @@ class AlbumCardCaptionLayout extends StatelessWidget {
               child: _CaptionTexts(
                 title: title,
                 subtitle: subtitle,
-                titleMaxLines: titleMaxLines,
                 titleColor: colors.onSurface,
                 subtitleColor: colors.onSurfaceVariant,
               ),
@@ -316,14 +321,12 @@ class _CaptionTexts extends StatelessWidget {
   const new({
     required this.title,
     required this.subtitle,
-    required this.titleMaxLines,
     required this.titleColor,
     required this.subtitleColor,
   });
 
   final String title;
   final String subtitle;
-  final int titleMaxLines;
   final Color titleColor;
   final Color subtitleColor;
 
@@ -334,12 +337,7 @@ class _CaptionTexts extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       mainAxisSize: MainAxisSize.min,
       children: <Widget>[
-        Text(
-          title,
-          maxLines: titleMaxLines,
-          overflow: TextOverflow.ellipsis,
-          style: _titleStyle(titleColor),
-        ),
+        MarqueeText(title, style: _titleStyle(titleColor)),
         const SizedBox(height: _captionLineGap),
         Text(
           subtitle,
@@ -353,16 +351,18 @@ class _CaptionTexts extends StatelessWidget {
 }
 
 /// The title and subtitle at the bottom of an album card, drawn over the
-/// cover: a fade into the page colour by default, or into a colour sampled
-/// from the cover when Album Art Colored Shade is on. It draws nothing under
-/// Flat text over artwork, where [AlbumCardCaptionLayout] places the caption
-/// under the cover. Shared by [AlbumCard] and `ExternalAlbumCard`; place it
-/// directly in the card's [Stack].
+/// cover. [albumTitleShadeModeProvider] picks the shade: a fade into the page
+/// colour (classic, Shade off), a dark gradient behind white text (dark, Shade
+/// on) or a fade into a colour sampled from the cover (color, Shade and Use
+/// Cover Color on). The title is one line and scrolls when too long. It draws
+/// nothing under Flat text over artwork, where [AlbumCardCaptionLayout] places
+/// the caption under the cover. Shared by [AlbumCard], `ExternalAlbumCard` and
+/// the Home shelf's server album card; place it directly in the card's
+/// [Stack].
 class AlbumCardLabel extends ConsumerWidget {
   const new({
     required this.title,
     required this.subtitle,
-    this.titleMaxLines = 1,
     this.coverArtId,
     this.coverArtRevision = 0,
     this.coverReady,
@@ -372,10 +372,8 @@ class AlbumCardLabel extends ConsumerWidget {
   final String title;
   final String subtitle;
 
-  final int titleMaxLines;
-
-  /// Cover whose colours tint the caption when the colored shade is on; null
-  /// uses the app-surface fade.
+  /// Cover whose colours tint the caption in the color shade; null uses the
+  /// app-surface fade.
   final String? coverArtId;
   final int coverArtRevision;
 
@@ -388,38 +386,61 @@ class AlbumCardLabel extends ConsumerWidget {
     if (NavisColorStyleData.of(context).flatArtworkText) {
       return const SizedBox.shrink();
     }
-    if (!ref.watch(albumArtColoredShadeProvider)) {
-      // The title sits on a fade of the page background, not on the artwork,
-      // so it uses the scheme's text colours in every theme.
-      return Positioned(
-        left: 0,
-        right: 0,
-        bottom: 0,
-        child: _OverlayFadeLabel(
+    final Widget label;
+    switch (ref.watch(albumTitleShadeModeProvider)) {
+      case AlbumTitleShade.classic:
+        // The title sits on a fade of the page background, not on the
+        // artwork, so it uses the scheme's text colours in every theme.
+        label = _OverlayFadeLabel(
           tint: _pageTint(Theme.of(context)),
           title: title,
           subtitle: subtitle,
-          titleMaxLines: titleMaxLines,
-        ),
-      );
+        );
+      case AlbumTitleShade.dark:
+        label = _DarkShadeLabel(title: title, subtitle: subtitle);
+      case AlbumTitleShade.color:
+        // Its own layer: a tint change repaints only the caption, never
+        // the cover or the rest of the grid.
+        label = RepaintBoundary(
+          key: const ValueKey<String>('albumCardCaptionLayer'),
+          child: _CoverTintLabel(
+            coverArtId: coverArtId,
+            coverArtRevision: coverArtRevision,
+            coverReady: coverReady,
+            title: title,
+            subtitle: subtitle,
+          ),
+        );
     }
-    return Positioned(
-      left: 0,
-      right: 0,
-      bottom: 0,
-      // Its own layer: a tint change repaints only the caption, never
-      // the cover or the rest of the grid.
-      child: RepaintBoundary(
-        key: const ValueKey<String>('albumCardCaptionLayer'),
-        child: _CoverTintLabel(
-          coverArtId: coverArtId,
-          coverArtRevision: coverArtRevision,
-          coverReady: coverReady,
-          title: title,
-          subtitle: subtitle,
-          titleMaxLines: titleMaxLines,
+    return Positioned(left: 0, right: 0, bottom: 0, child: label);
+  }
+}
+
+/// White text on the style's [NavisColorStyleData.artworkScrim] gradient (the
+/// same scrim the artist hero uses), for readability on any cover. It samples
+/// no colours.
+class _DarkShadeLabel extends StatelessWidget {
+  const new({required this.title, required this.subtitle});
+
+  final String title;
+  final String subtitle;
+
+  @override
+  Widget build(BuildContext context) {
+    return Stack(
+      key: const ValueKey<String>('albumCardDarkShade'),
+      children: <Widget>[
+        const Positioned.fill(child: ArtworkScrim(alphas: <int>[0, 199])),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(10, _captionFadeHeight, 10, 10),
+          child: _CaptionTexts(
+            title: title,
+            subtitle: subtitle,
+            titleColor: Colors.white.withValues(alpha: 0.95),
+            subtitleColor: Colors.white.withValues(alpha: 0.78),
+          ),
         ),
-      ),
+      ],
     );
   }
 }
@@ -443,7 +464,6 @@ class _CoverTintLabel extends ConsumerStatefulWidget {
     required this.coverReady,
     required this.title,
     required this.subtitle,
-    required this.titleMaxLines,
   });
 
   final String? coverArtId;
@@ -451,7 +471,6 @@ class _CoverTintLabel extends ConsumerStatefulWidget {
   final ValueListenable<bool>? coverReady;
   final String title;
   final String subtitle;
-  final int titleMaxLines;
 
   @override
   ConsumerState<_CoverTintLabel> createState() => _CoverTintLabelState();
@@ -549,7 +568,7 @@ class _CoverTintLabelState extends ConsumerState<_CoverTintLabel> {
   void _coverBecameReady() {
     final ready = widget.coverReady;
     _readySynchronously =
-        ready is _CoverReadyNotifier && ready.synchronouslyLoaded;
+        ready is CoverReadyNotifier && ready.synchronouslyLoaded;
     _maybeSettle();
   }
 
@@ -672,7 +691,6 @@ class _CoverTintLabelState extends ConsumerState<_CoverTintLabel> {
         tint: fallback,
         title: widget.title,
         subtitle: widget.subtitle,
-        titleMaxLines: widget.titleMaxLines,
       );
     }
     return TweenAnimationBuilder<CaptionTint>(
@@ -684,7 +702,6 @@ class _CoverTintLabelState extends ConsumerState<_CoverTintLabel> {
         stagedFade: true,
         title: widget.title,
         subtitle: widget.subtitle,
-        titleMaxLines: widget.titleMaxLines,
       ),
     );
   }
@@ -705,7 +722,6 @@ class _OverlayFadeLabel extends StatelessWidget {
     required this.tint,
     required this.title,
     required this.subtitle,
-    required this.titleMaxLines,
     this.stagedFade = false,
   });
 
@@ -713,7 +729,6 @@ class _OverlayFadeLabel extends StatelessWidget {
   final bool stagedFade;
   final String title;
   final String subtitle;
-  final int titleMaxLines;
 
   @override
   Widget build(BuildContext context) {
@@ -721,7 +736,6 @@ class _OverlayFadeLabel extends StatelessWidget {
     final texts = _CaptionTexts(
       title: title,
       subtitle: subtitle,
-      titleMaxLines: titleMaxLines,
       titleColor: tint.text,
       subtitleColor: tint.subtext,
     );

@@ -66,8 +66,7 @@ class ResponsiveContentSliverGrid extends ConsumerWidget {
                   ? artistTileHeight(context, grid.extent)
                   // Flat text over artwork puts the album caption under the
                   // square cover, so the album cell grows by its height.
-                  : grid.extent +
-                        albumCardExtraHeight(context, titleMaxLines: 2),
+                  : grid.extent + albumCardExtraHeight(context),
               crossAxisSpacing: grid.gap,
               mainAxisSpacing: grid.gap,
             ),

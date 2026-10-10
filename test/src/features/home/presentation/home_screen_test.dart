@@ -13,6 +13,9 @@ import 'package:navis/l10n/app_localizations.dart';
 import 'package:navis/l10n/navis_localizations.dart';
 import 'package:navis/src/api/models/listenbrainz_playlist.dart';
 import 'package:navis/src/api/models/models.dart';
+import 'package:navis/src/common_widgets/album_card.dart';
+import 'package:navis/src/common_widgets/cover_art_image.dart';
+import 'package:navis/src/common_widgets/marquee_text.dart';
 import 'package:flutter/rendering.dart' show RenderParagraph;
 import 'package:navis/src/common_widgets/navis_icon.dart';
 import 'package:navis/src/common_widgets/navis_section_header.dart';
@@ -36,6 +39,7 @@ import 'package:package_info_plus/package_info_plus.dart';
 import 'package:navis/src/features/library/presentation/library_sync_provider.dart';
 import 'package:navis/src/features/player/presentation/queue_provider.dart';
 import 'package:navis/src/features/player/domain/playback_snapshot.dart';
+import 'package:navis/src/features/settings/domain/album_title_shade.dart';
 import 'package:navis/src/features/settings/domain/app_settings.dart';
 import 'package:navis/src/features/settings/domain/update_delivery.dart';
 import 'package:navis/src/features/settings/domain/update_info.dart';
@@ -4436,6 +4440,138 @@ void main() {
     expect(trending.tracks.map((track) => track.rank), <int>[1, 2, 3]);
     expect(trending.entries.map((entry) => entry.rank), <int>[1, 3]);
     expect(trending.songs.map((song) => song.id), <String>['s1', 's3']);
+  });
+
+  group('server album card shade', () {
+    const album = Album(
+      id: 'album-1',
+      name: 'A very long album title that must stay on one line',
+      artist: 'Artist',
+      coverArt: 'cover-1',
+    );
+
+    Future<void> pumpRecentlyAdded(
+      WidgetTester tester, {
+      required AlbumTitleShade mode,
+      bool flat = false,
+    }) async {
+      tester.view.physicalSize = const Size(900, 1200);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.reset);
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: withTestDatabase(
+            database,
+            overrides: <Override>[
+              appSettingsProvider.overrideWithValue(
+                AsyncData(
+                  const AppSettingsModel.defaults().copyWith(
+                    homeSectionOrder: const <String>[
+                      HomeSectionIds.recentlyAdded,
+                    ],
+                    homeSectionsHidden: _hiddenExcept(const <String>[
+                      HomeSectionIds.recentlyAdded,
+                    ]),
+                  ),
+                ),
+              ),
+              albumTitleShadeModeProvider.overrideWithValue(mode),
+              serverConfigStateProvider.overrideWithValue(
+                const AsyncData<ServerConfigModel?>(null),
+              ),
+              subsonicApiProvider.overrideWithValue(null),
+              librarySyncControllerProvider.overrideWith(
+                _StaticLibrarySyncController.new,
+              ),
+              homeRecentlyAddedProvider.overrideWithValue(
+                const AsyncData(<Album>[album]),
+              ),
+              homeRecentlyPlayedAlbumsProvider.overrideWithValue(
+                const AsyncData(<AlbumsTableData>[]),
+              ),
+              homeLikedSongsProvider.overrideWithValue(
+                const AsyncData(<SongsTableData>[]),
+              ),
+              likedSongsProvider.overrideWithValue(
+                const AsyncData(<SongsTableData>[]),
+              ),
+              homeRandomShowcaseProvider.overrideWith(
+                (ref, filters) => const AsyncData(<HomeRandomShowcaseItem>[]),
+              ),
+              homeMostPlayedSongsProvider.overrideWithValue(
+                const AsyncData(<SongsTableData>[]),
+              ),
+              likedAlbumsRecentProvider.overrideWithValue(
+                const AsyncData(<AlbumsTableData>[]),
+              ),
+            ],
+          ),
+          child: MaterialApp(
+            theme: testTheme(buildDarkTheme(Colors.teal, flat: flat)),
+            localizationsDelegates: navisLocalizationsDelegates,
+            supportedLocales: AppLocalizations.supportedLocales,
+            home: const HomeScreen(),
+          ),
+        ),
+      );
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 250));
+    }
+
+    Finder key(String name) => find.byKey(ValueKey<String>(name));
+
+    testWidgets('classic keeps the page-coloured fade', (tester) async {
+      await pumpRecentlyAdded(tester, mode: AlbumTitleShade.classic);
+
+      expect(key('albumCardTitleSurfaceFade'), findsOneWidget);
+      expect(key('albumCardDarkShade'), findsNothing);
+      expect(key('albumCardCaptionLayer'), findsNothing);
+      expect(key('albumCardCaptionBelow'), findsNothing);
+    });
+
+    testWidgets('dark puts white text on the style scrim', (tester) async {
+      await pumpRecentlyAdded(tester, mode: AlbumTitleShade.dark);
+
+      expect(key('albumCardDarkShade'), findsOneWidget);
+      expect(key('albumCardTitleSurfaceFade'), findsNothing);
+      final title = tester.widget<Text>(find.text(album.name));
+      expect(title.style!.color!.a, greaterThan(0.9));
+      expect(title.style!.color!.r, 1);
+    });
+
+    testWidgets('color uses the cover-tinted caption layer', (tester) async {
+      await pumpRecentlyAdded(tester, mode: AlbumTitleShade.color);
+
+      expect(key('albumCardCaptionLayer'), findsOneWidget);
+      expect(key('albumCardDarkShade'), findsNothing);
+    });
+
+    testWidgets('a long title is one scrolling line', (tester) async {
+      await pumpRecentlyAdded(tester, mode: AlbumTitleShade.dark);
+
+      expect(find.byType(MarqueeText), findsOneWidget);
+      final title = tester.widget<Text>(find.text(album.name));
+      expect(title.maxLines, 1);
+      expect(title.softWrap, isFalse);
+    });
+
+    testWidgets('Flat text over artwork moves the title below the cover', (
+      tester,
+    ) async {
+      await pumpRecentlyAdded(tester, mode: AlbumTitleShade.dark, flat: true);
+
+      final caption = key('albumCardCaptionBelow');
+      expect(caption, findsOneWidget);
+      expect(key('albumCardDarkShade'), findsNothing);
+      final cover = tester.getRect(
+        find.descendant(
+          of: find.byType(AlbumCardCaptionLayout),
+          matching: find.byType(CoverArtImage),
+        ),
+      );
+      expect(tester.getRect(caption).top, closeTo(cover.bottom, 0.01));
+      expect(tester.takeException(), isNull);
+    });
   });
 
   group('HomeSectionIds', () {

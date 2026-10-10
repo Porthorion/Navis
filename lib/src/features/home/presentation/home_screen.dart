@@ -2163,7 +2163,7 @@ class _ServerAlbumCarousel extends ConsumerWidget {
         return Padding(
           padding: EdgeInsets.symmetric(horizontal: horizontalPadding),
           child: ContentShelf(
-            height: cardSize,
+            height: cardSize + albumCardExtraHeight(context),
             extent: cardSize,
             gap: ContentLayout.gap(usableWidth),
             itemCount: visibleAlbums.length,
@@ -4326,7 +4326,9 @@ String _listenBrainzAvailabilityText(
 }
 
 /// A small square card for server [Album] objects (same visual as [AlbumCard]
-/// but accepts the API model directly).
+/// but accepts the API model directly): the shared [AlbumCardLabel] puts the
+/// one-line title over the cover, shaded per Album Art Shade, or under it
+/// while Flat text over artwork is on.
 class _ServerAlbumCard extends StatelessWidget {
   const new({
     required this.name,
@@ -4354,11 +4356,13 @@ class _ServerAlbumCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return SizedBox(
-      width: width,
-      child: AspectRatio(
-        aspectRatio: 1,
-        child: Card(
+    return CoverReadyScope(
+      coverKey: coverArtId,
+      builder: (context, coverReady) => AlbumCardCaptionLayout(
+        width: width,
+        title: name,
+        subtitle: artist ?? '',
+        card: Card(
           clipBehavior: Clip.antiAlias,
           margin: EdgeInsets.zero,
           shape: RoundedRectangleBorder(borderRadius: borderRadius),
@@ -4383,6 +4387,7 @@ class _ServerAlbumCard extends StatelessWidget {
                     placeholderIcon: Icons.album_outlined,
                     borderRadius: borderRadius,
                     isExternalSource: isExternalSource,
+                    onImageReady: () => coverReady.value = true,
                   )
                 else
                   CoverArtImage(
@@ -4391,54 +4396,20 @@ class _ServerAlbumCard extends StatelessWidget {
                     fit: BoxFit.cover,
                     placeholderIcon: Icons.album_outlined,
                     isExternalSource: isExternalSource,
+                    onImageReady: () => coverReady.value = true,
                   ),
-                Positioned(
-                  left: 0,
-                  right: 0,
-                  bottom: 0,
-                  child: HeroRouteChrome(
-                    heroTag: heroTag,
-                    child: Stack(
-                      children: <Widget>[
-                        Positioned.fill(
-                          child: ArtworkScrim(alphas: const <int>[0, 191]),
-                        ),
-                        Padding(
-                          padding: const EdgeInsets.fromLTRB(10, 24, 10, 10),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            mainAxisSize: MainAxisSize.min,
-                            children: <Widget>[
-                              Text(
-                                name,
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: TextStyle(
-                                  color: Colors.white.withValues(alpha: 0.95),
-                                  fontSize: 13,
-                                  fontWeight: FontWeight.w600,
-                                ),
-                              ),
-                              if (artist != null) ...[
-                                const SizedBox(height: 2),
-                                Text(
-                                  artist!,
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: Theme.of(context).textTheme.labelSmall
-                                      ?.copyWith(
-                                        color: Colors.white.withValues(
-                                          alpha: 0.75,
-                                        ),
-                                        fontWeight: FontWeight.w400,
-                                      ),
-                                ),
-                              ],
-                            ],
-                          ),
-                        ),
-                      ],
-                    ),
+                HeroRouteChrome(
+                  heroTag: heroTag,
+                  child: Stack(
+                    fit: StackFit.expand,
+                    children: <Widget>[
+                      AlbumCardLabel(
+                        title: name,
+                        subtitle: artist ?? '',
+                        coverArtId: coverArtId,
+                        coverReady: coverReady,
+                      ),
+                    ],
                   ),
                 ),
               ],

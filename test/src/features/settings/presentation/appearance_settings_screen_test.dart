@@ -4,6 +4,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:navis/l10n/app_localizations.dart';
 import 'package:navis/l10n/navis_localizations.dart';
 import 'package:navis/src/common_widgets/new_feature_tag.dart';
+import 'package:navis/src/database/navis_database.dart';
 import 'package:navis/src/features/onboarding/domain/setup_highlights.dart';
 import 'package:navis/src/features/onboarding/presentation/setup_highlights_provider.dart';
 import 'package:navis/src/features/settings/domain/app_settings.dart';
@@ -70,6 +71,7 @@ void main() {
     NowPlayingBackground? nowPlayingBackground,
     bool flatSurfaces = false,
     FlatAreas flatAreas = const FlatAreas(),
+    bool albumArtShade = false,
     bool albumArtColoredShade = false,
   }) async {
     if (adaptiveContext == null &&
@@ -91,6 +93,7 @@ void main() {
       nowPlayingBackground: nowPlayingBackground,
       flatSurfaces: flatSurfaces,
       flatAreas: flatAreas,
+      albumArtShade: albumArtShade,
       albumArtColoredShade: albumArtColoredShade,
       nightScheduleEnabled: nightScheduleEnabled,
       nightScheduleStartMinutes: nightStartMinutes,
@@ -575,7 +578,7 @@ void main() {
         l10n.appearanceNightScheduleLabel,
         l10n.appearanceColorSchemeLabel,
         l10n.appearanceDynamicAlbumColorLabel,
-        l10n.appearanceAlbumArtColoredShadeLabel,
+        l10n.appearanceAlbumArtShadeLabel,
         l10n.appearanceSectionShapeLayout,
         l10n.appearanceFlatSurfacesLabel,
         l10n.appearanceCornerStyleLabel,
@@ -908,53 +911,83 @@ void main() {
       });
     });
 
-    group('Album Art Colored Shade', () {
-      SwitchListTile shadeSwitch(WidgetTester tester) => tester.widget(
-        find.ancestor(
-          of: find.text(l10n.appearanceAlbumArtColoredShadeLabel),
-          matching: find.byType(SwitchListTile),
-        ),
+    group('Album Art Shade', () {
+      final shadeKey = find.byKey(
+        const ValueKey<String>('albumArtShadeSwitch'),
       );
+      final coverKey = find.byKey(
+        const ValueKey<String>('albumArtCoverColorSwitch'),
+      );
+      SwitchListTile switchOf(WidgetTester tester, Finder finder) =>
+          tester.widget(finder);
+      Future<AppSettingsTableData?> saved(
+        WidgetTester tester,
+        ProviderContainer container,
+      ) async {
+        final dao = container.read(navisDatabaseProvider).appSettingsDao;
+        return await tester.runAsync<AppSettingsTableData?>(dao.getSettings);
+      }
 
       testWidgets('sits after Dynamic Album Color and saves', (tester) async {
         final container = await pumpAppearance(tester);
-        final finder = find.text(l10n.appearanceAlbumArtColoredShadeLabel);
-        await reveal(tester, finder);
-        expect(
-          find.text(l10n.appearanceAlbumArtColoredShadeSub),
-          findsOneWidget,
-        );
-        expect(
-          find.text(l10n.appearanceAlbumArtColoredShadeFlatNote),
-          findsNothing,
-        );
-        expect(shadeSwitch(tester).onChanged, isNotNull);
-        await tester.tap(finder);
+        await reveal(tester, find.text(l10n.appearanceAlbumArtShadeLabel));
+        expect(find.text(l10n.appearanceAlbumArtShadeSub), findsOneWidget);
+        expect(find.text(l10n.appearanceAlbumArtShadeFlatNote), findsNothing);
+        expect(switchOf(tester, shadeKey).onChanged, isNotNull);
+        await tester.tap(shadeKey);
         await tester.pump(const Duration(milliseconds: 100));
-        final settings = await tester.runAsync(
-          container.read(navisDatabaseProvider).appSettingsDao.getSettings,
-        );
-        expect(settings?.albumArtColoredShade, isTrue);
+        final settings = await saved(tester, container);
+        expect(settings?.albumArtShade, isTrue);
+        expect(settings?.albumArtColoredShade, isFalse);
       });
 
-      testWidgets('is disabled with a note under Flat text over artwork', (
+      testWidgets('Use Cover Color appears only while Shade is on', (
+        tester,
+      ) async {
+        await pumpAppearance(tester);
+        await reveal(tester, find.text(l10n.appearanceAlbumArtShadeLabel));
+        expect(coverKey, findsNothing);
+        expect(find.text(l10n.appearanceAlbumArtCoverColorLabel), findsNothing);
+
+        await pumpAppearance(tester, albumArtShade: true);
+        await reveal(tester, find.text(l10n.appearanceAlbumArtShadeLabel));
+        await tester.pump(const Duration(milliseconds: 300));
+        expect(coverKey, findsOneWidget);
+        expect(find.text(l10n.appearanceAlbumArtCoverColorSub), findsOneWidget);
+        expect(switchOf(tester, coverKey).value, isFalse);
+        expect(switchOf(tester, coverKey).onChanged, isNotNull);
+      });
+
+      testWidgets('Use Cover Color saves independently of Shade', (
+        tester,
+      ) async {
+        final container = await pumpAppearance(tester, albumArtShade: true);
+        await reveal(tester, find.text(l10n.appearanceAlbumArtShadeLabel));
+        await tester.pump(const Duration(milliseconds: 300));
+        await tester.ensureVisible(coverKey);
+        await tester.tap(coverKey);
+        await tester.pump(const Duration(milliseconds: 100));
+        final settings = await saved(tester, container);
+        expect(settings?.albumArtColoredShade, isTrue);
+        expect(settings?.albumArtShade, isFalse);
+      });
+
+      testWidgets('both are disabled with a note under Flat text over art', (
         tester,
       ) async {
         await pumpAppearance(
           tester,
           flatSurfaces: true,
+          albumArtShade: true,
           albumArtColoredShade: true,
         );
-        await reveal(
-          tester,
-          find.text(l10n.appearanceAlbumArtColoredShadeLabel),
-        );
-        expect(shadeSwitch(tester).onChanged, isNull);
-        expect(shadeSwitch(tester).value, isTrue);
-        expect(
-          find.text(l10n.appearanceAlbumArtColoredShadeFlatNote),
-          findsOneWidget,
-        );
+        await reveal(tester, find.text(l10n.appearanceAlbumArtShadeLabel));
+        await tester.pump(const Duration(milliseconds: 300));
+        expect(switchOf(tester, shadeKey).onChanged, isNull);
+        expect(switchOf(tester, shadeKey).value, isTrue);
+        expect(switchOf(tester, coverKey).onChanged, isNull);
+        expect(switchOf(tester, coverKey).value, isTrue);
+        expect(find.text(l10n.appearanceAlbumArtShadeFlatNote), findsOneWidget);
       });
 
       testWidgets('stays enabled when Flat leaves text over artwork alone', (
@@ -964,12 +997,12 @@ void main() {
           tester,
           flatSurfaces: true,
           flatAreas: const FlatAreas(artworkText: false),
+          albumArtShade: true,
         );
-        await reveal(
-          tester,
-          find.text(l10n.appearanceAlbumArtColoredShadeLabel),
-        );
-        expect(shadeSwitch(tester).onChanged, isNotNull);
+        await reveal(tester, find.text(l10n.appearanceAlbumArtShadeLabel));
+        await tester.pump(const Duration(milliseconds: 300));
+        expect(switchOf(tester, shadeKey).onChanged, isNotNull);
+        expect(switchOf(tester, coverKey).onChanged, isNotNull);
       });
     });
 
@@ -1101,7 +1134,7 @@ void main() {
           l10n.appearanceNightScheduleLabel,
           l10n.appearanceFlatSurfacesLabel,
           l10n.appearanceFlatAreaSurfacesLabel,
-          l10n.appearanceAlbumArtColoredShadeLabel,
+          l10n.appearanceAlbumArtShadeLabel,
           l10n.appearanceCornerStyleLabel,
           l10n.appearanceNowPlayingBackgroundLabel,
         ]) {

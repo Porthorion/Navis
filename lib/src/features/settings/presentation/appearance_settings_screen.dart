@@ -95,6 +95,11 @@ class AppearanceSettingsScreen extends ConsumerWidget {
         final db = ref.read(navisDatabaseProvider);
         await db.appSettingsDao.updateFlatAreas(areas.bits);
       },
+      albumArtShade: ref.watch(albumArtShadeProvider),
+      onAlbumArtShadeChanged: (enabled) async {
+        final db = ref.read(navisDatabaseProvider);
+        await db.appSettingsDao.updateAlbumArtShade(enabled: enabled);
+      },
       albumArtColoredShade: ref.watch(albumArtColoredShadeProvider),
       onAlbumArtColoredShadeChanged: (enabled) async {
         final db = ref.read(navisDatabaseProvider);
@@ -298,7 +303,7 @@ class AppearanceSettingsScreen extends ConsumerWidget {
                     );
                   },
                 ),
-                options.buildAlbumArtColoredShade(),
+                options.buildAlbumArtShade(),
                 const Divider(height: 32),
 
                 // ── Shape & Layout ──────────────────────────────────────

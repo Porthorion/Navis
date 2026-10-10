@@ -892,8 +892,8 @@ target-selection rules.
     Surfaces, Corner Style, Artwork Shape with its three selectors, Artwork
     Theme (Theme Mode, Use OLED When Dark in Auto only, Night Schedule),
     Color (Color Style, Accent Color, then Dynamic Album Color directly under
-    the accent grid, whose note names the switch, then Album Art Colored
-    Shade), Shape & Layout (Flat Surfaces with its three area switches
+    the accent grid, whose note names the switch, then Album Art Shade with its
+    Use Cover Color sub-switch), Shape & Layout (Flat Surfaces with its three area switches
     revealed while Flat is on, Corner Style, Artwork Shape with its three selectors, Artwork
     Size, Density, Artist View Mode) and Now Playing (Now Playing Background).
     Home Sections, Page Visibility and Desktop Navigation stay collapsed
@@ -1036,13 +1036,32 @@ classic uses the page-coloured fade and scheme text colours with Shade off;
 dark uses a dark gradient behind white text with Album Art Shade on and Use
 Cover Color off; color uses a cover-tinted gradient with both switches on,
 with fill and text adjusted for 4.5:1 contrast. Classic and dark require no
-cover sampling. Switches and caption rendering for this two-tier setting are
-pending the separate UI change; `AlbumCardLabel` currently reads the colour
-flag directly. With Flat text over artwork (`NavisColorStyleData.flatArtworkText`)
+cover sampling. `AlbumCardLabel` switches on the mode: classic and color reuse
+`_OverlayFadeLabel` (color through `_CoverTintLabel`), dark is `_DarkShadeLabel`
+(key `albumCardDarkShade`), white text over `ArtworkScrim` (the style's
+`artworkScrim`, as on the artist hero). Settings › Appearance and setup show
+Album Art Shade (New tag) with an indented Use Cover Color switch revealed by
+`AppearanceSubOptionReveal` while Shade is on; both are disabled with a note
+under Flat text over artwork. An album title is never more than one line:
+`MarqueeText` (`marquee_text.dart`) is a plain `Text` when it fits, otherwise it
+rests ~1.75 s, scrolls to the end at 35 px/s, rests ~0.8 s and snaps back, with
+one `AnimationController` inside a `RepaintBoundary`. It runs only while
+visible (`TickerMode` plus `VisibilityDetector`), becomes a still ellipsised line
+under reduced motion (`MotionPolicy`), and exposes the full title as its
+semantics label. Subtitles stay single-line ellipsis. A scrolling title never
+settles `pumpAndSettle`, and `test/flutter_test_config.dart` zeroes the
+`VisibilityDetector` debounce so tests leave no pending timer. The Home
+Recently added / Frequent carousel card (`_ServerAlbumCard`) uses the same
+`AlbumCardLabel` and `AlbumCardCaptionLayout` as `AlbumCard`, so it follows the
+same tiers (its former hard-coded dark scrim is now the opt-in dark tier; the
+default is the page fade like every other Home album carousel), and its shelf
+adds `albumCardExtraHeight` under Flat. `CoverReadyScope` is the shared cover
+readiness tracker for both cards. With Flat text over artwork
+(`NavisColorStyleData.flatArtworkText`)
 the caption moves below an unobstructed cover (`AlbumCardCaptionLayout`, key
 `albumCardCaptionBelow`) and nothing is sampled. In that layout every host
-reserves `albumCardExtraHeight` (measured at the ambient text scale) under its
-square cover: `ResponsiveContentSliverGrid` (`mainAxisExtent`), the Home New
+reserves `albumCardExtraHeight` (one title line and one subtitle line, measured
+at the ambient text scale) under its square cover: `ResponsiveContentSliverGrid` (`mainAxisExtent`), the Home New
 releases and local album shelves, the artist page's missing-albums shelf, the
 Library liked-albums shelf and the By Year pairs (which size themselves). The
 phone album and weekly playlist headers likewise show the art with no fade or
@@ -1050,7 +1069,7 @@ overlaid title under Flat text over artwork and put the title at the top of the
 content under it.
 
 **Cover colour sampling (`cover_colour_sampler.dart`).** Shared by this wash
-and the cover-tinted album-card caption (Album Art Colored Shade). Until the
+and the cover-tinted album-card caption (Album Art Shade with Use Cover Color). Until the
 tint is known, and for cards without a cover-art id (including external album
 cards), the caption falls back to the page-background fade and scheme text
 colours. Cards remain square in grids and rails unless the caption sits below
@@ -1436,7 +1455,7 @@ metadata, ignoring build and label suffixes. A newer highlight release replaces
 the group. Highlights survive the next minor release, then expire: the 1.4.x
 registry still applies in 1.5.x, but not in 1.6.0+ or a new major. The eight options
 are Color Style, OLED for Auto, Night Schedule, Flat Surfaces, Flat areas
-(tagged on the first area switch), Album Art Colored Shade, Now Playing
+(tagged on the first area switch), Album Art Shade, Now Playing
 Background and Corner Style; Density is an existing setting and has no New tag.
 
 Schema 97 persists nullable `setup_highlights_seen` (JSON array of stable
@@ -1474,7 +1493,7 @@ options" group (`SettingsCollapsibleGroup`, children built only while open)
 holds Use OLED When Dark (Auto only), Night Schedule, Flat Surfaces (with its
 Panels and Shadows, Now Playing and Text Over Artwork switches while Flat is
 on), Corner Style, Density and Now Playing Background, in Settings' relative
-order; Album Art Colored Shade sits after the accent hint, outside the group.
+order; Album Art Shade (with Use Cover Color) sits after the accent hint, outside the group.
 It starts open when any of them carries a pending tag (OLED only counts in
 Auto, the Flat areas only while Flat is on) and closed otherwise. The step shows the "Scroll for more" hint like the other
 steps. Choices write only to the draft that Finish
@@ -2577,8 +2596,8 @@ there, one that already places it is left alone). `homeNewReleasesProvider`
 - The section hides itself while it first loads, fails or is empty, and under
   the downloaded-only and liked-only filters; a refresh keeps the shown cards.
   `HomeNewReleasesShelf` (`home_new_releases.dart`) is Home's album carousel of
-  `ExternalAlbumCard`s: two lines, title and artist, like the other album
-  carousels.
+  `ExternalAlbumCard`s: a one-line (scrolling) title and an artist line, like
+  the other album carousels.
 - A tap (`openHomeNewRelease`) opens the library album when linked; else the
   server's remote album `ext-deezer-album-<id>`, named by the release title
   and artist, on a remote album page (see *Remote artist and album pages*).

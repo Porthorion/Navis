@@ -8,6 +8,7 @@ import 'package:navis/src/api/models/models.dart';
 import 'package:navis/src/common_widgets/album_card.dart';
 import 'package:navis/src/database/navis_database.dart';
 import 'package:navis/src/providers/app_providers.dart';
+import 'package:navis/src/features/settings/domain/album_title_shade.dart';
 import 'package:navis/src/theme/navis_theme.dart';
 
 const _album = AlbumsTableData(
@@ -29,7 +30,9 @@ void main() {
         overrides: [
           subsonicApiProvider.overrideWithValue(null),
           coverArtShapeProvider.overrideWithValue('rounded'),
-          albumArtColoredShadeProvider.overrideWithValue(false),
+          albumTitleShadeModeProvider.overrideWithValue(
+            AlbumTitleShade.classic,
+          ),
         ],
         child: MaterialApp(
           localizationsDelegates: navisLocalizationsDelegates,
@@ -69,7 +72,9 @@ void main() {
           overrides: [
             subsonicApiProvider.overrideWithValue(null),
             coverArtShapeProvider.overrideWithValue('rounded'),
-            albumArtColoredShadeProvider.overrideWithValue(false),
+            albumTitleShadeModeProvider.overrideWithValue(
+              AlbumTitleShade.classic,
+            ),
           ],
           child: MaterialApp(
             theme: theme,
@@ -106,7 +111,9 @@ void main() {
         overrides: [
           subsonicApiProvider.overrideWithValue(null),
           coverArtShapeProvider.overrideWithValue('rounded'),
-          albumArtColoredShadeProvider.overrideWithValue(false),
+          albumTitleShadeModeProvider.overrideWithValue(
+            AlbumTitleShade.classic,
+          ),
         ],
         child: MaterialApp(
           localizationsDelegates: AppLocalizations.localizationsDelegates,
@@ -115,7 +122,12 @@ void main() {
             body: Center(
               child: SizedBox(
                 width: 200,
-                child: AlbumCard(album: _album, onTap: () {}),
+                // A short title: a long one scrolls forever, so pumpAndSettle never
+                // settles.
+                child: AlbumCard(
+                  album: _album.copyWith(name: 'Short'),
+                  onTap: () {},
+                ),
               ),
             ),
           ),

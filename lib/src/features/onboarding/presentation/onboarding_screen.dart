@@ -745,6 +745,9 @@ class OnboardingScreenState extends ConsumerState<OnboardingScreen> {
       flatAreas: draft.flatAreas,
       onFlatAreasChanged: (value) =>
           setState(() => _draft = draft.copyWith(flatAreas: value)),
+      albumArtShade: draft.albumArtShade,
+      onAlbumArtShadeChanged: (value) =>
+          setState(() => _draft = draft.copyWith(albumArtShade: value)),
       albumArtColoredShade: draft.albumArtColoredShade,
       onAlbumArtColoredShadeChanged: (value) =>
           setState(() => _draft = draft.copyWith(albumArtColoredShade: value)),
@@ -832,7 +835,7 @@ class OnboardingScreenState extends ConsumerState<OnboardingScreen> {
               l10n.onboardingAppearanceColorPickerHint,
               style: theme.textTheme.bodySmall,
             ),
-            options.buildAlbumArtColoredShade(),
+            options.buildAlbumArtShade(),
             const SizedBox(height: 16),
             Builder(
               builder: (context) => SettingsCollapsibleGroup(

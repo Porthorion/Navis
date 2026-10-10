@@ -15,6 +15,7 @@ import 'package:navis/src/features/home/presentation/cover_colour_field.dart';
 import 'package:navis/src/features/home/presentation/cover_colour_sampler.dart';
 import 'package:navis/src/features/home/presentation/cover_colour_worker.dart';
 import 'package:navis/src/providers/app_providers.dart';
+import 'package:navis/src/features/settings/domain/album_title_shade.dart';
 import 'package:navis/src/theme/caption_tint.dart';
 import 'package:navis/src/theme/navis_theme.dart';
 
@@ -47,7 +48,7 @@ Widget _app(_Counter counter, Widget home, {PermanentArtworkStore? artwork}) {
       coverArtShapeProvider.overrideWithValue('rounded'),
       if (artwork != null)
         permanentArtworkStoreProvider.overrideWithValue(artwork),
-      albumArtColoredShadeProvider.overrideWithValue(true),
+      albumTitleShadeModeProvider.overrideWithValue(AlbumTitleShade.color),
       coverColourDecoderProvider.overrideWithValue(counter.call),
       coverColourStoreProvider.overrideWithValue(const NullCoverColourStore()),
       coverColourWorkerProvider.overrideWithValue(InlineCoverColourWorker()),

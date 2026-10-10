@@ -314,45 +314,68 @@ class FlatAreasOption extends StatelessWidget {
   }
 }
 
-/// Album Art Colored Shade switch. Disabled with a note while Flat text over
-/// artwork puts album titles below the art. Shared by Appearance settings and
-/// setup.
-class AlbumArtColoredShadeOption extends StatelessWidget {
+/// Album Art Shade switch with its Use Cover Color sub-switch, revealed while
+/// Shade is on. Both are disabled with a note while Flat text over artwork
+/// puts album titles below the art. Shared by Appearance settings and setup.
+class AlbumArtShadeOption extends StatelessWidget {
   const new({
-    required this.value,
+    required this.shade,
+    required this.coverColor,
     required this.enabled,
-    required this.onChanged,
+    required this.onShadeChanged,
+    required this.onCoverColorChanged,
     this.adornment,
     super.key,
   });
 
-  final bool value;
+  final bool shade;
+  final bool coverColor;
 
-  /// False while the titles sit below the art, where there is nothing to tint.
+  /// False while the titles sit below the art, where there is nothing to shade.
   final bool enabled;
-  final ValueChanged<bool> onChanged;
+  final ValueChanged<bool> onShadeChanged;
+  final ValueChanged<bool> onCoverColorChanged;
 
-  /// Shown beside the title, for example a "New" tag.
+  /// Shown beside the Shade title, for example a "New" tag.
   final Widget? adornment;
 
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context)!;
-    return SwitchListTile(
-      contentPadding: appearanceSwitchPadding(context),
-      title: _titleWithAdornment(
-        l10n.appearanceAlbumArtColoredShadeLabel,
-        adornment,
-      ),
-      subtitle: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: <Widget>[
-          Text(l10n.appearanceAlbumArtColoredShadeSub),
-          if (!enabled) Text(l10n.appearanceAlbumArtColoredShadeFlatNote),
-        ],
-      ),
-      value: value,
-      onChanged: enabled ? onChanged : null,
+    return Column(
+      children: <Widget>[
+        SwitchListTile(
+          key: const ValueKey<String>('albumArtShadeSwitch'),
+          contentPadding: appearanceSwitchPadding(context),
+          title: _titleWithAdornment(
+            l10n.appearanceAlbumArtShadeLabel,
+            adornment,
+          ),
+          subtitle: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: <Widget>[
+              Text(l10n.appearanceAlbumArtShadeSub),
+              if (!enabled) Text(l10n.appearanceAlbumArtShadeFlatNote),
+            ],
+          ),
+          value: shade,
+          onChanged: enabled ? onShadeChanged : null,
+        ),
+        AppearanceSubOptionReveal(
+          visible: shade,
+          child: SwitchListTile(
+            key: const ValueKey<String>('albumArtCoverColorSwitch'),
+            contentPadding: EdgeInsetsDirectional.only(
+              start: AppearanceLayout.subOptionInsetOf(context),
+              end: AppearanceLayout.gutterOf(context),
+            ),
+            title: Text(l10n.appearanceAlbumArtCoverColorLabel),
+            subtitle: Text(l10n.appearanceAlbumArtCoverColorSub),
+            value: coverColor,
+            onChanged: enabled ? onCoverColorChanged : null,
+          ),
+        ),
+      ],
     );
   }
 }
@@ -849,6 +872,8 @@ class AppearanceOptionSet {
     required this.onFlatSurfacesChanged,
     required this.flatAreas,
     required this.onFlatAreasChanged,
+    required this.albumArtShade,
+    required this.onAlbumArtShadeChanged,
     required this.albumArtColoredShade,
     required this.onAlbumArtColoredShadeChanged,
     required this.cornerStyle,
@@ -872,6 +897,10 @@ class AppearanceOptionSet {
   final ValueChanged<bool> onFlatSurfacesChanged;
   final FlatAreas flatAreas;
   final ValueChanged<FlatAreas> onFlatAreasChanged;
+  final bool albumArtShade;
+  final ValueChanged<bool> onAlbumArtShadeChanged;
+
+  /// Use Cover Color, the Shade sub-option.
   final bool albumArtColoredShade;
   final ValueChanged<bool> onAlbumArtColoredShadeChanged;
   final NavisCornerStyle cornerStyle;
@@ -959,15 +988,17 @@ class AppearanceOptionSet {
     };
   }
 
-  /// Album Art Colored Shade, which both screens place in their Color group
-  /// rather than in [AppearanceOptionKind]'s order.
-  Widget buildAlbumArtColoredShade() => _tagged(
+  /// Album Art Shade and Use Cover Color, which both screens place in their
+  /// Color group rather than in [AppearanceOptionKind]'s order.
+  Widget buildAlbumArtShade() => _tagged(
     SetupHighlight.albumArtShade,
-    (adornment) => AlbumArtColoredShadeOption(
-      value: albumArtColoredShade,
+    (adornment) => AlbumArtShadeOption(
+      shade: albumArtShade,
+      coverColor: albumArtColoredShade,
       enabled: !(flatSurfaces && flatAreas.artworkText),
       adornment: adornment,
-      onChanged: onAlbumArtColoredShadeChanged,
+      onShadeChanged: onAlbumArtShadeChanged,
+      onCoverColorChanged: onAlbumArtColoredShadeChanged,
     ),
   );
 

@@ -239,6 +239,12 @@ void main() {
           adaptiveContext: adaptiveContext,
           child: MaterialApp.router(
             theme: theme,
+            // Long album titles scroll forever; reduced motion keeps them
+            // still so pumpAndSettle settles.
+            builder: (context, child) => MediaQuery(
+              data: MediaQuery.of(context).copyWith(disableAnimations: true),
+              child: child!,
+            ),
             localizationsDelegates: navisLocalizationsDelegates,
             supportedLocales: AppLocalizations.supportedLocales,
             routerConfig: _router(),

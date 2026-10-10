@@ -5609,23 +5609,35 @@ abstract class AppLocalizations {
   /// **'Album art replaces your accent when a cover has one.'**
   String get appearanceDynamicAlbumColorSub;
 
-  /// No description provided for @appearanceAlbumArtColoredShadeLabel.
+  /// No description provided for @appearanceAlbumArtShadeLabel.
   ///
   /// In en, this message translates to:
-  /// **'Album Art Colored Shade'**
-  String get appearanceAlbumArtColoredShadeLabel;
+  /// **'Album Art Shade'**
+  String get appearanceAlbumArtShadeLabel;
 
-  /// No description provided for @appearanceAlbumArtColoredShadeSub.
+  /// No description provided for @appearanceAlbumArtShadeSub.
   ///
   /// In en, this message translates to:
-  /// **'Tint album titles with a color from each cover.'**
-  String get appearanceAlbumArtColoredShadeSub;
+  /// **'A dark gradient behind album titles for easier reading.'**
+  String get appearanceAlbumArtShadeSub;
 
-  /// No description provided for @appearanceAlbumArtColoredShadeFlatNote.
+  /// No description provided for @appearanceAlbumArtShadeFlatNote.
   ///
   /// In en, this message translates to:
   /// **'Album titles sit below the art while Flat text over artwork is on.'**
-  String get appearanceAlbumArtColoredShadeFlatNote;
+  String get appearanceAlbumArtShadeFlatNote;
+
+  /// No description provided for @appearanceAlbumArtCoverColorLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Use Cover Color'**
+  String get appearanceAlbumArtCoverColorLabel;
+
+  /// No description provided for @appearanceAlbumArtCoverColorSub.
+  ///
+  /// In en, this message translates to:
+  /// **'Tint the shade with a color from each cover.'**
+  String get appearanceAlbumArtCoverColorSub;
 
   /// No description provided for @cacheSettingsCoverArtSection.
   ///

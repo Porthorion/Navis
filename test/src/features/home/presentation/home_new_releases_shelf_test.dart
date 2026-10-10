@@ -9,6 +9,7 @@ import 'package:navis/src/common_widgets/external_album_card.dart';
 import 'package:navis/src/features/home/domain/new_releases.dart';
 import 'package:navis/src/features/home/presentation/home_new_releases.dart';
 import 'package:navis/src/providers/app_providers.dart';
+import 'package:navis/src/features/settings/domain/album_title_shade.dart';
 import 'package:navis/src/theme/navis_theme.dart';
 
 final _release = HomeNewRelease(
@@ -27,7 +28,7 @@ Future<void> _pump(WidgetTester tester, {required bool flat}) async {
       overrides: [
         subsonicApiProvider.overrideWithValue(null),
         coverArtShapeProvider.overrideWithValue('rounded'),
-        albumArtColoredShadeProvider.overrideWithValue(false),
+        albumTitleShadeModeProvider.overrideWithValue(AlbumTitleShade.classic),
       ],
       child: MaterialApp(
         theme: buildDarkTheme(Colors.teal, flat: flat),
@@ -70,7 +71,7 @@ void main() {
 
     final card = tester.getSize(find.byType(ExternalAlbumCard));
     final context = tester.element(find.byType(ExternalAlbumCard));
-    final caption = albumCardCaptionHeight(context, 1);
+    final caption = albumCardCaptionHeight(context);
     expect(card.height, closeTo(card.width + caption, 0.01));
     final shelf = tester.getSize(find.byType(HomeNewReleasesShelf));
     expect(shelf.height, greaterThanOrEqualTo(card.height));

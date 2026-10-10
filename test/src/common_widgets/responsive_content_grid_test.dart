@@ -84,7 +84,7 @@ void main() {
                     ResponsiveContentSliverGrid(
                       itemCount: 12,
                       itemBuilder: (context, index) {
-                        extra = albumCardExtraHeight(context, titleMaxLines: 2);
+                        extra = albumCardExtraHeight(context);
                         return ColoredBox(
                           key: ValueKey(index),
                           color: Colors.blue,

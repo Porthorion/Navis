@@ -232,12 +232,20 @@ Widget _buildLibraryScreen({
       theme: testTheme(),
       localizationsDelegates: navisLocalizationsDelegates,
       supportedLocales: AppLocalizations.supportedLocales,
-      builder: adaptiveContext == null
-          ? null
-          : (context, child) => AdaptiveContextScope(
-              adaptiveContext: adaptiveContext,
-              child: child!,
-            ),
+      // Long album titles scroll forever; reduced motion keeps them still so
+      // pumpAndSettle settles.
+      builder: (context, child) {
+        final still = MediaQuery(
+          data: MediaQuery.of(context).copyWith(disableAnimations: true),
+          child: child!,
+        );
+        return adaptiveContext == null
+            ? still
+            : AdaptiveContextScope(
+                adaptiveContext: adaptiveContext,
+                child: still,
+              );
+      },
       home: LibrarySectionNavigationScope(
         sidebarAllowsSections: sidebarShowsSections,
         sectionsFit: ValueNotifier<bool>(true),

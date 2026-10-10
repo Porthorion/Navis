@@ -6,12 +6,15 @@ import 'package:material_ui/material_ui.dart';
 import 'package:navis/l10n/app_localizations.dart';
 import 'package:navis/l10n/navis_localizations.dart';
 import 'package:navis/src/common_widgets/album_card.dart';
+import 'package:navis/src/common_widgets/artwork_scrim.dart';
+import 'package:navis/src/common_widgets/marquee_text.dart';
 import 'package:navis/src/common_widgets/cover_art_cache_manager.dart';
 import 'package:navis/src/common_widgets/caption_tint_resolver.dart';
 import 'package:navis/src/features/home/presentation/cover_colour_sampler.dart';
 import 'package:navis/src/common_widgets/responsive_content_grid.dart';
 import 'package:navis/src/database/navis_database.dart';
 import 'package:navis/src/providers/app_providers.dart';
+import 'package:navis/src/features/settings/domain/album_title_shade.dart';
 import 'package:navis/src/routing/content_layout.dart';
 import 'package:navis/src/features/home/presentation/cover_colour_field.dart';
 import 'package:navis/src/features/home/presentation/cover_colour_worker.dart';
@@ -34,6 +37,17 @@ final List<AlbumsTableData> _albums = List<AlbumsTableData>.generate(
   ),
 );
 
+final AlbumsTableData _longAlbum = AlbumsTableData(
+  id: 'long',
+  name: 'An extraordinarily long album title that cannot possibly fit',
+  artistName: 'Artist with a name that is long enough to need an ellipsis',
+  artists: const [],
+  songsHydrated: true,
+  isProvisional: false,
+  isExternal: false,
+  coverArt: 'cover-1',
+);
+
 Future<void> _pump(
   WidgetTester tester,
   ThemeData theme, {
@@ -47,7 +61,9 @@ Future<void> _pump(
       overrides: [
         subsonicApiProvider.overrideWithValue(null),
         coverArtShapeProvider.overrideWithValue('rounded'),
-        albumArtColoredShadeProvider.overrideWithValue(coloredShade),
+        albumTitleShadeModeProvider.overrideWithValue(
+          coloredShade ? AlbumTitleShade.color : AlbumTitleShade.classic,
+        ),
         gridArtworkSizeProvider.overrideWithValue(GridArtworkSize.auto),
       ],
       child: MaterialApp(
@@ -125,7 +141,9 @@ void main() {
       await tester.pumpWidget(
         ProviderScope(
           overrides: [
-            albumArtColoredShadeProvider.overrideWithValue(true),
+            albumTitleShadeModeProvider.overrideWithValue(
+              AlbumTitleShade.color,
+            ),
             coverColourSamplerProvider.overrideWithValue(sampler),
             coverColourWorkerProvider.overrideWithValue(worker),
           ],
@@ -256,7 +274,9 @@ void main() {
           overrides: [
             subsonicApiProvider.overrideWithValue(null),
             coverArtShapeProvider.overrideWithValue('rounded'),
-            albumArtColoredShadeProvider.overrideWithValue(true),
+            albumTitleShadeModeProvider.overrideWithValue(
+              AlbumTitleShade.color,
+            ),
             coverColourWorkerProvider.overrideWithValue(
               InlineCoverColourWorker(),
             ),
@@ -318,7 +338,9 @@ void main() {
         overrides: [
           subsonicApiProvider.overrideWithValue(null),
           coverArtShapeProvider.overrideWithValue('rounded'),
-          albumArtColoredShadeProvider.overrideWithValue(false),
+          albumTitleShadeModeProvider.overrideWithValue(
+            AlbumTitleShade.classic,
+          ),
           coverColourWorkerProvider.overrideWithValue(worker),
           coverColourFieldProvider.overrideWith((ref, id) async {
             fieldRequests++;
@@ -364,7 +386,8 @@ void main() {
 
     Future<_CountingTintWorker> pumpFlat(
       WidgetTester tester, {
-      required bool coloredShade,
+      required AlbumTitleShade mode,
+      AlbumsTableData? card,
       FlatAreas areas = const FlatAreas(),
       double textScale = 1,
     }) async {
@@ -377,7 +400,7 @@ void main() {
           overrides: [
             subsonicApiProvider.overrideWithValue(null),
             coverArtShapeProvider.overrideWithValue('rounded'),
-            albumArtColoredShadeProvider.overrideWithValue(coloredShade),
+            albumTitleShadeModeProvider.overrideWithValue(mode),
             coverColourWorkerProvider.overrideWithValue(worker),
             coverColourFieldProvider.overrideWith(
               (ref, id) async =>
@@ -396,7 +419,7 @@ void main() {
             home: Scaffold(
               body: Align(
                 alignment: Alignment.topLeft,
-                child: AlbumCard(album: album, extent: 160),
+                child: AlbumCard(album: card ?? album, extent: 160),
               ),
             ),
           ),
@@ -407,10 +430,10 @@ void main() {
       return worker;
     }
 
-    for (final coloredShade in <bool>[false, true]) {
+    for (final mode in AlbumTitleShade.values) {
       testWidgets('puts the caption below an unobstructed cover '
-          '(colored shade: $coloredShade)', (tester) async {
-        final worker = await pumpFlat(tester, coloredShade: coloredShade);
+          '(shade: ${mode.name})', (tester) async {
+        final worker = await pumpFlat(tester, mode: mode);
 
         final cover = tester.getRect(
           find.byKey(const ValueKey('albumCardTapTarget')),
@@ -427,6 +450,7 @@ void main() {
         // Nothing is drawn over the art, and no cover colour is sampled.
         for (final key in <String>[
           'albumCardTitleSurfaceFade',
+          'albumCardDarkShade',
           'albumCardTintFade',
           'albumCardTintText',
           'albumCardCaptionLayer',
@@ -443,7 +467,7 @@ void main() {
     ) async {
       await pumpFlat(
         tester,
-        coloredShade: false,
+        mode: AlbumTitleShade.classic,
         areas: const FlatAreas(artworkText: false),
       );
 
@@ -458,13 +482,144 @@ void main() {
       expect(tester.getSize(find.byType(AlbumCard)), const Size(160, 160));
     });
 
+    testWidgets('the caption is one line tall however long the title is', (
+      tester,
+    ) async {
+      const key = ValueKey<String>('albumCardCaptionBelow');
+      await pumpFlat(tester, mode: AlbumTitleShade.classic);
+      final short = tester.getSize(find.byKey(key)).height;
+      await pumpFlat(tester, mode: AlbumTitleShade.classic, card: _longAlbum);
+
+      expect(tester.getSize(find.byKey(key)).height, short);
+      final title = tester.widget<Text>(find.text(_longAlbum.name));
+      expect(title.maxLines, 1);
+      expect(tester.takeException(), isNull);
+    });
+
     testWidgets('caption height follows the text scale', (tester) async {
       const key = ValueKey<String>('albumCardCaptionBelow');
-      await pumpFlat(tester, coloredShade: false);
+      await pumpFlat(tester, mode: AlbumTitleShade.classic);
       final normal = tester.getSize(find.byKey(key)).height;
-      await pumpFlat(tester, coloredShade: false, textScale: 2);
+      await pumpFlat(tester, mode: AlbumTitleShade.classic, textScale: 2);
 
       expect(tester.getSize(find.byKey(key)).height, greaterThan(normal));
+      expect(tester.takeException(), isNull);
+    });
+  });
+
+  group('dark shade', () {
+    final album = AlbumsTableData(
+      id: 'dark',
+      name: 'Dark',
+      artistName: 'Artist',
+      artists: const [],
+      songsHydrated: true,
+      isProvisional: false,
+      isExternal: false,
+      coverArt: 'cover-1',
+    );
+
+    testWidgets('draws white text on the style scrim and samples nothing', (
+      tester,
+    ) async {
+      tester.view.physicalSize = const Size(390, 844);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.reset);
+      final worker = _CountingTintWorker();
+      var fieldRequests = 0;
+      final theme = buildDarkTheme(Colors.teal, style: NavisColorStyle.pastel);
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            subsonicApiProvider.overrideWithValue(null),
+            coverArtShapeProvider.overrideWithValue('rounded'),
+            albumTitleShadeModeProvider.overrideWithValue(AlbumTitleShade.dark),
+            coverColourWorkerProvider.overrideWithValue(worker),
+            coverColourFieldProvider.overrideWith((ref, id) async {
+              fieldRequests++;
+              return CoverColourField.uniform(const Color(0xFFE53935));
+            }),
+          ],
+          child: MaterialApp(
+            theme: theme,
+            localizationsDelegates: navisLocalizationsDelegates,
+            supportedLocales: AppLocalizations.supportedLocales,
+            home: Scaffold(
+              body: Center(child: AlbumCard(album: album, extent: 160)),
+            ),
+          ),
+        ),
+      );
+      await tester.pump(kCoverTintSettleDelay * 3);
+      await tester.pump(const Duration(milliseconds: 400));
+
+      expect(
+        find.byKey(const ValueKey<String>('albumCardDarkShade')),
+        findsOneWidget,
+      );
+      for (final key in <String>[
+        'albumCardTitleSurfaceFade',
+        'albumCardTintText',
+        'albumCardCaptionLayer',
+      ]) {
+        expect(find.byKey(ValueKey<String>(key)), findsNothing, reason: key);
+      }
+      final scrim = tester.widget<DecoratedBox>(
+        find.descendant(
+          of: find.byType(ArtworkScrim),
+          matching: find.byType(DecoratedBox),
+        ),
+      );
+      final gradient =
+          (scrim.decoration as BoxDecoration).gradient! as LinearGradient;
+      final style = theme.extension<NavisColorStyleData>()!;
+      expect(gradient.colors.first.a, 0);
+      expect(gradient.colors.last.a, greaterThan(0.7));
+      expect(
+        gradient.colors.last.withValues(alpha: 1),
+        style.artworkScrim.withValues(alpha: 1),
+      );
+      final title = tester.widget<Text>(find.text('Dark'));
+      expect(title.style!.color!.withValues(alpha: 1), Colors.white);
+      expect(
+        captionContrast(title.style!.color!, gradient.colors.last),
+        greaterThan(4.5),
+      );
+      expect(fieldRequests, 0);
+      expect(worker.requests, 0);
+      expect(tester.getSize(find.byType(AlbumCard)), const Size(160, 160));
+    });
+
+    testWidgets('a long title is one scrolling line over the cover', (
+      tester,
+    ) async {
+      tester.view.physicalSize = const Size(390, 844);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.reset);
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            subsonicApiProvider.overrideWithValue(null),
+            coverArtShapeProvider.overrideWithValue('rounded'),
+            albumTitleShadeModeProvider.overrideWithValue(AlbumTitleShade.dark),
+          ],
+          child: MaterialApp(
+            theme: buildDarkTheme(Colors.teal),
+            localizationsDelegates: navisLocalizationsDelegates,
+            supportedLocales: AppLocalizations.supportedLocales,
+            home: Scaffold(
+              body: Center(child: AlbumCard(album: _longAlbum, extent: 160)),
+            ),
+          ),
+        ),
+      );
+      await tester.pump(const Duration(milliseconds: 250));
+
+      expect(find.byType(MarqueeText), findsOneWidget);
+      final title = tester.getRect(find.text(_longAlbum.name));
+      final card = tester.getRect(find.byType(AlbumCard));
+      expect(title.height, lessThan(24));
+      expect(title.bottom, lessThan(card.bottom));
       expect(tester.takeException(), isNull);
     });
   });

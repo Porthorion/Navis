@@ -3562,15 +3562,22 @@ class AppLocalizationsEn extends AppLocalizations {
       'Album art replaces your accent when a cover has one.';
 
   @override
-  String get appearanceAlbumArtColoredShadeLabel => 'Album Art Colored Shade';
+  String get appearanceAlbumArtShadeLabel => 'Album Art Shade';
 
   @override
-  String get appearanceAlbumArtColoredShadeSub =>
-      'Tint album titles with a color from each cover.';
+  String get appearanceAlbumArtShadeSub =>
+      'A dark gradient behind album titles for easier reading.';
 
   @override
-  String get appearanceAlbumArtColoredShadeFlatNote =>
+  String get appearanceAlbumArtShadeFlatNote =>
       'Album titles sit below the art while Flat text over artwork is on.';
+
+  @override
+  String get appearanceAlbumArtCoverColorLabel => 'Use Cover Color';
+
+  @override
+  String get appearanceAlbumArtCoverColorSub =>
+      'Tint the shade with a color from each cover.';
 
   @override
   String get cacheSettingsCoverArtSection => 'Cover Art Cache';

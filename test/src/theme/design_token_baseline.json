@@ -15,7 +15,6 @@
     "radius": 3
   },
   "lib/src/features/home/presentation/home_screen.dart": {
-    "fontSize": 1,
     "colorLiteral": 3
   },
   "lib/src/features/library/presentation/album_detail_screen.dart": {
