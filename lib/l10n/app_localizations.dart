@@ -8830,6 +8830,202 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Couldn\'t remove the ListenBrainz token. Try again.'**
   String get integrationsListenBrainzDisconnectFailed;
+
+  /// System notification: name of the Android channel for library scan notifications.
+  ///
+  /// In en, this message translates to:
+  /// **'Library Scan'**
+  String get notificationLibraryScanChannelName;
+
+  /// System notification: description of the library scan channel in system settings.
+  ///
+  /// In en, this message translates to:
+  /// **'Library scan progress and completion updates'**
+  String get notificationLibraryScanChannelDescription;
+
+  /// System notification: title of the ongoing library scan progress notification.
+  ///
+  /// In en, this message translates to:
+  /// **'Scanning library'**
+  String get notificationLibraryScanProgressTitle;
+
+  /// System notification: progress body: stage label then processed and total counts.
+  ///
+  /// In en, this message translates to:
+  /// **'{stage} • {processed}/{total}'**
+  String notificationLibraryScanProgressBody(
+    Object stage,
+    int processed,
+    int total,
+  );
+
+  /// System notification: title when a library scan finishes.
+  ///
+  /// In en, this message translates to:
+  /// **'Library scan complete'**
+  String get notificationLibraryScanCompleteTitle;
+
+  /// System notification: body when a scan finished and hydrated albums.
+  ///
+  /// In en, this message translates to:
+  /// **'Updated metadata and hydrated {count, plural, =1{1 album} other{{count} albums}}.'**
+  String notificationLibraryScanCompleteHydrated(int count);
+
+  /// System notification: body when a scan refreshed metadata without hydrating albums.
+  ///
+  /// In en, this message translates to:
+  /// **'Metadata refresh finished successfully.'**
+  String get notificationLibraryScanCompleteRefreshed;
+
+  /// System notification: body when a scan found nothing to change.
+  ///
+  /// In en, this message translates to:
+  /// **'Library is already up to date.'**
+  String get notificationLibraryScanCompleteUpToDate;
+
+  /// System notification: title when a library scan fails.
+  ///
+  /// In en, this message translates to:
+  /// **'Library scan failed'**
+  String get notificationLibraryScanFailedTitle;
+
+  /// System notification: safe recovery body for a failed scan; never includes server detail.
+  ///
+  /// In en, this message translates to:
+  /// **'The scan could not finish. Open Navis to try again.'**
+  String get notificationLibraryScanFailedBody;
+
+  /// System notification: title when a library scan is cancelled.
+  ///
+  /// In en, this message translates to:
+  /// **'Library scan cancelled'**
+  String get notificationLibraryScanCancelledTitle;
+
+  /// System notification: recovery body for a cancelled scan.
+  ///
+  /// In en, this message translates to:
+  /// **'The scan stopped before it finished. Open Navis to try again.'**
+  String get notificationLibraryScanCancelledBody;
+
+  /// System notification: library scan stage label shown in the progress notification.
+  ///
+  /// In en, this message translates to:
+  /// **'Preparing scan'**
+  String get notificationLibraryScanStagePreparing;
+
+  /// System notification: library scan stage label shown in the progress notification.
+  ///
+  /// In en, this message translates to:
+  /// **'Refreshing artists'**
+  String get notificationLibraryScanStageFetchingArtists;
+
+  /// System notification: library scan stage label shown in the progress notification.
+  ///
+  /// In en, this message translates to:
+  /// **'Refreshing albums'**
+  String get notificationLibraryScanStageFetchingAlbums;
+
+  /// System notification: library scan stage label shown in the progress notification.
+  ///
+  /// In en, this message translates to:
+  /// **'Saving metadata'**
+  String get notificationLibraryScanStagePersistingMetadata;
+
+  /// System notification: library scan stage label shown in the progress notification.
+  ///
+  /// In en, this message translates to:
+  /// **'Hydrating songs'**
+  String get notificationLibraryScanStageFetchingSongs;
+
+  /// System notification: library scan stage label shown in the progress notification.
+  ///
+  /// In en, this message translates to:
+  /// **'Updating liked items'**
+  String get notificationLibraryScanStageFetchingStarred;
+
+  /// System notification: library scan stage label shown in the progress notification.
+  ///
+  /// In en, this message translates to:
+  /// **'Updating playlists'**
+  String get notificationLibraryScanStageFetchingPlaylists;
+
+  /// System notification: library scan stage label shown in the progress notification.
+  ///
+  /// In en, this message translates to:
+  /// **'Building catalog update'**
+  String get notificationLibraryScanStageCollectingCandidate;
+
+  /// System notification: library scan stage label shown in the progress notification.
+  ///
+  /// In en, this message translates to:
+  /// **'Validating catalog update'**
+  String get notificationLibraryScanStageValidatingCandidate;
+
+  /// System notification: library scan stage label shown in the progress notification.
+  ///
+  /// In en, this message translates to:
+  /// **'Applying catalog update'**
+  String get notificationLibraryScanStageApplyingCandidate;
+
+  /// System notification: library scan stage label shown in the progress notification.
+  ///
+  /// In en, this message translates to:
+  /// **'Cleaning up catalog update'**
+  String get notificationLibraryScanStageCleaningCandidate;
+
+  /// System notification: library scan stage label shown in the progress notification.
+  ///
+  /// In en, this message translates to:
+  /// **'Finalizing scan'**
+  String get notificationLibraryScanStageFinalizing;
+
+  /// System notification: library scan stage label shown in the progress notification.
+  ///
+  /// In en, this message translates to:
+  /// **'Scan complete'**
+  String get notificationLibraryScanStageCompleted;
+
+  /// System notification: library scan stage label shown in the progress notification.
+  ///
+  /// In en, this message translates to:
+  /// **'Waiting to scan'**
+  String get notificationLibraryScanStageIdle;
+
+  /// System notification: name of the Android channel for download notifications.
+  ///
+  /// In en, this message translates to:
+  /// **'Downloads'**
+  String get notificationDownloadsChannelName;
+
+  /// System notification: description of the downloads channel in system settings.
+  ///
+  /// In en, this message translates to:
+  /// **'Download queue and progress updates'**
+  String get notificationDownloadsChannelDescription;
+
+  /// System notification: title when a download fails; must not include song IDs or backend detail.
+  ///
+  /// In en, this message translates to:
+  /// **'Download failed'**
+  String get notificationDownloadFailedTitle;
+
+  /// System notification: title when a song finishes downloading.
+  ///
+  /// In en, this message translates to:
+  /// **'Downloaded: {title}'**
+  String notificationDownloadCompleteTitle(Object title);
+
+  /// System notification: progress title while several songs download at once.
+  ///
+  /// In en, this message translates to:
+  /// **'Downloading {count} songs'**
+  String notificationDownloadProgressMultiple(int count);
+
+  /// System notification: download progress body, a whole percentage.
+  ///
+  /// In en, this message translates to:
+  /// **'{percent}%'**
+  String notificationDownloadProgressPercent(int percent);
 }
 
 class _AppLocalizationsDelegate

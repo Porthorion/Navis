@@ -24,6 +24,7 @@ import 'package:navis/src/utils/catalog_source.dart';
 import 'package:navis/src/utils/app_logger.dart';
 import 'package:navis/src/utils/connectivity.dart';
 import 'package:navis/src/utils/notifications/library_sync_notifier.dart';
+import 'package:navis/src/utils/notifications/notification_localizations.dart';
 import 'package:navis/src/utils/sync_diagnostics_overrides.dart';
 
 /// Sync interval in minutes from user settings (0 = manual only).
@@ -66,7 +67,10 @@ final librarySyncOperationLedgerProvider =
     });
 
 final librarySyncNotifierProvider = Provider<SystemLibrarySyncNotifier>((ref) {
-  return const SystemLibrarySyncNotifier();
+  return SystemLibrarySyncNotifier(
+    readLocalizations: () =>
+        resolveNotificationLocalizations(ref.read(appLocaleProvider)),
+  );
 });
 
 final androidBackgroundSyncAvailableProvider = Provider<bool>((ref) {

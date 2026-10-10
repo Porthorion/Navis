@@ -2515,5 +2515,160 @@
   "integrationsListenBrainzDisconnectFailed": "Couldn't remove the ListenBrainz token. Try again.",
   "@integrationsListenBrainzDisconnectFailed": {
     "description": "Error when secure storage cannot delete the ListenBrainz credential; connection remains unchanged."
+  },
+  "notificationLibraryScanChannelName": "Library Scan",
+  "@notificationLibraryScanChannelName": {
+    "description": "System notification: name of the Android channel for library scan notifications."
+  },
+  "notificationLibraryScanChannelDescription": "Library scan progress and completion updates",
+  "@notificationLibraryScanChannelDescription": {
+    "description": "System notification: description of the library scan channel in system settings."
+  },
+  "notificationLibraryScanProgressTitle": "Scanning library",
+  "@notificationLibraryScanProgressTitle": {
+    "description": "System notification: title of the ongoing library scan progress notification."
+  },
+  "notificationLibraryScanProgressBody": "{stage} • {processed}/{total}",
+  "@notificationLibraryScanProgressBody": {
+    "description": "System notification: progress body: stage label then processed and total counts.",
+    "placeholders": {
+      "stage": {},
+      "processed": {
+        "type": "int"
+      },
+      "total": {
+        "type": "int"
+      }
+    }
+  },
+  "notificationLibraryScanCompleteTitle": "Library scan complete",
+  "@notificationLibraryScanCompleteTitle": {
+    "description": "System notification: title when a library scan finishes."
+  },
+  "notificationLibraryScanCompleteHydrated": "Updated metadata and hydrated {count, plural, =1{1 album} other{{count} albums}}.",
+  "@notificationLibraryScanCompleteHydrated": {
+    "description": "System notification: body when a scan finished and hydrated albums.",
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "notificationLibraryScanCompleteRefreshed": "Metadata refresh finished successfully.",
+  "@notificationLibraryScanCompleteRefreshed": {
+    "description": "System notification: body when a scan refreshed metadata without hydrating albums."
+  },
+  "notificationLibraryScanCompleteUpToDate": "Library is already up to date.",
+  "@notificationLibraryScanCompleteUpToDate": {
+    "description": "System notification: body when a scan found nothing to change."
+  },
+  "notificationLibraryScanFailedTitle": "Library scan failed",
+  "@notificationLibraryScanFailedTitle": {
+    "description": "System notification: title when a library scan fails."
+  },
+  "notificationLibraryScanFailedBody": "The scan could not finish. Open Navis to try again.",
+  "@notificationLibraryScanFailedBody": {
+    "description": "System notification: safe recovery body for a failed scan; never includes server detail."
+  },
+  "notificationLibraryScanCancelledTitle": "Library scan cancelled",
+  "@notificationLibraryScanCancelledTitle": {
+    "description": "System notification: title when a library scan is cancelled."
+  },
+  "notificationLibraryScanCancelledBody": "The scan stopped before it finished. Open Navis to try again.",
+  "@notificationLibraryScanCancelledBody": {
+    "description": "System notification: recovery body for a cancelled scan."
+  },
+  "notificationLibraryScanStagePreparing": "Preparing scan",
+  "@notificationLibraryScanStagePreparing": {
+    "description": "System notification: library scan stage label shown in the progress notification."
+  },
+  "notificationLibraryScanStageFetchingArtists": "Refreshing artists",
+  "@notificationLibraryScanStageFetchingArtists": {
+    "description": "System notification: library scan stage label shown in the progress notification."
+  },
+  "notificationLibraryScanStageFetchingAlbums": "Refreshing albums",
+  "@notificationLibraryScanStageFetchingAlbums": {
+    "description": "System notification: library scan stage label shown in the progress notification."
+  },
+  "notificationLibraryScanStagePersistingMetadata": "Saving metadata",
+  "@notificationLibraryScanStagePersistingMetadata": {
+    "description": "System notification: library scan stage label shown in the progress notification."
+  },
+  "notificationLibraryScanStageFetchingSongs": "Hydrating songs",
+  "@notificationLibraryScanStageFetchingSongs": {
+    "description": "System notification: library scan stage label shown in the progress notification."
+  },
+  "notificationLibraryScanStageFetchingStarred": "Updating liked items",
+  "@notificationLibraryScanStageFetchingStarred": {
+    "description": "System notification: library scan stage label shown in the progress notification."
+  },
+  "notificationLibraryScanStageFetchingPlaylists": "Updating playlists",
+  "@notificationLibraryScanStageFetchingPlaylists": {
+    "description": "System notification: library scan stage label shown in the progress notification."
+  },
+  "notificationLibraryScanStageCollectingCandidate": "Building catalog update",
+  "@notificationLibraryScanStageCollectingCandidate": {
+    "description": "System notification: library scan stage label shown in the progress notification."
+  },
+  "notificationLibraryScanStageValidatingCandidate": "Validating catalog update",
+  "@notificationLibraryScanStageValidatingCandidate": {
+    "description": "System notification: library scan stage label shown in the progress notification."
+  },
+  "notificationLibraryScanStageApplyingCandidate": "Applying catalog update",
+  "@notificationLibraryScanStageApplyingCandidate": {
+    "description": "System notification: library scan stage label shown in the progress notification."
+  },
+  "notificationLibraryScanStageCleaningCandidate": "Cleaning up catalog update",
+  "@notificationLibraryScanStageCleaningCandidate": {
+    "description": "System notification: library scan stage label shown in the progress notification."
+  },
+  "notificationLibraryScanStageFinalizing": "Finalizing scan",
+  "@notificationLibraryScanStageFinalizing": {
+    "description": "System notification: library scan stage label shown in the progress notification."
+  },
+  "notificationLibraryScanStageCompleted": "Scan complete",
+  "@notificationLibraryScanStageCompleted": {
+    "description": "System notification: library scan stage label shown in the progress notification."
+  },
+  "notificationLibraryScanStageIdle": "Waiting to scan",
+  "@notificationLibraryScanStageIdle": {
+    "description": "System notification: library scan stage label shown in the progress notification."
+  },
+  "notificationDownloadsChannelName": "Downloads",
+  "@notificationDownloadsChannelName": {
+    "description": "System notification: name of the Android channel for download notifications."
+  },
+  "notificationDownloadsChannelDescription": "Download queue and progress updates",
+  "@notificationDownloadsChannelDescription": {
+    "description": "System notification: description of the downloads channel in system settings."
+  },
+  "notificationDownloadFailedTitle": "Download failed",
+  "@notificationDownloadFailedTitle": {
+    "description": "System notification: title when a download fails; must not include song IDs or backend detail."
+  },
+  "notificationDownloadCompleteTitle": "Downloaded: {title}",
+  "@notificationDownloadCompleteTitle": {
+    "description": "System notification: title when a song finishes downloading.",
+    "placeholders": {
+      "title": {}
+    }
+  },
+  "notificationDownloadProgressMultiple": "Downloading {count} songs",
+  "@notificationDownloadProgressMultiple": {
+    "description": "System notification: progress title while several songs download at once.",
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "notificationDownloadProgressPercent": "{percent}%",
+  "@notificationDownloadProgressPercent": {
+    "description": "System notification: download progress body, a whole percentage.",
+    "placeholders": {
+      "percent": {
+        "type": "int"
+      }
+    }
   }
 }

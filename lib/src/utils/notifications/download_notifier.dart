@@ -1,14 +1,12 @@
 import 'package:flutter/foundation.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
+import 'package:navis/l10n/app_localizations.dart';
 
 /// Manages download-progress and completion notifications on the
 /// `downloads` Android notification channel.
 class DownloadNotifier {
   new _();
-
-  /// Notification titles must not include internal song IDs or backend detail.
-  static const String failureNotificationTitle = 'Download failed';
 
   static final FlutterLocalNotificationsPlugin _plugin =
       FlutterLocalNotificationsPlugin();
@@ -29,6 +27,7 @@ class DownloadNotifier {
   ///
   /// Throttled to avoid flooding the notification system with updates.
   static Future<void> showProgress({
+    required AppLocalizations l10n,
     required String title,
     required int received,
     required int total,
@@ -50,8 +49,8 @@ class DownloadNotifier {
 
     final androidDetails = AndroidNotificationDetails(
       'downloads',
-      'Downloads',
-      channelDescription: 'Download queue and progress updates',
+      l10n.notificationDownloadsChannelName,
+      channelDescription: l10n.notificationDownloadsChannelDescription,
       icon: 'ic_stat_navis_light',
       color: Colors.white,
       importance: Importance.low,
@@ -68,7 +67,9 @@ class DownloadNotifier {
       await _plugin.show(
         id: _progressId,
         title: title,
-        body: '${received * 100 ~/ (total > 0 ? total : 1)}%',
+        body: l10n.notificationDownloadProgressPercent(
+          received * 100 ~/ (total > 0 ? total : 1),
+        ),
         notificationDetails: NotificationDetails(android: androidDetails),
       );
     } on Object {
@@ -87,13 +88,16 @@ class DownloadNotifier {
   }
 
   /// Show a notification when a download completes successfully.
-  static Future<void> showComplete({required String title}) async {
+  static Future<void> showComplete({
+    required AppLocalizations l10n,
+    required String title,
+  }) async {
     if (defaultTargetPlatform != TargetPlatform.android) return;
 
-    const androidDetails = AndroidNotificationDetails(
+    final androidDetails = AndroidNotificationDetails(
       'downloads',
-      'Downloads',
-      channelDescription: 'Download queue and progress updates',
+      l10n.notificationDownloadsChannelName,
+      channelDescription: l10n.notificationDownloadsChannelDescription,
       icon: 'ic_stat_navis_light',
       color: Colors.white,
       importance: Importance.defaultImportance,
@@ -104,7 +108,7 @@ class DownloadNotifier {
       await _plugin.show(
         id: _summaryId,
         title: title,
-        notificationDetails: const NotificationDetails(android: androidDetails),
+        notificationDetails: NotificationDetails(android: androidDetails),
       );
     } on Object {
       // Notifications are best-effort in tests and unsupported environments.
@@ -112,13 +116,14 @@ class DownloadNotifier {
   }
 
   /// Show a notification when a download fails.
-  static Future<void> showFailed() async {
+  /// Notification titles must not include internal song IDs or backend detail.
+  static Future<void> showFailed({required AppLocalizations l10n}) async {
     if (defaultTargetPlatform != TargetPlatform.android) return;
 
-    const androidDetails = AndroidNotificationDetails(
+    final androidDetails = AndroidNotificationDetails(
       'downloads',
-      'Downloads',
-      channelDescription: 'Download queue and progress updates',
+      l10n.notificationDownloadsChannelName,
+      channelDescription: l10n.notificationDownloadsChannelDescription,
       icon: 'ic_stat_navis_light',
       color: Colors.white,
       importance: Importance.defaultImportance,
@@ -128,8 +133,8 @@ class DownloadNotifier {
     try {
       await _plugin.show(
         id: _summaryId,
-        title: failureNotificationTitle,
-        notificationDetails: const NotificationDetails(android: androidDetails),
+        title: l10n.notificationDownloadFailedTitle,
+        notificationDetails: NotificationDetails(android: androidDetails),
       );
     } on Object {
       // Notifications are best-effort in tests and unsupported environments.
