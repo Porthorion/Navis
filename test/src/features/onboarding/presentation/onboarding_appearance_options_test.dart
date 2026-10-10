@@ -308,7 +308,7 @@ void main() {
       (tester) async {
         final h = await _pump(tester);
         final label = switch (style) {
-          NavisCornerStyle.rounded => 'Rounded',
+          NavisCornerStyle.rounded => 'Pill',
           NavisCornerStyle.soft => 'Soft',
           NavisCornerStyle.square => 'Square',
         };

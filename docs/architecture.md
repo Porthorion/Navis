@@ -868,12 +868,17 @@ target-selection rules.
     `NavisShapeData.of(context)`) carries the xs..xl radii and the control
     (button/chip/indicator) corner; component themes and
     `NavisTokens.panelRadius` (the style's `xl`) are built from it, and
-    `rounded` leaves Material defaults unset except `menuTheme`, which encodes
-    the 4 px shape Material renders today. Soft is distinct from Rounded: 14 px
-    rounded-rectangle controls (not pills), `xl` 32 for dialogs and sheets and
-    1.5x steps elsewhere; Square uses 4 px controls. Soft and Square add an
-    `iconButtonTheme` shaped by `controlShape`, `menuTheme` (md) and
-    `snackBarTheme` (sm); play, shuffle, transport and mini-player buttons pass
+    every style sets explicit component shapes so a Corner Style switch
+    interpolates real shapes (a null shape would lerp through a square one and
+    snap). `rounded` (labelled "Pill" in the UI; the stored key stays
+    `rounded`) encodes the shapes Material renders today: stadium buttons,
+    segmented buttons, icon buttons and navigation indicators, a 16 px FAB, a
+    28 px dialog and 28 px top sheet corners, and the 4 px `menuTheme`; only
+    `snackBarTheme` stays unset. `NavisShapeData.lerp` interpolates the radii
+    and the `scaled()` mapping (`softWeight`/`squareWeight`). Soft is distinct
+    from Pill: 14 px rounded-rectangle controls (not pills), `xl` 32 for
+    dialogs and sheets and 1.5x steps elsewhere; Square uses 4 px controls.
+    Soft and Square also theme `menuTheme` (md) and `snackBarTheme` (sm); play, shuffle, transport and mini-player buttons pass
     `NavisShapeData.circularIconButtonStyle` (or `CircleBorder`) to stay round. Artwork keeps following Artwork Shape. Users choose it in Settings > Appearance
     (Shape & Layout, after Flat Surfaces, via `CornerStyleOption`) and on the
     setup Appearance step under "More appearance options". The setup preview

@@ -293,6 +293,13 @@ ThemeData _buildNavisTheme(
   final controlShape = WidgetStatePropertyAll<OutlinedBorder>(
     shape.controlShape,
   );
+  // Plain icon buttons stay circular in Pill (Material's default is a
+  // stadium, which is a circle on a square button) and take the control
+  // corner otherwise. Every style sets explicit shapes so a Corner Style
+  // switch interpolates between real shapes instead of null.
+  final iconShape = WidgetStatePropertyAll<OutlinedBorder>(
+    roundedCorners ? const StadiumBorder() : shape.controlShape,
+  );
   final disabledOutline = BorderSide(
     color: colorScheme.onSurface.withValues(alpha: 0.12),
   );
@@ -313,7 +320,7 @@ ThemeData _buildNavisTheme(
     textTheme: _navisTextTheme,
     outlinedButtonTheme: OutlinedButtonThemeData(
       style: ButtonStyle(
-        shape: roundedCorners ? null : controlShape,
+        shape: controlShape,
         side: WidgetStateProperty.resolveWith(
           (states) => states.contains(WidgetState.disabled)
               ? disabledOutline
@@ -345,42 +352,34 @@ ThemeData _buildNavisTheme(
     ),
     scaffoldBackgroundColor: oled ? Colors.black : null,
     cardColor: oled ? colorScheme.surfaceContainerLow : null,
-    dialogTheme: oled || !roundedCorners
-        ? DialogThemeData(
-            backgroundColor: oled ? colorScheme.surfaceContainer : null,
-            shadowColor: oled && flat ? Colors.transparent : null,
-            shape: roundedCorners ? null : shape.xlShape,
-          )
-        : null,
-    filledButtonTheme: pastelLight || !roundedCorners
-        ? FilledButtonThemeData(
-            style: FilledButton.styleFrom(
-              backgroundColor: pastelLight
-                  ? colorScheme.primaryContainer
-                  : null,
-              foregroundColor: pastelLight
-                  ? colorScheme.onPrimaryContainer
-                  : null,
-              shape: roundedCorners ? null : shape.controlShape,
-            ),
-          )
-        : null,
-    // Rounded keeps Material's defaults for everything below so the default
-    // look does not move; other styles take their shapes from the table.
-    textButtonTheme: roundedCorners
-        ? null
-        : TextButtonThemeData(style: ButtonStyle(shape: controlShape)),
-    elevatedButtonTheme: roundedCorners
-        ? null
-        : ElevatedButtonThemeData(style: ButtonStyle(shape: controlShape)),
-    segmentedButtonTheme: roundedCorners
-        ? null
-        : SegmentedButtonThemeData(style: ButtonStyle(shape: controlShape)),
-    // Plain icon buttons take the control corner; play, shuffle, transport
-    // and mini-player buttons pass `NavisShapeData.circularIconButtonStyle`.
-    iconButtonTheme: roundedCorners
-        ? null
-        : IconButtonThemeData(style: ButtonStyle(shape: controlShape)),
+    // Pill encodes the shapes Material's M3 defaults render (28 px dialog,
+    // stadium buttons) so the default look does not move.
+    dialogTheme: DialogThemeData(
+      backgroundColor: oled ? colorScheme.surfaceContainer : null,
+      shadowColor: oled && flat ? Colors.transparent : null,
+      shape: roundedCorners
+          ? RoundedRectangleBorder(borderRadius: BorderRadius.circular(28))
+          : shape.xlShape,
+    ),
+    filledButtonTheme: FilledButtonThemeData(
+      style: FilledButton.styleFrom(
+        backgroundColor: pastelLight ? colorScheme.primaryContainer : null,
+        foregroundColor: pastelLight ? colorScheme.onPrimaryContainer : null,
+        shape: shape.controlShape,
+      ),
+    ),
+    textButtonTheme: TextButtonThemeData(
+      style: ButtonStyle(shape: controlShape),
+    ),
+    elevatedButtonTheme: ElevatedButtonThemeData(
+      style: ButtonStyle(shape: controlShape),
+    ),
+    segmentedButtonTheme: SegmentedButtonThemeData(
+      style: ButtonStyle(shape: controlShape),
+    ),
+    // Play, shuffle, transport and mini-player buttons pass
+    // `NavisShapeData.circularIconButtonStyle`.
+    iconButtonTheme: IconButtonThemeData(style: ButtonStyle(shape: iconShape)),
     // MenuAnchor menus: Rounded encodes the 4 px shape Material's M3 menu
     // renders today (so it does not move); Soft and Square match popup menus.
     menuTheme: MenuThemeData(
@@ -392,17 +391,17 @@ ThemeData _buildNavisTheme(
         ),
       ),
     ),
-    floatingActionButtonTheme: roundedCorners
-        ? null
-        : FloatingActionButtonThemeData(shape: shape.lgShape),
+    floatingActionButtonTheme: FloatingActionButtonThemeData(
+      shape: shape.lgShape,
+    ),
     // Fixed snackbars render no shape and floating ones Material's 4 px, so
     // Rounded stays unset; Soft and Square theme both.
     snackBarTheme: roundedCorners
         ? null
         : SnackBarThemeData(shape: shape.smShape),
-    navigationRailTheme: roundedCorners
-        ? null
-        : NavigationRailThemeData(indicatorShape: shape.controlShape),
+    navigationRailTheme: NavigationRailThemeData(
+      indicatorShape: shape.controlShape,
+    ),
     appBarTheme: oled
         ? const AppBarTheme(
             backgroundColor: Colors.black,
@@ -412,21 +411,19 @@ ThemeData _buildNavisTheme(
     bottomNavigationBarTheme: oled
         ? const BottomNavigationBarThemeData(backgroundColor: Colors.black)
         : null,
-    navigationBarTheme: oled || !roundedCorners
-        ? NavigationBarThemeData(
-            backgroundColor: oled ? Colors.black : null,
-            surfaceTintColor: oled ? Colors.transparent : null,
-            indicatorShape: roundedCorners ? null : shape.controlShape,
-          )
-        : null,
-    bottomSheetTheme: oled || !roundedCorners
-        ? BottomSheetThemeData(
-            backgroundColor: oled ? colorScheme.surfaceContainer : null,
-            shape: roundedCorners
-                ? null
-                : RoundedRectangleBorder(borderRadius: shape.sheetTop),
-          )
-        : null,
+    navigationBarTheme: NavigationBarThemeData(
+      backgroundColor: oled ? Colors.black : null,
+      surfaceTintColor: oled ? Colors.transparent : null,
+      indicatorShape: shape.controlShape,
+    ),
+    bottomSheetTheme: BottomSheetThemeData(
+      backgroundColor: oled ? colorScheme.surfaceContainer : null,
+      shape: RoundedRectangleBorder(
+        borderRadius: roundedCorners
+            ? const BorderRadius.vertical(top: Radius.circular(28))
+            : shape.sheetTop,
+      ),
+    ),
     extensions: <ThemeExtension<dynamic>>[
       NavisTokens.forScheme(colorScheme, oled: oled, style: styleData),
       shape,

@@ -3509,7 +3509,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get appearanceCornerStyleLabel => 'Corner Style';
 
   @override
-  String get appearanceCornerStyleRounded => 'Rounded';
+  String get appearanceCornerStyleRounded => 'Pill';
 
   @override
   String get appearanceCornerStyleSoft => 'Soft';
@@ -3519,7 +3519,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get appearanceCornerStyleRoundedSub =>
-      'Gently rounded cards and pill buttons.';
+      'Pill-shaped buttons, chips and tags; gently rounded cards.';
 
   @override
   String get appearanceCornerStyleSoftSub =>

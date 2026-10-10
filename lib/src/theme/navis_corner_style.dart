@@ -5,10 +5,11 @@
 /// `artworkBorderRadius`). Circular things such as avatars, round play
 /// buttons, switches and progress rings stay circular in every style.
 enum NavisCornerStyle {
-  /// Today's look and the default.
+  /// Shown as "Pill" and the default: pill-shaped buttons, chips and
+  /// indicators with gently rounded cards. The stored key stays `rounded`.
   rounded,
 
-  /// Friendlier: roughly 1.5x radii with pill buttons and indicators.
+  /// Friendlier: roughly 1.5x radii with 14 px rounded-rectangle controls.
   soft,
 
   /// Crisp: small radii, and 4 px corners instead of pills.

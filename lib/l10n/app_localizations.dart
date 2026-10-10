@@ -5522,7 +5522,7 @@ abstract class AppLocalizations {
   /// No description provided for @appearanceCornerStyleRounded.
   ///
   /// In en, this message translates to:
-  /// **'Rounded'**
+  /// **'Pill'**
   String get appearanceCornerStyleRounded;
 
   /// No description provided for @appearanceCornerStyleSoft.
@@ -5540,7 +5540,7 @@ abstract class AppLocalizations {
   /// No description provided for @appearanceCornerStyleRoundedSub.
   ///
   /// In en, this message translates to:
-  /// **'Gently rounded cards and pill buttons.'**
+  /// **'Pill-shaped buttons, chips and tags; gently rounded cards.'**
   String get appearanceCornerStyleRoundedSub;
 
   /// No description provided for @appearanceCornerStyleSoftSub.
