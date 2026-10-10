@@ -814,12 +814,11 @@ target-selection rules.
     original scheme without round-tripping any channels. Vividness multiplies
     accent/fixed/container, surface and outline chroma by `1 + 0.1 × vividness`;
     errors and on-colour text stay unchanged, as do pure black and white roles.
-    Mid-tone roles use a chroma ceiling of 24 (24.5–50.5 tone guard bounds
-    account for RGB rounding); muting also scales that ceiling so saturated
-    accents can soften. Exact default preservation means an existing high-chroma
-    mid-tone accent at zero can exceed the cap applied to a tuned scheme:
-    vividness is monotonic between the muted/vivid endpoints, but cannot be
-    guaranteed across the untouched zero scheme under a universal role cap.
+    The mud guard covers the same roles as the muddy-band test (containers,
+    surfaces, and primary/secondary in dark modes): at tone 24.5–50.5 their
+    chroma is capped at 24, but never below the style's own (muted) chroma, so
+    every Color step is monotonic and a Brightness-only change leaves the
+    accents untouched. Light ink accents and inverse roles are not capped.
     Pure black/white accents remain unchanged at every value.
     OLED containers target chroma at most 1.5 to keep decoded RGB chroma
     below 3. Depth moves the surface family and outlineVariant:

@@ -94,10 +94,26 @@ void main() {
             );
             final muted = at(const ColorAdjustment(vividness: -5));
             final vivid = at(const ColorAdjustment(vividness: 5));
-            expect(
-              _hct(vivid.primary).chroma,
-              greaterThanOrEqualTo(_hct(muted.primary).chroma),
-            );
+            // Every Color step is at least as colourful as the one before.
+            // The tolerance covers 8-bit rounding and the sRGB gamut edge.
+            var previous = _hct(muted.primary).chroma;
+            for (var v = -4; v <= 5; v++) {
+              final chroma = _hct(at(ColorAdjustment(vividness: v)).primary)
+                  .chroma;
+              expect(
+                chroma,
+                greaterThanOrEqualTo(previous - 0.6),
+                reason: 'v=$v',
+              );
+              previous = chroma;
+            }
+            // Brightness alone never changes the accents.
+            for (final d in const [-5, 5]) {
+              final shifted = at(ColorAdjustment(depth: d));
+              expect(shifted.primary, base.primary, reason: 'd=$d');
+              expect(shifted.secondary, base.secondary, reason: 'd=$d');
+              expect(shifted.tertiary, base.tertiary, reason: 'd=$d');
+            }
             // Fidelity can map a saturated yellow seed to pure white. The
             // post-pass deliberately preserves pure black/white roles.
             if (_hct(entry.value).chroma >= 8 &&
@@ -152,30 +168,24 @@ void main() {
                   expect(_hct(color).chroma, lessThanOrEqualTo(3));
                 }
               }
+              // Same roles as the default muddy-band test below: fills and
+              // surfaces, plus primary and secondary in dark modes. Light
+              // ink accents and inverse roles sit outside the rule.
               for (final color in [
-                scheme.primary,
-                scheme.secondary,
-                scheme.tertiary,
                 scheme.primaryContainer,
                 scheme.secondaryContainer,
                 scheme.tertiaryContainer,
-                scheme.primaryFixed,
-                scheme.primaryFixedDim,
-                scheme.secondaryFixed,
-                scheme.secondaryFixedDim,
-                scheme.tertiaryFixed,
-                scheme.tertiaryFixedDim,
-                scheme.inversePrimary,
-                scheme.surfaceTint,
                 scheme.surface,
                 scheme.surfaceDim,
-                scheme.surfaceBright,
-                scheme.inverseSurface,
+                scheme.surfaceContainerLowest,
                 ...containers,
-                scheme.outline,
-                scheme.outlineVariant,
+                if (dark) scheme.primary,
+                if (dark) scheme.secondary,
               ]) {
                 final value = _hct(color);
+                if (style == NavisColorStyle.neutral && !isWarmHue(value.hue)) {
+                  continue;
+                }
                 if (value.tone >= 25 && value.tone <= 50) {
                   expect(
                     value.chroma,

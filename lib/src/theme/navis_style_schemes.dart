@@ -76,7 +76,14 @@ ColorScheme adjustColorScheme(
   required bool oled,
 }) {
   if (adj == ColorAdjustment.none) return scheme;
-  Color adjusted(Color color, {bool surface = false, bool container = false}) {
+  // Roles the muddy-band rule covers: fills and surfaces everywhere, plus
+  // primary and secondary in dark modes. Light-mode ink accents are exempt.
+  Color adjusted(
+    Color color, {
+    bool surface = false,
+    bool container = false,
+    bool guarded = false,
+  }) {
     if (color.toARGB32() == Colors.black.toARGB32() ||
         color.toARGB32() == Colors.white.toARGB32()) {
       return color;
@@ -89,10 +96,14 @@ ColorScheme adjustColorScheme(
           )
         : source.tone;
     var chroma = source.chroma * adj.chromaFactor;
-    // Allow for 8-bit tone rounding at the band boundaries. Muting scales
-    // the safe chroma ceiling too, so saturated mid-tone accents can soften.
-    if (tone >= 24.5 && tone <= 50.5) {
-      chroma = math.min(chroma, 24 * math.min(adj.chromaFactor, 1));
+    // Allow for 8-bit tone rounding at the band boundaries. The ceiling never
+    // drops below the style's own (muted) chroma, so every step stays
+    // monotonic and a Brightness-only change keeps the style's colours.
+    if (guarded && tone >= 24.5 && tone <= 50.5) {
+      chroma = math.min(
+        chroma,
+        math.max(24, source.chroma * math.min(adj.chromaFactor, 1)),
+      );
     }
     // Near-black RGB quantisation can add chroma: target 1.5 to keep decoded
     // OLED containers below 3, as in the style recipes.
@@ -101,12 +112,12 @@ ColorScheme adjustColorScheme(
   }
 
   return scheme.copyWith(
-    primary: adjusted(scheme.primary),
-    secondary: adjusted(scheme.secondary),
+    primary: adjusted(scheme.primary, guarded: dark),
+    secondary: adjusted(scheme.secondary, guarded: dark),
     tertiary: adjusted(scheme.tertiary),
-    primaryContainer: adjusted(scheme.primaryContainer),
-    secondaryContainer: adjusted(scheme.secondaryContainer),
-    tertiaryContainer: adjusted(scheme.tertiaryContainer),
+    primaryContainer: adjusted(scheme.primaryContainer, guarded: true),
+    secondaryContainer: adjusted(scheme.secondaryContainer, guarded: true),
+    tertiaryContainer: adjusted(scheme.tertiaryContainer, guarded: true),
     primaryFixed: adjusted(scheme.primaryFixed),
     primaryFixedDim: adjusted(scheme.primaryFixedDim),
     secondaryFixed: adjusted(scheme.secondaryFixed),
@@ -115,36 +126,43 @@ ColorScheme adjustColorScheme(
     tertiaryFixedDim: adjusted(scheme.tertiaryFixedDim),
     inversePrimary: adjusted(scheme.inversePrimary),
     surfaceTint: adjusted(scheme.surfaceTint),
-    surface: oled ? Colors.black : adjusted(scheme.surface, surface: true),
+    surface: oled
+        ? Colors.black
+        : adjusted(scheme.surface, surface: true, guarded: true),
     surfaceDim: oled
         ? Colors.black
-        : adjusted(scheme.surfaceDim, surface: true),
+        : adjusted(scheme.surfaceDim, surface: true, guarded: true),
     surfaceBright: adjusted(
       scheme.surfaceBright,
       surface: true,
+      guarded: true,
       container: oled,
     ),
     surfaceContainerLowest: oled
         ? Colors.black
-        : adjusted(scheme.surfaceContainerLowest, surface: true),
+        : adjusted(scheme.surfaceContainerLowest, surface: true, guarded: true),
     surfaceContainerLow: adjusted(
       scheme.surfaceContainerLow,
       surface: true,
+      guarded: true,
       container: true,
     ),
     surfaceContainer: adjusted(
       scheme.surfaceContainer,
       surface: true,
+      guarded: true,
       container: true,
     ),
     surfaceContainerHigh: adjusted(
       scheme.surfaceContainerHigh,
       surface: true,
+      guarded: true,
       container: true,
     ),
     surfaceContainerHighest: adjusted(
       scheme.surfaceContainerHighest,
       surface: true,
+      guarded: true,
       container: true,
     ),
     inverseSurface: adjusted(scheme.inverseSurface),

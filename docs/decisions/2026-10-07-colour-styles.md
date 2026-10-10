@@ -214,13 +214,12 @@ bit-identical, preserves errors and text colours and bounds mid-tone chroma.
 Pure-black OLED surfaces stay black. Extreme contrast tests reduced Light's
 +5 shift from −7 to −4.5 tones; Light −5 remains +4, Dark ±5 remains ∓6,
 and OLED containers use at most ∓3 (floor 2). OLED's target chroma ceiling is
-1.5 so RGB quantisation keeps measured chroma below 3. Muting scales the
-mid-tone ceiling too, so saturated accents can soften without losing the
-mud guard. Pure black/white roles remain unchanged, including Neutral's
-white primary for a saturated yellow seed. With the universal mid-tone cap,
-an existing accent above chroma 24 at zero can become less chromatic when
-tuning is enabled; exact zero defaults and strict monotonicity through zero
-cannot both hold for that case without exempting accents from the cap.
+1.5 so RGB quantisation keeps measured chroma below 3. The mud guard covers
+only the roles the muddy-band rule covers (fills, surfaces, and dark-mode
+primary/secondary) and never lowers a role below the style's own chroma, so
+every step is monotonic and Brightness alone never changes the accents. Pure
+black/white roles remain unchanged, including Neutral's white primary for a
+saturated yellow seed.
 
 Schema 101 stores `color_vividness` and `surface_depth`, both zero by default.
 A nullable Riverpod preview temporarily overrides persisted tuning during
