@@ -19,6 +19,7 @@ import 'package:navis/src/features/home/presentation/home_providers.dart';
 import 'package:navis/src/features/home/presentation/home_screen.dart';
 import 'package:navis/src/features/integrations/domain/integration_feature.dart';
 import 'package:navis/src/features/player/domain/playback_snapshot.dart';
+import 'package:navis/src/features/player/presentation/queue_provider.dart';
 import 'package:navis/src/features/player/data/navis_audio_handler.dart';
 import 'package:navis/src/features/library/presentation/album_detail_screen.dart';
 import 'package:navis/src/features/library/presentation/artist_deezer_providers.dart';
@@ -36,6 +37,7 @@ import 'package:navis/src/routing/desktop_layout.dart';
 import 'package:navis/src/theme/navis_theme.dart';
 import 'package:navis/src/utils/connectivity.dart';
 
+import '../../../../helpers/queue_replace_spy.dart';
 import '../../../../helpers/test_database.dart';
 import '../../../../helpers/adaptive_test_harness.dart';
 import '../../../../helpers/test_theme.dart';
@@ -754,6 +756,76 @@ void main() {
         await _disposeApp(tester);
       },
     );
+
+    for (final albumQueue in <bool>[true, false]) {
+      testWidgets(
+        'This Is row tap ${albumQueue ? 'queues the playlist from it' : 'plays only it'} '
+        'with Album Queue ${albumQueue ? 'on' : 'off'}',
+        (tester) async {
+          const key = (artistId: 'artist-this-is', name: 'Test Artist');
+          const resolved = <ResolvedArtistTopTrack>[
+            ResolvedArtistTopTrack(
+              rank: 1,
+              title: 'First',
+              artist: 'Test Artist',
+              resolvedSong: Song(id: 'song-1', title: 'First'),
+            ),
+            // Unresolved rows are skipped when counting the start index.
+            ResolvedArtistTopTrack(
+              rank: 2,
+              title: 'Missing',
+              artist: 'Test Artist',
+            ),
+            ResolvedArtistTopTrack(
+              rank: 3,
+              title: 'Third',
+              artist: 'Test Artist',
+              resolvedSong: Song(id: 'song-3', title: 'Third'),
+            ),
+          ];
+          await tester.pumpWidget(
+            _buildApp(
+              child: const ArtistTopTracksPlaylistDetailScreen(
+                artistId: 'artist-this-is',
+              ),
+              database: database,
+              overrides: [
+                albumQueueEnabledProvider.overrideWithValue(albumQueue),
+                queueProvider.overrideWith(QueueReplaceSpy.new),
+                artistByIdProvider('artist-this-is').overrideWithValue(
+                  const AsyncData(
+                    ArtistsTableData(
+                      isProvisional: false,
+                      isExternal: false,
+                      id: 'artist-this-is',
+                      name: 'Test Artist',
+                    ),
+                  ),
+                ),
+                artistInfoProvider('artist-this-is')
+                    .overrideWithValue(const AsyncData(null)),
+                artistTopTracksPlaylistProvider(key)
+                    .overrideWithValue(const AsyncData(resolved)),
+              ],
+            ),
+          );
+          await tester.pumpAndSettle();
+
+          await tester.tap(find.text('Third'));
+          await tester.pumpAndSettle();
+
+          final queue = ProviderScope.containerOf(
+            tester.element(find.byType(ArtistTopTracksPlaylistDetailScreen)),
+          ).read(queueProvider.notifier) as QueueReplaceSpy;
+          expect(
+            queue.lastReplaceIds,
+            albumQueue ? <String>['song-1', 'song-3'] : <String>['song-3'],
+          );
+          expect(queue.lastStartIndex, albumQueue ? 1 : 0);
+          await _disposeApp(tester);
+        },
+      );
+    }
 
     testWidgets('artist top tracks uses the continuous desktop detail header', (
       tester,

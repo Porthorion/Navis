@@ -142,7 +142,7 @@ const List<ChangelogVersion> changelogs = [
       ChangelogHighlight(
         icon: ChangelogHighlightIcon.library,
         title: 'Shape and density',
-        body: 'Rounded, Soft or Square corners, Density and Flat Surfaces',
+        body: 'Pill, Soft or Square corners, Density and Flat Surfaces',
       ),
       ChangelogHighlight(
         icon: ChangelogHighlightIcon.player,
@@ -161,6 +161,26 @@ const List<ChangelogVersion> changelogs = [
       ),
     ],
     entries: [
+      ChangelogEntry(
+        'Corner Style Rounded is now Pill, and switching corner styles animates smoothly',
+      ),
+      ChangelogEntry(
+        'Night Schedule now sits under Color in Settings and next to Color Style in setup',
+      ),
+      ChangelogEntry(
+        'The fullscreen lyrics title and song name are centered',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
+        'Pull to refresh no longer leaves its spinner on screen for the whole sync; progress shows in the sync banner',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
+        'The server unreachable banner can be dismissed into a small Offline chip, and tapping the chip brings it back',
+      ),
+      ChangelogEntry(
+        'Album Queue now applies to every song list, including Trending Now, playlists, downloads and Home lists',
+      ),
       ChangelogEntry(
         'Now Playing Background also applies to the queue and to the desktop lyrics view',
       ),

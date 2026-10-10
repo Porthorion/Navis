@@ -1162,7 +1162,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get playbackSettingsAlbumQueueSubtitle =>
-      'Tapping a track in an album queues the entire album and starts playback at that track.';
+      'Tapping a track in an album or playlist queues the whole list and starts playback at that track.';
 
   @override
   String get playbackSettingsExperimentalTitle => 'Experimental';

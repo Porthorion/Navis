@@ -58,6 +58,7 @@ import 'package:navis/src/features/library/domain/library_sync_state.dart';
 import 'package:navis/src/features/library/presentation/liked_playback_provider.dart';
 import 'package:navis/src/features/library/presentation/library_sync_provider.dart';
 import 'package:navis/src/features/player/presentation/queue_provider.dart';
+import 'package:navis/src/features/player/presentation/play_song_in_collection.dart';
 import 'package:navis/src/features/player/data/recommendation_service.dart';
 import 'package:navis/src/features/player/presentation/personal_radio_notifier.dart';
 import 'package:navis/src/features/player/presentation/player_sheet_provider.dart';
@@ -1675,12 +1676,12 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
               desktopMode: desktopRuntime && !compactWideLandscapeMode,
               adaptiveLayoutClass: adaptiveLayoutClass,
               compactWideLandscapeMode: compactWideLandscapeMode,
-              onTap: (song) {
-                ref.read(queueProvider.notifier).replaceWithTableData(
-                  <SongsTableData>[song],
-                  autoPlay: true,
-                ).ignore();
-              },
+              onTap: (song) => playTableSongInCollection(
+                ref,
+                songs,
+                songs.indexWhere((item) => item.id == song.id),
+                expandMatchFlows: true,
+              ),
             ),
             emptyTitle: l10n.homeMostPlayedTracksEmptyTitle,
             emptySubtitle: l10n.homeMostPlayedTracksEmptySubtitle,
@@ -1721,12 +1722,12 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
               desktopMode: desktopRuntime && !compactWideLandscapeMode,
               adaptiveLayoutClass: adaptiveLayoutClass,
               compactWideLandscapeMode: compactWideLandscapeMode,
-              onTap: (song) {
-                ref.read(queueProvider.notifier).replaceWithTableData(
-                  <SongsTableData>[song],
-                  autoPlay: true,
-                ).ignore();
-              },
+              onTap: (song) => playTableSongInCollection(
+                ref,
+                songs,
+                songs.indexWhere((item) => item.id == song.id),
+                expandMatchFlows: true,
+              ),
             ),
             emptyTitle: l10n.homeRecentlyPlayedTracksEmptyTitle,
             emptySubtitle: l10n.homeRecentlyPlayedTracksEmptySubtitle,
@@ -2994,12 +2995,12 @@ void _playWeeklyRecommendation(
 ) {
   final playback = listenBrainzPlaybackFrom(recommendations, index);
   if (playback == null) return;
-  _playVirtualPlaylistSong(ref, playback.songs, playback.startIndex);
+  playSongInCollection(ref, playback.songs, playback.startIndex);
 }
 
 /// Trending Now's chart in the desktop hero: every song numbered by chart
 /// position, playable ones played like a weekly playlist (see
-/// [_playVirtualPlaylistSong]), the others marked like weekly-playlist rows
+/// [playSongInCollection]), the others marked like weekly-playlist rows
 /// with a Search action.
 class _DesktopTrendingSongList extends ConsumerWidget {
   const new({required this.item, super.key});
@@ -3025,7 +3026,7 @@ class _DesktopTrendingSongList extends ConsumerWidget {
           track: item.tracks[index],
           onTap: playIndex == null
               ? null
-              : () => _playVirtualPlaylistSong(ref, songs, playIndex),
+              : () => playSongInCollection(ref, songs, playIndex),
         );
       },
     );
@@ -3112,22 +3113,6 @@ class _TrendingSongRow extends ConsumerWidget {
       ),
     );
   }
-}
-
-/// Plays the song at [index] of a virtual playlist's [songs]: with Album
-/// Queue on, the whole playlist from that song, otherwise only that song.
-/// Match flows stay collapsed: the playlist already chose these songs.
-void _playVirtualPlaylistSong(WidgetRef ref, List<Song> songs, int index) {
-  if (index < 0 || index >= songs.length) return;
-  final queueAll = ref.read(albumQueueEnabledProvider) && songs.length > 1;
-  ref
-      .read(queueProvider.notifier)
-      .replaceWithSongs(
-        queueAll ? songs : <Song>[songs[index]],
-        startIndex: queueAll ? index : 0,
-        expandMatchFlows: false,
-      )
-      .ignore();
 }
 
 class _ListenBrainzLoadingArtwork extends StatelessWidget {
@@ -3340,14 +3325,11 @@ class _DesktopRandomAlbumSongRow extends ConsumerWidget {
             : Text('$displayIndex', textAlign: TextAlign.center),
       ),
       actions: DesktopSongActions(song: song, keyPrefix: 'home-random-desktop'),
-      onTap: () => unawaited(
-        ref
-            .read(queueProvider.notifier)
-            .replaceWithTableData(
-              albumTracks,
-              startIndex: queueStartIndex,
-              autoPlay: true,
-            ),
+      onTap: () => playTableSongInCollection(
+        ref,
+        albumTracks,
+        queueStartIndex,
+        expandMatchFlows: true,
       ),
       onSecondaryTapDown: (details) => unawaited(
         showSongContextMenu(context, ref, song, anchor: details.globalPosition),

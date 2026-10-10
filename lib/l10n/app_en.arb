@@ -483,7 +483,7 @@
   "playbackSettingsFullscreenLyricsTitle": "Fullscreen Mode Lyrics",
   "playbackSettingsFullscreenLyricsSubtitle": "Open lyrics in fullscreen directly from Now Playing.",
   "playbackSettingsAlbumQueueTitle": "Album Queue",
-  "playbackSettingsAlbumQueueSubtitle": "Tapping a track in an album queues the entire album and starts playback at that track.",
+  "playbackSettingsAlbumQueueSubtitle": "Tapping a track in an album or playlist queues the whole list and starts playback at that track.",
   "playbackSettingsExperimentalTitle": "Experimental",
   "playbackSettingsLikedQueueTitle": "Liked Queue",
   "playbackSettingsLikedQueueSubtitle": "Tapping a track on the Liked page queues all your liked songs and starts at that track.",

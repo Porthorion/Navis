@@ -33,6 +33,7 @@ import 'package:navis/src/features/search/presentation/search_controller_provide
 import 'package:navis/src/utils/catalog_source.dart';
 import 'package:navis/src/routing/desktop_layout.dart';
 import 'package:navis/src/routing/navigation_service.dart';
+import 'package:navis/src/features/player/presentation/play_song_in_collection.dart';
 import 'package:navis/src/features/player/presentation/queue_provider.dart';
 import 'package:navis/src/features/playlists/presentation/add_to_playlist_sheet.dart';
 import 'package:navis/src/providers/app_providers.dart';
@@ -1582,35 +1583,14 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen> {
   }
 
   void _playNow(SongsTableData song) {
-    final queueFullAlbum = ref.read(albumQueueEnabledProvider);
-    if (queueFullAlbum && _currentFilteredSongs.length > 1) {
-      final startIndex = _currentFilteredSongs.indexWhere(
-        (s) => s.id == song.id,
-      );
-      final effectiveIndex = startIndex < 0 ? 0 : startIndex;
-      ref
-          .read(queueProvider.notifier)
-          .fireAndForget(
-            () => ref
-                .read(queueProvider.notifier)
-                .replaceWithTableData(
-                  _currentFilteredSongs,
-                  startIndex: effectiveIndex,
-                  autoPlay: true,
-                ),
-            label: 'playNow',
-          );
-    } else {
-      ref
-          .read(queueProvider.notifier)
-          .fireAndForget(
-            () => ref.read(queueProvider.notifier).replaceWithTableData(
-              <SongsTableData>[song],
-              autoPlay: true,
-            ),
-            label: 'playNow',
-          );
-    }
+    final index = _currentFilteredSongs.indexWhere((s) => s.id == song.id);
+    // A song the filter hides plays alone.
+    playTableSongInCollection(
+      ref,
+      index < 0 ? <SongsTableData>[song] : _currentFilteredSongs,
+      index < 0 ? 0 : index,
+      expandMatchFlows: true,
+    );
   }
 
   void _playNext(SongsTableData song) {

@@ -623,7 +623,7 @@ class DensityOption extends StatelessWidget {
   }
 }
 
-/// Corner Style: Rounded, Soft or Square corners for cards, buttons and
+/// Corner Style: Pill, Soft or Square corners for cards, buttons and
 /// panels, with a small corner glyph on each choice. Shared by Appearance
 /// settings and setup.
 class CornerStyleOption extends StatelessWidget {

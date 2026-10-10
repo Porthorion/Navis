@@ -1725,7 +1725,7 @@ abstract class AppLocalizations {
   /// No description provided for @playbackSettingsAlbumQueueSubtitle.
   ///
   /// In en, this message translates to:
-  /// **'Tapping a track in an album queues the entire album and starts playback at that track.'**
+  /// **'Tapping a track in an album or playlist queues the whole list and starts playback at that track.'**
   String get playbackSettingsAlbumQueueSubtitle;
 
   /// No description provided for @playbackSettingsExperimentalTitle.

@@ -4006,6 +4006,18 @@ states without starting audio or modifying a queue.
    from that row, as Artist Top Tracks does; off, only that song. Before
    1.4.1 Play and Shuffle skipped remote matches and taps always played one
    song (single-song taps came from commit `a8b639af`).
+   Album Queue applies to every song list the same way: a tap queues the
+   whole list from that row when it is on and plays only that song when it is
+   off. The shared helpers in `play_song_in_collection.dart`
+   (`playSongInCollection`, `playTableSongInCollection`,
+   `playSongIdInCollection`) hold that rule for Trending and "This Is" rows
+   (index among the resolved songs; unresolved rows do not play), Home Most
+   Played, Recently Played and the desktop album list, album and playlist
+   detail rows, Artist Top Tracks, weekly playlists and Downloads. Liked lists
+   keep their own `shouldQueueLikedPlayback` rule (Album Queue and Liked
+   Queue), and Play, Shuffle, search results and the song context menu's
+   "Play now" keep their own behaviour. Downloads "Play now" follows Album
+   Queue, like its row taps.
 9. With **Background Sync Only on Unmetered Networks** enabled and no broad
    mobile-data grant, fresh metered automation is a hard probe: one conditional
    `getIndexes` request with retries disabled. Turning that setting off permits

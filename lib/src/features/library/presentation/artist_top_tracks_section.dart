@@ -20,7 +20,7 @@ import 'package:navis/src/common_widgets/song_playback_indicator.dart';
 import 'package:navis/src/features/downloads/presentation/download_quality_sheet.dart';
 import 'package:navis/src/features/library/data/local_track_matcher.dart';
 import 'package:navis/src/features/library/presentation/artist_top_tracks_provider.dart';
-import 'package:navis/src/features/player/presentation/queue_provider.dart';
+import 'package:navis/src/features/player/presentation/play_song_in_collection.dart';
 import 'package:navis/src/providers/app_providers.dart';
 import 'package:navis/src/routing/desktop_layout.dart';
 import 'package:navis/src/utils/app_logger.dart';
@@ -100,7 +100,7 @@ class _ArtistTopTracksSectionState extends ConsumerState<ArtistTopTracksSection>
         return;
       }
 
-      await _replaceTopTrackQueue(
+      _replaceTopTrackQueue(
         tappedSong: playable,
         availableTracks: availableTracks,
         fallbackTrack: track,
@@ -122,23 +122,18 @@ class _ArtistTopTracksSectionState extends ConsumerState<ArtistTopTracksSection>
     final tappedSong = track.resolvedSong;
     if (tappedSong == null) return;
 
-    final queueController = ref.read(queueProvider.notifier);
-    queueController.fireAndForget(
-      () => _replaceTopTrackQueue(
-        tappedSong: tappedSong,
-        availableTracks: availableTracks,
-        fallbackTrack: track,
-      ),
-      label: 'playNow',
+    _replaceTopTrackQueue(
+      tappedSong: tappedSong,
+      availableTracks: availableTracks,
+      fallbackTrack: track,
     );
   }
 
-  Future<void> _replaceTopTrackQueue({
+  void _replaceTopTrackQueue({
     required Song tappedSong,
     required List<ResolvedArtistTopTrack> availableTracks,
     required ResolvedArtistTopTrack fallbackTrack,
-  }) async {
-    final queueTopTracks = ref.read(albumQueueEnabledProvider);
+  }) {
     final queueSongs = availableTracks
         .map((candidate) {
           if (candidate.rank == fallbackTrack.rank &&
@@ -150,27 +145,16 @@ class _ArtistTopTracksSectionState extends ConsumerState<ArtistTopTracksSection>
         })
         .nonNulls
         .toList(growable: false);
-    final queueController = ref.read(queueProvider.notifier);
-
-    if (queueTopTracks && queueSongs.length > 1) {
-      final startIndex = queueSongs.indexWhere(
-        (song) => song.id == tappedSong.id,
-      );
-      final normalizedStartIndex = startIndex < 0 ? 0 : startIndex;
-      AppLogger.debug(
-        'ArtistTopTracksSection: Album Queue enabled for top tracks. '
-        'tapped=${tappedSong.id} queueLength=${queueSongs.length} '
-        'startIndex=$normalizedStartIndex',
-      );
-      await queueController.replaceWithSongs(
-        queueSongs,
-        startIndex: normalizedStartIndex,
-        autoPlay: true,
-      );
-      return;
-    }
-
-    await queueController.replaceWithSongs([tappedSong]);
+    final startIndex = queueSongs.indexWhere(
+      (song) => song.id == tappedSong.id,
+    );
+    // A tapped song that is not in the list plays alone.
+    playSongInCollection(
+      ref,
+      startIndex < 0 ? <Song>[tappedSong] : queueSongs,
+      startIndex < 0 ? 0 : startIndex,
+      expandMatchFlows: true,
+    );
   }
 
   void _showNotAvailable(BuildContext context) {

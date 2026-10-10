@@ -14,10 +14,12 @@ import 'package:navis/src/features/home/presentation/home_deezer_providers.dart'
 import 'package:navis/src/features/home/presentation/trending_detail_screen.dart';
 import 'package:navis/src/features/library/domain/artist_top_track.dart';
 import 'package:navis/src/features/library/presentation/ranked_virtual_playlist_content.dart';
+import 'package:navis/src/features/player/presentation/queue_provider.dart';
 import 'package:navis/src/features/settings/domain/app_settings.dart';
 import 'package:navis/src/providers/app_providers.dart';
 import 'package:navis/src/routing/app_routes.dart';
 
+import '../../../../helpers/queue_replace_spy.dart';
 import '../../../../helpers/test_database.dart';
 import '../../../../helpers/test_theme.dart';
 
@@ -29,16 +31,22 @@ void main() {
 
   Future<ProviderContainer> pump(
     WidgetTester tester,
-    Stream<List<ResolvedArtistTopTrack>> Function(Ref ref) tracks,
-  ) async {
+    Stream<List<ResolvedArtistTopTrack>> Function(Ref ref) tracks, {
+    bool albumQueue = true,
+  }) async {
     await tester.pumpWidget(
       ProviderScope(
         overrides: withTestDatabase(
           database,
           overrides: [
             appSettingsProvider.overrideWithValue(
-              const AsyncData(AppSettingsModel.defaults()),
+              AsyncData(
+                const AppSettingsModel.defaults().copyWith(
+                  albumQueueEnabled: albumQueue,
+                ),
+              ),
             ),
+            queueProvider.overrideWith(QueueReplaceSpy.new),
             homeTrendingProvider.overrideWith(tracks),
             songDownloadStateProvider.overrideWith(
               (ref, songId) => SongDownloadState.none,
@@ -93,6 +101,50 @@ void main() {
   test('the route lives under Library', () {
     expect(AppRoutes.trending, '/library/trending');
   });
+
+  for (final albumQueue in <bool>[true, false]) {
+    testWidgets(
+      'tapping a chart song ${albumQueue ? 'queues the chart from it' : 'plays only it'} '
+      'with Album Queue ${albumQueue ? 'on' : 'off'}',
+      (tester) async {
+        // An unresolved row sits between the playable ones and is skipped.
+        const gappedChart = <ResolvedArtistTopTrack>[
+          ResolvedArtistTopTrack(
+            rank: 1,
+            title: 'Library Song',
+            artist: 'Known',
+            resolvedSong: Song(
+              id: 'lib-1',
+              title: 'Library Song',
+              artist: 'Known',
+            ),
+          ),
+          ResolvedArtistTopTrack(rank: 2, title: 'Missing Song', artist: 'X'),
+          ResolvedArtistTopTrack(
+            rank: 3,
+            title: 'Remote Song',
+            artist: 'Stranger',
+            resolvedSong: remote,
+          ),
+        ];
+        final container = await pump(
+          tester,
+          (ref) => Stream.value(gappedChart),
+          albumQueue: albumQueue,
+        );
+
+        await tester.tap(row('Remote Song'));
+        await tester.pumpAndSettle();
+
+        final queue = container.read(queueProvider.notifier) as QueueReplaceSpy;
+        expect(
+          queue.lastReplaceIds,
+          albumQueue ? <String>['lib-1', remote.id] : <String>[remote.id],
+        );
+        expect(queue.lastStartIndex, albumQueue ? 1 : 0);
+      },
+    );
+  }
 
   testWidgets('lists every chart song in chart order, without gaps', (
     tester,
