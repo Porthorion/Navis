@@ -415,14 +415,15 @@ hydration, artist verification, or candidate and durable full-sync evidence
 (`server_config.last_synced` or `library_sync_state.last_catalog_synced_at`).
 Pending albums with valid persisted incomplete server-detail classifications
 do not block completion or freshness; they remain queued for retries.
-The sole partial exception is a validated catalog published in that run whose every
-remaining canonical album was attempted in the current run and returned
-incomplete detail. The controller then stores
-`library_sync_state.initial_catalog_usable_at`; routing can admit onboarding
+A validated catalog published in that run is also usable when every remaining
+canonical album has a valid incomplete-detail classification. The controller
+stores `library_sync_state.initial_catalog_usable_at` for both successful and
+partial incomplete-detail completion, and keeps the completion warning.
+Successful completion remains current; the partial exception admits onboarding
 or Home across restarts without claiming full freshness. All full-screen rebuild
-reasons share this partial exception. Other failed, deferred, or partial runs
-keep retry and sign-out actions; offline and metered conditions retain their
-retry/consent behavior. Pending albums continue through eligible incremental
+reasons share the incomplete-detail completion predicate. Other failed, deferred,
+or partial runs keep retry and sign-out actions; offline and metered conditions
+retain their retry/consent behavior. Pending albums continue through eligible incremental
 checks. First setup owns catalog sync until readiness: startup, automatic
 checks, and Android workers defer without arming or persisting a new automatic
 deadline. Android reports this as `deferredSetup`. Setup waits for any active

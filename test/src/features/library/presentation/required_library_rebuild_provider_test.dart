@@ -4,6 +4,9 @@ import 'package:drift/drift.dart' hide isNotNull, isNull;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:navis/src/database/navis_database.dart';
+import 'package:navis/src/api/models/models.dart';
+import 'package:navis/src/features/library/data/adaptive_library_sync_coordinator.dart';
+import 'package:navis/src/features/library/domain/library_sync_request.dart';
 import 'package:navis/src/features/auth/data/sign_out_service.dart';
 import 'package:navis/src/features/auth/domain/server_config.dart';
 import 'package:navis/src/features/auth/domain/server_reachability.dart';
@@ -23,6 +26,7 @@ import 'package:navis/src/utils/connectivity.dart';
 import 'package:flutter_riverpod/misc.dart' show Override;
 
 import '../../../../helpers/test_database.dart';
+import '../../../../helpers/library_sync_fakes.dart';
 import '../../../../helpers/reachability_fakes.dart';
 import '../../../../helpers/async_helpers.dart';
 
@@ -457,6 +461,78 @@ void main() {
       expect(isUsableIncompleteAlbumSyncRun(unsafe), isFalse);
     }
   });
+
+  test(
+    'real successful incomplete setup keeps the completion warning',
+    () async {
+      final database = createTestDatabase();
+      addTearDown(database.close);
+      final repository = await seedSyncSession(database);
+      final config = (await repository.getActiveServer())!;
+      const album = Album(id: 'incomplete', name: 'Incomplete', songCount: 2);
+      final api = FakeLibrarySyncApi()
+        ..fastPathPages[0] = [album]
+        ..albumDetails[album.id] = album.copyWith(
+          songs: [const Song(id: 'one', title: 'One', albumId: 'incomplete')],
+        )
+        ..indexes = Indexes(
+          lastModified: FakeLibrarySyncApi.defaultIndexesCursor,
+        );
+      final coordinator = AdaptiveLibrarySyncCoordinator(
+        executor: serialDriftEngine(
+          api: api,
+          database: database,
+          repository: repository,
+        ),
+        database: database,
+        serverConfigRepository: repository,
+        networkType: NetworkType.wifi,
+        staleAfter: const Duration(hours: 1),
+        readHasActivePlayback: () => false,
+      );
+      late final _ControlledSync sync;
+      sync = _ControlledSync(
+        const LibrarySyncState.idle(),
+        beforeResult: () async {
+          sync.result = await coordinator.requestSync(
+            const LibrarySyncRequest(
+              origin: SyncRunOrigin.settingsRepair,
+              intent: SyncRunIntent.repairLibrary,
+            ),
+          );
+        },
+      );
+      final container = _setupContainer(
+        database: database,
+        server: config,
+        sync: sync,
+      );
+      addTearDown(container.dispose);
+      expect(await container.read(initialSyncRequiredProvider.future), isTrue);
+      const reason = RequiredLibraryRebuildReason.initialLogin;
+      _mount(container, reason);
+      await container
+          .read(requiredLibraryRebuildControllerProvider(reason).notifier)
+          .start();
+      expect(sync.result.status, LibrarySyncStatus.succeeded);
+      expect(sync.result.onlyIncompleteAlbumDetails, isTrue);
+      expect(
+        container.read(requiredLibraryRebuildControllerProvider(reason)).status,
+        RequiredLibraryRebuildStatus.complete,
+      );
+      expect(container.read(initialSyncCompletionWarningProvider), isTrue);
+      expect(
+        await container.refresh(initialSyncRequiredProvider.future),
+        isFalse,
+      );
+      final persisted = await database.librarySyncDao.getOrCreateState(
+        config.id!,
+      );
+      expect(persisted.initialCatalogUsableAt, isNotNull);
+      expect(persisted.lastCatalogSyncedAt, isNotNull);
+    },
+    skip: !sqliteAvailable,
+  );
 
   test(
     'first setup admits only verified incomplete album details across restart',

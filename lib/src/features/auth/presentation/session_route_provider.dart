@@ -54,7 +54,8 @@ bool isCompletedInitialSyncRun(LibrarySyncState result) =>
 /// after the authoritative catalog has been published. Other partial work
 /// remains on the full-screen route.
 bool isUsableIncompleteAlbumSyncRun(LibrarySyncState result) =>
-    result.status == LibrarySyncStatus.partial &&
+    (result.status == LibrarySyncStatus.partial ||
+        result.status == LibrarySyncStatus.succeeded) &&
     result.stage == LibrarySyncStage.completed &&
     result.metadataReady &&
     !result.isHydrating &&
@@ -94,7 +95,8 @@ Future<bool> recordInitialCatalogReadiness({
       )) {
         return false;
       }
-    } else {
+    }
+    if (isUsableIncompleteAlbumSyncRun(result)) {
       if (await database.libraryDao.countPendingHydrationAlbums() !=
           result.pendingHydrationCount) {
         return false;

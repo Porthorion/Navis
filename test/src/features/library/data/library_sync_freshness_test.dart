@@ -201,6 +201,29 @@ void main() {
     expect(next.freshness, LibrarySyncFreshness.verificationPending);
   }, skip: !sqliteAvailable);
 
+  test(
+    'successful incomplete setup also records its initial usable date',
+    () async {
+      final first = await classifyFourAlbums();
+      final serverId = (await repository.getActiveServer())!.id!;
+      expect(
+        await recordInitialCatalogReadiness(
+          database: database,
+          serverId: serverId,
+          result: first,
+        ),
+        isTrue,
+      );
+      final persisted = await database.librarySyncDao.getOrCreateState(
+        serverId,
+      );
+      expect(persisted.initialCatalogUsableAt, isNotNull);
+      expect(persisted.lastCatalogSyncedAt, isNotNull);
+      expect(isUsableIncompleteAlbumSyncRun(first), isTrue);
+    },
+    skip: !sqliteAvailable,
+  );
+
   test('unchanged hard probes preserve incomplete completion state', () async {
     final first = await classifyFourAlbums();
     api.calls.clear();
