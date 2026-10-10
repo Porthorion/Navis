@@ -164,3 +164,43 @@ Owner decision for setup: Theme Mode, Color Style and Accent Color stay visible
 and a "More appearance options" group holds the remaining six options, opening
 by itself while any of them is still tagged. Night Schedule is locked off while
 the Night style is chosen, since the style already is the night look.
+
+### Pastel revision and style separation (2026-10-10)
+
+Owner feedback after phone testing: Pastel sometimes read harsh, at times
+harsher than Immersive, and the three styles did not differ enough to justify
+being separate. Diagnosis over the seed matrix (white, grey, yellow, orange,
+red, magenta, blue, green, brown, neon pink, dark navy; light, dark, OLED):
+
+- Pastel passed the seed's chroma through (28-44 at tone 82 in dark, light ink
+  at chroma 48 at tone 42, containers up to 28), so a neon or yellow seed gave
+  dark accents of chroma 44 and light ink of 48.
+- Immersive's dark accents are gamut-limited at tone 82 (red 26, blue 34,
+  brown 26), so for those seeds Pastel and Immersive produced the same
+  accent; elsewhere Pastel was within a few chroma points of it.
+- Artwork-adapted colours capped at chroma 30 (light) and 16 (dark) for
+  Pastel against Immersive's 40 and 32, with light washes at tone 84.
+
+Decision:
+
+- Pastel takes only the seed's hue. Accent chroma is 16-24 (20 for the default
+  white), dark and OLED accents at tone 86, light ink at tone 47, light fills
+  at tone 89-91 and chroma 15, dark containers at tone 30 and chroma 12,
+  surfaces at chroma 6-7, a soft rose error and a pastel mint success.
+  Artwork colours cap at chroma 13 (light, tone 88-94) and 12 (dark, tone
+  26-34). Flat bands, Use Cover Color captions and the Now Playing tint inherit
+  the cap because they derive from `adaptArtColor`.
+- The Home wash veil over Pastel's softer cover colours is lowered (light 0.6
+  subtle / 0.42, dark 0.64 / 0.46) so the wash stays visible but gentle.
+- Immersive's accent chroma floor rises from 32 to 36 and its dark accents
+  move to tone 77, so it stays rich where Pastel went light; Night is
+  unchanged.
+- Ordering rule, enforced by `navis_style_schemes_test.dart` for every seed,
+  mode and style: Pastel's maximum chroma over the key roles is at most 60% of
+  Immersive's (measured worst case 58%) and under 85% of Night's; Pastel's
+  adapted artwork colours are under 60% of Immersive's; Night keeps hue 15-95
+  and a blue channel below red; Neutral is unchanged.
+- Alternatives rejected: a global chroma multiplier (it would also have
+  softened Immersive's and Night's accents, which are intended to be rich or
+  warm) and lowering only the seed chroma clamp (it does not fix the light
+  ink, containers or artwork colours).

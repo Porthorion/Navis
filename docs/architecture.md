@@ -846,18 +846,46 @@ target-selection rules.
     rotate yellow hues away from khaki; OLED backgrounds stay `#000000`;
     text and control pairs meet contrast minimums.
   - A seed with almost no chroma (the default white) gets the sea-glass hue
-    (190°) in Pastel and Immersive. Pastel's dark backgrounds put warm
-    accents on a plum base, and its light paper (tone 95, chroma up to 12,
-    gamut-capped) shifts warm hues up to 25° toward peach so the tint stays
-    visible; Night moves accents into the rose-to-amber range.
+    (190°) in Pastel and Immersive; Night moves accents into the rose-to-amber
+    range.
+  - The three styles are separated by rule, not taste, and
+    `navis_style_schemes_test.dart` enforces it for every seed, mode and style:
+    across the key roles (primary, secondary, tertiary, the three containers,
+    `surface`, `surfaceContainer`, `surfaceContainerHighest`) Pastel's maximum
+    HCT chroma is at most 60% of Immersive's and under 85% of Night's, and its
+    artwork-adapted colours (Home wash, flat bands, captions, Now Playing
+    solid) are under 60% of Immersive's.
+    - **Pastel** is macaron soft: the seed supplies the hue only. Accent
+      chroma is 16 (muted seed) to 24 (vivid seed), 20 for the default white,
+      so a neon cover never passes through. Dark and OLED accents sit at tone
+      86, light ink at tone 47 (white text keeps 4.5:1, chroma at most 24),
+      containers at chroma 12 (dark, tone 30) and 15 (light, tone 89-91),
+      surfaces at chroma 6-7: a plum dusk (warm accents sit on
+      `pastelDuskHue`) or a faint tinted paper at tone 95 (warm hues shift up
+      to 25° toward peach, `pastelPaperHue`). Error is a soft rose
+      (chroma 26 dark, 30 light ink) and `success` is a pastel mint
+      (chroma 22-24).
+    - **Immersive** keeps rich accents (chroma at least 36, dark accents at
+      tone 77 so they stay saturated within the sRGB gamut) and deep tinted
+      surfaces (dark chroma up to 20).
+    - **Night** stays warm and low-blue: hue 15-95, accent chroma 24-40,
+      umber surfaces and warm-white text.
+    Before this revision Pastel's accents passed the seed's chroma through
+    (light ink 42-48, dark accents 26-44 at tone 82) and Immersive's were
+    gamut-limited to the same values at tone 82, so a red or blue seed gave
+    identical dark accents in both styles.
   - `NavisColorStyleData` (a ThemeExtension) adapts colours sampled from
     artwork for the Home cover wash and the Now Playing tint, sets their veil
     and tint opacity, and supplies the `success` colour. Artwork itself and
     text drawn over artwork are never restyled.
     - `adaptArtColor` follows each style's no-mud logic on dark and OLED
-      schemes. Pastel rotates warm hues toward its plum dusk
+      schemes. Pastel clamps every cover to chroma 13 at tone 88-94 in light
+      themes and chroma 12 at tone 26-34 in dark and OLED ones (high-key
+      chalk, dusky soft), and rotates warm hues toward its plum dusk
       (`pastelDuskHue`, 60% blend, up to 85% for yellows) so an orange cover
-      reads rose or plum, not terracotta. Immersive keeps the hue but caps warm
+      reads rose or plum, not terracotta. Because Flat bands, Use Cover Color
+      captions and the Now Playing tint (and its Flat solid) all derive from
+      this colour, they inherit the cap. Immersive keeps the hue but caps warm
       chroma at 22 below tone 35 (wine or mahogany, not brown; yellows still go
       through `mudGuardHue`). Night's umber is intended and unchanged. Neutral
       returns the raw colour.
