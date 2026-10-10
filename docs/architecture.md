@@ -986,10 +986,13 @@ never pays for it:
 - *Sampling gate.* `AlbumCard` passes `CoverArtImage.onImageReady` to its
   `AlbumCardLabel` as `coverReady`, so a card samples only after the same
   visibility and load-window logic that loads its artwork has shown the
-  cover. It waits `kCoverTintSettleDelay` (150 ms) built and idle before
-  requesting. The existing `isScrollingNotifier` cancels that one-shot wait
-  when scrolling starts and schedules it when scrolling stops; there is no
-  per-card polling timer. Flutter's deferred-loading recommendation remains
+  cover. `CoverArtImageReadyNotification` also carries whether the bounded
+  image resolved synchronously, through regular and hero covers. A synchronous
+  memory hit requests its tint on the next event turn without the settle delay,
+  while the list is idle. Other arrivals wait `kCoverTintSettleDelay` (150 ms)
+  built and idle before requesting. The existing `isScrollingNotifier` cancels
+  that one-shot wait when scrolling starts and schedules it when scrolling
+  stops; there is no per-card polling timer. Flutter's deferred-loading recommendation remains
   a final check before sampling. Cards that fly past never request. Known
   colours are read synchronously from `peekCoverColourField` on the first frame.
 - *Local files only.* `decodeLocalCoverColour` reads the permanent artwork
@@ -1028,8 +1031,12 @@ never pays for it:
   acquires a slot. A decode still queued when its last card is gone is
   cancelled by the coordinator's stale-interest logic. A separate instance is
   used because the artwork coordinator's slots also gate real artwork
-  downloads, which tint decodes must never delay. Requests for one cover and
-  revision share one decode.
+  downloads, which tint decodes must never delay. Caption requests are visible;
+  You Might Like meshes and Now Playing artwork backdrops use
+  `backgroundCoverColourFieldProvider` on the same sampler. At most one
+  background decode occupies the two slots, leaving room for a caption.
+  Requests for one cover and revision share one decode, promoted by caption
+  interest when queued. Missing-art retry counts are scoped to request priority.
 - *Persistent cache.* Fields resolve from the memory LRU (512), then from
   the worker's copy of `cover_colour_fields.bin` in the application support
   directory (newest 5000 entries), then by decoding. The newest 512 entries
@@ -4254,6 +4261,19 @@ HTTP file service rejects a declared body larger than 20 MiB and aborts when
 streamed bytes exceed that limit, including chunked, redirected and discarded
 bodies. It uses the existing forced transport reset to stop an oversized body,
 records an error outcome, and releases the coordinator slot.
+
+Cover loads reuse `CoverArtLoadCoordinator`: four active slots, with one
+reserved for critical artwork and three shared slots. Background work occupies
+at most two shared slots, leaving room for an on-screen cover. `CoverArtImage`
+registers visible interest only for actual viewport overlap (or visibility
+notification); cards in its one-screen preload window register background
+interest. Interest uses the HTTP request key (`coverArtImageCacheKey(id, size)`),
+without the disk-cache revision, so targeted revision covers receive the same
+priority and cancellation. A queued request created with live interest is
+cancelled when its last interest leaves, including background preloads;
+uninterested warmups retain their existing lifetime. In-flight requests finish.
+Track-change Now Playing visual prewarm is background; the displayed Now
+Playing cover retains critical priority.
 
 Server-provided file extensions use a shared ASCII alphanumeric allowlist (1–10
 characters, otherwise `bin`). Rolling audio and SAF staging filenames hash song

@@ -38,7 +38,9 @@ Future<ThemeData> _pump(
   await tester.pumpWidget(
     ProviderScope(
       overrides: [
-        coverColourFieldProvider.overrideWith((ref, id) async => field),
+        backgroundCoverColourFieldProvider.overrideWith(
+          (ref, id) async => field,
+        ),
       ],
       child: MaterialApp(
         theme: theme,
@@ -67,7 +69,9 @@ Future<ThemeData> _pumpBand(
   await tester.pumpWidget(
     ProviderScope(
       overrides: [
-        coverColourFieldProvider.overrideWith((ref, id) async => field),
+        backgroundCoverColourFieldProvider.overrideWith(
+          (ref, id) async => field,
+        ),
       ],
       child: MaterialApp(
         theme: theme,
@@ -105,7 +109,7 @@ void main() {
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
-          coverColourFieldProvider.overrideWith((ref, key) {
+          backgroundCoverColourFieldProvider.overrideWith((ref, key) {
             requested.add(key);
             return key.$2 == 0 ? Future.value(old) : gate.future;
           }),
@@ -391,7 +395,7 @@ void main() {
       await tester.pumpWidget(
         ProviderScope(
           overrides: [
-            coverColourFieldProvider.overrideWith(
+            backgroundCoverColourFieldProvider.overrideWith(
               (ref, id) async => CoverColourField(
                 List<Color>.filled(
                   9,

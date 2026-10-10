@@ -344,7 +344,7 @@ typedef ShowcaseColourWash = _ShowcaseColourWash;
 /// A soft wash of the focused cover's colours behind the section.
 ///
 /// The cover is sampled into a small colour grid (see
-/// [coverColourFieldProvider]) and painted as a smoothly shaded mesh, which
+/// [backgroundCoverColourFieldProvider]) and painted as a smoothly shaded mesh, which
 /// stays smooth at any width, unlike a stretched thumbnail. Switching covers
 /// glides the colours instead of crossfading images, and a page-coloured
 /// veil keeps contrast.
@@ -379,7 +379,12 @@ class _ShowcaseColourWash extends ConsumerWidget {
     final field = coverId == null || coverId.isEmpty
         ? null
         : ref
-                  .watch(coverColourFieldProvider((coverId, coverArtRevision)))
+                  .watch(
+                    backgroundCoverColourFieldProvider((
+                      coverId,
+                      coverArtRevision,
+                    )),
+                  )
                   .value ??
               peekCoverColourField(coverId);
     if (style.flat) {
@@ -530,7 +535,12 @@ class _ShowcaseFlatBand extends ConsumerWidget {
     final field = coverId == null || coverId.isEmpty
         ? null
         : ref
-                  .watch(coverColourFieldProvider((coverId, coverArtRevision)))
+                  .watch(
+                    backgroundCoverColourFieldProvider((
+                      coverId,
+                      coverArtRevision,
+                    )),
+                  )
                   .value ??
               peekCoverColourField(coverId);
     final average = field?.average;

@@ -162,6 +162,10 @@ const List<ChangelogVersion> changelogs = [
     ],
     entries: [
       ChangelogEntry(
+        'Album art on screen loads first again',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
         'Now Playing Background also applies to the queue and to the desktop lyrics view',
       ),
       ChangelogEntry(

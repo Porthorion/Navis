@@ -187,6 +187,71 @@ void main() {
       sampler.dispose();
     });
 
+    test('mesh and backdrop work leave a slot for a caption', () async {
+      final decoder = _GatedDecoder();
+      final sampler = _sampler(decoder);
+      addTearDown(sampler.dispose);
+      final container = ProviderContainer(
+        overrides: [coverColourSamplerProvider.overrideWithValue(sampler)],
+      );
+      addTearDown(container.dispose);
+      container.listen(
+        backgroundCoverColourFieldProvider(('mesh', 0)),
+        (_, _) {},
+      );
+      await _settle();
+      container.listen(
+        backgroundCoverColourFieldProvider(('backdrop', 0)),
+        (_, _) {},
+      );
+      await _settle();
+      expect(decoder.started, <String>['mesh']);
+      final caption = container.listen(
+        coverColourFieldProvider(('caption', 0)),
+        (_, _) {},
+      );
+      await _settle();
+      expect(decoder.started, <String>['mesh', 'caption']);
+      decoder.complete('caption');
+      await _settle();
+      expect(caption.read().value, isNotNull);
+      expect(decoder.started, <String>['mesh', 'caption']);
+      decoder.complete('mesh');
+      await _settle();
+      expect(decoder.started, <String>['mesh', 'caption', 'backdrop']);
+      decoder.complete('backdrop');
+      await _settle();
+    });
+
+    test(
+      'caption interest promotes a queued backdrop without another decode',
+      () async {
+        final decoder = _GatedDecoder();
+        final sampler = _sampler(decoder);
+        addTearDown(sampler.dispose);
+        final mesh = sampler.request(
+          'mesh',
+          priority: CoverArtLoadPriority.background,
+        );
+        await _settle();
+        final backdrop = sampler.request(
+          'shared',
+          priority: CoverArtLoadPriority.background,
+        );
+        await _settle();
+        expect(decoder.started, <String>['mesh']);
+        final caption = sampler.request('shared');
+        await _settle();
+        expect(decoder.started, <String>['mesh', 'shared']);
+        decoder.complete('shared');
+        expect(await caption.future, isNotNull);
+        expect(await backdrop.future, await caption.future);
+        decoder.complete('mesh');
+        await mesh.future;
+        expect(decoder.started, <String>['mesh', 'shared']);
+      },
+    );
+
     test('deduplicates concurrent requests for one cover', () async {
       final decoder = _GatedDecoder();
       final sampler = _sampler(decoder);

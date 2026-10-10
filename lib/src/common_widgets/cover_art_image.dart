@@ -26,6 +26,16 @@ export 'package:navis/src/common_widgets/cover_art_cache_manager.dart'
         coverArtImageCacheKey,
         kCoverArtStandardSize;
 
+/// Reports decoded artwork readiness through wrappers such as hero covers.
+///
+/// Dispatched after the frame, alongside [CoverArtImage.onImageReady].
+class CoverArtImageReadyNotification extends Notification {
+  const new({required this.synchronouslyLoaded});
+
+  /// Whether the decoded image was already available in memory.
+  final bool synchronouslyLoaded;
+}
+
 /// How long a server cover waits before its single retry after a timeout.
 const kCoverArtTimeoutRetryDelay = Duration(seconds: 2);
 
@@ -140,6 +150,7 @@ class _CoverArtImageState extends ConsumerState<CoverArtImage> {
   String? _reportedImageReadyCacheKey;
   var _isVisible = false;
   var _isInLoadWindow = false;
+  var _overlapsViewport = false;
   var _loadWindowCheckScheduled = false;
 
   /// Keys the network image so a timed-out load starts again. Bumped by the
@@ -284,7 +295,11 @@ class _CoverArtImageState extends ConsumerState<CoverArtImage> {
     );
     _scheduleLoadWindowCheck();
     _startCacheProbe(cacheManager, cacheKey);
-    _syncInterest(coordinator, cacheKey, _activePriority);
+    _syncInterest(
+      coordinator,
+      coverArtImageCacheKey(id, resolvedSize),
+      _activePriority,
+    );
 
     final wantsNetwork =
         widget.loadPriority == CoverArtLoadPriority.critical ||
@@ -342,7 +357,11 @@ class _CoverArtImageState extends ConsumerState<CoverArtImage> {
       case CoverArtLoadPriority.background:
         return CoverArtLoadPriority.background;
       case CoverArtLoadPriority.visible:
-        return _wantsVisibleLoad ? CoverArtLoadPriority.visible : null;
+        return _isVisible || _overlapsViewport
+            ? CoverArtLoadPriority.visible
+            : _isInLoadWindow
+            ? CoverArtLoadPriority.background
+            : null;
     }
   }
 
@@ -408,13 +427,14 @@ class _CoverArtImageState extends ConsumerState<CoverArtImage> {
     if (_interestKey == cacheKey && _interestPriority == priority) {
       return;
     }
+    // Keep live interest while a preload is promoted into the viewport.
+    final nextInterest = priority == null
+        ? null
+        : coordinator.trackInterest(cacheKey, priority);
     _clearInterest();
-    if (priority == null) {
-      return;
-    }
-    _interestKey = cacheKey;
+    _interestKey = priority == null ? null : cacheKey;
     _interestPriority = priority;
-    _interest = coordinator.trackInterest(cacheKey, priority);
+    _interest = nextInterest;
   }
 
   void _clearInterest() {
@@ -473,17 +493,19 @@ class _CoverArtImageState extends ConsumerState<CoverArtImage> {
         return;
       }
       _syncScrollPosition();
-      final nextInLoadWindow = _computeIsInLoadWindow();
-      if (_isInLoadWindow == nextInLoadWindow) {
+      final (nextInLoadWindow, nextOverlapsViewport) = _computeLoadWindow();
+      if (_isInLoadWindow == nextInLoadWindow &&
+          _overlapsViewport == nextOverlapsViewport) {
         return;
       }
       setState(() {
         _isInLoadWindow = nextInLoadWindow;
+        _overlapsViewport = nextOverlapsViewport;
       });
     });
   }
 
-  bool _computeIsInLoadWindow() {
+  (bool, bool) _computeLoadWindow() {
     final scrollable = Scrollable.maybeOf(context);
     final viewportRenderObject = scrollable?.context.findRenderObject();
     final renderObject = context.findRenderObject();
@@ -494,7 +516,7 @@ class _CoverArtImageState extends ConsumerState<CoverArtImage> {
         !renderObject.hasSize ||
         !viewportRenderObject.attached ||
         !renderObject.attached) {
-      return _isVisible;
+      return (_isVisible, _isVisible);
     }
 
     final viewportOrigin = viewportRenderObject.localToGlobal(Offset.zero);
@@ -510,7 +532,7 @@ class _CoverArtImageState extends ConsumerState<CoverArtImage> {
       viewportRect.right + viewportRect.width * preloadScreens,
       viewportRect.bottom + viewportRect.height * preloadScreens,
     );
-    return loadRect.overlaps(childRect);
+    return (loadRect.overlaps(childRect), viewportRect.overlaps(childRect));
   }
 
   Widget _buildNetworkImageChild(
@@ -524,18 +546,31 @@ class _CoverArtImageState extends ConsumerState<CoverArtImage> {
       resolvedSize,
       revision: widget.revision,
     );
+    final provider = _boundedImageProvider(
+      coverArtImageProviderFor(
+        coverArtId: widget.coverArtId!,
+        size: resolvedSize,
+        revision: widget.revision,
+        api: api,
+        cacheManager: cacheManager,
+      )!,
+      resolvedSize,
+    );
+    // The bounded provider uses a synchronous cache key. Check before OctoImage
+    // resolves it, while a pending decode still differs from a memory hit.
+    var synchronouslyLoaded = false;
+    unawaited(
+      provider.obtainKey(createLocalImageConfiguration(context)).then<void>((
+        key,
+      ) {
+        final status = PaintingBinding.instance.imageCache.statusForKey(key);
+        synchronouslyLoaded =
+            status.keepAlive || (status.live && !status.pending);
+      }),
+    );
     final image = OctoImage(
       key: ValueKey<int>(_retryNonce),
-      image: _boundedImageProvider(
-        coverArtImageProviderFor(
-          coverArtId: widget.coverArtId!,
-          size: resolvedSize,
-          revision: widget.revision,
-          api: api,
-          cacheManager: cacheManager,
-        )!,
-        resolvedSize,
-      ),
+      image: provider,
       fit: widget.fit,
       width: widget.width,
       height: widget.height,
@@ -545,7 +580,7 @@ class _CoverArtImageState extends ConsumerState<CoverArtImage> {
       fadeOutDuration: Duration.zero,
       imageBuilder: (context, child) {
         _renderedNetworkCacheKey = cacheKey;
-        _reportImageReady(cacheKey);
+        _reportImageReady(cacheKey, synchronouslyLoaded: synchronouslyLoaded);
         // Keep the decoded child. Rebuilding an Image from the original
         // network provider bypasses its resize limit and decodes it twice.
         return child;
@@ -593,7 +628,7 @@ class _CoverArtImageState extends ConsumerState<CoverArtImage> {
     });
   }
 
-  void _reportImageReady(String cacheKey) {
+  void _reportImageReady(String cacheKey, {required bool synchronouslyLoaded}) {
     if (_reportedImageReadyCacheKey == cacheKey ||
         widget.onImageReady == null) {
       return;
@@ -601,6 +636,8 @@ class _CoverArtImageState extends ConsumerState<CoverArtImage> {
     _reportedImageReadyCacheKey = cacheKey;
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted && _reportedImageReadyCacheKey == cacheKey) {
+        CoverArtImageReadyNotification(synchronouslyLoaded: synchronouslyLoaded)
+            .dispatch(context);
         widget.onImageReady?.call();
       }
     });
@@ -621,7 +658,10 @@ class _CoverArtImageState extends ConsumerState<CoverArtImage> {
       gaplessPlayback: widget.gaplessPlayback,
       frameBuilder: (context, child, frame, wasSynchronouslyLoaded) {
         if (frame != null || wasSynchronouslyLoaded) {
-          _reportImageReady('file:${file.path}');
+          _reportImageReady(
+            'file:${file.path}',
+            synchronouslyLoaded: wasSynchronouslyLoaded,
+          );
         }
         return child;
       },

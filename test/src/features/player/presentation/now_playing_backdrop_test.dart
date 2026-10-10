@@ -75,7 +75,7 @@ void main() {
         coverArtImageSourceProvider.overrideWith(
           (ref, key) async => image ?? cover,
         ),
-        coverColourFieldProvider.overrideWith(
+        backgroundCoverColourFieldProvider.overrideWith(
           (ref, key) async => CoverColourField.uniform(const Color(0xFF3F7F6F)),
         ),
       ],
