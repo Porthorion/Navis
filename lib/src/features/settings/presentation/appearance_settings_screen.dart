@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:math';
 
@@ -16,6 +17,7 @@ import 'package:navis/src/routing/navigation_service.dart';
 import 'package:navis/src/features/settings/presentation/appearance_layout.dart';
 import 'package:navis/src/features/settings/presentation/appearance_options.dart';
 import 'package:navis/src/features/settings/presentation/color_style_selector.dart';
+import 'package:navis/src/theme/color_adjustment.dart';
 import 'package:navis/src/theme/corner_style_provider.dart';
 import 'package:navis/src/theme/dynamic_accent_provider.dart';
 import 'package:navis/src/theme/navis_color_style.dart';
@@ -24,6 +26,39 @@ import 'package:navis/src/theme/navis_theme.dart';
 import 'package:navis/src/routing/app_routes.dart';
 import 'package:navis/src/theme/navis_shape_data.dart';
 import 'package:navis/src/theme/navis_tokens.dart';
+
+/// Saves a Fine-Tune Colors value. The drag preview keeps the app on that
+/// value until the saved value is observed, so the colours never flash back.
+Future<void> _persistColorAdjustment(
+  WidgetRef ref,
+  ColorAdjustment adjustment,
+) async {
+  final preview = ref.read(colorAdjustmentPreviewProvider.notifier);
+  if (ref.read(colorAdjustmentProvider) == adjustment) {
+    preview.clear();
+    return;
+  }
+  void clearIfStillShown() {
+    if (ref.read(colorAdjustmentPreviewProvider) == adjustment) preview.clear();
+  }
+
+  final db = ref.read(navisDatabaseProvider);
+  await db.appSettingsDao.updateColorAdjustment(adjustment);
+  if (!ref.context.mounted) {
+    preview.clear();
+    return;
+  }
+  if (ref.read(colorAdjustmentProvider) == adjustment) {
+    clearIfStillShown();
+    return;
+  }
+  late final ProviderSubscription<ColorAdjustment> saved;
+  saved = ref.listenManual(colorAdjustmentProvider, (_, persisted) {
+    if (persisted != adjustment) return;
+    clearIfStillShown();
+    saved.close();
+  });
+}
 
 class AppearanceSettingsScreen extends ConsumerWidget {
   const new({super.key});
@@ -67,6 +102,10 @@ class AppearanceSettingsScreen extends ConsumerWidget {
     );
     final libraryPageOrder = ref.watch(libraryPageOrderProvider);
     final isDesktop = resolveAdaptiveContextFor(context).useDesktopShell;
+    // Captured now: the widget may be gone when a drag's preview is dropped.
+    final previewColorAdjustment = ref.read(
+      colorAdjustmentPreviewProvider.notifier,
+    );
     final options = AppearanceOptionSet(
       oledForAutoVisible: currentMode == 'system',
       oledForAuto: oledForAuto,
@@ -122,6 +161,13 @@ class AppearanceSettingsScreen extends ConsumerWidget {
           background.storageKey,
         );
       },
+      colorAdjustment: ref.watch(colorAdjustmentProvider),
+      onColorAdjustmentPreview: previewColorAdjustment.preview,
+      onColorAdjustmentChanged: (adjustment) =>
+          unawaited(_persistColorAdjustment(ref, adjustment)),
+      onColorAdjustmentPreviewEnd: previewColorAdjustment.clear,
+      previewSeed: previewSeed,
+      previewBrightness: previewBrightness,
       previewOled: previewOled,
     );
     // Quick Actions are now always-visible below the home logo; remove from
@@ -200,6 +246,7 @@ class AppearanceSettingsScreen extends ConsumerWidget {
                   },
                 ),
                 ...options.buildAll(const <AppearanceOptionKind>[
+                  AppearanceOptionKind.colorTuning,
                   AppearanceOptionKind.nightSchedule,
                 ]),
                 AppearanceHeading(

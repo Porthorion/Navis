@@ -3368,6 +3368,51 @@ class AppLocalizationsEn extends AppLocalizations {
       'Warm colors with less blue light, for evening listening.';
 
   @override
+  String get appearanceColorTuningLabel => 'Fine-Tune Colors';
+
+  @override
+  String get appearanceColorTuningSub =>
+      'Make any color style softer or richer, and its backgrounds lighter or deeper.';
+
+  @override
+  String get appearanceColorTuningColor => 'Color';
+
+  @override
+  String get appearanceColorTuningBrightness => 'Brightness';
+
+  @override
+  String get appearanceColorTuningMuted => 'Muted';
+
+  @override
+  String get appearanceColorTuningVivid => 'Vivid';
+
+  @override
+  String get appearanceColorTuningLighter => 'Lighter';
+
+  @override
+  String get appearanceColorTuningDeeper => 'Deeper';
+
+  @override
+  String get appearanceColorTuningDefault => 'Default';
+
+  @override
+  String get appearanceColorTuningMoreMuted => 'Make colors more muted';
+
+  @override
+  String get appearanceColorTuningMoreVivid => 'Make colors more vivid';
+
+  @override
+  String get appearanceColorTuningLighterBackgrounds =>
+      'Make backgrounds lighter';
+
+  @override
+  String get appearanceColorTuningDeeperBackgrounds =>
+      'Make backgrounds deeper';
+
+  @override
+  String get appearanceColorTuningReset => 'Reset';
+
+  @override
   String get appearanceLanguageLabel => 'Language';
 
   @override

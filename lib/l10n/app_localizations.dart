@@ -5285,6 +5285,90 @@ abstract class AppLocalizations {
   /// **'Warm colors with less blue light, for evening listening.'**
   String get appearanceColorStyleNightSub;
 
+  /// No description provided for @appearanceColorTuningLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Fine-Tune Colors'**
+  String get appearanceColorTuningLabel;
+
+  /// No description provided for @appearanceColorTuningSub.
+  ///
+  /// In en, this message translates to:
+  /// **'Make any color style softer or richer, and its backgrounds lighter or deeper.'**
+  String get appearanceColorTuningSub;
+
+  /// No description provided for @appearanceColorTuningColor.
+  ///
+  /// In en, this message translates to:
+  /// **'Color'**
+  String get appearanceColorTuningColor;
+
+  /// No description provided for @appearanceColorTuningBrightness.
+  ///
+  /// In en, this message translates to:
+  /// **'Brightness'**
+  String get appearanceColorTuningBrightness;
+
+  /// No description provided for @appearanceColorTuningMuted.
+  ///
+  /// In en, this message translates to:
+  /// **'Muted'**
+  String get appearanceColorTuningMuted;
+
+  /// No description provided for @appearanceColorTuningVivid.
+  ///
+  /// In en, this message translates to:
+  /// **'Vivid'**
+  String get appearanceColorTuningVivid;
+
+  /// No description provided for @appearanceColorTuningLighter.
+  ///
+  /// In en, this message translates to:
+  /// **'Lighter'**
+  String get appearanceColorTuningLighter;
+
+  /// No description provided for @appearanceColorTuningDeeper.
+  ///
+  /// In en, this message translates to:
+  /// **'Deeper'**
+  String get appearanceColorTuningDeeper;
+
+  /// No description provided for @appearanceColorTuningDefault.
+  ///
+  /// In en, this message translates to:
+  /// **'Default'**
+  String get appearanceColorTuningDefault;
+
+  /// No description provided for @appearanceColorTuningMoreMuted.
+  ///
+  /// In en, this message translates to:
+  /// **'Make colors more muted'**
+  String get appearanceColorTuningMoreMuted;
+
+  /// No description provided for @appearanceColorTuningMoreVivid.
+  ///
+  /// In en, this message translates to:
+  /// **'Make colors more vivid'**
+  String get appearanceColorTuningMoreVivid;
+
+  /// No description provided for @appearanceColorTuningLighterBackgrounds.
+  ///
+  /// In en, this message translates to:
+  /// **'Make backgrounds lighter'**
+  String get appearanceColorTuningLighterBackgrounds;
+
+  /// No description provided for @appearanceColorTuningDeeperBackgrounds.
+  ///
+  /// In en, this message translates to:
+  /// **'Make backgrounds deeper'**
+  String get appearanceColorTuningDeeperBackgrounds;
+
+  /// No description provided for @appearanceColorTuningReset.
+  ///
+  /// In en, this message translates to:
+  /// **'Reset'**
+  String get appearanceColorTuningReset;
+
   /// No description provided for @appearanceLanguageLabel.
   ///
   /// In en, this message translates to:

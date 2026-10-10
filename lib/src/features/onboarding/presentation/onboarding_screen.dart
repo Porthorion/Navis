@@ -773,6 +773,15 @@ class OnboardingScreenState extends ConsumerState<OnboardingScreen> {
       nowPlayingBackground: draft.nowPlayingBackground,
       onNowPlayingBackgroundChanged: (value) =>
           setState(() => _draft = draft.copyWith(nowPlayingBackground: value)),
+      colorAdjustment: ColorAdjustment(
+        vividness: draft.colorVividness,
+        depth: draft.surfaceDepth,
+      ),
+      // The draft is the preview: the page recolours as a ruler moves.
+      onColorAdjustmentPreview: _draftColorAdjustment,
+      onColorAdjustmentChanged: _draftColorAdjustment,
+      previewSeed: resolveColorSchemeSeedColor(draft.colorSchemeSeed),
+      previewBrightness: theme.brightness,
       previewOled: previewOled,
     );
     return AppearanceVisitScope(
@@ -878,6 +887,13 @@ class OnboardingScreenState extends ConsumerState<OnboardingScreen> {
       ),
     );
   }
+
+  void _draftColorAdjustment(ColorAdjustment adjustment) => setState(
+    () => _draft = _draft?.copyWith(
+      colorVividness: adjustment.vividness,
+      surfaceDepth: adjustment.depth,
+    ),
+  );
 
   /// The options under "More appearance options": everything except Night
   /// Schedule, which is shown beside Color Style.

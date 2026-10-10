@@ -9,10 +9,12 @@ import 'package:navis/src/features/onboarding/domain/setup_highlights.dart';
 import 'package:navis/src/features/onboarding/presentation/setup_highlights_provider.dart';
 import 'package:navis/src/features/settings/presentation/appearance_layout.dart';
 import 'package:navis/src/features/settings/presentation/color_style_selector.dart';
+import 'package:navis/src/features/settings/presentation/color_tuning_option.dart';
 import 'package:navis/src/features/settings/domain/flat_areas.dart';
 import 'package:navis/src/features/settings/domain/navis_density.dart';
 import 'package:navis/src/features/settings/domain/night_schedule.dart';
 import 'package:navis/src/features/settings/domain/now_playing_background.dart';
+import 'package:navis/src/theme/color_adjustment.dart';
 import 'package:navis/src/theme/motion_policy.dart';
 import 'package:navis/src/theme/navis_color_style.dart';
 import 'package:navis/src/theme/navis_corner_style.dart';
@@ -844,6 +846,7 @@ class CornerStyleOption extends StatelessWidget {
 /// which a test pins.
 enum AppearanceOptionKind {
   oledForAuto(SetupHighlight.oledForAuto),
+  colorTuning(SetupHighlight.colorTuning),
   nightSchedule(SetupHighlight.nightSchedule),
   flatSurfaces(SetupHighlight.flatSurfaces),
   cornerStyle(SetupHighlight.cornerStyle),
@@ -882,7 +885,13 @@ class AppearanceOptionSet {
     required this.onDensityChanged,
     required this.nowPlayingBackground,
     required this.onNowPlayingBackgroundChanged,
+    required this.colorAdjustment,
+    required this.onColorAdjustmentPreview,
+    required this.onColorAdjustmentChanged,
+    required this.previewSeed,
+    required this.previewBrightness,
     required this.previewOled,
+    this.onColorAdjustmentPreviewEnd,
   });
 
   /// Whether the OLED switch applies (Auto theme mode).
@@ -910,7 +919,22 @@ class AppearanceOptionSet {
   final NowPlayingBackground nowPlayingBackground;
   final ValueChanged<NowPlayingBackground> onNowPlayingBackgroundChanged;
 
-  /// Whether the previewed dark theme is OLED (for the Now Playing note).
+  /// The saved (or drafted) Fine-Tune Colors values. Previews report each
+  /// whole step while a ruler moves; changes report the final value.
+  final ColorAdjustment colorAdjustment;
+  final ValueChanged<ColorAdjustment> onColorAdjustmentPreview;
+  final ValueChanged<ColorAdjustment> onColorAdjustmentChanged;
+
+  /// Called if the option is removed mid-drag, to drop an outstanding preview.
+  final VoidCallback? onColorAdjustmentPreviewEnd;
+
+  /// The previewed theme's seed and brightness, which the Fine-Tune Colors
+  /// swatches are built from (with [userStyle] and [previewOled]).
+  final Color previewSeed;
+  final Brightness previewBrightness;
+
+  /// Whether the previewed dark theme is OLED (for the Now Playing note and
+  /// the Fine-Tune Colors swatches).
   final bool previewOled;
 
   static Widget _tagged(
@@ -930,6 +954,20 @@ class AppearanceOptionSet {
           value: oledForAuto,
           adornment: adornment,
           onChanged: onOledForAutoChanged,
+        ),
+      ),
+      AppearanceOptionKind.colorTuning => _tagged(
+        SetupHighlight.colorTuning,
+        (adornment) => ColorTuningOption(
+          value: colorAdjustment,
+          seed: previewSeed,
+          style: userStyle,
+          brightness: previewBrightness,
+          oled: previewOled,
+          adornment: adornment,
+          onPreview: onColorAdjustmentPreview,
+          onChanged: onColorAdjustmentChanged,
+          onPreviewEnd: onColorAdjustmentPreviewEnd,
         ),
       ),
       AppearanceOptionKind.nightSchedule => _tagged(
