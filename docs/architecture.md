@@ -3821,8 +3821,10 @@ states without starting audio or modifying a queue.
    feed, so its cursor advances only after every candidate and blocking
    hydration completes. Server-incomplete album details do not withhold the
    cursor after full promotion, hydration-only continuation, or incremental
-   verification. The next manual check can therefore use the saved cursor
-   instead of restarting a full artist audit. An explicit refresh is not
+   verification. Hard probes restore persisted freshness and classify the
+   current pending albums against the same durable evidence, so unchanged
+   probes preserve the Sync Settings server-incomplete notice. The next manual
+   check can therefore use the saved cursor instead of restarting a full artist audit. An explicit refresh is not
    freshness-gated: it runs bounded
    delta reconciliation and always scans the first five
    `getAlbumList2(type=newest)` pages (500 entries), even when the artist

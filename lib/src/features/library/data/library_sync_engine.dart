@@ -1353,6 +1353,14 @@ class DriftLibrarySyncEngine implements SyncPlanExecutor {
         );
       }
 
+      final current = await _withPendingAlbumDetails(
+        state.copyWith(
+          freshness: _readStoredLibraryFreshness(serverConfig.capabilitiesJson),
+          lastSyncedAt: serverConfig.lastSynced,
+        ),
+        await _database.libraryDao.getPendingHydrationAlbumIds(),
+        metrics,
+      );
       final committedCursor = _readNavisDateCapability(
         serverConfig.capabilitiesJson,
         _libraryIndexesCursorCapabilityKey,
@@ -1403,7 +1411,7 @@ class DriftLibrarySyncEngine implements SyncPlanExecutor {
 
       // Never advance the committed cursor from a probe. Evidence is returned
       // so the coordinator can enqueue follow-up background work.
-      return state.copyWith(
+      return current.copyWith(
         probeIndexChanged: indexChanged,
         probeEvidenceVersion: indexes == null
             ? 'indexesUnsupported'

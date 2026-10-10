@@ -6,6 +6,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 import 'package:navis/l10n/app_localizations.dart';
 import 'package:navis/l10n/navis_localizations.dart';
+import 'package:navis/src/api/models/models.dart';
 import 'package:navis/src/database/navis_database.dart';
 import 'package:navis/src/features/auth/domain/server_config.dart';
 import 'package:navis/src/features/auth/presentation/server_config_provider.dart';
@@ -17,6 +18,8 @@ import 'package:navis/src/providers/app_providers.dart';
 import 'package:navis/src/utils/connectivity.dart';
 
 import '../../../../helpers/test_database.dart';
+import '../../../../helpers/library_sync_fakes.dart';
+import '../../../../helpers/library_sync_plan.dart';
 import '../../../../helpers/test_theme.dart';
 
 class _FakeLibrarySyncController extends LibrarySyncController {
@@ -144,6 +147,60 @@ Future<void> _pumpSyncSettings(
 }
 
 void main() {
+  testWidgets('unchanged probe keeps current freshness and the server notice', (
+    tester,
+  ) async {
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(1200, 900);
+    addTearDown(() {
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+    });
+    final database = createTestDatabase();
+    addTearDown(database.close);
+    final repository = await seedSyncSession(database);
+    const album = Album(id: 'incomplete', name: 'Incomplete', songCount: 2);
+    final api = FakeLibrarySyncApi()
+      ..fastPathPages[0] = [album]
+      ..albumDetails[album.id] = album.copyWith(
+        songs: [const Song(id: 'one', title: 'One', albumId: 'incomplete')],
+      )
+      ..indexes = Indexes(
+        lastModified: FakeLibrarySyncApi.defaultIndexesCursor,
+      );
+    final engine = serialDriftEngine(
+      api: api,
+      database: database,
+      repository: repository,
+    );
+    final first = await tester.runAsync(
+      () => engine.executeSyncPlan(
+        syncPlanForTest(LibrarySyncPlanKind.fullRepair),
+      ),
+    );
+    expect(first!.status, LibrarySyncStatus.succeeded);
+    expect(first.onlyIncompleteAlbumDetails, isTrue);
+    final probe = await tester.runAsync(engine.probeCatalog);
+    await _pumpSyncSettings(
+      tester,
+      database,
+      state: probe,
+      server: (await repository.getActiveServer())!,
+    );
+    expect(find.textContaining(' • Current'), findsOneWidget);
+    expect(find.textContaining('Verification pending'), findsNothing);
+    expect(
+      find.textContaining('A server rescan usually fixes this.'),
+      findsOneWidget,
+    );
+    expect(
+      find.textContaining("1 album's track list couldn't be loaded"),
+      findsOneWidget,
+    );
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pump();
+  }, skip: !sqliteAvailable);
+
   for (final dateSource in [
     'initial catalog',
     'server sync',

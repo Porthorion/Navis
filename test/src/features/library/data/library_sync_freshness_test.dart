@@ -201,6 +201,26 @@ void main() {
     expect(next.freshness, LibrarySyncFreshness.verificationPending);
   }, skip: !sqliteAvailable);
 
+  test('unchanged hard probes preserve incomplete completion state', () async {
+    final first = await classifyFourAlbums();
+    api.calls.clear();
+    final probe = await serialDriftEngine(
+      api: api,
+      database: database,
+      repository: repository,
+    ).probeCatalog();
+    expect(probe.status, LibrarySyncStatus.succeeded);
+    expect(probe.probeIndexChanged, isFalse);
+    expect(probe.pendingHydrationCount, 4);
+    expect(probe.onlyIncompleteAlbumDetails, isTrue);
+    expect(probe.freshness, LibrarySyncFreshness.current);
+    expect(
+      probe.lastSyncedAt!.difference(first.lastSyncedAt!).abs(),
+      lessThan(const Duration(seconds: 1)),
+    );
+    expect(api.calls.where((call) => call.startsWith('getAlbum:')), isEmpty);
+  }, skip: !sqliteAvailable);
+
   test('removed albums lose their persisted classification', () async {
     await classifyFourAlbums();
     await database.libraryDao.deleteAlbumsByIds(['incomplete-0']);
