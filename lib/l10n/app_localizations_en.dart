@@ -3371,10 +3371,6 @@ class AppLocalizationsEn extends AppLocalizations {
   String get appearanceColorTuningLabel => 'Fine-Tune Colors';
 
   @override
-  String get appearanceColorTuningSub =>
-      'Make any color style softer or richer, and its backgrounds lighter or deeper.';
-
-  @override
   String get appearanceColorTuningColor => 'Intensity';
 
   @override
@@ -3411,6 +3407,104 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get appearanceColorTuningReset => 'Reset';
+
+  @override
+  String appearanceColorTuningSummaryIntensity(String value) {
+    return 'Intensity $value';
+  }
+
+  @override
+  String appearanceColorTuningSummaryBrightness(String value) {
+    return 'Brightness $value';
+  }
+
+  @override
+  String appearanceColorTuningSummaryModeBrightness(String mode, String value) {
+    return '$mode Brightness $value';
+  }
+
+  @override
+  String get appearanceColorTuningAppliesLight => 'Applies in Light mode';
+
+  @override
+  String get appearanceColorTuningAppliesDark => 'Applies in Dark and OLED';
+
+  @override
+  String get appearanceTuningPresetLabel => 'Preset';
+
+  @override
+  String get appearanceTuningPresetActions => 'Preset actions';
+
+  @override
+  String get appearanceTuningPresetSaveNew => 'Save as New';
+
+  @override
+  String get appearanceTuningPresetName => 'Preset name';
+
+  @override
+  String get appearanceLooksLabel => 'Looks';
+
+  @override
+  String get appearanceLooksSub => 'Save and switch your whole appearance.';
+
+  @override
+  String get appearanceLooksSubEmpty =>
+      'Save your whole appearance from the menu, then switch back to it any time.';
+
+  @override
+  String get appearanceLooksPicker => 'Look';
+
+  @override
+  String get appearanceLooksActions => 'Look actions';
+
+  @override
+  String get appearanceLooksSaveNew => 'Save Current as New Look';
+
+  @override
+  String get appearanceLooksName => 'Look name';
+
+  @override
+  String get appearanceLooksMissing => 'That Look no longer exists.';
+
+  @override
+  String get appearancePresetCustom => 'Custom';
+
+  @override
+  String appearancePresetUpdateNamed(String name) {
+    return 'Update “$name”';
+  }
+
+  @override
+  String appearancePresetRenameNamed(String name) {
+    return 'Rename “$name”…';
+  }
+
+  @override
+  String appearancePresetDeleteNamed(String name) {
+    return 'Delete “$name”';
+  }
+
+  @override
+  String appearancePresetDeleteConfirm(String name) {
+    return 'Delete “$name”?';
+  }
+
+  @override
+  String get appearancePresetNameEmpty => 'Enter a name.';
+
+  @override
+  String get appearancePresetNameTaken => 'That name is already in use.';
+
+  @override
+  String get appearancePresetNameReserved =>
+      'Default is reserved. Choose another name.';
+
+  @override
+  String get appearancePresetMissing => 'That preset no longer exists.';
+
+  @override
+  String get appearancePresetSaveFailure =>
+      'Could not save your changes. Try again.';
 
   @override
   String get appearanceLanguageLabel => 'Language';

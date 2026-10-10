@@ -5291,12 +5291,6 @@ abstract class AppLocalizations {
   /// **'Fine-Tune Colors'**
   String get appearanceColorTuningLabel;
 
-  /// No description provided for @appearanceColorTuningSub.
-  ///
-  /// In en, this message translates to:
-  /// **'Make any color style softer or richer, and its backgrounds lighter or deeper.'**
-  String get appearanceColorTuningSub;
-
   /// No description provided for @appearanceColorTuningColor.
   ///
   /// In en, this message translates to:
@@ -5368,6 +5362,168 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Reset'**
   String get appearanceColorTuningReset;
+
+  /// No description provided for @appearanceColorTuningSummaryIntensity.
+  ///
+  /// In en, this message translates to:
+  /// **'Intensity {value}'**
+  String appearanceColorTuningSummaryIntensity(String value);
+
+  /// No description provided for @appearanceColorTuningSummaryBrightness.
+  ///
+  /// In en, this message translates to:
+  /// **'Brightness {value}'**
+  String appearanceColorTuningSummaryBrightness(String value);
+
+  /// No description provided for @appearanceColorTuningSummaryModeBrightness.
+  ///
+  /// In en, this message translates to:
+  /// **'{mode} Brightness {value}'**
+  String appearanceColorTuningSummaryModeBrightness(String mode, String value);
+
+  /// No description provided for @appearanceColorTuningAppliesLight.
+  ///
+  /// In en, this message translates to:
+  /// **'Applies in Light mode'**
+  String get appearanceColorTuningAppliesLight;
+
+  /// No description provided for @appearanceColorTuningAppliesDark.
+  ///
+  /// In en, this message translates to:
+  /// **'Applies in Dark and OLED'**
+  String get appearanceColorTuningAppliesDark;
+
+  /// No description provided for @appearanceTuningPresetLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Preset'**
+  String get appearanceTuningPresetLabel;
+
+  /// No description provided for @appearanceTuningPresetActions.
+  ///
+  /// In en, this message translates to:
+  /// **'Preset actions'**
+  String get appearanceTuningPresetActions;
+
+  /// No description provided for @appearanceTuningPresetSaveNew.
+  ///
+  /// In en, this message translates to:
+  /// **'Save as New'**
+  String get appearanceTuningPresetSaveNew;
+
+  /// No description provided for @appearanceTuningPresetName.
+  ///
+  /// In en, this message translates to:
+  /// **'Preset name'**
+  String get appearanceTuningPresetName;
+
+  /// No description provided for @appearanceLooksLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Looks'**
+  String get appearanceLooksLabel;
+
+  /// No description provided for @appearanceLooksSub.
+  ///
+  /// In en, this message translates to:
+  /// **'Save and switch your whole appearance.'**
+  String get appearanceLooksSub;
+
+  /// No description provided for @appearanceLooksSubEmpty.
+  ///
+  /// In en, this message translates to:
+  /// **'Save your whole appearance from the menu, then switch back to it any time.'**
+  String get appearanceLooksSubEmpty;
+
+  /// No description provided for @appearanceLooksPicker.
+  ///
+  /// In en, this message translates to:
+  /// **'Look'**
+  String get appearanceLooksPicker;
+
+  /// No description provided for @appearanceLooksActions.
+  ///
+  /// In en, this message translates to:
+  /// **'Look actions'**
+  String get appearanceLooksActions;
+
+  /// No description provided for @appearanceLooksSaveNew.
+  ///
+  /// In en, this message translates to:
+  /// **'Save Current as New Look'**
+  String get appearanceLooksSaveNew;
+
+  /// No description provided for @appearanceLooksName.
+  ///
+  /// In en, this message translates to:
+  /// **'Look name'**
+  String get appearanceLooksName;
+
+  /// No description provided for @appearanceLooksMissing.
+  ///
+  /// In en, this message translates to:
+  /// **'That Look no longer exists.'**
+  String get appearanceLooksMissing;
+
+  /// No description provided for @appearancePresetCustom.
+  ///
+  /// In en, this message translates to:
+  /// **'Custom'**
+  String get appearancePresetCustom;
+
+  /// No description provided for @appearancePresetUpdateNamed.
+  ///
+  /// In en, this message translates to:
+  /// **'Update “{name}”'**
+  String appearancePresetUpdateNamed(String name);
+
+  /// No description provided for @appearancePresetRenameNamed.
+  ///
+  /// In en, this message translates to:
+  /// **'Rename “{name}”…'**
+  String appearancePresetRenameNamed(String name);
+
+  /// No description provided for @appearancePresetDeleteNamed.
+  ///
+  /// In en, this message translates to:
+  /// **'Delete “{name}”'**
+  String appearancePresetDeleteNamed(String name);
+
+  /// No description provided for @appearancePresetDeleteConfirm.
+  ///
+  /// In en, this message translates to:
+  /// **'Delete “{name}”?'**
+  String appearancePresetDeleteConfirm(String name);
+
+  /// No description provided for @appearancePresetNameEmpty.
+  ///
+  /// In en, this message translates to:
+  /// **'Enter a name.'**
+  String get appearancePresetNameEmpty;
+
+  /// No description provided for @appearancePresetNameTaken.
+  ///
+  /// In en, this message translates to:
+  /// **'That name is already in use.'**
+  String get appearancePresetNameTaken;
+
+  /// No description provided for @appearancePresetNameReserved.
+  ///
+  /// In en, this message translates to:
+  /// **'Default is reserved. Choose another name.'**
+  String get appearancePresetNameReserved;
+
+  /// No description provided for @appearancePresetMissing.
+  ///
+  /// In en, this message translates to:
+  /// **'That preset no longer exists.'**
+  String get appearancePresetMissing;
+
+  /// No description provided for @appearancePresetSaveFailure.
+  ///
+  /// In en, this message translates to:
+  /// **'Could not save your changes. Try again.'**
+  String get appearancePresetSaveFailure;
 
   /// No description provided for @appearanceLanguageLabel.
   ///

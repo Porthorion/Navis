@@ -51,15 +51,6 @@ class ColorTuning {
     depth: dark ? darkDepth : lightDepth,
   );
 
-  ColorTuning withAdjustment(
-    ColorAdjustment adjustment, {
-    required bool dark,
-  }) => ColorTuning(
-    vividness: adjustment.vividness,
-    lightDepth: dark ? lightDepth : adjustment.depth,
-    darkDepth: dark ? adjustment.depth : darkDepth,
-  );
-
   @override
   bool operator ==(Object other) =>
       other is ColorTuning &&

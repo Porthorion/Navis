@@ -9,7 +9,7 @@ import 'package:navis/src/features/onboarding/domain/setup_highlights.dart';
 import 'package:navis/src/features/onboarding/presentation/setup_highlights_provider.dart';
 import 'package:navis/src/features/settings/presentation/appearance_layout.dart';
 import 'package:navis/src/features/settings/presentation/color_style_selector.dart';
-import 'package:navis/src/features/settings/presentation/color_tuning_option.dart';
+import 'package:navis/src/features/settings/presentation/color_tuning_panel.dart';
 import 'package:navis/src/features/settings/domain/flat_areas.dart';
 import 'package:navis/src/features/settings/domain/navis_density.dart';
 import 'package:navis/src/features/settings/domain/night_schedule.dart';
@@ -312,6 +312,50 @@ class FlatAreasOption extends StatelessWidget {
           ),
         ],
       ),
+    );
+  }
+}
+
+/// Fine-Tune Colors: one row, like its neighbours, whose subtitle sums up the
+/// current tuning and which opens the panel with the rulers and presets.
+/// Shared by Appearance settings and setup.
+class ColorTuningOption extends StatelessWidget {
+  const new({
+    required this.tuning,
+    required this.dark,
+    required this.onOpen,
+    this.presetName,
+    this.adornment,
+    super.key,
+  });
+
+  final ColorTuning tuning;
+
+  /// Whether the app is showing a dark mode; Brightness is summed up for it.
+  final bool dark;
+
+  /// The preset the tuning matches, shown instead of its values.
+  final String? presetName;
+
+  /// Opens the panel; the row's own context anchors the desktop popover.
+  final ValueChanged<BuildContext> onOpen;
+
+  /// Shown beside the title, for example a "New" tag.
+  final Widget? adornment;
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
+    return ListTile(
+      key: const ValueKey<String>('colorTuningOption'),
+      contentPadding: appearanceSwitchPadding(context),
+      title: _titleWithAdornment(l10n.appearanceColorTuningLabel, adornment),
+      subtitle: Text(
+        colorTuningSummary(l10n, tuning, dark: dark, presetName: presetName),
+        key: const ValueKey<String>('colorTuningOption-summary'),
+      ),
+      trailing: const Icon(Icons.chevron_right),
+      onTap: () => onOpen(context),
     );
   }
 }
@@ -869,7 +913,6 @@ class AppearanceOptionSet {
     required this.onOledForAutoChanged,
     required this.nightSchedule,
     required this.userStyle,
-    this.tuningStyle,
     required this.now,
     required this.onNightScheduleChanged,
     required this.flatSurfaces,
@@ -886,13 +929,11 @@ class AppearanceOptionSet {
     required this.onDensityChanged,
     required this.nowPlayingBackground,
     required this.onNowPlayingBackgroundChanged,
-    required this.colorAdjustment,
-    required this.onColorAdjustmentPreview,
-    required this.onColorAdjustmentChanged,
-    required this.previewSeed,
+    required this.colorTuning,
+    required this.onOpenColorTuning,
     required this.previewBrightness,
     required this.previewOled,
-    this.onColorAdjustmentPreviewEnd,
+    this.colorTuningPresetName,
   });
 
   /// Whether the OLED switch applies (Auto theme mode).
@@ -901,7 +942,6 @@ class AppearanceOptionSet {
   final ValueChanged<bool> onOledForAutoChanged;
   final NightSchedule nightSchedule;
   final NavisColorStyle userStyle;
-  final NavisColorStyle? tuningStyle;
   final DateTime now;
   final ValueChanged<NightSchedule> onNightScheduleChanged;
   final bool flatSurfaces;
@@ -921,22 +961,18 @@ class AppearanceOptionSet {
   final NowPlayingBackground nowPlayingBackground;
   final ValueChanged<NowPlayingBackground> onNowPlayingBackgroundChanged;
 
-  /// The saved (or drafted) Fine-Tune Colors values. Previews report each
-  /// whole step while a ruler moves; changes report the final value.
-  final ColorAdjustment colorAdjustment;
-  final ValueChanged<ColorAdjustment> onColorAdjustmentPreview;
-  final ValueChanged<ColorAdjustment> onColorAdjustmentChanged;
+  /// The saved (or drafted) Fine-Tune Colors values, and the name of the
+  /// preset they match, if any, for the row's summary.
+  final ColorTuning colorTuning;
+  final String? colorTuningPresetName;
 
-  /// Called if the option is removed mid-drag, to drop an outstanding preview.
-  final VoidCallback? onColorAdjustmentPreviewEnd;
+  /// Opens the Fine-Tune Colors panel, anchored to the row.
+  final ValueChanged<BuildContext> onOpenColorTuning;
 
-  /// The previewed theme's seed and brightness, which the Fine-Tune Colors
-  /// swatches are built from (with [userStyle] and [previewOled]).
-  final Color previewSeed;
+  /// The mode the previewed theme is in: the one Fine-Tune Colors summarises.
   final Brightness previewBrightness;
 
-  /// Whether the previewed dark theme is OLED (for the Now Playing note and
-  /// the Fine-Tune Colors swatches).
+  /// Whether the previewed dark theme is OLED (for the Now Playing note).
   final bool previewOled;
 
   static Widget _tagged(
@@ -961,15 +997,11 @@ class AppearanceOptionSet {
       AppearanceOptionKind.colorTuning => _tagged(
         SetupHighlight.colorTuning,
         (adornment) => ColorTuningOption(
-          value: colorAdjustment,
-          seed: previewSeed,
-          style: tuningStyle ?? userStyle,
-          brightness: previewBrightness,
-          oled: previewOled,
+          tuning: colorTuning,
+          presetName: colorTuningPresetName,
+          dark: previewBrightness == Brightness.dark,
           adornment: adornment,
-          onPreview: onColorAdjustmentPreview,
-          onChanged: onColorAdjustmentChanged,
-          onPreviewEnd: onColorAdjustmentPreviewEnd,
+          onOpen: onOpenColorTuning,
         ),
       ),
       AppearanceOptionKind.nightSchedule => _tagged(

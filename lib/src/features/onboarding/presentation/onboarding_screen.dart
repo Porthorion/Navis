@@ -19,6 +19,7 @@ import 'package:navis/src/features/settings/presentation/appearance_layout.dart'
 import 'package:navis/src/features/onboarding/domain/setup_highlights.dart';
 import 'package:navis/src/features/settings/presentation/appearance_options.dart';
 import 'package:navis/src/features/settings/presentation/appearance_settings_screen.dart';
+import 'package:navis/src/features/settings/presentation/color_tuning_panel.dart';
 import 'package:navis/src/features/settings/presentation/external_service_messages.dart';
 import 'package:navis/src/features/settings/presentation/listenbrainz_connection_status.dart';
 import 'package:navis/src/features/settings/domain/app_settings.dart';
@@ -773,16 +774,21 @@ class OnboardingScreenState extends ConsumerState<OnboardingScreen> {
       nowPlayingBackground: draft.nowPlayingBackground,
       onNowPlayingBackgroundChanged: (value) =>
           setState(() => _draft = draft.copyWith(nowPlayingBackground: value)),
-      colorAdjustment: ColorAdjustment(
-        vividness: draft.colorVividness,
-        depth: theme.brightness == Brightness.dark
-            ? draft.surfaceDepthDark
-            : draft.surfaceDepthLight,
+      colorTuning: draft.colorTuning,
+      onOpenColorTuning: (anchor) => unawaited(
+        _openColorTuning(
+          anchor,
+          ColorTuningBasis(
+            seed: resolveColorSchemeSeedColor(draft.colorSchemeSeed),
+            style: colorStyle,
+            brightness: theme.brightness,
+            oled: previewOled,
+            darkIsOled:
+                draft.themeMode == 'oled' ||
+                (draft.themeMode == 'system' && draft.oledForAuto),
+          ),
+        ),
       ),
-      // The draft is the preview: the page recolours as a ruler moves.
-      onColorAdjustmentPreview: _draftColorAdjustment,
-      onColorAdjustmentChanged: _draftColorAdjustment,
-      previewSeed: resolveColorSchemeSeedColor(draft.colorSchemeSeed),
       previewBrightness: theme.brightness,
       previewOled: previewOled,
     );
@@ -890,18 +896,39 @@ class OnboardingScreenState extends ConsumerState<OnboardingScreen> {
     );
   }
 
-  bool get _draftIsDark =>
-      _draft?.themeMode != 'light' &&
-      (_draft?.themeMode != 'system' ||
-          MediaQuery.platformBrightnessOf(context) == Brightness.dark);
+  /// Fine-Tune Colors edits the draft, which is also the preview: the page
+  /// recolours as a ruler moves. Presets save straight to settings, so setup
+  /// leaves them to Settings.
+  Future<void> _openColorTuning(
+    BuildContext anchor,
+    ColorTuningBasis basis,
+  ) async {
+    final live = ValueNotifier<ColorTuning>(
+      _draft?.colorTuning ?? ColorTuning.none,
+    );
+    void apply(ColorTuning tuning) {
+      live.value = tuning;
+      setState(
+        () => _draft = _draft?.copyWith(
+          colorVividness: tuning.vividness,
+          surfaceDepthLight: tuning.lightDepth,
+          surfaceDepthDark: tuning.darkDepth,
+        ),
+      );
+    }
 
-  void _draftColorAdjustment(ColorAdjustment adjustment) => setState(
-    () => _draft = _draft?.copyWith(
-      colorVividness: adjustment.vividness,
-      surfaceDepthLight: _draftIsDark ? null : adjustment.depth,
-      surfaceDepthDark: _draftIsDark ? adjustment.depth : null,
-    ),
-  );
+    try {
+      await showColorTuningPanel(
+        anchor,
+        basis: basis,
+        tuning: live,
+        onPreview: apply,
+        onCommit: apply,
+      );
+    } finally {
+      live.dispose();
+    }
+  }
 
   /// The options under "More appearance options": everything except Night
   /// Schedule, which is shown beside Color Style.

@@ -18,6 +18,9 @@ import 'package:navis/src/features/settings/presentation/appearance_layout.dart'
 import 'package:navis/src/features/settings/presentation/appearance_options.dart';
 import 'package:navis/src/features/settings/presentation/color_style_selector.dart';
 import 'package:navis/src/features/settings/presentation/appearance_preset_controller.dart';
+import 'package:navis/src/features/settings/presentation/appearance_preset_pickers.dart';
+import 'package:navis/src/features/settings/presentation/color_tuning_panel.dart';
+import 'package:navis/src/theme/color_adjustment.dart';
 import 'package:navis/src/theme/corner_style_provider.dart';
 import 'package:navis/src/theme/dynamic_accent_provider.dart';
 import 'package:navis/src/theme/navis_color_style.dart';
@@ -69,10 +72,10 @@ class AppearanceSettingsScreen extends ConsumerWidget {
     );
     final libraryPageOrder = ref.watch(libraryPageOrderProvider);
     final isDesktop = resolveAdaptiveContextFor(context).useDesktopShell;
-    // Captured now: the widget may be gone when a drag's preview is dropped.
-    final previewColorAdjustment = ref.read(
-      colorTuningPreviewProvider.notifier,
-    );
+    final tuningState = ref.watch(colorTuningControllerProvider);
+    final tuningPreset = tuningState.presets
+        .where((preset) => preset.id == tuningState.selectedPresetId)
+        .firstOrNull;
     final options = AppearanceOptionSet(
       oledForAutoVisible: currentMode == 'system',
       oledForAuto: oledForAuto,
@@ -128,32 +131,23 @@ class AppearanceSettingsScreen extends ConsumerWidget {
           background.storageKey,
         );
       },
-      tuningStyle: ref.watch(effectiveColorStyleProvider),
-      colorAdjustment: ref
-          .watch(colorTuningProvider)
-          .forMode(dark: previewBrightness == Brightness.dark),
-      onColorAdjustmentPreview: (adjustment) => previewColorAdjustment.preview(
-        ref
-            .read(effectiveColorTuningProvider)
-            .withAdjustment(
-              adjustment,
-              dark: previewBrightness == Brightness.dark,
-            ),
+      colorTuning: tuningState.tuning,
+      colorTuningPresetName: tuningPreset?.name,
+      onOpenColorTuning: (anchor) => unawaited(
+        _openColorTuning(
+          anchor,
+          ref,
+          ColorTuningBasis(
+            seed: previewSeed,
+            style: ref.read(effectiveColorStyleProvider),
+            brightness: previewBrightness,
+            oled: previewOled,
+            darkIsOled:
+                currentMode == 'oled' ||
+                (currentMode == 'system' && oledForAuto),
+          ),
+        ),
       ),
-      onColorAdjustmentChanged: (adjustment) => unawaited(
-        ref
-            .read(colorTuningControllerProvider.notifier)
-            .commit(
-              ref
-                  .read(effectiveColorTuningProvider)
-                  .withAdjustment(
-                    adjustment,
-                    dark: previewBrightness == Brightness.dark,
-                  ),
-            ),
-      ),
-      onColorAdjustmentPreviewEnd: previewColorAdjustment.clear,
-      previewSeed: previewSeed,
       previewBrightness: previewBrightness,
       previewOled: previewOled,
     );
@@ -196,6 +190,10 @@ class AppearanceSettingsScreen extends ConsumerWidget {
                   ),
                   const SizedBox(height: 8),
                 ],
+
+                // ── Looks ───────────────────────────────────────────────
+                const AppearanceLooksOption(),
+                const Divider(height: 32),
 
                 // ── Theme ───────────────────────────────────────────────
                 AppearanceHeading(
@@ -843,6 +841,45 @@ class _BlinkingEyeIconState extends State<_BlinkingEyeIcon>
       },
       child: const Icon(Icons.remove_red_eye_outlined),
     );
+  }
+}
+
+/// Opens Fine-Tune Colors over the Settings controller: the rulers preview
+/// through it, save through it, and follow its tuning when a preset is chosen.
+Future<void> _openColorTuning(
+  BuildContext anchor,
+  WidgetRef ref,
+  ColorTuningBasis basis,
+) async {
+  final controller = ref.read(colorTuningControllerProvider.notifier);
+  final live = ValueNotifier<ColorTuning>(
+    ref.read(colorTuningControllerProvider).tuning,
+  );
+  final subscription = ref.listenManual(
+    colorTuningControllerProvider,
+    (_, state) => live.value = state.tuning,
+  );
+  try {
+    await showColorTuningPanel(
+      anchor,
+      basis: basis,
+      tuning: live,
+      onPreview: controller.preview,
+      onCommit: (tuning) async {
+        final failure = await controller.commit(tuning);
+        if (failure == null || !anchor.mounted) return;
+        showAppNotice(
+          anchor,
+          message: presetFailureMessage(AppLocalizations.of(anchor)!, failure),
+          level: AppNoticeLevel.error,
+        );
+      },
+      onPreviewEnd: controller.clearPreview,
+      presetsBuilder: (_) => const ColorTuningPresetPicker(),
+    );
+  } finally {
+    subscription.close();
+    live.dispose();
   }
 }
 
