@@ -568,8 +568,6 @@ void main() {
       addTearDown(tester.view.reset);
     }
 
-    // The section heading is first; the Fine-Tune Colors ruler row reuses
-    // the word "Color".
     double top(WidgetTester tester, String text) =>
         tester.getTopLeft(find.text(text).first).dy;
 
@@ -602,13 +600,7 @@ void main() {
         l10n.appearancePagesSectionLabel,
       ];
       for (final text in ordered) {
-        expect(
-          find.text(text),
-          text == l10n.appearanceSectionColor
-              ? findsNWidgets(2)
-              : findsOneWidget,
-          reason: text,
-        );
+        expect(find.text(text), findsOneWidget, reason: text);
       }
       for (var i = 1; i < ordered.length; i++) {
         expect(

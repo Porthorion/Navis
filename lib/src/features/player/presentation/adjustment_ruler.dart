@@ -545,7 +545,11 @@ class _RulerPainter extends CustomPainter {
       _bandBottom,
       Radius.circular(bandRadius),
     );
+    // The strip fades at the edges exactly like the ticks do, so the scale
+    // reads as sliding past rather than being cut off.
+    final bounds = Offset.zero & size;
     canvas
+      ..saveLayer(bounds, Paint())
       ..save()
       ..clipRRect(strip);
     final paint = Paint();
@@ -574,7 +578,22 @@ class _RulerPainter extends CustomPainter {
           ..style = PaintingStyle.stroke
           ..strokeWidth = 1
           ..color = color.withValues(alpha: 0.4),
-      );
+      )
+      ..drawRect(
+        bounds,
+        Paint()
+          ..blendMode = BlendMode.dstIn
+          ..shader = LinearGradient(
+            colors: const [
+              Colors.transparent,
+              Colors.black,
+              Colors.black,
+              Colors.transparent,
+            ],
+            stops: const [0, 0.15, 0.85, 1],
+          ).createShader(bounds),
+      )
+      ..restore();
   }
 
   @override

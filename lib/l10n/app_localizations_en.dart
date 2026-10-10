@@ -3375,7 +3375,7 @@ class AppLocalizationsEn extends AppLocalizations {
       'Make any color style softer or richer, and its backgrounds lighter or deeper.';
 
   @override
-  String get appearanceColorTuningColor => 'Color';
+  String get appearanceColorTuningColor => 'Intensity';
 
   @override
   String get appearanceColorTuningBrightness => 'Brightness';

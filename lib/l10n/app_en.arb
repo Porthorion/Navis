@@ -1550,7 +1550,7 @@
   "appearanceColorStyleNightSub": "Warm colors with less blue light, for evening listening.",
   "appearanceColorTuningLabel": "Fine-Tune Colors",
   "appearanceColorTuningSub": "Make any color style softer or richer, and its backgrounds lighter or deeper.",
-  "appearanceColorTuningColor": "Color",
+  "appearanceColorTuningColor": "Intensity",
   "appearanceColorTuningBrightness": "Brightness",
   "appearanceColorTuningMuted": "Muted",
   "appearanceColorTuningVivid": "Vivid",

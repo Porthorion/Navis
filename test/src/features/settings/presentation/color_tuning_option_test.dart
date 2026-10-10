@@ -307,7 +307,7 @@ void main() {
         ),
       );
       final data = tester.getSemantics(_ruler('color')).getSemanticsData();
-      expect(data.label, 'Color');
+      expect(data.label, 'Intensity');
       expect(data.value, '−2');
       expect(data.increasedValue, '−1');
       expect(data.decreasedValue, '−3');

@@ -5300,7 +5300,7 @@ abstract class AppLocalizations {
   /// No description provided for @appearanceColorTuningColor.
   ///
   /// In en, this message translates to:
-  /// **'Color'**
+  /// **'Intensity'**
   String get appearanceColorTuningColor;
 
   /// No description provided for @appearanceColorTuningBrightness.
