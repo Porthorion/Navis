@@ -990,18 +990,6 @@ class AppSettingsDao extends DatabaseAccessor<NavisDatabase>
         nowPlayingBackground: snapshot.nowPlayingBackground == null
             ? const Value.absent()
             : Value(snapshot.nowPlayingBackground!),
-        appLocale: snapshot.clearAppLocale
-            ? const Value(null)
-            : snapshot.appLocale == null
-            ? const Value.absent()
-            : Value(snapshot.appLocale),
-        homeRecommendationsAutoAdvance:
-            snapshot.homeRecommendationsAutoAdvance == null
-            ? const Value.absent()
-            : Value(snapshot.homeRecommendationsAutoAdvance!),
-        customColorPresets: snapshot.customColorPresets == null
-            ? const Value.absent()
-            : Value(jsonEncode(snapshot.customColorPresets)),
         selectedColorTuningPresetId: Value(
           matchingColorTuningPresetId(tuning, presets),
         ),

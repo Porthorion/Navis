@@ -50,15 +50,13 @@ void main() {
       homeRecommendationsAutoAdvance: true,
     );
     await repository.saveSettings(settings);
-    await dao.updateCustomColorPresets(jsonEncode([0xFF123456]));
     final original = AppearanceSnapshot.capture(await repository.getSettings());
     expect(
       original.toJson().length,
-      27,
+      24,
     ); // Every appearance setting; tuning is Custom.
     await repository.resetDefaults();
-    // Reset retains saved swatches; replace them to verify Look restoration.
-    await dao.updateCustomColorPresets('[]');
+    await dao.updateCustomColorPresets(jsonEncode([0xFF123456]));
     await dao.updateShowArtistsPage(enabled: false);
     await dao.updateDesktopNavbarStyle('icons');
     await dao.updateHomeSectionsHidden('["recentlyAdded"]');
@@ -69,18 +67,21 @@ void main() {
     expect(AppearanceSnapshot.capture(restored), original);
     final container = ProviderContainer(overrides: withTestDatabase(database));
     addTearDown(container.dispose);
+    // Language, saved swatches and recommendation auto-advance are not part
+    // of a Look: applying one leaves them as they were.
     container.listen(customColorPresetsProvider, (_, _) {});
-    expect(
-      await container.read(customColorPresetsProvider.future),
-      restored.customColorPresets,
-    );
+    expect(await container.read(customColorPresetsProvider.future), [
+      0xFF123456,
+    ]);
+    expect(restored.appLocale, isNull);
+    expect(restored.homeRecommendationsAutoAdvance, isFalse);
     expect(restored.showArtistsPage, isFalse);
     expect(restored.desktopNavbarStyle, 'icons');
     expect(restored.homeSectionsHidden, ['recentlyAdded']);
     expect(restored.scrobbleEnabled, isTrue);
   }, skip: !sqliteAvailable);
 
-  test('captured null clears seed, language and legacy artwork size', () async {
+  test('captured null clears seed and legacy artwork size', () async {
     final database = createTestDatabase();
     addTearDown(database.close);
     final repository = SettingsRepository(database.appSettingsDao);
@@ -88,7 +89,6 @@ void main() {
     await repository.saveSettings(
       const AppSettingsModel.defaults().copyWith(
         colorSchemeSeed: 1,
-        appLocale: 'en',
         albumGridDensity: 4,
       ),
     );
@@ -97,7 +97,6 @@ void main() {
     );
     final restored = await repository.getSettings();
     expect(restored.colorSchemeSeed, isNull);
-    expect(restored.appLocale, isNull);
     expect(restored.albumGridDensity, isNull);
   }, skip: !sqliteAvailable);
 

@@ -90,13 +90,9 @@ class AppearanceSnapshot {
     this.density,
     this.artistViewMode,
     this.nowPlayingBackground,
-    this.appLocale,
-    this.homeRecommendationsAutoAdvance,
-    this.customColorPresets,
     this.tuningPresetId,
     this.clearColorSchemeSeed = false,
     this.clearAlbumGridDensity = false,
-    this.clearAppLocale = false,
   });
 
   factory capture(AppSettingsModel s, {String? tuningPresetId}) =>
@@ -125,15 +121,11 @@ class AppearanceSnapshot {
         density: s.density.storageKey,
         artistViewMode: s.artistViewMode,
         nowPlayingBackground: s.nowPlayingBackground.storageKey,
-        appLocale: s.appLocale,
-        homeRecommendationsAutoAdvance: s.homeRecommendationsAutoAdvance,
-        customColorPresets: List.unmodifiable(s.customColorPresets),
         tuningPresetId:
             tuningPresetId ??
             matchingColorTuningPresetId(s.colorTuning, s.colorTuningPresets),
         clearColorSchemeSeed: s.colorSchemeSeed == null,
         clearAlbumGridDensity: s.albumGridDensity == null,
-        clearAppLocale: s.appLocale == null,
       );
 
   factory fromJson(Map<String, dynamic> raw) => AppearanceSnapshot(
@@ -200,11 +192,6 @@ class AppearanceSnapshot {
       'artwork',
       'plain',
     ]),
-    appLocale: _choice(raw['appLocale'], const ['en']),
-    homeRecommendationsAutoAdvance: _boolean(
-      raw['homeRecommendationsAutoAdvance'],
-    ),
-    customColorPresets: _accentSeeds(raw['customColorPresets']),
     tuningPresetId: raw['tuningPresetId'] is String
         ? raw['tuningPresetId'] as String
         : null,
@@ -212,7 +199,6 @@ class AppearanceSnapshot {
         raw.containsKey('colorSchemeSeed') && raw['colorSchemeSeed'] == null,
     clearAlbumGridDensity:
         raw.containsKey('albumGridDensity') && raw['albumGridDensity'] == null,
-    clearAppLocale: raw.containsKey('appLocale') && raw['appLocale'] == null,
   );
 
   final String? themeMode;
@@ -239,13 +225,9 @@ class AppearanceSnapshot {
   final String? density;
   final String? artistViewMode;
   final String? nowPlayingBackground;
-  final String? appLocale;
-  final bool? homeRecommendationsAutoAdvance;
-  final List<int>? customColorPresets;
   final String? tuningPresetId;
   final bool clearColorSchemeSeed;
   final bool clearAlbumGridDensity;
-  final bool clearAppLocale;
 
   Map<String, Object?> toJson({bool includeTuningPresetId = true}) => {
     if (themeMode != null) 'themeMode': themeMode,
@@ -280,10 +262,6 @@ class AppearanceSnapshot {
     if (artistViewMode != null) 'artistViewMode': artistViewMode,
     if (nowPlayingBackground != null)
       'nowPlayingBackground': nowPlayingBackground,
-    if (appLocale != null || clearAppLocale) 'appLocale': appLocale,
-    if (homeRecommendationsAutoAdvance != null)
-      'homeRecommendationsAutoAdvance': homeRecommendationsAutoAdvance,
-    if (customColorPresets != null) 'customColorPresets': customColorPresets,
     if (includeTuningPresetId && tuningPresetId != null)
       'tuningPresetId': tuningPresetId,
   };

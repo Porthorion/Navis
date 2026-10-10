@@ -865,16 +865,15 @@ target-selection rules.
     all three tuning values and optional tuning preset reference, Flat switch
     and area mask, corners, library/carousel/Now Playing/artist artwork shapes,
     artwork size and legacy grid-column override, density, artist view mode,
-    Now Playing background, language, custom accent swatches, and Home
-    recommendation auto-advance. Custom accent swatches keep their existing
-    JSON column and provider; the provider and repository share one lenient
-    ARGB decoder. Home section order/visibility, page
-    visibility/order, and Desktop Navbar are excluded because they organize
-    content and navigation rather than its appearance.
-    `capture` records nullable-setting clear flags so a saved automatic seed,
-    language or grid size can be restored. JSON decoding is per field: missing,
+    and Now Playing background. Excluded: Home section order/visibility,
+    page visibility/order and Desktop Navbar (they organize content and
+    navigation), and language, saved accent swatches and Home recommendation
+    auto-advance (a Look changes how Navis looks, never its language, your
+    saved colours or behaviour).
+    `capture` records nullable-setting clear flags so a saved automatic seed or
+    grid size can be restored. JSON decoding is per field: missing,
     unknown or invalid values preserve current settings; explicit null clears
-    those three nullable settings. Unsupported Look versions are discarded.
+    those two nullable settings. Unsupported Look versions are discarded.
     `applyAppearanceSnapshot` writes supplied appearance columns in one DAO
     transaction. If a referenced tuning preset still exists, its **current**
     values win; otherwise captured tuning values apply. The controller offers
