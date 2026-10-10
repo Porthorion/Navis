@@ -8,6 +8,9 @@
 #   ./tool/r2_publish.sh publish --tag=<vX.Y.Z> --channel=<stable|dev|staging> [--notes-file=<md>] FILE...
 #   ./tool/r2_publish.sh verify  --channel=<stable|dev|staging>
 #   ./tool/r2_publish.sh check   --tag=<vX.Y.Z> --channel=<stable|dev|staging>
+# publish/check also accept --build=<int>; dev/staging tags can be
+# vX.Y.Z-<channel>.<build>. publish accepts --dry-run and --prune-previous
+# (unique dev tags only). Dry-run signs locally and prints remote operations.
 #
 # publish uploads each FILE to navis/releases/<tag>/ (never overwriting a different
 # file), rewrites SHA256SUMS, then signs and uploads the channel manifest last, and
@@ -26,6 +29,8 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PUBLIC_BASE="https://downloads.porthorion.com"
+# shellcheck disable=SC1091
+source "${SCRIPT_DIR}/lib/r2_tags.sh"
 
 usage() {
   sed -n '7,10p' "${BASH_SOURCE[0]}" | sed 's/^# //'
@@ -39,18 +44,43 @@ shift
 TAG=""
 CHANNEL=""
 NOTES_FILE=""
+BUILD=""
+DRY_RUN=false
+PRUNE_PREVIOUS=false
 FILES=()
 for arg in "$@"; do
   case "${arg}" in
     --tag=*) TAG="${arg#--tag=}" ;;
     --channel=*) CHANNEL="${arg#--channel=}" ;;
+    --build=*) BUILD="${arg#--build=}" ;;
+    --dry-run) DRY_RUN=true ;;
+    --prune-previous) PRUNE_PREVIOUS=true ;;
     --notes-file=*) NOTES_FILE="${arg#--notes-file=}" ;;
     --*) echo "Unknown option: ${arg}" >&2; usage ;;
     *) FILES+=("${arg}") ;;
   esac
 done
 
-[[ "${CHANNEL}" =~ ^[a-z]+$ ]] || { echo "Error: --channel must be lowercase letters (stable, dev, staging)." >&2; exit 1; }
+[[ "${CHANNEL}" =~ ^(stable|dev|staging)$ ]] || { echo "Error: --channel must be lowercase letters (stable, dev, staging)." >&2; exit 1; }
+
+if [[ "${MODE}" != verify ]]; then
+  navis_r2_valid_tag "${TAG}" "${CHANNEL}" || {
+    echo "Error: --tag must be vX.Y.Z (or vX.Y.Z-${CHANNEL}.<build> off stable)." >&2; exit 1;
+  }
+  if [[ "${TAG}" =~ -(dev|staging)\. ]]; then
+    tag_build="${TAG##*.}"
+    [[ -z "${BUILD}" || "${BUILD}" == "${tag_build}" ]] || {
+      echo "Error: --build must match the tag's build number." >&2; exit 1;
+    }
+    BUILD="${tag_build}"
+  fi
+fi
+[[ -z "${BUILD}" || ( "${BUILD}" =~ ^[1-9][0-9]{0,9}$ && "${BUILD}" -lt 2100000000 ) ]] || {
+  echo "Error: --build must be a positive Android versionCode below 2100000000." >&2; exit 1;
+}
+[[ "${PRUNE_PREVIOUS}" == false || ( "${MODE}" == publish && "${CHANNEL}" == dev && "${TAG}" == *-dev.* ) ]] || {
+  echo "Error: --prune-previous requires publish on a unique dev build tag." >&2; exit 1;
+}
 
 if [[ -f "${SCRIPT_DIR}/release.env" ]]; then
   # shellcheck disable=SC1091
@@ -60,7 +90,7 @@ fi
 PUBLIC_ROOT="${PUBLIC_BASE}/${R2_PREFIX}"
 MANIFEST_KEY="channels/${CHANNEL}/manifest.json"
 
-for tool in curl jq openssl sha256sum base64; do
+for tool in curl jq openssl sha256sum base64 python3; do
   command -v "${tool}" >/dev/null || { echo "Error: '${tool}' is required." >&2; exit 1; }
 done
 
@@ -90,6 +120,16 @@ s3_curl() {
   curl -sS --aws-sigv4 "aws:amz:auto:s3" --user "${R2_ACCESS_KEY_ID}:${R2_SECRET_ACCESS_KEY}" "$@"
 }
 
+# Deletes only keys enumerated from the previous dev release namespace.
+delete_object() {
+  if [[ "${DRY_RUN}" == true ]]; then
+    echo "DRY-RUN DELETE ${R2_PREFIX}/$1 (after new manifest verifies)"
+  else
+    echo "==> Deleting ${R2_PREFIX}/$1"
+    s3_curl --fail -X DELETE "$(s3_url "$1")" -o /dev/null
+  fi
+}
+
 # Prints the sha256 recorded on an existing object, "none" when the object is
 # absent, or fails on any other response.
 remote_sha256() {
@@ -105,6 +145,10 @@ remote_sha256() {
 
 upload() {
   local file="$1" key="$2" content_type="$3" cache_control="$4" sha="$5" status
+  if [[ "${DRY_RUN}" == true ]]; then
+    echo "DRY-RUN PUT ${R2_PREFIX}/${key}"
+    return
+  fi
   status="$(s3_curl -o "${WORK_DIR}/upload.out" -w '%{http_code}' -T "${file}" \
     -H "Content-Type: ${content_type}" \
     -H "Cache-Control: ${cache_control}" \
@@ -194,7 +238,6 @@ if [[ "${MODE}" == "verify" ]]; then
 fi
 
 # ─── Publish ────────────────────────────────────────────────────────────────
-[[ "${TAG}" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]] || { echo "Error: --tag must look like v1.5.1" >&2; exit 1; }
 [[ "${MODE}" == "check" ]] || (( ${#FILES[@]} > 0 )) || { echo "Error: no files given." >&2; exit 1; }
 : "${R2_ACCOUNT_ID:?Set R2_ACCOUNT_ID in tool/release.env}"
 : "${R2_BUCKET:?Set R2_BUCKET in tool/release.env}"
@@ -212,13 +255,47 @@ fi
 
 VERSION="$(semver_core "${TAG}")"
 
-# Never move a channel backwards.
-current_status="$(curl -s -o "${WORK_DIR}/current.json" -w '%{http_code}' "${PUBLIC_ROOT}/${MANIFEST_KEY}?v=$(date +%s)")"
-if [[ "${current_status}" == "200" ]]; then
-  current_version="$(jq -r '.payload' "${WORK_DIR}/current.json" | base64 -d | jq -r '.version')"
+# Read origin and authenticate the current manifest before using its build,
+# tag or assets for ordering, merging or cleanup. Only 404 means absent.
+read_channel_manifest() {
+  local channel="$1" out="$2" status
+  status="$(s3_curl -o "${WORK_DIR}/read-envelope.json" -w '%{http_code}' \
+    "$(s3_url "channels/${channel}/manifest.json")")"
+  if [[ "${status}" == 404 ]]; then
+    printf '{}\n' > "${out}"
+    return
+  fi
+  [[ "${status}" == 200 ]] || { echo "Error: reading ${channel} manifest returned ${status}." >&2; return 1; }
+  jq -er '.payload' "${WORK_DIR}/read-envelope.json" | base64 -d > "${out}"
+  jq -er '.signature' "${WORK_DIR}/read-envelope.json" | base64 -d > "${WORK_DIR}/read-sig.bin"
+  write_public_pem "$(pinned_public_key)" "${WORK_DIR}/pinned.pem"
+  openssl pkeyutl -verify -pubin -inkey "${WORK_DIR}/pinned.pem" -rawin \
+    -in "${out}" -sigfile "${WORK_DIR}/read-sig.bin" >/dev/null || {
+      echo "Error: the current ${channel} manifest is not signed by the pinned key." >&2; return 1;
+    }
+  jq -e --arg channel "${channel}" \
+    '.schema == 1 and .channel == $channel and (.version | type == "string")
+     and (.tag | type == "string") and (.assets | type == "object")
+     and all(.assets[]; type == "object" and (.url | type == "string"))
+     and (.build == null or (.build | type == "number" and . >= 0 and . == floor))' \
+    "${out}" >/dev/null || { echo "Error: malformed ${channel} manifest." >&2; return 1; }
+}
+
+read_channel_manifest "${CHANNEL}" "${WORK_DIR}/current-payload.json"
+current_version="$(jq -r '.version // empty' "${WORK_DIR}/current-payload.json")"
+PREVIOUS_TAG="$(jq -r '.tag // empty' "${WORK_DIR}/current-payload.json")"
+if [[ -n "${current_version}" ]]; then
   if [[ "${current_version}" != "${VERSION}" ]] && ! semver_gt "${VERSION}" "${current_version}"; then
     echo "Error: ${CHANNEL} is already at ${current_version}; refusing to publish ${VERSION}." >&2
     exit 1
+  fi
+  current_build="$(jq -r '.build // 0' "${WORK_DIR}/current-payload.json")"
+  if [[ "${CHANNEL}" != stable && "${current_version}" == "${VERSION}" && "${current_build}" -gt 0 ]]; then
+    if [[ -z "${BUILD}" || "${BUILD}" -lt "${current_build}" ||
+          ( "${BUILD}" == "${current_build}" && "${TAG}" != "${PREVIOUS_TAG}" ) ]]; then
+      echo "Error: ${CHANNEL} already has build ${current_build}; refusing a non-increasing build." >&2
+      exit 1
+    fi
   fi
 fi
 
@@ -230,13 +307,7 @@ fi
 # A release is often published in several runs (one per package or host). When
 # the channel already points at this tag, keep its assets and add the new ones.
 ASSETS_JSON='{}'
-if [[ "${current_status}" == "200" && "$(jq -r '.payload' "${WORK_DIR}/current.json" | base64 -d | jq -r '.tag')" == "${TAG}" ]]; then
-  write_public_pem "$(pinned_public_key)" "${WORK_DIR}/pinned.pem"
-  jq -r '.payload' "${WORK_DIR}/current.json" | base64 -d > "${WORK_DIR}/current-payload.json"
-  jq -r '.signature' "${WORK_DIR}/current.json" | base64 -d > "${WORK_DIR}/current-sig.bin"
-  openssl pkeyutl -verify -pubin -inkey "${WORK_DIR}/pinned.pem" -rawin \
-    -in "${WORK_DIR}/current-payload.json" -sigfile "${WORK_DIR}/current-sig.bin" >/dev/null \
-    || { echo "Error: the current ${CHANNEL} manifest is not signed by the pinned key." >&2; exit 1; }
+if [[ "${PREVIOUS_TAG}" == "${TAG}" ]]; then
   ASSETS_JSON="$(jq -c '.assets' "${WORK_DIR}/current-payload.json")"
   echo "==> Adding to the existing ${TAG} manifest ($(jq -r 'keys | join(", ")' <<< "${ASSETS_JSON}"))"
 fi
@@ -279,7 +350,9 @@ jq -cn \
   --arg channel "${CHANNEL}" --arg version "${VERSION}" --arg tag "${TAG}" \
   --arg published "$(date -u +%Y-%m-%dT%H:%M:%SZ)" --arg notes "${NOTES}" \
   --arg notes_url "${NAVIS_RELEASE_NOTES_URL:-}" --argjson assets "${ASSETS_JSON}" \
+  --argjson build "${BUILD:-null}" \
   '{schema: 1, channel: $channel, version: $version, tag: $tag, published_at: $published, assets: $assets}
+   + (if $build == null then {} else {build: $build} end)
    + (if $notes == "" then {} else {notes: $notes} end)
    + (if $notes_url == "" then {} else {notes_url: $notes_url} end)' \
   > "${WORK_DIR}/payload.json"
@@ -292,4 +365,82 @@ echo "==> Publishing ${MANIFEST_KEY} -> ${TAG}"
 upload "${WORK_DIR}/manifest.json" "${MANIFEST_KEY}" "application/json" "no-cache" \
   "$(sha256sum "${WORK_DIR}/manifest.json" | awk '{print $1}')"
 
-verify
+# Cleanup is deliberately part of publishing, after verification. It has no
+# standalone delete mode and never touches plain stable/shared release tags.
+prune_previous() {
+  [[ -n "${PREVIOUS_TAG}" && "${PREVIOUS_TAG}" != "${TAG}" ]] || return 0
+  if [[ ! "${PREVIOUS_TAG}" =~ ^v[0-9]+\.[0-9]+\.[0-9]+-dev\.[1-9][0-9]*$ ]]; then
+    echo "==> Keeping previous shared tag ${PREVIOUS_TAG}; only unique dev tags are pruned."
+    return
+  fi
+  local prefix="${R2_PREFIX}/releases/${PREVIOUS_TAG}/" channel token="" page=0 key
+  for channel in stable dev staging; do
+    if [[ "${DRY_RUN}" == true && "${channel}" == dev ]]; then
+      cp "${WORK_DIR}/payload.json" "${WORK_DIR}/guard.json"
+    else
+      read_channel_manifest "${channel}" "${WORK_DIR}/guard.json"
+    fi
+    if [[ "${channel}" == dev ]]; then
+      [[ "$(jq -r '.tag' "${WORK_DIR}/guard.json")" == "${TAG}" ]] || {
+        echo "Error: dev manifest changed before cleanup; no objects deleted." >&2; return 1;
+      }
+    fi
+    local referenced
+    referenced="$(jq -r --arg url "${PUBLIC_BASE}/${prefix}" --arg tag "${PREVIOUS_TAG}" \
+      '.tag == $tag or any(.assets[]?; .url | startswith($url))' "${WORK_DIR}/guard.json")"
+    if [[ "${referenced}" == true ]]; then
+      echo "Error: ${channel} still references ${PREVIOUS_TAG}; no objects deleted." >&2; return 1
+    fi
+  done
+  : > "${WORK_DIR}/delete-keys"
+  # S3 ListObjectsV2 is XML. Parse with Python's standard library, including
+  # pagination, rather than relying on a new AWS CLI dependency.
+  while :; do
+    page=$((page + 1))
+    local list_args=(--get --data-urlencode 'list-type=2' --data-urlencode "prefix=${prefix}")
+    [[ -z "${token}" ]] || list_args+=(--data-urlencode "continuation-token=${token}")
+    s3_curl --fail "${list_args[@]}" \
+      "https://${R2_ACCOUNT_ID}.r2.cloudflarestorage.com/${R2_BUCKET}" -o "${WORK_DIR}/list.xml"
+    python3 - "${WORK_DIR}/list.xml" "${prefix}" "${WORK_DIR}/delete-keys" "${WORK_DIR}/token" <<'PYXML'
+import sys
+import xml.etree.ElementTree as ET
+root = ET.parse(sys.argv[1]).getroot()
+ns = '{http://s3.amazonaws.com/doc/2006-03-01/}'
+if root.tag != f'{ns}ListBucketResult' or root.findtext(f'{ns}IsTruncated') not in ('true', 'false'):
+    raise ValueError('Invalid S3 listing response')
+with open(sys.argv[3], 'a') as out:
+    for node in root.findall(f'{ns}Contents/{ns}Key'):
+        key = node.text or ''
+        name = key.removeprefix(sys.argv[2])
+        if not key.startswith(sys.argv[2]) or not name or any(
+            c not in 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789._-' for c in name
+        ):
+            raise ValueError('Unexpected object outside the flat dev release namespace')
+        out.write(key + '\n')
+truncated = root.findtext(f'{ns}IsTruncated') == 'true'
+token = root.findtext(f'{ns}NextContinuationToken') or ''
+if truncated and not token:
+    raise ValueError('Missing S3 continuation token')
+with open(sys.argv[4], 'w') as out:
+    out.write(token if truncated else '')
+PYXML
+    token="$(cat "${WORK_DIR}/token")"
+    [[ -n "${token}" ]] || break
+    [[ "${page}" -lt 100 ]] || { echo "Error: too many cleanup pages." >&2; return 1; }
+  done
+  while IFS= read -r key; do
+    delete_object "${key#"${R2_PREFIX}/"}"
+  done < "${WORK_DIR}/delete-keys"
+}
+
+if [[ "${DRY_RUN}" == true ]]; then
+  echo "DRY-RUN VERIFY ${PUBLIC_ROOT}/${MANIFEST_KEY} -> ${TAG} (after PUT)"
+else
+  verify
+  [[ "$(jq -r '.tag' "${WORK_DIR}/verify-payload.json")" == "${TAG}" ]] || {
+    echo "Error: verified manifest does not point to ${TAG}; cleanup refused." >&2; exit 1;
+  }
+fi
+if [[ "${PRUNE_PREVIOUS}" == true ]]; then
+  prune_previous
+fi

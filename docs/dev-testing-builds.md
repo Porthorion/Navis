@@ -148,7 +148,11 @@ Updater behavior is controlled by compile-time channel:
 Each manifest is signed and names its channel; a build rejects a manifest for another
 channel. Assets are picked by manifest key (`androidApk`, `windowsInstaller`,
 `windowsPortable`, `macosBundle`, `linuxDeb-<arch>`, `linuxPortable`), not by file name.
-Release tags must be plain `vX.Y.Z`, and a channel never moves to an older version.
+Stable release tags stay plain `vX.Y.Z`; dev/staging additionally accept
+`vX.Y.Z-<channel>.<build>`. Equal-version dev/staging offers compare the signed
+manifest build with the installed build number. See [release-r2.md](release-r2.md)
+for `./tool/dev_release.sh`, the monotonic dev APK counter, dry-run and cleanup.
+A channel never moves to an older version/build.
 
 ## iOS Note
 

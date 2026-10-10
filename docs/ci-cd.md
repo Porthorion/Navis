@@ -592,8 +592,15 @@ missing, the signing key does not match `updateSigningPublicKey` in
 `lib/src/utils/constants.dart`, or the channel already holds a newer version. The
 built files stay on disk until every publish step succeeds, so a failed upload is
 retried with `./tool/r2_publish.sh publish --tag=<tag> --channel=<channel> --notes-file=<md> <files…>`.
-Release tags must be plain `vX.Y.Z`; `r2_publish.sh` rejects prerelease suffixes such
-as `-beta.1`. `r2_publish.sh` refuses to replace a release file whose content differs,
+Stable release tags must be plain `vX.Y.Z`; dev/staging also accept
+`vX.Y.Z-<channel>.<build>`. Other suffixes such as `-beta.1` remain rejected.
+`tool/dev_release.sh [--dry-run]` builds a release-signed, obfuscated arm64
+Navis Dev sidecar, publishes its unique build and cleans the previous unique dev
+tag after verification. It reuses `dev_app.sh` and `r2_publish.sh`; symbols stay
+in `~/.cache/navis/dev-releases/`. Build numbering and deletion guards are in
+[release-r2.md](release-r2.md). `tool/check.sh` runs `tool/dev_release_test.sh`
+using fake build tools and S3, without a build, launch or remote operation.
+`r2_publish.sh` refuses to replace a release file whose content differs,
 so a given tag is published once with all its files.
 
 After each artifact is built, `release.sh` searches it for the plaintext

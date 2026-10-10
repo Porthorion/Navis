@@ -245,6 +245,16 @@ case "${MODE}" in
     install_linux_desktop_icon
     ;;
   apk)
+    # Explicit build numbers are supplied by dev_release.sh; manual builds use
+    # the same allocator, shared by all worktrees on this host.
+    has_build_number=false
+    for arg in "$@"; do
+      case "${arg}" in --build-number|--build-number=*) has_build_number=true ;; esac
+    done
+    if [[ "${has_build_number}" == "false" ]]; then
+      dev_build_number="$(python3 "${SCRIPT_DIR}/dev_build_number.py")"
+      set -- "--build-number=${dev_build_number}" "$@"
+    fi
     # Local dev APKs may use the debug key; publication still requires real keys.
     NAVIS_ALLOW_DEBUG_SIGNED_RELEASE="${NAVIS_ALLOW_DEBUG_SIGNED_RELEASE:-1}" \
       flutter build apk --release "${ANDROID_FLAVOR_ARGS[@]}" "${DART_DEFINE_ARGS[@]}" "$@"

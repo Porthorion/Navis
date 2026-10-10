@@ -25,7 +25,7 @@ whose content differs, and Cloudflare's edge keeps serving a cached copy for a
 year anyway. Fix a bad release by publishing a newer version, and never delete and re-upload a
 release file under the same name: clients behind a cache that still holds the old bytes
 would fail the SHA-256 check for up to a year. Channels never
-move to an older version.
+move to an older version, or to an older build at the same version on dev/staging.
 
 ## Manifest
 
@@ -42,6 +42,7 @@ The decoded payload:
   "schema": 1,
   "channel": "stable",
   "version": "1.5.1",
+  "build": 10501,
   "tag": "v1.5.1",
   "published_at": "2026-11-01T12:00:00Z",
   "notes": "markdown release notes (optional)",
@@ -56,9 +57,15 @@ Asset keys are the `UpdateInstallMode` names: `androidApk`, `windowsInstaller`,
 `windowsPortable`, `macosBundle`, `linuxDeb-amd64`, `linuxDeb-arm64` and
 `linuxPortable`. iOS has no updater, so `.ipa` files are not published.
 
+`build` is an optional integer in the signed payload. Stable compares only
+semver. Dev and staging also accept an equal semver when `build` is greater
+than the installed `PackageInfo.buildNumber`. A lower semver is never offered,
+even with a higher build. Missing `build` retains semver-only behavior; malformed
+build values are rejected. The schema stays at 1, so older manifests work.
+
 The app accepts an update only when the signature verifies against
 `AppConstants.updateSigningPublicKey`, the payload's `channel` matches its own
-channel, the version is newer than the installed one, and the asset URL is
+channel, the version/build is newer under those rules, and the asset URL is
 under `AppConstants.updateBaseUrl`. After downloading, it checks the file's
 size and SHA-256 before installing anything. Anyone who can write to the
 bucket can therefore break updates, but cannot ship a different build.
@@ -89,6 +96,75 @@ in `constants.dart`, or if the channel already holds a newer version.
 Uploads use the S3 API through `curl --aws-sigv4`, so no AWS CLI or rclone is
 needed. The settings live in the git-ignored `tool/release.env`; see
 `tool/release.env.example`.
+
+## Navis Dev APK releases
+
+From the Linux coordinator with Android release signing configured and the R2
+settings in `tool/release.env`, run:
+
+```sh
+./tool/dev_release.sh --dry-run
+./tool/dev_release.sh
+```
+
+Both commands build an arm64, release-signed `.dev` sidecar through
+`dev_app.sh apk`, with `NAVIS_UPDATE_CHANNEL=dev`, Dart obfuscation and split
+debug info. Dry-run does the local build, validates the APK package/version and
+release certificate, signs the planned manifest, and performs read-only R2
+checks. It prints `DRY-RUN PUT`, `DRY-RUN VERIFY` and `DRY-RUN DELETE` operations;
+it does not upload or delete. The final line prints the APK download URL.
+Release signing is required even in dry-run; debug signing is refused.
+
+The version name remains the semver from `pubspec.yaml`. `dev_build_number.py`
+allocates `max(10,500,000 + seconds since 2026-01-01 00:00:00 UTC, previous + 1)`.
+The locked counter at `~/.cache/navis/dev-releases/build-number` is shared across
+worktrees. It prevents collisions for repeated builds in the same second and
+keeps numbers increasing across days and clock rollback. Numbers must exceed
+10500 and remain below Android's 2,100,000,000 limit; exhaustion fails before
+building. Manual `dev_app.sh apk` builds use the same allocator unless an explicit
+Flutter `--build-number` is supplied. Dry-runs and failed builds consume numbers.
+Keep the counter; gaps are harmless. Use one coordinator for publishing: its
+`release.lock` serializes the complete dev build/publish/cleanup, while the R2
+preflight rejects stale builds from other machines. The lock is local, so do not
+run competing publishers on other hosts.
+
+Each build uses `v<version>-dev.<build>` as its R2 tag and
+`Navis-Dev-<version>-<build>-arm64.apk` as its immutable asset name. No Git tag or
+pubspec change is made. Symbols stay under
+`~/.cache/navis/dev-releases/<tag>/symbols`; the APK stays in `build/dev-releases/`.
+`r2_publish.sh` infers the signed `build` from the unique tag, or accepts
+`--build=<int>` (which must agree with the tag). Dev and staging accept
+`v<version>-dev.<build>` and `v<version>-staging.<build>`; stable tags stay strictly
+`vX.Y.Z`. Staging can therefore test the same dev tag; any live staging reference
+protects that tag from dev cleanup.
+
+After the new manifest and every asset verify, `--prune-previous` lists all
+objects under the previous unique dev tag using the existing curl SigV4 S3
+helper and deletes only that namespace, including `SHA256SUMS.dev`. Before
+cleanup it authenticates the live stable/dev/staging manifests and refuses
+cleanup if any still points at that tag or one of its objects, or if dev no
+longer points at the new tag. Pagination and namespace validation are checked
+before deletion starts. A prior plain/shared tag such as `v1.5.0` is kept to
+protect stable assets. The normal unique-tag flow retains only the current dev
+build. Failed verification leaves the previous release untouched and returns an
+error; a cleanup failure returns an error and may leave some previous objects.
+If cleanup fails after publication, the coordinator must resolve the
+reported condition before cleaning the leftover namespace; a subsequent build
+only knows its immediate predecessor. Never remove an object referenced by a
+live manifest. Builds installed before this equal-version comparison change
+need this updated sidecar installed once manually.
+
+The plan can also be checked for an already-built APK, without rebuilding:
+
+```sh
+./tool/r2_publish.sh publish --channel=dev --tag=v1.5.0-dev.10500001 \
+  --prune-previous --dry-run build/dev-releases/Navis-Dev-1.5.0-10500001-arm64.apk
+```
+
+Run `./tool/dev_release_test.sh` for hermetic tag, counter, signed manifest,
+immutable asset, dry-run, verification-before-cleanup, referenced-object and APK
+validation coverage. It uses disposable keys, fake Flutter/Android tools and a
+local fake S3 store. `tool/check.sh` includes this shell test.
 
 ## Signing key
 

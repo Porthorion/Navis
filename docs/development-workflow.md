@@ -1476,9 +1476,16 @@ Pre-release builds (from `dev` branch when needed):
 ```
 
 The `dev` channel publishes to `navis/channels/dev/manifest.json`, which only dev
-builds read. Tags must be plain `vX.Y.Z`: `tool/r2_publish.sh` rejects `-beta`, `-rc`
-and similar suffixes. `--prerelease` and the dev channel only mark the Forgejo
-release (`--forgejo`) as a pre-release.
+builds read. Stable tags must be plain `vX.Y.Z`; `tool/r2_publish.sh` additionally
+accepts `vX.Y.Z-dev.<build>` and `vX.Y.Z-staging.<build>` on dev/staging.
+Other suffixes (`-beta`, `-rc`) remain rejected. To build/publish the self-updating
+arm64 sidecar use `./tool/dev_release.sh`, or `--dry-run` to build locally and
+print the remote plan without writes/deletes. Manual `dev_app.sh apk` builds
+also allocate a monotonic build number unless overridden. See
+[release-r2.md](release-r2.md) for numbering, signing, symbols and cleanup.
+Run `./tool/dev_release_test.sh` for the hermetic shell gate (also in `check.sh`).
+With `release.sh`, `--prerelease` and the dev channel mark the Forgejo release
+(`--forgejo`) as a pre-release.
 
 ## Dependency Health
 
