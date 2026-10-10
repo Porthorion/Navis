@@ -67,7 +67,7 @@ printf 'args=%s\n' "$*"
         expect(chmod.exitCode, 0);
         final result = await Process.run(
           '/bin/bash',
-          [script, 'apk'],
+          [script, 'apk', '--build-number=10501'],
           includeParentEnvironment: false,
           environment: {
             'PATH': '${bin.path}:$shellPath',

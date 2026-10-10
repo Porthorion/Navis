@@ -243,6 +243,70 @@ void main() {
     expect(UpdateRepository.manifestUrlFor('a/b'), contains('channels/a%2Fb/'));
   });
 
+  for (final channel in ['dev', 'staging', 'stable']) {
+    for (final build in <int?>[43, 42, 41, null]) {
+      test('$channel same semver with build $build', () async {
+        payload['channel'] = channel;
+        payload['version'] = '1.5.0-dev+999';
+        if (build != null) payload['build'] = build;
+        envelope = await sign(payload);
+        final repo = repository(mode: UpdateInstallMode.androidApk);
+        final result = await repo.checkForUpdate(updateChannel: channel);
+        if (channel != 'stable' && build == 43) {
+          expect(result, isNotNull);
+          expect(result!.downloadUrl, _assetUrl);
+        } else {
+          expect(result, isNull);
+          expect(repo.lastCheck!.rejectReason, 'version_not_newer');
+        }
+      });
+    }
+
+    for (final version in ['1.4.9', '1.5.1']) {
+      for (final build in <int?>[1, 999, null]) {
+        test(
+          '$channel semver $version takes priority over build $build',
+          () async {
+            payload['channel'] = channel;
+            payload['version'] = version;
+            if (build != null) payload['build'] = build;
+            envelope = await sign(payload);
+            final result = await repository().checkForUpdate(
+              updateChannel: channel,
+            );
+            expect(result, version == '1.5.1' ? isNotNull : isNull);
+          },
+        );
+      }
+    }
+  }
+
+  for (final build in <Object>['43', 43.5, -1]) {
+    test('invalid signed build $build is rejected', () async {
+      payload['build'] = build;
+      envelope = await sign(payload);
+      final repo = repository();
+      expect(await repo.checkForUpdate(), isNull);
+      expect(repo.lastCheck!.rejectReason, 'malformed_payload');
+    });
+  }
+
+  test(
+    'non-numeric running build cannot offer an equal-version update',
+    () async {
+      PackageInfo.setMockInitialValues(
+        appName: 'Navis Dev',
+        packageName: 'com.navis.app.navis.dev',
+        version: '1.5.0',
+        buildNumber: 'unknown',
+        buildSignature: '',
+      );
+      payload.addAll({'channel': 'dev', 'version': '1.5.0', 'build': 43});
+      envelope = await sign(payload);
+      expect(await repository().checkForUpdate(updateChannel: 'dev'), isNull);
+    },
+  );
+
   test('bad signature is rejected before payload parsing', () async {
     envelope = {
       ...envelope! as Map,

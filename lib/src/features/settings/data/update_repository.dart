@@ -187,7 +187,19 @@ class UpdateRepository {
       if (currentSemver == null || candidateSemver == null) {
         return reject('invalid_version');
       }
-      if (compareSemver(candidateSemver, currentSemver) <= 0) {
+      final versionOrder = compareSemver(candidateSemver, currentSemver);
+      final build = payload['build'];
+      if (build != null && (build is! int || build < 0)) {
+        return reject('malformed_payload');
+      }
+      final currentBuild = int.tryParse(packageInfo.buildNumber);
+      final newerChannelBuild =
+          (channel == 'dev' || channel == 'staging') &&
+          versionOrder == 0 &&
+          build is int &&
+          currentBuild != null &&
+          build > currentBuild;
+      if (versionOrder < 0 || (versionOrder == 0 && !newerChannelBuild)) {
         return reject('version_not_newer');
       }
       final tag = payload['tag'];

@@ -2728,7 +2728,10 @@ these hold; each failure is recorded as a reject reason and nothing is offered:
   (`invalid_signature`, `malformed_envelope`);
 - `schema` is 1 and `channel` equals the build's channel (`unsupported_schema`,
   `wrong_channel`);
-- `version` is newer than the installed version (`version_not_newer`);
+- `version` is newer than the installed version, or on dev/staging only, semver
+  is equal and the optional signed integer `build` exceeds
+  `PackageInfo.buildNumber` (`version_not_newer`). Stable and manifests without
+  `build` use semver alone; malformed build values reject as `malformed_payload`;
 - the platform's asset key exists (`missing_asset`). Keys are the `UpdateInstallMode`
   names, with `linuxDeb-<arch>` (`amd64` or `arm64`) for Debian packages. There is no
   fallback to another architecture or another install mode;
