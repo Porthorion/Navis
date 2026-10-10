@@ -1620,6 +1620,8 @@ The banner's Retry action calls `ServerReachabilityController.retryNow()`. That 
 - checks the server at once, or joins a check that is already running;
 - leaves the status at `offline` until the check finishes, so the banner stays up while the check runs.
 
+The banner's message is one line, and its close button tucks it away: `shellOfflineBannerDismissedProvider` (`ShellOfflineBannerDismissed`) holds a dismissed flag that collapses the banner through the same animation (notices follow it) and shows `ShellOfflineChip`, a small floating "Offline" chip in the shell's body `Stack` that takes no layout space on phone, rail or desktop. Tapping the chip clears the flag and expands the banner. The flag also turns on by itself when `showRetryBanner` becomes false after repeated failures (the former "Offline mode" strip is gone), and is reset whenever the status leaves `offline`, so the next outage shows the banner again.
+
 `ShellOfflineBannerScope` wraps the shell's `Scaffold` body and owns the one animation that reveals and hides the banner. The shell places `AppNoticeHost` through `ShellOfflineBannerExtentBuilder`, which follows that same animation, so a notice stays 12 px below the banner on every frame. Interrupted toggles and reduced motion are included, and a notice never moves over a banner that is still collapsing. The extent assumes the banner's one-line `contentHeight`. With very large text the message wraps and the banner grows taller.
 
 The frame decides whether the banner is present from the animation's value, not from a `dismissed` status. A zero-length (reduced motion) animation updates its value before its status. A controller created already showing the banner never reports a jump straight to `dismissed`.

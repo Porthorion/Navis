@@ -198,7 +198,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get serverOfflineBanner => 'Server unreachable. Retrying every 30s.';
 
   @override
-  String get serverOfflineQuietBanner => 'Offline mode';
+  String get serverOfflineChip => 'Offline';
 
   @override
   String get batteryOptimizationPromptTitle => 'Keep Background Sync Alive';

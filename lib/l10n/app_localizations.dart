@@ -436,11 +436,11 @@ abstract class AppLocalizations {
   /// **'Server unreachable. Retrying every 30s.'**
   String get serverOfflineBanner;
 
-  /// No description provided for @serverOfflineQuietBanner.
+  /// No description provided for @serverOfflineChip.
   ///
   /// In en, this message translates to:
-  /// **'Offline mode'**
-  String get serverOfflineQuietBanner;
+  /// **'Offline'**
+  String get serverOfflineChip;
 
   /// No description provided for @batteryOptimizationPromptTitle.
   ///

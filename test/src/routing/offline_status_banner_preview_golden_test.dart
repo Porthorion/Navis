@@ -31,20 +31,13 @@ void main() {
     );
   }
 
-  for (final (name, message) in <(String, String)>[
-    ('retrying', 'Server unreachable. Retrying every 30s.'),
-    ('quiet', 'Offline mode'),
-  ]) {
-    testWidgets('offline banner below a status bar while $name', (
-      tester,
-    ) async {
-      await tester.binding.setSurfaceSize(const Size(400, 160));
-      addTearDown(() => tester.binding.setSurfaceSize(null));
-      await pump(tester, message: message);
-      await expectLater(
-        find.byType(Scaffold),
-        matchesGoldenFile('goldens/offline_status_$name.png'),
-      );
-    });
-  }
+  testWidgets('offline banner below a status bar', (tester) async {
+    await tester.binding.setSurfaceSize(const Size(400, 160));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    await pump(tester, message: 'Server unreachable. Retrying every 30s.');
+    await expectLater(
+      find.byType(Scaffold),
+      matchesGoldenFile('goldens/offline_status_retrying.png'),
+    );
+  });
 }
