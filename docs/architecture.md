@@ -5057,7 +5057,7 @@ download naming throws when all 100 collision candidates are occupied.
    song's name. The app shell starts `DownloadService` at launch (it was
    otherwise created only when a download control was first used), and its
    startup after interrupted downloads requeues them and removes
-   `*.navis-part` files, and only those, from the active folder without
+   only persisted, owned `*.navis-part` files from a custom folder without
    following links; folder scans ignore them. Promoting a rolling-cache file reuses an
    existing destination only when its size matches. Resetting server data (a full
    sign-out or server switch) removes the library rows but deletes only
@@ -5239,7 +5239,11 @@ one notice through the existing folder-notice stream. Native capacity queries
 use StatFs on Android, filesystem attributes on Apple targets (with a bundled
 DiskSpace/E174.1 privacy reason), statvfs on Linux and GetDiskFreeSpaceExW on
 Windows. Unavailable capacity reports are skipped; write-time storage errors
-still hold work. SAF providers cannot report free space through the current
+still hold work. SAF provider write/probe exhaustion is held separately from
+private staging exhaustion. Automatic rechecks never clear a provider hold
+from staging free space: provider capacity is unknown, so an explicit storage
+repair/resume is required to try again. A repeated provider failure holds again.
+SAF providers cannot report free space through the current
 bridge: only the app-private staging filesystem is checked, and provider
 ENOSPC/EDQUOT is handled on write. `noSpace` extends DownloadFolderProblem and
 the same Downloads banner, cancellation and five-second storage recheck.
@@ -5248,24 +5252,43 @@ exhaustion cancels active transfers. The hold
 returns items to queued with `noSpace`, without burning retries or failing each
 remaining song. Freeing space or choosing storage resumes the existing queue.
 
+Original-response length validation compares `Content-Length` only for
+unencoded/identity bodies: native Dio decompresses gzip, so encoded wire
+length does not describe stored audio. Empty decoded payloads still fail,
+and native transport/decompression errors still retry without registration.
+
 **Recoverable finish and cleanup.** After integrity validation, the queue row
 journals the destination, verified size/digest, format/bitrate and optional SAF
 tree/relative path before rename/upload. Identity tags may change bytes, so the
-intent is updated before SAF upload or registration. Once the final file exists,
-cache upsert and queue removal commit together in the existing DAO transaction.
+intent is updated before SAF upload or registration. After publication it
+records the published phase and exact locator returned by the provider.
+Once the final file exists, cache upsert and queue removal commit together in
+the existing DAO transaction.
 Startup replays journaled final files only when size and digest agree; missing
 or invalid files are requeued, and part files always restart from zero. Missing
 permanent-cache files are requeued when library metadata still permits a
-server download. Inaccessible storage retains its intent until it returns,
-and startup repair completes before workers start. Unknown custom-folder audio
-has no finish intent and is left to the explicit adoption/rescan flow.
-Filesystem cleanup removes only `.navis-part` leftovers from the active custom
-root without following links, even when no interrupted queue row remains. SAF
-cleanup uses the existing recursive-list/delete bridge and the same suffix;
-app-private SAF staging parts are also removed. SAF uploads retain the existing
+server download. Filesystem absence requires an explicit missing-path errno;
+`stat`/`exists` can hide access failures and do not authorize record removal.
+Permission and I/O failures retain permanent records, including local-only
+songs, and finish intents until storage returns. Startup repair completes
+before workers start. Deferred recovery belongs to the service lifecycle:
+teardown invalidates its generation and awaits it before server data can be
+cleared. Reconciliation checks the generation after
+storage waits and inside registration transactions to reject stale writes.
+Unknown custom-folder audio has no finish intent and is left to the explicit
+adoption/rescan flow.
+Before a transfer creates its part file, the existing queue journal records
+its exact path. Custom-root cleanup requires that persisted ownership and does
+not follow links. Unowned suffix files are preserved and logged. SAF trees are
+never swept for suffix files; only app-private SAF staging parts are removed.
+Finish journals name a part only while verifying the actual part file; updates
+after rename never infer another part pathname. SAF uploads retain the existing
 document MIME type and provider capability contract. The bridge checks the
 copied byte count and removes its own document on a write error; startup verifies
-a journaled upload's digest and removes an incomplete document before requeueing.
+a journaled upload's digest. Mismatching destinations are preserved and logged:
+an intended pathname or a previous publication does not prove ownership of
+replacement contents. Conflict journals retain the path for the orphan sweep
+until the queue starts a new transfer.
 Native write errors retain errno
 classification. No provider rename capability is required.
 The app-owned orphan sweep runs after journal reconciliation and protects

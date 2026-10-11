@@ -2172,7 +2172,7 @@ void main() {
       });
 
       tearDown(() async {
-        if (await supportDir.exists()) await supportDir.delete(recursive: true);
+        if (supportDir.existsSync()) await supportDir.delete(recursive: true);
       });
 
       test(
@@ -2209,7 +2209,7 @@ void main() {
         skip: sqliteAvailable ? null : 'sqlite3 not available',
       );
 
-      test('startup removes part files of interrupted downloads in a custom '
+      test('startup keeps unowned part files despite interrupted downloads in a custom '
           'folder and keeps the user files there', () async {
         final custom = Directory('${supportDir.path}/custom')..createSync();
         final part = File('${custom.path}/Other/Old Song.flac.navis-part')
@@ -2231,7 +2231,7 @@ void main() {
 
         await serviceWith(customFolder: custom.path).start();
 
-        expect(part.existsSync(), isFalse);
+        expect(part.readAsBytesSync(), [1]);
         expect(mine.existsSync(), isTrue);
         expect(mineLookalike.existsSync(), isTrue);
       }, skip: sqliteAvailable ? null : 'sqlite3 not available');

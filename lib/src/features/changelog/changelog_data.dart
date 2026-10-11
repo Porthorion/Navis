@@ -247,7 +247,23 @@ const List<ChangelogVersion> changelogs = [
         type: ChangelogEntryType.fix,
       ),
       ChangelogEntry(
-        'Finished downloads survive an interrupted save, and temporary download files are cleaned up in custom folders',
+        'Finished downloads survive an interrupted save, and only temporary files recorded by Navis are cleaned up in custom folders; recovery preserves files replaced outside Navis',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
+        'Signing out waits for download recovery and prevents old downloads from being registered after teardown',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
+        'Downloads in temporarily inaccessible subfolders keep their offline records until access returns',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
+        'A full Android download folder stays paused instead of repeatedly downloading the same song',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
+        'Complete gzip-compressed original downloads are saved instead of incorrectly retried as truncated',
         type: ChangelogEntryType.fix,
       ),
       ChangelogEntry(

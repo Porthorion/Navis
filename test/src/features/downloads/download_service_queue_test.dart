@@ -167,6 +167,7 @@ void main() {
 
   DownloadService buildService({
     PermanentArtworkStore? artworkStore,
+    Dio? transport,
     bool Function()? customEnabled,
     String? Function()? customPath,
     Future<void> Function(Directory)? validateCustomRoot,
@@ -197,7 +198,7 @@ void main() {
       readCoverArtCacheManager: () => cacheManager,
       readApplicationSupportDirectory: () async => supportDir,
       artworkStore: artworkStore ?? _OfflineArtworkStore(supportDir),
-      dio: dio,
+      dio: transport ?? dio,
     );
     addTearDown(service.dispose);
     return service;
@@ -495,6 +496,81 @@ void main() {
 
   for (final empty in [false, true]) {
     test(
+      'real native gzip transport ${empty ? 'rejects empty audio' : 'registers complete original audio'}',
+      () async {
+        final previousHttp = HttpOverrides.current;
+        HttpOverrides.global = null;
+        addTearDown(() => HttpOverrides.global = previousHttp);
+        final payload = empty ? <int>[] : List<int>.filled(4096, 7);
+        final compressed = gzip.encode(payload);
+        expect(compressed.length, isNot(payload.length));
+        final http = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
+        var downloads = 0;
+        final subscription = http.listen((request) async {
+          if (request.uri.path.endsWith('/download.view')) {
+            downloads++;
+            request.response.headers.set(
+              HttpHeaders.contentTypeHeader,
+              'audio/mpeg',
+            );
+            request.response.headers.set(
+              HttpHeaders.contentEncodingHeader,
+              'gzip',
+            );
+            request.response.contentLength = compressed.length;
+            request.response.add(compressed);
+          } else {
+            request.response.headers.contentType = ContentType.json;
+            request.response.write(
+              jsonEncode({
+                'subsonic-response': {'status': 'ok', 'version': '1.16.1'},
+              }),
+            );
+          }
+          await request.response.close();
+        });
+        addTearDown(() async {
+          await subscription.cancel();
+          await http.close(force: true);
+        });
+        api = SubsonicApiClient(
+          baseUrl: 'http://127.0.0.1:${http.port}',
+          authConfig: const SubsonicAuthConfig(
+            username: 'fixture',
+            password: 'fixture',
+            apiVersion: '1.16.1',
+          ),
+          enableLogging: false,
+        );
+        final transport = Dio();
+        addTearDown(() => transport.close(force: true));
+        // Dio's real IOHttpClientAdapter and Dart's auto-decompression are used.
+        final service = buildService(transport: transport);
+        await service.start();
+        await addSongs(1);
+        await service.enqueueSong('song-0');
+        await service.processQueuedDownloads();
+        expect(downloads, 1);
+        final cached = await database.cacheDao.getCachedTrack('song-0');
+        if (empty) {
+          expect(cached, isNull);
+          expect(
+            (await queue()).single.failureReason,
+            DownloadFailureReason.truncated,
+          );
+        } else {
+          expect(await queue(), isEmpty);
+          expect(cached, isNotNull);
+          expect(File(cached!.filePath).readAsBytesSync(), payload);
+          expect(cached.fileSize, payload.length);
+        }
+      },
+      skip: !sqliteAvailable,
+    );
+  }
+
+  for (final empty in [false, true]) {
+    test(
       'detects ${empty ? 'empty transcode' : 'truncated original'} before registration',
       () async {
         server.contentLength = empty ? null : 10;
@@ -569,6 +645,89 @@ void main() {
     await waitUntil(() => server.requests.length == 2);
     await service.processQueuedDownloads();
     expect(await queue(), isEmpty);
+  }, skip: !sqliteAvailable);
+
+  test('SAF provider ENOSPC stays held across automatic rechecks and repeated failures', () async {
+    const tree = 'content://fixture/tree/root';
+    const channel = MethodChannel('com.navis.app/permanent_download_storage');
+    final messenger =
+        TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
+    var writes = 0;
+    var full = true;
+    messenger.setMockMethodCallHandler(channel, (call) async {
+      switch (call.method) {
+        case 'validateWritableTree':
+          return {
+            'uri': tree,
+            'canRead': true,
+            'canWrite': true,
+            'canReplace': true,
+          };
+        case 'findDocument':
+          return null;
+        case 'writeFromFile':
+          if ((call.arguments as Map)['relativePath'] ==
+              '.navis-downloads.sqlite') {
+            return 'content://fixture/document/index';
+          }
+          writes++;
+          if (full) throw PlatformException(code: 'NO_SPACE');
+          return 'content://fixture/document/audio';
+        default:
+          return null;
+      }
+    });
+    addTearDown(() => messenger.setMockMethodCallHandler(channel, null));
+    server.releaseAll();
+    final service = buildService(
+      isAndroid: true,
+      customEnabled: () => true,
+      customPath: () => tree,
+      readFreeBytes: (_) async => 1024 * 1024 * 1024,
+      folderRecheckInterval: const Duration(milliseconds: 10),
+    );
+    await service.start();
+    await addSongs(1);
+    await service.enqueueSong('song-0');
+    await service.processQueuedDownloads();
+    expect(writes, 1);
+    final finish = jsonDecode((await queue()).single.finishJournal!) as Map;
+    expect(finish['phase'], 'verified');
+    expect(
+      finish['partPath'],
+      isNull,
+      reason: 'Renaming does not create another part file',
+    );
+    for (var i = 0; i < 3; i++) {
+      await Future<void>.delayed(const Duration(milliseconds: 20));
+      await service.processQueuedDownloads();
+    }
+    expect(
+      writes,
+      1,
+      reason: 'Private staging space cannot clear provider exhaustion',
+    );
+    expect(server.requests, hasLength(1));
+    expect(service.folderProblem, DownloadFolderProblem.noSpace);
+    expect((await queue()).single.retryCount, 0);
+    expect((await queue()).single.failureReason, DownloadFailureReason.noSpace);
+    // Explicit repair may try once, but a repeated provider failure holds again.
+    await service.refreshDownloadFolder();
+    await service.processQueuedDownloads();
+    await Future<void>.delayed(const Duration(milliseconds: 40));
+    await service.processQueuedDownloads();
+    expect(writes, 2);
+    expect(server.requests, hasLength(2));
+    expect((await queue()).single.retryCount, 0);
+    full = false;
+    await service.refreshDownloadFolder();
+    await service.processQueuedDownloads();
+    expect(writes, 3);
+    expect(await queue(), isEmpty);
+    expect(
+      (await database.cacheDao.getCachedTrack('song-0'))!.storageKind,
+      'androidSaf',
+    );
   }, skip: !sqliteAvailable);
 
   test(
@@ -684,9 +843,12 @@ void main() {
         expect(finalFile.existsSync(), isTrue);
       } else {
         expect((await queue()).single.status, DownloadStatus.queued);
-        expect((await queue()).single.finishJournal, isNull);
+        expect(
+          (await queue()).single.finishJournal,
+          phase == 'corrupt final' ? isNotNull : isNull,
+        );
         expect(await database.cacheDao.getCachedTrack('song-0'), isNull);
-        expect(finalFile.existsSync(), isFalse);
+        expect(finalFile.existsSync(), phase == 'corrupt final');
       }
       expect(part.existsSync(), isFalse);
       expect(server.requests, isEmpty);
@@ -695,6 +857,229 @@ void main() {
       await service.start();
       expect(server.requests, isEmpty);
     }, skip: !sqliteAvailable);
+  }
+
+  for (final phase in ['verified', 'published']) {
+    for (final saf in [false, true]) {
+      test(
+        'finish recovery preserves a foreign ${saf ? 'SAF' : 'filesystem'} replacement at phase $phase',
+        () async {
+          await database.appSettingsDao.updateDownloadsPaused(paused: true);
+          await addSongs(1);
+          const tree = 'content://fixture/tree/root';
+          const replacement = 'content://fixture/document/replacement';
+          const channel = MethodChannel(
+            'com.navis.app/permanent_download_storage',
+          );
+          final messenger =
+              TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
+          final root = Directory(p.join(supportDir.path, 'custom'));
+          await root.create();
+          final file = File(p.join(root.path, 'replacement.mp3'));
+          final deleted = <String>[];
+          messenger.setMockMethodCallHandler(
+            channel,
+            (call) async => switch (call.method) {
+              'validateWritableTree' => {
+                'uri': tree,
+                'canRead': true,
+                'canWrite': true,
+                'canReplace': true,
+              },
+              'findDocument' => replacement,
+              'materialize' => (await file.copy(
+                p.join(supportDir.path, 'copy.tmp'),
+              )).path,
+              'delete' => deleted.add((call.arguments as Map)['uri'] as String),
+              _ => null,
+            },
+          );
+          addTearDown(() => messenger.setMockMethodCallHandler(channel, null));
+          final id = await database.downloadQueueDao.enqueue(
+            DownloadQueueTableCompanion.insert(
+              songId: const Value('song-0'),
+              status: DownloadStatus.downloading,
+              addedAt: DateTime(2026),
+            ),
+          );
+          await database.downloadQueueDao.writeFinishJournal(
+            id,
+            jsonEncode({
+              'phase': phase,
+              'path': saf
+                  ? p.join(supportDir.path, 'audio', 'permanent', 'staging.mp3')
+                  : file.path,
+              'size': 4,
+              'sha256': sha256.convert([1, 2, 3, 4]).toString(),
+              'format': 'mp3',
+              if (saf) 'treeUri': tree,
+              if (saf) 'relativePath': 'Artist/Song.mp3',
+              if (saf && phase == 'published')
+                'publicationLocator': 'content://fixture/document/original',
+            }),
+          );
+          await file.writeAsBytes([9, 8, 7, 6]);
+          final service = buildService(
+            isAndroid: saf,
+            customEnabled: () => true,
+            customPath: () => saf ? tree : root.path,
+          );
+          await service.start();
+          expect(file.readAsBytesSync(), [9, 8, 7, 6]);
+          expect(deleted, isEmpty);
+          expect(await database.cacheDao.getCachedTrack('song-0'), isNull);
+          expect((await queue()).single.status, DownloadStatus.queued);
+          await service.stop();
+          await service.start();
+          expect(file.readAsBytesSync(), [9, 8, 7, 6]);
+          expect(deleted, isEmpty);
+        },
+        skip: !sqliteAvailable,
+      );
+    }
+  }
+
+  test(
+    'sign-out drains deferred recovery and rejects stale registration',
+    () async {
+      const tree = 'content://fixture/tree/root';
+      const locator = 'content://fixture/document/audio';
+      const channel = MethodChannel('com.navis.app/permanent_download_storage');
+      final messenger =
+          TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
+      var accessible = false;
+      final entered = Completer<void>();
+      final release = Completer<void>();
+      final materialized = File(p.join(supportDir.path, 'materialized.mp3'));
+      messenger.setMockMethodCallHandler(channel, (call) async {
+        switch (call.method) {
+          case 'validateWritableTree':
+            if (!accessible) throw PlatformException(code: 'PERMISSION_DENIED');
+            return {
+              'uri': tree,
+              'canRead': true,
+              'canWrite': true,
+              'canReplace': true,
+            };
+          case 'findDocument':
+            return locator;
+          case 'materialize':
+            entered.complete();
+            await release.future;
+            await materialized.writeAsBytes([1, 2, 3, 4]);
+            return materialized.path;
+          default:
+            return null;
+        }
+      });
+      addTearDown(() => messenger.setMockMethodCallHandler(channel, null));
+      await database.appSettingsDao.updateDownloadsPaused(paused: true);
+      await addSongs(1);
+      final id = await database.downloadQueueDao.enqueue(
+        DownloadQueueTableCompanion.insert(
+          songId: const Value('song-0'),
+          status: DownloadStatus.downloading,
+          addedAt: DateTime(2026),
+        ),
+      );
+      await database.downloadQueueDao.writeFinishJournal(
+        id,
+        jsonEncode({
+          'phase': 'published',
+          'publicationLocator': locator,
+          'path': p.join(supportDir.path, 'audio', 'permanent', 'stage.mp3'),
+          'treeUri': tree,
+          'relativePath': 'Artist/Song.mp3',
+          'size': 4,
+          'sha256': sha256.convert([1, 2, 3, 4]).toString(),
+          'format': 'mp3',
+        }),
+      );
+      final service = buildService(
+        isAndroid: true,
+        customEnabled: () => true,
+        customPath: () => tree,
+      );
+      addTearDown(() {
+        if (!release.isCompleted) release.complete();
+      });
+      await service.start();
+      accessible = true;
+      final recovering = service.processQueuedDownloads();
+      await entered.future;
+      var stopped = false;
+      final stopping = service.stopAndWait().then((_) {
+        stopped = true;
+      });
+      await Future<void>.delayed(const Duration(milliseconds: 30));
+      final drainedEarly = stopped;
+      release.complete();
+      await stopping;
+      // Draining alone is insufficient: a stale recovery must not register
+      // even before the caller clears the server's data.
+      expect(await database.cacheDao.getCachedTrack('song-0'), isNull);
+      // Sign-out clears data only after the download service has drained.
+      await database.downloadQueueDao.clearQueue();
+      await database.cacheDao.removeCachedTrack('song-0');
+      await recovering;
+      expect(drainedEarly, isFalse);
+      expect(await database.cacheDao.getCachedTrack('song-0'), isNull);
+      expect(await queue(), isEmpty);
+      expect(materialized.existsSync(), isFalse);
+    },
+    skip: !sqliteAvailable,
+  );
+
+  for (final localOnly in [false, true]) {
+    test(
+      'startup retains an inaccessible artist subtree, localOnly=$localOnly',
+      () async {
+        final custom = Directory(p.join(supportDir.path, 'custom'));
+        final artist = Directory(p.join(custom.path, 'Artist'));
+        await artist.create(recursive: true);
+        final file = File(p.join(artist.path, 'Song.mp3'));
+        await file.writeAsBytes([1, 2, 3, 4]);
+        if (!localOnly) await addSongs(1);
+        await database.appSettingsDao.updateDownloadsPaused(paused: true);
+        await database.cacheDao.upsertCachedTrack(
+          CachedTracksTableCompanion.insert(
+            songId: 'song-0',
+            filePath: file.path,
+            fileSize: 4,
+            format: 'mp3',
+            cacheType: CacheType.permanent,
+            downloadStatus: DownloadStatus.complete,
+            lastAccessedAt: DateTime(2026),
+          ),
+        );
+        addTearDown(() async {
+          await Process.run('chmod', ['700', artist.path]);
+        });
+        expect((await Process.run('chmod', ['000', artist.path])).exitCode, 0);
+        // Establish the real dart:io behavior that triggered this regression.
+        expect(file.statSync().type, FileSystemEntityType.notFound);
+        final service = buildService(
+          customEnabled: () => true,
+          customPath: () => custom.path,
+        );
+        await service.start();
+        final retained = await database.cacheDao.getCachedTrack('song-0');
+        expect(retained, isNotNull);
+        expect(retained!.filePath, file.path);
+        expect(await queue(), isEmpty);
+        expect(service.folderProblem, DownloadFolderProblem.inaccessible);
+        expect((await Process.run('chmod', ['700', artist.path])).exitCode, 0);
+        await service.refreshDownloadFolder();
+        expect(service.folderProblem, isNull);
+        expect(
+          (await database.cacheDao.getCachedTrack('song-0'))!.filePath,
+          file.path,
+        );
+        expect(file.readAsBytesSync(), [1, 2, 3, 4]);
+        expect(server.requests, isEmpty);
+      },
+      skip: !sqliteAvailable || !Platform.isLinux,
+    );
   }
 
   test(
@@ -723,16 +1108,105 @@ void main() {
     skip: !sqliteAvailable,
   );
 
-  test('custom cleanup runs even without interrupted rows and leaves foreign audio and links', () async {
+  test(
+    'custom cleanup preserves foreign suffix files without ownership',
+    () async {
+      final custom = Directory(p.join(supportDir.path, 'custom'));
+      await custom.create();
+      final part = File(p.join(custom.path, 'old.mp3.navis-part'));
+      final foreign = File(p.join(custom.path, 'foreign.mp3'));
+      final outside = File(p.join(supportDir.path, 'outside.mp3.navis-part'));
+      await part.writeAsBytes([1]);
+      await foreign.writeAsBytes([2]);
+      await outside.writeAsBytes([3]);
+      await Link(p.join(custom.path, 'linked.navis-part')).create(outside.path);
+      final service = buildService(
+        customEnabled: () => true,
+        customPath: () => custom.path,
+      );
+      await service.start();
+      expect(part.readAsBytesSync(), [1]);
+      expect(foreign.readAsBytesSync(), [2]);
+      expect(outside.existsSync(), isTrue);
+      expect(
+        Link(p.join(custom.path, 'linked.navis-part')).existsSync(),
+        isTrue,
+      );
+    },
+    skip: !sqliteAvailable || Platform.isWindows,
+  );
+
+  test('SAF startup preserves foreign suffix documents and checks staging capacity', () async {
+    const channel = MethodChannel('com.navis.app/permanent_download_storage');
+    final messenger =
+        TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
+    final deleted = <String>[];
+    messenger.setMockMethodCallHandler(
+      channel,
+      (call) async => switch (call.method) {
+        'validateWritableTree' => {
+          'uri': 'content://fixture/tree/root',
+          'canRead': true,
+          'canWrite': true,
+          'canReplace': true,
+        },
+        'listRecursively' => [
+          for (final name in ['old.mp3.navis-part', 'foreign.mp3'])
+            {
+              'uri': 'content://fixture/$name',
+              'relativePath': name,
+              'displayName': name,
+              'size': 4,
+            },
+        ],
+        'delete' => deleted.add((call.arguments as Map)['uri'] as String),
+        _ => null,
+      },
+    );
+    addTearDown(() => messenger.setMockMethodCallHandler(channel, null));
+    final queried = <String>[];
+    final service = buildService(
+      isAndroid: true,
+      customEnabled: () => true,
+      customPath: () => 'content://fixture/tree/root',
+      readFreeBytes: (path) async {
+        queried.add(path);
+        return 0;
+      },
+    );
+    await service.start();
+    expect(deleted, isEmpty);
+    await addSongs(1);
+    await service.enqueueSong('song-0');
+    await service.processQueuedDownloads();
+    expect(
+      queried,
+      everyElement(p.join(supportDir.path, 'audio', 'permanent')),
+    );
+    expect(service.folderProblem, DownloadFolderProblem.noSpace);
+    expect(server.requests, isEmpty);
+  }, skip: !sqliteAvailable);
+
+  test('custom cleanup removes only the persisted owned part path', () async {
+    await database.appSettingsDao.updateDownloadsPaused(paused: true);
+    await addSongs(1);
     final custom = Directory(p.join(supportDir.path, 'custom'));
     await custom.create();
-    final part = File(p.join(custom.path, 'old.mp3.navis-part'));
-    final foreign = File(p.join(custom.path, 'foreign.mp3'));
-    final outside = File(p.join(supportDir.path, 'outside.mp3.navis-part'));
+    final part = File(p.join(custom.path, 'owned.mp3.navis-part'));
+    final foreign = File(p.join(custom.path, 'foreign.mp3.navis-part'));
+    final id = await database.downloadQueueDao.enqueue(
+      DownloadQueueTableCompanion.insert(
+        songId: const Value('song-0'),
+        status: DownloadStatus.downloading,
+        addedAt: DateTime(2026),
+      ),
+    );
+    await database.downloadQueueDao.writeFinishJournal(
+      id,
+      jsonEncode({'phase': 'transferring', 'partPath': part.path}),
+    );
     await part.writeAsBytes([1]);
     await foreign.writeAsBytes([2]);
-    await outside.writeAsBytes([3]);
-    await Link(p.join(custom.path, 'linked.navis-part')).create(outside.path);
     final service = buildService(
       customEnabled: () => true,
       customPath: () => custom.path,
@@ -740,61 +1214,43 @@ void main() {
     await service.start();
     expect(part.existsSync(), isFalse);
     expect(foreign.readAsBytesSync(), [2]);
-    expect(outside.existsSync(), isTrue);
-    expect(Link(p.join(custom.path, 'linked.navis-part')).existsSync(), isTrue);
-  }, skip: !sqliteAvailable || Platform.isWindows);
+    expect((await queue()).single.status, DownloadStatus.queued);
+  }, skip: !sqliteAvailable);
 
   test(
-    'SAF startup deletes only part documents and checks staging capacity',
+    'a pre-existing transfer part name is preserved and never downloaded over',
     () async {
-      const channel = MethodChannel('com.navis.app/permanent_download_storage');
-      final messenger =
-          TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
-      final deleted = <String>[];
-      messenger.setMockMethodCallHandler(
-        channel,
-        (call) async => switch (call.method) {
-          'validateWritableTree' => {
-            'uri': 'content://fixture/tree/root',
-            'canRead': true,
-            'canWrite': true,
-            'canReplace': true,
-          },
-          'listRecursively' => [
-            for (final name in ['old.mp3.navis-part', 'foreign.mp3'])
-              {
-                'uri': 'content://fixture/$name',
-                'relativePath': name,
-                'displayName': name,
-                'size': 4,
-              },
-          ],
-          'delete' => deleted.add((call.arguments as Map)['uri'] as String),
-          _ => null,
-        },
-      );
-      addTearDown(() => messenger.setMockMethodCallHandler(channel, null));
-      final queried = <String>[];
+      await addSongs(1);
+      final custom = Directory(p.join(supportDir.path, 'custom'));
+      final part = File(p.join(custom.path, 'Artist', 'Song 0.mp3.navis-part'));
+      await part.parent.create(recursive: true);
+      await part.writeAsBytes([9, 8, 7, 6]);
       final service = buildService(
-        isAndroid: true,
         customEnabled: () => true,
-        customPath: () => 'content://fixture/tree/root',
-        readFreeBytes: (path) async {
-          queried.add(path);
-          return 0;
-        },
+        customPath: () => custom.path,
       );
       await service.start();
-      expect(deleted, ['content://fixture/old.mp3.navis-part']);
-      await addSongs(1);
       await service.enqueueSong('song-0');
       await service.processQueuedDownloads();
-      expect(
-        queried,
-        everyElement(p.join(supportDir.path, 'audio', 'permanent')),
-      );
-      expect(service.folderProblem, DownloadFolderProblem.noSpace);
+      expect(part.readAsBytesSync(), [9, 8, 7, 6]);
       expect(server.requests, isEmpty);
+      expect(await database.cacheDao.getCachedTrack('song-0'), isNull);
+    },
+    skip: !sqliteAvailable,
+  );
+
+  test(
+    'part ownership is journaled before the transfer writes bytes',
+    () async {
+      await addSongs(1);
+      final service = buildService();
+      await service.start();
+      await service.enqueueSong('song-0');
+      await waitUntil(() => server.active == 1);
+      final journal = jsonDecode((await queue()).single.finishJournal!) as Map;
+      expect(journal['phase'], 'transferring');
+      expect(File(journal['partPath'] as String).existsSync(), isTrue);
+      await service.stopAndWait();
     },
     skip: !sqliteAvailable,
   );

@@ -52,6 +52,10 @@ typedef _SafRelocatedPermanentDownload = ({
   String format,
 });
 
+class _RecoveryCancelled implements Exception {
+  const new();
+}
+
 /// Orchestrates permanent downloads of tracks from a Subsonic server.
 ///
 /// Up to [kMaxConcurrentDownloads] transfers run at once (the user's setting,
@@ -138,6 +142,7 @@ class DownloadService {
   final Future<int?> Function(String) _readFreeBytes;
   final Map<int, int> _spaceReservations = {};
   int _spaceRequired = 0;
+  bool _providerSpaceExhausted = false;
   static const _spaceMargin = 16 * 1024 * 1024;
   final bool Function() _readCustomDownloadFolderEnabled;
   final String? Function() _readCustomDownloadFolderPath;
@@ -199,7 +204,10 @@ class DownloadService {
       if (problem == null) _folderNoticeSent = false;
       _folderChanges.add(problem);
     }
-    if (problem != DownloadFolderProblem.noSpace) _spaceRequired = 0;
+    if (problem != DownloadFolderProblem.noSpace) {
+      _spaceRequired = 0;
+      _providerSpaceExhausted = false;
+    }
     if (problem != null) {
       _trackBackgroundTask(_recordQueueHold());
       _retryTimer?.cancel();
@@ -246,6 +254,7 @@ class DownloadService {
     } on DownloadFolderUnavailableException catch (error) {
       if (generation == _folderCheckGeneration) {
         if (_isNoSpaceError(error)) {
+          _providerSpaceExhausted = _isSafRoot(path);
           _spaceRequired = _spaceMargin;
           _setFolderProblem(DownloadFolderProblem.noSpace);
         } else {
@@ -255,6 +264,7 @@ class DownloadService {
     } on FileSystemException catch (error) {
       if (generation == _folderCheckGeneration) {
         if (_isNoSpaceError(error)) {
+          _providerSpaceExhausted = _isSafRoot(path);
           _spaceRequired = _spaceMargin;
           _setFolderProblem(DownloadFolderProblem.noSpace);
         } else {
@@ -265,8 +275,12 @@ class DownloadService {
     return false;
   }
 
-  Future<bool> _holdForFolderFailure(FileSystemException error) async {
+  Future<bool> _holdForFolderFailure(
+    FileSystemException error, {
+    bool providerWrite = false,
+  }) async {
     if (_isNoSpaceError(error)) {
+      _providerSpaceExhausted = _providerSpaceExhausted || providerWrite;
       _spaceRequired =
           _spaceMargin +
           _spaceReservations.values.fold<int>(0, (a, b) => a + b);
@@ -322,6 +336,13 @@ class DownloadService {
 
   Future<bool> _recheckSpaceHold({required bool explicitRepair}) async {
     if (_folderProblem == DownloadFolderProblem.noSpace) {
+      if (_providerSpaceExhausted && !explicitRepair) {
+        _setFolderProblem(
+          DownloadFolderProblem.noSpace,
+          cancelTransfers: false,
+        );
+        return false;
+      }
       final free = await _readFreeBytes(await _capacityDirectory());
       if ((free == null && !explicitRepair) ||
           (free != null && free < _spaceRequired)) {
@@ -424,6 +445,7 @@ class DownloadService {
 
   Future<void>? _startInFlight;
   Future<void>? _recoveryInFlight;
+  int _lifecycleGeneration = 0;
   bool _startupRecoveryPending = false;
   final Set<Future<void>> _backgroundTasks = <Future<void>>{};
   final Set<Future<void>> _pendingProgressWrites = <Future<void>>{};
@@ -439,9 +461,11 @@ class DownloadService {
 
   Future<void> _start() async {
     _stopped = false;
+    _lifecycleGeneration++;
     await _migrateUnsafeAndroidCustomFolder();
     _startupRecoveryPending = true;
     if (await _checkDownloadFolder()) await _recoverStartup();
+    if (_stopped) return;
 
     // Best-effort lyrics and cover art backfill for already-downloaded songs.
     _trackBackgroundTask(_backfillLyricsForDownloadedSongs());
@@ -451,6 +475,7 @@ class DownloadService {
     // begins a transfer while the setting streams are still loading.
     _paused = await _appSettingsDao.getDownloadsPaused();
     _maxConcurrent = await _appSettingsDao.getMaxConcurrentDownloads();
+    if (_stopped) return;
     await _startSettingsSubscriptions();
 
     if (!_stopped) {
@@ -458,21 +483,41 @@ class DownloadService {
     }
   }
 
+  void _checkRecovery(int? generation) {
+    if (generation != null &&
+        (_stopped || _disposed || generation != _lifecycleGeneration)) {
+      throw const _RecoveryCancelled();
+    }
+  }
+
   Future<void> _recoverStartup() {
-    if (!_startupRecoveryPending) return Future.value();
+    if (!_startupRecoveryPending || _stopped || _disposed) {
+      return Future.value();
+    }
+    final generation = _lifecycleGeneration;
     return _recoveryInFlight ??=
         (() async {
-          await _reconcileFinishedDownloads();
-          if (_folderProblem != null) return;
-          await _reconcileMissingDownloads();
-          if (_folderProblem != null) return;
-          await _downloadQueueDao.requeueStuckDownloads();
-          await _removePartialDownloads();
-          if (!_readCustomDownloadFolderEnabled()) {
-            await _cleanupOrphanedFiles();
+          try {
+            await _removePartialDownloads(generation);
+            _checkRecovery(generation);
+            await _reconcileFinishedDownloads(generation);
+            _checkRecovery(generation);
+            if (_folderProblem != null) return;
+            await _reconcileMissingDownloads(generation);
+            _checkRecovery(generation);
+            if (_folderProblem != null) return;
+            await _downloadQueueDao.requeueStuckDownloads();
+            _checkRecovery(generation);
+            if (!_readCustomDownloadFolderEnabled()) {
+              await _cleanupOrphanedFiles(generation);
+            }
+            _checkRecovery(generation);
+            await _normalizePermanentDownloads(generation);
+            _checkRecovery(generation);
+            _startupRecoveryPending = false;
+          } on _RecoveryCancelled {
+            // Teardown drains this future; another start can retry recovery.
           }
-          await _normalizePermanentDownloads();
-          _startupRecoveryPending = false;
         })().whenComplete(() {
           _recoveryInFlight = null;
         });
@@ -533,10 +578,15 @@ class DownloadService {
     await stopAndWait();
   }
 
-  /// Stops queue observation, cancels the active transfer, and does not return
-  /// until its cancellation cleanup has finished.
+  /// Stops queue observation and drains transfers and startup recovery.
+  ///
+  /// Invalidates recovery before waiting so storage work cannot register an
+  /// old session after teardown. Transfer cancellation cleanup also finishes
+  /// before this returns.
   Future<void> stopAndWait() async {
     _stopped = true;
+    _lifecycleGeneration++;
+    _folderCheckGeneration++;
     _folderRecheckTimer?.cancel();
     _folderRecheckTimer = null;
     await _queueSubscription?.cancel();
@@ -549,6 +599,7 @@ class DownloadService {
     _retryTimer = null;
     _cancelTransfers(_CancelReason.requeue);
     await _startInFlight;
+    await _recoveryInFlight;
     await _waitForCurrentWorkToStop();
     await _waitForBackgroundTasks();
     await _waitForPendingProgressWrites();
@@ -1359,6 +1410,7 @@ class DownloadService {
     File? partFile;
     var renamed = false;
     var registered = false;
+    var writingProvider = false;
     String? reservedPath;
 
     try {
@@ -1423,7 +1475,23 @@ class DownloadService {
       final resolvedDest = destFile = await _resolveDownloadFile(song, item);
       reservedPath = resolvedDest.path;
       _reservedDownloadPaths.add(reservedPath);
-      final part = partFile = File('${resolvedDest.path}$downloadPartSuffix');
+      final part = File('${resolvedDest.path}$downloadPartSuffix');
+      // An existing part name in a user folder is not proof of ownership.
+      // Refuse it before Dio can truncate it or failure cleanup can remove it.
+      // Keep storage latency off the UI isolate.
+      // ignore: avoid_slow_async_io
+      if (await FileSystemEntity.type(part.path, followLinks: false) !=
+          FileSystemEntityType.notFound) {
+        throw FileSystemException(
+          'The temporary download name is occupied.',
+          part.path,
+        );
+      }
+      await _downloadQueueDao.writeFinishJournal(
+        item.id,
+        jsonEncode({'phase': 'transferring', 'partPath': part.path}),
+      );
+      partFile = part;
 
       final cancelToken = _activeTransfers[item.id] = CancelToken();
       if (_cancelReasons[item.id] case final reason?) {
@@ -1496,8 +1564,19 @@ class DownloadService {
         final contentLength = int.tryParse(
           response.headers.value(Headers.contentLengthHeader) ?? '',
         );
+        // Native Dio decompresses encoded responses, while Content-Length
+        // still measures the encoded body. Compare only identity bodies.
+        final contentEncoding = response.headers
+            .value(Headers.contentEncodingHeader)
+            ?.trim()
+            .toLowerCase();
+        final identityBody =
+            contentEncoding == null ||
+            contentEncoding.isEmpty ||
+            contentEncoding == 'identity';
         if (written == 0 ||
             (!transcoded &&
+                identityBody &&
                 contentLength != null &&
                 written != contentLength)) {
           await tryDeleteFile(part);
@@ -1547,7 +1626,15 @@ class DownloadService {
           // Keep metadata access asynchronous so storage latency cannot stall UI.
           // ignore: avoid_slow_async_io
           final stat = await target.stat();
-          await _writeFinishIntent(item, target.path, target, format, bitRate);
+          await _writeFinishIntent(
+            item,
+            target.path,
+            target,
+            format,
+            bitRate,
+            phase: 'published',
+            publicationLocator: target.path,
+          );
           _reportNetworkUsage?.call(
             category: NetworkUsageCategory.download,
             bytes: stat.size,
@@ -1577,12 +1664,27 @@ class DownloadService {
               treeUri: treeUri,
               relativePath: relativePath,
             );
+            writingProvider = true;
             locator = await _safStorage.writeFromFile(
               treeUri: treeUri,
               relativePath: relativePath,
               source: target,
               mimeType: _mimeTypeFor(format),
               replace: false,
+            );
+            writingProvider = false;
+          }
+          if (treeUri != null) {
+            await _writeFinishIntent(
+              item,
+              target.path,
+              target,
+              format,
+              bitRate,
+              treeUri: treeUri,
+              relativePath: relativePath,
+              phase: 'published',
+              publicationLocator: locator,
             );
           }
           await _registerFinished(
@@ -1637,7 +1739,7 @@ class DownloadService {
     } on DownloadFolderUnavailableException catch (error) {
       await tryDeleteFile(partFile);
       if (_isNoSpaceError(error)) {
-        await _handleFileFailure(item, error);
+        await _handleFileFailure(item, error, providerWrite: writingProvider);
       } else {
         _setFolderProblem(error.problem);
         await _downloadQueueDao.recordFailure(
@@ -1649,7 +1751,7 @@ class DownloadService {
     } on FileSystemException catch (error) {
       await tryDeleteFile(partFile);
       if (renamed && !registered) await tryDeleteFile(destFile);
-      await _handleFileFailure(item, error);
+      await _handleFileFailure(item, error, providerWrite: writingProvider);
     } on DioException catch (error) {
       await tryDeleteFile(partFile);
       if (error.type == DioExceptionType.cancel) {
@@ -1666,7 +1768,11 @@ class DownloadService {
           }
         }
       } else if (error.error case final FileSystemException fileError) {
-        await _handleFileFailure(item, fileError);
+        await _handleFileFailure(
+          item,
+          fileError,
+          providerWrite: writingProvider,
+        );
       } else {
         final code = error.response?.statusCode;
         if (code == 404 || code == 410) {
@@ -1713,13 +1819,22 @@ class DownloadService {
     int? bitRate, {
     String? treeUri,
     String? relativePath,
+    String phase = 'verified',
+    String? publicationLocator,
+    int? recoveryGeneration,
   }) async {
     final digest = await sha256.bind(verifiedFile.openRead()).first;
+    final size = await verifiedFile.length();
+    _checkRecovery(recoveryGeneration);
     await _downloadQueueDao.writeFinishJournal(
       item.id,
       jsonEncode({
+        'phase': phase,
+        'publicationLocator': publicationLocator,
         'path': path,
-        'size': await verifiedFile.length(),
+        if (verifiedFile.path.endsWith(downloadPartSuffix))
+          'partPath': verifiedFile.path,
+        'size': size,
         'sha256': digest.toString(),
         'format': format,
         'bitRate': bitRate,
@@ -1736,7 +1851,9 @@ class DownloadService {
     String format,
     int? bitRate, {
     bool isSaf = false,
+    int? recoveryGeneration,
   }) => _downloadQueueDao.transaction(() async {
+    _checkRecovery(recoveryGeneration);
     await _cacheDao.upsertCachedTrack(
       CachedTracksTableCompanion.insert(
         songId: item.songId!,
@@ -1750,7 +1867,9 @@ class DownloadService {
         lastAccessedAt: DateTime.now(),
       ),
     );
+    _checkRecovery(recoveryGeneration);
     await _downloadQueueDao.remove(item.id);
+    _checkRecovery(recoveryGeneration);
   });
 
   Future<void> _recordFinishedSidecar(
@@ -1790,13 +1909,20 @@ class DownloadService {
   }
 
   /// Replays only files whose bytes match the verified, owned finish intent.
+  ///
   /// A part file is deliberately never resumed, even when it is complete.
-  Future<void> _reconcileFinishedDownloads() async {
+  Future<void> _reconcileFinishedDownloads(int generation) async {
     for (final item in await _downloadQueueDao.watchQueue().first) {
+      _checkRecovery(generation);
       if (item.finishJournal == null || item.songId == null) continue;
       File? staged;
       try {
         final journal = jsonDecode(item.finishJournal!) as Map<String, dynamic>;
+        if (journal['phase'] == 'conflict') continue;
+        if (journal['phase'] == 'transferring') {
+          await _downloadQueueDao.retry(item.id);
+          continue;
+        }
         final path = journal['path'] as String;
         final size = journal['size'] as int;
         final format = journal['format'] as String;
@@ -1811,15 +1937,19 @@ class DownloadService {
           if (locator != null) staged = await _safStorage.materialize(locator);
         }
         final file = staged ?? File(path);
-        // No metadata I/O on the UI isolate.
-        // ignore: avoid_slow_async_io
-        final exists = locator != null && await file.exists();
+        final exists =
+            locator != null && await _filesystemDownloadExists(file.path);
+        final publicationMatches =
+            journal['publicationLocator'] == null ||
+            journal['publicationLocator'] == locator;
         final valid =
+            publicationMatches &&
             exists &&
             size > 0 &&
             await file.length() == size &&
             (await sha256.bind(file.openRead()).first).toString() ==
                 journal['sha256'];
+        _checkRecovery(generation);
         if (valid) {
           if (treeUri == null) {
             try {
@@ -1838,6 +1968,9 @@ class DownloadService {
               file,
               format,
               journal['bitRate'] as int?,
+              phase: 'published',
+              publicationLocator: path,
+              recoveryGeneration: generation,
             );
           }
           final finishedSize = await file.length();
@@ -1848,7 +1981,9 @@ class DownloadService {
             format,
             journal['bitRate'] as int?,
             isSaf: treeUri != null,
+            recoveryGeneration: generation,
           );
+          _checkRecovery(generation);
           await _recordFinishedSidecar(
             item.songId!,
             locator,
@@ -1857,23 +1992,36 @@ class DownloadService {
             treeUri: treeUri,
             relativePath: relativePath,
           );
+          _checkRecovery(generation);
           if (treeUri != null) await tryDeleteFile(File(path));
         } else {
-          // Only a journaled filesystem destination is ours to remove.
-          // Unknown audio in a custom root has no journal and is untouched.
-          if (treeUri == null && exists) await tryDeleteFile(file);
-          if (treeUri != null) {
-            // This path is a recorded finish destination, never an unknown
-            // document found by a folder scan. Remove an interrupted upload.
-            if (locator != null) await _safStorage.delete(locator);
-            await tryDeleteFile(File(path));
+          // A pathname intent, even after publication, cannot prove ownership
+          // of replacement contents. Preserve conflicts and their references
+          // so the private orphan sweep also leaves them alone.
+          if (exists) {
+            AppLogger.warning(
+              'Leaving mismatching finish destination unchanged.',
+            );
+            await _downloadQueueDao.writeFinishJournal(
+              item.id,
+              jsonEncode({...journal, 'phase': 'conflict'}),
+            );
+            await _downloadQueueDao.updateStatus(
+              item.id,
+              DownloadStatus.queued,
+            );
+          } else {
+            await _downloadQueueDao.retry(item.id);
           }
-          await _downloadQueueDao.retry(item.id);
+          _checkRecovery(generation);
+          if (treeUri != null) await tryDeleteFile(File(path));
         }
       } on FileSystemException catch (error) {
+        _checkRecovery(generation);
         // Inaccessible storage is not missing: keep the intent for repair.
         await _holdForFolderFailure(error);
       } on FormatException {
+        _checkRecovery(generation);
         await _downloadQueueDao.retry(item.id);
       } finally {
         await tryDeleteFile(staged);
@@ -1881,25 +2029,42 @@ class DownloadService {
     }
   }
 
-  Future<void> _reconcileMissingDownloads() async {
+  /// Checks filesystem presence without hiding access or I/O errors.
+  ///
+  /// Unlike stat/exists, length exposes failures. Only an explicit missing-path
+  /// errno permits forgetting a permanent download.
+  Future<bool> _filesystemDownloadExists(String path) async {
+    try {
+      await File(path).length();
+      return true;
+    } on FileSystemException catch (error) {
+      final missingCodes = Platform.isWindows ? const [2, 3] : const [2];
+      if (missingCodes.contains(error.osError?.errorCode)) return false;
+      rethrow;
+    }
+  }
+
+  Future<void> _reconcileMissingDownloads(int generation) async {
     for (final entry in await _cacheDao.getPermanentEntries()) {
+      _checkRecovery(generation);
       try {
         final exists = _isSafRoot(entry.filePath)
             ? await _safStorage.exists(entry.filePath)
-            // Keep filesystem latency off the UI isolate.
-            // ignore: avoid_slow_async_io
-            : (await File(entry.filePath).stat()).type !=
-                  FileSystemEntityType.notFound;
+            : await _filesystemDownloadExists(entry.filePath);
+        _checkRecovery(generation);
         if (exists) continue;
         final song = (await _libraryDao.getSongsByIds([entry.songId]))
             .firstOrNull;
         await _downloadQueueDao.transaction(() async {
+          _checkRecovery(generation);
           await _cacheDao.removeCachedTrack(entry.songId);
+          _checkRecovery(generation);
           if (song == null ||
               song.serverDeletedAt != null ||
               await _downloadQueueDao.findBySongId(entry.songId) != null) {
             return;
           }
+          _checkRecovery(generation);
           await _downloadQueueDao.enqueue(
             DownloadQueueTableCompanion.insert(
               songId: Value(entry.songId),
@@ -1909,8 +2074,10 @@ class DownloadService {
               quality: Value(entry.bitRate?.toString()),
             ),
           );
+          _checkRecovery(generation);
         });
       } on FileSystemException catch (error) {
+        _checkRecovery(generation);
         await _holdForFolderFailure(error);
       }
     }
@@ -1930,34 +2097,56 @@ class DownloadService {
     }
   }
 
-  /// Removes `*.navis-part` files left by downloads interrupted by a crash or
-  /// kill, in the active download folder. Only files with that suffix, which
-  /// Navis alone writes, are touched; links are not followed.
-  Future<void> _removePartialDownloads() async {
+  /// Removes private staging parts and exact, persisted owned parts in the
+  /// active user folder.
+  ///
+  /// SAF transfers never create parts in the user's tree.
+  Future<void> _removePartialDownloads(int generation) async {
     try {
-      if (_isSafRoot(_readCustomDownloadFolderPath())) {
-        for (final document in await _safStorage.listRecursively(
-          _readCustomDownloadFolderPath()!,
-        )) {
-          if (document.displayName.endsWith(downloadPartSuffix)) {
-            await _safStorage.delete(document.uri);
-          }
-        }
-      }
-      final root = _isSafRoot(_readCustomDownloadFolderPath())
+      final saf = _isSafRoot(_readCustomDownloadFolderPath());
+      final root = saf
           ? await _permanentPathResolver.resolveDefaultRoot()
           : await _permanentDirectory();
-      // Keep storage latency off the UI isolate.
-      // ignore: avoid_slow_async_io
-      if (!await root.exists()) return;
+      final ownedPaths = <String>{};
+      for (final item in await _downloadQueueDao.watchQueue().first) {
+        if (item.finishJournal == null) continue;
+        try {
+          final journal =
+              jsonDecode(item.finishJournal!) as Map<String, dynamic>;
+          if (journal['partPath'] case final String path) ownedPaths.add(path);
+        } on FormatException {
+          // An unreadable journal cannot establish ownership.
+        }
+      }
+      final identity = await DownloadRootIdentity.resolve(root.path);
+      final ownedKeys = {
+        for (final path in ownedPaths)
+          if (identity.keyFor(path) case final key?) identity.lookupKey(key),
+      };
       await for (final entity in root.list(
         recursive: true,
         followLinks: false,
       )) {
-        if (entity is File && entity.path.endsWith(downloadPartSuffix)) {
-          await tryDeleteFile(entity);
+        if (entity is! File || !entity.path.endsWith(downloadPartSuffix)) {
+          continue;
         }
+        if (_readCustomDownloadFolderEnabled() && !saf) {
+          final key = identity.keyFor(entity.path);
+          final resolved = await entity.resolveSymbolicLinks();
+          if (key == null ||
+              !ownedKeys.contains(identity.lookupKey(key)) ||
+              !p.isWithin(identity.canonicalRoot, resolved)) {
+            AppLogger.warning(
+              'Leaving an unowned temporary file in the download folder.',
+            );
+            continue;
+          }
+        }
+        _checkRecovery(generation);
+        await tryDeleteFile(entity);
       }
+    } on _RecoveryCancelled {
+      rethrow;
     } on Object catch (error) {
       AppLogger.warning(
         'DownloadService: Partial download cleanup failed: $error',
@@ -1976,9 +2165,7 @@ class DownloadService {
 
     if (_isSafRoot(cached.filePath)
         ? !await _safStorage.exists(cached.filePath)
-        // Keep metadata access asynchronous so storage latency cannot stall UI.
-        // ignore: avoid_slow_async_io
-        : !await File(cached.filePath).exists()) {
+        : !await _filesystemDownloadExists(cached.filePath)) {
       await _cacheDao.removeCachedTrack(songId);
       return false;
     }
@@ -2054,10 +2241,11 @@ class DownloadService {
 
   Future<void> _handleFileFailure(
     DownloadQueueTableData item,
-    FileSystemException error,
-  ) async {
+    FileSystemException error, {
+    bool providerWrite = false,
+  }) async {
     final previous = _folderProblem;
-    if (await _holdForFolderFailure(error)) {
+    if (await _holdForFolderFailure(error, providerWrite: providerWrite)) {
       await _downloadQueueDao.recordFailure(
         item.id,
         _holdReason!,
@@ -2146,7 +2334,7 @@ class DownloadService {
   ///
   /// This recovers disk space from files orphaned by the old CASCADE FK
   /// behavior (where sync would delete the DB record but leave the file).
-  Future<void> _cleanupOrphanedFiles() async {
+  Future<void> _cleanupOrphanedFiles(int generation) async {
     try {
       final permDir = await _permanentDirectory();
       // Keep metadata access asynchronous so storage latency cannot stall UI.
@@ -2190,9 +2378,12 @@ class DownloadService {
         final key = identity.keyFor(basePath);
         if (key != null && !knownKeys.contains(identity.lookupKey(key))) {
           AppLogger.info('DownloadService: Removing orphaned file $path');
+          _checkRecovery(generation);
           await deleteFileWithSuffixes(basePath);
         }
       }
+    } on _RecoveryCancelled {
+      rethrow;
     } on Object catch (e) {
       // Best-effort — don't crash the service on cleanup failure.
       AppLogger.warning('DownloadService: Orphaned file cleanup error: $e');
@@ -2351,7 +2542,7 @@ class DownloadService {
     }
   }
 
-  Future<void> _normalizePermanentDownloads() async {
+  Future<void> _normalizePermanentDownloads(int generation) async {
     if (_isSafRoot(_readCustomDownloadFolderPath())) {
       return;
     }
@@ -2360,12 +2551,15 @@ class DownloadService {
       final customDownloadFolderEnabled = _readCustomDownloadFolderEnabled();
       await _relocatePermanentDownloads(
         targetDirectory: targetDirectory,
+        recoveryGeneration: generation,
         customDownloadFolderEnabled: customDownloadFolderEnabled,
         customDownloadFolderPath: _readCustomDownloadFolderPath(),
         // A custom root is user-owned: files already inside it, including
         // adopted ones, keep their names and are never rewritten.
         keepEntriesInsideTarget: customDownloadFolderEnabled,
       );
+    } on _RecoveryCancelled {
+      rethrow;
     } on Object catch (error, stackTrace) {
       AppLogger.warning(
         'DownloadService: Permanent download normalization failed: '
@@ -2541,6 +2735,7 @@ class DownloadService {
     bool rollbackOnFailure = false,
     bool keepEntriesInsideTarget = false,
     Set<String> leaveSongIds = const <String>{},
+    int? recoveryGeneration,
   }) async {
     final currentRootIsSaf = _isSafRoot(_readCustomDownloadFolderPath());
     final currentRootDirectory = currentRootIsSaf
@@ -2572,6 +2767,7 @@ class DownloadService {
 
     try {
       for (final entry in entries) {
+        _checkRecovery(recoveryGeneration);
         final sourceWasSaf = _isSafRoot(entry.filePath);
         File? materializedSource;
         final sourceFile = sourceWasSaf
@@ -2629,6 +2825,7 @@ class DownloadService {
         } else {
           await _movePermanentFileSet(entry.filePath, targetPath);
         }
+        _checkRecovery(recoveryGeneration);
         await _cacheDao.upsertCachedTrack(
           CachedTracksTableCompanion.insert(
             songId: entry.songId,
@@ -2644,6 +2841,7 @@ class DownloadService {
             lastAccessedAt: DateTime.now(),
           ),
         );
+        _checkRecovery(recoveryGeneration);
         await _permanentDownloadImportService.recordDownloaded(
           root: targetDirectory,
           file: File(targetPath),
@@ -2673,6 +2871,7 @@ class DownloadService {
         }
       }
       for (final locator in safSourcesToDelete) {
+        _checkRecovery(recoveryGeneration);
         await _deletePermanentLocator(locator);
       }
     } on Object {
