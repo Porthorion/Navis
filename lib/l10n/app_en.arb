@@ -796,6 +796,7 @@
   "commonErrorRecoveryHint": "Check your connection and try again.",
   "detailUnavailableBackToLibrary": "Back to Library",
   "commonCancel": "Cancel",
+  "commonUndo": "Undo",
   "libraryTitle": "Library",
   "libraryFilteringLabel": "Filtering: \"{query}\"",
   "@libraryFilteringLabel": {
@@ -1548,6 +1549,87 @@
   "appearanceColorStylePastelSub": "Soft pastel accents on gently tinted backgrounds.",
   "appearanceColorStyleImmersiveSub": "Your accent color fills the backgrounds in deep, rich tones.",
   "appearanceColorStyleNightSub": "Warm colors with less blue light, for evening listening.",
+  "appearanceColorTuningLabel": "Fine-Tune Colors",
+  "appearanceColorTuningColor": "Intensity",
+  "appearanceColorTuningBrightness": "Brightness",
+  "appearanceColorTuningMuted": "Muted",
+  "appearanceColorTuningVivid": "Vivid",
+  "appearanceColorTuningLighter": "Lighter",
+  "appearanceColorTuningDeeper": "Deeper",
+  "appearanceColorTuningDefault": "Default",
+  "appearanceColorTuningMoreMuted": "Make colors more muted",
+  "appearanceColorTuningMoreVivid": "Make colors more vivid",
+  "appearanceColorTuningLighterBackgrounds": "Make backgrounds lighter",
+  "appearanceColorTuningDeeperBackgrounds": "Make backgrounds deeper",
+  "appearanceColorTuningReset": "Reset",
+  "appearanceColorTuningSummaryIntensity": "Intensity {value}",
+  "@appearanceColorTuningSummaryIntensity": {
+    "placeholders": {
+      "value": {"type": "String"}
+    }
+  },
+  "appearanceColorTuningSummaryBrightness": "Brightness {value}",
+  "@appearanceColorTuningSummaryBrightness": {
+    "placeholders": {
+      "value": {"type": "String"}
+    }
+  },
+  "appearanceColorTuningSummaryModeBrightness": "{mode} Brightness {value}",
+  "@appearanceColorTuningSummaryModeBrightness": {
+    "placeholders": {
+      "mode": {"type": "String"},
+      "value": {"type": "String"}
+    }
+  },
+  "appearanceColorTuningAppliesLight": "Applies in Light mode",
+  "appearanceColorTuningAppliesDark": "Applies in Dark and OLED",
+  "appearanceColorTuningLooksHint": "Save this as part of a Look in Appearance.",
+  "appearanceColorTuningHintNoAccent": "Pick an accent color to see Intensity.",
+  "appearanceColorTuningHintMaxed": "This style is already close to its most colorful here.",
+  "appearanceLooksLabel": "Looks",
+  "appearanceLooksSub": "Save and switch your whole appearance.",
+  "appearanceLooksSubEmpty": "Save your whole appearance from the menu, then switch back to it any time.",
+  "appearanceLooksPicker": "Look",
+  "appearanceLooksActions": "Look actions",
+  "appearanceLooksSaveNew": "Save Current as New Look",
+  "appearanceLooksName": "Look name",
+  "appearanceLooksMissing": "That Look no longer exists.",
+  "appearanceLooksApplied": "Applied {name}",
+  "@appearanceLooksApplied": {
+    "placeholders": {
+      "name": {"type": "String"}
+    }
+  },
+  "appearancePresetCustom": "Custom",
+  "appearancePresetUpdateNamed": "Update “{name}”",
+  "@appearancePresetUpdateNamed": {
+    "placeholders": {
+      "name": {"type": "String"}
+    }
+  },
+  "appearancePresetRenameNamed": "Rename “{name}”…",
+  "@appearancePresetRenameNamed": {
+    "placeholders": {
+      "name": {"type": "String"}
+    }
+  },
+  "appearancePresetDeleteNamed": "Delete “{name}”",
+  "@appearancePresetDeleteNamed": {
+    "placeholders": {
+      "name": {"type": "String"}
+    }
+  },
+  "appearancePresetDeleteConfirm": "Delete “{name}”?",
+  "@appearancePresetDeleteConfirm": {
+    "placeholders": {
+      "name": {"type": "String"}
+    }
+  },
+  "appearancePresetNameEmpty": "Enter a name.",
+  "appearancePresetNameTaken": "That name is already in use.",
+  "appearancePresetNameReserved": "Default is reserved. Choose another name.",
+  "appearancePresetMissing": "That preset no longer exists.",
+  "appearancePresetSaveFailure": "Could not save your changes. Try again.",
   "appearanceLanguageLabel": "Language",
   "appearanceLanguageSystemDefault": "System default",
   "appearanceLanguageUnavailable": "Language switching is disabled in this build.",
@@ -1814,6 +1896,8 @@
   },
   "updateDownload": "Download",
   "updateDismiss": "Dismiss",
+  "updateAvailableNotice": "Update available",
+  "updateView": "View",
   "updateUpToDate": "Navis is up to date.",
   "updateInstall": "Install",
   "updateRetry": "Retry",

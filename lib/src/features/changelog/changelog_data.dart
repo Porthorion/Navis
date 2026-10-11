@@ -138,7 +138,7 @@ const List<ChangelogVersion> changelogs = [
       ChangelogHighlight(
         icon: ChangelogHighlightIcon.sparkle,
         title: 'Your look',
-        body: 'Color styles, corner shapes, density and Flat Surfaces',
+        body: 'Color styles, fine-tuned colors, saved Looks, corner shapes and density',
       ),
       ChangelogHighlight(
         icon: ChangelogHighlightIcon.player,
@@ -165,6 +165,14 @@ const List<ChangelogVersion> changelogs = [
       // New
       ChangelogEntry(
         'Color Styles: Pastel, Immersive and Night restyle Light, Dark and OLED, and Neutral keeps the classic look',
+        type: ChangelogEntryType.newFeature,
+      ),
+      ChangelogEntry(
+        'Fine-Tune Colors opens a panel like Speed & Pitch, with Intensity and Brightness rulers for any color style, a separate Brightness for Light and for Dark and OLED',
+        type: ChangelogEntryType.newFeature,
+      ),
+      ChangelogEntry(
+        'Looks save your whole appearance, Fine-Tune values included, under a name, so you can switch between them in one tap at the top of Settings › Appearance and undo it right after applying',
         type: ChangelogEntryType.newFeature,
       ),
       ChangelogEntry(
@@ -213,6 +221,9 @@ const List<ChangelogVersion> changelogs = [
       ),
 
       // Improved
+      ChangelogEntry(
+        'Pulling down to refresh Home or Library also checks for app updates',
+      ),
       ChangelogEntry(
         'Appearance is grouped into Theme, Color, Shape & Layout and Now Playing; Color Scheme is now Accent Color, its swatches preview your style, and custom accent colors have more accurate names',
       ),
@@ -377,6 +388,7 @@ const List<ChangelogVersion> changelogs = [
         type: ChangelogEntryType.fix,
       ),
     ],
+    specialThanks: ['To Tas for the theming and color suggestions.'],
   ),
   ChangelogVersion(
     version: '1.4.2',

@@ -74,6 +74,7 @@ import 'package:navis/src/features/settings/data/update_check_store.dart';
 import 'package:navis/src/features/settings/data/update_repository.dart';
 import 'package:navis/src/features/settings/data/update_service.dart';
 import 'package:navis/src/features/settings/domain/app_settings.dart';
+import 'package:navis/src/features/settings/domain/appearance_presets.dart';
 import 'package:navis/src/features/settings/domain/album_title_shade.dart';
 import 'package:navis/src/features/settings/domain/flat_areas.dart';
 import 'package:navis/src/features/settings/domain/navis_density.dart';
@@ -82,6 +83,7 @@ import 'package:navis/src/features/settings/domain/now_playing_background.dart';
 import 'package:navis/src/features/settings/domain/update_info.dart';
 import 'package:navis/src/routing/content_layout.dart';
 import 'package:navis/src/routing/desktop_layout.dart' show isDesktopRuntime;
+import 'package:navis/src/theme/color_adjustment.dart';
 import 'package:navis/src/theme/artwork_shape.dart';
 import 'package:navis/src/theme/navis_color_style.dart';
 import 'package:navis/src/utils/app_logger.dart';
@@ -2655,6 +2657,34 @@ final flatAreasProvider = Provider<FlatAreas>((ref) {
   return settings.flatAreas;
 });
 
+/// Saved colour tuning, using the identity while settings load or fail.
+final colorTuningProvider = Provider<ColorTuning>((ref) {
+  final settings = ref.watch(appSettingsProvider).asData?.value;
+  return settings?.colorTuning ?? ColorTuning.none;
+});
+
+/// Temporary drag state; callers clear it after persistence or cancellation.
+class ColorTuningPreviewNotifier extends Notifier<ColorTuning?> {
+  @override
+  ColorTuning? build() => null;
+
+  // Drag commands pair with clear(); this is the preview API shared by controls.
+  // ignore: use_setters_to_change_properties
+  void preview(ColorTuning adjustment) => state = adjustment;
+  void clear() => state = null;
+}
+
+final colorTuningPreviewProvider =
+    NotifierProvider<ColorTuningPreviewNotifier, ColorTuning?>(
+      ColorTuningPreviewNotifier.new,
+    );
+
+final effectiveColorTuningProvider = Provider<ColorTuning>((ref) {
+  final preview = ref.watch(colorTuningPreviewProvider);
+  final persisted = ref.watch(colorTuningProvider);
+  return preview ?? persisted;
+});
+
 /// Whether album-card captions use the optional title shade.
 final albumArtShadeProvider = Provider<bool>((ref) {
   final settings =
@@ -2878,15 +2908,7 @@ final visibleLibrarySectionsProvider = Provider<List<LibrarySection>>((ref) {
 /// Custom color presets stored as a JSON list of ARGB32 ints.
 final customColorPresetsProvider = StreamProvider<List<int>>((ref) {
   final dao = ref.watch(navisDatabaseProvider).appSettingsDao;
-  return dao.watchCustomColorPresets().map((json) {
-    if (json == null || json.trim().isEmpty) return <int>[];
-    try {
-      final decoded = (jsonDecode(json) as List).cast<int>();
-      return decoded;
-    } on Object {
-      return <int>[];
-    }
-  });
+  return dao.watchCustomColorPresets().map(decodeAccentSeeds);
 });
 
 /// The app's own package metadata (version, build number, etc.).

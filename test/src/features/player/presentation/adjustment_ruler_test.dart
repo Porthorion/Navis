@@ -228,7 +228,7 @@ void main() {
     expect(changes, 0);
   });
 
-  testWidgets('the scale sits flat and outlines itself only when focused', (
+  testWidgets('the scale sits flat and outlines itself only for the keyboard', (
     tester,
   ) async {
     await tester.pumpWidget(
@@ -260,9 +260,31 @@ void main() {
     expect(decoration().gradient, isNull);
     expect(decoration().color, isNull);
     expect(decoration().border, isNull);
+
+    // Touch input focuses the ruler without outlining it, tap or drag.
+    FocusManager.instance.highlightStrategy =
+        FocusHighlightStrategy.alwaysTouch;
+    addTearDown(
+      () => FocusManager.instance.highlightStrategy =
+          FocusHighlightStrategy.automatic,
+    );
     await tester.tap(find.byType(AdjustmentRuler));
     await tester.pump();
+    expect(FocusManager.instance.primaryFocus, isNotNull);
+    expect(decoration().border, isNull);
+    await tester.drag(find.byType(AdjustmentRuler), const Offset(-40, 0));
+    await tester.pump();
+    expect(decoration().border, isNull);
+
+    // Keyboard focus draws it, and it goes again when touch takes over.
+    FocusManager.instance.highlightStrategy =
+        FocusHighlightStrategy.alwaysTraditional;
+    await tester.pump();
     expect(decoration().border, isNotNull);
+    FocusManager.instance.highlightStrategy =
+        FocusHighlightStrategy.alwaysTouch;
+    await tester.pump();
+    expect(decoration().border, isNull);
   });
 
   group('external value changes glide like a swipe', () {
@@ -370,6 +392,261 @@ void main() {
       await tester.pump();
       expect(visualValue(), 1.5);
       expect(haptics, isEmpty);
+    });
+  });
+
+  group('whole-step mode', () {
+    test('every step is a minor tick and zero is the neutral one', () {
+      RulerTick step(double from, double to) =>
+          rulerTickFeedback(from, to, 0, perUnit: 1, majorEvery: null);
+      expect(step(1.2, 1.8), RulerTick.none);
+      expect(step(1.2, 2.1), RulerTick.minor);
+      expect(step(2.1, 0.9), RulerTick.minor);
+      expect(step(-0.4, 0.4), RulerTick.neutral);
+      expect(step(0.4, -0.4), RulerTick.neutral);
+      expect(step(-3.2, 4.6), RulerTick.neutral);
+      expect(step(2, 2), RulerTick.none);
+    });
+
+    testWidgets('drag settles on steps with a tick each and a firmer zero', (
+      tester,
+    ) async {
+      final haptics = <Object?>[];
+      tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+        SystemChannels.platform,
+        (call) async {
+          if (call.method == 'HapticFeedback.vibrate') {
+            haptics.add(call.arguments);
+          }
+          return null;
+        },
+      );
+      addTearDown(
+        () => tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+          SystemChannels.platform,
+          null,
+        ),
+      );
+      var value = -2.0;
+      final sent = <double>[];
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: StatefulBuilder(
+              builder: (context, setState) => AdjustmentRuler(
+                value: value,
+                label: 'Color',
+                valueLabel: '$value',
+                range: const AdjustmentRange(minimum: -5, maximum: 5),
+                snapStep: 1,
+                pixelsPerUnit: 32,
+                labelBuilder: (v) => '${v.round()}',
+                onChanged: (next) {
+                  sent.add(next);
+                  setState(() => value = next);
+                },
+                onChangeEnd: () {},
+              ),
+            ),
+          ),
+        ),
+      );
+      final drag = await tester.startGesture(
+        tester.getCenter(find.byType(AdjustmentRuler)),
+      );
+      await drag.moveBy(const Offset(-30, 0), timeStamp: Duration.zero);
+      await tester.pump();
+      haptics.clear();
+      var time = Duration.zero;
+      for (var i = 0; i < 5; i++) {
+        time += const Duration(milliseconds: 40);
+        await drag.moveBy(const Offset(-16, 0), timeStamp: time);
+        await tester.pump();
+      }
+      await drag.up();
+      await tester.pumpAndSettle();
+
+      expect(
+        sent,
+        everyElement(predicate<double>((v) => v == v.roundToDouble())),
+      );
+      expect(value, greaterThan(-2));
+      expect(
+        haptics.where((h) => h == 'HapticFeedbackType.mediumImpact'),
+        hasLength(1),
+        reason: 'zero is crossed once',
+      );
+      expect(
+        haptics.where((h) => h == 'HapticFeedbackType.lightImpact'),
+        hasLength(2),
+        reason: 'the rounded step changes to -1 and to 1 as well as to 0',
+      );
+    });
+
+    test('snap ticks click on lines and tap when the rounded step changes', () {
+      RulerTick tick(double from, double to) =>
+          snapTickFeedback(from, to, 0, perUnit: 1, subdivisions: 8);
+      expect(tick(0.02, 0.1), RulerTick.none);
+      expect(tick(0.1, 0.14), RulerTick.minor, reason: 'line at 0.125');
+      expect(tick(0.9, 1.1), RulerTick.minor, reason: 'line at the step');
+      expect(tick(0.4, 0.6), RulerTick.major, reason: '0 rounds to 1 at 0.5');
+      expect(tick(0.6, 0.4), RulerTick.neutral, reason: 'it becomes 0');
+      expect(tick(-0.4, -0.6), RulerTick.major, reason: 'leaving 0 is light');
+      expect(tick(2.6, 1.4), RulerTick.major);
+      expect(tick(-1.4, 0.6), RulerTick.major, reason: 'lands on step 1');
+      expect(tick(-1.6, 0.4), RulerTick.neutral, reason: 'lands on step 0');
+      expect(
+        tick(0.4, -0.4),
+        RulerTick.minor,
+        reason: 'crossing the zero line is not a change of step',
+      );
+      expect(tick(1.7, 1.7), RulerTick.none);
+    });
+
+    group('haptics while dragging at 64 px a step', () {
+      Future<List<Object?>> drag(
+        WidgetTester tester, {
+        required double from,
+        required double delta,
+        Duration interval = const Duration(milliseconds: 40),
+      }) async {
+        final haptics = <Object?>[];
+        tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+          SystemChannels.platform,
+          (call) async {
+            if (call.method == 'HapticFeedback.vibrate') {
+              haptics.add(call.arguments);
+            }
+            return null;
+          },
+        );
+        addTearDown(
+          () => tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+            SystemChannels.platform,
+            null,
+          ),
+        );
+        var value = from;
+        await tester.pumpWidget(
+          MaterialApp(
+            home: Scaffold(
+              body: StatefulBuilder(
+                builder: (context, setState) => AdjustmentRuler(
+                  value: value,
+                  label: 'Color',
+                  valueLabel: '$value',
+                  range: const AdjustmentRange(minimum: -5, maximum: 5),
+                  snapStep: 1,
+                  pixelsPerUnit: 64,
+                  labelBuilder: (v) => '${v.round()}',
+                  onChanged: (next) => setState(() => value = next),
+                  onChangeEnd: () {},
+                ),
+              ),
+            ),
+          ),
+        );
+        final gesture = await tester.startGesture(
+          tester.getCenter(find.byType(AdjustmentRuler)),
+        );
+        // Get past the drag slop, which starts the drag without moving it.
+        await gesture.moveBy(const Offset(-30, 0), timeStamp: Duration.zero);
+        await tester.pump();
+        haptics.clear();
+        var time = Duration.zero;
+        // 5 px is less than the 8 px between lines, so each move crosses at
+        // most one.
+        for (var i = 0; i < delta.abs() * 64 / 5; i++) {
+          time += interval;
+          await gesture.moveBy(Offset(-5 * delta.sign, 0), timeStamp: time);
+          await tester.pump();
+        }
+        await gesture.up();
+        await tester.pumpAndSettle();
+        return haptics;
+      }
+
+      int count(List<Object?> haptics, String type) =>
+          haptics.where((h) => h == 'HapticFeedbackType.$type').length;
+
+      testWidgets('click on each line and tap when the step changes', (
+        tester,
+      ) async {
+        // -2 to just short of 2: 31 lines, of which the four at the half
+        // steps -1.5, -0.5, 0.5 and 1.5 are where the rounded step changes.
+        final haptics = await drag(tester, from: -2, delta: 3.984375);
+        expect(count(haptics, 'selectionClick'), 27);
+        expect(count(haptics, 'lightImpact'), 3);
+        expect(count(haptics, 'mediumImpact'), 1, reason: 'only to zero');
+      });
+
+      testWidgets('dragging down across zero taps once, on reaching it', (
+        tester,
+      ) async {
+        final haptics = await drag(tester, from: 2, delta: -3.984375);
+        expect(count(haptics, 'selectionClick'), 27);
+        expect(count(haptics, 'lightImpact'), 3);
+        expect(count(haptics, 'mediumImpact'), 1);
+      });
+
+      testWidgets('a nudge inside one step is silent', (tester) async {
+        final haptics = await drag(tester, from: 1, delta: 0.0390625);
+        expect(haptics, isEmpty);
+      });
+
+      testWidgets('fast swipes throttle the clicks but not the taps', (
+        tester,
+      ) async {
+        final haptics = await drag(
+          tester,
+          from: -2,
+          delta: 3.984375,
+          interval: const Duration(milliseconds: 2),
+        );
+        expect(count(haptics, 'selectionClick'), lessThan(10));
+        expect(count(haptics, 'lightImpact'), 3);
+        expect(count(haptics, 'mediumImpact'), 1);
+      });
+    });
+
+    testWidgets('keyboard moves a step and the next value is announced', (
+      tester,
+    ) async {
+      final handle = tester.ensureSemantics();
+      var value = 1.0;
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: StatefulBuilder(
+              builder: (context, setState) => AdjustmentRuler(
+                value: value,
+                label: 'Color',
+                valueLabel: '$value',
+                range: const AdjustmentRange(minimum: -5, maximum: 5),
+                snapStep: 1,
+                pixelsPerUnit: 32,
+                labelBuilder: (v) => 'step ${v.round()}',
+                onChanged: (next) => setState(() => value = next),
+                onChangeEnd: () {},
+              ),
+            ),
+          ),
+        ),
+      );
+      final data = tester
+          .getSemantics(find.byType(AdjustmentRuler))
+          .getSemanticsData();
+      expect(data.increasedValue, 'step 2');
+      expect(data.decreasedValue, 'step 0');
+      await tester.tap(find.byType(AdjustmentRuler));
+      await tester.pump();
+      await tester.sendKeyEvent(LogicalKeyboardKey.arrowRight);
+      await tester.pumpAndSettle();
+      expect(value, 2);
+      await tester.sendKeyEvent(LogicalKeyboardKey.home);
+      await tester.pumpAndSettle();
+      expect(value, 0);
+      handle.dispose();
     });
   });
 }

@@ -19,11 +19,13 @@ import 'package:navis/src/features/settings/presentation/appearance_layout.dart'
 import 'package:navis/src/features/onboarding/domain/setup_highlights.dart';
 import 'package:navis/src/features/settings/presentation/appearance_options.dart';
 import 'package:navis/src/features/settings/presentation/appearance_settings_screen.dart';
+import 'package:navis/src/features/settings/presentation/color_tuning_panel.dart';
 import 'package:navis/src/features/settings/presentation/external_service_messages.dart';
 import 'package:navis/src/features/settings/presentation/listenbrainz_connection_status.dart';
 import 'package:navis/src/features/settings/domain/app_settings.dart';
 import 'package:navis/src/utils/app_logger.dart';
 import 'package:navis/src/providers/app_providers.dart';
+import 'package:navis/src/theme/color_adjustment.dart';
 import 'package:navis/src/theme/navis_shape_data.dart';
 import 'package:navis/src/theme/motion_policy.dart';
 import 'package:navis/src/theme/navis_theme.dart';
@@ -672,6 +674,10 @@ class OnboardingScreenState extends ConsumerState<OnboardingScreen> {
         style: style,
         flat: flat,
         flatAreas: draft.flatAreas,
+        adjustment: ColorAdjustment(
+          vividness: draft.colorVividness,
+          depth: draft.surfaceDepthLight,
+        ),
         corners: corners,
       );
     }
@@ -681,6 +687,10 @@ class OnboardingScreenState extends ConsumerState<OnboardingScreen> {
             style: style,
             flat: flat,
             flatAreas: draft.flatAreas,
+            adjustment: ColorAdjustment(
+              vividness: draft.colorVividness,
+              depth: draft.surfaceDepthDark,
+            ),
             corners: corners,
           )
         : buildDarkTheme(
@@ -688,6 +698,10 @@ class OnboardingScreenState extends ConsumerState<OnboardingScreen> {
             style: style,
             flat: flat,
             flatAreas: draft.flatAreas,
+            adjustment: ColorAdjustment(
+              vividness: draft.colorVividness,
+              depth: draft.surfaceDepthDark,
+            ),
             corners: corners,
           );
   }
@@ -760,6 +774,22 @@ class OnboardingScreenState extends ConsumerState<OnboardingScreen> {
       nowPlayingBackground: draft.nowPlayingBackground,
       onNowPlayingBackgroundChanged: (value) =>
           setState(() => _draft = draft.copyWith(nowPlayingBackground: value)),
+      colorTuning: draft.colorTuning,
+      onOpenColorTuning: (anchor) => unawaited(
+        _openColorTuning(
+          anchor,
+          ColorTuningBasis(
+            seed: resolveColorSchemeSeedColor(draft.colorSchemeSeed),
+            style: colorStyle,
+            brightness: theme.brightness,
+            oled: previewOled,
+            darkIsOled:
+                draft.themeMode == 'oled' ||
+                (draft.themeMode == 'system' && draft.oledForAuto),
+          ),
+        ),
+      ),
+      previewBrightness: theme.brightness,
       previewOled: previewOled,
     );
     return AppearanceVisitScope(
@@ -864,6 +894,42 @@ class OnboardingScreenState extends ConsumerState<OnboardingScreen> {
         ),
       ),
     );
+  }
+
+  /// Fine-Tune Colors edits the draft, which is also the preview: the page
+  /// recolours as a ruler moves. Presets save straight to settings, so setup
+  /// leaves them to Settings.
+  Future<void> _openColorTuning(
+    BuildContext anchor,
+    ColorTuningBasis basis,
+  ) async {
+    final fixedBasis = ValueNotifier<ColorTuningBasis>(basis);
+    final live = ValueNotifier<ColorTuning>(
+      _draft?.colorTuning ?? ColorTuning.none,
+    );
+    void apply(ColorTuning tuning) {
+      live.value = tuning;
+      setState(
+        () => _draft = _draft?.copyWith(
+          colorVividness: tuning.vividness,
+          surfaceDepthLight: tuning.lightDepth,
+          surfaceDepthDark: tuning.darkDepth,
+        ),
+      );
+    }
+
+    try {
+      await showColorTuningPanel(
+        anchor,
+        basis: fixedBasis,
+        tuning: live,
+        onPreview: apply,
+        onCommit: apply,
+      );
+    } finally {
+      fixedBasis.dispose();
+      live.dispose();
+    }
   }
 
   /// The options under "More appearance options": everything except Night

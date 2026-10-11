@@ -222,7 +222,7 @@ class NavisDatabase extends _$NavisDatabase {
   }
 
   @override
-  int get schemaVersion => 100;
+  int get schemaVersion => 101;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -332,6 +332,7 @@ class NavisDatabase extends _$NavisDatabase {
       from97To98,
       from98To99,
       from99To100,
+      from100To101,
     ];
     for (var version = from; version < to; version++) {
       await steps[version - firstStepFrom](migrator);
@@ -393,6 +394,39 @@ class NavisDatabase extends _$NavisDatabase {
       await customStatement(
         'UPDATE app_settings SET album_art_shade = 1 '
         'WHERE album_art_colored_shade = 1',
+      );
+    }
+  }
+
+  Future<void> from100To101(Migrator migrator) async {
+    if (!await _columnExists('app_settings', 'color_vividness')) {
+      await migrator.addColumn(
+        appSettingsTable,
+        appSettingsTable.colorVividness,
+      );
+    }
+    if (!await _columnExists('app_settings', 'surface_depth_light')) {
+      await migrator.addColumn(
+        appSettingsTable,
+        appSettingsTable.surfaceDepthLight,
+      );
+    }
+    if (!await _columnExists('app_settings', 'surface_depth_dark')) {
+      await migrator.addColumn(
+        appSettingsTable,
+        appSettingsTable.surfaceDepthDark,
+      );
+    }
+    if (!await _columnExists('app_settings', 'appearance_looks')) {
+      await migrator.addColumn(
+        appSettingsTable,
+        appSettingsTable.appearanceLooks,
+      );
+    }
+    if (!await _columnExists('app_settings', 'selected_appearance_look_id')) {
+      await migrator.addColumn(
+        appSettingsTable,
+        appSettingsTable.selectedAppearanceLookId,
       );
     }
   }
@@ -1662,6 +1696,11 @@ FROM scrobble_queue;
         nightScheduleEndMinutes: const Value(NightSchedule.defaultEndMinutes),
         flatSurfaces: const Value(false),
         flatAreas: const Value(7),
+        colorVividness: const Value(0),
+        surfaceDepthLight: const Value(0),
+        surfaceDepthDark: const Value(0),
+        appearanceLooks: const Value('[]'),
+        selectedAppearanceLookId: const Value(null),
         albumArtShade: const Value(false),
         albumArtColoredShade: const Value(false),
         colorSchemeSeed: const Value(null),

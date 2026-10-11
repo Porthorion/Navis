@@ -1,5 +1,7 @@
 import 'dart:async';
 
+import 'package:navis/src/features/settings/data/update_check_store.dart';
+
 import 'package:audio_service/audio_service.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:navis/src/common_widgets/adaptive_track_row.dart';
@@ -4385,10 +4387,12 @@ void main() {
   ) async {
     var trendingRuns = 0;
     var newReleasesRuns = 0;
+    final updateStore = _PullUpdateStore();
     await _pumpHomeWithAppSettings(
       tester,
       database: database,
       overrides: <Override>[
+        updateCheckStoreProvider.overrideWithValue(updateStore),
         homeTrendingProvider.overrideWith((ref) {
           ref.watch(homeTrendingRefreshProvider);
           trendingRuns++;
@@ -4417,6 +4421,7 @@ void main() {
     // A pull to refresh is a manual Trending refresh.
     expect(container.read(homeTrendingRefreshProvider).manual, isTrue);
     expect(newReleasesRuns, 2);
+    expect(updateStore.forces.last, isTrue);
   });
 
   test('Trending keeps every chart song and indexes the playable ones', () {
@@ -4662,3 +4667,12 @@ const ChangelogVersion _majorRelease = ChangelogVersion(
     ),
   ],
 );
+
+class _PullUpdateStore extends UpdateCheckStore {
+  final forces = <bool>[];
+  @override
+  Future<bool> shouldCheck({bool force = false}) async {
+    forces.add(force);
+    return false;
+  }
+}

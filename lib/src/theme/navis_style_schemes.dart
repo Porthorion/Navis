@@ -3,6 +3,7 @@ import 'dart:math' as math;
 import 'package:material_color_utilities/material_color_utilities.dart'
     show Hct;
 import 'package:material_ui/material_ui.dart';
+import 'package:navis/src/theme/color_adjustment.dart';
 import 'package:navis/src/theme/navis_color_style.dart';
 
 // OLED surface constants for the Neutral style.
@@ -14,7 +15,7 @@ const Color _oledContainerHighest = Color(0xFF121212);
 const double seaGlassHue = 190;
 
 /// Below this HCT chroma a seed is treated as achromatic.
-const double _achromaticChroma = 8;
+const double achromaticSeedChroma = 8;
 
 /// Hue of the error family: a soft rose rather than Material's signal red.
 const double _errorHue = 22;
@@ -38,20 +39,136 @@ ColorScheme buildStyledColorScheme({
   required Brightness brightness,
   bool oled = false,
   NavisColorStyle style = NavisColorStyle.neutral,
+  ColorAdjustment adjustment = ColorAdjustment.none,
 }) {
   final dark = brightness == Brightness.dark || oled;
   if (style == NavisColorStyle.neutral) {
-    return _neutralScheme(seed, dark: dark, oled: oled);
+    return adjustColorScheme(
+      _neutralScheme(seed, dark: dark, oled: oled),
+      adjustment,
+      dark: dark,
+      oled: oled,
+    );
   }
   final source = Hct.fromInt(seed.toARGB32());
-  final achromatic = source.chroma < _achromaticChroma;
+  final achromatic = source.chroma < achromaticSeedChroma;
   final recipe = switch (style) {
     NavisColorStyle.pastel => _pastelRecipe(source, achromatic),
     NavisColorStyle.immersive => _immersiveRecipe(source, achromatic),
     NavisColorStyle.night => _nightRecipe(source, achromatic),
     NavisColorStyle.neutral => throw StateError('handled above'),
   };
-  return recipe.build(dark: dark, oled: oled);
+  return adjustColorScheme(
+    recipe.build(dark: dark, oled: oled),
+    adjustment,
+    dark: dark,
+    oled: oled,
+  );
+}
+
+/// Applies user colour and surface tuning without rebuilding the style.
+/// Text and error roles retain their original colours. The identity adjustment
+/// returns the original scheme, including its exact 8-bit channels.
+ColorScheme adjustColorScheme(
+  ColorScheme scheme,
+  ColorAdjustment adj, {
+  required bool dark,
+  required bool oled,
+}) {
+  if (adj == ColorAdjustment.none) return scheme;
+  // Roles the muddy-band rule covers: fills and surfaces everywhere, plus
+  // primary and secondary in dark modes. Light-mode ink accents are exempt.
+  Color adjusted(
+    Color color, {
+    bool surface = false,
+    bool container = false,
+    bool guarded = false,
+  }) {
+    if (color.toARGB32() == Colors.black.toARGB32() ||
+        color.toARGB32() == Colors.white.toARGB32()) {
+      return color;
+    }
+    final source = Hct.fromInt(color.toARGB32());
+    final tone = surface && adj.depth != 0
+        ? (source.tone + adj.toneShift(dark: dark, oled: oled)).clamp(
+            dark ? 2.0 : 0.0,
+            dark ? 100.0 : 99.0,
+          )
+        : source.tone;
+    var chroma = source.chroma * adj.chromaFactor;
+    // Allow for 8-bit tone rounding at the band boundaries. The ceiling never
+    // drops below the style's own (muted) chroma, so every step stays
+    // monotonic and a Brightness-only change keeps the style's colours.
+    if (guarded && tone >= 24.5 && tone <= 50.5) {
+      chroma = math.min(
+        chroma,
+        math.max(24, source.chroma * math.min(adj.chromaFactor, 1)),
+      );
+    }
+    // Near-black RGB quantisation can add chroma: target 1.5 to keep decoded
+    // OLED containers below 3, as in the style recipes.
+    if (oled && container) chroma = math.min(chroma, 1.5);
+    return hct(source.hue, chroma, tone);
+  }
+
+  return scheme.copyWith(
+    primary: adjusted(scheme.primary, guarded: dark),
+    secondary: adjusted(scheme.secondary, guarded: dark),
+    tertiary: adjusted(scheme.tertiary),
+    primaryContainer: adjusted(scheme.primaryContainer, guarded: true),
+    secondaryContainer: adjusted(scheme.secondaryContainer, guarded: true),
+    tertiaryContainer: adjusted(scheme.tertiaryContainer, guarded: true),
+    primaryFixed: adjusted(scheme.primaryFixed),
+    primaryFixedDim: adjusted(scheme.primaryFixedDim),
+    secondaryFixed: adjusted(scheme.secondaryFixed),
+    secondaryFixedDim: adjusted(scheme.secondaryFixedDim),
+    tertiaryFixed: adjusted(scheme.tertiaryFixed),
+    tertiaryFixedDim: adjusted(scheme.tertiaryFixedDim),
+    inversePrimary: adjusted(scheme.inversePrimary),
+    surfaceTint: adjusted(scheme.surfaceTint),
+    surface: oled
+        ? Colors.black
+        : adjusted(scheme.surface, surface: true, guarded: true),
+    surfaceDim: oled
+        ? Colors.black
+        : adjusted(scheme.surfaceDim, surface: true, guarded: true),
+    surfaceBright: adjusted(
+      scheme.surfaceBright,
+      surface: true,
+      guarded: true,
+      container: oled,
+    ),
+    surfaceContainerLowest: oled
+        ? Colors.black
+        : adjusted(scheme.surfaceContainerLowest, surface: true, guarded: true),
+    surfaceContainerLow: adjusted(
+      scheme.surfaceContainerLow,
+      surface: true,
+      guarded: true,
+      container: true,
+    ),
+    surfaceContainer: adjusted(
+      scheme.surfaceContainer,
+      surface: true,
+      guarded: true,
+      container: true,
+    ),
+    surfaceContainerHigh: adjusted(
+      scheme.surfaceContainerHigh,
+      surface: true,
+      guarded: true,
+      container: true,
+    ),
+    surfaceContainerHighest: adjusted(
+      scheme.surfaceContainerHighest,
+      surface: true,
+      guarded: true,
+      container: true,
+    ),
+    inverseSurface: adjusted(scheme.inverseSurface),
+    outline: adjusted(scheme.outline),
+    outlineVariant: adjusted(scheme.outlineVariant, surface: true),
+  );
 }
 
 ColorScheme _neutralScheme(

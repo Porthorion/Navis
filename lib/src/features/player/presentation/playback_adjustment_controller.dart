@@ -1,6 +1,8 @@
 import 'dart:async';
 import 'dart:io';
 
+import 'package:navis/src/common/preset_names.dart';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:just_audio_media_kit/just_audio_media_kit.dart';
 import 'package:navis/src/features/player/data/navis_audio_handler.dart';
@@ -291,13 +293,14 @@ class PlaybackAdjustmentController
     final current = _current;
     if (current.pending) return false;
     final trimmed = name.trim();
-    if (trimmed.isEmpty ||
-        PlaybackPreset.isReservedName(trimmed) ||
-        updateId == PlaybackPreset.noneId ||
-        current.presets.any(
-          (p) =>
-              p.id != updateId && p.name.toLowerCase() == trimmed.toLowerCase(),
-        )) {
+    if (updateId == PlaybackPreset.noneId ||
+        validatePresetName(
+              trimmed,
+              presets: current.presets.map((p) => (id: p.id, name: p.name)),
+              excludingId: updateId,
+              reservedNames: const {'none', 'normal'},
+            ) !=
+            null) {
       _failure(PlaybackAdjustmentFailure.name);
       return false;
     }
@@ -336,12 +339,13 @@ class PlaybackAdjustmentController
     if (current.pending) return false;
     final preset = current.presets.where((p) => p.id == id).firstOrNull;
     if (preset == null ||
-        name.trim().isEmpty ||
-        PlaybackPreset.isReservedName(name) ||
-        current.presets.any(
-          (p) =>
-              p.id != id && p.name.toLowerCase() == name.trim().toLowerCase(),
-        )) {
+        validatePresetName(
+              name,
+              presets: current.presets.map((p) => (id: p.id, name: p.name)),
+              excludingId: id,
+              reservedNames: const {'none', 'normal'},
+            ) !=
+            null) {
       _failure(PlaybackAdjustmentFailure.name);
       return false;
     }

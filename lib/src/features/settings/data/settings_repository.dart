@@ -10,6 +10,8 @@ import 'package:navis/src/features/settings/domain/flat_areas.dart';
 import 'package:navis/src/features/settings/domain/navis_density.dart';
 import 'package:navis/src/features/settings/domain/now_playing_background.dart';
 import 'package:navis/src/routing/content_layout.dart';
+import 'package:navis/src/theme/color_adjustment.dart';
+import 'package:navis/src/features/settings/domain/appearance_presets.dart';
 import 'package:navis/src/theme/navis_corner_style.dart';
 
 class SettingsRepository {
@@ -58,6 +60,9 @@ class SettingsRepository {
       nightScheduleEndMinutes: settings.nightScheduleEndMinutes,
       flatSurfaces: settings.flatSurfaces,
       flatAreas: settings.flatAreas.bits,
+      colorVividness: settings.colorVividness,
+      surfaceDepthLight: settings.surfaceDepthLight,
+      surfaceDepthDark: settings.surfaceDepthDark,
       albumArtShade: settings.albumArtShade,
       albumArtColoredShade: settings.albumArtColoredShade,
       colorSchemeSeed: settings.colorSchemeSeed,
@@ -122,6 +127,24 @@ class SettingsRepository {
     }
     if (draft.flatSurfaces != initial.flatSurfaces) {
       await _dao.updateFlatSurfaces(enabled: draft.flatSurfaces);
+    }
+    if (draft.colorVividness != initial.colorVividness ||
+        draft.surfaceDepthLight != initial.surfaceDepthLight ||
+        draft.surfaceDepthDark != initial.surfaceDepthDark) {
+      final current = await getSettings();
+      await _dao.updateColorTuning(
+        ColorTuning(
+          vividness: draft.colorVividness != initial.colorVividness
+              ? draft.colorVividness
+              : current.colorVividness,
+          lightDepth: draft.surfaceDepthLight != initial.surfaceDepthLight
+              ? draft.surfaceDepthLight
+              : current.surfaceDepthLight,
+          darkDepth: draft.surfaceDepthDark != initial.surfaceDepthDark
+              ? draft.surfaceDepthDark
+              : current.surfaceDepthDark,
+        ),
+      );
     }
     if (draft.flatAreas != initial.flatAreas) {
       await _dao.updateFlatAreas(draft.flatAreas.bits);
@@ -332,6 +355,12 @@ class SettingsRepository {
       nightScheduleEndMinutes: row.nightScheduleEndMinutes,
       flatSurfaces: row.flatSurfaces,
       flatAreas: FlatAreas.fromBits(row.flatAreas),
+      colorVividness: row.colorVividness,
+      surfaceDepthLight: row.surfaceDepthLight,
+      surfaceDepthDark: row.surfaceDepthDark,
+      appearanceLooks: decodeAppearanceLooks(row.appearanceLooks),
+      selectedAppearanceLookId: row.selectedAppearanceLookId,
+      customColorPresets: decodeAccentSeeds(row.customColorPresets),
       albumArtShade: row.albumArtShade,
       albumArtColoredShade: row.albumArtColoredShade,
       colorSchemeSeed: row.colorSchemeSeed,

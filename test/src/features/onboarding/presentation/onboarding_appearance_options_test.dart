@@ -17,6 +17,7 @@ import 'package:navis/src/features/settings/presentation/appearance_options.dart
 import 'package:navis/src/features/settings/presentation/color_style_selector.dart';
 import 'package:navis/src/providers/app_providers.dart';
 import 'package:navis/src/routing/app_routes.dart';
+import 'package:navis/src/theme/color_adjustment.dart';
 import 'package:navis/src/theme/navis_color_style.dart';
 import 'package:navis/src/theme/navis_corner_style.dart';
 import 'package:navis/src/theme/navis_shape_data.dart';
@@ -190,8 +191,8 @@ void main() {
     await _pump(tester, seed: (d) => d.updateThemeMode('system'));
 
     // The Flat areas only show, and so only carry their tag, while Flat is on.
-    expect(find.byType(NewFeatureTag), findsNWidgets(7));
-    expect(find.text('New'), findsNWidgets(7));
+    expect(find.byType(NewFeatureTag), findsNWidgets(8));
+    expect(find.text('New'), findsNWidgets(8));
     expect(
       find.descendant(
         of: find.byType(NewFeatureTag),
@@ -200,7 +201,7 @@ void main() {
               widget is Semantics && widget.properties.label == 'New option',
         ),
       ),
-      findsNWidgets(7),
+      findsNWidgets(8),
     );
   });
 
@@ -210,7 +211,7 @@ void main() {
     await _pump(tester);
 
     expect(find.text('Use OLED When Dark'), findsNothing);
-    expect(find.byType(NewFeatureTag), findsNWidgets(6));
+    expect(find.byType(NewFeatureTag), findsNWidgets(7));
   });
 
   testWidgets('shows no tags on a fresh install', (tester) async {
@@ -344,6 +345,191 @@ void main() {
     expect(tag, findsOneWidget);
     await h.finish();
     expect(await h.row().then((r) => r.setupHighlightsSeenRelease), '1.5.0');
+  });
+
+  group('Fine-Tune Colors', () {
+    final row = find.byKey(const ValueKey<String>('colorTuningOption'));
+    final summary = find.byKey(
+      const ValueKey<String>('colorTuningOption-summary'),
+    );
+    Finder control(String name) =>
+        find.byKey(ValueKey<String>('colorTuning-$name'));
+    Finder plus(String axis) => control('$axis-plus');
+    Finder reset() => control('reset');
+
+    Future<void> openPanel(_Harness h) => h.tap(row);
+
+    Future<void> closePanel(_Harness h) =>
+        h.tap(find.byKey(const ValueKey<String>('quickPanelClose')));
+
+    String summaryText(WidgetTester tester) =>
+        tester.widget<Text>(summary).data!;
+
+    testWidgets('is tagged New in the open group and clears with Finish', (
+      tester,
+    ) async {
+      final h = await _pump(tester);
+      final tag = find.descendant(
+        of: find
+            .ancestor(
+              of: find.text('Fine-Tune Colors'),
+              matching: find.byType(Row),
+            )
+            .first,
+        matching: find.byType(NewFeatureTag),
+      );
+      expect(tag, findsOneWidget);
+      expect(_shownOptions, contains(SetupHighlight.colorTuning));
+      await h.finish();
+      expect((await h.row()).setupHighlightsSeenRelease, '1.5.0');
+    });
+
+    testWidgets('is one row with a summary, and the rulers wait in a panel', (
+      tester,
+    ) async {
+      await _pump(
+        tester,
+        seed: (d) =>
+            d.updateColorTuning(const ColorTuning(vividness: 2, darkDepth: -1)),
+      );
+      expect(row, findsOneWidget);
+      expect(summaryText(tester), 'Intensity +2 · Brightness −1');
+      expect(control('color-ruler'), findsNothing);
+    });
+
+    testWidgets('opens its panel without presets, which setup leaves to '
+        'Settings', (tester) async {
+      final h = await _pump(tester);
+      await openPanel(h);
+      expect(
+        find.byKey(const ValueKey<String>('colorTuningPanel')),
+        findsOneWidget,
+      );
+      expect(control('color-ruler'), findsOneWidget);
+      expect(control('brightness-ruler'), findsOneWidget);
+      expect(find.byType(DropdownMenu<String>), findsNothing);
+      expect(find.text('Preset'), findsNothing);
+    });
+
+    testWidgets('drafts both axes, previews them and saves on Finish', (
+      tester,
+    ) async {
+      final h = await _pump(tester);
+      final before = h.previewTheme.colorScheme.surface;
+      await openPanel(h);
+      expect(tester.widget<TextButton>(reset()).onPressed, isNull);
+
+      await h.tap(plus('color'));
+      await h.tap(plus('color'));
+      await h.tap(plus('brightness'));
+
+      // The draft recolours the page, and nothing is saved until Finish.
+      expect(h.previewTheme.colorScheme.surface, isNot(before));
+      expect(
+        h.previewTheme.colorScheme.surface,
+        buildDarkTheme(
+          resolveColorSchemeSeedColor(null),
+          adjustment: const ColorAdjustment(vividness: 2, depth: 1),
+        ).colorScheme.surface,
+      );
+      expect(find.text('+2'), findsWidgets);
+      var row = await h.row();
+      expect(row.colorVividness, 0);
+      expect(row.surfaceDepthDark, 0);
+
+      await closePanel(h);
+      expect(summaryText(tester), 'Intensity +2 · Brightness +1');
+      await h.finish();
+      row = await h.row();
+      expect(row.colorVividness, 2);
+      expect(row.surfaceDepthDark, 1);
+    });
+
+    for (final mode in ['light', 'dark', 'oled']) {
+      testWidgets('$mode drafts only its own brightness', (tester) async {
+        final h = await _pump(
+          tester,
+          seed: (dao) async {
+            await dao.updateThemeMode(mode);
+            await dao.updateColorTuning(
+              const ColorTuning(lightDepth: -2, darkDepth: 3),
+            );
+          },
+        );
+        await openPanel(h);
+        await h.tap(plus('brightness'));
+        final beforeFinish = await h.row();
+        expect(beforeFinish.surfaceDepthLight, -2);
+        expect(beforeFinish.surfaceDepthDark, 3);
+        final adjustment = ColorAdjustment(depth: mode == 'light' ? -1 : 4);
+        final seed = resolveColorSchemeSeedColor(null);
+        final expected = switch (mode) {
+          'light' => buildLightTheme(seed, adjustment: adjustment),
+          'oled' => buildOledTheme(seed, adjustment: adjustment),
+          _ => buildDarkTheme(seed, adjustment: adjustment),
+        };
+        expect(h.previewTheme.colorScheme, expected.colorScheme);
+        await closePanel(h);
+        await h.finish();
+        final saved = await h.row();
+        expect(saved.surfaceDepthLight, mode == 'light' ? -1 : -2);
+        expect(saved.surfaceDepthDark, mode == 'light' ? 3 : 4);
+      });
+    }
+
+    testWidgets('the Brightness switch drafts the other mode too', (
+      tester,
+    ) async {
+      final h = await _pump(
+        tester,
+        seed: (d) => d.updateColorTuning(const ColorTuning(darkDepth: 3)),
+      );
+      await openPanel(h);
+      await h.tap(
+        find.descendant(of: control('mode'), matching: find.text('Light')),
+      );
+      await h.tap(plus('brightness'));
+      await h.tap(plus('brightness'));
+      expect(
+        find.byKey(const ValueKey<String>('colorTuning-applies')),
+        findsOneWidget,
+      );
+      await closePanel(h);
+      await h.finish();
+      final saved = await h.row();
+      expect(saved.surfaceDepthLight, 2);
+      expect(saved.surfaceDepthDark, 3);
+    });
+
+    testWidgets('Reset returns every value to Default', (tester) async {
+      final h = await _pump(
+        tester,
+        seed: (d) => d.updateColorTuning(
+          const ColorTuning(vividness: -3, lightDepth: 1, darkDepth: 4),
+        ),
+      );
+      await openPanel(h);
+      expect(tester.widget<TextButton>(reset()).onPressed, isNotNull);
+
+      await h.tap(reset());
+      await tester.pumpAndSettle();
+
+      expect(tester.widget<TextButton>(reset()).onPressed, isNull);
+      expect(
+        find.descendant(
+          of: find.byKey(const ValueKey<String>('colorTuningPanel')),
+          matching: find.text('Default'),
+        ),
+        findsNWidgets(3),
+      );
+      await closePanel(h);
+      expect(summaryText(tester), 'Default');
+      await h.finish();
+      final row = await h.row();
+      expect(row.colorVividness, 0);
+      expect(row.surfaceDepthLight, 0);
+      expect(row.surfaceDepthDark, 0);
+    });
   });
 
   testWidgets('a night schedule does not switch the preview by time', (
@@ -521,6 +707,7 @@ void main() {
 
       final labels = <String>[
         'Use OLED When Dark',
+        'Fine-Tune Colors',
         'Flat Surfaces',
         'Corner Style',
         'Density',
@@ -548,6 +735,7 @@ void main() {
       );
       expect(AppearanceOptionKind.values.map((kind) => kind.name), <String>[
         'oledForAuto',
+        'colorTuning',
         'nightSchedule',
         'flatSurfaces',
         'cornerStyle',
@@ -580,6 +768,8 @@ void main() {
       );
     });
 
+    // Looks live in Settings only: they save straight to settings, which a
+    // setup draft must not do, so setup never shows (or marks) that option.
     testWidgets('tagged options mark themselves seen once shown', (
       tester,
     ) async {
@@ -591,10 +781,13 @@ void main() {
         },
       );
 
-      expect(_shownOptions.toSet(), <SetupHighlight>{
-        for (final highlight in SetupHighlight.values) highlight,
-      });
-      expect(_shownOptions, hasLength(SetupHighlight.values.length));
+      expect(
+        _shownOptions.toSet(),
+        SetupHighlight.values
+            .where((h) => h != SetupHighlight.appearanceLooks)
+            .toSet(),
+      );
+      expect(_shownOptions, hasLength(SetupHighlight.values.length - 1));
     });
 
     testWidgets('the hidden OLED and Flat area options are not marked seen', (
@@ -604,7 +797,8 @@ void main() {
 
       expect(_shownOptions, isNot(contains(SetupHighlight.oledForAuto)));
       expect(_shownOptions, isNot(contains(SetupHighlight.flatAreas)));
-      expect(_shownOptions, hasLength(SetupHighlight.values.length - 2));
+      expect(_shownOptions, contains(SetupHighlight.colorTuning));
+      expect(_shownOptions, hasLength(SetupHighlight.values.length - 3));
     });
 
     testWidgets(

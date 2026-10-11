@@ -4,6 +4,7 @@ import 'package:material_color_utilities/material_color_utilities.dart'
     show Hct;
 import 'package:material_ui/material_ui.dart';
 import 'package:navis/src/features/settings/domain/flat_areas.dart';
+import 'package:navis/src/theme/color_adjustment.dart';
 import 'package:navis/src/theme/navis_color_style.dart';
 import 'package:navis/src/theme/navis_style_schemes.dart';
 
@@ -20,9 +21,11 @@ class NavisColorStyleData extends ThemeExtension<NavisColorStyleData> {
     this.flatAreas = const FlatAreas(),
     this.oled = false,
     this.accentHue = seaGlassHue,
+    this.adjustment = ColorAdjustment.none,
   });
 
   final NavisColorStyle style;
+  final ColorAdjustment adjustment;
 
   /// Whether the theme is dark (Dark or OLED).
   final bool dark;
@@ -76,13 +79,20 @@ class NavisColorStyleData extends ThemeExtension<NavisColorStyleData> {
 
   /// Map a colour sampled from artwork into the style.
   ///
-  /// Neutral returns [raw] unchanged. The other styles keep the colour's hue
+  /// Neutral keeps [raw] at zero vividness, otherwise scaling only chroma.
+  /// The other styles keep the colour's hue
   /// (Night moves it into the warm range) and place it at the style's tone
   /// and chroma, so a yellow cover gives a soft butter or umber field rather
   /// than olive.
   Color adaptArtColor(Color raw) {
     if (style == NavisColorStyle.neutral) {
-      return raw;
+      if (adjustment.vividness == 0) return raw;
+      final source = Hct.fromInt(raw.toARGB32());
+      return hct(
+        source.hue,
+        source.chroma * adjustment.chromaFactor,
+        source.tone,
+      );
     }
     final source = Hct.fromInt(raw.toARGB32());
     final achromatic = source.chroma < 6;
@@ -95,10 +105,14 @@ class NavisColorStyleData extends ThemeExtension<NavisColorStyleData> {
       (NavisColorStyle.night, false) => (24.0, 84.0, 90.0),
       (NavisColorStyle.neutral, _) => (0.0, 0.0, 100.0),
     };
-    final tone = source.tone.clamp(minTone, maxTone);
+    final shift = adjustment.toneShift(dark: dark);
+    final tone = source.tone.clamp(
+      (minTone + shift).clamp(2.0, 99.0),
+      (maxTone + shift).clamp(2.0, 99.0),
+    );
     var chroma = achromatic
         ? source.chroma
-        : source.chroma.clamp(0.0, maxChroma);
+        : source.chroma.clamp(0.0, maxChroma * adjustment.chromaFactor);
     var hue = style == NavisColorStyle.night && !achromatic
         ? nightHue(source.hue)
         : source.hue;
@@ -211,6 +225,21 @@ class NavisColorStyleData extends ThemeExtension<NavisColorStyleData> {
   }
 
   @override
+  bool operator ==(Object other) =>
+      other is NavisColorStyleData &&
+      other.style == style &&
+      other.dark == dark &&
+      other.flat == flat &&
+      other.flatAreas == flatAreas &&
+      other.oled == oled &&
+      other.accentHue == accentHue &&
+      other.adjustment == adjustment;
+
+  @override
+  int get hashCode =>
+      Object.hash(style, dark, flat, flatAreas, oled, accentHue, adjustment);
+
+  @override
   NavisColorStyleData copyWith({
     NavisColorStyle? style,
     bool? dark,
@@ -218,6 +247,7 @@ class NavisColorStyleData extends ThemeExtension<NavisColorStyleData> {
     FlatAreas? flatAreas,
     bool? oled,
     double? accentHue,
+    ColorAdjustment? adjustment,
   }) {
     return NavisColorStyleData(
       style: style ?? this.style,
@@ -226,6 +256,7 @@ class NavisColorStyleData extends ThemeExtension<NavisColorStyleData> {
       flatAreas: flatAreas ?? this.flatAreas,
       oled: oled ?? this.oled,
       accentHue: accentHue ?? this.accentHue,
+      adjustment: adjustment ?? this.adjustment,
     );
   }
 

@@ -1,3 +1,4 @@
+import 'package:navis/src/theme/color_adjustment.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:navis/src/features/settings/domain/navis_density.dart';
 import 'package:navis/src/database/daos/app_settings_dao.dart';
@@ -18,6 +19,38 @@ void main() {
     tearDown(() async {
       await database.close();
     });
+
+    test('color tuning writes both axes, watches, clamps and resets', () async {
+      final dao = database.appSettingsDao;
+      final initial = (await dao.getSettings())!;
+      expect(initial.colorVividness, 0);
+      expect(initial.surfaceDepthLight, 0);
+      await dao.updateThemeMode('oled');
+      for (final adj in [
+        const ColorTuning(vividness: -5, lightDepth: 5, darkDepth: -3),
+        const ColorTuning(vividness: 50, lightDepth: -50, darkDepth: 50),
+        ColorTuning.none,
+      ]) {
+        await dao.updateColorTuning(adj);
+        final row = (await dao.getSettings())!;
+        final watched = (await dao.watchSettings().first)!;
+        expect(row.colorVividness, adj.vividness);
+        expect(row.surfaceDepthLight, adj.lightDepth);
+        expect(row.surfaceDepthDark, adj.darkDepth);
+        expect(watched.colorVividness, adj.vividness);
+        expect(watched.surfaceDepthLight, adj.lightDepth);
+        expect(watched.surfaceDepthDark, adj.darkDepth);
+        expect(row.themeMode, 'oled');
+      }
+      await dao.updateColorTuning(
+        const ColorTuning(vividness: 3, lightDepth: 4),
+      );
+      await dao.resetDefaults();
+      final reset = (await dao.getSettings())!;
+      expect(reset.colorVividness, 0);
+      expect(reset.surfaceDepthLight, 0);
+      expect(reset.surfaceDepthDark, 0);
+    }, skip: !sqliteAvailable);
 
     test(
       'corner style round trips, watches and resets independently',

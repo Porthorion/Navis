@@ -1,5 +1,7 @@
 import 'dart:convert';
 
+import 'package:navis/src/features/settings/domain/appearance_presets.dart';
+
 import 'package:drift/drift.dart';
 import 'package:meta/meta.dart' show visibleForTesting;
 import 'package:navis/src/features/settings/domain/flat_areas.dart';
@@ -10,6 +12,7 @@ import 'package:navis/src/features/downloads/domain/download_preferences.dart';
 import 'package:navis/src/features/integrations/domain/integration_feature.dart';
 import 'package:navis/src/features/settings/domain/navis_density.dart';
 import 'package:navis/src/features/settings/domain/now_playing_background.dart';
+import 'package:navis/src/theme/color_adjustment.dart';
 import 'package:navis/src/theme/navis_corner_style.dart';
 import 'package:path/path.dart' as p;
 
@@ -146,6 +149,9 @@ class AppSettingsDao extends DatabaseAccessor<NavisDatabase>
     required int nightScheduleEndMinutes,
     required bool flatSurfaces,
     int? flatAreas,
+    int? colorVividness,
+    int? surfaceDepthLight,
+    int? surfaceDepthDark,
     bool? albumArtShade,
     bool? albumArtColoredShade,
     int? colorSchemeSeed,
@@ -222,9 +228,18 @@ class AppSettingsDao extends DatabaseAccessor<NavisDatabase>
         ),
         nightScheduleEndMinutes: Value(nightScheduleEndMinutes.clamp(0, 1439)),
         flatSurfaces: Value(flatSurfaces),
+        colorVividness: colorVividness == null
+            ? const Value.absent()
+            : Value(colorVividness.clamp(-5, 5)),
+        surfaceDepthLight: surfaceDepthLight == null
+            ? const Value.absent()
+            : Value(surfaceDepthLight.clamp(-5, 5)),
         flatAreas: flatAreas == null
             ? const Value.absent()
             : Value(FlatAreas.fromBits(flatAreas).bits),
+        surfaceDepthDark: surfaceDepthDark == null
+            ? const Value.absent()
+            : Value(surfaceDepthDark.clamp(-5, 5)),
         albumArtShade: albumArtShade == null
             ? const Value.absent()
             : Value(albumArtShade),
@@ -322,6 +337,8 @@ class AppSettingsDao extends DatabaseAccessor<NavisDatabase>
   }
 
   Future<void> resetDefaults() async {
+    await updateColorTuning(ColorTuning.none);
+    await updateAppearanceLooks(selectedLookId: null);
     await clearSetupHighlightsSeen();
     await updateSetupHighlightsSeenRelease(null);
     await updateSetupCardDismissedRelease(null);
@@ -365,6 +382,9 @@ class AppSettingsDao extends DatabaseAccessor<NavisDatabase>
       nightScheduleEndMinutes: NightSchedule.defaultEndMinutes,
       flatSurfaces: false,
       flatAreas: 7,
+      colorVividness: 0,
+      surfaceDepthLight: 0,
+      surfaceDepthDark: 0,
       albumArtShade: false,
       albumArtColoredShade: false,
       colorSchemeSeed: null,
@@ -839,6 +859,127 @@ class AppSettingsDao extends DatabaseAccessor<NavisDatabase>
       ),
     );
   }
+
+  /// Writes tuning without touching other settings.
+  Future<void> updateColorTuning(ColorTuning tuning) async {
+    await getSettings();
+    await (update(
+      appSettingsTable,
+    )..where((t) => t.id.equals(primarySettingsId))).write(
+      AppSettingsTableCompanion(
+        colorVividness: Value(tuning.vividness),
+        surfaceDepthLight: Value(tuning.lightDepth),
+        surfaceDepthDark: Value(tuning.darkDepth),
+        updatedAt: Value(DateTime.now()),
+      ),
+    );
+  }
+
+  Future<void> updateAppearanceLooks({
+    required String? selectedLookId,
+    String? looksJson,
+  }) async {
+    await getSettings();
+    await (update(
+      appSettingsTable,
+    )..where((t) => t.id.equals(primarySettingsId))).write(
+      AppSettingsTableCompanion(
+        selectedAppearanceLookId: Value(selectedLookId),
+        appearanceLooks: looksJson == null
+            ? const Value.absent()
+            : Value(looksJson),
+      ),
+    );
+  }
+
+  /// Applies only supplied appearance fields atomically.
+  Future<void> applyAppearanceSnapshot(AppearanceSnapshot snapshot) =>
+      transaction(() async {
+        final current = (await getSettings())!;
+        final tuning = ColorTuning(
+          vividness: snapshot.colorVividness ?? current.colorVividness,
+          lightDepth: snapshot.surfaceDepthLight ?? current.surfaceDepthLight,
+          darkDepth: snapshot.surfaceDepthDark ?? current.surfaceDepthDark,
+        );
+        await (update(
+          appSettingsTable,
+        )..where((t) => t.id.equals(primarySettingsId))).write(
+          AppSettingsTableCompanion(
+            themeMode: snapshot.themeMode == null
+                ? const Value.absent()
+                : Value(snapshot.themeMode!),
+            oledForAuto: snapshot.oledForAuto == null
+                ? const Value.absent()
+                : Value(snapshot.oledForAuto!),
+            colorStyle: snapshot.colorStyle == null
+                ? const Value.absent()
+                : Value(snapshot.colorStyle!),
+            colorSchemeSeed: snapshot.clearColorSchemeSeed
+                ? const Value(null)
+                : snapshot.colorSchemeSeed == null
+                ? const Value.absent()
+                : Value(snapshot.colorSchemeSeed),
+            dynamicAlbumColorEnabled: snapshot.dynamicAlbumColorEnabled == null
+                ? const Value.absent()
+                : Value(snapshot.dynamicAlbumColorEnabled!),
+            nightScheduleEnabled: snapshot.nightScheduleEnabled == null
+                ? const Value.absent()
+                : Value(snapshot.nightScheduleEnabled!),
+            nightScheduleStartMinutes:
+                snapshot.nightScheduleStartMinutes == null
+                ? const Value.absent()
+                : Value(snapshot.nightScheduleStartMinutes!),
+            nightScheduleEndMinutes: snapshot.nightScheduleEndMinutes == null
+                ? const Value.absent()
+                : Value(snapshot.nightScheduleEndMinutes!),
+            albumArtShade: snapshot.albumArtShade == null
+                ? const Value.absent()
+                : Value(snapshot.albumArtShade!),
+            albumArtColoredShade: snapshot.albumArtColoredShade == null
+                ? const Value.absent()
+                : Value(snapshot.albumArtColoredShade!),
+            colorVividness: Value(tuning.vividness),
+            surfaceDepthLight: Value(tuning.lightDepth),
+            surfaceDepthDark: Value(tuning.darkDepth),
+            flatSurfaces: snapshot.flatSurfaces == null
+                ? const Value.absent()
+                : Value(snapshot.flatSurfaces!),
+            flatAreas: snapshot.flatAreas == null
+                ? const Value.absent()
+                : Value(snapshot.flatAreas!),
+            cornerStyle: snapshot.cornerStyle == null
+                ? const Value.absent()
+                : Value(snapshot.cornerStyle!),
+            coverArtShape: snapshot.coverArtShape == null
+                ? const Value.absent()
+                : Value(snapshot.coverArtShape!),
+            nowPlayingArtShape: snapshot.nowPlayingArtShape == null
+                ? const Value.absent()
+                : Value(snapshot.nowPlayingArtShape!),
+            artistCardShape: snapshot.artistCardShape == null
+                ? const Value.absent()
+                : Value(snapshot.artistCardShape!),
+            gridArtworkSize: snapshot.gridArtworkSize == null
+                ? const Value.absent()
+                : Value(snapshot.gridArtworkSize!),
+            albumGridDensity: snapshot.clearAlbumGridDensity
+                ? const Value(null)
+                : snapshot.albumGridDensity == null
+                ? const Value.absent()
+                : Value(snapshot.albumGridDensity),
+            homeDensity: snapshot.density == null
+                ? const Value.absent()
+                : Value(snapshot.density!),
+            artistViewMode: snapshot.artistViewMode == null
+                ? const Value.absent()
+                : Value(snapshot.artistViewMode!),
+            nowPlayingBackground: snapshot.nowPlayingBackground == null
+                ? const Value.absent()
+                : Value(snapshot.nowPlayingBackground!),
+            updatedAt: Value(DateTime.now()),
+          ),
+        );
+      });
 
   Future<void> updateAlbumArtShade({required bool enabled}) async {
     await (update(

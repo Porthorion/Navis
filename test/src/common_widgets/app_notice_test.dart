@@ -5,6 +5,27 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:navis/src/common_widgets/app_notice.dart';
 
 void main() {
+  testWidgets('notice action invokes its callback and dismisses the notice', (
+    tester,
+  ) async {
+    final controller = AppNoticeController();
+    addTearDown(controller.dispose);
+    var actions = 0;
+    await tester.pumpWidget(
+      MaterialApp(home: AppNoticeHost(controller: controller)),
+    );
+    controller.show(
+      message: 'Update available',
+      actionLabel: 'View',
+      onAction: () => actions++,
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('View'));
+    await tester.pumpAndSettle();
+    expect(actions, 1);
+    expect(controller.notice, isNull);
+  });
+
   test(
     'raw ScaffoldMessenger calls are blocked outside app_notice.dart',
     () async {

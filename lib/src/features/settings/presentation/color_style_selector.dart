@@ -1,7 +1,9 @@
 import 'package:material_ui/material_ui.dart';
 import 'package:navis/l10n/app_localizations.dart';
 import 'package:navis/src/features/settings/presentation/appearance_layout.dart';
+import 'package:navis/src/theme/color_adjustment.dart';
 import 'package:navis/src/theme/navis_color_style.dart';
+import 'package:navis/src/theme/navis_color_style_data.dart';
 import 'package:navis/src/theme/navis_style_schemes.dart';
 import 'package:navis/src/theme/navis_tokens.dart';
 import 'package:navis/src/theme/navis_shape_data.dart';
@@ -9,14 +11,19 @@ import 'package:navis/src/theme/navis_shape_data.dart';
 /// The colour a seed swatch shows under [style]: the accent the style will
 /// actually use, taken from its dark scheme where accents sit at their
 /// clearest tone. Neutral shows the seed itself.
-Color styledSwatchColor(Color seed, NavisColorStyle style) {
-  if (style == NavisColorStyle.neutral) {
+Color styledSwatchColor(
+  Color seed,
+  NavisColorStyle style, {
+  ColorAdjustment adjustment = ColorAdjustment.none,
+}) {
+  if (style == NavisColorStyle.neutral && adjustment == ColorAdjustment.none) {
     return seed;
   }
   return buildStyledColorScheme(
     seed: seed,
     brightness: Brightness.dark,
     style: style,
+    adjustment: adjustment,
   ).primary;
 }
 
@@ -52,6 +59,7 @@ class ColorStyleSelector extends StatelessWidget {
     required this.brightness,
     required this.oled,
     required this.onChanged,
+    this.adjustment,
   });
 
   final NavisColorStyle currentStyle;
@@ -60,6 +68,7 @@ class ColorStyleSelector extends StatelessWidget {
   final Color seed;
   final Brightness brightness;
   final bool oled;
+  final ColorAdjustment? adjustment;
   final ValueChanged<NavisColorStyle> onChanged;
 
   static const double _gap = 12;
@@ -70,6 +79,8 @@ class ColorStyleSelector extends StatelessWidget {
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context)!;
     final theme = Theme.of(context);
+    final adjustment =
+        this.adjustment ?? NavisColorStyleData.of(context).adjustment;
     const styles = NavisColorStyle.values;
 
     return Padding(
@@ -109,6 +120,7 @@ class ColorStyleSelector extends StatelessWidget {
                           seed: seed,
                           brightness: brightness,
                           oled: oled,
+                          adjustment: adjustment,
                           style: style,
                         ),
                         onTap: () => onChanged(style),

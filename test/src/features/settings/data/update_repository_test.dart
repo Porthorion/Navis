@@ -255,6 +255,9 @@ void main() {
         if (channel != 'stable' && build == 43) {
           expect(result, isNotNull);
           expect(result!.downloadUrl, _assetUrl);
+          expect(result.version, '1.5.0-dev+999');
+          expect(result.buildNumber, 43);
+          expect(result.notificationKey, '1.5.0-dev+999+43');
         } else {
           expect(result, isNull);
           expect(repo.lastCheck!.rejectReason, 'version_not_newer');

@@ -4,6 +4,8 @@ import 'package:navis/src/features/settings/domain/update_delivery.dart';
 class UpdateInfo {
   const new({
     required this.tagName,
+    this.version,
+    this.buildNumber,
     required this.htmlUrl,
     required this.delivery,
     required this.sha256,
@@ -15,6 +17,15 @@ class UpdateInfo {
 
   /// The release tag, e.g. `v0.2.0`.
   final String tagName;
+
+  /// The verified manifest version, when available.
+  final String? version;
+
+  /// The verified manifest build, including builds sharing a dev version.
+  final int? buildNumber;
+
+  /// The persisted identity of the update announced in Library.
+  String get notificationKey => '${version ?? tagName}+${buildNumber ?? 0}';
 
   /// URL to the release notes or manual download page.
   final String htmlUrl;

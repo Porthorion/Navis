@@ -1,3 +1,5 @@
+import 'package:navis/src/theme/color_adjustment.dart';
+import 'package:navis/src/theme/navis_color_style_data.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:navis/src/theme/navis_color_style.dart';
@@ -15,6 +17,7 @@ void main() {
       NavisColorStyle style = NavisColorStyle.neutral,
       bool flat = false,
       NavisCornerStyle corners = NavisCornerStyle.rounded,
+      ColorAdjustment adjustment = ColorAdjustment.none,
     }) => cache.resolve(
       seed: seed,
       brightness: brightness,
@@ -22,6 +25,7 @@ void main() {
       style: style,
       flat: flat,
       corners: corners,
+      adjustment: adjustment,
     );
     final dark = resolve();
     expect(resolve(), same(dark));
@@ -43,6 +47,21 @@ void main() {
     expect(
       styled.colorScheme,
       buildDarkTheme(Colors.white, style: NavisColorStyle.night).colorScheme,
+    );
+    const adj = ColorAdjustment(vividness: 3, depth: -2);
+    final tuned = resolve(adjustment: adj);
+    expect(tuned.extension<NavisColorStyleData>()!.adjustment, adj);
+    expect(
+      resolve(adjustment: const ColorAdjustment(vividness: 3, depth: -2)),
+      same(tuned),
+    );
+    expect(
+      resolve(adjustment: const ColorAdjustment(vividness: 2, depth: -2)),
+      isNot(same(tuned)),
+    );
+    expect(
+      resolve(adjustment: const ColorAdjustment(vividness: 3, depth: -1)),
+      isNot(same(tuned)),
     );
     final seeded = resolve(seed: Colors.blue);
     expect(seeded.colorScheme, buildDarkTheme(Colors.blue).colorScheme);

@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:math';
 
@@ -16,6 +17,10 @@ import 'package:navis/src/routing/navigation_service.dart';
 import 'package:navis/src/features/settings/presentation/appearance_layout.dart';
 import 'package:navis/src/features/settings/presentation/appearance_options.dart';
 import 'package:navis/src/features/settings/presentation/color_style_selector.dart';
+import 'package:navis/src/features/settings/presentation/appearance_preset_controller.dart';
+import 'package:navis/src/features/settings/presentation/appearance_preset_pickers.dart';
+import 'package:navis/src/features/settings/presentation/color_tuning_panel.dart';
+import 'package:navis/src/theme/color_adjustment.dart';
 import 'package:navis/src/theme/corner_style_provider.dart';
 import 'package:navis/src/theme/dynamic_accent_provider.dart';
 import 'package:navis/src/theme/navis_color_style.dart';
@@ -67,6 +72,7 @@ class AppearanceSettingsScreen extends ConsumerWidget {
     );
     final libraryPageOrder = ref.watch(libraryPageOrderProvider);
     final isDesktop = resolveAdaptiveContextFor(context).useDesktopShell;
+    final tuningState = ref.watch(colorTuningControllerProvider);
     final options = AppearanceOptionSet(
       oledForAutoVisible: currentMode == 'system',
       oledForAuto: oledForAuto,
@@ -122,6 +128,9 @@ class AppearanceSettingsScreen extends ConsumerWidget {
           background.storageKey,
         );
       },
+      colorTuning: tuningState.tuning,
+      onOpenColorTuning: (anchor) => unawaited(_openColorTuning(anchor, ref)),
+      previewBrightness: previewBrightness,
       previewOled: previewOled,
     );
     // Quick Actions are now always-visible below the home logo; remove from
@@ -164,6 +173,10 @@ class AppearanceSettingsScreen extends ConsumerWidget {
                   const SizedBox(height: 8),
                 ],
 
+                // ── Looks ───────────────────────────────────────────────
+                const AppearanceLooksOption(),
+                const Divider(height: 32),
+
                 // ── Theme ───────────────────────────────────────────────
                 AppearanceHeading(
                   title: l10n.appearanceSectionTheme,
@@ -200,6 +213,7 @@ class AppearanceSettingsScreen extends ConsumerWidget {
                   },
                 ),
                 ...options.buildAll(const <AppearanceOptionKind>[
+                  AppearanceOptionKind.colorTuning,
                   AppearanceOptionKind.nightSchedule,
                 ]),
                 AppearanceHeading(
@@ -812,6 +826,79 @@ class _BlinkingEyeIconState extends State<_BlinkingEyeIcon>
   }
 }
 
+/// What Fine-Tune Colors paints from in Settings: the theme the app shows,
+/// including the dynamic album colour, read fresh from the providers.
+ColorTuningBasis _settingsTuningBasis(WidgetRef ref, Brightness platform) {
+  final mode = ref.read(themeModeProvider);
+  final oledForAuto = ref.read(oledForAutoProvider);
+  final brightness = switch (mode) {
+    'light' => Brightness.light,
+    'system' => platform,
+    _ => Brightness.dark,
+  };
+  return ColorTuningBasis(
+    seed: resolveColorSchemeSeedColor(
+      ref.read(effectiveColorSchemeSeedProvider),
+    ),
+    style: ref.read(effectiveColorStyleProvider),
+    brightness: brightness,
+    oled:
+        mode == 'oled' ||
+        (mode == 'system' && oledForAuto && brightness == Brightness.dark),
+    darkIsOled: mode == 'oled' || (mode == 'system' && oledForAuto),
+  );
+}
+
+/// Opens Fine-Tune Colors over the Settings controller: the rulers preview
+/// through it, save through it, and follow its tuning when a Look is applied,
+/// and the strips follow the effective theme (a new track's album colour).
+Future<void> _openColorTuning(BuildContext anchor, WidgetRef ref) async {
+  final controller = ref.read(colorTuningControllerProvider.notifier);
+  final platform = MediaQuery.platformBrightnessOf(anchor);
+  final basis = ValueNotifier<ColorTuningBasis>(
+    _settingsTuningBasis(ref, platform),
+  );
+  final live = ValueNotifier<ColorTuning>(
+    ref.read(colorTuningControllerProvider).tuning,
+  );
+  void refresh() => basis.value = _settingsTuningBasis(ref, platform);
+  final subscriptions = [
+    ref.listenManual(
+      colorTuningControllerProvider,
+      (_, state) => live.value = state.tuning,
+    ),
+    ref.listenManual(effectiveColorSchemeSeedProvider, (_, _) => refresh()),
+    ref.listenManual(effectiveColorStyleProvider, (_, _) => refresh()),
+    ref.listenManual(themeModeProvider, (_, _) => refresh()),
+    ref.listenManual(oledForAutoProvider, (_, _) => refresh()),
+  ];
+  try {
+    await showColorTuningPanel(
+      anchor,
+      basis: basis,
+      looksHint: true,
+      tuning: live,
+      onPreview: controller.preview,
+      onCommit: (tuning) async {
+        final failure = await controller.commit(tuning);
+        if (failure == null || !anchor.mounted) return;
+        showAppNotice(
+          anchor,
+          message: presetFailureMessage(AppLocalizations.of(anchor)!, failure),
+          level: AppNoticeLevel.error,
+        );
+      },
+      onPreviewEnd: controller.clearPreview,
+    );
+  } finally {
+    for (final subscription in subscriptions) {
+      subscription.close();
+    }
+    live.dispose();
+    basis.dispose();
+  }
+}
+
 /// Shared theme-mode control used by Appearance and first-run customization.
 class ThemeModeSelector extends StatelessWidget {
   const new({super.key, required this.currentMode, required this.onChanged});
@@ -932,7 +1019,11 @@ class ColorSchemeGrid extends StatelessWidget {
             runSpacing: 12,
             children: <Widget>[
               _ColorChip(
-                color: styledSwatchColor(defaultColorSchemeSeedColor, style),
+                color: styledSwatchColor(
+                  defaultColorSchemeSeedColor,
+                  style,
+                  adjustment: NavisColorStyleData.of(context).adjustment,
+                ),
                 seedColor: defaultColorSchemeSeedColor,
                 label: l10n.appearanceColorDefault,
                 isSelected: _normalizeColorSchemeSeed(currentSeed) == null,
@@ -942,7 +1033,11 @@ class ColorSchemeGrid extends StatelessWidget {
               ),
               for (final swatch in swatches)
                 _ColorChip(
-                  color: styledSwatchColor(swatch.color, style),
+                  color: styledSwatchColor(
+                    swatch.color,
+                    style,
+                    adjustment: NavisColorStyleData.of(context).adjustment,
+                  ),
                   seedColor: swatch.color,
                   label: swatch.label,
                   isSelected: currentSeed == swatch.colorValue,

@@ -1,3 +1,4 @@
+import 'package:navis/src/theme/navis_color_style.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -78,7 +79,7 @@ void main() {
         tester.view.physicalSize / tester.view.devicePixelRatio ==
             const Size(800, 600)) {
       // Tall enough that the style tiles, schedule rows and colour grid build.
-      tester.view.physicalSize = const Size(800, 900);
+      tester.view.physicalSize = const Size(800, 1300);
       tester.view.devicePixelRatio = 1;
       addTearDown(tester.view.reset);
     }
@@ -104,6 +105,11 @@ void main() {
         database,
         overrides: <Override>[
           appSettingsProvider.overrideWithValue(AsyncData(settings)),
+          // Schedule timing has provider coverage; this UI harness has no app
+          // container lifecycle to own the production boundary timer.
+          effectiveColorStyleProvider.overrideWithValue(
+            NavisColorStyle.parse(settings.colorStyle),
+          ),
           if (clearWhenSeen)
             pendingSetupHighlightsProvider.overrideWith(
               (ref) => ref.watch(_livePendingProvider),
@@ -161,6 +167,12 @@ void main() {
     }
     return container;
   }
+
+  /// The accent grid's custom-colour button.
+  final customColorAdd = find.descendant(
+    of: find.byType(ColorSchemeGrid),
+    matching: find.byIcon(Icons.add),
+  );
 
   AnimatedContainer chip(WidgetTester tester, String key) {
     return tester.widget<AnimatedContainer>(
@@ -338,9 +350,9 @@ void main() {
 
     // Scroll only as far as the custom-colour chip so the continuously
     // animating shape previews further down stay unbuilt.
-    await tester.ensureVisible(find.byIcon(Icons.add));
+    await tester.ensureVisible(customColorAdd);
     await tester.pump();
-    await tester.tap(find.byIcon(Icons.add));
+    await tester.tap(customColorAdd);
     // Shape previews animate continuously once scrolled near; wait only for
     // finite transitions.
     await tester.pump(const Duration(milliseconds: 500));
@@ -405,7 +417,7 @@ void main() {
       l10n.appearanceColorSchemeDynamicSub,
       startsWith('Dynamic Album Color is on'),
     );
-    final custom = tester.getBottomLeft(find.byIcon(Icons.add).first);
+    final custom = tester.getBottomLeft(customColorAdd);
     expect(tester.getTopLeft(dynamicRow).dy, greaterThan(custom.dy));
   });
 
@@ -562,7 +574,7 @@ void main() {
     }
 
     double top(WidgetTester tester, String text) =>
-        tester.getTopLeft(find.text(text)).dy;
+        tester.getTopLeft(find.text(text).first).dy;
 
     testWidgets('four sections in order with the expected controls', (
       tester,
@@ -575,6 +587,7 @@ void main() {
         l10n.appearanceOledForAutoLabel,
         l10n.appearanceSectionColor,
         l10n.appearanceColorStyleLabel,
+        l10n.appearanceColorTuningLabel,
         l10n.appearanceNightScheduleLabel,
         l10n.appearanceColorSchemeLabel,
         l10n.appearanceDynamicAlbumColorLabel,
@@ -799,6 +812,15 @@ void main() {
         l10n.appearanceFlatAreaArtworkTextLabel,
       ];
 
+      // "Now Playing" is also the section heading once that is built.
+      Finder areaText(String label) =>
+          label == l10n.appearanceFlatAreaNowPlayingLabel
+          ? find.descendant(
+              of: find.byKey(const ValueKey<String>('flatAreaNowPlaying')),
+              matching: find.text(label),
+            )
+          : find.text(label);
+
       testWidgets('stay hidden until Flat Surfaces is on', (tester) async {
         await pumpAppearance(tester);
         for (final label in areaLabels) {
@@ -811,15 +833,14 @@ void main() {
         await reveal(tester, find.text(l10n.appearanceFlatSurfacesLabel));
         final tops = <double>[
           tester.getTopLeft(find.text(l10n.appearanceFlatSurfacesLabel)).dy,
-          for (final label in areaLabels)
-            tester.getTopLeft(find.text(label)).dy,
+          for (final label in areaLabels) tester.getTopLeft(areaText(label)).dy,
         ];
         for (var i = 1; i < tops.length; i++) {
           expect(tops[i], greaterThan(tops[i - 1]));
         }
         // Sub-options are inset from their parent.
         expect(
-          tester.getTopLeft(find.text(areaLabels.first)).dx,
+          tester.getTopLeft(areaText(areaLabels.first)).dx,
           greaterThan(
             tester.getTopLeft(find.text(l10n.appearanceFlatSurfacesLabel)).dx,
           ),
@@ -842,7 +863,7 @@ void main() {
       ]) {
         testWidgets('${entry.$1} switch saves its bit', (tester) async {
           final container = await pumpAppearance(tester, flatSurfaces: true);
-          final finder = find.text(entry.$1);
+          final finder = areaText(entry.$1);
           await reveal(tester, finder);
           await tester.tap(finder);
           await tester.pump(const Duration(milliseconds: 100));
@@ -893,12 +914,12 @@ void main() {
           ),
         );
         for (final label in areaLabels) {
-          await reveal(tester, find.text(label));
+          await reveal(tester, areaText(label));
           expect(
             tester
                 .widget<SwitchListTile>(
                   find.ancestor(
-                    of: find.text(label),
+                    of: areaText(label),
                     matching: find.byType(SwitchListTile),
                   ),
                 )
@@ -1129,9 +1150,11 @@ void main() {
           highlights: SetupHighlight.values.toSet(),
           settle: false,
         );
-        expect(find.byType(NewFeatureTag), findsNWidgets(8));
+        expect(find.byType(NewFeatureTag), findsNWidgets(10));
         for (final label in <String>[
+          l10n.appearanceLooksLabel,
           l10n.appearanceColorStyleLabel,
+          l10n.appearanceColorTuningLabel,
           l10n.appearanceOledForAutoLabel,
           l10n.appearanceNightScheduleLabel,
           l10n.appearanceFlatSurfacesLabel,

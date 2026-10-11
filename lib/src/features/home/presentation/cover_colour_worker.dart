@@ -9,6 +9,7 @@ import 'dart:typed_data';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:material_ui/material_ui.dart';
+import 'package:navis/src/theme/color_adjustment.dart';
 import 'package:navis/src/theme/caption_tint.dart';
 import 'package:navis/src/theme/navis_color_style.dart';
 import 'package:navis/src/theme/navis_color_style_data.dart';
@@ -183,12 +184,19 @@ class CoverColourWorkerCore {
   List<int> averageGrid(Uint8List rgba, int width, int height) =>
       averageArgbGrid(rgba, width, height);
 
-  List<double> captionTint(int sampled, int styleIndex, bool dark) {
+  List<double> captionTint(
+    int sampled,
+    int styleIndex,
+    bool dark, [
+    int vividness = 0,
+    int depth = 0,
+  ]) {
     final tint = captionTintFor(
       Color(sampled),
       NavisColorStyleData(
         style: NavisColorStyle.values[styleIndex],
         dark: dark,
+        adjustment: ColorAdjustment(vividness: vividness, depth: depth),
       ),
     );
     return <double>[
@@ -290,6 +298,8 @@ class CoverColourWorkerCore {
 List<Object> _styleArgs(NavisColorStyleData style) => <Object>[
   style.style.index,
   style.dark,
+  style.adjustment.vividness,
+  style.adjustment.depth,
 ];
 
 /// Runs the work in this isolate. For tests and as a fallback; the app uses
@@ -310,7 +320,13 @@ class InlineCoverColourWorker implements CoverColourWorker {
     NavisColorStyleData style,
   ) async {
     final a = _styleArgs(style);
-    return core.captionTint(sampled.toARGB32(), a[0] as int, a[1] as bool);
+    return core.captionTint(
+      sampled.toARGB32(),
+      a[0] as int,
+      a[1] as bool,
+      a[2] as int,
+      a[3] as int,
+    );
   }
 
   @override
@@ -387,6 +403,8 @@ class IsolateCoverColourWorker implements CoverColourWorker {
               args[0] as int,
               args[1] as int,
               args[2] as bool,
+              args[3] as int,
+              args[4] as int,
             );
           case 'open':
             result = await core.openStore(

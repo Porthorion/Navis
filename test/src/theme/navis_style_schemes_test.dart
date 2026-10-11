@@ -3,6 +3,7 @@ import 'package:material_color_utilities/material_color_utilities.dart'
     show Hct;
 import 'package:material_ui/material_ui.dart';
 import 'package:navis/src/features/player/presentation/now_playing_artwork_background.dart';
+import 'package:navis/src/theme/color_adjustment.dart';
 import 'package:navis/src/theme/caption_tint.dart';
 import 'package:navis/src/theme/flat_band_tone.dart';
 import 'package:navis/src/theme/navis_color_style.dart';
@@ -56,6 +57,154 @@ void main() {
   ];
   const checked = <NavisColorStyle>[NavisColorStyle.neutral, ...styled];
 
+  group('colour adjustments', () {
+    const extremes = [
+      ColorAdjustment(vividness: -5),
+      ColorAdjustment(vividness: 5),
+      ColorAdjustment(depth: -5),
+      ColorAdjustment(depth: 5),
+      ColorAdjustment(vividness: -5, depth: -5),
+      ColorAdjustment(vividness: -5, depth: 5),
+      ColorAdjustment(vividness: 5, depth: -5),
+      ColorAdjustment(vividness: 5, depth: 5),
+    ];
+    for (final style in checked) {
+      for (final mode in _Mode.values) {
+        for (final entry in _seeds.entries) {
+          final base = _scheme(entry.value, mode, style);
+          final dark = mode != _Mode.light;
+          final oled = mode == _Mode.oled;
+          final label = '${style.name} ${mode.name} ${entry.key}';
+          test('$label identity and monotonic tuning', () {
+            expect(
+              adjustColorScheme(
+                base,
+                ColorAdjustment.none,
+                dark: dark,
+                oled: oled,
+              ),
+              same(base),
+            );
+            ColorScheme at(ColorAdjustment adj) => buildStyledColorScheme(
+              seed: entry.value,
+              brightness: dark ? Brightness.dark : Brightness.light,
+              oled: oled,
+              style: style,
+              adjustment: adj,
+            );
+            final muted = at(const ColorAdjustment(vividness: -5));
+            final vivid = at(const ColorAdjustment(vividness: 5));
+            // Every Color step is at least as colourful as the one before.
+            // The tolerance covers 8-bit rounding and the sRGB gamut edge.
+            var previous = _hct(muted.primary).chroma;
+            for (var v = -4; v <= 5; v++) {
+              final chroma = _hct(at(ColorAdjustment(vividness: v)).primary)
+                  .chroma;
+              expect(
+                chroma,
+                greaterThanOrEqualTo(previous - 0.6),
+                reason: 'v=$v',
+              );
+              previous = chroma;
+            }
+            // Brightness alone never changes the accents.
+            for (final d in const [-5, 5]) {
+              final shifted = at(ColorAdjustment(depth: d));
+              expect(shifted.primary, base.primary, reason: 'd=$d');
+              expect(shifted.secondary, base.secondary, reason: 'd=$d');
+              expect(shifted.tertiary, base.tertiary, reason: 'd=$d');
+            }
+            // Fidelity can map a saturated yellow seed to pure white. The
+            // post-pass deliberately preserves pure black/white roles.
+            if (_hct(entry.value).chroma >= 8 &&
+                base.primary != Colors.white &&
+                base.primary != Colors.black) {
+              expect(
+                _hct(vivid.primary).chroma,
+                greaterThan(_hct(muted.primary).chroma),
+              );
+            }
+            final lighter = at(const ColorAdjustment(depth: -5));
+            final deeper = at(const ColorAdjustment(depth: 5));
+            if (oled) {
+              expect(lighter.surface, Colors.black);
+              expect(deeper.surface, Colors.black);
+            } else {
+              expect(
+                _hct(deeper.surface).tone,
+                lessThan(_hct(lighter.surface).tone),
+              );
+            }
+          });
+          for (final adj in extremes) {
+            test('$label extremes v=${adj.vividness} d=${adj.depth}', () {
+              final scheme = buildStyledColorScheme(
+                seed: entry.value,
+                brightness: dark ? Brightness.dark : Brightness.light,
+                oled: oled,
+                style: style,
+                adjustment: adj,
+              );
+              for (final pair in _readablePairs(scheme).entries) {
+                final (fg, bg, minimum) = pair.value;
+                expect(
+                  _contrast(fg, bg),
+                  greaterThanOrEqualTo(minimum),
+                  reason: pair.key,
+                );
+              }
+              final containers = [
+                scheme.surfaceContainerLowest,
+                scheme.surfaceContainerLow,
+                scheme.surfaceContainer,
+                scheme.surfaceContainerHigh,
+                scheme.surfaceContainerHighest,
+              ];
+              if (oled) {
+                expect(scheme.surface, Colors.black);
+                expect(scheme.surfaceDim, Colors.black);
+                expect(scheme.surfaceContainerLowest, Colors.black);
+                for (final color in containers) {
+                  expect(_hct(color).chroma, lessThanOrEqualTo(3));
+                }
+              }
+              // Same roles as the default muddy-band test below: fills and
+              // surfaces, plus primary and secondary in dark modes. Light
+              // ink accents and inverse roles sit outside the rule.
+              for (final color in [
+                scheme.primaryContainer,
+                scheme.secondaryContainer,
+                scheme.tertiaryContainer,
+                scheme.surface,
+                scheme.surfaceDim,
+                scheme.surfaceContainerLowest,
+                ...containers,
+                if (dark) scheme.primary,
+                if (dark) scheme.secondary,
+              ]) {
+                final value = _hct(color);
+                if (style == NavisColorStyle.neutral && !isWarmHue(value.hue)) {
+                  continue;
+                }
+                if (value.tone >= 25 && value.tone <= 50) {
+                  expect(
+                    value.chroma,
+                    lessThanOrEqualTo(24.5),
+                    reason: '$color tone=${value.tone}',
+                  );
+                }
+              }
+              expect(scheme.onSurface, base.onSurface);
+              expect(scheme.onPrimary, base.onPrimary);
+              expect(scheme.error, base.error);
+              expect(scheme.onError, base.onError);
+            });
+          }
+        }
+      }
+    }
+  });
+
   group('styled schemes', () {
     for (final style in checked) {
       for (final mode in _Mode.values) {
@@ -64,64 +213,7 @@ void main() {
           final scheme = _scheme(entry.value, mode, style);
 
           test('$label keeps text and controls readable', () {
-            final pairs = <String, (Color, Color, double)>{
-              'onSurface/surface': (scheme.onSurface, scheme.surface, 7),
-              'onSurface/highest': (
-                scheme.onSurface,
-                scheme.surfaceContainerHighest,
-                7,
-              ),
-              'onSurfaceVariant/surface': (
-                scheme.onSurfaceVariant,
-                scheme.surface,
-                4.5,
-              ),
-              'onSurfaceVariant/highest': (
-                scheme.onSurfaceVariant,
-                scheme.surfaceContainerHighest,
-                4.5,
-              ),
-              'onPrimary/primary': (scheme.onPrimary, scheme.primary, 4.5),
-              'onPrimaryContainer/primaryContainer': (
-                scheme.onPrimaryContainer,
-                scheme.primaryContainer,
-                4.5,
-              ),
-              'onSecondary/secondary': (
-                scheme.onSecondary,
-                scheme.secondary,
-                4.5,
-              ),
-              'onSecondaryContainer/secondaryContainer': (
-                scheme.onSecondaryContainer,
-                scheme.secondaryContainer,
-                4.5,
-              ),
-              'onTertiary/tertiary': (scheme.onTertiary, scheme.tertiary, 4.5),
-              'onTertiaryContainer/tertiaryContainer': (
-                scheme.onTertiaryContainer,
-                scheme.tertiaryContainer,
-                4.5,
-              ),
-              'onError/error': (scheme.onError, scheme.error, 4.5),
-              'onErrorContainer/errorContainer': (
-                scheme.onErrorContainer,
-                scheme.errorContainer,
-                4.5,
-              ),
-              'onInverseSurface/inverseSurface': (
-                scheme.onInverseSurface,
-                scheme.inverseSurface,
-                4.5,
-              ),
-              'primary/surface': (scheme.primary, scheme.surface, 3),
-              'primary/highest': (
-                scheme.primary,
-                scheme.surfaceContainerHighest,
-                3,
-              ),
-              'error/surface': (scheme.error, scheme.surface, 3),
-            };
+            final pairs = _readablePairs(scheme);
             for (final pair in pairs.entries) {
               final (fg, bg, minimum) = pair.value;
               expect(
@@ -743,4 +835,49 @@ void main() {
       expect(_hct(data.artworkScrim).hue, closeTo(340, 12));
     });
   });
+}
+
+Map<String, (Color, Color, double)> _readablePairs(ColorScheme scheme) {
+  return <String, (Color, Color, double)>{
+    'onSurface/surface': (scheme.onSurface, scheme.surface, 7),
+    'onSurface/highest': (scheme.onSurface, scheme.surfaceContainerHighest, 7),
+    'onSurfaceVariant/surface': (scheme.onSurfaceVariant, scheme.surface, 4.5),
+    'onSurfaceVariant/highest': (
+      scheme.onSurfaceVariant,
+      scheme.surfaceContainerHighest,
+      4.5,
+    ),
+    'onPrimary/primary': (scheme.onPrimary, scheme.primary, 4.5),
+    'onPrimaryContainer/primaryContainer': (
+      scheme.onPrimaryContainer,
+      scheme.primaryContainer,
+      4.5,
+    ),
+    'onSecondary/secondary': (scheme.onSecondary, scheme.secondary, 4.5),
+    'onSecondaryContainer/secondaryContainer': (
+      scheme.onSecondaryContainer,
+      scheme.secondaryContainer,
+      4.5,
+    ),
+    'onTertiary/tertiary': (scheme.onTertiary, scheme.tertiary, 4.5),
+    'onTertiaryContainer/tertiaryContainer': (
+      scheme.onTertiaryContainer,
+      scheme.tertiaryContainer,
+      4.5,
+    ),
+    'onError/error': (scheme.onError, scheme.error, 4.5),
+    'onErrorContainer/errorContainer': (
+      scheme.onErrorContainer,
+      scheme.errorContainer,
+      4.5,
+    ),
+    'onInverseSurface/inverseSurface': (
+      scheme.onInverseSurface,
+      scheme.inverseSurface,
+      4.5,
+    ),
+    'primary/surface': (scheme.primary, scheme.surface, 3),
+    'primary/highest': (scheme.primary, scheme.surfaceContainerHighest, 3),
+    'error/surface': (scheme.error, scheme.surface, 3),
+  };
 }

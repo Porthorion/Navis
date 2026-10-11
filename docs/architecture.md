@@ -742,8 +742,8 @@ target-selection rules.
   delegate to one shared builder. Typography, component themes and theme
   extensions are defined only in that builder. `NavisApp` constructs only the
   active brightness/OLED variant and reuses a per-app eight-entry LRU cache
-  (`NavisThemeCache`) keyed by seed, brightness, OLED, style, Flat, Flat areas
-  and corners.
+  (`NavisThemeCache`) keyed by seed, brightness, OLED, style, Flat, Flat areas,
+  corners and colour adjustment.
   Unrelated settings rebuilds reuse complete themes; new album seeds build
   only the visible variant, and switching back can reuse a cached theme.
   OLED cards, dialogs and sheets
@@ -807,6 +807,100 @@ target-selection rules.
     returns `flatAreas` as an integer and `albumArtShade` / `albumArtColoredShade`
     as booleans; POST validates their types and mask bounds before any targeted
     writes. Either shade flag can be set independently.
+  - Colour and Brightness tuning (`ColorAdjustment`) layer on every style,
+    including Neutral, in Light, Dark and OLED. Vividness and depth are integer
+    steps −5…+5, default zero. `buildStyledColorScheme` runs the HCT
+    `adjustColorScheme` post-pass after the style recipe. Zero/zero returns the
+    original scheme without round-tripping any channels. Vividness multiplies
+    accent/fixed/container, surface and outline chroma by `1 + 0.1 × vividness`;
+    errors and on-colour text stay unchanged, as do pure black and white roles.
+    The mud guard covers the same roles as the muddy-band test (containers,
+    surfaces, and primary/secondary in dark modes): at tone 24.5–50.5 their
+    chroma is capped at 24, but never below the style's own (muted) chroma, so
+    every Color step is monotonic and a Brightness-only change leaves the
+    accents untouched. Light ink accents and inverse roles are not capped.
+    Pure black/white accents remain unchanged at every value.
+    OLED containers target chroma at most 1.5 to keep decoded RGB chroma
+    below 3. Depth moves the surface family and outlineVariant:
+    Light +5 lowers tone by 4.5, −5 lifts by 4 (cap 99); Dark ±5 moves tone
+    by ∓6 (floor 2). OLED surface, surfaceDim and surfaceContainerLowest stay
+    black; the other surface containers move at most ±3 tones (floor 2).
+    The Light deeper range is smaller than the initial −7 proposal to preserve
+    the existing 3:1 accent contrast on Pastel's highest surface.
+  - Schema 101 (unreleased) stores `color_vividness`,
+    `surface_depth_light`, and `surface_depth_dark` with zero defaults, plus
+    the `appearance_looks` JSON TEXT library (default `[]`) and nullable
+    `selected_appearance_look_id`. Tuning presets and their selected id were
+    removed from this unshipped schema; Looks are the only appearance preset
+    system. Every 100→101 column addition is guarded;
+    the branch-only `surface_depth` definition was replaced before shipping.
+    `ColorTuning` clamps all three integer steps to −5…+5 and resolves to the
+    unchanged `ColorAdjustment` with `forMode(dark:)`: Light uses light depth,
+    Dark and OLED share dark depth. `app.dart` resolves the active variant
+    before looking up the existing theme cache. Theme extensions, caption
+    workers, memo keys and cover caches still carry only resolved adjustments.
+    `colorTuningProvider` exposes persisted tuning (identity while loading or
+    failed); `colorTuningPreviewProvider` offers nullable `preview` / `clear`,
+    and `effectiveColorTuningProvider` combines preview ?? persisted. Setup
+    previews its draft and Finish diffs all three axes, preserving concurrent
+    changes to unedited axes. Settings uses the effective colour style for the
+    Fine-Tune band, so a scheduled Night window agrees with the rendered app;
+    the Night Schedule control still receives the saved style.
+  - `ColorTuningController` exposes tuning state, `preview`, `clearPreview`
+    and `commit`, sharing the existing settings stream, preview provider and
+    targeted DAO writes. It has no preset library or selection state.
+    Look names reuse playback's `validatePresetName` in `common/preset_names.dart`
+    (trim, nonempty, reserved Default, case-insensitive uniqueness excluding
+    the target). Look libraries decode leniently, discarding corrupt records
+    and duplicate ids or names. Save returns `PresetResult<AppearanceLook>`;
+    update, rename, delete and restore return nullable `PresetFailure`.
+  - Looks (`AppearanceLook`, version 1, `AppearanceSnapshot`,
+    `AppearanceLooksController`) capture all appearance choices: theme mode,
+    OLED-for-Auto, saved colour style, nullable accent seed, dynamic album
+    colour, Night Schedule enable/start/end, both album-title shade flags,
+    all three tuning values directly, Flat switch
+    and area mask, corners, library/carousel/Now Playing/artist artwork shapes,
+    artwork size and legacy grid-column override, density, artist view mode,
+    and Now Playing background. Excluded: Home section order/visibility,
+    page visibility/order and Desktop Navbar (they organize content and
+    navigation), and language, saved accent swatches and Home recommendation
+    auto-advance (a Look changes how Navis looks, never its language, your
+    saved colours or behaviour).
+    `capture` records nullable-setting clear flags so a saved automatic seed or
+    grid size can be restored. JSON decoding is per field: missing,
+    unknown or invalid values preserve current settings; explicit null clears
+    those two nullable settings. Unsupported Look versions are discarded.
+    `applyAppearanceSnapshot` writes supplied appearance columns in one DAO
+    transaction. Decoding silently ignores the retired `tuningPresetId` key;
+    captured tuning values always apply. The controller offers `apply`,
+    `restore`, `saveAsNew`, `update`, `rename` and `delete`; its selected id is
+    the first Look exactly matching a fresh capture by value.
+    `apply(id)` returns the complete appearance captured **before** applying
+    the Look, or null for an unknown id or failure. The UI can keep that
+    snapshot for Undo and pass it to `restore(previous)`. Apply and restore
+    update appearance and the derived selected marker in one DAO transaction.
+    Restoration includes theme mode, automatic (null) accent seed, null legacy
+    grid-column override, and all three tuning values. Undo restores Custom
+    when no Look matches, or re-selects a previously matching Look by value.
+    Reset restores appearance defaults and retains the Look library.
+    Controllers serialize writes and acknowledge the committed row through
+    the existing settings watch before publishing results; there is no second
+    persistence store.
+  - Artwork adaptation scales each style's maximum chroma with vividness and
+    shifts its Light/Dark tone window by depth; Neutral only scales chroma.
+    Artwork scrims keep their existing recipe and Now Playing retains its OLED
+    tint-tone cap. Caption worker messages carry vividness and depth, and the
+    existing caption memo and album-card dedupe keys include both values.
+    No separate cover cache is introduced. `SetupHighlight.colorTuning`
+    uses the stable `colorTuning` key for the 1.5.0 setup registry.
+    `/v1/presentation/appearance` accepts/returns `colorVividness` and
+    `surfaceDepthLight` / `surfaceDepthDark`; all must be integers −5…+5,
+    with the whole request
+    validated before DAO writes. Omitting an axis preserves its saved value.
+    GET also returns derived selected tuning/Look ids and library counts.
+    Clone-only `GET /v1/presentation/looks` lists ids and names;
+    `POST /v1/presentation/looks/apply` applies `{"id":"..."}` through the
+    production controller, returning 404 for an unknown id.
   - Flat (`flatSurfacesProvider`, `NavisColorStyleData.flat`) is orthogonal to
     theme mode and colour style: it removes depth effects so the style's solid
     colours read stronger. `app.dart` passes it to `buildLightTheme`,
@@ -925,29 +1019,110 @@ target-selection rules.
     other styles are unchanged. Flat also drops the album-card caption fade
     for a solid `CaptionTint.fill` block, the selected-swatch glow and the
     anchored popover's black shadow.
+  - Fine-Tune Colors is one row in Appearance (`ColorTuningOption` in
+    `appearance_options.dart`: title, New tag, a summary subtitle and a
+    trailing chevron, like the switch rows beside it) that opens a panel
+    (`color_tuning_panel.dart`, `showColorTuningPanel`) through the Speed and
+    Pitch shell, `showQuickPanel`: an anchored popover (440 wide, up to 680
+    high) on desktop, a sheet capped at 88% on touch layouts, with the title,
+    a live summary and Reset pinned. The row's summary is "Default" or the
+    steps that are not zero ("Intensity +2 · Brightness −1", Brightness being
+    the mode on screen; with only the other mode adjusted, "Light Brightness
+    +3"); the panel header shows the
+    same summary.
+    The panel body contains two rulers, **Intensity** (Muted to Vivid) and
+    **Brightness** (Lighter to Deeper), each `ColorTuningRulerRow`: the Speed and Pitch `AdjustmentRuler`
+    in whole-step mode (`snapStep: 1`, value = the step −5…+5, 64 px a step,
+    small ticks every 8 px between steps, the haptics described under the
+    ruler below), laid out like the Speed and Pitch row (− stepper, ruler, +
+    stepper via the shared `RulerStepButton`, a readout of "Default", "+2",
+    "−3", end captions that stay left-to-right in RTL). A compact **Light |
+    Dark** `SegmentedButton` under Brightness picks which mode's value that
+    ruler edits (Dark covers OLED, which shares Dark's value); it starts on the
+    mode on screen and changes no value by itself. When it is on the other
+    mode, a one-line caption says where the change shows ("Applies in Light
+    mode", "Applies in Dark and OLED"). Intensity is shared by every mode.
+    Each ruler carries a `RulerBand`: eleven colours, one per step, built with
+    `buildStyledColorScheme` from a `ColorTuningBasis` (previewed seed, style,
+    the mode on screen and whether it is OLED, and whether Dark would be OLED)
+    and the other axis, never from the ambient theme, so they hold still while
+    the app recolours around them. The ruler paints them as one linear gradient
+    with a stop on each step's tick (clipped to the rounded strip, faded at the
+    edges, hairline frame; each tick takes the ink of the nearest step).
+    Intensity paints `primary` in the mode on screen (its needle is the live
+    primary, with `onPrimary` ticks). Brightness paints the selected mode's
+    `surface`, so Light shows paper and Dark its own surfaces, or
+    `surfaceContainerHigh` for OLED, where surface stays black.
+    The host owns the values: `showColorTuningPanel` takes a
+    `ValueListenable<ColorTuningBasis>` and a `ValueListenable<ColorTuning>`
+    that it keeps, plus `onPreview` (each whole
+    step while a ruler moves), `onCommit` (drag release, stepper, keyboard,
+    Reset) and `onPreviewEnd` (the panel went away mid-drag). The body keeps
+    what it shows, follows the notifier when something else changes the value
+    (applying a Look, a failed save restoring the old value) and glides the
+    rulers there, and never yanks a ruler mid-gesture for the echo of an
+    earlier preview. Reset commits `ColorTuning.none` and is disabled at
+    Default. Settings keeps the tuning notifier in step with
+    `colorTuningControllerProvider`, maps `onPreview` to
+    `ColorTuningController.preview` and `onCommit` to `commit` (a persistence
+    failure shows an error notice and the controller restores the saved value),
+    and passes `onPreviewEnd: clearPreview`; setup keeps a notifier of its own
+    over its draft and writes `colorVividness` and both depths on every call.
+    Settings also feeds the basis from providers (`effectiveColorSchemeSeedProvider`,
+    which includes the Dynamic Album Color, `effectiveColorStyleProvider`,
+    theme mode and Use OLED When Dark), so the strips, the needle and the
+    hint follow the track while the panel is open; setup passes a fixed basis
+    built from its draft.
+  - The panel adds two one-line `bodySmall` notes. Beside Reset, only where the
+    host has Looks (`looksHint`, Settings) and the values are not Default:
+    "Save this as part of a Look in Appearance." Under the Intensity captions,
+    when the −5 and +5 primaries of the current basis (same depth and mode)
+    differ by less than 11 HCT chroma: "Pick an accent color to see
+    Intensity." when the seed's own chroma is under `achromaticSeedChroma`
+    (8), else "This style is already close to its most colorful here." The
+    threshold comes from measuring the spread over hues, seed chromas, styles
+    and Light/Dark/OLED: only a colourless seed in Neutral Dark/OLED and
+    Pastel Dark in warm hues (about 10) fall below it.
+  - Fine-Tune Colors has no preset picker. Its intensity and Light/Dark
+    brightness values are saved as part of Looks. Setup continues to edit its
+    draft until Finish.
+  - `AdjustmentRuler` (Speed and Pitch and Fine-Tune) draws its focus outline
+    only while `FocusManager.highlightMode` is traditional (keyboard), so a
+    tap or drag leaves no outline.
+  - Looks have one control, `AppearanceLooksOption` (same file), at the top of
+    Settings › Appearance above Theme and tagged by
+    `SetupHighlight.appearanceLooks`: a heading, a subtitle and a
+    `PresetPicker` over the saved Looks, with "Custom" while the appearance
+    matches none and a ⋮ menu offering Save Current as New Look, Update,
+    Rename and Delete through `AppearanceLooksController`; choosing a Look
+    applies it and raises an "Applied {name}" notice with Undo (six seconds,
+    `showAppNotice`) that calls `restore` with the snapshot `apply` returned;
+    a failed restore shows the existing failure notice. The clone-only apply
+    endpoint offers no Undo. With no Looks the picker reads Custom and the
+    subtitle points at the menu. Setup does not show Looks (they write settings directly).
   - Decision record:
     [decisions/2026-10-07-colour-styles.md](decisions/2026-10-07-colour-styles.md).
   - Settings › Appearance (`appearance_settings_screen.dart`) has four
-    sections under one `AppearanceHeading` (`appearance_layout.dart`):
-    Theme (Theme Mode, Use OLED When Dark in Auto only),
-    Color (Color Style, Night Schedule, Accent Color, then Dynamic Album Color
-    directly under the accent grid, whose note names the switch), Shape & Layout (Flat
-    Surfaces, Corner Style, Artwork Shape with its three selectors, Artwork
-    Theme (Theme Mode, Use OLED When Dark in Auto only, Night Schedule),
-    Color (Color Style, Accent Color, then Dynamic Album Color directly under
-    the accent grid, whose note names the switch, then Album Art Shade with its
-    Use Cover Color sub-switch), Shape & Layout (Flat Surfaces with its three area switches
-    revealed while Flat is on, Corner Style, Artwork Shape with its three selectors, Artwork
-    Size, Density, Artist View Mode) and Now Playing (Now Playing Background).
-    Home Sections, Page Visibility and Desktop Navigation stay collapsed
-    below. Night Schedule shows its explanation while off and the time pills
-    while on; with Night as the chosen style the switch is locked off and says
-    so. `app.dart` re-checks the scheduled style when the app resumes.
+    sections under one `AppearanceHeading` (`appearance_layout.dart`), below
+    the Looks picker:
+    Theme (Theme Mode, Use OLED When Dark in Auto only), Color (Color Style,
+    the Fine-Tune Colors row, Night Schedule, Accent Color, then Dynamic Album Color
+    directly under the accent grid, whose note names the switch, then Album Art
+    Shade with its Use Cover Color sub-switch), Shape & Layout (Flat Surfaces
+    with its three area switches revealed while Flat is on, Corner Style,
+    Artwork Shape with its three selectors, Artwork Size, Density, Artist View
+    Mode) and Now Playing (Now Playing Background). Home Sections, Page
+    Visibility and Desktop Navigation stay collapsed below. Night Schedule
+    shows its explanation while off and the time pills while on; with Night as
+    the chosen style the switch is locked off and says so. `app.dart` re-checks
+    the scheduled style when the app resumes.
   - Settings and setup share the option widgets and one `AppearanceOptionSet`
     (`appearance_options.dart`), whose `AppearanceOptionKind` order (OLED,
-    Night Schedule, Flat Surfaces, Corner Style, Density, Now Playing
-    Background) is the relative order in both places; Night Schedule sits under
-    Color in Settings and beside Color Style in setup. `AppearanceLayout`, an
+    Fine-Tune Colors, Night Schedule, Flat Surfaces, Corner Style, Density,
+    Now Playing Background) is the relative order in both places; Fine-Tune
+    Colors and Night Schedule sit under Color Style in Settings, Night
+    Schedule beside Color Style in setup and Fine-Tune Colors under "More
+    appearance options". `AppearanceLayout`, an
     inherited widget, gives every shared control its left gutter (16 in
     Settings, 0 in setup) so headings and controls share one edge.
 - `navis_tokens.dart`:
@@ -1282,6 +1457,8 @@ Reusable UI components used across features:
 - **Actions**
   - `star_button.dart` - Star/unstar action
   - `context_menu.dart` - Bottom sheet context menu
+  - `preset_picker.dart` - `PresetPicker` (dropdown plus save, update, rename
+    and delete menu over any named presets) and `TextEntryDialog`
 
 ### Hero Animation Pattern
 
@@ -1526,20 +1703,16 @@ markers in a transaction; the integrations settings dump exposes all three.
 
 The look step shows the appearance options through the same callback-driven
 widgets as Settings › Appearance (`settings/presentation/appearance_options.dart`).
-Theme Mode, Color Style, Night Schedule and Accent Color are always visible; a
-"More appearance options" group (`SettingsCollapsibleGroup`, children built
-only while open) holds Use OLED When Dark (Auto only), Flat Surfaces, Corner
-Style, Density and Now Playing Background, in Settings' relative order. It
-starts open when any of them carries a pending tag (OLED only counts in Auto)
-and closed otherwise. The step shows the "Scroll for more" hint like the other
-Theme Mode, Color Style and Accent Color are always visible; a "More appearance
-options" group (`SettingsCollapsibleGroup`, children built only while open)
-holds Use OLED When Dark (Auto only), Night Schedule, Flat Surfaces (with its
-Panels and Shadows, Now Playing and Text Over Artwork switches while Flat is
-on), Corner Style, Density and Now Playing Background, in Settings' relative
-order; Album Art Shade (with Use Cover Color) sits after the accent hint, outside the group.
-It starts open when any of them carries a pending tag (OLED only counts in
-Auto, the Flat areas only while Flat is on) and closed otherwise. The step shows the "Scroll for more" hint like the other
+Theme Mode, Color Style, Night Schedule and Accent Color are always visible;
+Album Art Shade (with Use Cover Color) sits after the accent hint. A "More
+appearance options" group (`SettingsCollapsibleGroup`, children built only
+while open) holds Use OLED When Dark (Auto only), the Fine-Tune Colors row
+(its panel edits the draft and has no preset picker), Flat
+Surfaces (with its Panels and Shadows, Now Playing and Text Over Artwork
+switches while Flat is on), Corner Style, Density and Now Playing Background,
+in Settings' relative order. It starts open when any of them carries a pending
+tag (OLED only counts in Auto, the Flat areas only while Flat is on) and closed
+otherwise. The step shows the "Scroll for more" hint like the other
 steps. Choices write only to the draft that Finish
 saves through `SettingsRepository.saveOnboardingChanges`: it compares against
 the hydrated entry snapshot and uses existing targeted DAO writers, preserving
@@ -2751,6 +2924,22 @@ Settings › Integrations › Updates holds the automatic check
 (`updates.automatic`); About keeps "Check now", which only the master and
 `updates` service switches block.
 
+Home and Library pulls (including Library tabs and Liked see-all pages) call
+`checkForUpdatesFromPull`. This uses the same integrations policy and forced
+check request, bypassing the 24-hour throttle only when the master, Updates
+service and `updates.automatic` switches are on. A temporary manual listener
+keeps the auto-disposed provider active until it resolves and closes on
+completion or widget disposal. Home uses its existing update banner; Library
+shows an info notice, “Update available”, with a View action opening the
+existing update dialog, once per available version and build. `UpdateInfo`
+retains the verified manifest version and build in `notificationKey`, so a
+newer dev build sharing a version can show another notice. `UpdateCheckStore`
+reads and merges `lastCheckAt` and `notifiedVersion` in the same JSON file;
+both writers tolerate corrupt state and preserve the other key. Only Library
+notice calls record the key after showing; Home's banner is unchanged.
+Null and error results are silent. Neither refresh
+callback waits for the update check.
+
 - `data/update_repository.dart` — fetches the channel's signed manifest from
   `AppConstants.updateBaseUrl` (R2, see [release-r2.md](release-r2.md)), verifies it,
   and selects the platform asset by manifest key using `detectInstallMode()`. Returns
@@ -3178,10 +3367,17 @@ Shift+Arrow and speed buttons step 0.10, independent pitch buttons step one
 semitone; holding a − or + button repeats every 120 ms and persists once on
 release. Speed quick-pick chips (0.5×, 0.75×, 1×, 1.25× and 1.5×, filtered by the
 backend range) select values in one tap. The chips sit in equal-width slots, so
-1× stays centred. Large text falls back to a centred wrap. Presets use a `DropdownMenu` (Custom while edited, Normal,
-then saved presets; unsupported ones disabled) with a ⋮ menu to save, update,
-rename or delete (with confirmation) the current or originating preset. Exact entry allows two decimals and decimal
-commas, validated inline.
+1× stays centred. Large text falls back to a centred wrap. Presets use the shared, data-driven `PresetPicker`
+(`common_widgets/preset_picker.dart`): a `DropdownMenu` over `PresetPickerEntry`
+values (Custom while `selectedId` is null, Normal, then saved presets;
+unsupported ones disabled with a tooltip) and a ⋮ menu to save as new, update,
+rename or delete (with confirmation) the current or originating preset
+(`updateId` and `manageId`). `PresetPickerLabels` carries every string, and the
+async callbacks (`onSelect`, `onSaveNew`, `onUpdate`, `onRename`, `onDelete`)
+own persistence; `onSaveNew` and `onRename` return the error shown inline in
+the name dialog. The panel supplies the Speed and Pitch wording and
+`PlaybackAdjustmentController` calls. Its `TextEntryDialog` also serves exact
+entry, which allows two decimals and decimal commas, validated inline.
 
 Rulers move continuously under a fixed marker with ticks at 0.01 and labels at
 0.10 (eight logical pixels per minor tick). They sit flat on the panel with no
@@ -3202,7 +3398,12 @@ finite bounds so reversing at an endpoint responds immediately. While dragging,
 0.01 line gives a selection click (throttled to one per 12 ms of pointer time),
 0.10 lines a light impact and the neutral value a medium impact; release
 settling and keyboard steps stay silent, and the platform touch-feedback setting
-applies. The − and + buttons sit at the ends of the ruler they move, in a row
+applies. A whole-step ruler (`snapStep`, the colour rulers) uses
+`snapTickFeedback` instead: a selection click on each line, one every 8 px
+(same 12 ms throttle) and drawn as small ticks, a light impact exactly when the
+rounded step changes, which is when the preview colour changes, and a medium
+impact when that step is the reset value (0); crossing the zero line itself
+stays a click. The − and + buttons sit at the ends of the ruler they move, in a row
 kept left-to-right because the scale always puts lower values on the left.
 Speed has no separate Reset (its 1× chip does that); Pitch shows Reset beside
 its heading only while it differs from 0 semitones. Endpoint feedback and the
@@ -4012,7 +4213,10 @@ collaborators does not read locale settings or open the database for localizatio
    `triggerLibrarySyncFromPull` (`library_sync_provider.dart`), which returns
    once the controller reports running or failed (at most 800 ms) so the pull
    spinner does not stay for the whole sync; progress and failures show in
-   `LibrarySyncStatusBanner`, which those Liked pages show too. Artist detail
+   `LibrarySyncStatusBanner`, which those Liked pages show too. Home and these
+   Library pulls also start a policy-gated, forced app update check without
+   waiting for it; Library shows a notice only when an update is available
+   (see Update Checker). Artist detail
    uses `RefreshIndicator.noSpinner` because its own header shows the refresh.
    One startup task owns the pass
    through session resets; epoch checks reject stale completion, and engine

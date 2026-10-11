@@ -1,4 +1,6 @@
 import 'package:flutter/foundation.dart';
+import 'package:navis/src/theme/color_adjustment.dart';
+import 'package:navis/src/features/settings/domain/appearance_presets.dart';
 import 'package:navis/src/features/settings/domain/flat_areas.dart';
 import 'package:navis/src/features/settings/domain/night_schedule.dart';
 import 'package:navis/src/database/daos/app_settings_dao.dart';
@@ -52,6 +54,12 @@ class AppSettingsModel {
     this.nightScheduleEndMinutes = NightSchedule.defaultEndMinutes,
     this.flatSurfaces = false,
     this.flatAreas = const FlatAreas(),
+    this.colorVividness = 0,
+    this.surfaceDepthDark = 0,
+    this.appearanceLooks = const [],
+    this.selectedAppearanceLookId,
+    this.customColorPresets = const [],
+    this.surfaceDepthLight = 0,
     this.albumArtShade = false,
     this.albumArtColoredShade = false,
     required this.colorSchemeSeed,
@@ -135,6 +143,12 @@ class AppSettingsModel {
       nightScheduleEndMinutes = NightSchedule.defaultEndMinutes,
       flatSurfaces = false,
       flatAreas = const FlatAreas(),
+      colorVividness = 0,
+      surfaceDepthDark = 0,
+      appearanceLooks = const [],
+      selectedAppearanceLookId = null,
+      customColorPresets = const [],
+      surfaceDepthLight = 0,
       albumArtShade = false,
       albumArtColoredShade = false,
       colorSchemeSeed = null,
@@ -218,6 +232,18 @@ class AppSettingsModel {
   final int nightScheduleEndMinutes;
   final bool flatSurfaces;
   final FlatAreas flatAreas;
+  final int colorVividness;
+  final int surfaceDepthDark;
+  final List<AppearanceLook> appearanceLooks;
+  final String? selectedAppearanceLookId;
+  final List<int> customColorPresets;
+  final int surfaceDepthLight;
+  ColorTuning get colorTuning => ColorTuning(
+    vividness: colorVividness,
+    lightDepth: surfaceDepthLight,
+    darkDepth: surfaceDepthDark,
+  );
+
   final bool albumArtShade;
   final bool albumArtColoredShade;
   final int? colorSchemeSeed;
@@ -383,6 +409,13 @@ class AppSettingsModel {
     int? nightScheduleEndMinutes,
     bool? flatSurfaces,
     FlatAreas? flatAreas,
+    int? colorVividness,
+    int? surfaceDepthDark,
+    List<AppearanceLook>? appearanceLooks,
+    String? selectedAppearanceLookId,
+    bool clearSelectedAppearanceLookId = false,
+    List<int>? customColorPresets,
+    int? surfaceDepthLight,
     bool? albumArtShade,
     bool? albumArtColoredShade,
     int? colorSchemeSeed,
@@ -494,6 +527,14 @@ class AppSettingsModel {
           nightScheduleEndMinutes ?? this.nightScheduleEndMinutes,
       flatSurfaces: flatSurfaces ?? this.flatSurfaces,
       flatAreas: flatAreas ?? this.flatAreas,
+      colorVividness: colorVividness ?? this.colorVividness,
+      surfaceDepthDark: surfaceDepthDark ?? this.surfaceDepthDark,
+      appearanceLooks: appearanceLooks ?? this.appearanceLooks,
+      selectedAppearanceLookId: clearSelectedAppearanceLookId
+          ? null
+          : selectedAppearanceLookId ?? this.selectedAppearanceLookId,
+      customColorPresets: customColorPresets ?? this.customColorPresets,
+      surfaceDepthLight: surfaceDepthLight ?? this.surfaceDepthLight,
       albumArtShade: albumArtShade ?? this.albumArtShade,
       albumArtColoredShade: albumArtColoredShade ?? this.albumArtColoredShade,
       colorSchemeSeed: clearColorSchemeSeed

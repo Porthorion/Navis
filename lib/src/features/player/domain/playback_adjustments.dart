@@ -93,10 +93,6 @@ class PlaybackPreset {
 
   static const noneId = 'none';
 
-  /// Names that would be confused with the built-in Normal choice. Stored
-  /// presets are still decoded leniently so older data is never dropped.
-  static bool isReservedName(String name) =>
-      const {'none', 'normal'}.contains(name.trim().toLowerCase());
   static const none = PlaybackPreset(
     id: noneId,
     name: 'None',

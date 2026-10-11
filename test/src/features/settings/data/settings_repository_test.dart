@@ -5,6 +5,7 @@ import 'package:navis/src/features/settings/domain/now_playing_background.dart';
 import 'package:navis/src/database/navis_database.dart';
 import 'package:navis/src/features/settings/data/settings_repository.dart';
 import 'package:navis/src/features/settings/domain/app_settings.dart';
+import 'package:navis/src/theme/color_adjustment.dart';
 import 'package:navis/src/theme/navis_corner_style.dart';
 
 import '../../../../helpers/test_database.dart';
@@ -22,6 +23,57 @@ void main() {
     tearDown(() async {
       await database.close();
     });
+
+    test(
+      'color tuning round trips and setup preserves concurrent unchanged axes',
+      () async {
+        final initial = await repository.getSettings();
+        expect(initial.colorVividness, 0);
+        expect(initial.surfaceDepthLight, 0);
+        final draft = initial.copyWith(
+          colorVividness: -3,
+          surfaceDepthLight: 4,
+        );
+        await repository.saveSettings(draft);
+        final saved = await repository.getSettings();
+        final watched = await repository.watchSettings().first;
+        expect(saved.colorVividness, -3);
+        expect(saved.surfaceDepthLight, 4);
+        expect(watched.colorVividness, -3);
+        expect(watched.surfaceDepthLight, 4);
+        await database.appSettingsDao.updateColorTuning(
+          const ColorTuning(vividness: 2, lightDepth: -5, darkDepth: 3),
+        );
+        await repository.saveOnboardingChanges(
+          saved,
+          saved.copyWith(colorVividness: 5),
+        );
+        final setup = await repository.getSettings();
+        expect(setup.colorVividness, 5);
+        expect(setup.surfaceDepthLight, -5);
+        expect(setup.surfaceDepthDark, 3);
+        await repository.saveOnboardingChanges(
+          saved,
+          saved.copyWith(themeMode: 'light'),
+        );
+        expect((await repository.getSettings()).colorVividness, 5);
+        expect((await repository.getSettings()).surfaceDepthLight, -5);
+        await repository.saveOnboardingChanges(
+          saved,
+          saved.copyWith(surfaceDepthDark: -4),
+        );
+        final darkEdited = await repository.getSettings();
+        expect(
+          darkEdited.colorTuning,
+          const ColorTuning(vividness: 5, lightDepth: -5, darkDepth: -4),
+        );
+        await repository.resetDefaults();
+        expect((await repository.getSettings()).colorVividness, 0);
+        expect((await repository.getSettings()).surfaceDepthLight, 0);
+        expect((await repository.getSettings()).surfaceDepthDark, 0);
+      },
+      skip: !sqliteAvailable,
+    );
 
     test(
       'setup Finish preserves values changed elsewhere after entry',

@@ -962,7 +962,22 @@ targeted production DAO methods. The same endpoint also accepts `themeMode`
 `colorSchemeSeed` (unsigned 32-bit integer or null to clear), `dynamicAlbumColor`,
 `oledForAuto` and `flatSurfaces` (booleans), `cornerStyle`
 (rounded/soft/square), `nowPlayingBackground` (tinted/artwork/plain), and
-`density` (comfortable/compact). `nightSchedule` accepts a nonempty object
+`density` (comfortable/compact). `flatAreas` is an integer mask 0–7;
+`albumArtShade` and `albumArtColoredShade` are booleans. Colour tuning uses
+`colorVividness`, `surfaceDepthLight` and `surfaceDepthDark` (integers
+−5…+5, default 0); omitted axes retain their values and targeted writes use
+`updateColorTuning`. The old branch-only `surfaceDepth` key is rejected.
+GET also returns `selectedAppearanceLookId` and `appearanceLookCount`; the id
+is derived by matching current appearance values. Looks are the only appearance
+presets; tuning preset ids and counts are no longer returned.
+Authenticated, clone-only `GET /v1/presentation/looks` returns
+`{"looks":[{"id":"...","name":"..."}]}`. Clone-only
+`POST /v1/presentation/looks/apply {"id":"..."}` applies the Look through
+`AppearanceLooksController`, returns 200 with its id, or 404 for an unknown id.
+Its three captured tuning values apply directly. Unknown keys or invalid id
+types return 400;
+normal authentication and mutation gating apply to both endpoints.
+`nightSchedule` accepts a nonempty object
 with any of `enabled` (boolean), `start` and `end` (integer minutes 0–1439).
 Omitted fields retain their values. The entire body is validated before any
 write; GET and POST return the resulting appearance values, including the

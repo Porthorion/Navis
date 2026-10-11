@@ -245,6 +245,8 @@ class UpdateRepository {
       record(tag: tag);
       return UpdateInfo(
         tagName: tag,
+        version: payloadVersion,
+        buildNumber: build as int?,
         htmlUrl: htmlUrl,
         delivery: delivery,
         releaseNotes: payload['notes'] as String?,

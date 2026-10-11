@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:math' as math;
 
+import 'package:flutter/foundation.dart' show listEquals;
 import 'package:flutter/gestures.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:flutter/services.dart';
@@ -16,12 +17,22 @@ enum RulerTick { none, minor, major, neutral }
 /// labelled major ticks). The line the drag started on does not count, so a
 /// finger resting on a line stays quiet. Crossing [resetValue] (1.00× speed
 /// or 0 semitones) outranks a major line, which outranks a minor one.
+///
+/// A whole-step ruler ([AdjustmentRuler.snapStep]) passes its own [perUnit]
+/// line density and a null [majorEvery], so every line is a minor tick. A null
+/// [resetValue] has no neutral line.
 @visibleForTesting
-RulerTick rulerTickFeedback(double from, double to, double resetValue) {
+RulerTick rulerTickFeedback(
+  double from,
+  double to,
+  double? resetValue, {
+  int perUnit = 100,
+  int? majorEvery = 10,
+}) {
   if (from == to) return RulerTick.none;
   const epsilon = 1e-9;
-  final start = from * 100;
-  final end = to * 100;
+  final start = from * perUnit;
+  final end = to * perUnit;
   final int first;
   final int last;
   if (end > start) {
@@ -32,13 +43,76 @@ RulerTick rulerTickFeedback(double from, double to, double resetValue) {
     last = (start - epsilon).ceil() - 1;
   }
   if (last < first) return RulerTick.none;
-  final reset = (resetValue * 100).round();
-  if (reset >= first && reset <= last) return RulerTick.neutral;
-  if ((first / 10).ceil() * 10 <= last) return RulerTick.major;
+  if (resetValue != null) {
+    final reset = (resetValue * perUnit).round();
+    if (reset >= first && reset <= last) return RulerTick.neutral;
+  }
+  if (majorEvery != null && (first / majorEvery).ceil() * majorEvery <= last) {
+    return RulerTick.major;
+  }
   return RulerTick.minor;
 }
 
-/// A continuous visual scale that settles onto supported hundredths.
+/// Haptics for a whole-step ruler ([AdjustmentRuler.snapStep]) dragged from
+/// [from] to [to], where the value settles on the nearest of [perUnit] steps
+/// per unit.
+///
+/// Every one of the [subdivisions] lines per step is a selection click
+/// ([RulerTick.minor]). The moment the rounded step changes, which is when the
+/// previewed value does, is a light impact ([RulerTick.major]), or a medium one
+/// ([RulerTick.neutral]) when it lands on [resetValue]. A stronger tick
+/// replaces the click of the line it coincides with.
+@visibleForTesting
+RulerTick snapTickFeedback(
+  double from,
+  double to,
+  double resetValue, {
+  required int perUnit,
+  required int subdivisions,
+}) {
+  final rounded = (to * perUnit).round();
+  if ((from * perUnit).round() != rounded) {
+    return rounded == (resetValue * perUnit).round()
+        ? RulerTick.neutral
+        : RulerTick.major;
+  }
+  return rulerTickFeedback(
+    from,
+    to,
+    null,
+    perUnit: perUnit * subdivisions,
+    majorEvery: null,
+  );
+}
+
+/// A stepped colour strip painted behind a whole-step ruler's scale.
+///
+/// [colors] holds one swatch per step from the range minimum to its maximum
+/// and [inks] the tick colour readable on each swatch.
+@immutable
+class RulerBand {
+  const new({required this.colors, required this.inks})
+    : assert(colors.length == inks.length, 'one ink per swatch');
+
+  final List<Color> colors;
+  final List<Color> inks;
+
+  @override
+  bool operator ==(Object other) =>
+      other is RulerBand &&
+      listEquals(colors, other.colors) &&
+      listEquals(inks, other.inks);
+
+  @override
+  int get hashCode => Object.hash(Object.hashAll(colors), Object.hashAll(inks));
+}
+
+/// A continuous visual scale that settles onto supported hundredths, or onto
+/// whole steps when [snapStep] is set (the colour rulers: value is the step
+/// number, so −5…+5 is the range −5…5 with [snapStep] 1).
+///
+/// The optional [labelBuilder], [snapStep], [band] and [accent] default to
+/// the Speed and Pitch behaviour.
 class AdjustmentRuler extends StatefulWidget {
   const new({
     required this.value,
@@ -52,8 +126,14 @@ class AdjustmentRuler extends StatefulWidget {
     this.interactionToken = 0,
     this.enabled = true,
     this.readOnly = false,
+    this.snapStep,
+    this.labelBuilder = _hundredthsLabel,
+    this.band,
+    this.accent,
     super.key,
   });
+
+  static String _hundredthsLabel(double value) => value.toStringAsFixed(2);
 
   final double value;
   final String label;
@@ -69,6 +149,24 @@ class AdjustmentRuler extends StatefulWidget {
   /// Shown at full contrast while another control drives the value (Pitch
   /// Lock): input stays off like [enabled] false, but nothing is greyed out.
   final bool readOnly;
+
+  /// Spacing of the supported values when they are whole steps rather than
+  /// hundredths. Dragging settles on a step and keyboard and wheel input move
+  /// a step at a time. Small ticks every 8 logical pixels divide
+  /// each step; a drag clicks on each, taps harder the moment the
+  /// rounded step changes and harder again when that step is [resetValue]
+  /// (see [snapTickFeedback]).
+  final double? snapStep;
+
+  /// Text for a tick label and for the semantics of the next value.
+  final String Function(double value) labelBuilder;
+
+  /// Stepped colour strip behind the scale. Needs [snapStep]; its first
+  /// swatch sits on `range.minimum`.
+  final RulerBand? band;
+
+  /// The needle and neutral-line colour; defaults to the theme primary.
+  final Color? accent;
 
   @override
   State<AdjustmentRuler> createState() => _AdjustmentRulerState();
@@ -92,18 +190,26 @@ class _AdjustmentRulerState extends State<AdjustmentRuler>
   bool _dragging = false;
   bool _focused = false;
 
+  /// Whether input is currently keyboard-like. A tap or drag focuses the ruler
+  /// too, but only keyboard focus earns the ring.
+  bool _keyboardMode =
+      FocusManager.instance.highlightMode == FocusHighlightMode.traditional;
+
+  void _highlightModeChanged(FocusHighlightMode mode) {
+    final keyboard = mode == FocusHighlightMode.traditional;
+    if (keyboard != _keyboardMode) setState(() => _keyboardMode = keyboard);
+  }
+
   @override
   void initState() {
     super.initState();
+    FocusManager.instance.addHighlightModeListener(_highlightModeChanged);
     _visualValue = widget.value;
     _settle = AnimationController(vsync: this, duration: _settleDuration)
       ..addListener(() {
         final next = _from + (_to - _from) * _curve.transform(_settle.value);
         if (_glideTicks && widget.enabled) {
-          _tick(
-            rulerTickFeedback(_lastGlideValue, next, widget.resetValue),
-            _settle.lastElapsedDuration,
-          );
+          _tick(_feedback(_lastGlideValue, next), _settle.lastElapsedDuration);
         }
         _lastGlideValue = next;
         setState(() => _visualValue = next);
@@ -119,6 +225,54 @@ class _AdjustmentRulerState extends State<AdjustmentRuler>
   }
 
   static const _settleDuration = Duration(milliseconds: 140);
+
+  /// Spacing of the small ticks between the steps of a whole-step ruler.
+  static const _snapMinorSpacing = 8.0;
+
+  /// Lines per unit of value: hundredths, or one per snap step.
+  int get _perUnit =>
+      widget.snapStep == null ? 100 : (1 / widget.snapStep!).round();
+
+  /// Every tenth line is labelled and stronger; whole steps have none.
+  int? get _majorEvery => widget.snapStep == null ? 10 : null;
+
+  /// Small lines per step on a whole-step ruler, one every
+  /// [_snapMinorSpacing] px; 1 means none.
+  int get _subdivisions => widget.snapStep == null
+      ? 1
+      : math.max(
+          1,
+          (widget.pixelsPerUnit / _perUnit / _snapMinorSpacing).round(),
+        );
+
+  /// [value] moved by [steps] lines, without accumulating float drift.
+  double _stepBy(double value, int steps) => widget.snapStep == null
+      ? stepAdjustment(value, steps)
+      : value + steps * widget.snapStep!;
+
+  /// [value] on the nearest supported line and inside the range.
+  double _constrain(double value) {
+    final step = widget.snapStep;
+    return widget.range.constrain(
+      step == null ? value : (value / step).round() * step,
+    );
+  }
+
+  RulerTick _feedback(double from, double to) => widget.snapStep == null
+      ? rulerTickFeedback(
+          from,
+          to,
+          widget.resetValue,
+          perUnit: _perUnit,
+          majorEvery: _majorEvery,
+        )
+      : snapTickFeedback(
+          from,
+          to,
+          widget.resetValue,
+          perUnit: _perUnit,
+          subdivisions: _subdivisions,
+        );
 
   @override
   void didUpdateWidget(AdjustmentRuler oldWidget) {
@@ -146,7 +300,9 @@ class _AdjustmentRulerState extends State<AdjustmentRuler>
   /// Sweeps the scale to [target] as if it were swiped there: farther jumps
   /// take a little longer, and the lines it passes tick like a drag.
   void _glideTo(double target) {
-    final distance = (target - _visualValue).abs();
+    // Measured in 800 px units so a step scale glides as long as the same
+    // distance on the speed scale would.
+    final distance = (target - _visualValue).abs() * widget.pixelsPerUnit / 800;
     if (distance < 1e-10 || MediaQuery.disableAnimationsOf(context)) {
       _snapTo(target);
       return;
@@ -190,20 +346,18 @@ class _AdjustmentRulerState extends State<AdjustmentRuler>
   }
 
   void _send(double value) {
-    final next = widget.range.constrain(value);
+    final next = _constrain(value);
     _requestedValue = next;
     if (next != widget.value) widget.onChanged(next);
   }
 
-  void _adjust(int hundredths) {
+  void _adjust(int steps) {
     _dragging = false;
     _glideTicks = false;
     _settle.stop();
-    final next = widget.range.constrain(
-      stepAdjustment(widget.value, hundredths),
-    );
-    if ((hundredths < 0 && next >= widget.value) ||
-        (hundredths > 0 && next <= widget.value)) {
+    final next = _constrain(_stepBy(widget.value, steps));
+    if ((steps < 0 && next >= widget.value) ||
+        (steps > 0 && next <= widget.value)) {
       return;
     }
     setState(() => _visualValue = next);
@@ -214,7 +368,7 @@ class _AdjustmentRulerState extends State<AdjustmentRuler>
   void _endDrag() {
     if (!_dragging) return;
     _dragging = false;
-    final target = widget.range.constrain(_visualValue);
+    final target = _constrain(_visualValue);
     _send(target);
     widget.onChangeEnd();
     if (MediaQuery.disableAnimationsOf(context) ||
@@ -232,7 +386,7 @@ class _AdjustmentRulerState extends State<AdjustmentRuler>
 
   bool _canAdjust(int step) {
     if (!widget.enabled) return false;
-    final next = widget.range.constrain(stepAdjustment(widget.value, step));
+    final next = _constrain(_stepBy(widget.value, step));
     return step < 0 ? next < widget.value : next > widget.value;
   }
 
@@ -243,12 +397,10 @@ class _AdjustmentRulerState extends State<AdjustmentRuler>
       label: widget.label,
       value: widget.valueLabel,
       enabled: widget.enabled,
-      increasedValue: widget.range
-          .constrain(stepAdjustment(widget.value, 1))
-          .toStringAsFixed(2),
-      decreasedValue: widget.range
-          .constrain(stepAdjustment(widget.value, -1))
-          .toStringAsFixed(2),
+      increasedValue: widget.labelBuilder(_constrain(_stepBy(widget.value, 1))),
+      decreasedValue: widget.labelBuilder(
+        _constrain(_stepBy(widget.value, -1)),
+      ),
       onIncrease: _canAdjust(1) ? () => _adjust(1) : null,
       onDecrease: _canAdjust(-1) ? () => _adjust(-1) : null,
       child: Focus(
@@ -276,9 +428,7 @@ class _AdjustmentRulerState extends State<AdjustmentRuler>
             _glideTicks = false;
             _settle.stop();
             _wheelPixels = 0;
-            setState(
-              () => _visualValue = widget.range.constrain(widget.resetValue),
-            );
+            setState(() => _visualValue = _constrain(widget.resetValue));
             _send(widget.resetValue);
             widget.onChangeEnd();
             return KeyEventResult.handled;
@@ -299,7 +449,7 @@ class _AdjustmentRulerState extends State<AdjustmentRuler>
               _wheelPixels += scroll.scrollDelta.dx != 0
                   ? scroll.scrollDelta.dx
                   : scroll.scrollDelta.dy;
-              final pixelsPerStep = widget.pixelsPerUnit / 100;
+              final pixelsPerStep = widget.pixelsPerUnit / _perUnit;
               final steps = (_wheelPixels / pixelsPerStep).truncate();
               if (steps != 0) {
                 _wheelPixels -= steps * pixelsPerStep;
@@ -331,7 +481,7 @@ class _AdjustmentRulerState extends State<AdjustmentRuler>
                       value = math.min(value, widget.range.maximum!);
                     }
                     _tick(
-                      rulerTickFeedback(_visualValue, value, widget.resetValue),
+                      _feedback(_visualValue, value),
                       details.sourceTimeStamp,
                     );
                     setState(() => _visualValue = value);
@@ -344,7 +494,9 @@ class _AdjustmentRulerState extends State<AdjustmentRuler>
             child: DecoratedBox(
               decoration: BoxDecoration(
                 borderRadius: NavisShapeData.of(context).mdAll,
-                border: _focused ? Border.all(color: colors.primary) : null,
+                border: _focused && _keyboardMode
+                    ? Border.all(color: colors.primary)
+                    : null,
               ),
               child: SizedBox(
                 width: double.infinity,
@@ -367,8 +519,14 @@ class _AdjustmentRulerState extends State<AdjustmentRuler>
                           ? colors.onSurfaceVariant
                           : colors.outline,
                       accent: widget.enabled || widget.readOnly
-                          ? colors.primary
+                          ? widget.accent ?? colors.primary
                           : colors.outline,
+                      perUnit: _perUnit,
+                      subdivisions: _subdivisions,
+                      majorEvery: _majorEvery,
+                      labelBuilder: widget.labelBuilder,
+                      band: widget.band,
+                      bandRadius: NavisShapeData.of(context).sm,
                       labelStyle:
                           Theme.of(context).textTheme.labelSmall ??
                           const TextStyle(),
@@ -387,6 +545,7 @@ class _AdjustmentRulerState extends State<AdjustmentRuler>
 
   @override
   void dispose() {
+    FocusManager.instance.removeHighlightModeListener(_highlightModeChanged);
     _settle.dispose();
     _focus.dispose();
     super.dispose();
@@ -404,6 +563,12 @@ class _RulerPainter extends CustomPainter {
     required this.labelStyle,
     required this.textDirection,
     required this.textScaler,
+    required this.perUnit,
+    required this.subdivisions,
+    required this.majorEvery,
+    required this.labelBuilder,
+    required this.band,
+    required this.bandRadius,
   });
   final double value;
   final AdjustmentRange range;
@@ -418,37 +583,173 @@ class _RulerPainter extends CustomPainter {
   final TextDirection textDirection;
   final TextScaler textScaler;
 
+  /// Lines per unit of value, and how many lines apart the labelled major
+  /// ones sit (null when every line is minor).
+  final int perUnit;
+  final int? majorEvery;
+
+  /// Small ticks per line on a whole-step ruler (1 draws none).
+  final int subdivisions;
+  final String Function(double value) labelBuilder;
+  final RulerBand? band;
+  final double bandRadius;
+
+  // Vertical layout of a banded scale: the strip, with the detent rising to
+  // its top and the other lines standing on its bottom edge.
+  static const _bandTop = 14.0;
+  static const _bandBottom = 38.0;
+  static const _bandTickTop = 29.0;
+  static const _minorTickHeight = 4.0;
+
+  /// The band swatch index for [tickValue], clamped to the strip.
+  int _bandIndex(RulerBand band, double tickValue) {
+    final minimum = range.minimum ?? 0;
+    return ((tickValue - minimum) * perUnit).round().clamp(
+      0,
+      band.colors.length - 1,
+    );
+  }
+
+  void _paintBand(Canvas canvas, Size size, RulerBand band) {
+    final center = size.width / 2;
+    final minimum = range.minimum ?? 0;
+    final half = pixelsPerUnit / (2 * perUnit);
+    double x(double v) => center + (v - value) * pixelsPerUnit;
+    final strip = RRect.fromLTRBR(
+      x(minimum) - half,
+      _bandTop,
+      x(minimum + (band.colors.length - 1) / perUnit) + half,
+      _bandBottom,
+      Radius.circular(bandRadius),
+    );
+    // The strip fades at the edges exactly like the ticks do, so the scale
+    // reads as sliding past rather than being cut off.
+    final bounds = Offset.zero & size;
+    // One gradient with a stop on each step's tick, so the colour under a
+    // tick is that step's own and the strip blends smoothly between them. The
+    // half step beyond each end holds its end colour.
+    final count = band.colors.length;
+    final fill = Paint()
+      ..shader = LinearGradient(
+        colors: band.colors,
+        stops: [for (var i = 0; i < count; i++) (i + 0.5) / count],
+      ).createShader(strip.outerRect);
+    canvas
+      ..saveLayer(bounds, Paint())
+      ..drawRRect(strip, fill);
+    canvas
+      // A hairline frames the strip, so near-surface swatches (light paper,
+      // dark panels) still read as a scale against the page.
+      ..drawRRect(
+        strip.deflate(0.5),
+        Paint()
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 1
+          ..color = color.withValues(alpha: 0.4),
+      )
+      ..drawRect(
+        bounds,
+        Paint()
+          ..blendMode = BlendMode.dstIn
+          ..shader = LinearGradient(
+            colors: const [
+              Colors.transparent,
+              Colors.black,
+              Colors.black,
+              Colors.transparent,
+            ],
+            stops: const [0, 0.15, 0.85, 1],
+          ).createShader(bounds),
+      )
+      ..restore();
+  }
+
+  /// Short lines between the steps of a whole-step ruler: texture that matches
+  /// the clicks of a drag. They span the strip, including its half step past
+  /// either end, and read against the nearest step like the main ticks.
+  void _paintMinorTicks(Canvas canvas, Size size, RulerBand? band) {
+    final center = size.width / 2;
+    final lines = perUnit * subdivisions;
+    final radius = size.width / (2 * pixelsPerUnit);
+    final minimum = range.minimum;
+    final maximum = range.maximum;
+    final margin = 0.5 / perUnit;
+    final paint = Paint()..strokeWidth = 1;
+    for (
+      var line = ((value - radius) * lines).floor();
+      line <= ((value + radius) * lines).ceil();
+      line++
+    ) {
+      if (line % subdivisions == 0) continue;
+      final lineValue = line / lines;
+      if ((minimum != null && lineValue < minimum - margin) ||
+          (maximum != null && lineValue > maximum + margin)) {
+        continue;
+      }
+      final x = center + (lineValue - value) * pixelsPerUnit;
+      final opacity = (math.min(x, size.width - x) / (size.width * 0.15)).clamp(
+        0.0,
+        1.0,
+      );
+      final ink = band != null ? band.inks[_bandIndex(band, lineValue)] : color;
+      canvas.drawLine(
+        Offset(x, _bandBottom - _minorTickHeight),
+        Offset(x, _bandBottom),
+        paint..color = ink.withValues(alpha: opacity * 0.4),
+      );
+    }
+  }
+
   @override
   void paint(Canvas canvas, Size size) {
     final center = size.width / 2;
     final radius = size.width / (2 * pixelsPerUnit);
-    final start = ((value - radius) * 100).floor();
-    final end = ((value + radius) * 100).ceil();
-    final neutral = (resetValue * 100).round();
+    final start = ((value - radius) * perUnit).floor();
+    final end = ((value + radius) * perUnit).ceil();
+    final neutral = (resetValue * perUnit).round();
+    final band = this.band;
+    if (band != null) _paintBand(canvas, size, band);
     final paint = Paint()..strokeWidth = 1;
     for (var tick = start; tick <= end; tick++) {
-      final tickValue = tick / 100;
+      final tickValue = tick / perUnit;
       if (!range.contains(tickValue)) continue;
       final x = center + (tickValue - value) * pixelsPerUnit;
       final edge = math.min(x, size.width - x) / (size.width * 0.15);
       final opacity = edge.clamp(0.0, 1.0);
       final isNeutral = tick == neutral;
-      final major = tick % 10 == 0 || isNeutral;
+      final major =
+          (majorEvery != null && tick % majorEvery! == 0) ||
+          isNeutral ||
+          perUnit == 1;
       final endpoint = tickValue == range.minimum || tickValue == range.maximum;
-      paint.color = (isNeutral ? accent : color).withValues(
-        alpha: opacity * (major ? 1 : 0.7),
-      );
-      // The neutral line rises above the scale, like a detent mark.
-      canvas.drawLine(
-        Offset(x, isNeutral ? 4 : 12),
-        Offset(x, major || endpoint ? 36 : 25),
-        paint,
-      );
+      if (band != null) {
+        // Lines read against their own swatch; labels sit below the strip.
+        final ink = band.inks[_bandIndex(band, tickValue)];
+        canvas.drawLine(
+          Offset(x, isNeutral ? _bandTop : _bandTickTop),
+          Offset(x, _bandBottom),
+          paint..color = ink.withValues(alpha: opacity * (isNeutral ? 1 : 0.7)),
+        );
+      } else {
+        paint.color = (isNeutral ? accent : color).withValues(
+          alpha: opacity * (major ? 1 : 0.7),
+        );
+        // The neutral line rises above the scale, like a detent mark.
+        canvas.drawLine(
+          Offset(x, isNeutral ? 4 : 12),
+          Offset(x, major || endpoint ? 36 : 25),
+          paint,
+        );
+      }
       if (major) {
         final label = TextPainter(
           text: TextSpan(
-            text: tickValue.toStringAsFixed(2),
-            style: labelStyle.copyWith(color: paint.color),
+            text: labelBuilder(tickValue),
+            style: labelStyle.copyWith(
+              color: band != null
+                  ? (isNeutral ? accent : color).withValues(alpha: opacity)
+                  : paint.color,
+            ),
           ),
           textDirection: textDirection,
           textScaler: textScaler,
@@ -456,10 +757,24 @@ class _RulerPainter extends CustomPainter {
         label.paint(canvas, Offset(x - label.width / 2, 44));
       }
     }
+    if (subdivisions > 1) _paintMinorTicks(canvas, size, band);
     paint
       ..color = accent
       ..strokeWidth = 2;
-    canvas.drawLine(Offset(center, 0), Offset(center, 40), paint);
+    if (band == null) {
+      canvas.drawLine(Offset(center, 0), Offset(center, 40), paint);
+      return;
+    }
+    // The needle is the live colour above and below the strip; across it, the
+    // swatch's own ink, since the colour itself would vanish into its swatch.
+    canvas
+      ..drawLine(Offset(center, 0), Offset(center, _bandTop), paint)
+      ..drawLine(Offset(center, _bandBottom), Offset(center, 44), paint);
+    canvas.drawLine(
+      Offset(center, _bandTop),
+      Offset(center, _bandBottom),
+      paint..color = band.inks[_bandIndex(band, value)],
+    );
   }
 
   @override
@@ -473,5 +788,89 @@ class _RulerPainter extends CustomPainter {
       textDirection != old.textDirection ||
       textScaler != old.textScaler ||
       range.minimum != old.range.minimum ||
-      range.maximum != old.range.maximum;
+      range.maximum != old.range.maximum ||
+      perUnit != old.perUnit ||
+      subdivisions != old.subdivisions ||
+      majorEvery != old.majorEvery ||
+      band != old.band ||
+      bandRadius != old.bandRadius;
+}
+
+/// An icon stepper that repeats while held and reports when input ends.
+class RulerStepButton extends StatefulWidget {
+  const new({
+    required this.icon,
+    required this.tooltip,
+    required this.enabled,
+    required this.onStep,
+    required this.onEnd,
+    super.key,
+  });
+
+  final IconData icon;
+  final String tooltip;
+  final bool enabled;
+
+  /// Applies one step; returns false once a limit stops further steps.
+  final bool Function() onStep;
+  final VoidCallback onEnd;
+
+  @override
+  State<RulerStepButton> createState() => _RulerStepButtonState();
+}
+
+class _RulerStepButtonState extends State<RulerStepButton> {
+  static const _repeatInterval = Duration(milliseconds: 120);
+  Timer? _repeat;
+
+  void _startRepeat() {
+    if (!widget.onStep()) return;
+    _repeat?.cancel();
+    _repeat = Timer.periodic(_repeatInterval, (_) {
+      if (!mounted || !widget.onStep()) _stopRepeat();
+    });
+  }
+
+  void _stopRepeat() {
+    final wasRepeating = _repeat != null;
+    _repeat?.cancel();
+    _repeat = null;
+    if (wasRepeating) widget.onEnd();
+  }
+
+  @override
+  void didUpdateWidget(RulerStepButton oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (!widget.enabled) _stopRepeat();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    // A manual tooltip keeps hover hints without competing with hold-to-repeat
+    // for the long-press gesture.
+    return Tooltip(
+      message: widget.tooltip,
+      triggerMode: TooltipTriggerMode.manual,
+      child: GestureDetector(
+        onLongPressStart: widget.enabled ? (_) => _startRepeat() : null,
+        onLongPressEnd: widget.enabled ? (_) => _stopRepeat() : null,
+        onLongPressCancel: widget.enabled ? _stopRepeat : null,
+        child: IconButton(
+          onPressed: widget.enabled
+              ? () {
+                  if (widget.onStep()) widget.onEnd();
+                }
+              : null,
+          icon: Icon(widget.icon),
+        ),
+      ),
+    );
+  }
+
+  @override
+  void dispose() {
+    _repeat?.cancel();
+    _repeat = null;
+    super.dispose();
+  }
 }

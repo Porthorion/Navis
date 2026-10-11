@@ -28,6 +28,10 @@ void main() {
     expect(SetupHighlight.nowPlayingBackground.since, '1.5.0');
     expect(SetupHighlight.cornerStyle.since, '1.5.0');
     expect(SetupHighlight.flatAreas.since, '1.5.0');
+    expect(SetupHighlight.appearanceLooks.since, '1.5.0');
+    expect(SetupHighlight.appearanceLooks.storageKey, 'appearanceLooks');
+    expect(SetupHighlight.colorTuning.since, '1.5.0');
+    expect(SetupHighlight.colorTuning.storageKey, 'colorTuning');
     expect(SetupHighlight.albumArtShade.since, '1.5.0');
     expect(SetupHighlight.albumArtShade.storageKey, 'albumArtColoredShade');
     expect(

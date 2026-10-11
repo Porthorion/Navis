@@ -9,10 +9,12 @@ import 'package:navis/src/features/onboarding/domain/setup_highlights.dart';
 import 'package:navis/src/features/onboarding/presentation/setup_highlights_provider.dart';
 import 'package:navis/src/features/settings/presentation/appearance_layout.dart';
 import 'package:navis/src/features/settings/presentation/color_style_selector.dart';
+import 'package:navis/src/features/settings/presentation/color_tuning_panel.dart';
 import 'package:navis/src/features/settings/domain/flat_areas.dart';
 import 'package:navis/src/features/settings/domain/navis_density.dart';
 import 'package:navis/src/features/settings/domain/night_schedule.dart';
 import 'package:navis/src/features/settings/domain/now_playing_background.dart';
+import 'package:navis/src/theme/color_adjustment.dart';
 import 'package:navis/src/theme/motion_policy.dart';
 import 'package:navis/src/theme/navis_color_style.dart';
 import 'package:navis/src/theme/navis_corner_style.dart';
@@ -310,6 +312,46 @@ class FlatAreasOption extends StatelessWidget {
           ),
         ],
       ),
+    );
+  }
+}
+
+/// Fine-Tune Colors: one row, like its neighbours, whose subtitle sums up the
+/// current tuning and which opens the panel with the rulers.
+/// Shared by Appearance settings and setup.
+class ColorTuningOption extends StatelessWidget {
+  const new({
+    required this.tuning,
+    required this.dark,
+    required this.onOpen,
+    this.adornment,
+    super.key,
+  });
+
+  final ColorTuning tuning;
+
+  /// Whether the app is showing a dark mode; Brightness is summed up for it.
+  final bool dark;
+
+  /// Opens the panel; the row's own context anchors the desktop popover.
+  final ValueChanged<BuildContext> onOpen;
+
+  /// Shown beside the title, for example a "New" tag.
+  final Widget? adornment;
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
+    return ListTile(
+      key: const ValueKey<String>('colorTuningOption'),
+      contentPadding: appearanceSwitchPadding(context),
+      title: _titleWithAdornment(l10n.appearanceColorTuningLabel, adornment),
+      subtitle: Text(
+        colorTuningSummary(l10n, tuning, dark: dark),
+        key: const ValueKey<String>('colorTuningOption-summary'),
+      ),
+      trailing: const Icon(Icons.chevron_right),
+      onTap: () => onOpen(context),
     );
   }
 }
@@ -844,6 +886,7 @@ class CornerStyleOption extends StatelessWidget {
 /// which a test pins.
 enum AppearanceOptionKind {
   oledForAuto(SetupHighlight.oledForAuto),
+  colorTuning(SetupHighlight.colorTuning),
   nightSchedule(SetupHighlight.nightSchedule),
   flatSurfaces(SetupHighlight.flatSurfaces),
   cornerStyle(SetupHighlight.cornerStyle),
@@ -882,6 +925,9 @@ class AppearanceOptionSet {
     required this.onDensityChanged,
     required this.nowPlayingBackground,
     required this.onNowPlayingBackgroundChanged,
+    required this.colorTuning,
+    required this.onOpenColorTuning,
+    required this.previewBrightness,
     required this.previewOled,
   });
 
@@ -910,6 +956,15 @@ class AppearanceOptionSet {
   final NowPlayingBackground nowPlayingBackground;
   final ValueChanged<NowPlayingBackground> onNowPlayingBackgroundChanged;
 
+  /// The saved (or drafted) Fine-Tune Colors values for the row's summary.
+  final ColorTuning colorTuning;
+
+  /// Opens the Fine-Tune Colors panel, anchored to the row.
+  final ValueChanged<BuildContext> onOpenColorTuning;
+
+  /// The mode the previewed theme is in: the one Fine-Tune Colors summarises.
+  final Brightness previewBrightness;
+
   /// Whether the previewed dark theme is OLED (for the Now Playing note).
   final bool previewOled;
 
@@ -930,6 +985,15 @@ class AppearanceOptionSet {
           value: oledForAuto,
           adornment: adornment,
           onChanged: onOledForAutoChanged,
+        ),
+      ),
+      AppearanceOptionKind.colorTuning => _tagged(
+        SetupHighlight.colorTuning,
+        (adornment) => ColorTuningOption(
+          tuning: colorTuning,
+          dark: previewBrightness == Brightness.dark,
+          adornment: adornment,
+          onOpen: onOpenColorTuning,
         ),
       ),
       AppearanceOptionKind.nightSchedule => _tagged(

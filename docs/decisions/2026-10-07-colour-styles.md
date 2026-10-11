@@ -204,3 +204,128 @@ Decision:
   softened Immersive's and Night's accents, which are intended to be rich or
   warm) and lowering only the seed chroma clamp (it does not fix the light
   ink, containers or artwork colours).
+
+### Colour and Brightness tuning (2026-10-10)
+
+Owner decision: add two independent integer adjustments, −5…+5, to every
+style and theme mode. Color controls vividness (chroma × 0.5…1.5); Brightness
+controls depth (positive is deeper). An HCT post-pass keeps zero/zero
+bit-identical, preserves errors and text colours and bounds mid-tone chroma.
+Pure-black OLED surfaces stay black. Extreme contrast tests reduced Light's
++5 shift from −7 to −4.5 tones; Light −5 remains +4, Dark ±5 remains ∓6,
+and OLED containers use at most ∓3 (floor 2). OLED's target chroma ceiling is
+1.5 so RGB quantisation keeps measured chroma below 3. The mud guard covers
+only the roles the muddy-band rule covers (fills, surfaces, and dark-mode
+primary/secondary) and never lowers a role below the style's own chroma, so
+every step is monotonic and Brightness alone never changes the accents. Pure
+black/white roles remain unchanged, including Neutral's white primary for a
+saturated yellow seed.
+
+The initial branch proposal stored one brightness value; the v2 addendum below
+redefines the unshipped schema 101 with separate Light and Dark values.
+A nullable Riverpod preview temporarily overrides persisted tuning during
+dragging. Existing theme-cache, caption memo and dedupe keys, and worker
+messages carry both axes; artwork tone windows/chroma caps follow tuning,
+while the existing scrim recipes and OLED Now Playing cap remain in place.
+
+### Fine-Tune Colors controls (2026-10-10)
+
+The two tuning axes are one option, Fine-Tune Colors, under Color Style in
+Settings › Appearance and under "More appearance options" in setup, with its
+own New tag. Each axis is the Speed and Pitch ruler in whole-step mode rather
+than a new slider: the scale is eleven stepped swatches of what that step
+really produces (the live primary for Color; `surface`, or
+`surfaceContainerHigh` in OLED, for Brightness), computed from the previewed
+theme's inputs so they hold still while the app recolours. A smooth gradient
+was rejected because the setting is eleven discrete steps and a gradient would
+imply values between them. The rulers dispatch a preview per whole step and
+save on release; Reset (shown only while a value is not Default) returns both.
+The ruler stops growing at 480 dp so its steppers stay beside the strip on wide
+pages. Dark and OLED Pastel accents sit at the gamut ceiling for some hues, so
+the Vivid half of the Color scale can show little change there; the strip
+reports the real result rather than exaggerating it.
+
+### Fine-Tune Colors v2 and Looks (2026-10-10)
+
+Owner decision: keep intensity shared, separate Light brightness from
+Dark/OLED brightness, and move the rulers into a panel in the subsequent UI
+pass. `ColorTuning` resolves into the unchanged rendering adjustment; theme,
+worker and caption caches keep their existing resolved keys. Schema 101 was
+never shipped and is redefined, rather than adding schema 102.
+
+There are two independent preset libraries using the existing playback JSON
+TEXT and targeted-writer pattern. Tuning presets contain only intensity and
+Light/Dark brightness, with a derived Default. Looks capture the complete
+appearance, including tuning values and its optional preset id; content and
+navigation organization (Home Sections, Page Visibility, Desktop Navbar)
+stays independent. The capture also includes language, custom accent swatches,
+Home recommendation auto-advance and the legacy grid-column setting found in
+Appearance. The full field contract lives in `docs/architecture.md`.
+
+Applying a Look writes supplied columns in one transaction. Missing, unknown
+or invalid fields preserve current values, so partial snapshots survive
+schema evolution. A still-existing tuning reference uses its current values;
+a deleted reference falls back to captured values. Look selection compares
+current values against saved snapshots while ignoring reference metadata.
+Reset keeps both libraries. Shared name validation preserves playback rules
+and reserves Default for appearance presets. Settings' tuning swatches read
+the effective scheduled style; setup remains an explicit draft preview.
+
+### Fine-Tune Colors panel, Light/Dark brightness and Looks UI (2026-10-10)
+
+Owner decisions, implemented over the v2 persistence:
+
+- The two rulers leave the Appearance page for a panel, as Speed and Pitch
+  did: one row (title, New tag, summary, chevron) opens the shared
+  `showQuickPanel` shell (popover on desktop, sheet on touch). The inline
+  rulers made the Color section long and gave presets no room. The rulers,
+  band and haptics are unchanged; they moved, they were not rebuilt.
+- Brightness is edited per mode through a compact Light | Dark switch under
+  the ruler instead of two more rulers or one value that silently meant "the
+  mode you happen to be in". Dark covers OLED. The strip shows the selected
+  mode's real surfaces, and a caption says where the change shows when that is
+  not the mode on screen, because dragging it would otherwise appear to do
+  nothing. Intensity stays one shared ruler.
+- Tuning presets and Looks reuse `PresetPicker`, the Speed and Pitch picker,
+  so naming, Custom, Update, Rename and Delete behave identically. Custom is
+  derived by value: it appears the moment the values match no preset.
+- Setup keeps the row and the panel but not the preset picker, and has no
+  Looks: both write settings immediately, whereas setup edits a draft that
+  Finish saves (and Skip discards). Presets and Looks are managed in Settings.
+- Looks sit above Theme because they act on everything below them.
+
+### Looks as the only appearance presets and Undo (2026-10-10)
+
+Owner decision superseding the v2 preset-library proposal above: fold
+Fine-Tune presets into Looks. Two preset layers made it unclear whether a
+saved choice controlled only tuning or the full appearance. Looks now store
+intensity and both brightness values directly, with no preset references;
+Fine-Tune remains preview/clear/commit controls. The unshipped schema 101
+retains the three tuning columns and Look library/selected id only.
+Old snapshot JSON silently ignores `tuningPresetId` and uses captured values.
+
+Applying a Look returns the full pre-apply snapshot for Undo. Restoring it
+uses the same transactional DAO path, including automatic accent and legacy
+grid-size nulls. Selection remains derived by value, so Undo returns Custom
+or the previous matching Look without storing a second selection history.
+
+### Undo, live strips and the Intensity hint (2026-10-10)
+
+Owner decisions on the folded UI:
+
+- Choosing a Look raises a six-second "Applied {name}" notice with Undo,
+  through the existing `showAppNotice` action and `restore(previous)`. Undo
+  is not offered for the diagnostics apply endpoint, which has no one to ask.
+- Because Fine-Tune presets are gone, the panel says where saving happens:
+  beside Reset, while values are not Default, "Save this as part of a Look in
+  Appearance." Setup has no Looks and omits it.
+- Settings' strips follow the effective theme, including the Dynamic Album
+  Color, while the panel is open; the earlier snapshot-at-open basis went
+  stale when the track changed. Setup keeps its draft basis.
+- Intensity can have almost no effect (a colourless seed in Neutral Dark/OLED,
+  Pastel Dark in warm hues), which reads as a broken ruler. The panel measures
+  the −5/+5 primary chroma span in HCT and explains it below 11, choosing
+  between "no accent" and "style at its limit" by the seed's own chroma
+  (`achromaticSeedChroma`, 8).
+- A ruler outlines itself for keyboard focus only; a tap or drag focuses it
+  without the outline.

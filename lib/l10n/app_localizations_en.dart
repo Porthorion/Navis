@@ -1892,6 +1892,9 @@ class AppLocalizationsEn extends AppLocalizations {
   String get commonCancel => 'Cancel';
 
   @override
+  String get commonUndo => 'Undo';
+
+  @override
   String get libraryTitle => 'Library';
 
   @override
@@ -3368,6 +3371,150 @@ class AppLocalizationsEn extends AppLocalizations {
       'Warm colors with less blue light, for evening listening.';
 
   @override
+  String get appearanceColorTuningLabel => 'Fine-Tune Colors';
+
+  @override
+  String get appearanceColorTuningColor => 'Intensity';
+
+  @override
+  String get appearanceColorTuningBrightness => 'Brightness';
+
+  @override
+  String get appearanceColorTuningMuted => 'Muted';
+
+  @override
+  String get appearanceColorTuningVivid => 'Vivid';
+
+  @override
+  String get appearanceColorTuningLighter => 'Lighter';
+
+  @override
+  String get appearanceColorTuningDeeper => 'Deeper';
+
+  @override
+  String get appearanceColorTuningDefault => 'Default';
+
+  @override
+  String get appearanceColorTuningMoreMuted => 'Make colors more muted';
+
+  @override
+  String get appearanceColorTuningMoreVivid => 'Make colors more vivid';
+
+  @override
+  String get appearanceColorTuningLighterBackgrounds =>
+      'Make backgrounds lighter';
+
+  @override
+  String get appearanceColorTuningDeeperBackgrounds =>
+      'Make backgrounds deeper';
+
+  @override
+  String get appearanceColorTuningReset => 'Reset';
+
+  @override
+  String appearanceColorTuningSummaryIntensity(String value) {
+    return 'Intensity $value';
+  }
+
+  @override
+  String appearanceColorTuningSummaryBrightness(String value) {
+    return 'Brightness $value';
+  }
+
+  @override
+  String appearanceColorTuningSummaryModeBrightness(String mode, String value) {
+    return '$mode Brightness $value';
+  }
+
+  @override
+  String get appearanceColorTuningAppliesLight => 'Applies in Light mode';
+
+  @override
+  String get appearanceColorTuningAppliesDark => 'Applies in Dark and OLED';
+
+  @override
+  String get appearanceColorTuningLooksHint =>
+      'Save this as part of a Look in Appearance.';
+
+  @override
+  String get appearanceColorTuningHintNoAccent =>
+      'Pick an accent color to see Intensity.';
+
+  @override
+  String get appearanceColorTuningHintMaxed =>
+      'This style is already close to its most colorful here.';
+
+  @override
+  String get appearanceLooksLabel => 'Looks';
+
+  @override
+  String get appearanceLooksSub => 'Save and switch your whole appearance.';
+
+  @override
+  String get appearanceLooksSubEmpty =>
+      'Save your whole appearance from the menu, then switch back to it any time.';
+
+  @override
+  String get appearanceLooksPicker => 'Look';
+
+  @override
+  String get appearanceLooksActions => 'Look actions';
+
+  @override
+  String get appearanceLooksSaveNew => 'Save Current as New Look';
+
+  @override
+  String get appearanceLooksName => 'Look name';
+
+  @override
+  String get appearanceLooksMissing => 'That Look no longer exists.';
+
+  @override
+  String appearanceLooksApplied(String name) {
+    return 'Applied $name';
+  }
+
+  @override
+  String get appearancePresetCustom => 'Custom';
+
+  @override
+  String appearancePresetUpdateNamed(String name) {
+    return 'Update “$name”';
+  }
+
+  @override
+  String appearancePresetRenameNamed(String name) {
+    return 'Rename “$name”…';
+  }
+
+  @override
+  String appearancePresetDeleteNamed(String name) {
+    return 'Delete “$name”';
+  }
+
+  @override
+  String appearancePresetDeleteConfirm(String name) {
+    return 'Delete “$name”?';
+  }
+
+  @override
+  String get appearancePresetNameEmpty => 'Enter a name.';
+
+  @override
+  String get appearancePresetNameTaken => 'That name is already in use.';
+
+  @override
+  String get appearancePresetNameReserved =>
+      'Default is reserved. Choose another name.';
+
+  @override
+  String get appearancePresetMissing => 'That preset no longer exists.';
+
+  @override
+  String get appearancePresetSaveFailure =>
+      'Could not save your changes. Try again.';
+
+  @override
   String get appearanceLanguageLabel => 'Language';
 
   @override
@@ -3881,6 +4028,12 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get updateDismiss => 'Dismiss';
+
+  @override
+  String get updateAvailableNotice => 'Update available';
+
+  @override
+  String get updateView => 'View';
 
   @override
   String get updateUpToDate => 'Navis is up to date.';

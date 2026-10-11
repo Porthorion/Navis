@@ -65,6 +65,7 @@ import 'package:navis/src/features/player/presentation/player_sheet_provider.dar
 import 'package:navis/src/features/settings/domain/update_delivery.dart';
 import 'package:navis/src/features/settings/domain/update_info.dart';
 import 'package:navis/src/features/settings/presentation/update_dialog.dart';
+import 'package:navis/src/features/settings/presentation/update_pull_check.dart';
 import 'package:navis/src/providers/app_providers.dart';
 import 'package:navis/src/routing/desktop_layout.dart';
 import 'package:navis/src/routing/navigation_service.dart';
@@ -969,6 +970,9 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
   }
 
   Future<void> _runHomeRefresh() async {
+    // The update check runs alongside the sync instead of after it, so a
+    // long sync never delays the update banner.
+    checkForUpdatesFromPull(ref);
     ref.read(homeRandomShowcaseShuffleSeedProvider.notifier).reshuffle();
     await ref.read(librarySyncControllerProvider.notifier).syncNow();
     ref.invalidate(homeRecentlyAddedProvider);
@@ -979,7 +983,6 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
     ref.invalidate(homeNewReleasesProvider);
     ref.read(homeTrendingRefreshProvider.notifier).refresh(manual: true);
     ref.read(listenBrainzDiscoverRefreshEpochProvider.notifier).refreshFull();
-    ref.invalidate(updateProvider);
   }
 
   void _setHomePullProgress(double value) {
