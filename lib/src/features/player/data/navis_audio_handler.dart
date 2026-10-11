@@ -328,6 +328,7 @@ class NavisAudioHandler extends BaseAudioHandler
   int _transportGeneration = 0;
   bool? _latestExplicitTransportPlaying;
   _PendingSeek? _pendingSeek;
+  DateTime? _lastPositionEmitAt;
   _PendingSeek? _lastSeek;
   int _seekRevision = 0;
   bool _seekFailureBlocksRecovery = false;
@@ -873,8 +874,9 @@ class NavisAudioHandler extends BaseAudioHandler
         _isCrossfading ||
         _radioStation != null ||
         !_player.playing ||
-        // The player and the Dart queue differ until a load completes.
+        // Do not hand a pending selection or seek to another player.
         _isLoading ||
+        _pendingSeek != null ||
         _pendingLogicalQueueSongIds != null) {
       return;
     }
@@ -905,8 +907,9 @@ class NavisAudioHandler extends BaseAudioHandler
         ? remaining - fadeDuration
         : Duration.zero;
 
-    // Don't cross-fade when repeating one track.
-    if (_player.loopMode == LoopMode.one) {
+    // A song is its own album even when album metadata is unavailable.
+    // Only Normal mode overlaps the end with a fresh start of that song.
+    if (_player.loopMode == LoopMode.one && _crossfadeType != 'normal') {
       return;
     }
 
@@ -1969,6 +1972,9 @@ class NavisAudioHandler extends BaseAudioHandler
     _crossfadeEnabled = runtime.crossfadeEnabled;
     _crossfadeDurationSeconds = runtime.crossfadeDurationSeconds;
     _crossfadeType = runtime.crossfadeType;
+    if (_isRepeatOneCrossfade && _crossfadeType != 'normal') {
+      _cancelCrossfade();
+    }
 
     if (!_crossfadeEnabled) {
       _cancelCrossfade();
@@ -2229,6 +2235,9 @@ class NavisAudioHandler extends BaseAudioHandler
           ? _crossfadePlayer?.pitch
           : null,
       'seekEvents': List<Map<String, Object?>>.from(_seekDiagnosticsEvents),
+      'positionStreamLastEmitAgoMs': _lastPositionEmitAt == null
+          ? null
+          : DateTime.now().difference(_lastPositionEmitAt!).inMilliseconds,
       'seek': <String, Object?>{
         'generation': _lastSeek?.generation,
         'requestedPositionMs': _lastSeek?.position.inMilliseconds,
@@ -2348,6 +2357,9 @@ class NavisAudioHandler extends BaseAudioHandler
       AudioServiceRepeatMode.group => LoopMode.all,
       AudioServiceRepeatMode.none => LoopMode.off,
     };
+    if (_isRepeatOneCrossfade && loopMode != LoopMode.one) {
+      _cancelCrossfade();
+    }
     _desiredLoopMode = loopMode;
     await _syncNativeLoopMode();
     await _persistSafely(

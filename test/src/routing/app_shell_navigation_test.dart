@@ -1015,6 +1015,77 @@ void main() {
     },
   );
 
+  testWidgets(
+    'Queue opens centred on the playing song and the header still drags it away',
+    (tester) async {
+      tester.view.devicePixelRatio = 1;
+      tester.view.physicalSize = const Size(1280, 800);
+      addTearDown(() {
+        tester.view.resetPhysicalSize();
+        tester.view.resetDevicePixelRatio();
+      });
+      final ids = <String>[for (var i = 0; i < 200; i++) 'song-$i'];
+      final container = _createContainerWithDatabase(
+        overrides: <Override>[
+          ..._authenticatedShellOverrides(
+            desktopRuntime: true,
+            playback: _activePlayback.copyWith(
+              queueSongIds: ids,
+              currentSongId: 'song-120',
+              currentIndex: 120,
+            ),
+          ),
+          songByIdProvider.overrideWith(
+            (ref, songId) => Stream.value(
+              SongsTableData(
+                isProvisional: false,
+                isExternal: false,
+                id: songId,
+                title: 'Track $songId',
+                albumId: 'album',
+                artistName: 'Artist',
+                albumName: 'Album',
+                duration: 180,
+              ),
+            ),
+          ),
+        ],
+      );
+      await tester.pumpWidget(
+        UncontrolledProviderScope(container: container, child: testNavisApp),
+      );
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.byKey(const ValueKey('desktopQueueButton')));
+      await tester.pumpAndSettle();
+      expect(container.read(queueOverlayVisibleProvider), isTrue);
+      final scrollable = tester.state<ScrollableState>(
+        find
+            .descendant(
+              of: find.byType(QueueSheet),
+              matching: find.byType(Scrollable),
+            )
+            .first,
+      );
+      expect(scrollable.position.pixels, greaterThan(0));
+
+      // The list is scrolled, but a downward drag on the header must still
+      // move the sheet and dismiss it.
+      await tester.fling(
+        find.descendant(
+          of: find.byType(QueueSheet),
+          matching: find.text('Queue'),
+        ),
+        const Offset(0, 400),
+        3000,
+      );
+      await tester.pumpAndSettle();
+
+      expect(container.read(queueOverlayVisibleProvider), isFalse);
+      expect(tester.takeException(), isNull);
+    },
+  );
+
   testWidgets('restored Desktop queue enables only resumable Play', (
     tester,
   ) async {
@@ -2340,6 +2411,50 @@ void main() {
 
     expect(container.read(playerSheetExpandedProvider), isTrue);
     expect(find.byType(ExpandablePlayerSheet), findsOneWidget);
+  });
+
+  testWidgets('phone Now Playing follows a settled seek the shell ignores', (
+    tester,
+  ) async {
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(599, 1000);
+    addTearDown(() {
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+    });
+
+    final container = _createContainerWithDatabase(
+      overrides: <Override>[
+        ..._authenticatedShellOverrides(),
+        playerStateProvider.overrideWith(
+          (ref) => ref.watch(_mutablePlaybackProvider),
+        ),
+        playbackPositionProvider.overrideWith(
+          (ref) => Stream<Duration>.value(const Duration(seconds: 61)),
+        ),
+      ],
+    );
+    await tester.pumpWidget(
+      UncontrolledProviderScope(container: container, child: testNavisApp),
+    );
+    await tester.pumpAndSettle();
+    container.read(playerOverlayStackProvider.notifier).expand();
+    await tester.pumpAndSettle();
+
+    final playback = container.read(_mutablePlaybackProvider.notifier);
+    playback.snapshot = _activePlayback.copyWith(
+      pendingSeekPosition: const Duration(seconds: 60),
+    );
+    await tester.pump();
+    expect(find.text('1:00'), findsOneWidget);
+
+    // Settling the seek changes no field the shell rebuilds for.
+    playback.snapshot = _activePlayback.copyWith(
+      position: const Duration(seconds: 60),
+    );
+    await tester.pump();
+    expect(find.text('1:00'), findsNothing);
+    expect(find.text('1:01'), findsOneWidget);
   });
 
   testWidgets('expanded player uses embedded now-playing mode on rail', (

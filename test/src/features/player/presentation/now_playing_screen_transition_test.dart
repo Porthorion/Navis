@@ -78,6 +78,68 @@ Finder _findActiveHorizontalSlideTransitions() {
 }
 
 void main() {
+  testWidgets('repeat one seek settlement resumes live progress and wraps', (
+    tester,
+  ) async {
+    final positions = StreamController<Duration>.broadcast();
+    addTearDown(positions.close);
+    final container = createNowPlayingContainer(
+      overrides: [
+        playbackPositionProvider.overrideWith((ref) => positions.stream),
+      ],
+    );
+    final repeating = _song1Playback.copyWith(
+      repeatMode: AudioServiceRepeatMode.one,
+    );
+    emitNowPlayingPlayback(container, repeating);
+    await pumpPlainNowPlayingScreen(
+      tester,
+      container,
+      viewport: const Size(390, 844),
+    );
+    await tester.pumpAndSettle();
+    double displayed() =>
+        tester.widget<Slider>(find.byType(Slider).first).value;
+    positions.add(const Duration(seconds: 43));
+    await tester.pump();
+    await tester.pump();
+    expect(displayed(), 43000);
+
+    emitNowPlayingPlayback(
+      container,
+      repeating.copyWith(pendingSeekPosition: const Duration(seconds: 196)),
+    );
+    await tester.pump();
+    await tester.pump();
+    positions.add(const Duration(seconds: 197));
+    await tester.pump();
+    await tester.pump();
+    expect(displayed(), 196000);
+
+    emitNowPlayingPlayback(
+      container,
+      repeating.copyWith(
+        position: const Duration(seconds: 197),
+        pendingSeekPosition: null,
+      ),
+    );
+    await tester.pump();
+    await tester.pump();
+    positions.add(const Duration(seconds: 198));
+    await tester.pump();
+    await tester.pump();
+    expect(displayed(), 198000);
+    // Loop one emits timeline changes without new song metadata.
+    positions.add(const Duration(seconds: 1));
+    await tester.pump();
+    await tester.pump();
+    expect(displayed(), 1000);
+    positions.add(const Duration(seconds: 2));
+    await tester.pump();
+    await tester.pump();
+    expect(displayed(), 2000);
+  }, skip: !sqliteAvailable);
+
   testWidgets('seek bar shows buffered audio as a secondary track', (
     tester,
   ) async {

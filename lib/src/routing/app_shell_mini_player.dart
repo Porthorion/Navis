@@ -529,10 +529,10 @@ class _RailMiniPlayerState extends ConsumerState<_RailMiniPlayer> {
                 RepaintBoundary(
                   child: Consumer(
                     builder: (context, ref, _) {
-                      final position =
-                          playback.pendingSeekPosition ??
-                          ref.watch(playbackPositionProvider).asData?.value ??
-                          playback.position;
+                      final position = watchDisplayedPlaybackPosition(
+                        ref,
+                        playback,
+                      );
                       final bufferState =
                           ref
                               .watch(playbackBufferStateProvider)

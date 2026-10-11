@@ -224,6 +224,12 @@ const List<ChangelogVersion> changelogs = [
 
       // Improved
       ChangelogEntry(
+        'Opening the queue centres it on the song that is playing',
+      ),
+      ChangelogEntry(
+        'Normal crossfade blends a repeating song into its fresh start with Repeat One; Smart keeps the native loop',
+      ),
+      ChangelogEntry(
         'Now Playing on phones fits every screen: controls stay within thumb reach, short phones shrink the cover instead of cutting off controls, and tall phones get a larger cover and title',
       ),
       ChangelogEntry(
@@ -279,6 +285,10 @@ const List<ChangelogVersion> changelogs = [
       ),
 
       // Fixed: playback
+      ChangelogEntry(
+        'Now Playing on phones keeps its progress moving after a seek or a skip, including with Repeat One on',
+        type: ChangelogEntryType.fix,
+      ),
       ChangelogEntry(
         'Skipping to a remote song that your server is still fetching plays it instead of jumping past it, and remote songs start promptly on first play',
         type: ChangelogEntryType.fix,

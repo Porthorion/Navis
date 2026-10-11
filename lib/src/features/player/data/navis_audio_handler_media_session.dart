@@ -352,6 +352,7 @@ extension _NavisMediaSession on NavisAudioHandler {
           if (!identical(_player, wiredPlayer)) return;
           if (!_positionController.isClosed) {
             _positionController.add(position);
+            _lastPositionEmitAt = DateTime.now();
           }
           // Paused edits may wait longer than the controller's bounded refresh
           // window. Observe their first processed block when playback resumes.

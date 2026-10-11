@@ -3,6 +3,7 @@ import 'package:navis/src/features/player/presentation/now_playing_artwork_scope
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:navis/l10n/app_localizations.dart';
 import 'package:navis/src/common_widgets/empty_state.dart';
+import 'package:navis/src/features/player/presentation/queue_current_row_centering.dart';
 import 'package:navis/src/features/player/presentation/queue_provider.dart';
 import 'package:navis/src/features/player/presentation/queue_track_row.dart';
 import 'package:navis/src/features/player/presentation/queue_shuffle_controls.dart';
@@ -64,53 +65,56 @@ class QueueSheet extends ConsumerWidget {
                   subtitle: l10n.queueEmptySubtitle,
                   icon: Icons.queue_music_outlined,
                 )
-              : ReorderableListView.builder(
-                  footer: const QueueUnavailableTracks(),
-                  scrollController: scrollController,
-                  physics: sheetDragActive
-                      ? const NeverScrollableScrollPhysics()
-                      : const ClampingScrollPhysics(),
-                  padding: const EdgeInsets.only(bottom: 80),
-                  itemCount: queueIds.length,
-                  onReorderStart: (_) => onReorderDragChanged?.call(true),
-                  onReorderEnd: (_) => onReorderDragChanged?.call(false),
-                  onReorderItem: (oldIndex, newIndex) async {
-                    if (actionsDisabled) return;
-                    await reorderQueueItem(ref, oldIndex, newIndex);
-                  },
-                  itemBuilder: (context, index) {
-                    return QueueTrackRow(
-                      key: queueRowKey(queueIds, index),
-                      songId: queueIds[index],
-                      index: index,
-                      compact: true,
-                      indicatorState: queueRowIndicatorState(
-                        playerSnapshot,
-                        queueIds,
-                        index,
-                      ),
-                      actionsDisabled: actionsDisabled,
-                      sheetDragActive: sheetDragActive,
-                      onSwipeActiveChanged: onItemSwipeActiveChanged,
-                      onRemove: () {
-                        if (actionsDisabled) return;
-                        ref
-                            .read(queueProvider.notifier)
-                            .fireAndForget(
-                              () => ref
-                                  .read(queueProvider.notifier)
-                                  .removeAt(index),
-                              label: 'remove queue item',
-                            );
-                      },
-                      onTap: () async {
-                        if (actionsDisabled) return;
-                        await ref
-                            .read(queueProvider.notifier)
-                            .playFromIndex(index);
-                      },
-                    );
-                  },
+              : QueueCurrentRowCentering(
+                  currentIndex: queueCurrentIndex(playerSnapshot, queueIds),
+                  child: ReorderableListView.builder(
+                    footer: const QueueUnavailableTracks(),
+                    scrollController: scrollController,
+                    physics: sheetDragActive
+                        ? const NeverScrollableScrollPhysics()
+                        : const ClampingScrollPhysics(),
+                    padding: const EdgeInsets.only(bottom: 80),
+                    itemCount: queueIds.length,
+                    onReorderStart: (_) => onReorderDragChanged?.call(true),
+                    onReorderEnd: (_) => onReorderDragChanged?.call(false),
+                    onReorderItem: (oldIndex, newIndex) async {
+                      if (actionsDisabled) return;
+                      await reorderQueueItem(ref, oldIndex, newIndex);
+                    },
+                    itemBuilder: (context, index) {
+                      return QueueTrackRow(
+                        key: queueRowKey(queueIds, index),
+                        songId: queueIds[index],
+                        index: index,
+                        compact: true,
+                        indicatorState: queueRowIndicatorState(
+                          playerSnapshot,
+                          queueIds,
+                          index,
+                        ),
+                        actionsDisabled: actionsDisabled,
+                        sheetDragActive: sheetDragActive,
+                        onSwipeActiveChanged: onItemSwipeActiveChanged,
+                        onRemove: () {
+                          if (actionsDisabled) return;
+                          ref
+                              .read(queueProvider.notifier)
+                              .fireAndForget(
+                                () => ref
+                                    .read(queueProvider.notifier)
+                                    .removeAt(index),
+                                label: 'remove queue item',
+                              );
+                        },
+                        onTap: () async {
+                          if (actionsDisabled) return;
+                          await ref
+                              .read(queueProvider.notifier)
+                              .playFromIndex(index);
+                        },
+                      );
+                    },
+                  ),
                 ),
         ),
       ],

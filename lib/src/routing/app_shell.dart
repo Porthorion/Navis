@@ -2012,24 +2012,18 @@ class _AppShellState extends ConsumerState<AppShell> {
                                               .expand();
                                         },
                                       ),
-                                fullPlayer: ProviderScope(
-                                  overrides: [
-                                    playerStateProvider.overrideWithValue(
-                                      playback,
-                                    ),
-                                  ],
-                                  child: NowPlayingScreen(
-                                    onShowQueue: () =>
-                                        NavService.showQueue(context, ref),
-                                    onCollapse: () => ref
-                                        .read(
-                                          playerOverlayStackProvider.notifier,
-                                        )
-                                        .collapse(),
-                                    onBackInterceptorChanged: (handler) {
-                                      _nowPlayingBackInterceptor = handler;
-                                    },
-                                  ),
+                                // Now Playing reads the live snapshot. The shell's
+                                // deduped `playback` skips seek settlement and
+                                // queue edits, so it must not be passed down.
+                                fullPlayer: NowPlayingScreen(
+                                  onShowQueue: () =>
+                                      NavService.showQueue(context, ref),
+                                  onCollapse: () => ref
+                                      .read(playerOverlayStackProvider.notifier)
+                                      .collapse(),
+                                  onBackInterceptorChanged: (handler) {
+                                    _nowPlayingBackInterceptor = handler;
+                                  },
                                 ),
                               ),
                             ),

@@ -125,6 +125,20 @@ Located in `lib/src/providers/app_providers.dart`:
 - `queueProvider` - Current play queue controller
 - `reorderQueueProvider` - Reorder queue items
 
+**queue_current_row_centering.dart**: `QueueSheet` (phone overlay, compact-wide
+overlay, embedded and wide Now Playing panels) and `QueueScreen` wrap their
+list in `QueueCurrentRowCentering`, which once per open jumps (no animation,
+so reduced motion needs no case) to the playing row: an estimate from the
+measured row extent, then `Scrollable.ensureVisible(alignment: 0.5)` on the
+real `QueueTrackRow`, repeated for a few frames while lazily built rows
+resolve and change height. `queueCurrentIndex` supplies the logical index and
+is null for radio, an unknown index or a queue still being replaced, which
+means no scroll. Offsets clamp at the list ends, so short queues do not move.
+The widget stops at the first user scroll and never re-centres on track
+changes or rebuilds. Because the list now opens scrolled, the phone overlay
+(`app_shell_queue_overlay.dart`) lets a downward drag that starts outside the
+list (header, drag handle) move the sheet even when the list is not at the top.
+
 **providers/app_providers.dart** (player state):
 - `lyricsProvider` - Lyrics for a song
 - `playerStateProvider` - Playback state
@@ -3302,6 +3316,22 @@ never `MediaItem.extras`. AzuraCast polling is derived only from `/listen/` or
 6. UI reacts to structural snapshots without rebuilding for routine position
    or buffer ticks; timeline widgets subscribe to the lightweight streams
 
+`playbackSnapshotProvider` attaches its live broadcast subscription before
+seeding the current snapshot, using the same `Stream.multi` ownership pattern
+as the buffer-state provider, so no snapshot is lost between the seed and the
+subscription.
+
+Phone Now Playing reads the live `playerStateProvider`. The app shell watches
+a deduped `_ShellPlayback` selection that ignores seek settlement, positions
+and queue contents, so it must not hand its `playback` down: an
+`overrideWithValue(playback)` scope around Now Playing (stale since queue
+paging added the dedupe) froze the seek bar on every seek target, and with
+Repeat One for good. Seek bars read their position through
+`watchDisplayedPlaybackPosition` (`playback_seek_bar_style.dart`), which
+watches the position stream and `pendingSeekPosition` on every build, so a
+skipped `??` branch cannot drop the stream subscription. Shell and seek bar
+widget tests cover both.
+
 `NavisAudioHandler` keeps its fields, public API and audio-service overrides in
 `navis_audio_handler.dart`. Private helpers are grouped in part files using
 private extensions on the handler within the same library:
@@ -4208,7 +4238,25 @@ growing partial duration; the decoder duration is only a fallback when metadata
 is unavailable. The inactive crossfade deck exists only while crossfade is
 enabled and is created, synchronized, or disposed as that setting changes.
 Its clones of lock-cached sources use direct streams so two decks never rename
-the same partial cache file. Queue edits do not wait for a fade, so the deck
+the same partial cache file.
+
+Crossfade starts after pending seeks settle. Normal crossfade with Repeat One
+prepares that same materialised queue entry on
+the inactive deck at position zero, overlaps the ending and fresh start, then
+uses the existing deck handoff and listener rebinding. The queue occurrence,
+metadata and repeat mode stay the same; position and media-session state switch
+to the incoming deck and the new position is persisted. Each completed
+self-handoff starts one new scrobble/play-history session, while prewarming or
+cancellation does not; the outgoing session's submission threshold is checked
+before the fade begins. Smart mode never self-crossfades under Repeat One,
+even without album metadata. Songs shorter than twice the fade duration loop
+natively, and changing to Smart or leaving Repeat One cancels a pending
+self-crossfade. A native wrap that wins the race with preparation cancels that
+fade and leaves the next ending eligible; preparation time is deducted from
+the wait to the self-fade boundary. Repeat Off/All retain their existing
+next-entry and wrap rules.
+
+Queue edits do not wait for a fade, so the deck
 is checked by content, not length: before a fade the deck is loaded unless it
 holds exactly the materialised queue (song ids, canonical ids matching); an
 edit that lands while it loads makes it load once more, and a second change
