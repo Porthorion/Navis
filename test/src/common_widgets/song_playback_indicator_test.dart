@@ -266,6 +266,36 @@ void main() {
       closeTo(tester.getTopLeft(find.text('Song Two')).dx, 0.1),
     );
   });
+
+  testWidgets('the loading spinner stays round in a fixed-width slot', (
+    tester,
+  ) async {
+    // Trending Now puts the marker in a 30-wide, 44-tall rank column; the
+    // spinner used to take the slot's full width and draw as an oval.
+    await tester.pumpWidget(
+      const MaterialApp(
+        home: Center(
+          // The rank column's exact shape.
+          child: SizedBox(
+            height: 44,
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: <Widget>[
+                SizedBox(
+                  width: 30,
+                  child: SongPlaybackMarker(
+                    state: SongPlaybackIndicatorState.loading,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+    final spinner = tester.getSize(find.byType(CircularProgressIndicator));
+    expect(spinner, const Size.square(18));
+  });
 }
 
 Future<void> _pumpTile(
