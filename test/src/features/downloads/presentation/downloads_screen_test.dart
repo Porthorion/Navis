@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:audio_service/audio_service.dart';
+import 'package:drift/drift.dart' show Value;
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/gestures.dart';
 import 'package:material_ui/material_ui.dart';
@@ -374,6 +375,61 @@ void main() {
       ]);
     },
   );
+
+  testWidgets('failed downloads explain the reason and Retry clears it', (
+    tester,
+  ) async {
+    final id = await tester.runAsync(
+      () => database.downloadQueueDao.enqueue(
+        DownloadQueueTableCompanion.insert(
+          songId: const Value('failed-song'),
+          status: DownloadStatus.failed,
+          addedAt: DateTime(2026),
+          retryCount: const Value(3),
+          failureReason: const Value(DownloadFailureReason.truncated),
+          failureDetail: const Value('4 / 10 bytes'),
+        ),
+      ),
+    );
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: withTestDatabase(
+          database,
+          overrides: [
+            downloadFolderProblemProvider.overrideWithValue(
+              const AsyncData(null),
+            ),
+            permanentCachedTracksProvider.overrideWithValue(
+              const AsyncData(<CachedTracksTableData>[]),
+            ),
+            downloadRelatedSongsProvider.overrideWith(
+              (ref) => Stream.value(<String, SongsTableData>{}),
+            ),
+            songByIdProvider.overrideWith((ref, id) => Stream.value(null)),
+          ],
+        ),
+        child: MaterialApp(
+          theme: testTheme(),
+          localizationsDelegates: navisLocalizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
+          home: const DownloadsScreen(),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(find.text('The download was cut short. Try again.'), findsOneWidget);
+    await tester.tap(find.byIcon(Icons.refresh).last);
+    await tester.pumpAndSettle();
+    final item = (await tester.runAsync(
+      () => database.downloadQueueDao.watchQueue().first,
+    ))!.single;
+    expect(item.id, id);
+    expect(item.status, DownloadStatus.queued);
+    expect(item.failureReason, isNull);
+    expect(item.failureDetail, isNull);
+    expect(item.retryCount, 0);
+    expect(find.text('The download was cut short. Try again.'), findsNothing);
+  }, skip: !sqliteAvailable);
 
   testWidgets('download queue marks the paused current song', (tester) async {
     const song = SongsTableData(

@@ -1,4 +1,8 @@
 import 'dart:async';
+import 'dart:convert';
+
+import 'package:crypto/crypto.dart';
+
 import 'dart:io';
 
 import 'package:dio/dio.dart';
@@ -34,6 +38,10 @@ class _GatedServer {
   int peak = 0;
   String contentType = 'audio/mpeg';
   int? failStatus;
+  Object? failure;
+  void Function()? beforeResponse;
+  List<int> bytes = [1, 2, 3, 4];
+  int? contentLength;
 
   String songOf(Uri uri) => uri.queryParameters['id']!;
 
@@ -74,7 +82,7 @@ class _GatedServer {
       if (active > peak) peak = active;
       try {
         await File(savePath).parent.create(recursive: true);
-        await File(savePath).writeAsBytes(<int>[1, 2, 3, 4]);
+        await File(savePath).writeAsBytes(bytes);
         await Future.any<void>(<Future<void>>[
           gate(songOf(uri)).future,
           if (token != null) token.whenCancel.then((error) => throw error),
@@ -82,6 +90,9 @@ class _GatedServer {
       } finally {
         active--;
       }
+      beforeResponse?.call();
+      if (failure case final Exception error) throw error;
+      if (failure case final Error error) throw error;
       if (failStatus case final status?) {
         throw DioException(
           requestOptions: RequestOptions(path: uri.path),
@@ -97,6 +108,8 @@ class _GatedServer {
         statusCode: 200,
         headers: Headers.fromMap(<String, List<String>>{
           Headers.contentTypeHeader: <String>[contentType],
+          if (contentLength != null)
+            Headers.contentLengthHeader: ['$contentLength'],
         }),
       );
     });
@@ -118,8 +131,10 @@ void main() {
   late _GatedServer server;
   late SubsonicApiClient api;
   var onWifi = true;
+  var online = true;
 
   setUpAll(() {
+    TestWidgetsFlutterBinding.ensureInitialized();
     registerFallbackValue(Uri.parse('https://example.com/rest/stream.view'));
     registerFallbackValue(CancelToken());
     registerFallbackValue(Options());
@@ -131,6 +146,7 @@ void main() {
     dio = _MockDio();
     server = _GatedServer()..install(dio);
     onWifi = true;
+    online = true;
     // A closed loopback port: background lyrics lookups fail at once.
     api = SubsonicApiClient(
       baseUrl: 'http://127.0.0.1:9',
@@ -155,6 +171,7 @@ void main() {
     String? Function()? customPath,
     Future<void> Function(Directory)? validateCustomRoot,
     bool? isAndroid,
+    Future<int?> Function(String)? readFreeBytes,
     Duration folderRecheckInterval = const Duration(seconds: 5),
   }) {
     final lrclib = _MockLrclibClient();
@@ -169,6 +186,8 @@ void main() {
       readApiClient: () => api,
       readWifiOnly: () => false,
       readIsWifi: () => onWifi,
+      readIsOnline: () => online,
+      readFreeBytes: readFreeBytes ?? (_) async => null,
       readCustomDownloadFolderEnabled: customEnabled ?? () => false,
       readCustomDownloadFolderPath: customPath ?? () => null,
       validateCustomRoot: validateCustomRoot,
@@ -208,6 +227,578 @@ void main() {
   Future<List<DownloadQueueTableData>> queue() =>
       database.downloadQueueDao.watchQueue().first;
 
+  test('capacity reservations hold new workers while an admitted transfer finishes', () async {
+    final service = buildService(readFreeBytes: (_) async => 30 * 1024 * 1024);
+    await service.start();
+    await database.libraryDao.upsertSongs([
+      for (final id in ['song-0', 'song-1'])
+        SongsTableCompanion.insert(
+          id: id,
+          title: id,
+          size: const Value(8 * 1024 * 1024),
+        ),
+    ]);
+    await service.enqueueSong('song-0');
+    await waitUntil(() => server.active == 1);
+    await service.enqueueSong('song-1');
+    await waitUntil(
+      () => service.folderProblem == DownloadFolderProblem.noSpace,
+    );
+    expect(server.requests, hasLength(1));
+    server.release('song-0');
+    await waitUntil(() => service.activeQueueIds.isEmpty);
+    expect(await database.cacheDao.getCachedTrack('song-0'), isNotNull);
+    expect((await queue()).single.songId, 'song-1');
+    server.releaseAll();
+    await service.processQueuedDownloads();
+    expect(await queue(), isEmpty);
+  }, skip: !sqliteAvailable);
+
+  for (final uploaded in [false, true]) {
+    test(
+      'SAF finish journal reconciles a crash ${uploaded ? 'after' : 'before'} upload',
+      () async {
+        const tree = 'content://fixture/tree/root';
+        const locator = 'content://fixture/document/audio';
+        const channel = MethodChannel(
+          'com.navis.app/permanent_download_storage',
+        );
+        const playback = MethodChannel(
+          'com.navis.app/permanent_download_playback',
+        );
+        final messenger =
+            TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
+        await database.appSettingsDao.updateDownloadsPaused(paused: true);
+        await addSongs(1);
+        final staging = File(
+          p.join(
+            supportDir.path,
+            'audio',
+            'permanent',
+            '.navis-saf-transfer.mp3',
+          ),
+        );
+        await staging.parent.create(recursive: true);
+        await staging.writeAsBytes([1, 2, 3, 4]);
+        final materialized = File(p.join(supportDir.path, 'provider-copy.tmp'));
+        messenger.setMockMethodCallHandler(
+          channel,
+          (call) async => switch (call.method) {
+            'validateWritableTree' => {
+              'uri': tree,
+              'canRead': true,
+              'canWrite': true,
+              'canReplace': true,
+            },
+            'findDocument' =>
+              (call.arguments as Map)['relativePath'] == 'Artist/Song.mp3' &&
+                      uploaded
+                  ? locator
+                  : null,
+            'materialize' => (await staging.copy(materialized.path)).path,
+            'listRecursively' => [],
+            _ => null,
+          },
+        );
+        messenger.setMockMethodCallHandler(playback, (_) async => uploaded);
+        addTearDown(() {
+          messenger.setMockMethodCallHandler(channel, null);
+          messenger.setMockMethodCallHandler(playback, null);
+        });
+        final id = await database.downloadQueueDao.enqueue(
+          DownloadQueueTableCompanion.insert(
+            songId: const Value('song-0'),
+            status: DownloadStatus.downloading,
+            addedAt: DateTime(2026),
+          ),
+        );
+        await database.downloadQueueDao.writeFinishJournal(
+          id,
+          jsonEncode({
+            'path': staging.path,
+            'size': 4,
+            'sha256': sha256.convert([1, 2, 3, 4]).toString(),
+            'format': 'mp3',
+            'bitRate': 192,
+            'treeUri': tree,
+            'relativePath': 'Artist/Song.mp3',
+          }),
+        );
+        final service = buildService(
+          isAndroid: true,
+          customEnabled: () => true,
+          customPath: () => tree,
+        );
+        await service.start();
+        if (uploaded) {
+          expect(await queue(), isEmpty);
+          final row = (await database.cacheDao.getCachedTrack('song-0'))!;
+          expect(row.storageKind, 'androidSaf');
+          expect(row.filePath, locator);
+        } else {
+          expect((await queue()).single.status, DownloadStatus.queued);
+          expect((await queue()).single.finishJournal, isNull);
+          expect(await database.cacheDao.getCachedTrack('song-0'), isNull);
+        }
+        expect(staging.existsSync(), isFalse);
+        expect(materialized.existsSync(), isFalse);
+        expect(server.requests, isEmpty);
+      },
+      skip: !sqliteAvailable,
+    );
+  }
+
+  test(
+    'a full custom root probe retains the no-space classification',
+    () async {
+      final service = buildService(
+        customEnabled: () => true,
+        customPath: () => supportDir.path,
+        validateCustomRoot: (_) async => throw const FileSystemException(
+          'Fixture full',
+          '',
+          OSError('ENOSPC', 28),
+        ),
+      );
+      await service.start();
+      await addSongs(1);
+      await service.enqueueSong('song-0');
+      await service.processQueuedDownloads();
+      expect(service.folderProblem, DownloadFolderProblem.noSpace);
+      expect(
+        (await queue()).single.failureReason,
+        DownloadFailureReason.noSpace,
+      );
+      expect((await queue()).single.retryCount, 0);
+      expect(server.requests, isEmpty);
+    },
+    skip: !sqliteAvailable || Platform.isWindows,
+  );
+
+  for (final code in [404, 410, 500, 503, 403]) {
+    test(
+      'HTTP $code persists its reason with the correct retry policy',
+      () async {
+        server.failStatus = code;
+        server.releaseAll();
+        final service = buildService();
+        await service.start();
+        await addSongs(1);
+        await service.enqueueSong('song-0');
+        await service.processQueuedDownloads();
+        await service.processQueuedDownloads();
+        final item = (await queue()).single;
+        final reason = code == 403
+            ? DownloadFailureReason.permission
+            : code >= 500
+            ? DownloadFailureReason.serverError
+            : DownloadFailureReason.notFound;
+        expect(item.failureReason, reason);
+        expect(item.failureDetail, 'HTTP $code');
+        expect(item.retryCount, code >= 500 ? 1 : 0);
+        expect(
+          item.status,
+          code == 404 || code == 410
+              ? DownloadStatus.failed
+              : DownloadStatus.queued,
+        );
+        expect(server.requests, hasLength(1));
+      },
+      skip: !sqliteAvailable,
+    );
+  }
+
+  for (final type in [
+    DioExceptionType.connectionError,
+    DioExceptionType.receiveTimeout,
+    DioExceptionType.unknown,
+  ]) {
+    test('$type persists a transient reason and stops at the cap', () async {
+      server.failure = DioException(
+        requestOptions: RequestOptions(path: '/fixture'),
+        type: type,
+      );
+      server.releaseAll();
+      final service = buildService();
+      await service.start();
+      await addSongs(1);
+      await database.downloadQueueDao.enqueue(
+        DownloadQueueTableCompanion.insert(
+          songId: const Value('song-0'),
+          status: DownloadStatus.queued,
+          addedAt: DateTime(2026),
+          retryCount: const Value(maxRetries),
+        ),
+      );
+      await service.processQueuedDownloads();
+      final item = (await queue()).single;
+      expect(
+        item.failureReason,
+        type == DioExceptionType.connectionError
+            ? DownloadFailureReason.network
+            : type == DioExceptionType.receiveTimeout
+            ? DownloadFailureReason.timeout
+            : DownloadFailureReason.unknown,
+      );
+      expect(item.retryCount, maxRetries);
+      expect(item.status, DownloadStatus.failed);
+      await service.setPaused(paused: true);
+      await database.downloadQueueDao.retry(item.id);
+      final retried = (await queue()).single;
+      expect(retried.failureReason, isNull);
+      expect(retried.failureDetail, isNull);
+      expect(retried.retryCount, 0);
+    }, skip: !sqliteAvailable);
+  }
+
+  test('offline waits without attempts, reconnect resumes and success clears the failure', () async {
+    server.failure = DioException(
+      requestOptions: RequestOptions(path: '/fixture'),
+      type: DioExceptionType.connectionError,
+    );
+    server.beforeResponse = () => online = false;
+    server.releaseAll();
+    final service = buildService();
+    await service.start();
+    await addSongs(1);
+    await service.enqueueSong('song-0');
+    await service.processQueuedDownloads();
+    final item = (await queue()).single;
+    expect(item.failureReason, DownloadFailureReason.network);
+    expect(item.retryCount, 0);
+    expect(service.effectiveConcurrency, 0);
+    await service.processQueuedDownloads();
+    expect(server.requests, hasLength(1));
+    server.failure = null;
+    server.beforeResponse = null;
+    online = true;
+    await service.processQueuedDownloads();
+    expect(server.requests, hasLength(2));
+    expect(await queue(), isEmpty);
+    expect(await database.cacheDao.getCachedTrack('song-0'), isNotNull);
+  }, skip: !sqliteAvailable);
+
+  test('an already offline queue never starts a transfer', () async {
+    online = false;
+    final service = buildService();
+    await service.start();
+    await addSongs(1);
+    await service.enqueueSong('song-0');
+    await service.processQueuedDownloads();
+    expect(server.requests, isEmpty);
+    expect((await queue()).single.retryCount, 0);
+    online = true;
+    server.releaseAll();
+    await service.processQueuedDownloads();
+    expect(await queue(), isEmpty);
+  }, skip: !sqliteAvailable);
+
+  for (final empty in [false, true]) {
+    test(
+      'detects ${empty ? 'empty transcode' : 'truncated original'} before registration',
+      () async {
+        server.contentLength = empty ? null : 10;
+        if (empty) server.bytes = [];
+        server.releaseAll();
+        final service = buildService();
+        await service.start();
+        await addSongs(1);
+        await service.enqueueSong('song-0', quality: empty ? '192' : null);
+        await service.processQueuedDownloads();
+        final item = (await queue()).single;
+        expect(item.failureReason, DownloadFailureReason.truncated);
+        expect(item.failureDetail, empty ? 'Empty file' : '4 / 10 bytes');
+        expect(item.retryCount, 1);
+        expect(await database.cacheDao.getCachedTrack('song-0'), isNull);
+        expect(
+          supportDir
+              .listSync(recursive: true)
+              .whereType<File>()
+              .where((f) => f.path.endsWith('.navis-part')),
+          isEmpty,
+        );
+      },
+      skip: !sqliteAvailable,
+    );
+  }
+
+  test(
+    'exact original size registers; estimated transcode length need not match',
+    () async {
+      final service = buildService();
+      await service.start();
+      await addSongs(2);
+      server.contentLength = 4;
+      server.releaseAll();
+      await service.enqueueSong('song-0');
+      await service.processQueuedDownloads();
+      expect(await database.cacheDao.getCachedTrack('song-0'), isNotNull);
+      server.contentLength = 100;
+      await service.enqueueSong('song-1', quality: '192');
+      await service.processQueuedDownloads();
+      expect(await database.cacheDao.getCachedTrack('song-1'), isNotNull);
+    },
+    skip: !sqliteAvailable,
+  );
+
+  test('free space preflight holds all items and automatically resumes after space is freed', () async {
+    var free = 1;
+    final paths = <String>[];
+    final service = buildService(
+      readFreeBytes: (path) async {
+        paths.add(path);
+        return free;
+      },
+      folderRecheckInterval: const Duration(milliseconds: 20),
+    );
+    await service.start();
+    await addSongs(2);
+    await service.enqueueSong('song-0');
+    await service.enqueueSong('song-1');
+    await service.processQueuedDownloads();
+    expect(service.folderProblem, DownloadFolderProblem.noSpace);
+    expect(server.requests, isEmpty);
+    expect(
+      (await queue()).map((i) => i.failureReason),
+      everyElement(DownloadFailureReason.noSpace),
+    );
+    expect((await queue()).map((i) => i.retryCount), everyElement(0));
+    expect(paths, everyElement(p.join(supportDir.path, 'audio', 'permanent')));
+    free = 1024 * 1024 * 1024;
+    server.releaseAll();
+    await waitUntil(() => server.requests.length == 2);
+    await service.processQueuedDownloads();
+    expect(await queue(), isEmpty);
+  }, skip: !sqliteAvailable);
+
+  test(
+    'playlist warns through the existing notice when its estimate cannot fit',
+    () async {
+      final service = buildService(
+        readFreeBytes: (_) async => 20 * 1024 * 1024,
+      );
+      final notices = <DownloadFolderProblem>[];
+      final subscription = service.folderNotices.listen(notices.add);
+      addTearDown(subscription.cancel);
+      await service.setPaused(paused: true);
+      await service.start();
+      await database.libraryDao.upsertSongs([
+        for (final id in ['a', 'b'])
+          SongsTableCompanion.insert(
+            id: id,
+            title: id,
+            size: const Value(8 * 1024 * 1024),
+          ),
+      ]);
+      await service.enqueuePlaylist('playlist', ['a', 'b']);
+      await Future<void>.delayed(Duration.zero);
+      expect(notices, [DownloadFolderProblem.noSpace]);
+      expect((await queue()).map((i) => i.retryCount), everyElement(0));
+    },
+    skip: !sqliteAvailable,
+  );
+
+  for (final wrapper in ['none', 'dio', 'folder']) {
+    test(
+      'write ENOSPC holds remaining items without retries, wrapper=$wrapper',
+      () async {
+        const error = FileSystemException(
+          'Fixture full',
+          '',
+          OSError('ENOSPC', 28),
+        );
+        server.failure = switch (wrapper) {
+          'dio' => DioException(
+            requestOptions: RequestOptions(path: '/fixture'),
+            error: error,
+          ),
+          'folder' => DownloadFolderUnavailableException(
+            DownloadFolderProblem.inaccessible,
+            osError: error.osError,
+          ),
+          _ => error,
+        };
+        server.releaseAll();
+        final service = buildService();
+        await service.start();
+        await service.setMaxConcurrentDownloads(1);
+        await addSongs(2);
+        await service.enqueueSong('song-0');
+        await service.enqueueSong('song-1');
+        await service.processQueuedDownloads();
+        expect(service.folderProblem, DownloadFolderProblem.noSpace);
+        expect(server.requests, hasLength(1));
+        expect((await queue()).map((i) => i.retryCount), everyElement(0));
+        expect(
+          (await queue()).map((i) => i.failureReason),
+          everyElement(DownloadFailureReason.noSpace),
+        );
+      },
+      skip: !sqliteAvailable,
+    );
+  }
+
+  for (final phase in [
+    'before rename',
+    'after rename',
+    'corrupt final',
+    'missing final',
+  ]) {
+    test('startup recovers crash $phase using the finish journal', () async {
+      await database.appSettingsDao.updateDownloadsPaused(paused: true);
+      await addSongs(1);
+      final root = Directory(p.join(supportDir.path, 'audio', 'permanent'));
+      await root.create(recursive: true);
+      final finalFile = File(p.join(root.path, 'Artist', 'Song 0.mp3'));
+      await finalFile.parent.create();
+      final part = File('${finalFile.path}.navis-part');
+      await part.writeAsBytes([1, 2, 3, 4]);
+      final id = await database.downloadQueueDao.enqueue(
+        DownloadQueueTableCompanion.insert(
+          songId: const Value('song-0'),
+          status: DownloadStatus.downloading,
+          addedAt: DateTime(2026),
+        ),
+      );
+      await database.downloadQueueDao.writeFinishJournal(
+        id,
+        jsonEncode({
+          'path': finalFile.path,
+          'size': 4,
+          'sha256': sha256.convert([1, 2, 3, 4]).toString(),
+          'format': 'mp3',
+          'bitRate': 192,
+        }),
+      );
+      if (phase != 'before rename') await part.rename(finalFile.path);
+      if (phase == 'corrupt final') await finalFile.writeAsBytes([4, 3, 2, 1]);
+      if (phase == 'missing final') await finalFile.delete();
+      final service = buildService();
+      await service.start();
+      if (phase == 'after rename') {
+        expect(await queue(), isEmpty);
+        expect(
+          (await database.cacheDao.getCachedTrack('song-0'))!.filePath,
+          finalFile.path,
+        );
+        expect(finalFile.existsSync(), isTrue);
+      } else {
+        expect((await queue()).single.status, DownloadStatus.queued);
+        expect((await queue()).single.finishJournal, isNull);
+        expect(await database.cacheDao.getCachedTrack('song-0'), isNull);
+        expect(finalFile.existsSync(), isFalse);
+      }
+      expect(part.existsSync(), isFalse);
+      expect(server.requests, isEmpty);
+      // Repeating startup is harmless.
+      await service.stop();
+      await service.start();
+      expect(server.requests, isEmpty);
+    }, skip: !sqliteAvailable);
+  }
+
+  test(
+    'startup requeues a registered download whose file is missing',
+    () async {
+      await database.appSettingsDao.updateDownloadsPaused(paused: true);
+      await addSongs(1);
+      await database.cacheDao.upsertCachedTrack(
+        CachedTracksTableCompanion.insert(
+          songId: 'song-0',
+          filePath: p.join(supportDir.path, 'audio', 'permanent', 'gone.mp3'),
+          fileSize: 4,
+          format: 'mp3',
+          bitRate: const Value(192),
+          cacheType: CacheType.permanent,
+          downloadStatus: DownloadStatus.complete,
+          lastAccessedAt: DateTime(2026),
+        ),
+      );
+      final service = buildService();
+      await service.start();
+      expect(await database.cacheDao.getCachedTrack('song-0'), isNull);
+      expect((await queue()).single.songId, 'song-0');
+      expect((await queue()).single.quality, '192');
+    },
+    skip: !sqliteAvailable,
+  );
+
+  test('custom cleanup runs even without interrupted rows and leaves foreign audio and links', () async {
+    final custom = Directory(p.join(supportDir.path, 'custom'));
+    await custom.create();
+    final part = File(p.join(custom.path, 'old.mp3.navis-part'));
+    final foreign = File(p.join(custom.path, 'foreign.mp3'));
+    final outside = File(p.join(supportDir.path, 'outside.mp3.navis-part'));
+    await part.writeAsBytes([1]);
+    await foreign.writeAsBytes([2]);
+    await outside.writeAsBytes([3]);
+    await Link(p.join(custom.path, 'linked.navis-part')).create(outside.path);
+    final service = buildService(
+      customEnabled: () => true,
+      customPath: () => custom.path,
+    );
+    await service.start();
+    expect(part.existsSync(), isFalse);
+    expect(foreign.readAsBytesSync(), [2]);
+    expect(outside.existsSync(), isTrue);
+    expect(Link(p.join(custom.path, 'linked.navis-part')).existsSync(), isTrue);
+  }, skip: !sqliteAvailable || Platform.isWindows);
+
+  test(
+    'SAF startup deletes only part documents and checks staging capacity',
+    () async {
+      const channel = MethodChannel('com.navis.app/permanent_download_storage');
+      final messenger =
+          TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
+      final deleted = <String>[];
+      messenger.setMockMethodCallHandler(
+        channel,
+        (call) async => switch (call.method) {
+          'validateWritableTree' => {
+            'uri': 'content://fixture/tree/root',
+            'canRead': true,
+            'canWrite': true,
+            'canReplace': true,
+          },
+          'listRecursively' => [
+            for (final name in ['old.mp3.navis-part', 'foreign.mp3'])
+              {
+                'uri': 'content://fixture/$name',
+                'relativePath': name,
+                'displayName': name,
+                'size': 4,
+              },
+          ],
+          'delete' => deleted.add((call.arguments as Map)['uri'] as String),
+          _ => null,
+        },
+      );
+      addTearDown(() => messenger.setMockMethodCallHandler(channel, null));
+      final queried = <String>[];
+      final service = buildService(
+        isAndroid: true,
+        customEnabled: () => true,
+        customPath: () => 'content://fixture/tree/root',
+        readFreeBytes: (path) async {
+          queried.add(path);
+          return 0;
+        },
+      );
+      await service.start();
+      expect(deleted, ['content://fixture/old.mp3.navis-part']);
+      await addSongs(1);
+      await service.enqueueSong('song-0');
+      await service.processQueuedDownloads();
+      expect(
+        queried,
+        everyElement(p.join(supportDir.path, 'audio', 'permanent')),
+      );
+      expect(service.folderProblem, DownloadFolderProblem.noSpace);
+      expect(server.requests, isEmpty);
+    },
+    skip: !sqliteAvailable,
+  );
+
   test('Android startup holds an unset folder without disabling it', () async {
     await database.appSettingsDao.updateCustomDownloadFolderEnabled(
       enabled: true,
@@ -242,7 +833,11 @@ void main() {
     expect(await queue(), isEmpty);
   }, skip: !sqliteAvailable);
 
-  for (final problem in DownloadFolderProblem.values) {
+  for (final problem in [
+    DownloadFolderProblem.unset,
+    DownloadFolderProblem.missing,
+    DownloadFolderProblem.inaccessible,
+  ]) {
     test(
       'holds queue without retries for $problem and resumes after repair',
       () async {
@@ -280,6 +875,14 @@ void main() {
         expect(held, hasLength(2));
         expect(held.map((i) => i.status), everyElement(DownloadStatus.queued));
         expect(held.map((i) => i.retryCount), everyElement(0));
+        expect(
+          held.map((i) => i.failureReason),
+          everyElement(
+            problem == DownloadFolderProblem.inaccessible
+                ? DownloadFailureReason.permission
+                : DownloadFailureReason.folderUnavailable,
+          ),
+        );
         expect(notices, [problem]);
         denied = false;
         path = supportDir.path;
@@ -659,7 +1262,12 @@ void main() {
     await service.processQueuedDownloads();
 
     expect(await database.cacheDao.getCachedTrack('song-0'), isNull);
-    expect((await queue()).single.retryCount, 1);
+    expect((await queue()).single.retryCount, 0);
+    expect(
+      (await queue()).single.failureReason,
+      DownloadFailureReason.notAudio,
+    );
+    expect((await queue()).single.status, DownloadStatus.failed);
   }, skip: sqliteAvailable ? null : 'sqlite3 not available');
 
   test('an original download counts as original afterwards', () async {

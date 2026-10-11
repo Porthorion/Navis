@@ -21,6 +21,7 @@ import 'package:navis/src/api/subsonic_error.dart';
 import 'package:navis/src/common_widgets/app_notice.dart';
 import 'package:navis/src/common_widgets/song_playback_indicator.dart';
 import 'package:navis/src/database/navis_database.dart';
+import 'package:navis/src/database/tables/schema_enums.dart';
 import 'package:navis/src/features/auth/domain/server_config.dart';
 import 'package:navis/src/features/auth/presentation/server_config_provider.dart';
 import 'package:navis/src/features/auth/presentation/server_reachability_provider.dart';
@@ -153,6 +154,21 @@ void main() {
       expect(enqueued.statusCode, HttpStatus.accepted);
       verify(() => service.enqueueSong('s1', quality: '192', format: 'opus'))
           .called(1);
+
+      final database = clone.container.read(navisDatabaseProvider);
+      await database.downloadQueueDao.enqueue(
+        DownloadQueueTableCompanion.insert(
+          songId: const Value('failed'),
+          status: DownloadStatus.failed,
+          addedAt: DateTime(2026),
+          failureReason: const Value(DownloadFailureReason.truncated),
+          failureDetail: const Value('4 / 10 bytes'),
+        ),
+      );
+      final failed = await clone.get('/v1/downloads/status');
+      final items = failed.body['queueItems'] as List<dynamic>;
+      expect(items.single, containsPair('failureReason', 'truncated'));
+      expect(items.single, containsPair('failureDetail', '4 / 10 bytes'));
 
       final cancelled = await clone.post('/v1/downloads/cancel', {
         'queueId': 4,
@@ -3762,6 +3778,7 @@ class _MockDownloadService extends Mock implements DownloadService;
 _MockDownloadService _downloadServiceStub() {
   final service = _MockDownloadService();
   when(() => service.isPaused).thenReturn(false);
+  when(() => service.folderChanges).thenAnswer((_) => Stream.value(null));
   when(() => service.maxConcurrentDownloads).thenReturn(2);
   when(() => service.effectiveConcurrency).thenReturn(2);
   when(() => service.activeQueueIds).thenReturn(const <int>{});
