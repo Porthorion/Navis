@@ -6437,6 +6437,24 @@ abstract class AppLocalizations {
   /// **'{version} is ready to download.'**
   String updateAvailableBody(String version);
 
+  /// No description provided for @updateReadyTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Navis {version} is ready'**
+  String updateReadyTitle(String version);
+
+  /// No description provided for @updateReadyBodyInstall.
+  ///
+  /// In en, this message translates to:
+  /// **'Installs in a minute.'**
+  String get updateReadyBodyInstall;
+
+  /// No description provided for @updateReadyBodyDownload.
+  ///
+  /// In en, this message translates to:
+  /// **'Opens the download page.'**
+  String get updateReadyBodyDownload;
+
   /// No description provided for @updateDownload.
   ///
   /// In en, this message translates to:

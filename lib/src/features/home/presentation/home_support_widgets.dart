@@ -130,7 +130,7 @@ class _ListShimmer extends StatelessWidget {
   }
 }
 
-class _UpdateBanner extends ConsumerWidget {
+class _UpdateTile extends ConsumerWidget {
   const new();
 
   Future<void> _handleUpdateAction(
@@ -189,20 +189,35 @@ class _UpdateBanner extends ConsumerWidget {
           UpdateDelivery.desktopSelfUpdate =>
             info.downloadUrl != null ? l10n.updateInstall : l10n.updateDownload,
         };
-        return MaterialBanner(
-          content: Text(l10n.updateAvailableBody(info.tagName)),
-          leading: const Icon(Icons.system_update_outlined),
-          actions: [
-            TextButton(
-              onPressed: () => ref.invalidate(updateProvider),
-              child: Text(l10n.updateDismiss),
-            ),
-            TextButton(
-              onPressed: () =>
-                  unawaited(_handleUpdateAction(context, ref, info)),
-              child: Text(actionLabel),
-            ),
-          ],
+        final body = switch (info.delivery) {
+          UpdateDelivery.storeRedirect => l10n.updatePlayStoreTitle,
+          UpdateDelivery.selfUpdate => l10n.updateReadyBodyInstall,
+          UpdateDelivery.desktopSelfUpdate =>
+            info.downloadUrl != null
+                ? l10n.updateReadyBodyInstall
+                : l10n.updateReadyBodyDownload,
+        };
+        return HomeNoticeCard(
+          openKey: const ValueKey<String>('updateTileOpen'),
+          dismissKey: const ValueKey<String>('updateTileDismiss'),
+          icon: Icons.system_update_outlined,
+          title: l10n.updateReadyTitle(info.tagName),
+          subtitle: body,
+          dismissTooltip: l10n.updateDismiss,
+          onDismiss: () => ref.invalidate(updateProvider),
+          secondaryAction: info.htmlUrl.isEmpty
+              ? null
+              : NoticeAction(
+                  key: const ValueKey<String>('updateTileReleaseNotes'),
+                  label: l10n.updateReleaseNotes,
+                  onPressed: () =>
+                      unawaited(launchExternalHttpUrl(info.htmlUrl)),
+                ),
+          primaryAction: NoticeAction(
+            key: const ValueKey<String>('updateTileAction'),
+            label: actionLabel,
+            onPressed: () => unawaited(_handleUpdateAction(context, ref, info)),
+          ),
         );
       },
       loading: () => const SizedBox.shrink(),

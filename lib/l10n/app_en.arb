@@ -1919,6 +1919,14 @@
       "version": { "type": "String" }
     }
   },
+  "updateReadyTitle": "Navis {version} is ready",
+  "@updateReadyTitle": {
+    "placeholders": {
+      "version": { "type": "String" }
+    }
+  },
+  "updateReadyBodyInstall": "Installs in a minute.",
+  "updateReadyBodyDownload": "Opens the download page.",
   "updateDownload": "Download",
   "updateDismiss": "Dismiss",
   "updateAvailableNotice": "Update available",

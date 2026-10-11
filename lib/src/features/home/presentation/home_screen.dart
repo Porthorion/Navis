@@ -19,6 +19,7 @@ import 'package:navis/src/api/models/listenbrainz_playlist.dart';
 import 'package:navis/src/api/models/models.dart';
 import 'package:navis/src/common_widgets/app_notice.dart';
 import 'package:navis/src/common_widgets/album_card.dart';
+import 'package:navis/src/common_widgets/home_notice_card.dart';
 import 'package:navis/src/common_widgets/album_context_menu.dart';
 import 'package:navis/src/common_widgets/cover_art_image.dart';
 import 'package:navis/src/common_widgets/desktop_song_actions.dart';
@@ -1239,7 +1240,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
           const SetupHighlightsCard()
         else
           const ChangelogDiscoveryCard(),
-        const _UpdateBanner(),
+        const _UpdateTile(),
         for (final sectionId in order)
           if (!hidden.contains(sectionId))
             ..._buildSection(

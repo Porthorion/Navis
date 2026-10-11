@@ -4072,6 +4072,17 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
+  String updateReadyTitle(String version) {
+    return 'Navis $version is ready';
+  }
+
+  @override
+  String get updateReadyBodyInstall => 'Installs in a minute.';
+
+  @override
+  String get updateReadyBodyDownload => 'Opens the download page.';
+
+  @override
   String get updateDownload => 'Download';
 
   @override

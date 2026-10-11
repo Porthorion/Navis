@@ -44,6 +44,7 @@ import 'package:navis/src/features/settings/domain/album_title_shade.dart';
 import 'package:navis/src/features/settings/domain/app_settings.dart';
 import 'package:navis/src/features/settings/domain/update_delivery.dart';
 import 'package:navis/src/features/settings/domain/update_info.dart';
+import 'package:navis/src/common_widgets/notice_icon_disc.dart';
 import 'package:navis/src/providers/app_providers.dart';
 import 'package:navis/src/routing/desktop_layout.dart';
 import 'package:navis/src/features/home/presentation/cover_colour_field.dart';
@@ -1068,7 +1069,7 @@ void main() {
     expect(find.byTooltip('Search'), findsNWidgets(2));
   });
 
-  group('update banner integration gate', () {
+  group('update tile', () {
     const update = UpdateInfo(
       sha256: null,
       size: null,
@@ -1076,24 +1077,117 @@ void main() {
       htmlUrl: 'https://example.com/release',
       delivery: UpdateDelivery.storeRedirect,
     );
+    final tile = find.byKey(const ValueKey<String>('updateTileOpen'));
 
-    Future<void> pumpWith(WidgetTester tester, AppSettingsModel settings) {
+    Future<void> pumpWith(
+      WidgetTester tester,
+      AppSettingsModel settings, {
+      UpdateInfo info = update,
+      void Function()? onBuild,
+    }) {
       return _pumpHomeWithAppSettings(
         tester,
         database: database,
         appSettings: settings,
-        // The banner's own gate is under test, not the provider's.
+        // The tile's own gate is under test, not the provider's.
         overrides: <Override>[
-          updateProvider.overrideWith((ref) async => update),
+          updateProvider.overrideWith((ref) async {
+            onBuild?.call();
+            return info;
+          }),
         ],
       );
     }
 
-    testWidgets('shows the banner while automatic checks are allowed', (
+    testWidgets('shows the version title, disc and tonal action', (
       tester,
     ) async {
       await pumpWith(tester, const AppSettingsModel.defaults());
-      expect(find.byType(MaterialBanner), findsOneWidget);
+      expect(tile, findsOneWidget);
+      expect(find.byType(MaterialBanner), findsNothing);
+      expect(find.text('Navis v9.9.9 is ready'), findsOneWidget);
+      expect(find.text('Update on Google Play'), findsOneWidget);
+      expect(find.byIcon(Icons.system_update_outlined), findsOneWidget);
+      expect(
+        find.descendant(of: tile, matching: find.byType(NoticeIconDisc)),
+        findsOneWidget,
+      );
+      expect(find.text('Open in Play Store'), findsOneWidget);
+      expect(find.text('Release notes'), findsOneWidget);
+      expect(
+        find.descendant(of: tile, matching: find.byType(FilledButton)),
+        findsOneWidget,
+      );
+    });
+
+    final labels = <String, (UpdateInfo, String, String)>{
+      'self-update installs in the app': (
+        const UpdateInfo(
+          sha256: null,
+          size: null,
+          tagName: 'v1.5.0-dev.7',
+          htmlUrl: 'https://example.com/release',
+          delivery: UpdateDelivery.selfUpdate,
+          downloadUrl: 'https://example.com/app.apk',
+        ),
+        'Install',
+        'Installs in a minute.',
+      ),
+      'desktop with an asset installs': (
+        const UpdateInfo(
+          sha256: null,
+          size: null,
+          tagName: 'v1.5.0',
+          htmlUrl: 'https://example.com/release',
+          delivery: UpdateDelivery.desktopSelfUpdate,
+          downloadUrl: 'https://example.com/app.zip',
+        ),
+        'Install',
+        'Installs in a minute.',
+      ),
+      'desktop without an asset downloads': (
+        const UpdateInfo(
+          sha256: null,
+          size: null,
+          tagName: 'v1.5.0',
+          htmlUrl: 'https://example.com/release',
+          delivery: UpdateDelivery.desktopSelfUpdate,
+        ),
+        'Download',
+        'Opens the download page.',
+      ),
+    };
+    for (final entry in labels.entries) {
+      testWidgets(entry.key, (tester) async {
+        final (info, action, body) = entry.value;
+        await pumpWith(tester, const AppSettingsModel.defaults(), info: info);
+        expect(find.text('Navis ${info.tagName} is ready'), findsOneWidget);
+        expect(find.text(body), findsOneWidget);
+        expect(
+          find.descendant(
+            of: find.byKey(const ValueKey<String>('updateTileAction')),
+            matching: find.text(action),
+          ),
+          findsOneWidget,
+        );
+      });
+    }
+
+    testWidgets('the close button dismisses by re-reading the update', (
+      tester,
+    ) async {
+      var builds = 0;
+      await pumpWith(
+        tester,
+        const AppSettingsModel.defaults(),
+        onBuild: () => builds++,
+      );
+      final before = builds;
+      expect(find.byTooltip('Dismiss'), findsWidgets);
+      await tester.tap(find.byKey(const ValueKey<String>('updateTileDismiss')));
+      await tester.pump();
+      await tester.pump();
+      expect(builds, before + 1);
     });
 
     for (final entry in <String, AppSettingsModel>{
@@ -1107,9 +1201,9 @@ void main() {
         externalIntegrationsEnabled: false,
       ),
     }.entries) {
-      testWidgets('hides the banner when ${entry.key}', (tester) async {
+      testWidgets('hides the tile when ${entry.key}', (tester) async {
         await pumpWith(tester, entry.value);
-        expect(find.byType(MaterialBanner), findsNothing);
+        expect(tile, findsNothing);
       });
     }
   });
