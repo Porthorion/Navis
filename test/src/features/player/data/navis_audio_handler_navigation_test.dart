@@ -265,6 +265,10 @@ class _ControllableAudioPlayer extends Fake implements AudioPlayer {
   bool ignorePlay = false;
   bool playRequested = false;
   bool failVolume = false;
+  Completer<void>? volumeGate;
+  Completer<void>? volumeEntered;
+  Completer<void>? listenerCancelGate;
+  Completer<void>? listenerCancelEntered;
   String? failAppendSongId;
 
   /// A load whose first song is this one fails, as a broken source would.
@@ -313,7 +317,14 @@ class _ControllableAudioPlayer extends Fake implements AudioPlayer {
   );
 
   @override
-  Stream<PlaybackEvent> get playbackEventStream => _events.stream;
+  Stream<PlaybackEvent> get playbackEventStream =>
+      _events.stream.doOnCancel(() async {
+        final gate = listenerCancelGate;
+        if (gate == null) return;
+        listenerCancelGate = null;
+        listenerCancelEntered?.complete();
+        await gate.future;
+      });
 
   @override
   Stream<int?> get currentIndexStream => _indices.stream;
@@ -399,6 +410,12 @@ class _ControllableAudioPlayer extends Fake implements AudioPlayer {
 
   @override
   Future<void> setVolume(double value) async {
+    final gate = volumeGate;
+    if (gate != null) {
+      volumeGate = null;
+      volumeEntered?.complete();
+      await gate.future;
+    }
     if (failVolume) {
       failVolume = false;
       throw StateError('volume unavailable');
@@ -501,9 +518,11 @@ class _ControllableAudioPlayer extends Fake implements AudioPlayer {
     state = ProcessingState.idle;
   });
 
+  StreamController<IcyMetadata?>? icyEvents;
+
   @override
   Stream<IcyMetadata?> get icyMetadataStream =>
-      const Stream<IcyMetadata?>.empty();
+      icyEvents?.stream ?? const Stream<IcyMetadata?>.empty();
 
   IcyMetadata? currentIcyMetadata;
 
@@ -657,6 +676,7 @@ class _ControllableAudioPlayer extends Fake implements AudioPlayer {
     disposed = true;
     isPlaying = false;
     await positionPlayer?.dispose();
+    await icyEvents?.close();
     if (!keepStreamsAfterDispose) {
       await _indices.close();
       await _events.close();
@@ -1135,6 +1155,58 @@ void main() {
         expect(player.audibleSongId, 'song-0');
       },
     );
+
+    test('failed provisional persistence retains the radio session', () async {
+      final directory = await Directory.systemTemp.createTemp(
+        'navis-radio-held-',
+      );
+      final (handler, player, database) = await createHandler(directory, 1);
+      addTearDown(() async {
+        await handler.disposeHandler();
+        await database.close();
+        await directory.delete(recursive: true);
+      });
+      player.icyEvents = StreamController<IcyMetadata?>.broadcast();
+      await handler.playRadioStream(
+        stationId: 'fixture',
+        stationName: 'Fixture FM',
+        streamUrl: 'https://radio.example.invalid/stream',
+      );
+      player.icyEvents!.add(
+        IcyMetadata(
+          info: IcyInfo(title: 'Held artist - Held title', url: null),
+          headers: null,
+        ),
+      );
+      await Future<void>.delayed(Duration.zero);
+      final held = handler.snapshot.radioStation;
+      final heldItem = handler.mediaItem.valueOrNull;
+      final song = (await database.libraryDao.getSongsByIds(['song-0'])).single;
+      final attempt = handler.beginPlaybackSelection(
+        'song-0',
+        isExternal: true,
+        song: song,
+      );
+      expect(handler.mediaItem.valueOrNull?.id, 'song-0');
+      handler.notePlaybackSelectionStage(
+        attempt,
+        'provisionalPersistenceFailed',
+      );
+      expect(handler.snapshot.radioStation, held);
+      expect(handler.mediaItem.valueOrNull, heldItem);
+      expect(handler.snapshot.isLoading, isFalse);
+      expect(player.audibleSongId, 'radio:fixture');
+      expect(player.icyEvents!.hasListener, isTrue);
+      player.icyEvents!.add(
+        IcyMetadata(
+          info: IcyInfo(title: 'New artist - New title', url: null),
+          headers: null,
+        ),
+      );
+      await Future<void>.delayed(Duration.zero);
+      expect(handler.snapshot.radioStation?.nowPlayingTitle, 'New title');
+      expect(handler.mediaItem.valueOrNull?.title, 'New title');
+    });
 
     test('failed provisional persistence restores held metadata', () async {
       final directory = await Directory.systemTemp.createTemp(
@@ -5633,6 +5705,135 @@ void main() {
         await handler.debugCompleteCrossfade();
         expect(handler.debugActivePlayer, same(incoming));
         expect(incoming.volume, .5);
+      },
+    );
+
+    for (final adjustment in ['mute', 'duck']) {
+      test('awaited fade tick preserves a newer $adjustment', () async {
+        final (handler, outgoing, _) = await crossfading(2);
+        final session = _TestAudioSession();
+        handler.debugWireAudioSession(session);
+        addTearDown(session.close);
+        await handler.replaceQueue(ids(2), expandMatchFlows: false);
+        final incoming = handler.debugInactiveDeck! as _ControllableAudioPlayer;
+        handler.debugCheckCrossfadeTrigger(const Duration(seconds: 175));
+        await waitForFade(() => incoming.volume > 0);
+        final gate = Completer<void>();
+        incoming.volumeGate = gate;
+        incoming.volumeEntered = Completer<void>();
+        await incoming.volumeEntered!.future;
+        if (adjustment == 'mute') {
+          await handler.setVolume(0);
+        } else {
+          session.interruptions.add(
+            AudioInterruptionEvent(true, AudioInterruptionType.duck),
+          );
+          await waitForFade(() => outgoing.volume <= .4);
+        }
+        final adjusted = outgoing.volume;
+        gate.complete();
+        await Future<void>.delayed(const Duration(milliseconds: 10));
+        expect(outgoing.volume, lessThanOrEqualTo(adjusted + .001));
+        expect(
+          incoming.volume,
+          lessThanOrEqualTo(adjustment == 'mute' ? 0 : .4),
+        );
+        await handler.stop();
+      });
+    }
+
+    test(
+      'supersession during listener cancellation rebinds the active deck',
+      () async {
+        final (handler, outgoing, _) = await crossfading(
+          3,
+          positionStreams: true,
+        );
+        await handler.replaceQueue(ids(3), expandMatchFlows: false);
+        final incoming = handler.debugInactiveDeck! as _ControllableAudioPlayer;
+        handler.debugCheckCrossfadeTrigger(const Duration(seconds: 175));
+        await waitForFade(() => incoming.playing);
+        final gate = Completer<void>();
+        outgoing.listenerCancelGate = gate;
+        outgoing.listenerCancelEntered = Completer<void>();
+        final handoff = handler.debugCompleteCrossfade();
+        await outgoing.listenerCancelEntered!.future;
+        await handler.playFromIndex(2);
+        gate.complete();
+        await handoff;
+        expect(handler.debugActivePlayer, same(outgoing));
+        outgoing.moveTo(1);
+        await waitForFade(() => handler.snapshot.currentSongId == 'song-1');
+        expect(handler.mediaItem.valueOrNull?.id, 'song-1');
+        final positions = <Duration>[];
+        final positionSubscription = handler.positionStream.listen(
+          positions.add,
+        );
+        addTearDown(positionSubscription.cancel);
+        outgoing.simulatedPosition = const Duration(seconds: 42);
+        outgoing.emitPlayerEvent();
+        await waitForFade(
+          () => positions.contains(const Duration(seconds: 42)),
+        );
+        outgoing.isPlaying = false;
+        outgoing.emitPlayerEvent();
+        await waitForFade(() => !handler.snapshot.playing);
+        expect(outgoing.volume, 1);
+        outgoing.isPlaying = true;
+        outgoing.simulatedPosition = const Duration(seconds: 175);
+        outgoing.emitPlayerEvent();
+        await waitForFade(() => fade(handler)['active'] == true);
+        await handler.stop();
+      },
+    );
+
+    test(
+      'cellular handoff times out a resolver that never completes',
+      () async {
+        late _GatedSourceResolver resolver;
+        final directory = await Directory.systemTemp.createTemp(
+          'navis-handoff-timeout-',
+        );
+        final (handler, outgoing, database) = await createHandler(
+          directory,
+          3,
+          crossfade: true,
+          crossfadeAllowStreaming: false,
+          timeouts: const NavisPlaybackTimeouts(
+            load: Duration(milliseconds: 100),
+          ),
+          wrapResolver: (base) => resolver = _GatedSourceResolver(base),
+        );
+        addTearDown(() async {
+          await handler.disposeHandler();
+          await database.close();
+          await directory.delete(recursive: true);
+        });
+        await handler.replaceQueue(ids(3), expandMatchFlows: false);
+        final incoming = handler.debugInactiveDeck! as _ControllableAudioPlayer;
+        handler.debugCheckCrossfadeTrigger(const Duration(seconds: 175));
+        await waitForFade(() => incoming.playing);
+        await outgoing.setVolume(0); // The outgoing fade has finished.
+        resolver.blockedSongId = 'song-2';
+        resolver.entered = Completer<void>();
+        resolver.release = Completer<void>(); // Deliberately never released.
+        var completed = false;
+        unawaited(
+          handler.debugCompleteCrossfade().then((_) => completed = true),
+        );
+        await resolver.entered!.future;
+        await Future<void>.delayed(const Duration(milliseconds: 250));
+        expect(completed, isTrue);
+        expect(fade(handler)['active'], isFalse);
+        expect(
+          fade(handler)['lastFailure'],
+          'handoff_queue_failed:TimeoutException',
+        );
+        expect(handler.debugActivePlayer, same(outgoing));
+        expect(outgoing.volume, 1);
+        expect(outgoing.playing, isTrue);
+        expect(incoming.playing, isFalse);
+        expect(incoming.volume, 0);
       },
     );
 

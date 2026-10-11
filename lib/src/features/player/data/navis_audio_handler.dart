@@ -489,8 +489,8 @@ class NavisAudioHandler extends BaseAudioHandler
       _startupTraces.removeAt(0);
     }
     if (song != null) {
-      _radioMetadataService.stop();
-      _radioStation = null;
+      // Keep radio alive until persistence hands the replacement to the queue
+      // loader. A failed provisional write has not changed the playing source.
       _pendingLogicalQueueSongs = [song];
       _navigationIntent.reset();
       _supersedeTransportIntent(shouldPlay: true);
@@ -2917,6 +2917,17 @@ class NavisAudioHandler extends BaseAudioHandler
     return stopPhase;
   }
 
+  MediaItem _mediaItemForRadioStation(RadioStationMetadata station) =>
+      MediaItem(
+        id: 'radio:${station.stationId}',
+        title: station.nowPlayingTitle ?? station.stationName,
+        artist: station.nowPlayingArtist ?? station.stationName,
+        artUri: station.nowPlayingArtUrl == null
+            ? null
+            : Uri.tryParse(station.nowPlayingArtUrl!),
+        extras: <String, Object?>{'isRadio': true},
+      );
+
   @override
   void updateRadioMetadata({
     String? title,
@@ -2976,14 +2987,9 @@ class NavisAudioHandler extends BaseAudioHandler
     // Update the MediaItem for lock-screen / notification display. The art
     // URL was checked above; a refused one publishes no art, so the station
     // placeholder shows and AudioService has nothing to fetch.
-    final updatedItem = MediaItem(
-      id: 'radio:${current.stationId}',
-      title: nextTitle ?? current.stationName,
-      artist: nextArtist ?? current.stationName,
-      artUri: nextArtUrl != null ? candidateUri : null,
-      extras: <String, Object?>{'isRadio': true},
-    );
-    _setCurrentMediaItem(updatedItem);
+    if (_queueReplacementMetadataAnchor == null) {
+      _setCurrentMediaItem(_mediaItemForRadioStation(_radioStation!));
+    }
     _broadcastPlaybackState();
     _emitSnapshot();
   }

@@ -289,6 +289,14 @@ const List<ChangelogVersion> changelogs = [
 
       // Fixed: playback
       ChangelogEntry(
+        'Crossfade restores playback if queue preparation stalls, keeps player updates connected after a cancelled handoff, and preserves mute and ducking during volume changes',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
+        'A failed song selection keeps the playing radio station and its live metadata',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
         'Crossfade blends locally available songs on mobile data too, respects ReplayGain and volume changes, and keeps the current song playing if the next song cannot fade in',
         type: ChangelogEntryType.fix,
       ),

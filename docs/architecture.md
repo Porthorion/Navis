@@ -3727,6 +3727,10 @@ deferred jumps), recovery and eager setup use this authority. The UI's existing
 `PlaybackStartupObserver.beginPlaybackSelection` also accepts its provisional
 song row before `QueueController` persists/readbacks API results, so search,
 Trending and recommendation taps publish without waiting for that work.
+When provisional persistence starts over radio, the existing station and metadata
+subscription stay alive until the queue loader accepts the replacement. Failed
+persistence republishes that station's current metadata; radio callbacks cannot
+replace the pending song media item while persistence is in progress.
 Generation/token checks reject superseded preparations before publishing or
 applying sources. When failure is handled, metadata returns to the source the
 player actually holds, or clears for an empty player. Pending display does not
@@ -4272,7 +4276,10 @@ completed rolling cache → refusal. The inactive deck holds only that local
 song during the overlap, so remote neighbours cannot be prefetched by the
 second player. At handoff it inserts/appends the rest of the queue using the
 existing prepared-source cloning path, preserving the incoming position and
-occurrence. A remote target keeps the ordinary single-deck transition and
+occurrence. One shared load deadline bounds the entire handoff preparation,
+including row lookup, source resolution and native queue edits. Failure restores
+the outgoing deck, and token checks reject late preparation results. A remote
+target keeps the ordinary single-deck transition and
 reports `crossfade.disabledReason=cellular`. Cellular gapless/preload policy is
 unchanged; a setting-disabled fade reports `disabledReason=setting`.
 
@@ -4280,8 +4287,11 @@ The play lifetime Future is observed for failures without awaiting playback
 completion. The existing fade timer waits for incoming `playing` and `ready`
 before reducing the outgoing volume, serializes and awaits volume writes, and
 uses the shared ReplayGain/user-volume/ducking base for each song. Mute and
-volume changes preserve ramp proportions. Play/ramp failures log, increment
-phase counters, retain a credential-free `lastFailure`, cancel the incoming
+volume changes preserve ramp proportions. Each awaited fade write rechecks the
+current volume base before advancing, so an intervening mute or duck cannot be
+overwritten by the old base. If a swap is superseded while listener cancellation
+awaits, the unchanged active deck regains its listeners unless the handler is
+disposing. Play/ramp failures log, increment phase counters, retain a credential-free `lastFailure`, cancel the incoming
 deck and restore the outgoing volume for sequential fallback. This establishes
 player state, not audible output: physical-device listening remains necessary.
 

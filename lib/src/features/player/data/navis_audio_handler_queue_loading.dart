@@ -147,6 +147,8 @@ extension _NavisQueueLoading on NavisAudioHandler {
                 _player.currentIndex ?? _queueItems.length,
               ),
       );
+    } else {
+      _setCurrentMediaItem(_mediaItemForRadioStation(_radioStation!));
     }
     _broadcastPlaybackState();
     _applyReplayGainVolume();

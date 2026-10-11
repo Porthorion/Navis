@@ -276,19 +276,30 @@ extension _NavisCrossfade on NavisAudioHandler {
         if (!_player.playing && progress < 1) {
           throw StateError('Outgoing deck stopped before the fade ended.');
         }
-        final outgoingBase = _replayGainVolumeFor(
-          _resolveCurrentQueueMetadata().mediaItem,
-        );
-        final incomingBase = _replayGainVolumeFor(_queueItems[nextIndex]);
-        // Serialize each tick and apply incoming first: a failed incoming
-        // volume write must not silence the outgoing deck.
-        await cfPlayer
-            .setVolume((incomingBase * progress).clamp(0.0, 1.0))
-            .timeout(_playerControlTimeout);
+        // Incoming first: a failed write must not silence the outgoing deck.
+        // A user volume or ducking change can land while a native write awaits.
+        // Reapply the latest base before advancing to the other deck.
+        Future<void> applyVolume(
+          AudioPlayer deck,
+          MediaItem? item,
+          double ramp,
+        ) async {
+          double target;
+          do {
+            target = (_replayGainVolumeFor(item) * ramp).clamp(0.0, 1.0);
+            await deck.setVolume(target).timeout(_playerControlTimeout);
+            if (!_isCrossfadeSessionActive(sessionToken, nextIndex)) return;
+          } while (target !=
+              (_replayGainVolumeFor(item) * ramp).clamp(0.0, 1.0));
+        }
+
+        await applyVolume(cfPlayer, _queueItems[nextIndex], progress);
         if (!_isCrossfadeSessionActive(sessionToken, nextIndex)) return;
-        await _player
-            .setVolume((outgoingBase * (1 - progress)).clamp(0.0, 1.0))
-            .timeout(_playerControlTimeout);
+        await applyVolume(
+          _player,
+          _resolveCurrentQueueMetadata().mediaItem,
+          1 - progress,
+        );
         if (!_isCrossfadeSessionActive(sessionToken, nextIndex)) return;
         if (progress >= 1) {
           timer.cancel();
@@ -398,39 +409,43 @@ extension _NavisCrossfade on NavisAudioHandler {
         handoffTargetIndex != null &&
         _incomingDeckMatchesQueue(cfPlayer, handoffTargetIndex)) {
       try {
-        final rows = (await _rowsForDeferredEntries(
-          _queueItems.map(_deferredEntryForItem).toList(growable: false),
-        )).nonNulls.toList(growable: false);
-        if (!stillWanted()) return;
-        if (rows.length != _queueItems.length) {
-          throw StateError('Queue rows are missing.');
-        }
-        final prepared = await _prepareQueueItems(
-          rows,
-          preferLockCaching: false,
-        );
-        if (!stillWanted()) return;
-        final sources = [
-          for (final item in prepared)
-            item.source.asClonedAudioSource(tag: item.mediaItem),
-        ];
-        if (handoffTargetIndex > 0) {
-          await cfPlayer
-              .insertAudioSources(0, [
-                for (var i = 0; i < handoffTargetIndex; i++) sources[i],
-              ])
-              .timeout(_playerControlTimeout);
+        // One load deadline covers lookup, source resolution and native edits.
+        // Token checks prevent a timed-out preparation from swapping late.
+        await (() async {
+          final rows = (await _rowsForDeferredEntries(
+            _queueItems.map(_deferredEntryForItem).toList(growable: false),
+          )).nonNulls.toList(growable: false);
           if (!stillWanted()) return;
-        }
-        if (handoffTargetIndex + 1 < sources.length) {
-          await cfPlayer
-              .addAudioSources([
-                for (var i = handoffTargetIndex + 1; i < sources.length; i++)
-                  sources[i],
-              ])
-              .timeout(_playerControlTimeout);
+          if (rows.length != _queueItems.length) {
+            throw StateError('Queue rows are missing.');
+          }
+          final prepared = await _prepareQueueItems(
+            rows,
+            preferLockCaching: false,
+          );
           if (!stillWanted()) return;
-        }
+          final sources = [
+            for (final item in prepared)
+              item.source.asClonedAudioSource(tag: item.mediaItem),
+          ];
+          if (handoffTargetIndex > 0) {
+            await cfPlayer
+                .insertAudioSources(0, [
+                  for (var i = 0; i < handoffTargetIndex; i++) sources[i],
+                ])
+                .timeout(_playerControlTimeout);
+            if (!stillWanted()) return;
+          }
+          if (handoffTargetIndex + 1 < sources.length) {
+            await cfPlayer
+                .addAudioSources([
+                  for (var i = handoffTargetIndex + 1; i < sources.length; i++)
+                    sources[i],
+                ])
+                .timeout(_playerControlTimeout);
+            if (!stillWanted()) return;
+          }
+        })().timeout(_playerLoadTimeout);
       } on Object catch (error, stack) {
         if (stillWanted()) _failCrossfade('handoff_queue_failed', error, stack);
         return;
@@ -456,8 +471,9 @@ extension _NavisCrossfade on NavisAudioHandler {
     }
 
     final sw = Stopwatch()..start();
+    final outgoingPlayer = _player;
+    var listenersNeedRebinding = false;
     try {
-      final outgoingPlayer = _player;
       final incomingPlayer = cfPlayer;
       final shouldKeepPlaying =
           outgoingPlayer.playing || incomingPlayer.playing;
@@ -476,6 +492,7 @@ extension _NavisCrossfade on NavisAudioHandler {
       if (!stillWanted()) return;
 
       final repeatingCurrent = _isRepeatOneCrossfade;
+      listenersNeedRebinding = true;
       await _disposePlayerListeners();
       if (!stillWanted()) return;
       _player = incomingPlayer;
@@ -492,6 +509,7 @@ extension _NavisCrossfade on NavisAudioHandler {
         _updateScrobbleSession(null);
       }
       _wirePlayerListeners();
+      listenersNeedRebinding = false;
       _rebindRadioMetadataServiceToActivePlayer();
       _handleScrobbleSignals();
       _broadcastPlaybackState();
@@ -538,6 +556,15 @@ extension _NavisCrossfade on NavisAudioHandler {
         fadeElapsedMs: fadeElapsedMs,
       );
     } finally {
+      // Supersession or a failed cancellation must not disconnect playback.
+      if (listenersNeedRebinding &&
+          !_disposeHandlerStarted &&
+          identical(_player, outgoingPlayer)) {
+        _wirePlayerListeners();
+        _rebindRadioMetadataServiceToActivePlayer();
+        _broadcastPlaybackState();
+        _emitSnapshot();
+      }
       if (_crossfadeSessionToken == completionToken) {
         _isCrossfading = false;
         _crossfadeHandoffInProgress = false;
