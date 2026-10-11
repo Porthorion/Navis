@@ -9434,6 +9434,54 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'{percent}%'**
   String notificationDownloadProgressPercent(int percent);
+
+  /// No description provided for @cacheSettingsResetSection.
+  ///
+  /// In en, this message translates to:
+  /// **'Reset'**
+  String get cacheSettingsResetSection;
+
+  /// No description provided for @cacheSettingsDeleteAllPresets.
+  ///
+  /// In en, this message translates to:
+  /// **'Delete all presets'**
+  String get cacheSettingsDeleteAllPresets;
+
+  /// No description provided for @cacheSettingsDeleteAllPresetsDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'Remove all saved Looks and Speed & Pitch presets.'**
+  String get cacheSettingsDeleteAllPresetsDescription;
+
+  /// No description provided for @cacheSettingsDeleteAllPresetsConfirmTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Delete all presets?'**
+  String get cacheSettingsDeleteAllPresetsConfirmTitle;
+
+  /// No description provided for @cacheSettingsDeleteAllPresetsConfirmBody.
+  ///
+  /// In en, this message translates to:
+  /// **'This permanently deletes every saved appearance Look and Speed & Pitch preset, their selections, and any older Fine-Tune color presets. Your current speed, pitch and appearance values stay as they are.'**
+  String get cacheSettingsDeleteAllPresetsConfirmBody;
+
+  /// No description provided for @cacheSettingsDeleteAllPresetsSuccess.
+  ///
+  /// In en, this message translates to:
+  /// **'All presets deleted. Your current values are unchanged.'**
+  String get cacheSettingsDeleteAllPresetsSuccess;
+
+  /// No description provided for @cacheSettingsDeleteAllPresetsFailure.
+  ///
+  /// In en, this message translates to:
+  /// **'Could not delete presets. Try again.'**
+  String get cacheSettingsDeleteAllPresetsFailure;
+
+  /// No description provided for @playbackPresetDeleteFailure.
+  ///
+  /// In en, this message translates to:
+  /// **'Could not delete the preset. It may have changed or could not be saved. Try again.'**
+  String get playbackPresetDeleteFailure;
 }
 
 class _AppLocalizationsDelegate

@@ -8,6 +8,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:navis/l10n/app_localizations.dart';
+import 'package:navis/src/common_widgets/app_notice.dart';
 import 'package:navis/src/features/player/domain/playback_adjustments.dart';
 import 'package:navis/src/features/player/presentation/adjustment_ruler.dart';
 import 'package:navis/src/features/player/presentation/playback_adjustment_controller.dart';
@@ -30,8 +31,11 @@ void main() {
   });
   setUpAll(() => registerFallbackValue(const PlaybackAdjustments()));
   late _Repository repository;
+  late AppNoticeController notices;
   setUp(() {
     repository = _Repository();
+    notices = AppNoticeController();
+    addTearDown(notices.dispose);
     when(
       () => repository.savePlaybackAdjustments(
         values: any(named: 'values'),
@@ -64,21 +68,24 @@ void main() {
     );
     addTearDown(container.dispose);
     await tester.pumpWidget(
-      UncontrolledProviderScope(
-        container: container,
-        child: MaterialApp(
-          theme: testTheme(),
-          localizationsDelegates: AppLocalizations.localizationsDelegates,
-          supportedLocales: AppLocalizations.supportedLocales,
-          builder: (context, child) => MediaQuery(
-            data: MediaQuery.of(context)
-                .copyWith(textScaler: TextScaler.linear(textScale)),
-            child: child!,
-          ),
-          home: const Scaffold(
-            body: SingleChildScrollView(
-              padding: EdgeInsets.all(16),
-              child: PlaybackAdjustmentPanel(),
+      AppNoticeScope(
+        notifier: notices,
+        child: UncontrolledProviderScope(
+          container: container,
+          child: MaterialApp(
+            theme: testTheme(),
+            localizationsDelegates: AppLocalizations.localizationsDelegates,
+            supportedLocales: AppLocalizations.supportedLocales,
+            builder: (context, child) => MediaQuery(
+              data: MediaQuery.of(context)
+                  .copyWith(textScaler: TextScaler.linear(textScale)),
+              child: child!,
+            ),
+            home: const Scaffold(
+              body: SingleChildScrollView(
+                padding: EdgeInsets.all(16),
+                child: PlaybackAdjustmentPanel(),
+              ),
             ),
           ),
         ),
@@ -115,6 +122,68 @@ void main() {
     await tester.tap(find.text(label).last);
     await tester.pumpAndSettle();
   }
+
+  testWidgets('unsupported saved presets can still be deleted', (tester) async {
+    final container = await mount(
+      tester,
+      pitchSupported: false,
+      settings: AsyncData(
+        const AppSettingsModel.defaults().copyWith(
+          playbackPresets: const [
+            PlaybackPreset(
+              id: 'old',
+              name: 'Old pitch',
+              values: PlaybackAdjustments(pitchSemitones: 3),
+            ),
+          ],
+        ),
+      ),
+    );
+    await tester.tap(find.byKey(const ValueKey('playbackPresetActions')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Delete “Old pitch”'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('playbackPresetDeleteConfirm')));
+    await tester.pumpAndSettle();
+    expect(
+      container.read(playbackAdjustmentsProvider).requireValue.presets,
+      isEmpty,
+    );
+  });
+
+  testWidgets('preset deletion persistence failure shows an app notice', (
+    tester,
+  ) async {
+    await mount(
+      tester,
+      settings: AsyncData(
+        const AppSettingsModel.defaults().copyWith(
+          playbackPresets: const [
+            PlaybackPreset(
+              id: 'old',
+              name: 'Old',
+              values: PlaybackAdjustments(),
+            ),
+          ],
+          selectedPlaybackPresetId: 'old',
+        ),
+      ),
+    );
+    when(
+      () => repository.savePlaybackAdjustments(
+        values: any(named: 'values'),
+        selectedPresetId: any(named: 'selectedPresetId'),
+        presets: any(named: 'presets'),
+      ),
+    ).thenThrow(StateError('Fixture write failure'));
+    await presetAction(tester, 'playbackPresetDelete');
+    await tester.tap(find.byKey(const ValueKey('playbackPresetDeleteConfirm')));
+    await tester.pumpAndSettle();
+    expect(
+      notices.notice?.message,
+      'Could not delete the preset. It may have changed or could not be saved. Try again.',
+    );
+  });
 
   testWidgets(
     'buttons, fractional dragging, exact input and reset are independent',

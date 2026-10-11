@@ -944,6 +944,16 @@ target-selection rules.
     the target). Look libraries decode leniently, discarding corrupt records
     and duplicate ids or names. Save returns `PresetResult<AppearanceLook>`;
     update, rename, delete and restore return nullable `PresetFailure`.
+  - Cache & Storage's Reset section offers **Delete all presets**. Its destructive
+    confirmation clears Looks, Speed & Pitch libraries and selections in one
+    `AppSettingsDao.deleteAllPresets` transaction, including retired
+    `color_tuning_presets` / `selected_color_tuning_preset_id` columns when
+    present in early development databases. Current sound and appearance values
+    are preserved; schema 102 is unchanged. The Looks write lane wraps the
+    playback persistence lane so pending saves finish before the reset and later
+    saves cannot replay an old library. Playback also observes external preset
+    writes. Unsupported saved playback presets retain a Delete menu action;
+    Normal is built in and cannot be deleted. Delete failures use app notices.
   - Looks (`AppearanceLook`, version 1, `AppearanceSnapshot`,
     `AppearanceLooksController`) capture all appearance choices: theme mode,
     OLED-for-Auto, saved colour style, nullable accent seed, dynamic album

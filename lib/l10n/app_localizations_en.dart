@@ -5884,4 +5884,33 @@ class AppLocalizationsEn extends AppLocalizations {
   String notificationDownloadProgressPercent(int percent) {
     return '$percent%';
   }
+
+  @override
+  String get cacheSettingsResetSection => 'Reset';
+
+  @override
+  String get cacheSettingsDeleteAllPresets => 'Delete all presets';
+
+  @override
+  String get cacheSettingsDeleteAllPresetsDescription =>
+      'Remove all saved Looks and Speed & Pitch presets.';
+
+  @override
+  String get cacheSettingsDeleteAllPresetsConfirmTitle => 'Delete all presets?';
+
+  @override
+  String get cacheSettingsDeleteAllPresetsConfirmBody =>
+      'This permanently deletes every saved appearance Look and Speed & Pitch preset, their selections, and any older Fine-Tune color presets. Your current speed, pitch and appearance values stay as they are.';
+
+  @override
+  String get cacheSettingsDeleteAllPresetsSuccess =>
+      'All presets deleted. Your current values are unchanged.';
+
+  @override
+  String get cacheSettingsDeleteAllPresetsFailure =>
+      'Could not delete presets. Try again.';
+
+  @override
+  String get playbackPresetDeleteFailure =>
+      'Could not delete the preset. It may have changed or could not be saved. Try again.';
 }

@@ -8,6 +8,8 @@ import 'package:navis/l10n/navis_localizations.dart';
 import 'package:navis/src/features/cache/data/rolling_cache_manager.dart';
 import 'package:navis/src/features/settings/presentation/cache_settings_screen.dart';
 import 'package:navis/src/providers/app_providers.dart';
+import 'package:navis/src/features/player/presentation/playback_adjustment_controller.dart';
+import 'package:navis/src/features/player/domain/playback_adjustments.dart';
 import 'package:navis/src/routing/desktop_layout.dart';
 import 'package:flutter_riverpod/misc.dart' show Override;
 
@@ -16,6 +18,84 @@ import '../../../../helpers/test_database.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
+
+  testWidgets('delete all presets requires confirmation and preserves values', (
+    tester,
+  ) async {
+    final database = createTestDatabase();
+    final container = ProviderContainer(
+      overrides: withTestDatabase(
+        database,
+        overrides: [
+          audioHandlerProvider.overrideWithValue(null),
+          playbackAdjustmentCapabilitiesProvider.overrideWithValue(
+            PlaybackAdjustmentCapabilities.android,
+          ),
+          rollingCacheStatsProvider.overrideWith(
+            (ref) =>
+                Stream.value(const CacheStats(trackCount: 0, totalBytes: 0)),
+          ),
+        ],
+      ),
+    );
+    addTearDown(() async {
+      container.dispose();
+      await database.close();
+    });
+    await database.appSettingsDao.updatePlaybackAdjustments(
+      speed: 1.25,
+      pitchSemitones: 2,
+      selectedPresetId: 'old',
+      presetsJson: '[{}]',
+    );
+    await database.appSettingsDao.updateAppearanceLooks(
+      selectedLookId: 'look',
+      looksJson: '[{}]',
+    );
+    await tester.pumpWidget(
+      UncontrolledProviderScope(
+        container: container,
+        child: MaterialApp(
+          localizationsDelegates: navisLocalizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
+          home: const CacheSettingsScreen(),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    await tester.scrollUntilVisible(
+      find.byKey(const ValueKey('deleteAllPresets')),
+      400,
+    );
+    await tester.tap(find.byKey(const ValueKey('deleteAllPresets')));
+    await tester.pumpAndSettle();
+    expect(
+      find.textContaining(
+        'Your current speed, pitch and appearance values stay as they are.',
+      ),
+      findsOneWidget,
+    );
+    await tester.tap(find.text('Cancel'));
+    await tester.pumpAndSettle();
+    expect(
+      (await database.appSettingsDao.getSettings())!.playbackPresets,
+      '[{}]',
+    );
+    await tester.tap(find.byKey(const ValueKey('deleteAllPresets')));
+    await tester.pumpAndSettle();
+    final confirm = find.widgetWithText(FilledButton, 'Delete all presets');
+    expect(
+      tester.widget<FilledButton>(confirm).style!.backgroundColor!.resolve({}),
+      Theme.of(tester.element(confirm)).colorScheme.error,
+    );
+    await tester.tap(confirm);
+    await tester.pumpAndSettle();
+    final row = (await database.appSettingsDao.getSettings())!;
+    expect(row.playbackPresets, '[]');
+    expect(row.appearanceLooks, '[]');
+    expect(row.playbackSpeed, 1.25);
+    expect(row.playbackPitchSemitones, 2);
+  });
 
   testWidgets('shows an active write before completed cache totals update', (
     tester,

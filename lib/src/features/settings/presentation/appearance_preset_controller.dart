@@ -8,6 +8,7 @@ import 'package:navis/src/features/settings/domain/appearance_presets.dart';
 import 'package:navis/src/providers/app_providers.dart';
 import 'package:navis/src/theme/color_adjustment.dart';
 import 'package:uuid/uuid.dart';
+import 'package:navis/src/features/player/presentation/playback_adjustment_controller.dart';
 
 class ColorTuningState {
   const new({required this.tuning});
@@ -224,6 +225,24 @@ class AppearanceLooksController extends Notifier<AppearanceLooksState> {
     } on Object {
       return PresetFailure.persistence;
     }
+  });
+
+  /// Clears both libraries after commands already in either controller's lane.
+  Future<void> deleteAllPresets() => _writes.run(() async {
+    await ref
+        .read(playbackAdjustmentsProvider.notifier)
+        .resetPresets(
+          ref.read(navisDatabaseProvider).appSettingsDao.deleteAllPresets,
+        );
+    final settings = await _observeSettings(
+      ref,
+      (s) =>
+          s.appearanceLooks.isEmpty &&
+          s.playbackPresets.isEmpty &&
+          s.selectedAppearanceLookId == null &&
+          s.selectedPlaybackPresetId == null,
+    );
+    if (ref.mounted) state = AppearanceLooksState(settings);
   });
 
   Future<void> _write(AppSettingsModel settings, {String? prefer}) async {

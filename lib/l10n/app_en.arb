@@ -2790,5 +2790,13 @@
         "type": "int"
       }
     }
-  }
+  },
+  "cacheSettingsResetSection": "Reset",
+  "cacheSettingsDeleteAllPresets": "Delete all presets",
+  "cacheSettingsDeleteAllPresetsDescription": "Remove all saved Looks and Speed & Pitch presets.",
+  "cacheSettingsDeleteAllPresetsConfirmTitle": "Delete all presets?",
+  "cacheSettingsDeleteAllPresetsConfirmBody": "This permanently deletes every saved appearance Look and Speed & Pitch preset, their selections, and any older Fine-Tune color presets. Your current speed, pitch and appearance values stay as they are.",
+  "cacheSettingsDeleteAllPresetsSuccess": "All presets deleted. Your current values are unchanged.",
+  "cacheSettingsDeleteAllPresetsFailure": "Could not delete presets. Try again.",
+  "playbackPresetDeleteFailure": "Could not delete the preset. It may have changed or could not be saved. Try again."
 }
