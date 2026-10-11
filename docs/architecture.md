@@ -3715,10 +3715,26 @@ Sized ranges and reads from the completed cache file keep their normal responses
 Album-style queue replacement is lazy: the active transport queue prepares the
 tapped song first, then fills the remaining sources in phase 2. Phase 1 pauses
 and stops the active player and cancels/pauses the crossfade deck before remote
-warm-up. It keeps the previous metadata visible, paused, with the selected
-`loadingSongId`; late idle-player index events cannot notify or scrobble a third
-song. The selected materialised item and metadata anchor are published only
-immediately before `setAudioSources`. A hung stop retires the deck and continues
+warm-up. It publishes the selected song's metadata immediately when its row is
+known, with `isLoading` and `loadingSongId`, before resolving or warming its source.
+`_mediaItemForSong` builds both pending and source-resolved items with the same
+title, artist, album, duration and resolver-owned art URI; final publication
+adds source extras and cached artwork. `_supersedeQueueWork`, the existing
+queue-replacement metadata anchor and `_emitSnapshot` keep snapshots and
+`_setCurrentMediaItem`/`mediaItem` on that pending target while old native index
+events arrive. Queue replacement (IDs or supplied rows), navigation (including
+deferred jumps), recovery and eager setup use this authority. The UI's existing
+`PlaybackStartupObserver.beginPlaybackSelection` also accepts its provisional
+song row before `QueueController` persists/readbacks API results, so search,
+Trending and recommendation taps publish without waiting for that work.
+Generation/token checks reject superseded preparations before publishing or
+applying sources. When failure is handled, metadata returns to the source the
+player actually holds, or clears for an empty player. Pending display does not
+start a scrobble session for a song the player has not reached; audio_service
+reports loading while the selected source is unready and retains native queue
+coordinates. Android notifications/lock screen/AVRCP and the existing MPRIS and
+SMTC media-item subscriptions receive the same publication as Now Playing,
+mini players and the desktop bar. A hung stop retires the deck and continues
 loading the selected song on the rebuilt player. Failed phase-1 loads realign
 the materialised queue and current item with an empty rebuilt player before
 recovery. Abandoned players receive independent fire-and-forget mute and pause
@@ -3745,9 +3761,9 @@ queue rather than the prepared transport queue, with
 remove, reorder, or play-index actions until the transport queue catches up.
 Player transport controls distinguish that background queue fill from an
 unready selected remote source. They also show remote buffering after the
-queue operation ends and use the pending target ID while the previous song's
-metadata is still visible. A ready selected source keeps its play/pause icon
-even if the rest of the queue is still filling.
+queue operation ends and show the pending target's metadata immediately. A ready
+selected source keeps its play/pause icon even if the rest of the queue is still
+filling.
 
 #### Released queue window
 

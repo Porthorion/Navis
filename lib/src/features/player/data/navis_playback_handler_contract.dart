@@ -1,9 +1,13 @@
 part of 'navis_audio_handler.dart';
 
-/// Optional startup telemetry supported by the production handler wrappers.
+/// Startup selection metadata and telemetry supported by production wrappers.
 /// Test handlers may omit it without changing playback behavior.
 abstract interface class PlaybackStartupObserver {
-  int beginPlaybackSelection(String songId, {required bool isExternal});
+  int beginPlaybackSelection(
+    String songId, {
+    required bool isExternal,
+    SongsTableData? song,
+  });
   void notePlaybackSelectionStage(int attempt, String stage);
   bool isPlaybackSelectionCurrent(int attempt);
 }

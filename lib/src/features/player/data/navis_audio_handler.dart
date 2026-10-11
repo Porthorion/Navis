@@ -471,7 +471,11 @@ class NavisAudioHandler extends BaseAudioHandler
 
   /// Called before provisional remote-song persistence begins.
   @override
-  int beginPlaybackSelection(String songId, {required bool isExternal}) {
+  int beginPlaybackSelection(
+    String songId, {
+    required bool isExternal,
+    SongsTableData? song,
+  }) {
     _activeStartupTrace?.mark('superseded');
     final trace = PlaybackStartupTrace(
       attempt: ++_nextStartupAttempt,
@@ -484,6 +488,21 @@ class NavisAudioHandler extends BaseAudioHandler
     if (_startupTraces.length > 16) {
       _startupTraces.removeAt(0);
     }
+    if (song != null) {
+      _radioMetadataService.stop();
+      _radioStation = null;
+      _pendingLogicalQueueSongs = [song];
+      _navigationIntent.reset();
+      _supersedeTransportIntent(shouldPlay: true);
+      _cancelCrossfade();
+      _supersedeQueueWork(isLoading: true, loadingSongId: songId);
+      _setQueueReplacementMetadataAnchor(
+        expectedIndex: 0,
+        mediaItem: _mediaItemForSong(song),
+      );
+      _setCurrentMediaItem(_queueReplacementMetadataAnchor!.mediaItem);
+      _emitSnapshot();
+    }
     return trace.attempt;
   }
 
@@ -493,6 +512,15 @@ class NavisAudioHandler extends BaseAudioHandler
     final trace = _activeStartupTrace;
     if (trace?.attempt == attempt) {
       trace?.mark(stage);
+      if (stage == 'provisionalPersistenceFailed' &&
+          trace?.awaitingHandler == true &&
+          _loadingSongId == trace?.songId) {
+        _completeQueueLoad(
+          _activeLoadGeneration,
+          loadingSongId: trace?.songId,
+          failed: true,
+        );
+      }
     }
   }
 

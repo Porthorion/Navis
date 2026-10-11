@@ -69,6 +69,38 @@ class _GatedLibraryDao extends LibraryDao {
   }
 }
 
+class _GatedSourceResolver extends Fake implements PlaybackSourceResolver {
+  new(this.delegate);
+  final PlaybackSourceResolver delegate;
+  String? blockedSongId;
+  StateError? failure;
+  Completer<void>? entered;
+  Completer<void>? release;
+
+  @override
+  Uri? resolveArtUri(SongsTableData song) => delegate.resolveArtUri(song);
+
+  @override
+  Future<ResolvedPlaybackSource> resolveForSong(
+    SongsTableData song, {
+    bool preferLockCaching = true,
+    bool allowStreaming = true,
+  }) async {
+    if (song.id == blockedSongId) {
+      if (entered case final signal? when !signal.isCompleted) {
+        signal.complete();
+      }
+      await release?.future;
+      if (failure case final error?) throw error;
+    }
+    return await delegate.resolveForSong(
+      song,
+      preferLockCaching: preferLockCaching,
+      allowStreaming: allowStreaming,
+    );
+  }
+}
+
 class _NoopScrobbleService extends Fake implements ScrobbleService {
   final nowPlaying = <String>[];
   final submissions = <String>[];
@@ -688,7 +720,12 @@ void expectAudioMatchesMetadata(
       .where((player) => player.audibleSongId != null)
       .toList();
   expect(audible, hasLength(audible.isEmpty ? 0 : 1));
-  if (audible.isNotEmpty) {
+  if (snapshot.isLoading && snapshot.currentSongId == snapshot.loadingSongId) {
+    expect(handler.mediaItem.valueOrNull?.id, snapshot.loadingSongId);
+    if (audible.isNotEmpty) {
+      expect(audible.single, same(handler.debugActivePlayer));
+    }
+  } else if (audible.isNotEmpty) {
     final player = audible.single;
     expect(player, same(handler.debugActivePlayer));
     expect(
@@ -778,6 +815,7 @@ void main() {
     int count, {
     bool crossfade = false,
     bool crossfadeAllowStreaming = true,
+    PlaybackSourceResolver Function(PlaybackSourceResolver)? wrapResolver,
     bool positionStreams = false,
     String crossfadeType = 'normal',
     String Function()? readCrossfadeType,
@@ -854,6 +892,18 @@ void main() {
     if (positionStreams) player.positionPlayer = _HandlerPositionPlayer(player);
     if (hungLoadSongs != null) player.hungLoadSongs = hungLoadSongs;
     players?.add(player);
+    final baseResolver = PlaybackSourceResolver(
+      cacheDao: database.cacheDao,
+      libraryDao: database.libraryDao,
+      rollingCacheManager: cache,
+      readApiClient: readApiClient ?? () => apiClient,
+      readStreamingQuality: () => const StreamingQuality(label: 'original'),
+      readRollingCacheDirectory: () async => directory,
+      readCachedPlaybackFirst: () => true,
+      readCanStream: readCanStream,
+      readUsesSidecarRollingCache: () => sidecarStreams,
+    );
+    final resolver = wrapResolver?.call(baseResolver) ?? baseResolver;
     NavisAudioHandler buildHandler() => NavisAudioHandler(
       startPersonalRadio: (autoPlay) async =>
           await startPersonalRadio?.call(autoPlay: autoPlay) ?? false,
@@ -869,17 +919,7 @@ void main() {
       playQueueDao: database.playQueueDao,
       matchFlowDao: database.matchFlowDao,
       historyDao: database.historyDao,
-      sourceResolver: PlaybackSourceResolver(
-        cacheDao: database.cacheDao,
-        libraryDao: database.libraryDao,
-        rollingCacheManager: cache,
-        readApiClient: readApiClient ?? () => apiClient,
-        readStreamingQuality: () => const StreamingQuality(label: 'original'),
-        readRollingCacheDirectory: () async => directory,
-        readCachedPlaybackFirst: () => true,
-        readCanStream: readCanStream,
-        readUsesSidecarRollingCache: () => sidecarStreams,
-      ),
+      sourceResolver: resolver,
       readApiClient: readApiClient ?? () => apiClient,
       rollingCacheManager: cache,
       readRollingCacheBudgetBytes: () => 1024 * 1024,
@@ -949,6 +989,276 @@ void main() {
     }
     return (handler, player, database);
   }
+
+  group('pending selection metadata', () {
+    for (final path in ['ids', 'rows', 'remote', 'skip', 'jump']) {
+      test(
+        'publishes target before source preparation completes ($path)',
+        () async {
+          late _GatedSourceResolver resolver;
+          final directory = await Directory.systemTemp.createTemp(
+            'navis-pending-',
+          );
+          final (handler, player, database) = await createHandler(
+            directory,
+            4,
+            wrapResolver: (base) => resolver = _GatedSourceResolver(base),
+            queueWindow: const NavisQueueWindow(
+              deferThreshold: 1,
+              ahead: 0,
+              behind: 0,
+              lowWater: 0,
+              page: 1,
+              nearJump: 0,
+            ),
+          );
+          addTearDown(() async {
+            resolver.release?.complete();
+            await handler.disposeHandler();
+            await database.close();
+            await directory.delete(recursive: true);
+          });
+          final rows = await database.libraryDao.getSongsByIds([
+            'song-0',
+            'song-1',
+            'song-2',
+            'song-3',
+          ]);
+          await handler.replaceQueueWithData(
+            path == 'skip' || path == 'jump' ? rows : [rows[0]],
+            expandMatchFlows: false,
+          );
+          final target = rows[path == 'jump' ? 3 : 1].copyWith(
+            title: 'Picked title',
+            artistName: const Value('Picked artist'),
+            albumName: const Value('Picked album'),
+            duration: const Value(123),
+          );
+          await database.libraryDao.upsertSongs([
+            SongsTableCompanion.insert(
+              id: target.id,
+              title: target.title,
+              artistName: Value(target.artistName),
+              albumName: Value(target.albumName),
+              duration: Value(target.duration),
+            ),
+          ]);
+          resolver.blockedSongId = target.id;
+          resolver.entered = Completer<void>();
+          resolver.release = Completer<void>();
+          Future<void> operation;
+          if (path == 'remote') {
+            handler.beginPlaybackSelection(
+              target.id,
+              isExternal: true,
+              song: target.copyWith(isExternal: true),
+            );
+            expect(handler.mediaItem.valueOrNull?.title, target.title);
+            expect(handler.snapshot.loadingSongId, target.id);
+            operation = handler.replaceQueueWithData([
+              target.copyWith(isExternal: true),
+            ], expandMatchFlows: false);
+          } else if (path == 'ids') {
+            operation = handler.replaceQueue([
+              target.id,
+            ], expandMatchFlows: false);
+          } else if (path == 'rows') {
+            operation = handler.replaceQueueWithData([
+              target,
+            ], expandMatchFlows: false);
+            expect(handler.mediaItem.valueOrNull?.id, target.id);
+          } else if (path == 'skip') {
+            operation = handler.skipToNext();
+          } else {
+            operation = handler.playFromIndex(3);
+          }
+          await resolver.entered!.future;
+          expect(player.audibleSongId, 'song-0');
+          final pending = handler.mediaItem.valueOrNull!;
+          expect(pending.id, target.id);
+          expect(pending.title, target.title);
+          expect(pending.artist, target.artistName);
+          expect(pending.album, target.albumName);
+          expect(pending.duration, const Duration(seconds: 123));
+          expect(handler.snapshot.currentSongId, target.id);
+          expect(handler.snapshot.isLoading, isTrue);
+          expect(handler.snapshot.loadingSongId, target.id);
+          resolver.blockedSongId = null;
+          resolver.release!.complete();
+          resolver.release = null;
+          await operation;
+          await settleQueue(handler);
+          expect(handler.mediaItem.valueOrNull?.id, target.id);
+          expect(handler.mediaItem.valueOrNull?.title, pending.title);
+          expect(handler.snapshot.isLoading, isFalse);
+        },
+      );
+    }
+
+    test(
+      'failed source preparation restores metadata for the held source',
+      () async {
+        late _GatedSourceResolver resolver;
+        final directory = await Directory.systemTemp.createTemp(
+          'navis-pending-failed-',
+        );
+        final (handler, player, database) = await createHandler(
+          directory,
+          2,
+          wrapResolver: (base) => resolver = _GatedSourceResolver(base),
+        );
+        addTearDown(() async {
+          await handler.disposeHandler();
+          await database.close();
+          await directory.delete(recursive: true);
+        });
+        final rows = await database.libraryDao.getSongsByIds([
+          'song-0',
+          'song-1',
+        ]);
+        await handler.replaceQueueWithData([rows[0]], expandMatchFlows: false);
+        resolver.blockedSongId = 'song-1';
+        resolver.entered = Completer<void>();
+        resolver.release = Completer<void>();
+        resolver.failure = StateError('source failed');
+        final operation = handler.replaceQueueWithData([
+          rows[1],
+        ], expandMatchFlows: false);
+        final failed = expectLater(operation, throwsStateError);
+        await resolver.entered!.future;
+        expect(handler.mediaItem.valueOrNull?.id, 'song-1');
+        resolver.release!.complete();
+        await failed;
+        expect(handler.mediaItem.valueOrNull?.id, 'song-0');
+        expect(handler.snapshot.currentSongId, 'song-0');
+        expect(handler.snapshot.isLoading, isFalse);
+        expect(player.audibleSongId, 'song-0');
+      },
+    );
+
+    test('failed provisional persistence restores held metadata', () async {
+      final directory = await Directory.systemTemp.createTemp(
+        'navis-provisional-failed-',
+      );
+      final (handler, player, database) = await createHandler(directory, 2);
+      addTearDown(() async {
+        await handler.disposeHandler();
+        await database.close();
+        await directory.delete(recursive: true);
+      });
+      final rows = await database.libraryDao.getSongsByIds([
+        'song-0',
+        'song-1',
+      ]);
+      await handler.replaceQueueWithData([rows[0]], expandMatchFlows: false);
+      final attempt = handler.beginPlaybackSelection(
+        'song-1',
+        isExternal: true,
+        song: rows[1],
+      );
+      expect(handler.mediaItem.valueOrNull?.id, 'song-1');
+      handler.notePlaybackSelectionStage(
+        attempt,
+        'provisionalPersistenceFailed',
+      );
+      expect(handler.mediaItem.valueOrNull?.id, 'song-0');
+      expect(handler.snapshot.isLoading, isFalse);
+      expect(player.audibleSongId, 'song-0');
+    });
+
+    for (final command in ['next', 'previous', 'index']) {
+      test(
+        'materialized $command publishes metadata before seek settles',
+        () async {
+          final directory = await Directory.systemTemp.createTemp(
+            'navis-pending-seek-',
+          );
+          final (handler, player, database) = await createHandler(directory, 3);
+          addTearDown(() async {
+            await handler.disposeHandler();
+            await database.close();
+            await directory.delete(recursive: true);
+          });
+          await handler.replaceQueue(
+            ['song-0', 'song-1', 'song-2'],
+            startIndex: 1,
+            expandMatchFlows: false,
+          );
+          player.simulatedPosition = Duration.zero;
+          player.seekGate = Completer<void>();
+          player.seekEntered = Completer<void>();
+          final gate = player.seekGate!;
+          final operation = switch (command) {
+            'next' => handler.skipToNext(),
+            'previous' => handler.skipToPrevious(),
+            _ => handler.playFromIndex(0),
+          };
+          final target = command == 'next' ? 'song-2' : 'song-0';
+          expect(handler.mediaItem.valueOrNull?.id, target);
+          await player.seekEntered!.future;
+          expect(player.audibleSongId, 'song-1');
+          expect(handler.snapshot.currentSongId, target);
+          expect(
+            handler.playbackState.value.processingState,
+            AudioProcessingState.loading,
+          );
+          gate.complete();
+          await operation;
+          await settleQueue(handler);
+          expect(player.audibleSongId, target);
+          expect(handler.mediaItem.valueOrNull?.id, target);
+        },
+      );
+    }
+
+    test(
+      'superseded source preparation cannot overwrite a newer target',
+      () async {
+        late _GatedSourceResolver resolver;
+        final directory = await Directory.systemTemp.createTemp(
+          'navis-pending-race-',
+        );
+        final (handler, _, database) = await createHandler(
+          directory,
+          3,
+          wrapResolver: (base) => resolver = _GatedSourceResolver(base),
+        );
+        addTearDown(() async {
+          await handler.disposeHandler();
+          await database.close();
+          await directory.delete(recursive: true);
+        });
+        final rows = await database.libraryDao.getSongsByIds([
+          'song-0',
+          'song-1',
+          'song-2',
+        ]);
+        await handler.replaceQueueWithData([rows[0]], expandMatchFlows: false);
+        resolver.blockedSongId = 'song-1';
+        resolver.entered = Completer<void>();
+        resolver.release = Completer<void>();
+        final older = handler.replaceQueueWithData([
+          rows[1],
+        ], expandMatchFlows: false);
+        await resolver.entered!.future;
+        expect(handler.mediaItem.valueOrNull?.id, 'song-1');
+        final published = <String?>[];
+        final sub = handler.mediaItem.listen((item) => published.add(item?.id));
+        addTearDown(sub.cancel);
+        final newer = handler.replaceQueueWithData([
+          rows[2],
+        ], expandMatchFlows: false);
+        expect(handler.mediaItem.valueOrNull?.id, 'song-2');
+        await pumpEventQueue();
+        published.clear();
+        resolver.release!.complete();
+        await Future.wait([older, newer]);
+        expect(handler.mediaItem.valueOrNull?.id, 'song-2');
+        expect(published, isNot(contains('song-1')));
+        expect(handler.snapshot.isLoading, isFalse);
+      },
+    );
+  });
 
   group('audio metadata invariants', () {
     const tiny = NavisQueueWindow(
@@ -1340,7 +1650,7 @@ void main() {
       ]) {
         for (final failure in ['none', 'stop', 'load']) {
           test(
-            'cold remote replacement keeps paused metadata, fade=$crossfade repeat=$repeat failure=$failure',
+            'cold remote replacement publishes selected paused metadata, fade=$crossfade repeat=$repeat failure=$failure',
             () async {
               final previousHttp = HttpOverrides.current;
               HttpOverrides.global = null;
@@ -1391,7 +1701,6 @@ void main() {
               });
               await handler.replaceQueue(ids(3), expandMatchFlows: false);
               await handler.setRepeatMode(repeat);
-              final old = handler.snapshot.currentSongId;
               final check = watchAudioMetadata(handler, players);
               final rows = await database.libraryDao.getSongsByIds(ids(3));
               final remote = rows[1].copyWith(
@@ -1417,10 +1726,10 @@ void main() {
                 players.every((player) => player.audibleSongId == null),
                 isTrue,
               );
-              expect(handler.snapshot.currentSongId, old);
+              expect(handler.snapshot.currentSongId, remote.id);
               expect(handler.snapshot.playing, isFalse);
               expect(handler.playbackState.value.playing, isFalse);
-              expect(handler.mediaItem.valueOrNull?.id, old);
+              expect(handler.mediaItem.valueOrNull?.id, remote.id);
               expect(handler.snapshot.loadingSongId, remote.id);
               // Old native callbacks cannot notify or scrobble an unrelated song.
               if (failure != 'stop') {
@@ -1428,8 +1737,8 @@ void main() {
                 player._events.add(player.playbackEvent);
                 player._events.addError(StateError('old source failed'));
                 await pumpEventQueue();
-                expect(handler.snapshot.currentSongId, old);
-                expect(handler.mediaItem.valueOrNull?.id, old);
+                expect(handler.snapshot.currentSongId, remote.id);
+                expect(handler.mediaItem.valueOrNull?.id, remote.id);
                 expect(scrobbles.nowPlaying, isNot(contains('song-2')));
                 expect(scrobbles.submissions, isNot(contains('song-2')));
                 expect(
