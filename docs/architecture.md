@@ -5148,6 +5148,31 @@ it again, and `markForRetry` notifies queue watchers. `processQueuedDownloads`
 completes once no worker is running. The Android progress notification
 aggregates every transfer in flight.
 
+**Custom-folder configuration holds.** `PermanentDownloadPathResolver` requires
+an existing custom filesystem root and probes it with a disposable Navis-owned
+write; it never recreates a missing mount. Unset, missing and inaccessible
+roots report `DownloadFolderUnavailableException` / `DownloadFolderProblem`.
+`DownloadService` checks the destination before queue workers and rolling-cache
+promotion; Android trees use the existing `AndroidSafStorage.validateWritableTree`
+bridge to check persisted access and safe replacement. Permission loss during a
+transfer is also a configuration hold, including filesystem errors wrapped by
+Dio. Workers return to `queued` without increasing retry counts or scheduling
+backoff; other transient transfer failures retain the existing backoff.
+The service exposes hold changes through `downloadFolderProblemProvider`, and
+Downloads shows the existing filled-card notice pattern with **Choose folder**
+and **Use app storage** actions across tabs. Both reuse the same picker,
+confirmation and app-lifetime `CustomDownloadFolderController` as Settings.
+Cancelling the picker preserves the previous setting; a chosen folder is saved
+only after validation and relocation, with path/kind/enablement committed in a
+transaction. Folder setting changes and explicit queue processing recheck access
+and resume work when usable. A held root is also probed every five seconds so
+reconnected storage or restored access resumes automatically, without retrying
+transfers or incrementing failure counts. A permission failure below a writable
+root requires an explicit folder action; a root probe cannot establish its repair. One app notice is emitted per unresolved hold when
+a download is requested (`downloadFolderNoticeProvider`, consumed by the shell);
+startup detection alone does not issue that notice. Holds are rederived at
+startup and require no database schema change.
+
 **Permanent artwork store.** `PermanentArtworkStore` keeps one 768 px copy of
 each downloaded song's cover in `<app support>/artwork/permanent/<key>.<ext>`
 (clone runs: inside the run root), named for its image signature, written

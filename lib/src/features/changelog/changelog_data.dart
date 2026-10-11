@@ -172,6 +172,10 @@ const List<ChangelogVersion> changelogs = [
         'ListenBrainz connection errors now explain whether a token was rejected, online services are off, requests are limited, or ListenBrainz is temporarily unavailable; outages keep your token and queued listens',
         type: ChangelogEntryType.fix,
       ),
+      ChangelogEntry(
+        'Downloads wait in the queue when a custom folder is missing or inaccessible, with clear actions to choose a folder or use app storage; cancelling folder selection keeps your previous location',
+        type: ChangelogEntryType.fix,
+      ),
       // New
       ChangelogEntry(
         'Color Styles: Pastel, Immersive and Night restyle Light, Dark and OLED, and Neutral keeps the classic look',

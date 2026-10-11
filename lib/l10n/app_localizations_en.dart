@@ -5926,4 +5926,22 @@ class AppLocalizationsEn extends AppLocalizations {
   String configurationListenBrainzUnavailableHttp(int status) {
     return 'ListenBrainz isn\'t accepting connections right now (HTTP $status). This is on their side; your token wasn\'t rejected. Try again later.';
   }
+
+  @override
+  String get downloadsFolderHoldUnset =>
+      'Downloads are queued. Choose a custom folder or use app storage to continue.';
+
+  @override
+  String get downloadsFolderHoldMissing =>
+      'Downloads are queued because the custom folder is missing. Reconnect the storage, choose a folder or use app storage.';
+
+  @override
+  String get downloadsFolderHoldInaccessible =>
+      'Downloads are queued because Navis cannot write to the custom folder. Choose an accessible folder or use app storage.';
+
+  @override
+  String get downloadsFolderHoldChoose => 'Choose folder';
+
+  @override
+  String get downloadsFolderHoldUseAppStorage => 'Use app storage';
 }

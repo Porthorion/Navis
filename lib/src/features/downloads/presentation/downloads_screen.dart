@@ -27,6 +27,7 @@ import 'package:navis/src/routing/desktop_layout.dart';
 import 'package:navis/src/features/downloads/domain/download_preferences.dart';
 import 'package:navis/src/features/downloads/presentation/download_quality_sheet.dart';
 import 'package:navis/src/features/downloads/data/android_saf_storage.dart';
+import 'package:navis/src/features/downloads/data/permanent_download_path_resolver.dart';
 import 'package:navis/src/features/downloads/presentation/download_reconciliation_screen.dart';
 import 'package:navis/src/features/downloads/presentation/manual_download_matching_provider.dart';
 import 'package:navis/src/theme/navis_shape_data.dart';
@@ -109,6 +110,15 @@ class _DownloadsScreenState extends ConsumerState<DownloadsScreen>
               onChanged: (value) => setState(() => _query = value),
               onClear: _clearSearch,
             ),
+          ref
+              .watch(downloadFolderProblemProvider)
+              .when(
+                data: (problem) => problem == null
+                    ? const SizedBox.shrink()
+                    : _DownloadFolderHoldBanner(problem: problem),
+                loading: () => const SizedBox.shrink(),
+                error: (_, _) => const SizedBox.shrink(),
+              ),
           Expanded(
             child: TabBarView(
               controller: _tabController,
@@ -206,6 +216,162 @@ class _DownloadsDesktopCommandStrip extends StatelessWidget {
                       ),
                     )
                   : const SizedBox.shrink(),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+Future<void> _toggleCustomDownloadFolder(
+  BuildContext context,
+  WidgetRef ref,
+  bool enabled,
+) async {
+  if (enabled) {
+    await _pickCustomDownloadFolder(context, ref);
+    return;
+  }
+  final l10n = AppLocalizations.of(context)!;
+  final confirm = await showDialog<bool>(
+    context: context,
+    builder: (dialogContext) => AlertDialog(
+      title: Text(l10n.downloadsCustomFolderDisableTitle),
+      content: Text(l10n.downloadsCustomFolderDisableConfirm),
+      actions: <Widget>[
+        TextButton(
+          onPressed: () => Navigator.pop(dialogContext, false),
+          child: Text(l10n.cancelAction),
+        ),
+        FilledButton(
+          key: const ValueKey<String>('downloadsCustomFolderDisableConfirm'),
+          onPressed: () => Navigator.pop(dialogContext, true),
+          child: Text(l10n.downloadsCustomFolderDisableAction),
+        ),
+      ],
+    ),
+  );
+  if (confirm != true || !context.mounted) return;
+  await _applyCustomDownloadFolder(context, ref, enabled: false);
+}
+
+Future<void> _pickCustomDownloadFolder(
+  BuildContext context,
+  WidgetRef ref,
+) async {
+  final l10n = AppLocalizations.of(context)!;
+  final selectedPath = await FilePicker.getDirectoryPath(
+    dialogTitle: l10n.downloadsCustomFolderChooseAction,
+    androidOptions: Platform.isAndroid
+        ? FilePickerAndroidOptions(
+            safOptions: AndroidSAFOptions(
+              grant: AndroidSAFGrant.lifetime,
+              accessMode: AndroidSAFAccessMode.readWrite,
+              persistGrant: true,
+            ),
+          )
+        : const AndroidOptions(),
+  );
+  if (!context.mounted || selectedPath == null) {
+    return;
+  }
+  await _applyCustomDownloadFolder(
+    context,
+    ref,
+    enabled: true,
+    path: selectedPath,
+  );
+}
+
+/// Folder changes run in [customDownloadFolderControllerProvider], so they
+/// finish (and fill Manual Matching) even if this tab is left mid-scan;
+/// only the notice needs the tab to still be shown.
+Future<void> _applyCustomDownloadFolder(
+  BuildContext context,
+  WidgetRef ref, {
+  required bool enabled,
+  String? path,
+}) async {
+  final controller = ref.read(customDownloadFolderControllerProvider.notifier);
+  try {
+    if (enabled && path != null) {
+      await controller.choose(path);
+    } else {
+      await controller.disable();
+    }
+    if (!context.mounted) return;
+    final l10n = AppLocalizations.of(context)!;
+    AppNoticeMessenger.of(context).clearSnackBars();
+    showAppNotice(
+      context,
+      message: enabled
+          ? l10n.downloadsCustomFolderSaved
+          : l10n.downloadsCustomFolderDisabled,
+      level: AppNoticeLevel.success,
+    );
+  } on Object catch (error) {
+    AppLogger.warning('Download folder update failed: ${error.runtimeType}');
+    if (!context.mounted) return;
+    final l10n = AppLocalizations.of(context)!;
+    AppNoticeMessenger.of(context).clearSnackBars();
+    showAppNotice(
+      context,
+      message: error is FileSystemException
+          ? l10n.downloadsCustomFolderError(error.message)
+          : l10n.downloadsScanError,
+      level: AppNoticeLevel.error,
+    );
+  }
+}
+
+String downloadFolderProblemMessage(
+  AppLocalizations l10n,
+  DownloadFolderProblem problem,
+) => switch (problem) {
+  DownloadFolderProblem.unset => l10n.downloadsFolderHoldUnset,
+  DownloadFolderProblem.missing => l10n.downloadsFolderHoldMissing,
+  DownloadFolderProblem.inaccessible => l10n.downloadsFolderHoldInaccessible,
+};
+
+class _DownloadFolderHoldBanner extends ConsumerWidget {
+  const new({required this.problem});
+  final DownloadFolderProblem problem;
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final l10n = AppLocalizations.of(context)!;
+    final busy = ref.watch(customDownloadFolderControllerProvider).busy;
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+      child: Card.filled(
+        key: const ValueKey<String>('downloadsFolderHoldBanner'),
+        margin: EdgeInsets.zero,
+        child: Column(
+          children: [
+            ListTile(
+              leading: const Icon(Icons.folder_off_outlined),
+              title: Text(downloadFolderProblemMessage(l10n, problem)),
+            ),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+              child: Wrap(
+                spacing: 8,
+                children: [
+                  TextButton(
+                    onPressed: busy
+                        ? null
+                        : () => _pickCustomDownloadFolder(context, ref),
+                    child: Text(l10n.downloadsFolderHoldChoose),
+                  ),
+                  TextButton(
+                    onPressed: busy
+                        ? null
+                        : () =>
+                              _toggleCustomDownloadFolder(context, ref, false),
+                    child: Text(l10n.downloadsFolderHoldUseAppStorage),
+                  ),
+                ],
+              ),
             ),
           ],
         ),
@@ -1071,95 +1237,6 @@ class _DownloadSettingsTabState extends ConsumerState<_DownloadSettingsTab> {
     }
   }
 
-  Future<void> _toggleCustomDownloadFolder(bool enabled) async {
-    if (enabled) {
-      await _pickCustomDownloadFolder();
-      return;
-    }
-    final l10n = AppLocalizations.of(context)!;
-    final confirm = await showDialog<bool>(
-      context: context,
-      builder: (dialogContext) => AlertDialog(
-        title: Text(l10n.downloadsCustomFolderDisableTitle),
-        content: Text(l10n.downloadsCustomFolderDisableConfirm),
-        actions: <Widget>[
-          TextButton(
-            onPressed: () => Navigator.pop(dialogContext, false),
-            child: Text(l10n.cancelAction),
-          ),
-          FilledButton(
-            key: const ValueKey<String>('downloadsCustomFolderDisableConfirm'),
-            onPressed: () => Navigator.pop(dialogContext, true),
-            child: Text(l10n.downloadsCustomFolderDisableAction),
-          ),
-        ],
-      ),
-    );
-    if (confirm != true || !mounted) return;
-    await _applyCustomDownloadFolder(enabled: false);
-  }
-
-  Future<void> _pickCustomDownloadFolder() async {
-    final l10n = AppLocalizations.of(context)!;
-    final selectedPath = await FilePicker.getDirectoryPath(
-      dialogTitle: l10n.downloadsCustomFolderChooseAction,
-      androidOptions: Platform.isAndroid
-          ? FilePickerAndroidOptions(
-              safOptions: AndroidSAFOptions(
-                grant: AndroidSAFGrant.lifetime,
-                accessMode: AndroidSAFAccessMode.readWrite,
-                persistGrant: true,
-              ),
-            )
-          : const AndroidOptions(),
-    );
-    if (!mounted || selectedPath == null) {
-      return;
-    }
-    await _applyCustomDownloadFolder(enabled: true, path: selectedPath);
-  }
-
-  /// Folder changes run in [customDownloadFolderControllerProvider], so they
-  /// finish (and fill Manual Matching) even if this tab is left mid-scan;
-  /// only the notice needs the tab to still be shown.
-  Future<void> _applyCustomDownloadFolder({
-    required bool enabled,
-    String? path,
-  }) async {
-    final controller = ref.read(
-      customDownloadFolderControllerProvider.notifier,
-    );
-    try {
-      if (enabled && path != null) {
-        await controller.choose(path);
-      } else {
-        await controller.disable();
-      }
-      if (!mounted) return;
-      final l10n = AppLocalizations.of(context)!;
-      AppNoticeMessenger.of(context).clearSnackBars();
-      showAppNotice(
-        context,
-        message: enabled
-            ? l10n.downloadsCustomFolderSaved
-            : l10n.downloadsCustomFolderDisabled,
-        level: AppNoticeLevel.success,
-      );
-    } on Object catch (error, stackTrace) {
-      AppLogger.warning('Download folder update failed. $error\n$stackTrace');
-      if (!mounted) return;
-      final l10n = AppLocalizations.of(context)!;
-      AppNoticeMessenger.of(context).clearSnackBars();
-      showAppNotice(
-        context,
-        message: error is FileSystemException
-            ? l10n.downloadsCustomFolderError(error.message)
-            : l10n.downloadsScanError,
-        level: AppNoticeLevel.error,
-      );
-    }
-  }
-
   Future<void> _rescanCustomDownloadFolder() async {
     try {
       final result = await ref
@@ -1289,7 +1366,7 @@ class _DownloadSettingsTabState extends ConsumerState<_DownloadSettingsTab> {
                 ),
           value: customFolderEnabled,
           onChanged: _supportsCustomDownloadFolderSelection
-              ? _toggleCustomDownloadFolder
+              ? (enabled) => _toggleCustomDownloadFolder(context, ref, enabled)
               : null,
         ),
         if (_supportsCustomDownloadFolderSelection && customFolderEnabled)
@@ -1297,7 +1374,7 @@ class _DownloadSettingsTabState extends ConsumerState<_DownloadSettingsTab> {
             leading: const Icon(Icons.folder_open_outlined),
             title: Text(l10n.downloadsCustomFolderChooseAction),
             subtitle: _CustomFolderLabel(path: customFolderPath),
-            onTap: _pickCustomDownloadFolder,
+            onTap: () => _pickCustomDownloadFolder(context, ref),
           ),
         if (_supportsCustomDownloadFolderSelection && customFolderEnabled)
           ListTile(
@@ -1544,8 +1621,8 @@ class _CustomFolderLabel extends StatelessWidget {
           .inspectTree(value)
           .catchError((Object error) {
             // Look the folder up again next time instead of caching a failure.
-            _safFolderDetails.remove(value);
-            throw error;
+            unawaited(_safFolderDetails.remove(value));
+            Error.throwWithStackTrace(error, StackTrace.current);
           }),
       builder: (context, snapshot) => Text(
         snapshot.data?.displayName ??

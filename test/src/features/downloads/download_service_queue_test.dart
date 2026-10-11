@@ -3,9 +3,9 @@ import 'dart:io';
 
 import 'package:dio/dio.dart';
 import 'package:drift/drift.dart' hide isNotNull, isNull;
-import 'package:drift/native.dart';
 import 'package:flutter_cache_manager/flutter_cache_manager.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:flutter/services.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:navis/src/api/lrclib_client.dart';
 import 'package:navis/src/api/subsonic_api_client.dart';
@@ -13,6 +13,7 @@ import 'package:navis/src/api/subsonic_auth_interceptor.dart';
 import 'package:navis/src/database/navis_database.dart';
 import 'package:navis/src/database/tables/schema_enums.dart';
 import 'package:navis/src/features/downloads/data/download_service.dart';
+import 'package:navis/src/features/downloads/data/permanent_download_path_resolver.dart';
 import 'package:navis/src/features/downloads/data/permanent_artwork_store.dart';
 import 'package:path/path.dart' as p;
 
@@ -125,7 +126,7 @@ void main() {
   });
 
   setUp(() async {
-    database = NavisDatabase(NativeDatabase.memory());
+    database = createTestDatabase();
     supportDir = await Directory.systemTemp.createTemp('navis_queue_');
     dio = _MockDio();
     server = _GatedServer()..install(dio);
@@ -148,7 +149,14 @@ void main() {
     await supportDir.delete(recursive: true);
   });
 
-  DownloadService buildService({PermanentArtworkStore? artworkStore}) {
+  DownloadService buildService({
+    PermanentArtworkStore? artworkStore,
+    bool Function()? customEnabled,
+    String? Function()? customPath,
+    Future<void> Function(Directory)? validateCustomRoot,
+    bool? isAndroid,
+    Duration folderRecheckInterval = const Duration(seconds: 5),
+  }) {
     final lrclib = _MockLrclibClient();
     final cacheManager = _MockCacheManager();
     when(() => cacheManager.downloadFile(any(), key: any(named: 'key')))
@@ -161,15 +169,18 @@ void main() {
       readApiClient: () => api,
       readWifiOnly: () => false,
       readIsWifi: () => onWifi,
-      readCustomDownloadFolderEnabled: () => false,
-      readCustomDownloadFolderPath: () => null,
+      readCustomDownloadFolderEnabled: customEnabled ?? () => false,
+      readCustomDownloadFolderPath: customPath ?? () => null,
+      validateCustomRoot: validateCustomRoot,
+      isAndroid: isAndroid,
+      folderRecheckInterval: folderRecheckInterval,
       lrclibClient: lrclib,
       readCoverArtCacheManager: () => cacheManager,
       readApplicationSupportDirectory: () async => supportDir,
       artworkStore: artworkStore ?? _OfflineArtworkStore(supportDir),
       dio: dio,
     );
-    addTearDown(service.stop);
+    addTearDown(service.dispose);
     return service;
   }
 
@@ -196,6 +207,213 @@ void main() {
 
   Future<List<DownloadQueueTableData>> queue() =>
       database.downloadQueueDao.watchQueue().first;
+
+  test('Android startup holds an unset folder without disabling it', () async {
+    await database.appSettingsDao.updateCustomDownloadFolderEnabled(
+      enabled: true,
+    );
+    final service = buildService(customEnabled: () => true, isAndroid: true);
+    await service.start();
+    expect(service.folderProblem, DownloadFolderProblem.unset);
+    expect(
+      (await database.appSettingsDao.getSettings())!
+          .customDownloadFolderEnabled,
+      isTrue,
+    );
+  }, skip: !sqliteAvailable);
+
+  test('a reconnected folder resumes without a manual queue retry', () async {
+    final root = Directory(p.join(supportDir.path, 'removable'));
+    final service = buildService(
+      customEnabled: () => true,
+      customPath: () => root.path,
+      folderRecheckInterval: const Duration(milliseconds: 20),
+    );
+    await service.start();
+    await addSongs(1);
+    await service.enqueueSong('song-0', quality: '192', format: 'mp3');
+    expect(service.folderProblem, DownloadFolderProblem.missing);
+    expect(server.requests, isEmpty);
+    server.releaseAll();
+    await root.create();
+    await waitUntil(() => server.requests.isNotEmpty);
+    await waitUntil(() => service.folderProblem == null);
+    await service.processQueuedDownloads();
+    expect(await queue(), isEmpty);
+  }, skip: !sqliteAvailable);
+
+  for (final problem in DownloadFolderProblem.values) {
+    test(
+      'holds queue without retries for $problem and resumes after repair',
+      () async {
+        var path = problem == DownloadFolderProblem.unset
+            ? null
+            : problem == DownloadFolderProblem.missing
+            ? p.join(supportDir.path, 'disconnected')
+            : supportDir.path;
+        var denied = problem == DownloadFolderProblem.inaccessible;
+        final service = buildService(
+          customEnabled: () => true,
+          customPath: () => path,
+          validateCustomRoot: (_) async {
+            if (denied) {
+              throw const FileSystemException(
+                'Fixture permission denied',
+                '',
+                OSError('denied', 13),
+              );
+            }
+          },
+        );
+        final notices = <DownloadFolderProblem>[];
+        final subscription = service.folderNotices.listen(notices.add);
+        addTearDown(subscription.cancel);
+        await service.start();
+        await addSongs(2);
+        await service.enqueueSong('song-0', quality: '192', format: 'mp3');
+        await service.enqueueSong('song-1', quality: '192', format: 'mp3');
+        await service.processQueuedDownloads();
+        expect(service.folderProblem, problem);
+        expect(service.effectiveConcurrency, 0);
+        expect(server.requests, isEmpty);
+        final held = await queue();
+        expect(held, hasLength(2));
+        expect(held.map((i) => i.status), everyElement(DownloadStatus.queued));
+        expect(held.map((i) => i.retryCount), everyElement(0));
+        expect(notices, [problem]);
+        denied = false;
+        path = supportDir.path;
+        server.releaseAll();
+        await service.refreshDownloadFolder();
+        await service.processQueuedDownloads();
+        expect(service.folderProblem, isNull);
+        expect(await queue(), isEmpty);
+        expect(server.requests, hasLength(2));
+      },
+      skip: !sqliteAvailable,
+    );
+  }
+
+  test(
+    'switching to app storage resumes a queue held by an unset folder',
+    () async {
+      var custom = true;
+      final service = buildService(customEnabled: () => custom);
+      await service.start();
+      await addSongs(1);
+      await service.enqueueSong('song-0', quality: '192', format: 'mp3');
+      await service.processQueuedDownloads();
+      expect(service.folderProblem, DownloadFolderProblem.unset);
+      custom = false;
+      server.releaseAll();
+      await service.refreshDownloadFolder();
+      await service.processQueuedDownloads();
+      expect(await queue(), isEmpty);
+      expect(service.folderProblem, isNull);
+    },
+    skip: !sqliteAvailable,
+  );
+
+  test(
+    'lost SAF permission holds the queue until app storage is selected',
+    () async {
+      TestWidgetsFlutterBinding.ensureInitialized();
+      const channel = MethodChannel('com.navis.app/permanent_download_storage');
+      final messenger =
+          TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
+      messenger.setMockMethodCallHandler(
+        channel,
+        (call) async => throw PlatformException(
+          code: 'PERMISSION_DENIED',
+          message: 'Fixture permission lost',
+        ),
+      );
+      addTearDown(() => messenger.setMockMethodCallHandler(channel, null));
+      var custom = true;
+      final service = buildService(
+        customEnabled: () => custom,
+        customPath: () => custom ? 'content://fixture/tree/root' : null,
+        isAndroid: true,
+      );
+      await service.start();
+      await addSongs(1);
+      await service.enqueueSong('song-0', quality: '192', format: 'mp3');
+      await service.processQueuedDownloads();
+      final item = (await queue()).single;
+      expect(service.folderProblem, DownloadFolderProblem.inaccessible);
+      expect(item.status, DownloadStatus.queued);
+      expect(item.retryCount, 0);
+      expect(server.requests, isEmpty);
+      custom = false;
+      server.releaseAll();
+      await service.refreshDownloadFolder();
+      await service.processQueuedDownloads();
+      expect(await queue(), isEmpty);
+    },
+    skip: !sqliteAvailable,
+  );
+
+  for (final wrapped in [false, true]) {
+    test(
+      'write permission lost during transfer holds without backoff, wrapped=$wrapped',
+      () async {
+        var denied = true;
+        final service = buildService(
+          customEnabled: () => true,
+          customPath: () => supportDir.path,
+          validateCustomRoot: (_) async {},
+        );
+        when(
+          () => dio.downloadUri(
+            any<Uri>(),
+            any<dynamic>(),
+            cancelToken: any<CancelToken?>(named: 'cancelToken'),
+            onReceiveProgress: any<ProgressCallback?>(
+              named: 'onReceiveProgress',
+            ),
+          ),
+        ).thenAnswer((i) async {
+          if (denied) {
+            const error = FileSystemException(
+              'Fixture permission lost',
+              '',
+              OSError('denied', 13),
+            );
+            if (wrapped) {
+              throw DioException(
+                requestOptions: RequestOptions(path: '/fixture'),
+                error: error,
+              );
+            }
+            throw error;
+          }
+          await File(i.positionalArguments[1] as String).parent
+              .create(recursive: true);
+          await File(i.positionalArguments[1] as String)
+              .writeAsBytes([1, 2, 3]);
+          return Response<void>(
+            requestOptions: RequestOptions(path: '/fixture'),
+            statusCode: 200,
+            headers: Headers.fromMap({
+              Headers.contentTypeHeader: ['audio/mpeg'],
+            }),
+          );
+        });
+        await service.start();
+        await addSongs(1);
+        await service.enqueueSong('song-0', quality: '192', format: 'mp3');
+        await service.processQueuedDownloads();
+        expect(service.folderProblem, DownloadFolderProblem.inaccessible);
+        expect((await queue()).single.retryCount, 0);
+        expect((await queue()).single.status, DownloadStatus.queued);
+        denied = false;
+        await service.refreshDownloadFolder();
+        await service.processQueuedDownloads();
+        expect(await queue(), isEmpty);
+      },
+      skip: !sqliteAvailable,
+    );
+  }
 
   test('runs up to the configured number of downloads at once', () async {
     final service = buildService();

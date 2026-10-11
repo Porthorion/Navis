@@ -89,6 +89,8 @@ class DownloadService {
     this._reportNetworkUsage,
     Future<Directory> Function()? readApplicationSupportDirectory,
     PermanentArtworkStore? artworkStore,
+    Future<void> Function(Directory)? validateCustomRoot,
+    this.folderRecheckInterval = const Duration(seconds: 5),
     Dio? dio,
     bool? isAndroid,
     this._rejectsCustomFolder = cloneRejectsDownloadFolder,
@@ -108,6 +110,7 @@ class DownloadService {
            ),
        _isAndroid = isAndroid ?? Platform.isAndroid,
        _permanentPathResolver = PermanentDownloadPathResolver(
+         validateCustomRoot: validateCustomRoot,
          readCustomDownloadFolderEnabled: readCustomDownloadFolderEnabled,
          readCustomDownloadFolderPath: readCustomDownloadFolderPath,
          readApplicationSupportDirectory: readApplicationSupportDirectory,
@@ -146,6 +149,134 @@ class DownloadService {
   final PermanentDownloadImportService _permanentDownloadImportService;
   final AndroidSafStorage _safStorage = const AndroidSafStorage();
   final PermanentArtworkStore _artworkStore;
+
+  @visibleForTesting
+  final Duration folderRecheckInterval;
+  Timer? _folderRecheckTimer;
+
+  DownloadFolderProblem? _folderProblem;
+  int _folderCheckGeneration = 0;
+  bool _disposed = false;
+  final _folderChanges = StreamController<DownloadFolderProblem?>.broadcast();
+  final _folderNotices = StreamController<DownloadFolderProblem>.broadcast();
+  bool _folderNoticeSent = false;
+
+  @visibleForTesting
+  DownloadFolderProblem? get folderProblem => _folderProblem;
+  Stream<DownloadFolderProblem?> get folderChanges => Stream.multi((sink) {
+    final subscription = _folderChanges.stream.listen(
+      sink.add,
+      onDone: sink.close,
+    );
+    sink.add(_folderProblem);
+    sink.onCancel = subscription.cancel;
+  });
+
+  Stream<DownloadFolderProblem> get folderNotices => _folderNotices.stream;
+
+  void _setFolderProblem(
+    DownloadFolderProblem? problem, {
+    bool recheck = true,
+  }) {
+    if (_disposed) return;
+    _folderRecheckTimer?.cancel();
+    if (_folderProblem != problem) {
+      _folderProblem = problem;
+      if (problem == null) _folderNoticeSent = false;
+      _folderChanges.add(problem);
+    }
+    if (problem != null) {
+      _retryTimer?.cancel();
+      _cancelTransfers(_CancelReason.requeue);
+      if (recheck && !_stopped) {
+        // Probe availability only; queued items never accrue failure retries.
+        _folderRecheckTimer = Timer(folderRecheckInterval, () {
+          unawaited(refreshDownloadFolder());
+        });
+      }
+    }
+  }
+
+  Future<bool> _checkDownloadFolder() async {
+    final generation = ++_folderCheckGeneration;
+    if (!_readCustomDownloadFolderEnabled()) {
+      _setFolderProblem(null);
+      return true;
+    }
+    final path = _readCustomDownloadFolderPath()?.trim();
+    try {
+      if (path == null || path.isEmpty) {
+        throw const DownloadFolderUnavailableException(
+          DownloadFolderProblem.unset,
+        );
+      }
+      if (_isSafRoot(path)) {
+        final tree = await _safStorage.validateWritableTree(path);
+        if (!tree.canRead || !tree.canWrite || !tree.canReplace) {
+          throw const DownloadFolderUnavailableException(
+            DownloadFolderProblem.inaccessible,
+          );
+        }
+      } else {
+        await _permanentPathResolver.resolveRootFor(
+          customDownloadFolderEnabled: true,
+          customDownloadFolderPath: path,
+        );
+      }
+      if (generation != _folderCheckGeneration || _disposed) {
+        return _folderProblem == null;
+      }
+      _setFolderProblem(null);
+      return true;
+    } on DownloadFolderUnavailableException catch (error) {
+      if (generation == _folderCheckGeneration) {
+        _setFolderProblem(error.problem);
+      }
+    } on FileSystemException {
+      if (generation == _folderCheckGeneration) {
+        _setFolderProblem(DownloadFolderProblem.inaccessible);
+      }
+    }
+    return false;
+  }
+
+  Future<bool> _holdForFolderFailure(FileSystemException error) async {
+    if (!_readCustomDownloadFolderEnabled()) return false;
+    if (!await _checkDownloadFolder()) return true;
+    if ((Platform.isWindows ? const [1, 5, 13] : const [1, 13]).contains(
+      error.osError?.errorCode,
+    )) {
+      // The root is writable but a destination below it is denied. A root
+      // probe cannot prove that fixed, so require an explicit folder action.
+      _setFolderProblem(DownloadFolderProblem.inaccessible, recheck: false);
+      return true;
+    }
+    return false;
+  }
+
+  /// Rechecks after a folder choice, storage switch or explicit resume request.
+  Future<void> refreshDownloadFolder() async {
+    await _checkDownloadFolder();
+    await _processNext();
+  }
+
+  Future<bool> _checkRequestedFolder() async {
+    final usable = await _checkDownloadFolder();
+    if (!usable && !_folderNoticeSent && !_disposed && _folderProblem != null) {
+      _folderNoticeSent = true;
+      _folderNotices.add(_folderProblem!);
+    }
+    return usable;
+  }
+
+  /// Closes app-lifetime observations after workers have stopped.
+  Future<void> dispose() async {
+    _disposed = true;
+    _folderCheckGeneration++;
+    await stopAndWait();
+    await _folderChanges.close();
+    await _folderNotices.close();
+  }
 
   StreamSubscription<List<DownloadQueueTableData>>? _queueSubscription;
   final List<StreamSubscription<Object>> _settingsSubscriptions =
@@ -210,8 +341,8 @@ class DownloadService {
       await _cleanupOrphanedFiles();
     }
 
-    // Normalize older hashed permanent downloads into the current folder layout.
-    await _normalizePermanentDownloads();
+    // Normalize only while the user-owned destination is available.
+    if (await _checkDownloadFolder()) await _normalizePermanentDownloads();
 
     // Best-effort lyrics and cover art backfill for already-downloaded songs.
     _trackBackgroundTask(_backfillLyricsForDownloadedSongs());
@@ -256,9 +387,12 @@ class DownloadService {
   /// new persisted tree grant on the next selection. Like leaving any custom
   /// folder, Navis forgets the downloads in it and leaves the files there.
   Future<void> _migrateUnsafeAndroidCustomFolder() async {
+    final path = _readCustomDownloadFolderPath()?.trim();
     if (!_isAndroid ||
         !_readCustomDownloadFolderEnabled() ||
-        _isSafRoot(_readCustomDownloadFolderPath())) {
+        path == null ||
+        path.isEmpty ||
+        _isSafRoot(path)) {
       return;
     }
     // Forgotten before the setting changes: startup normalization moves every
@@ -284,6 +418,8 @@ class DownloadService {
   /// until its cancellation cleanup has finished.
   Future<void> stopAndWait() async {
     _stopped = true;
+    _folderRecheckTimer?.cancel();
+    _folderRecheckTimer = null;
     await _queueSubscription?.cancel();
     _queueSubscription = null;
     for (final subscription in _settingsSubscriptions) {
@@ -362,13 +498,16 @@ class DownloadService {
           leaveSongIds: leftInUserFolder,
         );
         await _cacheDao.deleteCachedTracksBySongIds(leftInUserFolder);
-        await _appSettingsDao.updateCustomDownloadFolderPath(safPath);
-        await _appSettingsDao.updateCustomDownloadFolderStorageKind(
-          'androidSaf',
-        );
-        await _appSettingsDao.updateCustomDownloadFolderEnabled(
-          enabled: enabled,
-        );
+        await _appSettingsDao.transaction(() async {
+          await _appSettingsDao.updateCustomDownloadFolderPath(safPath);
+          await _appSettingsDao.updateCustomDownloadFolderStorageKind(
+            'androidSaf',
+          );
+          await _appSettingsDao.updateCustomDownloadFolderEnabled(
+            enabled: enabled,
+          );
+        });
+        _setFolderProblem(null);
       });
       return;
     }
@@ -391,11 +530,18 @@ class DownloadService {
       // Forgotten before the setting changes: a row left pointing into the
       // old folder would be moved out of it by the next startup.
       await _cacheDao.deleteCachedTracksBySongIds(leftInUserFolder);
-      await _appSettingsDao.updateCustomDownloadFolderPath(
-        enabled ? normalizedPath : null,
-      );
-      await _appSettingsDao.updateCustomDownloadFolderStorageKind('filesystem');
-      await _appSettingsDao.updateCustomDownloadFolderEnabled(enabled: enabled);
+      await _appSettingsDao.transaction(() async {
+        await _appSettingsDao.updateCustomDownloadFolderPath(
+          enabled ? normalizedPath : null,
+        );
+        await _appSettingsDao.updateCustomDownloadFolderStorageKind(
+          'filesystem',
+        );
+        await _appSettingsDao.updateCustomDownloadFolderEnabled(
+          enabled: enabled,
+        );
+      });
+      _setFolderProblem(null);
     });
   }
 
@@ -508,7 +654,7 @@ class DownloadService {
   /// How many downloads may run right now: none while paused or held by the
   /// Wi-Fi-only setting, one on cellular, otherwise the user's setting.
   int get effectiveConcurrency {
-    if (_paused) return 0;
+    if (_paused || _folderProblem != null) return 0;
     final onWifi = _readIsWifi();
     if (_readWifiOnly() && !onWifi) return 0;
     return onWifi ? _maxConcurrent : 1;
@@ -527,7 +673,7 @@ class DownloadService {
       _cancelTransfers(_CancelReason.requeue);
       await DownloadNotifier.dismissProgress().catchError((_) {});
     } else {
-      await _processNext();
+      await refreshDownloadFolder();
     }
   }
 
@@ -580,6 +726,7 @@ class DownloadService {
   /// The internal processing and Wi-Fi guards remain authoritative, so callers
   /// can invoke this optimistically when settings or connectivity change.
   Future<void> processQueuedDownloads() async {
+    await _checkDownloadFolder();
     await _processNext();
     await _waitForIdle();
   }
@@ -646,6 +793,7 @@ class DownloadService {
     int priority = 0,
     bool forceRedownload = false,
   }) async {
+    final folderUsable = await _checkRequestedFolder();
     final libraryRows = await _libraryDao.getSongsByIds(<String>[songId]);
     if (libraryRows.firstOrNull?.serverDeletedAt != null) {
       AppLogger.info(
@@ -672,7 +820,9 @@ class DownloadService {
 
       // Smart download: if the song is in rolling cache with a compatible
       // quality, promote it to permanent storage instead of re-downloading.
-      if (cached != null && cached.cacheType == CacheType.rolling) {
+      if (folderUsable &&
+          cached != null &&
+          cached.cacheType == CacheType.rolling) {
         if (_isCacheQualityCompatible(cached, quality, format, song: song)) {
           final promoted = await promoteToPermanent(songId);
           if (promoted) {
@@ -764,6 +914,7 @@ class DownloadService {
     String? quality,
     String? format,
   }) async {
+    final folderUsable = await _checkRequestedFolder();
     // Batch dedup: one query per data source instead of N queries per song.
     final activeSongIds = await _downloadQueueDao.getActiveSongIds();
     final cachedTracks = await _cacheDao.getCachedTracksForSongIds(songIds);
@@ -789,7 +940,8 @@ class DownloadService {
       }
 
       // Try rolling → permanent promotion.
-      if (cached?.cacheType == CacheType.rolling &&
+      if (folderUsable &&
+          cached?.cacheType == CacheType.rolling &&
           _isCacheQualityCompatible(cached!, quality, format, song: song)) {
         final promoted = await promoteToPermanent(songId);
         if (promoted) {
@@ -837,16 +989,19 @@ class DownloadService {
 
     final song = (await _libraryDao.getSongsByIds(<String>[songId]))
         .firstOrNull;
-    final newPath = await _resolvePermanentPathForEntry(
-      songId: songId,
-      song: song,
-      format: _resolveStoredFormat(track, song: song),
-    );
-    final destination = File(newPath);
+    late String newPath;
     try {
+      newPath = await _resolvePermanentPathForEntry(
+        songId: songId,
+        song: song,
+        format: _resolveStoredFormat(track, song: song),
+      );
+      final destination = File(newPath);
       await Directory(p.dirname(newPath)).create(recursive: true);
       // A file already at the destination is reused only when it is a whole
       // copy; anything else is replaced through a part file.
+      // Keep storage latency off the UI isolate.
+      // ignore: avoid_slow_async_io
       if (!await destination.exists() ||
           await destination.length() != await file.length()) {
         final part = File('$newPath$downloadPartSuffix');
@@ -859,7 +1014,10 @@ class DownloadService {
         }
       }
     } on FileSystemException catch (e) {
-      AppLogger.warning('DownloadService: Failed to copy to permanent: $e');
+      await _holdForFolderFailure(e);
+      AppLogger.warning(
+        'DownloadService: Failed to copy to permanent: ${e.runtimeType}',
+      );
       return false;
     }
     // Clean up rolling cache files.
@@ -964,14 +1122,15 @@ class DownloadService {
   }
 
   Future<void> _fillWorkers() async {
-    if (_stopped || _maintenanceInProgress) return;
+    if (_stopped || _maintenanceInProgress || _folderProblem != null) return;
+    final queue = await _downloadQueueDao.getQueuedItems();
+    if (queue.isNotEmpty && !await _checkDownloadFolder()) return;
     if (_workers.length >= effectiveConcurrency) {
       if (effectiveConcurrency == 0) {
         AppLogger.debug('DownloadService: queue held (paused or Wi-Fi only)');
       }
       return;
     }
-    final queue = await _downloadQueueDao.getQueuedItems();
     final now = DateTime.now();
     DateTime? nextRetry;
     for (final item in queue) {
@@ -1055,17 +1214,6 @@ class DownloadService {
 
   Future<void> _downloadItem(DownloadQueueTableData item) async {
     final songId = item.songId!;
-    if (await _completeFromCompatibleCache(item)) {
-      return;
-    }
-
-    final api = _readApiClient();
-    if (api == null) {
-      AppLogger.warning('DownloadService: No API client, skipping $songId');
-      await _handleFailure(item, 'No API client');
-      return;
-    }
-
     // Resolve destination file early so we can clean up on failure. The
     // download is written to [partFile] and renamed to [destFile] only when
     // complete, so an interrupted download never looks like a finished file.
@@ -1076,6 +1224,16 @@ class DownloadService {
     String? reservedPath;
 
     try {
+      if (await _completeFromCompatibleCache(item) || _folderProblem != null) {
+        return;
+      }
+      final api = _readApiClient();
+      if (api == null) {
+        AppLogger.warning('DownloadService: No API client, skipping $songId');
+        await _handleFailure(item, 'No API client');
+        return;
+      }
+
       // Resolve destination file.
       final songs = await _libraryDao.getSongsByIds(<String>[songId]);
       if (songs.isEmpty || songs.first.serverDeletedAt != null) {
@@ -1327,6 +1485,19 @@ class DownloadService {
           await _handleFailure(item, 'HTTP $statusCode');
         }
       }
+    } on DownloadFolderUnavailableException catch (error) {
+      _setFolderProblem(error.problem);
+      await tryDeleteFile(partFile);
+      if (renamed && !registered) await tryDeleteFile(destFile);
+      await _downloadQueueDao.updateStatus(item.id, DownloadStatus.queued);
+    } on FileSystemException catch (error) {
+      await tryDeleteFile(partFile);
+      if (renamed && !registered) await tryDeleteFile(destFile);
+      if (await _holdForFolderFailure(error)) {
+        await _downloadQueueDao.updateStatus(item.id, DownloadStatus.queued);
+      } else {
+        await _handleFailure(item, 'FileSystemException');
+      }
     } on DioException catch (e) {
       if (e.type == DioExceptionType.cancel) {
         AppLogger.debug('DownloadService: Download cancelled for $songId');
@@ -1337,20 +1508,28 @@ class DownloadService {
           await _downloadQueueDao.updateStatus(item.id, DownloadStatus.queued);
         }
       } else {
+        if (e.error case final FileSystemException error
+            when await _holdForFolderFailure(error)) {
+          await tryDeleteFile(partFile);
+          await _downloadQueueDao.updateStatus(item.id, DownloadStatus.queued);
+          return;
+        }
         final statusCode = e.response?.statusCode;
-        AppLogger.warning('DownloadService: Dio error for $songId: $e');
+        AppLogger.warning(
+          'DownloadService: Transfer failed for $songId (HTTP $statusCode, ${e.type.name})',
+        );
         await tryDeleteFile(partFile);
         if (statusCode == 404 || statusCode == 410) {
           await _libraryDao.markSongsSuspectedMissing(<String>[songId]);
         }
-        await _handleFailure(item, e.toString());
+        await _handleFailure(item, e.runtimeType.toString());
       }
-    } on Object catch (e, st) {
-      AppLogger.warning('DownloadService: Error for $songId: $e\n$st');
+    } on Object catch (e) {
+      AppLogger.warning('DownloadService: Error for $songId: ${e.runtimeType}');
       await tryDeleteFile(partFile);
       // Only a file this attempt put in place and never registered.
       if (renamed && !registered) await tryDeleteFile(destFile);
-      await _handleFailure(item, e.toString());
+      await _handleFailure(item, e.runtimeType.toString());
     } finally {
       _activeTransfers.remove(item.id);
       if (reservedPath != null) _reservedDownloadPaths.remove(reservedPath);
@@ -1379,6 +1558,8 @@ class DownloadService {
     if (_isSafRoot(_readCustomDownloadFolderPath())) return;
     try {
       final root = await _permanentDirectory();
+      // Keep storage latency off the UI isolate.
+      // ignore: avoid_slow_async_io
       if (!await root.exists()) return;
       await for (final entity in root.list(
         recursive: true,
@@ -2145,7 +2326,11 @@ class DownloadService {
 
   static Future<bool> _isSameFile(String a, String b) async {
     try {
+      // Keep storage latency off the UI isolate.
+      // ignore: avoid_slow_async_io
       return await File(a).exists() &&
+          // Keep storage latency off the UI isolate.
+          // ignore: avoid_slow_async_io
           await File(b).exists() &&
           await FileSystemEntity.identical(a, b);
     } on FileSystemException {

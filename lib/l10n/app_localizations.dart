@@ -9500,6 +9500,36 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'ListenBrainz isn\'t accepting connections right now (HTTP {status}). This is on their side; your token wasn\'t rejected. Try again later.'**
   String configurationListenBrainzUnavailableHttp(int status);
+
+  /// No description provided for @downloadsFolderHoldUnset.
+  ///
+  /// In en, this message translates to:
+  /// **'Downloads are queued. Choose a custom folder or use app storage to continue.'**
+  String get downloadsFolderHoldUnset;
+
+  /// No description provided for @downloadsFolderHoldMissing.
+  ///
+  /// In en, this message translates to:
+  /// **'Downloads are queued because the custom folder is missing. Reconnect the storage, choose a folder or use app storage.'**
+  String get downloadsFolderHoldMissing;
+
+  /// No description provided for @downloadsFolderHoldInaccessible.
+  ///
+  /// In en, this message translates to:
+  /// **'Downloads are queued because Navis cannot write to the custom folder. Choose an accessible folder or use app storage.'**
+  String get downloadsFolderHoldInaccessible;
+
+  /// No description provided for @downloadsFolderHoldChoose.
+  ///
+  /// In en, this message translates to:
+  /// **'Choose folder'**
+  String get downloadsFolderHoldChoose;
+
+  /// No description provided for @downloadsFolderHoldUseAppStorage.
+  ///
+  /// In en, this message translates to:
+  /// **'Use app storage'**
+  String get downloadsFolderHoldUseAppStorage;
 }
 
 class _AppLocalizationsDelegate

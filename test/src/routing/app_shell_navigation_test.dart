@@ -14,6 +14,7 @@ import 'package:navis/src/api/models/models.dart';
 import 'package:navis/src/common_widgets/expandable_player_sheet.dart';
 import 'package:navis/src/common_widgets/navis_tooltip.dart';
 import 'package:navis/src/database/navis_database.dart';
+import 'package:navis/src/features/downloads/data/permanent_download_path_resolver.dart';
 import 'package:navis/src/features/integrations/presentation/integrations_notice_card.dart';
 import 'package:navis/src/features/auth/domain/server_config.dart';
 import 'package:navis/src/features/auth/domain/server_reachability.dart';
@@ -281,6 +282,31 @@ const SongsTableData _remoteMetadataSong = SongsTableData(
 );
 
 void main() {
+  testWidgets('download folder requests use the existing app notice', (
+    tester,
+  ) async {
+    final notices = StreamController<DownloadFolderProblem>.broadcast();
+    addTearDown(notices.close);
+    final container = _createContainerWithDatabase(
+      overrides: [
+        ..._authenticatedShellOverrides(),
+        downloadFolderNoticeProvider.overrideWith((ref) => notices.stream),
+      ],
+    );
+    await tester.pumpWidget(
+      UncontrolledProviderScope(container: container, child: testNavisApp),
+    );
+    await tester.pumpAndSettle();
+    notices.add(DownloadFolderProblem.unset);
+    await tester.pumpAndSettle();
+    expect(
+      find.text(
+        'Downloads are queued. Choose a custom folder or use app storage to continue.',
+      ),
+      findsOneWidget,
+    );
+  });
+
   testWidgets(
     'desktop times preview a drag and release through the existing handler',
     (tester) async {
@@ -3291,12 +3317,10 @@ void main() {
     await tester.pumpAndSettle();
 
     final homeContext = tester.element(find.byType(HomeScreen));
-    unawaited(
-      showDialog<void>(
-        context: homeContext,
-        useRootNavigator: false,
-        builder: (_) => const AlertDialog(content: Text('Tab menu')),
-      ),
+    showDialog<void>(
+      context: homeContext,
+      useRootNavigator: false,
+      builder: (_) => const AlertDialog(content: Text('Tab menu')),
     );
     await tester.pumpAndSettle();
     expect(find.text('Tab menu'), findsOneWidget);

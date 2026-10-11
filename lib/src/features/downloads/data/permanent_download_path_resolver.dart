@@ -7,13 +7,23 @@ import 'package:navis/src/utils/file_utils.dart';
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
 
+enum DownloadFolderProblem { unset, missing, inaccessible }
+
+/// A user-owned download destination needs attention, rather than a retry.
+class DownloadFolderUnavailableException extends FileSystemException {
+  const new(this.problem) : super('Custom download folder needs attention.');
+  final DownloadFolderProblem problem;
+}
+
 class PermanentDownloadPathResolver {
   new({
     required this._readCustomDownloadFolderEnabled,
     required this._readCustomDownloadFolderPath,
     Future<Directory> Function()? readApplicationSupportDirectory,
+    Future<void> Function(Directory)? validateCustomRoot,
   }) : _readApplicationSupportDirectory =
-           readApplicationSupportDirectory ?? getApplicationSupportDirectory;
+           readApplicationSupportDirectory ?? getApplicationSupportDirectory,
+       _validateCustomRoot = validateCustomRoot ?? _probeWritableRoot;
 
   static const String unknownArtistDirectory = 'Unknown Artist';
   static const String unknownTrackFileName = 'Unknown Track';
@@ -21,6 +31,18 @@ class PermanentDownloadPathResolver {
   final bool Function() _readCustomDownloadFolderEnabled;
   final String? Function() _readCustomDownloadFolderPath;
   final Future<Directory> Function() _readApplicationSupportDirectory;
+
+  final Future<void> Function(Directory) _validateCustomRoot;
+
+  static Future<void> _probeWritableRoot(Directory directory) async {
+    final probe = await directory.createTemp('.navis-write-');
+    try {
+      await File(p.join(probe.path, 'probe'))
+          .writeAsBytes(const [0], flush: true);
+    } finally {
+      await probe.delete(recursive: true);
+    }
+  }
 
   Future<Directory> resolveDefaultRoot() async {
     final root = await _readApplicationSupportDirectory();
@@ -42,17 +64,28 @@ class PermanentDownloadPathResolver {
     }
     final trimmed = customDownloadFolderPath?.trim();
     if (trimmed == null || trimmed.isEmpty) {
-      throw FileSystemException(
-        'Custom download folder is enabled but no folder path is configured.',
+      throw const DownloadFolderUnavailableException(
+        DownloadFolderProblem.unset,
       );
     }
     final directory = Directory(trimmed);
-    // Keep metadata access asynchronous so storage latency cannot stall UI.
-    // ignore: avoid_slow_async_io
-    if (!await directory.exists()) {
-      await directory.create(recursive: true);
+    try {
+      // A missing mount must never be replaced by a folder on another volume.
+      // ignore: avoid_slow_async_io
+      if (!await directory.exists()) {
+        throw const DownloadFolderUnavailableException(
+          DownloadFolderProblem.missing,
+        );
+      }
+      await _validateCustomRoot(directory);
+      return directory;
+    } on DownloadFolderUnavailableException {
+      rethrow;
+    } on FileSystemException {
+      throw const DownloadFolderUnavailableException(
+        DownloadFolderProblem.inaccessible,
+      );
     }
-    return directory;
   }
 
   Future<String> resolveSongPath({

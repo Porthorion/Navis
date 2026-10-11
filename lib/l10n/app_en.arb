@@ -2802,5 +2802,10 @@
   "configurationListenBrainzOnlineServicesOff": "Online services is switched off. Turn it on before connecting to ListenBrainz.",
   "configurationListenBrainzRateLimited": "ListenBrainz is limiting requests right now. Your token was not rejected. Try again later.",
   "configurationListenBrainzUnavailableHttp": "ListenBrainz isn't accepting connections right now (HTTP {status}). This is on their side; your token wasn't rejected. Try again later.",
-  "@configurationListenBrainzUnavailableHttp": {"placeholders": {"status": {"type": "int"}}}
+  "@configurationListenBrainzUnavailableHttp": {"placeholders": {"status": {"type": "int"}}},
+  "downloadsFolderHoldUnset": "Downloads are queued. Choose a custom folder or use app storage to continue.",
+  "downloadsFolderHoldMissing": "Downloads are queued because the custom folder is missing. Reconnect the storage, choose a folder or use app storage.",
+  "downloadsFolderHoldInaccessible": "Downloads are queued because Navis cannot write to the custom folder. Choose an accessible folder or use app storage.",
+  "downloadsFolderHoldChoose": "Choose folder",
+  "downloadsFolderHoldUseAppStorage": "Use app storage"
 }
