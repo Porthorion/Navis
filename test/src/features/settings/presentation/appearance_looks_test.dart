@@ -570,4 +570,75 @@ void main() {
       'That preset no longer exists.',
     );
   });
+
+  group('the chosen Look', () {
+    Future<String> deleteLabel(WidgetTester tester) async {
+      await tester.tap(
+        find.byKey(const ValueKey<String>('appearanceLookActions')),
+      );
+      await tester.pumpAndSettle();
+      final item = find.byKey(const ValueKey<String>('appearanceLookDelete'));
+      final text = tester
+          .widget<Text>(
+            find.descendant(of: item, matching: find.byType(Text)).first,
+          )
+          .data!;
+      await tester.tapAt(const Offset(5, 395));
+      await tester.pumpAndSettle();
+      return text;
+    }
+
+    String? selectedName() => looks().looks
+        .where((look) => look.id == looks().selectedLookId)
+        .firstOrNull
+        ?.name;
+
+    testWidgets('is what the menu acts on, even when Looks hold the same '
+        'appearance', (tester) async {
+      await pump(tester);
+      await saveLook(tester, 'Same A');
+      await saveLook(tester, 'Same B');
+      await saveLook(tester, 'Same C');
+      for (final name in ['Same B', 'Same A', 'Same C']) {
+        await chooseLook(tester, name);
+        expect(selectedName(), name);
+        expect(pickerText(tester), name);
+        expect(await deleteLabel(tester), 'Delete “$name”');
+      }
+    });
+
+    testWidgets('a new save is selected, and distinct Looks stay distinct', (
+      tester,
+    ) async {
+      await pump(tester);
+      await saveLook(tester, 'One');
+      await change(tester, [
+        () => database.appSettingsDao.updateThemeMode('light'),
+      ]);
+      await saveLook(tester, 'Two');
+      expect(selectedName(), 'Two');
+      await chooseLook(tester, 'One');
+      expect(await deleteLabel(tester), 'Delete “One”');
+      await chooseLook(tester, 'Two');
+      expect(await deleteLabel(tester), 'Delete “Two”');
+    });
+
+    testWidgets('Undo returns to the Look chosen before', (tester) async {
+      await pump(tester);
+      await saveLook(tester, 'Same A');
+      await saveLook(tester, 'Same B');
+      await chooseLook(tester, 'Same B');
+      await change(tester, [
+        () => database.appSettingsDao.updateThemeMode('light'),
+      ]);
+      await saveLook(tester, 'Bright');
+      await chooseLook(tester, 'Same B');
+      await chooseLook(tester, 'Bright', keepNotice: true);
+      await tester.tap(find.text('Undo'));
+      await tester.pump();
+      await settleWrites(tester);
+      await tester.pumpAndSettle();
+      expect(selectedName(), 'Same B');
+    });
+  });
 }

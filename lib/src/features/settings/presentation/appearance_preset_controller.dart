@@ -81,6 +81,10 @@ class AppearanceLooksState {
 
 class AppearanceLooksController extends Notifier<AppearanceLooksState> {
   final _writes = _WriteLane();
+
+  /// The Look selected before the last [apply], so Undo returns to it even
+  /// when several Looks hold the same appearance.
+  String? _selectionBeforeApply;
   @override
   AppearanceLooksState build() {
     ref.listen(appSettingsProvider, (_, next) {
@@ -104,7 +108,8 @@ class AppearanceLooksController extends Notifier<AppearanceLooksState> {
           .where((p) => p.id == id)
           .firstOrNull;
       if (look == null) return null;
-      return await _applySnapshot(look.snapshot);
+      _selectionBeforeApply = matchingAppearanceLookId(settings);
+      return await _applySnapshot(look.snapshot, select: look.id);
     } on Object {
       return null;
     }
@@ -116,14 +121,17 @@ class AppearanceLooksController extends Notifier<AppearanceLooksState> {
   Future<PresetFailure?> restore(AppearanceSnapshot previous) =>
       _writes.run(() async {
         try {
-          await _applySnapshot(previous);
+          await _applySnapshot(previous, select: _selectionBeforeApply);
           return null;
         } on Object {
           return PresetFailure.persistence;
         }
       });
 
-  Future<AppearanceSnapshot> _applySnapshot(AppearanceSnapshot snapshot) async {
+  Future<AppearanceSnapshot> _applySnapshot(
+    AppearanceSnapshot snapshot, {
+    String? select,
+  }) async {
     final dao = ref.read(navisDatabaseProvider).appSettingsDao;
     final repository = ref.read(settingsRepositoryProvider);
     late AppSettingsModel applied;
@@ -131,9 +139,9 @@ class AppearanceLooksController extends Notifier<AppearanceLooksState> {
       final before = AppearanceSnapshot.capture(await repository.getSettings());
       await dao.applyAppearanceSnapshot(snapshot);
       applied = await repository.getSettings();
-      await dao.updateAppearanceLooks(
-        selectedLookId: matchingAppearanceLookId(applied),
-      );
+      final selected = matchingAppearanceLookId(applied, prefer: select);
+      await dao.updateAppearanceLooks(selectedLookId: selected);
+      applied = applied.copyWith(selectedAppearanceLookId: selected);
       return before;
     });
     if (ref.mounted) ref.read(colorTuningPreviewProvider.notifier).clear();
@@ -188,7 +196,11 @@ class AppearanceLooksController extends Notifier<AppearanceLooksState> {
       } else {
         looks[index] = look;
       }
-      await _write(settings.copyWith(appearanceLooks: looks));
+      // Saving or updating selects that Look; a rename keeps the selection.
+      await _write(
+        settings.copyWith(appearanceLooks: looks),
+        prefer: renameOnly ? null : look.id,
+      );
       return PresetResult.success(look);
     } on Object {
       return const PresetResult.failure(PresetFailure.persistence);
@@ -214,12 +226,12 @@ class AppearanceLooksController extends Notifier<AppearanceLooksState> {
     }
   });
 
-  Future<void> _write(AppSettingsModel settings) async {
+  Future<void> _write(AppSettingsModel settings, {String? prefer}) async {
     await ref
         .read(navisDatabaseProvider)
         .appSettingsDao
         .updateAppearanceLooks(
-          selectedLookId: matchingAppearanceLookId(settings),
+          selectedLookId: matchingAppearanceLookId(settings, prefer: prefer),
           looksJson: jsonEncode(
             settings.appearanceLooks.map((p) => p.toJson()).toList(),
           ),

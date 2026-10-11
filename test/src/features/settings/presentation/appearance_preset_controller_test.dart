@@ -148,7 +148,7 @@ void main() {
   );
 
   test(
-    'Looks capture update apply rename delete and match first snapshot',
+    'Looks capture update apply rename delete and keep the chosen Look',
     () async {
       final database = createTestDatabase();
       addTearDown(database.close);
@@ -172,9 +172,10 @@ void main() {
       );
       final duplicateValues = (await controller.saveAsNew('Same values'))
           .value!;
+      // A new save is the chosen Look, even when its values match another.
       expect(
         container.read(appearanceLooksControllerProvider).selectedLookId,
-        id,
+        duplicateValues.id,
       );
       expect(
         (await controller.saveAsNew('ORIGINAL')).failure,

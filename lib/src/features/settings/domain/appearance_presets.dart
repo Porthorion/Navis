@@ -269,12 +269,20 @@ class AppearanceLook {
   }
 }
 
-String? matchingAppearanceLookId(AppSettingsModel settings) {
+/// The Look the current appearance is on.
+///
+/// Several Looks can hold the same appearance, so the explicitly chosen one
+/// ([prefer], else the stored selection) wins while it still matches; any
+/// other matching Look comes next, and a changed appearance is Custom (null).
+String? matchingAppearanceLookId(AppSettingsModel settings, {String? prefer}) {
   final current = AppearanceSnapshot.capture(settings);
-  return settings.appearanceLooks
-      .where((look) => look.snapshot == current)
-      .firstOrNull
-      ?.id;
+  final chosen = prefer ?? settings.selectedAppearanceLookId;
+  final looks = settings.appearanceLooks;
+  if (chosen != null &&
+      looks.any((look) => look.id == chosen && look.snapshot == current)) {
+    return chosen;
+  }
+  return looks.where((look) => look.snapshot == current).firstOrNull?.id;
 }
 
 List<AppearanceLook> decodeAppearanceLooks(String raw) => _decodePresets(
