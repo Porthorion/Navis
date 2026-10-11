@@ -145,7 +145,8 @@ static void my_application_activate(GApplication* application) {
 
   fl_register_plugins(FL_PLUGIN_REGISTRY(view));
   g_autoptr(FlStandardMethodCodec) capacity_codec = fl_standard_method_codec_new();
-  g_autoptr(FlMethodChannel) capacity_channel = fl_method_channel_new(
+  // Lives as long as the app: disposing a channel unregisters its handler.
+  FlMethodChannel* capacity_channel = fl_method_channel_new(
       fl_engine_get_binary_messenger(fl_view_get_engine(view)),
       "com.navis.app/storage_capacity", FL_METHOD_CODEC(capacity_codec));
   fl_method_channel_set_method_call_handler(capacity_channel, storage_capacity_call,
