@@ -1015,6 +1015,77 @@ void main() {
     },
   );
 
+  testWidgets(
+    'Queue opens centred on the playing song and the header still drags it away',
+    (tester) async {
+      tester.view.devicePixelRatio = 1;
+      tester.view.physicalSize = const Size(1280, 800);
+      addTearDown(() {
+        tester.view.resetPhysicalSize();
+        tester.view.resetDevicePixelRatio();
+      });
+      final ids = <String>[for (var i = 0; i < 200; i++) 'song-$i'];
+      final container = _createContainerWithDatabase(
+        overrides: <Override>[
+          ..._authenticatedShellOverrides(
+            desktopRuntime: true,
+            playback: _activePlayback.copyWith(
+              queueSongIds: ids,
+              currentSongId: 'song-120',
+              currentIndex: 120,
+            ),
+          ),
+          songByIdProvider.overrideWith(
+            (ref, songId) => Stream.value(
+              SongsTableData(
+                isProvisional: false,
+                isExternal: false,
+                id: songId,
+                title: 'Track $songId',
+                albumId: 'album',
+                artistName: 'Artist',
+                albumName: 'Album',
+                duration: 180,
+              ),
+            ),
+          ),
+        ],
+      );
+      await tester.pumpWidget(
+        UncontrolledProviderScope(container: container, child: testNavisApp),
+      );
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.byKey(const ValueKey('desktopQueueButton')));
+      await tester.pumpAndSettle();
+      expect(container.read(queueOverlayVisibleProvider), isTrue);
+      final scrollable = tester.state<ScrollableState>(
+        find
+            .descendant(
+              of: find.byType(QueueSheet),
+              matching: find.byType(Scrollable),
+            )
+            .first,
+      );
+      expect(scrollable.position.pixels, greaterThan(0));
+
+      // The list is scrolled, but a downward drag on the header must still
+      // move the sheet and dismiss it.
+      await tester.fling(
+        find.descendant(
+          of: find.byType(QueueSheet),
+          matching: find.text('Queue'),
+        ),
+        const Offset(0, 400),
+        3000,
+      );
+      await tester.pumpAndSettle();
+
+      expect(container.read(queueOverlayVisibleProvider), isFalse);
+      expect(tester.takeException(), isNull);
+    },
+  );
+
   testWidgets('restored Desktop queue enables only resumable Play', (
     tester,
   ) async {

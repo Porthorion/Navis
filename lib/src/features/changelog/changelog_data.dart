@@ -224,6 +224,9 @@ const List<ChangelogVersion> changelogs = [
 
       // Improved
       ChangelogEntry(
+        'Opening the queue centres it on the song that is playing',
+      ),
+      ChangelogEntry(
         'Normal crossfade blends a repeating song into its fresh start with Repeat One; Smart keeps the native loop',
       ),
       ChangelogEntry(

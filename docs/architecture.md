@@ -125,6 +125,20 @@ Located in `lib/src/providers/app_providers.dart`:
 - `queueProvider` - Current play queue controller
 - `reorderQueueProvider` - Reorder queue items
 
+**queue_current_row_centering.dart**: `QueueSheet` (phone overlay, compact-wide
+overlay, embedded and wide Now Playing panels) and `QueueScreen` wrap their
+list in `QueueCurrentRowCentering`, which once per open jumps (no animation,
+so reduced motion needs no case) to the playing row: an estimate from the
+measured row extent, then `Scrollable.ensureVisible(alignment: 0.5)` on the
+real `QueueTrackRow`, repeated for a few frames while lazily built rows
+resolve and change height. `queueCurrentIndex` supplies the logical index and
+is null for radio, an unknown index or a queue still being replaced, which
+means no scroll. Offsets clamp at the list ends, so short queues do not move.
+The widget stops at the first user scroll and never re-centres on track
+changes or rebuilds. Because the list now opens scrolled, the phone overlay
+(`app_shell_queue_overlay.dart`) lets a downward drag that starts outside the
+list (header, drag handle) move the sheet even when the list is not at the top.
+
 **providers/app_providers.dart** (player state):
 - `lyricsProvider` - Lyrics for a song
 - `playerStateProvider` - Playback state

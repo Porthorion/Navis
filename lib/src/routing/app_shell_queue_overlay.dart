@@ -36,6 +36,7 @@ class _QueueOverlayState extends State<_QueueOverlay>
   // gesture arena.
   VelocityTracker? _velocityTracker;
   int? _activePointer;
+  Offset _pointerDownPosition = Offset.zero;
   bool _draggingSheet = false;
   bool _dismissing = false;
   bool _queueReorderActive = false;
@@ -180,9 +181,7 @@ class _QueueOverlayState extends State<_QueueOverlay>
       return;
     }
 
-    final atTop =
-        !_scrollController.hasClients || _scrollController.offset <= 0.0;
-    if (!atTop) {
+    if (!_listAtTopAt(event.position)) {
       return;
     }
 
@@ -211,11 +210,26 @@ class _QueueOverlayState extends State<_QueueOverlay>
     });
   }
 
+  /// Whether a downward drag at [globalPosition] should move the sheet: the
+  /// list is at its top, or the pointer is outside the list (header and drag
+  /// handle), since the queue opens scrolled to the playing song.
+  bool _listAtTopAt(Offset globalPosition) {
+    if (!_scrollController.hasClients) return true;
+    final position = _scrollController.position;
+    if (position.pixels <= 0.0) return true;
+    final box = position.context.storageContext.findRenderObject();
+    if (box is! RenderBox || !box.hasSize) return true;
+    return !(Offset.zero & box.size).contains(
+      box.globalToLocal(globalPosition),
+    );
+  }
+
   // ---- Raw pointer handlers -----------------------------------------------
 
   void _onPointerDown(PointerDownEvent event) {
     if (_dismissing || _queueReorderActive) return;
     _activePointer = event.pointer;
+    _pointerDownPosition = event.position;
     _velocityTracker = VelocityTracker.withKind(event.kind);
     _velocityTracker!.addPosition(event.timeStamp, event.position);
     _resetScrollPull();
@@ -248,9 +262,7 @@ class _QueueOverlayState extends State<_QueueOverlay>
       if (dy <= 0) {
         return;
       }
-      final atTop =
-          !_scrollController.hasClients || _scrollController.offset <= 0.0;
-      if (!atTop) return;
+      if (!_listAtTopAt(_pointerDownPosition)) return;
       _setDraggingSheet(true);
     }
 
