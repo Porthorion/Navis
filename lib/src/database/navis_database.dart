@@ -222,7 +222,7 @@ class NavisDatabase extends _$NavisDatabase {
   }
 
   @override
-  int get schemaVersion => 102;
+  int get schemaVersion => 103;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -334,9 +334,22 @@ class NavisDatabase extends _$NavisDatabase {
       from99To100,
       from100To101,
       from101To102,
+      from102To103,
     ];
     for (var version = from; version < to; version++) {
       await steps[version - firstStepFrom](migrator);
+    }
+  }
+
+  Future<void> from102To103(Migrator migrator) async {
+    for (final column in [
+      downloadQueueTable.failureReason,
+      downloadQueueTable.failureDetail,
+      downloadQueueTable.finishJournal,
+    ]) {
+      if (!await _columnExists('download_queue', column.name)) {
+        await migrator.addColumn(downloadQueueTable, column);
+      }
     }
   }
 

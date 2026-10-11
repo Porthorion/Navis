@@ -217,6 +217,14 @@ class _PresetPickerState extends State<PresetPicker> {
                 onPressed: () => unawaited(widget.onUpdate!(update.id)),
                 child: menuLabel(labels.update(update.label)),
               ),
+            for (final entry in widget.entries.where(
+              (e) => !e.enabled && e.id != manage?.id,
+            ))
+              MenuItemButton(
+                leadingIcon: const Icon(Icons.delete_outline),
+                onPressed: () => unawaited(_confirmDelete(entry)),
+                child: menuLabel(labels.delete(entry.label)),
+              ),
             if (manage != null) ...[
               MenuItemButton(
                 key: _key('Rename'),

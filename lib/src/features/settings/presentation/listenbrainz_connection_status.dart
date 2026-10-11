@@ -1,4 +1,7 @@
 import 'package:material_ui/material_ui.dart';
+import 'package:dio/dio.dart';
+import 'package:navis/src/api/listenbrainz_api_client.dart';
+import 'package:navis/src/features/integrations/data/integration_guard_interceptor.dart';
 import 'package:navis/l10n/app_localizations.dart';
 import 'package:navis/src/features/settings/domain/app_settings.dart';
 
@@ -36,4 +39,22 @@ class ListenBrainzConnectionStatus extends StatelessWidget {
       ),
     );
   }
+}
+
+/// Sanitized connect-flow errors shared by Settings and setup.
+String listenBrainzConnectionError(AppLocalizations l10n, Object error) {
+  if (error is IntegrationBlockedException ||
+      error is DioException && error.error is IntegrationBlockedException) {
+    return l10n.configurationListenBrainzOnlineServicesOff;
+  }
+  if (error is ListenBrainzInvalidTokenException) {
+    return l10n.configurationListenBrainzTokenInvalid;
+  }
+  if (error is ListenBrainzRateLimitedException) {
+    return l10n.configurationListenBrainzRateLimited;
+  }
+  if (error is ListenBrainzUnavailableException && error.statusCode != null) {
+    return l10n.configurationListenBrainzUnavailableHttp(error.statusCode!);
+  }
+  return l10n.configurationListenBrainzUnavailable;
 }

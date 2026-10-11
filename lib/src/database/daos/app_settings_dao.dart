@@ -348,6 +348,35 @@ class AppSettingsDao extends DatabaseAccessor<NavisDatabase>
     );
   }
 
+  /// Removes preset libraries and selections without changing current values.
+  /// Earlier development databases can retain retired Fine-Tune columns.
+  Future<void> deleteAllPresets() => transaction(() async {
+    await (update(
+      appSettingsTable,
+    )..where((t) => t.id.equals(primarySettingsId))).write(
+      const AppSettingsTableCompanion(
+        playbackPresets: Value('[]'),
+        selectedPlaybackPresetId: Value(null),
+        appearanceLooks: Value('[]'),
+        selectedAppearanceLookId: Value(null),
+      ),
+    );
+    final columns = await customSelect('PRAGMA table_info(app_settings)').get();
+    final names = columns.map((row) => row.read<String>('name')).toSet();
+    if (names.contains('color_tuning_presets')) {
+      await customUpdate(
+        "UPDATE app_settings SET color_tuning_presets = '[]' WHERE id = 1",
+        updates: {appSettingsTable},
+      );
+    }
+    if (names.contains('selected_color_tuning_preset_id')) {
+      await customUpdate(
+        'UPDATE app_settings SET selected_color_tuning_preset_id = NULL WHERE id = 1',
+        updates: {appSettingsTable},
+      );
+    }
+  });
+
   Future<void> resetDefaults() async {
     await updateColorTuning(ColorTuning.none);
     await updateAppearanceLooks(selectedLookId: null);

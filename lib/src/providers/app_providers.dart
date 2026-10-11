@@ -30,6 +30,7 @@ import 'package:navis/src/features/auth/presentation/server_config_provider.dart
 import 'package:navis/src/features/cache/data/rolling_cache_manager.dart';
 import 'package:navis/src/features/downloads/data/android_saf_storage.dart';
 import 'package:navis/src/features/downloads/data/download_service.dart';
+import 'package:navis/src/features/downloads/data/permanent_download_path_resolver.dart';
 import 'package:navis/src/features/downloads/data/permanent_artwork_store.dart';
 import 'package:navis/src/features/downloads/domain/download_preferences.dart';
 import 'package:navis/src/features/equalizer/data/eq_repository.dart';
@@ -909,8 +910,8 @@ final integrationCallRecorderProvider = Provider<IntegrationCallRecorder>((
   return recorder;
 });
 
-/// Builds the guarded [Dio] for an external service. Every client of a
-/// service other than the user's own server takes its [Dio] from here.
+/// Builds the guarded `Dio` for an external service. Every client of a
+/// service other than the user's own server takes its `Dio` from here.
 ///
 /// The policy is read per request, not captured, so clients built before a
 /// settings change obey it too.
@@ -1810,7 +1811,7 @@ final songByIdProvider = StreamProvider.autoDispose
       return dao.watchSongById(songId);
     });
 
-/// Emits `true` when the song with [songId] is starred/liked.
+/// Emits `true` when the song with `songId` is starred/liked.
 final songStarredProvider = StreamProvider.autoDispose.family<bool, String>((
   ref,
   songId,
@@ -2538,6 +2539,7 @@ final downloadServiceProvider = Provider<DownloadService>((ref) {
     readApiClient: () => ref.read(subsonicApiProvider),
     readWifiOnly: () =>
         ref.read(appSettingsProvider).asData?.value.wifiOnlyDownloads ?? false,
+    readIsOnline: () => ref.read(networkTypeProvider) != NetworkType.offline,
     readIsWifi: () =>
         isDesktopRuntime || ref.read(networkTypeProvider) == NetworkType.wifi,
     readCustomDownloadFolderEnabled: () =>
@@ -2571,9 +2573,25 @@ final downloadServiceProvider = Provider<DownloadService>((ref) {
   // inside start() processes the queue independently.
   // ignore: discarded_futures
   service.start();
-  ref.onDispose(service.stop);
+  ref.listen(customDownloadFolderEnabledProvider, (previous, next) {
+    if (previous != next) unawaited(service.refreshDownloadFolder());
+  });
+  ref.listen(customDownloadFolderPathProvider, (previous, next) {
+    if (previous != next) unawaited(service.refreshDownloadFolder());
+  });
+  ref.onDispose(service.dispose);
   return service;
 });
+
+/// Persistent configuration hold reported by the existing download queue owner.
+final downloadFolderProblemProvider = StreamProvider<DownloadFolderProblem?>(
+  (ref) => ref.watch(downloadServiceProvider).folderChanges,
+);
+
+/// One notice per unresolved folder problem, when a download is requested.
+final downloadFolderNoticeProvider = StreamProvider<DownloadFolderProblem>(
+  (ref) => ref.watch(downloadServiceProvider).folderNotices,
+);
 
 /// Whether downloads should only proceed on Wi-Fi.
 final wifiOnlyDownloadsProvider = Provider<bool>((ref) {

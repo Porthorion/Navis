@@ -944,6 +944,17 @@ target-selection rules.
     the target). Look libraries decode leniently, discarding corrupt records
     and duplicate ids or names. Save returns `PresetResult<AppearanceLook>`;
     update, rename, delete and restore return nullable `PresetFailure`.
+  - Cache & Storage's Reset section offers **Delete all presets**. Its destructive
+    confirmation clears Looks, Speed & Pitch libraries and selections in one
+    `AppSettingsDao.deleteAllPresets` transaction, including retired
+    `color_tuning_presets` / `selected_color_tuning_preset_id` columns when
+    present in early development databases. Current sound and appearance values
+    are preserved; schema 102 is unchanged. The Looks write lane wraps the
+    playback persistence lane so pending saves finish before the reset and later
+    saves cannot replay an old library. Playback also observes external preset
+    writes and preserves explicitly cleared selections at normal speed across
+    later appearance saves. Unsupported saved playback presets retain a Delete
+    menu action; Normal is built in and cannot be deleted. Delete failures use app notices.
   - Looks (`AppearanceLook`, version 1, `AppearanceSnapshot`,
     `AppearanceLooksController`) capture all appearance choices: theme mode,
     OLED-for-Auto, saved colour style, nullable accent seed, dynamic album
@@ -2329,6 +2340,21 @@ and Instant Radio. Successful empty responses are cached; request errors are
 not. Each entry records its request limit, so a larger request refreshes an
 undersized entry and smaller reads return only the requested number of tracks.
 Cache I/O uses the existing asynchronous read and atomic-write path.
+
+ListenBrainz connection validation and listen submissions distinguish explicit token
+rejection (`valid: false`, HTTP 401/403), integration policy blocking, rate
+limiting (HTTP 429 and `X-RateLimit` budgets), and service unavailability
+(documented-endpoint HTTP 404/410/5xx, non-JSON/HTML responses, malformed
+validation responses and transport failures). Settings and onboarding share
+localized reason-specific copy, including the HTTP status when available.
+An unavailable response never clears credentials or changes token validity;
+the existing scrobble retry queue retains listens for later dispatch within
+its normal retention window. Requests keep the documented
+[`/1/validate-token` and `/1/submit-listens` paths](https://listenbrainz.readthedocs.io/en/latest/users/api/core.html)
+and explicitly follow up to five same-origin redirects, preserving authorization,
+method and POST data on 307/308; cross-origin and HTTPS downgrade redirects
+are refused without forwarding credentials. No response body or token enters
+these exceptions or connect-flow logs.
 
 ListenBrainz listen submissions observe `X-RateLimit-Remaining: 0` and
 `X-RateLimit-Reset-In`, holding subsequent dispatches for the stated seconds
@@ -5160,8 +5186,14 @@ therefore skips songs already downloaded in original quality.
 a length shows an indeterminate bar. After a 2xx response the
 `content-type` names the stored format (`downloadedFormatFor`): a server
 without the requested encoder that sends the original file stores it under
-its real extension and bitrate. HTML, JSON and XML responses are failures and
-never registered.
+its real extension and bitrate. HTML, JSON and XML responses fail immediately
+as `notAudio` and are never registered. Originals with a response Content-Length
+must have exactly that many bytes before publication. Transcodes may carry an
+estimated length, so only non-empty content and the same audio content-type
+gate are required.
+Empty or short original files fail as `truncated`; part files are deleted and
+the whole song restarts from zero on retry. Interrupted transfers are never
+resumed.
 
 **Concurrency.** `DownloadService` runs a worker pool. `effectiveConcurrency`
 is 0 while paused or held by Wi-Fi-only, 1 on cellular, otherwise
@@ -5177,10 +5209,93 @@ Each transfer has its own `CancelToken`. Cancelling an item
 and removes the row. Pausing (`setPaused`, persisted in `downloads_paused`
 and read at start before the queue subscription) cancels transfers in flight
 and returns their rows to the queue. A failed item waits out its backoff
-(5 s × 2^retry, in memory; a restart retries at once) before the pump starts
-it again, and `markForRetry` notifies queue watchers. `processQueuedDownloads`
-completes once no worker is running. The Android progress notification
-aggregates every transfer in flight.
+(5 s × 2^retry, capped at three retries, in memory; a restart retries at once)
+before the pump starts it again, and `markForRetry` notifies queue watchers.
+`processQueuedDownloads` completes once no worker is running. The Android
+progress notification aggregates every transfer in flight.
+
+**Failure reasons and connectivity.** Schema 103 adds nullable `failure_reason`
+(a `DownloadFailureReason` name), `failure_detail` (short sanitized status/byte
+counts), and `finish_journal` to `download_queue`. `from102To103` uses guarded
+column additions; shipped schema 102 is unchanged. The Downloads failed rows,
+DownloadNotifier failure body and download diagnostics expose the reason.
+A write-time storage/access failure also posts one held-download notification
+with its reason when the hold starts.
+Manual Retry and Retry all reset reasons and attempts; starting a retry clears
+its prior reason, and success removes the queue row. HTTP 404/410 (`notFound`)
+and error documents (`notAudio`) fail immediately without backoff; HTTP 5xx,
+network/timeout errors and truncation use the existing bounded backoff. The
+existing `networkTypeProvider` listener pumps the same service when connectivity
+returns. Offline queues have zero workers, and failures observed after a
+connection loss return to queued without increasing attempts. HTTP 401/403 and
+filesystem permission loss hold the queue for an explicit repair action.
+
+**Capacity and storage holds.** Each worker checks destination free bytes
+against the song size for originals or duration × bitrate / 8 for transcodes,
+plus 10% and a 16 MiB margin. Capacity reservations share the existing serialized
+finish gate so concurrent workers cannot spend the same free bytes. Album and
+playlist enqueue estimates only newly queued songs; insufficient room issues
+one notice through the existing folder-notice stream. Native capacity queries
+use StatFs on Android, filesystem attributes on Apple targets (with a bundled
+DiskSpace/E174.1 privacy reason), statvfs on Linux and GetDiskFreeSpaceExW on
+Windows. Unavailable capacity reports are skipped; write-time storage errors
+still hold work. SAF providers cannot report free space through the current
+bridge: only the app-private staging filesystem is checked, and provider
+ENOSPC/EDQUOT is handled on write. `noSpace` extends DownloadFolderProblem and
+the same Downloads banner, cancellation and five-second storage recheck.
+Preflight holds allow already admitted transfers to finish; write-time
+exhaustion cancels active transfers. The hold
+returns items to queued with `noSpace`, without burning retries or failing each
+remaining song. Freeing space or choosing storage resumes the existing queue.
+
+**Recoverable finish and cleanup.** After integrity validation, the queue row
+journals the destination, verified size/digest, format/bitrate and optional SAF
+tree/relative path before rename/upload. Identity tags may change bytes, so the
+intent is updated before SAF upload or registration. Once the final file exists,
+cache upsert and queue removal commit together in the existing DAO transaction.
+Startup replays journaled final files only when size and digest agree; missing
+or invalid files are requeued, and part files always restart from zero. Missing
+permanent-cache files are requeued when library metadata still permits a
+server download. Inaccessible storage retains its intent until it returns,
+and startup repair completes before workers start. Unknown custom-folder audio
+has no finish intent and is left to the explicit adoption/rescan flow.
+Filesystem cleanup removes only `.navis-part` leftovers from the active custom
+root without following links, even when no interrupted queue row remains. SAF
+cleanup uses the existing recursive-list/delete bridge and the same suffix;
+app-private SAF staging parts are also removed. SAF uploads retain the existing
+document MIME type and provider capability contract. The bridge checks the
+copied byte count and removes its own document on a write error; startup verifies
+a journaled upload's digest and removes an incomplete document before requeueing.
+Native write errors retain errno
+classification. No provider rename capability is required.
+The app-owned orphan sweep runs after journal reconciliation and protects
+pending journal paths. Playback priority remains permanent download → rolling
+cache → stream.
+
+**Custom-folder configuration holds.** `PermanentDownloadPathResolver` requires
+an existing custom filesystem root and probes it with a disposable Navis-owned
+write; it never recreates a missing mount. Unset, missing and inaccessible
+roots report `DownloadFolderUnavailableException` / `DownloadFolderProblem`.
+`DownloadService` checks the destination before queue workers and rolling-cache
+promotion; Android trees use the existing `AndroidSafStorage.validateWritableTree`
+bridge to check persisted access and safe replacement. Permission loss during a
+transfer is also a configuration hold, including filesystem errors wrapped by
+Dio. Workers return to `queued` without increasing retry counts or scheduling
+backoff; other transient transfer failures retain the existing backoff.
+The service exposes hold changes through `downloadFolderProblemProvider`, and
+Downloads shows the existing filled-card notice pattern with **Choose folder**
+and **Use app storage** actions across tabs. Both reuse the same picker,
+confirmation and app-lifetime `CustomDownloadFolderController` as Settings.
+Cancelling the picker preserves the previous setting; a chosen folder is saved
+only after validation and relocation, with path/kind/enablement committed in a
+transaction. Folder setting changes and explicit queue processing recheck access
+and resume work when usable. A held root is also probed every five seconds so
+reconnected storage or restored access resumes automatically, without retrying
+transfers or incrementing failure counts. A permission failure below a writable
+root requires an explicit folder action; a root probe cannot establish its repair. One app notice is emitted per unresolved hold when
+a download is requested (`downloadFolderNoticeProvider`, consumed by the shell);
+startup detection alone does not issue that notice. Holds are rederived at
+startup and require no database schema change.
 
 **Permanent artwork store.** `PermanentArtworkStore` keeps one 768 px copy of
 each downloaded song's cover in `<app support>/artwork/permanent/<key>.<ext>`

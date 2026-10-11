@@ -164,6 +164,18 @@ const List<ChangelogVersion> changelogs = [
       ),
     ],
     entries: [
+      ChangelogEntry(
+        'Delete all saved Looks and Speed & Pitch presets from Cache & Storage without changing your current values; unsupported playback presets can also be deleted individually',
+        type: ChangelogEntryType.newFeature,
+      ),
+      ChangelogEntry(
+        'ListenBrainz connection errors now explain whether a token was rejected, online services are off, requests are limited, or ListenBrainz is temporarily unavailable; outages keep your token and queued listens',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
+        'Downloads wait in the queue when a custom folder is missing or inaccessible, with clear actions to choose a folder or use app storage; cancelling folder selection keeps your previous location',
+        type: ChangelogEntryType.fix,
+      ),
       // New
       ChangelogEntry(
         'Color Styles: Pastel, Immersive and Night restyle Light, Dark and OLED, and Neutral keeps the classic look',
@@ -202,7 +214,7 @@ const List<ChangelogVersion> changelogs = [
         type: ChangelogEntryType.newFeature,
       ),
       ChangelogEntry(
-        'Trending Now joins You Might Like and Library › Playlists: Deezer\'s chart matched to your library and your server, with songs your server lacks kept in place',
+        "Trending Now joins You Might Like and Library › Playlists: Deezer's chart matched to your library and your server, with songs your server lacks kept in place",
         type: ChangelogEntryType.newFeature,
       ),
       ChangelogEntry(
@@ -210,7 +222,7 @@ const List<ChangelogVersion> changelogs = [
         type: ChangelogEntryType.newFeature,
       ),
       ChangelogEntry(
-        'Artist pages add Fans Also Like (related artists, yours first) and Missing Albums (releases your server lacks, playable through your server\'s remote catalog)',
+        "Artist pages add Fans Also Like (related artists, yours first) and Missing Albums (releases your server lacks, playable through your server's remote catalog)",
         type: ChangelogEntryType.newFeature,
       ),
       ChangelogEntry(
@@ -223,6 +235,21 @@ const List<ChangelogVersion> changelogs = [
       ),
 
       // Improved
+      ChangelogEntry('Failed downloads say why they failed'),
+      ChangelogEntry(
+        'Downloads check free space first and pause instead of failing when storage runs out',
+      ),
+      ChangelogEntry(
+        'Downloads wait for a connection before retrying, and stop retrying songs the server cannot provide',
+      ),
+      ChangelogEntry(
+        'A download cut short is detected and retried instead of saved incomplete',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
+        'Finished downloads survive an interrupted save, and temporary download files are cleaned up in custom folders',
+        type: ChangelogEntryType.fix,
+      ),
       ChangelogEntry(
         'Opening the queue centres it on the song that is playing',
       ),
@@ -365,7 +392,7 @@ const List<ChangelogVersion> changelogs = [
         type: ChangelogEntryType.fix,
       ),
       ChangelogEntry(
-        'Internet radio keeps the station name until a song title arrives, shows live titles on desktop, never shows the previous station\'s song, and no longer freezes Windows with station artwork',
+        "Internet radio keeps the station name until a song title arrives, shows live titles on desktop, never shows the previous station's song, and no longer freezes Windows with station artwork",
         type: ChangelogEntryType.fix,
       ),
       ChangelogEntry(

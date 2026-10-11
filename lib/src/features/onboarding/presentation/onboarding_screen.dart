@@ -1,7 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
 
-import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -9,7 +8,6 @@ import 'package:go_router/go_router.dart';
 import 'package:navis/l10n/app_localizations.dart';
 import 'package:navis/src/common_widgets/navis_icon.dart';
 import 'package:navis/src/features/home/presentation/home_onboarding_warmup.dart';
-import 'package:navis/src/features/integrations/data/integration_guard_interceptor.dart';
 import 'package:navis/src/features/integrations/domain/integration_feature.dart';
 import 'package:navis/src/features/integrations/presentation/integration_copy.dart';
 import 'package:navis/src/features/onboarding/presentation/onboarding_provider.dart';
@@ -386,21 +384,10 @@ class OnboardingScreenState extends ConsumerState<OnboardingScreen> {
           listenBrainzUserName: details.userName,
         ),
       );
-    } on Object catch (error, stackTrace) {
-      // The guard refuses the check while stored settings keep online
-      // services off; say so rather than blaming the network.
-      final blocked =
-          error is DioException && error.error is IntegrationBlockedException;
-      if (!blocked) {
-        AppLogger.warning(
-          'ListenBrainz token validation failed. $error\n$stackTrace',
-        );
-      }
+    } on Object catch (error) {
       if (mounted) {
         setState(
-          () => _listenBrainzError = blocked
-              ? l10n.onboardingIntegrationsStoredOff
-              : l10n.configurationListenBrainzUnavailable,
+          () => _listenBrainzError = listenBrainzConnectionError(l10n, error),
         );
       }
     } finally {

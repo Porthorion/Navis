@@ -24,6 +24,23 @@ import UIKit
     GeneratedPluginRegistrant.register(with: engineBridge.pluginRegistry)
     let messenger = engineBridge.applicationRegistrar.messenger()
     FlutterMethodChannel(
+      name: "com.navis.app/storage_capacity",
+      binaryMessenger: messenger
+    ).setMethodCallHandler { call, result in
+      guard call.method == "freeBytes",
+            let arguments = call.arguments as? [String: Any],
+            let path = arguments["path"] as? String else {
+        result(FlutterMethodNotImplemented)
+        return
+      }
+      DispatchQueue.global(qos: .utility).async {
+        let attributes = try? FileManager.default.attributesOfFileSystem(forPath: path)
+        let bytes = attributes?[.systemFreeSize] as? NSNumber
+        DispatchQueue.main.async { result(bytes ?? NSNull()) }
+      }
+    }
+
+    FlutterMethodChannel(
       name: networkCostChannelName,
       binaryMessenger: messenger
     ).setMethodCallHandler { [weak self] call, result in

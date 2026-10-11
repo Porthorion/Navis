@@ -6,6 +6,8 @@ import 'package:navis/src/common/preset_names.dart';
 import 'package:navis/src/features/settings/domain/appearance_presets.dart';
 import 'package:navis/src/features/settings/presentation/appearance_preset_controller.dart';
 import 'package:navis/src/providers/app_providers.dart';
+import 'package:navis/src/features/player/presentation/playback_adjustment_controller.dart';
+import 'package:navis/src/features/player/domain/playback_adjustments.dart';
 import 'package:navis/src/theme/color_adjustment.dart';
 
 import '../../../../helpers/test_database.dart';
@@ -13,6 +15,142 @@ import '../../../../helpers/test_database.dart';
 class _MockSettingsRepository extends Mock implements SettingsRepository;
 
 void main() {
+  test(
+    'playback presets follow external deletion before another save',
+    () async {
+      final database = createTestDatabase();
+      addTearDown(database.close);
+      final container = ProviderContainer(
+        overrides: withTestDatabase(
+          database,
+          overrides: [
+            audioHandlerProvider.overrideWithValue(null),
+            playbackAdjustmentCapabilitiesProvider.overrideWithValue(
+              PlaybackAdjustmentCapabilities.android,
+            ),
+          ],
+        ),
+      );
+      addTearDown(container.dispose);
+      container.listen(appSettingsProvider, (_, _) {});
+      await container.read(appSettingsProvider.future);
+      final playback = container.read(playbackAdjustmentsProvider.notifier);
+      await container.read(playbackAdjustmentsProvider.future);
+      await playback.savePreset('Old');
+      await database.appSettingsDao.updatePlaybackAdjustments(
+        speed: 1,
+        pitchSemitones: 0,
+        selectedPresetId: null,
+        presetsJson: '[]',
+      );
+      await container
+          .read(settingsRepositoryProvider)
+          .watchSettings()
+          .firstWhere((s) => s.playbackPresets.isEmpty);
+      await Future<void>.delayed(Duration.zero);
+      expect(
+        container.read(playbackAdjustmentsProvider).requireValue.presets,
+        isEmpty,
+      );
+      await playback.savePreset('New');
+      expect(
+        (await container.read(settingsRepositoryProvider).getSettings())
+            .playbackPresets
+            .map((p) => p.name),
+        ['New'],
+      );
+    },
+    skip: !sqliteAvailable,
+  );
+
+  test(
+    'bulk reset drains writes and subsequent saves keep both libraries empty',
+    () async {
+      final database = createTestDatabase();
+      addTearDown(database.close);
+      final container = ProviderContainer(
+        overrides: withTestDatabase(
+          database,
+          overrides: [
+            audioHandlerProvider.overrideWithValue(null),
+            playbackAdjustmentCapabilitiesProvider.overrideWithValue(
+              PlaybackAdjustmentCapabilities.android,
+            ),
+          ],
+        ),
+      );
+      addTearDown(container.dispose);
+      container.listen(appSettingsProvider, (_, _) {});
+      await container.read(appSettingsProvider.future);
+      final playback = container.read(playbackAdjustmentsProvider.notifier);
+      await container.read(playbackAdjustmentsProvider.future);
+      final looks = container.read(appearanceLooksControllerProvider.notifier);
+      await playback.savePreset('Old speed');
+      await looks.saveAsNew('Old look');
+      await playback.setValues(
+        const PlaybackAdjustments(speed: 1.25, pitchSemitones: 2),
+      );
+      final savingLook = looks.saveAsNew('Queued look');
+      await looks.deleteAllPresets();
+      await savingLook;
+      expect(
+        container.read(playbackAdjustmentsProvider).requireValue.presets,
+        isEmpty,
+      );
+      expect(
+        container
+            .read(playbackAdjustmentsProvider)
+            .requireValue
+            .selectedPresetId,
+        isNull,
+      );
+      expect(container.read(appearanceLooksControllerProvider).looks, isEmpty);
+      await playback.flush();
+      await playback.savePreset('New speed');
+      await looks.saveAsNew('New look');
+      final settings = await container
+          .read(settingsRepositoryProvider)
+          .getSettings();
+      expect(settings.playbackPresets.map((p) => p.name), ['New speed']);
+      expect(settings.appearanceLooks.map((p) => p.name), ['New look']);
+      expect(settings.playbackSpeed, 1.25);
+      expect(settings.playbackPitchSemitones, 2);
+    },
+    skip: !sqliteAvailable,
+  );
+
+  test(
+    'bulk reset keeps normal playback unselected across later settings writes',
+    () async {
+      final database = createTestDatabase();
+      addTearDown(database.close);
+      final container = ProviderContainer(
+        overrides: withTestDatabase(
+          database,
+          overrides: [audioHandlerProvider.overrideWithValue(null)],
+        ),
+      );
+      addTearDown(container.dispose);
+      container.listen(appSettingsProvider, (_, _) {});
+      await container.read(appSettingsProvider.future);
+      final playback = container.read(playbackAdjustmentsProvider.notifier);
+      await container.read(playbackAdjustmentsProvider.future);
+      final looks = container.read(appearanceLooksControllerProvider.notifier);
+      await playback.savePreset('Old speed');
+      await looks.deleteAllPresets();
+      await looks.saveAsNew('New look');
+      await Future<void>.delayed(Duration.zero);
+      await playback.flush();
+      final settings = await container
+          .read(settingsRepositoryProvider)
+          .getSettings();
+      expect(settings.playbackPresets, isEmpty);
+      expect(settings.selectedPlaybackPresetId, isNull);
+      expect(settings.playbackSpeed, 1);
+    },
+    skip: !sqliteAvailable,
+  );
+
   test('tuning previews, clears and commits the three values', () async {
     final database = createTestDatabase();
     addTearDown(database.close);

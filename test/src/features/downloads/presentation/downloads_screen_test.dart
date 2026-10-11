@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:audio_service/audio_service.dart';
+import 'package:drift/drift.dart' show Value;
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/gestures.dart';
 import 'package:material_ui/material_ui.dart';
@@ -13,6 +14,7 @@ import 'package:navis/src/database/navis_database.dart';
 import 'package:navis/src/common_widgets/adaptive_track_row.dart';
 import 'package:navis/src/database/tables/schema_enums.dart';
 import 'package:navis/src/features/downloads/data/download_service.dart';
+import 'package:navis/src/features/downloads/data/permanent_download_path_resolver.dart';
 import 'package:navis/src/features/downloads/data/permanent_download_import_service.dart';
 import 'package:navis/src/features/downloads/domain/download_preferences.dart';
 import 'package:navis/src/features/downloads/presentation/downloads_screen.dart';
@@ -84,6 +86,9 @@ void main() {
               overrides: withTestDatabase(
                 database,
                 overrides: [
+                  downloadFolderProblemProvider.overrideWithValue(
+                    const AsyncData(null),
+                  ),
                   albumQueueEnabledProvider.overrideWithValue(albumQueue),
                   queueProvider.overrideWith(QueueReplaceSpy.new),
                   downloadQueueProvider.overrideWithValue(
@@ -147,6 +152,154 @@ void main() {
     }
   }
 
+  for (final size in [
+    const Size(390, 844),
+    const Size(768, 1024),
+    const Size(1280, 800),
+  ]) {
+    testWidgets('folder hold banner persists and recovers at $size', (
+      tester,
+    ) async {
+      setAdaptiveTestViewport(tester, size);
+      final service = _MockDownloadService();
+      when(() => service.configureCustomDownloadFolder(enabled: false))
+          .thenAnswer((_) async {});
+      final problem = StreamController<DownloadFolderProblem?>.broadcast();
+      addTearDown(problem.close);
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: withTestDatabase(
+            database,
+            overrides: [
+              downloadServiceProvider.overrideWithValue(service),
+              downloadFolderProblemProvider.overrideWith(
+                (ref) => problem.stream,
+              ),
+              downloadQueueProvider.overrideWithValue(
+                const AsyncData(<DownloadQueueTableData>[]),
+              ),
+              permanentCachedTracksProvider.overrideWithValue(
+                const AsyncData(<CachedTracksTableData>[]),
+              ),
+            ],
+          ),
+          child: MaterialApp(
+            theme: testTheme(),
+            localizationsDelegates: navisLocalizationsDelegates,
+            supportedLocales: AppLocalizations.supportedLocales,
+            home: const DownloadsScreen(),
+          ),
+        ),
+      );
+      problem.add(DownloadFolderProblem.unset);
+      await tester.pumpAndSettle();
+      expect(
+        find.byKey(const ValueKey('downloadsFolderHoldBanner')),
+        findsOneWidget,
+      );
+      expect(find.text('Choose folder'), findsOneWidget);
+      final previousPicker = FilePickerPlatform.instance;
+      FilePickerPlatform.instance = _FakeFilePicker(null);
+      addTearDown(() => FilePickerPlatform.instance = previousPicker);
+      await tester.tap(find.text('Choose folder'));
+      await tester.pumpAndSettle();
+      verifyNever(
+        () => service.configureCustomDownloadFolder(
+          enabled: true,
+          path: any(named: 'path'),
+        ),
+      );
+      expect(
+        find.byKey(const ValueKey('downloadsFolderHoldBanner')),
+        findsOneWidget,
+      );
+      await tester.tap(find.text('Settings'));
+      await tester.pumpAndSettle();
+      expect(
+        find.byKey(const ValueKey('downloadsFolderHoldBanner')),
+        findsOneWidget,
+      );
+      await tester.tap(find.text('Use app storage'));
+      await tester.pumpAndSettle();
+      await tester.tap(
+        find.byKey(const ValueKey('downloadsCustomFolderDisableConfirm')),
+      );
+      await tester.pumpAndSettle();
+      verify(() => service.configureCustomDownloadFolder(enabled: false))
+          .called(1);
+      problem.add(null);
+      await tester.pumpAndSettle();
+      expect(
+        find.byKey(const ValueKey('downloadsFolderHoldBanner')),
+        findsNothing,
+      );
+      expect(tester.takeException(), isNull);
+    });
+  }
+
+  for (final previouslyEnabled in [false, true]) {
+    testWidgets(
+      'cancelling custom folder selection preserves previous location enabled=$previouslyEnabled',
+      (tester) async {
+        setAdaptiveTestViewport(tester, const Size(800, 1800));
+        await tester.runAsync(() async {
+          await database.appSettingsDao.updateCustomDownloadFolderPath(
+            previouslyEnabled ? '/previous' : null,
+          );
+          await database.appSettingsDao.updateCustomDownloadFolderEnabled(
+            enabled: previouslyEnabled,
+          );
+        });
+        final previous = FilePickerPlatform.instance;
+        FilePickerPlatform.instance = _FakeFilePicker(null);
+        addTearDown(() => FilePickerPlatform.instance = previous);
+        await tester.pumpWidget(
+          ProviderScope(
+            overrides: withTestDatabase(
+              database,
+              overrides: [
+                downloadFolderProblemProvider.overrideWithValue(
+                  const AsyncData(null),
+                ),
+                downloadQueueProvider.overrideWithValue(
+                  const AsyncData(<DownloadQueueTableData>[]),
+                ),
+                permanentCachedTracksProvider.overrideWithValue(
+                  const AsyncData(<CachedTracksTableData>[]),
+                ),
+              ],
+            ),
+            child: MaterialApp(
+              theme: testTheme(),
+              localizationsDelegates: navisLocalizationsDelegates,
+              supportedLocales: AppLocalizations.supportedLocales,
+              home: const DownloadsScreen(),
+            ),
+          ),
+        );
+        await tester.pumpAndSettle();
+        await tester.tap(find.text('Settings'));
+        await tester.pumpAndSettle();
+        if (previouslyEnabled) {
+          await tester.tap(find.text('Choose Folder'));
+        } else {
+          await tester.tap(
+            find.byKey(const ValueKey('downloadsCustomFolderSwitch')),
+          );
+        }
+        await tester.pumpAndSettle();
+        final row = (await tester.runAsync(
+          database.appSettingsDao.getSettings,
+        ))!;
+        expect(row.customDownloadFolderEnabled, previouslyEnabled);
+        expect(
+          row.customDownloadFolderPath,
+          previouslyEnabled ? '/previous' : null,
+        );
+      },
+    );
+  }
+
   testWidgets(
     'a custom folder finishes setting up when the Settings tab is left',
     (tester) async {
@@ -168,6 +321,9 @@ void main() {
           overrides: withTestDatabase(
             database,
             overrides: [
+              downloadFolderProblemProvider.overrideWithValue(
+                const AsyncData(null),
+              ),
               downloadServiceProvider.overrideWithValue(service),
               downloadQueueProvider.overrideWithValue(
                 const AsyncData(<DownloadQueueTableData>[]),
@@ -220,6 +376,61 @@ void main() {
     },
   );
 
+  testWidgets('failed downloads explain the reason and Retry clears it', (
+    tester,
+  ) async {
+    final id = await tester.runAsync(
+      () => database.downloadQueueDao.enqueue(
+        DownloadQueueTableCompanion.insert(
+          songId: const Value('failed-song'),
+          status: DownloadStatus.failed,
+          addedAt: DateTime(2026),
+          retryCount: const Value(3),
+          failureReason: const Value(DownloadFailureReason.truncated),
+          failureDetail: const Value('4 / 10 bytes'),
+        ),
+      ),
+    );
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: withTestDatabase(
+          database,
+          overrides: [
+            downloadFolderProblemProvider.overrideWithValue(
+              const AsyncData(null),
+            ),
+            permanentCachedTracksProvider.overrideWithValue(
+              const AsyncData(<CachedTracksTableData>[]),
+            ),
+            downloadRelatedSongsProvider.overrideWith(
+              (ref) => Stream.value(<String, SongsTableData>{}),
+            ),
+            songByIdProvider.overrideWith((ref, id) => Stream.value(null)),
+          ],
+        ),
+        child: MaterialApp(
+          theme: testTheme(),
+          localizationsDelegates: navisLocalizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
+          home: const DownloadsScreen(),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(find.text('The download was cut short. Try again.'), findsOneWidget);
+    await tester.tap(find.byIcon(Icons.refresh).last);
+    await tester.pumpAndSettle();
+    final item = (await tester.runAsync(
+      () => database.downloadQueueDao.watchQueue().first,
+    ))!.single;
+    expect(item.id, id);
+    expect(item.status, DownloadStatus.queued);
+    expect(item.failureReason, isNull);
+    expect(item.failureDetail, isNull);
+    expect(item.retryCount, 0);
+    expect(find.text('The download was cut short. Try again.'), findsNothing);
+  }, skip: !sqliteAvailable);
+
   testWidgets('download queue marks the paused current song', (tester) async {
     const song = SongsTableData(
       id: 'song-1',
@@ -233,6 +444,9 @@ void main() {
         overrides: withTestDatabase(
           database,
           overrides: [
+            downloadFolderProblemProvider.overrideWithValue(
+              const AsyncData(null),
+            ),
             downloadQueueProvider.overrideWithValue(
               AsyncData(<DownloadQueueTableData>[
                 DownloadQueueTableData(
@@ -318,6 +532,9 @@ void main() {
         overrides: withTestDatabase(
           database,
           overrides: [
+            downloadFolderProblemProvider.overrideWithValue(
+              const AsyncData(null),
+            ),
             downloadQueueProvider.overrideWithValue(
               const AsyncData(<DownloadQueueTableData>[]),
             ),
@@ -376,6 +593,9 @@ void main() {
         overrides: withTestDatabase(
           database,
           overrides: [
+            downloadFolderProblemProvider.overrideWithValue(
+              const AsyncData(null),
+            ),
             downloadQueueProvider.overrideWithValue(
               const AsyncData(<DownloadQueueTableData>[]),
             ),
@@ -447,6 +667,9 @@ void main() {
           overrides: withTestDatabase(
             database,
             overrides: [
+              downloadFolderProblemProvider.overrideWithValue(
+                const AsyncData(null),
+              ),
               downloadQueueProvider.overrideWithValue(
                 const AsyncData(<DownloadQueueTableData>[]),
               ),
@@ -512,6 +735,9 @@ void main() {
         overrides: withTestDatabase(
           database,
           overrides: [
+            downloadFolderProblemProvider.overrideWithValue(
+              const AsyncData(null),
+            ),
             downloadQueueProvider.overrideWithValue(
               AsyncData(<DownloadQueueTableData>[
                 DownloadQueueTableData(
@@ -571,6 +797,9 @@ void main() {
         overrides: withTestDatabase(
           database,
           overrides: [
+            downloadFolderProblemProvider.overrideWithValue(
+              const AsyncData(null),
+            ),
             downloadServiceProvider.overrideWithValue(service),
             customDownloadFolderEnabledProvider.overrideWithValue(true),
             customDownloadFolderPathProvider.overrideWithValue('/music/Navis'),
@@ -633,7 +862,13 @@ void main() {
   }
 
   Widget mobileDownloads(List<Object> overrides) => ProviderScope(
-    overrides: withTestDatabase(database, overrides: overrides.cast()),
+    overrides: withTestDatabase(
+      database,
+      overrides: [
+        downloadFolderProblemProvider.overrideWithValue(const AsyncData(null)),
+        ...overrides.cast(),
+      ],
+    ),
     child: MaterialApp(
       theme: testTheme(),
       localizationsDelegates: navisLocalizationsDelegates,
@@ -802,7 +1037,7 @@ void main() {
   });
 }
 
-class _MockDownloadService extends Mock implements DownloadService {}
+class _MockDownloadService extends Mock implements DownloadService;
 
 PlaybackSnapshot _pausedSnapshot(String songId) {
   return PlaybackSnapshot(
@@ -822,7 +1057,7 @@ PlaybackSnapshot _pausedSnapshot(String songId) {
 class _FakeFilePicker extends FilePickerPlatform {
   new(this.path);
 
-  final String path;
+  final String? path;
 
   @override
   Future<String?> getDirectoryPath({

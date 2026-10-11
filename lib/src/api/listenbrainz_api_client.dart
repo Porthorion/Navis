@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:dio/dio.dart';
 import 'package:navis/src/utils/constants.dart';
 import 'package:navis/src/features/integrations/data/integration_guard_interceptor.dart';
@@ -11,6 +13,14 @@ class ListenBrainzInvalidTokenException implements Exception {
 class ListenBrainzRateLimitedException implements Exception {
   const new(this.retryAt);
   final DateTime retryAt;
+}
+
+/// The documented endpoint is unavailable; this does not reject a token.
+class ListenBrainzUnavailableException implements Exception {
+  const new([this.statusCode]);
+  final int? statusCode;
+  @override
+  String toString() => 'ListenBrainzUnavailableException (HTTP $statusCode)';
 }
 
 class ListenBrainzApiClient {
@@ -65,24 +75,124 @@ class ListenBrainzApiClient {
     CancelToken? cancelToken,
   }) async {
     try {
-      final options = _authOptions(userToken);
-      final response = await _dio.get<Map<String, dynamic>>(
+      final response = await _connectionRequest(
         '/validate-token',
+        userToken,
+        userInitiated: userInitiated,
         cancelToken: cancelToken,
-        options: userInitiated ? userInitiatedOptions(options) : options,
       );
-      final data = response.data ?? const <String, dynamic>{};
+      final data = _jsonObject(response);
+      if (data['valid'] is! bool) {
+        throw ListenBrainzUnavailableException(response.statusCode);
+      }
       return ListenBrainzTokenDetails(
         valid: data['valid'] == true,
         userName: data['user_name']?.toString(),
       );
-    } on DioException catch (error) {
-      final status = error.response?.statusCode;
-      if (status == 401 || status == 403) {
-        return const ListenBrainzTokenDetails(valid: false);
-      }
-      rethrow;
+    } on ListenBrainzInvalidTokenException {
+      return const ListenBrainzTokenDetails(valid: false);
     }
+  }
+
+  Map<String, dynamic> _jsonObject(Response<Object?> response) {
+    var data = response.data;
+    if (data is String) {
+      try {
+        data = jsonDecode(data);
+      } on FormatException {
+        throw ListenBrainzUnavailableException(response.statusCode);
+      }
+    }
+    if (data is! Map<String, dynamic>) {
+      throw ListenBrainzUnavailableException(response.statusCode);
+    }
+    return data;
+  }
+
+  /// Follow same-origin redirects explicitly: Dart's native automatic redirect
+  /// handling does not replay POST bodies on 307/308. Never forward a token to
+  /// a different origin or downgrade HTTPS.
+  Future<Response<Object?>> _connectionRequest(
+    String path,
+    String token, {
+    String method = 'GET',
+    Object? data,
+    bool userInitiated = false,
+    CancelToken? cancelToken,
+  }) async {
+    if (isRateLimited) {
+      throw ListenBrainzRateLimitedException(_rateLimitedUntil!);
+    }
+    var target = path;
+    for (var redirects = 0; redirects <= 5; redirects++) {
+      final options = _authOptions(token).copyWith(
+        method: method,
+        followRedirects: false,
+        maxRedirects: 5,
+        validateStatus: (status) =>
+            status != null &&
+            (status >= 200 && status < 300 ||
+                (method == 'GET' && (status == 301 || status == 302)) ||
+                status == 307 ||
+                status == 308),
+      );
+      try {
+        final response = await _dio.request<Object?>(
+          target,
+          data: data,
+          cancelToken: cancelToken,
+          options: userInitiated ? userInitiatedOptions(options) : options,
+        );
+        _recordRateLimit(response.headers);
+        final status = response.statusCode;
+        if (status != null && status >= 300 && status < 400) {
+          final location = response.headers.value('location');
+          if (location == null || redirects == 5) {
+            throw ListenBrainzUnavailableException(status);
+          }
+          final previous = response.requestOptions.uri;
+          final next = previous.resolve(location);
+          if (next.scheme != previous.scheme ||
+              next.host != previous.host ||
+              next.port != previous.port) {
+            throw ListenBrainzUnavailableException(status);
+          }
+          target = next.toString();
+          continue;
+        }
+        // HTML responses sometimes arrive with a successful status as well.
+        if (response.data is String &&
+            (response.data! as String).trimLeft().startsWith('<')) {
+          throw ListenBrainzUnavailableException(status);
+        }
+        return response;
+      } on DioException catch (error) {
+        if (error.error is IntegrationBlockedException ||
+            CancelToken.isCancel(error)) {
+          rethrow;
+        }
+        _recordRateLimit(error.response?.headers);
+        final status = error.response?.statusCode;
+        if (status == 401 || status == 403) {
+          throw const ListenBrainzInvalidTokenException();
+        }
+        if (status == 429) {
+          final seconds =
+              int.tryParse(
+                error.response?.headers.value('retry-after') ?? '',
+              ) ??
+              60;
+          final fallback = _now().add(Duration(seconds: seconds.clamp(1, 300)));
+          if (_rateLimitedUntil == null ||
+              !_rateLimitedUntil!.isAfter(_now())) {
+            _rateLimitedUntil = fallback;
+          }
+          throw ListenBrainzRateLimitedException(_rateLimitedUntil!);
+        }
+        throw ListenBrainzUnavailableException(status);
+      }
+    }
+    throw const ListenBrainzUnavailableException();
   }
 
   Future<List<ListenBrainzPlaylist>> getRecommendationPlaylists({
@@ -238,20 +348,17 @@ class ListenBrainzApiClient {
         },
       ],
     };
-    try {
-      final response = await _dio.post<void>(
-        '/submit-listens',
-        data: payload,
-        options: _authOptions(userToken),
-      );
-      _recordRateLimit(response.headers);
-    } on DioException catch (error) {
-      _recordRateLimit(error.response?.headers);
-      final status = error.response?.statusCode;
-      if (status == 401 || status == 403) {
+    final response = await _connectionRequest(
+      '/submit-listens',
+      userToken,
+      method: 'POST',
+      data: payload,
+    );
+    if (response.data != null) {
+      final body = _jsonObject(response);
+      if (body['valid'] == false) {
         throw const ListenBrainzInvalidTokenException();
       }
-      rethrow;
     }
   }
 

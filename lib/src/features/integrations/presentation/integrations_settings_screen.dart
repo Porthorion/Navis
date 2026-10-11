@@ -464,10 +464,10 @@ class _IntegrationsSettingsScreenState
       );
       if (!mounted) return;
       ref.read(refreshWeeklyPlaylistsAfterTokenValidationProvider)();
-    } on Object {
+    } on Object catch (error) {
       if (!mounted) return;
       setState(
-        () => _listenBrainzError = l10n.configurationListenBrainzUnavailable,
+        () => _listenBrainzError = listenBrainzConnectionError(l10n, error),
       );
     } finally {
       if (mounted) setState(() => _listenBrainzBusy = false);

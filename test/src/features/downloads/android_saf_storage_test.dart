@@ -125,6 +125,26 @@ void main() {
     },
   );
 
+  for (final (code, errno) in [('NO_SPACE', 28), ('PERMISSION_DENIED', 13)]) {
+    test('preserves $code for the download hold policy', () async {
+      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+          .setMockMethodCallHandler(
+            channel,
+            (_) async => throw PlatformException(code: code),
+          );
+      await expectLater(
+        const AndroidSafStorage().materialize('content://fixture/audio'),
+        throwsA(
+          isA<FileSystemException>().having(
+            (e) => e.osError?.errorCode,
+            'errno',
+            errno,
+          ),
+        ),
+      );
+    });
+  }
+
   test(
     'normalizes Android provider failures to recoverable filesystem errors',
     () async {

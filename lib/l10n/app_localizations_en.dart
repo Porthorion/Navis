@@ -1577,7 +1577,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get configurationListenBrainzUnavailable =>
-      'ListenBrainz is unavailable. Check your connection and try again.';
+      'ListenBrainz is unavailable right now. Your token was not rejected. Check your connection or try again later.';
 
   @override
   String get configurationListenBrainzValidateAndSave => 'Validate and save';
@@ -5884,4 +5884,112 @@ class AppLocalizationsEn extends AppLocalizations {
   String notificationDownloadProgressPercent(int percent) {
     return '$percent%';
   }
+
+  @override
+  String get cacheSettingsResetSection => 'Reset';
+
+  @override
+  String get cacheSettingsDeleteAllPresets => 'Delete all presets';
+
+  @override
+  String get cacheSettingsDeleteAllPresetsDescription =>
+      'Remove all saved Looks and Speed & Pitch presets.';
+
+  @override
+  String get cacheSettingsDeleteAllPresetsConfirmTitle => 'Delete all presets?';
+
+  @override
+  String get cacheSettingsDeleteAllPresetsConfirmBody =>
+      'This permanently deletes every saved appearance Look and Speed & Pitch preset, their selections, and any older Fine-Tune color presets. Your current speed, pitch and appearance values stay as they are.';
+
+  @override
+  String get cacheSettingsDeleteAllPresetsSuccess =>
+      'All presets deleted. Your current values are unchanged.';
+
+  @override
+  String get cacheSettingsDeleteAllPresetsFailure =>
+      'Could not delete presets. Try again.';
+
+  @override
+  String get playbackPresetDeleteFailure =>
+      'Could not delete the preset. It may have changed or could not be saved. Try again.';
+
+  @override
+  String get configurationListenBrainzOnlineServicesOff =>
+      'Online services is switched off. Turn it on before connecting to ListenBrainz.';
+
+  @override
+  String get configurationListenBrainzRateLimited =>
+      'ListenBrainz is limiting requests right now. Your token was not rejected. Try again later.';
+
+  @override
+  String configurationListenBrainzUnavailableHttp(int status) {
+    return 'ListenBrainz isn\'t accepting connections right now (HTTP $status). This is on their side; your token wasn\'t rejected. Try again later.';
+  }
+
+  @override
+  String get downloadsFolderHoldUnset =>
+      'Downloads are queued. Choose a custom folder or use app storage to continue.';
+
+  @override
+  String get downloadsFolderHoldMissing =>
+      'Downloads are queued because the custom folder is missing. Reconnect the storage, choose a folder or use app storage.';
+
+  @override
+  String get downloadsFolderHoldInaccessible =>
+      'Downloads are queued because Navis cannot write to the download folder. Choose an accessible folder or use app storage.';
+
+  @override
+  String get downloadsFolderHoldChoose => 'Choose folder';
+
+  @override
+  String get downloadsFolderHoldUseAppStorage => 'Use app storage';
+
+  @override
+  String get downloadsFailureNotFound =>
+      'This song is no longer available on the server.';
+
+  @override
+  String get downloadsFailureServerError =>
+      'The server could not send this song. Try again later.';
+
+  @override
+  String get downloadsFailureNetwork =>
+      'The connection was lost. Check your network and try again.';
+
+  @override
+  String get downloadsFailureTimeout =>
+      'The server took too long to respond. Try again.';
+
+  @override
+  String get downloadsFailureNotAudio =>
+      'The server sent a page or error message instead of audio.';
+
+  @override
+  String get downloadsFailureTruncated =>
+      'The download was cut short. Try again.';
+
+  @override
+  String get downloadsFailureNoSpace =>
+      'There is not enough free space for this download.';
+
+  @override
+  String get downloadsFailureFolderUnavailable =>
+      'The download folder is unavailable. Reconnect it or choose another folder.';
+
+  @override
+  String get downloadsFailurePermission =>
+      'Navis does not have permission to save this download.';
+
+  @override
+  String get downloadsFailureUnknown =>
+      'The download could not be completed. Try again.';
+
+  @override
+  String get downloadsFolderHoldNoSpace =>
+      'Downloads are queued because storage is full. Free some space or choose another folder to continue.';
+
+  @override
+  String get notificationDownloadHeldTitle =>
+      'Downloads waiting for storage or access';
 }

@@ -33,7 +33,9 @@ class _FakeLastFmApiClient extends LastFmApiClient {
 }
 
 class _FakeListenBrainzApiClient extends ListenBrainzApiClient {
-  new({required this.valid});
+  new({required this.valid, this.failure});
+
+  final Exception? failure;
 
   final bool valid;
   final userInitiatedCalls = <bool>[];
@@ -45,6 +47,7 @@ class _FakeListenBrainzApiClient extends ListenBrainzApiClient {
     CancelToken? cancelToken,
   }) async {
     userInitiatedCalls.add(userInitiated);
+    if (failure != null) throw failure!;
     return ListenBrainzTokenDetails(
       valid: valid,
       userName: valid ? 'navis-user' : null,
@@ -693,6 +696,40 @@ void main() {
     expect(row.listenBrainzTokenValid, isTrue);
     expect(row.listenBrainzScrobblingEnabled, isFalse);
   });
+
+  for (final (failure, message) in <(Exception, String)>[
+    (
+      const ListenBrainzUnavailableException(404),
+      "ListenBrainz isn't accepting connections right now (HTTP 404). This is on their side; your token wasn't rejected. Try again later.",
+    ),
+    (
+      ListenBrainzRateLimitedException(DateTime.utc(2026, 10, 11)),
+      'ListenBrainz is limiting requests right now. Your token was not rejected. Try again later.',
+    ),
+  ]) {
+    testWidgets('connect distinguishes $failure and keeps stored credentials', (
+      tester,
+    ) async {
+      final store = _MemoryCredentialStore('fixture-token');
+      final h = await _pump(
+        tester,
+        credentialStore: store,
+        listenBrainzClient: _FakeListenBrainzApiClient(
+          valid: true,
+          failure: failure,
+        ),
+        seed: (dao) => dao.updateListenBrainzScrobblingState(
+          enabled: true,
+          tokenValid: true,
+          userName: 'navis-user',
+        ),
+      );
+      await h.tap(find.widgetWithText(TextButton, 'Update'));
+      expect(find.text(message), findsOneWidget);
+      expect(store.listenBrainzToken, 'fixture-token');
+      expect((await h.row()).listenBrainzTokenValid, isTrue);
+    });
+  }
 
   testWidgets('a rejected ListenBrainz token shows the error on the field', (
     tester,
