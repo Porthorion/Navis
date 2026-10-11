@@ -63,6 +63,9 @@ class SettingsRepository {
       colorVividness: settings.colorVividness,
       surfaceDepthLight: settings.surfaceDepthLight,
       surfaceDepthDark: settings.surfaceDepthDark,
+      surfaceTintLight: settings.surfaceTintLight,
+      surfaceTintDark: settings.surfaceTintDark,
+      controlColor: settings.controlColor,
       albumArtShade: settings.albumArtShade,
       albumArtColoredShade: settings.albumArtColoredShade,
       colorSchemeSeed: settings.colorSchemeSeed,
@@ -130,10 +133,24 @@ class SettingsRepository {
     }
     if (draft.colorVividness != initial.colorVividness ||
         draft.surfaceDepthLight != initial.surfaceDepthLight ||
-        draft.surfaceDepthDark != initial.surfaceDepthDark) {
+        draft.surfaceDepthDark != initial.surfaceDepthDark ||
+        draft.surfaceTintLight != initial.surfaceTintLight ||
+        draft.surfaceTintDark != initial.surfaceTintDark ||
+        draft.controlColor != initial.controlColor) {
       final current = await getSettings();
       await _dao.updateColorTuning(
         ColorTuning(
+          lightTint: draft.surfaceTintLight != initial.surfaceTintLight
+              ? draft.surfaceTintLight
+              : current.surfaceTintLight,
+          darkTint: draft.surfaceTintDark != initial.surfaceTintDark
+              ? draft.surfaceTintDark
+              : current.surfaceTintDark,
+          controls: NavisControlColor.parse(
+            draft.controlColor != initial.controlColor
+                ? draft.controlColor
+                : current.controlColor,
+          ),
           vividness: draft.colorVividness != initial.colorVividness
               ? draft.colorVividness
               : current.colorVividness,
@@ -358,6 +375,9 @@ class SettingsRepository {
       colorVividness: row.colorVividness,
       surfaceDepthLight: row.surfaceDepthLight,
       surfaceDepthDark: row.surfaceDepthDark,
+      surfaceTintLight: row.surfaceTintLight,
+      surfaceTintDark: row.surfaceTintDark,
+      controlColor: row.controlColor,
       appearanceLooks: decodeAppearanceLooks(row.appearanceLooks),
       selectedAppearanceLookId: row.selectedAppearanceLookId,
       customColorPresets: decodeAccentSeeds(row.customColorPresets),

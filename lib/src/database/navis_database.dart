@@ -222,7 +222,7 @@ class NavisDatabase extends _$NavisDatabase {
   }
 
   @override
-  int get schemaVersion => 101;
+  int get schemaVersion => 102;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -333,6 +333,7 @@ class NavisDatabase extends _$NavisDatabase {
       from98To99,
       from99To100,
       from100To101,
+      from101To102,
     ];
     for (var version = from; version < to; version++) {
       await steps[version - firstStepFrom](migrator);
@@ -417,6 +418,21 @@ class NavisDatabase extends _$NavisDatabase {
         appSettingsTable.surfaceDepthDark,
       );
     }
+    if (!await _columnExists('app_settings', 'surface_tint_light')) {
+      await migrator.addColumn(
+        appSettingsTable,
+        appSettingsTable.surfaceTintLight,
+      );
+    }
+    if (!await _columnExists('app_settings', 'surface_tint_dark')) {
+      await migrator.addColumn(
+        appSettingsTable,
+        appSettingsTable.surfaceTintDark,
+      );
+    }
+    if (!await _columnExists('app_settings', 'control_color')) {
+      await migrator.addColumn(appSettingsTable, appSettingsTable.controlColor);
+    }
     if (!await _columnExists('app_settings', 'appearance_looks')) {
       await migrator.addColumn(
         appSettingsTable,
@@ -430,6 +446,12 @@ class NavisDatabase extends _$NavisDatabase {
       );
     }
   }
+
+  /// Re-runs the guarded 101 step. Development builds published 101 before
+  /// Tint and Controls joined it, so those installs report 101 but lack
+  /// `surface_tint_light`, `surface_tint_dark` and `control_color`; the column
+  /// guards skip everything already present.
+  Future<void> from101To102(Migrator migrator) => from100To101(migrator);
 
   Future<void> _noMigration(Migrator _) async {}
 

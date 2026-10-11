@@ -22,7 +22,6 @@ import 'package:navis/src/features/settings/domain/album_title_shade.dart';
 import 'package:navis/src/theme/caption_tint.dart';
 import 'package:navis/src/theme/motion_policy.dart';
 import 'package:navis/src/theme/navis_color_style_data.dart';
-import 'package:navis/src/theme/navis_shape_data.dart';
 import 'package:navis/src/theme/artwork_shape.dart';
 
 /// Size presets for [AlbumCard].
@@ -879,7 +878,10 @@ class _AlbumCardHoverPlayState extends ConsumerState<_AlbumCardHoverPlay> {
                       excludeSemantics: true,
                       child: IconButton.filled(
                         key: const ValueKey<String>('albumCardHoverPlay'),
-                        style: NavisShapeData.circularIconButtonStyle,
+                        style: NavisColorStyleData.playStyleOf(
+                          context,
+                          circular: true,
+                        ),
                         iconSize: 28,
                         constraints: const BoxConstraints(
                           minWidth: 52,

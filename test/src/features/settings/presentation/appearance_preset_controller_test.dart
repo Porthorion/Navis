@@ -148,7 +148,7 @@ void main() {
   );
 
   test(
-    'Looks capture update apply rename delete and match first snapshot',
+    'Looks capture update apply rename delete and keep the chosen Look',
     () async {
       final database = createTestDatabase();
       addTearDown(database.close);
@@ -172,9 +172,10 @@ void main() {
       );
       final duplicateValues = (await controller.saveAsNew('Same values'))
           .value!;
+      // A new save is the chosen Look, even when its values match another.
       expect(
         container.read(appearanceLooksControllerProvider).selectedLookId,
-        id,
+        duplicateValues.id,
       );
       expect(
         (await controller.saveAsNew('ORIGINAL')).failure,
@@ -285,7 +286,7 @@ void main() {
         );
         final repository = container.read(settingsRepositoryProvider);
         final target = (await controller.saveAsNew('Target')).value!;
-        // Exercise all 24 fields, including both explicit nulls.
+        // Exercise all appearance fields, including both explicit nulls.
         final before = AppearanceSnapshot.fromJson(const {
           'themeMode': 'system',
           'oledForAuto': true,
@@ -300,6 +301,9 @@ void main() {
           'colorVividness': 4,
           'surfaceDepthLight': -2,
           'surfaceDepthDark': 3,
+          'surfaceTintLight': 5,
+          'surfaceTintDark': 3,
+          'controlColor': 'white',
           'flatSurfaces': true,
           'flatAreas': 2,
           'cornerStyle': 'square',
@@ -312,7 +316,7 @@ void main() {
           'artistViewMode': 'list',
           'nowPlayingBackground': 'artwork',
         });
-        expect(before.toJson(), hasLength(24));
+        expect(before.toJson(), hasLength(27));
         await database.appSettingsDao.applyAppearanceSnapshot(before);
         String? previousLookId;
         if (matchedLook) {
@@ -341,7 +345,14 @@ void main() {
         expect(restored.albumGridDensity, isNull);
         expect(
           restored.colorTuning,
-          const ColorTuning(vividness: 4, lightDepth: -2, darkDepth: 3),
+          const ColorTuning(
+            vividness: 4,
+            lightDepth: -2,
+            darkDepth: 3,
+            lightTint: 5,
+            darkTint: 3,
+            controls: NavisControlColor.white,
+          ),
         );
         expect(
           container.read(appearanceLooksControllerProvider).selectedLookId,

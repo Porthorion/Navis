@@ -1586,6 +1586,31 @@
   "appearanceColorTuningLooksHint": "Save this as part of a Look in Appearance.",
   "appearanceColorTuningHintNoAccent": "Pick an accent color to see Intensity.",
   "appearanceColorTuningHintMaxed": "This style is already close to its most colorful here.",
+  "appearanceColorTuningBackgrounds": "Backgrounds",
+  "appearanceColorTuningTint": "Tint",
+  "appearanceColorTuningNone": "None",
+  "appearanceColorTuningFull": "Full",
+  "appearanceColorTuningLessTint": "Use less tint",
+  "appearanceColorTuningMoreTint": "Use more tint",
+  "appearanceColorTuningTintOled": "OLED keeps pure black, so Tint only colors the panels.",
+  "appearanceColorTuningControls": "Controls",
+  "appearanceColorTuningControlsAccent": "Accent",
+  "appearanceColorTuningControlsWhite": "White",
+  "appearanceColorTuningControlsHint": "White fills Play, sliders and selected controls instead of the accent color.",
+  "appearanceColorTuningSummaryTint": "Tint {value}",
+  "@appearanceColorTuningSummaryTint": {
+    "placeholders": {
+      "value": {"type": "String"}
+    }
+  },
+  "appearanceColorTuningSummaryModeTint": "{mode} Tint {value}",
+  "@appearanceColorTuningSummaryModeTint": {
+    "placeholders": {
+      "mode": {"type": "String"},
+      "value": {"type": "String"}
+    }
+  },
+  "appearanceColorTuningSummaryWhiteControls": "White controls",
   "appearanceLooksLabel": "Looks",
   "appearanceLooksSub": "Save and switch your whole appearance.",
   "appearanceLooksSubEmpty": "Save your whole appearance from the menu, then switch back to it any time.",

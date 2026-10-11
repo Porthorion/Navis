@@ -329,3 +329,78 @@ Owner decisions on the folded UI:
   (`achromaticSeedChroma`, 8).
 - A ruler outlines itself for keyboard focus only; a tap or drag focuses it
   without the outline.
+
+### Solid and tonal accents, Tint and Controls (2026-10-11)
+
+Owner decision: one solid accent for primary Play actions and one tonal
+accent level for secondary filled controls, across every style and mode.
+Light Pastel's tone-89–91 fills on tone-86–95 chrome differed by about 1.03:1
+and read as pale pink beside tone-47 ink. Containers now target tone 82–84
+with chroma 20 in Light Pastel, preserving the accent hue and separating
+them by at least five tones from page/menu/dialog chrome. Other Light
+recipes start at tone 82 to avoid carrying high-tone gamut clipping into
+the deeper fill. Dark/OLED separation is at least four tones. A 0.6-tone
+construction margin covers RGB rounding, and container glyphs retain 4.5:1.
+All Play uses primary/onPrimary under Accent; Light Pastel no longer
+overrides FilledButton with primaryContainer.
+
+The default Pastel fill-tone test cap changes from 87.5–93 to 81.5–85
+because near-white fills caused the reported separation failure. The
+chroma ceiling stays 20.5 and accent/artwork/style-separation caps remain.
+A container post-pass may use a 23.8 chroma target at guarded tones to
+keep decoded chroma below the existing 24.5 test ceiling.
+
+Tint is independent of intensity: multiplying a chroma-6 paper cannot
+reach a lavender page. Light Tint sets a target of chroma 24 and moves
+page tone toward 88 (brightness-adjusted, minimum 84), progressively
+flipping panels toward lighter, softer whites while inactive tracks stay
+below paper. Ink compensates against every surface role. Dark targets
+chroma 22 at existing tones; OLED keeps black and near-achromatic chrome.
+Tint 0 skips the tint conversion entirely. All six steps are tested for
+monotonicity: near-white warm hues may need a little extra tone headroom
+at Tint 1 to avoid losing baseline chroma when the hue changes.
+
+Controls chooses Accent (default) or White without changing plain icon
+ink. White uses a solid white Play with tone-35 accent glyphs, and white
+composited over the page for secondary controls: 50% in Light to retain
+more of the page tint, 80% in Dark/OLED to keep secondary glyph contrast
+above 4.5:1 even on black. Solid Play stays brighter; Light can add a
+25% accent edge. Flutter component themes
+cover shared widgets; tonal FilledButtons and filled IconButtons need
+explicit widget routing because their theme slots also serve other
+constructors. The UI panel and widget-routing pass remain separate.
+
+The unshipped schema 101 folds in guarded surface_tint_light,
+surface_tint_dark (default zero) and control_color (default accent).
+ColorTuning, mode resolution, the existing theme cache, snapshots/Looks,
+targeted DAO writes, onboarding drafts and authenticated appearance
+diagnostics carry the values. There is no new provider, persistence store,
+schema-version increment or changelog entry in this foundation pass.
+
+### Accent routing and the Backgrounds panel (2026-10-11)
+
+Owner decision: accents are consistent. One solid accent marks the main
+action (Play everywhere, plus the FAB), one tonal level marks secondary
+filled controls and indicators, neutral marks off toggles, and primary ink
+marks hearts, active repeat, progress and links. Under White controls the
+solid role is a white fill with a deep accent glyph, the tonal role is the
+white-over-page fill, Light adds the accent hairline, and plain icons stay
+ink.
+
+Widgets take the role from `NavisColorStyleData.playStyleOf` /
+`tonalStyleOf` rather than hand-set `primaryContainer` or
+`secondaryContainer`, because the FilledButton and IconButton themes cannot
+tell solid from tonal constructors. The desktop player bar Play, which was
+tonal, became solid. Instant Radio became a plain tonal button. A toggle's
+off state became an outlined button with no fill: Material's off container
+(`surfaceContainerHighest`) was as visible as the tonal on fill on tinted
+Light pages (contrast against the page 1.18 against 1.17 at Tint 5), and
+white-on Light was fainter than off. Status banners, badges and artwork
+placeholders keep their container fills; they are not controls.
+
+Fine-Tune Colors groups **Backgrounds**: the Light | Dark switch drives
+Brightness and the new Tint ruler (0 "None" to 5 "Full", separate for Light and
+Dark), whose strip is the real page background at each step. OLED keeps
+pure black, so its Tint strip paints the panels and says so. **Controls**
+is an Accent | White segmented switch. The summary lists Tint and White
+controls when not default.

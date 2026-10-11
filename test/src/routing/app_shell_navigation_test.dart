@@ -59,6 +59,8 @@ import '../../helpers/test_theme.dart';
 import 'package:navis/src/features/home/presentation/home_screen.dart';
 import 'package:navis/src/routing/app_routes.dart';
 import 'package:navis/src/features/settings/presentation/settings_screen.dart';
+import 'package:navis/src/theme/color_adjustment.dart';
+import 'package:navis/src/theme/navis_color_style_data.dart';
 
 import '../../helpers/reachability_fakes.dart';
 
@@ -1576,13 +1578,15 @@ void main() {
     await tester.pump(const Duration(milliseconds: 201));
   });
 
-  for (final entry in <(String, String, bool)>[
-    ('pastel', 'light', true),
-    ('pastel', 'dark', false),
-    ('neutral', 'light', false),
+  for (final entry in <(String, String, NavisControlColor)>[
+    ('pastel', 'light', NavisControlColor.accent),
+    ('pastel', 'dark', NavisControlColor.accent),
+    ('neutral', 'light', NavisControlColor.accent),
+    ('pastel', 'light', NavisControlColor.white),
+    ('neutral', 'dark', NavisControlColor.white),
   ]) {
-    testWidgets('phone mini player Play is solid primary only in light Pastel '
-        '(${entry.$1} ${entry.$2})', (tester) async {
+    testWidgets('phone mini player Play is the solid action in every style '
+        '(${entry.$1} ${entry.$2} ${entry.$3.name})', (tester) async {
       tester.view.devicePixelRatio = 1;
       tester.view.physicalSize = const Size(390, 844);
       addTearDown(() {
@@ -1609,6 +1613,7 @@ void main() {
       final settings = const AppSettingsModel.defaults().copyWith(
         themeMode: entry.$2,
         colorStyle: entry.$1,
+        controlColor: entry.$3.name,
       );
       final container = _createContainerWithDatabase(
         overrides: <Override>[
@@ -1631,13 +1636,85 @@ void main() {
       );
       final scheme = Theme.of(tester.element(find.byType(Scaffold).first))
           .colorScheme;
+      final data = NavisColorStyleData.of(
+        tester.element(find.byType(Scaffold).first),
+      );
       expect(
         button.style!.backgroundColor!.resolve(<WidgetState>{}),
-        entry.$3 ? scheme.primary : scheme.primaryContainer,
+        data.playButtonFill(scheme),
+      );
+      expect(
+        button.style!.foregroundColor!.resolve(<WidgetState>{}),
+        data.onPlayButtonFill(scheme),
+      );
+      expect(
+        data.playButtonFill(scheme),
+        entry.$3 == NavisControlColor.white ? Colors.white : scheme.primary,
       );
       expect(
         button.style!.shape!.resolve(<WidgetState>{}),
         isA<CircleBorder>(),
+      );
+    });
+  }
+
+  for (final controls in NavisControlColor.values) {
+    testWidgets('Desktop Play and the selected rail tile follow the accent '
+        'contract (${controls.name} controls)', (tester) async {
+      tester.view.devicePixelRatio = 1;
+      tester.view.physicalSize = const Size(1008, 640);
+      addTearDown(() {
+        tester.view.resetPhysicalSize();
+        tester.view.resetDevicePixelRatio();
+      });
+      final settings = const AppSettingsModel.defaults().copyWith(
+        themeMode: 'light',
+        colorStyle: 'pastel',
+        controlColor: controls.name,
+      );
+      final container = _createContainerWithDatabase(
+        overrides: <Override>[
+          ..._authenticatedShellOverrides(
+            desktopRuntime: true,
+            playback: _activePlayback,
+          ),
+          appSettingsProvider.overrideWithValue(AsyncData(settings)),
+        ],
+      );
+      await tester.pumpWidget(
+        UncontrolledProviderScope(container: container, child: testNavisApp),
+      );
+      await tester.pumpAndSettle();
+
+      final context = tester.element(find.byType(Scaffold).first);
+      final scheme = Theme.of(context).colorScheme;
+      final data = NavisColorStyleData.of(context);
+      expect(data.controls, controls);
+
+      Color? fillOf(Finder finder) => tester
+          .widget<Material>(
+            find.descendant(of: finder, matching: find.byType(Material)).first,
+          )
+          .color;
+      final play = find.byKey(
+        const ValueKey<String>('desktopPlayerPlayPauseButton'),
+      );
+      expect(fillOf(play), data.playButtonFill(scheme));
+      expect(
+        IconTheme.of(
+          tester.element(
+            find.descendant(of: play, matching: find.byType(Icon)).first,
+          ),
+        ).color,
+        data.onPlayButtonFill(scheme),
+      );
+      expect(
+        fillOf(find.byKey(const ValueKey('railNavTile-0'))),
+        data.tonalControlFill(scheme),
+      );
+      expect(
+        controls == NavisControlColor.white,
+        data.tonalControlFill(scheme) != scheme.secondaryContainer,
       );
     });
   }

@@ -7,6 +7,7 @@ import 'package:navis/src/providers/app_providers.dart';
 import 'package:navis/src/routing/content_layout.dart';
 import 'package:navis/src/theme/artwork_shape.dart';
 import 'package:navis/src/theme/motion_policy.dart';
+import 'package:navis/src/theme/navis_color_style_data.dart';
 import 'package:navis/src/theme/navis_tokens.dart';
 
 /// Where an artist or album page stands while the library does not hold
@@ -190,6 +191,7 @@ class DetailLoadFailedView extends StatelessWidget {
           runSpacing: NavisSpace.xs,
           children: <Widget>[
             FilledButton.tonalIcon(
+              style: NavisColorStyleData.tonalStyleOf(context),
               key: retryKey,
               onPressed: onRetry,
               icon: const Icon(Icons.refresh),

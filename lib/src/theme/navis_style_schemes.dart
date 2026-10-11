@@ -23,8 +23,8 @@ const double _errorHue = 22;
 /// Build the [ColorScheme] for [style] from [seed].
 ///
 /// [NavisColorStyle.neutral] reproduces the original Navis schemes, except
-/// that dark and OLED primary, secondary and tertiary containers in the muddy
-/// band are capped at chroma 20.
+/// that warm dark/OLED containers in the muddy band are capped at chroma 20,
+/// and primary/secondary containers are separated from surface chrome.
 /// The other styles use hand-built role tables over HCT so that every role's
 /// tone and chroma is chosen deliberately:
 ///
@@ -44,7 +44,10 @@ ColorScheme buildStyledColorScheme({
   final dark = brightness == Brightness.dark || oled;
   if (style == NavisColorStyle.neutral) {
     return adjustColorScheme(
-      _neutralScheme(seed, dark: dark, oled: oled),
+      _distinctAccentContainers(
+        _neutralScheme(seed, dark: dark, oled: oled),
+        dark: dark,
+      ),
       adjustment,
       dark: dark,
       oled: oled,
@@ -59,7 +62,10 @@ ColorScheme buildStyledColorScheme({
     NavisColorStyle.neutral => throw StateError('handled above'),
   };
   return adjustColorScheme(
-    recipe.build(dark: dark, oled: oled),
+    _distinctAccentContainers(
+      recipe.build(dark: dark, oled: oled),
+      dark: dark,
+    ),
     adjustment,
     dark: dark,
     oled: oled,
@@ -67,15 +73,15 @@ ColorScheme buildStyledColorScheme({
 }
 
 /// Applies user colour and surface tuning without rebuilding the style.
-/// Text and error roles retain their original colours. The identity adjustment
-/// returns the original scheme, including its exact 8-bit channels.
+/// Errors retain their original colours; tinted Light surfaces compensate ink.
+/// The identity adjustment returns the original scheme, including its exact 8-bit channels.
 ColorScheme adjustColorScheme(
   ColorScheme scheme,
   ColorAdjustment adj, {
   required bool dark,
   required bool oled,
 }) {
-  if (adj == ColorAdjustment.none) return scheme;
+  if (adj.vividness == 0 && adj.depth == 0 && adj.tint == 0) return scheme;
   // Roles the muddy-band rule covers: fills and surfaces everywhere, plus
   // primary and secondary in dark modes. Light-mode ink accents are exempt.
   Color adjusted(
@@ -111,7 +117,7 @@ ColorScheme adjustColorScheme(
     return hct(source.hue, chroma, tone);
   }
 
-  return scheme.copyWith(
+  var result = scheme.copyWith(
     primary: adjusted(scheme.primary, guarded: dark),
     secondary: adjusted(scheme.secondary, guarded: dark),
     tertiary: adjusted(scheme.tertiary),
@@ -169,6 +175,206 @@ ColorScheme adjustColorScheme(
     outline: adjusted(scheme.outline),
     outlineVariant: adjusted(scheme.outlineVariant, surface: true),
   );
+  if (adj.tint > 0) result = _tintSurfaces(result, adj, dark: dark, oled: oled);
+  return _distinctAccentContainers(result, dark: dark);
+}
+
+/// Keeps tonal actions separate from chrome, including after surface tuning.
+/// A 0.6-tone margin absorbs RGB quantisation without relaxing the contract.
+ColorScheme _distinctAccentContainers(
+  ColorScheme scheme, {
+  required bool dark,
+}) {
+  final tones = [
+    scheme.surface,
+    scheme.surfaceContainer,
+    scheme.surfaceContainerHigh,
+  ].map((c) => Hct.fromInt(c.toARGB32()).tone);
+  final boundary = dark
+      ? tones.reduce(math.max) + 4.6
+      : tones.reduce(math.min) - 5.6;
+  Color fill(Color color) {
+    final source = Hct.fromInt(color.toARGB32());
+    final tone = dark
+        ? math.max(source.tone, boundary)
+        : math.min(source.tone, boundary);
+    final guarded =
+        dark &&
+        tone >= 24.5 &&
+        tone <= 50.5 &&
+        (isWarmHue(source.hue) || source.chroma <= 24.6);
+    if (tone == source.tone && (!guarded || source.chroma <= 24.2)) {
+      return color;
+    }
+    final chroma = guarded ? math.min(source.chroma, 23.8) : source.chroma;
+    return hct(mudGuardHue(source.hue, tone), chroma, tone);
+  }
+
+  final primary = fill(scheme.primaryContainer);
+  final secondary = fill(scheme.secondaryContainer);
+  return scheme.copyWith(
+    primaryContainer: primary,
+    secondaryContainer: secondary,
+    onPrimaryContainer: _readableInk(
+      scheme.onPrimaryContainer,
+      [primary],
+      4.5,
+      dark: Hct.fromInt(primary.toARGB32()).tone < 50,
+    ),
+    onSecondaryContainer: _readableInk(
+      scheme.onSecondaryContainer,
+      [secondary],
+      4.5,
+      dark: Hct.fromInt(secondary.toARGB32()).tone < 50,
+    ),
+  );
+}
+
+double _contrast(Color a, Color b) {
+  final la = a.computeLuminance();
+  final lb = b.computeLuminance();
+  return (math.max(la, lb) + 0.05) / (math.min(la, lb) + 0.05);
+}
+
+Color _readableInk(
+  Color ink,
+  List<Color> backgrounds,
+  double minimum, {
+  required bool dark,
+}) {
+  if (backgrounds.every((bg) => _contrast(ink, bg) >= minimum)) return ink;
+  final source = Hct.fromInt(ink.toARGB32());
+  var tone = source.tone;
+  var result = ink;
+  while (backgrounds.any((bg) => _contrast(result, bg) < minimum) &&
+      tone > 0 &&
+      tone < 100) {
+    tone = (tone + (dark ? 0.5 : -0.5)).clamp(0.0, 100.0);
+    result = hct(source.hue, source.chroma, tone);
+  }
+  return result;
+}
+
+/// Tint sets a chroma target after intensity/depth, rather than multiplying
+/// almost-grey backgrounds. Light panels gradually become softer than paper.
+ColorScheme _tintSurfaces(
+  ColorScheme scheme,
+  ColorAdjustment adj, {
+  required bool dark,
+  required bool oled,
+}) {
+  final amount = adj.tint / 5;
+  final page = Hct.fromInt(scheme.surface.toARGB32());
+  final accent = Hct.fromInt(scheme.primary.toARGB32());
+  final pageTone = dark
+      ? page.tone
+      : (page.tone * (1 - amount) +
+                (88 + adj.toneShift(dark: false)).clamp(84.0, 92.0) * amount)
+            .clamp(84.0, 99.0);
+  Color surface(
+    Color raw, {
+    double? targetTone,
+    double softness = 1,
+    bool black = false,
+    bool pageRole = false,
+  }) {
+    if (oled && black) return Colors.black;
+    final source = Hct.fromInt(raw.toARGB32());
+    var tone = dark
+        ? source.tone
+        : source.tone * (1 - amount) + targetTone! * amount;
+    // Never reduce chroma when intensity has already reached the tint target.
+    final targetChroma = softness == 1
+        ? math.max(source.chroma, dark ? 22.0 : 24.0)
+        : 24.0 * softness;
+    var chroma = source.chroma * (1 - amount) + targetChroma * amount;
+    if (oled) chroma = math.min(chroma, 1.5);
+    if (dark && tone >= 24.5 && tone <= 50.5) chroma = math.min(chroma, 24);
+    // Keep the style's dusk/warm surface hue in Dark; Light follows the accent.
+    final hue = dark ? source.hue : accent.hue;
+    var color = hct(mudGuardHue(hue, tone), chroma, tone);
+    // At almost-white tones, changing to a warm accent hue can shrink the
+    // gamut even as the chroma target rises. Give the first Tint step enough
+    // tone headroom to retain the decoded page chroma, keeping the 84 floor.
+    if (!dark && pageRole) {
+      while (Hct.fromInt(color.toARGB32()).chroma < source.chroma &&
+          tone > 84) {
+        tone = math.max(84, tone - 0.25);
+        color = hct(hue, chroma, tone);
+      }
+    }
+    return color;
+  }
+
+  final result = scheme.copyWith(
+    surface: surface(
+      scheme.surface,
+      targetTone: (88 + adj.toneShift(dark: false)).clamp(84.0, 92.0),
+      black: true,
+      pageRole: true,
+    ),
+    surfaceDim: surface(
+      scheme.surfaceDim,
+      targetTone: pageTone - 2,
+      black: true,
+    ),
+    surfaceBright: surface(
+      scheme.surfaceBright,
+      targetTone: math.min(99, pageTone + 9),
+      softness: 0.2,
+    ),
+    surfaceContainerLowest: surface(
+      scheme.surfaceContainerLowest,
+      targetTone: math.min(99.5, pageTone + 10),
+      softness: 0.1,
+      black: true,
+    ),
+    surfaceContainerLow: surface(
+      scheme.surfaceContainerLow,
+      targetTone: math.min(99, pageTone + 7),
+      softness: 0.25,
+    ),
+    surfaceContainer: surface(
+      scheme.surfaceContainer,
+      targetTone: math.min(98, pageTone + 5),
+      softness: 0.4,
+    ),
+    surfaceContainerHigh: surface(
+      scheme.surfaceContainerHigh,
+      targetTone: math.min(97, pageTone + 3),
+      softness: 0.5,
+    ),
+    surfaceContainerHighest: surface(
+      scheme.surfaceContainerHighest,
+      targetTone: pageTone - 6,
+      softness: 0.6,
+    ),
+  );
+  if (dark) return result;
+  final backgrounds = [
+    result.surface,
+    result.surfaceDim,
+    result.surfaceBright,
+    result.surfaceContainerLowest,
+    result.surfaceContainerLow,
+    result.surfaceContainer,
+    result.surfaceContainerHigh,
+    result.surfaceContainerHighest,
+  ];
+  final primary = _readableInk(result.primary, backgrounds, 3, dark: false);
+  return result.copyWith(
+    primary: primary,
+    surfaceTint: primary,
+    secondary: _readableInk(result.secondary, backgrounds, 3, dark: false),
+    tertiary: _readableInk(result.tertiary, backgrounds, 3, dark: false),
+    onSurface: _readableInk(result.onSurface, backgrounds, 7, dark: false),
+    onSurfaceVariant: _readableInk(
+      result.onSurfaceVariant,
+      backgrounds,
+      4.5,
+      dark: false,
+    ),
+  );
 }
 
 ColorScheme _neutralScheme(
@@ -202,6 +408,8 @@ ColorScheme _neutralScheme(
   }
   return baseScheme.copyWith(
     surface: Colors.black,
+    surfaceDim: Colors.black,
+    surfaceBright: hct(0, 0, 24),
     onSurface: Colors.white,
     surfaceContainerLowest: Colors.black,
     surfaceContainerLow: _oledContainer,
@@ -356,7 +564,7 @@ class _Recipe {
     this.darkAccentTone = 82,
     this.darkContainerTone = 26,
     this.lightInkTone = 42,
-    this.lightContainerTone = 88,
+    this.lightContainerTone = 82,
   });
 
   final _Hue accent;
@@ -400,14 +608,14 @@ class _Recipe {
   final double darkAccentTone;
 
   /// Tone of primary and tertiary containers on dark schemes; the secondary
-  /// container sits 2 steps lower.
+  /// container uses the same tonal level.
   final double darkContainerTone;
 
   /// Tone of accent ink on light schemes (white text on it keeps 4.5:1).
   final double lightInkTone;
 
   /// Tone of primary and tertiary containers on light schemes; the secondary
-  /// container sits 2 steps higher.
+  /// container uses the same tonal level.
   final double lightContainerTone;
 
   ColorScheme build({required bool dark, required bool oled}) {
@@ -439,7 +647,7 @@ class _Recipe {
       onPrimaryFixedVariant: accent.at(c, 24),
       secondary: accent.at(secondaryChroma, tone - 2),
       onSecondary: accent.at(math.min<double>(secondaryChroma, 14), 16),
-      secondaryContainer: accent.at(c, ct - 2),
+      secondaryContainer: accent.at(c, ct),
       onSecondaryContainer: accent.at(secondaryChroma, 90),
       secondaryFixed: accent.at(secondaryChroma, 90),
       secondaryFixedDim: accent.at(secondaryChroma, 80),
@@ -499,10 +707,7 @@ class _Recipe {
       onPrimaryFixedVariant: accent.at(math.min<double>(ink, 24), 22),
       secondary: accent.at(secondaryChroma + 4, it),
       onSecondary: Colors.white,
-      secondaryContainer: accent.at(
-        math.max<double>(secondaryChroma, c * 0.75),
-        lct + 2,
-      ),
+      secondaryContainer: accent.at(c, lct),
       onSecondaryContainer: accent.at(16, 20),
       secondaryFixed: accent.at(secondaryChroma, 90),
       secondaryFixedDim: accent.at(secondaryChroma, 80),
@@ -557,7 +762,8 @@ class _Recipe {
 /// The seed supplies the hue only. Its chroma never passes through: the
 /// accent chroma is 16 for a muted seed up to 24 for a vivid one, so a neon
 /// cover gives a sugared pink, not a hot one. Dark accents sit at tone 86,
-/// light ink at tone 47 (white text keeps 4.5:1), light fills at tone 89-91.
+/// light ink at tone 47 (white text keeps 4.5:1), light fills near tone 84
+/// with chroma 18–20. The distinctness guard may deepen them against chrome.
 _Recipe _pastelRecipe(Hct source, bool achromatic) {
   final hue = achromatic ? seaGlassHue : source.hue;
   final chroma = achromatic ? 20.0 : 16 + source.chroma.clamp(0.0, 48.0) / 6;
@@ -574,7 +780,7 @@ _Recipe _pastelRecipe(Hct source, bool achromatic) {
     // Warm hues are gamut-limited at this tone; the paper takes what fits.
     lightSurfaceChroma: 6,
     containerChromaDark: 12,
-    containerChromaLight: 15,
+    containerChromaLight: 20,
     // Light accents double as text, so they stay at ink tone.
     lightAccentChroma: chroma,
     lightSurfaceTone: 95,
@@ -585,7 +791,7 @@ _Recipe _pastelRecipe(Hct source, bool achromatic) {
     darkAccentTone: 86,
     darkContainerTone: 30,
     lightInkTone: 47,
-    lightContainerTone: 89,
+    lightContainerTone: 84,
   );
 }
 

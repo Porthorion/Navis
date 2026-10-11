@@ -7,6 +7,7 @@ import 'package:navis/src/routing/desktop_window_controller.dart';
 import 'package:navis/l10n/app_localizations.dart';
 import 'package:navis/src/routing/navigation_service.dart';
 import 'package:navis/src/routing/app_routes.dart';
+import 'package:navis/src/theme/navis_color_style_data.dart';
 
 class DesktopWindowSettingsScreen extends ConsumerWidget {
   const new({super.key});
@@ -64,6 +65,7 @@ class DesktopWindowSettingsScreen extends ConsumerWidget {
                 title: Text(l10n.desktopMiniPlayerTitle),
                 subtitle: Text(l10n.desktopMiniPlayerDescription),
                 trailing: FilledButton.tonal(
+                  style: NavisColorStyleData.tonalStyleOf(context),
                   onPressed:
                       windowController.isApplyingMode ||
                           (windowController.isMiniPlayerMode &&

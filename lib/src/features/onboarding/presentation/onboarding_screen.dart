@@ -23,6 +23,7 @@ import 'package:navis/src/features/settings/presentation/color_tuning_panel.dart
 import 'package:navis/src/features/settings/presentation/external_service_messages.dart';
 import 'package:navis/src/features/settings/presentation/listenbrainz_connection_status.dart';
 import 'package:navis/src/features/settings/domain/app_settings.dart';
+import 'package:navis/src/theme/navis_color_style_data.dart';
 import 'package:navis/src/utils/app_logger.dart';
 import 'package:navis/src/providers/app_providers.dart';
 import 'package:navis/src/theme/color_adjustment.dart';
@@ -677,6 +678,8 @@ class OnboardingScreenState extends ConsumerState<OnboardingScreen> {
         adjustment: ColorAdjustment(
           vividness: draft.colorVividness,
           depth: draft.surfaceDepthLight,
+          tint: draft.surfaceTintLight,
+          controls: NavisControlColor.parse(draft.controlColor),
         ),
         corners: corners,
       );
@@ -690,6 +693,8 @@ class OnboardingScreenState extends ConsumerState<OnboardingScreen> {
             adjustment: ColorAdjustment(
               vividness: draft.colorVividness,
               depth: draft.surfaceDepthDark,
+              tint: draft.surfaceTintDark,
+              controls: NavisControlColor.parse(draft.controlColor),
             ),
             corners: corners,
           )
@@ -701,6 +706,8 @@ class OnboardingScreenState extends ConsumerState<OnboardingScreen> {
             adjustment: ColorAdjustment(
               vividness: draft.colorVividness,
               depth: draft.surfaceDepthDark,
+              tint: draft.surfaceTintDark,
+              controls: NavisControlColor.parse(draft.controlColor),
             ),
             corners: corners,
           );
@@ -914,6 +921,9 @@ class OnboardingScreenState extends ConsumerState<OnboardingScreen> {
           colorVividness: tuning.vividness,
           surfaceDepthLight: tuning.lightDepth,
           surfaceDepthDark: tuning.darkDepth,
+          surfaceTintLight: tuning.lightTint,
+          surfaceTintDark: tuning.darkTint,
+          controlColor: tuning.controls.name,
         ),
       );
     }
@@ -1514,14 +1524,17 @@ class OnboardingScreenState extends ConsumerState<OnboardingScreen> {
           crossAxisAlignment: WrapCrossAlignment.center,
           children: [
             if (!valid)
-              FilledButton.tonal(
-                onPressed: _listenBrainzBusy || blocked
-                    ? null
-                    : _validateListenBrainz,
-                child: Text(
-                  _listenBrainzBusy
-                      ? l10n.onboardingValidating
-                      : l10n.onboardingListenBrainzValidate,
+              Builder(
+                builder: (context) => FilledButton.tonal(
+                  style: NavisColorStyleData.tonalStyleOf(context),
+                  onPressed: _listenBrainzBusy || blocked
+                      ? null
+                      : _validateListenBrainz,
+                  child: Text(
+                    _listenBrainzBusy
+                        ? l10n.onboardingValidating
+                        : l10n.onboardingListenBrainzValidate,
+                  ),
                 ),
               ),
             TextButton.icon(
@@ -1570,12 +1583,15 @@ class OnboardingScreenState extends ConsumerState<OnboardingScreen> {
           runSpacing: NavisSpace.xs,
           crossAxisAlignment: WrapCrossAlignment.center,
           children: [
-            FilledButton.tonal(
-              onPressed: _lastFmBusy || blocked ? null : _validateLastFmKey,
-              child: Text(
-                _lastFmBusy
-                    ? l10n.onboardingValidating
-                    : l10n.onboardingLastFmValidateKey,
+            Builder(
+              builder: (context) => FilledButton.tonal(
+                style: NavisColorStyleData.tonalStyleOf(context),
+                onPressed: _lastFmBusy || blocked ? null : _validateLastFmKey,
+                child: Text(
+                  _lastFmBusy
+                      ? l10n.onboardingValidating
+                      : l10n.onboardingLastFmValidateKey,
+                ),
               ),
             ),
             TextButton.icon(

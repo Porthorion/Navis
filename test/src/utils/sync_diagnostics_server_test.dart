@@ -451,6 +451,9 @@ void main() {
         'colorVividness': 0,
         'surfaceDepthLight': 0,
         'surfaceDepthDark': 0,
+        'surfaceTintLight': 0,
+        'surfaceTintDark': 0,
+        'controlColor': 'accent',
         'selectedAppearanceLookId': null,
         'appearanceLookCount': 0,
         'albumArtShade': false,
@@ -592,6 +595,9 @@ void main() {
       'colorVividness': -5,
       'surfaceDepthLight': 5,
       'surfaceDepthDark': -3,
+      'surfaceTintLight': 5,
+      'surfaceTintDark': 3,
+      'controlColor': 'white',
       'albumArtShade': true,
       'albumArtColoredShade': true,
       'cornerStyle': 'square',
@@ -624,6 +630,9 @@ void main() {
     expect(persisted.flatAreas, 2);
     expect(persisted.colorVividness, -5);
     expect(persisted.surfaceDepthLight, 5);
+    expect(persisted.surfaceTintLight, 5);
+    expect(persisted.surfaceTintDark, 3);
+    expect(persisted.controlColor, 'white');
     expect(persisted.albumArtShade, isTrue);
     expect(persisted.albumArtColoredShade, isTrue);
     final observed = await fixture.get(path);
@@ -655,6 +664,19 @@ void main() {
       {'surfaceDepthDark': null},
       {'surfaceDepthDark': '2'},
       {'surfaceDepth': 2},
+      {'surfaceTintLight': -1},
+      {'surfaceTintLight': 6},
+      {'surfaceTintLight': 1.5},
+      {'surfaceTintLight': null},
+      {'surfaceTintLight': '3'},
+      {'surfaceTintDark': -1},
+      {'surfaceTintDark': 6},
+      {'surfaceTintDark': 1.5},
+      {'surfaceTintDark': null},
+      {'surfaceTintDark': '3'},
+      {'controlColor': 'unknown'},
+      {'controlColor': null},
+      {'controlColor': 1},
       {'flatAreas': -1},
       {'flatAreas': 8},
       {'flatAreas': 1.5},
@@ -720,6 +742,9 @@ void main() {
     expect(partial.body['colorVividness'], 3);
     expect(partial.body['surfaceDepthLight'], 5);
     expect(partial.body['surfaceDepthDark'], -3);
+    expect(partial.body['surfaceTintLight'], 5);
+    expect(partial.body['surfaceTintDark'], 3);
+    expect(partial.body['controlColor'], 'white');
     for (final (shade, colored) in [(false, true), (true, false)]) {
       final toggled = await fixture.post(path, {
         'albumArtShade': shade,

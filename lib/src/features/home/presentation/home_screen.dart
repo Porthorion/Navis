@@ -149,6 +149,7 @@ class _ListenBrainzWeeklyDetailScreenState
         title: l10n.weeklyPlaylistUnavailableTitle,
         subtitle: l10n.weeklyPlaylistUnavailableSubtitle,
         action: FilledButton.tonal(
+          style: NavisColorStyleData.tonalStyleOf(context),
           onPressed: () {
             ref
                 .read(listenBrainzDiscoverRefreshEpochProvider.notifier)
@@ -612,6 +613,7 @@ class _ListenBrainzWeeklyDetailContentState
           label: Text(l10n.albumDetailPlayAction),
         ),
         FilledButton.tonalIcon(
+          style: NavisColorStyleData.tonalStyleOf(context),
           onPressed: playableSongs.isEmpty
               ? null
               : () => _queueSongs(playableSongs, shuffle: true),
@@ -3192,6 +3194,7 @@ class _DesktopRandomAlbumSongList extends ConsumerWidget {
             ),
             const SizedBox(height: 10),
             FilledButton.tonalIcon(
+              style: NavisColorStyleData.tonalStyleOf(context),
               onPressed: () =>
                   NavService.openAlbumDetail(context, ref, album.id),
               icon: const Icon(Icons.album_outlined),
@@ -4614,6 +4617,8 @@ class _HomeActionRow extends ConsumerWidget {
     // Icon button constraints: pin to 40×40 so the extra 48×48 tap-target
     // padding doesn't consume layout space inside the Row.
     const iconConstraints = BoxConstraints.tightFor(width: 40, height: 40);
+    ButtonStyle toggleStyle(bool on) =>
+        NavisColorStyleData.tonalStyleOf(context, selected: on);
 
     if (variant == _HomeActionRowVariant.desktop ||
         variant == _HomeActionRowVariant.compactWide) {
@@ -4685,6 +4690,7 @@ class _HomeActionRow extends ConsumerWidget {
       child: Row(
         children: <Widget>[
           IconButton.filledTonal(
+            style: toggleStyle(likedOnly),
             isSelected: likedOnly,
             constraints: iconConstraints,
             icon: const Icon(Icons.favorite_border_rounded),
@@ -4694,6 +4700,7 @@ class _HomeActionRow extends ConsumerWidget {
           ),
           const SizedBox(width: 4),
           IconButton.filledTonal(
+            style: toggleStyle(downloadedOnly),
             isSelected: downloadedOnly,
             constraints: iconConstraints,
             icon: const Icon(Icons.download_rounded),
@@ -4706,19 +4713,9 @@ class _HomeActionRow extends ConsumerWidget {
               mainAxisAlignment: MainAxisAlignment.end,
               children: <Widget>[
                 Flexible(
-                  child: FilledButton.icon(
-                    style: FilledButton.styleFrom(
-                      backgroundColor: colorScheme.secondaryContainer,
-                      foregroundColor: colorScheme.onSecondaryContainer,
-                      iconColor: colorScheme.onSecondaryContainer,
-                      disabledBackgroundColor: colorScheme.onSurface.withValues(
-                        alpha: 0.12,
-                      ),
-                      disabledForegroundColor: colorScheme.onSurface.withValues(
-                        alpha: 0.38,
-                      ),
-                      iconSize: 18,
-                    ),
+                  child: FilledButton.tonalIcon(
+                    style: NavisColorStyleData.tonalStyleOf(context)
+                        .merge(FilledButton.styleFrom(iconSize: 18)),
                     onPressed:
                         (radioAvailable || radioState.active) &&
                             !radioState.busy

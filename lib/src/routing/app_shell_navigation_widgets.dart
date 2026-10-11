@@ -349,11 +349,11 @@ class _RailNavTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
+    final colorStyle = NavisColorStyleData.of(context);
+    final selectedInk = colorStyle.onTonalControlFill(colorScheme);
     final textStyle = Theme.of(context).textTheme.bodyLarge?.copyWith(
       fontWeight: selected ? FontWeight.w700 : FontWeight.w600,
-      color: selected
-          ? colorScheme.onSecondaryContainer
-          : colorScheme.onSurfaceVariant,
+      color: selected ? selectedInk : colorScheme.onSurfaceVariant,
     );
     final tilePadding = iconsOnly
         ? const EdgeInsets.symmetric(horizontal: 4, vertical: 12)
@@ -363,7 +363,7 @@ class _RailNavTile extends StatelessWidget {
 
     return Material(
       color: selected
-          ? colorScheme.secondaryContainer.withValues(alpha: 0.9)
+          ? colorStyle.tonalControlFill(colorScheme)
           : Colors.transparent,
       borderRadius: NavisShapeData.of(context).lgAll,
       child: InkWell(
@@ -381,9 +381,7 @@ class _RailNavTile extends StatelessWidget {
                 child: Icon(
                   selected ? destination.selectedIcon : destination.icon,
                   size: 24,
-                  color: selected
-                      ? colorScheme.onSecondaryContainer
-                      : colorScheme.onSurfaceVariant,
+                  color: selected ? selectedInk : colorScheme.onSurfaceVariant,
                 ),
               ),
               if (!iconsOnly) ...<Widget>[
@@ -420,16 +418,19 @@ class _RailSubNavTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
+    final colorStyle = NavisColorStyleData.of(context);
     final textStyle = Theme.of(context).textTheme.bodyMedium?.copyWith(
       fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
-      color: selected ? colorScheme.primary : colorScheme.onSurfaceVariant,
+      color: selected
+          ? colorStyle.onTonalControlFill(colorScheme)
+          : colorScheme.onSurfaceVariant,
     );
 
     return Padding(
       padding: const EdgeInsets.only(left: 16, right: 6, bottom: 6),
       child: Material(
         color: selected
-            ? colorScheme.primaryContainer.withValues(alpha: 0.35)
+            ? colorStyle.tonalControlFill(colorScheme)
             : Colors.transparent,
         borderRadius: NavisShapeData.of(context).mdAll,
         child: InkWell(

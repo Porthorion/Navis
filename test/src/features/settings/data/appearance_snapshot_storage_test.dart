@@ -35,6 +35,9 @@ void main() {
       colorVividness: 4,
       surfaceDepthLight: -2,
       surfaceDepthDark: 3,
+      surfaceTintLight: 5,
+      surfaceTintDark: 3,
+      controlColor: 'white',
       flatSurfaces: true,
       flatAreas: FlatAreas.fromBits(2),
       cornerStyle: NavisCornerStyle.square,
@@ -53,7 +56,7 @@ void main() {
     final original = AppearanceSnapshot.capture(await repository.getSettings());
     expect(
       original.toJson().length,
-      24,
+      27,
     ); // Every appearance setting; tuning is Custom.
     await repository.resetDefaults();
     await dao.updateCustomColorPresets(jsonEncode([0xFF123456]));
@@ -108,7 +111,14 @@ void main() {
       final dao = database.appSettingsDao;
       final repository = SettingsRepository(dao);
       await dao.updateColorTuning(
-        const ColorTuning(vividness: 2, lightDepth: 4, darkDepth: -3),
+        const ColorTuning(
+          vividness: 2,
+          lightDepth: 4,
+          darkDepth: -3,
+          lightTint: 3,
+          darkTint: 5,
+          controls: NavisControlColor.white,
+        ),
       );
       final before = await repository.getSettings();
       await dao.applyAppearanceSnapshot(
@@ -116,6 +126,9 @@ void main() {
           'themeMode': 'bad',
           'colorSchemeSeed': 'bad',
           'surfaceDepthLight': -6,
+          'surfaceTintLight': 6,
+          'surfaceTintDark': -1,
+          'controlColor': 'unknown',
           'nightScheduleStartMinutes': 1440,
           'artistViewMode': 'list',
         }),

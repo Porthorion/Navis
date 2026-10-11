@@ -175,23 +175,53 @@ void main() {
     test('lists the steps that are not zero, with a true minus', () {
       expect(
         summary(const ColorTuning(vividness: 2, darkDepth: -1)),
-        'Intensity +2 · Brightness −1',
+        'Intensity +2 · Brightness +1',
       );
       expect(summary(const ColorTuning(vividness: -5)), 'Intensity −5');
-      expect(summary(const ColorTuning(darkDepth: 4)), 'Brightness +4');
+      // Brightness is the opposite of the stored depth: deeper reads −.
+      expect(summary(const ColorTuning(darkDepth: 4)), 'Brightness −4');
     });
 
     test('Brightness is the mode shown', () {
       const tuning = ColorTuning(lightDepth: 3, darkDepth: -2);
-      expect(summary(tuning), 'Brightness −2');
-      expect(summary(tuning, dark: false), 'Brightness +3');
+      expect(summary(tuning), 'Brightness +2');
+      expect(summary(tuning, dark: false), 'Brightness −3');
+    });
+
+    test('adds Tint and White controls after the other steps', () {
+      expect(
+        summary(
+          const ColorTuning(
+            vividness: 2,
+            darkTint: 3,
+            controls: NavisControlColor.white,
+          ),
+        ),
+        'Intensity +2 · Tint 3 · White controls',
+      );
+      expect(
+        summary(const ColorTuning(controls: NavisControlColor.white)),
+        'White controls',
+      );
+      expect(summary(const ColorTuning(darkTint: 5)), 'Tint 5');
+    });
+
+    test('Tint is the mode shown, and names the other mode alone', () {
+      const tuning = ColorTuning(lightTint: 4, darkTint: 1);
+      expect(summary(tuning), 'Tint 1');
+      expect(summary(tuning, dark: false), 'Tint 4');
+      expect(summary(const ColorTuning(lightTint: 2)), 'Light Tint 2');
+      expect(
+        summary(const ColorTuning(darkTint: 2), dark: false),
+        'Dark Tint 2',
+      );
     });
 
     test('names the other mode when only it is adjusted', () {
-      expect(summary(const ColorTuning(lightDepth: 3)), 'Light Brightness +3');
+      expect(summary(const ColorTuning(lightDepth: 3)), 'Light Brightness −3');
       expect(
         summary(const ColorTuning(darkDepth: -1), dark: false),
-        'Dark Brightness −1',
+        'Dark Brightness +1',
       );
     });
   });
@@ -289,8 +319,8 @@ void main() {
       await open(tester);
       live.value = const ColorTuning(darkDepth: 4);
       await tester.pumpAndSettle();
-      expect(tester.widget<Text>(_key('brightness-value')).data, '+4');
-      expect(tester.widget<Text>(_key('summary')).data, 'Brightness +4');
+      expect(tester.widget<Text>(_key('brightness-value')).data, '−4');
+      expect(tester.widget<Text>(_key('summary')).data, 'Brightness −4');
     });
 
     testWidgets('closing mid-drag tells the host to drop its preview', (
@@ -328,21 +358,24 @@ void main() {
       );
       await tester.tap(find.text('Light'));
       await tester.pumpAndSettle();
-      expect(tester.widget<Text>(_key('brightness-value')).data, '−2');
+      expect(tester.widget<Text>(_key('brightness-value')).data, '+2');
+      // Lighter (+) lowers the stored depth.
       await tester.tap(_key('brightness-plus'));
       await tester.pumpAndSettle();
       expect(
         commits.last,
-        const ColorTuning(vividness: 1, lightDepth: -1, darkDepth: 3),
+        const ColorTuning(vividness: 1, lightDepth: -3, darkDepth: 3),
       );
 
       await tester.tap(find.text('Dark'));
       await tester.pumpAndSettle();
+      expect(tester.widget<Text>(_key('brightness-value')).data, '−3');
+      // Deeper (−) raises it.
       await tester.tap(_key('brightness-minus'));
       await tester.pumpAndSettle();
       expect(
         commits.last,
-        const ColorTuning(vividness: 1, lightDepth: -1, darkDepth: 2),
+        const ColorTuning(vividness: 1, lightDepth: -3, darkDepth: 4),
       );
     });
 
@@ -404,6 +437,191 @@ void main() {
       );
       expect(oled.colors[5], scheme(oled: true).surfaceContainerHigh);
       expect(dark.colors[5], scheme(oled: false).surface);
+    });
+  });
+
+  group('Tint', () {
+    testWidgets('starts at None, steps 0…5 and edits only the selected mode', (
+      tester,
+    ) async {
+      await open(tester, tuning: const ColorTuning(lightTint: 4, darkTint: 2));
+      expect(tester.widget<Text>(_key('tint-value')).data, '2');
+      expect(find.text('Full'), findsOneWidget);
+      await tester.tap(_key('tint-plus'));
+      await tester.pumpAndSettle();
+      expect(commits.last, const ColorTuning(lightTint: 4, darkTint: 3));
+
+      await tester.tap(find.text('Light'));
+      await tester.pumpAndSettle();
+      expect(tester.widget<Text>(_key('tint-value')).data, '4');
+      await tester.tap(_key('tint-minus'));
+      await tester.pumpAndSettle();
+      expect(commits.last, const ColorTuning(lightTint: 3, darkTint: 3));
+      expect(
+        tester.widget<Text>(_key('summary')).data,
+        'Tint 3',
+        reason: 'the summary follows the mode on screen (Dark)',
+      );
+    });
+
+    testWidgets('reads None at 0 and has no step below it', (tester) async {
+      await open(tester);
+      expect(tester.widget<Text>(_key('tint-value')).data, 'None');
+      IconButton button(String name) => tester.widget<IconButton>(
+        find.descendant(of: _key(name), matching: find.byType(IconButton)),
+      );
+      expect(button('tint-minus').onPressed, isNull);
+      expect(button('tint-plus').onPressed, isNotNull);
+      live.value = const ColorTuning(darkTint: 5);
+      await tester.pumpAndSettle();
+      expect(button('tint-plus').onPressed, isNull);
+      expect(button('tint-minus').onPressed, isNotNull);
+    });
+
+    testWidgets('drags through whole steps from 0 to 5', (tester) async {
+      await open(tester);
+      final gesture = await tester.startGesture(
+        tester.getCenter(_ruler('tint')),
+      );
+      for (var i = 0; i < 12; i++) {
+        await gesture.moveBy(const Offset(-32, 0));
+        await tester.pump();
+      }
+      await gesture.up();
+      await tester.pumpAndSettle();
+      expect(previews.map((p) => p.darkTint), [1, 2, 3, 4, 5]);
+      expect(commits.single.darkTint, 5);
+      expect(commits.single.lightTint, 0);
+    });
+
+    for (final dark in <bool>[false, true]) {
+      testWidgets('strip is the real page background at each step '
+          '(${dark ? 'Dark' : 'Light'})', (tester) async {
+        await open(
+          tester,
+          dark: dark,
+          tuning: const ColorTuning(vividness: 1, lightDepth: 2, darkDepth: -1),
+        );
+        final strip = band(tester, 'tint');
+        expect(strip.colors, hasLength(6));
+        final depth = dark ? -1 : 2;
+        for (var step = 0; step <= 5; step++) {
+          final scheme = buildStyledColorScheme(
+            seed: _seed,
+            brightness: dark ? Brightness.dark : Brightness.light,
+            oled: false,
+            style: NavisColorStyle.pastel,
+            adjustment: ColorAdjustment(vividness: 1, depth: depth, tint: step),
+          );
+          expect(strip.colors[step], scheme.surface, reason: 'step $step');
+          expect(
+            strip.inks[step],
+            scheme.onSurfaceVariant,
+            reason: 'ink $step',
+          );
+        }
+        expect(strip.colors.first, isNot(strip.colors.last));
+        expect(_key('tint-hint'), findsNothing);
+      });
+    }
+
+    testWidgets('OLED keeps its surface black and says so', (tester) async {
+      await open(
+        tester,
+        tuning: const ColorTuning(darkTint: 2),
+        from: _basis(oled: true),
+      );
+      final strip = band(tester, 'tint');
+      final scheme = buildStyledColorScheme(
+        seed: _seed,
+        brightness: Brightness.dark,
+        oled: true,
+        style: NavisColorStyle.pastel,
+        adjustment: const ColorAdjustment(tint: 5),
+      );
+      expect(strip.colors[5], scheme.surfaceContainerHigh);
+      expect(
+        tester.widget<Text>(_key('tint-hint')).data,
+        'OLED keeps pure black, so Tint only colors the panels.',
+      );
+      // Light is never OLED.
+      await tester.tap(find.text('Light'));
+      await tester.pumpAndSettle();
+      expect(_key('tint-hint'), findsNothing);
+    });
+
+    testWidgets('the Brightness strip follows the Tint', (tester) async {
+      await open(tester);
+      final before = band(tester, 'brightness');
+      await tester.tap(_key('tint-plus'));
+      await tester.pumpAndSettle();
+      expect(band(tester, 'brightness'), isNot(before));
+    });
+  });
+
+  group('Controls', () {
+    testWidgets('Accent | White commits at once and Reset returns to Accent', (
+      tester,
+    ) async {
+      await open(tester);
+      final segments = tester.widget<SegmentedButton<NavisControlColor>>(
+        _key('controls'),
+      );
+      expect(segments.selected, {NavisControlColor.accent});
+      expect(find.text('Accent'), findsOneWidget);
+
+      await tester.tap(find.text('White'));
+      await tester.pumpAndSettle();
+      expect(
+        commits.last,
+        const ColorTuning(controls: NavisControlColor.white),
+      );
+      expect(tester.widget<Text>(_key('summary')).data, 'White controls');
+      expect(
+        tester
+            .widget<SegmentedButton<NavisControlColor>>(_key('controls'))
+            .selected,
+        {NavisControlColor.white},
+      );
+
+      await tester.tap(_key('reset'));
+      await tester.pumpAndSettle();
+      expect(commits.last, ColorTuning.none);
+      expect(
+        tester
+            .widget<SegmentedButton<NavisControlColor>>(_key('controls'))
+            .selected,
+        {NavisControlColor.accent},
+      );
+    });
+
+    testWidgets('keeps Tint and Brightness when Controls changes', (
+      tester,
+    ) async {
+      await open(
+        tester,
+        tuning: const ColorTuning(vividness: 1, lightTint: 2, darkDepth: 3),
+      );
+      await tester.tap(find.text('White'));
+      await tester.pumpAndSettle();
+      expect(
+        commits.last,
+        const ColorTuning(
+          vividness: 1,
+          lightTint: 2,
+          darkDepth: 3,
+          controls: NavisControlColor.white,
+        ),
+      );
+    });
+
+    testWidgets('explains White in a note', (tester) async {
+      await open(tester);
+      expect(
+        tester.widget<Text>(_key('controlsHint')).data,
+        'White fills Play, sliders and selected controls instead of the '
+        'accent color.',
+      );
     });
   });
 
@@ -593,7 +811,7 @@ void main() {
       // The mode shown flips: the summary names the right Brightness.
       basis.value = _basis(seed: orange, dark: false);
       await tester.pumpAndSettle();
-      expect(tester.widget<Text>(_key('summary')).data, 'Dark Brightness +2');
+      expect(tester.widget<Text>(_key('summary')).data, 'Dark Brightness −2');
     });
   });
 

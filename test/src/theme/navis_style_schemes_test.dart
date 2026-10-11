@@ -205,6 +205,178 @@ void main() {
     }
   });
 
+  group('tint matrix', () {
+    for (final style in checked) {
+      for (final mode in _Mode.values) {
+        test(
+          '${style.name} ${mode.name}: tint, brightness and intensity extremes',
+          () {
+            for (final entry in _seeds.entries) {
+              for (final depth in [-5, 0, 5]) {
+                for (final vividness in [-5, 0, 5]) {
+                  ColorScheme at(int tint) => buildStyledColorScheme(
+                    seed: entry.value,
+                    style: style,
+                    brightness: mode == _Mode.light
+                        ? Brightness.light
+                        : Brightness.dark,
+                    oled: mode == _Mode.oled,
+                    adjustment: ColorAdjustment(
+                      vividness: vividness,
+                      depth: depth,
+                      tint: tint,
+                    ),
+                  );
+                  final zero = at(0);
+                  expect(
+                    adjustColorScheme(
+                      zero,
+                      const ColorAdjustment(controls: NavisControlColor.white),
+                      dark: mode != _Mode.light,
+                      oled: mode == _Mode.oled,
+                    ),
+                    same(zero),
+                  );
+                  var previous = _hct(zero.surface).chroma;
+                  // Include every intermediate step to check monotonicity, beyond
+                  // the required 0/3/5 extreme matrix.
+                  for (final tint in [0, 1, 2, 3, 4, 5]) {
+                    final scheme = at(tint);
+                    final label =
+                        '${entry.key} v=$vividness d=$depth tint=$tint';
+                    for (final pair in _readablePairs(scheme).entries) {
+                      expect(
+                        _contrast(pair.value.$1, pair.value.$2),
+                        greaterThanOrEqualTo(pair.value.$3),
+                        reason: '$label ${pair.key}',
+                      );
+                    }
+                    final surfaces = [
+                      scheme.surface,
+                      scheme.surfaceDim,
+                      scheme.surfaceBright,
+                      scheme.surfaceContainerLowest,
+                      scheme.surfaceContainerLow,
+                      scheme.surfaceContainer,
+                      scheme.surfaceContainerHigh,
+                      scheme.surfaceContainerHighest,
+                    ];
+                    for (final fill in [
+                      scheme.primaryContainer,
+                      scheme.secondaryContainer,
+                    ]) {
+                      for (final chrome in [
+                        scheme.surface,
+                        scheme.surfaceContainer,
+                        scheme.surfaceContainerHigh,
+                      ]) {
+                        expect(
+                          (_hct(fill).tone - _hct(chrome).tone).abs(),
+                          greaterThanOrEqualTo(mode == _Mode.light ? 5 : 4),
+                          reason: label,
+                        );
+                      }
+                    }
+                    if (mode == _Mode.light) {
+                      if (tint > 0) {
+                        for (final bg in surfaces) {
+                          expect(
+                            _contrast(scheme.primary, bg),
+                            greaterThanOrEqualTo(3),
+                            reason: label,
+                          );
+                          expect(
+                            _contrast(scheme.onSurfaceVariant, bg),
+                            greaterThanOrEqualTo(4.5),
+                            reason: label,
+                          );
+                          expect(
+                            _contrast(scheme.onSurface, bg),
+                            greaterThanOrEqualTo(7),
+                            reason: label,
+                          );
+                        }
+                      }
+                      final chroma = _hct(scheme.surface).chroma;
+                      expect(
+                        chroma,
+                        greaterThanOrEqualTo(previous - 0.6),
+                        reason: label,
+                      );
+                      previous = chroma;
+                      if (tint == 5 && _hct(entry.value).chroma >= 8) {
+                        expect(
+                          chroma,
+                          greaterThan(_hct(zero.surface).chroma),
+                          reason: label,
+                        );
+                      }
+                    }
+                    if (mode == _Mode.oled) {
+                      expect(scheme.surface, Colors.black);
+                      expect(scheme.surfaceDim, Colors.black);
+                      expect(scheme.surfaceContainerLowest, Colors.black);
+                      for (final bg in surfaces) {
+                        expect(
+                          _hct(bg).chroma,
+                          lessThanOrEqualTo(3),
+                          reason: label,
+                        );
+                      }
+                    }
+                    for (final color in [
+                      scheme.primaryContainer,
+                      scheme.secondaryContainer,
+                      scheme.tertiaryContainer,
+                      ...surfaces,
+                      if (mode != _Mode.light) scheme.primary,
+                      if (mode != _Mode.light) scheme.secondary,
+                    ]) {
+                      final value = _hct(color);
+                      if (style == NavisColorStyle.neutral &&
+                          !isWarmHue(value.hue)) {
+                        continue;
+                      }
+                      if (value.tone >= 25 && value.tone <= 50) {
+                        expect(
+                          value.chroma,
+                          lessThanOrEqualTo(24.5),
+                          reason: '$label $value',
+                        );
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+        );
+      }
+    }
+    test('purple paper reaches lavender with softer light panels', () {
+      final scheme = buildStyledColorScheme(
+        seed: const Color(0xFF9C27B0),
+        brightness: Brightness.light,
+        style: NavisColorStyle.pastel,
+        adjustment: const ColorAdjustment(tint: 5),
+      );
+      expect(_hct(scheme.surface).tone, closeTo(88, 0.5));
+      expect(_hct(scheme.surface).chroma, closeTo(24, 0.6));
+      for (final panel in [
+        scheme.surfaceContainerLow,
+        scheme.surfaceContainer,
+        scheme.surfaceContainerHigh,
+      ]) {
+        expect(_hct(panel).tone, greaterThan(_hct(scheme.surface).tone));
+        expect(_hct(panel).chroma, lessThan(_hct(scheme.surface).chroma));
+      }
+      expect(
+        _hct(scheme.surfaceContainerHighest).tone,
+        lessThan(_hct(scheme.surface).tone),
+      );
+    });
+  });
+
   group('styled schemes', () {
     for (final style in checked) {
       for (final mode in _Mode.values) {
@@ -409,7 +581,9 @@ void main() {
             lessThan(maxChroma(night) * 0.85),
             reason: 'pastel ${maxChroma(pastel)} night ${maxChroma(night)}',
           );
-          // Containers are softer too, not only the accents.
+          // Default tonal fills retain Pastel softness after tone separation.
+          // The Light tone window below is 82–84 rather than the former
+          // 89–91: near-white fills disappeared against raised chrome.
           for (final pair in <(Color, Color)>[
             (pastel.primaryContainer, immersive.primaryContainer),
             (pastel.secondaryContainer, immersive.secondaryContainer),
@@ -443,7 +617,7 @@ void main() {
               pastel.secondaryContainer,
               pastel.tertiaryContainer,
             ]) {
-              expect(_hct(fill).tone, inInclusiveRange(87.5, 93));
+              expect(_hct(fill).tone, inInclusiveRange(81.5, 85));
             }
           } else {
             expect(_hct(pastel.primary).tone, greaterThanOrEqualTo(83.5));
@@ -523,12 +697,16 @@ void main() {
         brightness: Brightness.dark,
         dynamicSchemeVariant: DynamicSchemeVariant.fidelity,
       );
+      final light = buildLightTheme(seed).colorScheme;
       expect(
-        buildLightTheme(seed).colorScheme,
+        light,
         ColorScheme.fromSeed(
           seedColor: seed,
           brightness: Brightness.light,
           dynamicSchemeVariant: DynamicSchemeVariant.tonalSpot,
+        ).copyWith(
+          primaryContainer: light.primaryContainer,
+          secondaryContainer: light.secondaryContainer,
         ),
       );
       expect(buildDarkTheme(Colors.white).colorScheme, fidelity(Colors.white));
@@ -591,15 +769,17 @@ void main() {
     expect(theme.extension<NavisTokens>()!.success, data.success);
   });
 
-  test('light pastel fills buttons with the pastel container', () {
+  test('light pastel leaves filled buttons on solid primary defaults', () {
     final theme = buildLightTheme(
       const Color(0xFF2196F3),
       style: NavisColorStyle.pastel,
     );
-    final background = theme.filledButtonTheme.style!.backgroundColor!.resolve(
+    final background = theme.filledButtonTheme.style!.backgroundColor?.resolve(
       <WidgetState>{},
     );
-    expect(background, theme.colorScheme.primaryContainer);
+    expect(background, isNull);
+    final data = theme.extension<NavisColorStyleData>()!;
+    expect(data.playButtonFill(theme.colorScheme), theme.colorScheme.primary);
   });
 
   test('styled OLED cards and sheets carry the style hue', () {

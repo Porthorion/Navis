@@ -121,6 +121,14 @@ class AppSettingsTable extends Table {
   IntColumn get colorVividness => integer().withDefault(const Constant(0))();
   IntColumn get surfaceDepthLight => integer().withDefault(const Constant(0))();
   IntColumn get surfaceDepthDark => integer().withDefault(const Constant(0))();
+
+  /// Independent background tint steps for Light and Dark/OLED.
+  IntColumn get surfaceTintLight => integer().withDefault(const Constant(0))();
+  IntColumn get surfaceTintDark => integer().withDefault(const Constant(0))();
+
+  /// Filled controls use the accent or white with accent glyphs.
+  TextColumn get controlColor => text().withDefault(const Constant('accent'))();
+
   TextColumn get appearanceLooks => text().withDefault(const Constant('[]'))();
   TextColumn get selectedAppearanceLookId => text().nullable()();
 

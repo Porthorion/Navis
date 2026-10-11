@@ -764,7 +764,7 @@ class _DesktopPlayerBarState extends ConsumerState<_DesktopPlayerBar> {
                                             Icons.skip_previous_rounded,
                                           ),
                                         ),
-                                      IconButton.filledTonal(
+                                      IconButton.filled(
                                         key: const ValueKey<String>(
                                           'desktopPlayerPlayPauseButton',
                                         ),
@@ -774,18 +774,24 @@ class _DesktopPlayerBarState extends ConsumerState<_DesktopPlayerBar> {
                                                   ? l10n.miniPlayerPause
                                                   : l10n.miniPlayerPlay)
                                             : l10n.desktopPlaybackUnavailableTooltip,
-                                        style: IconButton.styleFrom(
-                                          minimumSize: Size.square(
-                                            primaryControlExtent,
-                                          ),
-                                          maximumSize: Size.square(
-                                            primaryControlExtent,
-                                          ),
-                                          shape: const CircleBorder(),
-                                          padding: EdgeInsets.zero,
-                                          tapTargetSize:
-                                              MaterialTapTargetSize.shrinkWrap,
-                                        ),
+                                        style:
+                                            NavisColorStyleData.playStyleOf(
+                                              context,
+                                            ).merge(
+                                              IconButton.styleFrom(
+                                                minimumSize: Size.square(
+                                                  primaryControlExtent,
+                                                ),
+                                                maximumSize: Size.square(
+                                                  primaryControlExtent,
+                                                ),
+                                                shape: const CircleBorder(),
+                                                padding: EdgeInsets.zero,
+                                                tapTargetSize:
+                                                    MaterialTapTargetSize
+                                                        .shrinkWrap,
+                                              ),
+                                            ),
                                         onPressed:
                                             hasPlayback || hasResumableQueue
                                             ? () => unawaited(
@@ -800,9 +806,12 @@ class _DesktopPlayerBarState extends ConsumerState<_DesktopPlayerBar> {
                                               widget.isExternalSource,
                                           playback: playback,
                                           isPlaying: isPlaying,
-                                          loadingColor: Theme.of(context)
-                                              .colorScheme
-                                              .onSecondaryContainer,
+                                          loadingColor:
+                                              NavisColorStyleData.of(context)
+                                                  .onPlayButtonFill(
+                                                    Theme.of(context)
+                                                        .colorScheme,
+                                                  ),
                                           size: primaryIconSize,
                                         ),
                                       ),

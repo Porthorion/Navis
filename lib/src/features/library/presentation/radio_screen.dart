@@ -14,6 +14,7 @@ import 'package:navis/src/common_widgets/shimmer_placeholder.dart';
 import 'package:navis/src/common_widgets/error_state.dart';
 import 'package:navis/src/providers/app_providers.dart';
 import 'package:navis/src/features/player/presentation/queue_provider.dart';
+import 'package:navis/src/theme/navis_color_style_data.dart';
 
 /// The Library Radio section.
 class RadioTabContent extends ConsumerWidget {
@@ -81,6 +82,7 @@ class RadioTabContent extends ConsumerWidget {
                       : Icons.radio_outlined,
                   action: isFilteredEmpty && onClearTypeFilter != null
                       ? FilledButton.tonalIcon(
+                          style: NavisColorStyleData.tonalStyleOf(context),
                           key: const ValueKey<String>(
                             'radioClearTypeFilterAction',
                           ),

@@ -426,6 +426,7 @@ class _RailMiniPlayerState extends ConsumerState<_RailMiniPlayer> {
                                     style: IconButton.styleFrom(
                                       backgroundColor: playFill,
                                       foregroundColor: onPlayFill,
+                                      side: colorStyle.controlEdgeSide,
                                       shape: const CircleBorder(),
                                       padding: EdgeInsets.zero,
                                       minimumSize: const Size(46, 46),
@@ -441,7 +442,7 @@ class _RailMiniPlayerState extends ConsumerState<_RailMiniPlayer> {
                                       isExternalSource: widget.isExternalSource,
                                       playback: playback,
                                       isPlaying: isPlaying,
-                                      loadingColor: cs.onPrimaryContainer,
+                                      loadingColor: onPlayFill,
                                     ),
                                   ),
                                   IconButton(
@@ -821,6 +822,7 @@ class _MiniPlayerStripState extends ConsumerState<_MiniPlayerStrip> {
                           style: IconButton.styleFrom(
                             backgroundColor: playFill,
                             foregroundColor: onPlayFill,
+                            side: colorStyle.controlEdgeSide,
                             shape: const CircleBorder(),
                             minimumSize: const Size(52, 52),
                             padding: const EdgeInsets.all(8),
@@ -831,7 +833,7 @@ class _MiniPlayerStripState extends ConsumerState<_MiniPlayerStrip> {
                             isExternalSource: widget.isExternalSource,
                             playback: playback,
                             isPlaying: isPlaying,
-                            loadingColor: cs.onPrimaryContainer,
+                            loadingColor: onPlayFill,
                             size: 28,
                           ),
                         ),
@@ -918,6 +920,7 @@ class _MiniPlayerStripState extends ConsumerState<_MiniPlayerStrip> {
                               style: IconButton.styleFrom(
                                 backgroundColor: playFill,
                                 foregroundColor: onPlayFill,
+                                side: colorStyle.controlEdgeSide,
                                 shape: const CircleBorder(),
                                 minimumSize: Size(
                                   compactControls ? 40 : 46,
@@ -931,7 +934,7 @@ class _MiniPlayerStripState extends ConsumerState<_MiniPlayerStrip> {
                                 isExternalSource: widget.isExternalSource,
                                 playback: playback,
                                 isPlaying: isPlaying,
-                                loadingColor: cs.onPrimaryContainer,
+                                loadingColor: onPlayFill,
                                 size: 22,
                               ),
                             ),

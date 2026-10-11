@@ -19,6 +19,7 @@ import 'package:navis/src/providers/app_providers.dart';
 import 'package:navis/src/routing/app_routes.dart';
 import 'package:navis/src/theme/color_adjustment.dart';
 import 'package:navis/src/theme/navis_color_style.dart';
+import 'package:navis/src/theme/navis_color_style_data.dart';
 import 'package:navis/src/theme/navis_corner_style.dart';
 import 'package:navis/src/theme/navis_shape_data.dart';
 import 'package:navis/src/theme/navis_theme.dart';
@@ -393,7 +394,7 @@ void main() {
             d.updateColorTuning(const ColorTuning(vividness: 2, darkDepth: -1)),
       );
       expect(row, findsOneWidget);
-      expect(summaryText(tester), 'Intensity +2 · Brightness −1');
+      expect(summaryText(tester), 'Intensity +2 · Brightness +1');
       expect(control('color-ruler'), findsNothing);
     });
 
@@ -429,7 +430,8 @@ void main() {
         h.previewTheme.colorScheme.surface,
         buildDarkTheme(
           resolveColorSchemeSeedColor(null),
-          adjustment: const ColorAdjustment(vividness: 2, depth: 1),
+          // Lighter (+) drafts a negative depth.
+          adjustment: const ColorAdjustment(vividness: 2, depth: -1),
         ).colorScheme.surface,
       );
       expect(find.text('+2'), findsWidgets);
@@ -442,7 +444,7 @@ void main() {
       await h.finish();
       row = await h.row();
       expect(row.colorVividness, 2);
-      expect(row.surfaceDepthDark, 1);
+      expect(row.surfaceDepthDark, -1);
     });
 
     for (final mode in ['light', 'dark', 'oled']) {
@@ -461,7 +463,7 @@ void main() {
         final beforeFinish = await h.row();
         expect(beforeFinish.surfaceDepthLight, -2);
         expect(beforeFinish.surfaceDepthDark, 3);
-        final adjustment = ColorAdjustment(depth: mode == 'light' ? -1 : 4);
+        final adjustment = ColorAdjustment(depth: mode == 'light' ? -3 : 2);
         final seed = resolveColorSchemeSeedColor(null);
         final expected = switch (mode) {
           'light' => buildLightTheme(seed, adjustment: adjustment),
@@ -472,8 +474,8 @@ void main() {
         await closePanel(h);
         await h.finish();
         final saved = await h.row();
-        expect(saved.surfaceDepthLight, mode == 'light' ? -1 : -2);
-        expect(saved.surfaceDepthDark, mode == 'light' ? 3 : 4);
+        expect(saved.surfaceDepthLight, mode == 'light' ? -3 : -2);
+        expect(saved.surfaceDepthDark, mode == 'light' ? 3 : 2);
       });
     }
 
@@ -497,8 +499,45 @@ void main() {
       await closePanel(h);
       await h.finish();
       final saved = await h.row();
-      expect(saved.surfaceDepthLight, 2);
+      expect(saved.surfaceDepthLight, -2);
       expect(saved.surfaceDepthDark, 3);
+    });
+
+    testWidgets('drafts Tint for its own mode and Controls, saved on Finish', (
+      tester,
+    ) async {
+      final h = await _pump(tester);
+      await openPanel(h);
+      await h.tap(plus('tint'));
+      await h.tap(plus('tint'));
+      await h.tap(
+        find.descendant(of: control('controls'), matching: find.text('White')),
+      );
+
+      final seed = resolveColorSchemeSeedColor(null);
+      final expected = buildDarkTheme(
+        seed,
+        adjustment: const ColorAdjustment(
+          tint: 2,
+          controls: NavisControlColor.white,
+        ),
+      );
+      expect(h.previewTheme.colorScheme, expected.colorScheme);
+      expect(
+        h.previewTheme.extension<NavisColorStyleData>()!.controls,
+        NavisControlColor.white,
+      );
+      var row = await h.row();
+      expect(row.surfaceTintDark, 0, reason: 'nothing is saved before Finish');
+      expect(row.controlColor, 'accent');
+
+      await closePanel(h);
+      expect(summaryText(tester), 'Tint 2 · White controls');
+      await h.finish();
+      row = await h.row();
+      expect(row.surfaceTintDark, 2);
+      expect(row.surfaceTintLight, 0);
+      expect(row.controlColor, 'white');
     });
 
     testWidgets('Reset returns every value to Default', (tester) async {

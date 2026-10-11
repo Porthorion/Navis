@@ -28,6 +28,47 @@ void main() {
     expect(ColorTuning.none.forMode(dark: true), ColorAdjustment.none);
   });
 
+  test('Tint and Controls clamp, resolve, copy and decode leniently', () {
+    const tuning = ColorTuning(
+      lightTint: 99,
+      darkTint: -3,
+      controls: NavisControlColor.white,
+    );
+    expect(tuning.lightTint, 5);
+    expect(tuning.darkTint, 0);
+    expect(const ColorAdjustment(tint: 99).tint, 5);
+    for (final tint in [-3, -1, 0]) {
+      expect(ColorAdjustment(tint: tint).tint, 0);
+    }
+    expect(tuning.forMode(dark: false).tint, 5);
+    expect(tuning.forMode(dark: true).controls, NavisControlColor.white);
+    expect(tuning.copyWith(darkTint: 3).lightTint, 5);
+    expect(tuning.copyWith(darkTint: 3).controls, NavisControlColor.white);
+    final settings = const AppSettingsModel.defaults().copyWith(
+      surfaceTintLight: 5,
+      surfaceTintDark: 3,
+      controlColor: 'white',
+    );
+    final captured = AppearanceSnapshot.capture(settings);
+    expect(AppearanceSnapshot.fromJson(captured.toJson()), captured);
+    expect(settings.colorTuning, tuning.copyWith(darkTint: 3));
+    for (final value in [null, -1, 6, 1.5, '3']) {
+      expect(
+        AppearanceSnapshot.fromJson({
+          'surfaceTintLight': value,
+          'surfaceTintDark': value,
+        }).toJson(),
+        isEmpty,
+      );
+    }
+    for (final value in [null, 'unknown', 1, true]) {
+      expect(
+        AppearanceSnapshot.fromJson({'controlColor': value}).toJson(),
+        isEmpty,
+      );
+    }
+  });
+
   test('accent swatches share lenient ARGB decoding with Look snapshots', () {
     expect(decodeAccentSeeds('[0,4294967295]'), [0, 0xFFFFFFFF]);
     for (final raw in [
