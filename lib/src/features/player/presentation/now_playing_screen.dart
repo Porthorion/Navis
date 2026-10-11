@@ -9,6 +9,7 @@ import 'package:navis/src/features/equalizer/presentation/eq_entry.dart';
 import 'package:navis/src/features/equalizer/presentation/eq_quick_panel.dart';
 import 'package:navis/src/features/player/presentation/now_playing_artwork_scope.dart';
 import 'package:navis/src/features/player/presentation/now_playing_backdrop.dart';
+import 'package:navis/src/features/player/presentation/now_playing_phone_layout.dart';
 
 import 'dart:async';
 import 'dart:math' as math;
@@ -69,6 +70,7 @@ part 'now_playing_metadata_panel.dart';
 part 'now_playing_transport_controls.dart';
 part 'now_playing_lyrics.dart';
 part 'now_playing_actions.dart';
+part 'now_playing_phone_body.dart';
 part 'now_playing_wide_panels.dart';
 part 'now_playing_settings_items.dart';
 
@@ -1692,50 +1694,54 @@ class _NowPlayingBodyState extends ConsumerState<_NowPlayingBody>
                   isExternalSource: song?.isExternal ?? false,
                 ));
 
-    Widget buildTrackInfo({required Key key, required bool compact}) =>
-        _TrackInfo(
-          key: key,
-          title: title,
-          artist: artist,
-          album: album,
-          compact: compact,
-          isExternalSource: !isRadio && (song?.isExternal ?? false),
-          onTitleTap: isRadio
-              ? (radioMeta?.nowPlayingTitle != null &&
-                        radioMeta!.nowPlayingTitle!.isNotEmpty
-                    ? () {
-                        NavService.openSearch(
-                          context,
-                          ref,
-                          radioMeta.nowPlayingTitle!,
-                          filter: SearchResultType.songs,
-                        );
-                      }
-                    : null)
-              : normalTitleTap,
-          artistLinks: isRadio
-              ? (radioMeta?.nowPlayingArtist != null &&
-                        radioMeta!.nowPlayingArtist!.isNotEmpty
-                    ? splitArtistNames(radioMeta.nowPlayingArtist!)
-                          .map(
-                            (name) => (
-                              name: name,
-                              onTap: () {
-                                NavService.openSearch(
-                                  context,
-                                  ref,
-                                  name,
-                                  filter: SearchResultType.artists,
-                                );
-                              },
-                            ),
-                          )
-                          .toList()
-                    : null)
-              : null,
-          onArtistTap: isRadio ? null : normalArtistTap,
-          onAlbumTap: isRadio ? null : normalAlbumTap,
-        );
+    Widget buildTrackInfo({
+      required Key key,
+      required bool compact,
+      NowPlayingPhoneLayout? phone,
+    }) => _TrackInfo(
+      key: key,
+      title: title,
+      artist: artist,
+      album: album,
+      compact: compact,
+      phone: phone,
+      isExternalSource: !isRadio && (song?.isExternal ?? false),
+      onTitleTap: isRadio
+          ? (radioMeta?.nowPlayingTitle != null &&
+                    radioMeta!.nowPlayingTitle!.isNotEmpty
+                ? () {
+                    NavService.openSearch(
+                      context,
+                      ref,
+                      radioMeta.nowPlayingTitle!,
+                      filter: SearchResultType.songs,
+                    );
+                  }
+                : null)
+          : normalTitleTap,
+      artistLinks: isRadio
+          ? (radioMeta?.nowPlayingArtist != null &&
+                    radioMeta!.nowPlayingArtist!.isNotEmpty
+                ? splitArtistNames(radioMeta.nowPlayingArtist!)
+                      .map(
+                        (name) => (
+                          name: name,
+                          onTap: () {
+                            NavService.openSearch(
+                              context,
+                              ref,
+                              name,
+                              filter: SearchResultType.artists,
+                            );
+                          },
+                        ),
+                      )
+                      .toList()
+                : null)
+          : null,
+      onArtistTap: isRadio ? null : normalArtistTap,
+      onAlbumTap: isRadio ? null : normalAlbumTap,
+    );
 
     VoidCallback? settingsSheetAction({required bool splitPanelOverlay}) =>
         splitPanelOverlay
@@ -2151,7 +2157,22 @@ class _NowPlayingBodyState extends ConsumerState<_NowPlayingBody>
             : tightHeight
             ? 4.0
             : 8.0;
+        // Portrait phones size the cover, text and gaps from the body height
+        // (see NowPlayingPhoneLayout); standard, split and embedded layouts
+        // keep their own geometry.
+        final phoneLayout =
+            layoutMode == _NowPlayingLayoutMode.compact &&
+                !widget.wideEmbeddedMode
+            ? NowPlayingPhoneLayout.compute(
+                width: constraints.maxWidth,
+                height: constraints.maxHeight,
+                textScaler: MediaQuery.textScalerOf(context),
+                isRadio: isRadio,
+                isExternalSource: !isRadio && (song?.isExternal ?? false),
+              )
+            : null;
         final artMaxSize =
+            phoneLayout?.artSize ??
             splitMetrics?.artSize ??
             (layoutMode == _NowPlayingLayoutMode.standard
                 ? math.min(
@@ -2208,7 +2229,14 @@ class _NowPlayingBodyState extends ConsumerState<_NowPlayingBody>
           child: _buildInteractiveSwipeableArt(
             key: ValueKey<String>('cover-$artVisualKey'),
             swipeEnabled: !isRadio,
-            currentArt: buildCurrentArt(artMaxSize),
+            // The phone layout draws every cover, placeholder and radio art
+            // as an exact square of the computed size.
+            currentArt: phoneLayout == null
+                ? buildCurrentArt(artMaxSize)
+                : SizedBox.square(
+                    dimension: artMaxSize,
+                    child: buildCurrentArt(artMaxSize),
+                  ),
           ),
         );
 
@@ -2238,6 +2266,31 @@ class _NowPlayingBodyState extends ConsumerState<_NowPlayingBody>
                       ),
               );
 
+        final infoPanel = isRadio
+            ? null
+            : _NowPlayingInfoPanel(
+                key: ValueKey<String>('info-panel-$nowPlayingVisualKey'),
+                song: song,
+                album: albumDetails,
+                playback: playback,
+                currentMediaItem: currentMediaItem,
+                playbackSpeed: playbackSpeed,
+              );
+        final seekBar = isRadio ? null : _SeekBar(playback: playback);
+
+        final trackInfoSwitcher = AnimatedSwitcher(
+          key: const ValueKey<String>('nowPlayingTrackInfoSwitcher'),
+          duration: trackInfoSwapDuration,
+          switchInCurve: Curves.easeOut,
+          switchOutCurve: Curves.easeIn,
+          transitionBuilder: songSwapTransitionBuilder,
+          child: buildTrackInfo(
+            key: ValueKey<String>('track-info-$nowPlayingVisualKey'),
+            compact: compactSpacing,
+            phone: phoneLayout,
+          ),
+        );
+
         final metadataTopChildren = <Widget>[
           if (widget.wideEmbeddedMode)
             Padding(
@@ -2250,50 +2303,31 @@ class _NowPlayingBodyState extends ConsumerState<_NowPlayingBody>
                 ),
               ),
             ),
-          AnimatedSwitcher(
-            key: const ValueKey<String>('nowPlayingTrackInfoSwitcher'),
-            duration: trackInfoSwapDuration,
-            switchInCurve: Curves.easeOut,
-            switchOutCurve: Curves.easeIn,
-            transitionBuilder: songSwapTransitionBuilder,
-            child: buildTrackInfo(
-              key: ValueKey<String>('track-info-$nowPlayingVisualKey'),
-              compact: compactSpacing,
-            ),
-          ),
-          if (!isRadio) ...[
+          trackInfoSwitcher,
+          if (infoPanel != null) ...[
             SizedBox(height: isSplitNowPlaying ? (compactHeight ? 8 : 10) : 12),
-            _NowPlayingInfoPanel(
-              key: ValueKey<String>('info-panel-$nowPlayingVisualKey'),
-              song: song,
-              album: albumDetails,
-              playback: playback,
-              currentMediaItem: currentMediaItem,
-              playbackSpeed: playbackSpeed,
-            ),
+            infoPanel,
           ],
           SizedBox(height: isSplitNowPlaying ? (compactHeight ? 6 : 10) : 16),
-          if (!isRadio) ...[
-            _SeekBar(playback: playback),
+          if (seekBar != null) ...[
+            seekBar,
             SizedBox(height: compactSpacing ? 6 : 8),
           ],
         ];
 
-        final metadataBottom = Column(
-          mainAxisSize: MainAxisSize.min,
-          children: <Widget>[
-            _TransportControls(
-              playback: playback,
-              isExternalSource: !isRadio && (song?.isExternal ?? false),
-              isRadio: isRadio,
-              compact: compactTransport,
-              showVolumeControl: showDesktopTransportVolume,
-              onSkipPrevious: _handleManualPreviousButton,
-              onSkipNext: _handleManualNextButton,
-            ),
-            SizedBox(height: compactSpacing ? 4 : 8),
-            if (!isRadio)
-              _ActionRow(
+        final transportControls = _TransportControls(
+          playback: playback,
+          isExternalSource: !isRadio && (song?.isExternal ?? false),
+          isRadio: isRadio,
+          compact: compactTransport,
+          large: phoneLayout?.largeTransport ?? false,
+          showVolumeControl: showDesktopTransportVolume,
+          onSkipPrevious: _handleManualPreviousButton,
+          onSkipNext: _handleManualNextButton,
+        );
+        final actionRow = isRadio
+            ? null
+            : _ActionRow(
                 song: song,
                 songId: playback.currentSongId,
                 isLiked: playback.isCurrentSongLiked,
@@ -2335,7 +2369,14 @@ class _NowPlayingBodyState extends ConsumerState<_NowPlayingBody>
                 onOpenSettingsPanel: supportsSplitPanelOverlay
                     ? openWidePanelAction(_WideNowPlayingPanel.settings)
                     : null,
-              ),
+              );
+
+        final metadataBottom = Column(
+          mainAxisSize: MainAxisSize.min,
+          children: <Widget>[
+            transportControls,
+            SizedBox(height: compactSpacing ? 4 : 8),
+            ?actionRow,
             if (widget.showEmbeddedVolumeBelowActions) ...<Widget>[
               SizedBox(height: compactSpacing ? 2 : 6),
               const _NowPlayingEmbeddedVolumeControl(),
@@ -2387,6 +2428,21 @@ class _NowPlayingBodyState extends ConsumerState<_NowPlayingBody>
               SizedBox(height: compactSpacing ? 10 : 14),
               metadataBottom,
             ],
+          );
+        }
+
+        if (phoneLayout != null) {
+          return _PhoneNowPlayingColumn(
+            layout: phoneLayout,
+            art: SizedBox.square(
+              dimension: phoneLayout.artSize,
+              child: artOrLyrics,
+            ),
+            titleBlock: trackInfoSwitcher,
+            info: phoneLayout.showInfo ? infoPanel : null,
+            seek: seekBar,
+            transport: transportControls,
+            actions: actionRow,
           );
         }
 

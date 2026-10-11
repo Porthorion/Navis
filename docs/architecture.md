@@ -1620,6 +1620,56 @@ Features:
 - Velocity-based snap
 - Fade transition for content
 
+### Now Playing phone layout
+
+Portrait phones (compact width, not wide-embedded) size the Now Playing body
+with `NowPlayingPhoneLayout.compute` (`now_playing_phone_layout.dart`), a pure
+function of the body width and height (inside the handle, status bar and
+bottom inset), the text scaler, and whether the source is radio or external.
+`_PhoneNowPlayingColumn` (`now_playing_phone_body.dart`) renders its result.
+Standard, split, tablet, desktop and compact-wide layouts keep their own
+geometry.
+
+- **Class by body height.** Short < 620 dp, normal 620-829, tall >= 830. Short
+  uses 20/15 sp title/artist with the album folded into one "Artist · Album"
+  line (each part still tappable, each ellipsized). Normal is the long-standing
+  20/15/13 sp. Tall steps up to 24/17/14 sp and, from 380 dp wide, a 62 dp Play
+  button (`_TransportControls.large`) with 34 dp icon and 32 dp skip icons.
+- **Priority order.** Controls get their real height first and are pinned to
+  the bottom: title block, info pager (line and dots), seek bar, transport,
+  action row, bottom gap. Block heights are modelled from the Material 3 line
+  heights (`ceil`ed like the rendered text) and pinned to the rendered widgets
+  by `now_playing_phone_layout_widget_test.dart`. The artwork is the flexible
+  element: it shrinks on short screens and grows up to the width minus its
+  margin (24 dp, easing to 16 dp between 780 and 860 dp of body height).
+- **Gaps (min to max dp).** Handle to art 4-16, art to title 12-28, title to
+  info 8-16, info to seek 8-20, seek to transport 8-24, transport to actions
+  8-16, bottom 8-16. One shared factor `t` interpolates every gap.
+- **Sizing order.** (1) Artwork up to its maximum with minimum gaps; (2) raise
+  `t` until the gaps reach their maximum; (3) the remaining slack goes 60%
+  above the artwork (lowering the composition toward the thumb) and 40% between
+  artwork and title. Radio, which has no info line, seek bar or action row,
+  shares the slack 40/30/30 above the artwork, between artwork and title, and
+  between title and transport.
+- **Small screens.** The artwork may shrink below its preferred 62% of the
+  width (capped at 320 dp) down to 45% (120-200 dp) before anything scrolls. On
+  short phones only, the info pager is dropped when the artwork would otherwise
+  fall below the preferred size. If even the floor does not fit (very large
+  text) the artwork and title scroll while the controls stay pinned; there is
+  no height at which the controls flatten into one scroll view.
+- **Exact squares.** The cover, its placeholder, radio art and the inline
+  lyrics slot render in a `SizedBox.square` of the computed size.
+
+Why: Gramophone, Auxio, Namida, Retro, Metrolist and Symfonium all give the
+controls their real size at the bottom and let the cover absorb height ("the
+cover has last priority for space"), growing to the width minus a 16-24 dp
+margin; only slack beyond that becomes space around the cover. Gaps follow a
+4/8/12/16/20/24 rhythm with a minimum and maximum instead of fixed values, and
+titles sit at 20-24 sp with the artist at 15-19 sp. The previous layout stopped
+the cover at the width, centred the leftover height as two equal holes, and
+switched to a top-aligned scroll below 700 dp that clipped the action row and,
+with three-button navigation, the Play button.
+
 ### Lyrics Display
 
 The `LyricsDisplayWidget` supports both synced and unsynced lyrics:

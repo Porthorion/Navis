@@ -113,6 +113,7 @@ class _TrackInfo extends StatelessWidget {
     this.onAlbumTap,
     this.artistLinks,
     this.isExternalSource = false,
+    this.phone,
   });
 
   final String title;
@@ -130,11 +131,26 @@ class _TrackInfo extends StatelessWidget {
   final List<_ArtistLink>? artistLinks;
   final bool isExternalSource;
 
+  /// The portrait phone layout; its type steps replace [compact]'s and its
+  /// short class folds the album into the artist line.
+  final NowPlayingPhoneLayout? phone;
+
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
     final textTheme = Theme.of(context).textTheme;
     final links = artistLinks;
+    final phone = this.phone;
+    final titleSize = phone?.titleSize ?? (compact ? 20.0 : null);
+    final artistSize = phone?.artistSize ?? (compact ? 15.0 : null);
+    final albumSize = phone?.albumSize ?? (compact ? 13.0 : null);
+    final titleGap = phone?.titleGap ?? (compact ? 2.0 : 4.0);
+    final albumGap = phone?.albumGap ?? (compact ? 1.0 : 2.0);
+    final foldAlbum = phone?.foldAlbum ?? false;
+    final artistStyle = textTheme.bodyLarge?.copyWith(
+      fontSize: artistSize,
+      color: colorScheme.onSurfaceVariant,
+    );
     return Column(
       children: <Widget>[
         GestureDetector(
@@ -144,7 +160,7 @@ class _TrackInfo extends StatelessWidget {
             title,
             style: textTheme.titleLarge?.copyWith(
               fontWeight: FontWeight.bold,
-              fontSize: compact ? 20 : null,
+              fontSize: titleSize,
               color: onTitleTap != null ? colorScheme.primary : null,
             ),
             maxLines: 1,
@@ -152,12 +168,12 @@ class _TrackInfo extends StatelessWidget {
             textAlign: TextAlign.center,
           ),
         ),
-        SizedBox(height: compact ? 2 : 4),
+        SizedBox(height: titleGap),
         if (isExternalSource) ...<Widget>[
           const RemoteSourceIndicator(
             variant: RemoteSourceIndicatorVariant.inline,
           ),
-          SizedBox(height: compact ? 2 : 4),
+          SizedBox(height: titleGap),
         ],
         if (links != null && links.isNotEmpty)
           Wrap(
@@ -166,22 +182,44 @@ class _TrackInfo extends StatelessWidget {
             runSpacing: 0,
             children: [
               for (final (i, link) in links.indexed) ...<Widget>[
-                if (i > 0)
-                  Text(
-                    ', ',
-                    style: textTheme.bodyLarge?.copyWith(
-                      fontSize: compact ? 15 : null,
-                      color: colorScheme.onSurfaceVariant,
-                    ),
-                  ),
+                if (i > 0) Text(', ', style: artistStyle),
                 GestureDetector(
                   behavior: HitTestBehavior.opaque,
                   onTap: link.onTap,
+                  child: Text(link.name, style: artistStyle),
+                ),
+              ],
+            ],
+          )
+        else if (foldAlbum)
+          // One "Artist · Album" line; each part keeps its own tap target and
+          // ellipsizes on its own.
+          Row(
+            mainAxisSize: MainAxisSize.min,
+            children: <Widget>[
+              Flexible(
+                child: GestureDetector(
+                  behavior: HitTestBehavior.opaque,
+                  onTap: onArtistTap,
                   child: Text(
-                    link.name,
-                    style: textTheme.bodyLarge?.copyWith(
-                      fontSize: compact ? 15 : null,
-                      color: colorScheme.onSurfaceVariant,
+                    artist,
+                    style: artistStyle,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+              ),
+              if (album.isNotEmpty) ...<Widget>[
+                Text(' \u00b7 ', style: artistStyle),
+                Flexible(
+                  child: GestureDetector(
+                    behavior: HitTestBehavior.opaque,
+                    onTap: onAlbumTap,
+                    child: Text(
+                      album,
+                      style: artistStyle,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
                     ),
                   ),
                 ),
@@ -194,8 +232,21 @@ class _TrackInfo extends StatelessWidget {
             onTap: onArtistTap,
             child: Text(
               artist,
-              style: textTheme.bodyLarge?.copyWith(
-                fontSize: compact ? 15 : null,
+              style: artistStyle,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              textAlign: TextAlign.center,
+            ),
+          ),
+        if (!foldAlbum) ...<Widget>[
+          SizedBox(height: albumGap),
+          GestureDetector(
+            behavior: HitTestBehavior.opaque,
+            onTap: onAlbumTap,
+            child: Text(
+              album,
+              style: textTheme.bodyMedium?.copyWith(
+                fontSize: albumSize,
                 color: colorScheme.onSurfaceVariant,
               ),
               maxLines: 1,
@@ -203,21 +254,7 @@ class _TrackInfo extends StatelessWidget {
               textAlign: TextAlign.center,
             ),
           ),
-        SizedBox(height: compact ? 1 : 2),
-        GestureDetector(
-          behavior: HitTestBehavior.opaque,
-          onTap: onAlbumTap,
-          child: Text(
-            album,
-            style: textTheme.bodyMedium?.copyWith(
-              fontSize: compact ? 13 : null,
-              color: colorScheme.onSurfaceVariant,
-            ),
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            textAlign: TextAlign.center,
-          ),
-        ),
+        ],
       ],
     );
   }
