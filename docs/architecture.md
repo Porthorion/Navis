@@ -952,8 +952,9 @@ target-selection rules.
     are preserved; schema 102 is unchanged. The Looks write lane wraps the
     playback persistence lane so pending saves finish before the reset and later
     saves cannot replay an old library. Playback also observes external preset
-    writes. Unsupported saved playback presets retain a Delete menu action;
-    Normal is built in and cannot be deleted. Delete failures use app notices.
+    writes and preserves explicitly cleared selections at normal speed across
+    later appearance saves. Unsupported saved playback presets retain a Delete
+    menu action; Normal is built in and cannot be deleted. Delete failures use app notices.
   - Looks (`AppearanceLook`, version 1, `AppearanceSnapshot`,
     `AppearanceLooksController`) capture all appearance choices: theme mode,
     OLED-for-Auto, saved colour style, nullable accent seed, dynamic album

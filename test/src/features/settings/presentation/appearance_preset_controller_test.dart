@@ -119,6 +119,38 @@ void main() {
     skip: !sqliteAvailable,
   );
 
+  test(
+    'bulk reset keeps normal playback unselected across later settings writes',
+    () async {
+      final database = createTestDatabase();
+      addTearDown(database.close);
+      final container = ProviderContainer(
+        overrides: withTestDatabase(
+          database,
+          overrides: [audioHandlerProvider.overrideWithValue(null)],
+        ),
+      );
+      addTearDown(container.dispose);
+      container.listen(appSettingsProvider, (_, _) {});
+      await container.read(appSettingsProvider.future);
+      final playback = container.read(playbackAdjustmentsProvider.notifier);
+      await container.read(playbackAdjustmentsProvider.future);
+      final looks = container.read(appearanceLooksControllerProvider.notifier);
+      await playback.savePreset('Old speed');
+      await looks.deleteAllPresets();
+      await looks.saveAsNew('New look');
+      await Future<void>.delayed(Duration.zero);
+      await playback.flush();
+      final settings = await container
+          .read(settingsRepositoryProvider)
+          .getSettings();
+      expect(settings.playbackPresets, isEmpty);
+      expect(settings.selectedPlaybackPresetId, isNull);
+      expect(settings.playbackSpeed, 1);
+    },
+    skip: !sqliteAvailable,
+  );
+
   test('tuning previews, clears and commits the three values', () async {
     final database = createTestDatabase();
     addTearDown(database.close);

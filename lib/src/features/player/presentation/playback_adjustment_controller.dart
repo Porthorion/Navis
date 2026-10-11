@@ -103,7 +103,8 @@ class PlaybackAdjustmentController
         presets: settings.playbackPresets,
         selectedPresetId: ids.contains(current.selectedPresetId)
             ? current.selectedPresetId
-            : current.values.isNone
+            : settings.selectedPlaybackPresetId == PlaybackPreset.noneId &&
+                  current.values.isNone
             ? PlaybackPreset.noneId
             : null,
         originPresetId: ids.contains(current.originPresetId)
