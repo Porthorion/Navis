@@ -152,6 +152,9 @@ class AppSettingsDao extends DatabaseAccessor<NavisDatabase>
     int? colorVividness,
     int? surfaceDepthLight,
     int? surfaceDepthDark,
+    int? surfaceTintLight,
+    int? surfaceTintDark,
+    String? controlColor,
     bool? albumArtShade,
     bool? albumArtColoredShade,
     int? colorSchemeSeed,
@@ -228,6 +231,15 @@ class AppSettingsDao extends DatabaseAccessor<NavisDatabase>
         ),
         nightScheduleEndMinutes: Value(nightScheduleEndMinutes.clamp(0, 1439)),
         flatSurfaces: Value(flatSurfaces),
+        surfaceTintLight: surfaceTintLight == null
+            ? const Value.absent()
+            : Value(surfaceTintLight.clamp(0, 5)),
+        surfaceTintDark: surfaceTintDark == null
+            ? const Value.absent()
+            : Value(surfaceTintDark.clamp(0, 5)),
+        controlColor: controlColor == null
+            ? const Value.absent()
+            : Value(NavisControlColor.parse(controlColor).name),
         colorVividness: colorVividness == null
             ? const Value.absent()
             : Value(colorVividness.clamp(-5, 5)),
@@ -385,6 +397,9 @@ class AppSettingsDao extends DatabaseAccessor<NavisDatabase>
       colorVividness: 0,
       surfaceDepthLight: 0,
       surfaceDepthDark: 0,
+      surfaceTintLight: 0,
+      surfaceTintDark: 0,
+      controlColor: 'accent',
       albumArtShade: false,
       albumArtColoredShade: false,
       colorSchemeSeed: null,
@@ -870,6 +885,9 @@ class AppSettingsDao extends DatabaseAccessor<NavisDatabase>
         colorVividness: Value(tuning.vividness),
         surfaceDepthLight: Value(tuning.lightDepth),
         surfaceDepthDark: Value(tuning.darkDepth),
+        surfaceTintLight: Value(tuning.lightTint),
+        surfaceTintDark: Value(tuning.darkTint),
+        controlColor: Value(tuning.controls.name),
         updatedAt: Value(DateTime.now()),
       ),
     );
@@ -900,6 +918,11 @@ class AppSettingsDao extends DatabaseAccessor<NavisDatabase>
           vividness: snapshot.colorVividness ?? current.colorVividness,
           lightDepth: snapshot.surfaceDepthLight ?? current.surfaceDepthLight,
           darkDepth: snapshot.surfaceDepthDark ?? current.surfaceDepthDark,
+          lightTint: snapshot.surfaceTintLight ?? current.surfaceTintLight,
+          darkTint: snapshot.surfaceTintDark ?? current.surfaceTintDark,
+          controls: NavisControlColor.parse(
+            snapshot.controlColor ?? current.controlColor,
+          ),
         );
         await (update(
           appSettingsTable,
@@ -941,6 +964,9 @@ class AppSettingsDao extends DatabaseAccessor<NavisDatabase>
             colorVividness: Value(tuning.vividness),
             surfaceDepthLight: Value(tuning.lightDepth),
             surfaceDepthDark: Value(tuning.darkDepth),
+            surfaceTintLight: Value(tuning.lightTint),
+            surfaceTintDark: Value(tuning.darkTint),
+            controlColor: Value(tuning.controls.name),
             flatSurfaces: snapshot.flatSurfaces == null
                 ? const Value.absent()
                 : Value(snapshot.flatSurfaces!),

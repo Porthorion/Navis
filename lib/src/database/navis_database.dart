@@ -417,6 +417,21 @@ class NavisDatabase extends _$NavisDatabase {
         appSettingsTable.surfaceDepthDark,
       );
     }
+    if (!await _columnExists('app_settings', 'surface_tint_light')) {
+      await migrator.addColumn(
+        appSettingsTable,
+        appSettingsTable.surfaceTintLight,
+      );
+    }
+    if (!await _columnExists('app_settings', 'surface_tint_dark')) {
+      await migrator.addColumn(
+        appSettingsTable,
+        appSettingsTable.surfaceTintDark,
+      );
+    }
+    if (!await _columnExists('app_settings', 'control_color')) {
+      await migrator.addColumn(appSettingsTable, appSettingsTable.controlColor);
+    }
     if (!await _columnExists('app_settings', 'appearance_looks')) {
       await migrator.addColumn(
         appSettingsTable,

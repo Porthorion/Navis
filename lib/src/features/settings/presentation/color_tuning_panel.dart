@@ -244,7 +244,7 @@ class _PanelBodyState extends State<_PanelBody> {
 
   int get _depth => _darkMode ? _shown.darkDepth : _shown.lightDepth;
 
-  ColorTuning _with({int? vividness, int? depth}) => ColorTuning(
+  ColorTuning _with({int? vividness, int? depth}) => _shown.copyWith(
     vividness: vividness ?? _shown.vividness,
     lightDepth: !_darkMode && depth != null ? depth : _shown.lightDepth,
     darkDepth: _darkMode && depth != null ? depth : _shown.darkDepth,
@@ -286,13 +286,20 @@ class _PanelBodyState extends State<_PanelBody> {
       basis.dark,
       basis.oled,
       depth,
+      _shown.forMode(dark: basis.dark).tint,
+      _shown.controls,
     );
     if (_colorBandKey != key) {
       _colorBandKey = key;
       _colorBand = _buildBand(
         dark: basis.dark,
         oled: basis.oled,
-        at: (step) => ColorAdjustment(vividness: step, depth: depth),
+        at: (step) => ColorAdjustment(
+          vividness: step,
+          depth: depth,
+          tint: _shown.forMode(dark: basis.dark).tint,
+          controls: _shown.controls,
+        ),
         swatch: (scheme) => scheme.primary,
         ink: (scheme) => scheme.onPrimary,
       );
@@ -311,13 +318,20 @@ class _PanelBodyState extends State<_PanelBody> {
       _darkMode,
       oled,
       _shown.vividness,
+      _shown.forMode(dark: _darkMode).tint,
+      _shown.controls,
     );
     if (_brightnessBandKey != key) {
       _brightnessBandKey = key;
       _brightnessBand = _buildBand(
         dark: _darkMode,
         oled: oled,
-        at: (step) => ColorAdjustment(vividness: _shown.vividness, depth: step),
+        at: (step) => ColorAdjustment(
+          vividness: _shown.vividness,
+          depth: step,
+          tint: _shown.forMode(dark: _darkMode).tint,
+          controls: _shown.controls,
+        ),
         // OLED keeps its surface black at every depth; its panels move.
         swatch: (scheme) => oled ? scheme.surfaceContainerHigh : scheme.surface,
         ink: (scheme) => scheme.onSurfaceVariant,

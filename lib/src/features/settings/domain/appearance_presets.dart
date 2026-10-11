@@ -23,6 +23,9 @@ class AppearanceSnapshot {
     this.colorVividness,
     this.surfaceDepthLight,
     this.surfaceDepthDark,
+    this.surfaceTintLight,
+    this.surfaceTintDark,
+    this.controlColor,
     this.flatSurfaces,
     this.flatAreas,
     this.cornerStyle,
@@ -52,6 +55,9 @@ class AppearanceSnapshot {
     colorVividness: s.colorVividness,
     surfaceDepthLight: s.surfaceDepthLight,
     surfaceDepthDark: s.surfaceDepthDark,
+    surfaceTintLight: s.surfaceTintLight,
+    surfaceTintDark: s.surfaceTintDark,
+    controlColor: s.controlColor,
     flatSurfaces: s.flatSurfaces,
     flatAreas: s.flatAreas.bits,
     cornerStyle: s.cornerStyle.name,
@@ -95,6 +101,9 @@ class AppearanceSnapshot {
     colorVividness: _integer(raw['colorVividness'], -5, 5),
     surfaceDepthLight: _integer(raw['surfaceDepthLight'], -5, 5),
     surfaceDepthDark: _integer(raw['surfaceDepthDark'], -5, 5),
+    surfaceTintLight: _integer(raw['surfaceTintLight'], 0, 5),
+    surfaceTintDark: _integer(raw['surfaceTintDark'], 0, 5),
+    controlColor: _choice(raw['controlColor'], const ['accent', 'white']),
     flatSurfaces: _boolean(raw['flatSurfaces']),
     flatAreas: _integer(raw['flatAreas'], 0, 7),
     cornerStyle: _choice(raw['cornerStyle'], const [
@@ -150,6 +159,9 @@ class AppearanceSnapshot {
   final int? colorVividness;
   final int? surfaceDepthLight;
   final int? surfaceDepthDark;
+  final int? surfaceTintLight;
+  final int? surfaceTintDark;
+  final String? controlColor;
   final bool? flatSurfaces;
   final int? flatAreas;
   final String? cornerStyle;
@@ -184,6 +196,9 @@ class AppearanceSnapshot {
     if (colorVividness != null) 'colorVividness': colorVividness,
     if (surfaceDepthLight != null) 'surfaceDepthLight': surfaceDepthLight,
     if (surfaceDepthDark != null) 'surfaceDepthDark': surfaceDepthDark,
+    if (surfaceTintLight != null) 'surfaceTintLight': surfaceTintLight,
+    if (surfaceTintDark != null) 'surfaceTintDark': surfaceTintDark,
+    if (controlColor != null) 'controlColor': controlColor,
     if (flatSurfaces != null) 'flatSurfaces': flatSurfaces,
     if (flatAreas != null) 'flatAreas': flatAreas,
     if (cornerStyle != null) 'cornerStyle': cornerStyle,

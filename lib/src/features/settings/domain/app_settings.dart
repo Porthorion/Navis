@@ -60,6 +60,9 @@ class AppSettingsModel {
     this.selectedAppearanceLookId,
     this.customColorPresets = const [],
     this.surfaceDepthLight = 0,
+    this.surfaceTintLight = 0,
+    this.surfaceTintDark = 0,
+    this.controlColor = 'accent',
     this.albumArtShade = false,
     this.albumArtColoredShade = false,
     required this.colorSchemeSeed,
@@ -149,6 +152,9 @@ class AppSettingsModel {
       selectedAppearanceLookId = null,
       customColorPresets = const [],
       surfaceDepthLight = 0,
+      surfaceTintLight = 0,
+      surfaceTintDark = 0,
+      controlColor = 'accent',
       albumArtShade = false,
       albumArtColoredShade = false,
       colorSchemeSeed = null,
@@ -238,10 +244,16 @@ class AppSettingsModel {
   final String? selectedAppearanceLookId;
   final List<int> customColorPresets;
   final int surfaceDepthLight;
+  final int surfaceTintLight;
+  final int surfaceTintDark;
+  final String controlColor;
   ColorTuning get colorTuning => ColorTuning(
     vividness: colorVividness,
     lightDepth: surfaceDepthLight,
     darkDepth: surfaceDepthDark,
+    lightTint: surfaceTintLight,
+    darkTint: surfaceTintDark,
+    controls: NavisControlColor.parse(controlColor),
   );
 
   final bool albumArtShade;
@@ -416,6 +428,9 @@ class AppSettingsModel {
     bool clearSelectedAppearanceLookId = false,
     List<int>? customColorPresets,
     int? surfaceDepthLight,
+    int? surfaceTintLight,
+    int? surfaceTintDark,
+    String? controlColor,
     bool? albumArtShade,
     bool? albumArtColoredShade,
     int? colorSchemeSeed,
@@ -535,6 +550,9 @@ class AppSettingsModel {
           : selectedAppearanceLookId ?? this.selectedAppearanceLookId,
       customColorPresets: customColorPresets ?? this.customColorPresets,
       surfaceDepthLight: surfaceDepthLight ?? this.surfaceDepthLight,
+      surfaceTintLight: surfaceTintLight ?? this.surfaceTintLight,
+      surfaceTintDark: surfaceTintDark ?? this.surfaceTintDark,
+      controlColor: controlColor ?? this.controlColor,
       albumArtShade: albumArtShade ?? this.albumArtShade,
       albumArtColoredShade: albumArtColoredShade ?? this.albumArtColoredShade,
       colorSchemeSeed: clearColorSchemeSeed

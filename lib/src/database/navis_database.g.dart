@@ -1067,6 +1067,42 @@ class $AppSettingsTableTable extends AppSettingsTable
     requiredDuringInsert: false,
     defaultValue: const Constant(0),
   );
+  static const VerificationMeta _surfaceTintLightMeta = const VerificationMeta(
+    'surfaceTintLight',
+  );
+  @override
+  late final GeneratedColumn<int> surfaceTintLight = GeneratedColumn<int>(
+    'surface_tint_light',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(0),
+  );
+  static const VerificationMeta _surfaceTintDarkMeta = const VerificationMeta(
+    'surfaceTintDark',
+  );
+  @override
+  late final GeneratedColumn<int> surfaceTintDark = GeneratedColumn<int>(
+    'surface_tint_dark',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(0),
+  );
+  static const VerificationMeta _controlColorMeta = const VerificationMeta(
+    'controlColor',
+  );
+  @override
+  late final GeneratedColumn<String> controlColor = GeneratedColumn<String>(
+    'control_color',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant('accent'),
+  );
   static const VerificationMeta _appearanceLooksMeta = const VerificationMeta(
     'appearanceLooks',
   );
@@ -1968,6 +2004,9 @@ class $AppSettingsTableTable extends AppSettingsTable
     colorVividness,
     surfaceDepthLight,
     surfaceDepthDark,
+    surfaceTintLight,
+    surfaceTintDark,
+    controlColor,
     appearanceLooks,
     selectedAppearanceLookId,
     flatAreas,
@@ -2364,6 +2403,33 @@ class $AppSettingsTableTable extends AppSettingsTable
         surfaceDepthDark.isAcceptableOrUnknown(
           data['surface_depth_dark']!,
           _surfaceDepthDarkMeta,
+        ),
+      );
+    }
+    if (data.containsKey('surface_tint_light')) {
+      context.handle(
+        _surfaceTintLightMeta,
+        surfaceTintLight.isAcceptableOrUnknown(
+          data['surface_tint_light']!,
+          _surfaceTintLightMeta,
+        ),
+      );
+    }
+    if (data.containsKey('surface_tint_dark')) {
+      context.handle(
+        _surfaceTintDarkMeta,
+        surfaceTintDark.isAcceptableOrUnknown(
+          data['surface_tint_dark']!,
+          _surfaceTintDarkMeta,
+        ),
+      );
+    }
+    if (data.containsKey('control_color')) {
+      context.handle(
+        _controlColorMeta,
+        controlColor.isAcceptableOrUnknown(
+          data['control_color']!,
+          _controlColorMeta,
         ),
       );
     }
@@ -3126,6 +3192,18 @@ class $AppSettingsTableTable extends AppSettingsTable
         DriftSqlType.int,
         data['${effectivePrefix}surface_depth_dark'],
       )!,
+      surfaceTintLight: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}surface_tint_light'],
+      )!,
+      surfaceTintDark: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}surface_tint_dark'],
+      )!,
+      controlColor: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}control_color'],
+      )!,
       appearanceLooks: attachedDatabase.typeMapping.read(
         DriftSqlType.string,
         data['${effectivePrefix}appearance_looks'],
@@ -3493,6 +3571,13 @@ class AppSettingsTableData extends DataClass
   final int colorVividness;
   final int surfaceDepthLight;
   final int surfaceDepthDark;
+
+  /// Independent background tint steps for Light and Dark/OLED.
+  final int surfaceTintLight;
+  final int surfaceTintDark;
+
+  /// Filled controls use the accent or white with accent glyphs.
+  final String controlColor;
   final String appearanceLooks;
   final String? selectedAppearanceLookId;
   final int flatAreas;
@@ -3735,6 +3820,9 @@ class AppSettingsTableData extends DataClass
     required this.colorVividness,
     required this.surfaceDepthLight,
     required this.surfaceDepthDark,
+    required this.surfaceTintLight,
+    required this.surfaceTintDark,
+    required this.controlColor,
     required this.appearanceLooks,
     this.selectedAppearanceLookId,
     required this.flatAreas,
@@ -3864,6 +3952,9 @@ class AppSettingsTableData extends DataClass
     map['color_vividness'] = Variable<int>(colorVividness);
     map['surface_depth_light'] = Variable<int>(surfaceDepthLight);
     map['surface_depth_dark'] = Variable<int>(surfaceDepthDark);
+    map['surface_tint_light'] = Variable<int>(surfaceTintLight);
+    map['surface_tint_dark'] = Variable<int>(surfaceTintDark);
+    map['control_color'] = Variable<String>(controlColor);
     map['appearance_looks'] = Variable<String>(appearanceLooks);
     if (!nullToAbsent || selectedAppearanceLookId != null) {
       map['selected_appearance_look_id'] = Variable<String>(
@@ -4046,6 +4137,9 @@ class AppSettingsTableData extends DataClass
       colorVividness: Value(colorVividness),
       surfaceDepthLight: Value(surfaceDepthLight),
       surfaceDepthDark: Value(surfaceDepthDark),
+      surfaceTintLight: Value(surfaceTintLight),
+      surfaceTintDark: Value(surfaceTintDark),
+      controlColor: Value(controlColor),
       appearanceLooks: Value(appearanceLooks),
       selectedAppearanceLookId: selectedAppearanceLookId == null && nullToAbsent
           ? const Value.absent()
@@ -4222,6 +4316,9 @@ class AppSettingsTableData extends DataClass
       colorVividness: serializer.fromJson<int>(json['colorVividness']),
       surfaceDepthLight: serializer.fromJson<int>(json['surfaceDepthLight']),
       surfaceDepthDark: serializer.fromJson<int>(json['surfaceDepthDark']),
+      surfaceTintLight: serializer.fromJson<int>(json['surfaceTintLight']),
+      surfaceTintDark: serializer.fromJson<int>(json['surfaceTintDark']),
+      controlColor: serializer.fromJson<String>(json['controlColor']),
       appearanceLooks: serializer.fromJson<String>(json['appearanceLooks']),
       selectedAppearanceLookId: serializer.fromJson<String?>(
         json['selectedAppearanceLookId'],
@@ -4421,6 +4518,9 @@ class AppSettingsTableData extends DataClass
       'colorVividness': serializer.toJson<int>(colorVividness),
       'surfaceDepthLight': serializer.toJson<int>(surfaceDepthLight),
       'surfaceDepthDark': serializer.toJson<int>(surfaceDepthDark),
+      'surfaceTintLight': serializer.toJson<int>(surfaceTintLight),
+      'surfaceTintDark': serializer.toJson<int>(surfaceTintDark),
+      'controlColor': serializer.toJson<String>(controlColor),
       'appearanceLooks': serializer.toJson<String>(appearanceLooks),
       'selectedAppearanceLookId': serializer.toJson<String?>(
         selectedAppearanceLookId,
@@ -4566,6 +4666,9 @@ class AppSettingsTableData extends DataClass
     int? colorVividness,
     int? surfaceDepthLight,
     int? surfaceDepthDark,
+    int? surfaceTintLight,
+    int? surfaceTintDark,
+    String? controlColor,
     String? appearanceLooks,
     Value<String?> selectedAppearanceLookId = const Value.absent(),
     int? flatAreas,
@@ -4687,6 +4790,9 @@ class AppSettingsTableData extends DataClass
     colorVividness: colorVividness ?? this.colorVividness,
     surfaceDepthLight: surfaceDepthLight ?? this.surfaceDepthLight,
     surfaceDepthDark: surfaceDepthDark ?? this.surfaceDepthDark,
+    surfaceTintLight: surfaceTintLight ?? this.surfaceTintLight,
+    surfaceTintDark: surfaceTintDark ?? this.surfaceTintDark,
+    controlColor: controlColor ?? this.controlColor,
     appearanceLooks: appearanceLooks ?? this.appearanceLooks,
     selectedAppearanceLookId: selectedAppearanceLookId.present
         ? selectedAppearanceLookId.value
@@ -4914,6 +5020,15 @@ class AppSettingsTableData extends DataClass
       surfaceDepthDark: data.surfaceDepthDark.present
           ? data.surfaceDepthDark.value
           : this.surfaceDepthDark,
+      surfaceTintLight: data.surfaceTintLight.present
+          ? data.surfaceTintLight.value
+          : this.surfaceTintLight,
+      surfaceTintDark: data.surfaceTintDark.present
+          ? data.surfaceTintDark.value
+          : this.surfaceTintDark,
+      controlColor: data.controlColor.present
+          ? data.controlColor.value
+          : this.controlColor,
       appearanceLooks: data.appearanceLooks.present
           ? data.appearanceLooks.value
           : this.appearanceLooks,
@@ -5156,6 +5271,9 @@ class AppSettingsTableData extends DataClass
           ..write('colorVividness: $colorVividness, ')
           ..write('surfaceDepthLight: $surfaceDepthLight, ')
           ..write('surfaceDepthDark: $surfaceDepthDark, ')
+          ..write('surfaceTintLight: $surfaceTintLight, ')
+          ..write('surfaceTintDark: $surfaceTintDark, ')
+          ..write('controlColor: $controlColor, ')
           ..write('appearanceLooks: $appearanceLooks, ')
           ..write('selectedAppearanceLookId: $selectedAppearanceLookId, ')
           ..write('flatAreas: $flatAreas, ')
@@ -5273,6 +5391,9 @@ class AppSettingsTableData extends DataClass
     colorVividness,
     surfaceDepthLight,
     surfaceDepthDark,
+    surfaceTintLight,
+    surfaceTintDark,
+    controlColor,
     appearanceLooks,
     selectedAppearanceLookId,
     flatAreas,
@@ -5385,6 +5506,9 @@ class AppSettingsTableData extends DataClass
           other.colorVividness == this.colorVividness &&
           other.surfaceDepthLight == this.surfaceDepthLight &&
           other.surfaceDepthDark == this.surfaceDepthDark &&
+          other.surfaceTintLight == this.surfaceTintLight &&
+          other.surfaceTintDark == this.surfaceTintDark &&
+          other.controlColor == this.controlColor &&
           other.appearanceLooks == this.appearanceLooks &&
           other.selectedAppearanceLookId == this.selectedAppearanceLookId &&
           other.flatAreas == this.flatAreas &&
@@ -5499,6 +5623,9 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
   final Value<int> colorVividness;
   final Value<int> surfaceDepthLight;
   final Value<int> surfaceDepthDark;
+  final Value<int> surfaceTintLight;
+  final Value<int> surfaceTintDark;
+  final Value<String> controlColor;
   final Value<String> appearanceLooks;
   final Value<String?> selectedAppearanceLookId;
   final Value<int> flatAreas;
@@ -5605,6 +5732,9 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
     this.colorVividness = const Value.absent(),
     this.surfaceDepthLight = const Value.absent(),
     this.surfaceDepthDark = const Value.absent(),
+    this.surfaceTintLight = const Value.absent(),
+    this.surfaceTintDark = const Value.absent(),
+    this.controlColor = const Value.absent(),
     this.appearanceLooks = const Value.absent(),
     this.selectedAppearanceLookId = const Value.absent(),
     this.flatAreas = const Value.absent(),
@@ -5712,6 +5842,9 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
     this.colorVividness = const Value.absent(),
     this.surfaceDepthLight = const Value.absent(),
     this.surfaceDepthDark = const Value.absent(),
+    this.surfaceTintLight = const Value.absent(),
+    this.surfaceTintDark = const Value.absent(),
+    this.controlColor = const Value.absent(),
     this.appearanceLooks = const Value.absent(),
     this.selectedAppearanceLookId = const Value.absent(),
     this.flatAreas = const Value.absent(),
@@ -5819,6 +5952,9 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
     Expression<int>? colorVividness,
     Expression<int>? surfaceDepthLight,
     Expression<int>? surfaceDepthDark,
+    Expression<int>? surfaceTintLight,
+    Expression<int>? surfaceTintDark,
+    Expression<String>? controlColor,
     Expression<String>? appearanceLooks,
     Expression<String>? selectedAppearanceLookId,
     Expression<int>? flatAreas,
@@ -5941,6 +6077,9 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
       if (colorVividness != null) 'color_vividness': colorVividness,
       if (surfaceDepthLight != null) 'surface_depth_light': surfaceDepthLight,
       if (surfaceDepthDark != null) 'surface_depth_dark': surfaceDepthDark,
+      if (surfaceTintLight != null) 'surface_tint_light': surfaceTintLight,
+      if (surfaceTintDark != null) 'surface_tint_dark': surfaceTintDark,
+      if (controlColor != null) 'control_color': controlColor,
       if (appearanceLooks != null) 'appearance_looks': appearanceLooks,
       if (selectedAppearanceLookId != null)
         'selected_appearance_look_id': selectedAppearanceLookId,
@@ -6088,6 +6227,9 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
     Value<int>? colorVividness,
     Value<int>? surfaceDepthLight,
     Value<int>? surfaceDepthDark,
+    Value<int>? surfaceTintLight,
+    Value<int>? surfaceTintDark,
+    Value<String>? controlColor,
     Value<String>? appearanceLooks,
     Value<String?>? selectedAppearanceLookId,
     Value<int>? flatAreas,
@@ -6204,6 +6346,9 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
       colorVividness: colorVividness ?? this.colorVividness,
       surfaceDepthLight: surfaceDepthLight ?? this.surfaceDepthLight,
       surfaceDepthDark: surfaceDepthDark ?? this.surfaceDepthDark,
+      surfaceTintLight: surfaceTintLight ?? this.surfaceTintLight,
+      surfaceTintDark: surfaceTintDark ?? this.surfaceTintDark,
+      controlColor: controlColor ?? this.controlColor,
       appearanceLooks: appearanceLooks ?? this.appearanceLooks,
       selectedAppearanceLookId:
           selectedAppearanceLookId ?? this.selectedAppearanceLookId,
@@ -6432,6 +6577,15 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
     }
     if (surfaceDepthDark.present) {
       map['surface_depth_dark'] = Variable<int>(surfaceDepthDark.value);
+    }
+    if (surfaceTintLight.present) {
+      map['surface_tint_light'] = Variable<int>(surfaceTintLight.value);
+    }
+    if (surfaceTintDark.present) {
+      map['surface_tint_dark'] = Variable<int>(surfaceTintDark.value);
+    }
+    if (controlColor.present) {
+      map['control_color'] = Variable<String>(controlColor.value);
     }
     if (appearanceLooks.present) {
       map['appearance_looks'] = Variable<String>(appearanceLooks.value);
@@ -6742,6 +6896,9 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
           ..write('colorVividness: $colorVividness, ')
           ..write('surfaceDepthLight: $surfaceDepthLight, ')
           ..write('surfaceDepthDark: $surfaceDepthDark, ')
+          ..write('surfaceTintLight: $surfaceTintLight, ')
+          ..write('surfaceTintDark: $surfaceTintDark, ')
+          ..write('controlColor: $controlColor, ')
           ..write('appearanceLooks: $appearanceLooks, ')
           ..write('selectedAppearanceLookId: $selectedAppearanceLookId, ')
           ..write('flatAreas: $flatAreas, ')
@@ -34840,6 +34997,9 @@ typedef $$AppSettingsTableTableCreateCompanionBuilder =
       Value<int> colorVividness,
       Value<int> surfaceDepthLight,
       Value<int> surfaceDepthDark,
+      Value<int> surfaceTintLight,
+      Value<int> surfaceTintDark,
+      Value<String> controlColor,
       Value<String> appearanceLooks,
       Value<String?> selectedAppearanceLookId,
       Value<int> flatAreas,
@@ -34948,6 +35108,9 @@ typedef $$AppSettingsTableTableUpdateCompanionBuilder =
       Value<int> colorVividness,
       Value<int> surfaceDepthLight,
       Value<int> surfaceDepthDark,
+      Value<int> surfaceTintLight,
+      Value<int> surfaceTintDark,
+      Value<String> controlColor,
       Value<String> appearanceLooks,
       Value<String?> selectedAppearanceLookId,
       Value<int> flatAreas,
@@ -35210,6 +35373,21 @@ class $$AppSettingsTableTableFilterComposer
 
   ColumnFilters<int> get surfaceDepthDark => $composableBuilder(
     column: $table.surfaceDepthDark,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get surfaceTintLight => $composableBuilder(
+    column: $table.surfaceTintLight,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get surfaceTintDark => $composableBuilder(
+    column: $table.surfaceTintDark,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get controlColor => $composableBuilder(
+    column: $table.controlColor,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -35749,6 +35927,21 @@ class $$AppSettingsTableTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<int> get surfaceTintLight => $composableBuilder(
+    column: $table.surfaceTintLight,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get surfaceTintDark => $composableBuilder(
+    column: $table.surfaceTintDark,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get controlColor => $composableBuilder(
+    column: $table.controlColor,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<String> get appearanceLooks => $composableBuilder(
     column: $table.appearanceLooks,
     builder: (column) => ColumnOrderings(column),
@@ -36282,6 +36475,21 @@ class $$AppSettingsTableTableAnnotationComposer
     builder: (column) => column,
   );
 
+  GeneratedColumn<int> get surfaceTintLight => $composableBuilder(
+    column: $table.surfaceTintLight,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get surfaceTintDark => $composableBuilder(
+    column: $table.surfaceTintDark,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get controlColor => $composableBuilder(
+    column: $table.controlColor,
+    builder: (column) => column,
+  );
+
   GeneratedColumn<String> get appearanceLooks => $composableBuilder(
     column: $table.appearanceLooks,
     builder: (column) => column,
@@ -36691,6 +36899,9 @@ class $$AppSettingsTableTableTableManager
                 Value<int> colorVividness = const Value.absent(),
                 Value<int> surfaceDepthLight = const Value.absent(),
                 Value<int> surfaceDepthDark = const Value.absent(),
+                Value<int> surfaceTintLight = const Value.absent(),
+                Value<int> surfaceTintDark = const Value.absent(),
+                Value<String> controlColor = const Value.absent(),
                 Value<String> appearanceLooks = const Value.absent(),
                 Value<String?> selectedAppearanceLookId = const Value.absent(),
                 Value<int> flatAreas = const Value.absent(),
@@ -36802,6 +37013,9 @@ class $$AppSettingsTableTableTableManager
                 colorVividness: colorVividness,
                 surfaceDepthLight: surfaceDepthLight,
                 surfaceDepthDark: surfaceDepthDark,
+                surfaceTintLight: surfaceTintLight,
+                surfaceTintDark: surfaceTintDark,
+                controlColor: controlColor,
                 appearanceLooks: appearanceLooks,
                 selectedAppearanceLookId: selectedAppearanceLookId,
                 flatAreas: flatAreas,
@@ -36911,6 +37125,9 @@ class $$AppSettingsTableTableTableManager
                 Value<int> colorVividness = const Value.absent(),
                 Value<int> surfaceDepthLight = const Value.absent(),
                 Value<int> surfaceDepthDark = const Value.absent(),
+                Value<int> surfaceTintLight = const Value.absent(),
+                Value<int> surfaceTintDark = const Value.absent(),
+                Value<String> controlColor = const Value.absent(),
                 Value<String> appearanceLooks = const Value.absent(),
                 Value<String?> selectedAppearanceLookId = const Value.absent(),
                 Value<int> flatAreas = const Value.absent(),
@@ -37022,6 +37239,9 @@ class $$AppSettingsTableTableTableManager
                 colorVividness: colorVividness,
                 surfaceDepthLight: surfaceDepthLight,
                 surfaceDepthDark: surfaceDepthDark,
+                surfaceTintLight: surfaceTintLight,
+                surfaceTintDark: surfaceTintDark,
+                controlColor: controlColor,
                 appearanceLooks: appearanceLooks,
                 selectedAppearanceLookId: selectedAppearanceLookId,
                 flatAreas: flatAreas,

@@ -27,8 +27,21 @@ void main() {
       expect(initial.surfaceDepthLight, 0);
       await dao.updateThemeMode('oled');
       for (final adj in [
-        const ColorTuning(vividness: -5, lightDepth: 5, darkDepth: -3),
-        const ColorTuning(vividness: 50, lightDepth: -50, darkDepth: 50),
+        const ColorTuning(
+          vividness: -5,
+          lightDepth: 5,
+          darkDepth: -3,
+          lightTint: 3,
+          darkTint: 5,
+          controls: NavisControlColor.white,
+        ),
+        const ColorTuning(
+          vividness: 50,
+          lightDepth: -50,
+          darkDepth: 50,
+          lightTint: 50,
+          darkTint: -50,
+        ),
         ColorTuning.none,
       ]) {
         await dao.updateColorTuning(adj);
@@ -40,16 +53,31 @@ void main() {
         expect(watched.colorVividness, adj.vividness);
         expect(watched.surfaceDepthLight, adj.lightDepth);
         expect(watched.surfaceDepthDark, adj.darkDepth);
+        expect(row.surfaceTintLight, adj.lightTint);
+        expect(row.surfaceTintDark, adj.darkTint);
+        expect(row.controlColor, adj.controls.name);
+        expect(watched.surfaceTintLight, adj.lightTint);
+        expect(watched.surfaceTintDark, adj.darkTint);
+        expect(watched.controlColor, adj.controls.name);
         expect(row.themeMode, 'oled');
       }
       await dao.updateColorTuning(
-        const ColorTuning(vividness: 3, lightDepth: 4),
+        const ColorTuning(
+          vividness: 3,
+          lightDepth: 4,
+          lightTint: 5,
+          darkTint: 3,
+          controls: NavisControlColor.white,
+        ),
       );
       await dao.resetDefaults();
       final reset = (await dao.getSettings())!;
       expect(reset.colorVividness, 0);
       expect(reset.surfaceDepthLight, 0);
       expect(reset.surfaceDepthDark, 0);
+      expect(reset.surfaceTintLight, 0);
+      expect(reset.surfaceTintDark, 0);
+      expect(reset.controlColor, 'accent');
     }, skip: !sqliteAvailable);
 
     test(

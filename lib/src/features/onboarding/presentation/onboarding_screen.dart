@@ -677,6 +677,8 @@ class OnboardingScreenState extends ConsumerState<OnboardingScreen> {
         adjustment: ColorAdjustment(
           vividness: draft.colorVividness,
           depth: draft.surfaceDepthLight,
+          tint: draft.surfaceTintLight,
+          controls: NavisControlColor.parse(draft.controlColor),
         ),
         corners: corners,
       );
@@ -690,6 +692,8 @@ class OnboardingScreenState extends ConsumerState<OnboardingScreen> {
             adjustment: ColorAdjustment(
               vividness: draft.colorVividness,
               depth: draft.surfaceDepthDark,
+              tint: draft.surfaceTintDark,
+              controls: NavisControlColor.parse(draft.controlColor),
             ),
             corners: corners,
           )
@@ -701,6 +705,8 @@ class OnboardingScreenState extends ConsumerState<OnboardingScreen> {
             adjustment: ColorAdjustment(
               vividness: draft.colorVividness,
               depth: draft.surfaceDepthDark,
+              tint: draft.surfaceTintDark,
+              controls: NavisControlColor.parse(draft.controlColor),
             ),
             corners: corners,
           );
@@ -914,6 +920,9 @@ class OnboardingScreenState extends ConsumerState<OnboardingScreen> {
           colorVividness: tuning.vividness,
           surfaceDepthLight: tuning.lightDepth,
           surfaceDepthDark: tuning.darkDepth,
+          surfaceTintLight: tuning.lightTint,
+          surfaceTintDark: tuning.darkTint,
+          controlColor: tuning.controls.name,
         ),
       );
     }

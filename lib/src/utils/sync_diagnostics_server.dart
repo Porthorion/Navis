@@ -863,6 +863,9 @@ class SyncDiagnosticsServer {
           final colorVividness = body['colorVividness'];
           final surfaceDepthLight = body['surfaceDepthLight'];
           final surfaceDepthDark = body['surfaceDepthDark'];
+          final surfaceTintLight = body['surfaceTintLight'];
+          final surfaceTintDark = body['surfaceTintDark'];
+          final controlColor = body['controlColor'];
           final shade = body['albumArtShade'];
           final coloredShade = body['albumArtColoredShade'];
           final corners = body['cornerStyle'];
@@ -878,6 +881,7 @@ class SyncDiagnosticsServer {
               (value) => value.storageKey,
             ),
             'density': NavisDensity.values.map((value) => value.storageKey),
+            'controlColor': const ['accent', 'white'],
           };
           for (final entry in choices.entries) {
             if (body.containsKey(entry.key) &&
@@ -904,6 +908,13 @@ class SyncDiagnosticsServer {
             if (!body.containsKey(key)) continue;
             final value = body[key];
             if (value is! int || value < -5 || value > 5) {
+              throw const FormatException();
+            }
+          }
+          for (final key in ['surfaceTintLight', 'surfaceTintDark']) {
+            if (!body.containsKey(key)) continue;
+            final value = body[key];
+            if (value is! int || value < 0 || value > 5) {
               throw const FormatException();
             }
           }
@@ -947,6 +958,9 @@ class SyncDiagnosticsServer {
                   'colorVividness',
                   'surfaceDepthLight',
                   'surfaceDepthDark',
+                  'surfaceTintLight',
+                  'surfaceTintDark',
+                  'controlColor',
                   'albumArtShade',
                   'albumArtColoredShade',
                   'cornerStyle',
@@ -994,10 +1008,20 @@ class SyncDiagnosticsServer {
           if (flatAreas is int) await dao.updateFlatAreas(flatAreas);
           if (colorVividness is int ||
               surfaceDepthLight is int ||
-              surfaceDepthDark is int) {
+              surfaceDepthDark is int ||
+              surfaceTintLight is int ||
+              surfaceTintDark is int ||
+              controlColor is String) {
             final current = await dao.getSettings();
             await dao.updateColorTuning(
               ColorTuning(
+                lightTint:
+                    surfaceTintLight as int? ?? current?.surfaceTintLight ?? 0,
+                darkTint:
+                    surfaceTintDark as int? ?? current?.surfaceTintDark ?? 0,
+                controls: NavisControlColor.parse(
+                  controlColor as String? ?? current?.controlColor,
+                ),
                 vividness:
                     colorVividness as int? ?? current?.colorVividness ?? 0,
                 lightDepth:
@@ -1063,6 +1087,9 @@ class SyncDiagnosticsServer {
           'colorVividness': settings?.colorVividness ?? 0,
           'surfaceDepthLight': settings?.surfaceDepthLight ?? 0,
           'surfaceDepthDark': settings?.surfaceDepthDark ?? 0,
+          'surfaceTintLight': settings?.surfaceTintLight ?? 0,
+          'surfaceTintDark': settings?.surfaceTintDark ?? 0,
+          'controlColor': settings?.controlColor ?? 'accent',
           'selectedAppearanceLookId': matchingAppearanceLookId(model),
           'appearanceLookCount': model.appearanceLooks.length,
           'albumArtShade': settings?.albumArtShade ?? false,

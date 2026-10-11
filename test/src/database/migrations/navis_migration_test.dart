@@ -27,7 +27,13 @@ void main() {
       await seed.appSettingsDao.updateColorStyle('night');
       await seed.appSettingsDao.updateAlbumArtShade(enabled: true);
       await seed.appSettingsDao.updateColorTuning(
-        const ColorTuning(vividness: 3, lightDepth: -2),
+        const ColorTuning(
+          vividness: 3,
+          lightDepth: -2,
+          lightTint: 4,
+          darkTint: 2,
+          controls: NavisControlColor.white,
+        ),
       );
       final other = (await seed.appSettingsDao.getSettings())!.copyWith(id: 2);
       await seed.into(seed.appSettingsTable).insert(other);
@@ -36,10 +42,15 @@ void main() {
       try {
         if (!partial) {
           raw.execute('ALTER TABLE app_settings DROP COLUMN color_vividness');
+          raw.execute(
+            'ALTER TABLE app_settings DROP COLUMN surface_tint_light',
+          );
+          raw.execute('ALTER TABLE app_settings DROP COLUMN control_color');
         }
         for (final column in [
           'surface_depth_light',
           'surface_depth_dark',
+          'surface_tint_dark',
           'appearance_looks',
           'selected_appearance_look_id',
         ]) {
@@ -57,6 +68,9 @@ void main() {
           expect(row.colorVividness, partial ? 3 : 0);
           expect(row.surfaceDepthLight, 0);
           expect(row.surfaceDepthDark, 0);
+          expect(row.surfaceTintLight, partial ? 4 : 0);
+          expect(row.surfaceTintDark, 0);
+          expect(row.controlColor, partial ? 'white' : 'accent');
           expect(row.appearanceLooks, '[]');
           expect(row.selectedAppearanceLookId, isNull);
           expect(row.colorStyle, 'night');
@@ -68,7 +82,14 @@ void main() {
           101,
         );
         await upgraded.appSettingsDao.updateColorTuning(
-          const ColorTuning(vividness: -4, lightDepth: 5, darkDepth: -3),
+          const ColorTuning(
+            vividness: -4,
+            lightDepth: 5,
+            darkDepth: -3,
+            lightTint: 3,
+            darkTint: 5,
+            controls: NavisControlColor.white,
+          ),
         );
         await upgraded.appSettingsDao.updateAppearanceLooks(
           selectedLookId: 'look-id',
@@ -92,6 +113,9 @@ void main() {
         expect(row.colorVividness, -4);
         expect(row.surfaceDepthLight, 5);
         expect(row.surfaceDepthDark, -3);
+        expect(row.surfaceTintLight, 3);
+        expect(row.surfaceTintDark, 5);
+        expect(row.controlColor, 'white');
         expect(row.appearanceLooks, '[{"id":"look-id"}]');
         expect(row.selectedAppearanceLookId, 'look-id');
       } finally {

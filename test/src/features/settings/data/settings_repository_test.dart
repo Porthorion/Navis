@@ -25,6 +25,51 @@ void main() {
     });
 
     test(
+      'setup preserves concurrent tint and controls unless changed in draft',
+      () async {
+        final initial = await repository.getSettings();
+        final draft = initial.copyWith(
+          surfaceTintLight: 3,
+          controlColor: 'white',
+        );
+        await repository.saveSettings(draft);
+        expect(
+          (await repository.watchSettings().first).colorTuning,
+          const ColorTuning(lightTint: 3, controls: NavisControlColor.white),
+        );
+        await database.appSettingsDao.updateColorTuning(
+          const ColorTuning(
+            lightTint: 5,
+            darkTint: 4,
+            controls: NavisControlColor.white,
+          ),
+        );
+        await repository.saveOnboardingChanges(
+          draft,
+          draft.copyWith(surfaceDepthDark: 2),
+        );
+        expect(
+          (await repository.getSettings()).colorTuning,
+          const ColorTuning(
+            darkDepth: 2,
+            lightTint: 5,
+            darkTint: 4,
+            controls: NavisControlColor.white,
+          ),
+        );
+        await repository.saveOnboardingChanges(
+          draft,
+          draft.copyWith(surfaceTintLight: 1, controlColor: 'accent'),
+        );
+        expect(
+          (await repository.getSettings()).colorTuning,
+          const ColorTuning(darkDepth: 2, lightTint: 1, darkTint: 4),
+        );
+      },
+      skip: !sqliteAvailable,
+    );
+
+    test(
       'color tuning round trips and setup preserves concurrent unchanged axes',
       () async {
         final initial = await repository.getSettings();

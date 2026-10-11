@@ -965,8 +965,11 @@ targeted production DAO methods. The same endpoint also accepts `themeMode`
 `density` (comfortable/compact). `flatAreas` is an integer mask 0–7;
 `albumArtShade` and `albumArtColoredShade` are booleans. Colour tuning uses
 `colorVividness`, `surfaceDepthLight` and `surfaceDepthDark` (integers
-−5…+5, default 0); omitted axes retain their values and targeted writes use
-`updateColorTuning`. The old branch-only `surfaceDepth` key is rejected.
+−5…+5, default 0), `surfaceTintLight` / `surfaceTintDark` (integers
+0…5, default 0), and `controlColor` (`accent` or `white`, default `accent`).
+All are returned by GET and accepted by POST; invalid values/types or unknown
+keys reject the complete request before writes. Omitted axes retain their
+values and targeted writes use `updateColorTuning`. The old branch-only `surfaceDepth` key is rejected.
 GET also returns `selectedAppearanceLookId` and `appearanceLookCount`; the id
 is derived by matching current appearance values. Looks are the only appearance
 presets; tuning preset ids and counts are no longer returned.
