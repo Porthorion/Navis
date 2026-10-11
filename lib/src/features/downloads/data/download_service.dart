@@ -578,8 +578,11 @@ class DownloadService {
     await stopAndWait();
   }
 
-  /// Stops queue observation, cancels the active transfer, and does not return
-  /// until its cancellation cleanup has finished.
+  /// Stops queue observation and drains transfers and startup recovery.
+  ///
+  /// Invalidates recovery before waiting so storage work cannot register an
+  /// old session after teardown. Transfer cancellation cleanup also finishes
+  /// before this returns.
   Future<void> stopAndWait() async {
     _stopped = true;
     _lifecycleGeneration++;
@@ -1829,9 +1832,8 @@ class DownloadService {
         'phase': phase,
         'publicationLocator': publicationLocator,
         'path': path,
-        'partPath': verifiedFile.path.endsWith(downloadPartSuffix)
-            ? verifiedFile.path
-            : '$path$downloadPartSuffix',
+        if (verifiedFile.path.endsWith(downloadPartSuffix))
+          'partPath': verifiedFile.path,
         'size': size,
         'sha256': digest.toString(),
         'format': format,
@@ -1907,6 +1909,7 @@ class DownloadService {
   }
 
   /// Replays only files whose bytes match the verified, owned finish intent.
+  ///
   /// A part file is deliberately never resumed, even when it is complete.
   Future<void> _reconcileFinishedDownloads(int generation) async {
     for (final item in await _downloadQueueDao.watchQueue().first) {
@@ -2026,8 +2029,10 @@ class DownloadService {
     }
   }
 
-  /// Unlike stat/exists, length exposes permission and I/O errors. Only an
-  /// explicit missing-path errno permits forgetting a permanent download.
+  /// Checks filesystem presence without hiding access or I/O errors.
+  ///
+  /// Unlike stat/exists, length exposes failures. Only an explicit missing-path
+  /// errno permits forgetting a permanent download.
   Future<bool> _filesystemDownloadExists(String path) async {
     try {
       await File(path).length();
@@ -2093,7 +2098,9 @@ class DownloadService {
   }
 
   /// Removes private staging parts and exact, persisted owned parts in the
-  /// active user folder. SAF transfers never create parts in the user's tree.
+  /// active user folder.
+  ///
+  /// SAF transfers never create parts in the user's tree.
   Future<void> _removePartialDownloads(int generation) async {
     try {
       final saf = _isSafRoot(_readCustomDownloadFolderPath());

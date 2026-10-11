@@ -691,6 +691,13 @@ void main() {
     await service.enqueueSong('song-0');
     await service.processQueuedDownloads();
     expect(writes, 1);
+    final finish = jsonDecode((await queue()).single.finishJournal!) as Map;
+    expect(finish['phase'], 'verified');
+    expect(
+      finish['partPath'],
+      isNull,
+      reason: 'Renaming does not create another part file',
+    );
     for (var i = 0; i < 3; i++) {
       await Future<void>.delayed(const Duration(milliseconds: 20));
       await service.processQueuedDownloads();
@@ -943,9 +950,6 @@ void main() {
       var accessible = false;
       final entered = Completer<void>();
       final release = Completer<void>();
-      addTearDown(() {
-        if (!release.isCompleted) release.complete();
-      });
       final materialized = File(p.join(supportDir.path, 'materialized.mp3'));
       messenger.setMockMethodCallHandler(channel, (call) async {
         switch (call.method) {
@@ -996,6 +1000,9 @@ void main() {
         customEnabled: () => true,
         customPath: () => tree,
       );
+      addTearDown(() {
+        if (!release.isCompleted) release.complete();
+      });
       await service.start();
       accessible = true;
       final recovering = service.processQueuedDownloads();
@@ -1008,6 +1015,9 @@ void main() {
       final drainedEarly = stopped;
       release.complete();
       await stopping;
+      // Draining alone is insufficient: a stale recovery must not register
+      // even before the caller clears the server's data.
+      expect(await database.cacheDao.getCachedTrack('song-0'), isNull);
       // Sign-out clears data only after the download service has drained.
       await database.downloadQueueDao.clearQueue();
       await database.cacheDao.removeCachedTrack('song-0');
@@ -1206,6 +1216,28 @@ void main() {
     expect(foreign.readAsBytesSync(), [2]);
     expect((await queue()).single.status, DownloadStatus.queued);
   }, skip: !sqliteAvailable);
+
+  test(
+    'a pre-existing transfer part name is preserved and never downloaded over',
+    () async {
+      await addSongs(1);
+      final custom = Directory(p.join(supportDir.path, 'custom'));
+      final part = File(p.join(custom.path, 'Artist', 'Song 0.mp3.navis-part'));
+      await part.parent.create(recursive: true);
+      await part.writeAsBytes([9, 8, 7, 6]);
+      final service = buildService(
+        customEnabled: () => true,
+        customPath: () => custom.path,
+      );
+      await service.start();
+      await service.enqueueSong('song-0');
+      await service.processQueuedDownloads();
+      expect(part.readAsBytesSync(), [9, 8, 7, 6]);
+      expect(server.requests, isEmpty);
+      expect(await database.cacheDao.getCachedTrack('song-0'), isNull);
+    },
+    skip: !sqliteAvailable,
+  );
 
   test(
     'part ownership is journaled before the transfer writes bytes',

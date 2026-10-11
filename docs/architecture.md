@@ -5180,10 +5180,10 @@ one notice through the existing folder-notice stream. Native capacity queries
 use StatFs on Android, filesystem attributes on Apple targets (with a bundled
 DiskSpace/E174.1 privacy reason), statvfs on Linux and GetDiskFreeSpaceExW on
 Windows. Unavailable capacity reports are skipped; write-time storage errors
-still hold work. SAF provider write/probe exhaustion is held separately from private staging
-exhaustion. Automatic rechecks never clear a provider hold from staging free
-space: provider capacity is unknown, so an explicit storage repair/resume is
-required to try again. A repeated provider failure holds again.
+still hold work. SAF provider write/probe exhaustion is held separately from
+private staging exhaustion. Automatic rechecks never clear a provider hold
+from staging free space: provider capacity is unknown, so an explicit storage
+repair/resume is required to try again. A repeated provider failure holds again.
 SAF providers cannot report free space through the current
 bridge: only the app-private staging filesystem is checked, and provider
 ENOSPC/EDQUOT is handled on write. `noSpace` extends DownloadFolderProblem and
@@ -5202,24 +5202,28 @@ and native transport/decompression errors still retry without registration.
 journals the destination, verified size/digest, format/bitrate and optional SAF
 tree/relative path before rename/upload. Identity tags may change bytes, so the
 intent is updated before SAF upload or registration. After publication it
-records the published phase and exact locator returned by the provider. Once the final file exists,
-cache upsert and queue removal commit together in the existing DAO transaction.
+records the published phase and exact locator returned by the provider.
+Once the final file exists, cache upsert and queue removal commit together in
+the existing DAO transaction.
 Startup replays journaled final files only when size and digest agree; missing
 or invalid files are requeued, and part files always restart from zero. Missing
 permanent-cache files are requeued when library metadata still permits a
 server download. Filesystem absence requires an explicit missing-path errno;
 `stat`/`exists` can hide access failures and do not authorize record removal.
 Permission and I/O failures retain permanent records, including local-only
-songs, and finish intents until storage returns,
-and startup repair completes before workers start. Deferred recovery belongs
-to the service lifecycle: teardown invalidates its generation and awaits it
-before server data can be cleared. Reconciliation checks the generation after
-storage waits and inside registration transactions to reject stale writes. Unknown custom-folder audio
-has no finish intent and is left to the explicit adoption/rescan flow.
+songs, and finish intents until storage returns. Startup repair completes
+before workers start. Deferred recovery belongs to the service lifecycle:
+teardown invalidates its generation and awaits it before server data can be
+cleared. Reconciliation checks the generation after
+storage waits and inside registration transactions to reject stale writes.
+Unknown custom-folder audio has no finish intent and is left to the explicit
+adoption/rescan flow.
 Before a transfer creates its part file, the existing queue journal records
 its exact path. Custom-root cleanup requires that persisted ownership and does
 not follow links. Unowned suffix files are preserved and logged. SAF trees are
-never swept for suffix files; only app-private SAF staging parts are removed. SAF uploads retain the existing
+never swept for suffix files; only app-private SAF staging parts are removed.
+Finish journals name a part only while verifying the actual part file; updates
+after rename never infer another part pathname. SAF uploads retain the existing
 document MIME type and provider capability contract. The bridge checks the
 copied byte count and removes its own document on a write error; startup verifies
 a journaled upload's digest. Mismatching destinations are preserved and logged:
