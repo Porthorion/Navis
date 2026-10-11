@@ -232,6 +232,7 @@ class PlaybackRuntimeSettings {
     required this.gaplessEnabled,
     this.equalizer,
     required this.crossfadeEnabled,
+    this.crossfadeAllowStreaming = true,
     required this.crossfadeDurationSeconds,
     required this.crossfadeType,
     required this.replayGainMode,
@@ -247,6 +248,7 @@ class PlaybackRuntimeSettings {
     : gaplessEnabled = true,
       equalizer = null,
       crossfadeEnabled = false,
+      crossfadeAllowStreaming = true,
       crossfadeDurationSeconds = 5,
       crossfadeType = 'normal',
       replayGainMode = 'off',
@@ -260,6 +262,9 @@ class PlaybackRuntimeSettings {
   final bool gaplessEnabled;
   final EqConfiguration? equalizer;
   final bool crossfadeEnabled;
+
+  /// Whether a fade may open a remote incoming source.
+  final bool crossfadeAllowStreaming;
   final int crossfadeDurationSeconds;
   final String crossfadeType;
 

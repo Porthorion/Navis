@@ -398,6 +398,9 @@ class NavisAudioHandler extends BaseAudioHandler
 
   // ── Cross-fade state ──────────────────────────────────────────────────────
   bool _crossfadeEnabled = false;
+  bool _crossfadeLocalOnlyDeck = false;
+  String? _crossfadeLastFailure;
+  String? _crossfadeDisabledReason;
   int _crossfadeDurationSeconds = 5;
   String _crossfadeType = 'normal';
   static const Duration _crossfadePrepareLeadTime = Duration(
@@ -882,6 +885,11 @@ class NavisAudioHandler extends BaseAudioHandler
     }
 
     final current = _resolveCurrentQueueMetadata();
+    if (_crossfadeDisabledReason == 'cellular' &&
+        _readRuntimeSettings().crossfadeAllowStreaming) {
+      _crossfadeFailedFrom = null;
+      _crossfadeDisabledReason = null;
+    }
     final failed = _crossfadeFailedFrom;
     if (failed != null &&
         failed.index == current.currentIndex &&
@@ -1967,7 +1975,8 @@ class NavisAudioHandler extends BaseAudioHandler
     final wasCrossfadeEnabled = _crossfadeEnabled;
     _gaplessEnabled = navisEffectiveGaplessEnabled(
       gaplessEnabled: runtime.gaplessEnabled,
-      crossfadeEnabled: runtime.crossfadeEnabled,
+      crossfadeEnabled:
+          runtime.crossfadeEnabled && runtime.crossfadeAllowStreaming,
     );
     _crossfadeEnabled = runtime.crossfadeEnabled;
     _crossfadeDurationSeconds = runtime.crossfadeDurationSeconds;
@@ -2153,6 +2162,24 @@ class NavisAudioHandler extends BaseAudioHandler
       'crossfade': <String, Object?>{
         'enabled': _crossfadeEnabled,
         'active': _isCrossfading,
+        'disabledReason': !_crossfadeEnabled
+            ? 'setting'
+            : _crossfadeDisabledReason,
+        'lastFailure': _crossfadeLastFailure,
+        'outgoing': _isCrossfading
+            ? <String, Object?>{
+                'playing': _player.playing,
+                'volume': _player.volume,
+                'positionMs': _player.position.inMilliseconds,
+              }
+            : null,
+        'incoming': _isCrossfading
+            ? <String, Object?>{
+                'playing': inactiveDeck?.playing,
+                'volume': inactiveDeck?.volume,
+                'positionMs': inactiveDeck?.position.inMilliseconds,
+              }
+            : null,
         'inactiveDeckSequenceLength': inactiveDeck?.sequence.length,
         'inactiveDeckMatchesQueue': inactiveDeck == null
             ? null
@@ -2450,7 +2477,34 @@ class NavisAudioHandler extends BaseAudioHandler
   Future<void> setVolume(double volume) async {
     await _ready;
     _userVolume = volume.clamp(0.0, 1.0);
-    await _player.setVolume(_userVolume);
+    if (_isCrossfading) {
+      final progress = _crossfadeFadeStartedAt == null
+          ? 0.0
+          : (DateTime.now()
+                        .difference(_crossfadeFadeStartedAt!)
+                        .inMilliseconds /
+                    (_crossfadeDurationSeconds * 1000))
+                .clamp(0.0, 1.0);
+      await _player.setVolume(
+        _replayGainVolumeFor(_resolveCurrentQueueMetadata().mediaItem) *
+            (1 - progress),
+      );
+      final deck = _crossfadePlayer;
+      if (deck != null) {
+        await deck.setVolume(
+          _replayGainVolumeFor(
+                _queueItems.elementAtOrNull(
+                  _crossfadeTargetIndex ?? _queueItems.length,
+                ),
+              ) *
+              progress,
+        );
+      }
+    } else {
+      await _player.setVolume(
+        _replayGainVolumeFor(_resolveCurrentQueueMetadata().mediaItem),
+      );
+    }
   }
 
   @override

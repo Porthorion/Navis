@@ -20,6 +20,7 @@ import 'package:drift/drift.dart' show Value;
 import 'package:navis/src/features/auto/data/auto_media_id.dart';
 import 'package:dio/dio.dart';
 import 'package:mocktail/mocktail.dart';
+import 'package:path/path.dart' as p;
 import 'package:navis/src/common_widgets/cover_art_cache_manager.dart';
 import 'package:navis/src/features/player/data/radio_metadata_service.dart';
 import 'package:just_audio/just_audio.dart';
@@ -228,6 +229,10 @@ class _ControllableAudioPlayer extends Fake implements AudioPlayer {
   double appliedSpeed = 1;
   double appliedPitch = 1;
   bool failPitchOnce = false;
+  bool failPlay = false;
+  bool ignorePlay = false;
+  bool playRequested = false;
+  bool failVolume = false;
   String? failAppendSongId;
 
   /// A load whose first song is this one fails, as a broken source would.
@@ -330,7 +335,7 @@ class _ControllableAudioPlayer extends Fake implements AudioPlayer {
   Duration? get duration => simulatedDuration;
 
   @override
-  double get volume => 1;
+  double get volume => appliedVolumes.lastOrNull ?? 1;
 
   @override
   double get speed => appliedSpeed;
@@ -362,6 +367,10 @@ class _ControllableAudioPlayer extends Fake implements AudioPlayer {
 
   @override
   Future<void> setVolume(double value) async {
+    if (failVolume) {
+      failVolume = false;
+      throw StateError('volume unavailable');
+    }
     appliedVolumes.add(value);
   }
 
@@ -437,6 +446,9 @@ class _ControllableAudioPlayer extends Fake implements AudioPlayer {
 
   @override
   Future<void> play() async {
+    playRequested = true;
+    if (ignorePlay) return;
+    if (failPlay) throw StateError('play unavailable');
     if (!isPlaying) playedFrom.add(position);
     _positionUpdated = DateTime.now();
     isPlaying = true;
@@ -765,6 +777,7 @@ void main() {
     Directory directory,
     int count, {
     bool crossfade = false,
+    bool crossfadeAllowStreaming = true,
     bool positionStreams = false,
     String crossfadeType = 'normal',
     String Function()? readCrossfadeType,
@@ -882,6 +895,7 @@ void main() {
         gaplessEnabled: true,
 
         crossfadeEnabled: crossfade,
+        crossfadeAllowStreaming: crossfadeAllowStreaming,
         crossfadeDurationSeconds: 5,
         crossfadeType: readCrossfadeType?.call() ?? crossfadeType,
         replayGainMode: replayGainMode,
@@ -5258,6 +5272,7 @@ void main() {
       String crossfadeType = 'normal',
       String Function()? readCrossfadeType,
       ScrobbleService? scrobbleService,
+      String replayGainMode = 'off',
     }) async {
       final directory = await Directory.systemTemp.createTemp('navis-fade-');
       final created = await createHandler(
@@ -5269,6 +5284,7 @@ void main() {
         crossfadeType: crossfadeType,
         readCrossfadeType: readCrossfadeType,
         scrobbleService: scrobbleService,
+        replayGainMode: replayGainMode,
       );
       addTearDown(() async {
         await created.$1.disposeHandler();
@@ -5284,6 +5300,209 @@ void main() {
       }
       expect(condition(), isTrue, reason: 'crossfade did not settle');
     }
+
+    test(
+      'incoming play preserves outgoing playback and reports both decks',
+      () async {
+        final (handler, outgoing, _) = await crossfading(2);
+        await handler.replaceQueue(ids(2), expandMatchFlows: false);
+        final incoming = handler.debugInactiveDeck! as _ControllableAudioPlayer;
+        incoming.simulateProgress = true;
+        handler.debugCheckCrossfadeTrigger(const Duration(seconds: 175));
+        await waitForFade(() => incoming.playing && incoming.volume > 0);
+        expect(outgoing.playing, isTrue);
+        final status = fade(handler);
+        expect((status['outgoing']! as Map)['playing'], isTrue);
+        expect((status['incoming']! as Map)['playing'], isTrue);
+        expect((status['incoming']! as Map)['positionMs'], greaterThan(0));
+        expect(outgoing.volume, greaterThan(0));
+        await handler.setVolume(0);
+        expect(outgoing.volume, 0);
+        expect(incoming.volume, 0);
+        await handler.setVolume(.5);
+        expect(incoming.volume, lessThan(.5));
+        await handler.debugCompleteCrossfade();
+        expect(handler.debugActivePlayer, same(incoming));
+        expect(incoming.volume, .5);
+      },
+    );
+
+    for (final failure in ['play', 'volume']) {
+      test(
+        'incoming $failure failure reports and falls back gaplessly',
+        () async {
+          final (handler, outgoing, _) = await crossfading(2);
+          await handler.replaceQueue(ids(2), expandMatchFlows: false);
+          final incoming =
+              handler.debugInactiveDeck! as _ControllableAudioPlayer;
+          incoming.failPlay = failure == 'play';
+          handler.debugCheckCrossfadeTrigger(const Duration(seconds: 175));
+          if (failure == 'volume') {
+            await waitForFade(() => incoming.playing);
+            incoming.failVolume = true;
+          }
+          await waitForFade(() => fade(handler)['active'] == false);
+          final phase = failure == 'play'
+              ? 'incoming_play_failed'
+              : 'fade_failed';
+          expect(fade(handler)['lastFailure'], '$phase:StateError');
+          expect(fade(handler)['phases'], containsPair(phase, 1));
+          expect(handler.debugActivePlayer, same(outgoing));
+          expect(outgoing.playing, isTrue);
+          expect(outgoing.volume, 1);
+          expect(incoming.playing, isFalse);
+          expect(incoming.volume, 0);
+        },
+      );
+    }
+
+    for (final cacheType in [null, CacheType.permanent, CacheType.rolling]) {
+      test(
+        'cellular crossfade allows only local incoming ($cacheType)',
+        () async {
+          final directory = await Directory.systemTemp.createTemp(
+            'navis-cellular-fade-',
+          );
+          final (handler, outgoing, database) = await createHandler(
+            directory,
+            3,
+            crossfade: true,
+            crossfadeAllowStreaming: false,
+            sidecarStreams: true,
+            seed: (database) async {
+              if (cacheType == null) return;
+              final file = File(p.join(directory.path, 'incoming.mp3'));
+              await file.writeAsBytes([1, 2, 3]);
+              await database.cacheDao.upsertCachedTrack(
+                CachedTracksTableCompanion.insert(
+                  songId: 'song-1',
+                  filePath: file.path,
+                  fileSize: 3,
+                  format: 'mp3',
+                  cacheType: cacheType,
+                  downloadStatus: DownloadStatus.complete,
+                  lastAccessedAt: DateTime.now(),
+                ),
+              );
+            },
+          );
+          addTearDown(() async {
+            await handler.disposeHandler();
+            await database.close();
+            await directory.delete(recursive: true);
+          });
+          await handler.replaceQueue(ids(3), expandMatchFlows: false);
+          final incoming =
+              handler.debugInactiveDeck! as _ControllableAudioPlayer;
+          handler.debugCheckCrossfadeTrigger(const Duration(seconds: 175));
+          await waitForFade(
+            () => incoming.playing || fade(handler)['active'] == false,
+          );
+          expect(outgoing.playing, isTrue);
+          if (cacheType == null) {
+            expect(fade(handler)['disabledReason'], 'cellular');
+            expect(incoming.sourceIds, isEmpty);
+            expect(fade(handler)['lastFailure'], isNull);
+          } else {
+            expect(fade(handler)['disabledReason'], isNull);
+            expect(incoming.sourceIds, ['song-1']);
+            await handler.debugCompleteCrossfade();
+            expect(handler.debugActivePlayer, same(incoming));
+            expect(incoming.sourceIds, ids(3));
+            expect(incoming.currentIndex, 1);
+            expect(incoming.playing, isTrue);
+            expect(handler.snapshot.currentSongId, 'song-1');
+            expectNativeMirrorsQueue(handler, incoming);
+          }
+        },
+      );
+    }
+
+    test(
+      'navigation supersedes a cellular handoff waiting to append',
+      () async {
+        final directory = await Directory.systemTemp.createTemp(
+          'navis-cellular-handoff-',
+        );
+        final (handler, outgoing, database) = await createHandler(
+          directory,
+          3,
+          crossfade: true,
+          crossfadeAllowStreaming: false,
+        );
+        addTearDown(() async {
+          await handler.disposeHandler();
+          await database.close();
+          await directory.delete(recursive: true);
+        });
+        await handler.replaceQueue(ids(3), expandMatchFlows: false);
+        final incoming = handler.debugInactiveDeck! as _ControllableAudioPlayer;
+        handler.debugCheckCrossfadeTrigger(const Duration(seconds: 175));
+        await waitForFade(() => incoming.playing);
+        incoming.appendGate = Completer<void>();
+        incoming.appendEntered = Completer<void>();
+        final gate = incoming.appendGate!;
+        final handoff = handler.debugCompleteCrossfade();
+        await incoming.appendEntered!.future;
+        await handler.playFromIndex(2);
+        expect(handler.snapshot.currentSongId, 'song-2');
+        gate.complete();
+        await handoff;
+        expect(handler.debugActivePlayer, same(outgoing));
+        expect(outgoing.audibleSongId, 'song-2');
+        expect(incoming.playing, isFalse);
+        expect(handler.mediaItem.valueOrNull?.id, 'song-2');
+        expect(fade(handler)['active'], isFalse);
+      },
+    );
+
+    test('an incoming deck that never starts cannot be handed over', () async {
+      final (handler, outgoing, _) = await crossfading(2);
+      await handler.replaceQueue(ids(2), expandMatchFlows: false);
+      final incoming = handler.debugInactiveDeck! as _ControllableAudioPlayer;
+      incoming.ignorePlay = true;
+      handler.debugCheckCrossfadeTrigger(const Duration(seconds: 175));
+      await waitForFade(() => incoming.playRequested);
+      expect(outgoing.volume, 1);
+      await handler.debugCompleteCrossfade();
+      expect(handler.debugActivePlayer, same(outgoing));
+      expect(outgoing.playing, isTrue);
+      expect(fade(handler)['lastFailure'], 'incoming_not_ready:StateError');
+      expect(fade(handler)['phases'], containsPair('incoming_not_ready', 1));
+    });
+
+    test(
+      'fade and handoff preserve each song ReplayGain volume base',
+      () async {
+        final (handler, outgoing, database) = await crossfading(
+          2,
+          replayGainMode: 'track',
+        );
+        await database.libraryDao.upsertSongs([
+          SongsTableCompanion.insert(
+            id: 'song-0',
+            title: 'Outgoing',
+            replayGainTrackGain: const Value(0),
+          ),
+          SongsTableCompanion.insert(
+            id: 'song-1',
+            title: 'Incoming',
+            replayGainTrackGain: const Value(-20),
+          ),
+        ]);
+        await handler.replaceQueue(ids(2), expandMatchFlows: false);
+        await handler.setVolume(.8);
+        final incoming = handler.debugInactiveDeck! as _ControllableAudioPlayer;
+        handler.debugCheckCrossfadeTrigger(const Duration(seconds: 175));
+        await waitForFade(() => incoming.playing && incoming.volume > 0);
+        expect(outgoing.volume, lessThan(.8));
+        expect(outgoing.volume, greaterThan(.4));
+        expect(incoming.volume, lessThan(.08));
+        await handler.debugCompleteCrossfade();
+        expect(incoming.volume, closeTo(.08, .000001));
+        expect(outgoing.playing, isFalse);
+      },
+    );
 
     test(
       'normal repeat one self-crossfades through multiple handoffs',

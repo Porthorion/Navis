@@ -4240,6 +4240,35 @@ enabled and is created, synchronized, or disposed as that setting changes.
 Its clones of lock-cached sources use direct streams so two decks never rename
 the same partial cache file.
 
+Both decks use `handleInterruptions: false`: Navis owns interruption/noisy
+handling for the session. The vendored Android ExoPlayer always applies audio
+attributes with `handleAudioFocus=false`; `audio_session` shares a single,
+idempotent Android focus request, so starting the incoming deck does not request
+competing focus or pause the outgoing deck. Genuine OS interruptions still
+cancel the fade and pause both decks.
+
+The cellular gate introduced by `331311eb` (mobile data optimization) now applies
+to opening a remote incoming source, rather than disabling all crossfade. The
+runtime setting keeps the user's crossfade intent and passes
+`crossfadeAllowStreaming=false` on cellular. A fade resolves its target through
+the existing source resolver with streaming forbidden: permanent download →
+completed rolling cache → refusal. The inactive deck holds only that local
+song during the overlap, so remote neighbours cannot be prefetched by the
+second player. At handoff it inserts/appends the rest of the queue using the
+existing prepared-source cloning path, preserving the incoming position and
+occurrence. A remote target keeps the ordinary single-deck transition and
+reports `crossfade.disabledReason=cellular`. Cellular gapless/preload policy is
+unchanged; a setting-disabled fade reports `disabledReason=setting`.
+
+The play lifetime Future is observed for failures without awaiting playback
+completion. The existing fade timer waits for incoming `playing` and `ready`
+before reducing the outgoing volume, serializes and awaits volume writes, and
+uses the shared ReplayGain/user-volume/ducking base for each song. Mute and
+volume changes preserve ramp proportions. Play/ramp failures log, increment
+phase counters, retain a credential-free `lastFailure`, cancel the incoming
+deck and restore the outgoing volume for sequential fallback. This establishes
+player state, not audible output: physical-device listening remains necessary.
+
 Crossfade starts after pending seeks settle. Normal crossfade with Repeat One
 prepares that same materialised queue entry on
 the inactive deck at position zero, overlaps the ending and fresh start, then
@@ -4275,7 +4304,9 @@ song's transition is tried again the next time it plays. In-place refreshes of a
 (`_RevisionedList.replaceAt` leaves `structureRevision` unchanged), so they
 neither abort a release nor invalidate the deck. `GET /v1/playback/status`
 reports `queueSettled`, `playerMatchesQueue`, a `crossfade` block (active,
-inactive deck length and match, outcome counts by phase), `queueLane` (the
+inactive deck length and match, outcome counts by phase, `disabledReason`,
+`lastFailure`, and active `outgoing`/`incoming` deck maps with `playing`,
+`volume`, `positionMs`), `queueLane` (the
 running work's kind and age, and the waiting kinds) and `recovery` (the stage
 of the latest seek or stall recovery). The native order is read from each
 source's `MediaItem` tag, or for an Android lock-cached stream, which is built

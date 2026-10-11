@@ -9,6 +9,7 @@ extension _NavisQueueLoading on NavisAudioHandler {
   }) {
     _clearQueueReplacementMetadataAnchor();
     _crossfadeFailedFrom = null;
+    _crossfadeDisabledReason = null;
     // The user's command replaces any startup queue still waiting to restore.
     if (_queueRestoreOutcome == 'deferred_auth') {
       _queueRestoreOutcome = 'superseded';
@@ -551,8 +552,24 @@ extension _NavisQueueLoading on NavisAudioHandler {
     return prepared;
   }
 
-  /// Resolve a single song's playback source with the standard fallback chain
-  /// (lock-caching → direct stream).
+  MediaItem _mediaItemForSong(
+    SongsTableData song, {
+    ResolvedPlaybackSource? source,
+  }) {
+    return MediaItem(
+      id: song.id,
+      title: song.title,
+      artist: song.artistName,
+      album: song.albumName,
+      duration: song.duration == null
+          ? null
+          : Duration(seconds: math.max(0, song.duration!)),
+      artUri: _sourceResolver.resolveArtUri(song),
+      extras: navisResolvedPlaybackExtras(song: song, source: source),
+    );
+  }
+
+  /// Resolves a song with the standard lock-caching → direct stream fallback.
   Future<_PreparedQueueItem> _prepareSingleItem(
     SongsTableData song, {
     required bool preferLockCaching,
@@ -586,17 +603,7 @@ extension _NavisQueueLoading on NavisAudioHandler {
         preferLockCaching: false,
       );
     }
-    final item = MediaItem(
-      id: song.id,
-      title: song.title,
-      artist: song.artistName,
-      album: song.albumName,
-      duration: song.duration == null
-          ? null
-          : Duration(seconds: math.max(0, song.duration!)),
-      artUri: _sourceResolver.resolveArtUri(song),
-      extras: navisResolvedPlaybackExtras(song: song, source: source),
-    );
+    final item = _mediaItemForSong(song, source: source);
     if (startupTrace?.songId == song.id) {
       startupTrace?.sourceKind = source.kind.name;
       startupTrace?.markOnce('sourceResolutionComplete');
