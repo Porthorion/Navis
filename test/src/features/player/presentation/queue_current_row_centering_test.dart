@@ -46,7 +46,12 @@ PlaybackSnapshot _snapshot(List<String> ids, int? current) => PlaybackSnapshot(
   repeatMode: AudioServiceRepeatMode.none,
 );
 
-Widget _app(_Queue queue, PlaybackSnapshot snapshot, {required bool sheet}) {
+Widget _app(
+  _Queue queue,
+  PlaybackSnapshot snapshot, {
+  required bool sheet,
+  Duration? metadataDelay,
+}) {
   return ProviderScope(
     overrides: [
       playerStateProvider.overrideWithValue(snapshot),
@@ -55,16 +60,23 @@ Widget _app(_Queue queue, PlaybackSnapshot snapshot, {required bool sheet}) {
       ),
       queueProvider.overrideWith(() => queue),
       songByIdProvider.overrideWith(
-        (ref, songId) => Stream.value(
-          SongsTableData(
-            isProvisional: false,
-            isExternal: false,
-            id: songId,
-            title: 'Track $songId',
-            albumId: 'album',
-            artistName: 'Artist',
-            albumName: 'Album',
-            duration: 180,
+        (ref, songId) => Stream.fromFuture(
+          Future.delayed(
+            metadataDelay ?? Duration.zero,
+            () => SongsTableData(
+              isProvisional: false,
+              isExternal: false,
+              id: songId,
+              // Late metadata wraps onto a second line, growing the row.
+              title: metadataDelay == null
+                  ? 'Track $songId'
+                  : 'Track $songId with a title long enough to wrap onto a '
+                        'second line on a phone',
+              albumId: 'album',
+              artistName: 'Artist',
+              albumName: 'Album',
+              duration: 180,
+            ),
           ),
         ),
       ),
@@ -84,12 +96,20 @@ Future<_Queue> _pump(
   int count,
   int? current, {
   required bool sheet,
+  Duration? metadataDelay,
 }) async {
   final ids = _ids(count);
   final queue = _Queue(ids);
-  await tester.pumpWidget(_app(queue, _snapshot(ids, current), sheet: sheet));
+  await tester.pumpWidget(
+    _app(
+      queue,
+      _snapshot(ids, current),
+      sheet: sheet,
+      metadataDelay: metadataDelay,
+    ),
+  );
   // Settle the post-frame estimate and refinement frames.
-  for (var i = 0; i < 10; i++) {
+  for (var i = 0; i < 30; i++) {
     await tester.pump(const Duration(milliseconds: 50));
   }
   return queue;
@@ -121,6 +141,26 @@ void main() {
           lessThanOrEqualTo(row.height),
         );
         expect(_position(tester).pixels, greaterThan(0));
+      });
+
+      testWidgets('stays centred when rows grow as metadata loads late', (
+        tester,
+      ) async {
+        tester.view.devicePixelRatio = 1;
+        tester.view.physicalSize = const Size(448, 997);
+        addTearDown(tester.view.reset);
+        await _pump(
+          tester,
+          200,
+          120,
+          sheet: sheet,
+          metadataDelay: const Duration(milliseconds: 300),
+        );
+
+        final list = tester.getRect(find.byType(ReorderableListView));
+        final row = tester.getRect(_row(120));
+        expect(row.height, greaterThan(72));
+        expect((row.center.dy - list.center.dy).abs(), lessThanOrEqualTo(1));
       });
 
       testWidgets('first song stays at the top', (tester) async {
