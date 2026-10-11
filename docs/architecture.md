@@ -5064,12 +5064,17 @@ download naming throws when all 100 collision candidates are occupied.
    Navis-owned audio files; files inside the custom folder and Android SAF
    documents stay where they are.
    Leaving a custom folder follows the same rule. Turning it off (after a
-   confirmation) or choosing a different folder moves only downloads stored
-   in Navis's own directory. Every file in the folder being left, filesystem
-   or SAF, stays where it is under its own name, whether Navis downloaded or
+   confirmation when a folder is configured) or choosing a different folder
+   moves only downloads stored in Navis's own directory. Every file in the
+   folder being left, filesystem or SAF, stays where it is under its own name,
+   whether Navis downloaded or
    adopted it; Navis records no difference between the two. Navis forgets
-   those `cached_tracks` rows before the setting changes, so startup
-   normalization never moves them out later. The folder's sidecar remains,
+   reachable `cached_tracks` rows before the setting changes, so startup
+   normalization never moves them out later. Unavailable roots and missing or
+   inaccessible files keep their records and bytes. With custom storage off,
+   startup repair and normalization operate only inside the app-owned `audio`
+   directory; retained user-folder references neither get deleted nor hold the
+   app-storage queue, even after a restart. The folder's sidecar remains,
    so choosing that folder again re-adopts the files through the usual scan.
    That scan runs before the switch, so the import checks registration again
    when it commits: a file whose song lost its download in the switch is
@@ -5079,9 +5084,9 @@ download naming throws when all 100 collision candidates are occupied.
    Android uses a persisted Storage Access Framework tree URI rather than a
    filesystem path. A folder that a version before 1.2.8 stored as a plain
    path is turned off at startup under the same leaving rule: Navis forgets
-   the downloads inside it before the setting changes and leaves the files
-   where they are, and choosing the folder again as an Android folder runs
-   the usual scan. The cached-track storage kind distinguishes Android SAF
+   reachable downloads inside it before the setting changes and leaves the
+   files where they are, and choosing the folder again as an Android folder
+   runs the usual scan. The cached-track storage kind distinguishes Android SAF
    document locators from ordinary filesystem entries; SAF reads, writes,
    relocation, deletion, and offline playback go through the Android
    ContentResolver bridge and never overwrite unmanaged documents. Before a
@@ -5309,6 +5314,10 @@ The service exposes hold changes through `downloadFolderProblemProvider`, and
 Downloads shows the existing filled-card notice pattern with **Choose folder**
 and **Use app storage** actions across tabs. Both reuse the same picker,
 confirmation and app-lifetime `CustomDownloadFolderController` as Settings.
+**Use app storage** skips confirmation when the configured path is unset or
+blank. Disabling custom storage does not require the previous root to be
+writable or even present: relocation uses it only as a pruning boundary,
+preserves unreachable records, commits app storage, and resumes the held queue.
 Cancelling the picker preserves the previous setting; a chosen folder is saved
 only after validation and relocation, with path/kind/enablement committed in a
 transaction. Folder setting changes and explicit queue processing recheck access

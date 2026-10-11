@@ -1353,25 +1353,103 @@ void main() {
     );
   }
 
-  test(
-    'switching to app storage resumes a queue held by an unset folder',
-    () async {
-      var custom = true;
-      final service = buildService(customEnabled: () => custom);
-      await service.start();
-      await addSongs(1);
-      await service.enqueueSong('song-0', quality: '192', format: 'mp3');
-      await service.processQueuedDownloads();
-      expect(service.folderProblem, DownloadFolderProblem.unset);
-      custom = false;
-      server.releaseAll();
-      await service.refreshDownloadFolder();
-      await service.processQueuedDownloads();
-      expect(await queue(), isEmpty);
-      expect(service.folderProblem, isNull);
-    },
-    skip: !sqliteAvailable,
-  );
+  for (final problem in [
+    DownloadFolderProblem.unset,
+    DownloadFolderProblem.missing,
+    DownloadFolderProblem.inaccessible,
+  ]) {
+    test(
+      'disabling a $problem folder resumes into app storage and retains unreachable records across restart',
+      () async {
+        await database.appSettingsDao.getSettings();
+        final root = Directory(p.join(supportDir.path, 'custom'));
+        final path = problem == DownloadFolderProblem.unset ? null : root.path;
+        final retained = File(p.join(root.path, 'Artist', 'Retained.mp3'));
+        if (problem != DownloadFolderProblem.missing) {
+          await retained.parent.create(recursive: true);
+          await retained.writeAsBytes([7, 8, 9]);
+          expect((await Process.run('chmod', ['000', root.path])).exitCode, 0);
+          addTearDown(() => Process.run('chmod', ['700', root.path]));
+        }
+        await database.appSettingsDao.updateCustomDownloadFolderPath(path);
+        await database.appSettingsDao.updateCustomDownloadFolderEnabled(
+          enabled: true,
+        );
+        var settings = (await database.appSettingsDao.getSettings())!;
+        final subscription = database.appSettingsDao.watchSettings().listen(
+          (value) => settings = value!,
+        );
+        addTearDown(subscription.cancel);
+        await addSongs(4);
+        final legacy = File(
+          p.join(supportDir.path, 'audio', 'permanent', 'legacy.mp3'),
+        );
+        await legacy.parent.create(recursive: true);
+        await legacy.writeAsBytes([4, 5, 6]);
+        for (final (songId, file) in [
+          ('song-2', retained),
+          ('song-3', legacy),
+        ]) {
+          await database.cacheDao.upsertCachedTrack(
+            CachedTracksTableCompanion.insert(
+              songId: songId,
+              filePath: file.path,
+              fileSize: 3,
+              format: 'mp3',
+              cacheType: CacheType.permanent,
+              downloadStatus: DownloadStatus.complete,
+              lastAccessedAt: DateTime(2026),
+            ),
+          );
+        }
+        final before = await database.cacheDao.getCachedTrack('song-2');
+        final service = buildService(
+          customEnabled: () => settings.customDownloadFolderEnabled,
+          customPath: () => settings.customDownloadFolderPath,
+        );
+        await service.start();
+        await service.enqueueSong('song-0', quality: '192', format: 'mp3');
+        await service.enqueueSong('song-1', quality: '192', format: 'mp3');
+        await service.processQueuedDownloads();
+        expect(service.folderProblem, problem);
+        expect((await queue()).map((item) => item.retryCount), everyElement(0));
+        expect(server.requests, isEmpty);
+
+        server.releaseAll();
+        await service.configureCustomDownloadFolder(enabled: false);
+        await waitUntil(() => !settings.customDownloadFolderEnabled);
+        expect(settings.customDownloadFolderPath, isNull);
+        expect(settings.customDownloadFolderStorageKind, 'filesystem');
+        await service.processQueuedDownloads();
+        expect(service.folderProblem, isNull);
+        expect(await queue(), isEmpty);
+        expect(server.requests, hasLength(2));
+        expect(await database.cacheDao.getPermanentEntries(), hasLength(4));
+        expect(await database.cacheDao.getCachedTrack('song-2'), before);
+        for (final id in ['song-0', 'song-1', 'song-3']) {
+          final entry = (await database.cacheDao.getCachedTrack(id))!;
+          expect(p.isWithin(legacy.parent.path, entry.filePath), isTrue);
+          expect(await File(entry.filePath).length(), greaterThan(0));
+        }
+        expect(legacy.existsSync(), isFalse);
+
+        await service.stopAndWait();
+        await service.start();
+        await service.processQueuedDownloads();
+        expect(service.folderProblem, isNull);
+        expect(await queue(), isEmpty);
+        expect(server.requests, hasLength(2));
+        expect(await database.cacheDao.getCachedTrack('song-2'), before);
+        if (problem == DownloadFolderProblem.missing) {
+          expect(root.existsSync(), isFalse);
+        } else {
+          expect((await Process.run('chmod', ['700', root.path])).exitCode, 0);
+          expect(await retained.readAsBytes(), [7, 8, 9]);
+        }
+      },
+      skip: !sqliteAvailable || !Platform.isLinux,
+    );
+  }
 
   test(
     'lost SAF permission holds the queue until app storage is selected',

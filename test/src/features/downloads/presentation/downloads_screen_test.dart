@@ -1,4 +1,11 @@
 import 'dart:async';
+import 'dart:io';
+
+import 'package:dio/dio.dart';
+import 'package:flutter_cache_manager/flutter_cache_manager.dart';
+import 'package:navis/src/api/lrclib_client.dart';
+import 'package:navis/src/api/subsonic_api_client.dart';
+import 'package:path/path.dart' as p;
 
 import 'package:audio_service/audio_service.dart';
 import 'package:drift/drift.dart' show Value;
@@ -18,6 +25,7 @@ import 'package:navis/src/features/downloads/data/permanent_download_path_resolv
 import 'package:navis/src/features/downloads/data/permanent_download_import_service.dart';
 import 'package:navis/src/features/downloads/domain/download_preferences.dart';
 import 'package:navis/src/features/downloads/presentation/downloads_screen.dart';
+import 'package:navis/src/features/downloads/presentation/custom_download_folder_controller.dart';
 import 'package:navis/src/features/player/domain/playback_snapshot.dart';
 import 'package:navis/src/features/player/presentation/queue_provider.dart';
 import 'package:navis/src/providers/app_providers.dart';
@@ -221,10 +229,7 @@ void main() {
       );
       await tester.tap(find.text('Use app storage'));
       await tester.pumpAndSettle();
-      await tester.tap(
-        find.byKey(const ValueKey('downloadsCustomFolderDisableConfirm')),
-      );
-      await tester.pumpAndSettle();
+      expect(find.byType(AlertDialog), findsNothing);
       verify(() => service.configureCustomDownloadFolder(enabled: false))
           .called(1);
       problem.add(null);
@@ -236,6 +241,172 @@ void main() {
       expect(tester.takeException(), isNull);
     });
   }
+
+  testWidgets(
+    'Use app storage with no configured folder resumes the real queue without a dialog',
+    (tester) async {
+      setAdaptiveTestViewport(tester, const Size(390, 844));
+      final root = (await tester.runAsync(
+        () => Directory.systemTemp.createTemp('navis_folder_widget_'),
+      ))!;
+      addTearDown(() => root.delete(recursive: true));
+      final dio = _MockDownloadDio();
+      var transfers = 0;
+      registerFallbackValue(Uri.parse('https://example.com/rest/stream.view'));
+      registerFallbackValue(CancelToken());
+      when(
+        () => dio.downloadUri(
+          any<Uri>(),
+          any<dynamic>(),
+          cancelToken: any<CancelToken?>(named: 'cancelToken'),
+          onReceiveProgress: any<ProgressCallback?>(named: 'onReceiveProgress'),
+        ),
+      ).thenAnswer((invocation) async {
+        transfers++;
+        final path = invocation.positionalArguments[1] as String;
+        await File(path).parent.create(recursive: true);
+        await File(path).writeAsBytes([1, 2, 3, 4]);
+        return Response<void>(
+          requestOptions: RequestOptions(path: path),
+          statusCode: 200,
+          headers: Headers.fromMap({
+            Headers.contentTypeHeader: ['audio/mpeg'],
+          }),
+        );
+      });
+      final api = _MockDownloadApi();
+      when(
+        () => api.streamUrl(
+          id: any(named: 'id'),
+          maxBitRate: any(named: 'maxBitRate'),
+          format: any(named: 'format'),
+          estimateContentLength: any(named: 'estimateContentLength'),
+        ),
+      ).thenReturn(Uri.parse('https://example.com/rest/stream.view'));
+      when(() => api.getLyricsBySongId(any()))
+          .thenThrow(StateError('No lyrics in this fixture'));
+      late AppSettingsTableData settings;
+      final service = DownloadService(
+        appSettingsDao: database.appSettingsDao,
+        cacheDao: database.cacheDao,
+        downloadQueueDao: database.downloadQueueDao,
+        libraryDao: database.libraryDao,
+        readApiClient: () => api,
+        readWifiOnly: () => false,
+        readIsWifi: () => false,
+        readFreeBytes: (_) async => null,
+        readCustomDownloadFolderEnabled: () =>
+            settings.customDownloadFolderEnabled,
+        readCustomDownloadFolderPath: () => settings.customDownloadFolderPath,
+        lrclibClient: LrclibClient(),
+        readCoverArtCacheManager: _MockDownloadCacheManager.new,
+        readApplicationSupportDirectory: () async => root,
+        dio: dio,
+        isAndroid: true,
+      );
+      final container = ProviderContainer(
+        overrides: withTestDatabase(
+          database,
+          overrides: [
+            downloadServiceProvider.overrideWithValue(service),
+            customDownloadFolderEnabledProvider.overrideWithValue(true),
+            customDownloadFolderPathProvider.overrideWithValue(null),
+          ],
+        ),
+      );
+      addTearDown(container.dispose);
+      await tester.runAsync(() async {
+        await database.appSettingsDao.getSettings();
+        await database.appSettingsDao.updateCustomDownloadFolderEnabled(
+          enabled: true,
+        );
+        settings = (await database.appSettingsDao.getSettings())!;
+        // Create the controller's serialized future in the real async zone,
+        // just like the filesystem service below.
+        container.read(customDownloadFolderControllerProvider);
+        final subscription = database.appSettingsDao.watchSettings().listen(
+          (value) => settings = value!,
+        );
+        addTearDown(subscription.cancel);
+        await database.libraryDao.upsertSongs([
+          for (var i = 0; i < 2; i++)
+            SongsTableCompanion.insert(
+              id: 'held-$i',
+              title: 'Held $i',
+              suffix: const Value('mp3'),
+            ),
+        ]);
+        await service.start();
+        for (var i = 0; i < 2; i++) {
+          await service.enqueueSong('held-$i', quality: '192', format: 'mp3');
+        }
+        await service.processQueuedDownloads();
+        expect(service.folderProblem, DownloadFolderProblem.unset);
+        expect(
+          await database.select(database.downloadQueueTable).get(),
+          hasLength(2),
+        );
+      });
+      await tester.pumpWidget(
+        UncontrolledProviderScope(
+          container: container,
+          child: MaterialApp(
+            theme: testTheme(),
+            localizationsDelegates: navisLocalizationsDelegates,
+            supportedLocales: AppLocalizations.supportedLocales,
+            home: const DownloadsScreen(),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Use app storage'));
+      await tester.pump();
+      expect(find.byType(AlertDialog), findsNothing);
+      var queueDrained = false;
+      for (var i = 0; i < 800; i++) {
+        await tester.pump(const Duration(milliseconds: 10));
+        await tester.runAsync(
+          () => Future<void>.delayed(const Duration(milliseconds: 5)),
+        );
+        if (transfers == 2 &&
+            service.activeQueueIds.isEmpty &&
+            !settings.customDownloadFolderEnabled) {
+          queueDrained = true;
+          break;
+        }
+      }
+      expect(queueDrained, isTrue);
+      await tester.runAsync(() async {
+        expect(
+          await database.select(database.downloadQueueTable).get(),
+          isEmpty,
+        );
+        final settings = (await database.appSettingsDao.getSettings())!;
+        expect(settings.customDownloadFolderEnabled, isFalse);
+        expect(settings.customDownloadFolderPath, isNull);
+        final downloads = await database.cacheDao.getPermanentEntries();
+        expect(downloads, hasLength(2));
+        for (final entry in downloads) {
+          expect(
+            p.isWithin(p.join(root.path, 'audio', 'permanent'), entry.filePath),
+            isTrue,
+          );
+          expect(await File(entry.filePath).length(), 4);
+        }
+      });
+      await tester.pumpAndSettle();
+      expect(find.byType(AlertDialog), findsNothing);
+      expect(
+        find.byKey(const ValueKey('downloadsFolderHoldBanner')),
+        findsNothing,
+      );
+      expect(service.folderProblem, isNull);
+      expect(tester.takeException(), isNull);
+      await tester.pumpWidget(const SizedBox.shrink());
+      await tester.runAsync(service.dispose);
+    },
+    skip: !sqliteAvailable,
+  );
 
   for (final previouslyEnabled in [false, true]) {
     testWidgets(
@@ -1123,3 +1294,9 @@ class _FolderService extends Fake implements DownloadService {
     );
   }
 }
+
+class _MockDownloadDio extends Mock implements Dio;
+
+class _MockDownloadCacheManager extends Mock implements BaseCacheManager;
+
+class _MockDownloadApi extends Mock implements SubsonicApiClient;

@@ -165,6 +165,10 @@ const List<ChangelogVersion> changelogs = [
     ],
     entries: [
       ChangelogEntry(
+        'Use app storage recovers downloads when the custom folder is unset, missing or inaccessible, preserves unreachable files and records across restart, and switches directly when no folder is configured',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
         'Delete all saved Looks and Speed & Pitch presets from Cache & Storage without changing your current values; unsupported playback presets can also be deleted individually',
         type: ChangelogEntryType.newFeature,
       ),

@@ -67,6 +67,7 @@ void main() {
   group('DownloadService', () {
     late NavisDatabase database;
     late DownloadService service;
+    late Directory serviceSupportDir;
 
     setUpAll(() {
       registerFallbackValue(
@@ -76,8 +77,11 @@ void main() {
       registerFallbackValue(Options());
     });
 
-    setUp(() {
+    setUp(() async {
       database = createTestDatabase();
+      serviceSupportDir = await Directory.systemTemp.createTemp(
+        'navis_service_test_',
+      );
       service = DownloadService(
         appSettingsDao: database.appSettingsDao,
         cacheDao: database.cacheDao,
@@ -92,12 +96,14 @@ void main() {
         readCoverArtCacheManager: _MockCacheManager.new,
         artworkStore: _OfflineArtworkStore(),
         readLocalizations: () => throw StateError('unexpected locale read'),
+        readApplicationSupportDirectory: () async => serviceSupportDir,
       );
     });
 
     tearDown(() async {
       await service.stop();
       await database.close();
+      await serviceSupportDir.delete(recursive: true);
     });
 
     // -----------------------------------------------------------------------
@@ -693,6 +699,7 @@ void main() {
           readIsWifi: () => false,
           readCustomDownloadFolderEnabled: () => false,
           readCustomDownloadFolderPath: () => null,
+          readApplicationSupportDirectory: () async => serviceSupportDir,
           lrclibClient: LrclibClient(),
           readCoverArtCacheManager: _MockCacheManager.new,
           artworkStore: _OfflineArtworkStore(),

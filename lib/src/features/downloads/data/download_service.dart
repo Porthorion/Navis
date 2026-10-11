@@ -559,16 +559,19 @@ class DownloadService {
         _isSafRoot(path)) {
       return;
     }
-    // Forgotten before the setting changes: startup normalization moves every
-    // row outside the active folder into Navis's own directory.
+    // Forget reachable user files before changing the setting; unavailable
+    // records remain intact under the same rule as an explicit disable.
     final leftInUserFolder = await _songIdsLeftInUserFolder();
-    await _cacheDao.deleteCachedTracksBySongIds(leftInUserFolder);
+    final forgottenSongIds = await _reachableDownloadsLeftInUserFolder(
+      leftInUserFolder,
+    );
+    await _cacheDao.deleteCachedTracksBySongIds(forgottenSongIds);
     await _appSettingsDao.updateCustomDownloadFolderEnabled(enabled: false);
     await _appSettingsDao.updateCustomDownloadFolderPath(null);
     await _appSettingsDao.updateCustomDownloadFolderStorageKind('filesystem');
     AppLogger.info(
       'Disabled legacy Android custom download folder without modifying files '
-      '(downloads forgotten: ${leftInUserFolder.length}); '
+      '(downloads forgotten: ${forgottenSongIds.length}); '
       'a persisted SAF folder must be selected again.',
     );
   }
@@ -689,17 +692,21 @@ class DownloadService {
       final leftInUserFolder = await _songIdsLeftInUserFolder(
         targetDirectory: enabled ? targetDirectory.path : null,
       );
+      final forgottenSongIds = await _reachableDownloadsLeftInUserFolder(
+        leftInUserFolder,
+      );
       await _relocatePermanentDownloads(
         targetDirectory: targetDirectory,
         customDownloadFolderEnabled: enabled,
         customDownloadFolderPath: enabled ? normalizedPath : null,
         rollbackOnFailure: true,
         keepEntriesInsideTarget: enabled,
+        keepEntriesOutsideAppStorage: !enabled,
         leaveSongIds: leftInUserFolder,
       );
-      // Forgotten before the setting changes: a row left pointing into the
-      // old folder would be moved out of it by the next startup.
-      await _cacheDao.deleteCachedTracksBySongIds(leftInUserFolder);
+      // Reachable user files are forgotten before switching. Unreachable
+      // records remain intact and app-storage startup leaves them alone.
+      await _cacheDao.deleteCachedTracksBySongIds(forgottenSongIds);
       await _appSettingsDao.transaction(() async {
         await _appSettingsDao.updateCustomDownloadFolderPath(
           enabled ? normalizedPath : null,
@@ -2045,8 +2052,18 @@ class DownloadService {
   }
 
   Future<void> _reconcileMissingDownloads(int generation) async {
-    for (final entry in await _cacheDao.getPermanentEntries()) {
+    final entries = await _cacheDao.getPermanentEntries();
+    if (entries.isEmpty) return;
+    final appAudio = _readCustomDownloadFolderEnabled()
+        ? null
+        : await _appAudioIdentity();
+    for (final entry in entries) {
       _checkRecovery(generation);
+      // Retained references to a disconnected user folder are not evidence of
+      // missing app storage, and must not hold downloads into app storage.
+      if (appAudio != null && !await _isInside(appAudio, entry.filePath)) {
+        continue;
+      }
       try {
         final exists = _isSafRoot(entry.filePath)
             ? await _safStorage.exists(entry.filePath)
@@ -2557,6 +2574,7 @@ class DownloadService {
         // A custom root is user-owned: files already inside it, including
         // adopted ones, keep their names and are never rewritten.
         keepEntriesInsideTarget: customDownloadFolderEnabled,
+        keepEntriesOutsideAppStorage: !customDownloadFolderEnabled,
       );
     } on _RecoveryCancelled {
       rethrow;
@@ -2605,6 +2623,37 @@ class DownloadService {
       }
     }
     return leaving;
+  }
+
+  Future<Set<String>> _reachableDownloadsLeftInUserFolder(
+    Set<String> songIds,
+  ) async {
+    if (songIds.isEmpty) return songIds;
+    if (!_isSafRoot(_readCustomDownloadFolderPath())) {
+      try {
+        await _permanentDirectory();
+      } on DownloadFolderUnavailableException {
+        return <String>{};
+      }
+    }
+    final reachable = <String>{};
+    for (final entry in await _cacheDao.getPermanentEntries()) {
+      if (!songIds.contains(entry.songId)) continue;
+      try {
+        final exists = _isSafRoot(entry.filePath)
+            ? await _safStorage.exists(entry.filePath)
+            : await _filesystemDownloadExists(entry.filePath);
+        if (exists) reachable.add(entry.songId);
+      } on FileSystemException {
+        // Keep the record until the user-owned storage is reachable again.
+      }
+    }
+    return reachable;
+  }
+
+  Future<DownloadRootIdentity> _appAudioIdentity() async {
+    final root = await _permanentPathResolver.resolveDefaultRoot();
+    return await DownloadRootIdentity.resolve(root.parent.path);
   }
 
   /// Whether [path] is inside [folder], through any spelling of either: the
@@ -2734,19 +2783,26 @@ class DownloadService {
     required String? customDownloadFolderPath,
     bool rollbackOnFailure = false,
     bool keepEntriesInsideTarget = false,
+    bool keepEntriesOutsideAppStorage = false,
     Set<String> leaveSongIds = const <String>{},
     int? recoveryGeneration,
   }) async {
-    final currentRootIsSaf = _isSafRoot(_readCustomDownloadFolderPath());
-    final currentRootDirectory = currentRootIsSaf
-        ? null
-        : await _permanentDirectory(
-            customDownloadFolderEnabled: _readCustomDownloadFolderEnabled(),
-            customDownloadFolderPath: _readCustomDownloadFolderPath(),
-          );
+    // The old root is only a pruning boundary. Requiring it to be writable
+    // would prevent leaving an unset, disconnected or permission-denied root.
+    final currentPath = _readCustomDownloadFolderPath()?.trim();
+    final currentRootDirectory = _readCustomDownloadFolderEnabled()
+        ? currentPath == null || currentPath.isEmpty || _isSafRoot(currentPath)
+              ? null
+              : Directory(currentPath)
+        : await _permanentPathResolver.resolveDefaultRoot();
+    final appAudio = keepEntriesOutsideAppStorage
+        ? await _appAudioIdentity()
+        : null;
     final entries = [
       for (final entry in await _cacheDao.getPermanentEntries())
-        if (!leaveSongIds.contains(entry.songId)) entry,
+        if (!leaveSongIds.contains(entry.songId) &&
+            (appAudio == null || await _isInside(appAudio, entry.filePath)))
+          entry,
     ];
     if (entries.isEmpty) {
       return;

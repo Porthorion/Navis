@@ -234,6 +234,11 @@ Future<void> _toggleCustomDownloadFolder(
     await _pickCustomDownloadFolder(context, ref);
     return;
   }
+  final path = ref.read(customDownloadFolderPathProvider);
+  if (path == null || path.trim().isEmpty) {
+    await _applyCustomDownloadFolder(context, ref, enabled: false);
+    return;
+  }
   final l10n = AppLocalizations.of(context)!;
   final confirm = await showDialog<bool>(
     context: context,
