@@ -247,7 +247,7 @@ const List<ChangelogVersion> changelogs = [
         type: ChangelogEntryType.fix,
       ),
       ChangelogEntry(
-        'Finished downloads survive an interrupted save, and only temporary files recorded by Navis are cleaned up in custom folders',
+        'Finished downloads survive an interrupted save, and only temporary files recorded by Navis are cleaned up in custom folders; recovery preserves files replaced outside Navis',
         type: ChangelogEntryType.fix,
       ),
       ChangelogEntry(

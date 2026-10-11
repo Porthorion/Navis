@@ -1563,7 +1563,15 @@ class DownloadService {
           // Keep metadata access asynchronous so storage latency cannot stall UI.
           // ignore: avoid_slow_async_io
           final stat = await target.stat();
-          await _writeFinishIntent(item, target.path, target, format, bitRate);
+          await _writeFinishIntent(
+            item,
+            target.path,
+            target,
+            format,
+            bitRate,
+            phase: 'published',
+            publicationLocator: target.path,
+          );
           _reportNetworkUsage?.call(
             category: NetworkUsageCategory.download,
             bytes: stat.size,
@@ -1599,6 +1607,19 @@ class DownloadService {
               source: target,
               mimeType: _mimeTypeFor(format),
               replace: false,
+            );
+          }
+          if (treeUri != null) {
+            await _writeFinishIntent(
+              item,
+              target.path,
+              target,
+              format,
+              bitRate,
+              treeUri: treeUri,
+              relativePath: relativePath,
+              phase: 'published',
+              publicationLocator: locator,
             );
           }
           await _registerFinished(
@@ -1729,11 +1750,15 @@ class DownloadService {
     int? bitRate, {
     String? treeUri,
     String? relativePath,
+    String phase = 'verified',
+    String? publicationLocator,
   }) async {
     final digest = await sha256.bind(verifiedFile.openRead()).first;
     await _downloadQueueDao.writeFinishJournal(
       item.id,
       jsonEncode({
+        'phase': phase,
+        'publicationLocator': publicationLocator,
         'path': path,
         'partPath': verifiedFile.path.endsWith(downloadPartSuffix)
             ? verifiedFile.path
@@ -1816,6 +1841,7 @@ class DownloadService {
       File? staged;
       try {
         final journal = jsonDecode(item.finishJournal!) as Map<String, dynamic>;
+        if (journal['phase'] == 'conflict') continue;
         if (journal['phase'] == 'transferring') {
           await _downloadQueueDao.retry(item.id);
           continue;
@@ -1837,7 +1863,11 @@ class DownloadService {
         // No metadata I/O on the UI isolate.
         // ignore: avoid_slow_async_io
         final exists = locator != null && await file.exists();
+        final publicationMatches =
+            journal['publicationLocator'] == null ||
+            journal['publicationLocator'] == locator;
         final valid =
+            publicationMatches &&
             exists &&
             size > 0 &&
             await file.length() == size &&
@@ -1861,6 +1891,8 @@ class DownloadService {
               file,
               format,
               journal['bitRate'] as int?,
+              phase: 'published',
+              publicationLocator: path,
             );
           }
           final finishedSize = await file.length();
@@ -1882,16 +1914,25 @@ class DownloadService {
           );
           if (treeUri != null) await tryDeleteFile(File(path));
         } else {
-          // Only a journaled filesystem destination is ours to remove.
-          // Unknown audio in a custom root has no journal and is untouched.
-          if (treeUri == null && exists) await tryDeleteFile(file);
-          if (treeUri != null) {
-            // This path is a recorded finish destination, never an unknown
-            // document found by a folder scan. Remove an interrupted upload.
-            if (locator != null) await _safStorage.delete(locator);
-            await tryDeleteFile(File(path));
+          // A pathname intent, even after publication, cannot prove ownership
+          // of replacement contents. Preserve conflicts and their references
+          // so the private orphan sweep also leaves them alone.
+          if (exists) {
+            AppLogger.warning(
+              'Leaving mismatching finish destination unchanged.',
+            );
+            await _downloadQueueDao.writeFinishJournal(
+              item.id,
+              jsonEncode({...journal, 'phase': 'conflict'}),
+            );
+            await _downloadQueueDao.updateStatus(
+              item.id,
+              DownloadStatus.queued,
+            );
+          } else {
+            await _downloadQueueDao.retry(item.id);
           }
-          await _downloadQueueDao.retry(item.id);
+          if (treeUri != null) await tryDeleteFile(File(path));
         }
       } on FileSystemException catch (error) {
         // Inaccessible storage is not missing: keep the intent for repair.

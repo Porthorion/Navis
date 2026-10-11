@@ -684,9 +684,12 @@ void main() {
         expect(finalFile.existsSync(), isTrue);
       } else {
         expect((await queue()).single.status, DownloadStatus.queued);
-        expect((await queue()).single.finishJournal, isNull);
+        expect(
+          (await queue()).single.finishJournal,
+          phase == 'corrupt final' ? isNotNull : isNull,
+        );
         expect(await database.cacheDao.getCachedTrack('song-0'), isNull);
-        expect(finalFile.existsSync(), isFalse);
+        expect(finalFile.existsSync(), phase == 'corrupt final');
       }
       expect(part.existsSync(), isFalse);
       expect(server.requests, isEmpty);
@@ -695,6 +698,86 @@ void main() {
       await service.start();
       expect(server.requests, isEmpty);
     }, skip: !sqliteAvailable);
+  }
+
+  for (final phase in ['verified', 'published']) {
+    for (final saf in [false, true]) {
+      test(
+        'finish recovery preserves a foreign ${saf ? 'SAF' : 'filesystem'} replacement at phase $phase',
+        () async {
+          await database.appSettingsDao.updateDownloadsPaused(paused: true);
+          await addSongs(1);
+          const tree = 'content://fixture/tree/root';
+          const replacement = 'content://fixture/document/replacement';
+          const channel = MethodChannel(
+            'com.navis.app/permanent_download_storage',
+          );
+          final messenger =
+              TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
+          final root = Directory(p.join(supportDir.path, 'custom'));
+          await root.create();
+          final file = File(p.join(root.path, 'replacement.mp3'));
+          final deleted = <String>[];
+          messenger.setMockMethodCallHandler(
+            channel,
+            (call) async => switch (call.method) {
+              'validateWritableTree' => {
+                'uri': tree,
+                'canRead': true,
+                'canWrite': true,
+                'canReplace': true,
+              },
+              'findDocument' => replacement,
+              'materialize' => (await file.copy(
+                p.join(supportDir.path, 'copy.tmp'),
+              )).path,
+              'delete' => deleted.add((call.arguments as Map)['uri'] as String),
+              _ => null,
+            },
+          );
+          addTearDown(() => messenger.setMockMethodCallHandler(channel, null));
+          final id = await database.downloadQueueDao.enqueue(
+            DownloadQueueTableCompanion.insert(
+              songId: const Value('song-0'),
+              status: DownloadStatus.downloading,
+              addedAt: DateTime(2026),
+            ),
+          );
+          await database.downloadQueueDao.writeFinishJournal(
+            id,
+            jsonEncode({
+              'phase': phase,
+              'path': saf
+                  ? p.join(supportDir.path, 'audio', 'permanent', 'staging.mp3')
+                  : file.path,
+              'size': 4,
+              'sha256': sha256.convert([1, 2, 3, 4]).toString(),
+              'format': 'mp3',
+              if (saf) 'treeUri': tree,
+              if (saf) 'relativePath': 'Artist/Song.mp3',
+              if (saf && phase == 'published')
+                'publicationLocator': 'content://fixture/document/original',
+            }),
+          );
+          await file.writeAsBytes([9, 8, 7, 6]);
+          final service = buildService(
+            isAndroid: saf,
+            customEnabled: () => true,
+            customPath: () => saf ? tree : root.path,
+          );
+          await service.start();
+          expect(file.readAsBytesSync(), [9, 8, 7, 6]);
+          expect(deleted, isEmpty);
+          expect(await database.cacheDao.getCachedTrack('song-0'), isNull);
+          expect((await queue()).single.status, DownloadStatus.queued);
+          await service.stop();
+          await service.start();
+          expect(file.readAsBytesSync(), [9, 8, 7, 6]);
+          expect(deleted, isEmpty);
+        },
+        skip: !sqliteAvailable,
+      );
+    }
   }
 
   test(

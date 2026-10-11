@@ -5192,7 +5192,8 @@ remaining song. Freeing space or choosing storage resumes the existing queue.
 **Recoverable finish and cleanup.** After integrity validation, the queue row
 journals the destination, verified size/digest, format/bitrate and optional SAF
 tree/relative path before rename/upload. Identity tags may change bytes, so the
-intent is updated before SAF upload or registration. Once the final file exists,
+intent is updated before SAF upload or registration. After publication it
+records the published phase and exact locator returned by the provider. Once the final file exists,
 cache upsert and queue removal commit together in the existing DAO transaction.
 Startup replays journaled final files only when size and digest agree; missing
 or invalid files are requeued, and part files always restart from zero. Missing
@@ -5206,7 +5207,10 @@ not follow links. Unowned suffix files are preserved and logged. SAF trees are
 never swept for suffix files; only app-private SAF staging parts are removed. SAF uploads retain the existing
 document MIME type and provider capability contract. The bridge checks the
 copied byte count and removes its own document on a write error; startup verifies
-a journaled upload's digest and removes an incomplete document before requeueing.
+a journaled upload's digest. Mismatching destinations are preserved and logged:
+an intended pathname or a previous publication does not prove ownership of
+replacement contents. Conflict journals retain the path for the orphan sweep
+until the queue starts a new transfer.
 Native write errors retain errno
 classification. No provider rename capability is required.
 The app-owned orphan sweep runs after journal reconciliation and protects
