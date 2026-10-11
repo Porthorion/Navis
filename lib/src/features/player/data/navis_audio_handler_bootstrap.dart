@@ -286,8 +286,15 @@ abstract class _DelegatingNavisPlaybackHandler
   }
 
   @override
-  int beginPlaybackSelection(String songId, {required bool isExternal}) =>
-      _delegate.beginPlaybackSelection(songId, isExternal: isExternal);
+  int beginPlaybackSelection(
+    String songId, {
+    required bool isExternal,
+    SongsTableData? song,
+  }) => _delegate.beginPlaybackSelection(
+    songId,
+    isExternal: isExternal,
+    song: song,
+  );
 
   @override
   void notePlaybackSelectionStage(int attempt, String stage) =>

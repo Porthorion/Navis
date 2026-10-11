@@ -623,7 +623,7 @@ NavisPreviousTrackAction navisResolvePreviousTrackAction({
 @visibleForTesting
 Map<String, Object?> navisResolvedPlaybackExtras({
   required SongsTableData song,
-  required ResolvedPlaybackSource source,
+  ResolvedPlaybackSource? source,
 }) {
   return <String, Object?>{
     'albumId': song.albumId,
@@ -631,16 +631,16 @@ Map<String, Object?> navisResolvedPlaybackExtras({
     // Used by PlaybackArtCache on Android to key the local cover-art file so
     // audio_service can set METADATA_KEY_ALBUM_ART on the MediaSession.
     'coverArtId': song.coverArt,
-    'sourceKind': source.kind.name,
-    'localSource': source.isLocal,
-    'cachedFilePath': source.cachedFilePath ?? source.sidecarCacheFilePath,
-    'sidecarCacheFilePath': source.sidecarCacheFilePath,
+    'sourceKind': source?.kind.name,
+    'localSource': source?.isLocal,
+    'cachedFilePath': source?.cachedFilePath ?? source?.sidecarCacheFilePath,
+    'sidecarCacheFilePath': source?.sidecarCacheFilePath,
     // Never the stream URL: audio_service publishes every String extra to
     // the platform media session, and the URL carries the account token.
-    'resolvedFormat': source.metadata.format,
-    'resolvedBitRate': source.metadata.bitRate,
-    'resolvedSampleRate': source.metadata.sampleRate,
-    'transcodingApplied': source.metadata.isTranscoded,
+    'resolvedFormat': source?.metadata.format,
+    'resolvedBitRate': source?.metadata.bitRate,
+    'resolvedSampleRate': source?.metadata.sampleRate,
+    'transcodingApplied': source?.metadata.isTranscoded,
     'liked': song.starred != null,
     'replayGainTrackGain': song.replayGainTrackGain,
     'replayGainAlbumGain': song.replayGainAlbumGain,

@@ -1295,7 +1295,8 @@ final audioHandlerInitializerProvider = Provider<AudioHandlerInitializer>((
               ref.read(equalizerProvider).asData?.value.configuration ??
               hydratedEq,
           gaplessEnabled: settings.gaplessEnabled && !onCellular,
-          crossfadeEnabled: settings.crossfadeEnabled && !onCellular,
+          crossfadeEnabled: settings.crossfadeEnabled,
+          crossfadeAllowStreaming: !onCellular,
           crossfadeDurationSeconds: settings.crossfadeDurationSeconds,
           crossfadeType: settings.crossfadeType,
           replayGainMode: settings.replayGainMode,

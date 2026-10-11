@@ -158,6 +158,7 @@ class PlaybackSourceResolver {
   Future<ResolvedPlaybackSource> resolveForSong(
     SongsTableData song, {
     bool preferLockCaching = true,
+    bool allowStreaming = true,
   }) async {
     final quality = _readStreamingQuality();
     final streamingMetadata = _resolveStreamingMetadata(
@@ -236,7 +237,7 @@ class PlaybackSourceResolver {
       );
     }
 
-    if (!cachePolicy.canStream) {
+    if (!allowStreaming || !cachePolicy.canStream) {
       throw const PlaybackSourceTemporarilyUnavailableException(
         'No cached playback source available while offline.',
       );

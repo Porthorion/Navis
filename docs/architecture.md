@@ -3715,10 +3715,26 @@ Sized ranges and reads from the completed cache file keep their normal responses
 Album-style queue replacement is lazy: the active transport queue prepares the
 tapped song first, then fills the remaining sources in phase 2. Phase 1 pauses
 and stops the active player and cancels/pauses the crossfade deck before remote
-warm-up. It keeps the previous metadata visible, paused, with the selected
-`loadingSongId`; late idle-player index events cannot notify or scrobble a third
-song. The selected materialised item and metadata anchor are published only
-immediately before `setAudioSources`. A hung stop retires the deck and continues
+warm-up. It publishes the selected song's metadata immediately when its row is
+known, with `isLoading` and `loadingSongId`, before resolving or warming its source.
+`_mediaItemForSong` builds both pending and source-resolved items with the same
+title, artist, album, duration and resolver-owned art URI; final publication
+adds source extras and cached artwork. `_supersedeQueueWork`, the existing
+queue-replacement metadata anchor and `_emitSnapshot` keep snapshots and
+`_setCurrentMediaItem`/`mediaItem` on that pending target while old native index
+events arrive. Queue replacement (IDs or supplied rows), navigation (including
+deferred jumps), recovery and eager setup use this authority. The UI's existing
+`PlaybackStartupObserver.beginPlaybackSelection` also accepts its provisional
+song row before `QueueController` persists/readbacks API results, so search,
+Trending and recommendation taps publish without waiting for that work.
+Generation/token checks reject superseded preparations before publishing or
+applying sources. When failure is handled, metadata returns to the source the
+player actually holds, or clears for an empty player. Pending display does not
+start a scrobble session for a song the player has not reached; audio_service
+reports loading while the selected source is unready and retains native queue
+coordinates. Android notifications/lock screen/AVRCP and the existing MPRIS and
+SMTC media-item subscriptions receive the same publication as Now Playing,
+mini players and the desktop bar. A hung stop retires the deck and continues
 loading the selected song on the rebuilt player. Failed phase-1 loads realign
 the materialised queue and current item with an empty rebuilt player before
 recovery. Abandoned players receive independent fire-and-forget mute and pause
@@ -3745,9 +3761,9 @@ queue rather than the prepared transport queue, with
 remove, reorder, or play-index actions until the transport queue catches up.
 Player transport controls distinguish that background queue fill from an
 unready selected remote source. They also show remote buffering after the
-queue operation ends and use the pending target ID while the previous song's
-metadata is still visible. A ready selected source keeps its play/pause icon
-even if the rest of the queue is still filling.
+queue operation ends and show the pending target's metadata immediately. A ready
+selected source keeps its play/pause icon even if the rest of the queue is still
+filling.
 
 #### Released queue window
 
@@ -4240,6 +4256,35 @@ enabled and is created, synchronized, or disposed as that setting changes.
 Its clones of lock-cached sources use direct streams so two decks never rename
 the same partial cache file.
 
+Both decks use `handleInterruptions: false`: Navis owns interruption/noisy
+handling for the session. The vendored Android ExoPlayer always applies audio
+attributes with `handleAudioFocus=false`; `audio_session` shares a single,
+idempotent Android focus request, so starting the incoming deck does not request
+competing focus or pause the outgoing deck. Genuine OS interruptions still
+cancel the fade and pause both decks.
+
+The cellular gate introduced by `331311eb` (mobile data optimization) now applies
+to opening a remote incoming source, rather than disabling all crossfade. The
+runtime setting keeps the user's crossfade intent and passes
+`crossfadeAllowStreaming=false` on cellular. A fade resolves its target through
+the existing source resolver with streaming forbidden: permanent download →
+completed rolling cache → refusal. The inactive deck holds only that local
+song during the overlap, so remote neighbours cannot be prefetched by the
+second player. At handoff it inserts/appends the rest of the queue using the
+existing prepared-source cloning path, preserving the incoming position and
+occurrence. A remote target keeps the ordinary single-deck transition and
+reports `crossfade.disabledReason=cellular`. Cellular gapless/preload policy is
+unchanged; a setting-disabled fade reports `disabledReason=setting`.
+
+The play lifetime Future is observed for failures without awaiting playback
+completion. The existing fade timer waits for incoming `playing` and `ready`
+before reducing the outgoing volume, serializes and awaits volume writes, and
+uses the shared ReplayGain/user-volume/ducking base for each song. Mute and
+volume changes preserve ramp proportions. Play/ramp failures log, increment
+phase counters, retain a credential-free `lastFailure`, cancel the incoming
+deck and restore the outgoing volume for sequential fallback. This establishes
+player state, not audible output: physical-device listening remains necessary.
+
 Crossfade starts after pending seeks settle. Normal crossfade with Repeat One
 prepares that same materialised queue entry on
 the inactive deck at position zero, overlaps the ending and fresh start, then
@@ -4275,7 +4320,9 @@ song's transition is tried again the next time it plays. In-place refreshes of a
 (`_RevisionedList.replaceAt` leaves `structureRevision` unchanged), so they
 neither abort a release nor invalidate the deck. `GET /v1/playback/status`
 reports `queueSettled`, `playerMatchesQueue`, a `crossfade` block (active,
-inactive deck length and match, outcome counts by phase), `queueLane` (the
+inactive deck length and match, outcome counts by phase, `disabledReason`,
+`lastFailure`, and active `outgoing`/`incoming` deck maps with `playing`,
+`volume`, `positionMs`), `queueLane` (the
 running work's kind and age, and the waiting kinds) and `recovery` (the stage
 of the latest seek or stall recovery). The native order is read from each
 source's `MediaItem` tag, or for an Android lock-cached stream, which is built

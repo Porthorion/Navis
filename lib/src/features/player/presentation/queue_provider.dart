@@ -6,6 +6,7 @@ import 'package:flutter/foundation.dart' show ValueKey;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:navis/src/api/models/models.dart';
 import 'package:navis/src/database/navis_database.dart';
+import 'package:navis/src/features/library/data/provisional_search_songs.dart';
 import 'package:navis/src/features/player/data/navis_audio_handler.dart';
 import 'package:navis/src/providers/app_providers.dart';
 import 'package:navis/src/utils/catalog_source.dart';
@@ -277,6 +278,7 @@ class QueueController extends Notifier<List<String>> {
         : null;
     final startupAttempt = startupObserver?.beginPlaybackSelection(
       selectedSong.id,
+      song: provisionalSongTableData(selectedSong),
       isExternal: isExternalCatalogSource(
         id: selectedSong.id,
         apiIsExternal: selectedSong.isExternal,

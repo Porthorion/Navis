@@ -289,6 +289,14 @@ const List<ChangelogVersion> changelogs = [
 
       // Fixed: playback
       ChangelogEntry(
+        'Crossfade blends locally available songs on mobile data too, respects ReplayGain and volume changes, and keeps the current song playing if the next song cannot fade in',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
+        'Now Playing, the mini player and the notification switch to the song you picked straight away instead of showing the previous song while it loads',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
         'Now Playing on phones keeps its progress moving after a seek or a skip, including with Repeat One on',
         type: ChangelogEntryType.fix,
       ),

@@ -117,7 +117,6 @@ extension _NavisNavigation on NavisAudioHandler {
         await _ready;
         _checkQueueWorkCurrent(token, generation);
         _cancelCrossfade();
-        _clearQueueReplacementMetadataAnchor();
 
         List<SongsTableData>? rebuildSongs;
         if (_pendingLogicalQueueSongIds != null) {
@@ -207,6 +206,11 @@ extension _NavisNavigation on NavisAudioHandler {
             );
             rebuildSongs = songs;
             index = jumpIndex;
+            _setQueueReplacementMetadataAnchor(
+              expectedIndex: index,
+              mediaItem: _mediaItemForSong(songs[index]),
+            );
+            _setCurrentMediaItem(_queueReplacementMetadataAnchor!.mediaItem);
             _pendingLogicalQueueSongIds = List<String>.unmodifiable(
               songs.map((song) => song.id),
             );

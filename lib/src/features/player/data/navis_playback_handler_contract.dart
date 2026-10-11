@@ -1,9 +1,13 @@
 part of 'navis_audio_handler.dart';
 
-/// Optional startup telemetry supported by the production handler wrappers.
+/// Startup selection metadata and telemetry supported by production wrappers.
 /// Test handlers may omit it without changing playback behavior.
 abstract interface class PlaybackStartupObserver {
-  int beginPlaybackSelection(String songId, {required bool isExternal});
+  int beginPlaybackSelection(
+    String songId, {
+    required bool isExternal,
+    SongsTableData? song,
+  });
   void notePlaybackSelectionStage(int attempt, String stage);
   bool isPlaybackSelectionCurrent(int attempt);
 }
@@ -232,6 +236,7 @@ class PlaybackRuntimeSettings {
     required this.gaplessEnabled,
     this.equalizer,
     required this.crossfadeEnabled,
+    this.crossfadeAllowStreaming = true,
     required this.crossfadeDurationSeconds,
     required this.crossfadeType,
     required this.replayGainMode,
@@ -247,6 +252,7 @@ class PlaybackRuntimeSettings {
     : gaplessEnabled = true,
       equalizer = null,
       crossfadeEnabled = false,
+      crossfadeAllowStreaming = true,
       crossfadeDurationSeconds = 5,
       crossfadeType = 'normal',
       replayGainMode = 'off',
@@ -260,6 +266,9 @@ class PlaybackRuntimeSettings {
   final bool gaplessEnabled;
   final EqConfiguration? equalizer;
   final bool crossfadeEnabled;
+
+  /// Whether a fade may open a remote incoming source.
+  final bool crossfadeAllowStreaming;
   final int crossfadeDurationSeconds;
   final String crossfadeType;
 

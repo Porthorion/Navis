@@ -7,8 +7,10 @@ extension _NavisQueueLoading on NavisAudioHandler {
     List<String>? pendingLogicalQueueSongIds,
     bool navigation = false,
   }) {
+    final previousAnchor = _queueReplacementMetadataAnchor;
     _clearQueueReplacementMetadataAnchor();
     _crossfadeFailedFrom = null;
+    _crossfadeDisabledReason = null;
     // The user's command replaces any startup queue still waiting to restore.
     if (_queueRestoreOutcome == 'deferred_auth') {
       _queueRestoreOutcome = 'superseded';
@@ -33,6 +35,27 @@ extension _NavisQueueLoading on NavisAudioHandler {
     _activeLoadGeneration = generation;
     _isLoading = isLoading;
     _loadingSongId = isLoading ? loadingSongId : null;
+    if (isLoading && loadingSongId != null) {
+      final row =
+          _pendingLogicalQueueSongs
+              ?.where((song) => song.id == loadingSongId)
+              .firstOrNull ??
+          _remoteRows[loadingSongId];
+      final item = row != null
+          ? _mediaItemForSong(row)
+          : _queueItems.where((item) => item.id == loadingSongId).firstOrNull ??
+                (previousAnchor?.mediaItem.id == loadingSongId
+                    ? previousAnchor?.mediaItem
+                    : null);
+      if (item != null) {
+        _setQueueReplacementMetadataAnchor(
+          expectedIndex: _navigationIntent.desiredIndex ?? 0,
+          mediaItem: item,
+        );
+        _setCurrentMediaItem(item);
+      }
+    }
+    _broadcastPlaybackState();
     _emitSnapshot();
     return generation;
   }
@@ -60,13 +83,29 @@ extension _NavisQueueLoading on NavisAudioHandler {
 
   NavisResolvedQueueMetadata _resolveCurrentQueueMetadata() {
     final backendCurrentIndex = _player.currentIndex;
-    if (!(_isLoading && _player.processingState == ProcessingState.idle) &&
+    if (!(_isLoading &&
+            (_player.processingState == ProcessingState.idle ||
+                _queueReplacementMetadataAnchor
+                        ?.mediaItem
+                        .extras?['sourceKind'] ==
+                    null)) &&
         navisIsQueueReplacementMetadataAnchorConfirmed(
           queueItems: _queueItems,
           backendCurrentIndex: backendCurrentIndex,
           anchor: _queueReplacementMetadataAnchor,
         )) {
       _clearQueueReplacementMetadataAnchor();
+    }
+    final pending = _queueReplacementMetadataAnchor;
+    if (_isLoading &&
+        pending != null &&
+        pending.mediaItem.id == _loadingSongId) {
+      return NavisResolvedQueueMetadata(
+        mediaItem: _currentMediaItem?.id == pending.mediaItem.id
+            ? _currentMediaItem
+            : pending.mediaItem,
+        currentIndex: pending.expectedIndex - _deferredHead.length,
+      );
     }
     return navisResolveQueueMetadata(
       queueItems: _queueItems,
@@ -95,8 +134,21 @@ extension _NavisQueueLoading on NavisAudioHandler {
     _activeStartupTrace?.mark(failed ? 'queueLoadFailed' : 'queueLoadComplete');
     _isLoading = false;
     _loadingSongId = null;
+    // A failed or completed selection returns metadata authority to the
+    // source the player actually holds. Pending metadata must not outlive it.
+    _clearQueueReplacementMetadataAnchor();
     _clearPendingLogicalQueue();
     _pendingLogicalQueueSongs = null;
+    if (_radioStation == null) {
+      _setCurrentMediaItem(
+        _player.audioSources.isEmpty
+            ? null
+            : _queueItems.elementAtOrNull(
+                _player.currentIndex ?? _queueItems.length,
+              ),
+      );
+    }
+    _broadcastPlaybackState();
     _applyReplayGainVolume();
     _syncRemotePlaybackStallWatchdog();
     if (_navigationIntent.isPending &&
@@ -426,103 +478,130 @@ extension _NavisQueueLoading on NavisAudioHandler {
     int generation = 0,
     OperationToken? token,
   }) async {
-    List<_PreparedQueueItem> prepared;
-    try {
-      prepared = await _prepareQueueItems(songs, preferLockCaching: true);
-    } on PlaybackSourceUnavailableException {
+    final wasLoading = _isLoading;
+    final selectionGeneration = generation > 0
+        ? generation
+        : _activeLoadGeneration;
+    if (songs.isNotEmpty) {
       token?.checkCancelled();
-      rethrow;
-    } on Object catch (error, stackTrace) {
-      token?.checkCancelled();
-      AppLogger.warning(
-        'Queue preparation failed while lock-cached sources were enabled. '
-        'Retrying with direct-stream sources. '
-        '$error\n$stackTrace',
-      );
-      prepared = await _prepareQueueItems(songs, preferLockCaching: false);
-    }
-
-    token?.checkCancelled();
-    if (prepared.isEmpty) {
-      await _clearQueueInternal(persist: persist);
-      return;
-    }
-
-    final clampedIndex = startIndex.clamp(0, prepared.length - 1);
-    Future<void> apply() => _applyPreparedQueue(
-      prepared,
-      startIndex: clampedIndex,
-      autoPlay: autoPlay,
-      initialPosition: initialPosition,
-      preloadWhenPaused: preloadWhenPaused,
-      forcePreloadWhenPaused: forcePreloadWhenPaused,
-      generation: generation,
-      token: token,
-    );
-    try {
-      await apply();
-    } on Object catch (error, stackTrace) {
-      token?.checkCancelled();
-      final sourceKinds = prepared
-          .map((item) => item.source.kind)
-          .toList(growable: false);
-      final shouldRetry = navisShouldRetryQueueApplyWithDirectSources(
-        sourceKinds: sourceKinds,
-        error: error,
-        isAndroidRuntime: _isAndroidRuntime,
-      );
-      final isDspFailure = _isAndroidDspInitializationFailure(error);
-      if (!shouldRetry) {
-        rethrow;
+      if (!_isActiveLoadGeneration(selectionGeneration)) {
+        throw OperationCancelledException();
       }
-      if (isDspFailure) {
+      final start = startIndex.clamp(0, songs.length - 1);
+      _isLoading = true;
+      _loadingSongId = songs[start].id;
+      _setQueueReplacementMetadataAnchor(
+        expectedIndex: start,
+        mediaItem: _mediaItemForSong(songs[start]),
+      );
+      _setCurrentMediaItem(_queueReplacementMetadataAnchor!.mediaItem);
+      _broadcastPlaybackState();
+      _emitSnapshot();
+    }
+    try {
+      List<_PreparedQueueItem> prepared;
+      try {
+        prepared = await _prepareQueueItems(songs, preferLockCaching: true);
+      } on PlaybackSourceUnavailableException {
+        token?.checkCancelled();
+        rethrow;
+      } on Object catch (error, stackTrace) {
+        token?.checkCancelled();
         AppLogger.warning(
-          'Queue apply failed due to Android DSP initialization. '
-          'Disabling DSP for this session and rebuilding queue with direct '
-          'stream sources. $error\n$stackTrace',
-        );
-        await _rebuildPlayerWithoutEqualizer();
-      } else {
-        _markPreparedLockCachingBypassed(
-          prepared,
-          reason: 'queue apply failed during fallback to direct stream',
-        );
-        AppLogger.warning(
-          'Lock-cached playback source setup failed. '
-          'Retrying queue build with direct stream sources. '
-          'sources=${prepared.map((entry) => entry.source.kind.name).toList()} '
+          'Queue preparation failed while lock-cached sources were enabled. '
+          'Retrying with direct-stream sources. '
           '$error\n$stackTrace',
         );
+        prepared = await _prepareQueueItems(songs, preferLockCaching: false);
       }
-      prepared = await _prepareQueueItems(songs, preferLockCaching: false);
+
+      token?.checkCancelled();
+      if (!_isActiveLoadGeneration(selectionGeneration)) {
+        throw OperationCancelledException();
+      }
+      if (prepared.isEmpty) {
+        await _clearQueueInternal(persist: persist);
+        return;
+      }
+
+      final clampedIndex = startIndex.clamp(0, prepared.length - 1);
+      Future<void> apply() => _applyPreparedQueue(
+        prepared,
+        startIndex: clampedIndex,
+        autoPlay: autoPlay,
+        initialPosition: initialPosition,
+        preloadWhenPaused: preloadWhenPaused,
+        forcePreloadWhenPaused: forcePreloadWhenPaused,
+        generation: selectionGeneration,
+        token: token,
+      );
       try {
         await apply();
-      } on Object catch (retryError, retryStackTrace) {
+      } on Object catch (error, stackTrace) {
         token?.checkCancelled();
-        if (!_isAndroidDspInitializationFailure(retryError)) {
+        final sourceKinds = prepared
+            .map((item) => item.source.kind)
+            .toList(growable: false);
+        final shouldRetry = navisShouldRetryQueueApplyWithDirectSources(
+          sourceKinds: sourceKinds,
+          error: error,
+          isAndroidRuntime: _isAndroidRuntime,
+        );
+        final isDspFailure = _isAndroidDspInitializationFailure(error);
+        if (!shouldRetry) {
           rethrow;
         }
-        AppLogger.warning(
-          'Direct-stream queue apply still hit Android DSP initialization '
-          'failure. Forcing plain player rebind and retrying once more. '
-          '$retryError\n$retryStackTrace',
-        );
-        await _rebuildPlayerWithoutEqualizer();
-        await apply();
+        if (isDspFailure) {
+          AppLogger.warning(
+            'Queue apply failed due to Android DSP initialization. '
+            'Disabling DSP for this session and rebuilding queue with direct '
+            'stream sources. $error\n$stackTrace',
+          );
+          await _rebuildPlayerWithoutEqualizer();
+        } else {
+          _markPreparedLockCachingBypassed(
+            prepared,
+            reason: 'queue apply failed during fallback to direct stream',
+          );
+          AppLogger.warning(
+            'Lock-cached playback source setup failed. '
+            'Retrying queue build with direct stream sources. '
+            'sources=${prepared.map((entry) => entry.source.kind.name).toList()} '
+            '$error\n$stackTrace',
+          );
+        }
+        prepared = await _prepareQueueItems(songs, preferLockCaching: false);
+        try {
+          await apply();
+        } on Object catch (retryError, retryStackTrace) {
+          token?.checkCancelled();
+          if (!_isAndroidDspInitializationFailure(retryError)) {
+            rethrow;
+          }
+          AppLogger.warning(
+            'Direct-stream queue apply still hit Android DSP initialization '
+            'failure. Forcing plain player rebind and retrying once more. '
+            '$retryError\n$retryStackTrace',
+          );
+          await _rebuildPlayerWithoutEqualizer();
+          await apply();
+        }
       }
+
+      _observeLockCacheForPrepared(prepared);
+
+      if (persist) {
+        await _persistSafely(
+          () => _persistQueueState(includeQueueItems: true),
+          context: 'queue replacement',
+        );
+      }
+
+      _broadcastPlaybackState();
+      _emitSnapshot();
+    } finally {
+      if (!wasLoading) _completeQueueLoad(selectionGeneration);
     }
-
-    _observeLockCacheForPrepared(prepared);
-
-    if (persist) {
-      await _persistSafely(
-        () => _persistQueueState(includeQueueItems: true),
-        context: 'queue replacement',
-      );
-    }
-
-    _broadcastPlaybackState();
-    _emitSnapshot();
   }
 
   Future<List<_PreparedQueueItem>> _prepareQueueItems(
@@ -551,8 +630,24 @@ extension _NavisQueueLoading on NavisAudioHandler {
     return prepared;
   }
 
-  /// Resolve a single song's playback source with the standard fallback chain
-  /// (lock-caching → direct stream).
+  MediaItem _mediaItemForSong(
+    SongsTableData song, {
+    ResolvedPlaybackSource? source,
+  }) {
+    return MediaItem(
+      id: song.id,
+      title: song.title,
+      artist: song.artistName,
+      album: song.albumName,
+      duration: song.duration == null
+          ? null
+          : Duration(seconds: math.max(0, song.duration!)),
+      artUri: _sourceResolver.resolveArtUri(song),
+      extras: navisResolvedPlaybackExtras(song: song, source: source),
+    );
+  }
+
+  /// Resolves a song with the standard lock-caching → direct stream fallback.
   Future<_PreparedQueueItem> _prepareSingleItem(
     SongsTableData song, {
     required bool preferLockCaching,
@@ -586,17 +681,7 @@ extension _NavisQueueLoading on NavisAudioHandler {
         preferLockCaching: false,
       );
     }
-    final item = MediaItem(
-      id: song.id,
-      title: song.title,
-      artist: song.artistName,
-      album: song.albumName,
-      duration: song.duration == null
-          ? null
-          : Duration(seconds: math.max(0, song.duration!)),
-      artUri: _sourceResolver.resolveArtUri(song),
-      extras: navisResolvedPlaybackExtras(song: song, source: source),
-    );
+    final item = _mediaItemForSong(song, source: source);
     if (startupTrace?.songId == song.id) {
       startupTrace?.sourceKind = source.kind.name;
       startupTrace?.markOnce('sourceResolutionComplete');
@@ -679,6 +764,15 @@ extension _NavisQueueLoading on NavisAudioHandler {
 
     final clampedIndex = startIndex.clamp(0, songs.length - 1);
     final startSong = songs[clampedIndex];
+    _checkQueueWorkCurrent(token, generation);
+    _isLoading = true;
+    _loadingSongId = startSong.id;
+    _setQueueReplacementMetadataAnchor(
+      expectedIndex: clampedIndex,
+      mediaItem: _mediaItemForSong(startSong),
+    );
+    _setCurrentMediaItem(_queueReplacementMetadataAnchor!.mediaItem);
+    _emitSnapshot();
     final startupTrace = _activeStartupTrace;
     startupTrace?.markOnce('selectedSourcePreparationStart');
 
@@ -709,19 +803,6 @@ extension _NavisQueueLoading on NavisAudioHandler {
       }
     }
 
-    final previous = _currentMediaItem;
-    if (previous != null) {
-      final previousIndex = _queueItems.indexWhere(
-        (item) => item.id == previous.id,
-      );
-      if (previousIndex >= 0) {
-        _setQueueReplacementMetadataAnchor(
-          expectedIndex: previousIndex,
-          mediaItem: previous,
-        );
-      }
-    }
-    // Keep the previous metadata until the new source is ready to apply.
     // Pause independently of stop so a hung native stop cannot stay audible.
     _checkQueueWorkCurrent(token, generation);
     _cancelCrossfade();
@@ -781,6 +862,8 @@ extension _NavisQueueLoading on NavisAudioHandler {
       expectedIndex: clampedIndex,
       mediaItem: startItem.mediaItem,
     );
+    _setCurrentMediaItem(startItem.mediaItem);
+    _emitSnapshot();
     startupTrace?.mark('selectedSourceApplyStart');
     try {
       await _setAudioSourcesWithFallback(
@@ -807,6 +890,7 @@ extension _NavisQueueLoading on NavisAudioHandler {
         'Retrying with direct stream. $error\n$stackTrace',
       );
       startItem = await _prepareSingleItem(startSong, preferLockCaching: false);
+      _checkQueueWorkCurrent(token, generation);
       _queueItems
         ..clear()
         ..add(startItem.mediaItem);
@@ -942,11 +1026,17 @@ extension _NavisQueueLoading on NavisAudioHandler {
     OperationToken? token,
   }) async {
     token?.checkCancelled();
+    if (!_isActiveLoadGeneration(generation)) {
+      throw OperationCancelledException();
+    }
     _queueItems
       ..clear()
       ..addAll(prepared.map((entry) => entry.mediaItem));
     await _clearDeferredTail();
     token?.checkCancelled();
+    if (!_isActiveLoadGeneration(generation)) {
+      throw OperationCancelledException();
+    }
 
     final audioSources = prepared
         .map((entry) => entry.audioSource)
@@ -967,12 +1057,18 @@ extension _NavisQueueLoading on NavisAudioHandler {
       token: token,
     );
     token?.checkCancelled();
+    if (!_isActiveLoadGeneration(generation)) {
+      throw OperationCancelledException();
+    }
     await _clearInactiveDeckForQueueChange(
       generation: generation,
       songId: prepared[startIndex].song.id,
     );
 
     token?.checkCancelled();
+    if (!_isActiveLoadGeneration(generation)) {
+      throw OperationCancelledException();
+    }
     queue.add(List<MediaItem>.unmodifiable(_queueItems));
     _setCurrentMediaItem(_queueItems[startIndex]);
 
@@ -1196,6 +1292,20 @@ extension _NavisQueueLoading on NavisAudioHandler {
       autoPlay: autoPlay,
       inPlayOrder: inPlayOrder,
     );
+    if (canonicalIds.isNotEmpty) {
+      final selected =
+          canonicalIds[startIndex.clamp(0, canonicalIds.length - 1)];
+      final song = await _libraryDao.getSongById(selected);
+      if (!_isActiveLoadGeneration(admittedGeneration)) return;
+      if (song != null) {
+        _setQueueReplacementMetadataAnchor(
+          expectedIndex: _navigationIntent.desiredIndex ?? 0,
+          mediaItem: _mediaItemForSong(song),
+        );
+        _setCurrentMediaItem(_queueReplacementMetadataAnchor!.mediaItem);
+        _emitSnapshot();
+      }
+    }
     final expansion = await _expandMatchFlowIds(
       canonicalIds,
       startIndex: startIndex,
