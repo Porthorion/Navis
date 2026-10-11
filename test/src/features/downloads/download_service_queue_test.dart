@@ -781,6 +781,94 @@ void main() {
   }
 
   test(
+    'sign-out drains deferred recovery and rejects stale registration',
+    () async {
+      const tree = 'content://fixture/tree/root';
+      const locator = 'content://fixture/document/audio';
+      const channel = MethodChannel('com.navis.app/permanent_download_storage');
+      final messenger =
+          TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
+      var accessible = false;
+      final entered = Completer<void>();
+      final release = Completer<void>();
+      addTearDown(() {
+        if (!release.isCompleted) release.complete();
+      });
+      final materialized = File(p.join(supportDir.path, 'materialized.mp3'));
+      messenger.setMockMethodCallHandler(channel, (call) async {
+        switch (call.method) {
+          case 'validateWritableTree':
+            if (!accessible) throw PlatformException(code: 'PERMISSION_DENIED');
+            return {
+              'uri': tree,
+              'canRead': true,
+              'canWrite': true,
+              'canReplace': true,
+            };
+          case 'findDocument':
+            return locator;
+          case 'materialize':
+            entered.complete();
+            await release.future;
+            await materialized.writeAsBytes([1, 2, 3, 4]);
+            return materialized.path;
+          default:
+            return null;
+        }
+      });
+      addTearDown(() => messenger.setMockMethodCallHandler(channel, null));
+      await database.appSettingsDao.updateDownloadsPaused(paused: true);
+      await addSongs(1);
+      final id = await database.downloadQueueDao.enqueue(
+        DownloadQueueTableCompanion.insert(
+          songId: const Value('song-0'),
+          status: DownloadStatus.downloading,
+          addedAt: DateTime(2026),
+        ),
+      );
+      await database.downloadQueueDao.writeFinishJournal(
+        id,
+        jsonEncode({
+          'phase': 'published',
+          'publicationLocator': locator,
+          'path': p.join(supportDir.path, 'audio', 'permanent', 'stage.mp3'),
+          'treeUri': tree,
+          'relativePath': 'Artist/Song.mp3',
+          'size': 4,
+          'sha256': sha256.convert([1, 2, 3, 4]).toString(),
+          'format': 'mp3',
+        }),
+      );
+      final service = buildService(
+        isAndroid: true,
+        customEnabled: () => true,
+        customPath: () => tree,
+      );
+      await service.start();
+      accessible = true;
+      final recovering = service.processQueuedDownloads();
+      await entered.future;
+      var stopped = false;
+      final stopping = service.stopAndWait().then((_) {
+        stopped = true;
+      });
+      await Future<void>.delayed(const Duration(milliseconds: 30));
+      final drainedEarly = stopped;
+      release.complete();
+      await stopping;
+      // Sign-out clears data only after the download service has drained.
+      await database.downloadQueueDao.clearQueue();
+      await database.cacheDao.removeCachedTrack('song-0');
+      await recovering;
+      expect(drainedEarly, isFalse);
+      expect(await database.cacheDao.getCachedTrack('song-0'), isNull);
+      expect(await queue(), isEmpty);
+      expect(materialized.existsSync(), isFalse);
+    },
+    skip: !sqliteAvailable,
+  );
+
+  test(
     'startup requeues a registered download whose file is missing',
     () async {
       await database.appSettingsDao.updateDownloadsPaused(paused: true);

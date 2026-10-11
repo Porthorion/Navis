@@ -251,6 +251,10 @@ const List<ChangelogVersion> changelogs = [
         type: ChangelogEntryType.fix,
       ),
       ChangelogEntry(
+        'Signing out waits for download recovery and prevents old downloads from being registered after teardown',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
         'Opening the queue centres it on the song that is playing',
       ),
       ChangelogEntry(

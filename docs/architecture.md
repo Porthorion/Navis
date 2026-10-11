@@ -5199,7 +5199,10 @@ Startup replays journaled final files only when size and digest agree; missing
 or invalid files are requeued, and part files always restart from zero. Missing
 permanent-cache files are requeued when library metadata still permits a
 server download. Inaccessible storage retains its intent until it returns,
-and startup repair completes before workers start. Unknown custom-folder audio
+and startup repair completes before workers start. Deferred recovery belongs
+to the service lifecycle: teardown invalidates its generation and awaits it
+before server data can be cleared. Reconciliation checks the generation after
+storage waits and inside registration transactions to reject stale writes. Unknown custom-folder audio
 has no finish intent and is left to the explicit adoption/rescan flow.
 Before a transfer creates its part file, the existing queue journal records
 its exact path. Custom-root cleanup requires that persisted ownership and does
