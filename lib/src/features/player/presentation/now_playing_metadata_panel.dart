@@ -147,10 +147,24 @@ class _TrackInfo extends StatelessWidget {
     final titleGap = phone?.titleGap ?? (compact ? 2.0 : 4.0);
     final albumGap = phone?.albumGap ?? (compact ? 1.0 : 2.0);
     final foldAlbum = phone?.foldAlbum ?? false;
+    final titleStyle = textTheme.titleLarge?.copyWith(
+      fontWeight: FontWeight.bold,
+      fontSize: titleSize,
+      color: onTitleTap != null ? colorScheme.primary : null,
+    );
     final artistStyle = textTheme.bodyLarge?.copyWith(
       fontSize: artistSize,
       color: colorScheme.onSurfaceVariant,
     );
+    final albumStyle = textTheme.bodyMedium?.copyWith(
+      fontSize: albumSize,
+      color: colorScheme.onSurfaceVariant,
+    );
+    // Phone: fixed-height lines, so Arabic or CJK fallback fonts cannot make
+    // the block taller than the layout budgeted.
+    final titleStrut = phone?.titleStrut(titleStyle!);
+    final artistStrut = phone?.artistStrut(artistStyle!);
+    final albumStrut = phone?.albumStrut(albumStyle!);
     return Column(
       children: <Widget>[
         GestureDetector(
@@ -158,11 +172,8 @@ class _TrackInfo extends StatelessWidget {
           onTap: onTitleTap,
           child: Text(
             title,
-            style: textTheme.titleLarge?.copyWith(
-              fontWeight: FontWeight.bold,
-              fontSize: titleSize,
-              color: onTitleTap != null ? colorScheme.primary : null,
-            ),
+            style: titleStyle,
+            strutStyle: titleStrut,
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
             textAlign: TextAlign.center,
@@ -182,11 +193,16 @@ class _TrackInfo extends StatelessWidget {
             runSpacing: 0,
             children: [
               for (final (i, link) in links.indexed) ...<Widget>[
-                if (i > 0) Text(', ', style: artistStyle),
+                if (i > 0)
+                  Text(', ', style: artistStyle, strutStyle: artistStrut),
                 GestureDetector(
                   behavior: HitTestBehavior.opaque,
                   onTap: link.onTap,
-                  child: Text(link.name, style: artistStyle),
+                  child: Text(
+                    link.name,
+                    style: artistStyle,
+                    strutStyle: artistStrut,
+                  ),
                 ),
               ],
             ],
@@ -204,13 +220,14 @@ class _TrackInfo extends StatelessWidget {
                   child: Text(
                     artist,
                     style: artistStyle,
+                    strutStyle: artistStrut,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                   ),
                 ),
               ),
               if (album.isNotEmpty) ...<Widget>[
-                Text(' \u00b7 ', style: artistStyle),
+                Text(' \u00b7 ', style: artistStyle, strutStyle: artistStrut),
                 Flexible(
                   child: GestureDetector(
                     behavior: HitTestBehavior.opaque,
@@ -218,6 +235,7 @@ class _TrackInfo extends StatelessWidget {
                     child: Text(
                       album,
                       style: artistStyle,
+                      strutStyle: artistStrut,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                     ),
@@ -233,6 +251,7 @@ class _TrackInfo extends StatelessWidget {
             child: Text(
               artist,
               style: artistStyle,
+              strutStyle: artistStrut,
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
               textAlign: TextAlign.center,
@@ -245,10 +264,8 @@ class _TrackInfo extends StatelessWidget {
             onTap: onAlbumTap,
             child: Text(
               album,
-              style: textTheme.bodyMedium?.copyWith(
-                fontSize: albumSize,
-                color: colorScheme.onSurfaceVariant,
-              ),
+              style: albumStyle,
+              strutStyle: albumStrut,
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
               textAlign: TextAlign.center,

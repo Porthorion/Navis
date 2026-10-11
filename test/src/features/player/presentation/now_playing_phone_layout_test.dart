@@ -41,11 +41,14 @@ void main() {
             );
 
             // The pinned controls end at the bottom gap, the part above them
-            // fills the rest exactly unless the upper part scrolls.
+            // fills the rest exactly unless the upper part is scaled down.
             final total = l.upperHeight + l.lowerHeight;
-            if (l.scrollsUpper) {
+            if (l.scalesUpper) {
               expect(total, greaterThan(body));
-              expect(l.artSize, closeTo(0.62 * w, _eps));
+              expect(
+                l.artSize,
+                closeTo((0.45 * w).clamp(120, 200).toDouble(), _eps),
+              );
             } else {
               expect(total, closeTo(body, _eps));
             }
@@ -53,7 +56,7 @@ void main() {
             // The cover is square, inside its width limits and never wider
             // than the screen minus its margins.
             expect(l.artSize, lessThanOrEqualTo(w - 2 * l.artMargin + _eps));
-            if (!l.scrollsUpper) {
+            if (!l.scalesUpper) {
               expect(
                 l.artSize,
                 greaterThanOrEqualTo((0.45 * w).clamp(120, 200) - _eps),
@@ -137,7 +140,7 @@ void main() {
       textScaler: TextScaler.noScaling,
     );
     expect(l.tier, NowPlayingPhoneTier.short);
-    expect(l.scrollsUpper, isFalse);
+    expect(l.scalesUpper, isFalse);
     expect(l.showInfo, isTrue);
     expect(l.actionBlock, 48);
     expect(l.artSize, greaterThan(0.62 * 360));
@@ -171,26 +174,26 @@ void main() {
     expect(l.largeTransport, isTrue);
   });
 
-  test('big text shrinks the cover before the upper part scrolls', () {
+  test('big text shrinks the cover before the upper part is scaled', () {
     final fits = NowPlayingPhoneLayout.compute(
       width: 360,
       height: 620,
       textScaler: const TextScaler.linear(2),
     );
     // Below the preferred 62% of the width, still above the floor.
-    expect(fits.scrollsUpper, isFalse);
+    expect(fits.scalesUpper, isFalse);
     expect(fits.artSize, lessThan(0.62 * 360));
     expect(fits.artSize, greaterThanOrEqualTo(0.45 * 360));
 
-    final scrolls = NowPlayingPhoneLayout.compute(
+    final scales = NowPlayingPhoneLayout.compute(
       width: 360,
       height: 440,
       textScaler: const TextScaler.linear(2),
     );
-    expect(scrolls.scrollsUpper, isTrue);
-    expect(scrolls.artSize, closeTo(0.62 * 360, _eps));
-    // The controls still fit; only the cover and title scroll.
-    expect(scrolls.lowerHeight, lessThan(440));
+    expect(scales.scalesUpper, isTrue);
+    expect(scales.artSize, closeTo(0.45 * 360, _eps));
+    // The controls still fit; only the cover and title are scaled down.
+    expect(scales.lowerHeight, lessThan(440));
   });
 
   test('the info pager is dropped only when a short phone cannot fit it', () {
