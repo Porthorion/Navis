@@ -49,14 +49,17 @@ class ColorTuningBasis {
 /// combination spans 13 or more.
 const double _intensityMinSpread = 11;
 
+const Iterable<int> _signedSteps = [-5, -4, -3, -2, -1, 0, 1, 2, 3, 4, 5];
+const Iterable<int> _tintSteps = [0, 1, 2, 3, 4, 5];
+
 /// "+2" and "−3", the true minus sign the ruler's tick labels use.
 String signedStep(int step) =>
     step == 0 ? '0' : '${step > 0 ? '+' : '−'}${step.abs()}';
 
 /// One line for Fine-Tune Colors: "Default" or the steps that are not zero
-/// ("Intensity +2 · Brightness −1"). Brightness
-/// is the mode shown now ([dark]); with only the other mode adjusted, that
-/// mode is named.
+/// ("Intensity +2 · Tint 3 · White controls"). Brightness and Tint are the
+/// mode shown now ([dark]); with only the other mode adjusted, that mode is
+/// named.
 String colorTuningSummary(
   AppLocalizations l10n,
   ColorTuning tuning, {
@@ -64,17 +67,26 @@ String colorTuningSummary(
 }) {
   if (tuning == ColorTuning.none) return l10n.appearanceColorTuningDefault;
   final depth = dark ? tuning.darkDepth : tuning.lightDepth;
-  final other = dark ? tuning.lightDepth : tuning.darkDepth;
+  final tint = dark ? tuning.darkTint : tuning.lightTint;
+  final otherDepth = dark ? tuning.lightDepth : tuning.darkDepth;
+  final otherTint = dark ? tuning.lightTint : tuning.darkTint;
+  final otherMode = dark ? l10n.appearanceThemeLight : l10n.appearanceThemeDark;
+  final shown = tuning.vividness != 0 || depth != 0 || tint != 0;
   final parts = <String>[
     if (tuning.vividness != 0)
       l10n.appearanceColorTuningSummaryIntensity(signedStep(tuning.vividness)),
     if (depth != 0)
       l10n.appearanceColorTuningSummaryBrightness(signedStep(depth)),
-    if (tuning.vividness == 0 && depth == 0 && other != 0)
+    if (tint != 0) l10n.appearanceColorTuningSummaryTint('$tint'),
+    if (!shown && otherDepth != 0)
       l10n.appearanceColorTuningSummaryModeBrightness(
-        dark ? l10n.appearanceThemeLight : l10n.appearanceThemeDark,
-        signedStep(other),
+        otherMode,
+        signedStep(otherDepth),
       ),
+    if (!shown && otherTint != 0)
+      l10n.appearanceColorTuningSummaryModeTint(otherMode, '$otherTint'),
+    if (tuning.controls == NavisControlColor.white)
+      l10n.appearanceColorTuningSummaryWhiteControls,
   ];
   return parts.join(' · ');
 }
@@ -183,6 +195,8 @@ class _PanelBodyState extends State<_PanelBody> {
   Object? _colorBandKey;
   late RulerBand _brightnessBand;
   Object? _brightnessBandKey;
+  late RulerBand _tintBand;
+  Object? _tintBandKey;
 
   @override
   void initState() {
@@ -243,11 +257,14 @@ class _PanelBodyState extends State<_PanelBody> {
   }
 
   int get _depth => _darkMode ? _shown.darkDepth : _shown.lightDepth;
+  int get _tint => _darkMode ? _shown.darkTint : _shown.lightTint;
 
-  ColorTuning _with({int? vividness, int? depth}) => _shown.copyWith(
-    vividness: vividness ?? _shown.vividness,
-    lightDepth: !_darkMode && depth != null ? depth : _shown.lightDepth,
-    darkDepth: _darkMode && depth != null ? depth : _shown.darkDepth,
+  ColorTuning _with({int? vividness, int? depth, int? tint}) => _shown.copyWith(
+    vividness: vividness,
+    lightDepth: !_darkMode ? depth : null,
+    darkDepth: _darkMode ? depth : null,
+    lightTint: !_darkMode ? tint : null,
+    darkTint: _darkMode ? tint : null,
   );
 
   /// Swatches for the steps −5…+5 of one axis, with the tick colour that
@@ -258,9 +275,10 @@ class _PanelBodyState extends State<_PanelBody> {
     required ColorAdjustment Function(int step) at,
     required Color Function(ColorScheme) swatch,
     required Color Function(ColorScheme) ink,
+    Iterable<int> steps = _signedSteps,
   }) {
     final schemes = [
-      for (var step = -5; step <= 5; step++)
+      for (final step in steps)
         buildStyledColorScheme(
           seed: widget.basis.value.seed,
           brightness: dark ? Brightness.dark : Brightness.light,
@@ -340,6 +358,40 @@ class _PanelBodyState extends State<_PanelBody> {
     return _brightnessBand;
   }
 
+  /// Tint, in the mode the switch is on: the real page background at each
+  /// step 0…5, so the strip is a picture of the result. OLED keeps its
+  /// surface black, so its panels are painted instead.
+  RulerBand get _tintStrip {
+    final basis = widget.basis.value;
+    final oled = _darkMode && basis.darkIsOled;
+    final key = (
+      basis.seed.toARGB32(),
+      basis.style,
+      _darkMode,
+      oled,
+      _shown.vividness,
+      _depth,
+      _shown.controls,
+    );
+    if (_tintBandKey != key) {
+      _tintBandKey = key;
+      _tintBand = _buildBand(
+        dark: _darkMode,
+        oled: oled,
+        steps: _tintSteps,
+        at: (step) => ColorAdjustment(
+          vividness: _shown.vividness,
+          depth: _depth,
+          tint: step,
+          controls: _shown.controls,
+        ),
+        swatch: (scheme) => oled ? scheme.surfaceContainerHigh : scheme.surface,
+        ink: (scheme) => scheme.onSurfaceVariant,
+      );
+    }
+    return _tintBand;
+  }
+
   /// Why the Intensity strip barely moves, when it spans too little chroma
   /// to be worth dragging: no accent to intensify, or a style that is
   /// already at its limit for this seed and mode.
@@ -384,7 +436,42 @@ class _PanelBodyState extends State<_PanelBody> {
           onStep: (step) => _preview(_with(vividness: step)),
           onEnd: _commit,
         ),
-        const SizedBox(height: NavisSpace.md),
+        const SizedBox(height: NavisSpace.lg),
+        _GroupHeader(
+          title: l10n.appearanceColorTuningBackgrounds,
+          control: SegmentedButton<bool>(
+            key: const ValueKey<String>('colorTuning-mode'),
+            showSelectedIcon: false,
+            style: const ButtonStyle(visualDensity: VisualDensity.compact),
+            segments: <ButtonSegment<bool>>[
+              ButtonSegment<bool>(
+                value: false,
+                icon: const Icon(Icons.light_mode_outlined),
+                label: Text(l10n.appearanceThemeLight),
+              ),
+              ButtonSegment<bool>(
+                value: true,
+                icon: const Icon(Icons.dark_mode_outlined),
+                label: Text(l10n.appearanceThemeDark),
+              ),
+            ],
+            selected: <bool>{_darkMode},
+            onSelectionChanged: (selection) =>
+                setState(() => _darkMode = selection.first),
+          ),
+          // Only when the strips show a mode other than the one on screen,
+          // where the app will not show the change.
+          note: elsewhere
+              ? Text(
+                  _darkMode
+                      ? l10n.appearanceColorTuningAppliesDark
+                      : l10n.appearanceColorTuningAppliesLight,
+                  key: const ValueKey<String>('colorTuning-applies'),
+                  style: theme.textTheme.bodySmall,
+                )
+              : null,
+        ),
+        const SizedBox(height: NavisSpace.sm),
         ColorTuningRulerRow(
           keyName: 'brightness',
           label: l10n.appearanceColorTuningBrightness,
@@ -394,51 +481,91 @@ class _PanelBodyState extends State<_PanelBody> {
           highTooltip: l10n.appearanceColorTuningDeeperBackgrounds,
           step: _depth,
           band: _depthBand,
-          belowTitle: Padding(
-            padding: const EdgeInsets.only(top: NavisSpace.xs),
-            child: Wrap(
-              spacing: NavisSpace.sm,
-              runSpacing: NavisSpace.xxs,
-              crossAxisAlignment: WrapCrossAlignment.center,
-              children: <Widget>[
-                SegmentedButton<bool>(
-                  key: const ValueKey<String>('colorTuning-mode'),
-                  showSelectedIcon: false,
-                  style: const ButtonStyle(
-                    visualDensity: VisualDensity.compact,
-                  ),
-                  segments: <ButtonSegment<bool>>[
-                    ButtonSegment<bool>(
-                      value: false,
-                      icon: const Icon(Icons.light_mode_outlined),
-                      label: Text(l10n.appearanceThemeLight),
-                    ),
-                    ButtonSegment<bool>(
-                      value: true,
-                      icon: const Icon(Icons.dark_mode_outlined),
-                      label: Text(l10n.appearanceThemeDark),
-                    ),
-                  ],
-                  selected: <bool>{_darkMode},
-                  onSelectionChanged: (selection) =>
-                      setState(() => _darkMode = selection.first),
-                ),
-                // Only when the strip shows a mode other than the one on
-                // screen, where the app will not show the change.
-                if (elsewhere)
-                  Text(
-                    _darkMode
-                        ? l10n.appearanceColorTuningAppliesDark
-                        : l10n.appearanceColorTuningAppliesLight,
-                    key: const ValueKey<String>('colorTuning-applies'),
-                    style: theme.textTheme.bodySmall,
-                  ),
-              ],
-            ),
-          ),
           onStep: (step) => _preview(_with(depth: step)),
           onEnd: _commit,
         ),
+        const SizedBox(height: NavisSpace.md),
+        ColorTuningRulerRow(
+          keyName: 'tint',
+          label: l10n.appearanceColorTuningTint,
+          lowCaption: l10n.appearanceColorTuningNone,
+          highCaption: l10n.appearanceColorTuningFull,
+          lowTooltip: l10n.appearanceColorTuningLessTint,
+          highTooltip: l10n.appearanceColorTuningMoreTint,
+          minimum: 0,
+          zeroLabel: l10n.appearanceColorTuningNone,
+          stepLabel: (step) => '$step',
+          step: _tint,
+          band: _tintStrip,
+          hint: _darkMode && basis.darkIsOled
+              ? l10n.appearanceColorTuningTintOled
+              : null,
+          onStep: (step) => _preview(_with(tint: step)),
+          onEnd: _commit,
+        ),
+        const SizedBox(height: NavisSpace.lg),
+        _GroupHeader(
+          title: l10n.appearanceColorTuningControls,
+          control: SegmentedButton<NavisControlColor>(
+            key: const ValueKey<String>('colorTuning-controls'),
+            showSelectedIcon: false,
+            style: const ButtonStyle(visualDensity: VisualDensity.compact),
+            segments: <ButtonSegment<NavisControlColor>>[
+              ButtonSegment<NavisControlColor>(
+                value: NavisControlColor.accent,
+                label: Text(l10n.appearanceColorTuningControlsAccent),
+              ),
+              ButtonSegment<NavisControlColor>(
+                value: NavisControlColor.white,
+                label: Text(l10n.appearanceColorTuningControlsWhite),
+              ),
+            ],
+            selected: <NavisControlColor>{_shown.controls},
+            onSelectionChanged: (selection) {
+              _preview(_shown.copyWith(controls: selection.first));
+              _commit();
+            },
+          ),
+          note: Text(
+            l10n.appearanceColorTuningControlsHint,
+            key: const ValueKey<String>('colorTuning-controlsHint'),
+            style: theme.textTheme.bodySmall,
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+/// A titled group of the panel: its name with a switch beside it, wrapping
+/// below at large text sizes, and an optional note under both.
+class _GroupHeader extends StatelessWidget {
+  const new({required this.title, required this.control, this.note});
+
+  final String title;
+  final Widget control;
+  final Widget? note;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: <Widget>[
+        Wrap(
+          alignment: WrapAlignment.spaceBetween,
+          crossAxisAlignment: WrapCrossAlignment.center,
+          spacing: NavisSpace.sm,
+          runSpacing: NavisSpace.xs,
+          children: <Widget>[
+            Text(title, style: Theme.of(context).textTheme.titleMedium),
+            control,
+          ],
+        ),
+        if (note != null)
+          Padding(
+            padding: const EdgeInsets.only(top: NavisSpace.xs),
+            child: note,
+          ),
       ],
     );
   }
@@ -464,8 +591,10 @@ class ColorTuningRulerRow extends StatelessWidget {
     required this.onStep,
     required this.onEnd,
     this.accent,
-    this.belowTitle,
     this.hint,
+    this.minimum = -5,
+    this.zeroLabel,
+    this.stepLabel = signedStep,
     super.key,
   });
 
@@ -485,21 +614,27 @@ class ColorTuningRulerRow extends StatelessWidget {
   /// Reports that input ended (drag release, stepper, keyboard).
   final VoidCallback onEnd;
 
-  /// Shown between the title and the ruler, for example a mode switch.
-  final Widget? belowTitle;
+  /// The lowest step; the highest is always 5.
+  final int minimum;
+
+  /// The readout at step 0; defaults to "Default".
+  final String? zeroLabel;
+
+  /// Text for a step in the readout and on the ruler's ticks.
+  final String Function(int step) stepLabel;
 
   /// A note under the captions, for example why the ruler barely moves.
   final String? hint;
 
-  static const int _limit = 5;
+  static const int _maximum = 5;
 
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context)!;
     final theme = Theme.of(context);
     final readout = step == 0
-        ? l10n.appearanceColorTuningDefault
-        : signedStep(step);
+        ? zeroLabel ?? l10n.appearanceColorTuningDefault
+        : stepLabel(step);
 
     Widget stepper({required bool up}) {
       final next = step + (up ? 1 : -1);
@@ -507,10 +642,10 @@ class ColorTuningRulerRow extends StatelessWidget {
         key: ValueKey<String>('colorTuning-$keyName-${up ? 'plus' : 'minus'}'),
         icon: up ? Icons.add : Icons.remove,
         tooltip: up ? highTooltip : lowTooltip,
-        enabled: next.abs() <= _limit,
+        enabled: next >= minimum && next <= _maximum,
         onStep: () {
           final target = step + (up ? 1 : -1);
-          if (target.abs() > _limit) return false;
+          if (target < minimum || target > _maximum) return false;
           onStep(target);
           return true;
         },
@@ -540,7 +675,6 @@ class ColorTuningRulerRow extends StatelessWidget {
             ),
           ],
         ),
-        ?belowTitle,
         // The painter puts lower values on the left in every locale, so the
         // row stays LTR like Speed and Pitch.
         Row(
@@ -555,13 +689,16 @@ class ColorTuningRulerRow extends StatelessWidget {
                 valueLabel: readout,
                 onChanged: (value) => onStep(value.round()),
                 onChangeEnd: onEnd,
-                range: const AdjustmentRange(minimum: -5, maximum: 5),
+                range: AdjustmentRange(
+                  minimum: minimum.toDouble(),
+                  maximum: _maximum.toDouble(),
+                ),
                 snapStep: 1,
                 // 64 px a step keeps about six steps in view, so the colours
                 // ahead of the needle preview where it is going, and leaves
                 // room for a click every 8 px between steps.
                 pixelsPerUnit: 64,
-                labelBuilder: (value) => signedStep(value.round()),
+                labelBuilder: (value) => stepLabel(value.round()),
                 band: band,
                 accent: accent,
               ),

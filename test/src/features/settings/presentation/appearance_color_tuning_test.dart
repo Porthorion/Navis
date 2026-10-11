@@ -531,8 +531,19 @@ void main() {
   group('goldens', () {
     for (final mode in <String>['light', 'dark', 'oled']) {
       testWidgets('panel in $mode (Pastel)', (tester) async {
-        const soft = ColorTuning(vividness: -2, lightDepth: 1, darkDepth: 1);
-        await pumpScreen(tester, mode: mode, size: const Size(390, 844));
+        // Light also shows White controls; Dark and OLED the Tint strip and
+        // the OLED note. Tall enough to show the whole panel.
+        final soft = ColorTuning(
+          vividness: -2,
+          lightDepth: 1,
+          darkDepth: 1,
+          lightTint: 3,
+          darkTint: 3,
+          controls: mode == 'light'
+              ? NavisControlColor.white
+              : NavisControlColor.accent,
+        );
+        await pumpScreen(tester, mode: mode, size: const Size(390, 1100));
         await seedTuning(tester, soft);
         await openPanel(tester);
         await expectLater(

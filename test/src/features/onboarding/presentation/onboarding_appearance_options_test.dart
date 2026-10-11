@@ -19,6 +19,7 @@ import 'package:navis/src/providers/app_providers.dart';
 import 'package:navis/src/routing/app_routes.dart';
 import 'package:navis/src/theme/color_adjustment.dart';
 import 'package:navis/src/theme/navis_color_style.dart';
+import 'package:navis/src/theme/navis_color_style_data.dart';
 import 'package:navis/src/theme/navis_corner_style.dart';
 import 'package:navis/src/theme/navis_shape_data.dart';
 import 'package:navis/src/theme/navis_theme.dart';
@@ -499,6 +500,43 @@ void main() {
       final saved = await h.row();
       expect(saved.surfaceDepthLight, 2);
       expect(saved.surfaceDepthDark, 3);
+    });
+
+    testWidgets('drafts Tint for its own mode and Controls, saved on Finish', (
+      tester,
+    ) async {
+      final h = await _pump(tester);
+      await openPanel(h);
+      await h.tap(plus('tint'));
+      await h.tap(plus('tint'));
+      await h.tap(
+        find.descendant(of: control('controls'), matching: find.text('White')),
+      );
+
+      final seed = resolveColorSchemeSeedColor(null);
+      final expected = buildDarkTheme(
+        seed,
+        adjustment: const ColorAdjustment(
+          tint: 2,
+          controls: NavisControlColor.white,
+        ),
+      );
+      expect(h.previewTheme.colorScheme, expected.colorScheme);
+      expect(
+        h.previewTheme.extension<NavisColorStyleData>()!.controls,
+        NavisControlColor.white,
+      );
+      var row = await h.row();
+      expect(row.surfaceTintDark, 0, reason: 'nothing is saved before Finish');
+      expect(row.controlColor, 'accent');
+
+      await closePanel(h);
+      expect(summaryText(tester), 'Tint 2 · White controls');
+      await h.finish();
+      row = await h.row();
+      expect(row.surfaceTintDark, 2);
+      expect(row.surfaceTintLight, 0);
+      expect(row.controlColor, 'white');
     });
 
     testWidgets('Reset returns every value to Default', (tester) async {

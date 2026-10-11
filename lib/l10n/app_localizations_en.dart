@@ -3445,6 +3445,54 @@ class AppLocalizationsEn extends AppLocalizations {
       'This style is already close to its most colorful here.';
 
   @override
+  String get appearanceColorTuningBackgrounds => 'Backgrounds';
+
+  @override
+  String get appearanceColorTuningTint => 'Tint';
+
+  @override
+  String get appearanceColorTuningNone => 'None';
+
+  @override
+  String get appearanceColorTuningFull => 'Full';
+
+  @override
+  String get appearanceColorTuningLessTint => 'Use less tint';
+
+  @override
+  String get appearanceColorTuningMoreTint => 'Use more tint';
+
+  @override
+  String get appearanceColorTuningTintOled =>
+      'OLED keeps pure black, so Tint only colors the panels.';
+
+  @override
+  String get appearanceColorTuningControls => 'Controls';
+
+  @override
+  String get appearanceColorTuningControlsAccent => 'Accent';
+
+  @override
+  String get appearanceColorTuningControlsWhite => 'White';
+
+  @override
+  String get appearanceColorTuningControlsHint =>
+      'White fills Play, sliders and selected controls instead of the accent color.';
+
+  @override
+  String appearanceColorTuningSummaryTint(String value) {
+    return 'Tint $value';
+  }
+
+  @override
+  String appearanceColorTuningSummaryModeTint(String mode, String value) {
+    return '$mode Tint $value';
+  }
+
+  @override
+  String get appearanceColorTuningSummaryWhiteControls => 'White controls';
+
+  @override
   String get appearanceLooksLabel => 'Looks';
 
   @override

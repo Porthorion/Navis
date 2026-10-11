@@ -5417,6 +5417,90 @@ abstract class AppLocalizations {
   /// **'This style is already close to its most colorful here.'**
   String get appearanceColorTuningHintMaxed;
 
+  /// No description provided for @appearanceColorTuningBackgrounds.
+  ///
+  /// In en, this message translates to:
+  /// **'Backgrounds'**
+  String get appearanceColorTuningBackgrounds;
+
+  /// No description provided for @appearanceColorTuningTint.
+  ///
+  /// In en, this message translates to:
+  /// **'Tint'**
+  String get appearanceColorTuningTint;
+
+  /// No description provided for @appearanceColorTuningNone.
+  ///
+  /// In en, this message translates to:
+  /// **'None'**
+  String get appearanceColorTuningNone;
+
+  /// No description provided for @appearanceColorTuningFull.
+  ///
+  /// In en, this message translates to:
+  /// **'Full'**
+  String get appearanceColorTuningFull;
+
+  /// No description provided for @appearanceColorTuningLessTint.
+  ///
+  /// In en, this message translates to:
+  /// **'Use less tint'**
+  String get appearanceColorTuningLessTint;
+
+  /// No description provided for @appearanceColorTuningMoreTint.
+  ///
+  /// In en, this message translates to:
+  /// **'Use more tint'**
+  String get appearanceColorTuningMoreTint;
+
+  /// No description provided for @appearanceColorTuningTintOled.
+  ///
+  /// In en, this message translates to:
+  /// **'OLED keeps pure black, so Tint only colors the panels.'**
+  String get appearanceColorTuningTintOled;
+
+  /// No description provided for @appearanceColorTuningControls.
+  ///
+  /// In en, this message translates to:
+  /// **'Controls'**
+  String get appearanceColorTuningControls;
+
+  /// No description provided for @appearanceColorTuningControlsAccent.
+  ///
+  /// In en, this message translates to:
+  /// **'Accent'**
+  String get appearanceColorTuningControlsAccent;
+
+  /// No description provided for @appearanceColorTuningControlsWhite.
+  ///
+  /// In en, this message translates to:
+  /// **'White'**
+  String get appearanceColorTuningControlsWhite;
+
+  /// No description provided for @appearanceColorTuningControlsHint.
+  ///
+  /// In en, this message translates to:
+  /// **'White fills Play, sliders and selected controls instead of the accent color.'**
+  String get appearanceColorTuningControlsHint;
+
+  /// No description provided for @appearanceColorTuningSummaryTint.
+  ///
+  /// In en, this message translates to:
+  /// **'Tint {value}'**
+  String appearanceColorTuningSummaryTint(String value);
+
+  /// No description provided for @appearanceColorTuningSummaryModeTint.
+  ///
+  /// In en, this message translates to:
+  /// **'{mode} Tint {value}'**
+  String appearanceColorTuningSummaryModeTint(String mode, String value);
+
+  /// No description provided for @appearanceColorTuningSummaryWhiteControls.
+  ///
+  /// In en, this message translates to:
+  /// **'White controls'**
+  String get appearanceColorTuningSummaryWhiteControls;
+
   /// No description provided for @appearanceLooksLabel.
   ///
   /// In en, this message translates to:
