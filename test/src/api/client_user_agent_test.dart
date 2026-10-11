@@ -31,7 +31,14 @@ void main() {
               Response<Map<String, dynamic>>(
                 requestOptions: request,
                 statusCode: 200,
-                data: <String, dynamic>{},
+                data: request.path == '/validate-token'
+                    ? <String, dynamic>{
+                        'code': 200,
+                        'message': 'Token valid.',
+                        'valid': true,
+                        'user_name': 'fixture',
+                      }
+                    : <String, dynamic>{},
               ),
             );
           },

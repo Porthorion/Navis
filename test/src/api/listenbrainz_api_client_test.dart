@@ -29,6 +29,24 @@ class _Adapter implements HttpClientAdapter {
 
 void main() {
   group('connection failure classes with real Dio transformation', () {
+    test('documented valid HTTP 200 connects with the username', () async {
+      final dio = Dio(ListenBrainzApiClient.baseOptions)
+        ..httpClientAdapter = _Adapter(
+          (_) => ResponseBody.fromString(
+            '{"code":200,"message":"Token valid.", '
+            '"valid":true,"user_name":"fixture"}',
+            200,
+            headers: {
+              Headers.contentTypeHeader: ['application/json'],
+            },
+          ),
+        );
+      addTearDown(dio.close);
+      final details = await ListenBrainzApiClient(dio: dio)
+          .validateTokenDetails('fixture');
+      expect(details.valid, isTrue);
+      expect(details.userName, 'fixture');
+    });
     for (final status in [404, 410, 500, 503]) {
       for (final submit in [false, true]) {
         test('HTTP $status is unavailable, submit=$submit', () async {

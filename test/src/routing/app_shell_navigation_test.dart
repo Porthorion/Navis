@@ -15,6 +15,7 @@ import 'package:navis/src/common_widgets/expandable_player_sheet.dart';
 import 'package:navis/src/common_widgets/navis_tooltip.dart';
 import 'package:navis/src/database/navis_database.dart';
 import 'package:navis/src/features/downloads/data/permanent_download_path_resolver.dart';
+import 'package:navis/src/features/downloads/data/download_service.dart';
 import 'package:navis/src/features/integrations/presentation/integrations_notice_card.dart';
 import 'package:navis/src/features/auth/domain/server_config.dart';
 import 'package:navis/src/features/auth/domain/server_reachability.dart';
@@ -87,6 +88,14 @@ class _NoopScrobbleDispatchController extends ScrobbleDispatchController {
   int build() => 0;
 }
 
+class _IdleDownloadService extends Fake implements DownloadService {
+  @override
+  Stream<DownloadFolderProblem?> get folderChanges => Stream.value(null);
+
+  @override
+  Stream<DownloadFolderProblem> get folderNotices => const Stream.empty();
+}
+
 class _RecordingLikePlaybackHandler implements NavisPlaybackHandler {
   int toggleLikeCalls = 0;
   Duration? sought;
@@ -157,6 +166,11 @@ ProviderContainer _createContainerWithDatabase({
     overrides: withTestDatabase(
       database,
       overrides: <Override>[
+        // The shell initializes this app-lifetime owner. Its filesystem repair
+        // and database streams must not run in the navigation fake-async zone:
+        // an unfinished repair can leave database.close waiting at teardown.
+        // Download service tests exercise real startup and recovery separately.
+        downloadServiceProvider.overrideWith((ref) => _IdleDownloadService()),
         onboardingVersionProvider.overrideWithValue(
           const AsyncData(currentOnboardingVersion),
         ),
@@ -348,7 +362,7 @@ void main() {
     },
   );
 
-  testWidgets('the shell starts the download service at launch', (
+  testWidgets('the shell initializes the download service at launch', (
     tester,
   ) async {
     tester.view.devicePixelRatio = 1;
@@ -357,8 +371,8 @@ void main() {
     final container = _createContainerWithDatabase(
       overrides: _authenticatedShellOverrides(desktopRuntime: true),
     );
-    // Created, and so started, before any download control is used: an
-    // interrupted download resumes after a restart.
+    // The production provider starts recovery on creation, before any download
+    // control is used. Keep this shell subscription even with an idle owner.
     expect(container.exists(downloadServiceProvider), isFalse);
     await tester.pumpWidget(
       UncontrolledProviderScope(container: container, child: testNavisApp),

@@ -317,7 +317,8 @@ void main() {
     // Shown on the field itself.
     expect(
       tester.widget<TextField>(token).decoration!.errorText,
-      'ListenBrainz is unavailable. Check your connection and try again.',
+      'ListenBrainz is unavailable right now. Your token was not rejected. '
+      'Check your connection or try again later.',
     );
     expect(find.textContaining('DioException'), findsNothing);
   });
