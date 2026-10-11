@@ -12,6 +12,7 @@ import 'package:navis/src/features/player/presentation/playback_adjustment_contr
 import 'package:navis/src/features/player/presentation/playback_adjustment_panel.dart';
 import 'package:navis/src/routing/navigation_service.dart';
 import 'package:navis/src/routing/app_routes.dart';
+import 'package:navis/src/theme/navis_color_style_data.dart';
 
 /// Opens the Speed & Pitch panel from a player control.
 ///
@@ -79,6 +80,7 @@ Future<void> showEqualizerQuickPanel(BuildContext anchorContext) {
       builder: (context, ref, _) => Align(
         alignment: AlignmentDirectional.centerEnd,
         child: FilledButton.tonalIcon(
+          style: NavisColorStyleData.tonalStyleOf(context),
           key: const ValueKey<String>('eq-quick-open-page'),
           onPressed: () => NavService.openEqualizer(context, ref),
           icon: const Icon(Icons.tune),
@@ -300,12 +302,7 @@ class EqualizerQuickButton extends ConsumerWidget {
       isSelected: onPage,
       style: onPage
           ? (quickActionDenseStyle(style, dense: dense) ?? const ButtonStyle())
-                .merge(
-                  IconButton.styleFrom(
-                    backgroundColor: colors.secondaryContainer,
-                    foregroundColor: colors.onSecondaryContainer,
-                  ),
-                )
+                .merge(NavisColorStyleData.tonalStyleOf(context))
           : quickActionDenseStyle(style, dense: dense),
       iconSize: size,
       visualDensity: visualDensity,

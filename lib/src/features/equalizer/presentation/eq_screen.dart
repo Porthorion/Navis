@@ -7,6 +7,7 @@ import 'package:material_ui/material_ui.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:navis/l10n/app_localizations.dart';
+import 'package:navis/src/theme/navis_color_style_data.dart';
 import 'package:navis/src/utils/file_utils.dart';
 import 'package:navis/src/utils/app_logger.dart';
 import 'package:navis/src/features/equalizer/presentation/eq_import_messages.dart';
@@ -1020,6 +1021,7 @@ class EqualizerScreenState extends ConsumerState<EqualizerScreen> {
         ),
         const SizedBox(height: 8),
         FilledButton.tonalIcon(
+          style: NavisColorStyleData.tonalStyleOf(context),
           key: const ValueKey('eq-autoeq'),
           onPressed: _importing ? null : () => unawaited(_import('autoeq')),
           icon: const Icon(Icons.headphones_outlined),

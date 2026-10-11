@@ -14,6 +14,7 @@ import 'package:navis/src/features/auth/presentation/server_url_validation.dart'
 import 'package:navis/src/routing/desktop_layout.dart';
 import 'package:navis/src/routing/navigation_service.dart';
 import 'package:navis/src/routing/app_routes.dart';
+import 'package:navis/src/theme/navis_color_style_data.dart';
 
 class ServerSettingsScreen extends ConsumerStatefulWidget {
   const new({super.key});
@@ -84,6 +85,7 @@ class _ServerSettingsScreenState extends ConsumerState<ServerSettingsScreen> {
             }
 
             final testConnectionAction = FilledButton.tonal(
+              style: NavisColorStyleData.tonalStyleOf(context),
               onPressed: _isBusy ? null : () => _testConnection(config),
               child: _isTestingConnection
                   ? const SizedBox(

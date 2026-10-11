@@ -6,6 +6,7 @@ import 'package:material_ui/material_ui.dart';
 import 'package:navis/src/features/settings/domain/flat_areas.dart';
 import 'package:navis/src/theme/color_adjustment.dart';
 import 'package:navis/src/theme/navis_color_style.dart';
+import 'package:navis/src/theme/navis_shape_data.dart';
 import 'package:navis/src/theme/navis_style_schemes.dart';
 
 /// The active [NavisColorStyle] and how it treats colours Navis derives from
@@ -220,6 +221,95 @@ class NavisColorStyleData extends ThemeExtension<NavisColorStyleData> {
   Color? get controlEdge => controls == NavisControlColor.white && !dark
       ? hct(accentHue, 24, 35).withValues(alpha: 0.25)
       : null;
+
+  /// [playButtonStyle] for the ambient theme.
+  static ButtonStyle playStyleOf(
+    BuildContext context, {
+    bool circular = false,
+  }) =>
+      of(context)
+          .playButtonStyle(Theme.of(context).colorScheme, circular: circular);
+
+  /// [tonalButtonStyle] for the ambient theme.
+  static ButtonStyle tonalStyleOf(
+    BuildContext context, {
+    bool circular = false,
+    bool? selected,
+  }) => of(context).tonalButtonStyle(
+    Theme.of(context).colorScheme,
+    circular: circular,
+    selected: selected,
+  );
+
+  /// Button style for the solid action: [playButtonFill] with
+  /// [onPlayButtonFill] and the Light [controlEdge]. Every Play button and the
+  /// FAB take it, so the role cannot drift per widget; [circular] keeps an
+  /// icon button round under every Corner Style.
+  ButtonStyle playButtonStyle(ColorScheme scheme, {bool circular = false}) =>
+      _roleStyle(
+        playButtonFill(scheme),
+        onPlayButtonFill(scheme),
+        circular: circular,
+      );
+
+  /// Button style for secondary filled controls: [tonalControlFill] with
+  /// [onTonalControlFill]. Flutter's FilledButton theme cannot tell tonal from
+  /// solid, so tonal buttons pass this.
+  ///
+  /// A toggle passes [selected]. On is the tonal fill; off is the neutral
+  /// role, an outlined button with no fill. Material's off container
+  /// (`surfaceContainerHighest`) sits within 0.1 contrast of the tonal fill on
+  /// tinted pages, which left on and off indistinguishable.
+  ButtonStyle tonalButtonStyle(
+    ColorScheme scheme, {
+    bool circular = false,
+    bool? selected,
+  }) => _roleStyle(
+    tonalControlFill(scheme),
+    onTonalControlFill(scheme),
+    circular: circular,
+    toggle: selected == null ? null : scheme,
+  );
+
+  ButtonStyle _roleStyle(
+    Color fill,
+    Color ink, {
+    required bool circular,
+    ColorScheme? toggle,
+  }) {
+    T? pick<T>(Set<WidgetState> states, T? on, T? off) =>
+        states.contains(WidgetState.disabled)
+        ? null
+        : toggle == null || states.contains(WidgetState.selected)
+        ? on
+        : off;
+    return ButtonStyle(
+      backgroundColor: WidgetStateProperty.resolveWith(
+        (states) => pick(states, fill, Colors.transparent),
+      ),
+      foregroundColor: WidgetStateProperty.resolveWith(
+        (states) => pick(states, ink, toggle?.onSurfaceVariant),
+      ),
+      iconColor: WidgetStateProperty.resolveWith(
+        (states) => pick(states, ink, toggle?.onSurfaceVariant),
+      ),
+      side: controlEdgeSide == null && toggle == null
+          ? null
+          : WidgetStateProperty.resolveWith(
+              (states) => pick(
+                states,
+                controlEdgeSide,
+                BorderSide(color: toggle?.outlineVariant ?? Colors.transparent),
+              ),
+            ),
+    ).merge(circular ? NavisShapeData.circularIconButtonStyle : null);
+  }
+
+  /// [controlEdge] as a border side, for hand-built white fills.
+  BorderSide? get controlEdgeSide {
+    final edge = controlEdge;
+    return edge == null ? null : BorderSide(color: edge);
+  }
 
   Color _controlInk(ColorScheme scheme) {
     final source = Hct.fromInt(scheme.primary.toARGB32());

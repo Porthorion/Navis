@@ -8,6 +8,7 @@ import 'package:navis/src/features/equalizer/domain/eq_workspace.dart';
 import 'package:navis/src/features/equalizer/presentation/eq_graph_editor.dart';
 import 'package:navis/src/features/equalizer/presentation/eq_graph_geometry.dart';
 import 'package:navis/src/features/equalizer/presentation/eq_graph_painter.dart';
+import 'package:navis/src/theme/navis_color_style_data.dart';
 import 'package:navis/src/theme/navis_shape_data.dart';
 
 /// Parameter identifiers shared by value tiles, exact entry and diagnostics.
@@ -122,17 +123,21 @@ class _EqBandStripState extends State<EqBandStrip> {
     final colors = Theme.of(context).colorScheme;
     final filter = widget.filters[i];
     final selected = i == widget.selected;
-    final foreground = selected ? colors.onPrimary : colors.onSurface;
+    final colorStyle = NavisColorStyleData.of(context);
+    final selectedFill = colorStyle.tonalControlFill(colors);
+    final foreground = selected
+        ? colorStyle.onTonalControlFill(colors)
+        : colors.onSurface;
     return KeyedSubtree(
       key: ValueKey('eq-band-chip-$i'),
       child: ChoiceChip(
         key: _chips.putIfAbsent(i, GlobalKey.new),
         showCheckmark: false,
         selected: selected,
-        selectedColor: colors.primary,
+        selectedColor: selectedFill,
         side: BorderSide(
           color: selected
-              ? colors.primary
+              ? selectedFill
               : filter.enabled
               ? colors.outlineVariant
               : colors.outlineVariant.withValues(alpha: .5),
@@ -765,6 +770,7 @@ class EqNumberEditor extends StatelessWidget {
                 Padding(
                   padding: const EdgeInsets.only(top: 4),
                   child: IconButton.filledTonal(
+                    style: NavisColorStyleData.tonalStyleOf(context),
                     tooltip: l10n.eqDecrease,
                     onPressed: () => onNudge(-1),
                     icon: const Icon(Icons.remove),
@@ -773,6 +779,7 @@ class EqNumberEditor extends StatelessWidget {
                 Padding(
                   padding: const EdgeInsets.only(top: 4),
                   child: IconButton.filledTonal(
+                    style: NavisColorStyleData.tonalStyleOf(context),
                     tooltip: l10n.eqIncrease,
                     onPressed: () => onNudge(1),
                     icon: const Icon(Icons.add),
@@ -901,6 +908,7 @@ class EqActionBar extends StatelessWidget {
                       flex: 2,
                       child: FilledButton.icon(
                         key: const ValueKey('eq-save'),
+                        style: NavisColorStyleData.playStyleOf(context),
                         onPressed: onSave,
                         icon: const Icon(Icons.save_outlined),
                         label: Text(
@@ -913,6 +921,7 @@ class EqActionBar extends StatelessWidget {
                   else if (saveLabel != null)
                     IconButton.filled(
                       key: const ValueKey('eq-save'),
+                      style: NavisColorStyleData.playStyleOf(context),
                       tooltip: saveLabel,
                       onPressed: onSave,
                       icon: const Icon(Icons.save_outlined),

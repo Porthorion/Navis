@@ -5,6 +5,7 @@ import 'package:android_file_picker/android_file_picker.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:navis/src/features/downloads/presentation/custom_download_folder_controller.dart';
+import 'package:navis/src/theme/navis_color_style_data.dart';
 import 'package:navis/src/utils/app_logger.dart';
 import 'package:navis/src/common_widgets/adaptive_track_row.dart';
 import 'package:navis/src/common_widgets/app_notice.dart';
@@ -310,6 +311,7 @@ class _QueueTab extends ConsumerWidget {
                   children: <Widget>[
                     Expanded(
                       child: FilledButton.tonalIcon(
+                        style: NavisColorStyleData.tonalStyleOf(context),
                         key: const ValueKey<String>('downloadsPauseToggle'),
                         onPressed: () => unawaited(
                           ref
@@ -328,6 +330,7 @@ class _QueueTab extends ConsumerWidget {
                     if (hasFailed)
                       Expanded(
                         child: FilledButton.tonalIcon(
+                          style: NavisColorStyleData.tonalStyleOf(context),
                           onPressed: () {
                             final dao = ref
                                 .read(navisDatabaseProvider)
@@ -355,6 +358,7 @@ class _QueueTab extends ConsumerWidget {
                   title: l10n.downloadsSearchNoResults(query),
                   icon: Icons.search_off,
                   action: FilledButton.tonalIcon(
+                    style: NavisColorStyleData.tonalStyleOf(context),
                     onPressed: onClearQuery,
                     icon: const Icon(Icons.clear_all_outlined),
                     label: Text(l10n.searchShowAll),
@@ -551,6 +555,7 @@ class _DownloadedTab extends ConsumerWidget {
                   title: l10n.downloadsSearchNoResults(query),
                   icon: Icons.search_off,
                   action: FilledButton.tonalIcon(
+                    style: NavisColorStyleData.tonalStyleOf(context),
                     onPressed: onClearQuery,
                     icon: const Icon(Icons.clear_all_outlined),
                     label: Text(l10n.searchShowAll),
@@ -1561,10 +1566,11 @@ class _ManualMatchingCount extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colors = Theme.of(context).colorScheme;
+    final colorStyle = NavisColorStyleData.of(context);
     return DecoratedBox(
       decoration: BoxDecoration(
         color: enabled
-            ? colors.secondaryContainer
+            ? colorStyle.tonalControlFill(colors)
             : colors.surfaceContainerHighest,
         borderRadius: NavisShapeData.of(context).controlAll,
       ),
@@ -1574,7 +1580,7 @@ class _ManualMatchingCount extends StatelessWidget {
           '$count',
           style: Theme.of(context).textTheme.labelLarge?.copyWith(
             color: enabled
-                ? colors.onSecondaryContainer
+                ? colorStyle.onTonalControlFill(colors)
                 : colors.onSurfaceVariant,
             fontWeight: FontWeight.w700,
           ),

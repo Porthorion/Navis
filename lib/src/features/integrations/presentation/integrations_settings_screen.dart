@@ -17,6 +17,7 @@ import 'package:navis/src/providers/app_providers.dart';
 import 'package:navis/src/routing/app_routes.dart';
 import 'package:navis/src/routing/desktop_layout.dart';
 import 'package:navis/src/routing/navigation_service.dart';
+import 'package:navis/src/theme/navis_color_style_data.dart';
 import 'package:navis/src/theme/navis_tokens.dart';
 import 'package:navis/src/utils/app_logger.dart';
 import 'package:navis/src/utils/external_url.dart';
@@ -270,6 +271,7 @@ class _IntegrationsSettingsScreenState
           crossAxisAlignment: WrapCrossAlignment.center,
           children: <Widget>[
             FilledButton.tonal(
+              style: NavisColorStyleData.tonalStyleOf(context),
               onPressed: _savingLastFmKey || !masterOn ? null : _saveLastFmKey,
               child: _savingLastFmKey
                   ? const _ButtonProgress()
@@ -330,6 +332,7 @@ class _IntegrationsSettingsScreenState
           children: <Widget>[
             if (!valid)
               FilledButton.tonal(
+                style: NavisColorStyleData.tonalStyleOf(context),
                 onPressed: _listenBrainzBusy || !masterOn
                     ? null
                     : _validateListenBrainz,

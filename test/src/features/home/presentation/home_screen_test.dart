@@ -48,6 +48,7 @@ import 'package:navis/src/features/settings/domain/update_info.dart';
 import 'package:navis/src/providers/app_providers.dart';
 import 'package:navis/src/routing/desktop_layout.dart';
 import 'package:navis/src/features/home/presentation/cover_colour_field.dart';
+import 'package:navis/src/theme/navis_color_style_data.dart';
 import 'package:navis/src/theme/caption_tint.dart';
 import 'package:navis/src/theme/navis_color_style.dart';
 import 'package:navis/src/theme/navis_theme.dart';
@@ -2011,6 +2012,34 @@ void main() {
       expect(find.text('Quick actions'), findsNothing);
       expect(find.byType(FilterChip), findsNothing);
       expect(find.byType(FilledButton), findsOneWidget); // Instant Radio
+      // Instant Radio is a tonal button and the Liked toggle is outlined off,
+      // tonal on, so on reads stronger than off.
+      final data = NavisColorStyleData.of(
+        tester.element(find.byType(FilledButton)),
+      );
+      final scheme = Theme.of(tester.element(find.byType(FilledButton)))
+          .colorScheme;
+      expect(
+        tester
+            .widget<FilledButton>(find.byType(FilledButton))
+            .style!
+            .backgroundColor!
+            .resolve(<WidgetState>{}),
+        data.tonalControlFill(scheme),
+      );
+      final liked = tester
+          .widget<IconButton>(
+            find.widgetWithIcon(IconButton, Icons.favorite_border_rounded),
+          )
+          .style!;
+      expect(
+        liked.backgroundColor!.resolve(<WidgetState>{WidgetState.selected}),
+        data.tonalControlFill(scheme),
+      );
+      expect(
+        liked.backgroundColor!.resolve(<WidgetState>{}),
+        Colors.transparent,
+      );
       await tester.scrollUntilVisible(
         find.text('Recently Liked Albums'),
         220,

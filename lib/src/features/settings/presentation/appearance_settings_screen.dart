@@ -1976,6 +1976,7 @@ class _DesktopNavbarSettings extends StatelessWidget {
         ? currentStyle
         : 'comfortable';
 
+    final colorStyle = NavisColorStyleData.of(context);
     Widget styleOption({
       required String value,
       required String label,
@@ -1992,10 +1993,10 @@ class _DesktopNavbarSettings extends StatelessWidget {
             style: FilledButton.styleFrom(
               padding: const EdgeInsets.symmetric(horizontal: 8),
               backgroundColor: isSelected
-                  ? colorScheme.primaryContainer
+                  ? colorStyle.tonalControlFill(colorScheme)
                   : colorScheme.surfaceContainerLow,
               foregroundColor: isSelected
-                  ? colorScheme.onPrimaryContainer
+                  ? colorStyle.onTonalControlFill(colorScheme)
                   : colorScheme.onSurfaceVariant,
               shape: NavisShapeData.of(context).mdShape,
             ),

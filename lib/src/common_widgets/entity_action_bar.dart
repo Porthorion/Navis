@@ -1,6 +1,6 @@
 import 'package:material_ui/material_ui.dart';
 import 'package:navis/l10n/app_localizations.dart';
-import 'package:navis/src/theme/navis_shape_data.dart';
+import 'package:navis/src/theme/navis_color_style_data.dart';
 import 'package:navis/src/theme/navis_tokens.dart';
 
 /// Playback actions for an album, playlist, artist or song collection.
@@ -55,7 +55,7 @@ class EntityActionBar extends StatelessWidget {
         if (showPlay && compact)
           IconButton.filled(
             key: playKey,
-            style: NavisShapeData.circularIconButtonStyle,
+            style: NavisColorStyleData.playStyleOf(context, circular: true),
             tooltip: l10n.albumDetailPlayAction,
             constraints: iconConstraints,
             onPressed: onPlay,
@@ -64,6 +64,7 @@ class EntityActionBar extends StatelessWidget {
         else if (showPlay)
           FilledButton.icon(
             key: playKey,
+            style: NavisColorStyleData.playStyleOf(context),
             onPressed: onPlay,
             icon: const Icon(Icons.play_arrow_rounded),
             label: Text(l10n.albumDetailPlayAction),
@@ -71,7 +72,7 @@ class EntityActionBar extends StatelessWidget {
         if (showShuffle && compact)
           IconButton.filledTonal(
             key: shuffleKey,
-            style: NavisShapeData.circularIconButtonStyle,
+            style: NavisColorStyleData.tonalStyleOf(context, circular: true),
             tooltip: l10n.albumDetailShuffleAction,
             constraints: iconConstraints,
             onPressed: onShuffle,
@@ -80,6 +81,7 @@ class EntityActionBar extends StatelessWidget {
         else if (showShuffle)
           FilledButton.tonalIcon(
             key: shuffleKey,
+            style: NavisColorStyleData.tonalStyleOf(context),
             onPressed: onShuffle,
             icon: const Icon(Icons.shuffle_rounded),
             label: Text(l10n.albumDetailShuffleAction),

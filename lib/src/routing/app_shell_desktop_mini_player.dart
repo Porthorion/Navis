@@ -331,7 +331,7 @@ class _DesktopMiniPlayerTightPlaybackState
             icon: const Icon(Icons.skip_previous_rounded),
           ),
         IconButton.filled(
-          style: NavisShapeData.circularIconButtonStyle,
+          style: NavisColorStyleData.playStyleOf(context, circular: true),
           tooltip: playback.playing
               ? l10n.nowPlayingPause
               : l10n.nowPlayingPlay,
@@ -341,7 +341,8 @@ class _DesktopMiniPlayerTightPlaybackState
             isExternalSource: isExternalSource,
             playback: playback,
             isPlaying: playback.playing,
-            loadingColor: Theme.of(context).colorScheme.onPrimary,
+            loadingColor: NavisColorStyleData.of(context)
+                .onPlayButtonFill(Theme.of(context).colorScheme),
           ),
         ),
         IconButton(

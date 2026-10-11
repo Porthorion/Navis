@@ -1,5 +1,6 @@
 import 'package:material_ui/material_ui.dart';
 import 'package:navis/l10n/app_localizations.dart';
+import 'package:navis/src/theme/navis_color_style_data.dart';
 
 class ErrorState extends StatelessWidget {
   const new({
@@ -47,6 +48,7 @@ class ErrorState extends StatelessWidget {
             if (onRetry != null) ...<Widget>[
               const SizedBox(height: 16),
               FilledButton.tonal(
+                style: NavisColorStyleData.tonalStyleOf(context),
                 onPressed: onRetry,
                 child: Text(retryLabel ?? l10n.commonRetry),
               ),

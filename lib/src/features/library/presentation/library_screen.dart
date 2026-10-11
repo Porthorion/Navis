@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:material_ui/material_ui.dart';
+import 'package:navis/src/theme/navis_color_style_data.dart';
 import 'package:navis/src/theme/navis_density_scope.dart';
 import 'package:flutter/services.dart';
 import 'package:navis/src/common_widgets/app_notice.dart';
@@ -278,6 +279,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
     }
     final l10n = AppLocalizations.of(context)!;
     return FilledButton.tonalIcon(
+      style: NavisColorStyleData.tonalStyleOf(context),
       key: const ValueKey<String>('libraryClearFiltersAction'),
       onPressed: () {
         _typeFilterFadeTimer?.cancel();
@@ -861,6 +863,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
       subtitle: l10n.libraryNoPagesEnabledSubtitle,
       icon: Icons.visibility_off_outlined,
       action: FilledButton.tonalIcon(
+        style: NavisColorStyleData.tonalStyleOf(context),
         onPressed: () => NavService.openAppearanceSettings(context, ref),
         icon: const Icon(Icons.tune_outlined),
         label: Text(l10n.libraryNoPagesEnabledAction),

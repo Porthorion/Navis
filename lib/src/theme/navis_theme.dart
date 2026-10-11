@@ -511,8 +511,9 @@ ThemeData _buildNavisTheme(
       ),
     ),
     floatingActionButtonTheme: FloatingActionButtonThemeData(
-      backgroundColor: whiteControls ? controlFill : null,
-      foregroundColor: whiteControls ? controlInk : null,
+      // The FAB is the solid action too: Material's default is a container.
+      backgroundColor: controlFill,
+      foregroundColor: controlInk,
       shape: shape.lgShape,
     ),
     // Fixed snackbars render no shape and floating ones Material's 4 px, so

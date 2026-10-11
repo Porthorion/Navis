@@ -2,6 +2,7 @@ import 'package:material_ui/material_ui.dart';
 import 'package:navis/l10n/app_localizations.dart';
 import 'package:navis/src/common_widgets/mouse_drag_scroll.dart';
 import 'package:navis/src/routing/desktop_layout.dart';
+import 'package:navis/src/theme/navis_color_style_data.dart';
 
 /// A bounded, lazy horizontal preview that retains its position on resize.
 class ContentShelf extends StatefulWidget {
@@ -119,6 +120,7 @@ class _ContentShelfState extends State<ContentShelf> {
               Align(
                 alignment: Alignment.centerLeft,
                 child: IconButton.filledTonal(
+                  style: NavisColorStyleData.tonalStyleOf(context),
                   tooltip: l10n.contentShelfPrevious,
                   onPressed: () => _page(-1),
                   constraints: const BoxConstraints(
@@ -137,6 +139,7 @@ class _ContentShelfState extends State<ContentShelf> {
                         ? null
                         : l10n.contentShelfNext,
                     child: IconButton.filledTonal(
+                      style: NavisColorStyleData.tonalStyleOf(context),
                       key: const ValueKey('contentShelfNextButton'),
                       tooltip: widget.showNextTooltip
                           ? l10n.contentShelfNext

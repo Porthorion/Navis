@@ -378,6 +378,9 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen> {
                                 ),
                                 const SizedBox(height: 12),
                                 FilledButton.tonal(
+                                  style: NavisColorStyleData.tonalStyleOf(
+                                    context,
+                                  ),
                                   onPressed: () =>
                                       setState(() => _showLikedOnly = false),
                                   child: Text(
