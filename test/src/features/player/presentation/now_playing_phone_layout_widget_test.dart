@@ -4,6 +4,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:navis/l10n/app_localizations.dart';
 import 'package:navis/l10n/navis_localizations.dart';
+import 'package:navis/src/common_widgets/expandable_player_sheet.dart';
 import 'package:navis/src/common_widgets/cover_art_image.dart';
 import 'package:navis/src/features/player/domain/playback_snapshot.dart';
 import 'package:navis/src/features/player/presentation/now_playing_phone_layout.dart';
@@ -37,6 +38,27 @@ final PlaybackSnapshot _radio = _song.copyWith(
   ),
 );
 
+const _item = MediaItem(
+  id: 'song-1',
+  title: 'Midnight Drive',
+  artist: 'The Night Owls',
+  album: 'City Lights',
+);
+
+const _arabic = MediaItem(
+  id: 'song-1',
+  title: 'ليلة في القاهرة الحبيبة والذكريات',
+  artist: 'أم كلثوم وفرقة الموسيقى العربية',
+  album: 'أجمل الأغاني القديمة المختارة',
+);
+
+const _japanese = MediaItem(
+  id: 'song-1',
+  title: '夜に駆ける 〜 真夜中のドライブ',
+  artist: '宇多田ヒカル・米津玄師',
+  album: '東京の夜景とメロディ',
+);
+
 const _statusBar = 24.0;
 const _handle = 18.0;
 
@@ -56,6 +78,9 @@ Future<void> _pump(
   double bottomInset = 24,
   double textScale = 1,
   PlaybackSnapshot playback = _song,
+  MediaItem item = _item,
+  TextTheme? textTheme,
+  VoidCallback? onCollapse,
 }) async {
   setAdaptiveTestViewport(tester, size);
   final padding = FakeViewPadding(top: _statusBar, bottom: bottomInset);
@@ -68,25 +93,17 @@ Future<void> _pump(
       ..resetViewPadding();
   });
   final container = createNowPlayingContainer(
-    overrides: [
-      currentMediaItemProvider.overrideWithValue(
-        const AsyncData(
-          MediaItem(
-            id: 'song-1',
-            title: 'Midnight Drive',
-            artist: 'The Night Owls',
-            album: 'City Lights',
-          ),
-        ),
-      ),
-    ],
+    overrides: [currentMediaItemProvider.overrideWithValue(AsyncData(item))],
   );
   container.read(nowPlayingTestPlaybackProvider.notifier).state = playback;
   await tester.pumpWidget(
     UncontrolledProviderScope(
       container: container,
       child: MaterialApp(
-        theme: ThemeData(platform: TargetPlatform.android),
+        theme: ThemeData(
+          platform: TargetPlatform.android,
+          textTheme: textTheme,
+        ),
         localizationsDelegates: navisLocalizationsDelegates,
         supportedLocales: AppLocalizations.supportedLocales,
         builder: (context, child) => MediaQuery(
@@ -94,7 +111,19 @@ Future<void> _pump(
               .copyWith(textScaler: TextScaler.linear(textScale)),
           child: child!,
         ),
-        home: const Scaffold(body: NowPlayingScreen()),
+        home: Scaffold(
+          // With a collapse hook the screen sits in the real sheet, whose
+          // swipe-down drag is what the Now Playing body must never block.
+          body: onCollapse == null
+              ? const NowPlayingScreen()
+              : ExpandablePlayerSheet(
+                  miniPlayer: const SizedBox.shrink(),
+                  fullPlayer: const NowPlayingScreen(),
+                  isExpanded: true,
+                  onExpand: () {},
+                  onCollapse: onCollapse,
+                ),
+        ),
       ),
     ),
   );
@@ -269,6 +298,63 @@ void main() {
     expect(transport.bottom, closeTo(body.bottom - l.bottom, 1));
   }, skip: !sqliteAvailable);
 
+  for (final scale in [1.0, 2.0]) {
+    testWidgets(
+      'long radio artists stay on one line with Live visible at ${scale}x',
+      (tester) async {
+        const names = [
+          'The First Very Long Radio Artist Name',
+          'The Second Very Long Radio Artist Name',
+          'The Third Very Long Radio Artist Name',
+        ];
+        const size = Size(360, 640);
+        await _pump(
+          tester,
+          size,
+          textScale: scale,
+          playback: _radio.copyWith(
+            radioStation: RadioStationMetadata(
+              stationId: 'radio-1',
+              stationName: 'Night Drive FM',
+              streamUrl: 'https://example.com/radio',
+              nowPlayingTitle: 'Midnight Drive',
+              nowPlayingArtist: names.join('; '),
+            ),
+          ),
+        );
+        final block = _rect(
+          tester,
+          find
+              .ancestor(
+                of: _byType('_TrackInfo'),
+                matching: find.byType(ClipRect),
+              )
+              .first,
+        );
+        final live = _rect(tester, find.text('LIVE'));
+        expect(live.bottom, lessThanOrEqualTo(block.bottom));
+        final first = _rect(tester, find.text(names.first));
+        for (final (i, name) in names.indexed) {
+          final finder = find.text('${i > 0 ? ', ' : ''}$name');
+          expect(_rect(tester, finder).center.dy, closeTo(first.center.dy, .1));
+          expect(finder.hitTestable(), findsOneWidget);
+          final text = tester.widget<Text>(finder);
+          expect(text.maxLines, 1);
+          expect(text.overflow, TextOverflow.ellipsis);
+          final gesture = tester.widget<GestureDetector>(
+            find
+                .ancestor(of: finder, matching: find.byType(GestureDetector))
+                .first,
+          );
+          expect(gesture.onTap, isNotNull);
+        }
+        expect(find.byType(Scrollable), findsNothing);
+        expect(tester.takeException(), isNull);
+      },
+      skip: !sqliteAvailable,
+    );
+  }
+
   testWidgets('200 percent text keeps the controls pinned and visible', (
     tester,
   ) async {
@@ -276,44 +362,145 @@ void main() {
     await _pump(tester, size, bottomInset: 48, textScale: 2);
     expect(tester.takeException(), isNull);
     final l = _model(tester, size, 2);
-    expect(l.scrollsUpper, isFalse);
+    expect(l.scalesUpper, isFalse);
     expect(l.showInfo, isFalse);
     final settings = _rect(tester, find.byTooltip('Settings'));
     expect(settings.bottom, lessThanOrEqualTo(size.height - 48));
     expect(_rect(tester, find.byType(CoverArtImage)).width, l.artSize);
   }, skip: !sqliteAvailable);
 
-  testWidgets('when nothing fits only the cover and title scroll', (
+  testWidgets('when nothing fits the cover and title scale, never scroll', (
     tester,
   ) async {
     const size = Size(360, 480);
     await _pump(tester, size, bottomInset: 48, textScale: 2);
     expect(tester.takeException(), isNull);
     final l = _model(tester, size, 2);
-    expect(l.scrollsUpper, isTrue);
+    expect(l.scalesUpper, isTrue);
     final body = _rect(tester, _byType('_NowPlayingBody'));
     // The controls keep their place above the inset ...
     final actions = _rect(tester, _byType('_ActionRow'));
     expect(actions.bottom, closeTo(body.bottom - l.bottom, 1));
-    // ... and the upper part scrolls to reveal the title.
-    final scrollable = find.descendant(
-      of: _byType('_PhoneNowPlayingColumn'),
-      matching: find.byType(SingleChildScrollView),
-    );
-    final position = tester
-        .state<ScrollableState>(
-          find
-              .descendant(of: scrollable, matching: find.byType(Scrollable))
-              .first,
-        )
-        .position;
-    expect(position.maxScrollExtent, greaterThan(0));
-    await tester.drag(find.byType(CoverArtImage), const Offset(0, -400));
-    await tester.pumpAndSettle();
-    expect(position.pixels, position.maxScrollExtent);
+    // ... and the cover and title shrink into the room above them.
+    expect(find.byType(Scrollable), findsNothing);
+    final cover = _rect(tester, find.byType(CoverArtImage));
+    expect(cover.width, lessThan(l.artSize));
     expect(_rect(tester, _byType('_TrackInfo')).bottom, lessThan(actions.top));
-    expect(tester.takeException(), isNull);
+    expect(cover.top, greaterThanOrEqualTo(body.top));
   }, skip: !sqliteAvailable);
+
+  group('Now Playing never scrolls and keeps its height in any script', () {
+    const scripts = <(String, MediaItem)>[
+      ('latin', _item),
+      ('arabic', _arabic),
+      ('japanese', _japanese),
+    ];
+    // Lines far taller than Material's, as Arabic and CJK fallback fonts are.
+    const tallLines = TextTheme(
+      titleLarge: TextStyle(height: 2.2),
+      bodyLarge: TextStyle(height: 2.2),
+      bodyMedium: TextStyle(height: 2.2),
+    );
+    // The first (plain Latin) case of each phone and scale records the height
+    // the others must keep; the loops below run it first.
+    final latinHeights = <String, double>{};
+    for (final (name, size) in _phones.take(3)) {
+      for (final scale in [1.0, 1.3, 2.0]) {
+        for (final (script, item) in scripts) {
+          for (final tall in [false, true]) {
+            testWidgets(
+              '$name at ${scale}x $script${tall ? ' with tall lines' : ''}',
+              (tester) async {
+                await _pump(
+                  tester,
+                  size,
+                  textScale: scale,
+                  item: item,
+                  textTheme: tall ? tallLines : null,
+                );
+                expect(tester.takeException(), isNull);
+                // No scroll view anywhere in the screen: the sheet's
+                // swipe-down drag has nothing to compete with.
+                expect(find.byType(Scrollable), findsNothing);
+                // The Latin height, whatever the script, and within the budget.
+                final height = _size(tester, '_TrackInfo').height;
+                expect(
+                  height,
+                  lessThanOrEqualTo(_model(tester, size, scale).titleBlock),
+                );
+                expect(
+                  height,
+                  closeTo(
+                    latinHeights.putIfAbsent('$name $scale', () => height),
+                    0.01,
+                  ),
+                );
+              },
+              skip: !sqliteAvailable,
+            );
+          }
+        }
+      }
+    }
+
+    for (final (name, item, size, scale, target)
+        in <(String, MediaItem, Size, double, Finder Function())>[
+          (
+            'Arabic cover',
+            _arabic,
+            const Size(390, 844),
+            1,
+            () => find.byType(CoverArtImage),
+          ),
+          (
+            'Japanese title at 200 percent text',
+            _japanese,
+            const Size(360, 640),
+            2,
+            () => _byType('_TrackInfo'),
+          ),
+        ]) {
+      testWidgets('a vertical drag on the $name collapses the sheet', (
+        tester,
+      ) async {
+        var collapsed = 0;
+        await _pump(
+          tester,
+          size,
+          textScale: scale,
+          item: item,
+          onCollapse: () => collapsed++,
+        );
+        await tester.fling(target(), const Offset(0, 300), 1500);
+        await tester.pumpAndSettle();
+        expect(collapsed, greaterThan(0));
+      }, skip: !sqliteAvailable);
+    }
+
+    testWidgets('radio keeps one height too', (tester) async {
+      const size = Size(390, 844);
+      await _pump(
+        tester,
+        size,
+        playback: _radio.copyWith(
+          radioStation: const RadioStationMetadata(
+            stationId: 'radio-1',
+            stationName: 'إذاعة القاهرة',
+            streamUrl: 'https://example.com/radio',
+            nowPlayingTitle: '夜に駆ける',
+            nowPlayingArtist: 'أم كلثوم',
+          ),
+        ),
+        textTheme: tallLines,
+      );
+      expect(tester.takeException(), isNull);
+      expect(find.byType(Scrollable), findsNothing);
+      expect(
+        _size(tester, '_TrackInfo').height,
+        closeTo(_model(tester, size, 1, radio: true).titleBlock, 1),
+      );
+    }, skip: !sqliteAvailable);
+  });
 
   group('goldens', () {
     for (final (name, size) in _phones) {

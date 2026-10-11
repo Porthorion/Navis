@@ -8,10 +8,15 @@ extension _NavisCache on NavisAudioHandler {
   /// discarded; the song downloads again if it is played again.
   void _cancelStaleLockCacheDownloads(String? currentSongId) {
     if (_lockCacheSources.isEmpty) return;
-    final index = _resolveCurrentQueueMetadata().currentIndex;
-    final next = index == null || index + 1 >= _queueItems.length
+    final ids = _logicalQueueIds;
+    final index = _logicalCurrentIndex;
+    final next =
+        index == null ||
+            index < 0 ||
+            index + 1 >= ids.length ||
+            ids[index] != currentSongId
         ? null
-        : _queueItems[index + 1].id;
+        : ids[index + 1];
     for (final entry in _lockCacheSources.entries.toList()) {
       final songId = entry.value.songId;
       if (songId == currentSongId || songId == next) continue;

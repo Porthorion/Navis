@@ -249,17 +249,46 @@ class _ShowcaseCoverCard extends ConsumerWidget {
   }
 }
 
+/// One ellipsized line at exactly its style's line height (a forced strut), so
+/// a script whose fallback font has taller metrics (Arabic, Japanese) cannot
+/// make the section taller than Latin text does.
+class _ShowcaseLine extends StatelessWidget {
+  const new(this.text, {required this.style});
+
+  final String text;
+  final TextStyle? style;
+
+  @override
+  Widget build(BuildContext context) {
+    final style = this.style ?? DefaultTextStyle.of(context).style;
+    final line =
+        MediaQuery.textScalerOf(context).scale(style.fontSize ?? 14) *
+        (style.height ?? 1.2);
+    return SizedBox(
+      height: line.ceilToDouble(),
+      child: Text(
+        text,
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+        textAlign: TextAlign.center,
+        style: style,
+        strutStyle: StrutStyle.fromTextStyle(style, forceStrutHeight: true),
+      ),
+    );
+  }
+}
+
 /// Title, artist and "year • songs · reason" for the focused carousel item.
+///
+/// Always three fixed-height lines (the artist line stays reserved when it is
+/// empty), so the panel is the same height for every item and script.
 class _ShowcaseInfoPanel extends ConsumerWidget {
-  const new({required this.item, required this.heroContext, this.tint});
+  const new({required this.item, required this.heroContext});
 
   static const Key panelKey = ValueKey<String>('home-showcase-info');
 
   final HomeRandomShowcaseItem item;
   final String heroContext;
-
-  /// Text colours over the Flat colour band; null keeps the theme colours.
-  final CaptionTint? tint;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -291,34 +320,17 @@ class _ShowcaseInfoPanel extends ConsumerWidget {
           borderRadius: NavisShapeData.of(context).smAll,
           child: Padding(
             padding: const EdgeInsets.symmetric(horizontal: NavisSpace.xxs),
-            child: Text(
-              title,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              textAlign: TextAlign.center,
-              style: textTheme.titleMedium?.copyWith(color: tint?.text),
-            ),
+            child: _ShowcaseLine(title, style: textTheme.titleMedium),
           ),
         ),
-        if (subtitle.isNotEmpty)
-          Text(
-            subtitle,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            textAlign: TextAlign.center,
-            style: textTheme.bodyMedium?.copyWith(
-              color: tint?.subtext ?? colors.onSurfaceVariant,
-            ),
-          ),
+        _ShowcaseLine(
+          subtitle,
+          style: textTheme.bodyMedium?.copyWith(color: colors.onSurfaceVariant),
+        ),
         const SizedBox(height: NavisSpace.xxs),
-        Text(
+        _ShowcaseLine(
           _showcaseMetaLine(l10n, item),
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-          textAlign: TextAlign.center,
-          style: textTheme.bodySmall?.copyWith(
-            color: tint?.subtext ?? colors.onSurfaceVariant,
-          ),
+          style: textTheme.bodySmall?.copyWith(color: colors.onSurfaceVariant),
         ),
       ],
     );
@@ -360,9 +372,6 @@ class _ShowcaseColourWash extends ConsumerWidget {
 
   static const Key washKey = ValueKey<String>('home-showcase-wash');
 
-  /// The single solid block painted instead of the mesh when Flat is on.
-  static const Key flatFillKey = ValueKey<String>('home-showcase-wash-flat');
-
   final String? coverArtId;
   final int coverArtRevision;
 
@@ -390,9 +399,6 @@ class _ShowcaseColourWash extends ConsumerWidget {
                   )
                   .value ??
               peekCoverColourField(coverId);
-    if (style.flatSurfaces) {
-      return _buildFlat(context, background, style, field, veil);
-    }
     final target = field == null
         ? CoverColourField.uniform(background)
         : CoverColourField(
@@ -439,55 +445,6 @@ class _ShowcaseColourWash extends ConsumerWidget {
   }
 }
 
-extension on _ShowcaseColourWash {
-  /// Flat wash: one solid block with hard edges, the adapted average of the
-  /// field's cells at the style's veil strength over the page background.
-  Widget _buildFlat(
-    BuildContext context,
-    Color background,
-    NavisColorStyleData style,
-    CoverColourField? field,
-    double veil,
-  ) {
-    final motion = MotionPolicy.of(context);
-    var fill = background;
-    final average = field?.average;
-    if (average != null) {
-      final adapted = styledCoverSample(
-        average,
-        style,
-        Theme.of(context).colorScheme.secondaryContainer,
-      );
-      fill = Color.alphaBlend(adapted.withValues(alpha: 1 - veil), background);
-    }
-    return IgnorePointer(
-      key: _ShowcaseColourWash.washKey,
-      child: ExcludeSemantics(
-        child: TweenAnimationBuilder<Color?>(
-          tween: ColorTween(end: fill),
-          duration: motion.reduceMotion
-              ? Duration.zero
-              : const Duration(milliseconds: 400),
-          curve: Curves.easeOut,
-          // An intentional panel: inset to the page's content margins with
-          // rounded corners rather than a full-bleed hard-edged rectangle.
-          builder: (context, value, _) => Padding(
-            padding: const EdgeInsets.symmetric(horizontal: NavisSpace.md),
-            child: DecoratedBox(
-              key: _ShowcaseColourWash.flatFillKey,
-              decoration: BoxDecoration(
-                color: value ?? fill,
-                borderRadius: NavisShapeData.of(context).xlAll,
-              ),
-              child: const SizedBox.expand(),
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
 class _CoverColourFieldTween extends Tween<CoverColourField> {
   new({super.end});
 
@@ -496,137 +453,4 @@ class _CoverColourFieldTween extends Tween<CoverColourField> {
     final from = begin ?? end!;
     return CoverColourField.lerp(from, end!, t);
   }
-}
-
-/// Test seam for the private [_ShowcaseFlatBand].
-@visibleForTesting
-typedef ShowcaseFlatBand = _ShowcaseFlatBand;
-
-/// Flat phone wash: a solid, full-bleed, hard-edged colour band that wraps
-/// the carousel, so it is exactly as tall as its content and the neighbouring
-/// covers sit fully inside it.
-///
-/// The band colour is the current cover's adapted average (with the style's
-/// chroma floor for grey covers) toned to the theme by [flatBandSample] and
-/// passed through [captionTintFor], which also
-/// yields the title, subtitle and page-dot colours handed to [builder]. A new
-/// cover glides the band and text colours together.
-class _ShowcaseFlatBand extends ConsumerWidget {
-  const new({
-    required this.coverArtId,
-    this.coverArtRevision = 0,
-    required this.builder,
-    this.borderRadius,
-  });
-
-  static const Key bandKey = ValueKey<String>('home-showcase-flat-band');
-
-  final String? coverArtId;
-  final int coverArtRevision;
-  final Widget Function(BuildContext context, CaptionTint tint) builder;
-
-  /// Clips the band to rounded corners; null keeps it hard-edged (phones).
-  /// The desktop pager uses it to make the band one panel around its content.
-  final BorderRadius? borderRadius;
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final theme = Theme.of(context);
-    final style = NavisColorStyleData.of(context);
-    final motion = MotionPolicy.of(context);
-    final coverId = coverArtId?.trim();
-    final field = coverId == null || coverId.isEmpty
-        ? null
-        : ref
-                  .watch(
-                    backgroundCoverColourFieldProvider((
-                      coverId,
-                      coverArtRevision,
-                    )),
-                  )
-                  .value ??
-              peekCoverColourField(coverId);
-    final average = field?.average;
-    final CaptionTint target;
-    if (average == null) {
-      target = CaptionTint(
-        fill: theme.scaffoldBackgroundColor,
-        text: theme.colorScheme.onSurface,
-        subtext: theme.colorScheme.onSurfaceVariant,
-      );
-    } else {
-      final sampled = styledCoverSample(
-        average,
-        style,
-        theme.colorScheme.secondaryContainer,
-      );
-      target = captionTintFor(
-        flatBandSample(sampled, style, adapted: true),
-        style,
-        adapted: true,
-      );
-    }
-    return SizedBox(
-      width: double.infinity,
-      child: TweenAnimationBuilder<CaptionTint>(
-        tween: _CaptionTintTween(end: target),
-        duration: motion.reduceMotion
-            ? Duration.zero
-            : const Duration(milliseconds: 400),
-        curve: Curves.easeOut,
-        builder: (context, value, _) {
-          final band = ColoredBox(
-            key: bandKey,
-            color: value.fill,
-            child: builder(context, value),
-          );
-          final radius = borderRadius;
-          return radius == null
-              ? band
-              : ClipRRect(borderRadius: radius, child: band);
-        },
-      ),
-    );
-  }
-}
-
-/// Re-themes the Flat desktop panel's content for the band [tint]: text,
-/// icons, selection and the Play/Shuffle buttons read against the panel fill
-/// (title/subtitle colours from [captionTintFor], so contrast stays at least
-/// [kCaptionMinContrast]); raised surfaces become a faint lift of the text
-/// colour over the fill.
-ThemeData _flatPanelTheme(ThemeData base, CaptionTint tint) {
-  final lift = Color.alphaBlend(tint.text.withValues(alpha: 0.16), tint.fill);
-  final scheme = base.colorScheme.copyWith(
-    surface: tint.fill,
-    onSurface: tint.text,
-    onSurfaceVariant: tint.subtext,
-    primary: tint.text,
-    onPrimary: tint.fill,
-    secondaryContainer: lift,
-    onSecondaryContainer: tint.text,
-    surfaceContainerHigh: lift,
-    surfaceContainerHighest: lift,
-    outline: tint.subtext,
-    outlineVariant: tint.subtext,
-  );
-  return base.copyWith(
-    colorScheme: scheme,
-    textTheme: base.textTheme.apply(
-      bodyColor: tint.text,
-      displayColor: tint.text,
-    ),
-  );
-}
-
-/// Test seam for the private [_flatPanelTheme].
-@visibleForTesting
-ThemeData flatPanelThemeForTest(ThemeData base, CaptionTint tint) =>
-    _flatPanelTheme(base, tint);
-
-class _CaptionTintTween extends Tween<CaptionTint> {
-  new({super.end});
-
-  @override
-  CaptionTint lerp(double t) => CaptionTint.lerp(begin ?? end!, end!, t);
 }

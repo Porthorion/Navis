@@ -432,7 +432,10 @@ void main() {
             )
             .first,
       );
-      expect(material.borderRadius, BorderRadius.circular(entry.value));
+      expect(
+        (material.shape! as RoundedRectangleBorder).borderRadius,
+        BorderRadius.circular(entry.value),
+      );
     }
   });
 }

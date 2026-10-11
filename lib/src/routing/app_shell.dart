@@ -73,6 +73,8 @@ import 'package:navis/src/features/library/presentation/artist_playback_controll
 import 'package:navis/src/features/library/presentation/library_scroll_provider.dart';
 import 'package:navis/src/features/home/presentation/home_scroll_provider.dart';
 import 'package:navis/src/features/search/presentation/search_controller_provider.dart';
+import 'package:navis/src/features/downloads/presentation/downloads_screen.dart'
+    show downloadFolderProblemMessage;
 import 'package:navis/src/providers/app_providers.dart';
 import 'package:navis/src/routing/desktop_commands.dart';
 import 'package:navis/src/routing/desktop_layout.dart';
@@ -708,6 +710,21 @@ class _AppShellState extends ConsumerState<AppShell> {
     // crash or a closed app resume (and their partial files are removed)
     // without the user opening a download feature first.
     ref.listen(downloadServiceProvider, (_, _) {});
+    ref.listen(downloadFolderNoticeProvider, (_, next) {
+      final problem = next.asData?.value;
+      if (problem == null) return;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) {
+          _appNoticeController.show(
+            message: downloadFolderProblemMessage(
+              AppLocalizations.of(context)!,
+              problem,
+            ),
+            level: AppNoticeLevel.error,
+          );
+        }
+      });
+    });
     ref.watch(scrobbleDispatchControllerProvider);
     ref.watch(listenBrainzFeedbackDispatchControllerProvider);
     ref.watch(starSyncDispatchControllerProvider);
@@ -1443,7 +1460,7 @@ class _AppShellState extends ConsumerState<AppShell> {
               _ => null,
             },
           );
-          if (result == null || !mounted) return;
+          if (result == null || !mounted || !context.mounted) return;
           final l10n = AppLocalizations.of(context)!;
           final speed =
               ref

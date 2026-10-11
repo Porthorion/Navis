@@ -6,6 +6,75 @@ import 'package:path/path.dart' as p;
 import 'package:navis/src/utils/file_utils.dart';
 
 void main() {
+  test(
+    'a missing custom root is not recreated on a disconnected volume',
+    () async {
+      final root = await Directory.systemTemp.createTemp('navis_missing_root_');
+      addTearDown(() => root.delete(recursive: true));
+      final missing = p.join(root.path, 'missing');
+      final resolver = PermanentDownloadPathResolver(
+        readCustomDownloadFolderEnabled: () => true,
+        readCustomDownloadFolderPath: () => missing,
+      );
+      await expectLater(
+        resolver.resolveRootFor(
+          customDownloadFolderEnabled: true,
+          customDownloadFolderPath: missing,
+        ),
+        throwsA(isA<FileSystemException>()),
+      );
+      expect(Directory(missing).existsSync(), isFalse);
+    },
+  );
+
+  test('unset custom root reports a configuration problem', () async {
+    final resolver = PermanentDownloadPathResolver(
+      readCustomDownloadFolderEnabled: () => true,
+      readCustomDownloadFolderPath: () => null,
+    );
+    await expectLater(
+      resolver.resolveRootFor(customDownloadFolderEnabled: true),
+      throwsA(
+        isA<DownloadFolderUnavailableException>().having(
+          (e) => e.problem,
+          'problem',
+          DownloadFolderProblem.unset,
+        ),
+      ),
+    );
+  });
+
+  test(
+    'write permission failure reports inaccessible without changing user files',
+    () async {
+      final root = await Directory.systemTemp.createTemp('navis_denied_root_');
+      addTearDown(() => root.delete(recursive: true));
+      final resolver = PermanentDownloadPathResolver(
+        readCustomDownloadFolderEnabled: () => true,
+        readCustomDownloadFolderPath: () => root.path,
+        validateCustomRoot: (_) async => throw const FileSystemException(
+          'Fixture denied',
+          '',
+          OSError('denied', 13),
+        ),
+      );
+      await expectLater(
+        resolver.resolveRootFor(
+          customDownloadFolderEnabled: true,
+          customDownloadFolderPath: root.path,
+        ),
+        throwsA(
+          isA<DownloadFolderUnavailableException>().having(
+            (e) => e.problem,
+            'problem',
+            DownloadFolderProblem.inaccessible,
+          ),
+        ),
+      );
+      expect(await root.list().toList(), isEmpty);
+    },
+  );
+
   group('sanitizePathComponent', () {
     String clean(String? raw, {String fallback = 'fallback'}) =>
         PermanentDownloadPathResolver.sanitizePathComponent(

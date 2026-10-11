@@ -51,6 +51,7 @@ class _SetupHighlightsCardState extends ConsumerState<SetupHighlightsCard> {
       dismissKey: const ValueKey<String>('setupHighlightsDismiss'),
       title: l10n.setupHighlightsCardTitle,
       subtitle: l10n.setupHighlightsCardBody,
+      icon: Icons.palette_outlined,
       dismissTooltip: l10n.setupHighlightsCardDismiss,
       onOpen: () => NavService.openOnboardingReview(context, ref),
       onDismiss: _dismiss,

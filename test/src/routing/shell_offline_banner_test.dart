@@ -2,7 +2,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:navis/l10n/navis_localizations.dart';
+import 'package:navis/src/common_widgets/notice_icon_disc.dart';
 import 'package:navis/src/routing/shell_offline_banner.dart';
+import 'package:navis/src/theme/navis_tokens.dart';
 
 class _Page extends StatefulWidget {
   const new();
@@ -166,5 +168,65 @@ void main() {
     expect(banner, findsOneWidget);
     expect(pageTopPadding(tester), 0);
     expectNoticeFollowsBanner(tester);
+  });
+
+  testWidgets('the banner is a tile strip with a warning disc', (tester) async {
+    await pump(tester, visible: true);
+    await tester.pumpAndSettle();
+
+    final context = tester.element(banner);
+    final tokens = NavisTokens.of(context);
+    final scheme = Theme.of(context).colorScheme;
+    final disc = tester.widget<NoticeIconDisc>(find.byType(NoticeIconDisc));
+    expect(disc.size, 32);
+    expect(disc.fill, tokens.quietWarningContainer);
+    expect(disc.ink, tokens.onQuietWarningContainer);
+    final tile = tester.widget<Material>(
+      find.descendant(of: banner, matching: find.byType(Material)).first,
+    );
+    expect(tile.color, scheme.surfaceContainerHigh);
+    expect(
+      (tile.shape! as RoundedRectangleBorder).borderRadius,
+      NavisRadius.lgAll,
+    );
+    final retry = tester.widget<FilledButton>(
+      find.byKey(ShellOfflineBanner.retryKey),
+    );
+    expect(
+      retry.style?.backgroundColor?.resolve(<WidgetState>{}),
+      scheme.secondaryContainer,
+    );
+    expect(find.byKey(ShellOfflineBanner.dismissKey), findsOneWidget);
+    // Banner plus its vertical inset keeps the documented extent.
+    expect(tester.getSize(banner).height, _statusBar + 48);
+  });
+
+  testWidgets('the chip uses the quiet warning roles as a pill', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      const ProviderScope(
+        child: MaterialApp(
+          localizationsDelegates: navisLocalizationsDelegates,
+          home: Scaffold(body: Center(child: ShellOfflineChip())),
+        ),
+      ),
+    );
+    final chip = find.byKey(ShellOfflineChip.chipKey);
+    final tokens = NavisTokens.of(tester.element(chip));
+    final material = tester.widget<Material>(chip);
+    expect(material.color, tokens.quietWarningContainer);
+    expect(material.shape, const StadiumBorder());
+    expect(
+      tester.widget<Icon>(find.byIcon(Icons.cloud_off_outlined)).color,
+      tokens.onQuietWarningContainer,
+    );
+    expect(
+      tester
+          .widget<Text>(find.descendant(of: chip, matching: find.byType(Text)))
+          .style
+          ?.color,
+      tokens.onQuietWarningContainer,
+    );
   });
 }

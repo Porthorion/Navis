@@ -38,6 +38,24 @@ class MainActivity : AudioServiceActivity() {
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
+        MethodChannel(
+            flutterEngine.dartExecutor.binaryMessenger,
+            "com.navis.app/storage_capacity",
+            StandardMethodCodec.INSTANCE,
+            flutterEngine.dartExecutor.binaryMessenger.makeBackgroundTaskQueue(),
+        )
+            .setMethodCallHandler { call, result ->
+                if (call.method != "freeBytes") {
+                    result.notImplemented()
+                } else {
+                    try {
+                        val path = requireNotNull(call.argument<String>("path"))
+                        result.success(android.os.StatFs(path).availableBytes)
+                    } catch (error: Exception) {
+                        result.error("CAPACITY_UNAVAILABLE", "Storage capacity unavailable", null)
+                    }
+                }
+            }
 
         if (BuildConfig.SELF_UPDATE_ENABLED) {
             MethodChannel(
@@ -345,10 +363,19 @@ class MainActivity : AudioServiceActivity() {
                             call.argument<String>("mimeType") ?: "application/octet-stream",
                             call.argument<Boolean>("replace") ?: true,
                         )
-                        contentResolver.openOutputStream(target.uri, "wt")?.use { output ->
-                            source.inputStream().use { input -> input.copyTo(output) }
-                        } ?: throw IllegalStateException("Document is unwritable")
-                        result.success(target.uri.toString())
+                        try {
+                            contentResolver.openOutputStream(target.uri, "wt")?.use { output ->
+                                val copied = source.inputStream().use { input -> input.copyTo(output) }
+                                output.flush()
+                                if (copied != source.length()) throw java.io.IOException("Incomplete document write")
+                            } ?: throw IllegalStateException("Document is unwritable")
+                            result.success(target.uri.toString())
+                        } catch (error: Exception) {
+                            // This call created the document. A process crash is
+                            // repaired by the queue's verified finish journal.
+                            target.delete()
+                            throw error
+                        }
                     }
                     "delete" -> {
                         val document = DocumentFile.fromSingleUri(this, Uri.parse(requireNotNull(call.argument<String>("uri"))))
@@ -370,8 +397,20 @@ class MainActivity : AudioServiceActivity() {
                     else -> result.notImplemented()
                 }
             } catch (e: Exception) {
-                result.error("SAF_STORAGE_ERROR", e.message ?: "Android folder operation failed", null)
+                result.error(storageErrorCode(e), "Android folder operation failed", null)
             }
+        }
+    }
+
+    private fun storageErrorCode(error: Throwable): String {
+        val causes = generateSequence(error) { it.cause }.toList()
+        val errno = causes.filterIsInstance<android.system.ErrnoException>().firstOrNull()?.errno
+        return when {
+            errno == android.system.OsConstants.ENOSPC || errno == android.system.OsConstants.EDQUOT ||
+                causes.any { cause -> listOf("ENOSPC", "EDQUOT", "No space left", "Disk quota exceeded").any { cause.message?.contains(it) == true } } -> "NO_SPACE"
+            causes.any { it is SecurityException } || errno == android.system.OsConstants.EACCES ||
+                errno == android.system.OsConstants.EPERM -> "PERMISSION_DENIED"
+            else -> "SAF_STORAGE_ERROR"
         }
     }
 
@@ -575,7 +614,8 @@ class MainActivity : AudioServiceActivity() {
                 output.write(byteArrayOf(0x4e, 0x56))
             } ?: return false
             probe.delete()
-        } catch (_: Exception) {
+        } catch (error: Exception) {
+            if (storageErrorCode(error) == "NO_SPACE") throw error
             false
         } finally {
             if (probe.exists()) probe.delete()

@@ -944,6 +944,17 @@ target-selection rules.
     the target). Look libraries decode leniently, discarding corrupt records
     and duplicate ids or names. Save returns `PresetResult<AppearanceLook>`;
     update, rename, delete and restore return nullable `PresetFailure`.
+  - Cache & Storage's Reset section offers **Delete all presets**. Its destructive
+    confirmation clears Looks, Speed & Pitch libraries and selections in one
+    `AppSettingsDao.deleteAllPresets` transaction, including retired
+    `color_tuning_presets` / `selected_color_tuning_preset_id` columns when
+    present in early development databases. Current sound and appearance values
+    are preserved; schema 102 is unchanged. The Looks write lane wraps the
+    playback persistence lane so pending saves finish before the reset and later
+    saves cannot replay an old library. Playback also observes external preset
+    writes and preserves explicitly cleared selections at normal speed across
+    later appearance saves. Unsupported saved playback presets retain a Delete
+    menu action; Normal is built in and cannot be deleted. Delete failures use app notices.
   - Looks (`AppearanceLook`, version 1, `AppearanceSnapshot`,
     `AppearanceLooksController`) capture all appearance choices: theme mode,
     OLED-for-Auto, saved colour style, nullable accent seed, dynamic album
@@ -998,35 +1009,16 @@ target-selection rules.
     `buildDarkTheme` and `buildOledTheme`, which record it in the extension and
     make `ColorScheme.shadow`, `ThemeData.shadowColor` and the OLED dialog
     shadow transparent when the surfaces area is selected. The following Flat
-    behaviour applies within each selected area: the Home cover wash is one
-    solid block. On phones (`phoneCompact`, not desktop) the You Might Like wash is a
-    full-bleed, hard-edged colour band (`_ShowcaseFlatBand`) that wraps the
-    carousel, title lines and page dots with `NavisSpace.lg` vertical padding,
-    so its height follows the content; its fill is
-    `captionTintFor(average, style).fill` (the adapted cover average, with the
-    grey chroma floor applied to the sample first and its HCT tone clamped by
-    `flatBandSample` to 16-30 in dark themes, 6-10 in OLED (still tinted,
-    near black; `NavisColorStyleData.oled`) or 82-92 in light ones, so a
-    light cover never paints a bright block on a dark page) and the title, artist, meta
-    and page-dot colours come from the same tint, all gliding together when
-    the cover changes. On desktop the pager is the same band as one rounded
-    (`NavisRadius.xl`) solid panel (`_ShowcaseFlatBand` with `borderRadius`)
-    flush with the section's content column and wrapping the cover, track
-    list and thumbnail strip with `NavisSpace.md` padding on every side; the
-    pages draw no card of their own inside it and its content is re-themed
-    from the same tint (`_flatPanelTheme`), so text, icons and Play/Shuffle
-    keep at least 4.5 contrast. The tablet card keeps the adapted average of
-    the cover colour field at `1 - artWashVeil` over the
-    page background; art-tinted Now Playing is one solid colour (adapted tint
-    at `nowPlayingTintAlpha` over `surface`, see
+    behaviour applies within each selected area: the Home You Might Like
+    section (phone, tablet and desktop, which includes the Trending hero) draws
+    no wash, band, gradient or tint at all and sits directly on the page
+    background, with its captions in the normal on-surface colours (the cover
+    card's flat-mode shadow rule is unchanged); art-tinted Now Playing is one
+    solid colour (adapted tint at `nowPlayingTintAlpha` over `surface`, see
     `nowPlayingSurfaceDecoration`) and plain `surface` when the art tint is
     off; decorative gradients become their solid end colour; hand-drawn drop
     shadows and the seek-preview blur are dropped for opaque container fills.
-    Exceptions that stay: the desktop/tablet Home wash is a rounded panel
-    (`NavisRadius.xl`) inset to the 16 px content margins, and a wash colour with HCT chroma
-    below 6 (grey covers) takes 25% of `secondaryContainer` into the raw sample
-    before adaptation, through `styledCoverSample` shared by wash and band;
-    coloured samples are adapted once; OLED + Flat Now Playing is plain
+    Exceptions that stay: OLED + Flat Now Playing is plain
     `surface` (black), never the solid tint (`NavisColorStyleData.oled`, set by `buildOledTheme`); the legibility
     gradients behind white text over artwork stay under Flat (see
     `NavisColorStyleData.artworkScrim` below).
@@ -1054,7 +1046,7 @@ target-selection rules.
     across the key roles (primary, secondary, tertiary, the three containers,
     `surface`, `surfaceContainer`, `surfaceContainerHighest`) Pastel's maximum
     HCT chroma is at most 60% of Immersive's and under 85% of Night's, and its
-    artwork-adapted colours (Home wash, flat bands, captions, Now Playing
+    artwork-adapted colours (Home wash, captions, Now Playing
     solid) are under 60% of Immersive's.
     - **Pastel** is macaron soft: the seed supplies the hue only. Accent
       chroma is 16 (muted seed) to 24 (vivid seed), 20 for the default white,
@@ -1084,7 +1076,7 @@ target-selection rules.
       themes and chroma 12 at tone 26-34 in dark and OLED ones (high-key
       chalk, dusky soft), and rotates warm hues toward its plum dusk
       (`pastelDuskHue`, 60% blend, up to 85% for yellows) so an orange cover
-      reads rose or plum, not terracotta. Because Flat bands, Use Cover Color
+      reads rose or plum, not terracotta. Because Use Cover Color
       captions and the Now Playing tint (and its Flat solid) all derive from
       this colour, they inherit the cap. Immersive keeps the hue but caps warm
       chroma at 22 below tone 35 (wine or mahogany, not brown; yellows still go
@@ -1336,6 +1328,13 @@ recommendation showcase.
   title (tap to open), the artist, and a line such as
   "2023 • 12 songs · Similar to your likes". `_showcaseReasonLabel` maps
   each `HomeRandomShowcaseSource` or ListenBrainz item to its reason.
+- **Height is script-independent:** the panel is always three
+  `_ShowcaseLine`s (artist line reserved even when empty), each a one-line
+  `Text` in a `SizedBox` of its style's line height with a forced strut
+  (`StrutStyle.fromTextStyle(..., forceStrutHeight: true)`), so Japanese or
+  Arabic fallback-font metrics cannot make the section taller than Latin.
+  The desktop pager's height is fixed by `_heroHeightFor`. Under Flat the
+  section has no background at all on any layout (see "Flat" above).
 
 **Desktop:** the art, track list and cover strip are unchanged. The panel
 header adds the same reason line and a compact Play/Shuffle pair.
@@ -1669,11 +1668,25 @@ geometry.
   shares the slack 40/30/30 above the artwork, between artwork and title, and
   between title and transport.
 - **Small screens.** The artwork may shrink below its preferred 62% of the
-  width (capped at 320 dp) down to 45% (120-200 dp) before anything scrolls. On
-  short phones only, the info pager is dropped when the artwork would otherwise
-  fall below the preferred size. If even the floor does not fit (very large
-  text) the artwork and title scroll while the controls stay pinned; there is
-  no height at which the controls flatten into one scroll view.
+  width (capped at 320 dp) down to 45% (120-200 dp). On short phones only, the
+  info pager is dropped when the artwork would otherwise fall below the
+  preferred size. If even the floor does not fit (very large text,
+  `scalesUpper`) the artwork and title are scaled down together
+  (`FittedBox`) to the room above the controls. Nothing in the phone body
+  scrolls: a scroll view there took the swipe-down-to-dismiss drag (reported
+  with Arabic titles) and there is no height at which the controls flatten
+  into one scroll view. (The inline lyrics list scrolls inside its own cover
+  square by design.)
+- **Script-independent text.** The title, artist and album lines render with a
+  forced strut at the modelled line height (`titleStrut`, `artistStrut`,
+  `albumStrut`, built from the style so the Latin pixels are unchanged), so an
+  Arabic or CJK fallback font cannot make the title block taller than the
+  budget. Radio artist links share one bounded, ellipsized row on portrait
+  phones, so every visible link remains tappable and the Live label stays
+  inside the title block. The title block is also clipped to its modelled
+  height. Anything the model leaves over collects above the cover, and a few
+  dp of misjudged height are clipped,
+  never an overflow.
 - **Exact squares.** The cover, its placeholder, radio art and the inline
   lyrics slot render in a `SizedBox.square` of the computed size.
 
@@ -2088,7 +2101,7 @@ While the session's server is unreachable, every shell mode shows
 `ShellOfflineBanner` (`lib/src/routing/shell_offline_banner.dart`) above the
 tab pages. `ShellOfflineBannerFrame` owns the top inset while the banner is
 visible:
-- On Android, which runs edge to edge, the banner fills the status bar strip with its own surface colour and pads its content below it.
+- On Android, which runs edge to edge, the banner pads its content below the status bar. The banner itself is a transparent strip holding an inset, rounded `surfaceContainerHigh` tile (a 32 px quiet-warning disc, the message, a tonal Retry and a close button; Flat Surfaces draws it unfilled with an outline), and the 48 px `contentHeight` includes the tile's vertical inset.
 - The frame strips the top padding from the `MediaQuery` it hands to the pages.
 
 Pages keep using `SafeArea` and primary `AppBar`s as usual, and do not add the status bar height a second time. Only the content part of the banner animates. The status bar strip comes and goes together with the padding it replaces, so pages never jump by the status bar height. The `MediaQuery` wrapper is always present, so toggling the banner never rebuilds the pages.
@@ -2328,6 +2341,21 @@ not. Each entry records its request limit, so a larger request refreshes an
 undersized entry and smaller reads return only the requested number of tracks.
 Cache I/O uses the existing asynchronous read and atomic-write path.
 
+ListenBrainz connection validation and listen submissions distinguish explicit token
+rejection (`valid: false`, HTTP 401/403), integration policy blocking, rate
+limiting (HTTP 429 and `X-RateLimit` budgets), and service unavailability
+(documented-endpoint HTTP 404/410/5xx, non-JSON/HTML responses, malformed
+validation responses and transport failures). Settings and onboarding share
+localized reason-specific copy, including the HTTP status when available.
+An unavailable response never clears credentials or changes token validity;
+the existing scrobble retry queue retains listens for later dispatch within
+its normal retention window. Requests keep the documented
+[`/1/validate-token` and `/1/submit-listens` paths](https://listenbrainz.readthedocs.io/en/latest/users/api/core.html)
+and explicitly follow up to five same-origin redirects, preserving authorization,
+method and POST data on 307/308; cross-origin and HTTPS downgrade redirects
+are refused without forwarding credentials. No response body or token enters
+these exceptions or connect-flow logs.
+
 ListenBrainz listen submissions observe `X-RateLimit-Remaining: 0` and
 `X-RateLimit-Reset-In`, holding subsequent dispatches for the stated seconds
 (up to five minutes). Malformed headers are ignored. Client and dispatcher
@@ -2406,7 +2434,7 @@ and Subsonic delivery continues independently.
   Is" card are hidden), scrobbling and feedback (their credential readers return
   no token), lyrics (`useLrclibProvider` is `allows(lrclib.lyrics)`; the
   download service takes a `readLyricsAllowed` callback instead of reading the
-  column), the update banner and provider, the AutoEQ dialog (search still uses
+  column), the update tile and provider, the AutoEQ dialog (search still uses
   the bundled catalogue; refresh and download are disabled) and the weekly
   playlists stream. Gates use `allows(feature)`, which includes the credential
   check, except weekly playlists (`isEnabled`, see above). *The guard
@@ -3053,8 +3081,32 @@ Integrations; tapping it or its close button writes
 New row returns if the release is unseen. Finishing onboarding (not skipping
 it) also marks it seen, from the onboarding Integrations step. The notice and
 the What's New row draw the same frame, `HomeNoticeCard`
-(`common_widgets/home_notice_card.dart`: surface, optional leading widget,
-title, subtitle and close button); each keeps its own text and actions.
+(`common_widgets/home_notice_card.dart`), the shared notice tile: a
+`surfaceContainerHigh` tile (Flat Surfaces: unfilled with a 1 px
+`outlineVariant` border) with the Corner Style `lg` radius, a leading 40 px
+`NoticeIconDisc` (or a custom `leading` such as a release cover), a
+`titleSmall` w600 title, a two-line `bodySmall` subtitle, an optional compact
+close button and optional actions (`NoticeAction`: a text secondary and a
+tonal primary built from `NavisColorStyleData.tonalStyleOf`, never solid, per
+the accent contract). Each caller keeps its own text and actions. The Home
+update-ready element (`_UpdateTile` in `home_support_widgets.dart`, which
+replaced the `MaterialBanner`) is the same tile: title "Navis {version} is
+ready", a delivery-specific body, a "Release notes" text action, the tonal
+Install / Download / Open in Play Store action, and a close button that
+invalidates `updateProvider` as the old Dismiss did.
+
+**Notice roles.** `NoticeIconDisc` (`common_widgets/notice_icon_disc.dart`)
+is the circular icon mark shared by every notice surface and defaults to
+`tonalControlFill` / `onTonalControlFill`, so notices follow the colour
+style and the Controls (Accent | White) setting; no notice hard-codes a
+colour. Transient notices (`_NoticePill` in `app_notice.dart`) are one neutral
+raised pill (elevation 3, Corner Style control radius) for every kind, and
+only the 30 px disc carries the kind: info is tonal, success is
+`NavisTokens.success` over the pill, error is `errorContainer` /
+`onErrorContainer` (no full error fill or border). The offline banner and
+`ShellOfflineChip` use `NavisTokens.quietWarningContainer` /
+`onQuietWarningContainer`. `EmptyState` shows a 64 px tonal disc over its
+title and a secondary-coloured subtitle.
 
 **Trending page** (`AppRoutes.trending`, `/library/trending`,
 `NavService.openTrending`). `TrendingDetailScreen` shows
@@ -3085,7 +3137,7 @@ Home and Library pulls (including Library tabs and Liked see-all pages) call
 check request, bypassing the 24-hour throttle only when the master, Updates
 service and `updates.automatic` switches are on. A temporary manual listener
 keeps the auto-disposed provider active until it resolves and closes on
-completion or widget disposal. Home uses its existing update banner; Library
+completion or widget disposal. Home uses its existing update tile; Library
 shows an info notice, “Update available”, with a View action opening the
 existing update dialog, once per available version and build. `UpdateInfo`
 retains the verified manifest version and build in `notificationKey`, so a
@@ -3715,10 +3767,30 @@ Sized ranges and reads from the completed cache file keep their normal responses
 Album-style queue replacement is lazy: the active transport queue prepares the
 tapped song first, then fills the remaining sources in phase 2. Phase 1 pauses
 and stops the active player and cancels/pauses the crossfade deck before remote
-warm-up. It keeps the previous metadata visible, paused, with the selected
-`loadingSongId`; late idle-player index events cannot notify or scrobble a third
-song. The selected materialised item and metadata anchor are published only
-immediately before `setAudioSources`. A hung stop retires the deck and continues
+warm-up. It publishes the selected song's metadata immediately when its row is
+known, with `isLoading` and `loadingSongId`, before resolving or warming its source.
+`_mediaItemForSong` builds both pending and source-resolved items with the same
+title, artist, album, duration and resolver-owned art URI; final publication
+adds source extras and cached artwork. `_supersedeQueueWork`, the existing
+queue-replacement metadata anchor and `_emitSnapshot` keep snapshots and
+`_setCurrentMediaItem`/`mediaItem` on that pending target while old native index
+events arrive. Queue replacement (IDs or supplied rows), navigation (including
+deferred jumps), recovery and eager setup use this authority. The UI's existing
+`PlaybackStartupObserver.beginPlaybackSelection` also accepts its provisional
+song row before `QueueController` persists/readbacks API results, so search,
+Trending and recommendation taps publish without waiting for that work.
+When provisional persistence starts over radio, the existing station and metadata
+subscription stay alive until the queue loader accepts the replacement. Failed
+persistence republishes that station's current metadata; radio callbacks cannot
+replace the pending song media item while persistence is in progress.
+Generation/token checks reject superseded preparations before publishing or
+applying sources. When failure is handled, metadata returns to the source the
+player actually holds, or clears for an empty player. Pending display does not
+start a scrobble session for a song the player has not reached; audio_service
+reports loading while the selected source is unready and retains native queue
+coordinates. Android notifications/lock screen/AVRCP and the existing MPRIS and
+SMTC media-item subscriptions receive the same publication as Now Playing,
+mini players and the desktop bar. A hung stop retires the deck and continues
 loading the selected song on the rebuilt player. Failed phase-1 loads realign
 the materialised queue and current item with an empty rebuilt player before
 recovery. Abandoned players receive independent fire-and-forget mute and pause
@@ -3745,9 +3817,9 @@ queue rather than the prepared transport queue, with
 remove, reorder, or play-index actions until the transport queue catches up.
 Player transport controls distinguish that background queue fill from an
 unready selected remote source. They also show remote buffering after the
-queue operation ends and use the pending target ID while the previous song's
-metadata is still visible. A ready selected source keeps its play/pause icon
-even if the rest of the queue is still filling.
+queue operation ends and show the pending target's metadata immediately. A ready
+selected source keeps its play/pause icon even if the rest of the queue is still
+filling.
 
 #### Released queue window
 
@@ -4240,6 +4312,41 @@ enabled and is created, synchronized, or disposed as that setting changes.
 Its clones of lock-cached sources use direct streams so two decks never rename
 the same partial cache file.
 
+Both decks use `handleInterruptions: false`: Navis owns interruption/noisy
+handling for the session. The vendored Android ExoPlayer always applies audio
+attributes with `handleAudioFocus=false`; `audio_session` shares a single,
+idempotent Android focus request, so starting the incoming deck does not request
+competing focus or pause the outgoing deck. Genuine OS interruptions still
+cancel the fade and pause both decks.
+
+The cellular gate introduced by `331311eb` (mobile data optimization) now applies
+to opening a remote incoming source, rather than disabling all crossfade. The
+runtime setting keeps the user's crossfade intent and passes
+`crossfadeAllowStreaming=false` on cellular. A fade resolves its target through
+the existing source resolver with streaming forbidden: permanent download →
+completed rolling cache → refusal. The inactive deck holds only that local
+song during the overlap, so remote neighbours cannot be prefetched by the
+second player. At handoff it inserts/appends the rest of the queue using the
+existing prepared-source cloning path, preserving the incoming position and
+occurrence. One shared load deadline bounds the entire handoff preparation,
+including row lookup, source resolution and native queue edits. Failure restores
+the outgoing deck, and token checks reject late preparation results. A remote
+target keeps the ordinary single-deck transition and
+reports `crossfade.disabledReason=cellular`. Cellular gapless/preload policy is
+unchanged; a setting-disabled fade reports `disabledReason=setting`.
+
+The play lifetime Future is observed for failures without awaiting playback
+completion. The existing fade timer waits for incoming `playing` and `ready`
+before reducing the outgoing volume, serializes and awaits volume writes, and
+uses the shared ReplayGain/user-volume/ducking base for each song. Mute and
+volume changes preserve ramp proportions. Each awaited fade write rechecks the
+current volume base before advancing, so an intervening mute or duck cannot be
+overwritten by the old base. If a swap is superseded while listener cancellation
+awaits, the unchanged active deck regains its listeners unless the handler is
+disposing. Play/ramp failures log, increment phase counters, retain a credential-free `lastFailure`, cancel the incoming
+deck and restore the outgoing volume for sequential fallback. This establishes
+player state, not audible output: physical-device listening remains necessary.
+
 Crossfade starts after pending seeks settle. Normal crossfade with Repeat One
 prepares that same materialised queue entry on
 the inactive deck at position zero, overlaps the ending and fresh start, then
@@ -4275,7 +4382,9 @@ song's transition is tried again the next time it plays. In-place refreshes of a
 (`_RevisionedList.replaceAt` leaves `structureRevision` unchanged), so they
 neither abort a release nor invalidate the deck. `GET /v1/playback/status`
 reports `queueSettled`, `playerMatchesQueue`, a `crossfade` block (active,
-inactive deck length and match, outcome counts by phase), `queueLane` (the
+inactive deck length and match, outcome counts by phase, `disabledReason`,
+`lastFailure`, and active `outgoing`/`incoming` deck maps with `playing`,
+`volume`, `positionMs`), `queueLane` (the
 running work's kind and age, and the waiting kinds) and `recovery` (the stage
 of the latest seek or stall recovery). The native order is read from each
 source's `MediaItem` tag, or for an Android lock-cached stream, which is built
@@ -4972,19 +5081,24 @@ download naming throws when all 100 collision candidates are occupied.
    song's name. The app shell starts `DownloadService` at launch (it was
    otherwise created only when a download control was first used), and its
    startup after interrupted downloads requeues them and removes
-   `*.navis-part` files, and only those, from the active folder without
+   only persisted, owned `*.navis-part` files from a custom folder without
    following links; folder scans ignore them. Promoting a rolling-cache file reuses an
    existing destination only when its size matches. Resetting server data (a full
    sign-out or server switch) removes the library rows but deletes only
    Navis-owned audio files; files inside the custom folder and Android SAF
    documents stay where they are.
    Leaving a custom folder follows the same rule. Turning it off (after a
-   confirmation) or choosing a different folder moves only downloads stored
-   in Navis's own directory. Every file in the folder being left, filesystem
-   or SAF, stays where it is under its own name, whether Navis downloaded or
+   confirmation when a folder is configured) or choosing a different folder
+   moves only downloads stored in Navis's own directory. Every file in the
+   folder being left, filesystem or SAF, stays where it is under its own name,
+   whether Navis downloaded or
    adopted it; Navis records no difference between the two. Navis forgets
-   those `cached_tracks` rows before the setting changes, so startup
-   normalization never moves them out later. The folder's sidecar remains,
+   reachable `cached_tracks` rows before the setting changes, so startup
+   normalization never moves them out later. Unavailable roots and missing or
+   inaccessible files keep their records and bytes. With custom storage off,
+   startup repair and normalization operate only inside the app-owned `audio`
+   directory; retained user-folder references neither get deleted nor hold the
+   app-storage queue, even after a restart. The folder's sidecar remains,
    so choosing that folder again re-adopts the files through the usual scan.
    That scan runs before the switch, so the import checks registration again
    when it commits: a file whose song lost its download in the switch is
@@ -4994,9 +5108,9 @@ download naming throws when all 100 collision candidates are occupied.
    Android uses a persisted Storage Access Framework tree URI rather than a
    filesystem path. A folder that a version before 1.2.8 stored as a plain
    path is turned off at startup under the same leaving rule: Navis forgets
-   the downloads inside it before the setting changes and leaves the files
-   where they are, and choosing the folder again as an Android folder runs
-   the usual scan. The cached-track storage kind distinguishes Android SAF
+   reachable downloads inside it before the setting changes and leaves the
+   files where they are, and choosing the folder again as an Android folder
+   runs the usual scan. The cached-track storage kind distinguishes Android SAF
    document locators from ordinary filesystem entries; SAF reads, writes,
    relocation, deletion, and offline playback go through the Android
    ContentResolver bridge and never overwrite unmanaged documents. Before a
@@ -5101,8 +5215,14 @@ therefore skips songs already downloaded in original quality.
 a length shows an indeterminate bar. After a 2xx response the
 `content-type` names the stored format (`downloadedFormatFor`): a server
 without the requested encoder that sends the original file stores it under
-its real extension and bitrate. HTML, JSON and XML responses are failures and
-never registered.
+its real extension and bitrate. HTML, JSON and XML responses fail immediately
+as `notAudio` and are never registered. Originals with a response Content-Length
+must have exactly that many bytes before publication. Transcodes may carry an
+estimated length, so only non-empty content and the same audio content-type
+gate are required.
+Empty or short original files fail as `truncated`; part files are deleted and
+the whole song restarts from zero on retry. Interrupted transfers are never
+resumed.
 
 **Concurrency.** `DownloadService` runs a worker pool. `effectiveConcurrency`
 is 0 while paused or held by Wi-Fi-only, 1 on cellular, otherwise
@@ -5118,10 +5238,120 @@ Each transfer has its own `CancelToken`. Cancelling an item
 and removes the row. Pausing (`setPaused`, persisted in `downloads_paused`
 and read at start before the queue subscription) cancels transfers in flight
 and returns their rows to the queue. A failed item waits out its backoff
-(5 s × 2^retry, in memory; a restart retries at once) before the pump starts
-it again, and `markForRetry` notifies queue watchers. `processQueuedDownloads`
-completes once no worker is running. The Android progress notification
-aggregates every transfer in flight.
+(5 s × 2^retry, capped at three retries, in memory; a restart retries at once)
+before the pump starts it again, and `markForRetry` notifies queue watchers.
+`processQueuedDownloads` completes once no worker is running. The Android
+progress notification aggregates every transfer in flight.
+
+**Failure reasons and connectivity.** Schema 103 adds nullable `failure_reason`
+(a `DownloadFailureReason` name), `failure_detail` (short sanitized status/byte
+counts), and `finish_journal` to `download_queue`. `from102To103` uses guarded
+column additions; shipped schema 102 is unchanged. The Downloads failed rows,
+DownloadNotifier failure body and download diagnostics expose the reason.
+A write-time storage/access failure also posts one held-download notification
+with its reason when the hold starts.
+Manual Retry and Retry all reset reasons and attempts; starting a retry clears
+its prior reason, and success removes the queue row. HTTP 404/410 (`notFound`)
+and error documents (`notAudio`) fail immediately without backoff; HTTP 5xx,
+network/timeout errors and truncation use the existing bounded backoff. The
+existing `networkTypeProvider` listener pumps the same service when connectivity
+returns. Offline queues have zero workers, and failures observed after a
+connection loss return to queued without increasing attempts. HTTP 401/403 and
+filesystem permission loss hold the queue for an explicit repair action.
+
+**Capacity and storage holds.** Each worker checks destination free bytes
+against the song size for originals or duration × bitrate / 8 for transcodes,
+plus 10% and a 16 MiB margin. Capacity reservations share the existing serialized
+finish gate so concurrent workers cannot spend the same free bytes. Album and
+playlist enqueue estimates only newly queued songs; insufficient room issues
+one notice through the existing folder-notice stream. Native capacity queries
+use StatFs on Android, filesystem attributes on Apple targets (with a bundled
+DiskSpace/E174.1 privacy reason), statvfs on Linux and GetDiskFreeSpaceExW on
+Windows. Unavailable capacity reports are skipped; write-time storage errors
+still hold work. SAF provider write/probe exhaustion is held separately from
+private staging exhaustion. Automatic rechecks never clear a provider hold
+from staging free space: provider capacity is unknown, so an explicit storage
+repair/resume is required to try again. A repeated provider failure holds again.
+SAF providers cannot report free space through the current
+bridge: only the app-private staging filesystem is checked, and provider
+ENOSPC/EDQUOT is handled on write. `noSpace` extends DownloadFolderProblem and
+the same Downloads banner, cancellation and five-second storage recheck.
+Preflight holds allow already admitted transfers to finish; write-time
+exhaustion cancels active transfers. The hold
+returns items to queued with `noSpace`, without burning retries or failing each
+remaining song. Freeing space or choosing storage resumes the existing queue.
+
+Original-response length validation compares `Content-Length` only for
+unencoded/identity bodies: native Dio decompresses gzip, so encoded wire
+length does not describe stored audio. Empty decoded payloads still fail,
+and native transport/decompression errors still retry without registration.
+
+**Recoverable finish and cleanup.** After integrity validation, the queue row
+journals the destination, verified size/digest, format/bitrate and optional SAF
+tree/relative path before rename/upload. Identity tags may change bytes, so the
+intent is updated before SAF upload or registration. After publication it
+records the published phase and exact locator returned by the provider.
+Once the final file exists, cache upsert and queue removal commit together in
+the existing DAO transaction.
+Startup replays journaled final files only when size and digest agree; missing
+or invalid files are requeued, and part files always restart from zero. Missing
+permanent-cache files are requeued when library metadata still permits a
+server download. Filesystem absence requires an explicit missing-path errno;
+`stat`/`exists` can hide access failures and do not authorize record removal.
+Permission and I/O failures retain permanent records, including local-only
+songs, and finish intents until storage returns. Startup repair completes
+before workers start. Deferred recovery belongs to the service lifecycle:
+teardown invalidates its generation and awaits it before server data can be
+cleared. Reconciliation checks the generation after
+storage waits and inside registration transactions to reject stale writes.
+Unknown custom-folder audio has no finish intent and is left to the explicit
+adoption/rescan flow.
+Before a transfer creates its part file, the existing queue journal records
+its exact path. Custom-root cleanup requires that persisted ownership and does
+not follow links. Unowned suffix files are preserved and logged. SAF trees are
+never swept for suffix files; only app-private SAF staging parts are removed.
+Finish journals name a part only while verifying the actual part file; updates
+after rename never infer another part pathname. SAF uploads retain the existing
+document MIME type and provider capability contract. The bridge checks the
+copied byte count and removes its own document on a write error; startup verifies
+a journaled upload's digest. Mismatching destinations are preserved and logged:
+an intended pathname or a previous publication does not prove ownership of
+replacement contents. Conflict journals retain the path for the orphan sweep
+until the queue starts a new transfer.
+Native write errors retain errno
+classification. No provider rename capability is required.
+The app-owned orphan sweep runs after journal reconciliation and protects
+pending journal paths. Playback priority remains permanent download → rolling
+cache → stream.
+
+**Custom-folder configuration holds.** `PermanentDownloadPathResolver` requires
+an existing custom filesystem root and probes it with a disposable Navis-owned
+write; it never recreates a missing mount. Unset, missing and inaccessible
+roots report `DownloadFolderUnavailableException` / `DownloadFolderProblem`.
+`DownloadService` checks the destination before queue workers and rolling-cache
+promotion; Android trees use the existing `AndroidSafStorage.validateWritableTree`
+bridge to check persisted access and safe replacement. Permission loss during a
+transfer is also a configuration hold, including filesystem errors wrapped by
+Dio. Workers return to `queued` without increasing retry counts or scheduling
+backoff; other transient transfer failures retain the existing backoff.
+The service exposes hold changes through `downloadFolderProblemProvider`, and
+Downloads shows the existing filled-card notice pattern with **Choose folder**
+and **Use app storage** actions across tabs. Both reuse the same picker,
+confirmation and app-lifetime `CustomDownloadFolderController` as Settings.
+**Use app storage** skips confirmation when the configured path is unset or
+blank. Disabling custom storage does not require the previous root to be
+writable or even present: relocation uses it only as a pruning boundary,
+preserves unreachable records, commits app storage, and resumes the held queue.
+Cancelling the picker preserves the previous setting; a chosen folder is saved
+only after validation and relocation, with path/kind/enablement committed in a
+transaction. Folder setting changes and explicit queue processing recheck access
+and resume work when usable. A held root is also probed every five seconds so
+reconnected storage or restored access resumes automatically, without retrying
+transfers or incrementing failure counts. A permission failure below a writable
+root requires an explicit folder action; a root probe cannot establish its repair. One app notice is emitted per unresolved hold when
+a download is requested (`downloadFolderNoticeProvider`, consumed by the shell);
+startup detection alone does not issue that notice. Holds are rederived at
+startup and require no database schema change.
 
 **Permanent artwork store.** `PermanentArtworkStore` keeps one 768 px copy of
 each downloaded song's cover in `<app support>/artwork/permanent/<key>.<ext>`

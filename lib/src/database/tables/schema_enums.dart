@@ -8,6 +8,20 @@ enum CacheType { rolling, permanent }
 /// failures must never advance availability toward missing.
 enum CatalogAvailability { present, suspectedMissing, confirmedMissing }
 
+/// Stable reason codes persisted with failed permanent downloads.
+enum DownloadFailureReason {
+  notFound,
+  serverError,
+  network,
+  timeout,
+  notAudio,
+  truncated,
+  noSpace,
+  folderUnavailable,
+  permission,
+  unknown,
+}
+
 enum DownloadStatus { queued, downloading, paused, complete, failed }
 
 enum ShuffleMode { off, all }

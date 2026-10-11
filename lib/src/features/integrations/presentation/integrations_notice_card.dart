@@ -74,6 +74,7 @@ class _IntegrationsNoticeCardState
       dismissKey: const ValueKey<String>('integrationsNoticeDismiss'),
       title: l10n.integrationsNoticeTitle(kIntegrationsNoticeVersion),
       subtitle: l10n.integrationsNoticeBody,
+      icon: Icons.hub_outlined,
       dismissTooltip: l10n.integrationsNoticeDismiss,
       onOpen: _open,
       onDismiss: _markSeen,

@@ -656,7 +656,7 @@
   "configurationListenBrainzTokenLabel": "User Token",
   "configurationListenBrainzTokenRequired": "Enter a ListenBrainz user token.",
   "configurationListenBrainzTokenInvalid": "Invalid ListenBrainz token.",
-  "configurationListenBrainzUnavailable": "ListenBrainz is unavailable. Check your connection and try again.",
+  "configurationListenBrainzUnavailable": "ListenBrainz is unavailable right now. Your token was not rejected. Check your connection or try again later.",
   "configurationListenBrainzValidateAndSave": "Validate and save",
   "configurationListenBrainzGetToken": "Get Token",
   "privacyOnlineServicesTitle": "Online Services",
@@ -1919,6 +1919,14 @@
       "version": { "type": "String" }
     }
   },
+  "updateReadyTitle": "Navis {version} is ready",
+  "@updateReadyTitle": {
+    "placeholders": {
+      "version": { "type": "String" }
+    }
+  },
+  "updateReadyBodyInstall": "Installs in a minute.",
+  "updateReadyBodyDownload": "Opens the download page.",
   "updateDownload": "Download",
   "updateDismiss": "Dismiss",
   "updateAvailableNotice": "Update available",
@@ -2790,5 +2798,34 @@
         "type": "int"
       }
     }
-  }
+  },
+  "cacheSettingsResetSection": "Reset",
+  "cacheSettingsDeleteAllPresets": "Delete all presets",
+  "cacheSettingsDeleteAllPresetsDescription": "Remove all saved Looks and Speed & Pitch presets.",
+  "cacheSettingsDeleteAllPresetsConfirmTitle": "Delete all presets?",
+  "cacheSettingsDeleteAllPresetsConfirmBody": "This permanently deletes every saved appearance Look and Speed & Pitch preset, their selections, and any older Fine-Tune color presets. Your current speed, pitch and appearance values stay as they are.",
+  "cacheSettingsDeleteAllPresetsSuccess": "All presets deleted. Your current values are unchanged.",
+  "cacheSettingsDeleteAllPresetsFailure": "Could not delete presets. Try again.",
+  "playbackPresetDeleteFailure": "Could not delete the preset. It may have changed or could not be saved. Try again.",
+  "configurationListenBrainzOnlineServicesOff": "Online services is switched off. Turn it on before connecting to ListenBrainz.",
+  "configurationListenBrainzRateLimited": "ListenBrainz is limiting requests right now. Your token was not rejected. Try again later.",
+  "configurationListenBrainzUnavailableHttp": "ListenBrainz isn't accepting connections right now (HTTP {status}). This is on their side; your token wasn't rejected. Try again later.",
+  "@configurationListenBrainzUnavailableHttp": {"placeholders": {"status": {"type": "int"}}},
+  "downloadsFolderHoldUnset": "Downloads are queued. Choose a custom folder or use app storage to continue.",
+  "downloadsFolderHoldMissing": "Downloads are queued because the custom folder is missing. Reconnect the storage, choose a folder or use app storage.",
+  "downloadsFolderHoldInaccessible": "Downloads are queued because Navis cannot write to the download folder. Choose an accessible folder or use app storage.",
+  "downloadsFolderHoldChoose": "Choose folder",
+  "downloadsFolderHoldUseAppStorage": "Use app storage",
+  "downloadsFailureNotFound": "This song is no longer available on the server.",
+  "downloadsFailureServerError": "The server could not send this song. Try again later.",
+  "downloadsFailureNetwork": "The connection was lost. Check your network and try again.",
+  "downloadsFailureTimeout": "The server took too long to respond. Try again.",
+  "downloadsFailureNotAudio": "The server sent a page or error message instead of audio.",
+  "downloadsFailureTruncated": "The download was cut short. Try again.",
+  "downloadsFailureNoSpace": "There is not enough free space for this download.",
+  "downloadsFailureFolderUnavailable": "The download folder is unavailable. Reconnect it or choose another folder.",
+  "downloadsFailurePermission": "Navis does not have permission to save this download.",
+  "downloadsFailureUnknown": "The download could not be completed. Try again.",
+  "downloadsFolderHoldNoSpace": "Downloads are queued because storage is full. Free some space or choose another folder to continue.",
+  "notificationDownloadHeldTitle": "Downloads waiting for storage or access"
 }

@@ -19,8 +19,15 @@ enum NowPlayingPhoneTier { short, normal, tall }
 ///
 /// [compute] is pure: block heights are modelled from the Material 3 line
 /// heights the widgets use (`ceil`ed like the rendered text), so the layout is
-/// unit-tested without pumping the screen. A widget test pins the model to the
+/// unit-tested without pumping the screen. The title, artist and album lines
+/// render with a forced strut of exactly those heights ([titleStrut] and
+/// friends), so a script with taller fallback-font metrics (Arabic, CJK)
+/// cannot change the block height. A widget test pins the model to the
 /// rendered heights.
+///
+/// The body never scrolls (a scroll view there would take the swipe-down
+/// dismiss drag): when even the smallest cover does not fit, [scalesUpper] is
+/// set and the cover and title are scaled down to the room that is left.
 class NowPlayingPhoneLayout {
   const new({
     required this.tier,
@@ -28,7 +35,7 @@ class NowPlayingPhoneLayout {
     required this.artMargin,
     required this.t,
     required this.slack,
-    required this.scrollsUpper,
+    required this.scalesUpper,
     required this.showInfo,
     required this.foldAlbum,
     required this.largeTransport,
@@ -66,7 +73,7 @@ class NowPlayingPhoneLayout {
   static const double artMarginGrowTo = 860;
 
   /// The artwork prefers at least this share of the width (and never more than
-  /// [artMinCap]), may shrink to [artFloorShare] before the upper part scrolls.
+  /// [artMinCap]), may shrink to [artFloorShare] before the upper part scales.
   static const double artMinShare = 0.62;
   static const double artMinCap = 320;
   static const double artFloorShare = 0.45;
@@ -121,8 +128,9 @@ class NowPlayingPhoneLayout {
   final double slack;
 
   /// True when even the smallest artwork does not fit: the artwork and title
-  /// scroll while the controls stay pinned.
-  final bool scrollsUpper;
+  /// are scaled down together to the remaining room while the controls stay
+  /// pinned. Nothing scrolls.
+  final bool scalesUpper;
   final bool showInfo;
   final bool foldAlbum;
   final bool largeTransport;
@@ -187,6 +195,15 @@ class NowPlayingPhoneLayout {
   static const double _bodyMediumLine = 20 / 14;
   static const double _bodySmallLine = 16 / 12;
   static const double _labelSmallLine = 16 / 11;
+
+  /// Strut of a fixed-height line: [style]'s font at its modelled line height
+  /// whatever font the glyphs come from.
+  static StrutStyle _strut(TextStyle style, double ratio) =>
+      StrutStyle.fromTextStyle(style, height: ratio, forceStrutHeight: true);
+
+  StrutStyle titleStrut(TextStyle style) => _strut(style, _titleLine);
+  StrutStyle artistStrut(TextStyle style) => _strut(style, _bodyLargeLine);
+  StrutStyle albumStrut(TextStyle style) => _strut(style, _bodyMediumLine);
 
   static double _line(TextScaler scaler, double fontSize, double ratio) =>
       (scaler.scale(fontSize) * ratio).ceilToDouble();
@@ -278,7 +295,7 @@ class NowPlayingPhoneLayout {
     var art = artMax;
     var t = 0.0;
     var slack = 0.0;
-    var scrolls = false;
+    var scales = false;
     if (available >= artMax) {
       // 1) artwork at its maximum with minimum gaps, 2) raise t until the
       // gaps reach their maximum, 3) whatever is left is slack.
@@ -288,8 +305,8 @@ class NowPlayingPhoneLayout {
     } else if (available >= artFloor) {
       art = available;
     } else {
-      art = math.min(artMin, artMax);
-      scrolls = true;
+      art = math.min(artFloor, artMax);
+      scales = true;
     }
 
     final shares = isRadio
@@ -302,7 +319,7 @@ class NowPlayingPhoneLayout {
       artMargin: margin,
       t: t,
       slack: slack,
-      scrollsUpper: scrolls,
+      scalesUpper: scales,
       showInfo: showInfo,
       foldAlbum: foldAlbum,
       largeTransport: largeTransport,

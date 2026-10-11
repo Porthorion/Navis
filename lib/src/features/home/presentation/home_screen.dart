@@ -19,6 +19,7 @@ import 'package:navis/src/api/models/listenbrainz_playlist.dart';
 import 'package:navis/src/api/models/models.dart';
 import 'package:navis/src/common_widgets/app_notice.dart';
 import 'package:navis/src/common_widgets/album_card.dart';
+import 'package:navis/src/common_widgets/home_notice_card.dart';
 import 'package:navis/src/common_widgets/album_context_menu.dart';
 import 'package:navis/src/common_widgets/cover_art_image.dart';
 import 'package:navis/src/common_widgets/desktop_song_actions.dart';
@@ -75,8 +76,6 @@ import 'package:navis/src/theme/navis_tokens.dart';
 import 'package:navis/src/utils/catalog_source.dart';
 import 'package:navis/src/utils/external_url.dart';
 import 'package:navis/src/theme/artwork_shape.dart';
-import 'package:navis/src/theme/caption_tint.dart';
-import 'package:navis/src/theme/flat_band_tone.dart';
 import 'package:navis/src/theme/navis_color_style_data.dart';
 import 'package:navis/src/common_widgets/artwork_scrim.dart';
 import 'package:navis/src/theme/navis_shape_data.dart';
@@ -1241,7 +1240,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
           const SetupHighlightsCard()
         else
           const ChangelogDiscoveryCard(),
-        const _UpdateBanner(),
+        const _UpdateTile(),
         for (final sectionId in order)
           if (!hidden.contains(sectionId))
             ..._buildSection(
@@ -2538,23 +2537,9 @@ class _DesktopRandomAlbumsPagerState
         ],
       ],
     );
-    // Flat: one rounded solid panel, flush with the section's content column
-    // (the heading's left edge), that contains the cover, the track list and
-    // the thumbnail strip with even NavisSpace.md padding. The pages draw no
-    // surface of their own inside it and read their colours from the panel.
-    if (NavisColorStyleData.of(context).flatSurfaces) {
-      return _ShowcaseFlatBand(
-        coverArtId: _showcaseWashCoverId(currentItem),
-        coverArtRevision: _showcaseWashCoverRevision(currentItem),
-        borderRadius: NavisShapeData.of(context).xlAll,
-        builder: (context, tint) => Theme(
-          data: _flatPanelTheme(Theme.of(context), tint),
-          child: Padding(
-            padding: const EdgeInsets.all(NavisSpace.md),
-            child: pager,
-          ),
-        ),
-      );
+    // Flat: no wash, band or panel; the pager sits on the page background.
+    if (flat) {
+      return pager;
     }
     return Stack(
       children: <Widget>[
@@ -2625,8 +2610,8 @@ class _DesktopRandomAlbumPage extends ConsumerWidget {
 }
 
 /// The track-list surface beside a desktop hero cover: the translucent bordered
-/// card normally; under Flat nothing, because the pager's solid panel is the
-/// only surface and the list sits directly on it.
+/// card normally; under Flat nothing, so the list sits directly on the page
+/// background.
 Widget _desktopPageSurface({
   required BorderRadius radius,
   required bool flat,
@@ -3892,7 +3877,7 @@ class _RandomAlbumsHeroCarouselState
     const shadowBottom = 24.0;
     const peekGap = 16.0;
 
-    Widget buildSection(CaptionTint? tint) => Column(
+    Widget buildSection() => Column(
       children: <Widget>[
         LayoutBuilder(
           builder: (context, constraints) {
@@ -4013,11 +3998,7 @@ class _RandomAlbumsHeroCarouselState
             );
           },
         ),
-        _ShowcaseInfoPanel(
-          item: currentItem,
-          heroContext: widget.heroContext,
-          tint: tint,
-        ),
+        _ShowcaseInfoPanel(item: currentItem, heroContext: widget.heroContext),
         if (_displayedAlbums.length > 1) ...[
           const SizedBox(height: NavisSpace.sm),
           Wrap(
@@ -4033,11 +4014,7 @@ class _RandomAlbumsHeroCarouselState
                 width: currentIndex == index ? 16 : 6,
                 height: 6,
                 decoration: BoxDecoration(
-                  color: tint != null
-                      ? (currentIndex == index
-                            ? tint.text
-                            : tint.text.withValues(alpha: 0.35))
-                      : currentIndex == index
+                  color: currentIndex == index
                       ? Theme.of(context).colorScheme.primary
                       : Theme.of(context).colorScheme.onSurfaceVariant
                             .withValues(alpha: 0.35),
@@ -4050,20 +4027,9 @@ class _RandomAlbumsHeroCarouselState
       ],
     );
 
-    // Phones under Flat: a full-bleed colour band sized by its content, so
-    // the neighbouring covers sit fully inside it (see [_ShowcaseFlatBand]).
-    final phone =
-        !widget.desktopMode &&
-        widget.adaptiveLayoutClass == AdaptiveLayoutClass.phoneCompact;
-    if (phone && NavisColorStyleData.of(context).flatSurfaces) {
-      return _ShowcaseFlatBand(
-        coverArtId: _showcaseWashCoverId(currentItem),
-        coverArtRevision: _showcaseWashCoverRevision(currentItem),
-        builder: (context, tint) => Padding(
-          padding: const EdgeInsets.symmetric(vertical: NavisSpace.lg),
-          child: buildSection(tint),
-        ),
-      );
+    // Flat: no wash, band or tint; the section sits on the page background.
+    if (NavisColorStyleData.of(context).flatSurfaces) {
+      return buildSection();
     }
 
     return Stack(
@@ -4074,7 +4040,7 @@ class _RandomAlbumsHeroCarouselState
             coverArtRevision: _showcaseWashCoverRevision(currentItem),
           ),
         ),
-        buildSection(null),
+        buildSection(),
       ],
     );
   }

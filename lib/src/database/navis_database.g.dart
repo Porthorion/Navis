@@ -15177,6 +15177,40 @@ class $DownloadQueueTableTable extends DownloadQueueTable
     requiredDuringInsert: false,
     defaultValue: const Constant(0),
   );
+  @override
+  late final GeneratedColumnWithTypeConverter<DownloadFailureReason?, String>
+  failureReason =
+      GeneratedColumn<String>(
+        'failure_reason',
+        aliasedName,
+        true,
+        type: DriftSqlType.string,
+        requiredDuringInsert: false,
+      ).withConverter<DownloadFailureReason?>(
+        $DownloadQueueTableTable.$converterfailureReasonn,
+      );
+  static const VerificationMeta _failureDetailMeta = const VerificationMeta(
+    'failureDetail',
+  );
+  @override
+  late final GeneratedColumn<String> failureDetail = GeneratedColumn<String>(
+    'failure_detail',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _finishJournalMeta = const VerificationMeta(
+    'finishJournal',
+  );
+  @override
+  late final GeneratedColumn<String> finishJournal = GeneratedColumn<String>(
+    'finish_journal',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
   static const VerificationMeta _retryCountMeta = const VerificationMeta(
     'retryCount',
   );
@@ -15201,6 +15235,9 @@ class $DownloadQueueTableTable extends DownloadQueueTable
     progress,
     addedAt,
     priority,
+    failureReason,
+    failureDetail,
+    finishJournal,
     retryCount,
   ];
   @override
@@ -15268,6 +15305,24 @@ class $DownloadQueueTableTable extends DownloadQueueTable
         priority.isAcceptableOrUnknown(data['priority']!, _priorityMeta),
       );
     }
+    if (data.containsKey('failure_detail')) {
+      context.handle(
+        _failureDetailMeta,
+        failureDetail.isAcceptableOrUnknown(
+          data['failure_detail']!,
+          _failureDetailMeta,
+        ),
+      );
+    }
+    if (data.containsKey('finish_journal')) {
+      context.handle(
+        _finishJournalMeta,
+        finishJournal.isAcceptableOrUnknown(
+          data['finish_journal']!,
+          _finishJournalMeta,
+        ),
+      );
+    }
     if (data.containsKey('retry_count')) {
       context.handle(
         _retryCountMeta,
@@ -15325,6 +15380,20 @@ class $DownloadQueueTableTable extends DownloadQueueTable
         DriftSqlType.int,
         data['${effectivePrefix}priority'],
       )!,
+      failureReason: $DownloadQueueTableTable.$converterfailureReasonn.fromSql(
+        attachedDatabase.typeMapping.read(
+          DriftSqlType.string,
+          data['${effectivePrefix}failure_reason'],
+        ),
+      ),
+      failureDetail: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}failure_detail'],
+      ),
+      finishJournal: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}finish_journal'],
+      ),
       retryCount: attachedDatabase.typeMapping.read(
         DriftSqlType.int,
         data['${effectivePrefix}retry_count'],
@@ -15339,6 +15408,14 @@ class $DownloadQueueTableTable extends DownloadQueueTable
 
   static JsonTypeConverter2<DownloadStatus, String, String> $converterstatus =
       const EnumNameConverter<DownloadStatus>(DownloadStatus.values);
+  static JsonTypeConverter2<DownloadFailureReason, String, String>
+  $converterfailureReason = const EnumNameConverter<DownloadFailureReason>(
+    DownloadFailureReason.values,
+  );
+  static JsonTypeConverter2<DownloadFailureReason?, String?, String?>
+  $converterfailureReasonn = JsonTypeConverter2.asNullable(
+    $converterfailureReason,
+  );
 }
 
 class DownloadQueueTableData extends DataClass
@@ -15360,6 +15437,13 @@ class DownloadQueueTableData extends DataClass
   final double progress;
   final DateTime addedAt;
   final int priority;
+  final DownloadFailureReason? failureReason;
+
+  /// Short, sanitized detail (status code or byte counts, never URLs).
+  final String? failureDetail;
+
+  /// Verified finish intent, persisted before publishing a final file.
+  final String? finishJournal;
 
   /// Number of retry attempts for failed downloads.
   final int retryCount;
@@ -15374,6 +15458,9 @@ class DownloadQueueTableData extends DataClass
     required this.progress,
     required this.addedAt,
     required this.priority,
+    this.failureReason,
+    this.failureDetail,
+    this.finishJournal,
     required this.retryCount,
   });
   @override
@@ -15403,6 +15490,17 @@ class DownloadQueueTableData extends DataClass
     map['progress'] = Variable<double>(progress);
     map['added_at'] = Variable<DateTime>(addedAt);
     map['priority'] = Variable<int>(priority);
+    if (!nullToAbsent || failureReason != null) {
+      map['failure_reason'] = Variable<String>(
+        $DownloadQueueTableTable.$converterfailureReasonn.toSql(failureReason),
+      );
+    }
+    if (!nullToAbsent || failureDetail != null) {
+      map['failure_detail'] = Variable<String>(failureDetail);
+    }
+    if (!nullToAbsent || finishJournal != null) {
+      map['finish_journal'] = Variable<String>(finishJournal);
+    }
     map['retry_count'] = Variable<int>(retryCount);
     return map;
   }
@@ -15429,6 +15527,15 @@ class DownloadQueueTableData extends DataClass
       progress: Value(progress),
       addedAt: Value(addedAt),
       priority: Value(priority),
+      failureReason: failureReason == null && nullToAbsent
+          ? const Value.absent()
+          : Value(failureReason),
+      failureDetail: failureDetail == null && nullToAbsent
+          ? const Value.absent()
+          : Value(failureDetail),
+      finishJournal: finishJournal == null && nullToAbsent
+          ? const Value.absent()
+          : Value(finishJournal),
       retryCount: Value(retryCount),
     );
   }
@@ -15451,6 +15558,11 @@ class DownloadQueueTableData extends DataClass
       progress: serializer.fromJson<double>(json['progress']),
       addedAt: serializer.fromJson<DateTime>(json['addedAt']),
       priority: serializer.fromJson<int>(json['priority']),
+      failureReason: $DownloadQueueTableTable.$converterfailureReasonn.fromJson(
+        serializer.fromJson<String?>(json['failureReason']),
+      ),
+      failureDetail: serializer.fromJson<String?>(json['failureDetail']),
+      finishJournal: serializer.fromJson<String?>(json['finishJournal']),
       retryCount: serializer.fromJson<int>(json['retryCount']),
     );
   }
@@ -15470,6 +15582,11 @@ class DownloadQueueTableData extends DataClass
       'progress': serializer.toJson<double>(progress),
       'addedAt': serializer.toJson<DateTime>(addedAt),
       'priority': serializer.toJson<int>(priority),
+      'failureReason': serializer.toJson<String?>(
+        $DownloadQueueTableTable.$converterfailureReasonn.toJson(failureReason),
+      ),
+      'failureDetail': serializer.toJson<String?>(failureDetail),
+      'finishJournal': serializer.toJson<String?>(finishJournal),
       'retryCount': serializer.toJson<int>(retryCount),
     };
   }
@@ -15485,6 +15602,9 @@ class DownloadQueueTableData extends DataClass
     double? progress,
     DateTime? addedAt,
     int? priority,
+    Value<DownloadFailureReason?> failureReason = const Value.absent(),
+    Value<String?> failureDetail = const Value.absent(),
+    Value<String?> finishJournal = const Value.absent(),
     int? retryCount,
   }) => DownloadQueueTableData(
     id: id ?? this.id,
@@ -15497,6 +15617,15 @@ class DownloadQueueTableData extends DataClass
     progress: progress ?? this.progress,
     addedAt: addedAt ?? this.addedAt,
     priority: priority ?? this.priority,
+    failureReason: failureReason.present
+        ? failureReason.value
+        : this.failureReason,
+    failureDetail: failureDetail.present
+        ? failureDetail.value
+        : this.failureDetail,
+    finishJournal: finishJournal.present
+        ? finishJournal.value
+        : this.finishJournal,
     retryCount: retryCount ?? this.retryCount,
   );
   DownloadQueueTableData copyWithCompanion(DownloadQueueTableCompanion data) {
@@ -15513,6 +15642,15 @@ class DownloadQueueTableData extends DataClass
       progress: data.progress.present ? data.progress.value : this.progress,
       addedAt: data.addedAt.present ? data.addedAt.value : this.addedAt,
       priority: data.priority.present ? data.priority.value : this.priority,
+      failureReason: data.failureReason.present
+          ? data.failureReason.value
+          : this.failureReason,
+      failureDetail: data.failureDetail.present
+          ? data.failureDetail.value
+          : this.failureDetail,
+      finishJournal: data.finishJournal.present
+          ? data.finishJournal.value
+          : this.finishJournal,
       retryCount: data.retryCount.present
           ? data.retryCount.value
           : this.retryCount,
@@ -15532,6 +15670,9 @@ class DownloadQueueTableData extends DataClass
           ..write('progress: $progress, ')
           ..write('addedAt: $addedAt, ')
           ..write('priority: $priority, ')
+          ..write('failureReason: $failureReason, ')
+          ..write('failureDetail: $failureDetail, ')
+          ..write('finishJournal: $finishJournal, ')
           ..write('retryCount: $retryCount')
           ..write(')'))
         .toString();
@@ -15549,6 +15690,9 @@ class DownloadQueueTableData extends DataClass
     progress,
     addedAt,
     priority,
+    failureReason,
+    failureDetail,
+    finishJournal,
     retryCount,
   );
   @override
@@ -15565,6 +15709,9 @@ class DownloadQueueTableData extends DataClass
           other.progress == this.progress &&
           other.addedAt == this.addedAt &&
           other.priority == this.priority &&
+          other.failureReason == this.failureReason &&
+          other.failureDetail == this.failureDetail &&
+          other.finishJournal == this.finishJournal &&
           other.retryCount == this.retryCount);
 }
 
@@ -15580,6 +15727,9 @@ class DownloadQueueTableCompanion
   final Value<double> progress;
   final Value<DateTime> addedAt;
   final Value<int> priority;
+  final Value<DownloadFailureReason?> failureReason;
+  final Value<String?> failureDetail;
+  final Value<String?> finishJournal;
   final Value<int> retryCount;
   const DownloadQueueTableCompanion({
     this.id = const Value.absent(),
@@ -15592,6 +15742,9 @@ class DownloadQueueTableCompanion
     this.progress = const Value.absent(),
     this.addedAt = const Value.absent(),
     this.priority = const Value.absent(),
+    this.failureReason = const Value.absent(),
+    this.failureDetail = const Value.absent(),
+    this.finishJournal = const Value.absent(),
     this.retryCount = const Value.absent(),
   });
   DownloadQueueTableCompanion.insert({
@@ -15605,6 +15758,9 @@ class DownloadQueueTableCompanion
     this.progress = const Value.absent(),
     required DateTime addedAt,
     this.priority = const Value.absent(),
+    this.failureReason = const Value.absent(),
+    this.failureDetail = const Value.absent(),
+    this.finishJournal = const Value.absent(),
     this.retryCount = const Value.absent(),
   }) : status = Value(status),
        addedAt = Value(addedAt);
@@ -15619,6 +15775,9 @@ class DownloadQueueTableCompanion
     Expression<double>? progress,
     Expression<DateTime>? addedAt,
     Expression<int>? priority,
+    Expression<String>? failureReason,
+    Expression<String>? failureDetail,
+    Expression<String>? finishJournal,
     Expression<int>? retryCount,
   }) {
     return RawValuesInsertable({
@@ -15632,6 +15791,9 @@ class DownloadQueueTableCompanion
       if (progress != null) 'progress': progress,
       if (addedAt != null) 'added_at': addedAt,
       if (priority != null) 'priority': priority,
+      if (failureReason != null) 'failure_reason': failureReason,
+      if (failureDetail != null) 'failure_detail': failureDetail,
+      if (finishJournal != null) 'finish_journal': finishJournal,
       if (retryCount != null) 'retry_count': retryCount,
     });
   }
@@ -15647,6 +15809,9 @@ class DownloadQueueTableCompanion
     Value<double>? progress,
     Value<DateTime>? addedAt,
     Value<int>? priority,
+    Value<DownloadFailureReason?>? failureReason,
+    Value<String?>? failureDetail,
+    Value<String?>? finishJournal,
     Value<int>? retryCount,
   }) {
     return DownloadQueueTableCompanion(
@@ -15660,6 +15825,9 @@ class DownloadQueueTableCompanion
       progress: progress ?? this.progress,
       addedAt: addedAt ?? this.addedAt,
       priority: priority ?? this.priority,
+      failureReason: failureReason ?? this.failureReason,
+      failureDetail: failureDetail ?? this.failureDetail,
+      finishJournal: finishJournal ?? this.finishJournal,
       retryCount: retryCount ?? this.retryCount,
     );
   }
@@ -15699,6 +15867,19 @@ class DownloadQueueTableCompanion
     if (priority.present) {
       map['priority'] = Variable<int>(priority.value);
     }
+    if (failureReason.present) {
+      map['failure_reason'] = Variable<String>(
+        $DownloadQueueTableTable.$converterfailureReasonn.toSql(
+          failureReason.value,
+        ),
+      );
+    }
+    if (failureDetail.present) {
+      map['failure_detail'] = Variable<String>(failureDetail.value);
+    }
+    if (finishJournal.present) {
+      map['finish_journal'] = Variable<String>(finishJournal.value);
+    }
     if (retryCount.present) {
       map['retry_count'] = Variable<int>(retryCount.value);
     }
@@ -15718,6 +15899,9 @@ class DownloadQueueTableCompanion
           ..write('progress: $progress, ')
           ..write('addedAt: $addedAt, ')
           ..write('priority: $priority, ')
+          ..write('failureReason: $failureReason, ')
+          ..write('failureDetail: $failureDetail, ')
+          ..write('finishJournal: $finishJournal, ')
           ..write('retryCount: $retryCount')
           ..write(')'))
         .toString();
@@ -42824,6 +43008,9 @@ typedef $$DownloadQueueTableTableCreateCompanionBuilder =
       Value<double> progress,
       required DateTime addedAt,
       Value<int> priority,
+      Value<DownloadFailureReason?> failureReason,
+      Value<String?> failureDetail,
+      Value<String?> finishJournal,
       Value<int> retryCount,
     });
 typedef $$DownloadQueueTableTableUpdateCompanionBuilder =
@@ -42838,6 +43025,9 @@ typedef $$DownloadQueueTableTableUpdateCompanionBuilder =
       Value<double> progress,
       Value<DateTime> addedAt,
       Value<int> priority,
+      Value<DownloadFailureReason?> failureReason,
+      Value<String?> failureDetail,
+      Value<String?> finishJournal,
       Value<int> retryCount,
     });
 
@@ -42898,6 +43088,26 @@ class $$DownloadQueueTableTableFilterComposer
 
   ColumnFilters<int> get priority => $composableBuilder(
     column: $table.priority,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnWithTypeConverterFilters<
+    DownloadFailureReason?,
+    DownloadFailureReason,
+    String
+  >
+  get failureReason => $composableBuilder(
+    column: $table.failureReason,
+    builder: (column) => ColumnWithTypeConverterFilters(column),
+  );
+
+  ColumnFilters<String> get failureDetail => $composableBuilder(
+    column: $table.failureDetail,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get finishJournal => $composableBuilder(
+    column: $table.finishJournal,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -42966,6 +43176,21 @@ class $$DownloadQueueTableTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<String> get failureReason => $composableBuilder(
+    column: $table.failureReason,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get failureDetail => $composableBuilder(
+    column: $table.failureDetail,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get finishJournal => $composableBuilder(
+    column: $table.finishJournal,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<int> get retryCount => $composableBuilder(
     column: $table.retryCount,
     builder: (column) => ColumnOrderings(column),
@@ -43012,6 +43237,22 @@ class $$DownloadQueueTableTableAnnotationComposer
 
   GeneratedColumn<int> get priority =>
       $composableBuilder(column: $table.priority, builder: (column) => column);
+
+  GeneratedColumnWithTypeConverter<DownloadFailureReason?, String>
+  get failureReason => $composableBuilder(
+    column: $table.failureReason,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get failureDetail => $composableBuilder(
+    column: $table.failureDetail,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get finishJournal => $composableBuilder(
+    column: $table.finishJournal,
+    builder: (column) => column,
+  );
 
   GeneratedColumn<int> get retryCount => $composableBuilder(
     column: $table.retryCount,
@@ -43069,6 +43310,10 @@ class $$DownloadQueueTableTableTableManager
                 Value<double> progress = const Value.absent(),
                 Value<DateTime> addedAt = const Value.absent(),
                 Value<int> priority = const Value.absent(),
+                Value<DownloadFailureReason?> failureReason =
+                    const Value.absent(),
+                Value<String?> failureDetail = const Value.absent(),
+                Value<String?> finishJournal = const Value.absent(),
                 Value<int> retryCount = const Value.absent(),
               }) => DownloadQueueTableCompanion(
                 id: id,
@@ -43081,6 +43326,9 @@ class $$DownloadQueueTableTableTableManager
                 progress: progress,
                 addedAt: addedAt,
                 priority: priority,
+                failureReason: failureReason,
+                failureDetail: failureDetail,
+                finishJournal: finishJournal,
                 retryCount: retryCount,
               ),
           createCompanionCallback:
@@ -43095,6 +43343,10 @@ class $$DownloadQueueTableTableTableManager
                 Value<double> progress = const Value.absent(),
                 required DateTime addedAt,
                 Value<int> priority = const Value.absent(),
+                Value<DownloadFailureReason?> failureReason =
+                    const Value.absent(),
+                Value<String?> failureDetail = const Value.absent(),
+                Value<String?> finishJournal = const Value.absent(),
                 Value<int> retryCount = const Value.absent(),
               }) => DownloadQueueTableCompanion.insert(
                 id: id,
@@ -43107,6 +43359,9 @@ class $$DownloadQueueTableTableTableManager
                 progress: progress,
                 addedAt: addedAt,
                 priority: priority,
+                failureReason: failureReason,
+                failureDetail: failureDetail,
+                finishJournal: finishJournal,
                 retryCount: retryCount,
               ),
           withReferenceMapper: (p0) => p0

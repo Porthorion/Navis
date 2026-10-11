@@ -398,6 +398,9 @@ class NavisAudioHandler extends BaseAudioHandler
 
   // ── Cross-fade state ──────────────────────────────────────────────────────
   bool _crossfadeEnabled = false;
+  bool _crossfadeLocalOnlyDeck = false;
+  String? _crossfadeLastFailure;
+  String? _crossfadeDisabledReason;
   int _crossfadeDurationSeconds = 5;
   String _crossfadeType = 'normal';
   static const Duration _crossfadePrepareLeadTime = Duration(
@@ -468,7 +471,11 @@ class NavisAudioHandler extends BaseAudioHandler
 
   /// Called before provisional remote-song persistence begins.
   @override
-  int beginPlaybackSelection(String songId, {required bool isExternal}) {
+  int beginPlaybackSelection(
+    String songId, {
+    required bool isExternal,
+    SongsTableData? song,
+  }) {
     _activeStartupTrace?.mark('superseded');
     final trace = PlaybackStartupTrace(
       attempt: ++_nextStartupAttempt,
@@ -481,6 +488,21 @@ class NavisAudioHandler extends BaseAudioHandler
     if (_startupTraces.length > 16) {
       _startupTraces.removeAt(0);
     }
+    if (song != null) {
+      // Keep radio alive until persistence hands the replacement to the queue
+      // loader. A failed provisional write has not changed the playing source.
+      _pendingLogicalQueueSongs = [song];
+      _navigationIntent.reset();
+      _supersedeTransportIntent(shouldPlay: true);
+      _cancelCrossfade();
+      _supersedeQueueWork(isLoading: true, loadingSongId: songId);
+      _setQueueReplacementMetadataAnchor(
+        expectedIndex: 0,
+        mediaItem: _mediaItemForSong(song),
+      );
+      _setCurrentMediaItem(_queueReplacementMetadataAnchor!.mediaItem);
+      _emitSnapshot();
+    }
     return trace.attempt;
   }
 
@@ -490,6 +512,15 @@ class NavisAudioHandler extends BaseAudioHandler
     final trace = _activeStartupTrace;
     if (trace?.attempt == attempt) {
       trace?.mark(stage);
+      if (stage == 'provisionalPersistenceFailed' &&
+          trace?.awaitingHandler == true &&
+          _loadingSongId == trace?.songId) {
+        _completeQueueLoad(
+          _activeLoadGeneration,
+          loadingSongId: trace?.songId,
+          failed: true,
+        );
+      }
     }
   }
 
@@ -882,6 +913,11 @@ class NavisAudioHandler extends BaseAudioHandler
     }
 
     final current = _resolveCurrentQueueMetadata();
+    if (_crossfadeDisabledReason == 'cellular' &&
+        _readRuntimeSettings().crossfadeAllowStreaming) {
+      _crossfadeFailedFrom = null;
+      _crossfadeDisabledReason = null;
+    }
     final failed = _crossfadeFailedFrom;
     if (failed != null &&
         failed.index == current.currentIndex &&
@@ -1967,7 +2003,8 @@ class NavisAudioHandler extends BaseAudioHandler
     final wasCrossfadeEnabled = _crossfadeEnabled;
     _gaplessEnabled = navisEffectiveGaplessEnabled(
       gaplessEnabled: runtime.gaplessEnabled,
-      crossfadeEnabled: runtime.crossfadeEnabled,
+      crossfadeEnabled:
+          runtime.crossfadeEnabled && runtime.crossfadeAllowStreaming,
     );
     _crossfadeEnabled = runtime.crossfadeEnabled;
     _crossfadeDurationSeconds = runtime.crossfadeDurationSeconds;
@@ -2153,6 +2190,24 @@ class NavisAudioHandler extends BaseAudioHandler
       'crossfade': <String, Object?>{
         'enabled': _crossfadeEnabled,
         'active': _isCrossfading,
+        'disabledReason': !_crossfadeEnabled
+            ? 'setting'
+            : _crossfadeDisabledReason,
+        'lastFailure': _crossfadeLastFailure,
+        'outgoing': _isCrossfading
+            ? <String, Object?>{
+                'playing': _player.playing,
+                'volume': _player.volume,
+                'positionMs': _player.position.inMilliseconds,
+              }
+            : null,
+        'incoming': _isCrossfading
+            ? <String, Object?>{
+                'playing': inactiveDeck?.playing,
+                'volume': inactiveDeck?.volume,
+                'positionMs': inactiveDeck?.position.inMilliseconds,
+              }
+            : null,
         'inactiveDeckSequenceLength': inactiveDeck?.sequence.length,
         'inactiveDeckMatchesQueue': inactiveDeck == null
             ? null
@@ -2450,7 +2505,34 @@ class NavisAudioHandler extends BaseAudioHandler
   Future<void> setVolume(double volume) async {
     await _ready;
     _userVolume = volume.clamp(0.0, 1.0);
-    await _player.setVolume(_userVolume);
+    if (_isCrossfading) {
+      final progress = _crossfadeFadeStartedAt == null
+          ? 0.0
+          : (DateTime.now()
+                        .difference(_crossfadeFadeStartedAt!)
+                        .inMilliseconds /
+                    (_crossfadeDurationSeconds * 1000))
+                .clamp(0.0, 1.0);
+      await _player.setVolume(
+        _replayGainVolumeFor(_resolveCurrentQueueMetadata().mediaItem) *
+            (1 - progress),
+      );
+      final deck = _crossfadePlayer;
+      if (deck != null) {
+        await deck.setVolume(
+          _replayGainVolumeFor(
+                _queueItems.elementAtOrNull(
+                  _crossfadeTargetIndex ?? _queueItems.length,
+                ),
+              ) *
+              progress,
+        );
+      }
+    } else {
+      await _player.setVolume(
+        _replayGainVolumeFor(_resolveCurrentQueueMetadata().mediaItem),
+      );
+    }
   }
 
   @override
@@ -2835,6 +2917,17 @@ class NavisAudioHandler extends BaseAudioHandler
     return stopPhase;
   }
 
+  MediaItem _mediaItemForRadioStation(RadioStationMetadata station) =>
+      MediaItem(
+        id: 'radio:${station.stationId}',
+        title: station.nowPlayingTitle ?? station.stationName,
+        artist: station.nowPlayingArtist ?? station.stationName,
+        artUri: station.nowPlayingArtUrl == null
+            ? null
+            : Uri.tryParse(station.nowPlayingArtUrl!),
+        extras: <String, Object?>{'isRadio': true},
+      );
+
   @override
   void updateRadioMetadata({
     String? title,
@@ -2894,14 +2987,9 @@ class NavisAudioHandler extends BaseAudioHandler
     // Update the MediaItem for lock-screen / notification display. The art
     // URL was checked above; a refused one publishes no art, so the station
     // placeholder shows and AudioService has nothing to fetch.
-    final updatedItem = MediaItem(
-      id: 'radio:${current.stationId}',
-      title: nextTitle ?? current.stationName,
-      artist: nextArtist ?? current.stationName,
-      artUri: nextArtUrl != null ? candidateUri : null,
-      extras: <String, Object?>{'isRadio': true},
-    );
-    _setCurrentMediaItem(updatedItem);
+    if (_queueReplacementMetadataAnchor == null) {
+      _setCurrentMediaItem(_mediaItemForRadioStation(_radioStation!));
+    }
     _broadcastPlaybackState();
     _emitSnapshot();
   }

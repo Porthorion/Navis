@@ -20,6 +20,58 @@ void main() {
       await database.close();
     });
 
+    for (final legacy in [false, true]) {
+      test(
+        'delete all presets clears libraries and selections, legacy=$legacy',
+        () async {
+          final dao = database.appSettingsDao;
+          await dao.updatePlaybackAdjustments(
+            speed: 1.25,
+            pitchSemitones: 2,
+            selectedPresetId: 'old',
+            presetsJson: '[{"id":"old"}]',
+          );
+          await dao.updateAppearanceLooks(
+            selectedLookId: 'look',
+            looksJson: '[{"id":"look"}]',
+          );
+          await dao.updateColorTuning(const ColorTuning(vividness: 3));
+          if (legacy) {
+            await database.customStatement(
+              "ALTER TABLE app_settings ADD COLUMN color_tuning_presets TEXT DEFAULT '[]'",
+            );
+            await database.customStatement(
+              'ALTER TABLE app_settings ADD COLUMN selected_color_tuning_preset_id TEXT',
+            );
+            await database.customStatement(
+              "UPDATE app_settings SET color_tuning_presets = '[{}]', selected_color_tuning_preset_id = 'old'",
+            );
+          }
+          await dao.deleteAllPresets();
+          final row = (await dao.getSettings())!;
+          expect(row.playbackPresets, '[]');
+          expect(row.appearanceLooks, '[]');
+          expect(row.selectedPlaybackPresetId, isNull);
+          expect(row.selectedAppearanceLookId, isNull);
+          expect(row.playbackSpeed, 1.25);
+          expect(row.playbackPitchSemitones, 2);
+          expect(row.colorVividness, 3);
+          if (legacy) {
+            final raw = await database
+                .customSelect(
+                  'SELECT color_tuning_presets, selected_color_tuning_preset_id FROM app_settings',
+                )
+                .getSingle();
+            expect(raw.read<String>('color_tuning_presets'), '[]');
+            expect(
+              raw.readNullable<String>('selected_color_tuning_preset_id'),
+              isNull,
+            );
+          }
+        },
+      );
+    }
+
     test('color tuning writes both axes, watches, clamps and resets', () async {
       final dao = database.appSettingsDao;
       final initial = (await dao.getSettings())!;

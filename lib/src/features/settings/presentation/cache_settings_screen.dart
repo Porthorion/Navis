@@ -12,6 +12,7 @@ import 'package:navis/src/database/tables/schema_enums.dart';
 import 'package:navis/src/features/cache/data/rolling_cache_manager.dart';
 import 'package:navis/src/features/library/presentation/required_library_rebuild.dart';
 import 'package:navis/src/providers/app_providers.dart';
+import 'package:navis/src/features/settings/presentation/appearance_preset_controller.dart';
 import 'package:navis/src/routing/desktop_layout.dart';
 import 'package:navis/src/routing/navigation_service.dart';
 import 'package:navis/src/theme/navis_shape_data.dart';
@@ -188,6 +189,55 @@ class _CacheSettingsScreenState extends ConsumerState<CacheSettingsScreen> {
       if (mounted) {
         setState(() => _coverArtStorageBytes = 0);
         _showClearedSnackBar();
+      }
+    } finally {
+      if (mounted) setState(() => _clearing = false);
+    }
+  }
+
+  Future<void> _deleteAllPresets() async {
+    final l10n = AppLocalizations.of(context)!;
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: Text(l10n.cacheSettingsDeleteAllPresetsConfirmTitle),
+        content: Text(l10n.cacheSettingsDeleteAllPresetsConfirmBody),
+        actions: <Widget>[
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, false),
+            child: Text(l10n.cancelAction),
+          ),
+          FilledButton(
+            style: FilledButton.styleFrom(
+              backgroundColor: Theme.of(dialogContext).colorScheme.error,
+              foregroundColor: Theme.of(dialogContext).colorScheme.onError,
+            ),
+            onPressed: () => Navigator.pop(dialogContext, true),
+            child: Text(l10n.cacheSettingsDeleteAllPresets),
+          ),
+        ],
+      ),
+    );
+    if (confirm != true || !mounted) return;
+    setState(() => _clearing = true);
+    try {
+      await ref
+          .read(appearanceLooksControllerProvider.notifier)
+          .deleteAllPresets();
+      if (mounted) {
+        showAppNotice(
+          context,
+          message: l10n.cacheSettingsDeleteAllPresetsSuccess,
+          level: AppNoticeLevel.success,
+        );
+      }
+    } on Object {
+      if (mounted) {
+        showAppNotice(
+          context,
+          message: l10n.cacheSettingsDeleteAllPresetsFailure,
+          level: AppNoticeLevel.error,
+        );
       }
     } finally {
       if (mounted) setState(() => _clearing = false);
@@ -632,6 +682,16 @@ class _CacheSettingsScreenState extends ConsumerState<CacheSettingsScreen> {
                         onTap: _clearCoverArtCache,
                       ),
                       const Divider(),
+                      _SectionHeader(title: l10n.cacheSettingsResetSection),
+                      ListTile(
+                        key: const ValueKey('deleteAllPresets'),
+                        leading: const Icon(Icons.delete_outline),
+                        title: Text(l10n.cacheSettingsDeleteAllPresets),
+                        subtitle: Text(
+                          l10n.cacheSettingsDeleteAllPresetsDescription,
+                        ),
+                        onTap: _clearing ? null : _deleteAllPresets,
+                      ),
                       ListTile(
                         leading: const Icon(Icons.build_circle_outlined),
                         title: Text(l10n.cacheSettingsResetLibraryCache),

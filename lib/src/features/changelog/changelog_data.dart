@@ -164,6 +164,22 @@ const List<ChangelogVersion> changelogs = [
       ),
     ],
     entries: [
+      ChangelogEntry(
+        'Use app storage recovers downloads when the custom folder is unset, missing or inaccessible, preserves unreachable files and records across restart, and switches directly when no folder is configured',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
+        'Delete all saved Looks and Speed & Pitch presets from Cache & Storage without changing your current values; unsupported playback presets can also be deleted individually',
+        type: ChangelogEntryType.newFeature,
+      ),
+      ChangelogEntry(
+        'ListenBrainz connection errors now explain whether a token was rejected, online services are off, requests are limited, or ListenBrainz is temporarily unavailable; outages keep your token and queued listens',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
+        'Downloads wait in the queue when a custom folder is missing or inaccessible, with clear actions to choose a folder or use app storage; cancelling folder selection keeps your previous location',
+        type: ChangelogEntryType.fix,
+      ),
       // New
       ChangelogEntry(
         'Color Styles: Pastel, Immersive and Night restyle Light, Dark and OLED, and Neutral keeps the classic look',
@@ -202,7 +218,7 @@ const List<ChangelogVersion> changelogs = [
         type: ChangelogEntryType.newFeature,
       ),
       ChangelogEntry(
-        'Trending Now joins You Might Like and Library › Playlists: Deezer\'s chart matched to your library and your server, with songs your server lacks kept in place',
+        "Trending Now joins You Might Like and Library › Playlists: Deezer's chart matched to your library and your server, with songs your server lacks kept in place",
         type: ChangelogEntryType.newFeature,
       ),
       ChangelogEntry(
@@ -210,7 +226,7 @@ const List<ChangelogVersion> changelogs = [
         type: ChangelogEntryType.newFeature,
       ),
       ChangelogEntry(
-        'Artist pages add Fans Also Like (related artists, yours first) and Missing Albums (releases your server lacks, playable through your server\'s remote catalog)',
+        "Artist pages add Fans Also Like (related artists, yours first) and Missing Albums (releases your server lacks, playable through your server's remote catalog)",
         type: ChangelogEntryType.newFeature,
       ),
       ChangelogEntry(
@@ -224,7 +240,44 @@ const List<ChangelogVersion> changelogs = [
 
       // Improved
       ChangelogEntry(
+        'Update, offline and other notices share a calmer new look that follows your colour style',
+      ),
+      ChangelogEntry('Failed downloads say why they failed'),
+      ChangelogEntry(
+        'Downloads check free space first and pause instead of failing when storage runs out',
+      ),
+      ChangelogEntry(
+        'Downloads wait for a connection before retrying, and stop retrying songs the server cannot provide',
+      ),
+      ChangelogEntry(
+        'A download cut short is detected and retried instead of saved incomplete',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
+        'Finished downloads survive an interrupted save, and only temporary files recorded by Navis are cleaned up in custom folders; recovery preserves files replaced outside Navis',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
+        'Signing out waits for download recovery and prevents old downloads from being registered after teardown',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
+        'Downloads in temporarily inaccessible subfolders keep their offline records until access returns',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
+        'A full Android download folder stays paused instead of repeatedly downloading the same song',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
+        'Complete gzip-compressed original downloads are saved instead of incorrectly retried as truncated',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
         'Opening the queue centres it on the song that is playing',
+      ),
+      ChangelogEntry(
+        'With flat surfaces, You might like sits on the plain page background on phones and desktop',
       ),
       ChangelogEntry(
         'Normal crossfade blends a repeating song into its fresh start with Repeat One; Smart keeps the native loop',
@@ -286,7 +339,31 @@ const List<ChangelogVersion> changelogs = [
 
       // Fixed: playback
       ChangelogEntry(
+        'Radio artist links stay on one ellipsized line on phone Now Playing, keeping the Live label visible at larger text sizes',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
+        'Crossfade restores playback if queue preparation stalls, keeps player updates connected after a cancelled handoff, and preserves mute and ducking during volume changes',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
+        'A failed song selection keeps the playing radio station and its live metadata',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
+        'Crossfade blends locally available songs on mobile data too, respects ReplayGain and volume changes, and keeps the current song playing if the next song cannot fade in',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
+        'Now Playing, the mini player and the notification switch to the song you picked straight away instead of showing the previous song while it loads',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
         'Now Playing on phones keeps its progress moving after a seek or a skip, including with Repeat One on',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
+        'Now Playing on phones never turns into a scrolling page, so swiping down always closes it, including with Arabic or Japanese titles',
         type: ChangelogEntryType.fix,
       ),
       ChangelogEntry(
@@ -338,7 +415,11 @@ const List<ChangelogVersion> changelogs = [
         type: ChangelogEntryType.fix,
       ),
       ChangelogEntry(
-        'Internet radio keeps the station name until a song title arrives, shows live titles on desktop, never shows the previous station\'s song, and no longer freezes Windows with station artwork',
+        "Internet radio keeps the station name until a song title arrives, shows live titles on desktop, never shows the previous station's song, and no longer freezes Windows with station artwork",
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
+        'You might like keeps the same height whatever language the titles are in',
         type: ChangelogEntryType.fix,
       ),
 

@@ -1,11 +1,311 @@
+import 'dart:typed_data';
+
 import 'package:dio/dio.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:navis/src/api/listenbrainz_api_client.dart';
+import 'package:navis/src/features/integrations/data/integration_guard_interceptor.dart';
+import 'package:navis/src/features/integrations/domain/integration_feature.dart';
 
 class _MockDio extends Mock implements Dio;
 
+class _Adapter implements HttpClientAdapter {
+  new(this.respond);
+  final ResponseBody Function(RequestOptions) respond;
+  final requests = <RequestOptions>[];
+  @override
+  Future<ResponseBody> fetch(
+    RequestOptions options,
+    Stream<Uint8List>? requestStream,
+    Future<void>? cancelFuture,
+  ) async {
+    requests.add(options);
+    return respond(options);
+  }
+
+  @override
+  void close({bool force = false}) {}
+}
+
 void main() {
+  group('connection failure classes with real Dio transformation', () {
+    test('documented valid HTTP 200 connects with the username', () async {
+      final dio = Dio(ListenBrainzApiClient.baseOptions)
+        ..httpClientAdapter = _Adapter(
+          (_) => ResponseBody.fromString(
+            '{"code":200,"message":"Token valid.", '
+            '"valid":true,"user_name":"fixture"}',
+            200,
+            headers: {
+              Headers.contentTypeHeader: ['application/json'],
+            },
+          ),
+        );
+      addTearDown(dio.close);
+      final details = await ListenBrainzApiClient(dio: dio)
+          .validateTokenDetails('fixture');
+      expect(details.valid, isTrue);
+      expect(details.userName, 'fixture');
+    });
+    for (final status in [404, 410, 500, 503]) {
+      for (final submit in [false, true]) {
+        test('HTTP $status is unavailable, submit=$submit', () async {
+          final dio = Dio(ListenBrainzApiClient.baseOptions)
+            ..httpClientAdapter = _Adapter(
+              (_) => ResponseBody.fromString(
+                '{"error":"Unavailable"}',
+                status,
+                headers: {
+                  Headers.contentTypeHeader: ['application/json'],
+                },
+              ),
+            );
+          addTearDown(dio.close);
+          final client = ListenBrainzApiClient(dio: dio);
+          await expectLater(
+            submit
+                ? client.sendPlayingNow(
+                    userToken: 'fixture',
+                    artist: 'Fixture',
+                    track: 'Track',
+                  )
+                : client.validateTokenDetails('fixture'),
+            throwsA(
+              isA<ListenBrainzUnavailableException>().having(
+                (e) => e.statusCode,
+                'HTTP status',
+                status,
+              ),
+            ),
+          );
+        });
+      }
+    }
+    for (final status in [200, 404]) {
+      test('HTML $status is unavailable', () async {
+        final dio = Dio(ListenBrainzApiClient.baseOptions)
+          ..httpClientAdapter = _Adapter(
+            (_) => ResponseBody.fromString(
+              '<html>Unavailable</html>',
+              status,
+              headers: {
+                Headers.contentTypeHeader: ['text/html'],
+              },
+            ),
+          );
+        addTearDown(dio.close);
+        final client = ListenBrainzApiClient(dio: dio);
+        await expectLater(
+          client.validateTokenDetails('fixture'),
+          throwsA(isA<ListenBrainzUnavailableException>()),
+        );
+        await expectLater(
+          client.sendPlayingNow(
+            userToken: 'fixture',
+            artist: 'Fixture',
+            track: 'Track',
+          ),
+          throwsA(isA<ListenBrainzUnavailableException>()),
+        );
+      });
+    }
+    for (final status in [200, 401, 403]) {
+      test('HTTP $status or valid false rejects the token', () async {
+        final dio = Dio(ListenBrainzApiClient.baseOptions)
+          ..httpClientAdapter = _Adapter(
+            (_) => ResponseBody.fromString(
+              '{"valid":false}',
+              status,
+              headers: {
+                Headers.contentTypeHeader: ['application/json'],
+              },
+            ),
+          );
+        addTearDown(dio.close);
+        final client = ListenBrainzApiClient(dio: dio);
+        expect((await client.validateTokenDetails('fixture')).valid, isFalse);
+        await expectLater(
+          client.sendPlayingNow(
+            userToken: 'fixture',
+            artist: 'Fixture',
+            track: 'Track',
+          ),
+          throwsA(isA<ListenBrainzInvalidTokenException>()),
+        );
+      });
+    }
+    test(
+      'missing validity is unavailable rather than token rejection',
+      () async {
+        final dio = Dio(ListenBrainzApiClient.baseOptions)
+          ..httpClientAdapter = _Adapter(
+            (_) => ResponseBody.fromString(
+              '{}',
+              200,
+              headers: {
+                Headers.contentTypeHeader: ['application/json'],
+              },
+            ),
+          );
+        addTearDown(dio.close);
+        await expectLater(
+          ListenBrainzApiClient(dio: dio).validateTokenDetails('fixture'),
+          throwsA(isA<ListenBrainzUnavailableException>()),
+        );
+      },
+    );
+    for (final headers in [
+      <String, List<String>>{},
+      {
+        'X-RateLimit-Remaining': ['0'],
+        'X-RateLimit-Reset-In': ['90'],
+      },
+    ]) {
+      test('429 respects request budget headers $headers', () async {
+        final now = DateTime.utc(2026, 10, 11);
+        final dio = Dio(ListenBrainzApiClient.baseOptions)
+          ..httpClientAdapter = _Adapter(
+            (_) => ResponseBody.fromString(
+              '{}',
+              429,
+              headers: {
+                Headers.contentTypeHeader: ['application/json'],
+                ...headers,
+              },
+            ),
+          );
+        addTearDown(dio.close);
+        final client = ListenBrainzApiClient(dio: dio, now: () => now);
+        await expectLater(
+          client.validateTokenDetails('fixture'),
+          throwsA(isA<ListenBrainzRateLimitedException>()),
+        );
+        expect(
+          client.rateLimitedUntil,
+          now.add(Duration(seconds: headers.isEmpty ? 60 : 90)),
+        );
+      });
+    }
+    for (final type in [
+      DioExceptionType.connectionTimeout,
+      DioExceptionType.receiveTimeout,
+      DioExceptionType.connectionError,
+    ]) {
+      test('$type is unavailable', () async {
+        final dio = Dio(ListenBrainzApiClient.baseOptions)
+          ..httpClientAdapter = _Adapter(
+            (o) => throw DioException(requestOptions: o, type: type),
+          );
+        addTearDown(dio.close);
+        await expectLater(
+          ListenBrainzApiClient(dio: dio).validateTokenDetails('fixture'),
+          throwsA(isA<ListenBrainzUnavailableException>()),
+        );
+      });
+    }
+    test('online services off preserves IntegrationBlockedException', () async {
+      final adapter = _Adapter(
+        (_) => throw StateError('must not reach network'),
+      );
+      final dio = Dio(ListenBrainzApiClient.baseOptions)
+        ..httpClientAdapter = adapter;
+      dio.interceptors.add(
+        IntegrationGuardInterceptor(
+          service: IntegrationService.listenBrainz,
+          readPolicy: () => const IntegrationPolicy(masterEnabled: false),
+        ),
+      );
+      addTearDown(dio.close);
+      await expectLater(
+        ListenBrainzApiClient(dio: dio)
+            .validateTokenDetails('fixture', userInitiated: true),
+        throwsA(
+          isA<DioException>().having(
+            (e) => e.error,
+            'blocked',
+            isA<IntegrationBlockedException>(),
+          ),
+        ),
+      );
+      expect(adapter.requests, isEmpty);
+    });
+    for (final submit in [false, true]) {
+      test(
+        'same-host 308 to 404 keeps authorization and method, submit=$submit',
+        () async {
+          final adapter = _Adapter(
+            (o) => o.uri.path.endsWith('/')
+                ? ResponseBody.fromString(
+                    '{}',
+                    404,
+                    headers: {
+                      Headers.contentTypeHeader: ['application/json'],
+                    },
+                  )
+                : ResponseBody.fromString(
+                    '',
+                    308,
+                    headers: {
+                      'location': ['${o.uri.path}/'],
+                    },
+                  ),
+          );
+          final dio = Dio(ListenBrainzApiClient.baseOptions)
+            ..httpClientAdapter = adapter;
+          addTearDown(dio.close);
+          final client = ListenBrainzApiClient(dio: dio);
+          await expectLater(
+            submit
+                ? client.sendPlayingNow(
+                    userToken: 'fixture',
+                    artist: 'Fixture',
+                    track: 'Track',
+                  )
+                : client.validateTokenDetails('fixture'),
+            throwsA(
+              isA<ListenBrainzUnavailableException>().having(
+                (e) => e.statusCode,
+                'HTTP status',
+                404,
+              ),
+            ),
+          );
+          expect(adapter.requests, hasLength(2));
+          expect(adapter.requests.map((r) => r.headers['Authorization']), [
+            'Token fixture',
+            'Token fixture',
+          ]);
+          expect(
+            adapter.requests.map((r) => r.method),
+            submit ? ['POST', 'POST'] : ['GET', 'GET'],
+          );
+          if (submit) {
+            expect(adapter.requests.last.data, adapter.requests.first.data);
+          }
+        },
+      );
+    }
+    test('redirects never forward credentials across origins', () async {
+      final adapter = _Adapter(
+        (_) => ResponseBody.fromString(
+          '',
+          308,
+          headers: {
+            'location': ['https://example.invalid/'],
+          },
+        ),
+      );
+      final dio = Dio(ListenBrainzApiClient.baseOptions)
+        ..httpClientAdapter = adapter;
+      addTearDown(dio.close);
+      await expectLater(
+        ListenBrainzApiClient(dio: dio).validateTokenDetails('fixture'),
+        throwsA(isA<ListenBrainzUnavailableException>()),
+      );
+      expect(adapter.requests, hasLength(1));
+    });
+  });
+
   for (final (remaining, reset, seconds) in [
     ('0', '60', 60),
     ('0', '9999', 300),
@@ -97,12 +397,12 @@ void main() {
   test('validateTokenDetails parses validity and username', () async {
     final dio = _MockDio();
     when(
-      () => dio.get<Map<String, dynamic>>(
+      () => dio.request<Object?>(
         '/validate-token',
         options: any(named: 'options'),
       ),
     ).thenAnswer(
-      (_) async => Response<Map<String, dynamic>>(
+      (_) async => Response<Object?>(
         requestOptions: RequestOptions(path: '/validate-token'),
         data: <String, dynamic>{'valid': true, 'user_name': 'alice'},
       ),

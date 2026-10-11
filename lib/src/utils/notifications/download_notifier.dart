@@ -122,6 +122,8 @@ class DownloadNotifier {
   /// Notification titles must not include internal song IDs or backend detail.
   static Future<void> showFailed({
     required AppLocalizations Function() readLocalizations,
+    String Function(AppLocalizations)? reason,
+    String Function(AppLocalizations)? title,
   }) async {
     if (!Platform.isAndroid) return;
 
@@ -139,7 +141,8 @@ class DownloadNotifier {
     try {
       await _plugin.show(
         id: _summaryId,
-        title: l10n.notificationDownloadFailedTitle,
+        title: title?.call(l10n) ?? l10n.notificationDownloadFailedTitle,
+        body: reason?.call(l10n),
         notificationDetails: NotificationDetails(android: androidDetails),
       );
     } on Object {

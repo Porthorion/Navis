@@ -244,6 +244,55 @@ void main() {
       skip: !sqliteAvailable,
     );
 
+    test(
+      'unavailable ListenBrainz retains queued listens and token validity',
+      () async {
+        final dio = Dio();
+        addTearDown(dio.close);
+        dio.interceptors.add(
+          InterceptorsWrapper(
+            onRequest: (options, handler) => handler.reject(
+              DioException(
+                requestOptions: options,
+                response: Response<Object?>(
+                  requestOptions: options,
+                  statusCode: 404,
+                ),
+              ),
+            ),
+          ),
+        );
+        var invalidated = false;
+        final service = DriftScrobbleService(
+          dao: database.scrobbleDao,
+          readApiClient: () => apiClient,
+          readScrobbleEnabled: () => false,
+          readReachable: () => true,
+          now: () => now,
+          readListenBrainzCredentials: () async =>
+              const ListenBrainzScrobbleCredentials(userToken: 'fixture'),
+          createListenBrainzClient: () => ListenBrainzApiClient(dio: dio),
+          onListenBrainzInvalidToken: () => invalidated = true,
+        );
+        addTearDown(service.dispose);
+        await service.enqueueSubmission(
+          songId: 'song-1',
+          sessionKey: 'fixture',
+          track: const ScrobbleTrackPayload(
+            songId: 'song-1',
+            title: 'Track',
+            artist: 'Artist',
+          ),
+        );
+        await service.flushDue();
+        final queued = await database.select(database.scrobbleQueueTable).get();
+        expect(queued, hasLength(1));
+        expect(queued.single.attempts, 1);
+        expect(invalidated, isFalse);
+      },
+      skip: !sqliteAvailable,
+    );
+
     test('flushDue delivers due events and removes them', () async {
       final service = DriftScrobbleService(
         dao: database.scrobbleDao,

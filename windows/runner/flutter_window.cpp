@@ -1,6 +1,8 @@
 #include "flutter_window.h"
 
 #include <optional>
+#include <flutter/method_channel.h>
+#include <flutter/standard_method_codec.h>
 
 #include "flutter/generated_plugin_registrant.h"
 
@@ -25,6 +27,28 @@ bool FlutterWindow::OnCreate() {
     return false;
   }
   RegisterPlugins(flutter_controller_->engine());
+  flutter::MethodChannel<flutter::EncodableValue> capacity_channel(
+      flutter_controller_->engine()->messenger(), "com.navis.app/storage_capacity",
+      &flutter::StandardMethodCodec::GetInstance());
+  capacity_channel.SetMethodCallHandler([](const auto& call, auto result) {
+    if (call.method_name() != "freeBytes") {
+      result->NotImplemented();
+      return;
+    }
+    const auto* args = std::get_if<flutter::EncodableMap>(call.arguments());
+    if (args == nullptr) { result->Success(); return; }
+    auto entry = args->find(flutter::EncodableValue("path"));
+    const auto* path = entry == args->end() ? nullptr : std::get_if<std::string>(&entry->second);
+    if (path == nullptr) { result->Success(); return; }
+    int length = MultiByteToWideChar(CP_UTF8, MB_ERR_INVALID_CHARS, path->c_str(), -1, nullptr, 0);
+    if (length == 0) { result->Success(); return; }
+    std::wstring wide(length, L'\0');
+    MultiByteToWideChar(CP_UTF8, MB_ERR_INVALID_CHARS, path->c_str(), -1, wide.data(), length);
+    ULARGE_INTEGER available;
+    if (GetDiskFreeSpaceExW(wide.c_str(), &available, nullptr, nullptr)) {
+      result->Success(flutter::EncodableValue(static_cast<int64_t>(available.QuadPart)));
+    } else { result->Success(); }
+  });
   SetChildContent(flutter_controller_->view()->GetNativeWindow());
 
   flutter_controller_->engine()->SetNextFrameCallback([&]() {

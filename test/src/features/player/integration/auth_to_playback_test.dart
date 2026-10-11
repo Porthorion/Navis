@@ -5,13 +5,33 @@ import 'package:navis/src/database/navis_database.dart';
 import 'package:navis/src/features/auth/domain/server_config.dart';
 import 'package:navis/src/features/auth/presentation/server_config_provider.dart';
 import 'package:navis/src/features/player/presentation/queue_provider.dart';
+import 'package:navis/src/features/player/data/navis_audio_handler.dart';
 import 'package:navis/src/providers/app_providers.dart';
 import 'package:navis/src/utils/connectivity.dart';
 
 import '../../../../helpers/fake_playback_handler.dart';
 import '../../../../helpers/test_database.dart';
 
-class _RecordingPlaybackHandler extends InertPlaybackHandler {
+class _RecordingPlaybackHandler extends InertPlaybackHandler
+    implements PlaybackStartupObserver {
+  SongsTableData? pendingSong;
+
+  @override
+  int beginPlaybackSelection(
+    String songId, {
+    required bool isExternal,
+    SongsTableData? song,
+  }) {
+    pendingSong = song;
+    return 1;
+  }
+
+  @override
+  bool isPlaybackSelectionCurrent(int attempt) => true;
+
+  @override
+  void notePlaybackSelectionStage(int attempt, String stage) {}
+
   int replaceQueueCalls = 0;
   int replaceQueueWithDataCalls = 0;
   int playCalls = 0;
@@ -106,7 +126,17 @@ void main() {
     );
 
     final queue = container.read(queueProvider.notifier);
-    await queue.replaceWithSongs(<Song>[fixtureSong], expandMatchFlows: false);
+    final playback = queue.replaceWithSongs(<Song>[
+      fixtureSong,
+    ], expandMatchFlows: false);
+    // This is synchronous, before provisional persistence/readback completes.
+    expect(handler.pendingSong?.id, fixtureSong.id);
+    expect(handler.pendingSong?.title, fixtureSong.title);
+    expect(handler.pendingSong?.artistName, fixtureSong.artist);
+    expect(handler.pendingSong?.albumName, fixtureSong.album);
+    expect(handler.pendingSong?.duration, fixtureSong.duration);
+    expect(handler.pendingSong?.coverArt, fixtureSong.coverArt);
+    await playback;
 
     expect(handler.replaceQueueCalls, 1);
     expect(handler.replaceQueueWithDataCalls, 1);

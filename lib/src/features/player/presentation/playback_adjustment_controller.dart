@@ -27,6 +27,7 @@ enum PlaybackAdjustmentFailure {
   application,
   persistence,
   name,
+  presetMissing,
 }
 
 class PlaybackAdjustmentState {
@@ -91,6 +92,33 @@ class PlaybackAdjustmentController
         unawaited(_engineSubscription?.cancel());
         _engineSubscription = null;
         if (next != null) unawaited(_hydrateEngine());
+      }
+    });
+    ref.listen(appSettingsProvider, (_, next) {
+      final settings = next.asData?.value;
+      final current = state.asData?.value;
+      if (settings == null || current == null || _presetsDirty) return;
+      final ids = settings.playbackPresets.map((p) => p.id).toSet();
+      final refreshed = current.copyWith(
+        presets: settings.playbackPresets,
+        selectedPresetId: ids.contains(current.selectedPresetId)
+            ? current.selectedPresetId
+            : settings.selectedPlaybackPresetId == PlaybackPreset.noneId &&
+                  current.values.isNone
+            ? PlaybackPreset.noneId
+            : null,
+        originPresetId: ids.contains(current.originPresetId)
+            ? current.originPresetId
+            : null,
+        failure: current.failure,
+      );
+      state = AsyncData(refreshed);
+      if (_confirmed != null) {
+        _confirmed = _confirmed!.copyWith(
+          presets: refreshed.presets,
+          selectedPresetId: refreshed.selectedPresetId,
+          originPresetId: refreshed.originPresetId,
+        );
       }
     });
     final settings =
@@ -330,7 +358,7 @@ class PlaybackAdjustmentController
     );
     _confirmed = _current;
     _saveRevision++;
-    return _persist();
+    return await _persist();
   }
 
   Future<bool> renamePreset(String id, String name) async {
@@ -365,7 +393,7 @@ class PlaybackAdjustmentController
     );
     _confirmed = _current;
     _saveRevision++;
-    return _persist();
+    return await _persist();
   }
 
   Future<bool> deletePreset(String id) async {
@@ -373,6 +401,7 @@ class PlaybackAdjustmentController
     if (_current.pending ||
         id == PlaybackPreset.noneId ||
         !_current.presets.any((p) => p.id == id)) {
+      _failure(PlaybackAdjustmentFailure.presetMissing);
       return false;
     }
     final current = _current;
@@ -390,7 +419,25 @@ class PlaybackAdjustmentController
     );
     _confirmed = _current;
     _saveRevision++;
-    return _persist();
+    return await _persist();
+  }
+
+  /// Drains pending saves and keeps the reset in the same persistence lane.
+  Future<void> resetPresets(Future<void> Function() clear) async {
+    await flush();
+    final operation = _saveLane.then((_) async {
+      await clear();
+      if (!ref.mounted) return;
+      _presetsDirty = false;
+      _saveRevision++;
+      state = AsyncData(_current.copyWith(presets: const []));
+      _confirmed = _confirmed?.copyWith(presets: const []);
+    });
+    _saveLane = operation.then<void>(
+      (_) {},
+      onError: (Object error, StackTrace stack) {},
+    );
+    await operation;
   }
 
   void _failure(PlaybackAdjustmentFailure failure) {
@@ -427,13 +474,13 @@ class PlaybackAdjustmentController
   Future<bool> _persist() async {
     _saveTimer?.cancel();
     _saveTimer = null;
-    final snapshot = _confirmed;
-    if (snapshot == null || !ref.mounted) return false;
-    final revision = _saveRevision;
-    final writePresets = _presetsDirty;
+    if (_confirmed == null || !ref.mounted) return false;
     var saved = false;
     final operation = _saveLane.then((_) async {
       if (!ref.mounted) return;
+      final snapshot = _confirmed!;
+      final revision = _saveRevision;
+      final writePresets = _presetsDirty;
       try {
         await ref
             .read(settingsRepositoryProvider)

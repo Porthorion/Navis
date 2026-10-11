@@ -63,9 +63,11 @@ class _FollowedSettingsDao extends AppSettingsDao {
 }
 
 void main() {
+  TestWidgetsFlutterBinding.ensureInitialized();
   group('DownloadService', () {
     late NavisDatabase database;
     late DownloadService service;
+    late Directory serviceSupportDir;
 
     setUpAll(() {
       registerFallbackValue(
@@ -75,8 +77,11 @@ void main() {
       registerFallbackValue(Options());
     });
 
-    setUp(() {
+    setUp(() async {
       database = createTestDatabase();
+      serviceSupportDir = await Directory.systemTemp.createTemp(
+        'navis_service_test_',
+      );
       service = DownloadService(
         appSettingsDao: database.appSettingsDao,
         cacheDao: database.cacheDao,
@@ -91,12 +96,14 @@ void main() {
         readCoverArtCacheManager: _MockCacheManager.new,
         artworkStore: _OfflineArtworkStore(),
         readLocalizations: () => throw StateError('unexpected locale read'),
+        readApplicationSupportDirectory: () async => serviceSupportDir,
       );
     });
 
     tearDown(() async {
       await service.stop();
       await database.close();
+      await serviceSupportDir.delete(recursive: true);
     });
 
     // -----------------------------------------------------------------------
@@ -404,6 +411,15 @@ void main() {
           dio: dio,
           enableLogging: false,
         );
+        final downloadedRoot = await Directory.systemTemp.createTemp(
+          'navis-backfill-',
+        );
+        addTearDown(() => downloadedRoot.delete(recursive: true));
+        final downloadedFile = File(
+          p.join(downloadedRoot.path, 'audio', 'permanent', 'track.mp3'),
+        );
+        await downloadedFile.parent.create(recursive: true);
+        await downloadedFile.writeAsBytes(List.filled(500, 1));
         final lrclibFirstService = DownloadService(
           appSettingsDao: database.appSettingsDao,
           cacheDao: database.cacheDao,
@@ -414,6 +430,7 @@ void main() {
           readIsWifi: () => true,
           readCustomDownloadFolderEnabled: () => false,
           readCustomDownloadFolderPath: () => null,
+          readApplicationSupportDirectory: () async => downloadedRoot,
           lrclibClient: lrclib,
           readCoverArtCacheManager: _MockCacheManager.new,
           artworkStore: _OfflineArtworkStore(),
@@ -431,7 +448,7 @@ void main() {
         await database.cacheDao.upsertCachedTrack(
           CachedTracksTableCompanion.insert(
             songId: 'song-lrclib',
-            filePath: '/fake/song-lrclib.mp3',
+            filePath: downloadedFile.path,
             fileSize: 500,
             format: 'mp3',
             cacheType: CacheType.permanent,
@@ -597,6 +614,15 @@ void main() {
         dio: dio,
         enableLogging: false,
       );
+      final downloadedRoot = await Directory.systemTemp.createTemp(
+        'navis-backfill-',
+      );
+      addTearDown(() => downloadedRoot.delete(recursive: true));
+      final downloadedFile = File(
+        p.join(downloadedRoot.path, 'audio', 'permanent', 'track.mp3'),
+      );
+      await downloadedFile.parent.create(recursive: true);
+      await downloadedFile.writeAsBytes(List.filled(500, 1));
       final gatedService = DownloadService(
         appSettingsDao: database.appSettingsDao,
         cacheDao: database.cacheDao,
@@ -607,6 +633,7 @@ void main() {
         readIsWifi: () => true,
         readCustomDownloadFolderEnabled: () => false,
         readCustomDownloadFolderPath: () => null,
+        readApplicationSupportDirectory: () async => downloadedRoot,
         lrclibClient: lrclib,
         // The stored useLrclib column stays on: the callback decides.
         readLyricsAllowed: () => false,
@@ -626,7 +653,7 @@ void main() {
       await database.cacheDao.upsertCachedTrack(
         CachedTracksTableCompanion.insert(
           songId: 'song-gated',
-          filePath: '/fake/song-gated.mp3',
+          filePath: downloadedFile.path,
           fileSize: 500,
           format: 'mp3',
           cacheType: CacheType.permanent,
@@ -672,6 +699,7 @@ void main() {
           readIsWifi: () => false,
           readCustomDownloadFolderEnabled: () => false,
           readCustomDownloadFolderPath: () => null,
+          readApplicationSupportDirectory: () async => serviceSupportDir,
           lrclibClient: LrclibClient(),
           readCoverArtCacheManager: _MockCacheManager.new,
           artworkStore: _OfflineArtworkStore(),
@@ -2151,7 +2179,7 @@ void main() {
       });
 
       tearDown(() async {
-        if (await supportDir.exists()) await supportDir.delete(recursive: true);
+        if (supportDir.existsSync()) await supportDir.delete(recursive: true);
       });
 
       test(
@@ -2188,7 +2216,7 @@ void main() {
         skip: sqliteAvailable ? null : 'sqlite3 not available',
       );
 
-      test('startup removes part files of interrupted downloads in a custom '
+      test('startup keeps unowned part files despite interrupted downloads in a custom '
           'folder and keeps the user files there', () async {
         final custom = Directory('${supportDir.path}/custom')..createSync();
         final part = File('${custom.path}/Other/Old Song.flac.navis-part')
@@ -2210,7 +2238,7 @@ void main() {
 
         await serviceWith(customFolder: custom.path).start();
 
-        expect(part.existsSync(), isFalse);
+        expect(part.readAsBytesSync(), [1]);
         expect(mine.existsSync(), isTrue);
         expect(mineLookalike.existsSync(), isTrue);
       }, skip: sqliteAvailable ? null : 'sqlite3 not available');

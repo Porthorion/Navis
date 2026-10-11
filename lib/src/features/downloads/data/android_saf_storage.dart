@@ -160,7 +160,16 @@ class AndroidSafStorage {
     try {
       return await call();
     } on PlatformException catch (error) {
-      throw FileSystemException(error.message ?? message);
+      final code = switch (error.code) {
+        'NO_SPACE' => 28,
+        'PERMISSION_DENIED' => 13,
+        _ => null,
+      };
+      throw FileSystemException(
+        error.message ?? message,
+        '',
+        code == null ? null : OSError(error.code, code),
+      );
     }
   }
 

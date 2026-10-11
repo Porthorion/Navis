@@ -112,7 +112,7 @@ extension _NavisMediaSession on NavisAudioHandler {
         if (event.type == AudioInterruptionType.duck) {
           if (!_isDucked) {
             _isDucked = true;
-            unawaited(_player.setVolume((_userVolume * 2 / 5).clamp(0, 1)));
+            unawaited(setVolume(_userVolume));
           }
           return;
         }
@@ -127,7 +127,7 @@ extension _NavisMediaSession on NavisAudioHandler {
       if (event.type == AudioInterruptionType.duck) {
         if (_isDucked) {
           _isDucked = false;
-          unawaited(_player.setVolume(_userVolume));
+          unawaited(setVolume(_userVolume));
         }
         return;
       }
@@ -261,25 +261,21 @@ extension _NavisMediaSession on NavisAudioHandler {
       }
       // Stop may deliver old playlist indices during remote warm-up. Native
       // edits also emit indices before their materialised mirror commits.
-      if ((_isLoading && _player.processingState == ProcessingState.idle) ||
+      final pendingAnchor = _queueReplacementMetadataAnchor;
+      if ((_isLoading &&
+              (_player.processingState == ProcessingState.idle ||
+                  (pendingAnchor != null &&
+                      (pendingAnchor.mediaItem.extras?['sourceKind'] == null ||
+                          _queueItems
+                                  .elementAtOrNull(index ?? _queueItems.length)
+                                  ?.id !=
+                              _loadingSongId)))) ||
           (!_queueLane.isIdle &&
               _queueReplacementMetadataAnchor == null &&
               !_sequenceMatchesQueue(_player))) {
         return;
       }
-      if (navisIsQueueReplacementMetadataAnchorConfirmed(
-        queueItems: _queueItems,
-        backendCurrentIndex: index,
-        anchor: _queueReplacementMetadataAnchor,
-      )) {
-        _clearQueueReplacementMetadataAnchor();
-      }
-      final resolved = navisResolveQueueMetadata(
-        queueItems: _queueItems,
-        backendCurrentIndex: index,
-        fallbackMediaItem: _currentMediaItem,
-        anchor: _queueReplacementMetadataAnchor,
-      );
+      final resolved = _resolveCurrentQueueMetadata();
       final item = resolved.mediaItem;
       final pendingSeek = _pendingSeek;
       if (pendingSeek != null &&
@@ -298,6 +294,10 @@ extension _NavisMediaSession on NavisAudioHandler {
         // Another entry plays: its transition, and this one's next time,
         // may be prepared again.
         _crossfadeFailedFrom = null;
+        _crossfadeDisabledReason = null;
+      }
+      if (_isLoading && _queueReplacementMetadataAnchor == null) {
+        _loadingSongId = item?.id;
       }
       if (item != null) {
         _setCurrentMediaItem(item);
@@ -445,43 +445,30 @@ extension _NavisMediaSession on NavisAudioHandler {
         (_isCrossfading && !forceDuringCrossfade)) {
       return;
     }
+    unawaited(
+      _player.setVolume(
+        _replayGainVolumeFor(_resolveCurrentQueueMetadata().mediaItem),
+      ),
+    );
+  }
+
+  double _replayGainVolumeFor(MediaItem? item) {
     final base = _isDucked ? _userVolume * 2 / 5 : _userVolume;
     final runtime = _readRuntimeSettings();
     final mode = runtime.replayGainMode;
-    if (mode == 'off') {
-      unawaited(_player.setVolume(base));
-      return;
-    }
-
-    final resolved = _resolveCurrentQueueMetadata();
-    final index = resolved.currentIndex;
-    if (index == null || index < 0 || index >= _queueItems.length) {
-      unawaited(_player.setVolume(base));
-      return;
-    }
-
-    final extras = _queueItems[index].extras;
-    if (extras == null) {
-      unawaited(_player.setVolume(base));
-      return;
-    }
-
+    if (mode == 'off') return base;
+    final extras = item?.extras;
     final gainDb = mode == 'album'
-        ? (extras['replayGainAlbumGain'] as double?) ??
-              (extras['replayGainTrackGain'] as double?)
-        : (extras['replayGainTrackGain'] as double?) ??
-              (extras['replayGainAlbumGain'] as double?);
-
-    if (gainDb == null) {
-      unawaited(_player.setVolume(base));
-      return;
-    }
-
+        ? (extras?['replayGainAlbumGain'] as double?) ??
+              (extras?['replayGainTrackGain'] as double?)
+        : (extras?['replayGainTrackGain'] as double?) ??
+              (extras?['replayGainAlbumGain'] as double?);
+    if (gainDb == null) return base;
     final preamp = runtime.replayGainPreamp.clamp(-6, 6);
-    // dB to linear: 10^((gain + preamp) / 20), scaled by user volume, clamped to [0, 1].
-    final linear = (math.pow(10, (gainDb + preamp) / 20).toDouble() * base)
-        .clamp(0.0, 1.0);
-    unawaited(_player.setVolume(linear));
+    return (math.pow(10, (gainDb + preamp) / 20).toDouble() * base).clamp(
+      0.0,
+      1.0,
+    );
   }
 
   EqualizerConfigurationMessage _equalizerMessage(EqConfiguration values) =>
@@ -618,10 +605,22 @@ extension _NavisMediaSession on NavisAudioHandler {
   }
 
   void _broadcastPlaybackState() {
-    final processingState = _mapProcessingState(_player.processingState);
     final resolved = _resolveCurrentQueueMetadata();
     final currentItem = resolved.mediaItem;
     final currentIndex = resolved.currentIndex;
+    final nativeSource = _player.sequence.elementAtOrNull(
+      _player.currentIndex ?? _player.sequence.length,
+    );
+    final pending =
+        _isLoading &&
+        _loadingSongId != null &&
+        (currentItem?.extras?['sourceKind'] == null ||
+            _player.processingState == ProcessingState.idle ||
+            nativeSource == null ||
+            navisNativeSourceSongId(nativeSource) != _loadingSongId);
+    final processingState = pending
+        ? AudioProcessingState.loading
+        : _mapProcessingState(_player.processingState);
     final effectiveDuration = _effectivePlaybackDuration(currentItem);
     final capabilities = navisOsControlCapabilities(
       queueLength: _radioStation == null ? _logicalQueueIds.length : 0,
@@ -641,10 +640,10 @@ extension _NavisMediaSession on NavisAudioHandler {
           navisNotificationCompactActionIndicesForControls(controls),
       processingState: processingState,
       playing: _visiblePlaying,
-      updatePosition: _player.position,
-      bufferedPosition: _player.bufferedPosition,
+      updatePosition: pending ? Duration.zero : _player.position,
+      bufferedPosition: pending ? Duration.zero : _player.bufferedPosition,
       speed: _player.speed,
-      queueIndex: _radioStation == null ? currentIndex : null,
+      queueIndex: _radioStation == null ? _player.currentIndex : null,
       repeatMode: _mapRepeatMode(_desiredLoopMode),
       shuffleMode: _shuffleEnabled
           ? AudioServiceShuffleMode.all
@@ -679,6 +678,15 @@ extension _NavisMediaSession on NavisAudioHandler {
 
     final resolved = _resolveCurrentQueueMetadata();
     final currentItem = resolved.mediaItem;
+    final nativeSource = _player.sequence.elementAtOrNull(
+      _player.currentIndex ?? _player.sequence.length,
+    );
+    if (_isLoading &&
+        (_player.processingState == ProcessingState.idle ||
+            nativeSource == null ||
+            navisNativeSourceSongId(nativeSource) != currentItem?.id)) {
+      return;
+    }
     _updateScrobbleSession(currentItem, currentIndex: resolved.currentIndex);
 
     if (!_player.playing) {
@@ -917,6 +925,7 @@ extension _NavisMediaSession on NavisAudioHandler {
     await _syncSongLikedState(current.id, liked: liked);
     final currentIndex = _resolveCurrentQueueMetadata().currentIndex;
     if (currentIndex != null &&
+        currentIndex >= 0 &&
         currentIndex < _queueItems.length &&
         _queueItems[currentIndex].id == current.id) {
       _setCurrentMediaItem(_queueItems[currentIndex]);

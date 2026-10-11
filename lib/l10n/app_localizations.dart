@@ -2409,7 +2409,7 @@ abstract class AppLocalizations {
   /// No description provided for @configurationListenBrainzUnavailable.
   ///
   /// In en, this message translates to:
-  /// **'ListenBrainz is unavailable. Check your connection and try again.'**
+  /// **'ListenBrainz is unavailable right now. Your token was not rejected. Check your connection or try again later.'**
   String get configurationListenBrainzUnavailable;
 
   /// No description provided for @configurationListenBrainzValidateAndSave.
@@ -6437,6 +6437,24 @@ abstract class AppLocalizations {
   /// **'{version} is ready to download.'**
   String updateAvailableBody(String version);
 
+  /// No description provided for @updateReadyTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Navis {version} is ready'**
+  String updateReadyTitle(String version);
+
+  /// No description provided for @updateReadyBodyInstall.
+  ///
+  /// In en, this message translates to:
+  /// **'Installs in a minute.'**
+  String get updateReadyBodyInstall;
+
+  /// No description provided for @updateReadyBodyDownload.
+  ///
+  /// In en, this message translates to:
+  /// **'Opens the download page.'**
+  String get updateReadyBodyDownload;
+
   /// No description provided for @updateDownload.
   ///
   /// In en, this message translates to:
@@ -9434,6 +9452,174 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'{percent}%'**
   String notificationDownloadProgressPercent(int percent);
+
+  /// No description provided for @cacheSettingsResetSection.
+  ///
+  /// In en, this message translates to:
+  /// **'Reset'**
+  String get cacheSettingsResetSection;
+
+  /// No description provided for @cacheSettingsDeleteAllPresets.
+  ///
+  /// In en, this message translates to:
+  /// **'Delete all presets'**
+  String get cacheSettingsDeleteAllPresets;
+
+  /// No description provided for @cacheSettingsDeleteAllPresetsDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'Remove all saved Looks and Speed & Pitch presets.'**
+  String get cacheSettingsDeleteAllPresetsDescription;
+
+  /// No description provided for @cacheSettingsDeleteAllPresetsConfirmTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Delete all presets?'**
+  String get cacheSettingsDeleteAllPresetsConfirmTitle;
+
+  /// No description provided for @cacheSettingsDeleteAllPresetsConfirmBody.
+  ///
+  /// In en, this message translates to:
+  /// **'This permanently deletes every saved appearance Look and Speed & Pitch preset, their selections, and any older Fine-Tune color presets. Your current speed, pitch and appearance values stay as they are.'**
+  String get cacheSettingsDeleteAllPresetsConfirmBody;
+
+  /// No description provided for @cacheSettingsDeleteAllPresetsSuccess.
+  ///
+  /// In en, this message translates to:
+  /// **'All presets deleted. Your current values are unchanged.'**
+  String get cacheSettingsDeleteAllPresetsSuccess;
+
+  /// No description provided for @cacheSettingsDeleteAllPresetsFailure.
+  ///
+  /// In en, this message translates to:
+  /// **'Could not delete presets. Try again.'**
+  String get cacheSettingsDeleteAllPresetsFailure;
+
+  /// No description provided for @playbackPresetDeleteFailure.
+  ///
+  /// In en, this message translates to:
+  /// **'Could not delete the preset. It may have changed or could not be saved. Try again.'**
+  String get playbackPresetDeleteFailure;
+
+  /// No description provided for @configurationListenBrainzOnlineServicesOff.
+  ///
+  /// In en, this message translates to:
+  /// **'Online services is switched off. Turn it on before connecting to ListenBrainz.'**
+  String get configurationListenBrainzOnlineServicesOff;
+
+  /// No description provided for @configurationListenBrainzRateLimited.
+  ///
+  /// In en, this message translates to:
+  /// **'ListenBrainz is limiting requests right now. Your token was not rejected. Try again later.'**
+  String get configurationListenBrainzRateLimited;
+
+  /// No description provided for @configurationListenBrainzUnavailableHttp.
+  ///
+  /// In en, this message translates to:
+  /// **'ListenBrainz isn\'t accepting connections right now (HTTP {status}). This is on their side; your token wasn\'t rejected. Try again later.'**
+  String configurationListenBrainzUnavailableHttp(int status);
+
+  /// No description provided for @downloadsFolderHoldUnset.
+  ///
+  /// In en, this message translates to:
+  /// **'Downloads are queued. Choose a custom folder or use app storage to continue.'**
+  String get downloadsFolderHoldUnset;
+
+  /// No description provided for @downloadsFolderHoldMissing.
+  ///
+  /// In en, this message translates to:
+  /// **'Downloads are queued because the custom folder is missing. Reconnect the storage, choose a folder or use app storage.'**
+  String get downloadsFolderHoldMissing;
+
+  /// No description provided for @downloadsFolderHoldInaccessible.
+  ///
+  /// In en, this message translates to:
+  /// **'Downloads are queued because Navis cannot write to the download folder. Choose an accessible folder or use app storage.'**
+  String get downloadsFolderHoldInaccessible;
+
+  /// No description provided for @downloadsFolderHoldChoose.
+  ///
+  /// In en, this message translates to:
+  /// **'Choose folder'**
+  String get downloadsFolderHoldChoose;
+
+  /// No description provided for @downloadsFolderHoldUseAppStorage.
+  ///
+  /// In en, this message translates to:
+  /// **'Use app storage'**
+  String get downloadsFolderHoldUseAppStorage;
+
+  /// No description provided for @downloadsFailureNotFound.
+  ///
+  /// In en, this message translates to:
+  /// **'This song is no longer available on the server.'**
+  String get downloadsFailureNotFound;
+
+  /// No description provided for @downloadsFailureServerError.
+  ///
+  /// In en, this message translates to:
+  /// **'The server could not send this song. Try again later.'**
+  String get downloadsFailureServerError;
+
+  /// No description provided for @downloadsFailureNetwork.
+  ///
+  /// In en, this message translates to:
+  /// **'The connection was lost. Check your network and try again.'**
+  String get downloadsFailureNetwork;
+
+  /// No description provided for @downloadsFailureTimeout.
+  ///
+  /// In en, this message translates to:
+  /// **'The server took too long to respond. Try again.'**
+  String get downloadsFailureTimeout;
+
+  /// No description provided for @downloadsFailureNotAudio.
+  ///
+  /// In en, this message translates to:
+  /// **'The server sent a page or error message instead of audio.'**
+  String get downloadsFailureNotAudio;
+
+  /// No description provided for @downloadsFailureTruncated.
+  ///
+  /// In en, this message translates to:
+  /// **'The download was cut short. Try again.'**
+  String get downloadsFailureTruncated;
+
+  /// No description provided for @downloadsFailureNoSpace.
+  ///
+  /// In en, this message translates to:
+  /// **'There is not enough free space for this download.'**
+  String get downloadsFailureNoSpace;
+
+  /// No description provided for @downloadsFailureFolderUnavailable.
+  ///
+  /// In en, this message translates to:
+  /// **'The download folder is unavailable. Reconnect it or choose another folder.'**
+  String get downloadsFailureFolderUnavailable;
+
+  /// No description provided for @downloadsFailurePermission.
+  ///
+  /// In en, this message translates to:
+  /// **'Navis does not have permission to save this download.'**
+  String get downloadsFailurePermission;
+
+  /// No description provided for @downloadsFailureUnknown.
+  ///
+  /// In en, this message translates to:
+  /// **'The download could not be completed. Try again.'**
+  String get downloadsFailureUnknown;
+
+  /// No description provided for @downloadsFolderHoldNoSpace.
+  ///
+  /// In en, this message translates to:
+  /// **'Downloads are queued because storage is full. Free some space or choose another folder to continue.'**
+  String get downloadsFolderHoldNoSpace;
+
+  /// No description provided for @notificationDownloadHeldTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Downloads waiting for storage or access'**
+  String get notificationDownloadHeldTitle;
 }
 
 class _AppLocalizationsDelegate

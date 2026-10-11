@@ -3621,6 +3621,11 @@ class SyncDiagnosticsServer {
     final permanent = await database.cacheDao.getPermanentEntries();
     return <String, Object?>{
       'paused': service.isPaused,
+      'holdReason': _container
+          .read(downloadFolderProblemProvider)
+          .asData
+          ?.value
+          ?.name,
       'maxConcurrent': service.maxConcurrentDownloads,
       'effectiveConcurrency': service.effectiveConcurrency,
       'activeQueueIds': service.activeQueueIds.toList()..sort(),
@@ -3638,6 +3643,8 @@ class SyncDiagnosticsServer {
             'quality': item.quality,
             'format': item.format,
             'retryCount': item.retryCount,
+            'failureReason': item.failureReason?.name,
+            'failureDetail': item.failureDetail,
           },
       ],
       'qualityPreference': <String, Object?>{

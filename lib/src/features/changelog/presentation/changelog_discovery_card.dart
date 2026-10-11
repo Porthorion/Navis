@@ -88,7 +88,7 @@ class _ChangelogDiscoveryCardState
       dismissKey: const ValueKey<String>('changelogDiscoveryDismiss'),
       title: title,
       subtitle: subtitle,
-      subtitleMaxLines: 2,
+      icon: Icons.auto_awesome_outlined,
       dismissTooltip: l10n.changelogDiscoveryDismiss,
       semanticLabel: l10n.changelogDiscoverySemanticLabel(current.version),
       leading: cover == null

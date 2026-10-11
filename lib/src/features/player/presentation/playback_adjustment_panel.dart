@@ -4,6 +4,7 @@ import 'package:material_ui/material_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:navis/l10n/app_localizations.dart';
 import 'package:navis/src/common_widgets/preset_picker.dart';
+import 'package:navis/src/common_widgets/app_notice.dart';
 import 'package:navis/src/features/player/domain/playback_adjustments.dart';
 import 'package:navis/src/features/player/presentation/adjustment_ruler.dart';
 import 'package:navis/src/features/player/presentation/playback_adjustment_controller.dart';
@@ -249,6 +250,8 @@ class _PlaybackAdjustmentPanelState
                     l10n.playbackAdjustmentApplyFailure,
                   PlaybackAdjustmentFailure.persistence =>
                     l10n.playbackAdjustmentSaveFailure,
+                  PlaybackAdjustmentFailure.presetMissing =>
+                    l10n.playbackPresetDeleteFailure,
                   PlaybackAdjustmentFailure.name =>
                     l10n.playbackPresetNameInvalid,
                 }, style: TextStyle(color: theme.colorScheme.error)),
@@ -340,7 +343,14 @@ class _PlaybackAdjustmentPanelState
       ),
       onRename: (id, name) async =>
           await _controller.renamePreset(id, name) ? null : _nameError(),
-      onDelete: _controller.deletePreset,
+      onDelete: (id) async {
+        if (await _controller.deletePreset(id) || !mounted) return;
+        showAppNotice(
+          context,
+          message: l10n.playbackPresetDeleteFailure,
+          level: AppNoticeLevel.error,
+        );
+      },
     );
   }
 

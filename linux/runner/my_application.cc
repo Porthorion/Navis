@@ -1,4 +1,5 @@
 #include "my_application.h"
+#include <sys/statvfs.h>
 
 #include <flutter_linux/flutter_linux.h>
 #ifdef GDK_WINDOWING_X11
@@ -28,6 +29,26 @@ static gchar* resolve_app_icon_path() {
     return g_strdup(bundled_icon_path);
   }
   return nullptr;
+}
+
+static void storage_capacity_call(FlMethodChannel* channel, FlMethodCall* call,
+                                  gpointer user_data) {
+  g_autoptr(FlMethodResponse) response = nullptr;
+  if (g_strcmp0(fl_method_call_get_name(call), "freeBytes") != 0) {
+    response = FL_METHOD_RESPONSE(fl_method_not_implemented_response_new());
+  } else {
+    FlValue* args = fl_method_call_get_args(call);
+    FlValue* path = fl_value_get_type(args) == FL_VALUE_TYPE_MAP
+                        ? fl_value_lookup_string(args, "path") : nullptr;
+    struct statvfs stats;
+    g_autoptr(FlValue) bytes =
+        path != nullptr && fl_value_get_type(path) == FL_VALUE_TYPE_STRING &&
+                statvfs(fl_value_get_string(path), &stats) == 0
+            ? fl_value_new_int(static_cast<int64_t>(stats.f_bavail) * stats.f_frsize)
+            : fl_value_new_null();
+    response = FL_METHOD_RESPONSE(fl_method_success_response_new(bytes));
+  }
+  fl_method_call_respond(call, response, nullptr);
 }
 
 // Called when first Flutter frame received.
@@ -123,6 +144,13 @@ static void my_application_activate(GApplication* application) {
   gtk_widget_realize(GTK_WIDGET(view));
 
   fl_register_plugins(FL_PLUGIN_REGISTRY(view));
+  g_autoptr(FlStandardMethodCodec) capacity_codec = fl_standard_method_codec_new();
+  // Lives as long as the app: disposing a channel unregisters its handler.
+  FlMethodChannel* capacity_channel = fl_method_channel_new(
+      fl_engine_get_binary_messenger(fl_view_get_engine(view)),
+      "com.navis.app/storage_capacity", FL_METHOD_CODEC(capacity_codec));
+  fl_method_channel_set_method_call_handler(capacity_channel, storage_capacity_call,
+                                           nullptr, nullptr);
 
   gtk_widget_grab_focus(GTK_WIDGET(view));
 }
