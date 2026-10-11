@@ -2805,7 +2805,19 @@
   "@configurationListenBrainzUnavailableHttp": {"placeholders": {"status": {"type": "int"}}},
   "downloadsFolderHoldUnset": "Downloads are queued. Choose a custom folder or use app storage to continue.",
   "downloadsFolderHoldMissing": "Downloads are queued because the custom folder is missing. Reconnect the storage, choose a folder or use app storage.",
-  "downloadsFolderHoldInaccessible": "Downloads are queued because Navis cannot write to the custom folder. Choose an accessible folder or use app storage.",
+  "downloadsFolderHoldInaccessible": "Downloads are queued because Navis cannot write to the download folder. Choose an accessible folder or use app storage.",
   "downloadsFolderHoldChoose": "Choose folder",
-  "downloadsFolderHoldUseAppStorage": "Use app storage"
+  "downloadsFolderHoldUseAppStorage": "Use app storage",
+  "downloadsFailureNotFound": "This song is no longer available on the server.",
+  "downloadsFailureServerError": "The server could not send this song. Try again later.",
+  "downloadsFailureNetwork": "The connection was lost. Check your network and try again.",
+  "downloadsFailureTimeout": "The server took too long to respond. Try again.",
+  "downloadsFailureNotAudio": "The server sent a page or error message instead of audio.",
+  "downloadsFailureTruncated": "The download was cut short. Try again.",
+  "downloadsFailureNoSpace": "There is not enough free space for this download.",
+  "downloadsFailureFolderUnavailable": "The download folder is unavailable. Reconnect it or choose another folder.",
+  "downloadsFailurePermission": "Navis does not have permission to save this download.",
+  "downloadsFailureUnknown": "The download could not be completed. Try again.",
+  "downloadsFolderHoldNoSpace": "Downloads are queued because storage is full. Free some space or choose another folder to continue.",
+  "notificationDownloadHeldTitle": "Downloads waiting for storage or access"
 }

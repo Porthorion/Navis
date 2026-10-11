@@ -9516,7 +9516,7 @@ abstract class AppLocalizations {
   /// No description provided for @downloadsFolderHoldInaccessible.
   ///
   /// In en, this message translates to:
-  /// **'Downloads are queued because Navis cannot write to the custom folder. Choose an accessible folder or use app storage.'**
+  /// **'Downloads are queued because Navis cannot write to the download folder. Choose an accessible folder or use app storage.'**
   String get downloadsFolderHoldInaccessible;
 
   /// No description provided for @downloadsFolderHoldChoose.
@@ -9530,6 +9530,78 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Use app storage'**
   String get downloadsFolderHoldUseAppStorage;
+
+  /// No description provided for @downloadsFailureNotFound.
+  ///
+  /// In en, this message translates to:
+  /// **'This song is no longer available on the server.'**
+  String get downloadsFailureNotFound;
+
+  /// No description provided for @downloadsFailureServerError.
+  ///
+  /// In en, this message translates to:
+  /// **'The server could not send this song. Try again later.'**
+  String get downloadsFailureServerError;
+
+  /// No description provided for @downloadsFailureNetwork.
+  ///
+  /// In en, this message translates to:
+  /// **'The connection was lost. Check your network and try again.'**
+  String get downloadsFailureNetwork;
+
+  /// No description provided for @downloadsFailureTimeout.
+  ///
+  /// In en, this message translates to:
+  /// **'The server took too long to respond. Try again.'**
+  String get downloadsFailureTimeout;
+
+  /// No description provided for @downloadsFailureNotAudio.
+  ///
+  /// In en, this message translates to:
+  /// **'The server sent a page or error message instead of audio.'**
+  String get downloadsFailureNotAudio;
+
+  /// No description provided for @downloadsFailureTruncated.
+  ///
+  /// In en, this message translates to:
+  /// **'The download was cut short. Try again.'**
+  String get downloadsFailureTruncated;
+
+  /// No description provided for @downloadsFailureNoSpace.
+  ///
+  /// In en, this message translates to:
+  /// **'There is not enough free space for this download.'**
+  String get downloadsFailureNoSpace;
+
+  /// No description provided for @downloadsFailureFolderUnavailable.
+  ///
+  /// In en, this message translates to:
+  /// **'The download folder is unavailable. Reconnect it or choose another folder.'**
+  String get downloadsFailureFolderUnavailable;
+
+  /// No description provided for @downloadsFailurePermission.
+  ///
+  /// In en, this message translates to:
+  /// **'Navis does not have permission to save this download.'**
+  String get downloadsFailurePermission;
+
+  /// No description provided for @downloadsFailureUnknown.
+  ///
+  /// In en, this message translates to:
+  /// **'The download could not be completed. Try again.'**
+  String get downloadsFailureUnknown;
+
+  /// No description provided for @downloadsFolderHoldNoSpace.
+  ///
+  /// In en, this message translates to:
+  /// **'Downloads are queued because storage is full. Free some space or choose another folder to continue.'**
+  String get downloadsFolderHoldNoSpace;
+
+  /// No description provided for @notificationDownloadHeldTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Downloads waiting for storage or access'**
+  String get notificationDownloadHeldTitle;
 }
 
 class _AppLocalizationsDelegate

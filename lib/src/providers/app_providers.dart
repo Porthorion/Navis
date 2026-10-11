@@ -2538,6 +2538,7 @@ final downloadServiceProvider = Provider<DownloadService>((ref) {
     readApiClient: () => ref.read(subsonicApiProvider),
     readWifiOnly: () =>
         ref.read(appSettingsProvider).asData?.value.wifiOnlyDownloads ?? false,
+    readIsOnline: () => ref.read(networkTypeProvider) != NetworkType.offline,
     readIsWifi: () =>
         isDesktopRuntime || ref.read(networkTypeProvider) == NetworkType.wifi,
     readCustomDownloadFolderEnabled: () =>

@@ -5937,11 +5937,59 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get downloadsFolderHoldInaccessible =>
-      'Downloads are queued because Navis cannot write to the custom folder. Choose an accessible folder or use app storage.';
+      'Downloads are queued because Navis cannot write to the download folder. Choose an accessible folder or use app storage.';
 
   @override
   String get downloadsFolderHoldChoose => 'Choose folder';
 
   @override
   String get downloadsFolderHoldUseAppStorage => 'Use app storage';
+
+  @override
+  String get downloadsFailureNotFound =>
+      'This song is no longer available on the server.';
+
+  @override
+  String get downloadsFailureServerError =>
+      'The server could not send this song. Try again later.';
+
+  @override
+  String get downloadsFailureNetwork =>
+      'The connection was lost. Check your network and try again.';
+
+  @override
+  String get downloadsFailureTimeout =>
+      'The server took too long to respond. Try again.';
+
+  @override
+  String get downloadsFailureNotAudio =>
+      'The server sent a page or error message instead of audio.';
+
+  @override
+  String get downloadsFailureTruncated =>
+      'The download was cut short. Try again.';
+
+  @override
+  String get downloadsFailureNoSpace =>
+      'There is not enough free space for this download.';
+
+  @override
+  String get downloadsFailureFolderUnavailable =>
+      'The download folder is unavailable. Reconnect it or choose another folder.';
+
+  @override
+  String get downloadsFailurePermission =>
+      'Navis does not have permission to save this download.';
+
+  @override
+  String get downloadsFailureUnknown =>
+      'The download could not be completed. Try again.';
+
+  @override
+  String get downloadsFolderHoldNoSpace =>
+      'Downloads are queued because storage is full. Free some space or choose another folder to continue.';
+
+  @override
+  String get notificationDownloadHeldTitle =>
+      'Downloads waiting for storage or access';
 }

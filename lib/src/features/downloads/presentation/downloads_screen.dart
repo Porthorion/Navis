@@ -25,6 +25,7 @@ import 'package:navis/src/features/player/presentation/queue_provider.dart';
 import 'package:navis/src/providers/app_providers.dart';
 import 'package:navis/src/routing/desktop_layout.dart';
 import 'package:navis/src/features/downloads/domain/download_preferences.dart';
+import 'package:navis/src/features/downloads/domain/download_failure_message.dart';
 import 'package:navis/src/features/downloads/presentation/download_quality_sheet.dart';
 import 'package:navis/src/features/downloads/data/android_saf_storage.dart';
 import 'package:navis/src/features/downloads/data/permanent_download_path_resolver.dart';
@@ -332,6 +333,7 @@ String downloadFolderProblemMessage(
   DownloadFolderProblem.unset => l10n.downloadsFolderHoldUnset,
   DownloadFolderProblem.missing => l10n.downloadsFolderHoldMissing,
   DownloadFolderProblem.inaccessible => l10n.downloadsFolderHoldInaccessible,
+  DownloadFolderProblem.noSpace => l10n.downloadsFolderHoldNoSpace,
 };
 
 class _DownloadFolderHoldBanner extends ConsumerWidget {
@@ -644,7 +646,9 @@ class _QueueItemTile extends ConsumerWidget {
             ),
           if (isFailed)
             Text(
-              l10n.downloadsStatusFailed,
+              downloadFailureMessage(l10n, item.failureReason),
+              semanticsLabel:
+                  '${l10n.downloadsStatusFailed}: ${downloadFailureMessage(l10n, item.failureReason)}',
               style: TextStyle(color: Theme.of(context).colorScheme.error),
             ),
         ],
@@ -657,7 +661,7 @@ class _QueueItemTile extends ConsumerWidget {
         onPressed: () {
           if (isFailed) {
             final dao = ref.read(navisDatabaseProvider).downloadQueueDao;
-            unawaited(dao.updateStatus(item.id, DownloadStatus.queued));
+            unawaited(dao.retry(item.id));
           } else {
             // Stops the transfer too when this item is downloading.
             unawaited(

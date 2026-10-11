@@ -7,11 +7,12 @@ import 'package:navis/src/utils/file_utils.dart';
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
 
-enum DownloadFolderProblem { unset, missing, inaccessible }
+enum DownloadFolderProblem { unset, missing, inaccessible, noSpace }
 
 /// A user-owned download destination needs attention, rather than a retry.
 class DownloadFolderUnavailableException extends FileSystemException {
-  const new(this.problem) : super('Custom download folder needs attention.');
+  const new(this.problem, {OSError? osError})
+    : super('Custom download folder needs attention.', '', osError);
   final DownloadFolderProblem problem;
 }
 
@@ -81,9 +82,10 @@ class PermanentDownloadPathResolver {
       return directory;
     } on DownloadFolderUnavailableException {
       rethrow;
-    } on FileSystemException {
-      throw const DownloadFolderUnavailableException(
+    } on FileSystemException catch (error) {
+      throw DownloadFolderUnavailableException(
         DownloadFolderProblem.inaccessible,
+        osError: error.osError,
       );
     }
   }

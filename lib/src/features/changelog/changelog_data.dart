@@ -235,6 +235,21 @@ const List<ChangelogVersion> changelogs = [
       ),
 
       // Improved
+      ChangelogEntry('Failed downloads say why they failed'),
+      ChangelogEntry(
+        'Downloads check free space first and pause instead of failing when storage runs out',
+      ),
+      ChangelogEntry(
+        'Downloads wait for a connection before retrying, and stop retrying songs the server cannot provide',
+      ),
+      ChangelogEntry(
+        'A download cut short is detected and retried instead of saved incomplete',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
+        'Finished downloads survive an interrupted save, and temporary download files are cleaned up in custom folders',
+        type: ChangelogEntryType.fix,
+      ),
       ChangelogEntry(
         'Opening the queue centres it on the song that is playing',
       ),
