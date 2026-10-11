@@ -29,6 +29,15 @@ class DownloadQueueTable extends Table {
 
   IntColumn get priority => integer().withDefault(const Constant(0))();
 
+  TextColumn get failureReason =>
+      textEnum<DownloadFailureReason>().nullable()();
+
+  /// Short, sanitized detail (status code or byte counts, never URLs).
+  TextColumn get failureDetail => text().nullable()();
+
+  /// Verified finish intent, persisted before publishing a final file.
+  TextColumn get finishJournal => text().nullable()();
+
   /// Number of retry attempts for failed downloads.
   IntColumn get retryCount => integer().withDefault(const Constant(0))();
 }

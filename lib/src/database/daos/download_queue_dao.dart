@@ -29,8 +29,19 @@ class DownloadQueueDao extends DatabaseAccessor<NavisDatabase>
   }
 
   Future<void> updateStatus(int id, DownloadStatus status) {
-    return (update(downloadQueueTable)..where((table) => table.id.equals(id)))
-        .write(DownloadQueueTableCompanion(status: Value(status)));
+    return (update(
+      downloadQueueTable,
+    )..where((table) => table.id.equals(id))).write(
+      DownloadQueueTableCompanion(
+        status: Value(status),
+        failureReason: status == DownloadStatus.downloading
+            ? const Value(null)
+            : const Value.absent(),
+        failureDetail: status == DownloadStatus.downloading
+            ? const Value(null)
+            : const Value.absent(),
+      ),
+    );
   }
 
   Future<void> remove(int id) {
@@ -87,9 +98,43 @@ class DownloadQueueDao extends DatabaseAccessor<NavisDatabase>
         status: Value(DownloadStatus.queued),
         progress: Value(0),
         retryCount: Value(0),
+        failureReason: Value(null),
+        failureDetail: Value(null),
+        finishJournal: Value(null),
       ),
     );
   }
+
+  Future<void> retry(int id) =>
+      (update(downloadQueueTable)..where((t) => t.id.equals(id))).write(
+        const DownloadQueueTableCompanion(
+          status: Value(DownloadStatus.queued),
+          progress: Value(0),
+          retryCount: Value(0),
+          failureReason: Value(null),
+          failureDetail: Value(null),
+          finishJournal: Value(null),
+        ),
+      );
+
+  Future<void> recordFailure(
+    int id,
+    DownloadFailureReason reason, {
+    String? detail,
+    DownloadStatus status = DownloadStatus.failed,
+  }) => (update(downloadQueueTable)..where((t) => t.id.equals(id))).write(
+    DownloadQueueTableCompanion(
+      status: Value(status),
+      progress: const Value(0),
+      failureReason: Value(reason),
+      failureDetail: Value(detail),
+    ),
+  );
+
+  Future<void> writeFinishJournal(int id, String? journal) =>
+      (update(downloadQueueTable)..where((t) => t.id.equals(id))).write(
+        DownloadQueueTableCompanion(finishJournal: Value(journal)),
+      );
 
   /// Return the set of songIds that are currently queued or downloading.
   Future<Set<String>> getActiveSongIds() async {
