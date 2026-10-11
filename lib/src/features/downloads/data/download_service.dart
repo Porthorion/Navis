@@ -1561,8 +1561,19 @@ class DownloadService {
         final contentLength = int.tryParse(
           response.headers.value(Headers.contentLengthHeader) ?? '',
         );
+        // Native Dio decompresses encoded responses, while Content-Length
+        // still measures the encoded body. Compare only identity bodies.
+        final contentEncoding = response.headers
+            .value(Headers.contentEncodingHeader)
+            ?.trim()
+            .toLowerCase();
+        final identityBody =
+            contentEncoding == null ||
+            contentEncoding.isEmpty ||
+            contentEncoding == 'identity';
         if (written == 0 ||
             (!transcoded &&
+                identityBody &&
                 contentLength != null &&
                 written != contentLength)) {
           await tryDeleteFile(part);

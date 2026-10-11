@@ -263,6 +263,10 @@ const List<ChangelogVersion> changelogs = [
         type: ChangelogEntryType.fix,
       ),
       ChangelogEntry(
+        'Complete gzip-compressed original downloads are saved instead of incorrectly retried as truncated',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
         'Opening the queue centres it on the song that is playing',
       ),
       ChangelogEntry(

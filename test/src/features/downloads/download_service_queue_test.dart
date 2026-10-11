@@ -167,6 +167,7 @@ void main() {
 
   DownloadService buildService({
     PermanentArtworkStore? artworkStore,
+    Dio? transport,
     bool Function()? customEnabled,
     String? Function()? customPath,
     Future<void> Function(Directory)? validateCustomRoot,
@@ -197,7 +198,7 @@ void main() {
       readCoverArtCacheManager: () => cacheManager,
       readApplicationSupportDirectory: () async => supportDir,
       artworkStore: artworkStore ?? _OfflineArtworkStore(supportDir),
-      dio: dio,
+      dio: transport ?? dio,
     );
     addTearDown(service.dispose);
     return service;
@@ -492,6 +493,81 @@ void main() {
     await service.processQueuedDownloads();
     expect(await queue(), isEmpty);
   }, skip: !sqliteAvailable);
+
+  for (final empty in [false, true]) {
+    test(
+      'real native gzip transport ${empty ? 'rejects empty audio' : 'registers complete original audio'}',
+      () async {
+        final previousHttp = HttpOverrides.current;
+        HttpOverrides.global = null;
+        addTearDown(() => HttpOverrides.global = previousHttp);
+        final payload = empty ? <int>[] : List<int>.filled(4096, 7);
+        final compressed = gzip.encode(payload);
+        expect(compressed.length, isNot(payload.length));
+        final http = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
+        var downloads = 0;
+        final subscription = http.listen((request) async {
+          if (request.uri.path.endsWith('/download.view')) {
+            downloads++;
+            request.response.headers.set(
+              HttpHeaders.contentTypeHeader,
+              'audio/mpeg',
+            );
+            request.response.headers.set(
+              HttpHeaders.contentEncodingHeader,
+              'gzip',
+            );
+            request.response.contentLength = compressed.length;
+            request.response.add(compressed);
+          } else {
+            request.response.headers.contentType = ContentType.json;
+            request.response.write(
+              jsonEncode({
+                'subsonic-response': {'status': 'ok', 'version': '1.16.1'},
+              }),
+            );
+          }
+          await request.response.close();
+        });
+        addTearDown(() async {
+          await subscription.cancel();
+          await http.close(force: true);
+        });
+        api = SubsonicApiClient(
+          baseUrl: 'http://127.0.0.1:${http.port}',
+          authConfig: const SubsonicAuthConfig(
+            username: 'fixture',
+            password: 'fixture',
+            apiVersion: '1.16.1',
+          ),
+          enableLogging: false,
+        );
+        final transport = Dio();
+        addTearDown(() => transport.close(force: true));
+        // Dio's real IOHttpClientAdapter and Dart's auto-decompression are used.
+        final service = buildService(transport: transport);
+        await service.start();
+        await addSongs(1);
+        await service.enqueueSong('song-0');
+        await service.processQueuedDownloads();
+        expect(downloads, 1);
+        final cached = await database.cacheDao.getCachedTrack('song-0');
+        if (empty) {
+          expect(cached, isNull);
+          expect(
+            (await queue()).single.failureReason,
+            DownloadFailureReason.truncated,
+          );
+        } else {
+          expect(await queue(), isEmpty);
+          expect(cached, isNotNull);
+          expect(File(cached!.filePath).readAsBytesSync(), payload);
+          expect(cached.fileSize, payload.length);
+        }
+      },
+      skip: !sqliteAvailable,
+    );
+  }
 
   for (final empty in [false, true]) {
     test(

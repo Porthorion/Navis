@@ -5193,6 +5193,11 @@ exhaustion cancels active transfers. The hold
 returns items to queued with `noSpace`, without burning retries or failing each
 remaining song. Freeing space or choosing storage resumes the existing queue.
 
+Original-response length validation compares `Content-Length` only for
+unencoded/identity bodies: native Dio decompresses gzip, so encoded wire
+length does not describe stored audio. Empty decoded payloads still fail,
+and native transport/decompression errors still retry without registration.
+
 **Recoverable finish and cleanup.** After integrity validation, the queue row
 journals the destination, verified size/digest, format/bitrate and optional SAF
 tree/relative path before rename/upload. Identity tags may change bytes, so the
