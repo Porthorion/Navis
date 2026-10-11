@@ -2007,14 +2007,22 @@ final rollingCacheActivityProvider =
       RollingCacheActivityController.new,
     );
 
-final playbackSnapshotProvider = StreamProvider<PlaybackSnapshot>((ref) async* {
+final playbackSnapshotProvider = StreamProvider<PlaybackSnapshot>((ref) {
   final handler = ref.watch(audioHandlerProvider);
   if (handler == null) {
-    yield const PlaybackSnapshot.idle();
-    return;
+    return Stream<PlaybackSnapshot>.value(const PlaybackSnapshot.idle());
   }
-  yield handler.snapshot;
-  yield* handler.snapshotStream;
+  return Stream<PlaybackSnapshot>.multi((controller) {
+    // Attach before delivering the seed. An async* initial yield can pause
+    // before yield* subscribes, losing seek settlement on a broadcast stream.
+    final subscription = handler.snapshotStream.listen(
+      controller.add,
+      onError: controller.addError,
+      onDone: controller.close,
+    );
+    controller.add(handler.snapshot);
+    controller.onCancel = subscription.cancel;
+  });
 });
 
 final transportVisualCueProvider = StreamProvider<TransportVisualCue>((ref) {

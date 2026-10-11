@@ -280,6 +280,10 @@ const List<ChangelogVersion> changelogs = [
 
       // Fixed: playback
       ChangelogEntry(
+        'Now Playing keeps its progress moving after seeking or skipping with Repeat One on',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
         'Skipping to a remote song that your server is still fetching plays it instead of jumping past it, and remote songs start promptly on first play',
         type: ChangelogEntryType.fix,
       ),

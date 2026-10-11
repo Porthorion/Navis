@@ -1,6 +1,7 @@
 import 'dart:math';
 
 import 'package:fake_async/fake_async.dart';
+import 'package:rxdart/rxdart.dart';
 import 'package:flutter/foundation.dart' show visibleForTesting;
 
 import 'package:navis/src/features/player/domain/playback_adjustments.dart';
@@ -188,6 +189,16 @@ class _ControllableAudioPlayer extends Fake implements AudioPlayer {
   Duration _simulatedPosition = Duration.zero;
   DateTime _positionUpdated = DateTime.now();
   bool simulateProgress = false;
+  _HandlerPositionPlayer? positionPlayer;
+
+  void emitPlayerEvent() {
+    if (positionPlayer == null) return;
+    positionPlayer!.events.add(
+      PlayerEvent(playing: playing, playbackEvent: playbackEvent),
+    );
+    _events.add(playbackEvent);
+  }
+
   Duration get simulatedPosition => _simulatedPosition;
   set simulatedPosition(Duration value) {
     _simulatedPosition = value;
@@ -280,7 +291,13 @@ class _ControllableAudioPlayer extends Fake implements AudioPlayer {
     int steps = 800,
     Duration minPeriod = const Duration(milliseconds: 200),
     Duration maxPeriod = const Duration(milliseconds: 200),
-  }) => const Stream<Duration>.empty();
+  }) =>
+      positionPlayer?.createPositionStream(
+        steps: steps,
+        minPeriod: minPeriod,
+        maxPeriod: maxPeriod,
+      ) ??
+      const Stream<Duration>.empty();
 
   @override
   ProcessingState get processingState => state;
@@ -409,6 +426,7 @@ class _ControllableAudioPlayer extends Fake implements AudioPlayer {
   Future<void> pause() async {
     simulatedPosition = position;
     isPlaying = false;
+    emitPlayerEvent();
   }
 
   @override
@@ -416,6 +434,7 @@ class _ControllableAudioPlayer extends Fake implements AudioPlayer {
     if (!isPlaying) playedFrom.add(position);
     _positionUpdated = DateTime.now();
     isPlaying = true;
+    emitPlayerEvent();
   }
 
   @override
@@ -580,16 +599,42 @@ class _ControllableAudioPlayer extends Fake implements AudioPlayer {
     if (position != null && !ignored) simulatedPosition = position;
     if (index != null) this.index = index;
     _indices.add(this.index);
+    emitPlayerEvent();
   });
 
   @override
   Future<void> dispose() async {
     disposed = true;
     isPlaying = false;
+    await positionPlayer?.dispose();
     if (!keepStreamsAfterDispose) {
       await _indices.close();
       await _events.close();
     }
+  }
+}
+
+// Exercise the vendored timer, rather than inventing a fake position pipeline.
+class _HandlerPositionPlayer extends AudioPlayer {
+  new(this.native)
+    : super(handleInterruptions: false, handleAudioSessionActivation: false);
+
+  final _ControllableAudioPlayer native;
+  final events = BehaviorSubject<PlayerEvent>.seeded(PlayerEvent(), sync: true);
+
+  @override
+  Stream<PlayerEvent> get playerEventStream => events.stream;
+  @override
+  bool get playing => native.playing;
+  @override
+  Duration get position => native.position;
+  @override
+  Duration? get duration => native.duration;
+
+  @override
+  Future<void> dispose() async {
+    await events.close();
+    await super.dispose();
   }
 }
 
@@ -714,6 +759,7 @@ void main() {
     Directory directory,
     int count, {
     bool crossfade = false,
+    bool positionStreams = false,
     bool matchFlow = false,
     int savedQueueIndex = -1,
     NavisQueueWindow queueWindow = const NavisQueueWindow(),
@@ -784,6 +830,7 @@ void main() {
     await seed?.call(database);
     final cache = DriftRollingCacheManager(cacheDao: database.cacheDao);
     final player = initialPlayer ?? _ControllableAudioPlayer();
+    if (positionStreams) player.positionPlayer = _HandlerPositionPlayer(player);
     if (hungLoadSongs != null) player.hungLoadSongs = hungLoadSongs;
     players?.add(player);
     NavisAudioHandler buildHandler() => NavisAudioHandler(
@@ -838,6 +885,7 @@ void main() {
       adjustmentCapabilities: PlaybackAdjustmentCapabilities.android,
       crossfadePlayerFactory: () {
         final deck = _ControllableAudioPlayer();
+        if (positionStreams) deck.positionPlayer = _HandlerPositionPlayer(deck);
         players?.add(deck);
         return deck;
       },
@@ -851,6 +899,9 @@ void main() {
           : () {
               final rebuilt = _ControllableAudioPlayer()
                 ..simulateProgress = true;
+              if (positionStreams) {
+                rebuilt.positionPlayer = _HandlerPositionPlayer(rebuilt);
+              }
               if (hungLoadSongs != null) rebuilt.hungLoadSongs = hungLoadSongs;
               rebuiltPlayers?.add(rebuilt);
               players?.add(rebuilt);
@@ -5439,6 +5490,189 @@ void main() {
           expect(player.processingState, ProcessingState.ready);
         }
       });
+    }
+  });
+
+  group('repeat one timeline', () {
+    for (final crossfade in [false, true]) {
+      test('paused initial snapshot cannot retain a settled seek target, '
+          'fade=$crossfade', () async {
+        final directory = await Directory.systemTemp.createTemp(
+          'navis-timeline-',
+        );
+        final (handler, player, database) = await createHandler(
+          directory,
+          3,
+          crossfade: crossfade,
+          positionStreams: true,
+        );
+        final container = ProviderContainer(
+          overrides: [audioHandlerProvider.overrideWithValue(handler)],
+        );
+        addTearDown(() async {
+          container.dispose();
+          await handler.disposeHandler();
+          await database.close();
+          await directory.delete(recursive: true);
+        });
+        player.simulateProgress = true;
+        await handler.replaceQueue([
+          'song-0',
+          'song-1',
+          'song-2',
+        ], expandMatchFlows: false);
+        await handler.setRepeatMode(AudioServiceRepeatMode.one);
+        await settleQueue(handler);
+        container.listen(playbackPositionProvider, (_, _) {});
+        final seeking = handler.seek(const Duration(seconds: 166));
+        final initial = Completer<void>();
+        late ProviderSubscription<AsyncValue<PlaybackSnapshot>> subscription;
+        subscription = container.listen(playbackSnapshotProvider, (_, next) {
+          if (!initial.isCompleted &&
+              next.asData?.value.pendingSeekPosition != null) {
+            // Riverpod pauses the source when its last visible listener pauses.
+            // Pause at the initial yield, before the live broadcast is attached.
+            subscription.pause();
+            initial.complete();
+          }
+        });
+        await initial.future;
+        await seeking;
+        expect(handler.snapshot.pendingSeekPosition, isNull);
+        expect(
+          (handler.collectPlaybackDiagnostics()['seek']! as Map)['outcome'],
+          'completed',
+        );
+        subscription.resume();
+        await Future<void>.delayed(const Duration(milliseconds: 350));
+
+        final before = container.read(playbackPositionProvider).requireValue;
+        await Future<void>.delayed(const Duration(milliseconds: 350));
+        expect(
+          container.read(playbackPositionProvider).requireValue,
+          greaterThan(before),
+        );
+        player.simulatedPosition = const Duration(seconds: 1);
+        await Future<void>.delayed(const Duration(milliseconds: 350));
+        expect(
+          container.read(playbackPositionProvider).requireValue,
+          lessThan(const Duration(seconds: 2)),
+        );
+        expect(container.read(playerStateProvider).pendingSeekPosition, isNull);
+      });
+    }
+
+    for (final crossfade in [false, true]) {
+      for (final recovery in [false, true]) {
+        test('seek, skip and native wrap keep provider position moving, '
+            'fade=$crossfade recovery=$recovery', () async {
+          final directory = await Directory.systemTemp.createTemp(
+            'navis-timeline-',
+          );
+          final (handler, player, database) = await createHandler(
+            directory,
+            3,
+            crossfade: crossfade,
+            positionStreams: true,
+            rebuiltPlayers: <_ControllableAudioPlayer>[],
+            timeouts: const NavisPlaybackTimeouts(
+              control: Duration(milliseconds: 100),
+              reset: Duration(milliseconds: 150),
+              load: Duration(seconds: 2),
+            ),
+          );
+          final container = ProviderContainer(
+            overrides: [audioHandlerProvider.overrideWithValue(handler)],
+          );
+          addTearDown(() async {
+            container.dispose();
+            await handler.disposeHandler();
+            await database.close();
+            await directory.delete(recursive: true);
+          });
+          final displayedPosition = Provider<Duration>((ref) {
+            final snapshot = ref.watch(playerStateProvider);
+            return snapshot.pendingSeekPosition ??
+                ref.watch(playbackPositionProvider).asData?.value ??
+                snapshot.position;
+          });
+          container.listen(displayedPosition, (_, _) {});
+          final snapshots = <PlaybackSnapshot>[];
+          container.listen(playbackSnapshotProvider, (_, next) {
+            if (next.asData case final data?) snapshots.add(data.value);
+          });
+
+          player.simulateProgress = true;
+          await handler.replaceQueue([
+            'song-0',
+            'song-1',
+            'song-2',
+          ], expandMatchFlows: false);
+          await handler.setRepeatMode(AudioServiceRepeatMode.one);
+          await handler.skipToNext();
+          await settleQueue(handler);
+          expect(player.index, 1);
+          await Future<void>.delayed(const Duration(milliseconds: 250));
+          final afterNext = container
+              .read(playbackPositionProvider)
+              .requireValue;
+          await Future<void>.delayed(const Duration(milliseconds: 350));
+          expect(container.read(displayedPosition), greaterThan(afterNext));
+          if (recovery) player.hang.add('seek');
+          final seeking = handler.seek(const Duration(minutes: 2, seconds: 46));
+          expect(
+            handler.snapshot.pendingSeekPosition,
+            const Duration(minutes: 2, seconds: 46),
+          );
+          await seeking;
+          await Future<void>.delayed(const Duration(milliseconds: 350));
+          expect(snapshots.last.pendingSeekPosition, isNull);
+          final active = handler.debugActivePlayer as _ControllableAudioPlayer;
+          expect(identical(active, player), !recovery);
+          expect(active.loopMode, LoopMode.one);
+          expect(
+            (handler.collectPlaybackDiagnostics()['seek']! as Map)['outcome'],
+            'completed',
+          );
+          expect(active.position, greaterThan(const Duration(seconds: 166)));
+          expect(active.position, lessThan(const Duration(seconds: 170)));
+          final first = container.read(playbackPositionProvider).requireValue;
+          await Future<void>.delayed(const Duration(milliseconds: 350));
+          final second = container.read(playbackPositionProvider).requireValue;
+          expect(second, greaterThan(first));
+          expect(container.read(displayedPosition), second);
+          expect(fade(handler)['active'], isFalse);
+          // Native loop-one changes position without changing queue occurrence.
+          active.simulatedPosition = const Duration(seconds: 1);
+          // Keep the same PlayerEvent: progress must not need another event
+          // to rearm its timer after seek settlement or a loop wrap.
+          await Future<void>.delayed(const Duration(milliseconds: 350));
+          final wrapped = container.read(playbackPositionProvider).requireValue;
+          expect(wrapped, lessThan(const Duration(seconds: 2)));
+          expect(handler.snapshot.currentSongId, 'song-1');
+          expect(handler.snapshot.currentIndex, 1);
+          expect(handler.snapshot.queueSongIds, ['song-0', 'song-1', 'song-2']);
+          await Future<void>.delayed(const Duration(milliseconds: 350));
+          expect(
+            container.read(playbackPositionProvider).requireValue,
+            greaterThan(wrapped),
+          );
+          await handler.skipToPrevious();
+          await settleQueue(handler);
+          expect(active.index, 0);
+          await Future<void>.delayed(const Duration(milliseconds: 250));
+          final afterSkip = container
+              .read(playbackPositionProvider)
+              .requireValue;
+          await Future<void>.delayed(const Duration(milliseconds: 350));
+          expect(
+            container.read(playbackPositionProvider).requireValue,
+            greaterThan(afterSkip),
+          );
+          expect(handler.snapshot.pendingSeekPosition, isNull);
+          expect(handler.snapshot.repeatMode, AudioServiceRepeatMode.one);
+        });
+      }
     }
   });
 

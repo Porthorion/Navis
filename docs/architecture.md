@@ -3302,6 +3302,18 @@ never `MediaItem.extras`. AzuraCast polling is derived only from `/listen/` or
 6. UI reacts to structural snapshots without rebuilding for routine position
    or buffer ticks; timeline widgets subscribe to the lightweight streams
 
+`playbackSnapshotProvider` attaches its live broadcast subscription before
+seeding the current snapshot, using the same `Stream.multi` ownership pattern
+as the buffer-state provider. An `async*` initial yield followed by `yield*`
+left a subscription gap: pausing the initial delivery could lose the snapshot
+that cleared a settled seek's pending target. Now Playing then kept rendering
+that target while native playback and the position stream advanced, including
+through Repeat One wraps without another structural event. The attached stream
+buffers settlement during listener pauses and cancels with the provider;
+timeline ticks still come from the existing handler position stream. Handler
+and provider tests cover Repeat One seeks, Next/Previous, simulated native
+wraps, and player replacement with crossfade enabled and disabled.
+
 `NavisAudioHandler` keeps its fields, public API and audio-service overrides in
 `navis_audio_handler.dart`. Private helpers are grouped in part files using
 private extensions on the handler within the same library:
