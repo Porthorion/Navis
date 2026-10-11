@@ -104,9 +104,15 @@ class SongPlaybackMarker extends StatelessWidget {
         size: size,
         color: color,
       ),
-      SongPlaybackIndicatorState.loading => SizedBox.square(
-        dimension: size,
-        child: CircularProgressIndicator(strokeWidth: 2, color: color),
+      // Centred so a fixed-width slot (e.g. the rank column) cannot stretch
+      // the spinner into an oval; Icon centres itself the same way.
+      SongPlaybackIndicatorState.loading => Center(
+        widthFactor: 1,
+        heightFactor: 1,
+        child: SizedBox.square(
+          dimension: size,
+          child: CircularProgressIndicator(strokeWidth: 2, color: color),
+        ),
       ),
     };
   }
