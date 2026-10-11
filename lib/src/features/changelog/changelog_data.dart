@@ -168,7 +168,7 @@ const List<ChangelogVersion> changelogs = [
         type: ChangelogEntryType.newFeature,
       ),
       ChangelogEntry(
-        'Fine-Tune Colors opens a panel like Speed & Pitch, with Intensity and Brightness rulers for any color style, a separate Brightness for Light and for Dark and OLED',
+        'Fine-Tune Colors opens a panel like Speed & Pitch, with Intensity, Brightness and Tint rulers for any color style, a separate Brightness and Tint for Light and for Dark and OLED, and White controls that fill Play, sliders and selected controls with white instead of the accent color',
         type: ChangelogEntryType.newFeature,
       ),
       ChangelogEntry(
@@ -221,6 +221,9 @@ const List<ChangelogVersion> changelogs = [
       ),
 
       // Improved
+      ChangelogEntry(
+        'Buttons and indicators use one consistent accent: Play is the same solid color everywhere, Shuffle, Instant Radio, selected tabs and chips share one softer shade, and switched-off toggles are outlined so on is easy to tell from off',
+      ),
       ChangelogEntry(
         'Pulling down to refresh Home or Library also checks for app updates',
       ),

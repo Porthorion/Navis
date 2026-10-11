@@ -875,9 +875,29 @@ target-selection rules.
     FilledButtonTheme cannot distinguish solid and tonal constructors:
     the UI must route tonal buttons through the tonal API explicitly.
     IconButtonTheme likewise stays shape-only because filling it would
-    fill plain IconButtons. Play buttons with explicit colours, Instant Radio,
-    rail tiles, custom toggles and filled/tonal icon buttons need widget routing
-    in the subsequent UI pass; these APIs and persistence do not add panel UI.
+    fill plain IconButtons, and the FAB is always the solid action (Material's
+    default is a container). Widgets therefore take the role through
+    `NavisColorStyleData.playStyleOf(context)` / `tonalStyleOf(context)` (or
+    the `playButtonStyle(scheme)` / `tonalButtonStyle(scheme)` instance
+    methods), which return a `ButtonStyle` with the role's fill, glyph and,
+    in Light White, the `controlEdge` hairline, disabled states untouched;
+    `circular: true` keeps icon buttons round. Routed solid: mini player Play
+    (phone, rail and compact), desktop player bar Play (now `IconButton.filled`,
+    it was a filled-tonal button), desktop mini player Play, entity Play
+    (`EntityActionBar`, labelled and compact), album-card hover Play, You Might
+    Like play, the Equalizer save button and the FAB. Routed tonal: Shuffle,
+    Instant Radio (`FilledButton.tonalIcon`, no hand-set colours), every
+    `FilledButton.tonal*` and `IconButton.filledTonal`, rail and sub-navigation
+    tile selection, the Navigation Bar indicator (theme), the Navbar style
+    picker, EQ band chips, the Downloads count badge and the Equalizer quick
+    action when open. Spinners inside Play buttons use `onPlayButtonFill`.
+    A toggle passes `selected`: on is the tonal fill, off is the neutral role,
+    an outlined button without a fill (`outlineVariant`, `onSurfaceVariant`),
+    because Material's off container sat within 0.1 contrast of the tonal fill
+    on tinted pages and left on and off indistinguishable (Home Liked and
+    Downloaded). Kept as they are, because they are status or decoration and
+    not controls: notices and EQ banners, artwork placeholders, the New tag,
+    download badge, queue-shuffle badge and shortcut-capture highlight.
   - Schema 101 (unreleased) stores `color_vividness`,
     `surface_depth_light`, `surface_depth_dark`, `surface_tint_light` and
     `surface_tint_dark` with zero defaults, `control_color` TEXT (default
@@ -1083,23 +1103,30 @@ target-selection rules.
     Pitch shell, `showQuickPanel`: an anchored popover (440 wide, up to 680
     high) on desktop, a sheet capped at 88% on touch layouts, with the title,
     a live summary and Reset pinned. The row's summary is "Default" or the
-    steps that are not zero ("Intensity +2 · Brightness −1", Brightness being
-    the mode on screen; with only the other mode adjusted, "Light Brightness
-    +3"); the panel header shows the
-    same summary.
-    The panel body contains two rulers, **Intensity** (Muted to Vivid) and
-    **Brightness** (Lighter to Deeper), each `ColorTuningRulerRow`: the Speed and Pitch `AdjustmentRuler`
+    steps that are not zero ("Intensity +2 · Brightness −1 · Tint 3 · White
+    controls", Brightness and Tint being the mode on screen; with only the
+    other mode adjusted, "Light Brightness +3" or "Dark Tint 2"); the panel
+    header shows the same summary.
+    The panel body is **Intensity** (Muted to Vivid), a **Backgrounds** group
+    and a **Controls** group. Backgrounds holds a compact **Light | Dark**
+    `SegmentedButton` beside its title and two rulers it drives,
+    **Brightness** (Lighter to Deeper, −5…+5) and **Tint** (None to Full,
+    0…5, readout "None" at 0, and the − stepper stops there). Controls is an
+    **Accent | White** `SegmentedButton` that commits at once, with a note
+    saying what White does. Each ruler is a `ColorTuningRulerRow`: the Speed and Pitch `AdjustmentRuler`
     in whole-step mode (`snapStep: 1`, value = the step −5…+5, 64 px a step,
     small ticks every 8 px between steps, the haptics described under the
     ruler below), laid out like the Speed and Pitch row (− stepper, ruler, +
     stepper via the shared `RulerStepButton`, a readout of "Default", "+2",
-    "−3", end captions that stay left-to-right in RTL). A compact **Light |
-    Dark** `SegmentedButton` under Brightness picks which mode's value that
-    ruler edits (Dark covers OLED, which shares Dark's value); it starts on the
-    mode on screen and changes no value by itself. When it is on the other
-    mode, a one-line caption says where the change shows ("Applies in Light
-    mode", "Applies in Dark and OLED"). Intensity is shared by every mode.
-    Each ruler carries a `RulerBand`: eleven colours, one per step, built with
+    "−3", end captions that stay left-to-right in RTL). The
+    **Light | Dark** switch picks which mode's Brightness and Tint the rulers
+    edit (Dark covers OLED, which shares Dark's values); it starts on the mode
+    on screen and changes no value by itself. When it is on the other mode, a
+    one-line caption says where the change shows ("Applies in Light mode",
+    "Applies in Dark and OLED"). Intensity and Controls are shared by every
+    mode.
+    Each ruler carries a `RulerBand`: one colour per step (eleven, six for
+    Tint), built with
     `buildStyledColorScheme` from a `ColorTuningBasis` (previewed seed, style,
     the mode on screen and whether it is OLED, and whether Dark would be OLED)
     and the other axis, never from the ambient theme, so they hold still while
@@ -1109,7 +1136,11 @@ target-selection rules.
     Intensity paints `primary` in the mode on screen (its needle is the live
     primary, with `onPrimary` ticks). Brightness paints the selected mode's
     `surface`, so Light shows paper and Dark its own surfaces, or
-    `surfaceContainerHigh` for OLED, where surface stays black.
+    `surfaceContainerHigh` for OLED, where surface stays black. Tint paints the
+    same roles at tints 0…5 (the real page background of the selected mode,
+    with the current Intensity and Brightness), and under OLED adds the note
+    "OLED keeps pure black, so Tint only colors the panels." The Intensity and
+    Brightness strips and their keys include the Tint and Controls.
     The host owns the values: `showColorTuningPanel` takes a
     `ValueListenable<ColorTuningBasis>` and a `ValueListenable<ColorTuning>`
     that it keeps, plus `onPreview` (each whole
@@ -1124,7 +1155,8 @@ target-selection rules.
     `ColorTuningController.preview` and `onCommit` to `commit` (a persistence
     failure shows an error notice and the controller restores the saved value),
     and passes `onPreviewEnd: clearPreview`; setup keeps a notifier of its own
-    over its draft and writes `colorVividness` and both depths on every call.
+    over its draft and writes `colorVividness`, both depths, both tints and
+    `controlColor` on every call.
     Settings also feeds the basis from providers (`effectiveColorSchemeSeedProvider`,
     which includes the Dynamic Album Color, `effectiveColorStyleProvider`,
     theme mode and Use OLED When Dark), so the strips, the needle and the
@@ -1140,8 +1172,8 @@ target-selection rules.
     threshold comes from measuring the spread over hues, seed chromas, styles
     and Light/Dark/OLED: only a colourless seed in Neutral Dark/OLED and
     Pastel Dark in warm hues (about 10) fall below it.
-  - Fine-Tune Colors has no preset picker. Its intensity and Light/Dark
-    brightness values are saved as part of Looks. Setup continues to edit its
+  - Fine-Tune Colors has no preset picker. Its intensity, Light/Dark
+    brightness and tint values and Controls are saved as part of Looks. Setup continues to edit its
     draft until Finish.
   - `AdjustmentRuler` (Speed and Pitch and Fine-Tune) draws its focus outline
     only while `FocusManager.highlightMode` is traditional (keyboard), so a

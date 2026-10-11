@@ -376,3 +376,31 @@ ColorTuning, mode resolution, the existing theme cache, snapshots/Looks,
 targeted DAO writes, onboarding drafts and authenticated appearance
 diagnostics carry the values. There is no new provider, persistence store,
 schema-version increment or changelog entry in this foundation pass.
+
+### Accent routing and the Backgrounds panel (2026-10-11)
+
+Owner decision: accents are consistent. One solid accent marks the main
+action (Play everywhere, plus the FAB), one tonal level marks secondary
+filled controls and indicators, neutral marks off toggles, and primary ink
+marks hearts, active repeat, progress and links. Under White controls the
+solid role is a white fill with a deep accent glyph, the tonal role is the
+white-over-page fill, Light adds the accent hairline, and plain icons stay
+ink.
+
+Widgets take the role from `NavisColorStyleData.playStyleOf` /
+`tonalStyleOf` rather than hand-set `primaryContainer` or
+`secondaryContainer`, because the FilledButton and IconButton themes cannot
+tell solid from tonal constructors. The desktop player bar Play, which was
+tonal, became solid. Instant Radio became a plain tonal button. A toggle's
+off state became an outlined button with no fill: Material's off container
+(`surfaceContainerHighest`) was as visible as the tonal on fill on tinted
+Light pages (contrast against the page 1.18 against 1.17 at Tint 5), and
+white-on Light was fainter than off. Status banners, badges and artwork
+placeholders keep their container fills; they are not controls.
+
+Fine-Tune Colors groups **Backgrounds**: the Light | Dark switch drives
+Brightness and the new Tint ruler (0 "None" to 5 "Full", separate for Light and
+Dark), whose strip is the real page background at each step. OLED keeps
+pure black, so its Tint strip paints the panels and says so. **Controls**
+is an Accent | White segmented switch. The summary lists Tint and White
+controls when not default.
