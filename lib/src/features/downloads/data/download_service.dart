@@ -142,6 +142,7 @@ class DownloadService {
   final Future<int?> Function(String) _readFreeBytes;
   final Map<int, int> _spaceReservations = {};
   int _spaceRequired = 0;
+  bool _providerSpaceExhausted = false;
   static const _spaceMargin = 16 * 1024 * 1024;
   final bool Function() _readCustomDownloadFolderEnabled;
   final String? Function() _readCustomDownloadFolderPath;
@@ -203,7 +204,10 @@ class DownloadService {
       if (problem == null) _folderNoticeSent = false;
       _folderChanges.add(problem);
     }
-    if (problem != DownloadFolderProblem.noSpace) _spaceRequired = 0;
+    if (problem != DownloadFolderProblem.noSpace) {
+      _spaceRequired = 0;
+      _providerSpaceExhausted = false;
+    }
     if (problem != null) {
       _trackBackgroundTask(_recordQueueHold());
       _retryTimer?.cancel();
@@ -250,6 +254,7 @@ class DownloadService {
     } on DownloadFolderUnavailableException catch (error) {
       if (generation == _folderCheckGeneration) {
         if (_isNoSpaceError(error)) {
+          _providerSpaceExhausted = _isSafRoot(path);
           _spaceRequired = _spaceMargin;
           _setFolderProblem(DownloadFolderProblem.noSpace);
         } else {
@@ -259,6 +264,7 @@ class DownloadService {
     } on FileSystemException catch (error) {
       if (generation == _folderCheckGeneration) {
         if (_isNoSpaceError(error)) {
+          _providerSpaceExhausted = _isSafRoot(path);
           _spaceRequired = _spaceMargin;
           _setFolderProblem(DownloadFolderProblem.noSpace);
         } else {
@@ -269,8 +275,12 @@ class DownloadService {
     return false;
   }
 
-  Future<bool> _holdForFolderFailure(FileSystemException error) async {
+  Future<bool> _holdForFolderFailure(
+    FileSystemException error, {
+    bool providerWrite = false,
+  }) async {
     if (_isNoSpaceError(error)) {
+      _providerSpaceExhausted = _providerSpaceExhausted || providerWrite;
       _spaceRequired =
           _spaceMargin +
           _spaceReservations.values.fold<int>(0, (a, b) => a + b);
@@ -326,6 +336,13 @@ class DownloadService {
 
   Future<bool> _recheckSpaceHold({required bool explicitRepair}) async {
     if (_folderProblem == DownloadFolderProblem.noSpace) {
+      if (_providerSpaceExhausted && !explicitRepair) {
+        _setFolderProblem(
+          DownloadFolderProblem.noSpace,
+          cancelTransfers: false,
+        );
+        return false;
+      }
       final free = await _readFreeBytes(await _capacityDirectory());
       if ((free == null && !explicitRepair) ||
           (free != null && free < _spaceRequired)) {
@@ -474,8 +491,9 @@ class DownloadService {
   }
 
   Future<void> _recoverStartup() {
-    if (!_startupRecoveryPending || _stopped || _disposed)
+    if (!_startupRecoveryPending || _stopped || _disposed) {
       return Future.value();
+    }
     final generation = _lifecycleGeneration;
     return _recoveryInFlight ??=
         (() async {
@@ -1389,6 +1407,7 @@ class DownloadService {
     File? partFile;
     var renamed = false;
     var registered = false;
+    var writingProvider = false;
     String? reservedPath;
 
     try {
@@ -1631,6 +1650,7 @@ class DownloadService {
               treeUri: treeUri,
               relativePath: relativePath,
             );
+            writingProvider = true;
             locator = await _safStorage.writeFromFile(
               treeUri: treeUri,
               relativePath: relativePath,
@@ -1638,6 +1658,7 @@ class DownloadService {
               mimeType: _mimeTypeFor(format),
               replace: false,
             );
+            writingProvider = false;
           }
           if (treeUri != null) {
             await _writeFinishIntent(
@@ -1704,7 +1725,7 @@ class DownloadService {
     } on DownloadFolderUnavailableException catch (error) {
       await tryDeleteFile(partFile);
       if (_isNoSpaceError(error)) {
-        await _handleFileFailure(item, error);
+        await _handleFileFailure(item, error, providerWrite: writingProvider);
       } else {
         _setFolderProblem(error.problem);
         await _downloadQueueDao.recordFailure(
@@ -1716,7 +1737,7 @@ class DownloadService {
     } on FileSystemException catch (error) {
       await tryDeleteFile(partFile);
       if (renamed && !registered) await tryDeleteFile(destFile);
-      await _handleFileFailure(item, error);
+      await _handleFileFailure(item, error, providerWrite: writingProvider);
     } on DioException catch (error) {
       await tryDeleteFile(partFile);
       if (error.type == DioExceptionType.cancel) {
@@ -1733,7 +1754,11 @@ class DownloadService {
           }
         }
       } else if (error.error case final FileSystemException fileError) {
-        await _handleFileFailure(item, fileError);
+        await _handleFileFailure(
+          item,
+          fileError,
+          providerWrite: writingProvider,
+        );
       } else {
         final code = error.response?.statusCode;
         if (code == 404 || code == 410) {
@@ -2198,10 +2223,11 @@ class DownloadService {
 
   Future<void> _handleFileFailure(
     DownloadQueueTableData item,
-    FileSystemException error,
-  ) async {
+    FileSystemException error, {
+    bool providerWrite = false,
+  }) async {
     final previous = _folderProblem;
-    if (await _holdForFolderFailure(error)) {
+    if (await _holdForFolderFailure(error, providerWrite: providerWrite)) {
       await _downloadQueueDao.recordFailure(
         item.id,
         _holdReason!,

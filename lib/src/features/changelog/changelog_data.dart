@@ -259,6 +259,10 @@ const List<ChangelogVersion> changelogs = [
         type: ChangelogEntryType.fix,
       ),
       ChangelogEntry(
+        'A full Android download folder stays paused instead of repeatedly downloading the same song',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
         'Opening the queue centres it on the song that is playing',
       ),
       ChangelogEntry(

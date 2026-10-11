@@ -5180,7 +5180,11 @@ one notice through the existing folder-notice stream. Native capacity queries
 use StatFs on Android, filesystem attributes on Apple targets (with a bundled
 DiskSpace/E174.1 privacy reason), statvfs on Linux and GetDiskFreeSpaceExW on
 Windows. Unavailable capacity reports are skipped; write-time storage errors
-still hold work. SAF providers cannot report free space through the current
+still hold work. SAF provider write/probe exhaustion is held separately from private staging
+exhaustion. Automatic rechecks never clear a provider hold from staging free
+space: provider capacity is unknown, so an explicit storage repair/resume is
+required to try again. A repeated provider failure holds again.
+SAF providers cannot report free space through the current
 bridge: only the app-private staging filesystem is checked, and provider
 ENOSPC/EDQUOT is handled on write. `noSpace` extends DownloadFolderProblem and
 the same Downloads banner, cancellation and five-second storage recheck.

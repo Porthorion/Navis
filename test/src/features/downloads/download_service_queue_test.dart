@@ -571,6 +571,82 @@ void main() {
     expect(await queue(), isEmpty);
   }, skip: !sqliteAvailable);
 
+  test('SAF provider ENOSPC stays held across automatic rechecks and repeated failures', () async {
+    const tree = 'content://fixture/tree/root';
+    const channel = MethodChannel('com.navis.app/permanent_download_storage');
+    final messenger =
+        TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
+    var writes = 0;
+    var full = true;
+    messenger.setMockMethodCallHandler(channel, (call) async {
+      switch (call.method) {
+        case 'validateWritableTree':
+          return {
+            'uri': tree,
+            'canRead': true,
+            'canWrite': true,
+            'canReplace': true,
+          };
+        case 'findDocument':
+          return null;
+        case 'writeFromFile':
+          if ((call.arguments as Map)['relativePath'] ==
+              '.navis-downloads.sqlite') {
+            return 'content://fixture/document/index';
+          }
+          writes++;
+          if (full) throw PlatformException(code: 'NO_SPACE');
+          return 'content://fixture/document/audio';
+        default:
+          return null;
+      }
+    });
+    addTearDown(() => messenger.setMockMethodCallHandler(channel, null));
+    server.releaseAll();
+    final service = buildService(
+      isAndroid: true,
+      customEnabled: () => true,
+      customPath: () => tree,
+      readFreeBytes: (_) async => 1024 * 1024 * 1024,
+      folderRecheckInterval: const Duration(milliseconds: 10),
+    );
+    await service.start();
+    await addSongs(1);
+    await service.enqueueSong('song-0');
+    await service.processQueuedDownloads();
+    expect(writes, 1);
+    for (var i = 0; i < 3; i++) {
+      await Future<void>.delayed(const Duration(milliseconds: 20));
+      await service.processQueuedDownloads();
+    }
+    expect(
+      writes,
+      1,
+      reason: 'Private staging space cannot clear provider exhaustion',
+    );
+    expect(server.requests, hasLength(1));
+    expect(service.folderProblem, DownloadFolderProblem.noSpace);
+    expect((await queue()).single.retryCount, 0);
+    expect((await queue()).single.failureReason, DownloadFailureReason.noSpace);
+    // Explicit repair may try once, but a repeated provider failure holds again.
+    await service.refreshDownloadFolder();
+    await service.processQueuedDownloads();
+    await Future<void>.delayed(const Duration(milliseconds: 40));
+    await service.processQueuedDownloads();
+    expect(writes, 2);
+    expect(server.requests, hasLength(2));
+    expect((await queue()).single.retryCount, 0);
+    full = false;
+    await service.refreshDownloadFolder();
+    await service.processQueuedDownloads();
+    expect(writes, 3);
+    expect(await queue(), isEmpty);
+    expect(
+      (await database.cacheDao.getCachedTrack('song-0'))!.storageKind,
+      'androidSaf',
+    );
+  }, skip: !sqliteAvailable);
+
   test(
     'playlist warns through the existing notice when its estimate cannot fit',
     () async {
