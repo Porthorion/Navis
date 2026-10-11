@@ -868,6 +868,58 @@ void main() {
     skip: !sqliteAvailable,
   );
 
+  for (final localOnly in [false, true]) {
+    test(
+      'startup retains an inaccessible artist subtree, localOnly=$localOnly',
+      () async {
+        final custom = Directory(p.join(supportDir.path, 'custom'));
+        final artist = Directory(p.join(custom.path, 'Artist'));
+        await artist.create(recursive: true);
+        final file = File(p.join(artist.path, 'Song.mp3'));
+        await file.writeAsBytes([1, 2, 3, 4]);
+        if (!localOnly) await addSongs(1);
+        await database.appSettingsDao.updateDownloadsPaused(paused: true);
+        await database.cacheDao.upsertCachedTrack(
+          CachedTracksTableCompanion.insert(
+            songId: 'song-0',
+            filePath: file.path,
+            fileSize: 4,
+            format: 'mp3',
+            cacheType: CacheType.permanent,
+            downloadStatus: DownloadStatus.complete,
+            lastAccessedAt: DateTime(2026),
+          ),
+        );
+        addTearDown(() async {
+          await Process.run('chmod', ['700', artist.path]);
+        });
+        expect((await Process.run('chmod', ['000', artist.path])).exitCode, 0);
+        // Establish the real dart:io behavior that triggered this regression.
+        expect(file.statSync().type, FileSystemEntityType.notFound);
+        final service = buildService(
+          customEnabled: () => true,
+          customPath: () => custom.path,
+        );
+        await service.start();
+        final retained = await database.cacheDao.getCachedTrack('song-0');
+        expect(retained, isNotNull);
+        expect(retained!.filePath, file.path);
+        expect(await queue(), isEmpty);
+        expect(service.folderProblem, DownloadFolderProblem.inaccessible);
+        expect((await Process.run('chmod', ['700', artist.path])).exitCode, 0);
+        await service.refreshDownloadFolder();
+        expect(service.folderProblem, isNull);
+        expect(
+          (await database.cacheDao.getCachedTrack('song-0'))!.filePath,
+          file.path,
+        );
+        expect(file.readAsBytesSync(), [1, 2, 3, 4]);
+        expect(server.requests, isEmpty);
+      },
+      skip: !sqliteAvailable || !Platform.isLinux,
+    );
+  }
+
   test(
     'startup requeues a registered download whose file is missing',
     () async {

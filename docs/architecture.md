@@ -5198,7 +5198,10 @@ cache upsert and queue removal commit together in the existing DAO transaction.
 Startup replays journaled final files only when size and digest agree; missing
 or invalid files are requeued, and part files always restart from zero. Missing
 permanent-cache files are requeued when library metadata still permits a
-server download. Inaccessible storage retains its intent until it returns,
+server download. Filesystem absence requires an explicit missing-path errno;
+`stat`/`exists` can hide access failures and do not authorize record removal.
+Permission and I/O failures retain permanent records, including local-only
+songs, and finish intents until storage returns,
 and startup repair completes before workers start. Deferred recovery belongs
 to the service lifecycle: teardown invalidates its generation and awaits it
 before server data can be cleared. Reconciliation checks the generation after

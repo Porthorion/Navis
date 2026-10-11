@@ -1898,9 +1898,8 @@ class DownloadService {
           if (locator != null) staged = await _safStorage.materialize(locator);
         }
         final file = staged ?? File(path);
-        // No metadata I/O on the UI isolate.
-        // ignore: avoid_slow_async_io
-        final exists = locator != null && await file.exists();
+        final exists =
+            locator != null && await _filesystemDownloadExists(file.path);
         final publicationMatches =
             journal['publicationLocator'] == null ||
             journal['publicationLocator'] == locator;
@@ -1991,16 +1990,26 @@ class DownloadService {
     }
   }
 
+  /// Unlike stat/exists, length exposes permission and I/O errors. Only an
+  /// explicit missing-path errno permits forgetting a permanent download.
+  Future<bool> _filesystemDownloadExists(String path) async {
+    try {
+      await File(path).length();
+      return true;
+    } on FileSystemException catch (error) {
+      final missingCodes = Platform.isWindows ? const [2, 3] : const [2];
+      if (missingCodes.contains(error.osError?.errorCode)) return false;
+      rethrow;
+    }
+  }
+
   Future<void> _reconcileMissingDownloads(int generation) async {
     for (final entry in await _cacheDao.getPermanentEntries()) {
       _checkRecovery(generation);
       try {
         final exists = _isSafRoot(entry.filePath)
             ? await _safStorage.exists(entry.filePath)
-            // Keep filesystem latency off the UI isolate.
-            // ignore: avoid_slow_async_io
-            : (await File(entry.filePath).stat()).type !=
-                  FileSystemEntityType.notFound;
+            : await _filesystemDownloadExists(entry.filePath);
         _checkRecovery(generation);
         if (exists) continue;
         final song = (await _libraryDao.getSongsByIds([entry.songId]))
@@ -2113,9 +2122,7 @@ class DownloadService {
 
     if (_isSafRoot(cached.filePath)
         ? !await _safStorage.exists(cached.filePath)
-        // Keep metadata access asynchronous so storage latency cannot stall UI.
-        // ignore: avoid_slow_async_io
-        : !await File(cached.filePath).exists()) {
+        : !await _filesystemDownloadExists(cached.filePath)) {
       await _cacheDao.removeCachedTrack(songId);
       return false;
     }

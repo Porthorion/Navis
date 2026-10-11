@@ -255,6 +255,10 @@ const List<ChangelogVersion> changelogs = [
         type: ChangelogEntryType.fix,
       ),
       ChangelogEntry(
+        'Downloads in temporarily inaccessible subfolders keep their offline records until access returns',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
         'Opening the queue centres it on the song that is playing',
       ),
       ChangelogEntry(
