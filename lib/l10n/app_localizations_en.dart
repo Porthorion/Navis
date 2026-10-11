@@ -1577,7 +1577,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get configurationListenBrainzUnavailable =>
-      'ListenBrainz is unavailable. Check your connection and try again.';
+      'ListenBrainz is unavailable right now. Your token was not rejected. Check your connection or try again later.';
 
   @override
   String get configurationListenBrainzValidateAndSave => 'Validate and save';
@@ -5913,4 +5913,17 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get playbackPresetDeleteFailure =>
       'Could not delete the preset. It may have changed or could not be saved. Try again.';
+
+  @override
+  String get configurationListenBrainzOnlineServicesOff =>
+      'Online services is switched off. Turn it on before connecting to ListenBrainz.';
+
+  @override
+  String get configurationListenBrainzRateLimited =>
+      'ListenBrainz is limiting requests right now. Your token was not rejected. Try again later.';
+
+  @override
+  String configurationListenBrainzUnavailableHttp(int status) {
+    return 'ListenBrainz isn\'t accepting connections right now (HTTP $status). This is on their side; your token wasn\'t rejected. Try again later.';
+  }
 }

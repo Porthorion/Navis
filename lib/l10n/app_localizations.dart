@@ -2409,7 +2409,7 @@ abstract class AppLocalizations {
   /// No description provided for @configurationListenBrainzUnavailable.
   ///
   /// In en, this message translates to:
-  /// **'ListenBrainz is unavailable. Check your connection and try again.'**
+  /// **'ListenBrainz is unavailable right now. Your token was not rejected. Check your connection or try again later.'**
   String get configurationListenBrainzUnavailable;
 
   /// No description provided for @configurationListenBrainzValidateAndSave.
@@ -9482,6 +9482,24 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Could not delete the preset. It may have changed or could not be saved. Try again.'**
   String get playbackPresetDeleteFailure;
+
+  /// No description provided for @configurationListenBrainzOnlineServicesOff.
+  ///
+  /// In en, this message translates to:
+  /// **'Online services is switched off. Turn it on before connecting to ListenBrainz.'**
+  String get configurationListenBrainzOnlineServicesOff;
+
+  /// No description provided for @configurationListenBrainzRateLimited.
+  ///
+  /// In en, this message translates to:
+  /// **'ListenBrainz is limiting requests right now. Your token was not rejected. Try again later.'**
+  String get configurationListenBrainzRateLimited;
+
+  /// No description provided for @configurationListenBrainzUnavailableHttp.
+  ///
+  /// In en, this message translates to:
+  /// **'ListenBrainz isn\'t accepting connections right now (HTTP {status}). This is on their side; your token wasn\'t rejected. Try again later.'**
+  String configurationListenBrainzUnavailableHttp(int status);
 }
 
 class _AppLocalizationsDelegate

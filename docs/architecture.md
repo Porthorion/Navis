@@ -2338,6 +2338,21 @@ not. Each entry records its request limit, so a larger request refreshes an
 undersized entry and smaller reads return only the requested number of tracks.
 Cache I/O uses the existing asynchronous read and atomic-write path.
 
+ListenBrainz connection validation and listen submissions distinguish explicit token
+rejection (`valid: false`, HTTP 401/403), integration policy blocking, rate
+limiting (HTTP 429 and `X-RateLimit` budgets), and service unavailability
+(documented-endpoint HTTP 404/410/5xx, non-JSON/HTML responses, malformed
+validation responses and transport failures). Settings and onboarding share
+localized reason-specific copy, including the HTTP status when available.
+An unavailable response never clears credentials or changes token validity;
+the existing scrobble retry queue retains listens for later dispatch within
+its normal retention window. Requests keep the documented
+[`/1/validate-token` and `/1/submit-listens` paths](https://listenbrainz.readthedocs.io/en/latest/users/api/core.html)
+and explicitly follow up to five same-origin redirects, preserving authorization,
+method and POST data on 307/308; cross-origin and HTTPS downgrade redirects
+are refused without forwarding credentials. No response body or token enters
+these exceptions or connect-flow logs.
+
 ListenBrainz listen submissions observe `X-RateLimit-Remaining: 0` and
 `X-RateLimit-Reset-In`, holding subsequent dispatches for the stated seconds
 (up to five minutes). Malformed headers are ignored. Client and dispatcher

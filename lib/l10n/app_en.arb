@@ -656,7 +656,7 @@
   "configurationListenBrainzTokenLabel": "User Token",
   "configurationListenBrainzTokenRequired": "Enter a ListenBrainz user token.",
   "configurationListenBrainzTokenInvalid": "Invalid ListenBrainz token.",
-  "configurationListenBrainzUnavailable": "ListenBrainz is unavailable. Check your connection and try again.",
+  "configurationListenBrainzUnavailable": "ListenBrainz is unavailable right now. Your token was not rejected. Check your connection or try again later.",
   "configurationListenBrainzValidateAndSave": "Validate and save",
   "configurationListenBrainzGetToken": "Get Token",
   "privacyOnlineServicesTitle": "Online Services",
@@ -2798,5 +2798,9 @@
   "cacheSettingsDeleteAllPresetsConfirmBody": "This permanently deletes every saved appearance Look and Speed & Pitch preset, their selections, and any older Fine-Tune color presets. Your current speed, pitch and appearance values stay as they are.",
   "cacheSettingsDeleteAllPresetsSuccess": "All presets deleted. Your current values are unchanged.",
   "cacheSettingsDeleteAllPresetsFailure": "Could not delete presets. Try again.",
-  "playbackPresetDeleteFailure": "Could not delete the preset. It may have changed or could not be saved. Try again."
+  "playbackPresetDeleteFailure": "Could not delete the preset. It may have changed or could not be saved. Try again.",
+  "configurationListenBrainzOnlineServicesOff": "Online services is switched off. Turn it on before connecting to ListenBrainz.",
+  "configurationListenBrainzRateLimited": "ListenBrainz is limiting requests right now. Your token was not rejected. Try again later.",
+  "configurationListenBrainzUnavailableHttp": "ListenBrainz isn't accepting connections right now (HTTP {status}). This is on their side; your token wasn't rejected. Try again later.",
+  "@configurationListenBrainzUnavailableHttp": {"placeholders": {"status": {"type": "int"}}}
 }
