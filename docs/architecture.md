@@ -1092,8 +1092,8 @@ target-selection rules.
     Corner Style); the accent grid fills each swatch with the accent the selected style
     will use (a pastel box under Pastel) and shows the raw seed as a small inner
     dot, so Night's near-identical accents stay distinguishable. Every main
-    Play uses the shared solid action API in `NavisColorStyleData`;
-    `solidPlayButton` is always true and means the solid action role. Flat
+    Play uses the shared solid action API in `NavisColorStyleData`
+    (`playButtonFill`/`playStyleOf`). Flat
     also drops the album-card caption fade for a solid `CaptionTint.fill` block, the selected-swatch glow and the
     anchored popover's black shadow.
   - Fine-Tune Colors is one row in Appearance (`ColorTuningOption` in

@@ -40,7 +40,6 @@ void main() {
               final scheme = theme.colorScheme;
               final data = theme.extension<NavisColorStyleData>()!;
               expect(data.controls, controls);
-              expect(data.solidPlayButton, isTrue);
               expect(
                 _contrast(
                   data.onPlayButtonFill(scheme),

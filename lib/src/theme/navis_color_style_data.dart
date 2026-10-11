@@ -188,10 +188,6 @@ class NavisColorStyleData extends ThemeExtension<NavisColorStyleData> {
       nowPlayingArtworkVeilBase(surface)
           .withValues(alpha: dark ? (oled ? 0.8 : 0.68) : 0.68);
 
-  /// Main Play always uses a solid fill, independent of style and mode.
-  /// The flag identifies the solid action role, including White Controls.
-  bool get solidPlayButton => true;
-
   /// Solid primary action shared by every Play button.
   Color playButtonFill(ColorScheme scheme) =>
       controls == NavisControlColor.white ? Colors.white : scheme.primary;
