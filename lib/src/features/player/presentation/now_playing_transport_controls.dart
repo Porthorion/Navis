@@ -6,6 +6,7 @@ class _TransportControls extends ConsumerWidget {
     required this.isExternalSource,
     this.isRadio = false,
     this.compact = false,
+    this.large = false,
     this.showVolumeControl = false,
     this.onSkipPrevious,
     this.onSkipNext,
@@ -15,6 +16,10 @@ class _TransportControls extends ConsumerWidget {
   final bool isExternalSource;
   final bool isRadio;
   final bool compact;
+
+  /// Tall phones: a slightly larger Play button and skip icons. Only the
+  /// portrait phone layout sets it, so other layouts keep their sizes.
+  final bool large;
   final bool showVolumeControl;
   final VoidCallback? onSkipPrevious;
   final VoidCallback? onSkipNext;
@@ -33,6 +38,9 @@ class _TransportControls extends ConsumerWidget {
     final playFill = colorStyle.solidPlayButton ? scheme.primary : null;
     final onPlayFill = colorStyle.solidPlayButton ? scheme.onPrimary : null;
     final loadingColor = scheme.onPrimary;
+    final playPadding = large ? 14.0 : (compact ? 12.0 : 16.0);
+    final playIconSize = large ? 34.0 : (compact ? 30.0 : 36.0);
+    final skipIconSize = large ? 32.0 : (compact ? 28.0 : 32.0);
 
     if (isRadio) {
       // Simplified radio transport: just play/pause and stop.
@@ -46,14 +54,14 @@ class _TransportControls extends ConsumerWidget {
                 backgroundColor: playFill,
                 foregroundColor: onPlayFill,
                 shape: const CircleBorder(),
-                padding: EdgeInsets.all(compact ? 12 : 16),
+                padding: EdgeInsets.all(playPadding),
               ),
               onPressed: () =>
                   unawaited(togglePlayPause(ref, isPlaying: isPlaying)),
               child: _playPauseChild(
                 showLoading: showLoading,
                 isPlaying: isPlaying,
-                size: compact ? 30 : 36,
+                size: playIconSize,
                 loadingColor: loadingColor,
                 loadingLabel: l10n.commonLoading,
               ),
@@ -150,7 +158,7 @@ class _TransportControls extends ConsumerWidget {
             ),
             gap,
             IconButton(
-              icon: Icon(Icons.skip_previous, size: compact ? 28 : 32),
+              icon: Icon(Icons.skip_previous, size: skipIconSize),
               visualDensity: compact ? VisualDensity.compact : null,
               tooltip: l10n.nowPlayingPrevious,
               onPressed: () {
@@ -171,14 +179,14 @@ class _TransportControls extends ConsumerWidget {
                   backgroundColor: playFill,
                   foregroundColor: onPlayFill,
                   shape: const CircleBorder(),
-                  padding: EdgeInsets.all(compact ? 12 : 16),
+                  padding: EdgeInsets.all(playPadding),
                 ),
                 onPressed: () =>
                     unawaited(togglePlayPause(ref, isPlaying: isPlaying)),
                 child: _playPauseChild(
                   showLoading: showLoading,
                   isPlaying: isPlaying,
-                  size: compact ? 30 : 36,
+                  size: playIconSize,
                   loadingColor: loadingColor,
                   loadingLabel: l10n.commonLoading,
                 ),
@@ -186,7 +194,7 @@ class _TransportControls extends ConsumerWidget {
             ),
             gap,
             IconButton(
-              icon: Icon(Icons.skip_next, size: compact ? 28 : 32),
+              icon: Icon(Icons.skip_next, size: skipIconSize),
               visualDensity: compact ? VisualDensity.compact : null,
               tooltip: l10n.nowPlayingNext,
               onPressed: () {
