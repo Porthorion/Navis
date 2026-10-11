@@ -3606,9 +3606,6 @@ void main() {
       final handler = _MockPlaybackHandler();
       when(() => handler.loadFailureStream)
           .thenAnswer((_) => const Stream<PlaybackLoadFailure>.empty());
-      when(() => handler.snapshot).thenReturn(const PlaybackSnapshot.idle());
-      when(() => handler.snapshotStream)
-          .thenAnswer((_) => const Stream<PlaybackSnapshot>.empty());
       when(
         () => handler.replaceQueueWithData(
           any(),
@@ -3751,7 +3748,14 @@ Future<_DiagnosticsFixture> _startFixture(
   );
 }
 
-class _MockPlaybackHandler extends Mock implements NavisPlaybackHandler;
+class _MockPlaybackHandler extends Mock implements NavisPlaybackHandler {
+  // Playback status reads the UI snapshot, which subscribes up front.
+  @override
+  PlaybackSnapshot get snapshot => const PlaybackSnapshot.idle();
+
+  @override
+  Stream<PlaybackSnapshot> get snapshotStream => const Stream.empty();
+}
 
 class _MockDownloadService extends Mock implements DownloadService;
 
