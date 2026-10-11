@@ -559,6 +559,7 @@ class _NowPlayingCollapseButton extends StatelessWidget {
   Widget build(BuildContext context) {
     return IconButton.filledTonal(
       key: const Key('nowPlayingCloseButton'),
+      style: NavisColorStyleData.tonalStyleOf(context, circular: true),
       tooltip: MaterialLocalizations.of(context).closeButtonTooltip,
       onPressed: onPressed,
       icon: const Icon(Icons.keyboard_arrow_down_rounded),

@@ -34,10 +34,11 @@ class _TransportControls extends ConsumerWidget {
     );
     final colorStyle = NavisColorStyleData.of(context);
     final scheme = Theme.of(context).colorScheme;
-    // Light Pastel plays with the solid primary (see solidPlayButton).
-    final playFill = colorStyle.solidPlayButton ? scheme.primary : null;
-    final onPlayFill = colorStyle.solidPlayButton ? scheme.onPrimary : null;
-    final loadingColor = scheme.onPrimary;
+    // The solid action role, shared with every other Play button.
+    final playFill = colorStyle.playButtonFill(scheme);
+    final onPlayFill = colorStyle.onPlayButtonFill(scheme);
+    final loadingColor = onPlayFill;
+    final playEdge = colorStyle.controlEdge;
     final playPadding = large ? 14.0 : (compact ? 12.0 : 16.0);
     final playIconSize = large ? 34.0 : (compact ? 30.0 : 36.0);
     final skipIconSize = large ? 32.0 : (compact ? 28.0 : 32.0);
@@ -53,6 +54,7 @@ class _TransportControls extends ConsumerWidget {
               style: FilledButton.styleFrom(
                 backgroundColor: playFill,
                 foregroundColor: onPlayFill,
+                side: playEdge == null ? null : BorderSide(color: playEdge),
                 shape: const CircleBorder(),
                 padding: EdgeInsets.all(playPadding),
               ),
@@ -178,6 +180,7 @@ class _TransportControls extends ConsumerWidget {
                 style: FilledButton.styleFrom(
                   backgroundColor: playFill,
                   foregroundColor: onPlayFill,
+                  side: playEdge == null ? null : BorderSide(color: playEdge),
                   shape: const CircleBorder(),
                   padding: EdgeInsets.all(playPadding),
                 ),
