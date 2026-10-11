@@ -633,7 +633,12 @@ class MediaKitPlayer extends AudioPlayerPlatform {
   Future<SeekResponse> seek(SeekRequest request) async {
     _logger.finest('seek(${request.toMap()})');
     if (_released) return SeekResponse();
-    if (request.index != null) {
+    // mpv ignores a jump to the entry that is already playing, so seeking to
+    // the current index (Previous restarting a song) is a plain seek.
+    final sameEntry = request.index != null &&
+        _player.state.playlist.medias.isNotEmpty &&
+        request.index == _player.state.playlist.index;
+    if (request.index != null && !sameEntry) {
       final position = request.position;
       _playbackInitialized = false;
       // A fresh entry starts at zero; only non-zero positions need a seek.
@@ -646,9 +651,9 @@ class MediaKitPlayer extends AudioPlayerPlatform {
       if (!_playing) await _player.pause();
     }
 
-    final position = request.position;
+    final position = request.position ?? (sameEntry ? Duration.zero : null);
     if (position != null) {
-      if (request.index == null) _deferredSeek.request(position);
+      if (request.index == null || sameEntry) _deferredSeek.request(position);
       await _deferredSeek.flush();
     } else {
       _position = Duration.zero;

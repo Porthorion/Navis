@@ -137,4 +137,18 @@ void main() {
       expect(adapter.debugTransportState['pendingPosition'], isFalse);
     });
   }
+
+  for (final target in [Duration.zero, const Duration(seconds: 30)]) {
+    test(
+      'seeking the playing entry by index to $target is a plain seek',
+      () async {
+        // Previous restarts the current song with seek(0, index: current);
+        // mpv ignores a jump to the entry already playing.
+        await adapter.seek(SeekRequest(index: 0, position: target));
+        verifyNever(() => player.jump(any()));
+        verify(() => player.seek(target)).called(1);
+        expect(adapter.debugTransportState['pendingPosition'], isFalse);
+      },
+    );
+  }
 }
