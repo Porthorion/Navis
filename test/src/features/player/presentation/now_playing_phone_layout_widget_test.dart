@@ -298,6 +298,63 @@ void main() {
     expect(transport.bottom, closeTo(body.bottom - l.bottom, 1));
   }, skip: !sqliteAvailable);
 
+  for (final scale in [1.0, 2.0]) {
+    testWidgets(
+      'long radio artists stay on one line with Live visible at ${scale}x',
+      (tester) async {
+        const names = [
+          'The First Very Long Radio Artist Name',
+          'The Second Very Long Radio Artist Name',
+          'The Third Very Long Radio Artist Name',
+        ];
+        const size = Size(360, 640);
+        await _pump(
+          tester,
+          size,
+          textScale: scale,
+          playback: _radio.copyWith(
+            radioStation: RadioStationMetadata(
+              stationId: 'radio-1',
+              stationName: 'Night Drive FM',
+              streamUrl: 'https://example.com/radio',
+              nowPlayingTitle: 'Midnight Drive',
+              nowPlayingArtist: names.join('; '),
+            ),
+          ),
+        );
+        final block = _rect(
+          tester,
+          find
+              .ancestor(
+                of: _byType('_TrackInfo'),
+                matching: find.byType(ClipRect),
+              )
+              .first,
+        );
+        final live = _rect(tester, find.text('LIVE'));
+        expect(live.bottom, lessThanOrEqualTo(block.bottom));
+        final first = _rect(tester, find.text(names.first));
+        for (final (i, name) in names.indexed) {
+          final finder = find.text('${i > 0 ? ', ' : ''}$name');
+          expect(_rect(tester, finder).center.dy, closeTo(first.center.dy, .1));
+          expect(finder.hitTestable(), findsOneWidget);
+          final text = tester.widget<Text>(finder);
+          expect(text.maxLines, 1);
+          expect(text.overflow, TextOverflow.ellipsis);
+          final gesture = tester.widget<GestureDetector>(
+            find
+                .ancestor(of: finder, matching: find.byType(GestureDetector))
+                .first,
+          );
+          expect(gesture.onTap, isNotNull);
+        }
+        expect(find.byType(Scrollable), findsNothing);
+        expect(tester.takeException(), isNull);
+      },
+      skip: !sqliteAvailable,
+    );
+  }
+
   testWidgets('200 percent text keeps the controls pinned and visible', (
     tester,
   ) async {

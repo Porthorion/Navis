@@ -46,8 +46,8 @@ class _PhoneNowPlayingColumn extends StatelessWidget {
                   SizedBox(height: layout.artToTitle),
                   Padding(
                     padding: inset,
-                    // Clipped to the modelled height, so a wrapped radio
-                    // artist list can never push the cover around.
+                    // Fixed to the modelled height; each metadata line is
+                    // bounded so the artist links and Live label stay visible.
                     child: SizedBox(
                       height: layout.titleBlock,
                       child: ClipRect(

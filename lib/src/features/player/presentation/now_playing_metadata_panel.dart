@@ -186,7 +186,28 @@ class _TrackInfo extends StatelessWidget {
           ),
           SizedBox(height: titleGap),
         ],
-        if (links != null && links.isNotEmpty)
+        if (links != null && links.isNotEmpty && phone != null)
+          Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              for (final (i, link) in links.indexed) ...<Widget>[
+                Flexible(
+                  child: GestureDetector(
+                    behavior: HitTestBehavior.opaque,
+                    onTap: link.onTap,
+                    child: Text(
+                      '${i > 0 ? ', ' : ''}${link.name}',
+                      style: artistStyle,
+                      strutStyle: artistStrut,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                ),
+              ],
+            ],
+          )
+        else if (links != null && links.isNotEmpty)
           Wrap(
             alignment: WrapAlignment.center,
             spacing: 0,

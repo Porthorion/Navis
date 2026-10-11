@@ -1670,9 +1670,11 @@ geometry.
   forced strut at the modelled line height (`titleStrut`, `artistStrut`,
   `albumStrut`, built from the style so the Latin pixels are unchanged), so an
   Arabic or CJK fallback font cannot make the title block taller than the
-  budget; the title block is also clipped to its modelled height, so a wrapped
-  radio artist list cannot move the cover. Anything the model leaves over
-  collects above the cover, and a few dp of misjudged height are clipped,
+  budget. Radio artist links share one bounded, ellipsized row on portrait
+  phones, so every visible link remains tappable and the Live label stays
+  inside the title block. The title block is also clipped to its modelled
+  height. Anything the model leaves over collects above the cover, and a few
+  dp of misjudged height are clipped,
   never an overflow.
 - **Exact squares.** The cover, its placeholder, radio art and the inline
   lyrics slot render in a `SizedBox.square` of the computed size.

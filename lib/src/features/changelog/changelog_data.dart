@@ -289,6 +289,10 @@ const List<ChangelogVersion> changelogs = [
 
       // Fixed: playback
       ChangelogEntry(
+        'Radio artist links stay on one ellipsized line on phone Now Playing, keeping the Live label visible at larger text sizes',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
         'Crossfade restores playback if queue preparation stalls, keeps player updates connected after a cancelled handoff, and preserves mute and ducking during volume changes',
         type: ChangelogEntryType.fix,
       ),
