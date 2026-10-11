@@ -1,4 +1,5 @@
 import 'package:material_ui/material_ui.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:navis/l10n/app_localizations.dart';
 import 'package:navis/src/common_widgets/adaptive_track_row.dart';
@@ -515,6 +516,39 @@ void main() {
     expect(find.text('--:--'), findsOneWidget);
     await tester.tap(find.text('Unknown'));
     expect(taps, 1);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('a long artist and album stay on one line in compact rows', (
+    tester,
+  ) async {
+    // The Home showcase list at the 800×600 desktop minimum is compact; a
+    // wrapped "Artist · Album" line was clipped by the fixed row height.
+    setAdaptiveTestViewport(tester, const Size(380, 600));
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: testTheme(),
+        localizationsDelegates: AppLocalizations.localizationsDelegates,
+        supportedLocales: AppLocalizations.supportedLocales,
+        home: const Scaffold(
+          body: AdaptiveTrackRow(
+            title: 'Track 01',
+            artist: 'Aurora Fixture With A Rather Long Name',
+            album: 'Aurora Fixture Vol. 1 (Deluxe Anniversary Edition)',
+            duration: 12,
+            minHeight: 48,
+            actionExtent: 48,
+            leading: Icon(Icons.music_note),
+            actions: IconButton(onPressed: null, icon: Icon(Icons.more_horiz)),
+          ),
+        ),
+      ),
+    );
+    final secondary = find.textContaining(' · ');
+    expect(secondary, findsOneWidget);
+    expect(tester.widget<Text>(secondary).maxLines, 1);
+    final line = tester.renderObject<RenderParagraph>(secondary);
+    expect(line.didExceedMaxLines, isTrue);
     expect(tester.takeException(), isNull);
   });
 }

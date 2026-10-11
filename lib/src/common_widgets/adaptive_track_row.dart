@@ -222,9 +222,11 @@ class AdaptiveTrackRow extends StatelessWidget {
             ),
             if (secondary.isNotEmpty)
               RemoteSourceMetadataLine(
+                // One line, like the wider modes' columns: rows have a fixed
+                // minimum height, so a wrapped "Artist · Album" was clipped.
                 metadata: Text(
                   secondary,
-                  maxLines: 2,
+                  maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: style,
                 ),
