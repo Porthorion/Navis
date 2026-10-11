@@ -239,6 +239,9 @@ const List<ChangelogVersion> changelogs = [
       ),
 
       // Improved
+      ChangelogEntry(
+        'Update, offline and other notices share a calmer new look that follows your colour style',
+      ),
       ChangelogEntry('Failed downloads say why they failed'),
       ChangelogEntry(
         'Downloads check free space first and pause instead of failing when storage runs out',

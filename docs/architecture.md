@@ -2101,7 +2101,7 @@ While the session's server is unreachable, every shell mode shows
 `ShellOfflineBanner` (`lib/src/routing/shell_offline_banner.dart`) above the
 tab pages. `ShellOfflineBannerFrame` owns the top inset while the banner is
 visible:
-- On Android, which runs edge to edge, the banner fills the status bar strip with its own surface colour and pads its content below it.
+- On Android, which runs edge to edge, the banner pads its content below the status bar. The banner itself is a transparent strip holding an inset, rounded `surfaceContainerHigh` tile (a 32 px quiet-warning disc, the message, a tonal Retry and a close button; Flat Surfaces draws it unfilled with an outline), and the 48 px `contentHeight` includes the tile's vertical inset.
 - The frame strips the top padding from the `MediaQuery` it hands to the pages.
 
 Pages keep using `SafeArea` and primary `AppBar`s as usual, and do not add the status bar height a second time. Only the content part of the banner animates. The status bar strip comes and goes together with the padding it replaces, so pages never jump by the status bar height. The `MediaQuery` wrapper is always present, so toggling the banner never rebuilds the pages.
@@ -2434,7 +2434,7 @@ and Subsonic delivery continues independently.
   Is" card are hidden), scrobbling and feedback (their credential readers return
   no token), lyrics (`useLrclibProvider` is `allows(lrclib.lyrics)`; the
   download service takes a `readLyricsAllowed` callback instead of reading the
-  column), the update banner and provider, the AutoEQ dialog (search still uses
+  column), the update tile and provider, the AutoEQ dialog (search still uses
   the bundled catalogue; refresh and download are disabled) and the weekly
   playlists stream. Gates use `allows(feature)`, which includes the credential
   check, except weekly playlists (`isEnabled`, see above). *The guard
@@ -3081,8 +3081,32 @@ Integrations; tapping it or its close button writes
 New row returns if the release is unseen. Finishing onboarding (not skipping
 it) also marks it seen, from the onboarding Integrations step. The notice and
 the What's New row draw the same frame, `HomeNoticeCard`
-(`common_widgets/home_notice_card.dart`: surface, optional leading widget,
-title, subtitle and close button); each keeps its own text and actions.
+(`common_widgets/home_notice_card.dart`), the shared notice tile: a
+`surfaceContainerHigh` tile (Flat Surfaces: unfilled with a 1 px
+`outlineVariant` border) with the Corner Style `lg` radius, a leading 40 px
+`NoticeIconDisc` (or a custom `leading` such as a release cover), a
+`titleSmall` w600 title, a two-line `bodySmall` subtitle, an optional compact
+close button and optional actions (`NoticeAction`: a text secondary and a
+tonal primary built from `NavisColorStyleData.tonalStyleOf`, never solid, per
+the accent contract). Each caller keeps its own text and actions. The Home
+update-ready element (`_UpdateTile` in `home_support_widgets.dart`, which
+replaced the `MaterialBanner`) is the same tile: title "Navis {version} is
+ready", a delivery-specific body, a "Release notes" text action, the tonal
+Install / Download / Open in Play Store action, and a close button that
+invalidates `updateProvider` as the old Dismiss did.
+
+**Notice roles.** `NoticeIconDisc` (`common_widgets/notice_icon_disc.dart`)
+is the circular icon mark shared by every notice surface and defaults to
+`tonalControlFill` / `onTonalControlFill`, so notices follow the colour
+style and the Controls (Accent | White) setting; no notice hard-codes a
+colour. Transient notices (`_NoticePill` in `app_notice.dart`) are one neutral
+raised pill (elevation 3, Corner Style control radius) for every kind, and
+only the 30 px disc carries the kind: info is tonal, success is
+`NavisTokens.success` over the pill, error is `errorContainer` /
+`onErrorContainer` (no full error fill or border). The offline banner and
+`ShellOfflineChip` use `NavisTokens.quietWarningContainer` /
+`onQuietWarningContainer`. `EmptyState` shows a 64 px tonal disc over its
+title and a secondary-coloured subtitle.
 
 **Trending page** (`AppRoutes.trending`, `/library/trending`,
 `NavService.openTrending`). `TrendingDetailScreen` shows
@@ -3113,7 +3137,7 @@ Home and Library pulls (including Library tabs and Liked see-all pages) call
 check request, bypassing the 24-hour throttle only when the master, Updates
 service and `updates.automatic` switches are on. A temporary manual listener
 keeps the auto-disposed provider active until it resolves and closes on
-completion or widget disposal. Home uses its existing update banner; Library
+completion or widget disposal. Home uses its existing update tile; Library
 shows an info notice, “Update available”, with a View action opening the
 existing update dialog, once per available version and build. `UpdateInfo`
 retains the verified manifest version and build in `notificationKey`, so a
