@@ -338,17 +338,18 @@ ThemeData _buildNavisTheme(
   final styleData = NavisColorStyleData(
     style: style,
     adjustment: adjustment,
+    controls: adjustment.controls,
     dark: colorScheme.brightness == Brightness.dark,
     flat: flat,
     flatAreas: flatAreas,
     oled: oled,
     accentHue: Hct.fromInt(colorScheme.primary.toARGB32()).hue,
   );
-  // Light Pastel fills its main buttons with the pastel container colour and
-  // keeps the deeper primary for text, which needs the contrast.
-  final pastelLight =
-      style == NavisColorStyle.pastel &&
-      colorScheme.brightness == Brightness.light;
+  final whiteControls = adjustment.controls == NavisControlColor.white;
+  final controlFill = styleData.playButtonFill(colorScheme);
+  final controlInk = styleData.onPlayButtonFill(colorScheme);
+  final tonalFill = styleData.tonalControlFill(colorScheme);
+  final tonalInk = styleData.onTonalControlFill(colorScheme);
   // Outlines on secondary controls use the softer variant role so they
   // separate controls without competing with filled primary actions.
   final softOutline = BorderSide(color: colorScheme.outlineVariant);
@@ -392,6 +393,18 @@ ThemeData _buildNavisTheme(
     ),
     chipTheme: ChipThemeData(
       shape: shape.controlShape,
+      selectedColor: whiteControls ? tonalFill : null,
+      secondarySelectedColor: whiteControls ? tonalFill : null,
+      checkmarkColor: whiteControls ? tonalInk : null,
+      labelStyle: whiteControls
+          ? WidgetStateTextStyle.resolveWith(
+              (states) => TextStyle(
+                color: states.contains(WidgetState.selected)
+                    ? tonalInk
+                    : colorScheme.onSurface,
+              ),
+            )
+          : null,
       side: WidgetStateBorderSide.resolveWith((states) {
         if (states.contains(WidgetState.selected)) {
           return const BorderSide(color: Colors.transparent);
@@ -425,11 +438,35 @@ ThemeData _buildNavisTheme(
     ),
     filledButtonTheme: FilledButtonThemeData(
       style: FilledButton.styleFrom(
-        backgroundColor: pastelLight ? colorScheme.primaryContainer : null,
-        foregroundColor: pastelLight ? colorScheme.onPrimaryContainer : null,
+        backgroundColor: whiteControls ? controlFill : null,
+        foregroundColor: whiteControls ? controlInk : null,
         shape: shape.controlShape,
       ),
     ),
+    sliderTheme: whiteControls
+        ? SliderThemeData(
+            activeTrackColor: Colors.white,
+            thumbColor: Colors.white,
+            inactiveTrackColor: colorScheme.surfaceContainerHighest,
+            overlayColor: controlInk.withValues(alpha: 0.12),
+            thumbShape: _AccentRingThumb(controlInk),
+          )
+        : null,
+    switchTheme: whiteControls
+        ? SwitchThemeData(
+            thumbColor: WidgetStateProperty.resolveWith(
+              (states) =>
+                  states.contains(WidgetState.disabled) ? null : Colors.white,
+            ),
+            trackColor: WidgetStateProperty.resolveWith(
+              (states) =>
+                  states.contains(WidgetState.disabled) ||
+                      !states.contains(WidgetState.selected)
+                  ? null
+                  : colorScheme.primary,
+            ),
+          )
+        : null,
     textButtonTheme: TextButtonThemeData(
       style: ButtonStyle(shape: controlShape),
     ),
@@ -437,7 +474,27 @@ ThemeData _buildNavisTheme(
       style: ButtonStyle(shape: controlShape),
     ),
     segmentedButtonTheme: SegmentedButtonThemeData(
-      style: ButtonStyle(shape: controlShape),
+      style: ButtonStyle(
+        shape: controlShape,
+        backgroundColor: whiteControls
+            ? WidgetStateProperty.resolveWith(
+                (states) =>
+                    states.contains(WidgetState.disabled) ||
+                        !states.contains(WidgetState.selected)
+                    ? null
+                    : tonalFill,
+              )
+            : null,
+        foregroundColor: whiteControls
+            ? WidgetStateProperty.resolveWith(
+                (states) =>
+                    states.contains(WidgetState.disabled) ||
+                        !states.contains(WidgetState.selected)
+                    ? null
+                    : tonalInk,
+              )
+            : null,
+      ),
     ),
     // Play, shuffle, transport and mini-player buttons pass
     // `NavisShapeData.circularIconButtonStyle`.
@@ -454,6 +511,8 @@ ThemeData _buildNavisTheme(
       ),
     ),
     floatingActionButtonTheme: FloatingActionButtonThemeData(
+      backgroundColor: whiteControls ? controlFill : null,
+      foregroundColor: whiteControls ? controlInk : null,
       shape: shape.lgShape,
     ),
     // Fixed snackbars render no shape and floating ones Material's 4 px, so
@@ -474,6 +533,16 @@ ThemeData _buildNavisTheme(
         ? const BottomNavigationBarThemeData(backgroundColor: Colors.black)
         : null,
     navigationBarTheme: NavigationBarThemeData(
+      indicatorColor: whiteControls ? tonalFill : null,
+      iconTheme: whiteControls
+          ? WidgetStateProperty.resolveWith(
+              (states) => IconThemeData(
+                color: states.contains(WidgetState.selected)
+                    ? tonalInk
+                    : colorScheme.onSurfaceVariant,
+              ),
+            )
+          : null,
       backgroundColor: oled ? Colors.black : null,
       surfaceTintColor: oled ? Colors.transparent : null,
       indicatorShape: shape.controlShape,
@@ -500,6 +569,51 @@ ThemeData _buildNavisTheme(
       styleData,
     ],
   );
+}
+
+/// A white slider thumb with an inset 2 dp accent ring.
+class _AccentRingThumb extends RoundSliderThumbShape {
+  const new(this.ring) : super.new(enabledThumbRadius: 10);
+  final Color ring;
+
+  @override
+  void paint(
+    PaintingContext context,
+    Offset center, {
+    required Animation<double> activationAnimation,
+    required Animation<double> enableAnimation,
+    required bool isDiscrete,
+    required TextPainter labelPainter,
+    required RenderBox parentBox,
+    required SliderThemeData sliderTheme,
+    required TextDirection textDirection,
+    required double value,
+    required double textScaleFactor,
+    required Size sizeWithOverflow,
+  }) {
+    super.paint(
+      context,
+      center,
+      activationAnimation: activationAnimation,
+      enableAnimation: enableAnimation,
+      isDiscrete: isDiscrete,
+      labelPainter: labelPainter,
+      parentBox: parentBox,
+      sliderTheme: sliderTheme,
+      textDirection: textDirection,
+      value: value,
+      textScaleFactor: textScaleFactor,
+      sizeWithOverflow: sizeWithOverflow,
+    );
+    context.canvas.drawCircle(
+      center,
+      9,
+      Paint()
+        ..color = ring.withValues(alpha: enableAnimation.value)
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 2,
+    );
+  }
 }
 
 /// Preset seed colors for the color scheme picker, ordered as a readable

@@ -22,10 +22,12 @@ class NavisColorStyleData extends ThemeExtension<NavisColorStyleData> {
     this.oled = false,
     this.accentHue = seaGlassHue,
     this.adjustment = ColorAdjustment.none,
+    this.controls = NavisControlColor.accent,
   });
 
   final NavisColorStyle style;
   final ColorAdjustment adjustment;
+  final NavisControlColor controls;
 
   /// Whether the theme is dark (Dark or OLED).
   final bool dark;
@@ -185,19 +187,44 @@ class NavisColorStyleData extends ThemeExtension<NavisColorStyleData> {
       nowPlayingArtworkVeilBase(surface)
           .withValues(alpha: dark ? (oled ? 0.8 : 0.68) : 0.68);
 
-  /// Whether the main Play buttons use the solid `primary`/`onPrimary` pair
-  /// instead of the container pair. Light Pastel's `primaryContainer` sits
-  /// about 1.1:1 against the raised surfaces the mini player and Now Playing
-  /// use, so Play takes the deeper primary there; other styles are unchanged.
-  bool get solidPlayButton => style == NavisColorStyle.pastel && !dark;
+  /// Main Play always uses a solid fill, independent of style and mode.
+  /// The flag identifies the solid action role, including White Controls.
+  bool get solidPlayButton => true;
 
-  /// Fill of the mini player's and Now Playing's main Play button.
+  /// Solid primary action shared by every Play button.
   Color playButtonFill(ColorScheme scheme) =>
-      solidPlayButton ? scheme.primary : scheme.primaryContainer;
+      controls == NavisControlColor.white ? Colors.white : scheme.primary;
 
-  /// Icon colour on [playButtonFill].
+  /// Glyph on the solid action; White Controls use deep accent ink.
   Color onPlayButtonFill(ColorScheme scheme) =>
-      solidPlayButton ? scheme.onPrimary : scheme.onPrimaryContainer;
+      controls == NavisControlColor.white
+      ? _controlInk(scheme)
+      : scheme.onPrimary;
+
+  /// Secondary fill: 50% white on Light keeps more of the page tint;
+  /// Dark uses 80% so deep accent glyphs retain 4.5:1 even on black OLED.
+  Color tonalControlFill(ColorScheme scheme) =>
+      controls == NavisControlColor.white
+      ? Color.alphaBlend(
+          Colors.white.withValues(alpha: dark ? 0.8 : 0.5),
+          scheme.surface,
+        )
+      : scheme.secondaryContainer;
+
+  Color onTonalControlFill(ColorScheme scheme) =>
+      controls == NavisControlColor.white
+      ? _controlInk(scheme)
+      : scheme.onSecondaryContainer;
+
+  /// Optional hairline for white controls on light tinted chrome.
+  Color? get controlEdge => controls == NavisControlColor.white && !dark
+      ? hct(accentHue, 24, 35).withValues(alpha: 0.25)
+      : null;
+
+  Color _controlInk(ColorScheme scheme) {
+    final source = Hct.fromInt(scheme.primary.toARGB32());
+    return hct(accentHue, source.chroma.clamp(24.0, 48.0), 35);
+  }
 
   /// Opaque colour of the Artwork veil.
   Color nowPlayingArtworkVeilBase(Color surface) =>
@@ -233,11 +260,20 @@ class NavisColorStyleData extends ThemeExtension<NavisColorStyleData> {
       other.flatAreas == flatAreas &&
       other.oled == oled &&
       other.accentHue == accentHue &&
-      other.adjustment == adjustment;
+      other.adjustment == adjustment &&
+      other.controls == controls;
 
   @override
-  int get hashCode =>
-      Object.hash(style, dark, flat, flatAreas, oled, accentHue, adjustment);
+  int get hashCode => Object.hash(
+    style,
+    dark,
+    flat,
+    flatAreas,
+    oled,
+    accentHue,
+    adjustment,
+    controls,
+  );
 
   @override
   NavisColorStyleData copyWith({
@@ -248,6 +284,7 @@ class NavisColorStyleData extends ThemeExtension<NavisColorStyleData> {
     bool? oled,
     double? accentHue,
     ColorAdjustment? adjustment,
+    NavisControlColor? controls,
   }) {
     return NavisColorStyleData(
       style: style ?? this.style,
@@ -257,6 +294,7 @@ class NavisColorStyleData extends ThemeExtension<NavisColorStyleData> {
       oled: oled ?? this.oled,
       accentHue: accentHue ?? this.accentHue,
       adjustment: adjustment ?? this.adjustment,
+      controls: controls ?? adjustment?.controls ?? this.controls,
     );
   }
 

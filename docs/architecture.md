@@ -813,13 +813,14 @@ target-selection rules.
     `adjustColorScheme` post-pass after the style recipe. Zero/zero returns the
     original scheme without round-tripping any channels. Vividness multiplies
     accent/fixed/container, surface and outline chroma by `1 + 0.1 × vividness`;
-    errors and on-colour text stay unchanged, as do pure black and white roles.
+    errors and on-colour text stay unchanged at Tint 0 (except repaired
+    container ink), as do pure black and white roles.
     The mud guard covers the same roles as the muddy-band test (containers,
     surfaces, and primary/secondary in dark modes): at tone 24.5–50.5 their
     chroma is capped at 24, but never below the style's own (muted) chroma, so
     every Color step is monotonic and a Brightness-only change leaves the
     accents untouched. Light ink accents and inverse roles are not capped.
-    Pure black/white accents remain unchanged at every value.
+    Pure black/white accents remain unchanged by intensity and brightness.
     OLED containers target chroma at most 1.5 to keep decoded RGB chroma
     below 3. Depth moves the surface family and outlineVariant:
     Light +5 lowers tone by 4.5, −5 lifts by 4 (cap 99); Dark ±5 moves tone
@@ -827,23 +828,78 @@ target-selection rules.
     black; the other surface containers move at most ±3 tones (floor 2).
     The Light deeper range is smaller than the initial −7 proposal to preserve
     the existing 3:1 accent contrast on Pastel's highest surface.
+  - Accent role contract (all styles and modes):
+
+    | Role | API / scheme colour | Purpose |
+    |---|---|---|
+    | Solid | `playButtonFill(scheme)` / `onPlayButtonFill(scheme)` | Main Play everywhere; primary/onPrimary under Accent |
+    | Tonal | `secondaryContainer` / `onSecondaryContainer`; `tonalControlFill(scheme)` / `onTonalControlFill(scheme)` | Secondary filled controls and selection indicators |
+    | Neutral | `surfaceContainerHighest` / `outline` | Inactive tracks, off states and boundaries |
+    | Ink | `primary` and readable `onSurfaceVariant` | Plain accent icons and supporting text |
+
+    The scheme builder separates primary/secondary containers from `surface`,
+    `surfaceContainer` and `surfaceContainerHigh` by at least 5 tones in Light
+    and 4 in Dark/OLED. It targets another 0.6 tone for RGB rounding, and
+    compensates on-container ink to keep 4.5:1. The same guard runs after
+    tuning. Light Pastel fills use the accent hue at chroma 20 near tone
+    82–84, rather than almost-white pink; other Light recipes start at tone
+    82 so lowering a gamut-clipped fill does not preserve unnecessarily low
+    chroma. Pastel retains its accent/artwork softness caps. Normal filled
+    buttons use Material's solid primary defaults in Light Pastel too.
+  - Tint runs after intensity and brightness. At Tint 0 it performs no colour
+    conversion, so existing adjusted colours retain their exact channels.
+    Light page tone interpolates toward `88 + brightness shift`, with a
+    floor of 84; page chroma interpolates toward at least 24 at Tint 5,
+    independent of the near-grey baseline, with HCT clipping to sRGB. Near
+    white, a warm accent hue can shrink the gamut: page tone gains just enough
+    headroom (still ≥84) to keep the first Tint step from losing chroma.
+    Light follows the accent hue. The Low/Container/High panels progressively
+    become 7/5/3 tones lighter than the page, with chroma targets 6/9.6/12;
+    Lowest/Bright become near-white. At Tint 5, Highest stays 6 tones below
+    paper for inactive controls. Light primary and family ink are deepened as needed
+    for 3:1 against every surface role, onSurfaceVariant for 4.5:1 and
+    onSurface for 7:1. Dark retains its surface tones and style surface hue,
+    targeting chroma 22 while respecting the muddy-band guard. OLED retains
+    pure-black surface/Dim/Lowest and caps all other surfaces at chroma 1.5
+    before RGB conversion (decoded chroma ≤3).
+  - Controls is independent of surface tint. `ColorAdjustment.controls`
+    reaches `NavisColorStyleData.controls` and the existing theme-cache key.
+    White Controls use opaque white Play/FAB fills and tone-35 accent glyphs
+    (≥4.5:1), with secondary fills made by compositing white over `surface` at
+    50% in Light (more visible tint) and 80% in Dark/OLED (glyph contrast).
+    `controlEdge` supplies an accent hairline at 25% opacity in
+    Light, otherwise null. Plain icons retain readable scheme ink.
+    The shared builder themes Slider (white track/thumb, inset 2 dp accent
+    ring, Highest inactive track), Switch, NavigationBar, FilledButton,
+    selected SegmentedButton/Chip and FAB colours. Flutter's one
+    FilledButtonTheme cannot distinguish solid and tonal constructors:
+    the UI must route tonal buttons through the tonal API explicitly.
+    IconButtonTheme likewise stays shape-only because filling it would
+    fill plain IconButtons. Play buttons with explicit colours, Instant Radio,
+    rail tiles, custom toggles and filled/tonal icon buttons need widget routing
+    in the subsequent UI pass; these APIs and persistence do not add panel UI.
   - Schema 101 (unreleased) stores `color_vividness`,
-    `surface_depth_light`, and `surface_depth_dark` with zero defaults, plus
+    `surface_depth_light`, `surface_depth_dark`, `surface_tint_light` and
+    `surface_tint_dark` with zero defaults, `control_color` TEXT (default
+    `accent`, alternative `white`), plus
     the `appearance_looks` JSON TEXT library (default `[]`) and nullable
     `selected_appearance_look_id`. Tuning presets and their selected id were
     removed from this unshipped schema; Looks are the only appearance preset
     system. Every 100→101 column addition is guarded;
     the branch-only `surface_depth` definition was replaced before shipping.
-    `ColorTuning` clamps all three integer steps to −5…+5 and resolves to the
-    unchanged `ColorAdjustment` with `forMode(dark:)`: Light uses light depth,
-    Dark and OLED share dark depth. `app.dart` resolves the active variant
+    `ColorTuning` clamps intensity and both brightness steps to −5…+5,
+    and `lightTint` / `darkTint` to 0…5. Its `controls` enum and
+    `copyWith` preserve all axes during partial edits. `forMode(dark:)`
+    resolves to `ColorAdjustment(vividness, depth, tint, controls)`: Light
+    uses light depth/tint; Dark and OLED share dark depth/tint. `app.dart`
+    resolves the active variant
     before looking up the existing theme cache. Theme extensions, caption
     workers, memo keys and cover caches still carry only resolved adjustments.
     `colorTuningProvider` exposes persisted tuning (identity while loading or
     failed); `colorTuningPreviewProvider` offers nullable `preview` / `clear`,
     and `effectiveColorTuningProvider` combines preview ?? persisted. Setup
-    previews its draft and Finish diffs all three axes, preserving concurrent
-    changes to unedited axes. Settings uses the effective colour style for the
+    previews its draft and Finish diffs each tuning axis and Controls, preserving
+    concurrent changes to unedited axes. Settings uses the effective colour style for the
     Fine-Tune band, so a scheduled Night window agrees with the rendered app;
     the Night Schedule control still receives the saved style.
   - `ColorTuningController` exposes tuning state, `preview`, `clearPreview`
@@ -858,8 +914,8 @@ target-selection rules.
     `AppearanceLooksController`) capture all appearance choices: theme mode,
     OLED-for-Auto, saved colour style, nullable accent seed, dynamic album
     colour, Night Schedule enable/start/end, both album-title shade flags,
-    all three tuning values directly, Flat switch
-    and area mask, corners, library/carousel/Now Playing/artist artwork shapes,
+    intensity, both brightness values, both tint values and Controls directly,
+    Flat switch and area mask, corners, library/carousel/Now Playing/artist artwork shapes,
     artwork size and legacy grid-column override, density, artist view mode,
     and Now Playing background. Excluded: Home section order/visibility,
     page visibility/order and Desktop Navbar (they organize content and
@@ -880,8 +936,8 @@ target-selection rules.
     snapshot for Undo and pass it to `restore(previous)`. Apply and restore
     update appearance and the derived selected marker in one DAO transaction.
     Restoration includes theme mode, automatic (null) accent seed, null legacy
-    grid-column override, and all three tuning values. Undo restores Custom
-    when no Look matches, or re-selects a previously matching Look by value.
+    grid-column override, and every tuning value and Controls. Undo restores
+    Custom when no Look matches, or re-selects a previously matching Look by value.
     Reset restores appearance defaults and retains the Look library.
     Controllers serialize writes and acknowledge the committed row through
     the existing settings watch before publishing results; there is no second
@@ -894,10 +950,11 @@ target-selection rules.
     No separate cover cache is introduced. `SetupHighlight.colorTuning`
     uses the stable `colorTuning` key for the 1.5.0 setup registry.
     `/v1/presentation/appearance` accepts/returns `colorVividness` and
-    `surfaceDepthLight` / `surfaceDepthDark`; all must be integers −5…+5,
-    with the whole request
+    `surfaceDepthLight` / `surfaceDepthDark` (integers −5…+5),
+    `surfaceTintLight` / `surfaceTintDark` (integers 0…5) and
+    `controlColor` (`accent` / `white`), with the whole request
     validated before DAO writes. Omitting an axis preserves its saved value.
-    GET also returns derived selected tuning/Look ids and library counts.
+    GET also returns the derived selected Look id and Look library count.
     Clone-only `GET /v1/presentation/looks` lists ids and names;
     `POST /v1/presentation/looks/apply` applies `{"id":"..."}` through the
     production controller, returning 404 for an unknown id.
@@ -946,8 +1003,9 @@ target-selection rules.
     dark, black OLED overrides) except that dark and OLED primary, secondary
     and tertiary containers in a warm hue (`isWarmHue`, reds through olive)
     in the muddy band are replaced by the same hue at chroma 20; cool hues
-    and `errorContainer` are left alone. The other styles use hand-built
-    role tables over HCT instead of Material's fixed tone table.
+    and `errorContainer` retain their Material colours except for the
+    primary/secondary tonal distinctness post-pass. The other styles use
+    hand-built role tables over HCT instead of Material's fixed tone table.
   - Rules every styled scheme keeps, enforced by
     `test/src/theme/navis_style_schemes_test.dart`: containers and surfaces
     never sit at tone 25–50 with chroma above 24 (the brick-red and olive
@@ -968,7 +1026,7 @@ target-selection rules.
       chroma is 16 (muted seed) to 24 (vivid seed), 20 for the default white,
       so a neon cover never passes through. Dark and OLED accents sit at tone
       86, light ink at tone 47 (white text keeps 4.5:1, chroma at most 24),
-      containers at chroma 12 (dark, tone 30) and 15 (light, tone 89-91),
+      containers at chroma 12 (dark, tone 30) and 20 (light, tone 82–84),
       surfaces at chroma 6-7: a plum dusk (warm accents sit on
       `pastelDuskHue`) or a faint tinted paper at tone 95 (warm hues shift up
       to 25° toward peach, `pastelPaperHue`). Error is a soft rose
@@ -1007,17 +1065,16 @@ target-selection rules.
       former Flat caption-band experiment and its provider were removed.
     - Light styled schemes put `surfaceContainerLow` (bottom sheets, cards),
       `surfaceContainer` (popup menus) and `surfaceContainerHigh` (dialogs)
-      3, 5 and 7 tone steps below the tinted paper so raised surfaces stay
-      distinct from the page.
+      3, 5 and 7 tone steps below the tinted paper at Tint 0. Tint progressively
+      reverses this ladder to lighter, softer panels.
   - Appearance and onboarding pick a style with `ColorStyleSelector`, whose
     tiles are painted from each style's real scheme (their inner radii follow
     Corner Style); the accent grid fills each swatch with the accent the selected style
     will use (a pastel box under Pastel) and shows the raw seed as a small inner
-    dot, so Night's near-identical accents stay distinguishable. Light Pastel's `primaryContainer` is about
-    1.2:1 against raised surfaces, so the mini player's and Now Playing's main
-    Play use `primary`/`onPrimary` there (`NavisColorStyleData.solidPlayButton`);
-    other styles are unchanged. Flat also drops the album-card caption fade
-    for a solid `CaptionTint.fill` block, the selected-swatch glow and the
+    dot, so Night's near-identical accents stay distinguishable. Every main
+    Play uses the shared solid action API in `NavisColorStyleData`;
+    `solidPlayButton` is always true and means the solid action role. Flat
+    also drops the album-card caption fade for a solid `CaptionTint.fill` block, the selected-swatch glow and the
     anchored popover's black shadow.
   - Fine-Tune Colors is one row in Appearance (`ColorTuningOption` in
     `appearance_options.dart`: title, New tag, a summary subtitle and a
