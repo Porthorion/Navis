@@ -368,6 +368,7 @@ class _ShellOfflineBannerState extends ConsumerState<ShellOfflineBanner> {
                     fixedSize: const Size.square(32),
                     minimumSize: const Size.square(32),
                     padding: EdgeInsets.zero,
+                    // Compact: the banner row is a fixed 48 px.
                     tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                   ),
                 ),

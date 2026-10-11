@@ -152,7 +152,8 @@ class HomeNoticeCard extends StatelessWidget {
                     fixedSize: const Size.square(32),
                     minimumSize: const Size.square(32),
                     padding: EdgeInsets.zero,
-                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                    // 32 px to see, 48 px to tap.
+                    tapTargetSize: MaterialTapTargetSize.padded,
                   ),
                 ),
             ],
