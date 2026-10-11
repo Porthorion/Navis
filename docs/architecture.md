@@ -998,35 +998,16 @@ target-selection rules.
     `buildDarkTheme` and `buildOledTheme`, which record it in the extension and
     make `ColorScheme.shadow`, `ThemeData.shadowColor` and the OLED dialog
     shadow transparent when the surfaces area is selected. The following Flat
-    behaviour applies within each selected area: the Home cover wash is one
-    solid block. On phones (`phoneCompact`, not desktop) the You Might Like wash is a
-    full-bleed, hard-edged colour band (`_ShowcaseFlatBand`) that wraps the
-    carousel, title lines and page dots with `NavisSpace.lg` vertical padding,
-    so its height follows the content; its fill is
-    `captionTintFor(average, style).fill` (the adapted cover average, with the
-    grey chroma floor applied to the sample first and its HCT tone clamped by
-    `flatBandSample` to 16-30 in dark themes, 6-10 in OLED (still tinted,
-    near black; `NavisColorStyleData.oled`) or 82-92 in light ones, so a
-    light cover never paints a bright block on a dark page) and the title, artist, meta
-    and page-dot colours come from the same tint, all gliding together when
-    the cover changes. On desktop the pager is the same band as one rounded
-    (`NavisRadius.xl`) solid panel (`_ShowcaseFlatBand` with `borderRadius`)
-    flush with the section's content column and wrapping the cover, track
-    list and thumbnail strip with `NavisSpace.md` padding on every side; the
-    pages draw no card of their own inside it and its content is re-themed
-    from the same tint (`_flatPanelTheme`), so text, icons and Play/Shuffle
-    keep at least 4.5 contrast. The tablet card keeps the adapted average of
-    the cover colour field at `1 - artWashVeil` over the
-    page background; art-tinted Now Playing is one solid colour (adapted tint
-    at `nowPlayingTintAlpha` over `surface`, see
+    behaviour applies within each selected area: the Home You Might Like
+    section (phone, tablet and desktop, which includes the Trending hero) draws
+    no wash, band, gradient or tint at all and sits directly on the page
+    background, with its captions in the normal on-surface colours (the cover
+    card's flat-mode shadow rule is unchanged); art-tinted Now Playing is one
+    solid colour (adapted tint at `nowPlayingTintAlpha` over `surface`, see
     `nowPlayingSurfaceDecoration`) and plain `surface` when the art tint is
     off; decorative gradients become their solid end colour; hand-drawn drop
     shadows and the seek-preview blur are dropped for opaque container fills.
-    Exceptions that stay: the desktop/tablet Home wash is a rounded panel
-    (`NavisRadius.xl`) inset to the 16 px content margins, and a wash colour with HCT chroma
-    below 6 (grey covers) takes 25% of `secondaryContainer` into the raw sample
-    before adaptation, through `styledCoverSample` shared by wash and band;
-    coloured samples are adapted once; OLED + Flat Now Playing is plain
+    Exceptions that stay: OLED + Flat Now Playing is plain
     `surface` (black), never the solid tint (`NavisColorStyleData.oled`, set by `buildOledTheme`); the legibility
     gradients behind white text over artwork stay under Flat (see
     `NavisColorStyleData.artworkScrim` below).
@@ -1054,7 +1035,7 @@ target-selection rules.
     across the key roles (primary, secondary, tertiary, the three containers,
     `surface`, `surfaceContainer`, `surfaceContainerHighest`) Pastel's maximum
     HCT chroma is at most 60% of Immersive's and under 85% of Night's, and its
-    artwork-adapted colours (Home wash, flat bands, captions, Now Playing
+    artwork-adapted colours (Home wash, captions, Now Playing
     solid) are under 60% of Immersive's.
     - **Pastel** is macaron soft: the seed supplies the hue only. Accent
       chroma is 16 (muted seed) to 24 (vivid seed), 20 for the default white,
@@ -1084,7 +1065,7 @@ target-selection rules.
       themes and chroma 12 at tone 26-34 in dark and OLED ones (high-key
       chalk, dusky soft), and rotates warm hues toward its plum dusk
       (`pastelDuskHue`, 60% blend, up to 85% for yellows) so an orange cover
-      reads rose or plum, not terracotta. Because Flat bands, Use Cover Color
+      reads rose or plum, not terracotta. Because Use Cover Color
       captions and the Now Playing tint (and its Flat solid) all derive from
       this colour, they inherit the cap. Immersive keeps the hue but caps warm
       chroma at 22 below tone 35 (wine or mahogany, not brown; yellows still go
@@ -1336,6 +1317,13 @@ recommendation showcase.
   title (tap to open), the artist, and a line such as
   "2023 • 12 songs · Similar to your likes". `_showcaseReasonLabel` maps
   each `HomeRandomShowcaseSource` or ListenBrainz item to its reason.
+- **Height is script-independent:** the panel is always three
+  `_ShowcaseLine`s (artist line reserved even when empty), each a one-line
+  `Text` in a `SizedBox` of its style's line height with a forced strut
+  (`StrutStyle.fromTextStyle(..., forceStrutHeight: true)`), so Japanese or
+  Arabic fallback-font metrics cannot make the section taller than Latin.
+  The desktop pager's height is fixed by `_heroHeightFor`. Under Flat the
+  section has no background at all on any layout (see "Flat" above).
 
 **Desktop:** the art, track list and cover strip are unchanged. The panel
 header adds the same reason line and a compact Play/Shuffle pair.
@@ -1669,11 +1657,23 @@ geometry.
   shares the slack 40/30/30 above the artwork, between artwork and title, and
   between title and transport.
 - **Small screens.** The artwork may shrink below its preferred 62% of the
-  width (capped at 320 dp) down to 45% (120-200 dp) before anything scrolls. On
-  short phones only, the info pager is dropped when the artwork would otherwise
-  fall below the preferred size. If even the floor does not fit (very large
-  text) the artwork and title scroll while the controls stay pinned; there is
-  no height at which the controls flatten into one scroll view.
+  width (capped at 320 dp) down to 45% (120-200 dp). On short phones only, the
+  info pager is dropped when the artwork would otherwise fall below the
+  preferred size. If even the floor does not fit (very large text,
+  `scalesUpper`) the artwork and title are scaled down together
+  (`FittedBox`) to the room above the controls. Nothing in the phone body
+  scrolls: a scroll view there took the swipe-down-to-dismiss drag (reported
+  with Arabic titles) and there is no height at which the controls flatten
+  into one scroll view. (The inline lyrics list scrolls inside its own cover
+  square by design.)
+- **Script-independent text.** The title, artist and album lines render with a
+  forced strut at the modelled line height (`titleStrut`, `artistStrut`,
+  `albumStrut`, built from the style so the Latin pixels are unchanged), so an
+  Arabic or CJK fallback font cannot make the title block taller than the
+  budget; the title block is also clipped to its modelled height, so a wrapped
+  radio artist list cannot move the cover. Anything the model leaves over
+  collects above the cover, and a few dp of misjudged height are clipped,
+  never an overflow.
 - **Exact squares.** The cover, its placeholder, radio art and the inline
   lyrics slot render in a `SizedBox.square` of the computed size.
 

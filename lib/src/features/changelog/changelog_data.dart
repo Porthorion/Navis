@@ -227,6 +227,9 @@ const List<ChangelogVersion> changelogs = [
         'Opening the queue centres it on the song that is playing',
       ),
       ChangelogEntry(
+        'With flat surfaces, You might like sits on the plain page background on phones and desktop',
+      ),
+      ChangelogEntry(
         'Normal crossfade blends a repeating song into its fresh start with Repeat One; Smart keeps the native loop',
       ),
       ChangelogEntry(
@@ -290,6 +293,10 @@ const List<ChangelogVersion> changelogs = [
         type: ChangelogEntryType.fix,
       ),
       ChangelogEntry(
+        'Now Playing on phones never turns into a scrolling page, so swiping down always closes it, including with Arabic or Japanese titles',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
         'Skipping to a remote song that your server is still fetching plays it instead of jumping past it, and remote songs start promptly on first play',
         type: ChangelogEntryType.fix,
       ),
@@ -339,6 +346,10 @@ const List<ChangelogVersion> changelogs = [
       ),
       ChangelogEntry(
         'Internet radio keeps the station name until a song title arrives, shows live titles on desktop, never shows the previous station\'s song, and no longer freezes Windows with station artwork',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
+        'You might like keeps the same height whatever language the titles are in',
         type: ChangelogEntryType.fix,
       ),
 
