@@ -4,12 +4,21 @@ extension _NavisCrossfade on NavisAudioHandler {
   AudioPlayer _newCrossfadePlayer() =>
       _crossfadePlayerFactory?.call() ?? _buildBaseAudioPlayer();
 
+  bool get _isRepeatOneCrossfade =>
+      _isCrossfading &&
+      _desiredLoopMode == LoopMode.one &&
+      _crossfadeTargetIndex == _player.currentIndex;
+
   /// Returns the effective queue index of the next track, accounting for
   /// shuffle and loop modes. Returns `null` when there is no next track.
   int? _getNextEffectiveIndex() {
     final currentIndex = _player.currentIndex;
     if (currentIndex == null || _queueItems.isEmpty) {
       return null;
+    }
+
+    if (_player.loopMode == LoopMode.one) {
+      return currentIndex;
     }
 
     final effectiveIndices = _player.effectiveIndices;
@@ -46,6 +55,7 @@ extension _NavisCrossfade on NavisAudioHandler {
     _crossfadeHandoffInProgress = false;
     _crossfadeTargetIndex = nextIndex;
     final from = _resolveCurrentQueueMetadata();
+    final fromPosition = _player.position;
     final sessionToken = ++_crossfadeSessionToken;
     _crossfadeActiveTransitionId = sessionToken;
     _crossfadePrewarmLatencyMs = null;
@@ -66,15 +76,30 @@ extension _NavisCrossfade on NavisAudioHandler {
       if (!_isCrossfadeSessionActive(sessionToken, nextIndex)) {
         return;
       }
-      if (delayBeforeFade > Duration.zero) {
+      if (_isRepeatOneCrossfade && _player.position < fromPosition) {
+        // The native loop won the race with preparation. Retry at its next
+        // ending instead of overlapping two starts of the song.
+        _cancelCrossfade();
+        return;
+      }
+      final fadeDelay = _isRepeatOneCrossfade && delayBeforeFade > Duration.zero
+          ? _effectivePlaybackDuration(from.mediaItem) -
+                _player.position -
+                Duration(seconds: _crossfadeDurationSeconds)
+          : delayBeforeFade;
+      if (fadeDelay > Duration.zero) {
         AppLogger.debug(
           'Cross-fade prewarm ready: delaying fade start by '
-          '${delayBeforeFade.inMilliseconds}ms '
+          '${fadeDelay.inMilliseconds}ms '
           '(target=$nextIndex token=$sessionToken).',
         );
-        await Future<void>.delayed(delayBeforeFade);
+        await Future<void>.delayed(fadeDelay);
       }
       if (!_isCrossfadeSessionActive(sessionToken, nextIndex)) {
+        return;
+      }
+      if (_isRepeatOneCrossfade && _player.position < fromPosition) {
+        _cancelCrossfade();
         return;
       }
       // An edit during the delay can move the songs or the next one.
@@ -82,6 +107,11 @@ extension _NavisCrossfade on NavisAudioHandler {
           cfPlayer.currentIndex != nextIndex ||
           _getNextEffectiveIndex() != nextIndex) {
         throw StateError('The queue changed before the cross-fade started.');
+      }
+      if (_isRepeatOneCrossfade) {
+        // The outgoing play can end without another native playback event.
+        // Check its threshold before the native loop resets its position.
+        _handleScrobbleSignals();
       }
       _armCrossfadeFallbackTimeout(
         nextIndex: nextIndex,
@@ -318,11 +348,21 @@ extension _NavisCrossfade on NavisAudioHandler {
       await _setVolumeIfChanged(incomingPlayer, mainTargetVolume);
       await _setVolumeIfChanged(outgoingPlayer, 0);
 
+      final repeatingCurrent = _isRepeatOneCrossfade;
       await _disposePlayerListeners();
       _player = incomingPlayer;
       _crossfadePlayer = outgoingPlayer;
+      if (repeatingCurrent) {
+        // The queue occurrence is unchanged, but the incoming deck is a new
+        // play. Prewarming alone must never start a second scrobble session.
+        _updateScrobbleSession(null);
+      }
       _wirePlayerListeners();
       _rebindRadioMetadataServiceToActivePlayer();
+      _handleScrobbleSignals();
+      _broadcastPlaybackState();
+      _emitSnapshot();
+      _scheduleTransportPersistence(context: 'crossfade handoff');
 
       try {
         await _crossfadePlayer?.pause();

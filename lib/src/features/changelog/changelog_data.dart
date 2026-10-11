@@ -224,6 +224,9 @@ const List<ChangelogVersion> changelogs = [
 
       // Improved
       ChangelogEntry(
+        'Normal crossfade blends a repeating song into its fresh start with Repeat One; Smart keeps the native loop',
+      ),
+      ChangelogEntry(
         'Now Playing on phones fits every screen: controls stay within thumb reach, short phones shrink the cover instead of cutting off controls, and tall phones get a larger cover and title',
       ),
       ChangelogEntry(

@@ -71,6 +71,8 @@ class _GatedLibraryDao extends LibraryDao {
 class _NoopScrobbleService extends Fake implements ScrobbleService {
   final nowPlaying = <String>[];
   final submissions = <String>[];
+  final nowPlayingSessions = <String>[];
+  final submissionSessions = <String>[];
   @override
   Future<void> flushDue() async {}
 
@@ -87,6 +89,7 @@ class _NoopScrobbleService extends Fake implements ScrobbleService {
     ScrobbleTrackPayload? track,
   }) async {
     nowPlaying.add(songId);
+    nowPlayingSessions.add(sessionKey);
   }
 
   @override
@@ -96,6 +99,7 @@ class _NoopScrobbleService extends Fake implements ScrobbleService {
     ScrobbleTrackPayload? track,
   }) async {
     submissions.add(songId);
+    submissionSessions.add(sessionKey);
   }
 }
 
@@ -320,8 +324,10 @@ class _ControllableAudioPlayer extends Fake implements AudioPlayer {
   @override
   Duration get bufferedPosition => simulatedBuffered;
 
+  Duration simulatedDuration = const Duration(minutes: 3);
+
   @override
-  Duration? get duration => const Duration(minutes: 3);
+  Duration? get duration => simulatedDuration;
 
   @override
   double get volume => 1;
@@ -760,6 +766,8 @@ void main() {
     int count, {
     bool crossfade = false,
     bool positionStreams = false,
+    String crossfadeType = 'normal',
+    String Function()? readCrossfadeType,
     bool matchFlow = false,
     int savedQueueIndex = -1,
     NavisQueueWindow queueWindow = const NavisQueueWindow(),
@@ -875,7 +883,7 @@ void main() {
 
         crossfadeEnabled: crossfade,
         crossfadeDurationSeconds: 5,
-        crossfadeType: 'normal',
+        crossfadeType: readCrossfadeType?.call() ?? crossfadeType,
         replayGainMode: replayGainMode,
         replayGainPreamp: 0,
         playbackSpeed: 1,
@@ -5243,13 +5251,24 @@ void main() {
         List<String>.generate(count - from, (i) => 'song-${i + from}');
 
     Future<(NavisAudioHandler, _ControllableAudioPlayer, NavisDatabase)>
-    crossfading(int count, {bool sidecarStreams = false}) async {
+    crossfading(
+      int count, {
+      bool sidecarStreams = false,
+      bool positionStreams = false,
+      String crossfadeType = 'normal',
+      String Function()? readCrossfadeType,
+      ScrobbleService? scrobbleService,
+    }) async {
       final directory = await Directory.systemTemp.createTemp('navis-fade-');
       final created = await createHandler(
         directory,
         count,
         crossfade: true,
         sidecarStreams: sidecarStreams,
+        positionStreams: positionStreams,
+        crossfadeType: crossfadeType,
+        readCrossfadeType: readCrossfadeType,
+        scrobbleService: scrobbleService,
       );
       addTearDown(() async {
         await created.$1.disposeHandler();
@@ -5257,6 +5276,317 @@ void main() {
         await directory.delete(recursive: true);
       });
       return created;
+    }
+
+    Future<void> waitForFade(bool Function() condition) async {
+      for (var i = 0; i < 800 && !condition(); i++) {
+        await Future<void>.delayed(const Duration(milliseconds: 10));
+      }
+      expect(condition(), isTrue, reason: 'crossfade did not settle');
+    }
+
+    test(
+      'normal repeat one self-crossfades through multiple handoffs',
+      () async {
+        final scrobbles = _NoopScrobbleService();
+        final (handler, player, database) = await crossfading(
+          3,
+          positionStreams: true,
+          scrobbleService: scrobbles,
+        );
+        final positions = <Duration>[];
+        final subscription = handler.positionStream.listen(positions.add);
+        addTearDown(subscription.cancel);
+        player.simulateProgress = true;
+        await handler.replaceQueue(
+          ids(3),
+          startIndex: 1,
+          expandMatchFlows: false,
+        );
+        await settleQueue(handler);
+        await handler.setRepeatMode(AudioServiceRepeatMode.one);
+        await Future<void>.delayed(Duration.zero);
+        expect(scrobbles.nowPlaying, ['song-1']);
+        for (var wrap = 0; wrap < 2; wrap++) {
+          final outgoing =
+              handler.debugActivePlayer as _ControllableAudioPlayer;
+          final incoming =
+              handler.debugInactiveDeck! as _ControllableAudioPlayer;
+          incoming.simulateProgress = true;
+          outgoing.simulatedPosition = const Duration(seconds: 175);
+          outgoing.emitPlayerEvent();
+          handler.debugCheckCrossfadeTrigger(outgoing.position);
+          expect(fade(handler)['active'], isTrue);
+          await waitForFade(() => incoming.playing);
+          expect(incoming.currentIndex, 1);
+          expect(incoming.playedFrom.last, Duration.zero);
+          expect(incoming.sourceIds, ids(3));
+          expect(incoming.loopMode, LoopMode.one);
+          expect(scrobbles.nowPlaying, hasLength(wrap + 1));
+          expect(scrobbles.submissions, hasLength(wrap + 1));
+          // Use the existing fade timer, not the manual completion seam.
+          await waitForFade(
+            () =>
+                identical(handler.debugActivePlayer, incoming) &&
+                fade(handler)['active'] == false,
+          );
+          expect(outgoing.playing, isFalse);
+          expect(incoming.playing, isTrue);
+          expect(incoming.loopMode, LoopMode.one);
+          expect(handler.snapshot.queueSongIds, ids(3));
+          expect(handler.snapshot.currentIndex, 1);
+          expect(handler.currentMediaItem?.id, 'song-1');
+          expect(handler.snapshot.repeatMode, AudioServiceRepeatMode.one);
+          expect(handler.playbackState.value.queueIndex, 1);
+          expect(
+            handler.playbackState.value.repeatMode,
+            AudioServiceRepeatMode.one,
+          );
+          await Future<void>.delayed(const Duration(milliseconds: 250));
+          final afterSwap = positions.last;
+          expect(afterSwap, lessThan(const Duration(seconds: 8)));
+          await Future<void>.delayed(const Duration(milliseconds: 350));
+          expect(positions.last, greaterThan(afterSwap));
+          expect(scrobbles.nowPlaying, hasLength(wrap + 2));
+          await handler.debugFlushQueuePersistence();
+          final saved = (await database.playQueueDao.getQueueState())!;
+          expect(saved.currentIndex, 1);
+          expect(saved.repeatMode, RepeatMode.one);
+          expect(saved.positionMs, lessThan(8000));
+          expect(
+            (await database.playQueueDao.getQueueItems()).map((row) => row.id),
+            ids(3),
+          );
+        }
+        final active = handler.debugActivePlayer as _ControllableAudioPlayer;
+        active.simulatedPosition = const Duration(seconds: 91);
+        for (var event = 0; event < 5; event++) {
+          active.emitPlayerEvent();
+        }
+        await Future<void>.delayed(const Duration(milliseconds: 20));
+        expect(scrobbles.nowPlaying, List.filled(3, 'song-1'));
+        expect(scrobbles.submissions, List.filled(3, 'song-1'));
+        expect(scrobbles.nowPlayingSessions.toSet(), hasLength(3));
+        expect(scrobbles.submissionSessions, scrobbles.nowPlayingSessions);
+        expect(
+          await database.select(database.playHistoryTable).get(),
+          hasLength(3),
+        );
+        expect(fade(handler)['phases'], containsPair('completed', 2));
+      },
+    );
+
+    test('self-crossfade waits for a pending seek to settle', () async {
+      final (handler, player, _) = await crossfading(2, positionStreams: true);
+      player.simulateProgress = true;
+      await handler.replaceQueue(ids(2), expandMatchFlows: false);
+      await handler.setRepeatMode(AudioServiceRepeatMode.one);
+      final entered = Completer<void>();
+      final release = Completer<void>();
+      player
+        ..seekGate = release
+        ..seekEntered = entered;
+      final seeking = handler.seek(const Duration(seconds: 175));
+      await entered.future;
+      try {
+        // just_audio can publish an optimistic position while native seek
+        // confirmation is pending; that must not start a second deck.
+        handler.debugCheckCrossfadeTrigger(const Duration(seconds: 175));
+        expect(fade(handler)['active'], isFalse);
+      } finally {
+        release.complete();
+        await seeking;
+      }
+      expect(handler.snapshot.pendingSeekPosition, isNull);
+      handler.debugCheckCrossfadeTrigger(player.position);
+      expect(fade(handler)['active'], isTrue);
+      await waitForFade(() => handler.debugInactiveDeck!.playing);
+      await handler.debugCompleteCrossfade();
+      expect(handler.snapshot.pendingSeekPosition, isNull);
+      expect(handler.debugActivePlayer.loopMode, LoopMode.one);
+    });
+
+    test('self-crossfade deducts preparation from its boundary wait', () async {
+      final (handler, player, _) = await crossfading(2);
+      await handler.replaceQueue(ids(2), expandMatchFlows: false);
+      await handler.setRepeatMode(AudioServiceRepeatMode.one);
+      final incoming = handler.debugInactiveDeck! as _ControllableAudioPlayer;
+      final entered = Completer<void>();
+      final release = Completer<void>();
+      incoming
+        ..loadGate = release
+        ..loadEntered = entered;
+      player.simulatedPosition = const Duration(seconds: 174);
+      handler.debugCheckCrossfadeTrigger(player.position);
+      await entered.future.timeout(const Duration(seconds: 1));
+      // Native playback progressed 900 ms while the deck prepared.
+      player
+        ..simulateProgress = true
+        ..simulatedPosition = const Duration(seconds: 174, milliseconds: 900);
+      final elapsed = Stopwatch()..start();
+      release.complete();
+      await waitForFade(() => incoming.playing);
+      expect(elapsed.elapsed, lessThan(const Duration(milliseconds: 600)));
+      expect(
+        player.position,
+        greaterThanOrEqualTo(const Duration(seconds: 175)),
+      );
+      await handler.debugCompleteCrossfade();
+      expect(handler.debugActivePlayer, same(incoming));
+    });
+
+    test('self-crossfade retries after a native wrap during prewarm', () async {
+      final (handler, player, _) = await crossfading(2);
+      await handler.replaceQueue(ids(2), expandMatchFlows: false);
+      await handler.setRepeatMode(AudioServiceRepeatMode.one);
+      final incoming = handler.debugInactiveDeck! as _ControllableAudioPlayer;
+      final entered = Completer<void>();
+      final release = Completer<void>();
+      incoming
+        ..loadGate = release
+        ..loadEntered = entered;
+      player.simulatedPosition = const Duration(seconds: 175);
+      handler.debugCheckCrossfadeTrigger(player.position);
+      await entered.future;
+      player.simulatedPosition = const Duration(seconds: 1);
+      release.complete();
+      await waitForFade(() => fade(handler)['active'] == false);
+      expect(handler.debugActivePlayer, same(player));
+      expect(incoming.playing, isFalse);
+      expect(fade(handler)['phases'], isNot(contains('prewarm_failed')));
+      player.simulatedPosition = const Duration(seconds: 175);
+      handler.debugCheckCrossfadeTrigger(player.position);
+      expect(fade(handler)['active'], isTrue);
+      await waitForFade(() => incoming.playing);
+      await handler.debugCompleteCrossfade();
+      expect(handler.debugActivePlayer, same(incoming));
+      expect(handler.snapshot.queueSongIds, ids(2));
+    });
+
+    test(
+      'smart repeat one never crossfades even without album metadata',
+      () async {
+        final (handler, player, _) = await crossfading(
+          3,
+          positionStreams: true,
+          crossfadeType: 'smart',
+        );
+        player.simulateProgress = true;
+        await handler.replaceQueue(ids(3), expandMatchFlows: false);
+        await handler.setRepeatMode(AudioServiceRepeatMode.one);
+        final positions = <Duration>[];
+        final subscription = handler.positionStream.listen(positions.add);
+        addTearDown(subscription.cancel);
+        for (var wrap = 0; wrap < 2; wrap++) {
+          player.simulatedPosition = const Duration(seconds: 175);
+          player.emitPlayerEvent();
+          handler.debugCheckCrossfadeTrigger(player.position);
+          await Future<void>.delayed(const Duration(milliseconds: 350));
+          expect(fade(handler)['active'], isFalse);
+          expect(handler.debugInactiveDeck!.playing, isFalse);
+          player.simulatedPosition = Duration.zero;
+          player.emitPlayerEvent();
+          await Future<void>.delayed(const Duration(milliseconds: 350));
+          expect(positions.last, lessThan(const Duration(seconds: 1)));
+          final before = positions.last;
+          await Future<void>.delayed(const Duration(milliseconds: 350));
+          expect(positions.last, greaterThan(before));
+        }
+        expect(handler.debugActivePlayer, same(player));
+        expect(handler.snapshot.queueSongIds, ids(3));
+        expect(fade(handler)['phases'], isNot(contains('completed')));
+      },
+    );
+
+    for (final seconds in [9, 10]) {
+      test(
+        'normal repeat one minimum length is twice the fade ($seconds s)',
+        () async {
+          final (handler, player, _) = await crossfading(1);
+          player.simulatedDuration = Duration(seconds: seconds);
+          await handler.replaceQueue(ids(1), expandMatchFlows: false);
+          await handler.setRepeatMode(AudioServiceRepeatMode.one);
+          player.simulatedPosition = Duration(seconds: seconds - 5);
+          handler.debugCheckCrossfadeTrigger(player.position);
+          expect(fade(handler)['active'], seconds >= 10);
+          if (seconds >= 10) {
+            await waitForFade(() => handler.debugInactiveDeck!.playing);
+            await handler.debugCompleteCrossfade();
+            expect(handler.snapshot.queueSongIds, ids(1));
+            expect(handler.debugActivePlayer.loopMode, LoopMode.one);
+          }
+        },
+      );
+    }
+
+    for (final type in ['normal', 'smart']) {
+      for (final repeat in [
+        AudioServiceRepeatMode.none,
+        AudioServiceRepeatMode.all,
+      ]) {
+        for (final index in [0, 1]) {
+          test(
+            'crossfade keeps $type $repeat next index from $index',
+            () async {
+              final (handler, player, _) = await crossfading(
+                2,
+                crossfadeType: type,
+              );
+              await handler.replaceQueue(
+                ids(2),
+                startIndex: index,
+                expandMatchFlows: false,
+              );
+              await handler.setRepeatMode(repeat);
+              handler.debugCheckCrossfadeTrigger(const Duration(seconds: 175));
+              final target = index == 0
+                  ? 1
+                  : repeat == AudioServiceRepeatMode.all
+                  ? 0
+                  : null;
+              expect(fade(handler)['active'], target != null);
+              if (target != null) {
+                final incoming = handler.debugInactiveDeck!;
+                await waitForFade(() => incoming.playing);
+                expect(incoming.currentIndex, target);
+                await handler.debugCompleteCrossfade();
+                expect(handler.debugActivePlayer, same(incoming));
+                expect(handler.snapshot.currentIndex, target);
+                expect(handler.snapshot.repeatMode, repeat);
+              } else {
+                expect(handler.debugActivePlayer, same(player));
+              }
+              expect(handler.snapshot.queueSongIds, ids(2));
+            },
+          );
+        }
+      }
+    }
+
+    for (final change in ['repeat', 'smart']) {
+      test('self-crossfade cancels when policy changes to $change', () async {
+        var type = 'normal';
+        final (handler, player, _) = await crossfading(
+          2,
+          readCrossfadeType: () => type,
+        );
+        await handler.replaceQueue(ids(2), expandMatchFlows: false);
+        await handler.setRepeatMode(AudioServiceRepeatMode.one);
+        handler.debugCheckCrossfadeTrigger(const Duration(seconds: 175));
+        expect(fade(handler)['active'], isTrue);
+        final incoming = handler.debugInactiveDeck!;
+        await waitForFade(() => incoming.playing);
+        if (change == 'repeat') {
+          await handler.setRepeatMode(AudioServiceRepeatMode.none);
+        } else {
+          type = 'smart';
+          await handler.applyRuntimeSettings();
+        }
+        expect(fade(handler)['active'], isFalse);
+        expect(handler.debugActivePlayer, same(player));
+        expect(player.playing, isTrue);
+        expect(incoming.playing, isFalse);
+      });
     }
 
     test(

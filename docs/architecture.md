@@ -4220,7 +4220,25 @@ growing partial duration; the decoder duration is only a fallback when metadata
 is unavailable. The inactive crossfade deck exists only while crossfade is
 enabled and is created, synchronized, or disposed as that setting changes.
 Its clones of lock-cached sources use direct streams so two decks never rename
-the same partial cache file. Queue edits do not wait for a fade, so the deck
+the same partial cache file.
+
+Crossfade starts after pending seeks settle. Normal crossfade with Repeat One
+prepares that same materialised queue entry on
+the inactive deck at position zero, overlaps the ending and fresh start, then
+uses the existing deck handoff and listener rebinding. The queue occurrence,
+metadata and repeat mode stay the same; position and media-session state switch
+to the incoming deck and the new position is persisted. Each completed
+self-handoff starts one new scrobble/play-history session, while prewarming or
+cancellation does not; the outgoing session's submission threshold is checked
+before the fade begins. Smart mode never self-crossfades under Repeat One,
+even without album metadata. Songs shorter than twice the fade duration loop
+natively, and changing to Smart or leaving Repeat One cancels a pending
+self-crossfade. A native wrap that wins the race with preparation cancels that
+fade and leaves the next ending eligible; preparation time is deducted from
+the wait to the self-fade boundary. Repeat Off/All retain their existing
+next-entry and wrap rules.
+
+Queue edits do not wait for a fade, so the deck
 is checked by content, not length: before a fade the deck is loaded unless it
 holds exactly the materialised queue (song ids, canonical ids matching); an
 edit that lands while it loads makes it load once more, and a second change
