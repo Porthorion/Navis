@@ -4,6 +4,9 @@ import 'package:navis/l10n/app_localizations.dart';
 import 'package:navis/src/features/auth/domain/server_reachability.dart';
 import 'package:navis/src/features/auth/presentation/server_reachability_provider.dart';
 import 'package:navis/src/theme/motion_policy.dart';
+import 'package:navis/src/common_widgets/notice_icon_disc.dart';
+import 'package:navis/src/theme/navis_color_style_data.dart';
+import 'package:navis/src/theme/navis_shape_data.dart';
 import 'package:navis/src/theme/navis_tokens.dart';
 
 /// Whether the offline banner is tucked away into [ShellOfflineChip].
@@ -285,63 +288,99 @@ class _ShellOfflineBannerState extends ConsumerState<ShellOfflineBanner> {
     final l10n = AppLocalizations.of(context)!;
     final theme = Theme.of(context);
     final colors = theme.colorScheme;
+    final tokens = NavisTokens.of(context);
+    final radius = NavisShapeData.of(context).lgAll;
+    final flat = NavisColorStyleData.of(context).flatSurfaces;
+    // A tile-like strip: the banner row is inset and rounded, and its height
+    // (tile plus vertical inset) is [ShellOfflineBanner.contentHeight].
     final content = ConstrainedBox(
       constraints: const BoxConstraints(
         minHeight: ShellOfflineBanner.contentHeight,
       ),
       child: Padding(
-        padding: const EdgeInsetsDirectional.only(
-          start: NavisSpace.md,
-          end: NavisSpace.xxs,
+        padding: const EdgeInsets.symmetric(
+          horizontal: NavisSpace.md,
+          vertical: NavisSpace.xxs,
         ),
-        child: Row(
-          children: <Widget>[
-            Icon(
-              Icons.cloud_off_outlined,
-              size: 18,
-              color: colors.onSurfaceVariant,
+        child: Material(
+          color: flat ? Colors.transparent : colors.surfaceContainerHigh,
+          shape: RoundedRectangleBorder(
+            borderRadius: radius,
+            side: flat
+                ? BorderSide(color: colors.outlineVariant)
+                : BorderSide.none,
+          ),
+          child: Padding(
+            padding: const EdgeInsetsDirectional.only(
+              start: NavisSpace.xs,
+              end: NavisSpace.xxs,
             ),
-            const SizedBox(width: NavisSpace.sm),
-            Expanded(
-              child: Semantics(
-                liveRegion: true,
-                child: Text(
-                  widget.message,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: theme.textTheme.labelLarge?.copyWith(
-                    color: colors.onSurfaceVariant,
+            child: Row(
+              children: <Widget>[
+                NoticeIconDisc(
+                  icon: Icons.cloud_off_outlined,
+                  size: 32,
+                  iconSize: 18,
+                  fill: tokens.quietWarningContainer,
+                  ink: tokens.onQuietWarningContainer,
+                ),
+                const SizedBox(width: NavisSpace.sm),
+                Expanded(
+                  child: Semantics(
+                    liveRegion: true,
+                    child: Text(
+                      widget.message,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: theme.textTheme.labelLarge?.copyWith(
+                        color: colors.onSurface,
+                      ),
+                    ),
                   ),
                 ),
-              ),
+                const SizedBox(width: NavisSpace.xs),
+                FilledButton(
+                  key: ShellOfflineBanner.retryKey,
+                  onPressed: _retrying ? null : _retry,
+                  style: NavisColorStyleData.tonalStyleOf(context).copyWith(
+                    visualDensity: VisualDensity.compact,
+                    minimumSize: const WidgetStatePropertyAll<Size>(
+                      Size(0, 32),
+                    ),
+                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                  ),
+                  child: _retrying
+                      ? const SizedBox.square(
+                          dimension: 16,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : Text(l10n.commonRetry),
+                ),
+                IconButton(
+                  key: ShellOfflineBanner.dismissKey,
+                  tooltip: l10n.updateDismiss,
+                  onPressed: () => ref
+                      .read(shellOfflineBannerDismissedProvider.notifier)
+                      .dismiss(),
+                  icon: const Icon(Icons.close_rounded, size: 18),
+                  style: IconButton.styleFrom(
+                    foregroundColor: colors.onSurfaceVariant,
+                    fixedSize: const Size.square(32),
+                    minimumSize: const Size.square(32),
+                    padding: EdgeInsets.zero,
+                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                  ),
+                ),
+              ],
             ),
-            const SizedBox(width: NavisSpace.xs),
-            TextButton(
-              key: ShellOfflineBanner.retryKey,
-              onPressed: _retrying ? null : _retry,
-              child: _retrying
-                  ? const SizedBox.square(
-                      dimension: 16,
-                      child: CircularProgressIndicator(strokeWidth: 2),
-                    )
-                  : Text(l10n.commonRetry),
-            ),
-            IconButton(
-              key: ShellOfflineBanner.dismissKey,
-              tooltip: l10n.updateDismiss,
-              onPressed: () => ref
-                  .read(shellOfflineBannerDismissedProvider.notifier)
-                  .dismiss(),
-              icon: const Icon(Icons.close_rounded, size: 20),
-            ),
-          ],
+          ),
         ),
       ),
     );
     final reveal = widget.reveal;
     return Material(
       key: ShellOfflineBanner.bannerKey,
-      color: colors.surfaceContainerHigh,
+      color: Colors.transparent,
       child: SafeArea(
         bottom: false,
         left: false,
@@ -371,14 +410,14 @@ class ShellOfflineChip extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final l10n = AppLocalizations.of(context)!;
     final theme = Theme.of(context);
-    final colors = theme.colorScheme;
+    final tokens = NavisTokens.of(context);
     return Semantics(
       button: true,
       label: l10n.serverOfflineBanner,
       excludeSemantics: true,
       child: Material(
         key: chipKey,
-        color: colors.surfaceContainerHigh,
+        color: tokens.quietWarningContainer,
         elevation: 2,
         shape: const StadiumBorder(),
         child: InkWell(
@@ -393,13 +432,13 @@ class ShellOfflineChip extends ConsumerWidget {
                 Icon(
                   Icons.cloud_off_outlined,
                   size: 14,
-                  color: colors.onSurfaceVariant,
+                  color: tokens.onQuietWarningContainer,
                 ),
                 const SizedBox(width: NavisSpace.xxs),
                 Text(
                   l10n.serverOfflineChip,
                   style: theme.textTheme.labelSmall?.copyWith(
-                    color: colors.onSurfaceVariant,
+                    color: tokens.onQuietWarningContainer,
                   ),
                 ),
               ],

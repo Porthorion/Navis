@@ -51,7 +51,9 @@ void main() {
     },
   );
 
-  testWidgets('error notice radius follows the corner style', (tester) async {
+  testWidgets('error notice shares the pill and follows the corner style', (
+    tester,
+  ) async {
     final radii = <NavisCornerStyle, double>{};
     for (final style in NavisCornerStyle.values) {
       final controller = AppNoticeController()
@@ -70,10 +72,9 @@ void main() {
       final shape = material.shape! as RoundedRectangleBorder;
       radii[style] = (shape.borderRadius as BorderRadius).topLeft.x;
     }
-    expect(radii[NavisCornerStyle.rounded], 22);
-    expect(radii[NavisCornerStyle.soft], 33);
-    expect(radii[NavisCornerStyle.square], isNot(22));
-    expect(radii[NavisCornerStyle.square], lessThan(8));
+    expect(radii[NavisCornerStyle.rounded], 999);
+    expect(radii[NavisCornerStyle.soft], 14);
+    expect(radii[NavisCornerStyle.square], 4);
   });
 
   testWidgets(

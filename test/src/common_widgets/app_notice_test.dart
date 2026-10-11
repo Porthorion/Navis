@@ -3,6 +3,9 @@ import 'dart:io';
 import 'package:material_ui/material_ui.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:navis/src/common_widgets/app_notice.dart';
+import 'package:navis/src/common_widgets/notice_icon_disc.dart';
+import 'package:navis/src/theme/navis_color_style_data.dart';
+import 'package:navis/src/theme/navis_tokens.dart';
 
 void main() {
   testWidgets('notice action invokes its callback and dismisses the notice', (
@@ -363,5 +366,111 @@ void main() {
     expect(text.maxLines, 2);
     expect(text.overflow, TextOverflow.ellipsis);
     await tester.pump(const Duration(milliseconds: 80));
+  });
+
+  group('notice kinds', () {
+    final controllers = <AppNoticeController>[];
+
+    // Info and success notices hold an auto-dismiss timer.
+    Future<void> finish(WidgetTester tester) async {
+      controllers
+        ..forEach((c) => c.dismiss())
+        ..clear();
+      await tester.pumpAndSettle();
+    }
+
+    Future<(Material, NoticeIconDisc, Color)> pumpKind(
+      WidgetTester tester,
+      AppNoticeLevel level,
+    ) async {
+      final controller = AppNoticeController();
+      addTearDown(controller.dispose);
+      controllers.add(controller);
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(body: AppNoticeHost(controller: controller)),
+        ),
+      );
+      controller.show(
+        message: 'Message',
+        level: level,
+        duration: const Duration(seconds: 30),
+      );
+      await tester.pumpAndSettle();
+      final material = tester.widget<Material>(
+        find
+            .descendant(
+              of: find.byType(AppNoticeHost),
+              matching: find.byType(Material),
+            )
+            .first,
+      );
+      final disc = tester.widget<NoticeIconDisc>(find.byType(NoticeIconDisc));
+      final fill =
+          (tester
+                      .widget<DecoratedBox>(
+                        find.descendant(
+                          of: find.byType(NoticeIconDisc),
+                          matching: find.byType(DecoratedBox),
+                        ),
+                      )
+                      .decoration
+                  as BoxDecoration)
+              .color!;
+      return (material, disc, fill);
+    }
+
+    ColorScheme schemeOf(WidgetTester tester) =>
+        Theme.of(tester.element(find.byType(AppNoticeHost))).colorScheme;
+
+    testWidgets('every kind is a neutral, softly raised pill with a disc', (
+      tester,
+    ) async {
+      for (final level in AppNoticeLevel.values) {
+        final (material, disc, _) = await pumpKind(tester, level);
+        final scheme = schemeOf(tester);
+        expect(material.color, scheme.surfaceContainerHigh, reason: '$level');
+        expect(material.elevation, 3);
+        expect(
+          (material.shape! as RoundedRectangleBorder).side,
+          BorderSide.none,
+        );
+        expect(disc.size, 30);
+        final text = tester.widget<Text>(find.text('Message'));
+        expect(text.style?.color, scheme.onSurface);
+        await finish(tester);
+      }
+    });
+
+    testWidgets('the disc carries the kind', (tester) async {
+      var (_, disc, fill) = await pumpKind(tester, AppNoticeLevel.info);
+      var scheme = schemeOf(tester);
+      final style = NavisColorStyleData.of(
+        tester.element(find.byType(AppNoticeHost)),
+      );
+      expect(fill, style.tonalControlFill(scheme));
+      expect(disc.ink, style.onTonalControlFill(scheme));
+      await finish(tester);
+
+      (_, disc, fill) = await pumpKind(tester, AppNoticeLevel.success);
+      scheme = schemeOf(tester);
+      final success = NavisTokens.of(tester.element(find.byType(AppNoticeHost)))
+          .success;
+      expect(disc.ink, success);
+      expect(
+        fill,
+        Color.alphaBlend(
+          success.withValues(alpha: .2),
+          scheme.surfaceContainerHigh,
+        ),
+      );
+      await finish(tester);
+
+      (_, disc, fill) = await pumpKind(tester, AppNoticeLevel.error);
+      scheme = schemeOf(tester);
+      expect(fill, scheme.errorContainer);
+      expect(disc.ink, scheme.onErrorContainer);
+      await finish(tester);
+    });
   });
 }

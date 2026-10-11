@@ -3,7 +3,10 @@ import 'dart:async';
 import 'package:material_ui/material_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:navis/l10n/app_localizations.dart';
+import 'package:navis/src/common_widgets/notice_icon_disc.dart';
+import 'package:navis/src/theme/navis_color_style_data.dart';
 import 'package:navis/src/theme/navis_shape_data.dart';
+import 'package:navis/src/theme/navis_tokens.dart';
 import 'package:navis/src/theme/motion_policy.dart';
 
 enum AppNoticeLevel { info, success, error }
@@ -241,14 +244,21 @@ class _NoticePill extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
     final isError = notice.level == AppNoticeLevel.error;
     final shapes = NavisShapeData.of(context);
-    final (icon, bgColor, fgColor) = switch (notice.level) {
+    final style = NavisColorStyleData.of(context);
+    final success = NavisTokens.of(context).success;
+    final surface = theme.brightness == Brightness.dark
+        ? colorScheme.surfaceContainerHighest
+        : colorScheme.surfaceContainerHigh;
+    // A neutral pill for every kind; only the leading disc carries the kind.
+    final (icon, discFill, discInk) = switch (notice.level) {
       AppNoticeLevel.success => (
-        Icons.check_circle_outline,
-        colorScheme.primaryContainer,
-        colorScheme.onPrimaryContainer,
+        Icons.check_rounded,
+        Color.alphaBlend(success.withValues(alpha: .2), surface),
+        success,
       ),
       AppNoticeLevel.error => (
         Icons.error_outline,
@@ -257,10 +267,11 @@ class _NoticePill extends StatelessWidget {
       ),
       AppNoticeLevel.info => (
         Icons.info_outline,
-        colorScheme.surfaceContainerHigh,
-        colorScheme.onSurface,
+        style.tonalControlFill(colorScheme),
+        style.onTonalControlFill(colorScheme),
       ),
     };
+    final shape = RoundedRectangleBorder(borderRadius: shapes.controlAll);
 
     return Semantics(
       container: true,
@@ -275,38 +286,39 @@ class _NoticePill extends StatelessWidget {
         child: ConstrainedBox(
           constraints: const BoxConstraints(maxWidth: 520),
           child: Material(
-            elevation: 8,
-            shape: RoundedRectangleBorder(
-              borderRadius: (isError
-                  ? shapes.scaledAll(22)
-                  : shapes.controlAll),
-              side: isError
-                  ? BorderSide(color: colorScheme.error.withValues(alpha: .55))
-                  : BorderSide.none,
-            ),
-            color: bgColor,
+            elevation: 3,
+            shape: shape,
+            color: surface,
             child: InkWell(
-              borderRadius: (isError
-                  ? shapes.scaledAll(22)
-                  : shapes.controlAll),
+              customBorder: shape,
               onTap: isError ? null : onDismissed,
               child: Padding(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 14,
-                  vertical: 10,
+                padding: const EdgeInsetsDirectional.fromSTEB(
+                  NavisSpace.xs,
+                  NavisSpace.xs,
+                  NavisSpace.md,
+                  NavisSpace.xs,
                 ),
                 child: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: <Widget>[
-                    Icon(icon, size: 18, color: fgColor),
-                    const SizedBox(width: 10),
+                    NoticeIconDisc(
+                      icon: icon,
+                      size: 30,
+                      iconSize: 18,
+                      fill: discFill,
+                      ink: discInk,
+                    ),
+                    const SizedBox(width: NavisSpace.sm),
                     Flexible(
                       child: ExcludeSemantics(
                         child: Text(
                           notice.message,
                           maxLines: 2,
                           overflow: TextOverflow.ellipsis,
-                          style: TextStyle(color: fgColor),
+                          style: theme.textTheme.bodyMedium?.copyWith(
+                            color: colorScheme.onSurface,
+                          ),
                         ),
                       ),
                     ),
@@ -319,13 +331,14 @@ class _NoticePill extends StatelessWidget {
                         child: Text(notice.actionLabel!),
                       ),
                     if (isError) ...<Widget>[
-                      const SizedBox(width: 6),
+                      const SizedBox(width: NavisSpace.xxs),
                       TextButton(
                         key: const ValueKey<String>('appNoticeDismissAction'),
                         onPressed: onDismissed,
                         style: TextButton.styleFrom(
-                          foregroundColor: fgColor,
-                          padding: const EdgeInsets.symmetric(horizontal: 12),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: NavisSpace.sm,
+                          ),
                           minimumSize: const Size(0, 36),
                           tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                           visualDensity: VisualDensity.compact,
