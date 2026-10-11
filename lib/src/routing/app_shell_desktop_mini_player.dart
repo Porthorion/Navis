@@ -470,13 +470,10 @@ class _DesktopMiniPlayerTightPlaybackState
                       RepaintBoundary(
                         child: Consumer(
                           builder: (context, ref, _) {
-                            final position =
-                                playback.pendingSeekPosition ??
-                                ref
-                                    .watch(playbackPositionProvider)
-                                    .asData
-                                    ?.value ??
-                                playback.position;
+                            final position = watchDisplayedPlaybackPosition(
+                              ref,
+                              playback,
+                            );
                             return Slider(
                               key: const ValueKey<String>(
                                 'desktopMiniPlayerSeekSlider',

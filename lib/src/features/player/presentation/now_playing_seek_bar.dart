@@ -16,10 +16,7 @@ class _SeekBarState extends ConsumerState<_SeekBar> {
 
   @override
   Widget build(BuildContext context) {
-    final position =
-        widget.playback.pendingSeekPosition ??
-        ref.watch(playbackPositionProvider).asData?.value ??
-        widget.playback.position;
+    final position = watchDisplayedPlaybackPosition(ref, widget.playback);
     final bufferState =
         ref.watch(playbackBufferStateProvider).asData?.value ??
         const PlaybackBufferState.idle();

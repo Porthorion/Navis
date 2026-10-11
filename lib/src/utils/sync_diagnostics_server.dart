@@ -3143,6 +3143,17 @@ class SyncDiagnosticsServer {
         await handler.waitUntilReady();
         final activity = _container.read(rollingCacheActivityProvider);
         final status = handler.collectPlaybackDiagnostics();
+        final uiSnapshot = _container.read(playerStateProvider);
+        status['uiPlayback'] = <String, Object?>{
+          'pendingSeekMs': uiSnapshot.pendingSeekPosition?.inMilliseconds,
+          'snapshotPositionMs': uiSnapshot.position.inMilliseconds,
+          'playing': uiSnapshot.playing,
+          'positionStreamMs': _container
+              .read(playbackPositionProvider)
+              .asData
+              ?.value
+              .inMilliseconds,
+        };
         status['providerCacheActivity'] = <String, Object?>{
           'status': activity.status.name,
           'songId': activity.songId,

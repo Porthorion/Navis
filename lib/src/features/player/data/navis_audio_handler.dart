@@ -328,6 +328,7 @@ class NavisAudioHandler extends BaseAudioHandler
   int _transportGeneration = 0;
   bool? _latestExplicitTransportPlaying;
   _PendingSeek? _pendingSeek;
+  DateTime? _lastPositionEmitAt;
   _PendingSeek? _lastSeek;
   int _seekRevision = 0;
   bool _seekFailureBlocksRecovery = false;
@@ -2234,6 +2235,9 @@ class NavisAudioHandler extends BaseAudioHandler
           ? _crossfadePlayer?.pitch
           : null,
       'seekEvents': List<Map<String, Object?>>.from(_seekDiagnosticsEvents),
+      'positionStreamLastEmitAgoMs': _lastPositionEmitAt == null
+          ? null
+          : DateTime.now().difference(_lastPositionEmitAt!).inMilliseconds,
       'seek': <String, Object?>{
         'generation': _lastSeek?.generation,
         'requestedPositionMs': _lastSeek?.position.inMilliseconds,
