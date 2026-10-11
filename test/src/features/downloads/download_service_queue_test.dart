@@ -723,16 +723,105 @@ void main() {
     skip: !sqliteAvailable,
   );
 
-  test('custom cleanup runs even without interrupted rows and leaves foreign audio and links', () async {
+  test(
+    'custom cleanup preserves foreign suffix files without ownership',
+    () async {
+      final custom = Directory(p.join(supportDir.path, 'custom'));
+      await custom.create();
+      final part = File(p.join(custom.path, 'old.mp3.navis-part'));
+      final foreign = File(p.join(custom.path, 'foreign.mp3'));
+      final outside = File(p.join(supportDir.path, 'outside.mp3.navis-part'));
+      await part.writeAsBytes([1]);
+      await foreign.writeAsBytes([2]);
+      await outside.writeAsBytes([3]);
+      await Link(p.join(custom.path, 'linked.navis-part')).create(outside.path);
+      final service = buildService(
+        customEnabled: () => true,
+        customPath: () => custom.path,
+      );
+      await service.start();
+      expect(part.readAsBytesSync(), [1]);
+      expect(foreign.readAsBytesSync(), [2]);
+      expect(outside.existsSync(), isTrue);
+      expect(
+        Link(p.join(custom.path, 'linked.navis-part')).existsSync(),
+        isTrue,
+      );
+    },
+    skip: !sqliteAvailable || Platform.isWindows,
+  );
+
+  test('SAF startup preserves foreign suffix documents and checks staging capacity', () async {
+    const channel = MethodChannel('com.navis.app/permanent_download_storage');
+    final messenger =
+        TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
+    final deleted = <String>[];
+    messenger.setMockMethodCallHandler(
+      channel,
+      (call) async => switch (call.method) {
+        'validateWritableTree' => {
+          'uri': 'content://fixture/tree/root',
+          'canRead': true,
+          'canWrite': true,
+          'canReplace': true,
+        },
+        'listRecursively' => [
+          for (final name in ['old.mp3.navis-part', 'foreign.mp3'])
+            {
+              'uri': 'content://fixture/$name',
+              'relativePath': name,
+              'displayName': name,
+              'size': 4,
+            },
+        ],
+        'delete' => deleted.add((call.arguments as Map)['uri'] as String),
+        _ => null,
+      },
+    );
+    addTearDown(() => messenger.setMockMethodCallHandler(channel, null));
+    final queried = <String>[];
+    final service = buildService(
+      isAndroid: true,
+      customEnabled: () => true,
+      customPath: () => 'content://fixture/tree/root',
+      readFreeBytes: (path) async {
+        queried.add(path);
+        return 0;
+      },
+    );
+    await service.start();
+    expect(deleted, isEmpty);
+    await addSongs(1);
+    await service.enqueueSong('song-0');
+    await service.processQueuedDownloads();
+    expect(
+      queried,
+      everyElement(p.join(supportDir.path, 'audio', 'permanent')),
+    );
+    expect(service.folderProblem, DownloadFolderProblem.noSpace);
+    expect(server.requests, isEmpty);
+  }, skip: !sqliteAvailable);
+
+  test('custom cleanup removes only the persisted owned part path', () async {
+    await database.appSettingsDao.updateDownloadsPaused(paused: true);
+    await addSongs(1);
     final custom = Directory(p.join(supportDir.path, 'custom'));
     await custom.create();
-    final part = File(p.join(custom.path, 'old.mp3.navis-part'));
-    final foreign = File(p.join(custom.path, 'foreign.mp3'));
-    final outside = File(p.join(supportDir.path, 'outside.mp3.navis-part'));
+    final part = File(p.join(custom.path, 'owned.mp3.navis-part'));
+    final foreign = File(p.join(custom.path, 'foreign.mp3.navis-part'));
+    final id = await database.downloadQueueDao.enqueue(
+      DownloadQueueTableCompanion.insert(
+        songId: const Value('song-0'),
+        status: DownloadStatus.downloading,
+        addedAt: DateTime(2026),
+      ),
+    );
+    await database.downloadQueueDao.writeFinishJournal(
+      id,
+      jsonEncode({'phase': 'transferring', 'partPath': part.path}),
+    );
     await part.writeAsBytes([1]);
     await foreign.writeAsBytes([2]);
-    await outside.writeAsBytes([3]);
-    await Link(p.join(custom.path, 'linked.navis-part')).create(outside.path);
     final service = buildService(
       customEnabled: () => true,
       customPath: () => custom.path,
@@ -740,61 +829,21 @@ void main() {
     await service.start();
     expect(part.existsSync(), isFalse);
     expect(foreign.readAsBytesSync(), [2]);
-    expect(outside.existsSync(), isTrue);
-    expect(Link(p.join(custom.path, 'linked.navis-part')).existsSync(), isTrue);
-  }, skip: !sqliteAvailable || Platform.isWindows);
+    expect((await queue()).single.status, DownloadStatus.queued);
+  }, skip: !sqliteAvailable);
 
   test(
-    'SAF startup deletes only part documents and checks staging capacity',
+    'part ownership is journaled before the transfer writes bytes',
     () async {
-      const channel = MethodChannel('com.navis.app/permanent_download_storage');
-      final messenger =
-          TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
-      final deleted = <String>[];
-      messenger.setMockMethodCallHandler(
-        channel,
-        (call) async => switch (call.method) {
-          'validateWritableTree' => {
-            'uri': 'content://fixture/tree/root',
-            'canRead': true,
-            'canWrite': true,
-            'canReplace': true,
-          },
-          'listRecursively' => [
-            for (final name in ['old.mp3.navis-part', 'foreign.mp3'])
-              {
-                'uri': 'content://fixture/$name',
-                'relativePath': name,
-                'displayName': name,
-                'size': 4,
-              },
-          ],
-          'delete' => deleted.add((call.arguments as Map)['uri'] as String),
-          _ => null,
-        },
-      );
-      addTearDown(() => messenger.setMockMethodCallHandler(channel, null));
-      final queried = <String>[];
-      final service = buildService(
-        isAndroid: true,
-        customEnabled: () => true,
-        customPath: () => 'content://fixture/tree/root',
-        readFreeBytes: (path) async {
-          queried.add(path);
-          return 0;
-        },
-      );
-      await service.start();
-      expect(deleted, ['content://fixture/old.mp3.navis-part']);
       await addSongs(1);
+      final service = buildService();
+      await service.start();
       await service.enqueueSong('song-0');
-      await service.processQueuedDownloads();
-      expect(
-        queried,
-        everyElement(p.join(supportDir.path, 'audio', 'permanent')),
-      );
-      expect(service.folderProblem, DownloadFolderProblem.noSpace);
-      expect(server.requests, isEmpty);
+      await waitUntil(() => server.active == 1);
+      final journal = jsonDecode((await queue()).single.finishJournal!) as Map;
+      expect(journal['phase'], 'transferring');
+      expect(File(journal['partPath'] as String).existsSync(), isTrue);
+      await service.stopAndWait();
     },
     skip: !sqliteAvailable,
   );

@@ -462,12 +462,12 @@ class DownloadService {
     if (!_startupRecoveryPending) return Future.value();
     return _recoveryInFlight ??=
         (() async {
+          await _removePartialDownloads();
           await _reconcileFinishedDownloads();
           if (_folderProblem != null) return;
           await _reconcileMissingDownloads();
           if (_folderProblem != null) return;
           await _downloadQueueDao.requeueStuckDownloads();
-          await _removePartialDownloads();
           if (!_readCustomDownloadFolderEnabled()) {
             await _cleanupOrphanedFiles();
           }
@@ -1423,7 +1423,23 @@ class DownloadService {
       final resolvedDest = destFile = await _resolveDownloadFile(song, item);
       reservedPath = resolvedDest.path;
       _reservedDownloadPaths.add(reservedPath);
-      final part = partFile = File('${resolvedDest.path}$downloadPartSuffix');
+      final part = File('${resolvedDest.path}$downloadPartSuffix');
+      // An existing part name in a user folder is not proof of ownership.
+      // Refuse it before Dio can truncate it or failure cleanup can remove it.
+      // Keep storage latency off the UI isolate.
+      // ignore: avoid_slow_async_io
+      if (await FileSystemEntity.type(part.path, followLinks: false) !=
+          FileSystemEntityType.notFound) {
+        throw FileSystemException(
+          'The temporary download name is occupied.',
+          part.path,
+        );
+      }
+      await _downloadQueueDao.writeFinishJournal(
+        item.id,
+        jsonEncode({'phase': 'transferring', 'partPath': part.path}),
+      );
+      partFile = part;
 
       final cancelToken = _activeTransfers[item.id] = CancelToken();
       if (_cancelReasons[item.id] case final reason?) {
@@ -1719,6 +1735,9 @@ class DownloadService {
       item.id,
       jsonEncode({
         'path': path,
+        'partPath': verifiedFile.path.endsWith(downloadPartSuffix)
+            ? verifiedFile.path
+            : '$path$downloadPartSuffix',
         'size': await verifiedFile.length(),
         'sha256': digest.toString(),
         'format': format,
@@ -1797,6 +1816,10 @@ class DownloadService {
       File? staged;
       try {
         final journal = jsonDecode(item.finishJournal!) as Map<String, dynamic>;
+        if (journal['phase'] == 'transferring') {
+          await _downloadQueueDao.retry(item.id);
+          continue;
+        }
         final path = journal['path'] as String;
         final size = journal['size'] as int;
         final format = journal['format'] as String;
@@ -1930,33 +1953,50 @@ class DownloadService {
     }
   }
 
-  /// Removes `*.navis-part` files left by downloads interrupted by a crash or
-  /// kill, in the active download folder. Only files with that suffix, which
-  /// Navis alone writes, are touched; links are not followed.
+  /// Removes private staging parts and exact, persisted owned parts in the
+  /// active user folder. SAF transfers never create parts in the user's tree.
   Future<void> _removePartialDownloads() async {
     try {
-      if (_isSafRoot(_readCustomDownloadFolderPath())) {
-        for (final document in await _safStorage.listRecursively(
-          _readCustomDownloadFolderPath()!,
-        )) {
-          if (document.displayName.endsWith(downloadPartSuffix)) {
-            await _safStorage.delete(document.uri);
-          }
-        }
-      }
-      final root = _isSafRoot(_readCustomDownloadFolderPath())
+      final saf = _isSafRoot(_readCustomDownloadFolderPath());
+      final root = saf
           ? await _permanentPathResolver.resolveDefaultRoot()
           : await _permanentDirectory();
-      // Keep storage latency off the UI isolate.
-      // ignore: avoid_slow_async_io
-      if (!await root.exists()) return;
+      final ownedPaths = <String>{};
+      for (final item in await _downloadQueueDao.watchQueue().first) {
+        if (item.finishJournal == null) continue;
+        try {
+          final journal =
+              jsonDecode(item.finishJournal!) as Map<String, dynamic>;
+          if (journal['partPath'] case final String path) ownedPaths.add(path);
+        } on FormatException {
+          // An unreadable journal cannot establish ownership.
+        }
+      }
+      final identity = await DownloadRootIdentity.resolve(root.path);
+      final ownedKeys = {
+        for (final path in ownedPaths)
+          if (identity.keyFor(path) case final key?) identity.lookupKey(key),
+      };
       await for (final entity in root.list(
         recursive: true,
         followLinks: false,
       )) {
-        if (entity is File && entity.path.endsWith(downloadPartSuffix)) {
-          await tryDeleteFile(entity);
+        if (entity is! File || !entity.path.endsWith(downloadPartSuffix)) {
+          continue;
         }
+        if (_readCustomDownloadFolderEnabled() && !saf) {
+          final key = identity.keyFor(entity.path);
+          final resolved = await entity.resolveSymbolicLinks();
+          if (key == null ||
+              !ownedKeys.contains(identity.lookupKey(key)) ||
+              !p.isWithin(identity.canonicalRoot, resolved)) {
+            AppLogger.warning(
+              'Leaving an unowned temporary file in the download folder.',
+            );
+            continue;
+          }
+        }
+        await tryDeleteFile(entity);
       }
     } on Object catch (error) {
       AppLogger.warning(

@@ -4998,7 +4998,7 @@ download naming throws when all 100 collision candidates are occupied.
    song's name. The app shell starts `DownloadService` at launch (it was
    otherwise created only when a download control was first used), and its
    startup after interrupted downloads requeues them and removes
-   `*.navis-part` files, and only those, from the active folder without
+   only persisted, owned `*.navis-part` files from a custom folder without
    following links; folder scans ignore them. Promoting a rolling-cache file reuses an
    existing destination only when its size matches. Resetting server data (a full
    sign-out or server switch) removes the library rows but deletes only
@@ -5200,10 +5200,10 @@ permanent-cache files are requeued when library metadata still permits a
 server download. Inaccessible storage retains its intent until it returns,
 and startup repair completes before workers start. Unknown custom-folder audio
 has no finish intent and is left to the explicit adoption/rescan flow.
-Filesystem cleanup removes only `.navis-part` leftovers from the active custom
-root without following links, even when no interrupted queue row remains. SAF
-cleanup uses the existing recursive-list/delete bridge and the same suffix;
-app-private SAF staging parts are also removed. SAF uploads retain the existing
+Before a transfer creates its part file, the existing queue journal records
+its exact path. Custom-root cleanup requires that persisted ownership and does
+not follow links. Unowned suffix files are preserved and logged. SAF trees are
+never swept for suffix files; only app-private SAF staging parts are removed. SAF uploads retain the existing
 document MIME type and provider capability contract. The bridge checks the
 copied byte count and removes its own document on a write error; startup verifies
 a journaled upload's digest and removes an incomplete document before requeueing.
