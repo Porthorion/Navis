@@ -130,20 +130,22 @@ const List<ChangelogVersion> changelogs = [
     codename: 'Chromatic',
     iconAsset: 'assets/changelog/chromatic.svg',
     summary:
-        'Make Navis look the way you want with color styles, corner shapes, '
-        'density and Now Playing backgrounds; discover more with Trending '
-        'Now, New Releases and richer artist pages; and get signed updates '
-        'plus a large round of playback, sync and privacy fixes.',
+        'Make Navis look the way you want with color styles, Fine-Tune '
+        'Colors and saved Looks; enjoy a Now Playing screen that fits every '
+        'phone; discover more with Trending Now, New Releases and richer '
+        'artist pages; and get signed updates plus a large round of playback, '
+        'sync and privacy fixes.',
     highlights: [
       ChangelogHighlight(
         icon: ChangelogHighlightIcon.sparkle,
         title: 'Your look',
-        body: 'Color styles, fine-tuned colors, saved Looks, corner shapes and density',
+        body:
+            'Color styles, Fine-Tune Colors, saved Looks, corners and density',
       ),
       ChangelogHighlight(
         icon: ChangelogHighlightIcon.player,
-        title: 'Now Playing backgrounds',
-        body: 'Art-tinted, blurred artwork or your plain theme background',
+        title: 'Now Playing',
+        body: 'New backgrounds and a layout that fits every phone',
       ),
       ChangelogHighlight(
         icon: ChangelogHighlightIcon.search,
@@ -168,11 +170,11 @@ const List<ChangelogVersion> changelogs = [
         type: ChangelogEntryType.newFeature,
       ),
       ChangelogEntry(
-        'Fine-Tune Colors opens a panel like Speed & Pitch, with Intensity, Brightness and Tint rulers for any color style, a separate Brightness and Tint for Light and for Dark and OLED, and White controls that fill Play, sliders and selected controls with white instead of the accent color',
+        'Fine-Tune Colors adjusts any color style with Intensity, Brightness and Tint rulers, with Brightness and Tint set separately for Light and for Dark, and White controls turn Play, sliders and selected controls white',
         type: ChangelogEntryType.newFeature,
       ),
       ChangelogEntry(
-        'Looks save your whole appearance, Fine-Tune values included, under a name, so you can switch between them in one tap at the top of Settings › Appearance and undo it right after applying',
+        'Looks save your whole appearance under a name, so you can switch between them in one tap from Settings › Appearance, with Undo right after',
         type: ChangelogEntryType.newFeature,
       ),
       ChangelogEntry(
@@ -222,7 +224,10 @@ const List<ChangelogVersion> changelogs = [
 
       // Improved
       ChangelogEntry(
-        'Buttons and indicators use one consistent accent: Play is the same solid color everywhere, Shuffle, Instant Radio, selected tabs and chips share one softer shade, and switched-off toggles are outlined so on is easy to tell from off',
+        'Now Playing on phones fits every screen: controls stay within thumb reach, short phones shrink the cover instead of cutting off controls, and tall phones get a larger cover and title',
+      ),
+      ChangelogEntry(
+        'Buttons use one consistent accent: Play is the same solid color everywhere, secondary buttons and selected tabs share one softer shade, and toggles that are off are outlined',
       ),
       ChangelogEntry(
         'Pulling down to refresh Home or Library also checks for app updates',
