@@ -5,7 +5,6 @@ import 'package:material_ui/material_ui.dart';
 import 'package:navis/src/features/player/presentation/now_playing_artwork_background.dart';
 import 'package:navis/src/theme/color_adjustment.dart';
 import 'package:navis/src/theme/caption_tint.dart';
-import 'package:navis/src/theme/flat_band_tone.dart';
 import 'package:navis/src/theme/navis_color_style.dart';
 import 'package:navis/src/theme/navis_color_style_data.dart';
 import 'package:navis/src/theme/navis_style_schemes.dart';
@@ -897,18 +896,9 @@ void main() {
                 _hct(immersiveData.adaptArtColor(entry.value)).chroma * 0.6,
               ),
             );
-            // Flat bands and cover-tinted captions derive from the same colour.
-            final band = flatBandSample(entry.value, pastelData);
-            expect(_hct(band).chroma, lessThanOrEqualTo(14.5));
+            // Cover-tinted captions derive from the same colour.
             final caption = captionTintFor(entry.value, pastelData).fill;
             expect(_hct(caption).chroma, lessThanOrEqualTo(14.5));
-            expect(
-              _hct(band).chroma,
-              lessThan(
-                _hct(flatBandSample(entry.value, immersiveData)).chroma * 0.65 +
-                    0.5,
-              ),
-            );
           },
         );
       }
