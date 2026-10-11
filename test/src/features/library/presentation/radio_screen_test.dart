@@ -80,6 +80,11 @@ class _RadioHandler implements NavisPlaybackHandler {
 
   @override
   Future<void> stopRadio() async => stops++;
+  // The playback provider subscribes to the snapshot stream up front.
+  @override
+  PlaybackSnapshot get snapshot => const PlaybackSnapshot.idle();
+  @override
+  Stream<PlaybackSnapshot> get snapshotStream => const Stream.empty();
   @override
   dynamic noSuchMethod(Invocation invocation) => null;
 }

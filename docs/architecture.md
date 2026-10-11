@@ -3318,15 +3318,18 @@ never `MediaItem.extras`. AzuraCast polling is derived only from `/listen/` or
 
 `playbackSnapshotProvider` attaches its live broadcast subscription before
 seeding the current snapshot, using the same `Stream.multi` ownership pattern
-as the buffer-state provider. An `async*` initial yield followed by `yield*`
-left a subscription gap: pausing the initial delivery could lose the snapshot
-that cleared a settled seek's pending target. Now Playing then kept rendering
-that target while native playback and the position stream advanced, including
-through Repeat One wraps without another structural event. The attached stream
-buffers settlement during listener pauses and cancels with the provider;
-timeline ticks still come from the existing handler position stream. Handler
-and provider tests cover Repeat One seeks, Next/Previous, simulated native
-wraps, and player replacement with crossfade enabled and disabled.
+as the buffer-state provider, so no snapshot is lost between the seed and the
+subscription.
+
+Seek bars (Now Playing and both mini players) read their position through
+`watchDisplayedPlaybackPosition` (`playback_seek_bar_style.dart`), which
+watches the position stream and the provider's `pendingSeekPosition` on every
+build. The old `pendingSeekPosition ?? watch(position stream)` chain skipped
+the stream while a seek was pending, so Riverpod dropped the subscription, and
+a parent that did not rebuild for the cleared seek left the bar frozen on the
+seek target until another structural change (a new song, Play/Pause). Repeat
+One made it permanent, because no song change follows. A widget test with a
+stale parent snapshot covers it.
 
 `NavisAudioHandler` keeps its fields, public API and audio-service overrides in
 `navis_audio_handler.dart`. Private helpers are grouped in part files using

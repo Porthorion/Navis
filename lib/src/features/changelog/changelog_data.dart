@@ -286,7 +286,7 @@ const List<ChangelogVersion> changelogs = [
 
       // Fixed: playback
       ChangelogEntry(
-        'Now Playing keeps its progress moving after seeking or skipping with Repeat One on',
+        'Now Playing and the mini players keep their progress moving after a seek, including with Repeat One on',
         type: ChangelogEntryType.fix,
       ),
       ChangelogEntry(
