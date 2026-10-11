@@ -76,12 +76,12 @@ String colorTuningSummary(
     if (tuning.vividness != 0)
       l10n.appearanceColorTuningSummaryIntensity(signedStep(tuning.vividness)),
     if (depth != 0)
-      l10n.appearanceColorTuningSummaryBrightness(signedStep(depth)),
+      l10n.appearanceColorTuningSummaryBrightness(signedStep(-depth)),
     if (tint != 0) l10n.appearanceColorTuningSummaryTint('$tint'),
     if (!shown && otherDepth != 0)
       l10n.appearanceColorTuningSummaryModeBrightness(
         otherMode,
-        signedStep(otherDepth),
+        signedStep(-otherDepth),
       ),
     if (!shown && otherTint != 0)
       l10n.appearanceColorTuningSummaryModeTint(otherMode, '$otherTint'),
@@ -344,9 +344,10 @@ class _PanelBodyState extends State<_PanelBody> {
       _brightnessBand = _buildBand(
         dark: _darkMode,
         oled: oled,
+        // The ruler shows Brightness, the opposite of the stored depth.
         at: (step) => ColorAdjustment(
           vividness: _shown.vividness,
-          depth: step,
+          depth: -step,
           tint: _shown.forMode(dark: _darkMode).tint,
           controls: _shown.controls,
         ),
@@ -475,13 +476,14 @@ class _PanelBodyState extends State<_PanelBody> {
         ColorTuningRulerRow(
           keyName: 'brightness',
           label: l10n.appearanceColorTuningBrightness,
-          lowCaption: l10n.appearanceColorTuningLighter,
-          highCaption: l10n.appearanceColorTuningDeeper,
-          lowTooltip: l10n.appearanceColorTuningLighterBackgrounds,
-          highTooltip: l10n.appearanceColorTuningDeeperBackgrounds,
-          step: _depth,
+          lowCaption: l10n.appearanceColorTuningDeeper,
+          highCaption: l10n.appearanceColorTuningLighter,
+          lowTooltip: l10n.appearanceColorTuningDeeperBackgrounds,
+          highTooltip: l10n.appearanceColorTuningLighterBackgrounds,
+          // Lighter is +, Deeper is −; settings store depth (+ is deeper).
+          step: -_depth,
           band: _depthBand,
-          onStep: (step) => _preview(_with(depth: step)),
+          onStep: (step) => _preview(_with(depth: -step)),
           onEnd: _commit,
         ),
         const SizedBox(height: NavisSpace.md),

@@ -2,6 +2,8 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_riverpod/misc.dart' show Override;
 import 'package:flutter_test/flutter_test.dart';
+import 'package:material_color_utilities/material_color_utilities.dart'
+    show Hct;
 import 'package:material_ui/material_ui.dart';
 import 'package:navis/l10n/app_localizations.dart';
 import 'package:navis/l10n/navis_localizations.dart';
@@ -172,14 +174,14 @@ void main() {
         tester,
         const ColorTuning(vividness: 2, lightDepth: 3, darkDepth: -1),
       );
-      expect(summary(tester), 'Intensity +2 · Brightness −1');
+      expect(summary(tester), 'Intensity +2 · Brightness +1');
 
       await seedTuning(tester, const ColorTuning(vividness: -3));
       expect(summary(tester), 'Intensity −3');
 
       // Only the other mode is adjusted: say which one.
       await seedTuning(tester, const ColorTuning(lightDepth: 3));
-      expect(summary(tester), 'Light Brightness +3');
+      expect(summary(tester), 'Light Brightness −3');
     });
 
     testWidgets('follows Light brightness in Light mode', (tester) async {
@@ -188,7 +190,7 @@ void main() {
         tester,
         const ColorTuning(vividness: 2, lightDepth: 3, darkDepth: -1),
       );
-      expect(summary(tester), 'Intensity +2 · Brightness +3');
+      expect(summary(tester), 'Intensity +2 · Brightness −3');
     });
 
     testWidgets('shows its New tag and clears it through the seen mechanism', (
@@ -344,7 +346,8 @@ void main() {
       await settleWrites(tester);
       expect(
         container.read(colorTuningProvider),
-        const ColorTuning(darkDepth: 1),
+        const ColorTuning(darkDepth: -1),
+        reason: 'Lighter (+) stores a negative depth',
       );
       expect(container.read(colorTuningPreviewProvider), isNull);
 
@@ -429,7 +432,7 @@ void main() {
       await pumpScreen(tester);
       await seedTuning(tester, const ColorTuning(darkDepth: 3));
       await openPanel(tester);
-      expect(readout(tester, 'brightness'), '+3');
+      expect(readout(tester, 'brightness'), '−3');
 
       await tester.tap(find.text('Light'));
       await tester.pumpAndSettle();
@@ -441,14 +444,14 @@ void main() {
       await settleWrites(tester);
       expect(
         container.read(colorTuningProvider),
-        const ColorTuning(lightDepth: 1, darkDepth: 3),
+        const ColorTuning(lightDepth: -1, darkDepth: 3),
       );
       expect(readout(tester, 'brightness'), '+1');
 
       // Back to the mode shown: Dark's value, no caption.
       await tester.tap(find.text('Dark'));
       await tester.pumpAndSettle();
-      expect(readout(tester, 'brightness'), '+3');
+      expect(readout(tester, 'brightness'), '−3');
       expect(key('applies'), findsNothing);
     });
 
@@ -466,8 +469,34 @@ void main() {
       await settleWrites(tester);
       expect(
         container.read(colorTuningProvider),
-        const ColorTuning(darkDepth: -1),
+        const ColorTuning(darkDepth: 1),
+        reason: 'Deeper (−) stores a positive depth',
       );
+    });
+
+    testWidgets('Lighter stores a negative depth, reads +N and is the '
+        'rightmost, lightest swatch', (tester) async {
+      await pumpScreen(tester, mode: 'light');
+      await openPanel(tester);
+      await tester.tap(key('brightness-plus'));
+      await tester.pumpAndSettle();
+      await tester.tap(key('brightness-plus'));
+      await tester.pumpAndSettle();
+      await settleWrites(tester);
+
+      expect(
+        container.read(colorTuningProvider),
+        const ColorTuning(lightDepth: -2),
+      );
+      expect(readout(tester, 'brightness'), '+2');
+      expect(tester.widget<Text>(key('summary')).data, 'Brightness +2');
+      expect(summary(tester), 'Brightness +2');
+
+      double tone(Color color) => Hct.fromInt(color.toARGB32()).tone;
+      final tones = band(tester, 'brightness').colors.map(tone).toList();
+      expect(tones.last, greaterThan(tones.first));
+      expect(tones.last, tones.reduce((a, b) => a > b ? a : b));
+      expect(tones.first, tones.reduce((a, b) => a < b ? a : b));
     });
 
     for (final mode in <String>['light', 'dark', 'oled']) {
@@ -485,7 +514,8 @@ void main() {
               brightness: dark ? Brightness.dark : Brightness.light,
               oled: oled,
               style: NavisColorStyle.pastel,
-              adjustment: ColorAdjustment(depth: step),
+              // The ruler shows Brightness, the opposite of the depth.
+              adjustment: ColorAdjustment(depth: -step),
             );
             expect(
               strip.colors[step + 5],

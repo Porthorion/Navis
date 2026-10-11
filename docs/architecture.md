@@ -1103,14 +1103,17 @@ target-selection rules.
     Pitch shell, `showQuickPanel`: an anchored popover (440 wide, up to 680
     high) on desktop, a sheet capped at 88% on touch layouts, with the title,
     a live summary and Reset pinned. The row's summary is "Default" or the
-    steps that are not zero ("Intensity +2 · Brightness −1 · Tint 3 · White
+    steps that are not zero ("Intensity +2 · Brightness +1 · Tint 3 · White
     controls", Brightness and Tint being the mode on screen; with only the
-    other mode adjusted, "Light Brightness +3" or "Dark Tint 2"); the panel
-    header shows the same summary.
+    other mode adjusted, "Light Brightness −3" or "Dark Tint 2"); the panel
+    header shows the same summary. Brightness is the opposite of the stored
+    depth: the ruler, readout and summary show `−depth`, so + is Lighter and
+    − is Deeper while the settings, Looks and diagnostics keep the stored
+    depth (+ deeper).
     The panel body is **Intensity** (Muted to Vivid), a **Backgrounds** group
     and a **Controls** group. Backgrounds holds a compact **Light | Dark**
     `SegmentedButton` beside its title and two rulers it drives,
-    **Brightness** (Lighter to Deeper, −5…+5) and **Tint** (None to Full,
+    **Brightness** (Deeper on the left to Lighter on the right, −5…+5) and **Tint** (None to Full,
     0…5, readout "None" at 0, and the − stepper stops there). Controls is an
     **Accent | White** `SegmentedButton` that commits at once, with a note
     saying what White does. Each ruler is a `ColorTuningRulerRow`: the Speed and Pitch `AdjustmentRuler`
@@ -1135,7 +1138,7 @@ target-selection rules.
     edges, hairline frame; each tick takes the ink of the nearest step).
     Intensity paints `primary` in the mode on screen (its needle is the live
     primary, with `onPrimary` ticks). Brightness paints the selected mode's
-    `surface`, so Light shows paper and Dark its own surfaces, or
+    `surface` at depth −step (the lightest swatch is the rightmost), so Light shows paper and Dark its own surfaces, or
     `surfaceContainerHigh` for OLED, where surface stays black. Tint paints the
     same roles at tints 0…5 (the real page background of the selected mode,
     with the current Intensity and Brightness), and under OLED adds the note
