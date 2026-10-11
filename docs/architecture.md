@@ -3321,15 +3321,16 @@ seeding the current snapshot, using the same `Stream.multi` ownership pattern
 as the buffer-state provider, so no snapshot is lost between the seed and the
 subscription.
 
-Seek bars (Now Playing and both mini players) read their position through
+Phone Now Playing reads the live `playerStateProvider`. The app shell watches
+a deduped `_ShellPlayback` selection that ignores seek settlement, positions
+and queue contents, so it must not hand its `playback` down: an
+`overrideWithValue(playback)` scope around Now Playing (stale since queue
+paging added the dedupe) froze the seek bar on every seek target, and with
+Repeat One for good. Seek bars read their position through
 `watchDisplayedPlaybackPosition` (`playback_seek_bar_style.dart`), which
-watches the position stream and the provider's `pendingSeekPosition` on every
-build. The old `pendingSeekPosition ?? watch(position stream)` chain skipped
-the stream while a seek was pending, so Riverpod dropped the subscription, and
-a parent that did not rebuild for the cleared seek left the bar frozen on the
-seek target until another structural change (a new song, Play/Pause). Repeat
-One made it permanent, because no song change follows. A widget test with a
-stale parent snapshot covers it.
+watches the position stream and `pendingSeekPosition` on every build, so a
+skipped `??` branch cannot drop the stream subscription. Shell and seek bar
+widget tests cover both.
 
 `NavisAudioHandler` keeps its fields, public API and audio-service overrides in
 `navis_audio_handler.dart`. Private helpers are grouped in part files using

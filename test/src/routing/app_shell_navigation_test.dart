@@ -2413,6 +2413,50 @@ void main() {
     expect(find.byType(ExpandablePlayerSheet), findsOneWidget);
   });
 
+  testWidgets('phone Now Playing follows a settled seek the shell ignores', (
+    tester,
+  ) async {
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(599, 1000);
+    addTearDown(() {
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+    });
+
+    final container = _createContainerWithDatabase(
+      overrides: <Override>[
+        ..._authenticatedShellOverrides(),
+        playerStateProvider.overrideWith(
+          (ref) => ref.watch(_mutablePlaybackProvider),
+        ),
+        playbackPositionProvider.overrideWith(
+          (ref) => Stream<Duration>.value(const Duration(seconds: 61)),
+        ),
+      ],
+    );
+    await tester.pumpWidget(
+      UncontrolledProviderScope(container: container, child: testNavisApp),
+    );
+    await tester.pumpAndSettle();
+    container.read(playerOverlayStackProvider.notifier).expand();
+    await tester.pumpAndSettle();
+
+    final playback = container.read(_mutablePlaybackProvider.notifier);
+    playback.snapshot = _activePlayback.copyWith(
+      pendingSeekPosition: const Duration(seconds: 60),
+    );
+    await tester.pump();
+    expect(find.text('1:00'), findsOneWidget);
+
+    // Settling the seek changes no field the shell rebuilds for.
+    playback.snapshot = _activePlayback.copyWith(
+      position: const Duration(seconds: 60),
+    );
+    await tester.pump();
+    expect(find.text('1:00'), findsNothing);
+    expect(find.text('1:01'), findsOneWidget);
+  });
+
   testWidgets('expanded player uses embedded now-playing mode on rail', (
     tester,
   ) async {
