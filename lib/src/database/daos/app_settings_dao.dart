@@ -499,35 +499,27 @@ class AppSettingsDao extends DatabaseAccessor<NavisDatabase>
     Value<String> crossfadeType = const Value.absent(),
     Value<bool> albumQueueEnabled = const Value.absent(),
     Value<bool> likedQueueEnabled = const Value.absent(),
-  }) => (update(appSettingsTable)..where((t) => t.id.equals(primarySettingsId)))
-      .write(
-        AppSettingsTableCompanion(
-          wifiMaxBitRate: wifiMaxBitRate,
-          wifiFormat: wifiFormat,
-          cellularMaxBitRate: cellularMaxBitRate,
-          cellularFormat: cellularFormat,
-          cachedPlaybackFirst: cachedPlaybackFirst,
-          scrobbleEnabled: scrobbleEnabled,
-          gaplessEnabled: gaplessEnabled,
-          crossfadeEnabled: crossfadeEnabled,
-          crossfadeDurationSeconds: crossfadeDurationSeconds,
-          crossfadeType: crossfadeType,
-          albumQueueEnabled: albumQueueEnabled,
-          likedQueueEnabled: likedQueueEnabled,
-          updatedAt: Value(DateTime.now()),
-        ),
-      );
+  }) => _writeSettings(
+    AppSettingsTableCompanion(
+      wifiMaxBitRate: wifiMaxBitRate,
+      wifiFormat: wifiFormat,
+      cellularMaxBitRate: cellularMaxBitRate,
+      cellularFormat: cellularFormat,
+      cachedPlaybackFirst: cachedPlaybackFirst,
+      scrobbleEnabled: scrobbleEnabled,
+      gaplessEnabled: gaplessEnabled,
+      crossfadeEnabled: crossfadeEnabled,
+      crossfadeDurationSeconds: crossfadeDurationSeconds,
+      crossfadeType: crossfadeType,
+      albumQueueEnabled: albumQueueEnabled,
+      likedQueueEnabled: likedQueueEnabled,
+    ),
+  );
 
   /// Clears only per-option setup acknowledgements, for reset and diagnostics.
-  Future<void> clearSetupHighlightsSeen() =>
-      (update(
-        appSettingsTable,
-      )..where((t) => t.id.equals(primarySettingsId))).write(
-        AppSettingsTableCompanion(
-          setupHighlightsSeen: const Value(null),
-          updatedAt: Value(DateTime.now()),
-        ),
-      );
+  Future<void> clearSetupHighlightsSeen() => _writeSettings(
+    AppSettingsTableCompanion(setupHighlightsSeen: const Value(null)),
+  );
 
   /// Adds one seen option atomically without overwriting simultaneous options.
   Future<void> markSetupHighlightSeen(String key) => transaction(() async {
@@ -554,13 +546,8 @@ class AppSettingsDao extends DatabaseAccessor<NavisDatabase>
   ///
   /// Deliberately absent from [saveSettings] to preserve newer targeted writes.
   Future<void> updateSetupHighlightsSeenRelease(String? release) {
-    return (update(
-      appSettingsTable,
-    )..where((t) => t.id.equals(primarySettingsId))).write(
-      AppSettingsTableCompanion(
-        setupHighlightsSeenRelease: Value(release),
-        updatedAt: Value(DateTime.now()),
-      ),
+    return _writeSettings(
+      AppSettingsTableCompanion(setupHighlightsSeenRelease: Value(release)),
     );
   }
 
@@ -568,13 +555,8 @@ class AppSettingsDao extends DatabaseAccessor<NavisDatabase>
   ///
   /// Deliberately absent from [saveSettings] so onboarding drafts cannot revert it.
   Future<void> updateSetupCardDismissedRelease(String? release) {
-    return (update(
-      appSettingsTable,
-    )..where((t) => t.id.equals(primarySettingsId))).write(
-      AppSettingsTableCompanion(
-        setupCardDismissedRelease: Value(release),
-        updatedAt: Value(DateTime.now()),
-      ),
+    return _writeSettings(
+      AppSettingsTableCompanion(setupCardDismissedRelease: Value(release)),
     );
   }
 
@@ -583,13 +565,8 @@ class AppSettingsDao extends DatabaseAccessor<NavisDatabase>
   }
 
   Future<void> completeOnboarding(int version) {
-    return (update(
-      appSettingsTable,
-    )..where((table) => table.id.equals(primarySettingsId))).write(
-      AppSettingsTableCompanion(
-        onboardingVersion: Value(version),
-        updatedAt: Value(DateTime.now()),
-      ),
+    return _writeSettings(
+      AppSettingsTableCompanion(onboardingVersion: Value(version)),
     );
   }
 
@@ -599,61 +576,36 @@ class AppSettingsDao extends DatabaseAccessor<NavisDatabase>
 
   /// Targeted update for show albums page.
   Future<void> updateShowAlbumsPage({required bool enabled}) {
-    return (update(
-      appSettingsTable,
-    )..where((t) => t.id.equals(primarySettingsId))).write(
-      AppSettingsTableCompanion(
-        showAlbumsPage: Value(enabled),
-        updatedAt: Value(DateTime.now()),
-      ),
+    return _writeSettings(
+      AppSettingsTableCompanion(showAlbumsPage: Value(enabled)),
     );
   }
 
   /// Targeted update for show radio page.
   Future<void> updateShowRadioPage({required bool enabled}) {
-    return (update(
-      appSettingsTable,
-    )..where((t) => t.id.equals(primarySettingsId))).write(
-      AppSettingsTableCompanion(
-        showRadioPage: Value(enabled),
-        updatedAt: Value(DateTime.now()),
-      ),
+    return _writeSettings(
+      AppSettingsTableCompanion(showRadioPage: Value(enabled)),
     );
   }
 
   /// Targeted update for show playlists page.
   Future<void> updateShowPlaylistsPage({required bool enabled}) {
-    return (update(
-      appSettingsTable,
-    )..where((t) => t.id.equals(primarySettingsId))).write(
-      AppSettingsTableCompanion(
-        showPlaylistsPage: Value(enabled),
-        updatedAt: Value(DateTime.now()),
-      ),
+    return _writeSettings(
+      AppSettingsTableCompanion(showPlaylistsPage: Value(enabled)),
     );
   }
 
   /// Targeted update for show artists page.
   Future<void> updateShowArtistsPage({required bool enabled}) {
-    return (update(
-      appSettingsTable,
-    )..where((t) => t.id.equals(primarySettingsId))).write(
-      AppSettingsTableCompanion(
-        showArtistsPage: Value(enabled),
-        updatedAt: Value(DateTime.now()),
-      ),
+    return _writeSettings(
+      AppSettingsTableCompanion(showArtistsPage: Value(enabled)),
     );
   }
 
   /// Targeted update for show liked page.
   Future<void> updateShowLikedPage({required bool enabled}) {
-    return (update(
-      appSettingsTable,
-    )..where((t) => t.id.equals(primarySettingsId))).write(
-      AppSettingsTableCompanion(
-        showLikedPage: Value(enabled),
-        updatedAt: Value(DateTime.now()),
-      ),
+    return _writeSettings(
+      AppSettingsTableCompanion(showLikedPage: Value(enabled)),
     );
   }
 
@@ -665,13 +617,8 @@ class AppSettingsDao extends DatabaseAccessor<NavisDatabase>
 
   /// Targeted update for rolling cache budget without touching other settings.
   Future<void> updateRollingCacheBudgetMb(int mb) {
-    return (update(
-      appSettingsTable,
-    )..where((t) => t.id.equals(primarySettingsId))).write(
-      AppSettingsTableCompanion(
-        rollingCacheBudgetMb: Value(mb),
-        updatedAt: Value(DateTime.now()),
-      ),
+    return _writeSettings(
+      AppSettingsTableCompanion(rollingCacheBudgetMb: Value(mb)),
     );
   }
 
@@ -694,60 +641,35 @@ class AppSettingsDao extends DatabaseAccessor<NavisDatabase>
 
   /// Targeted update for the Wi-Fi-only downloads flag.
   Future<void> updateWifiOnlyDownloads({required bool enabled}) {
-    return (update(
-      appSettingsTable,
-    )..where((t) => t.id.equals(primarySettingsId))).write(
-      AppSettingsTableCompanion(
-        wifiOnlyDownloads: Value(enabled),
-        updatedAt: Value(DateTime.now()),
-      ),
+    return _writeSettings(
+      AppSettingsTableCompanion(wifiOnlyDownloads: Value(enabled)),
     );
   }
 
   /// Targeted update for the auto-download liked content flag.
   Future<void> updateAutoDownloadStarredOnWifi({required bool enabled}) {
-    return (update(
-      appSettingsTable,
-    )..where((t) => t.id.equals(primarySettingsId))).write(
-      AppSettingsTableCompanion(
-        autoDownloadStarredOnWifi: Value(enabled),
-        updatedAt: Value(DateTime.now()),
-      ),
+    return _writeSettings(
+      AppSettingsTableCompanion(autoDownloadStarredOnWifi: Value(enabled)),
     );
   }
 
   /// Targeted update for the custom permanent-download-folder toggle.
   Future<void> updateCustomDownloadFolderEnabled({required bool enabled}) {
-    return (update(
-      appSettingsTable,
-    )..where((t) => t.id.equals(primarySettingsId))).write(
-      AppSettingsTableCompanion(
-        customDownloadFolderEnabled: Value(enabled),
-        updatedAt: Value(DateTime.now()),
-      ),
+    return _writeSettings(
+      AppSettingsTableCompanion(customDownloadFolderEnabled: Value(enabled)),
     );
   }
 
   /// Targeted update for the custom permanent-download-folder path.
   Future<void> updateCustomDownloadFolderPath(String? path) {
-    return (update(
-      appSettingsTable,
-    )..where((t) => t.id.equals(primarySettingsId))).write(
-      AppSettingsTableCompanion(
-        customDownloadFolderPath: Value(path),
-        updatedAt: Value(DateTime.now()),
-      ),
+    return _writeSettings(
+      AppSettingsTableCompanion(customDownloadFolderPath: Value(path)),
     );
   }
 
   Future<void> updateCustomDownloadFolderStorageKind(String kind) {
-    return (update(
-      appSettingsTable,
-    )..where((t) => t.id.equals(primarySettingsId))).write(
-      AppSettingsTableCompanion(
-        customDownloadFolderStorageKind: Value(kind),
-        updatedAt: Value(DateTime.now()),
-      ),
+    return _writeSettings(
+      AppSettingsTableCompanion(customDownloadFolderStorageKind: Value(kind)),
     );
   }
 
@@ -778,50 +700,34 @@ class AppSettingsDao extends DatabaseAccessor<NavisDatabase>
     int? bitRate,
     String? format,
   }) {
-    return (update(
-      appSettingsTable,
-    )..where((t) => t.id.equals(primarySettingsId))).write(
+    return _writeSettings(
       AppSettingsTableCompanion(
         downloadQualityMode: Value(mode.name),
         downloadMaxBitRate: bitRate == null
             ? const Value.absent()
             : Value(bitRate),
         downloadFormat: format == null ? const Value.absent() : Value(format),
-        updatedAt: Value(DateTime.now()),
       ),
     );
   }
 
   /// Saves the transcode format alone (used by the picker in every mode).
   Future<void> updateDownloadFormat(String format) {
-    return (update(
-      appSettingsTable,
-    )..where((t) => t.id.equals(primarySettingsId))).write(
-      AppSettingsTableCompanion(
-        downloadFormat: Value(format),
-        updatedAt: Value(DateTime.now()),
-      ),
+    return _writeSettings(
+      AppSettingsTableCompanion(downloadFormat: Value(format)),
     );
   }
 
   Future<void> updateDownloadQualityPrompted({required bool prompted}) {
-    return (update(
-      appSettingsTable,
-    )..where((t) => t.id.equals(primarySettingsId))).write(
-      AppSettingsTableCompanion(
-        downloadQualityPrompted: Value(prompted),
-        updatedAt: Value(DateTime.now()),
-      ),
+    return _writeSettings(
+      AppSettingsTableCompanion(downloadQualityPrompted: Value(prompted)),
     );
   }
 
   Future<void> updateMaxConcurrentDownloads(int value) {
-    return (update(
-      appSettingsTable,
-    )..where((t) => t.id.equals(primarySettingsId))).write(
+    return _writeSettings(
       AppSettingsTableCompanion(
         maxConcurrentDownloads: Value(sanitizeConcurrentDownloads(value)),
-        updatedAt: Value(DateTime.now()),
       ),
     );
   }
@@ -835,13 +741,8 @@ class AppSettingsDao extends DatabaseAccessor<NavisDatabase>
   );
 
   Future<void> updateDownloadsPaused({required bool paused}) {
-    return (update(
-      appSettingsTable,
-    )..where((t) => t.id.equals(primarySettingsId))).write(
-      AppSettingsTableCompanion(
-        downloadsPaused: Value(paused),
-        updatedAt: Value(DateTime.now()),
-      ),
+    return _writeSettings(
+      AppSettingsTableCompanion(downloadsPaused: Value(paused)),
     );
   }
 
@@ -857,59 +758,33 @@ class AppSettingsDao extends DatabaseAccessor<NavisDatabase>
 
   /// Targeted update for theme mode.
   Future<void> updateThemeMode(String mode) {
-    return (update(
-      appSettingsTable,
-    )..where((t) => t.id.equals(primarySettingsId))).write(
-      AppSettingsTableCompanion(
-        themeMode: Value(mode),
-        updatedAt: Value(DateTime.now()),
-      ),
-    );
+    return _writeSettings(AppSettingsTableCompanion(themeMode: Value(mode)));
   }
 
   /// Targeted update for colour style.
   Future<void> updateColorStyle(String style) {
-    return (update(
-      appSettingsTable,
-    )..where((t) => t.id.equals(primarySettingsId))).write(
-      AppSettingsTableCompanion(
-        colorStyle: Value(style),
-        updatedAt: Value(DateTime.now()),
-      ),
-    );
+    return _writeSettings(AppSettingsTableCompanion(colorStyle: Value(style)));
   }
 
   /// Targeted update for OLED in Auto mode.
   Future<void> updateOledForAuto({required bool enabled}) {
-    return (update(
-      appSettingsTable,
-    )..where((t) => t.id.equals(primarySettingsId))).write(
-      AppSettingsTableCompanion(
-        oledForAuto: Value(enabled),
-        updatedAt: Value(DateTime.now()),
-      ),
+    return _writeSettings(
+      AppSettingsTableCompanion(oledForAuto: Value(enabled)),
     );
   }
 
   /// Targeted update for the Flat area mask.
   Future<void> updateFlatAreas(int bits) async {
     final areas = FlatAreas.fromBits(bits);
-    await (update(
-      appSettingsTable,
-    )..where((tbl) => tbl.id.equals(primarySettingsId))).write(
-      AppSettingsTableCompanion(
-        flatAreas: Value(areas.bits),
-        updatedAt: Value(DateTime.now()),
-      ),
+    await _writeSettings(
+      AppSettingsTableCompanion(flatAreas: Value(areas.bits)),
     );
   }
 
   /// Writes tuning without touching other settings.
   Future<void> updateColorTuning(ColorTuning tuning) async {
     await getSettings();
-    await (update(
-      appSettingsTable,
-    )..where((t) => t.id.equals(primarySettingsId))).write(
+    await _writeSettings(
       AppSettingsTableCompanion(
         colorVividness: Value(tuning.vividness),
         surfaceDepthLight: Value(tuning.lightDepth),
@@ -917,7 +792,6 @@ class AppSettingsDao extends DatabaseAccessor<NavisDatabase>
         surfaceTintLight: Value(tuning.lightTint),
         surfaceTintDark: Value(tuning.darkTint),
         controlColor: Value(tuning.controls.name),
-        updatedAt: Value(DateTime.now()),
       ),
     );
   }
@@ -1037,36 +911,21 @@ class AppSettingsDao extends DatabaseAccessor<NavisDatabase>
       });
 
   Future<void> updateAlbumArtShade({required bool enabled}) async {
-    await (update(
-      appSettingsTable,
-    )..where((tbl) => tbl.id.equals(primarySettingsId))).write(
-      AppSettingsTableCompanion(
-        albumArtShade: Value(enabled),
-        updatedAt: Value(DateTime.now()),
-      ),
+    await _writeSettings(
+      AppSettingsTableCompanion(albumArtShade: Value(enabled)),
     );
   }
 
   Future<void> updateAlbumArtColoredShade({required bool enabled}) async {
-    await (update(
-      appSettingsTable,
-    )..where((tbl) => tbl.id.equals(primarySettingsId))).write(
-      AppSettingsTableCompanion(
-        albumArtColoredShade: Value(enabled),
-        updatedAt: Value(DateTime.now()),
-      ),
+    await _writeSettings(
+      AppSettingsTableCompanion(albumArtColoredShade: Value(enabled)),
     );
   }
 
   /// Targeted update for the Flat Surfaces switch.
   Future<void> updateFlatSurfaces({required bool enabled}) {
-    return (update(
-      appSettingsTable,
-    )..where((t) => t.id.equals(primarySettingsId))).write(
-      AppSettingsTableCompanion(
-        flatSurfaces: Value(enabled),
-        updatedAt: Value(DateTime.now()),
-      ),
+    return _writeSettings(
+      AppSettingsTableCompanion(flatSurfaces: Value(enabled)),
     );
   }
 
@@ -1076,9 +935,7 @@ class AppSettingsDao extends DatabaseAccessor<NavisDatabase>
     int? startMinutes,
     int? endMinutes,
   }) {
-    return (update(
-      appSettingsTable,
-    )..where((t) => t.id.equals(primarySettingsId))).write(
+    return _writeSettings(
       AppSettingsTableCompanion(
         nightScheduleEnabled: enabled == null
             ? const Value.absent()
@@ -1089,32 +946,21 @@ class AppSettingsDao extends DatabaseAccessor<NavisDatabase>
         nightScheduleEndMinutes: endMinutes == null
             ? const Value.absent()
             : Value(endMinutes.clamp(0, 1439)),
-        updatedAt: Value(DateTime.now()),
       ),
     );
   }
 
   /// Targeted update for color scheme seed.
   Future<void> updateColorSchemeSeed(int? seed) {
-    return (update(
-      appSettingsTable,
-    )..where((t) => t.id.equals(primarySettingsId))).write(
-      AppSettingsTableCompanion(
-        colorSchemeSeed: Value(seed),
-        updatedAt: Value(DateTime.now()),
-      ),
+    return _writeSettings(
+      AppSettingsTableCompanion(colorSchemeSeed: Value(seed)),
     );
   }
 
   /// Targeted update for locale override code.
   Future<void> updateAppLocale(String? localeCode) {
-    return (update(
-      appSettingsTable,
-    )..where((t) => t.id.equals(primarySettingsId))).write(
-      AppSettingsTableCompanion(
-        appLocale: Value(localeCode),
-        updatedAt: Value(DateTime.now()),
-      ),
+    return _writeSettings(
+      AppSettingsTableCompanion(appLocale: Value(localeCode)),
     );
   }
 
@@ -1124,13 +970,8 @@ class AppSettingsDao extends DatabaseAccessor<NavisDatabase>
 
   /// Targeted update for custom color presets (JSON string of int list).
   Future<void> updateCustomColorPresets(String? json) {
-    return (update(
-      appSettingsTable,
-    )..where((t) => t.id.equals(primarySettingsId))).write(
-      AppSettingsTableCompanion(
-        customColorPresets: Value(json),
-        updatedAt: Value(DateTime.now()),
-      ),
+    return _writeSettings(
+      AppSettingsTableCompanion(customColorPresets: Value(json)),
     );
   }
 
@@ -1149,13 +990,8 @@ class AppSettingsDao extends DatabaseAccessor<NavisDatabase>
 
   /// Targeted update for cover art cache max objects.
   Future<void> updateCoverArtCacheMaxObjects(int maxObjects) {
-    return (update(
-      appSettingsTable,
-    )..where((t) => t.id.equals(primarySettingsId))).write(
-      AppSettingsTableCompanion(
-        coverArtCacheMaxObjects: Value(maxObjects),
-        updatedAt: Value(DateTime.now()),
-      ),
+    return _writeSettings(
+      AppSettingsTableCompanion(coverArtCacheMaxObjects: Value(maxObjects)),
     );
   }
 
@@ -1179,38 +1015,25 @@ class AppSettingsDao extends DatabaseAccessor<NavisDatabase>
   /// Writes the canonical chrome corner style without changing other settings.
   Future<void> updateCornerStyle(String value) {
     final style = NavisCornerStyle.parse(value);
-    return (update(
-      appSettingsTable,
-    )..where((t) => t.id.equals(primarySettingsId))).write(
-      AppSettingsTableCompanion(
-        cornerStyle: Value(style.name),
-        updatedAt: Value(DateTime.now()),
-      ),
+    return _writeSettings(
+      AppSettingsTableCompanion(cornerStyle: Value(style.name)),
     );
   }
 
   /// Writes the canonical background choice.
   Future<void> updateNowPlayingBackground(String value) {
     final background = NowPlayingBackground.parse(value);
-    return (update(
-      appSettingsTable,
-    )..where((t) => t.id.equals(primarySettingsId))).write(
+    return _writeSettings(
       AppSettingsTableCompanion(
         nowPlayingBackground: Value(background.storageKey),
-        updatedAt: Value(DateTime.now()),
       ),
     );
   }
 
   /// Targeted update for dynamic album-color theming.
   Future<void> updateDynamicAlbumColorEnabled({required bool enabled}) {
-    return (update(
-      appSettingsTable,
-    )..where((t) => t.id.equals(primarySettingsId))).write(
-      AppSettingsTableCompanion(
-        dynamicAlbumColorEnabled: Value(enabled),
-        updatedAt: Value(DateTime.now()),
-      ),
+    return _writeSettings(
+      AppSettingsTableCompanion(dynamicAlbumColorEnabled: Value(enabled)),
     );
   }
 
@@ -1220,25 +1043,15 @@ class AppSettingsDao extends DatabaseAccessor<NavisDatabase>
 
   /// Targeted update for sync interval minutes.
   Future<void> updateSyncIntervalMinutes(int minutes) {
-    return (update(
-      appSettingsTable,
-    )..where((t) => t.id.equals(primarySettingsId))).write(
-      AppSettingsTableCompanion(
-        syncIntervalMinutes: Value(minutes),
-        updatedAt: Value(DateTime.now()),
-      ),
+    return _writeSettings(
+      AppSettingsTableCompanion(syncIntervalMinutes: Value(minutes)),
     );
   }
 
   /// Targeted update for background sync unmetered-only preference.
   Future<void> updateBackgroundSyncUnmeteredOnly({required bool enabled}) {
-    return (update(
-      appSettingsTable,
-    )..where((t) => t.id.equals(primarySettingsId))).write(
-      AppSettingsTableCompanion(
-        backgroundSyncUnmeteredOnly: Value(enabled),
-        updatedAt: Value(DateTime.now()),
-      ),
+    return _writeSettings(
+      AppSettingsTableCompanion(backgroundSyncUnmeteredOnly: Value(enabled)),
     );
   }
 
@@ -1248,13 +1061,8 @@ class AppSettingsDao extends DatabaseAccessor<NavisDatabase>
 
   Future<void> updateGridArtworkSize(String size) async {
     await getSettings();
-    await (update(
-      appSettingsTable,
-    )..where((t) => t.id.equals(primarySettingsId))).write(
-      AppSettingsTableCompanion(
-        gridArtworkSize: Value(size),
-        updatedAt: Value(DateTime.now()),
-      ),
+    await _writeSettings(
+      AppSettingsTableCompanion(gridArtworkSize: Value(size)),
     );
   }
 
@@ -1262,120 +1070,70 @@ class AppSettingsDao extends DatabaseAccessor<NavisDatabase>
     required bool enabled,
   }) async {
     await getSettings();
-    await (update(
-      appSettingsTable,
-    )..where((t) => t.id.equals(primarySettingsId))).write(
-      AppSettingsTableCompanion(
-        homeRecommendationsAutoAdvance: Value(enabled),
-        updatedAt: Value(DateTime.now()),
-      ),
+    await _writeSettings(
+      AppSettingsTableCompanion(homeRecommendationsAutoAdvance: Value(enabled)),
     );
   }
 
   /// Targeted update for library cover art shape ('square', 'rounded', 'circle').
   Future<void> updateCoverArtShape(String shape) {
-    return (update(
-      appSettingsTable,
-    )..where((t) => t.id.equals(primarySettingsId))).write(
-      AppSettingsTableCompanion(
-        coverArtShape: Value(shape),
-        updatedAt: Value(DateTime.now()),
-      ),
+    return _writeSettings(
+      AppSettingsTableCompanion(coverArtShape: Value(shape)),
     );
   }
 
   /// Targeted update for Now Playing art shape ('square', 'rounded', 'circle').
   Future<void> updateNowPlayingArtShape(String shape) {
-    return (update(
-      appSettingsTable,
-    )..where((t) => t.id.equals(primarySettingsId))).write(
-      AppSettingsTableCompanion(
-        nowPlayingArtShape: Value(shape),
-        updatedAt: Value(DateTime.now()),
-      ),
+    return _writeSettings(
+      AppSettingsTableCompanion(nowPlayingArtShape: Value(shape)),
     );
   }
 
   /// Targeted update for artist card shape ('square', 'rounded', 'circle').
   Future<void> updateArtistCardShape(String shape) {
-    return (update(
-      appSettingsTable,
-    )..where((t) => t.id.equals(primarySettingsId))).write(
-      AppSettingsTableCompanion(
-        artistCardShape: Value(shape),
-        updatedAt: Value(DateTime.now()),
-      ),
+    return _writeSettings(
+      AppSettingsTableCompanion(artistCardShape: Value(shape)),
     );
   }
 
   /// Targeted update for artist view mode ('grid' or 'list').
   Future<void> updateArtistViewMode(String mode) {
-    return (update(
-      appSettingsTable,
-    )..where((t) => t.id.equals(primarySettingsId))).write(
-      AppSettingsTableCompanion(
-        artistViewMode: Value(mode),
-        updatedAt: Value(DateTime.now()),
-      ),
+    return _writeSettings(
+      AppSettingsTableCompanion(artistViewMode: Value(mode)),
     );
   }
 
   Future<void> updateDensity(NavisDensity density) {
-    return (update(
-      appSettingsTable,
-    )..where((t) => t.id.equals(primarySettingsId))).write(
-      AppSettingsTableCompanion(
-        homeDensity: Value(density.storageKey),
-        updatedAt: Value(DateTime.now()),
-      ),
+    return _writeSettings(
+      AppSettingsTableCompanion(homeDensity: Value(density.storageKey)),
     );
   }
 
   /// Targeted update for home section order (JSON string list, or null for default).
   Future<void> updateHomeSectionOrder(String? json) {
-    return (update(
-      appSettingsTable,
-    )..where((t) => t.id.equals(primarySettingsId))).write(
-      AppSettingsTableCompanion(
-        homeSectionOrder: Value(json),
-        updatedAt: Value(DateTime.now()),
-      ),
+    return _writeSettings(
+      AppSettingsTableCompanion(homeSectionOrder: Value(json)),
     );
   }
 
   /// Targeted update for hidden home sections (JSON string list, or null for none).
   Future<void> updateHomeSectionsHidden(String? json) {
-    return (update(
-      appSettingsTable,
-    )..where((t) => t.id.equals(primarySettingsId))).write(
-      AppSettingsTableCompanion(
-        homeSectionsHidden: Value(json),
-        updatedAt: Value(DateTime.now()),
-      ),
+    return _writeSettings(
+      AppSettingsTableCompanion(homeSectionsHidden: Value(json)),
     );
   }
 
   /// Targeted update for library page order (JSON string list, or null for default).
   Future<void> updateLibraryPageOrder(String? json) {
-    return (update(
-      appSettingsTable,
-    )..where((t) => t.id.equals(primarySettingsId))).write(
-      AppSettingsTableCompanion(
-        libraryPageOrder: Value(json),
-        updatedAt: Value(DateTime.now()),
-      ),
+    return _writeSettings(
+      AppSettingsTableCompanion(libraryPageOrder: Value(json)),
     );
   }
 
   /// Targeted update for desktop navigation sidebar style.
   Future<void> updateDesktopNavbarStyle(String style) {
-    return (update(
-      appSettingsTable,
-    )..where((t) => t.id.equals(primarySettingsId))).write(
-      AppSettingsTableCompanion(
-        desktopNavbarStyle: Value(style),
-        updatedAt: Value(DateTime.now()),
-      ),
+    return _writeSettings(
+      AppSettingsTableCompanion(desktopNavbarStyle: Value(style)),
     );
   }
 
@@ -1383,13 +1141,8 @@ class AppSettingsDao extends DatabaseAccessor<NavisDatabase>
   // Keep the existing method and callback call contract for callers.
   // ignore: avoid_positional_boolean_parameters
   Future<void> updateDesktopNavbarAutohide(bool enabled) {
-    return (update(
-      appSettingsTable,
-    )..where((t) => t.id.equals(primarySettingsId))).write(
-      AppSettingsTableCompanion(
-        desktopNavbarAutohide: Value(enabled),
-        updatedAt: Value(DateTime.now()),
-      ),
+    return _writeSettings(
+      AppSettingsTableCompanion(desktopNavbarAutohide: Value(enabled)),
     );
   }
 
@@ -1398,13 +1151,10 @@ class AppSettingsDao extends DatabaseAccessor<NavisDatabase>
     required double volume,
     required double lastAudibleVolume,
   }) {
-    return (update(
-      appSettingsTable,
-    )..where((t) => t.id.equals(primarySettingsId))).write(
+    return _writeSettings(
       AppSettingsTableCompanion(
         desktopPlaybackVolume: Value(volume),
         desktopLastAudibleVolume: Value(lastAudibleVolume),
-        updatedAt: Value(DateTime.now()),
       ),
     );
   }
@@ -1419,13 +1169,8 @@ class AppSettingsDao extends DatabaseAccessor<NavisDatabase>
   /// Persists [versionBuild] as the app version active during the last forced
   /// full sync, so subsequent startups can skip the forced resync.
   Future<void> setLastFullSyncAppBuild(String versionBuild) {
-    return (update(
-      appSettingsTable,
-    )..where((t) => t.id.equals(primarySettingsId))).write(
-      AppSettingsTableCompanion(
-        lastFullSyncAppBuild: Value(versionBuild),
-        updatedAt: Value(DateTime.now()),
-      ),
+    return _writeSettings(
+      AppSettingsTableCompanion(lastFullSyncAppBuild: Value(versionBuild)),
     );
   }
 
@@ -1441,9 +1186,7 @@ class AppSettingsDao extends DatabaseAccessor<NavisDatabase>
     String? userName,
     bool clearUserName = false,
   }) {
-    return (update(
-      appSettingsTable,
-    )..where((t) => t.id.equals(primarySettingsId))).write(
+    return _writeSettings(
       AppSettingsTableCompanion(
         listenBrainzScrobblingEnabled: enabled == null
             ? const Value.absent()
@@ -1456,7 +1199,6 @@ class AppSettingsDao extends DatabaseAccessor<NavisDatabase>
             : userName == null
             ? const Value.absent()
             : Value(userName),
-        updatedAt: Value(DateTime.now()),
       ),
     );
   }
@@ -1472,9 +1214,7 @@ class AppSettingsDao extends DatabaseAccessor<NavisDatabase>
   /// Writes the "Online services" master switch and/or the raw disabled-keys
   /// JSON. A null argument leaves that column untouched.
   Future<void> updateIntegrationPolicy({bool? master, String? disabledJson}) {
-    return (update(
-      appSettingsTable,
-    )..where((t) => t.id.equals(primarySettingsId))).write(
+    return _writeSettings(
       AppSettingsTableCompanion(
         externalIntegrationsEnabled: master == null
             ? const Value.absent()
@@ -1482,7 +1222,6 @@ class AppSettingsDao extends DatabaseAccessor<NavisDatabase>
         disabledIntegrations: disabledJson == null
             ? const Value.absent()
             : Value(disabledJson),
-        updatedAt: Value(DateTime.now()),
       ),
     );
   }
@@ -1494,24 +1233,14 @@ class AppSettingsDao extends DatabaseAccessor<NavisDatabase>
   /// Writes the Same Vibes switch's storage: `true` means Server Mix, which
   /// is Same Vibes switched off.
   Future<void> updateLegacyInstantMixEnabled({required bool enabled}) {
-    return (update(
-      appSettingsTable,
-    )..where((t) => t.id.equals(primarySettingsId))).write(
-      AppSettingsTableCompanion(
-        legacyInstantMixEnabled: Value(enabled),
-        updatedAt: Value(DateTime.now()),
-      ),
+    return _writeSettings(
+      AppSettingsTableCompanion(legacyInstantMixEnabled: Value(enabled)),
     );
   }
 
   Future<void> updateIntegrationsNoticeDismissed({required bool dismissed}) {
-    return (update(
-      appSettingsTable,
-    )..where((t) => t.id.equals(primarySettingsId))).write(
-      AppSettingsTableCompanion(
-        integrationsNoticeDismissed: Value(dismissed),
-        updatedAt: Value(DateTime.now()),
-      ),
+    return _writeSettings(
+      AppSettingsTableCompanion(integrationsNoticeDismissed: Value(dismissed)),
     );
   }
 
