@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:math';
 
+import 'package:convert/convert.dart';
 import 'package:drift/drift.dart';
 import 'package:meta/meta.dart';
 import 'package:navis/src/database/navis_database.dart';
@@ -149,7 +150,7 @@ class AdaptiveLibrarySyncCoordinator implements LibrarySyncEngine {
   String _newLeaseToken() {
     final random = Random.secure();
     final bytes = List<int>.generate(24, (_) => random.nextInt(256));
-    return bytes.map((byte) => byte.toRadixString(16).padLeft(2, '0')).join();
+    return hex.encode(bytes);
   }
 
   SyncNetworkPolicy get _syncPolicy {
