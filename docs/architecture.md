@@ -5452,9 +5452,11 @@ of thousands of songs. `tool/perf_diagnostics.py` measures them (see
   every 500 rows during candidate normalization and title indexing. Its artist
   fallback lazily caches rune lengths and multi-rune token sets per distinct
   normalized artist, tests each artist once per query, and filters the original
-  candidate list to preserve row order. The DAO's artist rules are tested once
-  per distinct `match_artist` key (indexed, like `match_title`), not once per
-  song, and the matching songs are read through the two key indexes;
+  candidate list to preserve row order. The DAO's artist rules are tested in
+  `Isolate.run` with plain string keys and seed keys/tokens, once per distinct
+  `match_artist` key (indexed, like `match_title`), not once per song. SQL and
+  Drift row mapping stay unchanged, and matching songs are read through the
+  two key indexes;
   `debugTrackMatchCandidatesByFullScan` keeps the per-song query as the test
   reference. Candidate selection starts a refresh only when stale rows exist, or
   joins one already running, and waits at most two seconds. Fresh indexes

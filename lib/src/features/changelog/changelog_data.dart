@@ -169,7 +169,7 @@ const List<ChangelogVersion> changelogs = [
         type: ChangelogEntryType.fix,
       ),
       ChangelogEntry(
-        'Artist top tracks and Home discovery match large libraries without blocking scrolling during local matching',
+        'Artist top tracks and Home discovery stay responsive while matching large libraries, including artist-name fallbacks for different track titles',
         type: ChangelogEntryType.fix,
       ),
       ChangelogEntry(
