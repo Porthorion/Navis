@@ -165,6 +165,10 @@ const List<ChangelogVersion> changelogs = [
     ],
     entries: [
       ChangelogEntry(
+        'Library sync releases completed responses to reduce memory use and prevent crashes while syncing large libraries',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
         'Use app storage recovers downloads when the custom folder is unset, missing or inaccessible, preserves unreachable files and records across restart, and switches directly when no folder is configured',
         type: ChangelogEntryType.fix,
       ),

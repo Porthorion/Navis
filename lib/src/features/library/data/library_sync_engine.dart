@@ -170,12 +170,31 @@ class SubsonicLibrarySyncApi implements LibrarySyncApi {
   new(this._api);
 
   final SubsonicApiClient _api;
-  CancelToken _cancelToken = CancelToken();
+  final Set<CancelToken> _activeCancelTokens = {};
+  bool _cancelled = false;
+
+  Future<T> _withCancelToken<T>(
+    Future<T> Function(CancelToken cancelToken) request,
+  ) async {
+    // Dio attaches listeners that retain responses until the token is released.
+    final cancelToken = CancelToken();
+    if (_cancelled) {
+      cancelToken.cancel('library sync cancelled');
+    }
+    _activeCancelTokens.add(cancelToken);
+    try {
+      return await request(cancelToken);
+    } finally {
+      _activeCancelTokens.remove(cancelToken);
+    }
+  }
 
   @override
   Future<ScanStatus?> getScanStatusOrNull() async {
     try {
-      return await _api.getScanStatus(cancelToken: _cancelToken);
+      return await _withCancelToken(
+        (cancelToken) => _api.getScanStatus(cancelToken: cancelToken),
+      );
     } on SubsonicApiException catch (error) {
       // Servers without the endpoint typically answer with the not-found
       // error code. Record that through the caller's observation handling
@@ -190,48 +209,56 @@ class SubsonicLibrarySyncApi implements LibrarySyncApi {
 
   @override
   void beginRun() {
-    if (_cancelToken.isCancelled) {
-      _cancelToken = CancelToken();
-    }
+    _cancelled = false;
   }
 
   @override
   void cancelActiveRequests() {
-    if (!_cancelToken.isCancelled) {
-      _cancelToken.cancel('library sync cancelled');
+    _cancelled = true;
+    for (final cancelToken in _activeCancelTokens) {
+      cancelToken.cancel('library sync cancelled');
     }
   }
 
   @override
-  Future<List<Artist>> getArtists() =>
-      _api.getArtists(cancelToken: _cancelToken);
-
-  @override
-  Future<Artist> getArtist(String id, {int? maxResponseBytes}) =>
-      _api.getArtist(
-        id,
-        cancelToken: _cancelToken,
-        maxResponseBytes: maxResponseBytes,
-      );
-
-  @override
-  Future<Album> getAlbum(String id, {int? maxResponseBytes}) => _api.getAlbum(
-    id,
-    cancelToken: _cancelToken,
-    maxResponseBytes: maxResponseBytes,
+  Future<List<Artist>> getArtists() => _withCancelToken(
+    (cancelToken) => _api.getArtists(cancelToken: cancelToken),
   );
 
   @override
-  Future<Playlist> getPlaylist(String id, {int? maxResponseBytes}) =>
-      _api.getPlaylist(
-        id,
-        cancelToken: _cancelToken,
-        maxResponseBytes: maxResponseBytes,
+  Future<Artist> getArtist(String id, {int? maxResponseBytes}) =>
+      _withCancelToken(
+        (cancelToken) => _api.getArtist(
+          id,
+          cancelToken: cancelToken,
+          maxResponseBytes: maxResponseBytes,
+        ),
       );
 
   @override
-  Future<StarredContent> getStarredContent() =>
-      _api.getStarred2(cancelToken: _cancelToken);
+  Future<Album> getAlbum(String id, {int? maxResponseBytes}) =>
+      _withCancelToken(
+        (cancelToken) => _api.getAlbum(
+          id,
+          cancelToken: cancelToken,
+          maxResponseBytes: maxResponseBytes,
+        ),
+      );
+
+  @override
+  Future<Playlist> getPlaylist(String id, {int? maxResponseBytes}) =>
+      _withCancelToken(
+        (cancelToken) => _api.getPlaylist(
+          id,
+          cancelToken: cancelToken,
+          maxResponseBytes: maxResponseBytes,
+        ),
+      );
+
+  @override
+  Future<StarredContent> getStarredContent() => _withCancelToken(
+    (cancelToken) => _api.getStarred2(cancelToken: cancelToken),
+  );
 
   @override
   Future<SearchResult3> searchSongsPage({
@@ -239,13 +266,15 @@ class SubsonicLibrarySyncApi implements LibrarySyncApi {
     required int size,
     required int offset,
   }) {
-    return _api.search3(
-      query: query,
-      artistCount: 0,
-      albumCount: 0,
-      songCount: size,
-      songOffset: offset,
-      cancelToken: _cancelToken,
+    return _withCancelToken(
+      (cancelToken) => _api.search3(
+        query: query,
+        artistCount: 0,
+        albumCount: 0,
+        songCount: size,
+        songOffset: offset,
+        cancelToken: cancelToken,
+      ),
     );
   }
 
@@ -254,11 +283,13 @@ class SubsonicLibrarySyncApi implements LibrarySyncApi {
     required int size,
     required int offset,
   }) {
-    return _api.getAlbumList2(
-      type: 'alphabeticalByName',
-      size: size,
-      offset: offset,
-      cancelToken: _cancelToken,
+    return _withCancelToken(
+      (cancelToken) => _api.getAlbumList2(
+        type: 'alphabeticalByName',
+        size: size,
+        offset: offset,
+        cancelToken: cancelToken,
+      ),
     );
   }
 
@@ -267,11 +298,13 @@ class SubsonicLibrarySyncApi implements LibrarySyncApi {
     required int size,
     required int offset,
   }) {
-    return _api.getAlbumList2(
-      type: 'newest',
-      size: size,
-      offset: offset,
-      cancelToken: _cancelToken,
+    return _withCancelToken(
+      (cancelToken) => _api.getAlbumList2(
+        type: 'newest',
+        size: size,
+        offset: offset,
+        cancelToken: cancelToken,
+      ),
     );
   }
 
@@ -279,15 +312,18 @@ class SubsonicLibrarySyncApi implements LibrarySyncApi {
   Future<Indexes> getIndexes({
     DateTime? ifModifiedSince,
     bool disableRetry = false,
-  }) => _api.getIndexes(
-    ifModifiedSince: ifModifiedSince,
-    cancelToken: _cancelToken,
-    disableRetry: disableRetry,
+  }) => _withCancelToken(
+    (cancelToken) => _api.getIndexes(
+      ifModifiedSince: ifModifiedSince,
+      cancelToken: cancelToken,
+      disableRetry: disableRetry,
+    ),
   );
 
   @override
-  Future<List<Playlist>> getPlaylists() =>
-      _api.getPlaylists(cancelToken: _cancelToken);
+  Future<List<Playlist>> getPlaylists() => _withCancelToken(
+    (cancelToken) => _api.getPlaylists(cancelToken: cancelToken),
+  );
 }
 
 const _navisCapabilitiesNamespace = 'navis';
