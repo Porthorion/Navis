@@ -169,6 +169,10 @@ const List<ChangelogVersion> changelogs = [
         type: ChangelogEntryType.fix,
       ),
       ChangelogEntry(
+        'Fixed the custom download folder on Android being forgotten after an update or restart. If yours shows as unavailable, choose it once more',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
         'You Might Like now scrolls both ways right after opening the app',
         type: ChangelogEntryType.fix,
       ),

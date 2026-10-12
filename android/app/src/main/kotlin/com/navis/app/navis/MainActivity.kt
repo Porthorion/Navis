@@ -321,6 +321,15 @@ class MainActivity : AudioServiceActivity() {
                             )
                         }
                     }
+                    "persistTree" -> {
+                        // The picker plugin drops its persist option, so keep the
+                        // grant here; without it the folder is lost on restart.
+                        contentResolver.takePersistableUriPermission(
+                            Uri.parse(requireNotNull(call.argument<String>("treeUri"))),
+                            Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION,
+                        )
+                        result.success(null)
+                    }
                     "inspectTree" -> {
                         val tree = requiredTree(call.argument<String>("treeUri"))
                         result.success(treeDetails(tree, canReplace = false))
