@@ -1,13 +1,13 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:navis/l10n/app_localizations.dart';
+import 'package:navis/src/common_widgets/error_state.dart';
 import 'package:navis/src/common_widgets/remote_source_indicator.dart';
 import 'package:navis/src/features/library/domain/library_sync_state.dart';
 import 'package:navis/src/providers/app_providers.dart';
 import 'package:navis/src/routing/content_layout.dart';
 import 'package:navis/src/theme/artwork_shape.dart';
 import 'package:navis/src/theme/motion_policy.dart';
-import 'package:navis/src/theme/navis_color_style_data.dart';
 import 'package:navis/src/theme/navis_tokens.dart';
 
 /// Where an artist or album page stands while the library does not hold
@@ -158,7 +158,6 @@ class DetailLoadFailedView extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context)!;
-    final theme = Theme.of(context);
     final searchName = name;
     return ListView(
       key: failedKey,
@@ -174,37 +173,21 @@ class DetailLoadFailedView extends StatelessWidget {
           artwork: artwork,
           name: name,
           isRemote: isRemote,
-          details: <Widget>[
-            Text(title, style: theme.textTheme.titleMedium),
-            const SizedBox(height: NavisSpace.xxs),
-            Text(
-              l10n.detailLoadFailedMessage,
-              style: theme.textTheme.bodyMedium?.copyWith(
-                color: theme.colorScheme.onSurfaceVariant,
-              ),
-            ),
-          ],
+          details: const <Widget>[],
         ),
-        const SizedBox(height: NavisSpace.xl),
-        Wrap(
-          spacing: NavisSpace.xs,
-          runSpacing: NavisSpace.xs,
-          children: <Widget>[
-            FilledButton.tonalIcon(
-              style: NavisColorStyleData.tonalStyleOf(context),
-              key: retryKey,
-              onPressed: onRetry,
-              icon: const Icon(Icons.refresh),
-              label: Text(l10n.commonRetry),
-            ),
-            if (onSearch != null && searchName != null)
-              OutlinedButton.icon(
-                key: searchKey,
-                onPressed: onSearch,
-                icon: const Icon(Icons.search_rounded),
-                label: Text(l10n.detailSearchFor(searchName)),
-              ),
-          ],
+        ErrorState(
+          title: title,
+          message: l10n.detailLoadFailedMessage,
+          onRetry: onRetry,
+          retryKey: retryKey,
+          secondaryAction: onSearch != null && searchName != null
+              ? OutlinedButton.icon(
+                  key: searchKey,
+                  onPressed: onSearch,
+                  icon: const Icon(Icons.search_rounded),
+                  label: Text(l10n.detailSearchFor(searchName)),
+                )
+              : null,
         ),
       ],
     );
