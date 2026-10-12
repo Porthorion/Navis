@@ -13,7 +13,6 @@ import 'package:navis/src/common_widgets/album_card.dart';
 import 'package:navis/src/common_widgets/hero_cover_art.dart';
 import 'package:navis/src/common_widgets/artist_card.dart';
 import 'package:navis/src/common_widgets/artist_context_menu.dart';
-import 'package:navis/src/common_widgets/artist_grid_card.dart';
 import 'package:navis/src/common_widgets/cover_art_image.dart';
 import 'package:navis/src/common_widgets/desktop_song_actions.dart';
 import 'package:navis/src/common_widgets/desktop/desktop_context_menu.dart';
@@ -2290,7 +2289,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
                       grouped[letter] ?? const <ArtistsTableData>[];
                   final artist = byLetter[index];
                   return RepaintBoundary(
-                    child: ArtistGridCard(
+                    child: ArtistCard.grid(
                       key: ValueKey(artist.id),
                       artist: artist,
                       onTap: () =>

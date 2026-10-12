@@ -5,7 +5,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:navis/l10n/app_localizations.dart';
 import 'package:navis/l10n/navis_localizations.dart';
 import 'package:navis/src/common_widgets/album_card.dart';
-import 'package:navis/src/common_widgets/artist_grid_card.dart';
+import 'package:navis/src/common_widgets/artist_card.dart';
 import 'package:navis/src/common_widgets/remote_source_indicator.dart';
 import 'package:navis/src/common_widgets/track_list_tile.dart';
 import 'package:navis/src/database/navis_database.dart';
@@ -87,7 +87,7 @@ void main() {
                 SizedBox(
                   width: 150,
                   height: 180,
-                  child: ArtistGridCard(artist: artist),
+                  child: ArtistCard.grid(artist: artist),
                 ),
               ],
             ),
