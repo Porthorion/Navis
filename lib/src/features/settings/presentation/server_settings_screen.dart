@@ -135,6 +135,7 @@ class _ServerSettingsScreenState extends ConsumerState<ServerSettingsScreen> {
                         NavisSectionHeader(
                           title: l10n.configurationServerSection,
                           compact: true,
+                          maxLines: null,
                           padding: const EdgeInsetsDirectional.only(
                             start: 4,
                             bottom: 2,

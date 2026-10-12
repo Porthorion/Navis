@@ -313,9 +313,17 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
             if (desktopIconsOnly) ...<Widget>[
               NavisSectionHeader(
                 title: l10n.settingsTitle,
-                caption: l10n.settingsDesktopWorkspaceSubtitle,
                 compact: true,
-                padding: const EdgeInsetsDirectional.only(bottom: 10),
+                maxLines: null,
+              ),
+              Padding(
+                padding: const EdgeInsets.only(top: 2, bottom: 10),
+                child: Text(
+                  l10n.settingsDesktopWorkspaceSubtitle,
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    color: Theme.of(context).colorScheme.onSurfaceVariant,
+                  ),
+                ),
               ),
               const SizedBox(height: 4),
             ],

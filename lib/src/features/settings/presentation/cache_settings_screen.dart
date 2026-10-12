@@ -468,6 +468,7 @@ class _CacheSettingsScreenState extends ConsumerState<CacheSettingsScreen> {
                       NavisSectionHeader(
                         title: l10n.cacheSettingsRollingSection,
                         compact: true,
+                        maxLines: null,
                         padding: const EdgeInsetsDirectional.fromSTEB(
                           16,
                           16,
@@ -556,6 +557,7 @@ class _CacheSettingsScreenState extends ConsumerState<CacheSettingsScreen> {
                       NavisSectionHeader(
                         title: l10n.cacheSettingsCoverArtSection,
                         compact: true,
+                        maxLines: null,
                         padding: const EdgeInsetsDirectional.fromSTEB(
                           16,
                           16,
@@ -704,6 +706,7 @@ class _CacheSettingsScreenState extends ConsumerState<CacheSettingsScreen> {
                       NavisSectionHeader(
                         title: l10n.cacheSettingsResetSection,
                         compact: true,
+                        maxLines: null,
                         padding: const EdgeInsetsDirectional.fromSTEB(
                           16,
                           16,
