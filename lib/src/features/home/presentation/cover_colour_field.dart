@@ -1,7 +1,7 @@
-import 'dart:collection';
 import 'dart:ui' as ui;
 
 import 'package:material_ui/material_ui.dart';
+import 'package:navis/src/utils/bounded_lru_map.dart';
 
 export 'package:navis/src/features/home/presentation/cover_colour_sampler.dart'
     show backgroundCoverColourFieldProvider, coverColourFieldProvider;
@@ -88,29 +88,19 @@ const int kCoverColourFieldCacheCapacity = 512;
 
 /// Small least-recently-used cache so revisiting a cover reuses its field.
 class CoverColourFieldCache {
-  new({this.capacity = kCoverColourFieldCacheCapacity});
+  new({this.capacity = kCoverColourFieldCacheCapacity})
+    : _entries = BoundedLruMap(capacity: capacity);
 
   final int capacity;
-  final LinkedHashMap<String, CoverColourField> _entries =
-      LinkedHashMap<String, CoverColourField>();
+  final BoundedLruMap<String, CoverColourField> _entries;
 
-  CoverColourField? get(String key) {
-    final value = _entries.remove(key);
-    if (value != null) _entries[key] = value;
-    return value;
-  }
+  CoverColourField? get(String key) => _entries.get(key);
 
-  void put(String key, CoverColourField value) {
-    _entries
-      ..remove(key)
-      ..[key] = value;
-    while (_entries.length > capacity) {
-      _entries.remove(_entries.keys.first);
-    }
-  }
+  void put(String key, CoverColourField value) => _entries.put(key, value);
 
   /// The cached value without marking it recently used.
-  CoverColourField? peek(String key) => _entries[key];
+  CoverColourField? peek(String key) =>
+      _entries.get(key, refreshRecency: false);
 
   void clear() => _entries.clear();
 
