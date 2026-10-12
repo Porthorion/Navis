@@ -182,20 +182,33 @@ class SongDownloadStatusIcon extends ConsumerWidget {
         constraints: const BoxConstraints(),
         padding: const EdgeInsets.all(8),
       ),
-      SongDownloadStatus.cached => _maybeTooltip(
-        SizedBox(
-          width: size + 16,
-          height: size + 16,
-          child: Center(
-            child: Icon(
-              Icons.schedule,
-              size: size * 0.85,
-              color: theme.colorScheme.tertiary,
-            ),
-          ),
-        ),
-        l10n.songStatusCachedTooltip,
-      ),
+      SongDownloadStatus.cached =>
+        onDownload == null
+            ? _maybeTooltip(
+                SizedBox(
+                  width: size + 16,
+                  height: size + 16,
+                  child: Center(
+                    child: Icon(
+                      Icons.schedule,
+                      size: size * 0.85,
+                      color: theme.colorScheme.tertiary,
+                    ),
+                  ),
+                ),
+                l10n.songStatusCachedTooltip,
+              )
+            : IconButton(
+                icon: Icon(
+                  Icons.schedule,
+                  size: size * 0.85,
+                  color: theme.colorScheme.tertiary,
+                ),
+                tooltip: l10n.songStatusCachedTooltip,
+                onPressed: onDownload,
+                constraints: const BoxConstraints(),
+                padding: const EdgeInsets.all(8),
+              ),
     };
   }
 }

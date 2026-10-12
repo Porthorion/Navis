@@ -1028,11 +1028,12 @@ class AppLocalizationsEn extends AppLocalizations {
   String get playbackSettingsCellularFormatLabel => 'Preferred Format';
 
   @override
-  String get playbackSettingsCachedFirstTitle => 'Cached First';
+  String get playbackSettingsCachedFirstTitle =>
+      'Play cached copies at any quality';
 
   @override
   String get playbackSettingsCachedFirstSubtitle =>
-      'Prefer any complete cached file before requesting the active streaming profile.';
+      'Use a song already cached on this device even if its quality differs from your streaming setting. Downloads always play from your device.';
 
   @override
   String get playbackSettingsScrobbleTitle => 'Enable Scrobbling';
@@ -4339,8 +4340,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get songStatusDownloading => 'Downloading…';
 
   @override
-  String get songStatusCachedTooltip =>
-      'Temporarily cached — will be removed when cache fills up or when the track is downloaded';
+  String get songStatusCachedTooltip => 'Cached — tap to download';
 
   @override
   String get downloadsRemoveConfirmTitle => 'Remove Download?';
@@ -5615,11 +5615,11 @@ class AppLocalizationsEn extends AppLocalizations {
   String get onboardingMobileFormat => 'Mobile format';
 
   @override
-  String get onboardingPreferLocalTitle => 'Prefer Downloaded or Cached Audio';
+  String get onboardingPreferLocalTitle => 'Play cached copies at any quality';
 
   @override
   String get onboardingPreferLocalSubtitle =>
-      'Use a complete local copy before streaming when one is available.';
+      'Use a song already cached on this device even if its quality differs from your streaming setting. Downloads always play from your device.';
 
   @override
   String get onboardingScrobbleTitle => 'Scrobble to Your Music Server';

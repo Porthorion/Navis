@@ -1497,13 +1497,13 @@ abstract class AppLocalizations {
   /// No description provided for @playbackSettingsCachedFirstTitle.
   ///
   /// In en, this message translates to:
-  /// **'Cached First'**
+  /// **'Play cached copies at any quality'**
   String get playbackSettingsCachedFirstTitle;
 
   /// No description provided for @playbackSettingsCachedFirstSubtitle.
   ///
   /// In en, this message translates to:
-  /// **'Prefer any complete cached file before requesting the active streaming profile.'**
+  /// **'Use a song already cached on this device even if its quality differs from your streaming setting. Downloads always play from your device.'**
   String get playbackSettingsCachedFirstSubtitle;
 
   /// No description provided for @playbackSettingsScrobbleTitle.
@@ -6902,7 +6902,7 @@ abstract class AppLocalizations {
   /// No description provided for @songStatusCachedTooltip.
   ///
   /// In en, this message translates to:
-  /// **'Temporarily cached — will be removed when cache fills up or when the track is downloaded'**
+  /// **'Cached — tap to download'**
   String get songStatusCachedTooltip;
 
   /// No description provided for @downloadsRemoveConfirmTitle.
@@ -9014,13 +9014,13 @@ abstract class AppLocalizations {
   /// No description provided for @onboardingPreferLocalTitle.
   ///
   /// In en, this message translates to:
-  /// **'Prefer Downloaded or Cached Audio'**
+  /// **'Play cached copies at any quality'**
   String get onboardingPreferLocalTitle;
 
   /// No description provided for @onboardingPreferLocalSubtitle.
   ///
   /// In en, this message translates to:
-  /// **'Use a complete local copy before streaming when one is available.'**
+  /// **'Use a song already cached on this device even if its quality differs from your streaming setting. Downloads always play from your device.'**
   String get onboardingPreferLocalSubtitle;
 
   /// No description provided for @onboardingScrobbleTitle.
