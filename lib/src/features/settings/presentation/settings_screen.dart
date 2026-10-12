@@ -1,3 +1,4 @@
+import 'package:navis/src/common_widgets/navis_section_header.dart';
 import 'package:navis/src/common_widgets/new_feature_tag.dart';
 import 'package:navis/src/features/onboarding/presentation/setup_highlights_provider.dart';
 import 'package:navis/src/features/equalizer/presentation/eq_controller.dart';
@@ -310,9 +311,11 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
           padding: EdgeInsets.fromLTRB(24, desktopIconsOnly ? 20 : 16, 24, 24),
           children: <Widget>[
             if (desktopIconsOnly) ...<Widget>[
-              DesktopSectionHeader(
+              NavisSectionHeader(
                 title: l10n.settingsTitle,
-                subtitle: l10n.settingsDesktopWorkspaceSubtitle,
+                caption: l10n.settingsDesktopWorkspaceSubtitle,
+                compact: true,
+                padding: const EdgeInsetsDirectional.only(bottom: 10),
               ),
               const SizedBox(height: 4),
             ],

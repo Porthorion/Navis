@@ -4,6 +4,7 @@ import 'dart:io';
 
 import 'package:material_ui/material_ui.dart';
 import 'package:go_router/go_router.dart';
+import 'package:navis/src/common_widgets/navis_section_header.dart';
 import 'package:navis/src/common_widgets/app_notice.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:navis/l10n/app_localizations.dart';
@@ -464,7 +465,16 @@ class _CacheSettingsScreenState extends ConsumerState<CacheSettingsScreen> {
                     ),
                     children: <Widget>[
                       // ---- Rolling cache section ----
-                      _SectionHeader(title: l10n.cacheSettingsRollingSection),
+                      NavisSectionHeader(
+                        title: l10n.cacheSettingsRollingSection,
+                        compact: true,
+                        padding: const EdgeInsetsDirectional.fromSTEB(
+                          16,
+                          16,
+                          16,
+                          4,
+                        ),
+                      ),
                       Padding(
                         padding: const EdgeInsets.symmetric(horizontal: 16),
                         child: Text(
@@ -543,7 +553,16 @@ class _CacheSettingsScreenState extends ConsumerState<CacheSettingsScreen> {
                       const Divider(),
 
                       // ---- Cover art cache ----
-                      _SectionHeader(title: l10n.cacheSettingsCoverArtSection),
+                      NavisSectionHeader(
+                        title: l10n.cacheSettingsCoverArtSection,
+                        compact: true,
+                        padding: const EdgeInsetsDirectional.fromSTEB(
+                          16,
+                          16,
+                          16,
+                          4,
+                        ),
+                      ),
                       Padding(
                         padding: const EdgeInsets.symmetric(horizontal: 16),
                         child: Text(
@@ -682,7 +701,16 @@ class _CacheSettingsScreenState extends ConsumerState<CacheSettingsScreen> {
                         onTap: _clearCoverArtCache,
                       ),
                       const Divider(),
-                      _SectionHeader(title: l10n.cacheSettingsResetSection),
+                      NavisSectionHeader(
+                        title: l10n.cacheSettingsResetSection,
+                        compact: true,
+                        padding: const EdgeInsetsDirectional.fromSTEB(
+                          16,
+                          16,
+                          16,
+                          4,
+                        ),
+                      ),
                       ListTile(
                         key: const ValueKey('deleteAllPresets'),
                         leading: const Icon(Icons.delete_outline),
@@ -749,26 +777,6 @@ class _RollingCacheActivity extends StatelessWidget {
 // ---------------------------------------------------------------------------
 // Reusable widgets
 // ---------------------------------------------------------------------------
-
-class _SectionHeader extends StatelessWidget {
-  const new({required this.title});
-
-  final String title;
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 16, 16, 4),
-      child: Text(
-        title,
-        style: Theme.of(context).textTheme.titleSmall?.copyWith(
-          color: Theme.of(context).colorScheme.primary,
-          fontWeight: FontWeight.w600,
-        ),
-      ),
-    );
-  }
-}
 
 class _CacheStatsCard extends StatelessWidget {
   const new({

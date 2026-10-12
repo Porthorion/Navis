@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:material_ui/material_ui.dart';
+import 'package:navis/src/common_widgets/navis_section_header.dart';
 import 'package:navis/src/common_widgets/app_notice.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -131,7 +132,14 @@ class _ServerSettingsScreenState extends ConsumerState<ServerSettingsScreen> {
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: <Widget>[
                         // ── Server section ──────────────────────────────────────
-                        _SectionHeader(title: l10n.configurationServerSection),
+                        NavisSectionHeader(
+                          title: l10n.configurationServerSection,
+                          compact: true,
+                          padding: const EdgeInsetsDirectional.only(
+                            start: 4,
+                            bottom: 2,
+                          ),
+                        ),
                         const SizedBox(height: 8),
 
                         // Connection info card
@@ -342,27 +350,6 @@ enum _SignOutAction { keepData, wipeData }
 // ─────────────────────────────────────────────────────────────────────────────
 // Shared internal widgets
 // ─────────────────────────────────────────────────────────────────────────────
-
-class _SectionHeader extends StatelessWidget {
-  const new({required this.title});
-
-  final String title;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return Padding(
-      padding: const EdgeInsets.only(left: 4, bottom: 2),
-      child: Text(
-        title,
-        style: theme.textTheme.titleSmall?.copyWith(
-          color: theme.colorScheme.primary,
-          fontWeight: FontWeight.w600,
-        ),
-      ),
-    );
-  }
-}
 
 class _ServerInfoRow extends StatelessWidget {
   const new({required this.label, required this.value});
