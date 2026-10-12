@@ -187,25 +187,7 @@ List<Widget> _nowPlayingSettingsItems(
             return;
           }
           beforeAction();
-          final choice = await requestDownloadQuality(context, actionRef);
-          if (choice == null || !context.mounted) return;
-          final service = actionRef.read(downloadServiceProvider);
-          await service.enqueueSong(
-            song.id,
-            quality: choice.quality,
-            format: choice.format,
-          );
-          if (context.mounted) {
-            showAppNotice(
-              context,
-              message: downloadQueuedNotice(
-                l10n,
-                l10n.downloadSongQueued,
-                choice,
-              ),
-              level: AppNoticeLevel.success,
-            );
-          }
+          await downloadSongWithQualityPrompt(context, actionRef, song.id);
         },
       ),
   ];

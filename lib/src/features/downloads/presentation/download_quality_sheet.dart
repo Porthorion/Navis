@@ -1,6 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:navis/l10n/app_localizations.dart';
+import 'package:navis/src/common_widgets/app_notice.dart';
 import 'package:navis/src/database/navis_database.dart';
 import 'package:navis/src/features/downloads/domain/download_preferences.dart';
 import 'package:navis/src/providers/app_providers.dart';
@@ -94,6 +95,33 @@ Future<DownloadQualityChoice?> requestDownloadQuality(
     );
   }
   return choice;
+}
+
+/// Asks for the download quality, queues [songId], and shows the
+/// "queued" notice. Does nothing when the picker is cancelled.
+Future<void> downloadSongWithQualityPrompt(
+  BuildContext context,
+  WidgetRef ref,
+  String songId, {
+  String? albumId,
+}) async {
+  final choice = await requestDownloadQuality(context, ref);
+  if (choice == null || !context.mounted) return;
+  await ref
+      .read(downloadServiceProvider)
+      .enqueueSong(
+        songId,
+        albumId: albumId,
+        quality: choice.quality,
+        format: choice.format,
+      );
+  if (!context.mounted) return;
+  final l10n = AppLocalizations.of(context)!;
+  showAppNotice(
+    context,
+    message: downloadQueuedNotice(l10n, l10n.downloadSongQueued, choice),
+    level: AppNoticeLevel.success,
+  );
 }
 
 Future<bool> _showAlwaysDownloadPrompt(

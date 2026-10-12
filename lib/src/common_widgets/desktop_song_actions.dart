@@ -162,23 +162,8 @@ class DesktopSongActions extends ConsumerWidget {
     );
   }
 
-  Future<void> _download(BuildContext context, WidgetRef ref) async {
-    final choice = await requestDownloadQuality(context, ref);
-    if (choice == null || !context.mounted) return;
-    await ref
-        .read(downloadServiceProvider)
-        .enqueueSong(songId, quality: choice.quality, format: choice.format);
-    if (!context.mounted) return;
-    showAppNotice(
-      context,
-      message: downloadQueuedNotice(
-        AppLocalizations.of(context)!,
-        AppLocalizations.of(context)!.downloadSongQueued,
-        choice,
-      ),
-      level: AppNoticeLevel.success,
-    );
-  }
+  Future<void> _download(BuildContext context, WidgetRef ref) =>
+      downloadSongWithQualityPrompt(context, ref, songId);
 }
 
 /// Tracks keyboard focus inside the actions so a focused control is never

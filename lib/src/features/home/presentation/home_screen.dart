@@ -798,28 +798,13 @@ class _ListenBrainzWeeklyDetailContentState
     );
   }
 
-  Future<void> _downloadSong(SongsTableData song) async {
-    final choice = await requestDownloadQuality(context, ref);
-    if (choice == null || !mounted) return;
-    await ref
-        .read(downloadServiceProvider)
-        .enqueueSong(
-          song.id,
-          albumId: song.albumId,
-          quality: choice.quality,
-          format: choice.format,
-        );
-    if (!mounted) return;
-    showAppNotice(
-      context,
-      message: downloadQueuedNotice(
-        AppLocalizations.of(context)!,
-        AppLocalizations.of(context)!.downloadSongQueued,
-        choice,
-      ),
-      level: AppNoticeLevel.success,
-    );
-  }
+  Future<void> _downloadSong(SongsTableData song) =>
+      downloadSongWithQualityPrompt(
+        context,
+        ref,
+        song.id,
+        albumId: song.albumId,
+      );
 
   void _enqueuePendingDownloads(List<SongsTableData> serverSongs) {
     final choice = _pendingDownloadChoice;

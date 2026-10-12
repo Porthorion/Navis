@@ -1987,28 +1987,13 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen> {
     await ref.read(downloadServiceProvider).removeDownloadedTrack(song.id);
   }
 
-  Future<void> _downloadSong(SongsTableData song) async {
-    final choice = await requestDownloadQuality(context, ref);
-    if (choice == null || !mounted) return;
-
-    final service = ref.read(downloadServiceProvider);
-    // Fire-and-forget — the service handles errors internally.
-    unawaited(
-      service.enqueueSong(
+  Future<void> _downloadSong(SongsTableData song) =>
+      downloadSongWithQualityPrompt(
+        context,
+        ref,
         song.id,
         albumId: widget.albumId,
-        quality: choice.quality,
-        format: choice.format,
-      ),
-    );
-    if (!mounted) return;
-    final l10n = AppLocalizations.of(context)!;
-    showAppNotice(
-      context,
-      message: downloadQueuedNotice(l10n, l10n.downloadSongQueued, choice),
-      level: AppNoticeLevel.success,
-    );
-  }
+      );
 
   Future<void> _toggleStar({required bool isStarred}) async {
     setState(() {
