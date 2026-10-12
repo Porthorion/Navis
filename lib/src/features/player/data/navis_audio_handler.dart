@@ -202,7 +202,8 @@ class NavisAudioHandler extends BaseAudioHandler
   final void Function(RollingCacheActivity activity)?
   _reportRollingCacheActivity;
   final Future<bool> Function(bool autoPlay) _startPersonalRadio;
-  final void Function(int index, String songId)? _onPersonalRadioQueueEnd;
+  final void Function(({int index, String songId})? queueEndSkip)?
+  _onPersonalRadioQueueEnd;
   late final AutoMediaTreeService _autoMediaTreeService;
   final AndroidAutoBrowseNotifier _androidAutoBrowseNotifier =
       AndroidAutoBrowseNotifier();

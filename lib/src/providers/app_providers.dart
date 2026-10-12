@@ -1208,11 +1208,14 @@ final audioHandlerInitializerProvider = Provider<AudioHandlerInitializer>((
                   .read(personalRadioProvider.notifier)
                   .start(autoPlay: autoPlay))
               .succeeded,
-      onPersonalRadioQueueEnd: (index, songId) {
+      onPersonalRadioQueueEnd: (skip) {
         if (!ref.mounted) return;
-        ref
-            .read(personalRadioProvider.notifier)
-            .requestSkipAfterRefill(index, songId);
+        final radio = ref.read(personalRadioProvider.notifier);
+        if (skip == null) {
+          radio.cancelSkipAfterRefill();
+        } else {
+          radio.requestSkipAfterRefill(skip.index, skip.songId);
+        }
       },
       playbackArtworkFileService: createPlaybackArtworkFileService(ref),
       fetchWindowsArtwork: windowsArtwork.fetch,

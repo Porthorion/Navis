@@ -51,10 +51,15 @@ extension _NavisNavigation on NavisAudioHandler {
           index != null &&
           index == logicalIds.length - 1) {
         // Pass the desired occurrence, which may still be loading in a burst.
-        _onPersonalRadioQueueEnd?.call(index, logicalIds[index]);
+        _onPersonalRadioQueueEnd?.call((
+          index: index,
+          songId: logicalIds[index],
+        ));
       }
       return Future<void>.value();
     }
+    // A newer Next, Previous or restart replaces any Next held at the tail.
+    _onPersonalRadioQueueEnd?.call(null);
     _invalidatePendingStartupSelection();
     return _applyNavigationDecision(
       decision,

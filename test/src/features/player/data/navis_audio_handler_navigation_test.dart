@@ -865,7 +865,8 @@ void main() {
     Dio Function()? createRadioMetadataDio,
     CoverArtHttpFileService? artworkFileService,
     Future<bool> Function({required bool autoPlay})? startPersonalRadio,
-    void Function(int index, String songId)? onPersonalRadioQueueEnd,
+    void Function(({int index, String songId})? queueEndSkip)?
+    onPersonalRadioQueueEnd,
   }) async {
     final database = sharedDatabase ?? createTestDatabase();
     final apiClient = sidecarStreams
@@ -4003,12 +4004,11 @@ void main() {
       final directory = await Directory.systemTemp.createTemp(
         'navis-nav-test-',
       );
-      final requests = <(int, String)>[];
+      final requests = <({int index, String songId})?>[];
       final (handler, player, database) = await createHandler(
         directory,
         3,
-        onPersonalRadioQueueEnd: (index, songId) =>
-            requests.add((index, songId)),
+        onPersonalRadioQueueEnd: requests.add,
       );
       addTearDown(() async {
         await handler.disposeHandler();
@@ -4023,9 +4023,10 @@ void main() {
       player.seekGate = gate;
       await handler.skipToNext();
       await handler.skipToNext();
-      expect(requests, isEmpty);
+      // Applied skips cancel any held tail skip.
+      expect(requests, [null, null]);
       await handler.skipToNext();
-      expect(requests, [(2, 'song-2')]);
+      expect(requests.last, (index: 2, songId: 'song-2'));
       expect(handler.snapshot.pendingQueueIndex, 2);
       gate.complete();
       await handler.snapshotStream
@@ -4039,7 +4040,10 @@ void main() {
       // Ordinary end-of-queue Next stays on the current song until append.
       await handler.skipToNext();
       expect(handler.snapshot.currentSongId, 'song-2');
-      expect(requests, [(2, 'song-2'), (2, 'song-2')]);
+      expect(requests.nonNulls, [
+        (index: 2, songId: 'song-2'),
+        (index: 2, songId: 'song-2'),
+      ]);
 
       // Repeat-all still wraps rather than requesting a refill skip.
       await handler.setRepeatMode(AudioServiceRepeatMode.all);
@@ -4051,7 +4055,9 @@ void main() {
                 snapshot.pendingQueueIndex == null,
           )
           .timeout(const Duration(seconds: 5));
-      expect(requests, hasLength(2));
+      // The wrap is an applied skip, so it only cancels.
+      expect(requests.nonNulls, hasLength(2));
+      expect(requests.last, isNull);
     },
   );
 

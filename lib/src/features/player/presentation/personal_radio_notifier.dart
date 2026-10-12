@@ -207,6 +207,9 @@ class PersonalRadioNotifier extends Notifier<PersonalRadioState> {
     }
   }
 
+  /// Drops a held Next because a newer transport command replaced it.
+  void cancelSkipAfterRefill() => _pendingSkip = null;
+
   /// Remembers an unavailable Next at the queue tail until songs are appended.
   void requestSkipAfterRefill(int index, String songId) {
     final session = _session;

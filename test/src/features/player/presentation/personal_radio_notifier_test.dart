@@ -325,6 +325,27 @@ void main() {
       expect(container.read(playerStateProvider).queueSongIds, ['r1', 'r2']);
     });
 
+    test('a newer transport command drops a pending skip', () async {
+      final radio = container.read(personalRadioProvider.notifier);
+      final start = radio.start();
+      calls[0].complete(batchOf(['r1', 'r2']));
+      await start;
+      container.read(snapshots.notifier).setQueue([
+        'r1',
+        'r2',
+      ], currentIndex: 1);
+      await pumpEventQueue();
+      radio.requestSkipAfterRefill(1, 'r2');
+
+      // Previous restarting the tail song keeps the index but replaces Next.
+      radio.cancelSkipAfterRefill();
+      calls[1].complete(batchOf(['new']));
+      await pumpEventQueue();
+
+      expect(skippedTo, isEmpty);
+      expect(container.read(playerStateProvider).currentSongId, 'r2');
+    });
+
     test('moving away from the tail drops a pending skip', () async {
       final radio = container.read(personalRadioProvider.notifier);
       final start = radio.start();
