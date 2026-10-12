@@ -165,6 +165,10 @@ const List<ChangelogVersion> changelogs = [
     ],
     entries: [
       ChangelogEntry(
+        'Fixed Navis sometimes signing you out after sitting in the background for a long time',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
         'You Might Like now scrolls both ways right after opening the app',
         type: ChangelogEntryType.fix,
       ),

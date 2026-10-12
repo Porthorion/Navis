@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:io';
 
 import 'package:navis/src/api/subsonic_error.dart';
+import 'package:navis/src/features/auth/data/secure_credential_store.dart';
 
 /// HTTP statuses a server sends for overload or maintenance, which can pass
 /// on their own.
@@ -10,7 +11,7 @@ const _transientHttpStatuses = <int>{429, 502, 503, 504, 530};
 const _maxRetries = 3;
 const _firstRetryDelay = Duration(milliseconds: 200);
 
-/// How Navis retries a provider that failed, for every [ProviderContainer].
+/// How Navis retries a provider that failed, for every `ProviderContainer`.
 ///
 /// Riverpod 3 retries any failed provider up to ten times by default (about
 /// 40 seconds with its backoff) and reports the attempts as loading, so a
@@ -30,6 +31,7 @@ Duration? navisProviderRetry(int retryCount, Object error) {
 bool isTransientProviderError(Object error) => switch (error) {
   SubsonicConnectionException() ||
   SocketException() ||
+  CredentialReadException() ||
   TimeoutException() => true,
   SubsonicGenericException(:final code?) => _transientHttpStatuses.contains(
     code,

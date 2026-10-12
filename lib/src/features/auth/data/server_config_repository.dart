@@ -5,7 +5,6 @@ import 'package:navis/src/database/daos/server_dao.dart';
 import 'package:navis/src/database/navis_database.dart';
 import 'package:navis/src/features/auth/data/secure_credential_store.dart';
 import 'package:navis/src/features/auth/domain/server_config.dart';
-import 'package:navis/src/utils/app_logger.dart';
 import 'package:navis/src/utils/credential_redaction.dart';
 
 enum RetainedServerMatch { none, same, different }
@@ -213,7 +212,7 @@ class ServerConfigRepository {
     }
 
     final migratedRow = await _migrateUrl(row);
-    final password = await _readPasswordIfPossible();
+    final password = await _credentials.readPassword();
     if (password == null || password.isEmpty) {
       await _serverDao.markSignedOut();
       return null;
@@ -331,14 +330,5 @@ class ServerConfigRepository {
       if (_credentials case final ServerUrlCredentialStore store)
         store.clearUserInfo(),
     ]);
-  }
-
-  Future<String?> _readPasswordIfPossible() async {
-    try {
-      return await _credentials.readPassword();
-    } on Object catch (error) {
-      AppLogger.warning('Secure credential read failed: ${error.runtimeType}.');
-      return null;
-    }
   }
 }

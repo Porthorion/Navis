@@ -52,10 +52,20 @@ class ServerConfigNotifier extends AsyncNotifier<ServerConfigModel?> {
   @override
   Future<ServerConfigModel?> build() async {
     final repository = ref.watch(serverConfigRepositoryProvider);
-    _subscription ??= repository.watchActiveServer().listen((server) {
-      state = AsyncData(server);
+    _subscription ??= repository.watchActiveServer().listen(
+      (server) => state = AsyncData(server),
+      onError: (Object error, StackTrace stackTrace) {
+        // During bootstrap, the getActiveServer future owns error reporting
+        // and provider backoff. A stream error must not bypass those retries.
+        if (!state.isLoading) {
+          state = AsyncError(error, stackTrace);
+        }
+      },
+    );
+    ref.onDispose(() {
+      unawaited(_subscription?.cancel());
+      _subscription = null;
     });
-    ref.onDispose(() => _subscription?.cancel());
     return await repository.getActiveServer();
   }
 

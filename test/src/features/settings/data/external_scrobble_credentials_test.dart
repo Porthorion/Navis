@@ -1,3 +1,5 @@
+import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:mocktail/mocktail.dart';
@@ -6,6 +8,37 @@ import 'package:navis/src/features/settings/data/external_scrobble_credentials.d
 class _Storage extends Mock implements FlutterSecureStorage;
 
 void main() {
+  TestWidgetsFlutterBinding.ensureInitialized();
+
+  test('Android scrobble reads disable destructive reset only', () async {
+    debugDefaultTargetPlatformOverride = TargetPlatform.android;
+    const channel = MethodChannel(
+      'plugins.it_nomads.com/flutter_secure_storage',
+    );
+    final messenger =
+        TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
+    addTearDown(() {
+      debugDefaultTargetPlatformOverride = null;
+      messenger.setMockMethodCallHandler(channel, null);
+    });
+    MethodCall? captured;
+    messenger.setMockMethodCallHandler(channel, (call) async {
+      captured = call;
+      return 'fixture-token';
+    });
+
+    expect(
+      await const FlutterExternalScrobbleCredentialStore()
+          .readListenBrainzToken(),
+      'fixture-token',
+    );
+    expect(captured?.method, 'read');
+    expect((captured!.arguments as Map)['options'], {
+      ...AndroidOptions.defaultOptions.toMap(),
+      'resetOnError': 'false',
+    });
+  });
+
   test(
     'secure token deletion propagates failures without changing storage',
     () async {

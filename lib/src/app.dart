@@ -375,8 +375,9 @@ class _AppBootstrapOverlayState extends ConsumerState<_AppBootstrapOverlay>
     }
 
     final bootstrap = ref.watch(audioBootstrapControllerProvider);
+    final serverConfig = ref.watch(serverConfigStateProvider);
     final hasAuthenticatedSession =
-        ref.watch(serverConfigStateProvider).asData?.value != null;
+        !(serverConfig.hasValue && serverConfig.value == null);
 
     if (bootstrap.status == AudioBootstrapStatus.ready) {
       WidgetsBinding.instance.addPostFrameCallback((_) {

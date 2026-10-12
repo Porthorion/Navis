@@ -403,6 +403,18 @@ existing store and targeted settings writer; keep-data sign-out retains them.
 Credential deletion failures reach teardown warning reporting. Profile identity
 excludes URL credentials.
 
+Credential read failures are transient and must never sign the user out or
+delete secure data. Auth and external scrobble storage disable Android's
+`resetOnError` while retaining the default namespace and ciphers. The auth
+store throws `CredentialReadException` when a platform read fails without a
+session fallback; only a successful read returning a missing or empty password
+marks the retained profile signed out. Provider bootstrap retries this exception
+with `navisProviderRetry`, and the headless Android worker reports
+`transientFailure` with `retry: true`. Sync reads fail the attempt without
+changing authentication. The playback bootstrap overlay offers “Continue to
+sign in” only after the server config resolves to null; loading and error states
+keep the existing authenticated recovery actions.
+
 Connection probes always start with token authentication, regardless of the
 reported API version. Only Subsonic code 41 (token authentication unsupported)
 permits a legacy retry. That retry is blocked for non-loopback HTTP servers and
