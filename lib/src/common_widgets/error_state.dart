@@ -9,18 +9,12 @@ class ErrorState extends StatelessWidget {
     this.message,
     this.onRetry,
     this.retryLabel,
-    this.retryKey,
-    this.secondaryAction,
   });
 
   final String title;
   final String? message;
   final VoidCallback? onRetry;
   final String? retryLabel;
-  final Key? retryKey;
-
-  /// An alternative to Retry (for example a search), shown beneath it.
-  final Widget? secondaryAction;
 
   @override
   Widget build(BuildContext context) {
@@ -54,15 +48,10 @@ class ErrorState extends StatelessWidget {
             if (onRetry != null) ...<Widget>[
               const SizedBox(height: 16),
               FilledButton.tonal(
-                key: retryKey,
                 style: NavisColorStyleData.tonalStyleOf(context),
                 onPressed: onRetry,
                 child: Text(retryLabel ?? l10n.commonRetry),
               ),
-            ],
-            if (secondaryAction != null) ...<Widget>[
-              const SizedBox(height: 8),
-              secondaryAction!,
             ],
           ],
         ),
