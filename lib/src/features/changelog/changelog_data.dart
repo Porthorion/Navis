@@ -165,23 +165,15 @@ const List<ChangelogVersion> changelogs = [
     ],
     entries: [
       ChangelogEntry(
-        'Large-library track matching yields while mapping candidate songs to keep the interface responsive',
+        'Fixed brief freezes on Home after syncing a large library and when starting or skipping tracks',
         type: ChangelogEntryType.fix,
       ),
       ChangelogEntry(
-        'Album-art colour extraction no longer blocks the interface when starting playback or skipping tracks',
+        'Fixed memory use growing during long Instant Radio and Server Mix sessions',
         type: ChangelogEntryType.fix,
       ),
       ChangelogEntry(
-        'Artist top tracks and Home discovery stay responsive while matching large libraries, including artist-name fallbacks for different track titles',
-        type: ChangelogEntryType.fix,
-      ),
-      ChangelogEntry(
-        'Instant Radio and Server Mix release completed refill responses, preventing memory from growing throughout long listening sessions',
-        type: ChangelogEntryType.fix,
-      ),
-      ChangelogEntry(
-        'Library sync releases completed responses to reduce memory use and prevent crashes while syncing large libraries',
+        'Fixed high memory use and possible crashes while syncing large libraries on phones with less memory',
         type: ChangelogEntryType.fix,
       ),
       ChangelogEntry(
