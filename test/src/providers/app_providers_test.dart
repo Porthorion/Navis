@@ -14,10 +14,14 @@ import 'package:navis/src/api/lrclib_client.dart';
 import 'package:navis/src/api/models/models.dart';
 import 'package:navis/src/api/subsonic_api_client.dart';
 import 'package:navis/src/database/navis_database.dart';
+import 'package:navis/src/features/auth/data/secure_credential_store.dart';
 import 'package:navis/src/features/auth/domain/server_config.dart';
 import 'package:navis/src/features/auth/data/server_config_repository.dart';
 import 'package:navis/src/features/auth/presentation/server_config_provider.dart';
+import 'package:navis/src/features/equalizer/data/eq_repository.dart';
+import 'package:navis/src/features/equalizer/domain/eq_configuration.dart';
 import 'package:navis/src/features/integrations/domain/integration_feature.dart';
+import 'package:navis/src/features/library/data/annotation_sync_dispatcher.dart';
 import 'package:navis/src/features/library/presentation/library_scroll_provider.dart';
 import 'package:navis/src/features/player/data/navis_audio_handler.dart';
 import 'package:navis/src/features/player/domain/lyrics_resolution.dart';
@@ -28,6 +32,7 @@ import 'package:navis/src/features/settings/data/update_check_store.dart';
 import 'package:navis/src/features/settings/domain/app_settings.dart';
 import 'package:navis/src/features/settings/domain/night_schedule.dart';
 import 'package:navis/src/providers/app_providers.dart';
+import 'package:navis/src/providers/provider_retry.dart';
 import 'package:navis/src/theme/navis_color_style.dart';
 import 'package:navis/src/utils/connectivity.dart';
 
@@ -35,6 +40,9 @@ import '../../helpers/fake_playback_handler.dart';
 import '../../helpers/test_database.dart';
 
 class _MockSettingsRepository extends Mock implements SettingsRepository;
+class _MockEqRepository extends Mock implements EqRepository;
+class _MockAnnotationSyncDispatcher extends Mock
+    implements AnnotationSyncDispatcher;
 
 class _MockServerConfigRepository extends Mock
     implements ServerConfigRepository;
@@ -1357,6 +1365,94 @@ void main() {
         );
       },
     );
+
+    for (final credentialError in [true, false]) {
+      test('audio initializer rehydrates exhausted credential errors only '
+          '(credential: $credentialError)', () async {
+        final repository = _MockServerConfigRepository();
+        final settings = _MockSettingsRepository();
+        final eq = _MockEqRepository();
+        final preload = Completer<AppSettingsModel>();
+        final error = credentialError
+            ? const CredentialReadException()
+            : const FormatException('fixture configuration failure');
+        const config = ServerConfigModel(
+          url: 'https://example.test',
+          username: 'fixture',
+          password: 'fixture',
+          apiVersion: '1.16.1',
+        );
+        var reads = 0;
+        var recovered = false;
+        when(repository.watchActiveServer)
+            .thenAnswer((_) => const Stream.empty());
+        when(repository.getActiveServer).thenAnswer((_) async {
+          reads++;
+          if (!recovered) throw error;
+          return config;
+        });
+        when(settings.getSettings).thenAnswer((_) => preload.future);
+        when(eq.load).thenAnswer(
+          (_) async => EqStoredState(
+            configuration: EqConfiguration.flat(),
+            presets: const [],
+          ),
+        );
+        final container = ProviderContainer(
+          retry: navisProviderRetry,
+          overrides: [
+            serverConfigRepositoryProvider.overrideWithValue(repository),
+            annotationSyncDispatcherProvider.overrideWithValue(
+              _MockAnnotationSyncDispatcher(),
+            ),
+            connectivityProvider.overrideWith((_) => Stream.value(const [])),
+            settingsRepositoryProvider.overrideWithValue(settings),
+            eqRepositoryProvider.overrideWithValue(eq),
+            // End this hydration test before constructing native audio.
+            navisDatabaseProvider.overrideWith(
+              (_) =>
+                  throw StateError('Stop before native audio initialization'),
+            ),
+          ],
+        );
+        addTearDown(container.dispose);
+        container.listen(serverConfigProvider, (_, _) {});
+        await expectLater(
+          container.read(serverConfigProvider.future),
+          throwsA(same(error)),
+        );
+        expect(reads, credentialError ? 4 : 1);
+        final exhaustedReads = reads;
+        recovered = true;
+
+        final initialization = container.read(
+          audioHandlerInitializerProvider,
+        )();
+        final stopped = expectLater(
+          initialization,
+          throwsA(
+            predicate<Object>(
+              (failure) => failure.toString().contains(
+                'Stop before native audio initialization',
+              ),
+            ),
+          ),
+        );
+        if (credentialError) {
+          expect(await container.read(serverConfigProvider.future), config);
+          expect(reads, exhaustedReads + 1);
+          expect(container.read(serverConfigProvider).asData?.value, config);
+        } else {
+          await expectLater(
+            container.read(serverConfigProvider.future),
+            throwsA(same(error)),
+          );
+          expect(reads, exhaustedReads);
+        }
+        preload.complete(const AppSettingsModel.defaults());
+        await stopped;
+      });
+    }
 
     test('audio bootstrap transitions to ready when handler initialization succeeds', () async {
       final handler = _FakePlaybackHandler();

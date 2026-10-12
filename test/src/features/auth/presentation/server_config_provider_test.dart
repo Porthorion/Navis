@@ -7,9 +7,13 @@ import 'package:navis/src/features/auth/data/secure_credential_store.dart';
 import 'package:navis/src/features/auth/data/server_config_repository.dart';
 import 'package:navis/src/features/auth/domain/server_config.dart';
 import 'package:navis/src/features/auth/presentation/server_config_provider.dart';
+import 'package:navis/src/providers/app_providers.dart';
 import 'package:navis/src/providers/provider_retry.dart';
+import 'package:navis/src/utils/connectivity.dart';
+import 'package:navis/src/utils/network_usage_meter.dart';
 
 class _Repository extends Mock implements ServerConfigRepository;
+class _NetworkUsageMeter extends Mock implements NetworkUsageMeter;
 
 void main() {
   const config = ServerConfigModel(
@@ -77,34 +81,65 @@ void main() {
     verifyNever(repository.clear);
   });
 
-  test(
-    'credential stream errors are represented without signing out',
-    () async {
-      final repository = _Repository();
-      final changes = StreamController<ServerConfigModel?>();
-      addTearDown(changes.close);
-      when(repository.watchActiveServer).thenAnswer((_) => changes.stream);
-      when(repository.getActiveServer).thenAnswer((_) async => config);
-      final container = ProviderContainer(
-        retry: navisProviderRetry,
-        overrides: [
-          serverConfigRepositoryProvider.overrideWithValue(repository),
-        ],
-      );
-      addTearDown(container.dispose);
-      expect(await container.read(serverConfigProvider.future), config);
+  test('credential stream errors preserve the authenticated session and API client', () async {
+    final repository = _Repository();
+    final changes = StreamController<ServerConfigModel?>();
+    addTearDown(changes.close);
+    when(repository.watchActiveServer).thenAnswer((_) => changes.stream);
+    when(repository.getActiveServer).thenAnswer((_) async => config);
+    final container = ProviderContainer(
+      retry: navisProviderRetry,
+      overrides: [
+        serverConfigRepositoryProvider.overrideWithValue(repository),
+        networkTypeProvider.overrideWithValue(NetworkType.wifi),
+        networkUsageMeterProvider.overrideWithValue(_NetworkUsageMeter()),
+      ],
+    );
+    addTearDown(container.dispose);
+    expect(await container.read(serverConfigProvider.future), config);
+    final activeState = container.read(serverConfigProvider);
+    final client = container.read(subsonicApiProvider);
+    expect(client, isNotNull);
 
-      changes.addError(const CredentialReadException());
-      await Future<void>.delayed(Duration.zero);
-      expect(
-        container.read(serverConfigProvider).error,
-        isA<CredentialReadException>(),
-      );
-      changes.add(config);
-      await Future<void>.delayed(Duration.zero);
-      expect(container.read(serverConfigProvider).value, config);
-      verifyNever(repository.signOutKeepData);
-      verifyNever(repository.clear);
-    },
-  );
+    changes.addError(const CredentialReadException());
+    await Future<void>.delayed(Duration.zero);
+    expect(container.read(serverConfigProvider), same(activeState));
+    expect(container.read(subsonicApiProvider), same(client));
+    expect(await container.read(serverConfigProvider.future), config);
+    changes.add(config.copyWith(name: 'Refreshed profile'));
+    await Future<void>.delayed(Duration.zero);
+    expect(
+      container.read(serverConfigProvider).value?.name,
+      'Refreshed profile',
+    );
+    changes.add(null);
+    await Future<void>.delayed(Duration.zero);
+    expect(
+      container.read(serverConfigProvider),
+      const AsyncData<ServerConfigModel?>(null),
+    );
+    expect(container.read(subsonicApiProvider), isNull);
+    verifyNever(repository.signOutKeepData);
+    verifyNever(repository.clear);
+  });
+
+  test('non-credential stream errors still reach the error state', () async {
+    final repository = _Repository();
+    final changes = StreamController<ServerConfigModel?>();
+    addTearDown(changes.close);
+    when(repository.watchActiveServer).thenAnswer((_) => changes.stream);
+    when(repository.getActiveServer).thenAnswer((_) async => config);
+    final container = ProviderContainer(
+      retry: navisProviderRetry,
+      overrides: [serverConfigRepositoryProvider.overrideWithValue(repository)],
+    );
+    addTearDown(container.dispose);
+    await container.read(serverConfigProvider.future);
+    final error = StateError('fixture database failure');
+
+    changes.addError(error);
+    await Future<void>.delayed(Duration.zero);
+
+    expect(container.read(serverConfigProvider).error, same(error));
+  });
 }

@@ -6,6 +6,7 @@ import 'package:navis/src/features/auth/data/secure_credential_store.dart';
 import 'package:navis/src/features/auth/data/server_config_repository.dart';
 import 'package:navis/src/features/auth/domain/server_config.dart';
 import 'package:navis/src/providers/app_providers.dart';
+import 'package:navis/src/utils/app_logger.dart';
 
 final secureCredentialStoreProvider = Provider<SecureCredentialStore>((ref) {
   const backing = FlutterSecureCredentialStore();
@@ -55,6 +56,12 @@ class ServerConfigNotifier extends AsyncNotifier<ServerConfigModel?> {
     _subscription ??= repository.watchActiveServer().listen(
       (server) => state = AsyncData(server),
       onError: (Object error, StackTrace stackTrace) {
+        if (error is CredentialReadException && state.value != null) {
+          AppLogger.warning(
+            'Secure credential stream read failed; keeping the active session.',
+          );
+          return;
+        }
         // During bootstrap, the getActiveServer future owns error reporting
         // and provider backoff. A stream error must not bypass those retries.
         if (!state.isLoading) {

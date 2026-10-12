@@ -165,6 +165,14 @@ const List<ChangelogVersion> changelogs = [
     ],
     entries: [
       ChangelogEntry(
+        'Fixed sign-in and playback getting stuck when secure storage is temporarily unavailable',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
+        'Android download folders are checked for usability even when their access cannot be made permanent',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
         'Fixed Navis sometimes signing you out after sitting in the background for a long time',
         type: ChangelogEntryType.fix,
       ),

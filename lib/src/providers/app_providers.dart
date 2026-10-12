@@ -26,6 +26,7 @@ import 'package:navis/src/database/daos/match_flow_dao.dart';
 import 'package:navis/src/database/daos/network_usage_dao.dart';
 import 'package:navis/src/database/navis_database.dart';
 import 'package:navis/src/database/tables/schema_enums.dart';
+import 'package:navis/src/features/auth/data/secure_credential_store.dart';
 import 'package:navis/src/features/auth/presentation/server_config_provider.dart';
 import 'package:navis/src/features/cache/data/rolling_cache_manager.dart';
 import 'package:navis/src/features/downloads/data/android_saf_storage.dart';
@@ -1094,6 +1095,11 @@ final audioHandlerInitializerProvider = Provider<AudioHandlerInitializer>((
     // Queue restoration resolves remote sources during audio initialization.
     // Hydrate the retained session first so the resolver does not mistake an
     // as-yet-loading credential for a signed-out session on cold start.
+    if (ref.read(serverConfigProvider).error is CredentialReadException) {
+      // Provider retries may be exhausted; the bootstrap cadence bounds this
+      // fresh storage read so a recovered keyring can unblock playback.
+      ref.invalidate(serverConfigProvider);
+    }
     final sessionHydration = ref.read(serverConfigProvider.future);
     // The resolver treats a network type it does not know yet as offline.
     // On Android the media service starts before any UI subscribes to

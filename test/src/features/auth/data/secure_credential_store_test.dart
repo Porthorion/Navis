@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
@@ -6,6 +8,7 @@ import 'package:mocktail/mocktail.dart';
 import 'package:navis/src/features/auth/data/secure_credential_store.dart';
 
 class _Storage extends Mock implements FlutterSecureStorage;
+class _CredentialStore extends Mock implements SecureCredentialStore;
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -87,6 +90,53 @@ void main() {
         throwsA(isA<CredentialReadException>()),
       );
     });
+
+    test(
+      'password-only session fallback permits absent URL credentials',
+      () async {
+        when(
+          () => storage.write(
+            key: any(named: 'key'),
+            value: any(named: 'value'),
+          ),
+        ).thenThrow(PlatformException(code: 'keyring_unavailable'));
+        when(() => storage.read(key: any(named: 'key')))
+            .thenThrow(PlatformException(code: 'keyring_unavailable'));
+
+        await store.savePassword('fixture');
+        expect(await store.readPassword(), 'fixture');
+        expect(await store.readUserInfo(), isNull);
+        verifyNever(() => storage.delete(key: any(named: 'key')));
+
+        await store.clearPassword();
+        await expectLater(
+          store.readUserInfo(),
+          throwsA(isA<CredentialReadException>()),
+        );
+      },
+    );
+  });
+
+  test('clone diagnostics retries a failed shared backing read', () async {
+    final backing = _CredentialStore();
+    final firstLoad = Completer<String?>();
+    when(backing.readPassword).thenAnswer((_) => firstLoad.future);
+    final clone = CloneDiagnosticsCredentialStore(backing);
+    final pending = [clone.readPassword(), clone.readPassword()];
+    final failures = [
+      for (final read in pending)
+        expectLater(read, throwsA(isA<CredentialReadException>())),
+    ];
+    firstLoad.completeError(const CredentialReadException());
+    await Future.wait(failures);
+    verify(backing.readPassword).called(1);
+
+    when(backing.readPassword).thenAnswer((_) async => 'fixture');
+    expect(await clone.readPassword(), 'fixture');
+    expect(await clone.readPassword(), 'fixture');
+    verify(backing.readPassword).called(1);
+    verifyNever(() => backing.savePassword(any()));
+    verifyNever(backing.clearPassword);
   });
 
   test(

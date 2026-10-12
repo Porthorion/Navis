@@ -408,10 +408,16 @@ delete secure data. Auth and external scrobble storage disable Android's
 `resetOnError` while retaining the default namespace and ciphers. The auth
 store throws `CredentialReadException` when a platform read fails without a
 session fallback; only a successful read returning a missing or empty password
-marks the retained profile signed out. Provider bootstrap retries this exception
-with `navisProviderRetry`, and the headless Android worker reports
-`transientFailure` with `retry: true`. Sync reads fail the attempt without
-changing authentication. The playback bootstrap overlay offers “Continue to
+marks the retained profile signed out. A password-only session fallback also
+allows absent optional URL credentials when platform storage is unavailable.
+After hydration, credential stream errors retain the active session and API
+client; a later row emission or refresh re-reads storage. Provider bootstrap
+retries this exception with `navisProviderRetry`; after those retries are
+exhausted, each audio bootstrap retry invalidates the failed credential provider
+before hydration, bounded by the existing bootstrap cadence. Clone diagnostics
+also retry a failed backing credential load on the next read. The headless
+Android worker reports `transientFailure` with `retry: true`. Sync reads fail
+the attempt without changing authentication. The playback bootstrap overlay offers “Continue to
 sign in” only after the server config resolves to null; loading and error states
 keep the existing authenticated recovery actions.
 
@@ -5166,6 +5172,9 @@ download naming throws when all 100 collision candidates are occupied.
    tree is activated Navis proves it can create, write, and remove a temporary
    Navis-owned probe document; a provider that fails that check remains
    unselected.
+   The native bridge attempts to persist read/write grants before that probe.
+   A `SecurityException` from a non-persistable grant is logged and leaves
+   usability to the writable probe, including for app-owned diagnostics trees.
    Folder reconciliation first imports only unique manifest, embedded-identity,
    or indexed filename matches. Ambiguous and unknown files enter a transient
    manual-review screen; its local-song picker shows cover art and ranks exact

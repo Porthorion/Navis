@@ -45,7 +45,13 @@ class CloneDiagnosticsCredentialStore implements SecureCredentialStore {
     if (_didLoad) {
       return _password;
     }
-    return await (_loadFuture ??= _loadPassword());
+    final load = _loadFuture ??= _loadPassword();
+    try {
+      return await load;
+    } on Object {
+      if (identical(_loadFuture, load)) _loadFuture = null;
+      rethrow;
+    }
   }
 
   @override
@@ -170,6 +176,10 @@ class FlutterSecureCredentialStore implements ServerUrlCredentialStore {
           'Secure credential read failed: '
           '${error.runtimeType}.',
         );
+      }
+      if (_sessionPasswordFallback != null ||
+          _sessionUserInfoFallback != null) {
+        return _sessionUserInfoFallback;
       }
       Error.throwWithStackTrace(const CredentialReadException(), stackTrace);
     }

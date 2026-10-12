@@ -184,6 +184,38 @@ void main() {
       apiVersion: '1.16.1',
     );
 
+    test('fresh sign-in works without a keyring or URL credentials', () async {
+      final storage = _MockSecureStorage();
+      when(() => storage.delete(key: any(named: 'key')))
+          .thenAnswer((_) async {});
+      when(
+        () => storage.write(
+          key: any(named: 'key'),
+          value: any(named: 'value'),
+        ),
+      ).thenThrow(StateError('fixture keyring unavailable'));
+      when(() => storage.read(key: any(named: 'key')))
+          .thenThrow(StateError('fixture keyring unavailable'));
+      final store = FlutterSecureCredentialStore(storage: storage);
+      await store.clearPassword();
+      await store.clearUserInfo();
+      addTearDown(() async {
+        await store.clearPassword();
+        await store.clearUserInfo();
+      });
+      repository = ServerConfigRepository(database, credentials: store);
+      final config = proxyConfig.copyWith(url: 'https://example.com/music');
+
+      await repository.save(config);
+
+      expect((await repository.getActiveServer())?.password, config.password);
+      expect((await repository.watchActiveServer().first)?.url, config.url);
+      expect(
+        (await database.serverDao.getActiveServer())?.isAuthenticated,
+        isTrue,
+      );
+    }, skip: !sqliteAvailable);
+
     test(
       'URL credential read failure preserves authentication and secrets',
       () async {
