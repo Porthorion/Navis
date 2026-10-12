@@ -2218,13 +2218,14 @@ class LibraryDao extends DatabaseAccessor<NavisDatabase>
     );
   }
 
-  Future<List<SongsTableData>> getAllSongs() {
-    final query = select(songsTable)
-      ..where(
-        (table) =>
-            table.serverDeletedAt.isNull() & table.isProvisional.equals(false),
-      );
-    return query.get();
+  Future<List<SongsTableData>> getAllSongs() async {
+    final rows = await customSelect(
+      'SELECT * FROM ${songsTable.actualTableName} '
+      'WHERE ${songsTable.serverDeletedAt.name} IS NULL '
+      'AND ${songsTable.isProvisional.name} = 0',
+      readsFrom: {songsTable},
+    ).get();
+    return await _mapSongRowsInChunks(rows);
   }
 
   Future<Set<String>> getArtistIds() async {
@@ -3407,16 +3408,21 @@ class LibraryDao extends DatabaseAccessor<NavisDatabase>
     if (rows.any((row) => row.read<bool>('index_stale'))) {
       unawaited(scheduleSongSearchIndexRefresh());
     }
-    final candidates = <SongsTableData>[];
+    return await _mapSongRowsInChunks(rows);
+  }
+
+  /// Maps raw song rows in order, yielding between chunks so a large result
+  /// set never blocks the UI isolate in one pass.
+  Future<List<SongsTableData>> _mapSongRowsInChunks(List<QueryRow> rows) async {
+    final songs = <SongsTableData>[];
     for (var index = 0; index < rows.length; index++) {
-      candidates.add(songsTable.map(rows[index].data));
-      // Large candidate sets must leave time for UI events during mapping.
+      songs.add(songsTable.map(rows[index].data));
       if ((index + 1) % kLocalTrackMatcherSnapshotYieldChunkSize == 0 &&
           index + 1 < rows.length) {
         await Future<void>.delayed(Duration.zero);
       }
     }
-    return candidates;
+    return songs;
   }
 
   /// [getTrackMatchCandidates] as one scan that tests every song's artist
