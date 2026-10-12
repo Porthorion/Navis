@@ -11,9 +11,6 @@ import 'package:navis/src/features/player/presentation/recommendation_session_co
 import 'package:navis/src/providers/app_providers.dart';
 import 'package:navis/src/utils/app_logger.dart';
 
-/// Number of remaining mix tracks (after the current one) that triggers refill.
-const _kRefillThreshold = 3;
-
 /// Maximum duration a single refill fetch is allowed to run before it is
 /// cancelled and the refilling flag is reset.
 const _kRefillTimeout = Duration(seconds: 30);
@@ -24,9 +21,9 @@ const _kMinimumRefillInterval = Duration(milliseconds: 1200);
 /// Global notifier that manages the Instant Mix auto-refill mode.
 ///
 /// When `active`, this notifier watches the playback queue and automatically
-/// appends similar tracks whenever fewer than [_kRefillThreshold] mix tracks
-/// remain after the current position.  The seed song is updated each cycle to
-/// the currently-playing track, keeping the recommendations fresh.
+/// appends similar tracks whenever at most [kRecommendationRefillLowWater]
+/// mix tracks remain after the current position. The seed song is updated each
+/// cycle to the currently-playing track, keeping the recommendations fresh.
 ///
 /// The provider is intentionally **not** `autoDispose` — the Instant Mix
 /// session should persist across navigation until explicitly deactivated or
@@ -161,7 +158,7 @@ class InstantMixNotifier extends Notifier<InstantMixState> {
     final currentIndex = next.currentIndex ?? 0;
     final remaining = _mixRemainingAfterCurrent(currentIndex, next);
 
-    if (remaining <= _kRefillThreshold) {
+    if (remaining <= kRecommendationRefillLowWater) {
       final nextAllowed = _nextRefillAllowedAt;
       if (nextAllowed != null && _now().isBefore(nextAllowed)) {
         return;

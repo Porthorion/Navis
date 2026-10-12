@@ -4,6 +4,9 @@ import 'package:navis/src/features/player/domain/playback_snapshot.dart';
 import 'package:navis/src/features/player/presentation/queue_provider.dart';
 import 'package:navis/src/providers/app_providers.dart';
 
+/// Tracks remaining after the current song at which automatic mixes refill.
+const kRecommendationRefillLowWater = 8;
+
 enum RecommendationMode { serverMix, sameVibes, personalRadio }
 
 class RecommendationSession {

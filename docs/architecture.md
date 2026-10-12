@@ -3348,6 +3348,14 @@ The audio handler requires Personal Radio and preferred-mix callbacks at
 construction so these actions also work before the Flutter shell registers
 its callbacks.
 The Home action awaits an actual queue insertion before opening Now Playing.
+Personal Radio, Server Mix and Same Vibes start background refills with eight
+tracks remaining after the current song. An unavailable Next at the Personal
+Radio queue tail records one pending skip in the notifier and starts the
+existing refill if one is due. After a successful recommendation append, it
+advances to the first inserted track only while the same session owns the queue
+and the requested tail occurrence is still current. Leaving that occurrence,
+stopping radio or replacing the session drops the pending skip; repeated Next
+requests while waiting do not skip multiple newly inserted tracks.
 
 `RecommendationSessionCoordinator` owns one generation and cancellation scope
 across these automatic modes. Each initial fetch and refill uses its own cancel

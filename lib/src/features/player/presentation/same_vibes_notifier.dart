@@ -16,9 +16,6 @@ import 'package:navis/src/providers/app_providers.dart';
 import 'package:navis/src/utils/app_logger.dart';
 import 'package:navis/src/utils/song_id_utils.dart';
 
-/// Number of remaining tracks (after the current one) that triggers refill.
-const _kRefillThreshold = 3;
-
 /// Target number of tracks to queue per background refill.
 const _kTargetQueueBatchSize = 5;
 
@@ -183,7 +180,7 @@ class SameVibesNotifier extends Notifier<SameVibesState> {
     final remaining = mixEnd != null
         ? mixEnd - currentIndex - 1
         : next.queueSongIds.length - currentIndex - 1;
-    if (remaining <= _kRefillThreshold) {
+    if (remaining <= kRecommendationRefillLowWater) {
       unawaited(_refill());
     }
   }

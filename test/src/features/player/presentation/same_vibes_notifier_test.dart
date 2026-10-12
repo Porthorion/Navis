@@ -1266,6 +1266,105 @@ void main() {
     },
   );
 
+  test(
+    'auto-refill starts at eight remaining mix tracks, but not nine',
+    () async {
+      final api = _MockSubsonicApiClient();
+      var now = DateTime.utc(2026);
+      var batch = 0;
+      when(() => api.getSong(any(), cancelToken: any(named: 'cancelToken')))
+          .thenAnswer(
+            (call) async => Song(
+              id: call.positionalArguments.first as String,
+              title: 'Seed',
+              artist: 'Seed Artist',
+            ),
+          );
+      when(
+        () => api.getSimilarSongs(
+          any(),
+          count: any(named: 'count'),
+          cancelToken: any(named: 'cancelToken'),
+        ),
+      ).thenAnswer((_) async {
+        final prefix = 'rec-${batch++}';
+        return [
+          for (var i = 0; i < 5; i++)
+            Song(id: '$prefix-$i', title: 'Track $i', artist: 'Artist $i'),
+        ];
+      });
+      final container = createRecommendationContainer(
+        overrides: [
+          sameVibesProvider.overrideWith(
+            () => SameVibesNotifier(now: () => now),
+          ),
+          queueProvider.overrideWith(RecordingRecommendationQueue.new),
+          audioHandlerProvider.overrideWithValue(null),
+          subsonicApiProvider.overrideWithValue(api),
+          lastFmApiClientProvider.overrideWithValue(null),
+          integrationPolicyProvider.overrideWithValue(
+            const IntegrationPolicy(),
+          ),
+          downloadedSongIdsProvider.overrideWithValue(
+            const AsyncData(<String>{}),
+          ),
+          cachedSongIdsProvider.overrideWithValue(const AsyncData(<String>{})),
+          sameVibesAlbumSongCountLookupProvider.overrideWithValue(
+            (albumIds) async => const <String, int?>{},
+          ),
+          sameVibesQueueSongKeyLookupProvider.overrideWithValue(
+            (songIds) async => const <String>{},
+          ),
+          currentMediaItemProvider.overrideWith(
+            (ref) => Stream.value(
+              const MediaItem(id: 'seed', title: 'Seed', artist: 'Seed Artist'),
+            ),
+          ),
+        ],
+      );
+      container.listen(sameVibesProvider, (_, _) {});
+      final snapshots = container.read(recommendationSnapshotProvider.notifier);
+      final original = ['seed'];
+      snapshots.emitSnapshot(
+        snapshot(
+          queueSongIds: original,
+          currentSongId: 'seed',
+          currentIndex: 0,
+        ),
+      );
+      await container.read(sameVibesProvider.notifier).activate('seed');
+      final queue = container.read(
+        queueProvider.notifier,
+      ) as RecordingRecommendationQueue;
+      expect(queue.appendedSongBatches, hasLength(1));
+      now = now.add(const Duration(minutes: 1));
+      final initialIds = [...original, ...List.generate(5, (i) => 'rec-0-$i')];
+      snapshots.emitSnapshot(
+        snapshot(
+          queueSongIds: initialIds,
+          currentSongId: 'seed',
+          currentIndex: 0,
+        ),
+      );
+      await pumpEventQueue();
+      expect(queue.appendedSongBatches, hasLength(2));
+      now = now.add(const Duration(minutes: 1));
+      final ids = [...initialIds, ...List.generate(5, (i) => 'rec-1-$i')];
+
+      snapshots.emitSnapshot(
+        snapshot(queueSongIds: ids, currentSongId: ids[1], currentIndex: 1),
+      );
+      await pumpEventQueue();
+      expect(queue.appendedSongBatches, hasLength(2));
+
+      snapshots.emitSnapshot(
+        snapshot(queueSongIds: ids, currentSongId: ids[2], currentIndex: 2),
+      );
+      await pumpEventQueue();
+      expect(queue.appendedSongBatches, hasLength(3));
+    },
+  );
+
   test('does not auto-refill while radio mode is active', () async {
     final api = _MockSubsonicApiClient();
     final lastFm = _MockLastFmApiClient();

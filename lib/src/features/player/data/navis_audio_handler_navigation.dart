@@ -45,7 +45,16 @@ extension _NavisNavigation on NavisAudioHandler {
         TransportVisualIntent.unavailablePrevious,
     };
     _emitTransportVisualCue(cue, fromSongId: _snapshot.currentSongId);
-    if (!decision.canApply) return Future<void>.value();
+    if (!decision.canApply) {
+      final index = decision.index;
+      if (decision.outcome == PlaybackNavigationOutcome.unavailableNext &&
+          index != null &&
+          index == logicalIds.length - 1) {
+        // Pass the desired occurrence, which may still be loading in a burst.
+        _onPersonalRadioQueueEnd?.call(index, logicalIds[index]);
+      }
+      return Future<void>.value();
+    }
     _invalidatePendingStartupSelection();
     return _applyNavigationDecision(
       decision,
