@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:material_ui/material_ui.dart';
+import 'package:navis/src/common_widgets/async_body.dart';
 import 'package:navis/src/common_widgets/adaptive_track_row.dart';
 import 'package:navis/src/common_widgets/app_notice.dart';
 import 'package:navis/src/common_widgets/artist_context_menu.dart';
@@ -400,7 +401,8 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
     // When a category filter is active, auto-expand that section.
     bool isExpanded(SearchResultType type) => filter == type;
 
-    return results.when(
+    return AsyncBody(
+      value: results,
       data: (state) {
         if (state == null) {
           return const SizedBox.shrink();
@@ -488,11 +490,9 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
           ],
         );
       },
-      loading: () => const ShimmerListPage(count: 8),
-      error: (error, _) => ErrorState(
-        title: l10n.searchLoadError,
-        onRetry: () => ref.invalidate(debouncedSearchProvider),
-      ),
+      loading: const ShimmerListPage(count: 8),
+      errorTitle: l10n.searchLoadError,
+      onRetry: () => ref.invalidate(debouncedSearchProvider),
     );
   }
 

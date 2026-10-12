@@ -7,6 +7,7 @@ import 'package:material_ui/material_ui.dart';
 import 'package:navis/src/features/downloads/presentation/custom_download_folder_controller.dart';
 import 'package:navis/src/theme/navis_color_style_data.dart';
 import 'package:navis/src/utils/app_logger.dart';
+import 'package:navis/src/common_widgets/async_body.dart';
 import 'package:navis/src/common_widgets/adaptive_track_row.dart';
 import 'package:navis/src/common_widgets/app_notice.dart';
 import 'package:navis/src/common_widgets/desktop/desktop_context_menu.dart';
@@ -16,7 +17,6 @@ import 'package:navis/src/common_widgets/cover_art_image.dart';
 import 'package:navis/src/common_widgets/remote_source_indicator.dart';
 import 'package:navis/src/common_widgets/empty_state.dart';
 import 'package:navis/src/common_widgets/shimmer_placeholder.dart';
-import 'package:navis/src/common_widgets/error_state.dart';
 import 'package:navis/src/common_widgets/song_playback_indicator.dart';
 import 'package:navis/src/database/navis_database.dart';
 import 'package:navis/src/database/tables/schema_enums.dart';
@@ -402,7 +402,8 @@ class _QueueTab extends ConsumerWidget {
     final l10n = AppLocalizations.of(context)!;
     final queueAsync = ref.watch(downloadQueueProvider);
 
-    return queueAsync.when(
+    return AsyncBody(
+      value: queueAsync,
       data: (items) {
         if (items.isEmpty) {
           return EmptyState(
@@ -553,11 +554,9 @@ class _QueueTab extends ConsumerWidget {
           ],
         );
       },
-      loading: () => const ShimmerListPage(count: 8),
-      error: (error, _) => ErrorState(
-        title: l10n.downloadsErrorLoadingQueue,
-        onRetry: () => ref.invalidate(downloadQueueProvider),
-      ),
+      loading: const ShimmerListPage(count: 8),
+      errorTitle: l10n.downloadsErrorLoadingQueue,
+      onRetry: () => ref.invalidate(downloadQueueProvider),
     );
   }
 }
@@ -695,7 +694,8 @@ class _DownloadedTab extends ConsumerWidget {
     final l10n = AppLocalizations.of(context)!;
     final tracksAsync = ref.watch(permanentCachedTracksProvider);
 
-    return tracksAsync.when(
+    return AsyncBody(
+      value: tracksAsync,
       data: (tracks) {
         if (tracks.isEmpty) {
           return EmptyState(
@@ -759,11 +759,9 @@ class _DownloadedTab extends ConsumerWidget {
           ],
         );
       },
-      loading: () => const ShimmerListPage(count: 8),
-      error: (_, _) => ErrorState(
-        title: l10n.downloadsErrorLoadingQueue,
-        onRetry: () => ref.invalidate(permanentCachedTracksProvider),
-      ),
+      loading: const ShimmerListPage(count: 8),
+      errorTitle: l10n.downloadsErrorLoadingQueue,
+      onRetry: () => ref.invalidate(permanentCachedTracksProvider),
     );
   }
 }

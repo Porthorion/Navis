@@ -1556,6 +1556,7 @@ Reusable UI components used across features:
 - **State Widgets**
   - `empty_state.dart` - Empty state with icon and message
   - `error_state.dart` - Error state with retry
+  - `async_body.dart` - Loading, error-with-Retry and data body for an `AsyncValue`
   - `shimmer_placeholder.dart` - Loading skeleton
   - `loading_indicator.dart` - Progress indicator
 

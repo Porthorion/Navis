@@ -3,9 +3,9 @@ import 'dart:async';
 import 'package:material_ui/material_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:navis/l10n/app_localizations.dart';
+import 'package:navis/src/common_widgets/async_body.dart';
 import 'package:navis/src/common_widgets/app_notice.dart';
 import 'package:navis/src/common_widgets/cover_art_image.dart';
-import 'package:navis/src/common_widgets/error_state.dart';
 import 'package:navis/src/common_widgets/remote_source_indicator.dart';
 import 'package:navis/src/common_widgets/song_playback_indicator.dart';
 import 'package:navis/src/database/daos/match_flow_dao.dart';
@@ -49,7 +49,8 @@ class MatchFlowScreen extends ConsumerWidget {
               icon: const Icon(Icons.add),
               label: Text(l10n.matchFlowCreateAction),
             ),
-      body: flowsAsync.when(
+      body: AsyncBody(
+        value: flowsAsync,
         data: (flows) {
           if (flows.isEmpty) {
             return _EmptyMatchFlowState(
@@ -68,11 +69,8 @@ class MatchFlowScreen extends ConsumerWidget {
             itemBuilder: (context, index) => _MatchFlowCard(flow: flows[index]),
           );
         },
-        loading: () => const Center(child: CircularProgressIndicator()),
-        error: (_, _) => ErrorState(
-          title: l10n.matchFlowLoadError,
-          onRetry: () => ref.invalidate(matchFlowsProvider),
-        ),
+        errorTitle: l10n.matchFlowLoadError,
+        onRetry: () => ref.invalidate(matchFlowsProvider),
       ),
     );
   }

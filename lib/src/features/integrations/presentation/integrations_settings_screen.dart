@@ -4,8 +4,8 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:navis/l10n/app_localizations.dart';
+import 'package:navis/src/common_widgets/async_body.dart';
 import 'package:navis/src/common_widgets/app_notice.dart';
-import 'package:navis/src/common_widgets/error_state.dart';
 import 'package:navis/src/common_widgets/navis_section_header.dart';
 import 'package:navis/src/features/integrations/domain/integration_feature.dart';
 import 'package:navis/src/features/integrations/presentation/integration_copy.dart';
@@ -102,13 +102,11 @@ class _IntegrationsSettingsScreenState
             : null,
         title: Text(l10n.integrationsTitle),
       ),
-      body: settingsAsync.when(
+      body: AsyncBody(
+        value: settingsAsync,
         data: (settings) => _buildContent(context, settings, desktopMode),
-        loading: () => const Center(child: CircularProgressIndicator()),
-        error: (_, _) => ErrorState(
-          title: l10n.integrationsLoadError,
-          onRetry: () => ref.invalidate(appSettingsProvider),
-        ),
+        errorTitle: l10n.integrationsLoadError,
+        onRetry: () => ref.invalidate(appSettingsProvider),
       ),
     );
   }
