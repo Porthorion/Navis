@@ -1594,6 +1594,16 @@ class _NowPlayingBodyState extends ConsumerState<_NowPlayingBody>
     final effectiveSongSwapArtTransitionBuilder = motion.reduceMotion
         ? _identityTransitionBuilder
         : buildSongSwapArtTransition;
+    // The cover-art switcher shared by the compact-wide, phone/tablet and split
+    // layouts; only the keyed child differs.
+    Widget songSwapArtSwitcher(Widget child) => AnimatedSwitcher(
+      duration: effectiveSongSwapArtDuration,
+      switchInCurve: Curves.linear,
+      switchOutCurve: Curves.linear,
+      layoutBuilder: _coverArtSwitcherLayoutBuilder,
+      transitionBuilder: effectiveSongSwapArtTransitionBuilder,
+      child: child,
+    );
     final artLyricsSwapDuration = motion.reduceMotion
         ? Duration.zero
         : const Duration(milliseconds: 220);
@@ -1857,13 +1867,8 @@ class _NowPlayingBodyState extends ConsumerState<_NowPlayingBody>
             });
           }
 
-          final compactWideArtSwitcher = AnimatedSwitcher(
-            duration: effectiveSongSwapArtDuration,
-            switchInCurve: Curves.linear,
-            switchOutCurve: Curves.linear,
-            layoutBuilder: _coverArtSwitcherLayoutBuilder,
-            transitionBuilder: effectiveSongSwapArtTransitionBuilder,
-            child: _buildInteractiveSwipeableArt(
+          final compactWideArtSwitcher = songSwapArtSwitcher(
+            _buildInteractiveSwipeableArt(
               key: ValueKey<String>('compact-wide-cover-$artVisualKey'),
               swipeEnabled: !isRadio,
               currentArt: buildCurrentArt(artMaxSize),
@@ -2221,13 +2226,8 @@ class _NowPlayingBodyState extends ConsumerState<_NowPlayingBody>
             _showLyrics &&
             playback.currentSongId != null &&
             !supportsSplitPanelOverlay;
-        final nowPlayingArtSwitcher = AnimatedSwitcher(
-          duration: effectiveSongSwapArtDuration,
-          switchInCurve: Curves.linear,
-          switchOutCurve: Curves.linear,
-          layoutBuilder: _coverArtSwitcherLayoutBuilder,
-          transitionBuilder: effectiveSongSwapArtTransitionBuilder,
-          child: _buildInteractiveSwipeableArt(
+        final nowPlayingArtSwitcher = songSwapArtSwitcher(
+          _buildInteractiveSwipeableArt(
             key: ValueKey<String>('cover-$artVisualKey'),
             swipeEnabled: !isRadio,
             // The phone layout draws every cover, placeholder and radio art
@@ -2537,13 +2537,8 @@ class _NowPlayingBodyState extends ConsumerState<_NowPlayingBody>
             ),
           ),
         );
-        final splitCoverArt = AnimatedSwitcher(
-          duration: effectiveSongSwapArtDuration,
-          switchInCurve: Curves.linear,
-          switchOutCurve: Curves.linear,
-          layoutBuilder: _coverArtSwitcherLayoutBuilder,
-          transitionBuilder: effectiveSongSwapArtTransitionBuilder,
-          child: isRadio
+        final splitCoverArt = songSwapArtSwitcher(
+          isRadio
               ? _RadioCoverArt(
                   key: ValueKey<String>('split-radio-art-$artVisualKey'),
                   artUrl: radioMeta?.nowPlayingArtUrl,
