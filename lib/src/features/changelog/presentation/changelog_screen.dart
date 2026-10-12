@@ -87,7 +87,8 @@ class _ChangelogScreenState extends State<ChangelogScreen> {
           ? Center(child: Text(l10n.changelogEmpty))
           : LayoutBuilder(
               builder: (context, constraints) {
-                if (desktopMode && constraints.maxWidth >= 840) {
+                if (desktopMode &&
+                    constraints.maxWidth >= kAdaptiveExpandedWidth) {
                   return _buildDesktop(context, focused);
                 }
                 return _buildPhone(context, focused);

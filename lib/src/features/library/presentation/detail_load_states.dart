@@ -262,9 +262,10 @@ class _DetailStateHeader extends StatelessWidget {
   }
 }
 
-/// A still block standing in for content that is loading.
-class _OutlineBlock extends StatelessWidget {
-  const new({required this.height, this.width, this.borderRadius});
+/// A still block standing in for content that is loading (also used by the
+/// artist page's loading skeleton).
+class DetailOutlineBlock extends StatelessWidget {
+  const new({required this.height, this.width, this.borderRadius, super.key});
 
   final double height;
   final double? width;
@@ -301,13 +302,13 @@ class DetailAlbumGridOutline extends ConsumerWidget {
         return Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: <Widget>[
-            const _OutlineBlock(height: 20, width: 96),
+            const DetailOutlineBlock(height: 20, width: 96),
             const SizedBox(height: NavisSpace.md),
             Row(
               children: <Widget>[
                 for (var column = 0; column < grid.columns; column++) ...[
                   if (column > 0) SizedBox(width: grid.gap),
-                  _OutlineBlock(
+                  DetailOutlineBlock(
                     height: grid.extent,
                     width: grid.extent,
                     borderRadius: radius,
@@ -337,7 +338,7 @@ class DetailTrackListOutline extends StatelessWidget {
             padding: const EdgeInsets.symmetric(vertical: NavisSpace.xs),
             child: Row(
               children: <Widget>[
-                const _OutlineBlock(height: 12, width: 16),
+                const DetailOutlineBlock(height: 12, width: 16),
                 const SizedBox(width: NavisSpace.md),
                 Expanded(
                   child: Column(
@@ -345,18 +346,18 @@ class DetailTrackListOutline extends StatelessWidget {
                     children: <Widget>[
                       FractionallySizedBox(
                         widthFactor: row.isEven ? 0.7 : 0.55,
-                        child: const _OutlineBlock(height: 14),
+                        child: const DetailOutlineBlock(height: 14),
                       ),
                       const SizedBox(height: NavisSpace.xxs),
                       const FractionallySizedBox(
                         widthFactor: 0.35,
-                        child: _OutlineBlock(height: 10),
+                        child: DetailOutlineBlock(height: 10),
                       ),
                     ],
                   ),
                 ),
                 const SizedBox(width: NavisSpace.md),
-                const _OutlineBlock(height: 12, width: 32),
+                const DetailOutlineBlock(height: 12, width: 32),
               ],
             ),
           ),

@@ -7,8 +7,8 @@ import 'package:material_ui/material_ui.dart';
 import 'package:navis/src/features/player/domain/playback_adjustments.dart';
 import 'package:navis/src/features/player/presentation/playback_adjustment_controller.dart';
 import 'package:navis/src/features/player/presentation/playback_adjustment_panel.dart';
+import 'package:navis/src/common_widgets/async_body.dart';
 import 'package:navis/src/common_widgets/app_notice.dart';
-import 'package:navis/src/common_widgets/error_state.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:navis/l10n/app_localizations.dart';
 import 'package:navis/src/features/settings/domain/app_settings.dart';
@@ -100,13 +100,11 @@ class _PlaybackSettingsScreenState
             : null,
         title: Text(l10n.settingsPlaybackTitle),
       ),
-      body: settingsAsync.when(
+      body: AsyncBody(
+        value: settingsAsync,
         data: (_) => _buildForm(context, l10n),
-        loading: () => const Center(child: CircularProgressIndicator()),
-        error: (_, _) => ErrorState(
-          title: l10n.playbackSettingsLoadError,
-          onRetry: () => ref.invalidate(appSettingsProvider),
-        ),
+        errorTitle: l10n.playbackSettingsLoadError,
+        onRetry: () => ref.invalidate(appSettingsProvider),
       ),
     );
   }

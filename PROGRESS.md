@@ -2,7 +2,7 @@
 
 Tracks completion of all phases and sub-tasks defined in [DEVELOPMENT_PLAN.md](DEVELOPMENT_PLAN.md). Checkboxes are updated as work is completed.
 
-Last updated: 2026-10-02
+Last updated: 2026-10-12
 
 ---
 
@@ -14,6 +14,7 @@ Last updated: 2026-10-02
 - ACP status values: `backlog`, `ready`, `in_progress`, `blocked`, `done`.
 
 ## Current Focus
+- [x] Ponytail over-engineering audit and cleanup — 2026-10-12 (branch `refactor/ponytail-audit-1012`; new shared helpers to reuse: `buildSubsonicAuthQuery`, `BoundedLruMap`, `AsyncBody`, `ArtistCard.grid`, `NavisSectionHeader.maxLines`, `kAdaptiveMediumWidth`/`kAdaptiveExpandedWidth`; removed `ArtistGridCard`, `DesktopSectionHeader`, the `RollingCacheManager` interface (now the concrete class), four unread `NavisTokens` fields and the qobuz shell wrapper; completed EQ and dependency plans moved to `docs/completed-plans/`. The detail-page failure view keeps its own compact layout (moving it onto `ErrorState` was reverted after owner review). `flutter_lints` stays: the root analyze resolves the vendored `third_party/` packages' include of it. `./tool/check.sh` passed (7,707 tests, 1 skipped); Linux desktop and Android emulator runtime checklists passed against the fixture server behind an auth-verifying proxy; Windows not covered.)
 - [x] Fine-Tune Colors v2 persistence, tuning presets and Appearance Looks — 2026-10-10 (unshipped schema 101 redefined with guarded Light/Dark depth and JSON libraries; resolved adjustments preserve theme/worker/caption cache keys; shared playback name validation, targeted DAO writers and settings/preview providers reused; complete appearance snapshots apply atomically with live tuning references or captured fallback, including language, swatches, recommendation auto-advance and legacy grid size; Night band, setup drafts/highlight registry and authenticated diagnostics updated. One build_runner run completed; 180 initial focused tests, 3,872 tests across all requested directories, 116 focused rechecks and 5 final storage cases passed using the required concurrency/timeout command; touched-file formatting, diff checks and analysis passed with zero errors/warnings and 37 existing infos. Panel/Looks UI and changelog remain UI-agent-owned; app/emulator/VM runtime and `check.sh` omitted per machine rules/coordinator ownership.)
 - [x] Fine-Tune Colors panel, Light/Dark brightness and Looks UI — 2026-10-10 (Appearance row opens a `showQuickPanel` popover/sheet with the shared `PresetPicker` for tuning presets, the existing ruler rows (Intensity, and Brightness with a compact Light | Dark switch and an "Applies in …" caption), pinned live summary and Reset; setup keeps the row and edits its draft without presets; `AppearanceLooksOption` at the top of Appearance with the same picker; focused settings, onboarding and theme tests and goldens recorded in the handoff; runtime loop and `check.sh` reserved for coordinator)
 - [x] Pastel soften and colour-style separation — 2026-10-10 (Pastel takes only the seed hue: accent chroma 16-24 at tone 86 dark / ink tone 47 light, containers chroma 12-15, surfaces chroma 6-7, artwork colours capped at chroma 12-13 so Flat bands, captions and Now Playing tint stay pastel; Immersive accent floor 36 at dark tone 77; schemes/adaptArtColor/flat band/caption/Now Playing-solid tests assert Pastel max chroma <= 60% of Immersive across 11 seeds x light/dark/OLED; one golden changed and viewed; app/emulator/VM runtime and `check.sh` omitted per machine rules).
@@ -164,7 +165,7 @@ Last updated: 2026-10-02
   two-song GMTC control scenario (`tool/windows_smtc_diagnostics.ps1`,
   including the strict paused five-second seek) passed on the Windows 11 VM;
   see `docs/audits/windows-review-2026-10-01.md` and
-  `Dependency_Upgrade_Plan.md`. Earlier status, 2026-08-17
+  `docs/completed-plans/Dependency_Upgrade_Plan.md`. Earlier status, 2026-08-17
   (implemented the local Rust/WinRT manual-SMTC adapter, ordered bridge state
   publication, stable `com.navis.app.navis` AppUserModelID, safe artwork/event
   handling, and the isolated `tool/windows_smtc_diagnostics.ps1` GMTC suite.

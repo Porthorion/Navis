@@ -559,7 +559,7 @@ class SubsonicApiClient {
     String? format,
     bool estimateContentLength = false,
   }) {
-    final query = _buildMediaAuthQuery()
+    final query = buildSubsonicAuthQuery(authConfig, _uuid)
       ..['id'] = id
       ..addAll({
         if (maxBitRate != null) 'maxBitRate': '$maxBitRate',
@@ -570,12 +570,12 @@ class SubsonicApiClient {
   }
 
   Uri downloadUrl({required String id}) {
-    final query = _buildMediaAuthQuery()..['id'] = id;
+    final query = buildSubsonicAuthQuery(authConfig, _uuid)..['id'] = id;
     return _buildMediaUri('/rest/download.view', query);
   }
 
   Uri getCoverArtUrl({required String id, int? size}) {
-    final query = _buildMediaAuthQuery()
+    final query = buildSubsonicAuthQuery(authConfig, _uuid)
       ..['id'] = id
       ..addAll({if (size != null) 'size': '$size'});
     return _buildMediaUri('/rest/getCoverArt.view', query);
@@ -950,32 +950,6 @@ class SubsonicApiClient {
       path: '${base.path}$path'.replaceAll('//', '/'),
       queryParameters: query,
     );
-  }
-
-  Map<String, String> _buildMediaAuthQuery() {
-    final query = <String, String>{
-      'u': authConfig.username,
-      'v': authConfig.apiVersion,
-      'c': authConfig.client,
-      'f': 'json',
-    };
-
-    switch (authConfig.authType) {
-      case SubsonicAuthType.token:
-        final salt = _uuid.v4().replaceAll('-', '').substring(0, 12);
-        query['s'] = salt;
-        query['t'] = md5
-            .convert(utf8.encode('${authConfig.password}$salt'))
-            .toString();
-      case SubsonicAuthType.legacyPassword:
-        final bytes = utf8.encode(authConfig.password);
-        final hex = bytes
-            .map((byte) => byte.toRadixString(16).padLeft(2, '0'))
-            .join();
-        query['p'] = 'enc:$hex';
-    }
-
-    return query;
   }
 
   List<Artist> _extractArtists(Object? raw) {

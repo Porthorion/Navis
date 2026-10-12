@@ -1077,7 +1077,7 @@ class _AppShellState extends ConsumerState<AppShell> {
               : (screenWidth * 0.25).clamp(_sideRailWidth, 360.0));
     final showLibrarySubNavigation =
         (useDesktopShell || useStandardRailNavigation) &&
-        screenWidth >= 840 &&
+        screenWidth >= kAdaptiveExpandedWidth &&
         !isPhoneFormFactor;
     final allowScrollableRail = !isPhoneFormFactor && !useCompactWideLandscape;
     final useWideMiniPlayerStyle = screenWidth >= 960;

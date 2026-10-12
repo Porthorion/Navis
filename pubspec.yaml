@@ -18,6 +18,7 @@ dependencies:
   cupertino_ui: ^1.1.1
   cupertino_icons: ^1.0.9
   connectivity_plus: ^7.3.1
+  convert: ^3.1.2
   crypto: ^3.0.7
   dio: ^5.11.1
   drift: ^2.35.0
@@ -75,6 +76,8 @@ dev_dependencies:
   freezed: ^4.0.2
   flutter_test:
     sdk: flutter
+  # Not used by Navis's own analysis_options, but the root `flutter analyze`
+  # resolves the vendored third_party/ packages' `include:` of it.
   flutter_lints: ^3.0.1
   json_serializable: ^6.14.1
   mocktail: ^1.0.5

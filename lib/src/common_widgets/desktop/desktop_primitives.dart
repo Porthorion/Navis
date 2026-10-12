@@ -50,58 +50,6 @@ class DesktopPanel extends StatelessWidget {
   }
 }
 
-class DesktopSectionHeader extends StatelessWidget {
-  const new({
-    required this.title,
-    super.key,
-    this.subtitle,
-    this.trailing,
-    this.padding = const EdgeInsets.only(bottom: 10),
-  });
-
-  final String title;
-  final String? subtitle;
-  final Widget? trailing;
-  final EdgeInsetsGeometry padding;
-
-  @override
-  Widget build(BuildContext context) {
-    final textTheme = Theme.of(context).textTheme;
-    final colors = Theme.of(context).colorScheme;
-    return Padding(
-      padding: padding,
-      child: Row(
-        children: <Widget>[
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: <Widget>[
-                Text(
-                  title,
-                  style: textTheme.titleMedium?.copyWith(
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-                if (subtitle != null && subtitle!.trim().isNotEmpty)
-                  Padding(
-                    padding: const EdgeInsets.only(top: 2),
-                    child: Text(
-                      subtitle!,
-                      style: textTheme.bodySmall?.copyWith(
-                        color: colors.onSurfaceVariant,
-                      ),
-                    ),
-                  ),
-              ],
-            ),
-          ),
-          ?trailing,
-        ],
-      ),
-    );
-  }
-}
-
 class DesktopListRow extends ConsumerWidget {
   const new({
     required this.title,

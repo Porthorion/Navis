@@ -10,33 +10,6 @@ import 'package:navis/src/utils/app_logger.dart';
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
 
-abstract class RollingCacheManager {
-  Future<void> registerTrack({
-    required String songId,
-    required String filePath,
-    int? fileSize,
-    String? format,
-    int? bitRate,
-  });
-
-  Future<void> touchTrack(String songId);
-
-  Future<void> enforceBudget({required int maxBytes});
-
-  /// Remove rolling entries whose files are missing or hold a server error
-  /// document instead of audio.
-  Future<void> pruneMissingFiles();
-
-  /// Remove permanent cache DB entries whose backing files no longer exist on
-  /// disk (e.g. deleted by the OS, manual cleanup, or filesystem corruption).
-  Future<void> pruneMissingPermanentFiles();
-
-  /// Remove rolling-cache files that are not referenced in the DB.
-  Future<void> cleanupOrphanedRollingFiles();
-
-  Future<Set<String>> getPermanentlyCachedSongIds();
-}
-
 enum RollingCacheActivityStatus { idle, caching }
 
 class RollingCacheActivity {
@@ -54,7 +27,7 @@ class RollingCacheActivity {
   bool get isCaching => status == RollingCacheActivityStatus.caching;
 }
 
-class DriftRollingCacheManager implements RollingCacheManager {
+class RollingCacheManager {
   new({
     required this._cacheDao,
     this._songIdentityDao,
@@ -90,7 +63,6 @@ class DriftRollingCacheManager implements RollingCacheManager {
     }
   }
 
-  @override
   Future<void> registerTrack({
     required String songId,
     required String filePath,
@@ -132,19 +104,16 @@ class DriftRollingCacheManager implements RollingCacheManager {
     );
   }
 
-  @override
   Future<void> touchTrack(String songId) async {
     final canonicalSongId =
         await _songIdentityDao?.resolveCanonicalId(songId) ?? songId;
     await _cacheDao.touchTrack(canonicalSongId);
   }
 
-  @override
   Future<Set<String>> getPermanentlyCachedSongIds() {
     return _cacheDao.getPermanentlyCachedSongIds();
   }
 
-  @override
   Future<void> enforceBudget({required int maxBytes}) async {
     if (maxBytes <= 0) {
       return;
@@ -179,7 +148,8 @@ class DriftRollingCacheManager implements RollingCacheManager {
     }
   }
 
-  @override
+  /// Remove rolling entries whose files are missing or hold a server error
+  /// document instead of audio.
   Future<void> pruneMissingFiles() async {
     final entries = await _cacheDao.getRollingEntriesOrderedByLastAccessed();
     final staleIds = <String>[];
@@ -210,7 +180,8 @@ class DriftRollingCacheManager implements RollingCacheManager {
     }
   }
 
-  @override
+  /// Remove permanent cache DB entries whose backing files no longer exist on
+  /// disk (e.g. deleted by the OS, manual cleanup, or filesystem corruption).
   Future<void> pruneMissingPermanentFiles() async {
     final entries = await _cacheDao.getPermanentEntries();
     final staleIds = <String>[];
@@ -234,7 +205,7 @@ class DriftRollingCacheManager implements RollingCacheManager {
     }
   }
 
-  @override
+  /// Remove rolling-cache files that are not referenced in the DB.
   Future<void> cleanupOrphanedRollingFiles() async {
     try {
       final tempDir = await getTemporaryDirectory();

@@ -57,9 +57,7 @@ void main() {
     }) => PlaybackSourceResolver(
       cacheDao: database.cacheDao,
       libraryDao: withLibrary ? database.libraryDao : null,
-      rollingCacheManager: DriftRollingCacheManager(
-        cacheDao: database.cacheDao,
-      ),
+      rollingCacheManager: RollingCacheManager(cacheDao: database.cacheDao),
       readApiClient: () => offlineApi ? null : apiClient,
       readStreamingQuality:
           quality ?? () => const StreamingQuality(label: 'wifi'),
@@ -108,9 +106,7 @@ void main() {
         );
         final resolver = PlaybackSourceResolver(
           cacheDao: database.cacheDao,
-          rollingCacheManager: DriftRollingCacheManager(
-            cacheDao: database.cacheDao,
-          ),
+          rollingCacheManager: RollingCacheManager(cacheDao: database.cacheDao),
           readApiClient: () => apiClient,
           readStreamingQuality: () => const StreamingQuality(label: 'wifi'),
           readRollingCacheDirectory: () async => rollingDir,
@@ -141,7 +137,7 @@ void main() {
             );
             final resolver = PlaybackSourceResolver(
               cacheDao: database.cacheDao,
-              rollingCacheManager: DriftRollingCacheManager(
+              rollingCacheManager: RollingCacheManager(
                 cacheDao: database.cacheDao,
               ),
               readApiClient: () => apiClient,

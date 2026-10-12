@@ -10,14 +10,16 @@ import 'package:navis/src/theme/navis_corner_style.dart';
 import 'package:navis/src/theme/navis_shape_data.dart';
 import 'package:navis/src/theme/navis_style_schemes.dart';
 import 'package:navis/src/theme/navis_tokens.dart';
+import 'package:navis/src/utils/bounded_lru_map.dart';
 
 /// Bounded per-app cache of complete themes, keyed only by theme inputs.
 class NavisThemeCache {
   new({this.capacity = 8})
-    : assert(capacity > 0, 'The theme cache needs at least one entry.');
+    : assert(capacity > 0, 'The theme cache needs at least one entry.'),
+      _themes = BoundedLruMap(capacity: capacity);
 
   final int capacity;
-  final Map<
+  final BoundedLruMap<
     (
       Color,
       Brightness,
@@ -30,7 +32,7 @@ class NavisThemeCache {
     ),
     ThemeData
   >
-  _themes = {};
+  _themes;
 
   ThemeData resolve({
     required Color seed,
@@ -52,9 +54,8 @@ class NavisThemeCache {
       corners,
       adjustment,
     );
-    final known = _themes.remove(key);
+    final known = _themes.get(key);
     if (known != null) {
-      _themes[key] = known;
       return known;
     }
     final theme = brightness == Brightness.light
@@ -83,8 +84,7 @@ class NavisThemeCache {
             flatAreas: flatAreas,
             corners: corners,
           );
-    _themes[key] = theme;
-    if (_themes.length > capacity) _themes.remove(_themes.keys.first);
+    _themes.put(key, theme);
     return theme;
   }
 }

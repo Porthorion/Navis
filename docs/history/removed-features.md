@@ -136,7 +136,7 @@ bands. Schema v84 discards the old values without approximation or recovery and
 starts the replacement disabled/flat, with a one-time notice for affected users.
 The dedicated Equalizer page, native filters, authored preamp, and automatic
 headroom replace them; historical migration steps remain. See
-[equalizer.md](../equalizer.md) and the accepted `EQ_System_Plan.md`.
+[equalizer.md](../equalizer.md) and the accepted `docs/completed-plans/EQ_System_Plan.md`.
 
 ## 2026-09-29 — Equalizer band-card editing replaced
 

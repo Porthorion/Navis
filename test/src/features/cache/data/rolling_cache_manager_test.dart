@@ -15,9 +15,9 @@ void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
   const pathProviderChannel = MethodChannel('plugins.flutter.io/path_provider');
 
-  group('DriftRollingCacheManager', () {
+  group('RollingCacheManager', () {
     late NavisDatabase database;
-    late DriftRollingCacheManager manager;
+    late RollingCacheManager manager;
     late Directory tempDir;
 
     setUp(() async {
@@ -28,7 +28,7 @@ void main() {
             pathProviderChannel,
             (call) async => tempDir.path,
           );
-      manager = DriftRollingCacheManager(
+      manager = RollingCacheManager(
         cacheDao: database.cacheDao,
         songIdentityDao: database.songIdentityDao,
       );
@@ -104,7 +104,7 @@ void main() {
             lastAccessedAt: DateTime.now(),
           ),
         );
-        manager = DriftRollingCacheManager(
+        manager = RollingCacheManager(
           cacheDao: database.cacheDao,
           songIdentityDao: database.songIdentityDao,
           entryExists: (entry) async => entry.storageKind == 'androidSaf',

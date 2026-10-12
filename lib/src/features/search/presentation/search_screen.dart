@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:material_ui/material_ui.dart';
+import 'package:navis/src/common_widgets/async_body.dart';
 import 'package:navis/src/common_widgets/adaptive_track_row.dart';
 import 'package:navis/src/common_widgets/app_notice.dart';
 import 'package:navis/src/common_widgets/artist_context_menu.dart';
@@ -400,7 +401,8 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
     // When a category filter is active, auto-expand that section.
     bool isExpanded(SearchResultType type) => filter == type;
 
-    return results.when(
+    return AsyncBody(
+      value: results,
       data: (state) {
         if (state == null) {
           return const SizedBox.shrink();
@@ -488,11 +490,9 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
           ],
         );
       },
-      loading: () => const ShimmerListPage(count: 8),
-      error: (error, _) => ErrorState(
-        title: l10n.searchLoadError,
-        onRetry: () => ref.invalidate(debouncedSearchProvider),
-      ),
+      loading: const ShimmerListPage(count: 8),
+      errorTitle: l10n.searchLoadError,
+      onRetry: () => ref.invalidate(debouncedSearchProvider),
     );
   }
 
@@ -722,32 +722,6 @@ class _OfflineSearchBanner extends ConsumerWidget {
   }
 }
 
-class _SectionHeader extends StatelessWidget {
-  const new({
-    required this.title,
-    required this.expanded,
-    required this.onToggle,
-    required this.itemCount,
-  });
-
-  final String title;
-  final bool expanded;
-  final VoidCallback onToggle;
-  final int itemCount;
-
-  @override
-  Widget build(BuildContext context) {
-    final l10n = AppLocalizations.of(context)!;
-    return NavisSectionHeader(
-      title: title,
-      compact: true,
-      padding: const EdgeInsetsDirectional.fromSTEB(16, 16, 8, 4),
-      onSeeAll: itemCount > 5 ? onToggle : null,
-      seeAllLabel: expanded ? l10n.searchShowLess : l10n.searchShowAll,
-    );
-  }
-}
-
 class _ArtistResultsSection extends ConsumerWidget {
   const new({
     required this.artists,
@@ -771,11 +745,12 @@ class _ArtistResultsSection extends ConsumerWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: <Widget>[
-        _SectionHeader(
+        NavisSectionHeader(
           title: l10n.searchArtistsSection,
-          expanded: expanded,
-          onToggle: onToggleExpanded,
-          itemCount: artists.length,
+          compact: true,
+          padding: const EdgeInsetsDirectional.fromSTEB(16, 16, 8, 4),
+          onSeeAll: artists.length > 5 ? onToggleExpanded : null,
+          seeAllLabel: expanded ? l10n.searchShowLess : l10n.searchShowAll,
         ),
         ...visible.map((artist) {
           final isRemote = isExternalCatalogSource(
@@ -914,11 +889,12 @@ class _AlbumResultsSection extends ConsumerWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: <Widget>[
-        _SectionHeader(
+        NavisSectionHeader(
           title: l10n.searchAlbumsSection,
-          expanded: expanded,
-          onToggle: onToggleExpanded,
-          itemCount: albums.length,
+          compact: true,
+          padding: const EdgeInsetsDirectional.fromSTEB(16, 16, 8, 4),
+          onSeeAll: albums.length > 5 ? onToggleExpanded : null,
+          seeAllLabel: expanded ? l10n.searchShowLess : l10n.searchShowAll,
         ),
         ...visible.map((album) {
           final isRemote = isExternalCatalogSource(
@@ -1004,11 +980,12 @@ class _SongResultsSection extends ConsumerWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: <Widget>[
-        _SectionHeader(
+        NavisSectionHeader(
           title: l10n.searchSongsSection,
-          expanded: expanded,
-          onToggle: onToggleExpanded,
-          itemCount: songs.length,
+          compact: true,
+          padding: const EdgeInsetsDirectional.fromSTEB(16, 16, 8, 4),
+          onSeeAll: songs.length > 5 ? onToggleExpanded : null,
+          seeAllLabel: expanded ? l10n.searchShowLess : l10n.searchShowAll,
         ),
         if (expanded && visible.isNotEmpty)
           AdaptiveTrackHeader(actionExtent: desktopMode ? null : 0),

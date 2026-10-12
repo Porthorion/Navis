@@ -402,7 +402,7 @@ class EqualizerScreenState extends ConsumerState<EqualizerScreen> {
               wide ||
               (outer.maxWidth >= 640 &&
                   scale <= 1.4 &&
-                  (outer.maxWidth >= 840 ||
+                  (outer.maxWidth >= kAdaptiveExpandedWidth ||
                       outer.maxHeight < outer.maxWidth * .75));
           return Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -417,7 +417,9 @@ class EqualizerScreenState extends ConsumerState<EqualizerScreen> {
                       duration: const Duration(milliseconds: 120),
                       child: _header(
                         value,
-                        inline: outer.maxWidth >= 600 && scale <= 1.3,
+                        inline:
+                            outer.maxWidth >= kAdaptiveMediumWidth &&
+                            scale <= 1.3,
                       ),
                     ),
                   ),

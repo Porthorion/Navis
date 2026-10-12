@@ -5,6 +5,7 @@ import 'package:navis/src/features/equalizer/domain/eq_configuration.dart';
 import 'package:navis/src/features/equalizer/domain/eq_response.dart';
 import 'package:navis/src/features/equalizer/domain/eq_workspace.dart';
 import 'package:navis/src/features/equalizer/presentation/eq_graph_geometry.dart';
+import 'package:navis/src/utils/bounded_lru_map.dart';
 
 /// Response samples calculated once per configuration change, never in paint.
 class EqGraphSamples {
@@ -538,21 +539,23 @@ class EqGraphPainter extends CustomPainter {
 
 /// Reuses laid-out axis and handle labels across drag frames.
 abstract final class _EqLabelCache {
-  static final _labels = <(String, TextStyle, TextScaler), TextPainter>{};
+  static final _labels =
+      BoundedLruMap<(String, TextStyle, TextScaler), TextPainter>(
+        capacity: 256,
+        onEvict: (label) => label.dispose(),
+      );
 
   static TextPainter label(String text, TextStyle style, TextScaler scaler) {
     final key = (text, style, scaler);
-    final cached = _labels.remove(key);
-    if (cached != null) return _labels[key] = cached;
-    if (_labels.length >= 256) {
-      final oldest = _labels.keys.first;
-      _labels.remove(oldest)!.dispose();
-    }
-    return _labels[key] = TextPainter(
+    final cached = _labels.get(key);
+    if (cached != null) return cached;
+    final label = TextPainter(
       text: TextSpan(text: text, style: style),
       textDirection: TextDirection.ltr,
       textScaler: scaler,
       maxLines: 1,
     )..layout();
+    _labels.put(key, label);
+    return label;
   }
 }

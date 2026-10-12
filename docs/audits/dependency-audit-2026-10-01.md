@@ -9,7 +9,7 @@ vendors it and pins a SHA-256-verified shinchiro build (`mpv-dev-x86_64-20261001
 ## Summary
 
 **Update, same day:** the `codex/dependency-upgrades` work was ported onto dev
-and merged (see `Dependency_Upgrade_Plan.md`, "Port onto dev"). That resolves
+and merged (see `docs/completed-plans/Dependency_Upgrade_Plan.md`, "Port onto dev"). That resolves
 the items marked "Covered by codex" below: Flutter 3.47.5, the Android
 toolchain and wrapper checksum, the tracked SMTC `Cargo.lock` with current
 crates, and the Windows sqlite3 asset verification. The other findings stand.
@@ -186,7 +186,7 @@ this host all equal `b1772918…`. No Pub package version in the lockfile has an
   `just_audio_media_kit` and `remote_build_windows.sh` edits will conflict with this branch.
 
 ## Method
-- Read `docs/dependency-upgrades.md`, `Dependency_Upgrade_Plan.md`, `docs/audits/dependency-upgrades-2026-09-27/*`
+- Read `docs/dependency-upgrades.md`, `docs/completed-plans/Dependency_Upgrade_Plan.md`, `docs/audits/dependency-upgrades-2026-09-27/*`
   (names), `docs/release-windows.md`, `docs/release-linux.md`, `docs/equalizer.md`, `docs/architecture.md`
   (desktop streaming), `docs/ci-cd.md`, `README.md`.
 - Read `pubspec.yaml`, `pubspec.lock`, Android Gradle files, `linux/`/`windows/`/`macos/` CMake/Podfile/pbxproj,

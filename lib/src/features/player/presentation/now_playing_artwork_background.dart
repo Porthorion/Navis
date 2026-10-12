@@ -10,6 +10,7 @@ import 'package:material_ui/material_ui.dart';
 import 'package:navis/src/theme/caption_tint.dart';
 import 'package:navis/src/features/settings/domain/now_playing_background.dart';
 import 'package:navis/src/theme/navis_color_style_data.dart';
+import 'package:navis/src/utils/bounded_lru_map.dart';
 
 /// Width in pixels the cover is decoded at for the Artwork background. The
 /// image is blurred beyond recognition, so a thumbnail is plenty.
@@ -378,9 +379,13 @@ class _PendingArtwork {
 /// Keeps four prepared covers and coalesces concurrent decodes/blur renders.
 /// Eviction releases the cache's handle; mounted layers retain their clones.
 class NowPlayingArtworkCache {
-  new({this.capacity = 4});
+  new({this.capacity = 4})
+    : _entries = BoundedLruMap(
+        capacity: capacity,
+        onEvict: (artwork) => artwork.image.dispose(),
+      );
   final int capacity;
-  final _entries = <String, BlurredNowPlayingArtwork>{};
+  final BoundedLruMap<String, BlurredNowPlayingArtwork> _entries;
   final _pending = <String, _PendingArtwork>{};
   final _cancelLoads = <void Function()>{};
   bool _disposed = false;
@@ -392,7 +397,8 @@ class NowPlayingArtworkCache {
   @visibleForTesting
   int get debugHitCount => _hits;
   @visibleForTesting
-  ui.Image? debugCachedImage(String key) => _entries[key]?.image;
+  ui.Image? debugCachedImage(String key) =>
+      _entries.get(key, refreshRecency: false)?.image;
 
   Future<BlurredNowPlayingArtwork> acquire(
     String key,
@@ -400,9 +406,8 @@ class NowPlayingArtworkCache {
     ImageConfiguration configuration,
   ) async {
     if (_disposed) throw StateError('Artwork cache disposed');
-    final cached = _entries.remove(key);
+    final cached = _entries.get(key);
     if (cached != null) {
-      _entries[key] = cached;
       _hits++;
       return cached._clone();
     }
@@ -428,10 +433,7 @@ class NowPlayingArtworkCache {
           if (_disposed) {
             result.image.dispose();
           } else {
-            _entries[key] = result;
-            while (_entries.length > capacity) {
-              _entries.remove(_entries.keys.first)!.image.dispose();
-            }
+            _entries.put(key, result);
           }
         }
       }

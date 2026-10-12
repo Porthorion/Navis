@@ -32,6 +32,14 @@ open blockers, or required follow-up work remain at the repository root.
   projection and post-indexing validation remain explicitly documented as
   external follow-up, not unrecorded work.
 
+- [Production EQ](EQ_System_Plan.md) — the dedicated Equalizer page and native
+  parametric EQ. Automated, Linux and Android emulator validation passed
+  (accepted 2026-09-28); physical-device release checks are listed in the plan.
+- [Dependency upgrades](Dependency_Upgrade_Plan.md) — the 2026-09-27 dependency
+  upgrade, merged into dev on 2026-10-01. Apple, physical Android arm64 and full
+  head-unit projection remain recorded as unverified. Moved from the root on
+  2026-10-12.
+
 ## Root plans retained
 
 - `Remote_Song_Handling_Plan.md` remains active because cold remote playback
@@ -41,3 +49,6 @@ open blockers, or required follow-up work remain at the repository root.
 - `DEVELOPMENT_PLAN.md` and `PROGRESS.md` remain at the root because they are
   live backlog and progress trackers with open tasks, rather than completed
   implementation plans.
+- `Fix_Stale_Cache_Plan.md` and `Fix_Stale_Cache_Execution_Plan.md` remain
+  until the execution plan's open acceptance boxes are checked.
+- `Sync_Audit_Remediation_Plan.md` remains active (status: in progress).

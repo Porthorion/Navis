@@ -75,7 +75,7 @@ platform and validation limits.
 
 ## Dependency Maintenance
 
-The [September dependency upgrade plan](Dependency_Upgrade_Plan.md) tracks
+The [September dependency upgrade plan](docs/completed-plans/Dependency_Upgrade_Plan.md) tracks
 the current upgrade work, compatible versions, major migrations, and runtime
 validation gates. The build baseline is Flutter 3.47.5 with Dart 3.13.
 

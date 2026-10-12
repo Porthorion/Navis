@@ -18,6 +18,7 @@ class NavisSectionHeader extends StatelessWidget {
     this.padding = EdgeInsetsDirectional.zero,
     this.caption,
     this.onCaptionTap,
+    this.maxLines = 1,
   });
 
   final String title;
@@ -43,6 +44,10 @@ class NavisSectionHeader extends StatelessWidget {
 
   final EdgeInsetsGeometry padding;
 
+  /// Title line limit; null lets long titles wrap (settings pages, where a
+  /// truncated heading at large text sizes would hide what the section is).
+  final int? maxLines;
+
   @override
   Widget build(BuildContext context) {
     final textTheme = Theme.of(context).textTheme;
@@ -60,8 +65,8 @@ class NavisSectionHeader extends StatelessWidget {
                   header: true,
                   child: Text(
                     title,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
+                    maxLines: maxLines,
+                    overflow: maxLines == null ? null : TextOverflow.ellipsis,
                     style: compact
                         ? textTheme.titleMedium
                         : textTheme.titleLarge,

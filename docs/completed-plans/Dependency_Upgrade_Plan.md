@@ -28,20 +28,20 @@ There is no reason to change database schema 80 solely for a package upgrade.
 - Root major-version dry run resolves successfully and would change 84
   dependencies. It changes five direct constraints, listed below; it does not
   demonstrate builds, tests, native compatibility, or UI correctness.
-- [Complete locked Dart/Cargo inventory](docs/audits/dependency-upgrades-2026-09-27/inventory.md),
-  [root resolver report](docs/audits/dependency-upgrades-2026-09-27/root-outdated.json),
-  [SMTC report](docs/audits/dependency-upgrades-2026-09-27/smtc-outdated.json),
-  [CargoKit report](docs/audits/dependency-upgrades-2026-09-27/cargokit-outdated.json),
-  [major dry run](docs/audits/dependency-upgrades-2026-09-27/root-major-upgrade-dry-run.txt),
-  and [advisory query/results](docs/audits/dependency-upgrades-2026-09-27/advisories.json)
+- [Complete locked Dart/Cargo inventory](../audits/dependency-upgrades-2026-09-27/inventory.md),
+  [root resolver report](../audits/dependency-upgrades-2026-09-27/root-outdated.json),
+  [SMTC report](../audits/dependency-upgrades-2026-09-27/smtc-outdated.json),
+  [CargoKit report](../audits/dependency-upgrades-2026-09-27/cargokit-outdated.json),
+  [major dry run](../audits/dependency-upgrades-2026-09-27/root-major-upgrade-dry-run.txt),
+  and [advisory query/results](../audits/dependency-upgrades-2026-09-27/advisories.json)
   preserve the evidence, including transitive dependencies.
 - OSV queried 399 unique locked Pub/crates.io package-version pairs across the
   local lockfiles. It returned Rust matches below and no Pub matches. This is
   an advisory database snapshot, not proof of absence of vulnerabilities or
   reachability. The resolved Android sideload-release runtime graph was also
   queried: 89 Maven coordinates, no matches. See the
-  [native graph](docs/audits/dependency-upgrades-2026-09-27/android-runtime-dependencies.txt)
-  and [Maven advisory evidence](docs/audits/dependency-upgrades-2026-09-27/android-advisories.json).
+  [native graph](../audits/dependency-upgrades-2026-09-27/android-runtime-dependencies.txt)
+  and [Maven advisory evidence](../audits/dependency-upgrades-2026-09-27/android-advisories.json).
   Bundled binaries and system library advisory checks remain a release gate.
 - Native Android declaration versions and stable releases were checked against
   Google's Maven metadata. Plugin-owned native versions must be inspected in
@@ -680,7 +680,7 @@ All subsequent installs use `com.navis.app.navis.dev.upgrade`, label **Navis Dev
   rendering with the same app data. No app fatal crash was recorded.
 - App, fixture server and emulator were stopped after evidence collection.
 
-[Sanitized emulator evidence](docs/audits/dependency-upgrades-2026-09-27/android-emulator-runtime-evidence.json)
+[Sanitized emulator evidence](../audits/dependency-upgrades-2026-09-27/android-emulator-runtime-evidence.json)
 records APK hashes, exact versions, worker observations and screenshot hashes.
 The Android cold-start gate covers the canonical MediaBrowserService before
 MainActivity; it does not certify an Android Auto head-unit projection session.
@@ -790,7 +790,7 @@ with sparse registry metadata. The official Windows FRB 2.13.0 generator
 archive matches its published SHA-256 digest. These are prepared inputs, not
 Windows generation/build/runtime results.
 
-[Staged Windows input evidence](docs/audits/dependency-upgrades-2026-09-27/windows-staged-inputs.json)
+[Staged Windows input evidence](../audits/dependency-upgrades-2026-09-27/windows-staged-inputs.json)
 records the input versions and hashes. Next: restore VM access, perform the
 authorized scoped cleanup, install the isolated pinned SDK, regenerate bindings,
 and run the remaining native Windows validation.

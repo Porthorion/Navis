@@ -14,6 +14,7 @@ import 'package:navis/src/providers/app_providers.dart';
 import 'package:navis/src/routing/desktop_layout.dart';
 import 'package:navis/src/routing/navigation_service.dart';
 import 'package:navis/src/routing/app_routes.dart';
+import 'package:navis/src/utils/format_utils.dart';
 
 typedef _StatusLine = ({String text, Key? key});
 
@@ -154,7 +155,7 @@ class SyncSettingsScreen extends ConsumerWidget {
         (
           text: l10n.syncSettingsUsage(
             syncState.apiRequests,
-            _formatBytes(syncState.lastRunBytes),
+            formatBytes(syncState.lastRunBytes),
           ),
           key: null,
         ),
@@ -245,7 +246,7 @@ class SyncSettingsScreen extends ConsumerWidget {
                                     syncState.lastRunBytes > 0
                                 ? l10n.syncSettingsLastRunValue(
                                     syncState.apiRequests,
-                                    _formatBytes(syncState.lastRunBytes),
+                                    formatBytes(syncState.lastRunBytes),
                                   )
                                 : null,
                             l10n: l10n,
@@ -754,12 +755,6 @@ class SyncSettingsScreen extends ConsumerWidget {
         .toLowerCase();
   }
 
-  String _formatBytes(int bytes) {
-    if (bytes < 1024) return '$bytes B';
-    if (bytes < 1024 * 1024) return '${(bytes / 1024).toStringAsFixed(1)} KB';
-    return '${(bytes / (1024 * 1024)).toStringAsFixed(1)} MB';
-  }
-
   _DestructiveOperation? _lastDestructiveOperation(
     AppLocalizations l10n,
     List<LibrarySyncOperationLedgerTableData> operations,
@@ -863,7 +858,9 @@ class _DesktopSyncStatusMetrics extends StatelessWidget {
       padding: const EdgeInsets.only(top: 16),
       child: LayoutBuilder(
         builder: (context, constraints) {
-          final columnCount = constraints.maxWidth >= 840 ? 4 : 2;
+          final columnCount = constraints.maxWidth >= kAdaptiveExpandedWidth
+              ? 4
+              : 2;
           const gap = 24.0;
           final itemWidth =
               (constraints.maxWidth - gap * (columnCount - 1)) / columnCount;

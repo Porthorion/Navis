@@ -833,7 +833,7 @@ class LikedArtistsAllScreen extends ConsumerWidget {
                           itemCount: visible.length,
                           itemBuilder: (context, index) {
                             final artist = visible[index];
-                            return ArtistGridCard(
+                            return ArtistCard.grid(
                               key: ValueKey('liked-all-artist-${artist.id}'),
                               artist: artist,
                               onTap: () => NavService.openArtistDetail(

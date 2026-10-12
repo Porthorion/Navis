@@ -46,13 +46,9 @@ abstract final class NavisRadius {
 @immutable
 class NavisTokens extends ThemeExtension<NavisTokens> {
   const new({
-    required this.frameMaxWidthCompact,
-    required this.frameMaxWidthStandard,
-    required this.frameMaxWidthUltraWide,
     required this.sidebarWidth,
     required this.panelElevation,
     required this.hoverOpacity,
-    required this.focusOpacity,
     required this.quietWarningContainer,
     required this.onQuietWarningContainer,
     required this.quietWarningAccent,
@@ -71,13 +67,9 @@ class NavisTokens extends ThemeExtension<NavisTokens> {
         ? scheme.surfaceContainerHighest
         : scheme.surfaceContainerHigh;
     return NavisTokens(
-      frameMaxWidthCompact: defaults.frameMaxWidthCompact,
-      frameMaxWidthStandard: defaults.frameMaxWidthStandard,
-      frameMaxWidthUltraWide: defaults.frameMaxWidthUltraWide,
       sidebarWidth: defaults.sidebarWidth,
       panelElevation: defaults.panelElevation,
       hoverOpacity: defaults.hoverOpacity,
-      focusOpacity: defaults.focusOpacity,
       quietWarningContainer: Color.alphaBlend(
         scheme.error.withValues(alpha: 0.12),
         warningBase,
@@ -94,13 +86,9 @@ class NavisTokens extends ThemeExtension<NavisTokens> {
     );
   }
 
-  final double frameMaxWidthCompact;
-  final double frameMaxWidthStandard;
-  final double frameMaxWidthUltraWide;
   final double sidebarWidth;
   final double panelElevation;
   final double hoverOpacity;
-  final double focusOpacity;
 
   /// Background for recoverable, non-blocking problems such as a failed
   /// background sync: noticeable without out-shouting the content.
@@ -116,13 +104,9 @@ class NavisTokens extends ThemeExtension<NavisTokens> {
   final Color success;
 
   static const NavisTokens defaults = NavisTokens(
-    frameMaxWidthCompact: 1240,
-    frameMaxWidthStandard: 1440,
-    frameMaxWidthUltraWide: 1720,
     sidebarWidth: 300,
     panelElevation: 0,
     hoverOpacity: 0.09,
-    focusOpacity: 0.14,
     quietWarningContainer: Color(0xFF2B2323),
     onQuietWarningContainer: Color(0xFFEDE0DE),
     quietWarningAccent: Color(0xFFFFB4AB),
@@ -139,28 +123,18 @@ class NavisTokens extends ThemeExtension<NavisTokens> {
 
   @override
   NavisTokens copyWith({
-    double? frameMaxWidthCompact,
-    double? frameMaxWidthStandard,
-    double? frameMaxWidthUltraWide,
     double? sidebarWidth,
     double? panelElevation,
     double? hoverOpacity,
-    double? focusOpacity,
     Color? quietWarningContainer,
     Color? onQuietWarningContainer,
     Color? quietWarningAccent,
     Color? success,
   }) {
     return NavisTokens(
-      frameMaxWidthCompact: frameMaxWidthCompact ?? this.frameMaxWidthCompact,
-      frameMaxWidthStandard:
-          frameMaxWidthStandard ?? this.frameMaxWidthStandard,
-      frameMaxWidthUltraWide:
-          frameMaxWidthUltraWide ?? this.frameMaxWidthUltraWide,
       sidebarWidth: sidebarWidth ?? this.sidebarWidth,
       panelElevation: panelElevation ?? this.panelElevation,
       hoverOpacity: hoverOpacity ?? this.hoverOpacity,
-      focusOpacity: focusOpacity ?? this.focusOpacity,
       quietWarningContainer:
           quietWarningContainer ?? this.quietWarningContainer,
       onQuietWarningContainer:
@@ -178,22 +152,9 @@ class NavisTokens extends ThemeExtension<NavisTokens> {
     double lerp(double a, double b) => a + (b - a) * t;
     Color lerpColor(Color a, Color b) => Color.lerp(a, b, t) ?? a;
     return NavisTokens(
-      frameMaxWidthCompact: lerp(
-        frameMaxWidthCompact,
-        other.frameMaxWidthCompact,
-      ),
-      frameMaxWidthStandard: lerp(
-        frameMaxWidthStandard,
-        other.frameMaxWidthStandard,
-      ),
-      frameMaxWidthUltraWide: lerp(
-        frameMaxWidthUltraWide,
-        other.frameMaxWidthUltraWide,
-      ),
       sidebarWidth: lerp(sidebarWidth, other.sidebarWidth),
       panelElevation: lerp(panelElevation, other.panelElevation),
       hoverOpacity: lerp(hoverOpacity, other.hoverOpacity),
-      focusOpacity: lerp(focusOpacity, other.focusOpacity),
       quietWarningContainer: lerpColor(
         quietWarningContainer,
         other.quietWarningContainer,
