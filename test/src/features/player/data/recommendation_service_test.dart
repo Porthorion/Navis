@@ -1,3 +1,4 @@
+import 'package:drift/drift.dart' show Value;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:navis/src/database/navis_database.dart';
 import 'package:navis/src/utils/connectivity.dart';
@@ -203,6 +204,42 @@ void main() {
     expect(result.songs.single.id, 'navidrome');
     expect(result.source, RecommendationSource.instantMix);
   });
+
+  test('the eligible pool precomputes recording identities once', () async {
+    final database = createTestDatabase();
+    addTearDown(database.close);
+    await database.libraryDao.upsertSongs(<SongsTableCompanion>[
+      SongsTableCompanion.insert(
+        id: 'song-1',
+        title: 'Song (Live)',
+        artistName: const Value('Artist'),
+      ),
+      SongsTableCompanion.insert(
+        id: 'song-2',
+        title: 'Other',
+        recordingMbid: const Value('ABC-123'),
+      ),
+    ]);
+    final container = ProviderContainer(
+      overrides: withTestDatabase(
+        database,
+        overrides: [
+          networkTypeProvider.overrideWith((ref) => NetworkType.wifi),
+        ],
+      ),
+    );
+    addTearDown(container.dispose);
+    final service = container.read(recommendationServiceProvider);
+
+    expect(
+      await service.debugRecordingIdentity(const RadioFilters(), 'song-1'),
+      RecommendationService.debugIdentity('Artist', 'Song (Live)'),
+    );
+    expect(
+      await service.debugRecordingIdentity(const RadioFilters(), 'song-2'),
+      'mbid:abc-123',
+    );
+  }, skip: !sqliteAvailable);
 
   test(
     'the eligible library follows catalog changes between refills',

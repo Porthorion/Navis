@@ -3,6 +3,7 @@ import 'dart:math';
 
 import 'package:dio/dio.dart';
 import 'package:drift/drift.dart' show TableUpdateQuery;
+import 'package:flutter/foundation.dart' show visibleForTesting;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:navis/src/api/lastfm_api_client.dart';
 import 'package:navis/src/api/models/song.dart';
@@ -12,6 +13,8 @@ import 'package:navis/src/database/navis_database.dart';
 import 'package:navis/src/database/tables/schema_enums.dart';
 import 'package:navis/src/features/downloads/data/android_saf_storage.dart';
 import 'package:navis/src/features/integrations/domain/integration_feature.dart';
+import 'package:navis/src/features/library/data/local_track_matcher.dart'
+    show kLocalTrackMatcherSnapshotYieldChunkSize;
 import 'package:navis/src/providers/app_providers.dart';
 import 'package:navis/src/utils/connectivity.dart';
 import 'package:navis/src/utils/metadata_normalization.dart';
@@ -58,7 +61,13 @@ class RecommendationService {
   /// The result is reused until songs or cached tracks change, the network
   /// or filters differ, or it is older than [_eligibleLibraryMaxAge].
   static const Duration _eligibleLibraryMaxAge = Duration(minutes: 2);
-  ({Object key, int revision, DateTime at, List<SongsTableData> songs})?
+  ({
+    Object key,
+    int revision,
+    DateTime at,
+    List<SongsTableData> songs,
+    _IdentityCache identities,
+  })?
   _eligibleLibraryCache;
   int _libraryRevision = 0;
   bool _watchingLibrary = false;
@@ -124,14 +133,47 @@ class RecommendationService {
       }
       eligible.add(song);
     }
+    // Identities are normalised once per pool, in chunks, so refills reuse
+    // them and building them never blocks the UI isolate in one pass.
+    final identities = _IdentityCache();
+    for (var index = 0; index < eligible.length; index++) {
+      _recordingRow(eligible[index], identities);
+      if ((index + 1) % kLocalTrackMatcherSnapshotYieldChunkSize == 0) {
+        await Future<void>.delayed(Duration.zero);
+      }
+    }
     _eligibleLibraryCache = (
       key: key,
       revision: revision,
       at: DateTime.now(),
       songs: List<SongsTableData>.unmodifiable(eligible),
+      identities: identities,
     );
     return eligible;
   }
+
+  /// The identity cache built with the current pool for [filters].
+  Future<_IdentityCache> _poolIdentities(RadioFilters filters) async {
+    await eligibleLibrary(filters);
+    return _eligibleLibraryCache?.identities ?? _IdentityCache();
+  }
+
+  @visibleForTesting
+  Future<String> debugRecordingIdentity(
+    RadioFilters filters,
+    String songId,
+  ) async {
+    final pool = await eligibleLibrary(filters);
+    final identities = await _poolIdentities(filters);
+    return _recordingRow(
+      pool.firstWhere((song) => song.id == songId),
+      identities,
+    );
+  }
+
+  @visibleForTesting
+  static String debugIdentity(String artist, String title) =>
+      _identity(artist, title);
 
   Future<RecommendationBatch> serverMix(
     String seedId, {
@@ -254,8 +296,8 @@ class RecommendationService {
     var resolvedExcludedIds = excludedIds;
 
     final eligible = await eligibleLibrary(filters);
-    // Identities are computed once per song for the whole batch.
-    final identities = _IdentityCache();
+    // Identities were computed once with the cached pool.
+    final identities = await _poolIdentities(filters);
     String recordingRow(SongsTableData song) => _recordingRow(song, identities);
     final hardExcluded = <String>{...excludedIds};
     final hardRecordings = eligible
@@ -556,7 +598,7 @@ List<Song> composeRadioBatch({
 }
 
 /// [RecommendationService._identity] of library rows, computed once per song
-/// id for one batch.
+/// id for the cached pool.
 class _IdentityCache {
   final Map<String, String> _byId = <String, String>{};
 
