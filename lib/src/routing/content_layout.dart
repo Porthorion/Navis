@@ -1,6 +1,7 @@
 import 'dart:math' as math;
 
 import 'package:flutter/widgets.dart';
+import 'package:navis/src/routing/desktop_layout.dart';
 
 enum GridArtworkSize {
   auto,
@@ -43,11 +44,11 @@ class ContentGridGeometry {
 class ContentLayout {
   const new _();
 
-  static double padding(double width) => width < 600 ? 12 : 24;
-  static double gap(double width) => width < 600 ? 8 : 12;
+  static double padding(double width) => width < kAdaptiveMediumWidth ? 12 : 24;
+  static double gap(double width) => width < kAdaptiveMediumWidth ? 8 : 12;
 
   static ContentGridGeometry albums(double width, GridArtworkSize size) {
-    final narrow = width < 600;
+    final narrow = width < kAdaptiveMediumWidth;
     final bounds = switch (size) {
       GridArtworkSize.small => narrow ? (120.0, 152.0) : (152.0, 184.0),
       GridArtworkSize.auto ||
@@ -63,7 +64,7 @@ class ContentLayout {
   }
 
   static ContentGridGeometry artists(double width, GridArtworkSize size) {
-    final narrow = width < 600;
+    final narrow = width < kAdaptiveMediumWidth;
     final bounds = switch (size) {
       GridArtworkSize.small => narrow ? (104.0, 128.0) : (120.0, 152.0),
       GridArtworkSize.auto ||
@@ -82,7 +83,7 @@ class ContentLayout {
   /// carousels and an artist page's Missing Albums. [compact] is Home's
   /// compact section density.
   static double shelfCardExtent(double width, {bool compact = false}) {
-    if (width < 600) return compact ? 138 : 150;
+    if (width < kAdaptiveMediumWidth) return compact ? 138 : 150;
     return compact ? 152 : 164;
   }
 
@@ -96,7 +97,7 @@ class ContentLayout {
     return TrackRowMode.compact;
   }
 
-  static ContentGridGeometry radio(double width) => width < 600
+  static ContentGridGeometry radio(double width) => width < kAdaptiveMediumWidth
       ? ContentGridGeometry(columns: 1, extent: width, gap: 12)
       : ContentGridGeometry.bounded(
           width: width,

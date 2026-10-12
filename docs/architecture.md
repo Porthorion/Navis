@@ -2060,6 +2060,10 @@ Non-desktop width buckets are resolved by `resolveAdaptiveLayoutClass`:
 | 600–839 dp | `tabletMedium` |
 | < 600 dp | `phoneCompact` |
 
+The breakpoints are the constants `kAdaptiveMediumWidth` (600) and
+`kAdaptiveExpandedWidth` (840) in `routing/desktop_layout.dart`; use them
+instead of literal widths.
+
 Desktop uses a separate classification:
 
 | Width | `DesktopLayoutClass` |

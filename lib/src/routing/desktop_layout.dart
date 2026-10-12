@@ -212,11 +212,16 @@ DesktopLayoutClass resolveDesktopLayoutClass(double width) {
   return DesktopLayoutClass.compactDesktop;
 }
 
+/// Width breakpoints of [AdaptiveLayoutClass]: from [kAdaptiveMediumWidth] a
+/// layout is a medium tablet, from [kAdaptiveExpandedWidth] an expanded one.
+const double kAdaptiveMediumWidth = 600;
+const double kAdaptiveExpandedWidth = 840;
+
 AdaptiveLayoutClass resolveAdaptiveLayoutClass(double width) {
-  if (width >= 840) {
+  if (width >= kAdaptiveExpandedWidth) {
     return AdaptiveLayoutClass.tabletExpanded;
   }
-  if (width >= 600) {
+  if (width >= kAdaptiveMediumWidth) {
     return AdaptiveLayoutClass.tabletMedium;
   }
   return AdaptiveLayoutClass.phoneCompact;
@@ -234,7 +239,7 @@ AdaptiveShellMode resolveAdaptiveShellMode({
   final width = viewportSize.width;
   final height = viewportSize.height;
   final shortestSide = width < height ? width : height;
-  final isPhoneFormFactor = shortestSide < 600;
+  final isPhoneFormFactor = shortestSide < kAdaptiveMediumWidth;
   final adaptiveClass = resolveAdaptiveLayoutClass(width);
   final isLandscape = width > height;
 
@@ -290,7 +295,8 @@ AdaptiveContext resolveAdaptiveContext({
     safePadding: safePadding,
   );
   final desktopLayoutClass = resolveDesktopLayoutClass(width);
-  final isPhoneFormFactor = !desktopRuntime && shortestSide < 600;
+  final isPhoneFormFactor =
+      !desktopRuntime && shortestSide < kAdaptiveMediumWidth;
   final desktopWide = desktopRuntime;
   final useDesktopShell = desktopRuntime;
   final useCompactWideLandscape =

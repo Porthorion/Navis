@@ -1,6 +1,7 @@
 import 'dart:convert';
 
 import 'package:material_ui/material_ui.dart';
+import 'package:navis/src/routing/desktop_layout.dart';
 import 'package:navis/src/common_widgets/app_notice.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -222,7 +223,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
             child: SafeArea(
               child: LayoutBuilder(
                 builder: (context, constraints) {
-                  final isWide = constraints.maxWidth >= 600;
+                  final isWide = constraints.maxWidth >= kAdaptiveMediumWidth;
                   final isShort = constraints.maxHeight < 600;
 
                   // Wide + short: side-by-side layout (landscape phones,

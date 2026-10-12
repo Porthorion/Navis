@@ -858,7 +858,9 @@ class _DesktopSyncStatusMetrics extends StatelessWidget {
       padding: const EdgeInsets.only(top: 16),
       child: LayoutBuilder(
         builder: (context, constraints) {
-          final columnCount = constraints.maxWidth >= 840 ? 4 : 2;
+          final columnCount = constraints.maxWidth >= kAdaptiveExpandedWidth
+              ? 4
+              : 2;
           const gap = 24.0;
           final itemWidth =
               (constraints.maxWidth - gap * (columnCount - 1)) / columnCount;

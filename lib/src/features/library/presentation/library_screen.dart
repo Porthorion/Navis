@@ -1768,7 +1768,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
             double.infinity,
           );
           final gap = ContentLayout.gap(width);
-          final compactTitles = width < 600;
+          final compactTitles = width < kAdaptiveMediumWidth;
           final titleStyle = compactTitles
               ? Theme.of(context).textTheme.titleMedium
               : Theme.of(context).textTheme.titleLarge;
@@ -1780,9 +1780,9 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
             8,
             4,
           );
-          final albumExtent = width < 600 ? 128.0 : 148.0;
-          final artistExtent = width < 600 ? 56.0 : 64.0;
-          final artistWidth = width < 600 ? 80.0 : 88.0;
+          final albumExtent = width < kAdaptiveMediumWidth ? 128.0 : 148.0;
+          final artistExtent = width < kAdaptiveMediumWidth ? 56.0 : 64.0;
+          final artistWidth = width < kAdaptiveMediumWidth ? 80.0 : 88.0;
           final artistPreview = filteredArtists
               .take(ContentLayout.shelfLimit(width, artistWidth))
               .toList(growable: false);
@@ -1955,7 +1955,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
                           ),
                           if (filteredPlaybackSongs.isNotEmpty)
                             EntityActionBar(
-                              compact: width < 600,
+                              compact: width < kAdaptiveMediumWidth,
                               onPlay: () => unawaited(
                                 _queueLikedSongs(filteredPlaybackSongs),
                               ),

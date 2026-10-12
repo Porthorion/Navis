@@ -5,6 +5,7 @@ import 'package:flutter/foundation.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:navis/src/routing/desktop_layout.dart';
 import 'package:navis/l10n/app_localizations.dart';
 import 'package:navis/src/common_widgets/navis_icon.dart';
 import 'package:navis/src/features/home/presentation/home_onboarding_warmup.dart';
@@ -411,7 +412,8 @@ class OnboardingScreenState extends ConsumerState<OnboardingScreen> {
     final motion = MotionPolicy.of(context);
     final previewTheme = _previewTheme(context, draft);
     final viewport = MediaQuery.sizeOf(context);
-    final compact = viewport.width < 600 || viewport.height < 700;
+    final compact =
+        viewport.width < kAdaptiveMediumWidth || viewport.height < 700;
     // Read here so the page follows the keyboard as it opens and closes.
     final keyboardInset = MediaQuery.viewInsetsOf(context).bottom;
     final keyboardOpen = keyboardInset > 0;
@@ -468,7 +470,7 @@ class OnboardingScreenState extends ConsumerState<OnboardingScreen> {
                               // A phone on its side gets the one-row header,
                               // which leaves the step room to show.
                               child: _header(
-                                stacked: viewport.width < 600,
+                                stacked: viewport.width < kAdaptiveMediumWidth,
                                 previewTheme,
                               ),
                             ),
