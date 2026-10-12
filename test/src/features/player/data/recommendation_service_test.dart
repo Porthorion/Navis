@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:drift/drift.dart' show Value;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:navis/src/database/navis_database.dart';
@@ -9,12 +11,43 @@ import 'package:navis/src/api/models/song.dart';
 import 'package:navis/src/api/subsonic_api_client.dart';
 import 'package:navis/src/api/subsonic_error.dart';
 import 'package:navis/src/features/integrations/domain/integration_feature.dart';
+import 'package:navis/src/features/library/data/local_track_matcher.dart'
+    show kLocalTrackMatcherSnapshotYieldChunkSize;
 import 'package:navis/src/features/player/data/recommendation_service.dart';
 import 'package:navis/src/providers/app_providers.dart';
 
 import '../../../../helpers/test_database.dart';
 
 class _MockSubsonicApiClient extends Mock implements SubsonicApiClient;
+
+/// Holds the first chunk yield until the catalog change or disposal finishes.
+Future<T> _duringChunkYield<T>(
+  Future<T> Function() build,
+  Future<void> Function() duringYield, {
+  List<Timer>? timers,
+}) async {
+  var reachedYield = false;
+  final result = await runZoned(
+    build,
+    zoneSpecification: ZoneSpecification(
+      createTimer: (self, parent, zone, duration, callback) {
+        final pause = duration == Duration.zero && !reachedYield;
+        if (pause) reachedYield = true;
+        final timer = parent.createTimer(zone, duration, () {
+          if (pause) {
+            unawaited(duringYield().then((_) => callback()));
+          } else {
+            callback();
+          }
+        });
+        timers?.add(timer);
+        return timer;
+      },
+    ),
+  );
+  expect(reachedYield, isTrue, reason: 'The pool must yield during its build');
+  return result;
+}
 
 class _CountingLastFmApiClient extends LastFmApiClient {
   new() : super(apiKey: 'test-key');
@@ -276,6 +309,126 @@ void main() {
       await service.debugRecordingIdentity(const RadioFilters(), 'song-2'),
       'mbid:abc-123',
     );
+    expect(
+      service.debugCachedNormalizedIdentity('song-2'),
+      RecommendationService.debugIdentity('', 'Other'),
+    );
+  }, skip: !sqliteAvailable);
+
+  for (final radio in [false, true]) {
+    test(
+      radio
+          ? 'radio exclusions use identities from the returned song snapshot'
+          : 'recording identities use the returned song snapshot',
+      () async {
+        final database = createTestDatabase();
+        addTearDown(database.close);
+        await database.libraryDao.upsertSongs(<SongsTableCompanion>[
+          for (
+            var index = 0;
+            index <= kLocalTrackMatcherSnapshotYieldChunkSize;
+            index++
+          )
+            SongsTableCompanion.insert(
+              id: 'song-$index',
+              title: index < 2 ? 'Original' : 'Title $index',
+              artistName: const Value('Artist'),
+            ),
+        ]);
+        final container = ProviderContainer(
+          overrides: withTestDatabase(
+            database,
+            overrides: [
+              networkTypeProvider.overrideWith((ref) => NetworkType.wifi),
+              subsonicApiProvider.overrideWithValue(null),
+              lastFmApiClientProvider.overrideWithValue(null),
+            ],
+          ),
+        );
+        addTearDown(container.dispose);
+        final service = container.read(recommendationServiceProvider);
+
+        Future<void> changeCatalog() async {
+          await database.libraryDao.upsertSongs(<SongsTableCompanion>[
+            SongsTableCompanion.insert(
+              id: 'song-0',
+              title: 'Updated',
+              artistName: const Value('Artist'),
+            ),
+          ]);
+          await pumpEventQueue();
+        }
+
+        if (radio) {
+          final batch = await _duringChunkYield(
+            () => service.personalRadio(
+              const RadioFilters(),
+              excludedIds: {'song-0'},
+              count: kLocalTrackMatcherSnapshotYieldChunkSize + 1,
+            ),
+            changeCatalog,
+          );
+          expect(batch.songs, isNotEmpty);
+          expect(batch.songs.map((song) => song.id), isNot(contains('song-1')));
+        } else {
+          final identity = await _duringChunkYield(
+            () =>
+                service.debugRecordingIdentity(const RadioFilters(), 'song-0'),
+            changeCatalog,
+          );
+          expect(
+            identity,
+            RecommendationService.debugIdentity('Artist', 'Original'),
+          );
+        }
+        expect(
+          (await service.eligibleLibrary(const RadioFilters()))
+              .firstWhere((song) => song.id == 'song-0')
+              .title,
+          'Updated',
+        );
+      },
+      skip: !sqliteAvailable,
+    );
+  }
+
+  test('disposal during a pool build retains no cache or timer', () async {
+    final database = createTestDatabase();
+    addTearDown(database.close);
+    await database.libraryDao.upsertSongs(<SongsTableCompanion>[
+      for (
+        var index = 0;
+        index <= kLocalTrackMatcherSnapshotYieldChunkSize;
+        index++
+      )
+        SongsTableCompanion.insert(id: 'song-$index', title: 'Title $index'),
+    ]);
+    final container = ProviderContainer(
+      overrides: withTestDatabase(
+        database,
+        overrides: [
+          networkTypeProvider.overrideWith((ref) => NetworkType.wifi),
+        ],
+      ),
+    );
+    addTearDown(container.dispose);
+    final service = container.read(recommendationServiceProvider);
+    final timers = <Timer>[];
+    try {
+      final pool = await _duringChunkYield(
+        () => service.eligibleLibrary(const RadioFilters()),
+        () async => container.dispose(),
+        timers: timers,
+      );
+      expect(pool, hasLength(kLocalTrackMatcherSnapshotYieldChunkSize + 1));
+      expect(service.debugHasEligibleLibrary, isFalse);
+      expect(timers.where((timer) => timer.isActive), isEmpty);
+    } finally {
+      // Also clean up the leaked release timer on the pre-fix failure path.
+      for (final timer in timers) {
+        timer.cancel();
+      }
+    }
   }, skip: !sqliteAvailable);
 
   test(

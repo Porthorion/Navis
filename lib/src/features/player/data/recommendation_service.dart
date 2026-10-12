@@ -57,7 +57,12 @@ class RecommendationService {
     Random? random,
     this._eligibleLibraryMaxAge = const Duration(minutes: 2),
   }) : _random = random ?? Random() {
-    _ref.onDispose(() => _eligibleLibraryRelease?.cancel());
+    _ref.onDispose(() {
+      _disposed = true;
+      _eligibleLibraryRelease?.cancel();
+      _eligibleLibraryRelease = null;
+      _eligibleLibraryCache = null;
+    });
   }
 
   final Ref _ref;
@@ -69,9 +74,14 @@ class RecommendationService {
   /// or filters differ, or it is older than [_eligibleLibraryMaxAge].
   final Duration _eligibleLibraryMaxAge;
   Timer? _eligibleLibraryRelease;
+  bool _disposed = false;
 
   @visibleForTesting
   bool get debugHasEligibleLibrary => _eligibleLibraryCache != null;
+
+  @visibleForTesting
+  String? debugCachedNormalizedIdentity(String songId) =>
+      _eligibleLibraryCache?.identities._byId[songId];
 
   ({
     Object key,
@@ -84,7 +94,12 @@ class RecommendationService {
   int _libraryRevision = 0;
   bool _watchingLibrary = false;
 
-  Future<List<SongsTableData>> eligibleLibrary(RadioFilters filters) async {
+  Future<List<SongsTableData>> eligibleLibrary(RadioFilters filters) async =>
+      (await _eligiblePool(filters)).songs;
+
+  /// Keeps rows and identities together even if the catalog changes mid-build.
+  Future<({List<SongsTableData> songs, _IdentityCache identities})>
+  _eligiblePool(RadioFilters filters) async {
     final db = _ref.read(navisDatabaseProvider);
     if (!_watchingLibrary) {
       _watchingLibrary = true;
@@ -102,7 +117,10 @@ class RecommendationService {
         cached.key == key &&
         cached.revision == _libraryRevision &&
         DateTime.now().difference(cached.at) < _eligibleLibraryMaxAge) {
-      return List<SongsTableData>.of(cached.songs);
+      return (
+        songs: List<SongsTableData>.of(cached.songs),
+        identities: cached.identities,
+      );
     }
     final revision = _libraryRevision;
     final catalog = await db.libraryDao.getAllSongs();
@@ -149,11 +167,14 @@ class RecommendationService {
     // them and building them never blocks the UI isolate in one pass.
     final identities = _IdentityCache();
     for (var index = 0; index < eligible.length; index++) {
-      _recordingRow(eligible[index], identities);
+      identities.ofRow(eligible[index]);
       if ((index + 1) % kLocalTrackMatcherSnapshotYieldChunkSize == 0) {
         await Future<void>.delayed(Duration.zero);
       }
     }
+    final pool = (songs: eligible, identities: identities);
+    // A yielded build may finish after its provider's cleanup has run.
+    if (_disposed) return pool;
     _eligibleLibraryCache = (
       key: key,
       revision: revision,
@@ -167,13 +188,7 @@ class RecommendationService {
     _eligibleLibraryRelease = Timer(_eligibleLibraryMaxAge, () {
       _eligibleLibraryCache = null;
     });
-    return eligible;
-  }
-
-  /// The identity cache built with the current pool for [filters].
-  Future<_IdentityCache> _poolIdentities(RadioFilters filters) async {
-    await eligibleLibrary(filters);
-    return _eligibleLibraryCache?.identities ?? _IdentityCache();
+    return pool;
   }
 
   @visibleForTesting
@@ -181,11 +196,10 @@ class RecommendationService {
     RadioFilters filters,
     String songId,
   ) async {
-    final pool = await eligibleLibrary(filters);
-    final identities = await _poolIdentities(filters);
+    final pool = await _eligiblePool(filters);
     return _recordingRow(
-      pool.firstWhere((song) => song.id == songId),
-      identities,
+      pool.songs.firstWhere((song) => song.id == songId),
+      pool.identities,
     );
   }
 
@@ -313,9 +327,10 @@ class RecommendationService {
   }) async {
     var resolvedExcludedIds = excludedIds;
 
-    final eligible = await eligibleLibrary(filters);
+    final poolSnapshot = await _eligiblePool(filters);
+    final eligible = poolSnapshot.songs;
     // Identities were computed once with the cached pool.
-    final identities = await _poolIdentities(filters);
+    final identities = poolSnapshot.identities;
     String recordingRow(SongsTableData song) => _recordingRow(song, identities);
     final hardExcluded = <String>{...excludedIds};
     final hardRecordings = eligible
