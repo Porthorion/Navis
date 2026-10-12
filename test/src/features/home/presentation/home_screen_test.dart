@@ -3409,6 +3409,54 @@ void main() {
     },
   );
 
+  testWidgets('hero carousel loaded after startup can scroll backwards', (
+    tester,
+  ) async {
+    final items = [
+      for (var i = 0; i < 6; i++)
+        HomeRandomShowcaseAlbum(
+          id: 'late-$i',
+          name: 'Late $i',
+          source: HomeRandomShowcaseSource.serverRandom,
+        ),
+    ];
+    final view = tester.view;
+    view.devicePixelRatio = 1.0;
+    view.physicalSize = const Size(390, 844);
+    addTearDown(() {
+      view.resetPhysicalSize();
+      view.resetDevicePixelRatio();
+    });
+    await _pumpRandomSectionHome(
+      tester,
+      database: database,
+      randomAlbums: const [],
+      mutableShowcase: true,
+    );
+    final fixture = ProviderScope.containerOf(
+      tester.element(find.byType(HomeScreen, skipOffstage: false)),
+    ).read(_showcaseFixture.notifier);
+    fixture.items = [items.first];
+    await tester.pumpAndSettle();
+
+    ProviderScope.containerOf(
+      tester.element(find.byType(HomeScreen, skipOffstage: false)),
+    ).read(_showcaseFixture.notifier).items = items;
+    await tester.pumpAndSettle();
+
+    final carousel = find.byKey(
+      const ValueKey<String>('home-random-hero-carousel'),
+    );
+    final pageView = tester.widget<PageView>(carousel);
+    expect(pageView.controller!.page, greaterThanOrEqualTo(items.length));
+
+    await tester.drag(carousel, const Offset(320, 0));
+    await tester.pumpAndSettle();
+    expect(find.text('Late 5'), findsWidgets);
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pumpAndSettle();
+  });
+
   testWidgets(
     'desktop recommendations preserve selection across pane resizing and data refresh',
     (tester) async {
