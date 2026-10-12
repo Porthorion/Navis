@@ -9,6 +9,7 @@ import 'package:navis/src/features/auth/presentation/server_config_provider.dart
 import 'package:navis/src/features/auth/presentation/server_reachability_provider.dart';
 import 'package:navis/src/features/auth/presentation/session_route_provider.dart';
 import 'package:navis/src/features/cache/presentation/library_cache_reset_provider.dart';
+import 'package:navis/src/features/cache/data/library_cache_reset_service.dart';
 import 'package:navis/src/features/library/domain/library_sync_state.dart';
 import 'package:navis/src/features/library/presentation/library_sync_provider.dart';
 import 'package:navis/src/features/library/presentation/required_library_rebuild.dart';
@@ -71,6 +72,7 @@ class RequiredLibraryRebuildController
   int _inFlightEpoch = 0;
   int _epoch = 0;
   bool _resetPrepared = false;
+  LibraryCacheQueueSnapshot? _queueSnapshot;
 
   @override
   RequiredLibraryRebuildState build() {
@@ -86,6 +88,7 @@ class RequiredLibraryRebuildController
     );
     _epoch += 1;
     _resetPrepared = false;
+    _queueSnapshot = null;
     ref.listen<ServerReachabilityState>(serverReachabilityControllerProvider, (
       _,
       next,
@@ -149,7 +152,8 @@ class RequiredLibraryRebuildController
         status: RequiredLibraryRebuildStatus.clearingCache,
       );
       try {
-        await _clearRecoverableCache();
+        final snapshot = await _clearRecoverableCache();
+        if (_isCurrent(runEpoch)) _queueSnapshot = snapshot;
       } on Object catch (error) {
         AppLogger.warning('Library cache reset failed: ${error.runtimeType}.');
         if (_isCurrent(runEpoch)) {
@@ -212,6 +216,12 @@ class RequiredLibraryRebuildController
             state.status == RequiredLibraryRebuildStatus.cancelling) {
           return;
         }
+        final queueSnapshot = _queueSnapshot;
+        if (result.status == LibrarySyncStatus.succeeded) {
+          await queueSnapshot?.restore();
+          if (!_isCurrent(runEpoch)) return;
+        }
+        _queueSnapshot = null;
         if (_reason == RequiredLibraryRebuildReason.cacheUpgrade) {
           await ref
               .read(cacheSystemUpgradeServiceProvider)
@@ -262,14 +272,15 @@ class RequiredLibraryRebuildController
     }
   }
 
-  Future<void> _clearRecoverableCache() {
+  Future<LibraryCacheQueueSnapshot?> _clearRecoverableCache() {
     return switch (_reason) {
       RequiredLibraryRebuildReason.cacheUpgrade =>
         ref.read(cacheSystemUpgradeServiceProvider).resetRecoverableCache(),
       RequiredLibraryRebuildReason.manualCacheReset ||
       RequiredLibraryRebuildReason.playbackRecovery =>
         ref.read(libraryCacheResetServiceProvider).reset(),
-      RequiredLibraryRebuildReason.initialLogin => Future<void>.value(),
+      RequiredLibraryRebuildReason.initialLogin =>
+        Future<LibraryCacheQueueSnapshot?>.value(),
     };
   }
 
@@ -306,6 +317,7 @@ class RequiredLibraryRebuildController
         status: RequiredLibraryRebuildStatus.cancelling,
       );
       _epoch += 1;
+      _queueSnapshot = null;
       await ref.read(signOutServiceProvider).signOut(wipeLocalData: false);
       if (!ref.mounted) return;
       await ref.read(serverConfigProvider.notifier).refresh();

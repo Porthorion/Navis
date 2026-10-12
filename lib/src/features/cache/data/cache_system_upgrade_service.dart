@@ -41,7 +41,8 @@ class CacheSystemUpgradeService {
     return true;
   }
 
-  Future<void> resetRecoverableCache() => cacheResetService.reset();
+  Future<LibraryCacheQueueSnapshot?> resetRecoverableCache() =>
+      cacheResetService.reset();
 
   Future<void> markCurrentVersionAfterSuccessfulScan() async {
     final epoch = await currentEpoch();
@@ -53,10 +54,11 @@ class CacheSystemUpgradeService {
   /// one-time upgrade. A failed scan intentionally leaves the upgrade pending
   /// so a profile is never left with an empty library without a retry path.
   Future<void> resetAndMarkCurrent() async {
-    await resetRecoverableCache();
+    final queueSnapshot = await resetRecoverableCache();
     if (!await triggerFullLibraryScan()) {
       throw StateError('The library scan did not complete after cache reset.');
     }
+    await queueSnapshot?.restore();
     await markCurrentVersionAfterSuccessfulScan();
   }
 }

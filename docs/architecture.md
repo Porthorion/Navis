@@ -25,6 +25,10 @@ Located in `lib/src/providers/app_providers.dart`:
   interactive vs hard probe eligibility)
 
 - **Android background sync**
+  - The shell's battery tip remembers Later and sheet dismissal for 14 days in
+    `battery_tip_snoozed_at.txt` in application support, using the same
+    device-local file pattern as the changelog marker. Open Settings does not
+    snooze the tip; no database schema change is needed.
   - `androidBackgroundSyncReconcilerProvider` owns native WorkManager
     scheduling reconciliation and constructs its scheduler directly; sync domain
     logic remains in the library planner/coordinator.
@@ -5243,6 +5247,16 @@ download naming throws when all 100 collision candidates are occupied.
    metered-data, and sign-out recovery options on failure, and only then opens
    Home. `LibraryCacheResetService` deliberately preserves permanent downloads
    and their files; the upgrade marker is written only after that full scan.
+   Before deleting songs (which cascade-delete saved queue items), the reset
+   snapshots the persisted queue and its playback state in memory. The upgrade,
+   Settings reset, and playback recovery flows restore surviving song occurrences
+   after a successful full scan, retaining play order, original shuffle ranks,
+   repeat/shuffle modes, position, and the current occurrence's remapped index
+   (clamped if removed). Failed scans or no surviving songs leave the saved queue
+   cleared. Restoration never reloads playback and yields to a newly saved live
+   queue. The snapshot is scoped to the rebuild visit, retained through scan
+   retries, and discarded on completion, cancellation, or session change;
+   schema 103 is unchanged.
 
 ### Download quality, concurrency and artwork
 

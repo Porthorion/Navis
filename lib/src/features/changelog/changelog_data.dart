@@ -165,6 +165,14 @@ const List<ChangelogVersion> changelogs = [
     ],
     entries: [
       ChangelogEntry(
+        'Fixed the play queue being lost after the library rebuild when updating',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
+        'The background sync battery tip no longer reappears every time you open Navis after you choose Later',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
         'Fixed sign-in and playback getting stuck when secure storage is temporarily unavailable',
         type: ChangelogEntryType.fix,
       ),

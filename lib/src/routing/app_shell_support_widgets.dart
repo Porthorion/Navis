@@ -9,8 +9,9 @@ part of 'app_shell.dart';
 Future<void> showBatteryOptimizationSheet(
   BuildContext context, {
   required Future<void> Function() onOpenSettings,
-}) {
-  return showModalBottomSheet<void>(
+  Future<void> Function()? onSnooze,
+}) async {
+  final openedSettings = await showModalBottomSheet<bool>(
     context: context,
     useRootNavigator: true,
     useSafeArea: true,
@@ -19,12 +20,13 @@ Future<void> showBatteryOptimizationSheet(
     builder: (sheetContext) {
       return _BatteryOptimizationSheet(
         onOpenSettings: () {
-          Navigator.of(sheetContext).pop();
+          Navigator.of(sheetContext).pop(true);
           unawaited(onOpenSettings());
         },
       );
     },
   );
+  if (openedSettings != true) await onSnooze?.call();
 }
 
 class _BatteryOptimizationSheet extends StatelessWidget {

@@ -107,7 +107,7 @@ class _CountingCacheReset extends LibraryCacheResetService {
   int resets = 0;
 
   @override
-  Future<void> reset() {
+  Future<LibraryCacheQueueSnapshot?> reset() {
     resets++;
     return super.reset();
   }
@@ -745,6 +745,87 @@ void main() {
     RequiredLibraryRebuildReason.playbackRecovery,
     RequiredLibraryRebuildReason.cacheUpgrade,
   ]) {
+    for (final succeeds in [true, false]) {
+      test(
+        '$reason restores queue only on successful scan: $succeeds',
+        () async {
+          final (database, server) = await _committedCatalog();
+          await database.libraryDao.upsertSongs([
+            SongsTableCompanion.insert(id: 'queued', title: 'Queued'),
+          ]);
+          await database.playQueueDao.saveQueue(
+            songIds: ['queued'],
+            currentIndex: 0,
+            positionMs: 1234,
+          );
+          final sync = _ControlledSync(
+            LibrarySyncState(
+              status: succeeds
+                  ? LibrarySyncStatus.succeeded
+                  : LibrarySyncStatus.failed,
+              stage: LibrarySyncStage.completed,
+            ),
+            beforeResult: () async {
+              expect(await database.playQueueDao.getQueueItems(), isEmpty);
+              await database.libraryDao.upsertSongs([
+                SongsTableCompanion.insert(id: 'queued', title: 'Queued again'),
+              ]);
+            },
+          );
+          final container = _setupContainer(
+            database: database,
+            server: server,
+            sync: sync,
+          );
+          addTearDown(container.dispose);
+          final provider = requiredLibraryRebuildControllerProvider(reason);
+          _mount(container, reason);
+          await container.read(provider.notifier).start();
+          expect(sync.calls, 1);
+          expect(
+            (await database.playQueueDao.getQueueItems()).map(
+              (song) => song.id,
+            ),
+            succeeds ? ['queued'] : <String>[],
+          );
+          final state = await database.playQueueDao.getQueueState();
+          if (succeeds) {
+            expect(state!.currentIndex, 0);
+            expect(state.positionMs, 1234);
+          } else {
+            expect(state, isNull);
+          }
+          expect(
+            container.read(provider).status,
+            succeeds
+                ? RequiredLibraryRebuildStatus.complete
+                : RequiredLibraryRebuildStatus.failed,
+          );
+          if (!succeeds) {
+            sync.result = const LibrarySyncState(
+              status: LibrarySyncStatus.succeeded,
+              stage: LibrarySyncStage.completed,
+            );
+            await container.read(provider.notifier).retry();
+            expect(
+              (await database.playQueueDao.getQueueItems()).map(
+                (song) => song.id,
+              ),
+              ['queued'],
+            );
+            expect(
+              (await database.playQueueDao.getQueueState())!.positionMs,
+              1234,
+            );
+            expect(
+              container.read(provider).status,
+              RequiredLibraryRebuildStatus.complete,
+            );
+          }
+        },
+        skip: !sqliteAvailable,
+      );
+    }
     test(
       '$reason leaves full-screen after safe incomplete album response',
       () async {
