@@ -8,6 +8,7 @@ if [[ "$MODE" != "clone" ]]; then
 fi
 
 PROJECT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+source "$PROJECT_DIR/tool/lib/diagnostics.sh"
 SOURCE_DB="$(python3 "$PROJECT_DIR/tool/diagnostics_profile.py" primary-db)"
 STAMP="$(date -u +%Y%m%dT%H%M%SZ)"
 OUTPUT_ROOT="$PROJECT_DIR/build/playback-indicator-diagnostics/$STAMP-clone"
@@ -77,12 +78,6 @@ cd "$PROJECT_DIR"
 : > "$APP_LOG"
 FLUTTER_PID=0
 
-cleanup() {
-  if (( FLUTTER_PID > 0 )) && kill -0 "$FLUTTER_PID" >/dev/null 2>&1; then
-    kill "$FLUTTER_PID" >/dev/null 2>&1 || true
-    wait "$FLUTTER_PID" >/dev/null 2>&1 || true
-  fi
-}
 trap cleanup EXIT INT TERM
 
 launch_app() {
@@ -133,20 +128,6 @@ print(value["port"], value["token"])
 PY
   )
   BASE_URL="http://127.0.0.1:$PORT"
-}
-
-api() {
-  local method="$1"
-  local route="$2"
-  local body="${3:-}"
-  if [[ -n "$body" ]]; then
-    curl --fail-with-body --silent --show-error \
-      -X "$method" -H "Authorization: Bearer $TOKEN" \
-      -H 'Content-Type: application/json' -d "$body" "$BASE_URL$route"
-  else
-    curl --fail-with-body --silent --show-error \
-      -X "$method" -H "Authorization: Bearer $TOKEN" "$BASE_URL$route"
-  fi
 }
 
 song_body() {
@@ -245,17 +226,6 @@ show_queue() {
   local output_file="$1"
   api POST /v1/presentation/player-overlay \
     '{"surface":"queue","visible":true}' > "$output_file"
-}
-
-mute_and_verify() {
-  local response
-  response="$(api POST /v1/playback/volume '{"value":0}')"
-  python3 - "$response" <<'PY'
-import json, sys
-value = json.loads(sys.argv[1])
-assert value.get("volume") == 0, value
-assert value.get("effectivePlayerVolume") == 0, value
-PY
 }
 
 run_acceptance() {

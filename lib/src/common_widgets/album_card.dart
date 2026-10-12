@@ -68,6 +68,63 @@ class AlbumCard extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    return AlbumCardContent(
+      name: album.name,
+      artist: album.artistName,
+      coverArtId: album.coverArt,
+      coverArtRevision: album.coverArtRevision,
+      isExternalSource: album.isExternal,
+      albumId: album.id,
+      size: size,
+      heroTag: heroTag,
+      extent: extent,
+      badge: badge,
+      onTap: onTap,
+      onLongPress: onLongPress,
+      onSecondaryTapDown: onSecondaryTapDown,
+    );
+  }
+}
+
+/// [AlbumCard]'s body, built from raw fields so callers without a Drift row
+/// (the Home shelves' server albums) render the identical card. With no
+/// [albumId] the desktop hover-play button is not shown.
+class AlbumCardContent extends ConsumerWidget {
+  const new({
+    required this.name,
+    super.key,
+    this.artist,
+    this.coverArtId,
+    this.coverArtRevision,
+    this.isExternalSource = false,
+    this.albumId,
+    this.size = AlbumCardSize.library,
+    this.heroTag,
+    this.extent,
+    this.badge,
+    this.onTap,
+    this.onLongPress,
+    this.onSecondaryTapDown,
+  });
+
+  final String name;
+  final String? artist;
+  final String? coverArtId;
+  final int? coverArtRevision;
+  final bool isExternalSource;
+  final String? albumId;
+  final AlbumCardSize size;
+  final double? extent;
+
+  /// Optional hero tag for cover-art transition animations.
+  final String? heroTag;
+  final Widget? badge;
+  final VoidCallback? onTap;
+  final VoidCallback? onLongPress;
+  final GestureTapDownCallback? onSecondaryTapDown;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
     final shape = ref.watch(coverArtShapeProvider);
     final cardBorderRadius = artworkBorderRadius(
       shape,
@@ -76,11 +133,11 @@ class AlbumCard extends ConsumerWidget {
     final cardWidth = extent ?? size.extent;
 
     return CoverReadyScope(
-      coverKey: (album.coverArt, album.coverArtRevision),
+      coverKey: (coverArtId, coverArtRevision),
       builder: (context, coverReady) => AlbumCardCaptionLayout(
         width: cardWidth,
-        title: album.name,
-        subtitle: album.artistName ?? '',
+        title: name,
+        subtitle: artist ?? '',
         card: Card(
           clipBehavior: Clip.antiAlias,
           margin: EdgeInsets.zero,
@@ -100,24 +157,24 @@ class AlbumCard extends ConsumerWidget {
               children: <Widget>[
                 if (heroTag != null)
                   HeroCoverArt(
-                    coverArtId: album.coverArt,
-                    revision: album.coverArtRevision ?? 0,
+                    coverArtId: coverArtId,
+                    revision: coverArtRevision ?? 0,
                     heroTag: heroTag!,
                     size: kCoverArtStandardSize,
                     fit: BoxFit.cover,
                     placeholderIcon: Icons.album_outlined,
                     borderRadius: cardBorderRadius,
-                    isExternalSource: album.isExternal,
+                    isExternalSource: isExternalSource,
                     onImageReady: () => coverReady.value = true,
                   )
                 else
                   CoverArtImage(
-                    coverArtId: album.coverArt,
-                    revision: album.coverArtRevision ?? 0,
+                    coverArtId: coverArtId,
+                    revision: coverArtRevision ?? 0,
                     size: kCoverArtStandardSize,
                     fit: BoxFit.cover,
                     placeholderIcon: Icons.album_outlined,
-                    isExternalSource: album.isExternal,
+                    isExternalSource: isExternalSource,
                     onImageReady: () => coverReady.value = true,
                   ),
                 HeroRouteChrome(
@@ -128,15 +185,15 @@ class AlbumCard extends ConsumerWidget {
                       if (badge != null)
                         Positioned(top: 8, right: 8, child: badge!),
                       AlbumCardLabel(
-                        title: album.name,
-                        subtitle: album.artistName ?? '',
-                        coverArtId: album.coverArt,
-                        coverArtRevision: album.coverArtRevision ?? 0,
+                        title: name,
+                        subtitle: artist ?? '',
+                        coverArtId: coverArtId,
+                        coverArtRevision: coverArtRevision ?? 0,
                         coverReady: coverReady,
                       ),
-                      if (onTap != null && isDesktopRuntime)
+                      if (onTap != null && albumId != null && isDesktopRuntime)
                         Positioned.fill(
-                          child: _AlbumCardHoverPlay(albumId: album.id),
+                          child: _AlbumCardHoverPlay(albumId: albumId!),
                         ),
                     ],
                   ),

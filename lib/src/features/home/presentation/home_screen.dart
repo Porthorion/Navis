@@ -798,28 +798,13 @@ class _ListenBrainzWeeklyDetailContentState
     );
   }
 
-  Future<void> _downloadSong(SongsTableData song) async {
-    final choice = await requestDownloadQuality(context, ref);
-    if (choice == null || !mounted) return;
-    await ref
-        .read(downloadServiceProvider)
-        .enqueueSong(
-          song.id,
-          albumId: song.albumId,
-          quality: choice.quality,
-          format: choice.format,
-        );
-    if (!mounted) return;
-    showAppNotice(
-      context,
-      message: downloadQueuedNotice(
-        AppLocalizations.of(context)!,
-        AppLocalizations.of(context)!.downloadSongQueued,
-        choice,
-      ),
-      level: AppNoticeLevel.success,
-    );
-  }
+  Future<void> _downloadSong(SongsTableData song) =>
+      downloadSongWithQualityPrompt(
+        context,
+        ref,
+        song.id,
+        albumId: song.albumId,
+      );
 
   void _enqueuePendingDownloads(List<SongsTableData> serverSongs) {
     final choice = _pendingDownloadChoice;
@@ -2121,6 +2106,53 @@ class _HomeSection<T> extends StatelessWidget {
 // Album carousels (horizontal scroll of square AlbumCards)
 // ─────────────────────────────────────────────────────────────────────────────
 
+/// Horizontal shelf shell shared by the server and local album carousels.
+/// [itemCount] may trim the list by the usable width and card size.
+class _AlbumShelf extends StatelessWidget {
+  const new({
+    required this.itemBuilder,
+    required this.itemCount,
+    required this.padded,
+    required this.density,
+  });
+
+  final Widget Function(BuildContext context, int index, double cardSize)
+  itemBuilder;
+  final int Function(double usableWidth, double cardSize) itemCount;
+  final bool padded;
+  final _HomeSectionDensity density;
+
+  @override
+  Widget build(BuildContext context) {
+    final compactDensity = density == _HomeSectionDensity.compact;
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final width = constraints.maxWidth;
+        final cardSize = ContentLayout.shelfCardExtent(
+          width,
+          compact: compactDensity,
+        );
+        final horizontalPadding = padded ? 16.0 : 0.0;
+        final usableWidth = (width - horizontalPadding * 2).clamp(
+          0.0,
+          double.infinity,
+        );
+        return Padding(
+          padding: EdgeInsets.symmetric(horizontal: horizontalPadding),
+          child: ContentShelf(
+            height: cardSize + albumCardExtraHeight(context),
+            extent: cardSize,
+            gap: ContentLayout.gap(usableWidth),
+            itemCount: itemCount(usableWidth, cardSize),
+            itemBuilder: (context, index) =>
+                itemBuilder(context, index, cardSize),
+          ),
+        );
+      },
+    );
+  }
+}
+
 /// Carousel for [Album] objects coming from the server API.
 class _ServerAlbumCarousel extends ConsumerWidget {
   const new({
@@ -2145,59 +2177,34 @@ class _ServerAlbumCarousel extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final coverShape = ref.watch(coverArtShapeProvider);
-    final coverRadius = artworkBorderRadius(
-      coverShape,
-      extent: double.infinity,
-    );
-    final compactDensity = density == _HomeSectionDensity.compact;
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final width = constraints.maxWidth;
-        final cardSize = ContentLayout.shelfCardExtent(
-          width,
-          compact: compactDensity,
+    return _AlbumShelf(
+      padded: !(desktopMode || tabletMode),
+      density: density,
+      itemCount: (_, _) => albums.length,
+      itemBuilder: (context, index, cardSize) {
+        final album = albums[index];
+        final heroTag = buildCoverArtHeroTag(
+          coverArtId: album.coverArt,
+          context: '${heroContext}_${album.id}',
         );
-        final horizontalPadding = desktopMode || tabletMode ? 0.0 : 16.0;
-        final usableWidth = (width - horizontalPadding * 2).clamp(
-          0.0,
-          double.infinity,
-        );
-        final visibleAlbums = albums;
-        return Padding(
-          padding: EdgeInsets.symmetric(horizontal: horizontalPadding),
-          child: ContentShelf(
-            height: cardSize + albumCardExtraHeight(context),
-            extent: cardSize,
-            gap: ContentLayout.gap(usableWidth),
-            itemCount: visibleAlbums.length,
-            itemBuilder: (context, index) {
-              final album = visibleAlbums[index];
-              final heroTag = buildCoverArtHeroTag(
-                coverArtId: album.coverArt,
-                context: '${heroContext}_${album.id}',
-              );
-              return _ServerAlbumCard(
-                name: album.name,
-                artist: album.artist,
-                coverArtId: album.coverArt,
-                width: cardSize,
-                borderRadius: coverRadius,
-                isExternalSource: isExternalCatalogSource(
-                  id: album.id,
-                  apiIsExternal: album.isExternal,
-                ),
-                heroTag: heroTag,
-                onTap: () => onTap(album, heroTag),
-                onLongPress: () => showAlbumContextMenu(context, ref, album.id),
-                onSecondaryTapDown: (details) => showAlbumContextMenu(
-                  context,
-                  ref,
-                  album.id,
-                  anchor: details.globalPosition,
-                ),
-              );
-            },
+        return AlbumCardContent(
+          name: album.name,
+          artist: album.artist,
+          coverArtId: album.coverArt,
+          size: AlbumCardSize.compact,
+          extent: cardSize,
+          isExternalSource: isExternalCatalogSource(
+            id: album.id,
+            apiIsExternal: album.isExternal,
+          ),
+          heroTag: heroTag,
+          onTap: () => onTap(album, heroTag),
+          onLongPress: () => showAlbumContextMenu(context, ref, album.id),
+          onSecondaryTapDown: (details) => showAlbumContextMenu(
+            context,
+            ref,
+            album.id,
+            anchor: details.globalPosition,
           ),
         );
       },
@@ -2228,52 +2235,33 @@ class _LocalAlbumCarousel extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final compactDensity = density == _HomeSectionDensity.compact;
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final width = constraints.maxWidth;
-        final cardSize = ContentLayout.shelfCardExtent(
-          width,
-          compact: compactDensity,
+    return _AlbumShelf(
+      padded: !(desktopMode || tabletMode),
+      density: density,
+      itemCount: (usableWidth, cardSize) => heroContext == 'home_recently_liked'
+          ? math.min(
+              albums.length,
+              ContentLayout.shelfLimit(usableWidth, cardSize),
+            )
+          : albums.length,
+      itemBuilder: (context, index, cardSize) {
+        final album = albums[index];
+        final heroTag = buildCoverArtHeroTag(
+          coverArtId: album.coverArt,
+          context: '${heroContext}_${album.id}',
         );
-        final horizontalPadding = desktopMode || tabletMode ? 0.0 : 16.0;
-        final usableWidth = (width - horizontalPadding * 2).clamp(
-          0.0,
-          double.infinity,
-        );
-        final visibleAlbums = heroContext == 'home_recently_liked'
-            ? albums
-                  .take(ContentLayout.shelfLimit(usableWidth, cardSize))
-                  .toList(growable: false)
-            : albums;
-        return Padding(
-          padding: EdgeInsets.symmetric(horizontal: horizontalPadding),
-          child: ContentShelf(
-            height: cardSize + albumCardExtraHeight(context),
-            extent: cardSize,
-            gap: ContentLayout.gap(usableWidth),
-            itemCount: visibleAlbums.length,
-            itemBuilder: (context, index) {
-              final album = visibleAlbums[index];
-              final heroTag = buildCoverArtHeroTag(
-                coverArtId: album.coverArt,
-                context: '${heroContext}_${album.id}',
-              );
-              return AlbumCard(
-                album: album,
-                size: AlbumCardSize.compact,
-                extent: cardSize,
-                heroTag: heroTag,
-                onTap: () => onTap(album, heroTag),
-                onLongPress: () => showAlbumContextMenu(context, ref, album.id),
-                onSecondaryTapDown: (details) => showAlbumContextMenu(
-                  context,
-                  ref,
-                  album.id,
-                  anchor: details.globalPosition,
-                ),
-              );
-            },
+        return AlbumCard(
+          album: album,
+          size: AlbumCardSize.compact,
+          extent: cardSize,
+          heroTag: heroTag,
+          onTap: () => onTap(album, heroTag),
+          onLongPress: () => showAlbumContextMenu(context, ref, album.id),
+          onSecondaryTapDown: (details) => showAlbumContextMenu(
+            context,
+            ref,
+            album.id,
+            anchor: details.globalPosition,
           ),
         );
       },
@@ -4295,102 +4283,6 @@ String _listenBrainzAvailabilityText(
     playlist.matchedCount,
     playlist.totalCount,
   );
-}
-
-/// A small square card for server [Album] objects (same visual as [AlbumCard]
-/// but accepts the API model directly): the shared [AlbumCardLabel] puts the
-/// one-line title over the cover, shaded per Album Art Shade, or under it
-/// while Flat text over artwork is on.
-class _ServerAlbumCard extends StatelessWidget {
-  const new({
-    required this.name,
-    required this.borderRadius,
-    this.width = 150,
-    this.artist,
-    this.coverArtId,
-    this.heroTag,
-    this.onTap,
-    this.onLongPress,
-    this.onSecondaryTapDown,
-    this.isExternalSource = false,
-  });
-
-  final String name;
-  final double width;
-  final BorderRadius borderRadius;
-  final String? artist;
-  final String? coverArtId;
-  final String? heroTag;
-  final VoidCallback? onTap;
-  final VoidCallback? onLongPress;
-  final GestureTapDownCallback? onSecondaryTapDown;
-  final bool isExternalSource;
-
-  @override
-  Widget build(BuildContext context) {
-    return CoverReadyScope(
-      coverKey: coverArtId,
-      builder: (context, coverReady) => AlbumCardCaptionLayout(
-        width: width,
-        title: name,
-        subtitle: artist ?? '',
-        card: Card(
-          clipBehavior: Clip.antiAlias,
-          margin: EdgeInsets.zero,
-          shape: RoundedRectangleBorder(borderRadius: borderRadius),
-          child: InkWell(
-            onTap: onTap,
-            onSecondaryTapDown: onSecondaryTapDown,
-            onLongPress: onLongPress == null
-                ? null
-                : () {
-                    unawaited(HapticFeedback.mediumImpact());
-                    onLongPress!();
-                  },
-            child: Stack(
-              fit: StackFit.expand,
-              children: <Widget>[
-                if (heroTag != null)
-                  HeroCoverArt(
-                    coverArtId: coverArtId,
-                    heroTag: heroTag!,
-                    size: kCoverArtStandardSize,
-                    fit: BoxFit.cover,
-                    placeholderIcon: Icons.album_outlined,
-                    borderRadius: borderRadius,
-                    isExternalSource: isExternalSource,
-                    onImageReady: () => coverReady.value = true,
-                  )
-                else
-                  CoverArtImage(
-                    coverArtId: coverArtId,
-                    size: kCoverArtStandardSize,
-                    fit: BoxFit.cover,
-                    placeholderIcon: Icons.album_outlined,
-                    isExternalSource: isExternalSource,
-                    onImageReady: () => coverReady.value = true,
-                  ),
-                HeroRouteChrome(
-                  heroTag: heroTag,
-                  child: Stack(
-                    fit: StackFit.expand,
-                    children: <Widget>[
-                      AlbumCardLabel(
-                        title: name,
-                        subtitle: artist ?? '',
-                        coverArtId: coverArtId,
-                        coverReady: coverReady,
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

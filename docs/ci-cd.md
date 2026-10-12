@@ -189,6 +189,10 @@ It asserts the service connects within 10 seconds, exposes the four Navis root
 tabs, completes audio bootstrap, and emits no fatal Android or Flutter logs.
 It complements, but does not replace, the physical-phone DHU projection check.
 
+Compatible shell diagnostics helpers live in `tool/lib/diagnostics.sh`;
+callers retain their scenario-specific defines and traps. See
+[Development Workflow](development-workflow.md) for new-script guidance.
+
 Library sync metered-network guardrails are exercised by the clone diagnostics
 suite (`./tool/sync_diagnostics.sh clone`). Its post-report Library screenshot
 is an app-owned artifact for visual verification of the pending hydration

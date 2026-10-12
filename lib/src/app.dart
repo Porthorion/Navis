@@ -5,6 +5,7 @@ import 'package:material_ui/material_ui.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:navis/l10n/app_localizations.dart';
+import 'package:navis/src/common_widgets/confirm_dialog.dart';
 import 'package:navis/l10n/navis_localizations.dart';
 import 'package:navis/src/common_widgets/navis_icon.dart';
 import 'package:navis/src/features/auth/presentation/server_config_provider.dart';
@@ -300,28 +301,14 @@ class _AppBootstrapOverlayState extends ConsumerState<_AppBootstrapOverlay>
     required String body,
     required String action,
   }) async {
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (dialogContext) => AlertDialog(
-        title: Text(title),
-        content: Text(body),
-        actions: <Widget>[
-          TextButton(
-            onPressed: () => Navigator.of(dialogContext).pop(false),
-            child: Text(AppLocalizations.of(dialogContext)!.cancelAction),
-          ),
-          FilledButton(
-            style: FilledButton.styleFrom(
-              backgroundColor: Theme.of(dialogContext).colorScheme.error,
-              foregroundColor: Theme.of(dialogContext).colorScheme.onError,
-            ),
-            onPressed: () => Navigator.of(dialogContext).pop(true),
-            child: Text(action),
-          ),
-        ],
-      ),
+    final confirmed = await showConfirmDialog(
+      context,
+      title: title,
+      message: body,
+      confirmLabel: action,
+      destructive: true,
     );
-    return confirmed == true;
+    return confirmed;
   }
 
   Future<void> _runRecovery(

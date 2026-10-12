@@ -13,6 +13,7 @@ import 'package:navis/src/common_widgets/app_notice.dart';
 import 'package:navis/src/common_widgets/desktop/desktop_context_menu.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:navis/l10n/app_localizations.dart';
+import 'package:navis/src/common_widgets/confirm_dialog.dart';
 import 'package:navis/src/common_widgets/cover_art_image.dart';
 import 'package:navis/src/common_widgets/remote_source_indicator.dart';
 import 'package:navis/src/common_widgets/empty_state.dart';
@@ -240,25 +241,14 @@ Future<void> _toggleCustomDownloadFolder(
     return;
   }
   final l10n = AppLocalizations.of(context)!;
-  final confirm = await showDialog<bool>(
-    context: context,
-    builder: (dialogContext) => AlertDialog(
-      title: Text(l10n.downloadsCustomFolderDisableTitle),
-      content: Text(l10n.downloadsCustomFolderDisableConfirm),
-      actions: <Widget>[
-        TextButton(
-          onPressed: () => Navigator.pop(dialogContext, false),
-          child: Text(l10n.cancelAction),
-        ),
-        FilledButton(
-          key: const ValueKey<String>('downloadsCustomFolderDisableConfirm'),
-          onPressed: () => Navigator.pop(dialogContext, true),
-          child: Text(l10n.downloadsCustomFolderDisableAction),
-        ),
-      ],
-    ),
+  final confirm = await showConfirmDialog(
+    context,
+    title: l10n.downloadsCustomFolderDisableTitle,
+    message: l10n.downloadsCustomFolderDisableConfirm,
+    confirmLabel: l10n.downloadsCustomFolderDisableAction,
+    confirmKey: const ValueKey<String>('downloadsCustomFolderDisableConfirm'),
   );
-  if (confirm != true || !context.mounted) return;
+  if (!confirm || !context.mounted) return;
   await _applyCustomDownloadFolder(context, ref, enabled: false);
 }
 
@@ -440,24 +430,13 @@ class _QueueTab extends ConsumerWidget {
         );
 
         Future<void> clearQueue() async {
-          final confirmed = await showDialog<bool>(
-            context: context,
-            builder: (ctx) => AlertDialog(
-              title: Text(l10n.downloadsClearQueue),
-              content: Text(l10n.downloadsClearQueueConfirm),
-              actions: <Widget>[
-                TextButton(
-                  onPressed: () => Navigator.of(ctx).pop(false),
-                  child: Text(l10n.cancelAction),
-                ),
-                FilledButton(
-                  onPressed: () => Navigator.of(ctx).pop(true),
-                  child: Text(l10n.downloadsClearQueue),
-                ),
-              ],
-            ),
+          final confirmed = await showConfirmDialog(
+            context,
+            title: l10n.downloadsClearQueue,
+            message: l10n.downloadsClearQueueConfirm,
+            confirmLabel: l10n.downloadsClearQueue,
           );
-          if (confirmed != true) return;
+          if (!confirmed) return;
           await ref.read(downloadServiceProvider).clearQueue();
         }
 
@@ -866,28 +845,8 @@ class _DownloadedTrackTile extends ConsumerWidget {
     CachedTracksTableData track,
     AppLocalizations l10n,
   ) async {
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: Text(l10n.downloadsRemoveConfirmTitle),
-        content: Text(l10n.downloadsRemoveConfirmContent),
-        actions: <Widget>[
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(false),
-            child: Text(l10n.cancelAction),
-          ),
-          FilledButton(
-            style: FilledButton.styleFrom(
-              backgroundColor: Theme.of(ctx).colorScheme.error,
-              foregroundColor: Theme.of(ctx).colorScheme.onError,
-            ),
-            onPressed: () => Navigator.of(ctx).pop(true),
-            child: Text(l10n.downloadsRemoveAction),
-          ),
-        ],
-      ),
-    );
-    if (confirmed != true) return;
+    final confirmed = await confirmRemoveDownload(context);
+    if (!confirmed) return;
     await ref.read(downloadServiceProvider).removeDownloadedTrack(track.songId);
   }
 
@@ -1150,24 +1109,13 @@ class _DownloadSettingsTabState extends ConsumerState<_DownloadSettingsTab> {
 
   Future<bool> _confirmCellularAutoDownload() async {
     final l10n = AppLocalizations.of(context)!;
-    final confirm = await showDialog<bool>(
-      context: context,
-      builder: (dialogContext) => AlertDialog(
-        title: Text(l10n.cacheSettingsAutoDownloadCellularWarningTitle),
-        content: Text(l10n.cacheSettingsAutoDownloadCellularWarning),
-        actions: <Widget>[
-          TextButton(
-            onPressed: () => Navigator.pop(dialogContext, false),
-            child: Text(l10n.cancelAction),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.pop(dialogContext, true),
-            child: Text(l10n.cacheSettingsAutoDownloadCellularWarningContinue),
-          ),
-        ],
-      ),
+    final confirm = await showConfirmDialog(
+      context,
+      title: l10n.cacheSettingsAutoDownloadCellularWarningTitle,
+      message: l10n.cacheSettingsAutoDownloadCellularWarning,
+      confirmLabel: l10n.cacheSettingsAutoDownloadCellularWarningContinue,
     );
-    return confirm == true;
+    return confirm;
   }
 
   Future<void> _updateWifiOnlyDownloads(bool enabled) async {
@@ -1198,28 +1146,14 @@ class _DownloadSettingsTabState extends ConsumerState<_DownloadSettingsTab> {
 
   Future<void> _clearDownloads() async {
     final l10n = AppLocalizations.of(context)!;
-    final confirm = await showDialog<bool>(
-      context: context,
-      builder: (dialogContext) => AlertDialog(
-        title: Text(l10n.cacheSettingsClearPermanent),
-        content: Text(l10n.cacheSettingsClearPermanentConfirm),
-        actions: <Widget>[
-          TextButton(
-            onPressed: () => Navigator.pop(dialogContext, false),
-            child: Text(l10n.cancelAction),
-          ),
-          FilledButton(
-            style: FilledButton.styleFrom(
-              backgroundColor: Theme.of(dialogContext).colorScheme.error,
-              foregroundColor: Theme.of(dialogContext).colorScheme.onError,
-            ),
-            onPressed: () => Navigator.pop(dialogContext, true),
-            child: Text(l10n.cacheSettingsClearPermanent),
-          ),
-        ],
-      ),
+    final confirm = await showConfirmDialog(
+      context,
+      title: l10n.cacheSettingsClearPermanent,
+      message: l10n.cacheSettingsClearPermanentConfirm,
+      confirmLabel: l10n.cacheSettingsClearPermanent,
+      destructive: true,
     );
-    if (confirm != true || !mounted) return;
+    if (!confirm || !mounted) return;
 
     setState(() => _clearing = true);
     try {

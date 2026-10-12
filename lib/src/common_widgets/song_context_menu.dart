@@ -297,7 +297,11 @@ Future<void> showSongContextMenu(
                           }
                           Navigator.of(sheetContext).pop();
                           unawaited(
-                            _downloadSongFromMenu(context, ref, song.id),
+                            downloadSongWithQualityPrompt(
+                              context,
+                              ref,
+                              song.id,
+                            ),
                           );
                         },
                       ),
@@ -466,7 +470,7 @@ Future<void> _showDesktopSongContextMenu(
       await showAddToPlaylistSheet(context, ref, <String>[song.id]);
       return;
     case _SongContextAction.download:
-      await _downloadSongFromMenu(context, ref, song.id);
+      await downloadSongWithQualityPrompt(context, ref, song.id);
       return;
     case _SongContextAction.deleteDownload:
       await confirmAndDeleteDownload(context, ref, song.id);
@@ -477,26 +481,4 @@ Future<void> _showDesktopSongContextMenu(
 void _showQueueActionToast(BuildContext context, String message) {
   AppNoticeMessenger.of(context).clearSnackBars();
   showAppNotice(context, message: message, level: AppNoticeLevel.success);
-}
-
-/// Downloads [songId] after showing the quality picker.
-Future<void> _downloadSongFromMenu(
-  BuildContext context,
-  WidgetRef ref,
-  String songId,
-) async {
-  if (!context.mounted) return;
-  final choice = await requestDownloadQuality(context, ref);
-  if (choice == null || !context.mounted) return;
-  final service = ref.read(downloadServiceProvider);
-  unawaited(
-    service.enqueueSong(songId, quality: choice.quality, format: choice.format),
-  );
-  if (!context.mounted) return;
-  final l10n = AppLocalizations.of(context)!;
-  showAppNotice(
-    context,
-    message: downloadQueuedNotice(l10n, l10n.downloadSongQueued, choice),
-    level: AppNoticeLevel.success,
-  );
 }

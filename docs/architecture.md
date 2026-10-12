@@ -1381,9 +1381,9 @@ under reduced motion (`MotionPolicy`), and exposes the full title as its
 semantics label. Subtitles stay single-line ellipsis. A scrolling title never
 settles `pumpAndSettle`, and `test/flutter_test_config.dart` zeroes the
 `VisibilityDetector` debounce so tests leave no pending timer. The Home
-Recently added / Frequent carousel card (`_ServerAlbumCard`) uses the same
-`AlbumCardLabel` and `AlbumCardCaptionLayout` as `AlbumCard`, so it follows the
-same tiers (its former hard-coded dark scrim is now the opt-in dark tier; the
+Recently added / Frequent carousel card is `AlbumCardContent`, the raw-field
+body that `AlbumCard` wraps, so it shares `AlbumCardLabel` and
+`AlbumCardCaptionLayout` and follows the same tiers (its former hard-coded dark scrim is now the opt-in dark tier; the
 default is the page fade like every other Home album carousel), and its shelf
 adds `albumCardExtraHeight` under Flat. `CoverReadyScope` is the shared cover
 readiness tracker for both cards. With Flat text over artwork
@@ -1554,6 +1554,8 @@ Reusable UI components used across features:
     tint, and semantics
   - `album_card.dart` - Album grid card
   - `artist_card.dart` - Artist list/grid card
+  - `confirm_dialog.dart` - `showConfirmDialog` (Cancel/confirm alert with
+    optional destructive styling and confirm key) and `confirmRemoveDownload`
 
 - **Player UI**
   - `expandable_player_sheet.dart` - Mini player ↔ now playing transition
@@ -5204,7 +5206,8 @@ download naming throws when all 100 collision candidates are occupied.
 ### Download quality, concurrency and artwork
 
 **Quality preference.** Every download action calls `requestDownloadQuality`
-(`download_quality_sheet.dart`). It reads the saved preference from the
+(`download_quality_sheet.dart`); single-song menus share
+`downloadSongWithQualityPrompt` (picker, enqueue, queued notice). It reads the saved preference from the
 targeted-only `app_settings` columns `download_quality_mode` (`ask`,
 `original`, `transcode`), `download_max_bit_rate` and `download_format`. A
 saved mode returns its choice without UI and the queued notice names the

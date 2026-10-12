@@ -5,6 +5,7 @@ set -euo pipefail
 # case. Both the Subsonic server and the database are isolated fixtures.
 
 PROJECT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+source "$PROJECT_DIR/tool/lib/diagnostics.sh"
 SOURCE_DB="$(python3 "$PROJECT_DIR/tool/diagnostics_profile.py" primary-db)"
 STAMP="$(date -u +%Y%m%dT%H%M%SZ)"
 OUTPUT_ROOT="$PROJECT_DIR/build/manual-discovery-diagnostics/$STAMP-clone"
@@ -21,12 +22,7 @@ mkdir -p "$OUTPUT_ROOT"
 chmod 700 "$OUTPUT_ROOT"
 
 cleanup() {
-  for process_id in "$FLUTTER_PID" "$FIXTURE_PID"; do
-    if (( process_id > 0 )) && kill -0 "$process_id" >/dev/null 2>&1; then
-      kill "$process_id" >/dev/null 2>&1 || true
-      wait "$process_id" >/dev/null 2>&1 || true
-    fi
-  done
+  cleanup_processes
 }
 trap cleanup EXIT INT TERM
 
@@ -104,72 +100,18 @@ target.close()
 PY
 chmod 600 "$CLONE_DB"
 
-launch() {
-  rm -f "$HANDSHAKE"
-  local version
-  version="$(awk '/^version:/ {split($2, p, "+"); print p[1]; exit}' "$PROJECT_DIR/pubspec.yaml")"
-  # Clone app-support state lives in the run root's support directory.
-  mkdir -p "$OUTPUT_ROOT/support"
-  printf '%s\n' "$version" > "$OUTPUT_ROOT/support/changelog_seen_version.txt"
-  (
-    cd "$PROJECT_DIR"
-    flutter run -d linux --profile \
-      --dart-define=NAVIS_UPDATE_CHANNEL=dev \
-      --dart-define=NAVIS_APP_ID_SUFFIX=.dev \
-      --dart-define=NAVIS_APP_NAME='Navis Manual Discovery Diagnostics' \
-      --dart-define=NAVIS_SYNC_DIAGNOSTICS=true \
-      --dart-define="NAVIS_DIAGNOSTICS_ANNOTATION_FIXTURE=${NAVIS_ANNOTATION_FIXTURE:-false}" \
-      --dart-define=NAVIS_SYNC_DIAGNOSTICS_MODE=clone \
-      --dart-define="NAVIS_SYNC_DIAGNOSTICS_HANDSHAKE=$HANDSHAKE" \
-      --dart-define="NAVIS_SYNC_DIAGNOSTICS_ROOT=$OUTPUT_ROOT" \
-      --dart-define="NAVIS_SYNC_DIAGNOSTICS_DB_PATH=$CLONE_DB" \
-      --dart-define="NAVIS_SYNC_DIAGNOSTICS_CREDENTIAL_PATH=$CREDENTIAL_FILE" \
-      >>"$APP_LOG" 2>&1
-  ) &
-  FLUTTER_PID=$!
-  for _ in $(seq 1 180); do [[ -s "$HANDSHAKE" ]] && break; sleep 1; done
-  [[ -s "$HANDSHAKE" ]] || { echo "App startup failed. See $APP_LOG" >&2; exit 70; }
-  read -r PORT TOKEN < <(python3 - "$HANDSHAKE" <<'PY'
-import json, sys
-value = json.load(open(sys.argv[1], encoding="utf-8"))
-print(value["port"], value["token"])
-PY
+DIAGNOSTICS_LAUNCH_DEFINES=(
+  --dart-define=NAVIS_UPDATE_CHANNEL=dev
+  --dart-define=NAVIS_APP_ID_SUFFIX=.dev
+  --dart-define=NAVIS_APP_NAME='Navis Manual Discovery Diagnostics'
+  --dart-define=NAVIS_SYNC_DIAGNOSTICS=true
+  --dart-define="NAVIS_DIAGNOSTICS_ANNOTATION_FIXTURE=${NAVIS_ANNOTATION_FIXTURE:-false}"
+  --dart-define=NAVIS_SYNC_DIAGNOSTICS_MODE=clone
+  --dart-define="NAVIS_SYNC_DIAGNOSTICS_HANDSHAKE=$HANDSHAKE"
+  --dart-define="NAVIS_SYNC_DIAGNOSTICS_ROOT=$OUTPUT_ROOT"
+  --dart-define="NAVIS_SYNC_DIAGNOSTICS_DB_PATH=$CLONE_DB"
+  --dart-define="NAVIS_SYNC_DIAGNOSTICS_CREDENTIAL_PATH=$CREDENTIAL_FILE"
 )
-  BASE_URL="http://127.0.0.1:$PORT"
-}
-
-api() {
-  local method="$1" path="$2" body="${3:-}"
-  if [[ -n "$body" ]]; then
-    curl --fail-with-body --silent --show-error -X "$method" -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/json' -d "$body" "$BASE_URL$path"
-  else
-    curl --fail-with-body --silent --show-error -X "$method" -H "Authorization: Bearer $TOKEN" "$BASE_URL$path"
-  fi
-}
-
-wait_for_idle() {
-  local output="$1"
-  for _ in $(seq 1 180); do
-    api GET /v1/sync/status > "$output"
-    if python3 - "$output" <<'PY'
-import json, sys
-raise SystemExit(0 if not json.load(open(sys.argv[1])).get("requestActive") else 1)
-PY
-    then return; fi
-    sleep 1
-  done
-  echo "Sync did not settle. See $APP_LOG" >&2
-  exit 70
-}
-
-wait_for_presentation() {
-  for _ in $(seq 1 90); do
-    if api GET /v1/presentation/status | python3 -c 'import json,sys; value=json.load(sys.stdin); raise SystemExit(0 if value.get("appReady") and value.get("screenshotReady") else 1)'; then return; fi
-    sleep 1
-  done
-  echo "Presentation did not become ready. See $APP_LOG" >&2
-  exit 70
-}
 
 capture() {
   local label="$1" manifest="$2"
@@ -203,7 +145,7 @@ PY
   return 1
 }
 
-launch
+launch "${DIAGNOSTICS_LAUNCH_DEFINES[@]}"
 api GET /v1/health > "$OUTPUT_ROOT/health.json"
 wait_for_presentation
 wait_for_idle "$OUTPUT_ROOT/status-before.json"
@@ -352,7 +294,7 @@ api POST /v1/shutdown > "$OUTPUT_ROOT/shutdown.json" || true
 wait "$FLUTTER_PID" || true
 FLUTTER_PID=0
 
-launch
+launch "${DIAGNOSTICS_LAUNCH_DEFINES[@]}"
 wait_for_presentation
 wait_for_idle "$OUTPUT_ROOT/restart-status.json"
 api GET '/v1/library/album?id=fixture-new-album&verifySongs=true' > "$OUTPUT_ROOT/restart-album.json"

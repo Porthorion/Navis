@@ -716,6 +716,12 @@ operating-system accessibility bridge. Inspect both `*-tooltip` screenshots.
 The runner rejects Flutter exception banners and the `node.built` and
 `!child.attached` assertion signatures in its runtime log.
 
+When writing a new shell diagnostics script, source
+`"$PROJECT_DIR/tool/lib/diagnostics.sh"` after computing `PROJECT_DIR` and reuse
+its compatible helpers. The library documents caller-owned globals and arguments;
+keep scenario-specific traps, messages and dart-define arrays in the script,
+and retain local helpers when their behavior differs from the shared version.
+
 Linux and Windows profile diagnostics share the authenticated control-plane
 contract. Android production builds remain observation-only. The planned SAF
 download-folder diagnostics must be sidecar-only, restricted to an emulator

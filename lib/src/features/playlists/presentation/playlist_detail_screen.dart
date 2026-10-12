@@ -942,49 +942,9 @@ class _PlaylistDetailScreenState extends ConsumerState<PlaylistDetailScreen> {
     );
   }
 
-  Future<void> _deleteDownload(SongsTableData song) async {
-    final l10n = AppLocalizations.of(context)!;
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: Text(l10n.downloadsRemoveConfirmTitle),
-        content: Text(l10n.downloadsRemoveConfirmContent),
-        actions: <Widget>[
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(false),
-            child: Text(l10n.cancelAction),
-          ),
-          FilledButton(
-            style: FilledButton.styleFrom(
-              backgroundColor: Theme.of(ctx).colorScheme.error,
-              foregroundColor: Theme.of(ctx).colorScheme.onError,
-            ),
-            onPressed: () => Navigator.of(ctx).pop(true),
-            child: Text(l10n.downloadsRemoveAction),
-          ),
-        ],
-      ),
-    );
-    if (confirmed != true || !mounted) return;
-    await ref.read(downloadServiceProvider).removeDownloadedTrack(song.id);
-  }
+  Future<void> _deleteDownload(SongsTableData song) =>
+      confirmAndDeleteDownload(context, ref, song.id);
 
-  Future<void> _downloadSong(SongsTableData song) async {
-    final choice = await requestDownloadQuality(context, ref);
-    if (choice == null || !mounted) return;
-
-    final service = ref.read(downloadServiceProvider);
-    await service.enqueueSong(
-      song.id,
-      quality: choice.quality,
-      format: choice.format,
-    );
-    if (!mounted) return;
-    final l10n = AppLocalizations.of(context)!;
-    showAppNotice(
-      context,
-      message: downloadQueuedNotice(l10n, l10n.downloadSongQueued, choice),
-      level: AppNoticeLevel.success,
-    );
-  }
+  Future<void> _downloadSong(SongsTableData song) =>
+      downloadSongWithQualityPrompt(context, ref, song.id);
 }

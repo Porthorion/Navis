@@ -525,29 +525,7 @@ class _TopTrackTile extends ConsumerWidget {
   }
 
   void _downloadSong(BuildContext context, WidgetRef ref, String songId) {
-    unawaited(() async {
-      final choice = await requestDownloadQuality(context, ref);
-      if (choice == null || !context.mounted) return;
-      unawaited(
-        ref
-            .read(downloadServiceProvider)
-            .enqueueSong(
-              songId,
-              quality: choice.quality,
-              format: choice.format,
-            ),
-      );
-      if (!context.mounted) return;
-      showAppNotice(
-        context,
-        message: downloadQueuedNotice(
-          AppLocalizations.of(context)!,
-          AppLocalizations.of(context)!.downloadSongQueued,
-          choice,
-        ),
-        level: AppNoticeLevel.success,
-      );
-    }());
+    unawaited(downloadSongWithQualityPrompt(context, ref, songId));
   }
 
   String _formatListeners(int count, BuildContext context) {

@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:material_ui/material_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:navis/l10n/app_localizations.dart';
+import 'package:navis/src/common_widgets/confirm_dialog.dart';
 import 'package:navis/src/common_widgets/async_body.dart';
 import 'package:navis/src/common_widgets/app_notice.dart';
 import 'package:navis/src/common_widgets/cover_art_image.dart';
@@ -350,24 +351,14 @@ class _MatchFlowCardState extends ConsumerState<_MatchFlowCard> {
 
   Future<void> _delete(BuildContext context) async {
     final l10n = AppLocalizations.of(context)!;
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: Text(l10n.matchFlowDeleteTitle),
-        content: Text(l10n.matchFlowDeleteMessage(widget.flow.flow.name)),
-        actions: <Widget>[
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(false),
-            child: Text(l10n.commonCancel),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.of(context).pop(true),
-            child: Text(l10n.commonDelete),
-          ),
-        ],
-      ),
+    final confirmed = await showConfirmDialog(
+      context,
+      title: l10n.matchFlowDeleteTitle,
+      message: l10n.matchFlowDeleteMessage(widget.flow.flow.name),
+      confirmLabel: l10n.commonDelete,
+      cancelLabel: l10n.commonCancel,
     );
-    if (confirmed != true) return;
+    if (!confirmed) return;
     if (!context.mounted) return;
     await _run(
       context,

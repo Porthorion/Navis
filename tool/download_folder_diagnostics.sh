@@ -11,6 +11,10 @@
 set -euo pipefail
 
 PROJECT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+source "$PROJECT_DIR/tool/lib/diagnostics.sh"
+DIAGNOSTICS_APP_NAME='Navis Download Folder Diagnostics'
+DIAGNOSTICS_FAILURE_PREFIX='download-folder'
+DIAGNOSTICS_POLL_INTERVAL=1
 STAMP="$(date -u +%Y%m%dT%H%M%SZ)"
 OUTPUT_ROOT="$PROJECT_DIR/build/download-folder-diagnostics/$STAMP"
 HANDSHAKE="$OUTPUT_ROOT/handshake.json"
@@ -31,99 +35,10 @@ TOKEN=''
 BASE_URL=''
 APP_LOG=''
 
-cleanup_app() {
-  if (( FLUTTER_PID > 0 )) && kill -0 "$FLUTTER_PID" >/dev/null 2>&1; then
-    kill "$FLUTTER_PID" >/dev/null 2>&1 || true
-    wait "$FLUTTER_PID" >/dev/null 2>&1 || true
-  fi
-}
-
 cleanup() {
-  cleanup_app
-  if (( FIXTURE_PID > 0 )) && kill -0 "$FIXTURE_PID" >/dev/null 2>&1; then
-    kill "$FIXTURE_PID" >/dev/null 2>&1 || true
-    wait "$FIXTURE_PID" >/dev/null 2>&1 || true
-  fi
+  cleanup_fixture_app
 }
 trap cleanup EXIT INT TERM
-
-fail() {
-  echo "download-folder: $*" >&2
-  [[ -n "$APP_LOG" ]] && echo "See $APP_LOG" >&2
-  exit 70
-}
-
-start_fixture() {
-  printf '%s\n' 'navis-download-folder-fixture' > "$CREDENTIAL_FILE"
-  chmod 600 "$CREDENTIAL_FILE"
-  python3 "$PROJECT_DIR/tool/auth_lifecycle_fixture_server.py" \
-    --handshake "$FIXTURE_HANDSHAKE" \
-    --failure-flag "$OUTPUT_ROOT/fixture-sync-failure" \
-    >>"$FIXTURE_LOG" 2>&1 &
-  FIXTURE_PID=$!
-  local deadline=$((SECONDS + 30))
-  while [[ ! -s "$FIXTURE_HANDSHAKE" ]] && (( SECONDS < deadline )); do
-    kill -0 "$FIXTURE_PID" >/dev/null 2>&1 ||
-      fail "fixture server exited; see $FIXTURE_LOG"
-    sleep 1
-  done
-  [[ -s "$FIXTURE_HANDSHAKE" ]] || fail "fixture server did not start"
-  FIXTURE_PORT="$(python3 -c \
-    'import json,sys; print(json.load(open(sys.argv[1]))["port"])' \
-    "$FIXTURE_HANDSHAKE")"
-}
-
-launch_app() {
-  local label="$1"
-  cleanup_app
-  FLUTTER_PID=0
-  APP_LOG="$OUTPUT_ROOT/$label-navis.log"
-  rm -f "$HANDSHAKE"
-  : > "$APP_LOG"
-  mkdir -p "$OUTPUT_ROOT/support"
-  awk '/^version:/ {split($2, p, "+"); print p[1]; exit}' \
-    "$PROJECT_DIR/pubspec.yaml" > "$OUTPUT_ROOT/support/changelog_seen_version.txt"
-  (
-    cd "$PROJECT_DIR"
-    exec flutter run -d linux --profile \
-      --dart-define=NAVIS_UPDATE_CHANNEL=dev \
-      --dart-define=NAVIS_APP_ID_SUFFIX=.dev \
-      --dart-define=NAVIS_APP_NAME='Navis Download Folder Diagnostics' \
-      --dart-define=NAVIS_SYNC_DIAGNOSTICS=true \
-      --dart-define=NAVIS_SYNC_DIAGNOSTICS_MUTED=true \
-      --dart-define=NAVIS_SYNC_DIAGNOSTICS_MODE=clone \
-      --dart-define="NAVIS_SYNC_DIAGNOSTICS_HANDSHAKE=$HANDSHAKE" \
-      --dart-define="NAVIS_SYNC_DIAGNOSTICS_ROOT=$OUTPUT_ROOT" \
-      --dart-define="NAVIS_SYNC_DIAGNOSTICS_DB_PATH=$PROFILE_DB" \
-      --dart-define="NAVIS_SYNC_DIAGNOSTICS_CREDENTIAL_PATH=$CREDENTIAL_FILE"
-  ) >>"$APP_LOG" 2>&1 &
-  FLUTTER_PID=$!
-  local deadline=$((SECONDS + 600))
-  while [[ ! -s "$HANDSHAKE" ]] && (( SECONDS < deadline )); do
-    kill -0 "$FLUTTER_PID" >/dev/null 2>&1 ||
-      fail "Navis exited before diagnostics startup"
-    sleep 1
-  done
-  [[ -s "$HANDSHAKE" ]] || fail "timed out waiting for the diagnostics API"
-  local port
-  read -r port TOKEN < <(python3 -c \
-    'import json,sys; v=json.load(open(sys.argv[1])); print(v["port"], v["token"])' \
-    "$HANDSHAKE")
-  BASE_URL="http://127.0.0.1:$port"
-  api GET /v1/health > "$OUTPUT_ROOT/$label-health.json"
-}
-
-stop_app() {
-  if (( FLUTTER_PID > 0 )) && kill -0 "$FLUTTER_PID" >/dev/null 2>&1; then
-    api POST /v1/shutdown >/dev/null 2>&1 || true
-    local deadline=$((SECONDS + 30))
-    while kill -0 "$FLUTTER_PID" >/dev/null 2>&1 && (( SECONDS < deadline )); do
-      sleep 1
-    done
-    cleanup_app
-  fi
-  FLUTTER_PID=0
-}
 
 api() {
   local method="$1" route="$2" body="${3:-}"
@@ -133,21 +48,6 @@ api() {
     args+=(-H 'Content-Type: application/json' -d "$body")
   fi
   curl "${args[@]}" "$BASE_URL$route"
-}
-
-# Polls GET $1 until the Python expression $2 (over `v`) holds.
-wait_for() {
-  local route="$1" predicate="$2" output="$3" timeout="${4:-180}"
-  local deadline=$((SECONDS + timeout))
-  while (( SECONDS < deadline )); do
-    if api GET "$route" > "$output" 2>/dev/null &&
-      python3 -c "import json,sys; v=json.load(open(sys.argv[1])); raise SystemExit(0 if ($predicate) else 1)" \
-        "$output"; then
-      return
-    fi
-    sleep 1
-  done
-  fail "timed out waiting for $route to satisfy: $predicate ($(cat "$output" 2>/dev/null))"
 }
 
 # Polls the clone database until the custom folder setting is $1 (0 or 1).
@@ -227,7 +127,7 @@ open(sys.argv[1], "wb").write(header + samples)
 PY
 }
 
-start_fixture
+start_fixture 'navis-download-folder-fixture'
 launch_app first
 api POST /v1/diagnostics/overrides \
   '{"networkType":"wifi","nativeMetered":false}' >/dev/null

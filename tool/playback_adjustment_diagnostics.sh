@@ -2,6 +2,7 @@
 set -euo pipefail
 
 PROJECT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+source "$PROJECT_DIR/tool/lib/diagnostics.sh"
 SOURCE_DB="$(python3 "$PROJECT_DIR/tool/diagnostics_profile.py" primary-db)"
 STAMP="$(date -u +%Y%m%dT%H%M%SZ)"
 OUTPUT_ROOT="$PROJECT_DIR/build/playback-adjustment-diagnostics/$STAMP"
@@ -70,95 +71,12 @@ if command -v pactl >/dev/null && command -v parec >/dev/null; then
 fi
 
 cleanup() {
-  if (( FLUTTER_PID > 0 )) && kill -0 "$FLUTTER_PID" >/dev/null 2>&1; then
-    kill "$FLUTTER_PID" >/dev/null 2>&1 || true
-    wait "$FLUTTER_PID" >/dev/null 2>&1 || true
-  fi
-  if [[ -n "$AUDIO_MODULE" ]]; then pactl unload-module "$AUDIO_MODULE" || true; fi
+  cleanup_audio_app
 }
 trap cleanup EXIT INT TERM
 
 launch_app() {
-  rm -f "$HANDSHAKE"
-  # Like presentation_diagnostics.sh: an optional mode-600 password file
-  # signs the clone in where the system keyring holds no Navis password.
-  local -a credential_define=()
-  if [[ -n "${NAVIS_DIAGNOSTICS_CREDENTIAL_PATH:-}" ]]; then
-    if [[ ! -f "$NAVIS_DIAGNOSTICS_CREDENTIAL_PATH" ]]; then
-      echo "Diagnostics credential file was not found." >&2
-      exit 66
-    fi
-    credential_define+=(
-      "--dart-define=NAVIS_SYNC_DIAGNOSTICS_CREDENTIAL_PATH=$NAVIS_DIAGNOSTICS_CREDENTIAL_PATH"
-    )
-  fi
-  PULSE_SINK="$AUDIO_SINK" flutter run -d linux --profile \
-    --dart-define=NAVIS_UPDATE_CHANNEL=dev \
-    --dart-define=NAVIS_APP_ID_SUFFIX=.dev \
-    --dart-define=NAVIS_APP_NAME='Navis Adjustment Diagnostics' \
-    --dart-define=NAVIS_SYNC_DIAGNOSTICS=true \
-    --dart-define="NAVIS_DIAGNOSTICS_AUDIO_DEVICE=pulse/$AUDIO_SINK" \
-    --dart-define=NAVIS_SYNC_DIAGNOSTICS_MODE=clone \
-    --dart-define="NAVIS_SYNC_DIAGNOSTICS_HANDSHAKE=$HANDSHAKE" \
-    --dart-define="NAVIS_SYNC_DIAGNOSTICS_ROOT=$OUTPUT_ROOT" \
-    --dart-define="NAVIS_SYNC_DIAGNOSTICS_DB_PATH=$CLONE_DB" \
-    "${credential_define[@]}" \
-    >>"$APP_LOG" 2>&1 &
-  FLUTTER_PID=$!
-
-  for _ in $(seq 1 180); do
-    [[ -s "$HANDSHAKE" ]] && break
-    if ! kill -0 "$FLUTTER_PID" >/dev/null 2>&1; then
-      echo "Navis exited before diagnostics startup. See $APP_LOG" >&2
-      exit 70
-    fi
-    sleep 1
-  done
-  if [[ ! -s "$HANDSHAKE" ]]; then
-    echo "Timed out waiting for diagnostics API. See $APP_LOG" >&2
-    exit 70
-  fi
-
-  read -r PORT TOKEN APP_PID < <(
-    python3 - "$HANDSHAKE" <<'PY'
-import json, sys
-value = json.load(open(sys.argv[1], encoding="utf-8"))
-print(value["port"], value["token"], value["pid"])
-PY
-  )
-  BASE_URL="http://127.0.0.1:$PORT"
-}
-
-api() {
-  local method="$1"
-  local route="$2"
-  local body="${3:-}"
-  if [[ -n "$body" ]]; then
-    curl --fail-with-body --silent --show-error \
-      -X "$method" -H "Authorization: Bearer $TOKEN" \
-      -H 'Content-Type: application/json' -d "$body" "$BASE_URL$route"
-  else
-    curl --fail-with-body --silent --show-error \
-      -X "$method" -H "Authorization: Bearer $TOKEN" "$BASE_URL$route"
-  fi
-}
-
-assert_adjustments() {
-  python3 - "$1" "$2" "$3" <<'PYCODE'
-import json, math, sys
-value = json.load(open(sys.argv[1]))
-speed = float(sys.argv[2]); pitch = float(sys.argv[3]); factor = 2 ** (pitch / 12)
-assert value['failure'] is None, value
-assert value['pitchSupported'] is True, value
-assert math.isclose(value['speedPercent'], speed, abs_tol=1e-6), value
-assert math.isclose(value['pitchSemitones'], pitch, abs_tol=1e-6), value
-assert math.isclose(value['persistedSpeed'], 1 + speed/100, abs_tol=1e-6), value
-assert math.isclose(value['persistedPitchSemitones'], pitch, abs_tol=1e-6), value
-for key in ('playerSpeed', 'crossfadeSpeed'):
-    assert math.isclose(value['engine'][key], 1 + speed/100, abs_tol=1e-6), value
-for key in ('playerPitchFactor', 'crossfadePitchFactor'):
-    assert math.isclose(value['engine'][key], factor, abs_tol=1e-6), value
-PYCODE
+  launch_audio_app 'Navis Adjustment Diagnostics'
 }
 
 capture_audio() {
@@ -192,12 +110,6 @@ expected = 440 * 2 ** (float(sys.argv[3])/12)
 assert abs(frequency - expected) < 3, (frequency, expected)
 json.dump({'rms':rms, 'measuredHz':frequency, 'expectedHz':expected}, open(sys.argv[2], 'w'))
 PYCODE
-}
-
-shutdown_app() {
-  api POST /v1/shutdown > "$OUTPUT_ROOT/shutdown-$1.json" || true
-  wait "$FLUTTER_PID" || true
-  FLUTTER_PID=0
 }
 
 launch_app

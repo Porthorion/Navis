@@ -11,6 +11,7 @@ case "$MODE" in
 esac
 
 PROJECT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+source "$PROJECT_DIR/tool/lib/diagnostics.sh"
 SOURCE_DB="$(python3 "$PROJECT_DIR/tool/diagnostics_profile.py" primary-db)"
 NORMAL_PRIMARY_DB="$(python3 "$PROJECT_DIR/tool/diagnostics_profile.py" default-primary-db)"
 STAMP="$(date -u +%Y%m%dT%H%M%SZ)"
@@ -272,28 +273,8 @@ PY
   BASE_URL="http://127.0.0.1:$PORT"
 }
 
-cleanup() {
-  if (( FLUTTER_PID > 0 )) && kill -0 "$FLUTTER_PID" >/dev/null 2>&1; then
-    kill "$FLUTTER_PID" >/dev/null 2>&1 || true
-    wait "$FLUTTER_PID" >/dev/null 2>&1 || true
-  fi
-}
 trap cleanup EXIT INT TERM
 launch_app
-
-api() {
-  local method="$1"
-  local route="$2"
-  local body="${3:-}"
-  if [[ -n "$body" ]]; then
-    curl --fail-with-body --silent --show-error \
-      -X "$method" -H "Authorization: Bearer $TOKEN" \
-      -H 'Content-Type: application/json' -d "$body" "$BASE_URL$route"
-  else
-    curl --fail-with-body --silent --show-error \
-      -X "$method" -H "Authorization: Bearer $TOKEN" "$BASE_URL$route"
-  fi
-}
 
 wait_for_sync() {
   local deadline=$((SECONDS + 14400))

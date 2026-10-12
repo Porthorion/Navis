@@ -492,21 +492,5 @@ class _RankedTopTrackRow extends ConsumerWidget {
     BuildContext context,
     WidgetRef ref,
     String songId,
-  ) async {
-    final choice = await requestDownloadQuality(context, ref);
-    if (choice == null || !context.mounted) return;
-    await ref
-        .read(downloadServiceProvider)
-        .enqueueSong(songId, quality: choice.quality, format: choice.format);
-    if (!context.mounted) return;
-    showAppNotice(
-      context,
-      message: downloadQueuedNotice(
-        AppLocalizations.of(context)!,
-        AppLocalizations.of(context)!.downloadSongQueued,
-        choice,
-      ),
-      level: AppNoticeLevel.success,
-    );
-  }
+  ) => downloadSongWithQualityPrompt(context, ref, songId);
 }
