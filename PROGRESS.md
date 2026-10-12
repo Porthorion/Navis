@@ -164,7 +164,7 @@ Last updated: 2026-10-02
   two-song GMTC control scenario (`tool/windows_smtc_diagnostics.ps1`,
   including the strict paused five-second seek) passed on the Windows 11 VM;
   see `docs/audits/windows-review-2026-10-01.md` and
-  `Dependency_Upgrade_Plan.md`. Earlier status, 2026-08-17
+  `docs/completed-plans/Dependency_Upgrade_Plan.md`. Earlier status, 2026-08-17
   (implemented the local Rust/WinRT manual-SMTC adapter, ordered bridge state
   publication, stable `com.navis.app.navis` AppUserModelID, safe artwork/event
   handling, and the isolated `tool/windows_smtc_diagnostics.ps1` GMTC suite.

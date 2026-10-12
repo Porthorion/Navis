@@ -35,7 +35,7 @@ workflows or explicit current gaps.
 
 ### Plans, audits, and evidence
 
-[Production EQ plan](../EQ_System_Plan.md) records the accepted replacement
+[Production EQ plan](completed-plans/EQ_System_Plan.md) records the accepted replacement
 for experimental EQ, native processing, presets, AutoEQ, and validation.
 Implementation and validation are in progress; the plan is not a current
 capability claim.
@@ -83,7 +83,7 @@ user preferences, and open questions. Automotive work is deferred separately
 from ordinary responsive-layout work; this is not an implementation plan or a
 claim of native AAOS support.
 
-[Dependency Upgrade Plan](../Dependency_Upgrade_Plan.md) tracks the 2026-09-27
+[Dependency Upgrade Plan](completed-plans/Dependency_Upgrade_Plan.md) tracks the 2026-09-27
 dependency audit, implementation batches, compatibility holds, and required
 validation, and how the upgrades were brought onto dev on 2026-10-01.
 
