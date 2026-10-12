@@ -442,6 +442,37 @@ void main() {
     await expectBucketsMatchFullScan('sq');
   });
 
+  test(
+    'getAllSongs keeps visible songs across chunks and skips hidden ones',
+    () async {
+      const count = kLocalTrackMatcherSnapshotYieldChunkSize * 2 + 1;
+      await database.delete(database.songsTable).go();
+      // Direct inserts preserve the hidden flags that sync upserts clear.
+      await database.batch(
+        (batch) => batch.insertAll(database.songsTable, [
+          for (var index = 0; index < count; index++)
+            _song('all-${index.toString().padLeft(4, '0')}', 'Track $index'),
+          _song(
+            'deleted',
+            'Gone',
+          ).copyWith(serverDeletedAt: Value(DateTime.utc(2026))),
+          _song(
+            'provisional',
+            'Remote',
+          ).copyWith(isProvisional: const Value(true)),
+        ]),
+      );
+
+      final songs = await database.libraryDao.getAllSongs();
+
+      expect(songs, hasLength(count));
+      expect(songs.map((song) => song.id).toSet(), {
+        for (var i = 0; i < count; i++) 'all-${i.toString().padLeft(4, '0')}',
+      });
+      expect(songs.first.title, isNotEmpty);
+    },
+  );
+
   group('track match candidates', () {
     setUp(() async {
       await database.libraryDao.upsertSongs(<SongsTableCompanion>[

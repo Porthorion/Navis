@@ -165,6 +165,10 @@ const List<ChangelogVersion> changelogs = [
     ],
     entries: [
       ChangelogEntry(
+        'Fixed a brief freeze when starting Personal Radio and high memory use after listening to it',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
         'Fixed brief freezes on Home after syncing a large library and when starting or skipping tracks',
         type: ChangelogEntryType.fix,
       ),

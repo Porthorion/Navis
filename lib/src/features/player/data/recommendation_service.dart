@@ -1,8 +1,10 @@
+import 'dart:async';
 import 'dart:io';
 import 'dart:math';
 
 import 'package:dio/dio.dart';
 import 'package:drift/drift.dart' show TableUpdateQuery;
+import 'package:flutter/foundation.dart' show visibleForTesting;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:navis/src/api/lastfm_api_client.dart';
 import 'package:navis/src/api/models/song.dart';
@@ -12,6 +14,8 @@ import 'package:navis/src/database/navis_database.dart';
 import 'package:navis/src/database/tables/schema_enums.dart';
 import 'package:navis/src/features/downloads/data/android_saf_storage.dart';
 import 'package:navis/src/features/integrations/domain/integration_feature.dart';
+import 'package:navis/src/features/library/data/local_track_matcher.dart'
+    show kLocalTrackMatcherSnapshotYieldChunkSize;
 import 'package:navis/src/providers/app_providers.dart';
 import 'package:navis/src/utils/connectivity.dart';
 import 'package:navis/src/utils/metadata_normalization.dart';
@@ -48,7 +52,18 @@ class RadioFilters {
 }
 
 class RecommendationService {
-  new(this._ref, {Random? random}) : _random = random ?? Random();
+  new(
+    this._ref, {
+    Random? random,
+    this._eligibleLibraryMaxAge = const Duration(minutes: 2),
+  }) : _random = random ?? Random() {
+    _ref.onDispose(() {
+      _disposed = true;
+      _eligibleLibraryRelease?.cancel();
+      _eligibleLibraryRelease = null;
+      _eligibleLibraryCache = null;
+    });
+  }
 
   final Ref _ref;
   final Random _random;
@@ -57,13 +72,35 @@ class RecommendationService {
   /// whole catalog and checking local files each time is the expensive part.
   /// The result is reused until songs or cached tracks change, the network
   /// or filters differ, or it is older than [_eligibleLibraryMaxAge].
-  static const Duration _eligibleLibraryMaxAge = Duration(minutes: 2);
-  ({Object key, int revision, DateTime at, List<SongsTableData> songs})?
+  final Duration _eligibleLibraryMaxAge;
+  Timer? _eligibleLibraryRelease;
+  bool _disposed = false;
+
+  @visibleForTesting
+  bool get debugHasEligibleLibrary => _eligibleLibraryCache != null;
+
+  @visibleForTesting
+  String? debugCachedNormalizedIdentity(String songId) =>
+      _eligibleLibraryCache?.identities._byId[songId];
+
+  ({
+    Object key,
+    int revision,
+    DateTime at,
+    List<SongsTableData> songs,
+    _IdentityCache identities,
+  })?
   _eligibleLibraryCache;
   int _libraryRevision = 0;
   bool _watchingLibrary = false;
 
-  Future<List<SongsTableData>> eligibleLibrary(RadioFilters filters) async {
+  @visibleForTesting
+  Future<List<SongsTableData>> eligibleLibrary(RadioFilters filters) async =>
+      (await _eligiblePool(filters)).songs;
+
+  /// Keeps rows and identities together even if the catalog changes mid-build.
+  Future<({List<SongsTableData> songs, _IdentityCache identities})>
+  _eligiblePool(RadioFilters filters) async {
     final db = _ref.read(navisDatabaseProvider);
     if (!_watchingLibrary) {
       _watchingLibrary = true;
@@ -81,7 +118,10 @@ class RecommendationService {
         cached.key == key &&
         cached.revision == _libraryRevision &&
         DateTime.now().difference(cached.at) < _eligibleLibraryMaxAge) {
-      return List<SongsTableData>.of(cached.songs);
+      return (
+        songs: List<SongsTableData>.of(cached.songs),
+        identities: cached.identities,
+      );
     }
     final revision = _libraryRevision;
     final catalog = await db.libraryDao.getAllSongs();
@@ -124,14 +164,49 @@ class RecommendationService {
       }
       eligible.add(song);
     }
+    // Identities are normalised once per pool, in chunks, so refills reuse
+    // them and building them never blocks the UI isolate in one pass.
+    final identities = _IdentityCache();
+    for (var index = 0; index < eligible.length; index++) {
+      identities.ofRow(eligible[index]);
+      if ((index + 1) % kLocalTrackMatcherSnapshotYieldChunkSize == 0) {
+        await Future<void>.delayed(Duration.zero);
+      }
+    }
+    final pool = (songs: eligible, identities: identities);
+    // A yielded build may finish after its provider's cleanup has run.
+    if (_disposed) return pool;
     _eligibleLibraryCache = (
       key: key,
       revision: revision,
       at: DateTime.now(),
       songs: List<SongsTableData>.unmodifiable(eligible),
+      identities: identities,
     );
-    return eligible;
+    // The pool holds every eligible song; drop it once it can no longer be
+    // reused instead of keeping it for the app's lifetime.
+    _eligibleLibraryRelease?.cancel();
+    _eligibleLibraryRelease = Timer(_eligibleLibraryMaxAge, () {
+      _eligibleLibraryCache = null;
+    });
+    return pool;
   }
+
+  @visibleForTesting
+  Future<String> debugRecordingIdentity(
+    RadioFilters filters,
+    String songId,
+  ) async {
+    final pool = await _eligiblePool(filters);
+    return _recordingRow(
+      pool.songs.firstWhere((song) => song.id == songId),
+      pool.identities,
+    );
+  }
+
+  @visibleForTesting
+  static String debugIdentity(String artist, String title) =>
+      _identity(artist, title);
 
   Future<RecommendationBatch> serverMix(
     String seedId, {
@@ -253,9 +328,10 @@ class RecommendationService {
   }) async {
     var resolvedExcludedIds = excludedIds;
 
-    final eligible = await eligibleLibrary(filters);
-    // Identities are computed once per song for the whole batch.
-    final identities = _IdentityCache();
+    final poolSnapshot = await _eligiblePool(filters);
+    final eligible = poolSnapshot.songs;
+    // Identities were computed once with the cached pool.
+    final identities = poolSnapshot.identities;
     String recordingRow(SongsTableData song) => _recordingRow(song, identities);
     final hardExcluded = <String>{...excludedIds};
     final hardRecordings = eligible
@@ -556,7 +632,7 @@ List<Song> composeRadioBatch({
 }
 
 /// [RecommendationService._identity] of library rows, computed once per song
-/// id for one batch.
+/// id for the cached pool.
 class _IdentityCache {
   final Map<String, String> _byId = <String, String>{};
 
