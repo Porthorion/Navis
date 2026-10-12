@@ -669,15 +669,9 @@ class _ArtistDetailLoadingState extends StatelessWidget {
                           mainAxisSize: MainAxisSize.min,
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: const <Widget>[
-                            _ArtistDetailLoadingPlaceholder(
-                              height: 44,
-                              width: 240,
-                            ),
+                            DetailOutlineBlock(height: 44, width: 240),
                             SizedBox(height: 10),
-                            _ArtistDetailLoadingPlaceholder(
-                              height: 16,
-                              width: 96,
-                            ),
+                            DetailOutlineBlock(height: 16, width: 96),
                           ],
                         ),
                       ),
@@ -688,17 +682,17 @@ class _ArtistDetailLoadingState extends StatelessWidget {
                   padding: EdgeInsets.fromLTRB(16, 16, 16, 0),
                   child: Row(
                     children: <Widget>[
-                      _ArtistDetailLoadingPlaceholder(height: 40, width: 88),
+                      DetailOutlineBlock(height: 40, width: 88),
                       SizedBox(width: 10),
-                      _ArtistDetailLoadingPlaceholder(height: 40, width: 104),
+                      DetailOutlineBlock(height: 40, width: 104),
                       SizedBox(width: 10),
-                      _ArtistDetailLoadingPlaceholder(height: 40, width: 88),
+                      DetailOutlineBlock(height: 40, width: 88),
                     ],
                   ),
                 ),
                 const Padding(
                   padding: EdgeInsets.fromLTRB(16, 28, 16, 12),
-                  child: _ArtistDetailLoadingPlaceholder(height: 24, width: 92),
+                  child: DetailOutlineBlock(height: 24, width: 92),
                 ),
                 const Padding(
                   padding: EdgeInsets.symmetric(horizontal: 16),
@@ -730,37 +724,19 @@ class _ArtistDetailLoadingAlbumRow extends StatelessWidget {
   Widget build(BuildContext context) {
     return const Row(
       children: <Widget>[
-        _ArtistDetailLoadingPlaceholder(height: 88, width: 88),
+        DetailOutlineBlock(height: 88, width: 88),
         SizedBox(width: 12),
         Expanded(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: <Widget>[
-              _ArtistDetailLoadingPlaceholder(height: 16),
+              DetailOutlineBlock(height: 16),
               SizedBox(height: 8),
-              _ArtistDetailLoadingPlaceholder(height: 12, width: 128),
+              DetailOutlineBlock(height: 12, width: 128),
             ],
           ),
         ),
       ],
-    );
-  }
-}
-
-class _ArtistDetailLoadingPlaceholder extends StatelessWidget {
-  const new({required this.height, this.width = double.infinity});
-
-  final double height;
-  final double width;
-
-  @override
-  Widget build(BuildContext context) {
-    return DecoratedBox(
-      decoration: BoxDecoration(
-        color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.12),
-        borderRadius: NavisShapeData.of(context).smAll,
-      ),
-      child: SizedBox(height: height, width: width),
     );
   }
 }
