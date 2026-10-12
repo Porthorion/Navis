@@ -21,6 +21,7 @@ import 'package:flutter_cache_manager/flutter_cache_manager.dart'
     show BaseCacheManager;
 import 'package:navis/src/features/downloads/data/download_path_identity.dart';
 import 'package:navis/src/features/downloads/data/download_storage_capacity.dart';
+import 'package:navis/src/features/downloads/data/rename_with_retry.dart';
 import 'package:navis/src/features/downloads/domain/download_failure_message.dart';
 import 'package:navis/src/features/downloads/data/permanent_download_path_resolver.dart';
 import 'package:navis/src/features/downloads/data/permanent_download_import_service.dart';
@@ -1193,7 +1194,7 @@ class DownloadService {
         final part = File('$newPath$downloadPartSuffix');
         try {
           await file.copy(part.path);
-          await _renameIntoPlace(part, destination);
+          await renameWithRetry(part, destination.path);
         } on FileSystemException {
           await tryDeleteFile(part);
           rethrow;
@@ -1614,7 +1615,7 @@ class DownloadService {
             );
           }
           await _writeFinishIntent(item, target.path, part, format, bitRate);
-          await _renameIntoPlace(part, target);
+          await renameWithRetry(part, target.path);
           destFile = target;
           renamed = true;
           // Tag before measuring, so the registered size is the final one.
@@ -2096,20 +2097,6 @@ class DownloadService {
       } on FileSystemException catch (error) {
         _checkRecovery(generation);
         await _holdForFolderFailure(error);
-      }
-    }
-  }
-
-  /// Gives a finished download its real name in one step. Windows refuses
-  /// the rename while a scanner briefly holds the new file, so it retries.
-  Future<void> _renameIntoPlace(File part, File destination) async {
-    for (var attempt = 1; ; attempt++) {
-      try {
-        await part.rename(destination.path);
-        return;
-      } on FileSystemException {
-        if (attempt == 3) rethrow;
-        await Future<void>.delayed(Duration(milliseconds: 200 * attempt));
       }
     }
   }

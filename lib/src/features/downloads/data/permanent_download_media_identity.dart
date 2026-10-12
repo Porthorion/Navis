@@ -4,6 +4,8 @@ import 'dart:typed_data';
 
 import 'dart:convert';
 
+import 'package:navis/src/features/downloads/data/rename_with_retry.dart';
+
 /// Best-effort audio metadata support used by permanent-download adoption.
 /// FLAC/Vorbis comments are implemented without a platform plugin so Navis can
 /// recover identity on every supported desktop and mobile runtime. Other
@@ -90,17 +92,7 @@ class PermanentDownloadMediaIdentity {
     final temporary = File('$path$identityRewriteSuffix');
     try {
       await temporary.writeAsBytes(replacement, flush: true);
-      // Windows refuses the replace while another process (typically an
-      // antivirus scan of the new file) holds it open; that clears quickly.
-      for (var attempt = 1; ; attempt++) {
-        try {
-          await temporary.rename(path);
-          return;
-        } on FileSystemException {
-          if (attempt == 3) rethrow;
-          await Future<void>.delayed(Duration(milliseconds: 200 * attempt));
-        }
-      }
+      await renameWithRetry(temporary, path);
     } finally {
       if (await temporary.exists()) await temporary.delete();
     }
