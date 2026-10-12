@@ -11,6 +11,7 @@ Widget _host({
   bool reduceMotion = false,
   TextDirection direction = TextDirection.ltr,
   bool tickers = true,
+  int? passes,
 }) => MaterialApp(
   home: Directionality(
     textDirection: direction,
@@ -23,7 +24,7 @@ Widget _host({
             alignment: Alignment.topLeft,
             child: SizedBox(
               width: width,
-              child: MarqueeText(text, style: _style),
+              child: MarqueeText(text, style: _style, passes: passes),
             ),
           ),
         ),
@@ -43,6 +44,16 @@ double _offset(WidgetTester tester) =>
     _scroller(tester).transform.getTranslation().x;
 
 void main() {
+  testWidgets('limited passes scroll, then rest at the start', (tester) async {
+    await tester.pumpWidget(_host(passes: 2));
+    await tester.pump(kMarqueeStartPause + const Duration(milliseconds: 500));
+    expect(_offset(tester), lessThan(0));
+
+    await tester.pumpAndSettle();
+    expect(_offset(tester), 0);
+    expect(tester.hasRunningAnimations, isFalse);
+  });
+
   testWidgets('a title that fits is a plain one-line Text', (tester) async {
     await tester.pumpWidget(_host(text: 'Short', width: 200));
 

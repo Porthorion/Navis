@@ -333,6 +333,9 @@ class _ShellOfflineBannerState extends ConsumerState<ShellOfflineBanner> {
                     // ending in an ellipsis.
                     child: MarqueeText(
                       widget.message,
+                      // A few passes, then still: the banner stays up for as
+                      // long as the server is unreachable.
+                      passes: 3,
                       style:
                           theme.textTheme.labelLarge?.copyWith(
                             color: colors.onSurface,
