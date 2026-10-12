@@ -408,6 +408,12 @@ reported API version. Only Subsonic code 41 (token authentication unsupported)
 permits a legacy retry. That retry is blocked for non-loopback HTTP servers and
 asks the user to connect over HTTPS; code 40 never sends a reversible password.
 
+`buildSubsonicAuthQuery` (`lib/src/api/subsonic_auth_interceptor.dart`) is the
+single builder of the `u`/`v`/`c`/`f` and token (`s`, `t`) or legacy (`p`)
+parameters. `SubsonicAuthInterceptor` uses it for API requests and
+`SubsonicApiClient` uses it for stream, download and cover-art URLs; add new
+auth parameters there, not at call sites.
+
 Navis retains one local server/account profile. Its stable identity is the
 normalized server base URL plus trimmed username. Schema v61 stores
 `server_config.is_authenticated` separately from the non-secret profile:
@@ -1555,10 +1561,15 @@ Reusable UI components used across features:
 
 - **State Widgets**
   - `empty_state.dart` - Empty state with icon and message
-  - `error_state.dart` - Error state with retry
+  - `error_state.dart` - Error state with retry and an optional secondary
+    action (`DetailLoadFailedView` composes it)
   - `async_body.dart` - Loading, error-with-Retry and data body for an `AsyncValue`
   - `shimmer_placeholder.dart` - Loading skeleton
   - `loading_indicator.dart` - Progress indicator
+
+Small in-memory caches with a fixed capacity use `BoundedLruMap`
+(`lib/src/utils/bounded_lru_map.dart`, optional eviction callback for disposing
+values) instead of hand-rolling `remove(keys.first)` eviction.
 
 - **Actions**
   - `star_button.dart` - Star/unstar action
