@@ -9,6 +9,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:navis/src/common_widgets/artist_context_menu.dart';
 import 'package:navis/src/common_widgets/cover_art_viewer.dart';
 import 'package:navis/l10n/app_localizations.dart';
+import 'package:navis/src/common_widgets/confirm_dialog.dart';
 import 'package:navis/src/common_widgets/desktop/desktop_primitives.dart';
 import 'package:navis/src/common_widgets/desktop/desktop_context_menu.dart';
 import 'package:navis/src/common_widgets/cover_art_image.dart';
@@ -2475,29 +2476,8 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen> {
     List<SongsTableData> songs,
   ) async {
     if (!ctx.mounted) return;
-    final l10n = AppLocalizations.of(ctx)!;
-    final confirmed = await showDialog<bool>(
-      context: ctx,
-      builder: (dialogCtx) => AlertDialog(
-        title: Text(l10n.downloadsRemoveConfirmTitle),
-        content: Text(l10n.downloadsRemoveConfirmContent),
-        actions: <Widget>[
-          TextButton(
-            onPressed: () => Navigator.of(dialogCtx).pop(false),
-            child: Text(l10n.cancelAction),
-          ),
-          FilledButton(
-            style: FilledButton.styleFrom(
-              backgroundColor: Theme.of(dialogCtx).colorScheme.error,
-              foregroundColor: Theme.of(dialogCtx).colorScheme.onError,
-            ),
-            onPressed: () => Navigator.of(dialogCtx).pop(true),
-            child: Text(l10n.downloadsRemoveAction),
-          ),
-        ],
-      ),
-    );
-    if (confirmed != true || !mounted) return;
+    final confirmed = await confirmRemoveDownload(ctx);
+    if (!confirmed || !mounted) return;
     await ref
         .read(downloadServiceProvider)
         .removeDownloadedTracks(songs.map((song) => song.id));

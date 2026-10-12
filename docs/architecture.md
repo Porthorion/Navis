@@ -1554,6 +1554,8 @@ Reusable UI components used across features:
     tint, and semantics
   - `album_card.dart` - Album grid card
   - `artist_card.dart` - Artist list/grid card
+  - `confirm_dialog.dart` - `showConfirmDialog` (Cancel/confirm alert with
+    optional destructive styling and confirm key) and `confirmRemoveDownload`
 
 - **Player UI**
   - `expandable_player_sheet.dart` - Mini player ↔ now playing transition

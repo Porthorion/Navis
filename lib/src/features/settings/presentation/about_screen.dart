@@ -5,6 +5,7 @@ import 'package:flutter/foundation.dart';
 import 'package:navis/src/common_widgets/app_notice.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:navis/l10n/app_localizations.dart';
+import 'package:navis/src/common_widgets/confirm_dialog.dart';
 import 'package:navis/src/common_widgets/navis_icon.dart';
 import 'package:navis/src/database/daos/network_usage_dao.dart';
 import 'package:navis/src/features/integrations/domain/integration_feature.dart';
@@ -330,24 +331,14 @@ class _AboutScreenState extends ConsumerState<AboutScreen> {
 
   Future<void> _confirmResetUsageStats(BuildContext context) async {
     final l10n = AppLocalizations.of(context)!;
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (dialogContext) => AlertDialog(
-        title: Text(l10n.aboutDataUsageResetConfirmTitle),
-        content: Text(l10n.aboutDataUsageResetConfirmMessage),
-        actions: <Widget>[
-          TextButton(
-            onPressed: () => Navigator.of(dialogContext).pop(false),
-            child: Text(l10n.aboutDataUsageResetCancel),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.of(dialogContext).pop(true),
-            child: Text(l10n.aboutDataUsageResetConfirmAction),
-          ),
-        ],
-      ),
+    final confirmed = await showConfirmDialog(
+      context,
+      title: l10n.aboutDataUsageResetConfirmTitle,
+      message: l10n.aboutDataUsageResetConfirmMessage,
+      confirmLabel: l10n.aboutDataUsageResetConfirmAction,
+      cancelLabel: l10n.aboutDataUsageResetCancel,
     );
-    if (confirmed != true || !mounted || !context.mounted) {
+    if (!confirmed || !mounted || !context.mounted) {
       return;
     }
 

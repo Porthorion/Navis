@@ -8,6 +8,7 @@ import 'package:navis/src/common_widgets/navis_section_header.dart';
 import 'package:navis/src/common_widgets/app_notice.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:navis/l10n/app_localizations.dart';
+import 'package:navis/src/common_widgets/confirm_dialog.dart';
 import 'package:navis/src/common_widgets/cover_art_image.dart';
 import 'package:navis/src/database/tables/schema_enums.dart';
 import 'package:navis/src/features/cache/data/rolling_cache_manager.dart';
@@ -127,28 +128,14 @@ class _CacheSettingsScreenState extends ConsumerState<CacheSettingsScreen> {
 
   Future<void> _clearRollingCache() async {
     final l10n = AppLocalizations.of(context)!;
-    final confirm = await showDialog<bool>(
-      context: context,
-      builder: (dialogContext) => AlertDialog(
-        title: Text(l10n.cacheSettingsClearRolling),
-        content: Text(l10n.cacheSettingsClearRollingConfirm),
-        actions: <Widget>[
-          TextButton(
-            onPressed: () => Navigator.pop(dialogContext, false),
-            child: Text(l10n.cancelAction),
-          ),
-          FilledButton(
-            style: FilledButton.styleFrom(
-              backgroundColor: Theme.of(dialogContext).colorScheme.error,
-              foregroundColor: Theme.of(dialogContext).colorScheme.onError,
-            ),
-            onPressed: () => Navigator.pop(dialogContext, true),
-            child: Text(l10n.cacheSettingsClearRolling),
-          ),
-        ],
-      ),
+    final confirm = await showConfirmDialog(
+      context,
+      title: l10n.cacheSettingsClearRolling,
+      message: l10n.cacheSettingsClearRollingConfirm,
+      confirmLabel: l10n.cacheSettingsClearRolling,
+      destructive: true,
     );
-    if (confirm != true || !mounted) return;
+    if (!confirm || !mounted) return;
 
     setState(() => _clearing = true);
     try {
@@ -161,28 +148,14 @@ class _CacheSettingsScreenState extends ConsumerState<CacheSettingsScreen> {
 
   Future<void> _clearCoverArtCache() async {
     final l10n = AppLocalizations.of(context)!;
-    final confirm = await showDialog<bool>(
-      context: context,
-      builder: (dialogContext) => AlertDialog(
-        title: Text(l10n.cacheSettingsClearCoverArt),
-        content: Text(l10n.cacheSettingsClearCoverArtConfirm),
-        actions: <Widget>[
-          TextButton(
-            onPressed: () => Navigator.pop(dialogContext, false),
-            child: Text(l10n.cancelAction),
-          ),
-          FilledButton(
-            style: FilledButton.styleFrom(
-              backgroundColor: Theme.of(dialogContext).colorScheme.error,
-              foregroundColor: Theme.of(dialogContext).colorScheme.onError,
-            ),
-            onPressed: () => Navigator.pop(dialogContext, true),
-            child: Text(l10n.cacheSettingsClearCoverArt),
-          ),
-        ],
-      ),
+    final confirm = await showConfirmDialog(
+      context,
+      title: l10n.cacheSettingsClearCoverArt,
+      message: l10n.cacheSettingsClearCoverArtConfirm,
+      confirmLabel: l10n.cacheSettingsClearCoverArt,
+      destructive: true,
     );
-    if (confirm != true || !mounted) return;
+    if (!confirm || !mounted) return;
 
     setState(() => _clearing = true);
     try {
@@ -198,28 +171,14 @@ class _CacheSettingsScreenState extends ConsumerState<CacheSettingsScreen> {
 
   Future<void> _deleteAllPresets() async {
     final l10n = AppLocalizations.of(context)!;
-    final confirm = await showDialog<bool>(
-      context: context,
-      builder: (dialogContext) => AlertDialog(
-        title: Text(l10n.cacheSettingsDeleteAllPresetsConfirmTitle),
-        content: Text(l10n.cacheSettingsDeleteAllPresetsConfirmBody),
-        actions: <Widget>[
-          TextButton(
-            onPressed: () => Navigator.pop(dialogContext, false),
-            child: Text(l10n.cancelAction),
-          ),
-          FilledButton(
-            style: FilledButton.styleFrom(
-              backgroundColor: Theme.of(dialogContext).colorScheme.error,
-              foregroundColor: Theme.of(dialogContext).colorScheme.onError,
-            ),
-            onPressed: () => Navigator.pop(dialogContext, true),
-            child: Text(l10n.cacheSettingsDeleteAllPresets),
-          ),
-        ],
-      ),
+    final confirm = await showConfirmDialog(
+      context,
+      title: l10n.cacheSettingsDeleteAllPresetsConfirmTitle,
+      message: l10n.cacheSettingsDeleteAllPresetsConfirmBody,
+      confirmLabel: l10n.cacheSettingsDeleteAllPresets,
+      destructive: true,
     );
-    if (confirm != true || !mounted) return;
+    if (!confirm || !mounted) return;
     setState(() => _clearing = true);
     try {
       await ref
@@ -247,51 +206,24 @@ class _CacheSettingsScreenState extends ConsumerState<CacheSettingsScreen> {
 
   Future<void> _resetLibraryCache() async {
     final l10n = AppLocalizations.of(context)!;
-    final confirm = await showDialog<bool>(
-      context: context,
-      builder: (dialogContext) => AlertDialog(
-        title: Text(l10n.cacheSettingsResetLibraryCacheConfirmTitle),
-        content: Text(l10n.cacheSettingsResetLibraryCacheConfirmBody),
-        actions: <Widget>[
-          TextButton(
-            onPressed: () => Navigator.pop(dialogContext, false),
-            child: Text(l10n.cancelAction),
-          ),
-          FilledButton(
-            style: FilledButton.styleFrom(
-              backgroundColor: Theme.of(dialogContext).colorScheme.error,
-              foregroundColor: Theme.of(dialogContext).colorScheme.onError,
-            ),
-            onPressed: () => Navigator.pop(dialogContext, true),
-            child: Text(l10n.cacheSettingsResetLibraryCacheConfirmAction),
-          ),
-        ],
-      ),
+    final confirm = await showConfirmDialog(
+      context,
+      title: l10n.cacheSettingsResetLibraryCacheConfirmTitle,
+      message: l10n.cacheSettingsResetLibraryCacheConfirmBody,
+      confirmLabel: l10n.cacheSettingsResetLibraryCacheConfirmAction,
+      destructive: true,
     );
-    if (confirm != true || !mounted) return;
+    if (!confirm || !mounted) return;
 
     var allowMeteredBroadOverride = false;
     if (ref.read(syncNetworkPolicyProvider).isMetered) {
-      final confirmed = await showDialog<bool>(
-        context: context,
-        builder: (dialogContext) => AlertDialog(
-          title: Text(l10n.cacheSettingsResetLibraryCacheMeteredConfirmTitle),
-          content: Text(l10n.cacheSettingsResetLibraryCacheMeteredConfirmBody),
-          actions: <Widget>[
-            TextButton(
-              onPressed: () => Navigator.pop(dialogContext, false),
-              child: Text(l10n.cancelAction),
-            ),
-            FilledButton(
-              onPressed: () => Navigator.pop(dialogContext, true),
-              child: Text(
-                l10n.cacheSettingsResetLibraryCacheMeteredConfirmAction,
-              ),
-            ),
-          ],
-        ),
+      final confirmed = await showConfirmDialog(
+        context,
+        title: l10n.cacheSettingsResetLibraryCacheMeteredConfirmTitle,
+        message: l10n.cacheSettingsResetLibraryCacheMeteredConfirmBody,
+        confirmLabel: l10n.cacheSettingsResetLibraryCacheMeteredConfirmAction,
       );
-      if (confirmed != true || !mounted) return;
+      if (!confirmed || !mounted) return;
       allowMeteredBroadOverride = true;
     }
 

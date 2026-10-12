@@ -8,6 +8,7 @@ import 'package:flutter/services.dart';
 import 'package:navis/src/common_widgets/app_notice.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:navis/l10n/app_localizations.dart';
+import 'package:navis/src/common_widgets/confirm_dialog.dart';
 import 'package:navis/src/features/home/domain/home_section_ids.dart';
 import 'package:navis/src/features/library/presentation/library_scroll_provider.dart';
 import 'package:navis/src/providers/app_providers.dart';
@@ -267,25 +268,13 @@ class AppearanceSettingsScreen extends ConsumerWidget {
                     }
                   },
                   onDeletePreset: (colorValue) async {
-                    final confirmed = await showDialog<bool>(
-                      context: context,
-                      builder: (dialogContext) => AlertDialog(
-                        title: Text(l10n.appearanceColorDeletePreset),
-                        content: Text(l10n.appearanceColorDeletePresetConfirm),
-                        actions: <Widget>[
-                          TextButton(
-                            onPressed: () =>
-                                Navigator.pop(dialogContext, false),
-                            child: Text(l10n.cancelAction),
-                          ),
-                          FilledButton(
-                            onPressed: () => Navigator.pop(dialogContext, true),
-                            child: Text(l10n.appearanceColorDeletePreset),
-                          ),
-                        ],
-                      ),
+                    final confirmed = await showConfirmDialog(
+                      context,
+                      title: l10n.appearanceColorDeletePreset,
+                      message: l10n.appearanceColorDeletePresetConfirm,
+                      confirmLabel: l10n.appearanceColorDeletePreset,
                     );
-                    if (confirmed != true || !context.mounted) return;
+                    if (!confirmed || !context.mounted) return;
                     final db = ref.read(navisDatabaseProvider);
                     final updated = List<int>.from(customPresets)
                       ..remove(colorValue);

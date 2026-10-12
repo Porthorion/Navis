@@ -7,6 +7,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:navis/src/routing/desktop_layout.dart';
 import 'package:navis/l10n/app_localizations.dart';
+import 'package:navis/src/common_widgets/confirm_dialog.dart';
 import 'package:navis/src/common_widgets/navis_icon.dart';
 import 'package:navis/src/features/home/presentation/home_onboarding_warmup.dart';
 import 'package:navis/src/features/integrations/domain/integration_feature.dart';
@@ -269,31 +270,17 @@ class OnboardingScreenState extends ConsumerState<OnboardingScreen> {
 
   Future<void> _skip() async {
     final onIntegrations = _step == integrationsStep;
-    final discard = await showDialog<bool>(
-      context: context,
-      builder: (context) {
-        final l10n = AppLocalizations.of(context)!;
-        return AlertDialog(
-          title: Text(l10n.onboardingSkipDialogTitle),
-          content: Text(
-            onIntegrations
-                ? l10n.onboardingSkipDialogMessage
-                : l10n.onboardingSkipToIntegrationsDialogMessage,
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context, false),
-              child: Text(l10n.onboardingKeepCustomizing),
-            ),
-            FilledButton(
-              onPressed: () => Navigator.pop(context, true),
-              child: Text(l10n.onboardingSkipSetup),
-            ),
-          ],
-        );
-      },
+    final l10n = AppLocalizations.of(context)!;
+    final discard = await showConfirmDialog(
+      context,
+      title: l10n.onboardingSkipDialogTitle,
+      message: onIntegrations
+          ? l10n.onboardingSkipDialogMessage
+          : l10n.onboardingSkipToIntegrationsDialogMessage,
+      confirmLabel: l10n.onboardingSkipSetup,
+      cancelLabel: l10n.onboardingKeepCustomizing,
     );
-    if (discard != true || !mounted) return;
+    if (!discard || !mounted) return;
     if (onIntegrations) {
       await _finish(discardDraft: true);
     } else {

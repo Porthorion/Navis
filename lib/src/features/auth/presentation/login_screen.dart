@@ -6,6 +6,7 @@ import 'package:navis/src/common_widgets/app_notice.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:navis/l10n/app_localizations.dart';
+import 'package:navis/src/common_widgets/confirm_dialog.dart';
 import 'package:navis/src/api/subsonic_error.dart';
 import 'package:navis/src/common_widgets/navis_icon.dart';
 import 'package:navis/src/features/auth/domain/server_config.dart';
@@ -473,29 +474,14 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     }
   }
 
-  Future<bool> _confirmServerReplacement(AppLocalizations l10n) async {
-    return await showDialog<bool>(
-          context: context,
-          builder: (dialogContext) => AlertDialog(
-            title: Text(l10n.loginReplaceServerTitle),
-            content: Text(l10n.loginReplaceServerMessage),
-            actions: <Widget>[
-              TextButton(
-                onPressed: () => Navigator.of(dialogContext).pop(false),
-                child: Text(l10n.cancelAction),
-              ),
-              FilledButton(
-                style: FilledButton.styleFrom(
-                  backgroundColor: Theme.of(context).colorScheme.error,
-                  foregroundColor: Theme.of(context).colorScheme.onError,
-                ),
-                onPressed: () => Navigator.of(dialogContext).pop(true),
-                child: Text(l10n.loginReplaceServerAction),
-              ),
-            ],
-          ),
-        ) ??
-        false;
+  Future<bool> _confirmServerReplacement(AppLocalizations l10n) {
+    return showConfirmDialog(
+      context,
+      title: l10n.loginReplaceServerTitle,
+      message: l10n.loginReplaceServerMessage,
+      confirmLabel: l10n.loginReplaceServerAction,
+      destructive: true,
+    );
   }
 
   bool _validateForm() {

@@ -4,6 +4,7 @@ import 'package:material_ui/material_ui.dart';
 import 'package:navis/src/common_widgets/app_notice.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:navis/l10n/app_localizations.dart';
+import 'package:navis/src/common_widgets/confirm_dialog.dart';
 import 'package:navis/src/common_widgets/desktop/desktop_context_menu.dart';
 import 'package:navis/src/common_widgets/song_download_status_icon.dart';
 import 'package:navis/src/database/navis_database.dart';
@@ -345,29 +346,8 @@ Future<void> _deleteAlbumDownloads(
   List<SongsTableData> songs,
 ) async {
   if (!context.mounted) return;
-  final l10n = AppLocalizations.of(context)!;
-  final confirmed = await showDialog<bool>(
-    context: context,
-    builder: (ctx) => AlertDialog(
-      title: Text(l10n.downloadsRemoveConfirmTitle),
-      content: Text(l10n.downloadsRemoveConfirmContent),
-      actions: <Widget>[
-        TextButton(
-          onPressed: () => Navigator.of(ctx).pop(false),
-          child: Text(l10n.cancelAction),
-        ),
-        FilledButton(
-          style: FilledButton.styleFrom(
-            backgroundColor: Theme.of(ctx).colorScheme.error,
-            foregroundColor: Theme.of(ctx).colorScheme.onError,
-          ),
-          onPressed: () => Navigator.of(ctx).pop(true),
-          child: Text(l10n.downloadsRemoveAction),
-        ),
-      ],
-    ),
-  );
-  if (confirmed != true || !context.mounted) return;
+  final confirmed = await confirmRemoveDownload(context);
+  if (!confirmed || !context.mounted) return;
 
   await ref
       .read(downloadServiceProvider)

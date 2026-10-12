@@ -7,6 +7,7 @@ import 'package:material_ui/material_ui.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:navis/l10n/app_localizations.dart';
+import 'package:navis/src/common_widgets/confirm_dialog.dart';
 import 'package:navis/src/theme/navis_color_style_data.dart';
 import 'package:navis/src/utils/file_utils.dart';
 import 'package:navis/src/utils/app_logger.dart';
@@ -880,24 +881,14 @@ class EqualizerScreenState extends ConsumerState<EqualizerScreen> {
   }
 
   Future<void> _discard() async {
-    final discard = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: Text(l10n.eqDiscardChanges),
-        content: Text(l10n.eqDiscardDescription),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: Text(l10n.eqCancel),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.pop(context, true),
-            child: Text(l10n.eqDiscardChanges),
-          ),
-        ],
-      ),
+    final discard = await showConfirmDialog(
+      context,
+      title: l10n.eqDiscardChanges,
+      message: l10n.eqDiscardDescription,
+      confirmLabel: l10n.eqDiscardChanges,
+      cancelLabel: l10n.eqCancel,
     );
-    if (discard == true && mounted) await controller.discardChanges();
+    if (discard && mounted) await controller.discardChanges();
   }
 
   Future<void> _panel(WidgetBuilder builder) async {
