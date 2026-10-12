@@ -38,6 +38,7 @@ import 'package:navis/src/features/player/presentation/play_song_in_collection.d
 import 'package:navis/src/features/player/presentation/queue_provider.dart';
 import 'package:navis/src/features/playlists/presentation/add_to_playlist_sheet.dart';
 import 'package:navis/src/providers/app_providers.dart';
+import 'package:navis/src/api/models/album_info.dart';
 import 'package:navis/src/api/models/artist_ref.dart';
 import 'package:navis/src/common_widgets/entity_action_bar.dart';
 import 'package:navis/src/common_widgets/entity_meta_line.dart';
@@ -493,12 +494,18 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen> {
                 final albumInfoWidget = albumInfoAsync.when(
                   data: (info) {
                     if (info == null) return const SizedBox.shrink();
-                    final notes = _stripHtml(info.notes ?? '');
-                    final hasNotes = notes.trim().isNotEmpty;
-                    final hasLinks =
-                        (info.lastFmUrl ?? '').trim().isNotEmpty ||
-                        isMusicBrainzUuid(info.musicBrainzId);
-                    if (!hasNotes && !hasLinks) return const SizedBox.shrink();
+                    final about = _aboutChildren(
+                      l10n,
+                      info,
+                      titleStyle: textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.bold,
+                      ),
+                      notesStyle: textTheme.bodyMedium?.copyWith(
+                        height: 1.6,
+                        color: colors.onSurface.withValues(alpha: 0.8),
+                      ),
+                    );
+                    if (about == null) return const SizedBox.shrink();
                     return Padding(
                       padding: const EdgeInsets.fromLTRB(16, 16, 16, 4),
                       child: Column(
@@ -506,55 +513,7 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen> {
                         children: <Widget>[
                           const Divider(height: 1),
                           const SizedBox(height: 14),
-                          Text(
-                            l10n.albumDetailAboutSection,
-                            style: textTheme.titleMedium?.copyWith(
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                          if (hasNotes) ...<Widget>[
-                            const SizedBox(height: 8),
-                            Text(
-                              notes,
-                              style: textTheme.bodyMedium?.copyWith(
-                                height: 1.6,
-                                color: colors.onSurface.withValues(alpha: 0.8),
-                              ),
-                            ),
-                          ],
-                          if (hasLinks) ...<Widget>[
-                            const SizedBox(height: 10),
-                            Wrap(
-                              spacing: 8,
-                              runSpacing: 8,
-                              children: <Widget>[
-                                if ((info.lastFmUrl ?? '').trim().isNotEmpty)
-                                  ActionChip(
-                                    avatar: const Icon(
-                                      Icons.open_in_new,
-                                      size: 16,
-                                    ),
-                                    label: Text(l10n.albumDetailLastFm),
-                                    onPressed: () => unawaited(
-                                      _openExternalLink(info.lastFmUrl!),
-                                    ),
-                                  ),
-                                if (isMusicBrainzUuid(info.musicBrainzId))
-                                  ActionChip(
-                                    avatar: const Icon(
-                                      Icons.album_outlined,
-                                      size: 16,
-                                    ),
-                                    label: Text(l10n.albumDetailMusicBrainz),
-                                    onPressed: () => unawaited(
-                                      _openExternalLink(
-                                        'https://musicbrainz.org/release-group/${info.musicBrainzId}',
-                                      ),
-                                    ),
-                                  ),
-                              ],
-                            ),
-                          ],
+                          ...about,
                           const SizedBox(height: 12),
                         ],
                       ),
@@ -789,15 +748,18 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen> {
                 final albumInfoSliver = albumInfoAsync.when<Widget>(
                   data: (info) {
                     if (info == null) return const SliverToBoxAdapter();
-                    final notes = _stripHtml(info.notes ?? '');
-                    final hasNotes = notes.trim().isNotEmpty;
-                    final hasLinks =
-                        (info.lastFmUrl ?? '').trim().isNotEmpty ||
-                        isMusicBrainzUuid(info.musicBrainzId);
-                    if (!hasNotes && !hasLinks) {
-                      return const SliverToBoxAdapter();
-                    }
-
+                    final about = _aboutChildren(
+                      l10n,
+                      info,
+                      titleStyle: textTheme.titleSmall?.copyWith(
+                        fontWeight: FontWeight.w700,
+                      ),
+                      notesStyle: textTheme.bodyMedium?.copyWith(
+                        height: 1.5,
+                        color: colors.onSurface.withValues(alpha: 0.82),
+                      ),
+                    );
+                    if (about == null) return const SliverToBoxAdapter();
                     return SliverToBoxAdapter(
                       child: Padding(
                         padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
@@ -806,57 +768,7 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen> {
                           children: <Widget>[
                             const Divider(height: 1),
                             const SizedBox(height: 12),
-                            Text(
-                              l10n.albumDetailAboutSection,
-                              style: textTheme.titleSmall?.copyWith(
-                                fontWeight: FontWeight.w700,
-                              ),
-                            ),
-                            if (hasNotes) ...<Widget>[
-                              const SizedBox(height: 8),
-                              Text(
-                                notes,
-                                style: textTheme.bodyMedium?.copyWith(
-                                  height: 1.5,
-                                  color: colors.onSurface.withValues(
-                                    alpha: 0.82,
-                                  ),
-                                ),
-                              ),
-                            ],
-                            if (hasLinks) ...<Widget>[
-                              const SizedBox(height: 10),
-                              Wrap(
-                                spacing: 8,
-                                runSpacing: 8,
-                                children: <Widget>[
-                                  if ((info.lastFmUrl ?? '').trim().isNotEmpty)
-                                    ActionChip(
-                                      avatar: const Icon(
-                                        Icons.open_in_new,
-                                        size: 16,
-                                      ),
-                                      label: Text(l10n.albumDetailLastFm),
-                                      onPressed: () => unawaited(
-                                        _openExternalLink(info.lastFmUrl!),
-                                      ),
-                                    ),
-                                  if (isMusicBrainzUuid(info.musicBrainzId))
-                                    ActionChip(
-                                      avatar: const Icon(
-                                        Icons.album_outlined,
-                                        size: 16,
-                                      ),
-                                      label: Text(l10n.albumDetailMusicBrainz),
-                                      onPressed: () => unawaited(
-                                        _openExternalLink(
-                                          'https://musicbrainz.org/release-group/${info.musicBrainzId}',
-                                        ),
-                                      ),
-                                    ),
-                                ],
-                              ),
-                            ],
+                            ...about,
                           ],
                         ),
                       ),
@@ -1402,15 +1314,13 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen> {
                             if (info == null) {
                               return const SizedBox.shrink();
                             }
-                            final notes = _stripHtml(info.notes ?? '');
-                            final hasNotes = notes.trim().isNotEmpty;
-                            final hasLinks =
-                                (info.lastFmUrl ?? '').trim().isNotEmpty ||
-                                isMusicBrainzUuid(info.musicBrainzId);
-                            if (!hasNotes && !hasLinks) {
-                              return const SizedBox.shrink();
-                            }
-
+                            final about = _aboutChildren(
+                              l10n,
+                              info,
+                              titleStyle: mobileTextTheme.titleSmall,
+                              notesStyle: mobileTextTheme.bodyMedium,
+                            );
+                            if (about == null) return const SizedBox.shrink();
                             return Padding(
                               padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
                               child: Card(
@@ -1419,62 +1329,7 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen> {
                                   child: Column(
                                     crossAxisAlignment:
                                         CrossAxisAlignment.start,
-                                    children: <Widget>[
-                                      Text(
-                                        l10n.albumDetailAboutSection,
-                                        style: mobileTextTheme.titleSmall,
-                                      ),
-                                      if (hasNotes) ...<Widget>[
-                                        const SizedBox(height: 8),
-                                        Text(
-                                          notes,
-                                          style: mobileTextTheme.bodyMedium,
-                                        ),
-                                      ],
-                                      if (hasLinks) ...<Widget>[
-                                        const SizedBox(height: 10),
-                                        Wrap(
-                                          spacing: 8,
-                                          runSpacing: 8,
-                                          children: <Widget>[
-                                            if ((info.lastFmUrl ?? '')
-                                                .trim()
-                                                .isNotEmpty)
-                                              ActionChip(
-                                                avatar: const Icon(
-                                                  Icons.open_in_new,
-                                                  size: 16,
-                                                ),
-                                                label: Text(
-                                                  l10n.albumDetailLastFm,
-                                                ),
-                                                onPressed: () => unawaited(
-                                                  _openExternalLink(
-                                                    info.lastFmUrl!,
-                                                  ),
-                                                ),
-                                              ),
-                                            if (isMusicBrainzUuid(
-                                              info.musicBrainzId,
-                                            ))
-                                              ActionChip(
-                                                avatar: const Icon(
-                                                  Icons.album_outlined,
-                                                  size: 16,
-                                                ),
-                                                label: Text(
-                                                  l10n.albumDetailMusicBrainz,
-                                                ),
-                                                onPressed: () => unawaited(
-                                                  _openExternalLink(
-                                                    'https://musicbrainz.org/release-group/${info.musicBrainzId}',
-                                                  ),
-                                                ),
-                                              ),
-                                          ],
-                                        ),
-                                      ],
-                                    ],
+                                    children: about,
                                   ),
                                 ),
                               ),
@@ -2019,6 +1874,53 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen> {
         setState(() => _isUpdatingRating = false);
       }
     }
+  }
+
+  /// Heading, notes and link chips of the "about" block, or null when [info]
+  /// has neither notes nor links. Layouts differ only in text styles/wrapping.
+  List<Widget>? _aboutChildren(
+    AppLocalizations l10n,
+    AlbumInfo info, {
+    required TextStyle? titleStyle,
+    required TextStyle? notesStyle,
+  }) {
+    final notes = _stripHtml(info.notes ?? '');
+    final hasNotes = notes.trim().isNotEmpty;
+    final hasLastFm = (info.lastFmUrl ?? '').trim().isNotEmpty;
+    final hasMusicBrainz = isMusicBrainzUuid(info.musicBrainzId);
+    if (!hasNotes && !hasLastFm && !hasMusicBrainz) return null;
+    return <Widget>[
+      Text(l10n.albumDetailAboutSection, style: titleStyle),
+      if (hasNotes) ...<Widget>[
+        const SizedBox(height: 8),
+        Text(notes, style: notesStyle),
+      ],
+      if (hasLastFm || hasMusicBrainz) ...<Widget>[
+        const SizedBox(height: 10),
+        Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          children: <Widget>[
+            if (hasLastFm)
+              ActionChip(
+                avatar: const Icon(Icons.open_in_new, size: 16),
+                label: Text(l10n.albumDetailLastFm),
+                onPressed: () => unawaited(_openExternalLink(info.lastFmUrl!)),
+              ),
+            if (hasMusicBrainz)
+              ActionChip(
+                avatar: const Icon(Icons.album_outlined, size: 16),
+                label: Text(l10n.albumDetailMusicBrainz),
+                onPressed: () => unawaited(
+                  _openExternalLink(
+                    'https://musicbrainz.org/release-group/${info.musicBrainzId}',
+                  ),
+                ),
+              ),
+          ],
+        ),
+      ],
+    ];
   }
 
   Future<void> _openExternalLink(String url) async {
