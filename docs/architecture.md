@@ -5454,9 +5454,11 @@ of thousands of songs. `tool/perf_diagnostics.py` measures them (see
   normalized artist, tests each artist once per query, and filters the original
   candidate list to preserve row order. The DAO's artist rules are tested in
   `Isolate.run` with plain string keys and seed keys/tokens, once per distinct
-  `match_artist` key (indexed, like `match_title`), not once per song. SQL and
-  Drift row mapping stay unchanged, and matching songs are read through the
-  two key indexes;
+  `match_artist` key (indexed, like `match_title`), not once per song. SQL stays
+  unchanged, and matching songs are read through the two key indexes. Raw
+  candidate rows are mapped to `SongsTableData` in order, yielding between
+  chunks of `kLocalTrackMatcherSnapshotYieldChunkSize` (500), so large results
+  do not block the UI isolate for the entire mapping pass;
   `debugTrackMatchCandidatesByFullScan` keeps the per-song query as the test
   reference. Candidate selection starts a refresh only when stale rows exist, or
   joins one already running, and waits at most two seconds. Fresh indexes

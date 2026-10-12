@@ -478,6 +478,38 @@ void main() {
           queries.map((query) => (title: query.title, artist: query.artist)),
         );
 
+    test(
+      'mapping across chunks preserves candidate order and contents',
+      () async {
+        const count = kLocalTrackMatcherSnapshotYieldChunkSize * 2 + 1;
+        await database.libraryDao.upsertSongs([
+          for (var index = 0; index < count; index++)
+            _song(
+              'chunk-${index.toString().padLeft(4, '0')}',
+              'Track ${count - index}',
+              artistName: 'Chunk Artist',
+              albumName: index.isEven ? 'Album $index' : null,
+            ).copyWith(
+              track: Value(index + 1),
+              duration: Value(100 + index),
+              recordingMbid: Value('recording-$index'),
+              replayGainTrackGain: Value(-index / 10),
+            ),
+        ]);
+        await database.libraryDao.refreshSongSearchIndex();
+        const tracks = [(title: 'Unknown', artist: 'Chunk Artist')];
+        final reference = await database.libraryDao
+            .debugTrackMatchCandidatesByFullScan(tracks);
+        final result = await database.libraryDao.getTrackMatchCandidates(
+          tracks,
+        );
+
+        expect(reference, hasLength(count));
+        expect(result.map((song) => song.id), reference.map((song) => song.id));
+        expect(result, orderedEquals(reference));
+      },
+    );
+
     test('match exactly like the whole library, stale or fresh', () async {
       final reference = await matches(await database.libraryDao.getAllSongs());
       // The first lookup refreshes stale rows before selecting candidates.

@@ -31,6 +31,8 @@ import 'package:navis/src/database/tables/album_artist_index_table.dart';
 import 'package:navis/src/database/tables/artist_ref_converter.dart';
 import 'package:navis/src/utils/metadata_normalization.dart';
 import 'package:navis/src/features/library/data/library_artist_name_index.dart';
+import 'package:navis/src/features/library/data/local_track_matcher.dart'
+    show kLocalTrackMatcherSnapshotYieldChunkSize;
 import 'package:rxdart/rxdart.dart';
 import 'package:navis/src/database/tables/songs_table.dart';
 import 'package:navis/src/features/downloads/data/android_saf_storage.dart';
@@ -3405,7 +3407,16 @@ class LibraryDao extends DatabaseAccessor<NavisDatabase>
     if (rows.any((row) => row.read<bool>('index_stale'))) {
       unawaited(scheduleSongSearchIndexRefresh());
     }
-    return rows.map((row) => songsTable.map(row.data)).toList();
+    final candidates = <SongsTableData>[];
+    for (var index = 0; index < rows.length; index++) {
+      candidates.add(songsTable.map(rows[index].data));
+      // Large candidate sets must leave time for UI events during mapping.
+      if ((index + 1) % kLocalTrackMatcherSnapshotYieldChunkSize == 0 &&
+          index + 1 < rows.length) {
+        await Future<void>.delayed(Duration.zero);
+      }
+    }
+    return candidates;
   }
 
   /// [getTrackMatchCandidates] as one scan that tests every song's artist
