@@ -1983,7 +1983,7 @@ final rollingCacheBudgetBytesProvider = Provider<int>((ref) {
 
 final rollingCacheManagerProvider = Provider<RollingCacheManager>((ref) {
   final database = ref.watch(navisDatabaseProvider);
-  return DriftRollingCacheManager(
+  return RollingCacheManager(
     cacheDao: database.cacheDao,
     songIdentityDao: database.songIdentityDao,
     entryExists: (entry) => storedAudioExists(

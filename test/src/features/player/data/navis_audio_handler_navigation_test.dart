@@ -907,7 +907,7 @@ void main() {
       );
     }
     await seed?.call(database);
-    final cache = DriftRollingCacheManager(cacheDao: database.cacheDao);
+    final cache = RollingCacheManager(cacheDao: database.cacheDao);
     final player = initialPlayer ?? _ControllableAudioPlayer();
     if (positionStreams) player.positionPlayer = _HandlerPositionPlayer(player);
     if (hungLoadSongs != null) player.hungLoadSongs = hungLoadSongs;
