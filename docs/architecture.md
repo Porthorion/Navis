@@ -1255,8 +1255,8 @@ target-selection rules.
     `controlAll` for badges/tags, `scaled(n)` for one-off literals that must
     stay identical in `rounded`); circles, dots, drag handles, skeletons and
     painter internals keep fixed radii.
-  - `NavisTokens` is a ThemeExtension for theme-dependent values: frame widths,
-    hover/focus opacity, and colour roles `ColorScheme` lacks: the quiet
+  - `NavisTokens` is a ThemeExtension for theme-dependent values: sidebar width,
+    panel elevation, hover opacity, and colour roles `ColorScheme` lacks: the quiet
     warning container and the `success` foreground for completed or
     confirmed states. Read it with `NavisTokens.of(context)`.
   - Artwork radii follow the user's Appearance shape settings, not these
