@@ -1283,9 +1283,13 @@ target-selection rules.
   zero values.
 - `dynamic_accent_provider.dart`: samples the current artwork to reseed the
   scheme when dynamic album colour is enabled. Both it and Now Playing prewarm
-  use `artworkColorScheme`, which checks decoded dimensions before Material's
-  112px palette scaling can truncate an edge to zero. Extremely thin artwork
-  keeps the default tint/theme seed; extraction errors stay best-effort.
+  use `artworkColorScheme`: decode, Material's 112px scaling and RGBA readback
+  stay on the UI isolate; `Isolate.run` quantizes the raw pixel ints to 128
+  colours and scores the seed, then the UI isolate builds the scheme with
+  the requested brightness and variant. Decoded dimensions are checked before
+  scaling can truncate an edge to zero. Extremely thin artwork keeps the default
+  tint/theme seed; loading retains its five-second timeout and extraction errors
+  stay best-effort. Caption tints use the separate `CoverColourWorker` path.
 - Custom accent labels use `settings/domain/color_namer.dart`: nearest CIE76
   colour in CIELAB (sRGB D65), ignoring alpha, with lazily cached table Lab
   values. The MIT meodai/color-names table is generated from the pinned

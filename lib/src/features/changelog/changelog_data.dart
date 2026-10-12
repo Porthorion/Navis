@@ -165,6 +165,10 @@ const List<ChangelogVersion> changelogs = [
     ],
     entries: [
       ChangelogEntry(
+        'Album-art colour extraction no longer blocks the interface when starting playback or skipping tracks',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
         'Artist top tracks and Home discovery match large libraries without blocking scrolling during local matching',
         type: ChangelogEntryType.fix,
       ),
