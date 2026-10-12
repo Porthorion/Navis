@@ -1381,9 +1381,9 @@ under reduced motion (`MotionPolicy`), and exposes the full title as its
 semantics label. Subtitles stay single-line ellipsis. A scrolling title never
 settles `pumpAndSettle`, and `test/flutter_test_config.dart` zeroes the
 `VisibilityDetector` debounce so tests leave no pending timer. The Home
-Recently added / Frequent carousel card (`_ServerAlbumCard`) uses the same
-`AlbumCardLabel` and `AlbumCardCaptionLayout` as `AlbumCard`, so it follows the
-same tiers (its former hard-coded dark scrim is now the opt-in dark tier; the
+Recently added / Frequent carousel card is `AlbumCardContent`, the raw-field
+body that `AlbumCard` wraps, so it shares `AlbumCardLabel` and
+`AlbumCardCaptionLayout` and follows the same tiers (its former hard-coded dark scrim is now the opt-in dark tier; the
 default is the page fade like every other Home album carousel), and its shelf
 adds `albumCardExtraHeight` under Flat. `CoverReadyScope` is the shared cover
 readiness tracker for both cards. With Flat text over artwork
