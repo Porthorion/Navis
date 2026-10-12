@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:audio_service/audio_service.dart';
+import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
@@ -10,6 +11,8 @@ import 'package:navis/src/features/player/domain/playback_snapshot.dart';
 import 'package:navis/src/features/player/presentation/personal_radio_notifier.dart';
 import 'package:navis/src/features/player/presentation/queue_provider.dart';
 import 'package:navis/src/providers/app_providers.dart';
+
+import '../../../../helpers/recommendation_test_harness.dart';
 
 class _MockRecommendationService extends Mock implements RecommendationService;
 
@@ -33,7 +36,7 @@ class _SnapshotController extends Notifier<PlaybackSnapshot> {
   }
 }
 
-class _QueueController extends QueueController {
+class _QueueController extends RecordingRecommendationQueue {
   new(this.onReplace);
 
   final void Function(List<String>) onReplace;
@@ -162,6 +165,7 @@ void main() {
   group('a superseded run cannot release a newer run', () {
     late _MockRecommendationService service;
     late List<Completer<RecommendationBatch>> calls;
+    late List<CancelToken> tokens;
     late NotifierProvider<_SnapshotController, PlaybackSnapshot> snapshots;
     late ProviderContainer container;
 
@@ -173,6 +177,7 @@ void main() {
     setUp(() {
       service = _MockRecommendationService();
       calls = <Completer<RecommendationBatch>>[];
+      tokens = <CancelToken>[];
       when(
         () => service.personalRadio(
           any(),
@@ -180,7 +185,8 @@ void main() {
           count: any(named: 'count'),
           cancelToken: any(named: 'cancelToken'),
         ),
-      ).thenAnswer((_) {
+      ).thenAnswer((invocation) {
+        tokens.add(invocation.namedArguments[#cancelToken]! as CancelToken);
         final call = Completer<RecommendationBatch>();
         calls.add(call);
         return call.future;
@@ -192,6 +198,55 @@ void main() {
       addTearDown(container.dispose);
       container.listen(personalRadioProvider, (_, _) {});
       container.read(snapshots.notifier).setQueue(<String>['old']);
+    });
+
+    test('each radio refill uses a distinct token', () async {
+      final radio = container.read(personalRadioProvider.notifier);
+      final start = radio.start();
+      calls[0].complete(batchOf(<String>['r1', 'r2']));
+      await start;
+
+      for (var refill = 1; refill <= 2; refill++) {
+        container.read(snapshots.notifier).setQueue(<String>[
+          'r1',
+          'r2',
+        ], currentIndex: refill % 2);
+        await pumpEventQueue();
+        expect(calls, hasLength(refill + 1));
+        calls[refill].complete(batchOf(<String>['refill-$refill']));
+        await pumpEventQueue();
+      }
+
+      expect(Set<CancelToken>.identity()..addAll(tokens), hasLength(3));
+      radio.stop();
+      expect(tokens.every((token) => !token.isCancelled), isTrue);
+    });
+
+    test('stopping radio cancels an in-flight refill only', () async {
+      final radio = container.read(personalRadioProvider.notifier);
+      final start = radio.start();
+      calls[0].complete(batchOf(<String>['r1', 'r2']));
+      await start;
+      container.read(snapshots.notifier).setQueue(<String>[
+        'r1',
+        'r2',
+      ], currentIndex: 1);
+      await pumpEventQueue();
+      expect(tokens, hasLength(2));
+
+      radio.stop();
+      calls[1].complete(batchOf(<String>['late']));
+      await pumpEventQueue();
+
+      expect(tokens.last.isCancelled, isTrue);
+      expect(tokens.first.isCancelled, isFalse);
+      expect(container.read(playerStateProvider).queueSongIds, ['r1', 'r2']);
+      expect(
+        (container.read(
+          queueProvider.notifier,
+        ) as _QueueController).appendedSongBatches,
+        isEmpty,
+      );
     });
 
     test('an old start does not clear the newer start busy flag', () async {

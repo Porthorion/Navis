@@ -3343,8 +3343,12 @@ construction so these actions also work before the Flutter shell registers
 its callbacks.
 The Home action awaits an actual queue insertion before opening Now Playing.
 
-`RecommendationSessionCoordinator` owns one generation and cancellation token
-across these automatic modes. Replacement queues, queue clear, internet radio,
+`RecommendationSessionCoordinator` owns one generation and cancellation scope
+across these automatic modes. Each initial fetch and refill uses its own cancel
+token, tracked by the session only while in flight and released on success or
+failure. Ending a session cancels its in-flight requests; later requests receive
+pre-cancelled tokens. Completed refill responses are not retained by the session.
+Replacement queues, queue clear, internet radio,
 server session changes, sign-out, or another recommendation activation
 invalidate ownership. The queue controller checks ownership within its
 serialized recommendation append and reports IDs actually inserted. Every

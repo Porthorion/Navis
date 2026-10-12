@@ -7,15 +7,37 @@ import 'package:navis/src/providers/app_providers.dart';
 enum RecommendationMode { serverMix, sameVibes, personalRadio }
 
 class RecommendationSession {
-  const new({
-    required this.generation,
-    required this.mode,
-    required this.cancelToken,
-  });
+  new({required this.generation, required this.mode});
 
   final int generation;
   final RecommendationMode mode;
-  final CancelToken cancelToken;
+  final Set<CancelToken> _activeCancelTokens = {};
+  String? _cancelReason;
+
+  bool get isCancelled => _cancelReason != null;
+
+  Future<T> withCancelToken<T>(
+    Future<T> Function(CancelToken cancelToken) request,
+  ) async {
+    // Dio attaches listeners that retain responses until the token is released.
+    final cancelToken = CancelToken();
+    if (isCancelled) {
+      cancelToken.cancel(_cancelReason);
+    }
+    _activeCancelTokens.add(cancelToken);
+    try {
+      return await request(cancelToken);
+    } finally {
+      _activeCancelTokens.remove(cancelToken);
+    }
+  }
+
+  void _cancel(String reason) {
+    _cancelReason ??= reason;
+    for (final cancelToken in _activeCancelTokens) {
+      cancelToken.cancel(_cancelReason);
+    }
+  }
 }
 
 class RecommendationSessionStatus {
@@ -63,7 +85,7 @@ class RecommendationSessionStatus {
 
 class RecommendationSessionCoordinator
     extends Notifier<RecommendationSessionStatus> {
-  CancelToken? _token;
+  RecommendationSession? _session;
 
   @override
   RecommendationSessionStatus build() {
@@ -84,32 +106,28 @@ class RecommendationSessionCoordinator
         if (previous != next) stop();
       },
     );
-    ref.onDispose(() => _token?.cancel('recommendation session disposed'));
+    ref.onDispose(() => _session?._cancel('recommendation session disposed'));
     return const RecommendationSessionStatus();
   }
 
   RecommendationSession start(RecommendationMode mode, {String? seedId}) {
-    _token?.cancel('recommendation session replaced');
-    final token = CancelToken();
-    _token = token;
+    _session?._cancel('recommendation session replaced');
     final generation = state.generation + 1;
+    final session = RecommendationSession(generation: generation, mode: mode);
+    _session = session;
     state = RecommendationSessionStatus(
       generation: generation,
       mode: mode,
       seedId: seedId,
       stage: 'preparing',
     );
-    return RecommendationSession(
-      generation: generation,
-      mode: mode,
-      cancelToken: token,
-    );
+    return session;
   }
 
   bool owns(RecommendationSession session) =>
       state.generation == session.generation &&
       state.mode == session.mode &&
-      !session.cancelToken.isCancelled;
+      !session.isCancelled;
 
   void report(
     RecommendationSession session, {
@@ -133,8 +151,8 @@ class RecommendationSessionCoordinator
 
   void stop([RecommendationSession? session]) {
     if (session != null && !owns(session)) return;
-    _token?.cancel('recommendation session stopped');
-    _token = null;
+    _session?._cancel('recommendation session stopped');
+    _session = null;
     state = RecommendationSessionStatus(generation: state.generation + 1);
   }
 }

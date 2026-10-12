@@ -263,9 +263,11 @@ class InstantMixNotifier extends Notifier<InstantMixState> {
     final previousQueue = isInitial ? ref.read(playerStateProvider) : null;
     var queueChangeAttempted = false;
     try {
-      final batch = await ref
-          .read(recommendationServiceProvider)
-          .serverMix(seedSongId, count: 50, cancelToken: session.cancelToken);
+      final batch = await session.withCancelToken(
+        (cancelToken) => ref
+            .read(recommendationServiceProvider)
+            .serverMix(seedSongId, count: 50, cancelToken: cancelToken),
+      );
       if (!ref.mounted) return;
       if (!coordinator.owns(session)) return;
       coordinator.report(

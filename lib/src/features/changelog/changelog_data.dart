@@ -165,6 +165,10 @@ const List<ChangelogVersion> changelogs = [
     ],
     entries: [
       ChangelogEntry(
+        'Instant Radio and Server Mix release completed refill responses, preventing memory from growing throughout long listening sessions',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
         'Library sync releases completed responses to reduce memory use and prevent crashes while syncing large libraries',
         type: ChangelogEntryType.fix,
       ),
