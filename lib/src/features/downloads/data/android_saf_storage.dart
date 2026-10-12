@@ -4,7 +4,7 @@ import 'package:flutter/services.dart';
 
 /// Android Storage Access Framework operations used by permanent downloads.
 ///
-/// The picker deliberately returns a persisted tree URI on Android. A URI is
+/// The picker returns a tree URI on Android, which [persistTree] keeps. A URI is
 /// not a POSIX path, so all interaction with it must stay behind this bridge.
 /// Calls are unavailable on non-Android platforms.
 class AndroidSafStorage {
@@ -19,6 +19,14 @@ class AndroidSafStorage {
   );
 
   static bool get isSafLocator => Platform.isAndroid;
+
+  /// Keeps read/write access to a picked tree across restarts and updates.
+  Future<void> persistTree(String treeUri) => _invoke(
+    () => _channel.invokeMethod<void>('persistTree', <String, Object?>{
+      'treeUri': treeUri,
+    }),
+    'Navis could not keep access to the selected Android folder.',
+  );
 
   Future<AndroidSafTree> inspectTree(String treeUri) async {
     final result = await _invoke(

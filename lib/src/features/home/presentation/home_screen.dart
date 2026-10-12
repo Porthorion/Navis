@@ -3783,7 +3783,11 @@ class _RandomAlbumsHeroCarouselState
     if (albumCount <= 1) {
       return 0;
     }
-    final cycle = _currentVirtualPage ~/ albumCount;
+    // Albums that arrive after a 0/1-album start would otherwise stay near
+    // virtual page 0, with no left neighbour to scroll back to.
+    final cycle = _currentVirtualPage < albumCount
+        ? _kVirtualLoopCycles
+        : _currentVirtualPage ~/ albumCount;
     return cycle * albumCount + logicalPage;
   }
 

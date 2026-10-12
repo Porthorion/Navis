@@ -3,6 +3,14 @@ import 'dart:io';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:navis/src/utils/app_logger.dart';
 
+/// Secure storage could not be read; the saved credential may still exist.
+class CredentialReadException implements Exception {
+  const new();
+
+  @override
+  String toString() => 'Secure credentials are temporarily unavailable.';
+}
+
 abstract class SecureCredentialStore {
   Future<void> savePassword(String password);
   Future<String?> readPassword();
@@ -37,7 +45,13 @@ class CloneDiagnosticsCredentialStore implements SecureCredentialStore {
     if (_didLoad) {
       return _password;
     }
-    return await (_loadFuture ??= _loadPassword());
+    final load = _loadFuture ??= _loadPassword();
+    try {
+      return await load;
+    } on Object {
+      if (identical(_loadFuture, load)) _loadFuture = null;
+      rethrow;
+    }
   }
 
   @override
@@ -62,7 +76,11 @@ class CloneDiagnosticsCredentialStore implements SecureCredentialStore {
 }
 
 class FlutterSecureCredentialStore implements ServerUrlCredentialStore {
-  const new({this._storage = const FlutterSecureStorage()});
+  const new({
+    this._storage = const FlutterSecureStorage(
+      aOptions: AndroidOptions(resetOnError: false),
+    ),
+  });
 
   static const _passwordKey = 'navis.auth.active_server.password';
   static const _userInfoKey = 'navis.auth.active_server.user_info';
@@ -98,15 +116,16 @@ class FlutterSecureCredentialStore implements ServerUrlCredentialStore {
     try {
       final value = await _storage.read(key: _passwordKey);
       return value ?? _sessionPasswordFallback;
-    } on Object catch (error) {
+    } on Object catch (error, stackTrace) {
       if (!_didLogReadFallbackWarning) {
         _didLogReadFallbackWarning = true;
         AppLogger.warning(
-          'Secure credential read failed; using session fallback: '
+          'Secure credential read failed: '
           '${error.runtimeType}.',
         );
       }
-      return _sessionPasswordFallback;
+      if (_sessionPasswordFallback != null) return _sessionPasswordFallback;
+      Error.throwWithStackTrace(const CredentialReadException(), stackTrace);
     }
   }
 
@@ -150,15 +169,19 @@ class FlutterSecureCredentialStore implements ServerUrlCredentialStore {
     try {
       final value = await _storage.read(key: _userInfoKey);
       return value ?? _sessionUserInfoFallback;
-    } on Object catch (error) {
+    } on Object catch (error, stackTrace) {
       if (!_didLogReadFallbackWarning) {
         _didLogReadFallbackWarning = true;
         AppLogger.warning(
-          'Secure credential read failed; using session fallback: '
+          'Secure credential read failed: '
           '${error.runtimeType}.',
         );
       }
-      return _sessionUserInfoFallback;
+      if (_sessionPasswordFallback != null ||
+          _sessionUserInfoFallback != null) {
+        return _sessionUserInfoFallback;
+      }
+      Error.throwWithStackTrace(const CredentialReadException(), stackTrace);
     }
   }
 

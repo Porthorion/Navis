@@ -658,6 +658,7 @@ class DownloadService {
 
     if (normalizedPath case final safPath? when _isSafRoot(safPath)) {
       await _runWithQueuePaused(() async {
+        await _safStorage.persistTree(safPath);
         final tree = await _safStorage.validateWritableTree(safPath);
         if (!tree.canRead || !tree.canWrite || !tree.canReplace) {
           throw const FileSystemException(

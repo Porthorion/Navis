@@ -95,7 +95,7 @@ void main() {
 
       expect(find.text('Wi-Fi Streaming'), findsOneWidget);
       expect(find.text('Cellular Streaming'), findsOneWidget);
-      expect(find.text('Cached First'), findsOneWidget);
+      expect(find.text('Play cached copies at any quality'), findsOneWidget);
       expect(find.text('Enable Scrobbling'), findsOneWidget);
       expect(find.text('Enable Gapless Playback'), findsOneWidget);
       expect(find.text('Experimental'), findsOneWidget);
@@ -163,7 +163,7 @@ void main() {
       );
       final cachedFirstToggle = find.widgetWithText(
         SwitchListTile,
-        'Cached First',
+        'Play cached copies at any quality',
       );
       final gaplessToggle = find.widgetWithText(
         SwitchListTile,

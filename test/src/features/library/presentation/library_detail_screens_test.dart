@@ -1,3 +1,5 @@
+import 'package:navis/src/common_widgets/cover_art_viewer.dart';
+import 'package:flutter/services.dart';
 import 'package:navis/src/features/equalizer/domain/eq_configuration.dart';
 import 'package:navis/src/features/player/domain/playback_adjustments.dart';
 
@@ -338,6 +340,8 @@ const _desktopContext = AdaptiveContext(
 AlbumWithSongs _albumWithSongs(
   List<SongsTableData> songs, {
   String name = 'Album 1',
+  String? artistName = 'Artist 1',
+  String? coverArt,
 }) {
   return AlbumWithSongs(
     album: AlbumsTableData(
@@ -345,7 +349,8 @@ AlbumWithSongs _albumWithSongs(
       isExternal: false,
       id: 'album-1',
       name: name,
-      artistName: 'Artist 1',
+      coverArt: coverArt,
+      artistName: artistName,
       artistId: 'artist-1',
       year: 2025,
       songsHydrated: true,
@@ -1633,6 +1638,68 @@ void main() {
         await _disposeApp(tester);
       },
     );
+
+    testWidgets('mobile album art opens from its centre, not its corners', (
+      tester,
+    ) async {
+      setAdaptiveTestViewport(tester, const Size(390, 844));
+      await _pumpAlbumDetail(
+        tester,
+        database: database,
+        adaptiveContext: _mobileContext,
+        album: _albumWithSongs(const <SongsTableData>[], coverArt: 'cover-1'),
+      );
+      await tester.tapAt(const Offset(60, 120));
+      await tester.pump(const Duration(milliseconds: 300));
+      expect(find.byType(CoverArtViewerScreen), findsNothing);
+
+      await tester.tap(
+        find.byKey(const ValueKey<String>('albumDetailMobileArtTapTarget')),
+      );
+      await tester.pump(const Duration(milliseconds: 300));
+      await tester.pump(const Duration(seconds: 1));
+      expect(find.byType(CoverArtViewerScreen), findsOneWidget);
+      await _disposeApp(tester);
+    });
+
+    for (final (artist, expected) in <(String?, String)>[
+      ('Artist 1', 'Artist 1 - Album 1'),
+      ('  ', 'Album 1'),
+    ]) {
+      testWidgets('long-pressing the mobile title copies "$expected"', (
+        tester,
+      ) async {
+        setAdaptiveTestViewport(tester, const Size(390, 844));
+        String? copied;
+        tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+          SystemChannels.platform,
+          (call) async {
+            if (call.method == 'Clipboard.setData') {
+              copied = (call.arguments as Map)['text'] as String?;
+            }
+            return null;
+          },
+        );
+        addTearDown(
+          () => tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+            SystemChannels.platform,
+            null,
+          ),
+        );
+        await _pumpAlbumDetail(
+          tester,
+          database: database,
+          adaptiveContext: _mobileContext,
+          album: _albumWithSongs(const <SongsTableData>[], artistName: artist),
+        );
+        await tester.longPress(
+          find.byKey(const ValueKey<String>('albumDetailMobileHeaderTitle')),
+        );
+        await tester.pump();
+        expect(copied, expected);
+        await _disposeApp(tester);
+      });
+    }
 
     testWidgets('mobile album title follows the selected theme surface', (
       tester,

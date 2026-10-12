@@ -15,6 +15,7 @@ class _MockSecureStorage extends Mock implements FlutterSecureStorage;
 
 class _FakeCredentialStore implements ServerUrlCredentialStore {
   String? userInfo;
+  bool failUserInfoRead = false;
   int userInfoSaves = 0;
 
   @override
@@ -24,7 +25,10 @@ class _FakeCredentialStore implements ServerUrlCredentialStore {
   }
 
   @override
-  Future<String?> readUserInfo() async => userInfo;
+  Future<String?> readUserInfo() async {
+    if (failUserInfoRead) throw const CredentialReadException();
+    return userInfo;
+  }
 
   @override
   Future<void> clearUserInfo() async => userInfo = null;
@@ -69,7 +73,7 @@ class _ThrowingCredentialStore implements SecureCredentialStore {
   @override
   Future<String?> readPassword() async {
     if (throwOnRead) {
-      throw StateError('read failed');
+      throw const CredentialReadException();
     }
     return null;
   }
@@ -146,7 +150,10 @@ void main() {
     await store.saveUserInfo('proxy:fixture');
     expect(await store.readUserInfo(), 'proxy:fixture');
     await store.clearUserInfo();
-    expect(await store.readUserInfo(), isNull);
+    await expectLater(
+      store.readUserInfo(),
+      throwsA(isA<CredentialReadException>()),
+    );
     verify(
       () => storage.write(
         key: 'navis.auth.active_server.user_info',
@@ -175,6 +182,77 @@ void main() {
       username: 'alice',
       password: 'secret',
       apiVersion: '1.16.1',
+    );
+
+    test('fresh sign-in works without a keyring or URL credentials', () async {
+      final storage = _MockSecureStorage();
+      when(() => storage.delete(key: any(named: 'key')))
+          .thenAnswer((_) async {});
+      when(
+        () => storage.write(
+          key: any(named: 'key'),
+          value: any(named: 'value'),
+        ),
+      ).thenThrow(StateError('fixture keyring unavailable'));
+      when(() => storage.read(key: any(named: 'key')))
+          .thenThrow(StateError('fixture keyring unavailable'));
+      final store = FlutterSecureCredentialStore(storage: storage);
+      await store.clearPassword();
+      await store.clearUserInfo();
+      addTearDown(() async {
+        await store.clearPassword();
+        await store.clearUserInfo();
+      });
+      repository = ServerConfigRepository(database, credentials: store);
+      final config = proxyConfig.copyWith(url: 'https://example.com/music');
+
+      await repository.save(config);
+
+      expect((await repository.getActiveServer())?.password, config.password);
+      expect((await repository.watchActiveServer().first)?.url, config.url);
+      expect(
+        (await database.serverDao.getActiveServer())?.isAuthenticated,
+        isTrue,
+      );
+    }, skip: !sqliteAvailable);
+
+    test(
+      'URL credential read failure preserves authentication and secrets',
+      () async {
+        await repository.save(proxyConfig);
+        credentials.failUserInfoRead = true;
+
+        await expectLater(
+          repository.getActiveServer(),
+          throwsA(isA<CredentialReadException>()),
+        );
+        expect(
+          (await database.serverDao.getRetainedServer())?.isAuthenticated,
+          isTrue,
+        );
+        expect(credentials.password, 'secret');
+        expect(credentials.userInfo, 'proxy:p%40ss');
+        expect(credentials.clearCalls, 0);
+        credentials.failUserInfoRead = false;
+        expect((await repository.getActiveServer())?.url, proxyConfig.url);
+      },
+      skip: !sqliteAvailable,
+    );
+
+    test(
+      'empty secure password still signs out the retained profile',
+      () async {
+        await repository.save(proxyConfig);
+        credentials.password = '';
+
+        expect(await repository.getActiveServer(), isNull);
+        expect(
+          (await database.serverDao.getRetainedServer())?.isAuthenticated,
+          isFalse,
+        );
+        expect(credentials.clearCalls, 0);
+      },
+      skip: !sqliteAvailable,
     );
 
     test(
@@ -410,7 +488,7 @@ void main() {
     }, skip: !sqliteAvailable);
 
     test(
-      'getActiveServer signs out retained row when secure read fails',
+      'getActiveServer preserves authentication when secure read fails',
       () async {
         await database.serverDao.saveServer(
           ServerConfigTableCompanion.insert(
@@ -425,11 +503,18 @@ void main() {
           credentials: _ThrowingCredentialStore(throwOnRead: true),
         );
 
-        final config = await repository.getActiveServer();
+        await expectLater(
+          repository.getActiveServer(),
+          throwsA(isA<CredentialReadException>()),
+        );
+        await expectLater(
+          repository.watchActiveServer().first,
+          throwsA(isA<CredentialReadException>()),
+        );
         final rowAfter = await database.serverDao.getRetainedServer();
-        expect(config, isNull);
         expect(rowAfter, isNotNull);
-        expect(rowAfter?.isAuthenticated, isFalse);
+        expect(rowAfter?.isAuthenticated, isTrue);
+        expect(await database.serverDao.getActiveServer(), isNotNull);
       },
       skip: !sqliteAvailable,
     );

@@ -647,6 +647,74 @@ void main() {
     expect(await queue(), isEmpty);
   }, skip: !sqliteAvailable);
 
+  test(
+    'choosing an Android folder persists its grant before using it',
+    () async {
+      const tree = 'content://fixture/tree/root';
+      const channel = MethodChannel('com.navis.app/permanent_download_storage');
+      final messenger =
+          TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
+      final calls = <String>[];
+      messenger.setMockMethodCallHandler(channel, (call) async {
+        calls.add(call.method);
+        return switch (call.method) {
+          'validateWritableTree' => {
+            'uri': tree,
+            'canRead': true,
+            'canWrite': true,
+            'canReplace': true,
+          },
+          'listRecursively' => <Object?>[],
+          _ => null,
+        };
+      });
+      addTearDown(() => messenger.setMockMethodCallHandler(channel, null));
+      final service = buildService(isAndroid: true);
+
+      await service.configureCustomDownloadFolder(enabled: true, path: tree);
+
+      // Without a persisted grant Android drops access on restart or update.
+      expect(calls.take(2), ['persistTree', 'validateWritableTree']);
+    },
+    skip: !sqliteAvailable,
+  );
+
+  test('Android folder validation rejects an unusable app-owned tree', () async {
+    const tree = 'content://fixture.diagnostics.documents/tree/root';
+    const channel = MethodChannel('com.navis.app/permanent_download_storage');
+    final messenger =
+        TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
+    final calls = <String>[];
+    messenger.setMockMethodCallHandler(channel, (call) async {
+      calls.add(call.method);
+      // A non-persistable grant returns success from the native bridge; the
+      // writable probe must still reject a tree that cannot replace documents.
+      return switch (call.method) {
+        'validateWritableTree' => {
+          'uri': tree,
+          'canRead': true,
+          'canWrite': true,
+          'canReplace': false,
+        },
+        _ => null,
+      };
+    });
+    addTearDown(() => messenger.setMockMethodCallHandler(channel, null));
+    final service = buildService(isAndroid: true);
+
+    await expectLater(
+      service.configureCustomDownloadFolder(enabled: true, path: tree),
+      throwsA(isA<FileSystemException>()),
+    );
+
+    expect(calls, ['persistTree', 'validateWritableTree']);
+    expect(
+      (await database.appSettingsDao.getSettings())
+          ?.customDownloadFolderEnabled,
+      isFalse,
+    );
+  }, skip: !sqliteAvailable);
+
   test('SAF provider ENOSPC stays held across automatic rechecks and repeated failures', () async {
     const tree = 'content://fixture/tree/root';
     const channel = MethodChannel('com.navis.app/permanent_download_storage');

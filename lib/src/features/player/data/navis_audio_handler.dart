@@ -108,6 +108,7 @@ class NavisAudioHandler extends BaseAudioHandler
     CoverArtHttpFileService? artworkFileService,
     this._reportRollingCacheActivity,
     required this._startPersonalRadio,
+    this._onPersonalRadioQueueEnd,
     required Future<void> Function(String) startPreferredMix,
     required Future<void> Function(String) togglePreferredMix,
     this._readRadioMetadataAllowed,
@@ -201,6 +202,8 @@ class NavisAudioHandler extends BaseAudioHandler
   final void Function(RollingCacheActivity activity)?
   _reportRollingCacheActivity;
   final Future<bool> Function(bool autoPlay) _startPersonalRadio;
+  final void Function(({int index, String songId})? queueEndSkip)?
+  _onPersonalRadioQueueEnd;
   late final AutoMediaTreeService _autoMediaTreeService;
   final AndroidAutoBrowseNotifier _androidAutoBrowseNotifier =
       AndroidAutoBrowseNotifier();

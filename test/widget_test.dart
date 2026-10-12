@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 import 'package:navis/src/app.dart';
+import 'package:navis/src/features/auth/data/secure_credential_store.dart';
 import 'package:navis/src/features/auth/presentation/server_config_provider.dart';
 import 'package:navis/src/features/auth/domain/server_config.dart';
 import 'package:navis/src/features/onboarding/presentation/onboarding_provider.dart';
@@ -265,6 +266,48 @@ void main() {
       findsOneWidget,
     );
   });
+
+  for (final serverConfig in <AsyncValue<ServerConfigModel?>>[
+    const AsyncLoading(),
+    AsyncError(const CredentialReadException(), StackTrace.empty),
+  ]) {
+    testWidgets(
+      'startup recovery preserves an unknown session: $serverConfig',
+      (tester) async {
+        final router = GoRouter(
+          routes: [
+            GoRoute(path: '/', builder: (_, _) => const SizedBox.shrink()),
+          ],
+        );
+        addTearDown(router.dispose);
+        await tester.pumpWidget(
+          ProviderScope(
+            overrides: _noDbOverrides(
+              extras: [
+                serverConfigStateProvider.overrideWithValue(serverConfig),
+                appRouterProvider.overrideWithValue(router),
+                audioBootstrapControllerProvider.overrideWith(
+                  () => _StaticAudioBootstrapController(
+                    state: const AudioBootstrapState.failed('failed'),
+                  ),
+                ),
+              ],
+            ),
+            child: const NavisApp(
+              requirePlaybackBootstrap: true,
+              splashFactory: NoSplash.splashFactory,
+            ),
+          ),
+        );
+        await tester.pump(const Duration(seconds: 10));
+
+        expect(find.text('Continue to sign in'), findsNothing);
+        expect(find.text('Reset library cache and retry'), findsOneWidget);
+        expect(find.text('Sign out (keep local data)'), findsOneWidget);
+        expect(find.text('Sign out and clear local data'), findsOneWidget);
+      },
+    );
+  }
 
   testWidgets(
     'shows authenticated startup recovery actions after ten seconds',

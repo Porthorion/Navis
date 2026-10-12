@@ -8,11 +8,31 @@ import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:navis/src/features/library/domain/sync_run_contract.dart';
 import 'package:navis/src/database/navis_database.dart';
+import 'package:navis/src/features/auth/data/secure_credential_store.dart';
 import 'package:navis/src/features/auth/domain/server_config.dart';
 import 'package:navis/src/features/library/data/android_background_sync_entrypoint.dart';
 import 'package:navis/src/features/library/domain/library_sync_request.dart';
 
 import '../../../../helpers/test_database.dart';
+
+class _WorkerCredentialStore implements SecureCredentialStore {
+  new({required this.failRead});
+
+  final bool failRead;
+  int clearCalls = 0;
+
+  @override
+  Future<String?> readPassword() async {
+    if (failRead) throw const CredentialReadException();
+    return null;
+  }
+
+  @override
+  Future<void> savePassword(String password) async {}
+
+  @override
+  Future<void> clearPassword() async => clearCalls++;
+}
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -23,6 +43,43 @@ void main() {
     messenger.setMockMethodCallHandler(channel, (_) async => false);
   });
   tearDown(() => messenger.setMockMethodCallHandler(channel, null));
+
+  for (final failRead in [false, true]) {
+    test('worker handles credential read failure: $failRead', () async {
+      final database = createTestDatabase();
+      addTearDown(database.close);
+      await database.serverDao.saveServer(
+        ServerConfigTableCompanion.insert(
+          url: 'https://example.test',
+          username: 'fixture',
+          apiVersion: '1.16.1',
+        ),
+      );
+      final server = (await database.serverDao.getActiveServer())!;
+      final credentials = _WorkerCredentialStore(failRead: failRead);
+      final result = await runAndroidBackgroundSyncForTesting(
+        database: database,
+        credentials: credentials,
+        profileKey: '00000000000000000000000000000000',
+      );
+
+      final expectedCategory = failRead
+          ? 'transientFailure'
+          : 'credentialUnavailable';
+      expect(result['category'], expectedCategory);
+      expect(result['retry'], failRead);
+      expect(credentials.clearCalls, 0);
+      expect(
+        (await database.serverDao.getRetainedServer())?.isAuthenticated,
+        failRead,
+      );
+      expect(
+        (await database.librarySyncDao.getOrCreateState(server.id))
+            .androidWorkerResult,
+        expectedCategory,
+      );
+    }, skip: !sqliteAvailable);
+  }
 
   test('entrypoint supplies the cached native playback reader to sync', () {
     final source = File(

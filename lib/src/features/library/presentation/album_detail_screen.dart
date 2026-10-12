@@ -1119,22 +1119,54 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen> {
                             fit: BoxFit.cover,
                             fadeInDuration: Duration.zero,
                           ),
+                          // Centred tap target for the full-size art. It leaves
+                          // the back/refresh corners alone and, being tap-only,
+                          // does not claim vertical drags.
+                          Center(
+                            child: FractionallySizedBox(
+                              widthFactor: 0.6,
+                              heightFactor: 0.6,
+                              child: Semantics(
+                                button: true,
+                                label: l10n.albumDetailMenuShowAlbumArt,
+                                child: GestureDetector(
+                                  key: const ValueKey<String>(
+                                    'albumDetailMobileArtTapTarget',
+                                  ),
+                                  behavior: HitTestBehavior.opaque,
+                                  onTap: () => unawaited(
+                                    showCoverArtViewer(
+                                      context,
+                                      coverArtId: details.coverArt,
+                                      revision: details.coverArtRevision ?? 0,
+                                      heroTag: coverArtHeroTag,
+                                      previewSize: 200,
+                                      isExternalSource: details.isExternal,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ),
                           // Flat text over artwork keeps the art unobstructed:
                           // no fade and no overlaid title; the title sits
                           // under the art in the content below.
                           if (!flatArtworkText) ...<Widget>[
                             Positioned.fill(
-                              child: DecoratedBox(
-                                decoration: BoxDecoration(
-                                  gradient: LinearGradient(
-                                    begin: Alignment.topCenter,
-                                    end: Alignment.bottomCenter,
-                                    colors: <Color>[
-                                      Colors.transparent,
-                                      Colors.transparent,
-                                      Theme.of(context).scaffoldBackgroundColor,
-                                    ],
-                                    stops: const <double>[0, 0.60, 0.85],
+                              child: IgnorePointer(
+                                child: DecoratedBox(
+                                  decoration: BoxDecoration(
+                                    gradient: LinearGradient(
+                                      begin: Alignment.topCenter,
+                                      end: Alignment.bottomCenter,
+                                      colors: <Color>[
+                                        Colors.transparent,
+                                        Colors.transparent,
+                                        Theme.of(context)
+                                            .scaffoldBackgroundColor,
+                                      ],
+                                      stops: const <double>[0, 0.60, 0.85],
+                                    ),
                                   ),
                                 ),
                               ),
@@ -1155,6 +1187,7 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen> {
                                   ),
                                   child: _buildMobileAlbumTitle(
                                     title: details.name,
+                                    copyText: _copyText(details),
                                     style: mobileTextTheme.displayMedium
                                         ?.copyWith(
                                           fontWeight: FontWeight.bold,
@@ -1195,6 +1228,7 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen> {
                             padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
                             child: _buildMobileAlbumTitle(
                               title: details.name,
+                              copyText: _copyText(details),
                               style: mobileTextTheme.displayMedium?.copyWith(
                                 fontWeight: FontWeight.bold,
                                 color: mobileColors.onSurface,
@@ -2043,6 +2077,7 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen> {
   /// the established ellipsis rather than making the header visually noisy.
   Widget _buildMobileAlbumTitle({
     required String title,
+    required String copyText,
     required TextStyle? style,
   }) {
     final baseStyle = style ?? const TextStyle(fontSize: 32);
@@ -2086,15 +2121,36 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen> {
           }
         }
 
-        return Text(
-          title,
-          key: const ValueKey<String>('albumDetailMobileHeaderTitle'),
-          style: baseStyle.copyWith(fontSize: resolvedFontSize),
-          textAlign: TextAlign.center,
-          maxLines: 2,
-          overflow: TextOverflow.ellipsis,
+        return GestureDetector(
+          onLongPress: () => unawaited(_copyTitle(context, copyText)),
+          child: Text(
+            title,
+            key: const ValueKey<String>('albumDetailMobileHeaderTitle'),
+            style: baseStyle.copyWith(fontSize: resolvedFontSize),
+            textAlign: TextAlign.center,
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+          ),
         );
       },
+    );
+  }
+
+  /// "Artist - Album", or just the album when the artist is unknown.
+  String _copyText(AlbumsTableData details) {
+    final artist = details.artistName?.trim() ?? '';
+    return artist.isEmpty ? details.name : '$artist - ${details.name}';
+  }
+
+  Future<void> _copyTitle(BuildContext context, String text) async {
+    final l10n = AppLocalizations.of(context)!;
+    unawaited(HapticFeedback.selectionClick());
+    await Clipboard.setData(ClipboardData(text: text));
+    if (!context.mounted) return;
+    showAppNotice(
+      context,
+      message: l10n.albumDetailTitleCopied,
+      level: AppNoticeLevel.success,
     );
   }
 

@@ -403,6 +403,24 @@ existing store and targeted settings writer; keep-data sign-out retains them.
 Credential deletion failures reach teardown warning reporting. Profile identity
 excludes URL credentials.
 
+Credential read failures are transient and must never sign the user out or
+delete secure data. Auth and external scrobble storage disable Android's
+`resetOnError` while retaining the default namespace and ciphers. The auth
+store throws `CredentialReadException` when a platform read fails without a
+session fallback; only a successful read returning a missing or empty password
+marks the retained profile signed out. A password-only session fallback also
+allows absent optional URL credentials when platform storage is unavailable.
+After hydration, credential stream errors retain the active session and API
+client; a later row emission or refresh re-reads storage. Provider bootstrap
+retries this exception with `navisProviderRetry`; after those retries are
+exhausted, each audio bootstrap retry invalidates the failed credential provider
+before hydration, bounded by the existing bootstrap cadence. Clone diagnostics
+also retry a failed backing credential load on the next read. The headless
+Android worker reports `transientFailure` with `retry: true`. Sync reads fail
+the attempt without changing authentication. The playback bootstrap overlay offers “Continue to
+sign in” only after the server config resolves to null; loading and error states
+keep the existing authenticated recovery actions.
+
 Connection probes always start with token authentication, regardless of the
 reported API version. Only Subsonic code 41 (token authentication unsupported)
 permits a legacy retry. That retry is blocked for non-loopback HTTP servers and
@@ -3348,6 +3366,14 @@ The audio handler requires Personal Radio and preferred-mix callbacks at
 construction so these actions also work before the Flutter shell registers
 its callbacks.
 The Home action awaits an actual queue insertion before opening Now Playing.
+Personal Radio, Server Mix and Same Vibes start background refills with eight
+tracks remaining after the current song. An unavailable Next at the Personal
+Radio queue tail records one pending skip in the notifier and starts the
+existing refill if one is due. After a successful recommendation append, it
+advances to the first inserted track only while the same session owns the queue
+and the requested tail occurrence is still current. Leaving that occurrence,
+stopping radio or replacing the session drops the pending skip; repeated Next
+requests while waiting do not skip multiple newly inserted tracks.
 
 `RecommendationSessionCoordinator` owns one generation and cancellation scope
 across these automatic modes. Each initial fetch and refill uses its own cancel
@@ -5146,6 +5172,9 @@ download naming throws when all 100 collision candidates are occupied.
    tree is activated Navis proves it can create, write, and remove a temporary
    Navis-owned probe document; a provider that fails that check remains
    unselected.
+   The native bridge attempts to persist read/write grants before that probe.
+   A `SecurityException` from a non-persistable grant is logged and leaves
+   usability to the writable probe, including for app-owned diagnostics trees.
    Folder reconciliation first imports only unique manifest, embedded-identity,
    or indexed filename matches. Ambiguous and unknown files enter a transient
    manual-review screen; its local-song picker shows cover art and ranks exact

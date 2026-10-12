@@ -58,6 +58,21 @@ Future<void> navisBackgroundSyncEntrypoint() async {
   await lifetime.future;
 }
 
+@visibleForTesting
+Future<Map<String, Object?>> runAndroidBackgroundSyncForTesting({
+  required NavisDatabase database,
+  required SecureCredentialStore credentials,
+  required String profileKey,
+}) => _HeadlessBackgroundSyncRunner()._run(
+  _BackgroundWorkerCommand(
+    profileKey: profileKey,
+    workId: 'fixture',
+    attemptCount: 0,
+  ),
+  databaseOverride: database,
+  credentialsOverride: credentials,
+);
+
 /// Records a worker deferral before network bootstrap while setup owns sync.
 Future<bool> deferAndroidBackgroundSyncForSetup({
   required NavisDatabase database,
@@ -92,8 +107,18 @@ class _HeadlessBackgroundSyncRunner {
     }
   }
 
-  Future<Map<String, Object?>> _run(_BackgroundWorkerCommand command) async {
-    final container = ProviderContainer(retry: navisProviderRetry);
+  Future<Map<String, Object?>> _run(
+    _BackgroundWorkerCommand command, {
+    NavisDatabase? databaseOverride,
+    SecureCredentialStore? credentialsOverride,
+  }) async {
+    final container = ProviderContainer(
+      retry: navisProviderRetry,
+      overrides: [
+        if (databaseOverride != null)
+          navisDatabaseProvider.overrideWithValue(databaseOverride),
+      ],
+    );
     final database = container.read(navisDatabaseProvider);
     SubsonicApiClient? client;
     BackgroundSyncPolicyTracker? policyTracker;
@@ -122,12 +147,12 @@ class _HeadlessBackgroundSyncRunner {
     try {
       final repository = ServerConfigRepository(
         database,
-        credentials: const FlutterSecureCredentialStore(),
+        credentials:
+            credentialsOverride ?? const FlutterSecureCredentialStore(),
       );
       final retained = await repository.getRetainedServer();
+      activeServerId = retained?.id;
       final config = await repository.getActiveServer();
-      final serverId = retained?.id;
-      activeServerId = serverId;
       if (config == null || config.id == null) {
         return await finish('credentialUnavailable', recordStartedAt: true);
       }

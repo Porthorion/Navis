@@ -4,10 +4,15 @@ import 'dart:io';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:navis/src/api/subsonic_error.dart';
+import 'package:navis/src/features/auth/data/secure_credential_store.dart';
 import 'package:navis/src/providers/provider_retry.dart';
 
 void main() {
   group('navisProviderRetry', () {
+    test('credential read failures are transient', () {
+      expect(isTransientProviderError(const CredentialReadException()), isTrue);
+    });
+
     test('never retries an error the server returned', () {
       for (final error in <Object>[
         const SubsonicNotFoundException(message: 'Not supported'),
@@ -29,6 +34,7 @@ void main() {
         const SubsonicGenericException(message: 'Busy', code: 503),
         const SubsonicGenericException(message: 'Too many', code: 429),
         const SocketException('reset'),
+        const CredentialReadException(),
         TimeoutException('slow'),
       ]) {
         expect(

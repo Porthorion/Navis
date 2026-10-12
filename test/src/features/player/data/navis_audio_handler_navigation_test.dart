@@ -865,6 +865,8 @@ void main() {
     Dio Function()? createRadioMetadataDio,
     CoverArtHttpFileService? artworkFileService,
     Future<bool> Function({required bool autoPlay})? startPersonalRadio,
+    void Function(({int index, String songId})? queueEndSkip)?
+    onPersonalRadioQueueEnd,
   }) async {
     final database = sharedDatabase ?? createTestDatabase();
     final apiClient = sidecarStreams
@@ -927,6 +929,7 @@ void main() {
     NavisAudioHandler buildHandler() => NavisAudioHandler(
       startPersonalRadio: (autoPlay) async =>
           await startPersonalRadio?.call(autoPlay: autoPlay) ?? false,
+      onPersonalRadioQueueEnd: onPersonalRadioQueueEnd,
       startPreferredMix: (_) async {},
       togglePreferredMix: (_) async {},
       artworkFileService: artworkFileService,
@@ -3994,6 +3997,69 @@ void main() {
       handler.snapshot.queueSongIds,
     );
   });
+
+  test(
+    'unavailable Next reports the desired radio tail during a burst',
+    () async {
+      final directory = await Directory.systemTemp.createTemp(
+        'navis-nav-test-',
+      );
+      final requests = <({int index, String songId})?>[];
+      final (handler, player, database) = await createHandler(
+        directory,
+        3,
+        onPersonalRadioQueueEnd: requests.add,
+      );
+      addTearDown(() async {
+        await handler.disposeHandler();
+        await database.close();
+        await directory.delete(recursive: true);
+      });
+      await handler.replaceQueueWithData(
+        await database.libraryDao.getSongsByIds(['song-0', 'song-1', 'song-2']),
+      );
+
+      final gate = Completer<void>();
+      player.seekGate = gate;
+      await handler.skipToNext();
+      await handler.skipToNext();
+      // Applied skips cancel any held tail skip.
+      expect(requests, [null, null]);
+      await handler.skipToNext();
+      expect(requests.last, (index: 2, songId: 'song-2'));
+      expect(handler.snapshot.pendingQueueIndex, 2);
+      gate.complete();
+      await handler.snapshotStream
+          .firstWhere(
+            (snapshot) =>
+                snapshot.currentIndex == 2 &&
+                snapshot.pendingQueueIndex == null,
+          )
+          .timeout(const Duration(seconds: 5));
+
+      // Ordinary end-of-queue Next stays on the current song until append.
+      await handler.skipToNext();
+      expect(handler.snapshot.currentSongId, 'song-2');
+      expect(requests.nonNulls, [
+        (index: 2, songId: 'song-2'),
+        (index: 2, songId: 'song-2'),
+      ]);
+
+      // Repeat-all still wraps rather than requesting a refill skip.
+      await handler.setRepeatMode(AudioServiceRepeatMode.all);
+      await handler.skipToNext();
+      await handler.snapshotStream
+          .firstWhere(
+            (snapshot) =>
+                snapshot.currentIndex == 0 &&
+                snapshot.pendingQueueIndex == null,
+          )
+          .timeout(const Duration(seconds: 5));
+      // The wrap is an applied skip, so it only cancels.
+      expect(requests.nonNulls, hasLength(2));
+      expect(requests.last, isNull);
+    },
+  );
 
   test('burst keeps latest target and serializes player mutations', () async {
     final directory = await Directory.systemTemp.createTemp('navis-nav-test-');

@@ -165,6 +165,46 @@ const List<ChangelogVersion> changelogs = [
     ],
     entries: [
       ChangelogEntry(
+        'Fixed sign-in and playback getting stuck when secure storage is temporarily unavailable',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
+        'Android download folders are checked for usability even when their access cannot be made permanent',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
+        'Fixed Navis sometimes signing you out after sitting in the background for a long time',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
+        'Fixed the custom download folder on Android being forgotten after an update or restart. If yours shows as unavailable, choose it once more',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
+        'You Might Like now scrolls both ways right after opening the app',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
+        'Renamed "Prefer Downloaded or Cached Audio" to "Play cached copies at any quality" to explain what it does',
+        type: ChangelogEntryType.improvement,
+      ),
+      ChangelogEntry(
+        'Tap the cached icon on a song to download it',
+        type: ChangelogEntryType.newFeature,
+      ),
+      ChangelogEntry(
+        'Tap the album art on an album page to view it full size',
+        type: ChangelogEntryType.newFeature,
+      ),
+      ChangelogEntry(
+        'Long-press an album title to copy it',
+        type: ChangelogEntryType.newFeature,
+      ),
+      ChangelogEntry(
+        'Skipping quickly through Personal Radio no longer runs out of songs while more are loading',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
         'Fixed a brief freeze when starting Personal Radio and high memory use after listening to it',
         type: ChangelogEntryType.fix,
       ),
