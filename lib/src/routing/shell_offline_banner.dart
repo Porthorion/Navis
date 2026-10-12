@@ -1,5 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:material_ui/material_ui.dart';
+import 'package:navis/src/common_widgets/marquee_text.dart';
 import 'package:navis/l10n/app_localizations.dart';
 import 'package:navis/src/features/auth/domain/server_reachability.dart';
 import 'package:navis/src/features/auth/presentation/server_reachability_provider.dart';
@@ -328,13 +329,18 @@ class _ShellOfflineBannerState extends ConsumerState<ShellOfflineBanner> {
                 Expanded(
                   child: Semantics(
                     liveRegion: true,
-                    child: Text(
+                    // A message wider than the banner scrolls instead of
+                    // ending in an ellipsis.
+                    child: MarqueeText(
                       widget.message,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: theme.textTheme.labelLarge?.copyWith(
-                        color: colors.onSurface,
-                      ),
+                      // A few passes, then still: the banner stays up for as
+                      // long as the server is unreachable.
+                      passes: 3,
+                      style:
+                          theme.textTheme.labelLarge?.copyWith(
+                            color: colors.onSurface,
+                          ) ??
+                          TextStyle(color: colors.onSurface),
                     ),
                   ),
                 ),

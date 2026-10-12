@@ -2,6 +2,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:navis/l10n/navis_localizations.dart';
+import 'package:navis/src/common_widgets/marquee_text.dart';
 import 'package:navis/src/common_widgets/notice_icon_disc.dart';
 import 'package:navis/src/routing/shell_offline_banner.dart';
 import 'package:navis/src/theme/navis_tokens.dart';
@@ -26,6 +27,7 @@ void main() {
     WidgetTester tester, {
     required bool visible,
     bool disableAnimations = false,
+    String message = 'Offline mode',
   }) {
     return tester.pumpWidget(
       ProviderScope(
@@ -40,7 +42,7 @@ void main() {
             ),
             child: ShellOfflineBannerScope(
               visible: visible,
-              message: 'Offline mode',
+              message: message,
               child: Stack(
                 children: <Widget>[
                   const ShellOfflineBannerFrame(child: _Page()),
@@ -63,6 +65,30 @@ void main() {
       ),
     );
   }
+
+  testWidgets(
+    'a message wider than the banner scrolls instead of ending in an ellipsis',
+    (tester) async {
+      const long =
+          'Server unreachable. Playing from downloads and the streaming cache '
+          'until it is back.';
+      await pump(tester, visible: true, message: long);
+      // The marquee never settles; let the banner finish arriving.
+      await tester.pump(const Duration(seconds: 1));
+
+      expect(find.byType(MarqueeText), findsOneWidget);
+      expect(
+        find.byWidgetPredicate(
+          (widget) =>
+              widget is Text &&
+              widget.data == long &&
+              widget.overflow == TextOverflow.ellipsis,
+        ),
+        findsNothing,
+      );
+      expect(find.bySemanticsLabel(long), findsOneWidget);
+    },
+  );
 
   double pageTopPadding(WidgetTester tester) =>
       MediaQuery.paddingOf(tester.element(find.byType(_Page))).top;

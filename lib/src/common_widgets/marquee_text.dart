@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:material_ui/material_ui.dart';
 import 'package:navis/src/theme/motion_policy.dart';
 import 'package:visibility_detector/visibility_detector.dart';
@@ -20,11 +22,16 @@ const Duration kMarqueeEndPause = Duration(milliseconds: 800);
 /// ticker runs only while the title is on screen (a covered route or tab mutes
 /// it through [TickerMode]; [VisibilityDetector] stops it when scrolled away),
 /// and the full title is always the semantics label.
+///
+/// [passes] limits how many times it scrolls before resting at its start
+/// (null repeats for as long as it is shown), for text that stays on screen
+/// for long stretches, such as a status banner.
 class MarqueeText extends StatelessWidget {
-  const new(this.text, {required this.style, super.key});
+  const new(this.text, {required this.style, this.passes, super.key});
 
   final String text;
   final TextStyle style;
+  final int? passes;
 
   @override
   Widget build(BuildContext context) {
@@ -61,6 +68,7 @@ class MarqueeText extends StatelessWidget {
               style: style,
               textWidth: textWidth,
               overflow: overflow,
+              passes: passes,
             ),
           ),
         );
@@ -75,6 +83,7 @@ class _MarqueeScroller extends StatefulWidget {
     required this.style,
     required this.textWidth,
     required this.overflow,
+    required this.passes,
   });
 
   final String text;
@@ -83,6 +92,8 @@ class _MarqueeScroller extends StatefulWidget {
 
   /// How far the text must travel to show its end.
   final double overflow;
+
+  final int? passes;
 
   @override
   State<_MarqueeScroller> createState() => _MarqueeScrollerState();
@@ -93,6 +104,7 @@ class _MarqueeScrollerState extends State<_MarqueeScroller>
   late final AnimationController _controller = AnimationController(vsync: this);
   final Key _visibilityKey = UniqueKey();
   bool _visible = true;
+  bool _done = false;
   Duration _travel = Duration.zero;
 
   @override
@@ -116,12 +128,26 @@ class _MarqueeScrollerState extends State<_MarqueeScroller>
     );
     _controller.duration = kMarqueeStartPause + _travel + kMarqueeEndPause;
     _controller.value = 0;
+    _done = false;
     _sync();
   }
 
   void _sync() {
     if (_visible) {
-      if (!_controller.isAnimating) _controller.repeat();
+      if (_done || _controller.isAnimating) return;
+      final passes = widget.passes;
+      if (passes == null) {
+        _controller.repeat();
+      } else {
+        unawaited(
+          _controller.repeat(count: passes).orCancel.then((_) {
+            if (!mounted) return;
+            // Rest at the start, where the text begins.
+            _done = true;
+            _controller.value = 0;
+          }, onError: (Object _) {}),
+        );
+      }
     } else {
       _controller.stop();
     }
