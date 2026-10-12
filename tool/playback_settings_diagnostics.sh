@@ -9,6 +9,7 @@ set -euo pipefail
 # production switch, and repeats the assertions after a clean restart.
 
 PROJECT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+source "$PROJECT_DIR/tool/lib/diagnostics.sh"
 SOURCE_DB="$(python3 "$PROJECT_DIR/tool/diagnostics_profile.py" primary-db)"
 STAMP="$(date -u +%Y%m%dT%H%M%SZ)"
 OUTPUT_ROOT="$PROJECT_DIR/build/playback-settings-diagnostics/$STAMP"
@@ -107,54 +108,18 @@ target.close()
 PY
 chmod 600 "$CLONE_DB"
 
-launch() {
-  rm -f "$HANDSHAKE"
-  local version
-  version="$(awk '/^version:/ {split($2, p, "+"); print p[1]; exit}' "$PROJECT_DIR/pubspec.yaml")"
-  # Clone app-support state lives in the run root's support directory.
-  mkdir -p "$OUTPUT_ROOT/support"
-  printf '%s\n' "$version" > "$OUTPUT_ROOT/support/changelog_seen_version.txt"
-  (
-    cd "$PROJECT_DIR"
-    flutter run -d linux --profile \
-      --dart-define=NAVIS_UPDATE_CHANNEL=dev \
-      --dart-define=NAVIS_APP_ID_SUFFIX=.dev \
-      --dart-define=NAVIS_APP_NAME='Navis Playback Settings Diagnostics' \
-      --dart-define=NAVIS_SYNC_DIAGNOSTICS=true \
-      --dart-define=NAVIS_SYNC_DIAGNOSTICS_MUTED=true \
-      --dart-define=NAVIS_SYNC_DIAGNOSTICS_MODE=clone \
-      --dart-define="NAVIS_SYNC_DIAGNOSTICS_HANDSHAKE=$HANDSHAKE" \
-      --dart-define="NAVIS_SYNC_DIAGNOSTICS_ROOT=$OUTPUT_ROOT" \
-      --dart-define="NAVIS_SYNC_DIAGNOSTICS_DB_PATH=$CLONE_DB" \
-      --dart-define="NAVIS_SYNC_DIAGNOSTICS_CREDENTIAL_PATH=$CREDENTIAL_FILE" \
-      >>"$APP_LOG" 2>&1
-  ) &
-  FLUTTER_PID=$!
-  for _ in $(seq 1 180); do [[ -s "$HANDSHAKE" ]] && break; sleep 1; done
-  [[ -s "$HANDSHAKE" ]] || { echo "App startup failed. See $APP_LOG" >&2; exit 70; }
-  read -r PORT TOKEN < <(python3 - "$HANDSHAKE" <<'PY'
-import json, sys
-value = json.load(open(sys.argv[1], encoding="utf-8"))
-print(value["port"], value["token"])
-PY
+DIAGNOSTICS_LAUNCH_DEFINES=(
+  --dart-define=NAVIS_UPDATE_CHANNEL=dev
+  --dart-define=NAVIS_APP_ID_SUFFIX=.dev
+  --dart-define=NAVIS_APP_NAME='Navis Playback Settings Diagnostics'
+  --dart-define=NAVIS_SYNC_DIAGNOSTICS=true
+  --dart-define=NAVIS_SYNC_DIAGNOSTICS_MUTED=true
+  --dart-define=NAVIS_SYNC_DIAGNOSTICS_MODE=clone
+  --dart-define="NAVIS_SYNC_DIAGNOSTICS_HANDSHAKE=$HANDSHAKE"
+  --dart-define="NAVIS_SYNC_DIAGNOSTICS_ROOT=$OUTPUT_ROOT"
+  --dart-define="NAVIS_SYNC_DIAGNOSTICS_DB_PATH=$CLONE_DB"
+  --dart-define="NAVIS_SYNC_DIAGNOSTICS_CREDENTIAL_PATH=$CREDENTIAL_FILE"
 )
-  BASE_URL="http://127.0.0.1:$PORT"
-}
-
-api() {
-  local method="$1" path="$2" body="${3:-}"
-  if [[ -n "$body" ]]; then
-    curl --fail-with-body --silent --show-error -X "$method" -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/json' -d "$body" "$BASE_URL$path"
-  else
-    curl --fail-with-body --silent --show-error -X "$method" -H "Authorization: Bearer $TOKEN" "$BASE_URL$path"
-  fi
-}
-
-shutdown_app() {
-  api POST /v1/shutdown > "$OUTPUT_ROOT/shutdown-$1.json" || true
-  wait "$FLUTTER_PID" || true
-  FLUTTER_PID=0
-}
 
 wait_for_ready() {
   for _ in $(seq 1 180); do
@@ -228,7 +193,7 @@ assert_discover_builds() {
   done
 }
 
-launch
+launch "${DIAGNOSTICS_LAUNCH_DEFINES[@]}"
 api GET /v1/health > "$OUTPUT_ROOT/health-initial.json"
 wait_for_ready
 DISCOVER_BUILDS="$(settled_discover_builds "$OUTPUT_ROOT/discover-initial.json")"
@@ -246,7 +211,7 @@ api POST /v1/presentation/screenshot '{"label":"playback-settings"}' \
   > "$OUTPUT_ROOT/screenshot-playback-settings.json"
 shutdown_app initial
 
-launch
+launch "${DIAGNOSTICS_LAUNCH_DEFINES[@]}"
 api GET /v1/health > "$OUTPUT_ROOT/health-restart.json"
 wait_for_ready
 assert_settings false "$OUTPUT_ROOT/settings-after-restart.json"

@@ -7,6 +7,7 @@ set -euo pipefail
 # database and rewrites cache paths below its own diagnostics root.
 
 PROJECT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+source "$PROJECT_DIR/tool/lib/diagnostics.sh"
 SOURCE_DB="$(python3 "$PROJECT_DIR/tool/diagnostics_profile.py" primary-db)"
 STAMP="$(date -u +%Y%m%dT%H%M%SZ)"
 OUTPUT_ROOT="$PROJECT_DIR/build/sync-target-lane-diagnostics/$STAMP-clone"
@@ -114,12 +115,6 @@ if integrity != "ok" or foreign_keys:
 PY
 chmod 600 "$CLONE_DB"
 
-cleanup() {
-  if (( FLUTTER_PID > 0 )) && kill -0 "$FLUTTER_PID" >/dev/null 2>&1; then
-    kill "$FLUTTER_PID" >/dev/null 2>&1 || true
-    wait "$FLUTTER_PID" >/dev/null 2>&1 || true
-  fi
-}
 trap cleanup EXIT INT TERM
 
 launch() {
@@ -165,20 +160,6 @@ print(value["port"], value["token"])
 PY
 )
   BASE_URL="http://127.0.0.1:$PORT"
-}
-
-api() {
-  local method="$1"
-  local path="$2"
-  local body="${3:-}"
-  if [[ -n "$body" ]]; then
-    curl --fail-with-body --silent --show-error -X "$method" \
-      -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/json' \
-      -d "$body" "$BASE_URL$path"
-  else
-    curl --fail-with-body --silent --show-error -X "$method" \
-      -H "Authorization: Bearer $TOKEN" "$BASE_URL$path"
-  fi
 }
 
 wait_for_stable_catalog_status() {

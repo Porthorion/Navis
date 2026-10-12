@@ -58,6 +58,7 @@ fi
 FILTER_QUERY="${LIBRARY_FILTER_QUERY:-$RADIO_FILTER_QUERY}"
 
 PROJECT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+source "$PROJECT_DIR/tool/lib/diagnostics.sh"
 SOURCE_DB="$(python3 "$PROJECT_DIR/tool/diagnostics_profile.py" primary-db)"
 STAMP="$(date -u +%Y%m%dT%H%M%SZ)"
 OUTPUT_ROOT="$PROJECT_DIR/build/presentation-diagnostics/$STAMP-clone"
@@ -114,13 +115,6 @@ chmod 600 "$CLONE_DB"
 cd "$PROJECT_DIR"
 : > "$APP_LOG"
 FLUTTER_PID=0
-
-cleanup() {
-  if (( FLUTTER_PID > 0 )) && kill -0 "$FLUTTER_PID" >/dev/null 2>&1; then
-    kill "$FLUTTER_PID" >/dev/null 2>&1 || true
-    wait "$FLUTTER_PID" >/dev/null 2>&1 || true
-  fi
-}
 
 remote_search_song_body() {
   python3 - "$1" "$REMOTE_SONG_ID" <<'PY'
@@ -250,20 +244,6 @@ print(value["port"], value["token"])
 PY
   )
   BASE_URL="http://127.0.0.1:$PORT"
-}
-
-api() {
-  local method="$1"
-  local route="$2"
-  local body="${3:-}"
-  if [[ -n "$body" ]]; then
-    curl --fail-with-body --silent --show-error \
-      -X "$method" -H "Authorization: Bearer $TOKEN" \
-      -H 'Content-Type: application/json' -d "$body" "$BASE_URL$route"
-  else
-    curl --fail-with-body --silent --show-error \
-      -X "$method" -H "Authorization: Bearer $TOKEN" "$BASE_URL$route"
-  fi
 }
 
 navigation_body() {
@@ -945,19 +925,13 @@ PYPAGING
   fi
 }
 
-shutdown_app() {
-  api POST /v1/shutdown > "$OUTPUT_ROOT/$1-shutdown.json" || true
-  wait "$FLUTTER_PID" || true
-  FLUTTER_PID=0
-}
-
 launch_app
 run_capture initial
-shutdown_app initial
+shutdown_app initial initial-shutdown.json
 
 launch_app
 run_capture restart
-shutdown_app restart
+shutdown_app restart restart-shutdown.json
 
 if rg -n \
   'Unhandled Exception|Tried to modify a provider while the widget tree was building|created the database class NavisDatabase multiple times|node\.built|!child\.attached|Another exception was thrown|EXCEPTION CAUGHT BY' \

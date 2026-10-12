@@ -9,6 +9,7 @@ if [[ "$MODE" != "clone" && "$MODE" != "partial" &&
 fi
 
 PROJECT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+source "$PROJECT_DIR/tool/lib/diagnostics.sh"
 SOURCE_DB="$(python3 "$PROJECT_DIR/tool/diagnostics_profile.py" primary-db)"
 STAMP="$(date -u +%Y%m%dT%H%M%SZ)"
 OUTPUT_ROOT="$PROJECT_DIR/build/auth-lifecycle-diagnostics/$STAMP-$MODE"
@@ -35,19 +36,8 @@ TOKEN=''
 BASE_URL=''
 APP_LOG=''
 
-cleanup_app() {
-  if (( FLUTTER_PID > 0 )) && kill -0 "$FLUTTER_PID" >/dev/null 2>&1; then
-    kill "$FLUTTER_PID" >/dev/null 2>&1 || true
-    wait "$FLUTTER_PID" >/dev/null 2>&1 || true
-  fi
-}
-
 cleanup() {
-  cleanup_app
-  if (( FIXTURE_PID > 0 )) && kill -0 "$FIXTURE_PID" >/dev/null 2>&1; then
-    kill "$FIXTURE_PID" >/dev/null 2>&1 || true
-    wait "$FIXTURE_PID" >/dev/null 2>&1 || true
-  fi
+  cleanup_fixture_app
 }
 trap cleanup EXIT INT TERM
 
@@ -163,43 +153,6 @@ print(value["port"], value["token"])
 PY
   )
   BASE_URL="http://127.0.0.1:$PORT"
-}
-
-stop_app() {
-  if (( FLUTTER_PID > 0 )) && kill -0 "$FLUTTER_PID" >/dev/null 2>&1; then
-    api POST /v1/shutdown >/dev/null 2>&1 || true
-    local deadline=$((SECONDS + 30))
-    while kill -0 "$FLUTTER_PID" >/dev/null 2>&1 && (( SECONDS < deadline )); do
-      sleep 1
-    done
-    cleanup_app
-  fi
-  FLUTTER_PID=0
-}
-
-api() {
-  local method="$1"
-  local route="$2"
-  local body="${3:-}"
-  if [[ -n "$body" ]]; then
-    curl --fail-with-body --silent --show-error \
-      -X "$method" -H "Authorization: Bearer $TOKEN" \
-      -H 'Content-Type: application/json' -d "$body" "$BASE_URL$route"
-  else
-    curl --fail-with-body --silent --show-error \
-      -X "$method" -H "Authorization: Bearer $TOKEN" "$BASE_URL$route"
-  fi
-}
-
-mute_and_verify() {
-  local response
-  response="$(api POST /v1/playback/volume '{"value":0}')"
-  python3 - "$response" <<'PY'
-import json, sys
-value = json.loads(sys.argv[1])
-assert value.get("volume") == 0, value
-assert value.get("effectivePlayerVolume") == 0, value
-PY
 }
 
 wait_for_session() {
