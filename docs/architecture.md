@@ -2767,6 +2767,8 @@ fallback.
   query; then the local pass (`getTrackMatchCandidates` and
   `pickBestTrackMatch`; a source's album and length only add confidence and
   never reject a song that title and artist alone accept);
+  the local pass yields to the event queue every 4 open seeds to keep Home
+  scrolling responsive while resolving artist top songs and Trending;
   then `search3` for what is left, by 4 workers pulling from one queue (no
   batch barrier) with the provider's `CancelToken`, cancelled when the
   provider is disposed. Like the ListenBrainz weekly matcher, a copy on the
@@ -5442,7 +5444,11 @@ of thousands of songs. `tool/perf_diagnostics.py` measures them (see
   title keys, or artist keys that are equal, contain or are contained, or share
   a word. Artist keys shorter than two Unicode characters require equality in
   both the DAO and snapshot fallback. A snapshot built from those makes the same
-  matches as one built from the whole library. The artist rules are tested once
+  matches as one built from the whole library. Snapshot construction yields
+  every 500 rows during candidate normalization and title indexing. Its artist
+  fallback lazily caches rune lengths and multi-rune token sets per distinct
+  normalized artist, tests each artist once per query, and filters the original
+  candidate list to preserve row order. The DAO's artist rules are tested once
   per distinct `match_artist` key (indexed, like `match_title`), not once per
   song, and the matching songs are read through the two key indexes;
   `debugTrackMatchCandidatesByFullScan` keeps the per-song query as the test

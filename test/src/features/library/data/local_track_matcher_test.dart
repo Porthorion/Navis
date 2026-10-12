@@ -17,6 +17,118 @@ String? _match(TrackMatchQuery query, List<TrackMatchCandidate> candidates) =>
     pickBestTrackMatch(track: query, candidates: candidates).song?.id;
 
 void main() {
+  group('candidate selection', () {
+    Future<LocalTrackMatchSnapshot> snapshotFor(List<String?> artists) =>
+        LocalTrackMatchSnapshot.fromSongsAsync([
+          for (var i = 0; i < artists.length; i++)
+            SongsTableData(
+              id: '$i',
+              title: 'Song $i',
+              artistName: artists[i],
+              isProvisional: false,
+              isExternal: false,
+            ),
+        ]);
+
+    List<String> idsFor(LocalTrackMatchSnapshot snapshot, String artist) =>
+        snapshot
+            .candidatesFor(TrackMatchQuery(title: 'Unknown', artist: artist))
+            .map((candidate) => candidate.song.id)
+            .toList();
+
+    test(
+      'fallback preserves interleaved artist order across queries',
+      () async {
+        final snapshot = await snapshotFor([
+          'Other',
+          'Blue Moon Orchestra', // Contains the query artist.
+          'Blue', // Contained in the query artist.
+          'ＭＯＯＮ　ＢＡＮＤ', // Shares a multi-rune token only.
+          'Blue Moon', // Exact artist.
+          '',
+          'blue moon orchestra', // Repeated normalized artist.
+          'Moonlight', // A partial token alone does not match.
+          null,
+          'moon band',
+        ]);
+
+        expect(idsFor(snapshot, 'ＢＬＵＥ　ＭＯＯＮ'), ['1', '2', '3', '4', '6', '9']);
+        expect(idsFor(snapshot, 'Other'), ['0']);
+        expect(idsFor(snapshot, 'Moon Band'), ['1', '3', '4', '6', '9']);
+        expect(idsFor(snapshot, 'Blue Moon'), ['1', '2', '3', '4', '6', '9']);
+      },
+    );
+
+    test('two-rune substrings match in both directions', () async {
+      final snapshot = await snapshotFor([
+        'AB',
+        'XABY',
+        'A',
+        'AB',
+        '𠮷田',
+        '𠮷',
+        '山𠮷田川',
+      ]);
+
+      expect(idsFor(snapshot, 'AB'), ['0', '1', '3']);
+      expect(idsFor(snapshot, 'XABY'), ['0', '1', '3']);
+      expect(idsFor(snapshot, '𠮷田'), ['4', '6']);
+      expect(idsFor(snapshot, '山𠮷田川'), ['4', '6']);
+    });
+
+    test('shared tokens must have more than one rune', () async {
+      final snapshot = await snapshotFor([
+        'X Other',
+        '𠮷 Other',
+        'AB Other',
+        '𠮷田 Other',
+        'AB Other',
+      ]);
+
+      expect(idsFor(snapshot, 'X Different'), isEmpty);
+      expect(idsFor(snapshot, '𠮷 Different'), isEmpty);
+      expect(idsFor(snapshot, 'AB Different'), ['2', '4']);
+      expect(idsFor(snapshot, '𠮷田 Different'), ['3']);
+    });
+
+    test('empty normalized artists never match through fallback', () async {
+      final snapshot = await snapshotFor(['', null, '!!!', 'Known']);
+
+      expect(idsFor(snapshot, 'Known'), ['3']);
+      expect(idsFor(snapshot, ''), isEmpty);
+      expect(idsFor(snapshot, '!!!'), isEmpty);
+    });
+
+    test(
+      'exact title takes precedence over artist fallback in row order',
+      () async {
+        final snapshot = await LocalTrackMatchSnapshot.fromSongsAsync([
+          for (final (id, title, artist) in [
+            ('first', 'Target', 'Other'),
+            ('fallback', 'Different', 'Known'),
+            ('second', 'ＴＡＲＧＥＴ', ''),
+          ])
+            SongsTableData(
+              id: id,
+              title: title,
+              artistName: artist,
+              isProvisional: false,
+              isExternal: false,
+            ),
+        ]);
+
+        for (final artist in ['Known', '']) {
+          expect(
+            snapshot
+                .candidatesFor(TrackMatchQuery(title: 'Target', artist: artist))
+                .map((candidate) => candidate.song.id),
+            ['first', 'second'],
+          );
+        }
+      },
+    );
+  });
+
   test('single-character artist fallback requires equality', () async {
     final snapshot = await LocalTrackMatchSnapshot.fromSongsAsync([
       SongsTableData(

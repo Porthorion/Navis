@@ -165,6 +165,10 @@ const List<ChangelogVersion> changelogs = [
     ],
     entries: [
       ChangelogEntry(
+        'Artist top tracks and Home discovery match large libraries without blocking scrolling during local matching',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
         'Instant Radio and Server Mix release completed refill responses, preventing memory from growing throughout long listening sessions',
         type: ChangelogEntryType.fix,
       ),

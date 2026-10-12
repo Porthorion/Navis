@@ -146,6 +146,77 @@ void main() {
     return result;
   }
 
+  test('local artist fallback resolves fuzzy titles in seed order without searches', () async {
+    await db.libraryDao.upsertSongs(<SongsTableCompanion>[
+      SongsTableCompanion.insert(
+        id: 'lib-Alpha',
+        title: 'Alpha',
+        artistName: const Value('Known'),
+      ),
+      SongsTableCompanion.insert(
+        id: 'lib-Bravo',
+        title: 'Bravo',
+        artistName: const Value('Known Ensemble'),
+      ),
+    ]);
+
+    final result = await emissions(resolver(), <ArtistTopTrackSeed>[
+      _seed(1, 'Bravo Extended'),
+      _seed(2, 'Alpha Extended'),
+    ]);
+
+    expect(result, hasLength(1));
+    expect(result.single.map((track) => track.rank), [1, 2]);
+    expect(result.single.map((track) => track.resolvedSong?.id), [
+      'lib-Bravo',
+      'lib-Alpha',
+    ]);
+    expect(api.queries, isEmpty);
+  }, skip: !sqliteAvailable);
+
+  test('local matching yields to the event queue between seeds', () async {
+    final seeds = [
+      for (var i = 0; i < 9; i++) _seed(i + 1, 'Song $i Extended'),
+    ];
+    await db.libraryDao.upsertSongs(<SongsTableCompanion>[
+      for (var i = 0; i < seeds.length; i++)
+        SongsTableCompanion.insert(
+          id: 'lib-$i',
+          title: 'Song $i',
+          artistName: const Value('Known'),
+        ),
+    ]);
+
+    var localMatches = 0;
+    final eventObservedMatches = Completer<int>();
+    final root = cacheRoot;
+    store = ArtistTopTrackMatchStore(
+      cache: IntegrationJsonCache(readRootDirectory: () async => root),
+      namespace: 'test.yields',
+      now: () {
+        // An empty store has no freshness checks: the clock is first read
+        // when step 3 records a local match. Fewer than 500 candidates also
+        // exclude snapshot-building yields from this observation.
+        localMatches++;
+        if (localMatches == 1) {
+          Timer.run(() => eventObservedMatches.complete(localMatches));
+        }
+        return now;
+      },
+    );
+
+    final result = await emissions(resolver(), seeds);
+    final observed = await eventObservedMatches.future;
+
+    expect(observed, greaterThan(0));
+    expect(observed, lessThan(seeds.length));
+    expect(localMatches, seeds.length);
+    expect(result.single.map((track) => track.resolvedSong?.id), [
+      for (var i = 0; i < seeds.length; i++) 'lib-$i',
+    ]);
+    expect(api.queries, isEmpty);
+  }, skip: !sqliteAvailable);
+
   test(
     'a copy on the server wins over a remote result and is stored',
     () async {
