@@ -94,6 +94,7 @@ class RecommendationService {
   int _libraryRevision = 0;
   bool _watchingLibrary = false;
 
+  @visibleForTesting
   Future<List<SongsTableData>> eligibleLibrary(RadioFilters filters) async =>
       (await _eligiblePool(filters)).songs;
 
