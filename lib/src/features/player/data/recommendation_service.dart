@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 import 'dart:math';
 
@@ -51,7 +52,13 @@ class RadioFilters {
 }
 
 class RecommendationService {
-  new(this._ref, {Random? random}) : _random = random ?? Random();
+  new(
+    this._ref, {
+    Random? random,
+    this._eligibleLibraryMaxAge = const Duration(minutes: 2),
+  }) : _random = random ?? Random() {
+    _ref.onDispose(() => _eligibleLibraryRelease?.cancel());
+  }
 
   final Ref _ref;
   final Random _random;
@@ -60,7 +67,12 @@ class RecommendationService {
   /// whole catalog and checking local files each time is the expensive part.
   /// The result is reused until songs or cached tracks change, the network
   /// or filters differ, or it is older than [_eligibleLibraryMaxAge].
-  static const Duration _eligibleLibraryMaxAge = Duration(minutes: 2);
+  final Duration _eligibleLibraryMaxAge;
+  Timer? _eligibleLibraryRelease;
+
+  @visibleForTesting
+  bool get debugHasEligibleLibrary => _eligibleLibraryCache != null;
+
   ({
     Object key,
     int revision,
@@ -149,6 +161,12 @@ class RecommendationService {
       songs: List<SongsTableData>.unmodifiable(eligible),
       identities: identities,
     );
+    // The pool holds every eligible song; drop it once it can no longer be
+    // reused instead of keeping it for the app's lifetime.
+    _eligibleLibraryRelease?.cancel();
+    _eligibleLibraryRelease = Timer(_eligibleLibraryMaxAge, () {
+      _eligibleLibraryCache = null;
+    });
     return eligible;
   }
 

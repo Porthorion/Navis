@@ -205,6 +205,43 @@ void main() {
     expect(result.source, RecommendationSource.instantMix);
   });
 
+  test('the eligible pool is released when its window ends', () async {
+    final database = createTestDatabase();
+    addTearDown(database.close);
+    await database.libraryDao.upsertSongs(<SongsTableCompanion>[
+      SongsTableCompanion.insert(id: 'song-1', title: 'One'),
+    ]);
+    final container = ProviderContainer(
+      overrides: withTestDatabase(
+        database,
+        overrides: [
+          networkTypeProvider.overrideWith((ref) => NetworkType.wifi),
+          recommendationServiceProvider.overrideWith(
+            (ref) => RecommendationService(
+              ref,
+              eligibleLibraryMaxAge: const Duration(milliseconds: 50),
+            ),
+          ),
+        ],
+      ),
+    );
+    addTearDown(container.dispose);
+    final service = container.read(recommendationServiceProvider);
+
+    await service.eligibleLibrary(const RadioFilters());
+    expect(service.debugHasEligibleLibrary, isTrue);
+
+    await Future<void>.delayed(const Duration(milliseconds: 120));
+    expect(service.debugHasEligibleLibrary, isFalse);
+
+    // A later read rebuilds the pool.
+    expect(
+      (await service.eligibleLibrary(const RadioFilters())).single.id,
+      'song-1',
+    );
+    expect(service.debugHasEligibleLibrary, isTrue);
+  }, skip: !sqliteAvailable);
+
   test('the eligible pool precomputes recording identities once', () async {
     final database = createTestDatabase();
     addTearDown(database.close);
