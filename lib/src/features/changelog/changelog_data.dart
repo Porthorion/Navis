@@ -165,6 +165,26 @@ const List<ChangelogVersion> changelogs = [
     ],
     entries: [
       ChangelogEntry(
+        'You Might Like now scrolls both ways right after opening the app',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
+        'Renamed "Prefer Downloaded or Cached Audio" to "Play cached copies at any quality" to explain what it does',
+        type: ChangelogEntryType.improvement,
+      ),
+      ChangelogEntry(
+        'Tap the cached icon on a song to download it',
+        type: ChangelogEntryType.newFeature,
+      ),
+      ChangelogEntry(
+        'Tap the album art on an album page to view it full size',
+        type: ChangelogEntryType.newFeature,
+      ),
+      ChangelogEntry(
+        'Long-press an album title to copy it',
+        type: ChangelogEntryType.newFeature,
+      ),
+      ChangelogEntry(
         'Fixed a brief freeze when starting Personal Radio and high memory use after listening to it',
         type: ChangelogEntryType.fix,
       ),
