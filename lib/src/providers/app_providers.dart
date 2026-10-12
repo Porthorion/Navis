@@ -1208,6 +1208,12 @@ final audioHandlerInitializerProvider = Provider<AudioHandlerInitializer>((
                   .read(personalRadioProvider.notifier)
                   .start(autoPlay: autoPlay))
               .succeeded,
+      onPersonalRadioQueueEnd: (index, songId) {
+        if (!ref.mounted) return;
+        ref
+            .read(personalRadioProvider.notifier)
+            .requestSkipAfterRefill(index, songId);
+      },
       playbackArtworkFileService: createPlaybackArtworkFileService(ref),
       fetchWindowsArtwork: windowsArtwork.fetch,
       readWindowsArtworkAllowed: windowsArtwork.isAllowed,

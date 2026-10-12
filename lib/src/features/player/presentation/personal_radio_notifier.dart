@@ -40,6 +40,7 @@ class PersonalRadioNotifier extends Notifier<PersonalRadioState> {
   final List<String> _recentGenerated = <String>[];
   bool _starting = false;
   bool _refilling = false;
+  ({int index, String songId})? _pendingSkip;
   DateTime? _nextRetryAt;
   int _failures = 0;
   Timer? _retryTimer;
@@ -206,6 +207,26 @@ class PersonalRadioNotifier extends Notifier<PersonalRadioState> {
     }
   }
 
+  /// Remembers an unavailable Next at the queue tail until songs are appended.
+  void requestSkipAfterRefill(int index, String songId) {
+    final session = _session;
+    if (!state.active || _starting || session == null || _failures >= 5) return;
+    if (!ref.read(recommendationSessionProvider.notifier).owns(session)) return;
+    final snapshot =
+        ref.read(audioHandlerProvider)?.snapshot ??
+        ref.read<PlaybackSnapshot>(playerStateProvider);
+    if (index != snapshot.queueSongIds.length - 1 ||
+        index < 0 ||
+        snapshot.queueSongIds[index] != songId) {
+      return;
+    }
+    _pendingSkip = (index: index, songId: songId);
+    final retryAt = _nextRetryAt;
+    if (!_refilling && (retryAt == null || !DateTime.now().isBefore(retryAt))) {
+      unawaited(_refill());
+    }
+  }
+
   void stop() {
     final session = _session;
     if (session != null) {
@@ -220,12 +241,18 @@ class PersonalRadioNotifier extends Notifier<PersonalRadioState> {
     _session = null;
     _starting = false;
     _refilling = false;
+    _pendingSkip = null;
     _failures = 0;
     _nextRetryAt = null;
     state = const PersonalRadioState();
   }
 
   void _onSnapshot(PlaybackSnapshot? previous, PlaybackSnapshot next) {
+    final pendingSkip = _pendingSkip;
+    if (pendingSkip != null &&
+        (next.pendingQueueIndex ?? next.currentIndex) != pendingSkip.index) {
+      _pendingSkip = null;
+    }
     if (!state.active || _starting || _refilling) return;
     if (next.queueSongIds.isEmpty || next.isRadioMode) {
       stop();
@@ -233,7 +260,7 @@ class PersonalRadioNotifier extends Notifier<PersonalRadioState> {
     }
     final currentIndex = next.currentIndex ?? 0;
     final remaining = next.queueSongIds.length - currentIndex - 1;
-    if (remaining > 3 || _failures >= 5) return;
+    if (remaining > kRecommendationRefillLowWater || _failures >= 5) return;
     final retryAt = _nextRetryAt;
     if (retryAt != null && DateTime.now().isBefore(retryAt)) return;
     unawaited(_refill());
@@ -244,7 +271,7 @@ class PersonalRadioNotifier extends Notifier<PersonalRadioState> {
     final session = _session;
     if (session == null) return;
     final coordinator = ref.read(recommendationSessionProvider.notifier);
-    if (!coordinator.owns(session)) return;
+    if (!ref.mounted || !coordinator.owns(session)) return;
     _refilling = true;
     state = PersonalRadioState(
       active: true,
@@ -267,7 +294,7 @@ class PersonalRadioNotifier extends Notifier<PersonalRadioState> {
                 ),
           )
           .timeout(const Duration(seconds: 30));
-      if (!coordinator.owns(session)) return;
+      if (!ref.mounted || !coordinator.owns(session)) return;
       coordinator.report(
         session,
         stage: 'refilling',
@@ -282,13 +309,16 @@ class PersonalRadioNotifier extends Notifier<PersonalRadioState> {
         }
         return;
       }
+      final beforeAppend =
+          ref.read(audioHandlerProvider)?.snapshot ??
+          ref.read<PlaybackSnapshot>(playerStateProvider);
       final result = await ref
           .read(queueProvider.notifier)
           .appendRecommendationTracks(
             batch.songs,
             isCurrent: () => ref.mounted && coordinator.owns(session),
           );
-      if (!coordinator.owns(session)) return;
+      if (!ref.mounted || !coordinator.owns(session)) return;
       if (result.count == 0) {
         _scheduleRetry(session, RecommendationIssue.empty);
         return;
@@ -302,8 +332,27 @@ class PersonalRadioNotifier extends Notifier<PersonalRadioState> {
         insertedCount: result.count,
       );
       coordinator.report(session, stage: 'active', insertedCount: result.count);
+      final pendingSkip = _pendingSkip;
+      _pendingSkip = null;
+      final afterAppend =
+          ref.read(audioHandlerProvider)?.snapshot ??
+          ref.read<PlaybackSnapshot>(playerStateProvider);
+      final firstInsertedIndex = beforeAppend.queueSongIds.length;
+      if (pendingSkip != null &&
+          coordinator.owns(session) &&
+          pendingSkip.index == firstInsertedIndex - 1 &&
+          beforeAppend.queueSongIds.last == pendingSkip.songId &&
+          afterAppend.currentIndex == pendingSkip.index &&
+          (afterAppend.pendingQueueIndex == null ||
+              afterAppend.pendingQueueIndex == pendingSkip.index) &&
+          afterAppend.currentSongId == pendingSkip.songId &&
+          afterAppend.queueSongIds.length > firstInsertedIndex &&
+          afterAppend.queueSongIds[firstInsertedIndex] ==
+              result.insertedIds.first) {
+        await ref.read(audioHandlerProvider)?.skipToNext();
+      }
     } on Object {
-      if (coordinator.owns(session)) {
+      if (ref.mounted && coordinator.owns(session)) {
         _scheduleRetry(session, RecommendationIssue.networkFailure);
       }
     } finally {

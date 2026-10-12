@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:navis/src/api/models/song.dart';
+import 'package:navis/src/features/player/data/navis_audio_handler.dart';
 import 'package:navis/src/features/player/data/recommendation_service.dart';
 import 'package:navis/src/features/player/domain/playback_snapshot.dart';
 import 'package:navis/src/features/player/presentation/personal_radio_notifier.dart';
@@ -15,6 +16,8 @@ import 'package:navis/src/providers/app_providers.dart';
 import '../../../../helpers/recommendation_test_harness.dart';
 
 class _MockRecommendationService extends Mock implements RecommendationService;
+
+class _MockPlaybackHandler extends Mock implements NavisPlaybackHandler;
 
 class _SnapshotController extends Notifier<PlaybackSnapshot> {
   @override
@@ -37,9 +40,10 @@ class _SnapshotController extends Notifier<PlaybackSnapshot> {
 }
 
 class _QueueController extends RecordingRecommendationQueue {
-  new(this.onReplace);
+  new(this.onReplace, this.onAppend);
 
   final void Function(List<String>) onReplace;
+  final void Function(List<String>) onAppend;
   int replacementCount = 0;
 
   @override
@@ -57,6 +61,21 @@ class _QueueController extends RecordingRecommendationQueue {
     replacementCount++;
     onReplace(songs.map((song) => song.id).toList());
   }
+
+  @override
+  Future<RecommendationQueueResult> appendRecommendationTracks(
+    List<Song> songs, {
+    bool expandMatchFlows = false,
+    bool Function()? isCurrent,
+  }) async {
+    final result = await super.appendRecommendationTracks(
+      songs,
+      expandMatchFlows: expandMatchFlows,
+      isCurrent: isCurrent,
+    );
+    if (isCurrent == null || isCurrent()) onAppend(result.insertedIds);
+    return result;
+  }
 }
 
 void main() {
@@ -65,18 +84,26 @@ void main() {
 
   ProviderContainer makeContainer(
     _MockRecommendationService service,
-    NotifierProvider<_SnapshotController, PlaybackSnapshot> snapshotProvider,
-  ) {
+    NotifierProvider<_SnapshotController, PlaybackSnapshot> snapshotProvider, {
+    NavisPlaybackHandler? handler,
+  }) {
     late final ProviderContainer container;
     return container = ProviderContainer(
       overrides: [
         playerStateProvider.overrideWith((ref) => ref.watch(snapshotProvider)),
-        audioHandlerProvider.overrideWithValue(null),
+        audioHandlerProvider.overrideWithValue(handler),
         subsonicApiProvider.overrideWithValue(null),
         recommendationServiceProvider.overrideWithValue(service),
         queueProvider.overrideWith(
           () => _QueueController(
             (ids) => container.read(snapshotProvider.notifier).setQueue(ids),
+            (ids) {
+              final before = container.read(snapshotProvider);
+              container.read(snapshotProvider.notifier).setQueue([
+                ...before.queueSongIds,
+                ...ids,
+              ], currentIndex: before.currentIndex ?? 0);
+            },
           ),
         ),
       ],
@@ -168,6 +195,8 @@ void main() {
     late List<CancelToken> tokens;
     late NotifierProvider<_SnapshotController, PlaybackSnapshot> snapshots;
     late ProviderContainer container;
+    late _MockPlaybackHandler handler;
+    late List<String> skippedTo;
 
     RecommendationBatch batchOf(List<String> ids) => RecommendationBatch(
       songs: [for (final id in ids) Song(id: id, title: id)],
@@ -194,10 +223,127 @@ void main() {
       snapshots = NotifierProvider<_SnapshotController, PlaybackSnapshot>(
         _SnapshotController.new,
       );
-      container = makeContainer(service, snapshots);
+      handler = _MockPlaybackHandler();
+      skippedTo = [];
+      when(() => handler.snapshot).thenAnswer((_) => container.read(snapshots));
+      when(() => handler.skipToNext()).thenAnswer((_) async {
+        final before = container.read(snapshots);
+        final index = before.currentIndex! + 1;
+        skippedTo.add(before.queueSongIds[index]);
+        container
+            .read(snapshots.notifier)
+            .setQueue(before.queueSongIds, currentIndex: index);
+      });
+      container = makeContainer(service, snapshots, handler: handler);
       addTearDown(container.dispose);
       container.listen(personalRadioProvider, (_, _) {});
       container.read(snapshots.notifier).setQueue(<String>['old']);
+    });
+
+    test('refill starts at eight remaining tracks, but not nine', () async {
+      final radio = container.read(personalRadioProvider.notifier);
+      final start = radio.start();
+      final ids = List.generate(11, (index) => 'r$index');
+      calls[0].complete(batchOf(ids));
+      await start;
+
+      container.read(snapshots.notifier).setQueue(ids, currentIndex: 1);
+      await pumpEventQueue();
+      expect(calls, hasLength(1));
+
+      container.read(snapshots.notifier).setQueue(ids, currentIndex: 2);
+      await pumpEventQueue();
+      expect(calls, hasLength(2));
+      expect(container.read(personalRadioProvider).busy, isTrue);
+      calls[1].complete(batchOf(['new']));
+      await pumpEventQueue();
+    });
+
+    test(
+      'Next at queue end during refill lands on first appended track',
+      () async {
+        final radio = container.read(personalRadioProvider.notifier);
+        final start = radio.start();
+        calls[0].complete(batchOf(['r1', 'r2']));
+        await start;
+        container.read(snapshots.notifier).setQueue([
+          'r1',
+          'r2',
+        ], currentIndex: 1);
+        await pumpEventQueue();
+        expect(calls, hasLength(2));
+
+        radio.requestSkipAfterRefill(1, 'r2');
+        radio.requestSkipAfterRefill(1, 'r2');
+        expect(skippedTo, isEmpty);
+        expect(calls, hasLength(2));
+        calls[1].complete(batchOf(['new-first', 'new-second']));
+        await pumpEventQueue();
+
+        expect(skippedTo, ['new-first']);
+        expect(container.read(playerStateProvider).currentIndex, 2);
+        expect(container.read(playerStateProvider).currentSongId, 'new-first');
+      },
+    );
+
+    test(
+      'queue-end Next starts refill before another snapshot arrives',
+      () async {
+        final radio = container.read(personalRadioProvider.notifier);
+        final start = radio.start();
+        calls[0].complete(batchOf(['r1']));
+        await start;
+        expect(calls, hasLength(1));
+
+        radio.requestSkipAfterRefill(0, 'r1');
+        expect(calls, hasLength(2));
+        calls[1].complete(batchOf(['new-first', 'new-second']));
+        await pumpEventQueue();
+        expect(skippedTo, ['new-first']);
+      },
+    );
+
+    test('stopping radio drops a pending skip', () async {
+      final radio = container.read(personalRadioProvider.notifier);
+      final start = radio.start();
+      calls[0].complete(batchOf(['r1', 'r2']));
+      await start;
+      container.read(snapshots.notifier).setQueue([
+        'r1',
+        'r2',
+      ], currentIndex: 1);
+      await pumpEventQueue();
+      radio.requestSkipAfterRefill(1, 'r2');
+
+      radio.stop();
+      calls[1].complete(batchOf(['late']));
+      await pumpEventQueue();
+
+      expect(tokens.last.isCancelled, isTrue);
+      expect(skippedTo, isEmpty);
+      expect(container.read(playerStateProvider).currentSongId, 'r2');
+      expect(container.read(playerStateProvider).queueSongIds, ['r1', 'r2']);
+    });
+
+    test('moving away from the tail drops a pending skip', () async {
+      final radio = container.read(personalRadioProvider.notifier);
+      final start = radio.start();
+      calls[0].complete(batchOf(['r1', 'r2']));
+      await start;
+      container.read(snapshots.notifier).setQueue([
+        'r1',
+        'r2',
+      ], currentIndex: 1);
+      await pumpEventQueue();
+      radio.requestSkipAfterRefill(1, 'r2');
+
+      container.read(snapshots.notifier).setQueue(['r1', 'r2']);
+      await pumpEventQueue();
+      calls[1].complete(batchOf(['new']));
+      await pumpEventQueue();
+
+      expect(skippedTo, isEmpty);
+      expect(container.read(playerStateProvider).currentSongId, 'r1');
     });
 
     test('each radio refill uses a distinct token', () async {
@@ -285,6 +431,7 @@ void main() {
       await pumpEventQueue();
       expect(calls, hasLength(2));
 
+      radio.requestSkipAfterRefill(1, 'r2');
       radio.stop();
       final startB = radio.start();
       await pumpEventQueue();
@@ -299,6 +446,7 @@ void main() {
       // The first session's refill finishes while the second one still runs.
       calls[1].complete(batchOf(<String>['late']));
       await pumpEventQueue();
+      expect(skippedTo, isEmpty);
 
       snapshotsNotifier.setQueue(<String>['b1', 'b2', 'x'], currentIndex: 2);
       await pumpEventQueue();

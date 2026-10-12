@@ -528,64 +528,63 @@ void main() {
     expect(queue.appendedSongBatches.single.first.id, 'server-0');
   });
 
-  test('auto-refill path updates seed when remaining tracks <= 3', () async {
-    final api = _MockSubsonicApiClient();
-    when(
-      () => api.getSimilarSongs2(
-        any(),
-        count: any(named: 'count'),
-        cancelToken: any(named: 'cancelToken'),
-      ),
-    ).thenAnswer((_) async => songs(5));
-    final container = createRecommendationContainer(
-      overrides: [
-        queueProvider.overrideWith(RecordingRecommendationQueue.new),
-        audioHandlerProvider.overrideWithValue(null),
-        subsonicApiProvider.overrideWithValue(api),
-        appSettingsProvider.overrideWithValue(
-          const AsyncData(AppSettingsModel.defaults()),
+  test(
+    'auto-refill updates seed at eight remaining tracks, but not nine',
+    () async {
+      final api = _MockSubsonicApiClient();
+      var now = DateTime.utc(2026);
+      var batch = 0;
+      when(
+        () => api.getSimilarSongs2(
+          any(),
+          count: any(named: 'count'),
+          cancelToken: any(named: 'cancelToken'),
         ),
-      ],
-    );
-
-    final notifier = container.read(instantMixProvider.notifier);
-    container
-        .read(recommendationSnapshotProvider.notifier)
-        .emitSnapshot(
-          snapshot(
-            queueSongIds: const <String>['seed-a', 'b', 'c', 'd', 'e'],
-            currentSongId: 'seed-a',
-            currentIndex: 0,
+      ).thenAnswer((_) async => songs(10, prefix: 'rec-${batch++}'));
+      final container = createRecommendationContainer(
+        overrides: [
+          instantMixProvider.overrideWith(
+            () => InstantMixNotifier(now: () => now),
           ),
-        );
-    await notifier.activate('seed-a');
-
-    await Future<void>.delayed(const Duration(milliseconds: 1250));
-
-    container
-        .read(recommendationSnapshotProvider.notifier)
-        .emitSnapshot(
-          snapshot(
-            queueSongIds: const <String>[
-              'seed-a',
-              'b',
-              'c',
-              'd',
-              'e',
-              'f',
-              'g',
-              'h',
-            ],
-            currentSongId: 'seed-b',
-            currentIndex: 6,
+          queueProvider.overrideWith(RecordingRecommendationQueue.new),
+          audioHandlerProvider.overrideWithValue(null),
+          subsonicApiProvider.overrideWithValue(api),
+          appSettingsProvider.overrideWithValue(
+            const AsyncData(AppSettingsModel.defaults()),
           ),
-        );
-    await Future<void>.delayed(const Duration(milliseconds: 10));
+        ],
+      );
+      container.listen(instantMixProvider, (_, _) {});
+      final snapshots = container.read(recommendationSnapshotProvider.notifier);
+      snapshots.emitSnapshot(
+        snapshot(
+          queueSongIds: ['seed'],
+          currentSongId: 'seed',
+          currentIndex: 0,
+        ),
+      );
+      await container.read(instantMixProvider.notifier).activate('seed');
+      final queue = container.read(
+        queueProvider.notifier,
+      ) as RecordingRecommendationQueue;
+      expect(queue.appendedSongBatches, hasLength(1));
+      now = now.add(const Duration(minutes: 1));
+      final ids = ['seed', ...List.generate(10, (i) => 'rec-0-$i')];
 
-    final state = container.read(instantMixProvider);
-    expect(state.active, isTrue);
-    expect(state.seedSongId, 'seed-b');
-  });
+      snapshots.emitSnapshot(
+        snapshot(queueSongIds: ids, currentSongId: ids[1], currentIndex: 1),
+      );
+      await pumpEventQueue();
+      expect(queue.appendedSongBatches, hasLength(1));
+
+      snapshots.emitSnapshot(
+        snapshot(queueSongIds: ids, currentSongId: ids[2], currentIndex: 2),
+      );
+      await pumpEventQueue();
+      expect(queue.appendedSongBatches, hasLength(2));
+      expect(container.read(instantMixProvider).seedSongId, ids[2]);
+    },
+  );
 
   test('does not auto-refill while radio mode is active', () async {
     final api = _MockSubsonicApiClient();
