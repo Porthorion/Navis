@@ -1960,32 +1960,8 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen> {
     );
   }
 
-  Future<void> _deleteDownload(SongsTableData song) async {
-    final l10n = AppLocalizations.of(context)!;
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: Text(l10n.downloadsRemoveConfirmTitle),
-        content: Text(l10n.downloadsRemoveConfirmContent),
-        actions: <Widget>[
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(false),
-            child: Text(l10n.cancelAction),
-          ),
-          FilledButton(
-            style: FilledButton.styleFrom(
-              backgroundColor: Theme.of(ctx).colorScheme.error,
-              foregroundColor: Theme.of(ctx).colorScheme.onError,
-            ),
-            onPressed: () => Navigator.of(ctx).pop(true),
-            child: Text(l10n.downloadsRemoveAction),
-          ),
-        ],
-      ),
-    );
-    if (confirmed != true || !mounted) return;
-    await ref.read(downloadServiceProvider).removeDownloadedTrack(song.id);
-  }
+  Future<void> _deleteDownload(SongsTableData song) =>
+      confirmAndDeleteDownload(context, ref, song.id);
 
   Future<void> _downloadSong(SongsTableData song) =>
       downloadSongWithQualityPrompt(
