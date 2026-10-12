@@ -5204,7 +5204,8 @@ download naming throws when all 100 collision candidates are occupied.
 ### Download quality, concurrency and artwork
 
 **Quality preference.** Every download action calls `requestDownloadQuality`
-(`download_quality_sheet.dart`). It reads the saved preference from the
+(`download_quality_sheet.dart`); single-song menus share
+`downloadSongWithQualityPrompt` (picker, enqueue, queued notice). It reads the saved preference from the
 targeted-only `app_settings` columns `download_quality_mode` (`ask`,
 `original`, `transcode`), `download_max_bit_rate` and `download_format`. A
 saved mode returns its choice without UI and the queued notice names the
