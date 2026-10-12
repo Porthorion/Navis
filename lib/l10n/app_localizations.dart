@@ -3683,6 +3683,12 @@ abstract class AppLocalizations {
   /// **'Show album art'**
   String get albumDetailMenuShowAlbumArt;
 
+  /// No description provided for @albumDetailTitleCopied.
+  ///
+  /// In en, this message translates to:
+  /// **'Copied to clipboard'**
+  String get albumDetailTitleCopied;
+
   /// No description provided for @albumDetailLastFm.
   ///
   /// In en, this message translates to:

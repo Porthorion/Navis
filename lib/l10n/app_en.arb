@@ -1073,6 +1073,7 @@
   "albumDetailStarFailure": "Could not update like status.",
   "albumDetailAboutSection": "About This Album",
   "albumDetailMenuShowAlbumArt": "Show album art",
+  "albumDetailTitleCopied": "Copied to clipboard",
   "albumDetailLastFm": "Last.fm",
   "albumDetailMusicBrainz": "MusicBrainz",
   "albumDetailDiscHeader": "Disc {number}",

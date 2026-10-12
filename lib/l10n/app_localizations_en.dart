@@ -2366,6 +2366,9 @@ class AppLocalizationsEn extends AppLocalizations {
   String get albumDetailMenuShowAlbumArt => 'Show album art';
 
   @override
+  String get albumDetailTitleCopied => 'Copied to clipboard';
+
+  @override
   String get albumDetailLastFm => 'Last.fm';
 
   @override
