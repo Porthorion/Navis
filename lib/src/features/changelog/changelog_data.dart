@@ -165,7 +165,15 @@ const List<ChangelogVersion> changelogs = [
     ],
     entries: [
       ChangelogEntry(
-        'Library sync releases completed responses to reduce memory use and prevent crashes while syncing large libraries',
+        'Fixed brief freezes on Home after syncing a large library and when starting or skipping tracks',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
+        'Fixed memory use growing during long Instant Radio and Server Mix sessions',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
+        'Fixed high memory use and possible crashes while syncing large libraries on phones with less memory',
         type: ChangelogEntryType.fix,
       ),
       ChangelogEntry(

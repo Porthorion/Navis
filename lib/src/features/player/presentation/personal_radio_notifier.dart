@@ -85,13 +85,15 @@ class PersonalRadioNotifier extends Notifier<PersonalRadioState> {
     try {
       final snapshot = previousQueue;
       final excluded = <String>{...snapshot.queueSongIds, ..._recentGenerated};
-      final batch = await ref
-          .read(recommendationServiceProvider)
-          .personalRadio(
-            filters,
-            excludedIds: excluded,
-            cancelToken: session.cancelToken,
-          );
+      final batch = await session.withCancelToken(
+        (cancelToken) => ref
+            .read(recommendationServiceProvider)
+            .personalRadio(
+              filters,
+              excludedIds: excluded,
+              cancelToken: cancelToken,
+            ),
+      );
       if (!coordinator.owns(session)) {
         return const RadioStartResult(
           insertedCount: 0,
@@ -254,12 +256,15 @@ class PersonalRadioNotifier extends Notifier<PersonalRadioState> {
     try {
       final snapshot = ref.read(playerStateProvider);
       final excluded = <String>{...snapshot.queueSongIds, ..._recentGenerated};
-      final batch = await ref
-          .read(recommendationServiceProvider)
-          .personalRadio(
-            _filters,
-            excludedIds: excluded,
-            cancelToken: session.cancelToken,
+      final batch = await session
+          .withCancelToken(
+            (cancelToken) => ref
+                .read(recommendationServiceProvider)
+                .personalRadio(
+                  _filters,
+                  excludedIds: excluded,
+                  cancelToken: cancelToken,
+                ),
           )
           .timeout(const Duration(seconds: 30));
       if (!coordinator.owns(session)) return;

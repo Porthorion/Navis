@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
@@ -54,6 +55,99 @@ void main() {
   }
 
   const snapshot = recommendationSnapshot;
+
+  group('refill cancellation tokens', () {
+    late ProviderContainer container;
+    late List<CancelToken> tokens;
+    late List<Completer<List<Song>>> calls;
+    late DateTime now;
+
+    setUp(() {
+      tokens = [];
+      calls = [];
+      now = DateTime.utc(2026);
+      final api = _MockSubsonicApiClient();
+      when(
+        () => api.getSimilarSongs2(
+          any(),
+          count: any(named: 'count'),
+          cancelToken: any(named: 'cancelToken'),
+        ),
+      ).thenAnswer((invocation) {
+        tokens.add(invocation.namedArguments[#cancelToken]! as CancelToken);
+        final call = Completer<List<Song>>();
+        calls.add(call);
+        return call.future;
+      });
+      container = createRecommendationContainer(
+        overrides: [
+          queueProvider.overrideWith(RecordingRecommendationQueue.new),
+          audioHandlerProvider.overrideWithValue(null),
+          subsonicApiProvider.overrideWithValue(api),
+          instantMixProvider.overrideWith(
+            () => InstantMixNotifier(now: () => now),
+          ),
+        ],
+      );
+      container.listen(instantMixProvider, (_, _) {});
+    });
+
+    Future<void> activate() async {
+      final activation = container
+          .read(instantMixProvider.notifier)
+          .activate('seed');
+      await pumpEventQueue();
+      calls[0].complete(songs(5));
+      await activation;
+    }
+
+    Future<void> refill(int index) async {
+      now = now.add(const Duration(minutes: 1));
+      container
+          .read(recommendationSnapshotProvider.notifier)
+          .emitSnapshot(
+            snapshot(
+              queueSongIds: List.generate(index + 1, (i) => 'q-$i'),
+              currentSongId: 'q-$index',
+              currentIndex: index,
+            ),
+          );
+      await pumpEventQueue();
+    }
+
+    test('each mix refill uses a distinct token', () async {
+      await activate();
+      for (var i = 1; i <= 2; i++) {
+        await refill(i * 5);
+        expect(calls, hasLength(i + 1));
+        calls[i].complete(songs(5, prefix: 'refill-$i'));
+        await pumpEventQueue();
+      }
+
+      expect(Set<CancelToken>.identity()..addAll(tokens), hasLength(3));
+      container.read(instantMixProvider.notifier).deactivate();
+      expect(tokens.every((token) => !token.isCancelled), isTrue);
+    });
+
+    test('deactivating mix cancels an in-flight refill only', () async {
+      await activate();
+      await refill(5);
+      expect(tokens, hasLength(2));
+
+      container.read(instantMixProvider.notifier).deactivate();
+      calls[1].complete(songs(5, prefix: 'late'));
+      await pumpEventQueue();
+
+      expect(tokens.last.isCancelled, isTrue);
+      expect(tokens.first.isCancelled, isFalse);
+      expect(
+        (container.read(
+          queueProvider.notifier,
+        ) as RecordingRecommendationQueue).appendedSongBatches,
+        hasLength(1),
+      );
+    });
+  });
 
   test('deactivates when queue is cleared', () async {
     final container = createRecommendationContainer(

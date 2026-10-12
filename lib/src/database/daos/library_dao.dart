@@ -31,6 +31,8 @@ import 'package:navis/src/database/tables/album_artist_index_table.dart';
 import 'package:navis/src/database/tables/artist_ref_converter.dart';
 import 'package:navis/src/utils/metadata_normalization.dart';
 import 'package:navis/src/features/library/data/library_artist_name_index.dart';
+import 'package:navis/src/features/library/data/local_track_matcher.dart'
+    show kLocalTrackMatcherSnapshotYieldChunkSize;
 import 'package:rxdart/rxdart.dart';
 import 'package:navis/src/database/tables/songs_table.dart';
 import 'package:navis/src/features/downloads/data/android_saf_storage.dart';
@@ -3355,32 +3357,25 @@ class LibraryDao extends DatabaseAccessor<NavisDatabase>
   /// candidates so the derived index cannot hide a possible match.
   ///
   /// The artist fallback depends only on the artist key, so it is tested
-  /// once per distinct key (a few thousand) instead of once per song, and the
-  /// matching songs are then read through the title and artist key indexes.
+  /// once per distinct key (a few thousand) in an isolate instead of once per
+  /// song, and the matching songs are read through the title and artist indexes.
   Future<List<SongsTableData>> getTrackMatchCandidates(
     Iterable<({String title, String artist})> tracks,
   ) async {
     await _awaitSongSearchIndexRefresh();
     final (:titleKeys, :artistKeys, :artistTokens) = _trackMatchKeys(tracks);
-    final matchedArtists = <String>[];
+    var matchedArtists = <String>[];
     if (artistKeys.isNotEmpty) {
       final keys = await customSelect(
         'SELECT DISTINCT match_artist AS a FROM song_search_text '
         "WHERE match_artist <> ''",
         readsFrom: {songSearchTextTable},
       ).map((row) => row.read<String>('a')).get();
-      for (final key in keys) {
-        if (artistKeys.any(
-              (artist) =>
-                  key == artist ||
-                  (key.runes.length >= 2 &&
-                      artist.runes.length >= 2 &&
-                      (key.contains(artist) || artist.contains(key))),
-            ) ||
-            key.split(' ').any(artistTokens.contains)) {
-          matchedArtists.add(key);
-        }
-      }
+      matchedArtists = await _matchingTrackArtistKeysInIsolate(
+        keys,
+        artistKeys,
+        artistTokens,
+      );
     }
     final rows = await customSelect(
       '''
@@ -3412,7 +3407,16 @@ class LibraryDao extends DatabaseAccessor<NavisDatabase>
     if (rows.any((row) => row.read<bool>('index_stale'))) {
       unawaited(scheduleSongSearchIndexRefresh());
     }
-    return rows.map((row) => songsTable.map(row.data)).toList();
+    final candidates = <SongsTableData>[];
+    for (var index = 0; index < rows.length; index++) {
+      candidates.add(songsTable.map(rows[index].data));
+      // Large candidate sets must leave time for UI events during mapping.
+      if ((index + 1) % kLocalTrackMatcherSnapshotYieldChunkSize == 0 &&
+          index + 1 < rows.length) {
+        await Future<void>.delayed(Duration.zero);
+      }
+    }
+    return candidates;
   }
 
   /// [getTrackMatchCandidates] as one scan that tests every song's artist
@@ -3462,6 +3466,36 @@ class LibraryDao extends DatabaseAccessor<NavisDatabase>
       readsFrom: {songsTable, songSearchTextTable},
     ).get();
     return rows.map((row) => songsTable.map(row.data)).toList();
+  }
+
+  // Keep the isolate closure out of the DAO method's captured database scope.
+  static Future<List<String>> _matchingTrackArtistKeysInIsolate(
+    List<String> keys,
+    Set<String> artistKeys,
+    Set<String> artistTokens,
+  ) => Isolate.run(
+    () => _matchingTrackArtistKeys(keys, artistKeys, artistTokens),
+  );
+
+  static List<String> _matchingTrackArtistKeys(
+    List<String> keys,
+    Set<String> artistKeys,
+    Set<String> artistTokens,
+  ) {
+    final matchedArtists = <String>[];
+    for (final key in keys) {
+      if (artistKeys.any(
+            (artist) =>
+                key == artist ||
+                (key.runes.length >= 2 &&
+                    artist.runes.length >= 2 &&
+                    (key.contains(artist) || artist.contains(key))),
+          ) ||
+          key.split(' ').any(artistTokens.contains)) {
+        matchedArtists.add(key);
+      }
+    }
+    return matchedArtists;
   }
 
   static ({

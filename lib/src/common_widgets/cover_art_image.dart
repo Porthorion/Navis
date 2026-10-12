@@ -1,10 +1,13 @@
 import 'dart:async';
 import 'dart:io';
+import 'dart:isolate';
+import 'dart:ui' as ui;
 
 import 'package:navis/src/common_widgets/cover_art_source.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:flutter_cache_manager/flutter_cache_manager.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:material_color_utilities/material_color_utilities.dart';
 
 import 'dart:io' as io show File;
 
@@ -918,11 +921,10 @@ ImageProvider boundedDecode(
   );
 }
 
-/// Extracts a palette only when Material's 112px sampling keeps both edges nonzero.
+/// Extracts Material's palette off the UI isolate after 112px image sampling.
 ///
-/// Its async image listener throws outside the returned future for thinner images,
-/// so check the decoded dimensions before invoking it. Failures use the caller's
-/// default tint or theme seed.
+/// Extremely thin images and extraction failures use the caller's default tint
+/// or theme seed.
 Future<ColorScheme?> artworkColorScheme({
   required ImageProvider provider,
   required Brightness brightness,
@@ -930,33 +932,67 @@ Future<ColorScheme?> artworkColorScheme({
 }) async {
   ImageStream? stream;
   ImageStreamListener? listener;
+  ImageInfo? info;
+  ui.Picture? picture;
+  ui.Image? sampledImage;
   try {
-    // Match the palette library's resolve configuration and scaling limit.
+    // Keep dart:ui work here; only the pure pixel quantization can be offloaded.
     const sampleEdge = 112;
     stream = provider.resolve(const ImageConfiguration(size: Size(112, 112)));
-    final usable = Completer<bool>();
+    final loaded = Completer<ImageInfo>();
     listener = ImageStreamListener(
       (info, _) {
-        final width = info.image.width;
-        final height = info.image.height;
-        final longEdge = width > height ? width : height;
-        final shortEdge = width < height ? width : height;
-        if (!usable.isCompleted) {
-          usable.complete(
-            shortEdge > 0 &&
-                (longEdge <= sampleEdge || shortEdge * sampleEdge >= longEdge),
-          );
+        if (!loaded.isCompleted) {
+          loaded.complete(info);
+        } else {
+          info.dispose();
         }
-        info.dispose();
       },
       onError: (error, stackTrace) {
-        if (!usable.isCompleted) usable.completeError(error, stackTrace);
+        if (!loaded.isCompleted) loaded.completeError(error, stackTrace);
       },
     );
     stream.addListener(listener);
-    if (!await usable.future.timeout(const Duration(seconds: 5))) return null;
-    return await ColorScheme.fromImageProvider(
-      provider: provider,
+    info = await loaded.future.timeout(const Duration(seconds: 5));
+    stream.removeListener(listener);
+    final image = info.image;
+    final width = image.width;
+    final height = image.height;
+    final longEdge = width > height ? width : height;
+    final shortEdge = width < height ? width : height;
+    if (shortEdge <= 0 ||
+        (longEdge > sampleEdge && shortEdge * sampleEdge < longEdge)) {
+      return null;
+    }
+
+    var paintWidth = width.toDouble();
+    var paintHeight = height.toDouble();
+    if (longEdge > sampleEdge) {
+      paintWidth = width > height
+          ? sampleEdge.toDouble()
+          : (sampleEdge / height) * width;
+      paintHeight = height > width
+          ? sampleEdge.toDouble()
+          : (sampleEdge / width) * height;
+    }
+    final recorder = ui.PictureRecorder();
+    paintImage(
+      canvas: Canvas(recorder),
+      rect: Rect.fromLTRB(0, 0, paintWidth, paintHeight),
+      image: image,
+      filterQuality: FilterQuality.none,
+    );
+    picture = recorder.endRecording();
+    sampledImage = await picture.toImage(
+      paintWidth.toInt(),
+      paintHeight.toInt(),
+    );
+    final bytes = await sampledImage.toByteData();
+    if (bytes == null) return null;
+    final pixels = bytes.buffer.asUint32List();
+    final seed = await _artworkSeedInIsolate(pixels);
+    return ColorScheme.fromSeed(
+      seedColor: Color(seed),
       brightness: brightness,
       dynamicSchemeVariant: dynamicSchemeVariant,
     );
@@ -964,5 +1000,28 @@ Future<ColorScheme?> artworkColorScheme({
     return null;
   } finally {
     if (listener != null) stream?.removeListener(listener);
+    sampledImage?.dispose();
+    picture?.dispose();
+    info?.dispose();
   }
+}
+
+// A separate scope prevents the image listener's completer being captured too.
+Future<int> _artworkSeedInIsolate(List<int> pixels) =>
+    Isolate.run(() => _artworkSeedFromPixels(pixels));
+
+Future<int> _artworkSeedFromPixels(List<int> pixels) async {
+  final result = await QuantizerCelebi().quantize(
+    pixels,
+    128,
+    returnInputPixelToClusterPixel: true,
+  );
+  // Flutter quantizes the RGBA buffer as ABGR ints, then scores ARGB colours.
+  final colorToCount = result.colorToCount.map(
+    (abgr, count) => MapEntry(
+      (abgr & 0xff00ff00) | ((abgr & 0xff) << 16) | ((abgr >> 16) & 0xff),
+      count,
+    ),
+  );
+  return Score.score(colorToCount, desired: 1).first;
 }

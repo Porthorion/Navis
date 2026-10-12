@@ -22,6 +22,9 @@ const int kArtistTopTrackSearchWorkers = 4;
 /// Songs requested per `search3`.
 const int _kSearchSongCount = 10;
 
+/// Local seeds processed before giving the UI isolate another event turn.
+const int _kLocalMatchYieldBatchSize = 4;
+
 // Span names on `IntegrationCallRecorder`, for the diagnostics endpoint.
 const String kTopSongsSpanPrefix = 'topSongs';
 
@@ -177,7 +180,8 @@ class ArtistTopTrackResolver {
         final snapshot = await LocalTrackMatchSnapshot.fromSongsAsync(
           candidates,
         );
-        for (final i in open) {
+        for (var openIndex = 0; openIndex < open.length; openIndex++) {
+          final i = open[openIndex];
           final query = artistTopTrackMatchQuery(seeds[i]);
           // Remote rows are never library copies. (The DAO already leaves
           // out provisional rows, which is how remote songs are stored.)
@@ -202,6 +206,9 @@ class ArtistTopTrackResolver {
               songId: song.id,
               checkedAt: _store.now(),
             );
+          }
+          if ((openIndex + 1) % _kLocalMatchYieldBatchSize == 0) {
+            await Future<void>.delayed(Duration.zero);
           }
         }
       } on Object catch (error) {

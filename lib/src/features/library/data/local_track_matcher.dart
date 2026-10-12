@@ -4,7 +4,7 @@ import 'package:navis/src/api/models/models.dart';
 import 'package:navis/src/database/navis_database.dart';
 import 'package:navis/src/utils/metadata_normalization.dart';
 
-const int kLocalTrackMatcherSnapshotYieldChunkSize = 1500;
+const int kLocalTrackMatcherSnapshotYieldChunkSize = 500;
 const double kLocalTrackMatcherMinimumScore = 0.75;
 const double kLocalTrackMatcherMinimumFieldScore = 0.75;
 const double kLocalTrackMatcherAmbiguousDelta = 0.03;
@@ -124,7 +124,7 @@ class TrackMatchResult {
 enum TrackMatchStatus { matched, unmatched, ambiguous }
 
 class LocalTrackMatchSnapshot {
-  const new _({required this.all, required this.byNormalizedTitle});
+  new _({required this.all, required this.byNormalizedTitle});
 
   static Future<LocalTrackMatchSnapshot> fromSongsAsync(
     List<SongsTableData> songs,
@@ -158,6 +158,27 @@ class LocalTrackMatchSnapshot {
   final List<TrackMatchCandidate> all;
   final Map<String, List<TrackMatchCandidate>> byNormalizedTitle;
 
+  // Exact-title lookups never need this index. Fallbacks share the parsed
+  // artist metadata across songs and queries for the life of the snapshot.
+  late final Map<String, ({int runeLength, Set<String> tokens})>
+  _artistMetadata = _buildArtistMetadata();
+
+  Map<String, ({int runeLength, Set<String> tokens})> _buildArtistMetadata() {
+    final artists = <String, ({int runeLength, Set<String> tokens})>{};
+    for (final candidate in all) {
+      final artist = candidate.normalizedArtist;
+      if (artist.isEmpty || artists.containsKey(artist)) continue;
+      artists[artist] = (
+        runeLength: artist.runes.length,
+        tokens: artist
+            .split(' ')
+            .where((token) => token.runes.length > 1)
+            .toSet(),
+      );
+    }
+    return artists;
+  }
+
   List<TrackMatchCandidate> candidatesFor(TrackMatchQuery track) {
     final title = normalizeMetadata(track.title);
     final exactTitleCandidates = byNormalizedTitle[title];
@@ -168,32 +189,30 @@ class LocalTrackMatchSnapshot {
     final expectedArtist = normalizeMetadata(track.artist);
     if (expectedArtist.isEmpty) return const <TrackMatchCandidate>[];
 
+    final expectedArtistRuneLength = expectedArtist.runes.length;
     final expectedArtistTokens = expectedArtist
         .split(' ')
         .where((token) => token.runes.length > 1)
         .toSet();
 
+    final matchedArtists = <String>{};
+    for (final MapEntry(key: artist, value: metadata)
+        in _artistMetadata.entries) {
+      if (artist == expectedArtist ||
+          (expectedArtistRuneLength >= 2 &&
+              metadata.runeLength >= 2 &&
+              (artist.contains(expectedArtist) ||
+                  expectedArtist.contains(artist) ||
+                  expectedArtistTokens.any(metadata.tokens.contains)))) {
+        matchedArtists.add(artist);
+      }
+    }
+
+    // Filtering the original rows keeps interleaved artists in library order.
     return all
-        .where((candidate) {
-          final candidateArtist = candidate.normalizedArtist;
-          if (candidateArtist.isEmpty) return false;
-          if (candidateArtist == expectedArtist) return true;
-          if (expectedArtist.runes.length < 2 ||
-              candidateArtist.runes.length < 2) {
-            return false;
-          }
-          if (candidateArtist.contains(expectedArtist) ||
-              expectedArtist.contains(candidateArtist)) {
-            return true;
-          }
-          final candidateArtistTokens = candidateArtist
-              .split(' ')
-              .where((token) => token.runes.length > 1)
-              .toSet();
-          return expectedArtistTokens
-              .intersection(candidateArtistTokens)
-              .isNotEmpty;
-        })
+        .where(
+          (candidate) => matchedArtists.contains(candidate.normalizedArtist),
+        )
         .toList(growable: false);
   }
 }

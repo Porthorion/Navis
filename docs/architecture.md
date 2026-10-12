@@ -1283,9 +1283,13 @@ target-selection rules.
   zero values.
 - `dynamic_accent_provider.dart`: samples the current artwork to reseed the
   scheme when dynamic album colour is enabled. Both it and Now Playing prewarm
-  use `artworkColorScheme`, which checks decoded dimensions before Material's
-  112px palette scaling can truncate an edge to zero. Extremely thin artwork
-  keeps the default tint/theme seed; extraction errors stay best-effort.
+  use `artworkColorScheme`: decode, Material's 112px scaling and RGBA readback
+  stay on the UI isolate; `Isolate.run` quantizes the raw pixel ints to 128
+  colours and scores the seed, then the UI isolate builds the scheme with
+  the requested brightness and variant. Decoded dimensions are checked before
+  scaling can truncate an edge to zero. Extremely thin artwork keeps the default
+  tint/theme seed; loading retains its five-second timeout and extraction errors
+  stay best-effort. Caption tints use the separate `CoverColourWorker` path.
 - Custom accent labels use `settings/domain/color_namer.dart`: nearest CIE76
   colour in CIELAB (sRGB D65), ignoring alpha, with lazily cached table Lab
   values. The MIT meodai/color-names table is generated from the pinned
@@ -2767,6 +2771,8 @@ fallback.
   query; then the local pass (`getTrackMatchCandidates` and
   `pickBestTrackMatch`; a source's album and length only add confidence and
   never reject a song that title and artist alone accept);
+  the local pass yields to the event queue every 4 open seeds to keep Home
+  scrolling responsive while resolving artist top songs and Trending;
   then `search3` for what is left, by 4 workers pulling from one queue (no
   batch barrier) with the provider's `CancelToken`, cancelled when the
   provider is disposed. Like the ListenBrainz weekly matcher, a copy on the
@@ -3343,8 +3349,12 @@ construction so these actions also work before the Flutter shell registers
 its callbacks.
 The Home action awaits an actual queue insertion before opening Now Playing.
 
-`RecommendationSessionCoordinator` owns one generation and cancellation token
-across these automatic modes. Replacement queues, queue clear, internet radio,
+`RecommendationSessionCoordinator` owns one generation and cancellation scope
+across these automatic modes. Each initial fetch and refill uses its own cancel
+token, tracked by the session only while in flight and released on success or
+failure. Ending a session cancels its in-flight requests; later requests receive
+pre-cancelled tokens. Completed refill responses are not retained by the session.
+Replacement queues, queue clear, internet radio,
 server session changes, sign-out, or another recommendation activation
 invalidate ownership. The queue controller checks ownership within its
 serialized recommendation append and reports IDs actually inserted. Every
@@ -5438,9 +5448,17 @@ of thousands of songs. `tool/perf_diagnostics.py` measures them (see
   title keys, or artist keys that are equal, contain or are contained, or share
   a word. Artist keys shorter than two Unicode characters require equality in
   both the DAO and snapshot fallback. A snapshot built from those makes the same
-  matches as one built from the whole library. The artist rules are tested once
-  per distinct `match_artist` key (indexed, like `match_title`), not once per
-  song, and the matching songs are read through the two key indexes;
+  matches as one built from the whole library. Snapshot construction yields
+  every 500 rows during candidate normalization and title indexing. Its artist
+  fallback lazily caches rune lengths and multi-rune token sets per distinct
+  normalized artist, tests each artist once per query, and filters the original
+  candidate list to preserve row order. The DAO's artist rules are tested in
+  `Isolate.run` with plain string keys and seed keys/tokens, once per distinct
+  `match_artist` key (indexed, like `match_title`), not once per song. SQL stays
+  unchanged, and matching songs are read through the two key indexes. Raw
+  candidate rows are mapped to `SongsTableData` in order, yielding between
+  chunks of `kLocalTrackMatcherSnapshotYieldChunkSize` (500), so large results
+  do not block the UI isolate for the entire mapping pass;
   `debugTrackMatchCandidatesByFullScan` keeps the per-song query as the test
   reference. Candidate selection starts a refresh only when stale rows exist, or
   joins one already running, and waits at most two seconds. Fresh indexes
