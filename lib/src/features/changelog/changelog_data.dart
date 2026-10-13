@@ -165,6 +165,9 @@ const List<ChangelogVersion> changelogs = [
     ],
     entries: [
       ChangelogEntry(
+        'Windows now uses a Navis-built playback engine with complete corresponding source provided alongside the download',
+      ),
+      ChangelogEntry(
         'The storage-full download notice now clears when the last queued download is cancelled',
         type: ChangelogEntryType.fix,
       ),

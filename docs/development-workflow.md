@@ -27,16 +27,16 @@ The generator matches licence filenames case-insensitively and uses tracked
 is fetched at generation or app runtime; unknown fallback identifiers fail.
 See `release-windows.md` for the packaging procedure.
 
-Windows libmpv uses an LGPL pin with verified Forgejo/R2/upstream fallbacks;
+Windows libmpv uses a Navis-built LGPL pin with a single verified R2 URL;
 remote builds no longer seed the obsolete media_kit archive. Run
 `cmake -P tool/libmpv_download_test.cmake` for offline cache, retry and cleanup
-checks (downloads are simulated). Linux uses the same verified cache/fallback
+checks (downloads are simulated). Linux retains its verified cache/fallback
 approach; check it with
 `cmake -DDOWNLOAD_SOURCE="$PWD/linux/CMakeLists.txt" -P tool/libmpv_download_test.cmake`.
 Run `cmake -P tool/libmpv_bundle_test.cmake` for offline extraction/installation
 and opt-out checks. See the Windows/Linux release guides for pin updates.
-The Linux LGPL recipe under `tool/libmpv/` builds separately; normal app builds
-consume the published archive and do not invoke Docker.
+The Linux and Windows LGPL recipes under `tool/libmpv/` build separately;
+normal app builds consume the published archive and do not invoke Docker.
 
 ## Colour-name data
 

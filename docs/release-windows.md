@@ -15,44 +15,54 @@ machines, USB sticks, shared computers).
 
 ## Bundled libmpv
 
-Windows playback runs on libmpv, which Navis bundles as `libmpv-2.dll`. The
-`media_kit_libs_windows_audio` package that provides it is vendored in
-`third_party/media_kit_libs_windows_audio/` (see its `NAVIS.md`): upstream's
-build is a minimal 2023-09-24 libmpv from an archived repository, without the
-FFmpeg `volume` and `biquad` filters the equalizer needs and without FFmpeg
-fixes since. Navis pins the LGPL-2.1+ variant from
-[zhongfly/mpv-winbuild](https://github.com/zhongfly/mpv-winbuild):
-`mpv-dev-lgpl-x86_64-20261006-git-eb0ee10315.7z`, mpv
-v0.41.0-1104-geb0ee1031 (`-Dgpl=false`) and FFmpeg N-127222-g151814650
-(without `--enable-gpl`), with the `volume` and `biquad` filters present.
+Windows playback uses Navis's own audio-only LGPL-2.1-or-later
+`libmpv-2.dll`, provided by the vendored
+`third_party/media_kit_libs_windows_audio/` plugin (see its `NAVIS.md`).
+The current archive is `libmpv-windows-x86_64-lgpl-20261013.zip`.
+mpv `eb0ee1031590b3f369a5b783e8aa91eeaaded7e6` (`gpl=false`) and FFmpeg
+`151814650` (no GPL/nonfree options) match the Linux recipe. Static libass
+0.17.5, libplacebo v7.360.1 with submodules, FreeType 2.13.3, FriBidi 1.0.16,
+HarfBuzz 10.2.0 and zlib 1.3.1 all have captured corresponding sources.
 
-CMake tries `https://downloads.porthorion.com/navis/third-party/libmpv-windows-x86_64-lgpl-20261006/<archive-name>`, then the
-pinned upstream release. Each attempt is SHA-256 verified; failed or mismatched downloads are
-deleted before trying the next URL. A verified build-directory cache works
-offline. Extraction is per archive pin. The R2 mirror keeps old Navis versions
-buildable when upstream prunes daily releases.
+The DLL uses WASAPI audio and Schannel TLS, with native audio decoders,
+HLS/ICY support and FFmpeg `volume`, `biquad`, `equalizer` and `atempo`.
+Navis's adapter combines mpv's internal `scaletempo` with lavfi volume/biquad.
+GPU backends, scripting and optional external media libraries are disabled.
+The build rejects non-system DLL imports; mingw-w64, winpthreads and GCC
+runtimes are static, with their versions/licences recorded in BUILDINFO.
 
-To update the pin:
+CMake downloads only from
+`https://downloads.porthorion.com/navis/third-party/libmpv-windows-x86_64-lgpl-20261013/<archive-name>`.
+SHA-256 is checked on every download and before cache reuse; a failed download
+is deleted. Verified build-directory caches work offline. Extraction is per
+archive filename; ZIP is supported by CMake's libarchive extractor. There is
+no zhongfly fallback. The remote Windows builder does not pre-seed an old pin.
 
-1. Download an LGPL `mpv-dev-lgpl-x86_64-<date>-git-<rev>.7z` archive from
-   upstream; use plain x86_64, not `-v3` (requires AVX2).
-2. Verify the published SHA-256, `libmpv-2.dll` and `include/mpv/*.h`.
-   `strings libmpv-2.dll | grep -c -- --enable-gpl` must report `0` (grep
-   exits 1 for zero matches). Inspect the embedded meson configuration for
-   `-Dgpl=false`; confirm the FFmpeg configuration also lacks `--enable-nonfree`
-   and that `volume` and `biquad` are available.
-3. Upload the binary, `SOURCES.md` (upstream URL, SHA-256, versions, licence
-   and build configuration) and the corresponding mpv/FFmpeg source tarballs
-   to R2 at `navis/third-party/libmpv-windows-x86_64-lgpl-<date>/`. Preserve
-   older folders; the in-app licence notice links to them.
-4. Upload only into the per-build folder, with no flat copy. Verify the
-   archive SHA-256 there. Update `LIBMPV`, ordered `LIBMPV_URLS` and
-   `LIBMPV_SHA256` in the vendored CMake file.
-5. Build a profile bundle and verify EQ, speed/pitch, gapless playback,
-   seeking and TLS certificate validation; inspect mpv logs for `af` errors.
+To rebuild or update:
 
-The remote Windows builder no longer pre-seeds the obsolete 2023 media_kit
-archive; only the current CMake pin/cache is used.
+1. Follow `tool/libmpv/README.md` to build `Dockerfile.windows` and run
+   `build_windows_lgpl.sh` with `JOBS=6`. Use ordinary x86_64, with no AVX2
+   baseline requirement. The output directory contains the ZIP, sources,
+   recipe, BUILDINFO, source checksums and SOURCES.md; nothing is uploaded.
+2. Review configurations and dependency licences. The build verifies zero
+   `--enable-gpl`/`--enable-nonfree` strings, mpv `gpl=false`, compiled volume,
+   equalizer and biquad filters, and Windows-system-only DLL imports. Inspect
+   `IMPORTED-DLLS.txt` and `FFMPEG-CONFIGURE.txt`. Extract the ZIP with CMake
+   and confirm `libmpv-2.dll`, `include/mpv/*.h` and `libmpv.dll.a`.
+3. The release operator publishes the ZIP, SOURCES.md, BUILDINFO and every
+   corresponding source archive from `src/` together in the per-build R2
+   folder. Preserve old folders and use no flat copy. Check the published
+   archive digest before a Windows build; a newly wired pin needs publication
+   or a locally pre-seeded verified archive to build.
+4. Update `LIBMPV`, the sole `LIBMPV_URLS` entry and `LIBMPV_SHA256`, then the
+   in-app NOTICE source link and `test/src/app_licenses_test.dart`.
+5. Run both offline CMake download tests plus licence/changelog tests.
+   On a Windows VM build a profile bundle, confirm the new DLL loads without
+   extra runtimes, and exercise local codecs, HTTPS streaming (including
+   rejection of an untrusted certificate), HLS/ICY radio and titles, EQ,
+   independent speed/pitch, seek, gapless transitions and paired crossfade.
+   Inspect mpv logs for filter, TLS and audio-output errors; verify WASAPI
+   default-device changes and both installer/portable packaging.
 
 ---
 
