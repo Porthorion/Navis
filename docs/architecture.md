@@ -25,6 +25,10 @@ Located in `lib/src/providers/app_providers.dart`:
   interactive vs hard probe eligibility)
 
 - **Android background sync**
+  - The shell's battery tip remembers Later and sheet dismissal for 14 days in
+    `battery_tip_snoozed_at.txt` in application support, using the same
+    device-local file pattern as the changelog marker. Open Settings does not
+    snooze the tip; no database schema change is needed.
   - `androidBackgroundSyncReconcilerProvider` owns native WorkManager
     scheduling reconciliation and constructs its scheduler directly; sync domain
     logic remains in the library planner/coordinator.
@@ -5243,6 +5247,25 @@ download naming throws when all 100 collision candidates are occupied.
    metered-data, and sign-out recovery options on failure, and only then opens
    Home. `LibraryCacheResetService` deliberately preserves permanent downloads
    and their files; the upgrade marker is written only after that full scan.
+   The reset keeps exactly the song rows referenced by `play_queue_items`,
+   their albums, and artists referenced by those songs or albums. Queue items
+   cascade on song deletion; retained songs and parents become provisional.
+   On-server songs awaiting reconfirmation also receive `pendingRebuild`
+   catalog availability, excluding them from normal search even with queue or
+   download references. This is distinct from isolated-404 suspicion, which
+   remains searchable. Saved queue occurrences and playback state stay in the
+   database throughout the rebuild, including failed scans and process restarts;
+   live queue clears, edits, and shuffle persistence use their existing paths.
+   No snapshot, post-scan restoration, or schema change is needed. Authoritative
+   sync force-applies re-observed provisional song and parent metadata by ID,
+   including ratings and explicit null values, and clears availability/provisional
+   markers. Provisional albums cannot carry old songs forward as authoritative
+   hydration. Unresolved candidate albums defer absence confirmation until
+   hydrated. Missing queued songs follow normal reconciliation: they are retained
+   as confirmed-missing with `serverDeletedAt` regardless of parent IDs, and
+   excluded from normal library selection. Existing playback source resolution
+   prunes an unavailable retained song and its saved queue occurrences when no
+   permanent download remains. An empty queue still clears the whole library.
 
 ### Download quality, concurrency and artwork
 

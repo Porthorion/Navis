@@ -2659,9 +2659,49 @@ class LibraryDao extends DatabaseAccessor<NavisDatabase>
 
   Future<void> clearLibraryData() async {
     await transaction(() async {
-      await delete(songsTable).go();
-      await delete(albumsTable).go();
-      await delete(artistsTable).go();
+      // Deleting a queued song cascades to its saved occurrences. Keep those
+      // rows in place so queue persistence needs no rebuild coordination.
+      await customUpdate(
+        'DELETE FROM songs WHERE id NOT IN '
+        '(SELECT song_id FROM play_queue_items)',
+        updates: {songsTable},
+        updateKind: UpdateKind.delete,
+      );
+      // Kept rows are references until the rebuild reconfirms them. Availability
+      // distinguishes these provisional songs from playable search results,
+      // and lets a complete scan reconcile them even without parent IDs.
+      await update(songsTable)
+          .write(const SongsTableCompanion(isProvisional: Value(true)));
+      await (update(songsTable)..where(
+            (table) =>
+                table.isExternal.equals(false) & table.serverDeletedAt.isNull(),
+          ))
+          .write(
+            SongsTableCompanion(
+              catalogAvailability: Value(
+                CatalogAvailability.pendingRebuild.name,
+              ),
+            ),
+          );
+      // Keep parent metadata for exact detail and identity reconciliation,
+      // but force server-observed parents through the normal metadata upsert.
+      await customUpdate(
+        'DELETE FROM albums WHERE id NOT IN '
+        '(SELECT album_id FROM songs WHERE album_id IS NOT NULL)',
+        updates: {albumsTable},
+        updateKind: UpdateKind.delete,
+      );
+      await customUpdate(
+        'DELETE FROM artists WHERE id NOT IN ( '
+        'SELECT artist_id FROM songs WHERE artist_id IS NOT NULL '
+        'UNION SELECT artist_id FROM albums WHERE artist_id IS NOT NULL)',
+        updates: {artistsTable},
+        updateKind: UpdateKind.delete,
+      );
+      await update(albumsTable)
+          .write(const AlbumsTableCompanion(isProvisional: Value(true)));
+      await update(artistsTable)
+          .write(const ArtistsTableCompanion(isProvisional: Value(true)));
     });
   }
 
@@ -3858,6 +3898,9 @@ class LibraryDao extends DatabaseAccessor<NavisDatabase>
   }
 
   static const String _searchableSongSql = '''
+      (songs.is_provisional = 0 OR
+       COALESCE(songs.catalog_availability, 'present') != 'pendingRebuild')
+      AND
       (
         songs.is_provisional = 0
         OR EXISTS (

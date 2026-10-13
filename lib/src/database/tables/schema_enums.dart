@@ -6,7 +6,14 @@ enum CacheType { rolling, permanent }
 /// isolated fetch failure; only validated catalog evidence proves
 /// [confirmedMissing]. Transport, authentication, rate-limit, and decoding
 /// failures must never advance availability toward missing.
-enum CatalogAvailability { present, suspectedMissing, confirmedMissing }
+/// [pendingRebuild] keeps reset references outside the catalog until sync
+/// reconfirms their presence or absence.
+enum CatalogAvailability {
+  present,
+  suspectedMissing,
+  confirmedMissing,
+  pendingRebuild,
+}
 
 /// Stable reason codes persisted with failed permanent downloads.
 enum DownloadFailureReason {

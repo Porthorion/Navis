@@ -677,6 +677,7 @@ class _AppShellState extends ConsumerState<AppShell> {
       return;
     }
     final service = ref.read(batteryOptimizationServiceProvider);
+    if (await service.isPromptSnoozed() || !mounted) return;
     final shouldPrompt = await service.shouldPromptDisableBatteryOptimization();
     if (!mounted || !shouldPrompt) {
       return;
@@ -684,6 +685,7 @@ class _AppShellState extends ConsumerState<AppShell> {
     await showBatteryOptimizationSheet(
       context,
       onOpenSettings: service.openDisableBatteryOptimizationSettings,
+      onSnooze: service.snoozePrompt,
     );
   }
 
