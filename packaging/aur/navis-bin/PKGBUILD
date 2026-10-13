@@ -12,7 +12,7 @@ provides=('navis')
 conflicts=('navis')
 options=('!strip' '!debug')
 source=("navis-v${pkgver}-linux.tar.gz::https://downloads.porthorion.com/navis/releases/v${pkgver}/navis-v${pkgver}-linux.tar.gz")
-sha256sums=('82b6c9d376e46e76331245fb424a343be0afb22a7ec1290ed256737d0978ab00')
+sha256sums=('0b4c4860529af282f21bdb6c1565228743b09b95e6e48551dd9a02012e30ad4b')
 
 package() {
   install -d "$pkgdir/opt/navis" "$pkgdir/usr/bin"
