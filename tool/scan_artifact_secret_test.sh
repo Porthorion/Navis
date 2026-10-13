@@ -214,4 +214,9 @@ done
 leftover="$(find "${TMPDIR}" -mindepth 1 | wc -l)"
 [[ "${leftover}" -eq 0 ]] || fail "scan left ${leftover} scratch entries behind"
 
+# RPM is a supported archive, never an opaque file that can be called clean.
+printf 'not an RPM payload\n' > "${tmp}/corrupt.rpm"
+expect_status 2 "${tmp}/corrupt.rpm" "corrupt RPM fails closed"
+expect_status_on_path "${tmp}/shim-with-xz" 2 "${tmp}/corrupt.rpm" "RPM without bsdtar fails closed"
+
 echo "scan_artifact_secret_test: ok"

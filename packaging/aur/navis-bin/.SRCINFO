@@ -1,0 +1,20 @@
+pkgbase = navis-bin
+	pkgdesc = Subsonic/OpenSubsonic music player
+	pkgver = 1.5.0
+	pkgrel = 1
+	url = https://navis.porthorion.com
+	arch = x86_64
+	license = LicenseRef-Navis
+	license = LGPL-2.1-or-later
+	depends = gtk3
+	depends = libsecret
+	depends = alsa-lib
+	depends = libpulse
+	provides = navis
+	conflicts = navis
+	options = !strip
+	options = !debug
+	source = navis-v1.5.0-linux.tar.gz::https://downloads.porthorion.com/navis/releases/v1.5.0/navis-v1.5.0-linux.tar.gz
+	sha256sums = bec1107b4aacf4efe9ef613bf9b89b351c6374a3d8b06066942bb9c46c8d6a54
+
+pkgname = navis-bin

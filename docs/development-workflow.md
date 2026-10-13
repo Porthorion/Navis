@@ -1493,7 +1493,11 @@ when, is set out in "Versioning" in
 Advanced release packaging options:
 
 ```bash
-# Linux native package
+# Linux local-only packages (Ubuntu 22.04 container; no GUI launch/publish)
+./tool/linux/build_in_container.sh --package=all
+./tool/linux/verify_packages.sh v1.5.0
+
+# Linux owner release (publishes; see release-linux.md)
 ./tool/release.sh v0.2.0 --targets=linux --linux-package=deb
 
 # Windows installable .exe (Inno Setup)

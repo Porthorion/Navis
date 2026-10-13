@@ -173,6 +173,10 @@ const List<ChangelogVersion> changelogs = [
         type: ChangelogEntryType.improvement,
       ),
       ChangelogEntry(
+        'Linux downloads now come as .deb, .rpm and a portable archive, and work on older distributions such as Ubuntu 22.04',
+        type: ChangelogEntryType.newFeature,
+      ),
+      ChangelogEntry(
         'Fixed sign-in and playback getting stuck when secure storage is temporarily unavailable',
         type: ChangelogEntryType.fix,
       ),

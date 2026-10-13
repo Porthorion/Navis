@@ -7,7 +7,7 @@ supported platforms when your primary development machine is Linux.
 
 | Platform | Build Host | Method |
 |---|---|---|
-| Linux | Linux (native) | `flutter build linux` |
+| Linux | Linux with Docker | Ubuntu 22.04 container via `tool/linux/build_in_container.sh` |
 | Android | Linux (native) | `flutter build apk` |
 | Windows | Windows (remote via SSH) | `tool/remote_build_windows.sh` |
 | macOS | macOS only — run release.sh directly on Mac | No `--macos-ssh`; Mac must orchestrate its own build |
@@ -32,15 +32,14 @@ flutter --version          # Flutter 3.x stable
 flutter doctor -v
 ```
 
-### 2. Native Linux build dependencies
+### 2. Linux release container
 
-```bash
-sudo apt-get update
-sudo apt-get install -y \
-  clang cmake ninja-build pkg-config \
-  libgtk-3-dev \
-  dpkg-dev jq curl git
-```
+Use Docker on an x86_64 host with Flutter and a bootstrapped pub cache.
+The release pipeline always builds in Ubuntu 22.04, including from Arch,
+then packages that one bundle as tar.gz, deb and/or rpm. Use
+`--linux-package=all` to ship all three; see [release-linux.md](release-linux.md)
+for memory caps, local-only builds, package verification and the AUR owner flow.
+SSH Linux builders need the same Docker setup.
 
 ### 3. Android toolchain
 
@@ -82,6 +81,8 @@ All artifacts follow the naming convention `<prefix>-<version>-<platform>.<ext>`
 | Android architecture APKs (built alongside universal) | `--targets=android` | `navis-<tag>-android-<abi>.apk` |
 | Linux portable bundle | `--targets=linux --linux-package=bundle` | `navis-v0.x.y-linux.tar.gz` |
 | Linux Debian package | `--targets=linux --linux-package=deb` | `navis-v0.x.y-linux-amd64.deb` |
+| Linux RPM package | `--targets=linux --linux-package=rpm` | `navis-v0.x.y-linux-x86_64.rpm` |
+| All Linux packages | `--targets=linux --linux-package=all` | The three files above, from one bundle |
 | Windows portable | `--targets=windows` | `navis-v0.x.y-windows.zip` |
 | Windows installer | `--targets=windows --windows-package=exe` | `navis-v0.x.y-windows-installer.exe` |
 | macOS bundle | `--targets=macos` (run on Mac) | `navis-v0.x.y-macos.zip` |
@@ -249,9 +250,10 @@ export CC=clang
 
 Linux x86_64 releases bundle pinned LGPL libmpv (see
 [release-linux.md](release-linux.md#bundled-lgpl-libmpv)); a verified cached
-archive permits offline builds. Flutter Linux builds need GTK development
-libraries and a GTK display environment. For headless environments, set up
-Xvfb or use a Gtk-capable Docker image.
+archive permits offline builds. Release compilation runs headlessly in
+`tool/linux/Dockerfile` with GTK/libsecret development libraries and the
+Ubuntu 22.04 ABI. It does not require an X server, Xvfb or an app launch.
+Check Docker access, disk space and the build memory cap.
 
 ### Windows remote build times out
 

@@ -14,7 +14,7 @@
 #   --ipa                      Shortcut for --targets=android,ios
 #   --targets=<csv>            Build targets: android,ios,macos,linux,windows
 #   --all-platforms            Same as --targets=android,ios,macos,linux,windows
-#   --linux-package=<mode>     Linux output: bundle (default) or deb
+#   --linux-package=<mode>     Linux output: bundle (default), deb, rpm or all
 #   --windows-package=<mode>   Windows output: zip (default) or exe (Inno Setup)
 #   --linux-ssh=<user@host>    Build Linux on remote builder (used on non-Linux hosts)
 #   --windows-ssh=<user@host>  Build Windows on remote builder (used on non-Windows hosts)
@@ -80,21 +80,21 @@ for arg in "$@"; do
     v*.*) VERSION="${arg}" ;;
     *)
       echo "Unknown argument: ${arg}"
-      echo "Usage: ./tool/release.sh <version> [--skip-checks] [--ipa] [--targets=<csv>] [--all-platforms] [--linux-package=<bundle|deb>] [--windows-package=<zip|exe>] [--linux-ssh=<user@host>] [--windows-ssh=<user@host>] [--linux-remote-dir=<path>] [--windows-remote-dir=<path>] [--macos-notarize] [--channel=<stable|dev>] [--prerelease] [--allow-existing-version] [--forgejo]"
+      echo "Usage: ./tool/release.sh <version> [--skip-checks] [--ipa] [--targets=<csv>] [--all-platforms] [--linux-package=<bundle|deb|rpm|all>] [--windows-package=<zip|exe>] [--linux-ssh=<user@host>] [--windows-ssh=<user@host>] [--linux-remote-dir=<path>] [--windows-remote-dir=<path>] [--macos-notarize] [--channel=<stable|dev>] [--prerelease] [--allow-existing-version] [--forgejo]"
       exit 1
       ;;
   esac
 done
 
 if [[ -z "${VERSION}" ]]; then
-  echo "Usage: ./tool/release.sh <version> [--skip-checks] [--ipa] [--targets=<csv>] [--all-platforms] [--linux-package=<bundle|deb>] [--windows-package=<zip|exe>] [--linux-ssh=<user@host>] [--windows-ssh=<user@host>] [--linux-remote-dir=<path>] [--windows-remote-dir=<path>] [--macos-notarize] [--channel=<stable|dev>] [--prerelease] [--allow-existing-version] [--forgejo]"
+  echo "Usage: ./tool/release.sh <version> [--skip-checks] [--ipa] [--targets=<csv>] [--all-platforms] [--linux-package=<bundle|deb|rpm|all>] [--windows-package=<zip|exe>] [--linux-ssh=<user@host>] [--windows-ssh=<user@host>] [--linux-remote-dir=<path>] [--windows-remote-dir=<path>] [--macos-notarize] [--channel=<stable|dev>] [--prerelease] [--allow-existing-version] [--forgejo]"
   echo "  e.g. ./tool/release.sh v0.3.0 --targets=android,macos"
   exit 1
 fi
 
 LINUX_PACKAGE_MODE="$(echo "${LINUX_PACKAGE_MODE}" | tr '[:upper:]' '[:lower:]')"
-if [[ "${LINUX_PACKAGE_MODE}" != "bundle" && "${LINUX_PACKAGE_MODE}" != "deb" ]]; then
-  echo "Error: --linux-package must be 'bundle' or 'deb'"
+if [[ ! "${LINUX_PACKAGE_MODE}" =~ ^(bundle|deb|rpm|all)$ ]]; then
+  echo "Error: --linux-package must be bundle, deb, rpm or all"
   exit 1
 fi
 
@@ -625,158 +625,47 @@ fi
 
 if [[ "${BUILD_LINUX}" == "true" ]]; then
   if [[ "${UNAME}" == "Linux" ]]; then
-    echo "==> Building Linux bundle..."
+    echo "==> Building Linux release in Ubuntu 22.04..."
     set_obfuscation_args linux
-    # When running inside a Flatpak sandbox (e.g. VS Code Flatpak), clang++ and
-    # the system headers are not available. Delegate the build to the host OS.
+    linux_args=("--package=${LINUX_PACKAGE_MODE}" "--version=${VERSION}" "--asset-prefix=${ASSET_PREFIX}"
+      "${OBFUSCATION_ARGS[@]}" "${DART_DEFINE_ARGS[@]}")
+    # The container script reads these from its environment.
+    export NAVIS_DEB_MAINTAINER="${NAVIS_DEB_MAINTAINER:-}"
+    NAVIS_FLUTTER_SDK="${NAVIS_FLUTTER_SDK:-$(dirname "$(dirname "$(readlink -f "$(command -v flutter)")")")}"
+    export NAVIS_FLUTTER_SDK
     if [[ -n "${FLATPAK_ID:-}" ]]; then
-      _flutter_bin="$(command -v flutter)"
-      /usr/bin/flatpak-spawn --host -- bash -c \
-        "export PATH=\"$(dirname "${_flutter_bin}"):\$HOME/.local/bin:\$PATH\"; cd \"${SCRIPT_DIR}/..\"; flutter build linux --release $(printf '%q ' "${OBFUSCATION_ARGS[@]}" "${DART_DEFINE_ARGS[@]}")"
+      /usr/bin/flatpak-spawn --host --env=NAVIS_FLUTTER_SDK="${NAVIS_FLUTTER_SDK}" \
+        --env=NAVIS_DEB_MAINTAINER="${NAVIS_DEB_MAINTAINER}" \
+        -- "${SCRIPT_DIR}/linux/build_in_container.sh" "${linux_args[@]}"
     else
-      flutter build linux --release "${OBFUSCATION_ARGS[@]}" "${DART_DEFINE_ARGS[@]}"
-    fi
-
-    LINUX_BUNDLE_DIR="$(find "${SCRIPT_DIR}/../build/linux" -type d -path "*/release/bundle" | head -1)"
-    if [[ -z "${LINUX_BUNDLE_DIR}" ]]; then
-      echo "Error: Linux bundle not found under build/linux"
-      exit 1
-    fi
-
-    if [[ "${LINUX_PACKAGE_MODE}" == "deb" ]]; then
-      if ! command -v dpkg-deb &>/dev/null; then
-        echo "Error: --linux-package=deb requires dpkg-deb on Linux host."
-        exit 1
-      fi
-
-      DEB_PACKAGE_NAME="${ASSET_PREFIX}"
-      DEB_STAGE_DIR="${SCRIPT_DIR}/../build/linux/deb_stage"
-      DEB_ARCH="$(dpkg --print-architecture 2>/dev/null || true)"
-      if [[ -z "${DEB_ARCH}" ]]; then
-        case "$(uname -m)" in
-          x86_64) DEB_ARCH="amd64" ;;
-          aarch64|arm64) DEB_ARCH="arm64" ;;
-          *) DEB_ARCH="$(uname -m)" ;;
-        esac
-      fi
-      DEB_APP_NAME="Navis"
-      if [[ "${UPDATE_CHANNEL}" == "dev" ]]; then
-        DEB_APP_NAME="Navis Dev"
-      fi
-      DEB_MAINTAINER="${NAVIS_DEB_MAINTAINER:-Porthorion <support@porthorion.com>}"
-
-      rm -rf "${DEB_STAGE_DIR}"
-      mkdir -p "${DEB_STAGE_DIR}/DEBIAN"
-      mkdir -p "${DEB_STAGE_DIR}/opt/${DEB_PACKAGE_NAME}"
-      mkdir -p "${DEB_STAGE_DIR}/usr/bin"
-      mkdir -p "${DEB_STAGE_DIR}/usr/share/applications"
-      mkdir -p "${DEB_STAGE_DIR}/usr/share/icons/hicolor"
-
-      cp -R "${LINUX_BUNDLE_DIR}/." "${DEB_STAGE_DIR}/opt/${DEB_PACKAGE_NAME}/"
-
-      cat > "${DEB_STAGE_DIR}/usr/bin/${DEB_PACKAGE_NAME}" <<LAUNCHER
-#!/usr/bin/env bash
-exec "/opt/${DEB_PACKAGE_NAME}/navis" "\$@"
-LAUNCHER
-      chmod 0755 "${DEB_STAGE_DIR}/usr/bin/${DEB_PACKAGE_NAME}"
-
-      cat > "${DEB_STAGE_DIR}/usr/share/applications/${DEB_PACKAGE_NAME}.desktop" <<DESKTOP
-[Desktop Entry]
-Name=${DEB_APP_NAME}
-GenericName=Music Player
-Comment=Subsonic/OpenSubsonic music player
-Exec=${DEB_PACKAGE_NAME} %U
-Icon=${DEB_PACKAGE_NAME}
-Terminal=false
-Type=Application
-Categories=AudioVideo;Audio;Player;
-StartupNotify=true
-StartupWMClass=navis
-MimeType=audio/mpeg;audio/ogg;audio/flac;audio/x-flac;audio/wav;audio/aac;audio/x-m4a;
-DESKTOP
-
-      ICON_SOURCE_DIR="${SCRIPT_DIR}/../linux/packaging/icons/hicolor"
-      if [[ -d "${ICON_SOURCE_DIR}" ]]; then
-        while IFS= read -r icon_path; do
-          icon_size="$(basename "$(dirname "$(dirname "${icon_path}")")")"
-          install -d "${DEB_STAGE_DIR}/usr/share/icons/hicolor/${icon_size}/apps"
-          install -m 0644 "${icon_path}" \
-            "${DEB_STAGE_DIR}/usr/share/icons/hicolor/${icon_size}/apps/${DEB_PACKAGE_NAME}.png"
-        done < <(find "${ICON_SOURCE_DIR}" -path "*/apps/navis.png" -type f | sort)
-      fi
-
-      cat > "${DEB_STAGE_DIR}/DEBIAN/control" <<CONTROL
-Package: ${DEB_PACKAGE_NAME}
-Version: ${SEMVER}
-Section: sound
-Priority: optional
-Architecture: ${DEB_ARCH}
-Maintainer: ${DEB_MAINTAINER}
-Depends: libgtk-3-0, libpulse0, libasound2
-Homepage: https://navis.porthorion.com
-Description: Navis music player
- Subsonic/OpenSubsonic music player built with Flutter.
-CONTROL
-
-      DEB_ASSET_NAME="${ASSET_PREFIX}-${VERSION}-linux-${DEB_ARCH}.deb"
-      DEB_ASSET="${SCRIPT_DIR}/../${DEB_ASSET_NAME}"
-      remove_release_asset "${DEB_ASSET}"
-      dpkg-deb --root-owner-group --build "${DEB_STAGE_DIR}" "${DEB_ASSET}" >/dev/null
-      rm -rf "${DEB_STAGE_DIR}"
-
-      scan_release_artifact "${DEB_ASSET}"
-
-      ASSET_FILES+=("${DEB_ASSET}")
-      ASSET_NAMES+=("${DEB_ASSET_NAME}")
-      echo "    Linux -> ${DEB_ASSET_NAME}"
-    else
-      LINUX_ASSET_NAME="${ASSET_PREFIX}-${VERSION}-linux.tar.gz"
-      LINUX_ASSET="${SCRIPT_DIR}/../${LINUX_ASSET_NAME}"
-      remove_release_asset "${LINUX_ASSET}"
-      tar -czf "${LINUX_ASSET}" -C "${LINUX_BUNDLE_DIR}" .
-      scan_release_artifact "${LINUX_ASSET}"
-      ASSET_FILES+=("${LINUX_ASSET}")
-      ASSET_NAMES+=("${LINUX_ASSET_NAME}")
-      echo "    Linux -> ${LINUX_ASSET_NAME}"
+      "${SCRIPT_DIR}/linux/build_in_container.sh" "${linux_args[@]}"
     fi
   else
-    echo "==> Building Linux artifact on remote host (${LINUX_SSH_TARGET})..."
-    rm -f "${SCRIPT_DIR}/../${ASSET_PREFIX}-${VERSION}-linux.tar.gz"
-    rm -f "${SCRIPT_DIR}/../${ASSET_PREFIX}-${VERSION}-linux-"*.deb
+    echo "==> Building Linux artifacts on remote host (${LINUX_SSH_TARGET})..."
     "${SCRIPT_DIR}/remote_build_linux.sh" \
-      --ssh="${LINUX_SSH_TARGET}" \
-      --version="${VERSION}" \
-      --asset-prefix="${ASSET_PREFIX}" \
-      --package="${LINUX_PACKAGE_MODE}" \
-      --channel="${UPDATE_CHANNEL}" \
-      --lastfm-defines-file="${LASTFM_DEFINES_FILE}" \
-      --remote-dir="${LINUX_REMOTE_DIR}" \
-      --repo-root="${SCRIPT_DIR}/.."
-
-    if [[ "${LINUX_PACKAGE_MODE}" == "deb" ]]; then
-      DEB_ASSET="$(find "${SCRIPT_DIR}/.." -maxdepth 1 -type f -name "${ASSET_PREFIX}-${VERSION}-linux-*.deb" | head -1)"
-      if [[ -z "${DEB_ASSET}" ]]; then
-        echo "Error: Remote Linux deb artifact was not fetched."
-        exit 1
-      fi
-      DEB_ASSET_NAME="$(basename "${DEB_ASSET}")"
-      scan_release_artifact "${DEB_ASSET}"
-      ASSET_FILES+=("${DEB_ASSET}")
-      ASSET_NAMES+=("${DEB_ASSET_NAME}")
-      echo "    Linux -> ${DEB_ASSET_NAME}"
-    else
-      LINUX_ASSET_NAME="${ASSET_PREFIX}-${VERSION}-linux.tar.gz"
-      LINUX_ASSET="${SCRIPT_DIR}/../${LINUX_ASSET_NAME}"
-      if [[ ! -f "${LINUX_ASSET}" ]]; then
-        echo "Error: Remote Linux bundle artifact was not fetched (${LINUX_ASSET_NAME})."
-        exit 1
-      fi
-      scan_release_artifact "${LINUX_ASSET}"
-      ASSET_FILES+=("${LINUX_ASSET}")
-      ASSET_NAMES+=("${LINUX_ASSET_NAME}")
-      echo "    Linux -> ${LINUX_ASSET_NAME}"
-    fi
+      --ssh="${LINUX_SSH_TARGET}" --version="${VERSION}" \
+      --asset-prefix="${ASSET_PREFIX}" --package="${LINUX_PACKAGE_MODE}" \
+      --channel="${UPDATE_CHANNEL}" --lastfm-defines-file="${LASTFM_DEFINES_FILE}" \
+      --remote-dir="${LINUX_REMOTE_DIR}" --repo-root="${SCRIPT_DIR}/.."
   fi
+  linux_names=()
+  if [[ "${LINUX_PACKAGE_MODE}" == bundle || "${LINUX_PACKAGE_MODE}" == all ]]; then
+    linux_names+=("${ASSET_PREFIX}-${VERSION}-linux.tar.gz")
+  fi
+  if [[ "${LINUX_PACKAGE_MODE}" == deb || "${LINUX_PACKAGE_MODE}" == all ]]; then
+    linux_names+=("${ASSET_PREFIX}-${VERSION}-linux-amd64.deb")
+  fi
+  if [[ "${LINUX_PACKAGE_MODE}" == rpm || "${LINUX_PACKAGE_MODE}" == all ]]; then
+    linux_names+=("${ASSET_PREFIX}-${VERSION}-linux-x86_64.rpm")
+  fi
+  for name in "${linux_names[@]}"; do
+    asset="${SCRIPT_DIR}/../${name}"
+    [[ -f "${asset}" ]] || { echo "Error: Missing Linux artifact: ${name}"; exit 1; }
+    scan_release_artifact "${asset}"
+    ASSET_FILES+=("${asset}")
+    ASSET_NAMES+=("${name}")
+    echo "    Linux -> ${name}"
+  done
 fi
 
 if [[ "${BUILD_WINDOWS}" == "true" ]]; then
