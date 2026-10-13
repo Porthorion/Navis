@@ -144,7 +144,7 @@ if '--split-per-abi' in sys.argv:
     names = [f'app-{abi}-sideload-release.apk' for abi in ['arm64-v8a', 'armeabi-v7a', 'x86_64']]
 for name in names:
     with zipfile.ZipFile(root / name, 'w') as apk:
-        apk.writestr('libapp.so', 'Album Queue enabled for top tracks\n')
+        apk.writestr('libapp.so', 'fixture library\n')
 PY
 ''');
     await executable('bin/dart', 'echo "Fixture release notes"\n');

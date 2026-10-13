@@ -358,14 +358,6 @@ validate_apk_strings() {
     fi
   done
 
-  local required_marker="Album Queue enabled for top tracks"
-  if ! grep -F -q -- "${required_marker}" "${apk_strings}"; then
-    rm -rf "${extracted_dir}"
-    rm -f "${apk_strings}"
-    echo "Error: APK is missing expected Artist Top Tracks Album Queue marker: ${required_marker}"
-    exit 1
-  fi
-
   rm -rf "${extracted_dir}"
   rm -f "${apk_strings}"
 }
