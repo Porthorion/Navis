@@ -2526,18 +2526,18 @@ class _DesktopRandomAlbumsPagerState
       ],
     );
     // Flat: no wash, band or panel; the pager sits on the page background.
-    if (flat) {
-      return pager;
-    }
+    // The keyed pager keeps one parent in both modes, so toggling Flat
+    // Surfaces never remounts the PageView back to its first page.
     return Stack(
       children: <Widget>[
-        Positioned.fill(
-          child: _ShowcaseColourWash(
-            coverArtId: _showcaseWashCoverId(currentItem),
-            coverArtRevision: _showcaseWashCoverRevision(currentItem),
-            subtle: true,
+        if (!flat)
+          Positioned.fill(
+            child: _ShowcaseColourWash(
+              coverArtId: _showcaseWashCoverId(currentItem),
+              coverArtRevision: _showcaseWashCoverRevision(currentItem),
+              subtle: true,
+            ),
           ),
-        ),
         pager,
       ],
     );

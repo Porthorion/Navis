@@ -628,6 +628,7 @@ Future<void> _pumpRandomSectionHome(
   bool reduceMotion = true,
   ValueNotifier<bool>? homeActive,
   ThemeData? baseTheme,
+  ValueNotifier<ThemeData?>? themeNotifier,
   double textScale = 1,
 }) async {
   final sectionOverrides = withTestDatabase(
@@ -725,18 +726,21 @@ Future<void> _pumpRandomSectionHome(
   await tester.pumpWidget(
     ProviderScope(
       overrides: sectionOverrides,
-      child: MaterialApp.router(
-        theme: testTheme(baseTheme),
-        localizationsDelegates: navisLocalizationsDelegates,
-        supportedLocales: AppLocalizations.supportedLocales,
-        builder: (ctx, child) => MediaQuery(
-          data: MediaQuery.of(ctx).copyWith(
-            disableAnimations: reduceMotion,
-            textScaler: TextScaler.linear(textScale),
+      child: ValueListenableBuilder<ThemeData?>(
+        valueListenable: themeNotifier ?? ValueNotifier(baseTheme),
+        builder: (context, theme, _) => MaterialApp.router(
+          theme: testTheme(theme),
+          localizationsDelegates: navisLocalizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
+          builder: (ctx, child) => MediaQuery(
+            data: MediaQuery.of(ctx).copyWith(
+              disableAnimations: reduceMotion,
+              textScaler: TextScaler.linear(textScale),
+            ),
+            child: child!,
           ),
-          child: child!,
+          routerConfig: router,
         ),
-        routerConfig: router,
       ),
     ),
   );
@@ -2546,6 +2550,51 @@ void main() {
     ) async {
       await pump(tester, desktop: false, flat: false);
       expect(find.byKey(washKey), findsOneWidget);
+    });
+
+    testWidgets('toggling Flat keeps the desktop pager on its page', (
+      tester,
+    ) async {
+      setAdaptiveTestViewport(tester, const Size(1366, 900));
+      ThemeData theme({required bool flat}) => buildDarkTheme(
+        const Color(0xFF009688),
+        style: NavisColorStyle.pastel,
+        flat: flat,
+      );
+      final notifier = ValueNotifier<ThemeData?>(theme(flat: false));
+      await _pumpRandomSectionHome(
+        tester,
+        database: database,
+        forceDesktop: true,
+        themeNotifier: notifier,
+        overrides: overridesFor(),
+        randomAlbums: <HomeRandomShowcaseItem>[
+          for (final i in <int>[1, 2, 3])
+            HomeRandomShowcaseAlbum(
+              id: 'script-$i',
+              name: 'Album $i',
+              artist: 'Artist',
+              coverArtId: 'cover-script-$i',
+              year: 2023,
+              songCount: 12,
+              source: HomeRandomShowcaseSource.likedDiscovery,
+            ),
+        ],
+      );
+      final next = find.byKey(
+        const ValueKey<String>('home-random-desktop-next'),
+      );
+      for (var i = 0; i < 2; i++) {
+        await tester.tap(next);
+        await tester.pumpAndSettle();
+      }
+      final view = find.byKey(
+        const ValueKey<String>('home-random-desktop-pageview'),
+      );
+      expect(tester.widget<PageView>(view).controller!.page, 2);
+      notifier.value = theme(flat: true);
+      await tester.pumpAndSettle();
+      expect(tester.widget<PageView>(view).controller!.page, 2);
     });
 
     testWidgets('colour mode keeps the wash and card on desktop', (
