@@ -1,0 +1,65 @@
+name: 🔌 Server compatibility problem
+description: Navis doesn't work correctly with your Subsonic/OpenSubsonic server (sign-in fails, items missing, wrong data).
+labels: [server-compatibility, needs-triage]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Navis talks to many servers that implement the Subsonic or OpenSubsonic API slightly differently. This form collects what we need to reproduce your server's behaviour.
+        Please **never** post your password, API tokens or a private server address.
+  - type: input
+    id: server
+    attributes:
+      label: Server software and exact version
+      placeholder: "Navidrome 0.58.0 (Docker)  /  Gonic 0.16.4  /  LMS 3.60  /  Nextcloud Music 2.1"
+    validations:
+      required: true
+  - type: dropdown
+    id: auth
+    attributes:
+      label: Sign-in method
+      options:
+        - Normal sign-in
+        - Legacy authentication (Settings › Server)
+        - Not sure
+  - type: textarea
+    id: problem
+    attributes:
+      label: What goes wrong?
+      description: For example, sign-in error text, albums or playlists missing, wrong artwork, songs that won't play, or a sync that never finishes.
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. Sign in to a fresh Gonic 0.16 server
+        2. Open Library › Playlists
+        3. Playlists created in the web UI are missing
+    validations:
+      required: true
+  - type: textarea
+    id: works_elsewhere
+    attributes:
+      label: Does it work in other clients?
+      description: Does the same server work with the server's web UI or another Subsonic app? Which ones?
+  - type: textarea
+    id: details
+    attributes:
+      label: Library details that might matter
+      description: Rough library size, unusual tags (multiple artists, classical, non-Latin text), file formats, or a reverse proxy in front of the server.
+  - type: input
+    id: version
+    attributes:
+      label: Navis version and platform
+      placeholder: "1.5.0 on Android 15"
+    validations:
+      required: true
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Before submitting
+      options:
+        - label: I removed passwords, tokens and private server addresses from everything I attached.
+          required: true

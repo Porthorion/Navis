@@ -1,8 +1,11 @@
 blank_issues_enabled: false
 contact_links:
-  - name: Navis website
+  - name: 🔒 Report a security vulnerability
+    url: https://github.com/Porthorion/Navis/security/advisories/new
+    about: Please report security problems privately here, never in a public issue.
+  - name: 🌐 Navis website and downloads
     url: https://navis.porthorion.com
-    about: Downloads and general information.
-  - name: Private matters
+    about: Downloads, documentation and the privacy policy.
+  - name: ✉️ Private matters
     url: mailto:support@porthorion.com
-    about: For anything that should not be public. Report security issues through the Security tab instead.
+    about: Only for things that can't be discussed publicly. Bug reports and ideas belong in an issue so everyone can follow them.
