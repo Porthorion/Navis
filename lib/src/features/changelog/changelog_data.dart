@@ -166,6 +166,10 @@ const List<ChangelogVersion> changelogs = [
     ],
     entries: [
       ChangelogEntry(
+        'Large selections of downloads start more smoothly',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
         'Windows now uses a Navis-built playback engine with complete corresponding source provided alongside the download',
       ),
       ChangelogEntry(

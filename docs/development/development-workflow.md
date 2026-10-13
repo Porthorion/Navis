@@ -1047,7 +1047,7 @@ widget tests verify the transition itself; settled screenshots do not measure
 animation duration.
 
 For mobile track-layout diagnostics, clone-only
-`POST /v1/presentation/track-action` accepts exactly one `action`: `scrollToLast`,
+`POST /v1/presentation/track-action` accepts exactly one `action`: `play`, `scrollToLast`,
 `revealFirst`, `more`, `download`, `downloadedTab`, `downloadsSettingsTab`,
 `downloadsQueueTab`, `customFolderOff`, `confirmCustomFolderOff`, `dragFirstToLast`,
 `downloadQuality320`, `downloadQualityAlwaysUse`, or
@@ -1061,6 +1061,14 @@ open quality picker's 320 kbps row and the one-time "always download in this
 quality?" dialog's own buttons. It accepts no
 coordinates, arbitrary widget keys, track IDs or destructive delete action.
 Missing controls fail explicitly; primary diagnostics reject every mutation.
+`play` invokes the first mounted shared row's production tap callback, so the
+Downloaded tab exercises `playSongIdInCollection` and its Album Queue setting.
+Relative `POST /v1/presentation/scroll {"by": n}` sends a Flutter pointer-scroll
+signal to cancel initial queue centring, then moves the selected scroll owner
+without scrolling a nested child. Lists whose centre is covered by a shell
+overlay are excluded. Absolute `{"to": n}` retains instant positioning. Check the
+returned offsets and an app-owned screenshot to verify that the intended list
+actually moved.
 Use a populated isolated emulator fixture, inspect app-owned captures at phone
 and landscape dimensions, and distinguish these from component-only coverage.
 

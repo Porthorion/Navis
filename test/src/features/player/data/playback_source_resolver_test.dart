@@ -1,7 +1,7 @@
+import 'dart:async';
 import 'dart:io';
 
-import 'package:drift/drift.dart' show Value;
-import 'package:drift/native.dart';
+import 'package:drift/drift.dart' show TableUpdateQuery, Value;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter/services.dart';
 import 'package:just_audio/just_audio.dart';
@@ -26,7 +26,7 @@ void main() {
     late Directory rollingDir;
 
     setUp(() {
-      database = NavisDatabase(NativeDatabase.memory());
+      database = createTestDatabase();
       apiClient = SubsonicApiClient(
         baseUrl: 'https://example.com',
         authConfig: const SubsonicAuthConfig(
@@ -158,6 +158,70 @@ void main() {
       }
     }
 
+    test(
+      'resolving 171 downloads does not write cache or invalidate Downloads',
+      () async {
+        final ids = List.generate(171, (index) => 'download-$index');
+        await database.libraryDao.upsertSongs([
+          for (final id in ids) SongsTableCompanion.insert(id: id, title: id),
+        ]);
+        final songs = await database.libraryDao.getSongsByIds(ids);
+        for (final song in songs) {
+          await seedCached(
+            song,
+            '${song.id}.mp3',
+            format: 'mp3',
+            cacheType: CacheType.permanent,
+            age: const Duration(days: 1),
+          );
+        }
+        final cachedReady = Completer<void>();
+        final songsReady = Completer<void>();
+        var cacheUpdates = 0;
+        var cachedEmissions = 0;
+        var songEmissions = 0;
+        final updates = database
+            .tableUpdates(TableUpdateQuery.onTable(database.cachedTracksTable))
+            .listen((_) => cacheUpdates++);
+        final cached = database.cacheDao
+            .watchCachedTracksByType(CacheType.permanent)
+            .listen((_) {
+              cachedEmissions++;
+              if (!cachedReady.isCompleted) cachedReady.complete();
+            });
+        final related = database.libraryDao.watchDownloadRelatedSongs().listen((
+          _,
+        ) {
+          songEmissions++;
+          if (!songsReady.isCompleted) songsReady.complete();
+        });
+        addTearDown(updates.cancel);
+        addTearDown(cached.cancel);
+        addTearDown(related.cancel);
+        await Future.wait([cachedReady.future, songsReady.future]);
+        final before = await database.cacheDao.getPermanentEntries();
+        final resolver = resolverFor();
+
+        for (final song in songs) {
+          final source = await resolver.resolveForSong(song);
+          expect(source.kind, PlaybackSourceKind.file);
+        }
+        await pumpEventQueue();
+
+        expect(
+          cacheUpdates,
+          0,
+          reason:
+              'Downloads emitted $cachedEmissions cache snapshots and '
+              '$songEmissions song snapshots, including the initial snapshots.',
+        );
+        expect(cachedEmissions, 1);
+        expect(songEmissions, 1);
+        expect(await database.cacheDao.getPermanentEntries(), before);
+      },
+      skip: !sqliteAvailable,
+    );
+
     test('prefers local cached file when present', () async {
       final song = await _insertSong(
         database,
@@ -179,6 +243,7 @@ void main() {
         quality: () =>
             const StreamingQuality(label: 'wifi-320-mp3', maxBitRate: 320),
       );
+      final before = await database.cacheDao.getCachedTrack(song.id);
 
       final resolved = await resolver.resolveForSong(song);
       final track = await database.cacheDao.getCachedTrack(song.id);
@@ -187,12 +252,48 @@ void main() {
       expect(resolved.cachedFilePath, localFile.path);
       expect(resolved.uri?.scheme, 'file');
       expect(track, isNotNull);
-      expect(
-        track!.lastAccessedAt.isAfter(
-          DateTime.now().subtract(const Duration(hours: 1)),
-        ),
-        isTrue,
-      );
+      expect(track!.lastAccessedAt, before!.lastAccessedAt);
+    }, skip: !sqliteAvailable);
+
+    test('rolling playback refreshes LRU without evicting downloads', () async {
+      final songs = <SongsTableData>[];
+      final files = <File>[];
+      for (final id in ['played', 'untouched', 'download']) {
+        final song = await _insertSong(
+          database,
+          id: id,
+          title: id,
+          suffix: 'mp3',
+          bitRate: 320,
+        );
+        songs.add(song);
+        files.add(
+          await seedCached(
+            song,
+            '$id.mp3',
+            format: 'mp3',
+            bitRate: 320,
+            cacheType: id == 'download'
+                ? CacheType.permanent
+                : CacheType.rolling,
+            age: Duration(days: id == 'played' ? 2 : 1),
+          ),
+        );
+      }
+      final before = (await database.cacheDao.getCachedTrack('played'))!;
+      final source = await resolverFor().resolveForSong(songs.first);
+      final after = (await database.cacheDao.getCachedTrack('played'))!;
+      expect(source.kind, PlaybackSourceKind.file);
+      expect(after.lastAccessedAt.isAfter(before.lastAccessedAt), isTrue);
+
+      await RollingCacheManager(cacheDao: database.cacheDao)
+          .enforceBudget(maxBytes: 3);
+      expect(await database.cacheDao.getCachedTrack('untouched'), isNull);
+      expect(await files[1].exists(), isFalse);
+      expect(await database.cacheDao.getCachedTrack('played'), isNotNull);
+      expect(await files.first.exists(), isTrue);
+      expect(await database.cacheDao.getCachedTrack('download'), isNotNull);
+      expect(await files.last.exists(), isTrue);
     }, skip: !sqliteAvailable);
 
     test(

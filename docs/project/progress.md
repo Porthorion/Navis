@@ -2,7 +2,7 @@
 
 Tracks completion of all phases and sub-tasks defined in [docs/project/development-plan.md](development-plan.md). Checkboxes are updated as work is completed.
 
-Last updated: 2026-10-13
+Last updated: 2026-10-14
 
 ---
 
@@ -14,6 +14,20 @@ Last updated: 2026-10-13
 - ACP status values: `backlog`, `ready`, `in_progress`, `blocked`, `done`.
 
 ## Current Focus
+- [x] Large downloaded queue cache churn — 2026-10-14 (permanent source resolution
+  no longer touches LRU timestamps; regression demonstrates 171 writes and
+  172 snapshots per Downloads watcher before, zero writes and one initial
+  snapshot after; rolling LRU and download retention covered; 137 focused tests
+  pass. Three Android profile before/after runs and inspected app-owned queue
+  screenshots are recorded in [the investigation](../audits/downloads-queue-stall-2026-10-14.md).
+  Source resolution and frame-build p99 improve, but worst heartbeat maxima do
+  not consistently improve. Linux and Android clean-start runtime passed with
+  171 local sources, advancing native playback and zero cache updates; final
+  queue screenshots inspected. `./tool/check.sh` passed with 7,887 tests and one
+  existing skip using four workers after an unrelated annotation-isolate
+  timeout; temporary concurrency configuration removed. Sidecar uninstalled,
+  owned AVD deleted and temporary files removed; no commits/stashes. Exact
+  real-phone symptom remains unverified.)
 - [x] Documentation and repository layout reorganization — 2026-10-13
   (branch `chore/docs-reorg`; 41 history-preserving moves, 31 deletions totaling
   825,005 bytes; maintained guides grouped by development/release/platform/feature,
