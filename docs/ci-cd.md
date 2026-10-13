@@ -64,7 +64,7 @@ retains the strict check). `tool/check.sh` builds no release APKs.
 preflight and local dev opt-in in temporary fixtures with a fake Flutter
 executable, without builds, launches or credentials.
 
-Windows libmpv uses an LGPL pin with verified Forgejo/R2/upstream fallbacks;
+Windows libmpv uses a Navis-built LGPL pin with a single verified R2 URL;
 remote builds no longer seed the obsolete media_kit archive. Run
 `cmake -P tool/libmpv_download_test.cmake` for offline cache, retry and cleanup
 checks (downloads are simulated). Also run with

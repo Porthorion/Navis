@@ -1,0 +1,15 @@
+# x86_64 Windows LGPL audio engine; the digest fixes the Ubuntu 24.04 base.
+FROM ubuntu:24.04@sha256:f610ab94648195aa356059f5b41d6085c9d4d903c072430cdd1af7bdb646106b
+LABEL org.navis.build="libmpv-windows-lgpl"
+ARG DEBIAN_FRONTEND=noninteractive
+RUN apt-get update && apt-get install -y --no-install-recommends \
+      build-essential gcc-mingw-w64-x86-64-posix g++-mingw-w64-x86-64-posix \
+      mingw-w64-x86-64-dev nasm pkg-config python3 python3-venv ninja-build \
+      git ca-certificates curl xz-utils zip wine64 \
+    && rm -rf /var/lib/apt/lists/* \
+    && python3 -m venv /opt/build-tools \
+    && /opt/build-tools/bin/pip install --no-cache-dir 'meson==1.6.1' 'jinja2==3.1.4'
+ENV PATH="/opt/build-tools/bin:${PATH}"
+COPY build_windows_lgpl.sh /build.sh
+COPY Dockerfile.windows /Dockerfile.windows
+ENTRYPOINT ["/bin/bash", "/build.sh"]

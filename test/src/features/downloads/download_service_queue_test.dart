@@ -1388,7 +1388,9 @@ void main() {
       await waitUntil(() => server.active == 1);
       final journal = jsonDecode((await queue()).single.finishJournal!) as Map;
       expect(journal['phase'], 'transferring');
-      expect(File(journal['partPath'] as String).existsSync(), isTrue);
+      // The part file is opened right after the request starts; on slow
+      // machines that can land a moment after the server sees the request.
+      await waitUntil(() => File(journal['partPath'] as String).existsSync());
       await service.stopAndWait();
     },
     skip: !sqliteAvailable,

@@ -3577,6 +3577,10 @@ versus applied status. Android uses the vendored just_audio Media3 PCM processor
 Linux's and Windows' tracked media-kit adapter owns a combined EQ/tempo chain
 (both on pinned LGPL libmpv; see [release-windows.md](release-windows.md#bundled-libmpv)
 and [release-linux.md](release-linux.md#bundled-lgpl-libmpv)).
+Windows uses the Navis mingw-w64 cross-build under `tool/libmpv/`, with
+static media dependencies and captured corresponding sources, WASAPI output,
+and Schannel TLS. Its DLL imports only Windows system libraries; the vendored
+plugin downloads the verified archive from the sole per-build R2 URL.
 Linux startup uses `bootstrap/bundled_libmpv.dart` to select
 `lib/libmpv.so.2` beside the resolved executable when present, otherwise it
 leaves media_kit system lookup in place. CMake bundles the verified x86_64 pin

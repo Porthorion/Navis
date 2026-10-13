@@ -61,21 +61,17 @@ function(check_directory_exists_and_not_empty dir result_var)
   endif()
 endfunction()
 
-# Navis: zhongfly/mpv-winbuild's LGPL variant, licensed LGPL-2.1+:
-# mpv v0.41.0-1104-geb0ee1031 built with -Dgpl=false and FFmpeg
-# N-127222-g151814650 without --enable-gpl. Includes libavfilter volume/biquad
-# for the equalizer. Mirrored on Porthorion R2 to keep old pins buildable
-# when upstream prunes daily releases, without polluting Navis update checks.
-# Archive, SOURCES.md and source tarballs share the per-build R2 folder below.
-# To update, see docs/release-windows.md.
-set(LIBMPV "mpv-dev-lgpl-x86_64-20261006-git-eb0ee10315.7z")
+# Navis-owned audio-only LGPL-2.1+ cross-build; mpv and FFmpeg match Linux.
+# All static media dependency sources, recipe and BUILDINFO accompany the ZIP.
+# Includes FFmpeg volume/biquad/equalizer and mpv's internal scaletempo.
+# See tool/libmpv/README.md and docs/release-windows.md to rebuild/update.
+set(LIBMPV "libmpv-windows-x86_64-lgpl-20261013.zip")
 
-# Ordered mirrors followed by upstream; every attempt must match this digest.
+# We own this build: only the per-build R2 folder supplies the archive.
 set(LIBMPV_URLS
-  "https://downloads.porthorion.com/navis/third-party/libmpv-windows-x86_64-lgpl-20261006/${LIBMPV}"
-  "https://github.com/zhongfly/mpv-winbuild/releases/download/2026-10-06-eb0ee10315/${LIBMPV}"
+  "https://downloads.porthorion.com/navis/third-party/libmpv-windows-x86_64-lgpl-20261013/${LIBMPV}"
 )
-set(LIBMPV_SHA256 "0a86c8ee1cd7112d0ab7ae86716ffe468d3fd19e4b0a18a7b2a5f7498f00cf52")
+set(LIBMPV_SHA256 "3f896d2505c5475de0a74ca5cbfd0cde6fa46c368f9eca4acb22bdea086247d8")
 
 # Download location of the libmpv archive.
 set(LIBMPV_ARCHIVE "${CMAKE_BINARY_DIR}/${LIBMPV}")
