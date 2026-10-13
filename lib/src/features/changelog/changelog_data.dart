@@ -165,6 +165,18 @@ const List<ChangelogVersion> changelogs = [
     ],
     entries: [
       ChangelogEntry(
+        'The storage-full download notice now clears when the last queued download is cancelled',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
+        'You Might Like now prefers albums with at least three songs, while keeping shorter releases as a fallback',
+        type: ChangelogEntryType.improvement,
+      ),
+      ChangelogEntry(
+        'The offline banner wording is shorter so it no longer cuts off on phones',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
         'The background sync battery tip no longer reappears every time you open Navis after you choose Later',
         type: ChangelogEntryType.fix,
       ),

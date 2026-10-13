@@ -195,7 +195,7 @@ class AppLocalizationsEn extends AppLocalizations {
       'Your library is ready. A few items are still syncing in the background.';
 
   @override
-  String get serverOfflineBanner => 'Server unreachable. Retrying every 30s.';
+  String get serverOfflineBanner => 'Offline. Retrying…';
 
   @override
   String get serverOfflineChip => 'Offline';

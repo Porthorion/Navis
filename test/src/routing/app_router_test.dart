@@ -712,10 +712,7 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    expect(
-      find.text('Server unreachable. Retrying every 30s.'),
-      findsOneWidget,
-    );
+    expect(find.text('Offline. Retrying…'), findsOneWidget);
   });
 
   for (final (name, size, desktopRuntime, topInset)
@@ -785,9 +782,7 @@ void main() {
         topInset + ShellOfflineBanner.contentHeight,
       );
       expect(
-        tester
-            .getTopLeft(find.text('Server unreachable. Retrying every 30s.'))
-            .dy,
+        tester.getTopLeft(find.text('Offline. Retrying…')).dy,
         greaterThanOrEqualTo(topInset),
       );
       // The page starts right under the banner and does not add the status

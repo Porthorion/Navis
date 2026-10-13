@@ -1,10 +1,13 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:flutter/services.dart';
 import 'package:material_ui/material_ui.dart';
+import 'package:navis/l10n/app_localizations.dart';
 import 'package:navis/l10n/navis_localizations.dart';
 import 'package:navis/src/common_widgets/marquee_text.dart';
 import 'package:navis/src/common_widgets/notice_icon_disc.dart';
 import 'package:navis/src/routing/shell_offline_banner.dart';
+import 'package:navis/src/theme/navis_theme.dart';
 import 'package:navis/src/theme/navis_tokens.dart';
 
 class _Page extends StatefulWidget {
@@ -28,14 +31,17 @@ void main() {
     required bool visible,
     bool disableAnimations = false,
     String message = 'Offline mode',
+    double width = 400,
+    String? fontFamily,
   }) {
     return tester.pumpWidget(
       ProviderScope(
         child: MaterialApp(
+          theme: ThemeData(fontFamily: fontFamily),
           localizationsDelegates: navisLocalizationsDelegates,
           home: MediaQuery(
             data: MediaQueryData(
-              size: const Size(400, 800),
+              size: Size(width, 800),
               padding: const EdgeInsets.only(top: _statusBar),
               viewPadding: const EdgeInsets.only(top: _statusBar),
               disableAnimations: disableAnimations,
@@ -65,6 +71,42 @@ void main() {
       ),
     );
   }
+
+  testWidgets('the real offline copy fits a 360dp phone without scrolling', (
+    tester,
+  ) async {
+    final message = lookupAppLocalizations(const Locale('en'))
+        .serverOfflineBanner;
+    // The test font is fixed-width boxes; measure with the app's real font.
+    await (FontLoader(
+      navisFontFamily,
+    )..addFont(rootBundle.load('assets/fonts/InterVariable.ttf'))).load();
+    tester.view
+      ..devicePixelRatio = 1
+      ..physicalSize = const Size(360, 800);
+    addTearDown(tester.view.reset);
+    await pump(
+      tester,
+      visible: true,
+      message: message,
+      width: 360,
+      fontFamily: navisFontFamily,
+    );
+    await tester.pumpAndSettle();
+
+    final marquee = find.byType(MarqueeText);
+    final text = tester.widget<Text>(
+      find.descendant(of: marquee, matching: find.byType(Text)),
+    );
+    final painter = TextPainter(
+      text: TextSpan(text: message, style: text.style),
+      textDirection: TextDirection.ltr,
+      maxLines: 1,
+    )..layout();
+    final slot = find.ancestor(of: marquee, matching: find.byType(Expanded));
+    expect(painter.width, lessThanOrEqualTo(tester.getSize(slot.first).width));
+    painter.dispose();
+  });
 
   testWidgets(
     'a message wider than the banner scrolls instead of ending in an ellipsis',

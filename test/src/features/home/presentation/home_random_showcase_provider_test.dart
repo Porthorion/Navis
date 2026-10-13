@@ -57,6 +57,7 @@ Future<void> _insertAlbum(
   required String id,
   required String name,
   DateTime? starred,
+  int? songCount,
 }) {
   return db
       .into(db.albumsTable)
@@ -67,6 +68,7 @@ Future<void> _insertAlbum(
           artistName: const Value('Artist'),
           coverArt: Value('cover-$id'),
           starred: Value(starred),
+          songCount: Value(songCount),
         ),
       );
 }
@@ -2109,6 +2111,119 @@ void main() {
       expect(offlineResult, isEmpty);
     },
   );
+
+  group('random showcase song-count preference', () {
+    for (final albums in <List<Album>>[
+      const [
+        Album(id: 'single', name: 'Single', songCount: 1),
+        Album(id: 'album', name: 'Album', songCount: 10),
+        Album(id: 'pair', name: 'Pair', songCount: 2),
+        Album(id: 'unknown', name: 'Unknown'),
+        Album(id: 'ep', name: 'EP', songCount: 3),
+      ],
+      const [
+        Album(id: 'single', name: 'Single', songCount: 1),
+        Album(id: 'pair', name: 'Pair', songCount: 2),
+      ],
+      [
+        const Album(id: 'single', name: 'Single', songCount: 1),
+        for (var i = 0; i < 12; i++)
+          Album(id: 'album-$i', name: 'Album $i', songCount: 3),
+      ],
+    ]) {
+      test(
+        'server ordering and fallback with ${albums.length} candidates',
+        () async {
+          final database = createTestDatabase();
+          final container = ProviderContainer(
+            overrides: withHomeShowcaseTestOverrides(
+              database,
+              overrides: <Override>[
+                networkTypeProvider.overrideWith((ref) => NetworkType.wifi),
+                subsonicApiProvider.overrideWithValue(
+                  _FakeDiscoveryApiClient({}),
+                ),
+                likedSongsProvider.overrideWithValue(const AsyncData([])),
+                homeRandomAlbumsProvider.overrideWith((ref) async => albums),
+              ],
+            ),
+          );
+          addTearDown(() async {
+            container.dispose();
+            await database.close();
+          });
+
+          final result = await container.read(
+            homeRandomAlbumShowcaseProvider((
+              downloadedOnly: false,
+              likedOnly: false,
+            )).future,
+          );
+
+          final expected = switch (albums.length) {
+            5 => ['album', 'unknown', 'ep', 'single', 'pair'],
+            2 => ['single', 'pair'],
+            _ => [for (var i = 0; i < 12; i++) 'album-$i'],
+          };
+          expect(result.map((album) => album.id), expected);
+        },
+      );
+    }
+
+    for (final filters in [
+      (downloadedOnly: false, likedOnly: false),
+      (downloadedOnly: true, likedOnly: false),
+      (downloadedOnly: false, likedOnly: true),
+      (downloadedOnly: true, likedOnly: true),
+    ]) {
+      test('local ordering and fallback with $filters', () async {
+        final database = createTestDatabase();
+        for (final (id, count) in [
+          ('single', 1),
+          ('ep', 3),
+          ('unknown', null),
+        ]) {
+          await _insertAlbum(
+            database,
+            id: id,
+            name: id,
+            songCount: count,
+            starred: DateTime(2026),
+          );
+        }
+        final container = ProviderContainer(
+          overrides: withHomeShowcaseTestOverrides(
+            database,
+            overrides: <Override>[
+              networkTypeProvider.overrideWith((ref) => NetworkType.offline),
+              likedSongsProvider.overrideWithValue(const AsyncData([])),
+              downloadedContentIdsProvider.overrideWithValue(
+                const AsyncData((
+                  albumIds: <String>{'single', 'ep', 'unknown'},
+                  artistIds: <String>{},
+                )),
+              ),
+            ],
+          ),
+        );
+        addTearDown(() async {
+          container.dispose();
+          await database.close();
+        });
+
+        final result = await container.read(
+          homeRandomAlbumShowcaseProvider(filters).future,
+        );
+
+        expect(result, hasLength(3));
+        expect(
+          result.take(2).map((album) => album.id),
+          unorderedEquals(['ep', 'unknown']),
+        );
+        expect(result.last.id, 'single');
+      });
+    }
+  });
 
   test('server random keeps the local artwork revision', () async {
     final database = createTestDatabase();

@@ -514,7 +514,7 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    final offlineMessage = find.text('Server unreachable. Retrying every 30s.');
+    final offlineMessage = find.text('Offline. Retrying…');
     expect(offlineMessage, findsOneWidget);
     final banner = find
         .ancestor(of: offlineMessage, matching: find.byType(Material))

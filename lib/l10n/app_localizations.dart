@@ -433,7 +433,7 @@ abstract class AppLocalizations {
   /// No description provided for @serverOfflineBanner.
   ///
   /// In en, this message translates to:
-  /// **'Server unreachable. Retrying every 30s.'**
+  /// **'Offline. Retrying…'**
   String get serverOfflineBanner;
 
   /// No description provided for @serverOfflineChip.
