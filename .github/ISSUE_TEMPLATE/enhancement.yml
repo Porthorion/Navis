@@ -1,0 +1,57 @@
+name: ✨ Enhancement or feature request
+description: Suggest a new feature or an improvement to something Navis already does.
+labels: [enhancement, needs-triage]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for helping shape Navis! Please [search existing issues](https://github.com/Porthorion/Navis/issues?q=is%3Aissue+label%3Aenhancement) first; if your idea is already there, add a 👍 and any new details to it.
+        The most useful requests explain the problem you want solved, not only the solution you have in mind.
+  - type: textarea
+    id: problem
+    attributes:
+      label: What problem would this solve?
+      description: What are you trying to do, and what makes it hard or impossible today?
+      placeholder: "Example: I listen in the car and can't find my recently added albums quickly in Android Auto."
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: What would you like Navis to do?
+      description: Describe how it could work. Mock-ups, sketches or screenshots from other apps are very welcome.
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Workarounds or alternatives you've tried
+      description: How do you deal with it today? Have you seen this solved well in another app?
+  - type: dropdown
+    id: platforms
+    attributes:
+      label: Which platforms should this apply to?
+      multiple: true
+      options: [Android, Android Auto, Windows, Linux, All platforms]
+    validations:
+      required: true
+  - type: dropdown
+    id: importance
+    attributes:
+      label: How important is this to you?
+      options:
+        - Nice to have
+        - Would make Navis much better for me
+        - I can't use Navis without it
+  - type: checkboxes
+    id: server_feature
+    attributes:
+      label: Server support
+      options:
+        - label: This needs a feature from my music server (for example a Navidrome-only or OpenSubsonic extension). I have mentioned which one above.
+  - type: checkboxes
+    id: contribute
+    attributes:
+      label: Contributing
+      options:
+        - label: I would like to help implement this (see CONTRIBUTING.md).

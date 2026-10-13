@@ -1,73 +1,138 @@
-name: Bug report
-description: Something in Navis does not work as expected
-labels: [bug]
+name: 🐞 Bug report
+description: Something in Navis is broken, crashes or behaves wrongly.
+labels: [bug, needs-triage]
 body:
-  - type: input
-    id: version
+  - type: markdown
     attributes:
-      label: Navis version
-      description: Settings › About
-      placeholder: "1.5.0"
-    validations:
-      required: true
-  - type: dropdown
-    id: platform
+      value: |
+        Thanks for taking the time to report this! The more of this form you fill in, the faster someone can reproduce and fix it.
+        Before you start: please check that you are on the [latest release](https://github.com/Porthorion/Navis/releases/latest) and [search existing issues](https://github.com/Porthorion/Navis/issues?q=is%3Aissue) for the same problem. If you find one, add a 👍 or your details there instead.
+  - type: textarea
+    id: summary
     attributes:
-      label: Platform
-      options: [Android, Windows, Linux deb, Linux rpm, Linux portable, Other]
-    validations:
-      required: true
-  - type: input
-    id: os
-    attributes:
-      label: OS version
-      placeholder: "Android 14, Windows 11 23H2, Ubuntu 24.04"
-    validations:
-      required: true
-  - type: dropdown
-    id: server
-    attributes:
-      label: Server software
-      options: [Navidrome, Gonic, Airsonic, Other]
-    validations:
-      required: true
-  - type: input
-    id: server_version
-    attributes:
-      label: Server version
+      label: What happened?
+      description: Describe the problem in your own words. What did you see, and when did it start?
+      placeholder: "Example: After skipping a few songs quickly, playback stops and the play button stays greyed out."
     validations:
       required: true
   - type: textarea
     id: steps
     attributes:
       label: Steps to reproduce
+      description: The exact steps that make it happen, starting from opening Navis. If you are not sure, describe what you were doing just before.
       placeholder: |
-        1.
-        2.
-        3.
+        1. Open an album with more than 10 songs
+        2. Press Play, then press Next 5 times quickly
+        3. Playback stops
     validations:
       required: true
   - type: textarea
     id: expected
     attributes:
-      label: Expected behaviour
+      label: What did you expect to happen?
+      placeholder: "Playback continues with the next song."
     validations:
       required: true
-  - type: textarea
-    id: actual
+  - type: dropdown
+    id: frequency
     attributes:
-      label: Actual behaviour
-    validations:
-      required: true
-  - type: textarea
-    id: logs
-    attributes:
-      label: Logs and screenshots
-      description: Drag files in or paste text.
-  - type: checkboxes
-    id: redacted
-    attributes:
-      label: Privacy
+      label: How often does it happen?
       options:
-        - label: I removed passwords, tokens and server credentials from any logs and screenshots.
+        - Every time
+        - Often
+        - Sometimes
+        - It happened once
+    validations:
+      required: true
+  - type: dropdown
+    id: area
+    attributes:
+      label: Which part of Navis is affected?
+      multiple: true
+      options:
+        - Playback (play, pause, skip, seek, queue)
+        - Crossfade, gapless, equalizer or speed
+        - Radio, mixes or recommendations
+        - Library and sync (albums, artists, playlists missing or outdated)
+        - Downloads and offline mode
+        - Search
+        - Lyrics
+        - Home screen
+        - Settings or appearance
+        - Sign-in or server connection
+        - Integrations (Last.fm, ListenBrainz, Deezer)
+        - Notifications, lock screen or media controls
+        - Android Auto
+        - Updates or installation
+        - Other
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Navis version
+      description: Shown in Settings › About.
+      placeholder: "1.5.0"
+    validations:
+      required: true
+  - type: dropdown
+    id: platform
+    attributes:
+      label: Platform and package
+      options:
+        - Android
+        - Windows (installer)
+        - Linux (.deb)
+        - Linux (.rpm)
+        - Linux (portable tar.gz)
+        - Linux (AUR)
+        - Other / built from source
+    validations:
+      required: true
+  - type: input
+    id: device
+    attributes:
+      label: Device and OS version
+      description: For Android, the phone model and Android version. For desktop, the OS and version (and desktop environment on Linux).
+      placeholder: "Pixel 8, Android 15  /  Windows 11 24H2  /  Fedora 42, KDE Plasma 6"
+    validations:
+      required: true
+  - type: input
+    id: server
+    attributes:
+      label: Music server and version
+      description: Settings › Server shows the server type. Your server's own web page usually shows its version.
+      placeholder: "Navidrome 0.58.0  /  Gonic 0.16  /  Airsonic-Advanced 11"
+    validations:
+      required: true
+  - type: dropdown
+    id: connection
+    attributes:
+      label: Connection when it happened
+      options:
+        - Wi-Fi or wired, same network as the server
+        - Wi-Fi or wired, server reached over the internet
+        - Mobile data
+        - Offline (downloads only)
+        - Not sure
+  - type: textarea
+    id: media
+    attributes:
+      label: Screenshots, screen recording or logs
+      description: |
+        A short screen recording is often the fastest way to show a problem. Drag files into this box.
+        Logs help with crashes and sync problems: on Linux, start `navis` from a terminal and copy its output; on Android, advanced users can attach `adb logcat` output.
+  - type: textarea
+    id: extra
+    attributes:
+      label: Anything else?
+      description: Did it work in an earlier version? Does it only happen with certain songs, formats (FLAC, MP3, Opus…) or settings?
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Before submitting
+      options:
+        - label: I am using the latest Navis release, or I said above that I am not.
+          required: true
+        - label: I removed passwords, tokens, server addresses I want to keep private and personal details from everything I attached.
           required: true
