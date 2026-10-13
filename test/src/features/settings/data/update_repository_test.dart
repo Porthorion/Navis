@@ -17,14 +17,17 @@ import 'package:package_info_plus/package_info_plus.dart';
 class _MockDio extends Mock implements Dio;
 
 class _FakeInstallSourceService extends InstallSourceService {
-  new(this._installerPackage)
+  new(this._installerPackage, this._primaryAbi)
     : super(channel: const MethodChannel('test/distribution'));
 
   final String? _installerPackage;
+  final String? _primaryAbi;
 
   @override
-  Future<InstallSourceInfo?> getInstallSource() async =>
-      InstallSourceInfo(installerPackage: _installerPackage);
+  Future<InstallSourceInfo?> getInstallSource() async => InstallSourceInfo(
+    installerPackage: _installerPackage,
+    primaryAbi: _primaryAbi,
+  );
 }
 
 class _MemoryUpdateCheckStore extends UpdateCheckStore {
@@ -77,6 +80,7 @@ void main() {
     bool isIOS = false,
     bool isAndroid = false,
     String? installer,
+    String? primaryAbi,
     String? signingKey,
     UpdateInstallMode mode = UpdateInstallMode.linuxPortable,
     String arch = 'amd64',
@@ -86,7 +90,7 @@ void main() {
     updateCheckStore: store,
     isIOS: isIOS,
     isAndroid: isAndroid,
-    installSourceService: _FakeInstallSourceService(installer),
+    installSourceService: _FakeInstallSourceService(installer, primaryAbi),
     installModeDetector: () => mode,
     linuxDebArch: () => arch,
   );
@@ -198,6 +202,89 @@ void main() {
     expect(result.sha256, _hash);
     expect(result.size, 123);
   });
+
+  for (final abi in ['arm64-v8a', 'armeabi-v7a', 'x86_64']) {
+    test('Android $abi selects its signed split APK', () async {
+      final splitUrl =
+          '${AppConstants.updateBaseUrl}releases/v1.5.1/'
+          'navis-v1.5.1-android-$abi.apk';
+      (payload['assets']! as Map)['androidApk-$abi'] = {
+        'url': splitUrl,
+        'sha256': 'b' * 64,
+        'size': 456,
+      };
+      envelope = await sign(payload);
+      final repo = repository(
+        isAndroid: true,
+        mode: UpdateInstallMode.androidApk,
+        primaryAbi: abi,
+      );
+      final result = await repo.checkForUpdate();
+      expect(result!.downloadUrl, splitUrl);
+      expect(result.assetFileName, 'navis-v1.5.1-android-$abi.apk');
+      expect(result.sha256, 'b' * 64);
+      expect(result.size, 456);
+      expect(repo.lastCheck!.assetKey, 'androidApk-$abi');
+    });
+  }
+
+  for (final abi in ['arm64-v8a', 'armeabi-v7a', 'x86_64', 'x86', null]) {
+    test('Android $abi without a matching split uses universal', () async {
+      // An unrelated split must never replace the universal fallback.
+      (payload['assets']! as Map)['androidApk-other'] = {
+        'url': '${AppConstants.updateBaseUrl}wrong.apk',
+        'sha256': 'b' * 64,
+        'size': 456,
+      };
+      envelope = await sign(payload);
+      final repo = repository(
+        isAndroid: true,
+        mode: UpdateInstallMode.androidApk,
+        primaryAbi: abi,
+      );
+      final result = await repo.checkForUpdate();
+      expect(result!.downloadUrl, _assetUrl);
+      expect(result.sha256, _hash);
+      expect(result.size, 123);
+      expect(repo.lastCheck!.assetKey, 'androidApk');
+    });
+  }
+
+  test('unknown ABI ignores even an identically named unknown split', () async {
+    (payload['assets']! as Map)['androidApk-x86'] = {
+      'url': '${AppConstants.updateBaseUrl}unsupported.apk',
+      'sha256': 'b' * 64,
+      'size': 456,
+    };
+    envelope = await sign(payload);
+    final repo = repository(
+      isAndroid: true,
+      mode: UpdateInstallMode.androidApk,
+      primaryAbi: 'x86',
+    );
+    expect((await repo.checkForUpdate())!.downloadUrl, _assetUrl);
+    expect(repo.lastCheck!.assetKey, 'androidApk');
+  });
+
+  test(
+    'invalid matching split is rejected before offering a download',
+    () async {
+      (payload['assets']! as Map)['androidApk-arm64-v8a'] = {
+        'url': 'https://example.com/untrusted.apk',
+        'sha256': _hash,
+        'size': 123,
+      };
+      envelope = await sign(payload);
+      final repo = repository(
+        isAndroid: true,
+        mode: UpdateInstallMode.androidApk,
+        primaryAbi: 'arm64-v8a',
+      );
+      expect(await repo.checkForUpdate(), isNull);
+      expect(repo.lastCheck!.assetKey, 'androidApk-arm64-v8a');
+      expect(repo.lastCheck!.rejectReason, 'invalid_asset_url');
+    },
+  );
 
   test('only Check now marks requests user initiated', () async {
     final repo = repository();

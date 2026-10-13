@@ -171,9 +171,12 @@ content_type_for() {
   esac
 }
 
-# Manifest asset key for a release file name (matches UpdateInstallMode names).
+# Manifest asset key for a release file name (install mode plus architecture).
 asset_key_for() {
   case "$1" in
+    *-android-arm64-v8a.apk) echo "androidApk-arm64-v8a" ;;
+    *-android-armeabi-v7a.apk) echo "androidApk-armeabi-v7a" ;;
+    *-android-x86_64.apk) echo "androidApk-x86_64" ;;
     *.apk) echo "androidApk" ;;
     *-windows-installer.exe) echo "windowsInstaller" ;;
     *-windows.zip) echo "windowsPortable" ;;

@@ -559,9 +559,16 @@ make release VERSION=v0.2.0
    opt-in, and signer validation fails if the properties file disappears.
    Runs `./tool/check.sh` unless `--skip-checks` is passed.
 3. Builds selected artifacts for requested targets (`android`, `ios`, `macos`, `linux`, `windows`).
-   Android release builds clean stale Flutter/Gradle APK outputs before
-   building and remove any same-name root release asset before copying the new
-   APK.
+   Android builds produce the universal `navis-<tag>.apk` plus
+   `navis-<tag>-android-<abi>.apk` for `arm64-v8a`, `armeabi-v7a` and `x86_64`.
+   The universal remains the default download and the 1.4.x Forgejo bridge asset.
+   Each build cleans stale Flutter/Gradle outputs; the universal is staged at
+   the repo root before the split build, and same-name root assets are removed
+   before copying. Symbols are retained separately under
+   `build/obfuscation/android/<tag>/{universal,split-per-abi}/`.
+   `force-version-code-ignoring-abi=true` in `android/gradle.properties` skips
+   Flutter's ABI version-code offsets, so all four APKs share the release build
+   number and can update over one another. See [release-r2.md](release-r2.md).
    Linux target can output either portable `bundle` (tar.gz) or `.deb`
    (`--linux-package=deb`). Debian package output is architecture-aware
    (`linux-<arch>.deb`) and includes a launcher binary and desktop entry.
@@ -572,7 +579,7 @@ make release VERSION=v0.2.0
    staple before packaging (`--macos-notarize`). On non-Linux/non-Windows
    hosts, Linux/Windows desktop builds can be delegated to remote SSH builders
    (`--linux-ssh`, `--windows-ssh`).
-4. Validates Android APK package name, version name/code, signing certificate,
+4. Validates every Android APK package name, version name/code, signing certificate,
    retired active Listen Together/Voyage string absence, and the Artist Top
    Tracks Album Queue marker before upload.
 5. Passes `--dart-define=NAVIS_UPDATE_CHANNEL=<stable|dev>` to Flutter builds.

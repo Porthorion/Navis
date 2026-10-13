@@ -723,6 +723,7 @@ class MainActivity : AudioServiceActivity() {
             return mapOf(
                 "installerPackage" to sourceInfo.installingPackageName,
                 "initiatingPackage" to sourceInfo.initiatingPackageName,
+                "primaryAbi" to Build.SUPPORTED_ABIS.firstOrNull(),
             )
         }
 
@@ -731,6 +732,7 @@ class MainActivity : AudioServiceActivity() {
         return mapOf(
             "installerPackage" to installerPackage,
             "initiatingPackage" to null,
+            "primaryAbi" to Build.SUPPORTED_ABIS.firstOrNull(),
         )
     }
 

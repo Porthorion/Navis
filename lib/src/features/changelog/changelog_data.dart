@@ -165,6 +165,10 @@ const List<ChangelogVersion> changelogs = [
     ],
     entries: [
       ChangelogEntry(
+        'Android downloads are now available per device architecture, and updates choose the matching APK automatically',
+        type: ChangelogEntryType.improvement,
+      ),
+      ChangelogEntry(
         'Fixed sign-in and playback getting stuck when secure storage is temporarily unavailable',
         type: ChangelogEntryType.fix,
       ),

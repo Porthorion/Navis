@@ -442,45 +442,45 @@ set_obfuscation_args() {
   OBFUSCATION_ARGS=(--obfuscate "--split-debug-info=${symbols_dir}")
 }
 
-if [[ "${BUILD_ANDROID}" == "true" ]]; then
-  echo "==> Building Android APK..."
-  export NAVIS_SELF_UPDATE=true
-  DART_DEFINE_ARGS+=("--dart-define=NAVIS_SELF_UPDATE=true")
+build_android_apks() {
+  local variant="$1"
+  local symbols_dir="${SCRIPT_DIR}/../build/obfuscation/android/${VERSION}/${variant}"
+  local split_args=()
+  [[ "${variant}" != split-per-abi ]] || split_args+=(--split-per-abi)
   clean_android_release_outputs
-  ANDROID_OBFUSCATION_DIR="${SCRIPT_DIR}/../build/obfuscation/android/${VERSION}"
-  mkdir -p "${ANDROID_OBFUSCATION_DIR}"
-  _apk_define_args="${DART_DEFINE_ARGS[*]}"
-  # When running inside a Flatpak sandbox, Gradle cannot find JAVA_HOME.
-  # Delegate to the host OS where the full JDK is available.
+  mkdir -p "${symbols_dir}"
+  local build_args=(build apk --release --flavor sideload --obfuscate
+    "--split-debug-info=${symbols_dir}" "${split_args[@]}" "${DART_DEFINE_ARGS[@]}")
+  # Gradle needs the host JDK when invoked from a Flatpak sandbox.
   if [[ -n "${FLATPAK_ID:-}" ]]; then
-    _flutter_bin="$(command -v flutter)"
-    /usr/bin/flatpak-spawn --host -- bash -c \
-      "export PATH=\"$(dirname "${_flutter_bin}"):\$HOME/.local/bin:\$PATH\"; export NAVIS_SELF_UPDATE=true; cd \"${SCRIPT_DIR}/..\"; flutter build apk --release --flavor sideload --obfuscate --split-debug-info=\"${ANDROID_OBFUSCATION_DIR}\" $(printf '%q ' "${DART_DEFINE_ARGS[@]}")"
+    local flutter_bin
+    flutter_bin="$(command -v flutter)"
+    /usr/bin/flatpak-spawn --host -- bash -c '
+      export PATH="$1:$HOME/.local/bin:$PATH"
+      export NAVIS_SELF_UPDATE=true
+      cd "$2"
+      shift 2
+      flutter "$@"
+    ' navis-android-build "$(dirname "${flutter_bin}")" "${SCRIPT_DIR}/.." "${build_args[@]}"
   else
-    flutter build apk \
-      --release \
-      --flavor sideload \
-      --obfuscate \
-      --split-debug-info="${ANDROID_OBFUSCATION_DIR}" \
-      "${DART_DEFINE_ARGS[@]}"
+    flutter "${build_args[@]}"
   fi
+  echo "    Obfuscation symbols -> ${symbols_dir}"
+}
 
-  APK_PATH="${SCRIPT_DIR}/../build/app/outputs/flutter-apk/app-sideload-release.apk"
-  APK_ASSET_NAME="${ASSET_PREFIX}-${VERSION}.apk"
-  APK_ASSET="${SCRIPT_DIR}/../${APK_ASSET_NAME}"
+stage_android_apk() {
+  local APK_PATH="$1" APK_ASSET_NAME="$2"
+  local APK_ASSET="${SCRIPT_DIR}/../${APK_ASSET_NAME}"
   remove_release_asset "${APK_ASSET}"
-
   if [[ ! -f "${APK_PATH}" ]]; then
     echo "Error: APK not found at ${APK_PATH}"
     exit 1
   fi
-
   cp "${APK_PATH}" "${APK_ASSET}"
   scan_release_artifact "${APK_ASSET}"
   ASSET_FILES+=("${APK_ASSET}")
   ASSET_NAMES+=("${APK_ASSET_NAME}")
   echo "    APK -> ${APK_ASSET_NAME}"
-  echo "    Obfuscation symbols -> ${ANDROID_OBFUSCATION_DIR}"
 
   ANDROID_SDK_DIR="${ANDROID_SDK_ROOT:-${ANDROID_HOME:-$HOME/Library/Android/sdk}}"
   if [[ ! -d "${ANDROID_SDK_DIR}/build-tools" ]]; then
@@ -553,6 +553,23 @@ if [[ "${BUILD_ANDROID}" == "true" ]]; then
   validate_apk_strings "${APK_ASSET}"
 
   echo "    APK metadata/signing/strings OK"
+}
+
+if [[ "${BUILD_ANDROID}" == "true" ]]; then
+  export NAVIS_SELF_UPDATE=true
+  DART_DEFINE_ARGS+=("--dart-define=NAVIS_SELF_UPDATE=true")
+  echo "==> Building universal Android APK..."
+  build_android_apks universal
+  # Copy outside build/app before the split build cleans or replaces its outputs.
+  stage_android_apk "${SCRIPT_DIR}/../build/app/outputs/flutter-apk/app-sideload-release.apk" \
+    "${ASSET_PREFIX}-${VERSION}.apk"
+
+  echo "==> Building per-architecture Android APKs..."
+  build_android_apks split-per-abi
+  for abi in arm64-v8a armeabi-v7a x86_64; do
+    stage_android_apk "${SCRIPT_DIR}/../build/app/outputs/flutter-apk/app-${abi}-sideload-release.apk" \
+      "${ASSET_PREFIX}-${VERSION}-android-${abi}.apk"
+  done
 fi
 
 if [[ "${BUILD_IOS}" == "true" ]]; then

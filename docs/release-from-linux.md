@@ -78,7 +78,8 @@ All artifacts follow the naming convention `<prefix>-<version>-<platform>.<ext>`
 
 | Target | Flag | Output filename |
 |---|---|---|
-| Android APK | `--targets=android` | `navis-v0.x.y.apk` |
+| Android universal APK (default) | `--targets=android` | `navis-<tag>.apk` |
+| Android architecture APKs (built alongside universal) | `--targets=android` | `navis-<tag>-android-<abi>.apk` |
 | Linux portable bundle | `--targets=linux --linux-package=bundle` | `navis-v0.x.y-linux.tar.gz` |
 | Linux Debian package | `--targets=linux --linux-package=deb` | `navis-v0.x.y-linux-amd64.deb` |
 | Windows portable | `--targets=windows` | `navis-v0.x.y-windows.zip` |
@@ -86,6 +87,15 @@ All artifacts follow the naming convention `<prefix>-<version>-<platform>.<ext>`
 | macOS bundle | `--targets=macos` (run on Mac) | `navis-v0.x.y-macos.zip` |
 
 Dev channel assets are prefixed with `navis-dev-` instead of `navis-`.
+
+Android `<abi>` values are `arm64-v8a`, `armeabi-v7a` and `x86_64` (no 32-bit
+x86). Keep `navis-<tag>.apk` as the default download and the 1.4.x Forgejo bridge
+asset. All APKs share the release build number because
+`android/gradle.properties` enables `force-version-code-ignoring-abi=true`;
+Flutter's per-ABI offsets are disabled so universal and split installs can
+update over each other. Both builds retain separate symbols and validate every
+APK before publishing. See [release-r2.md](release-r2.md#android-apks) for the
+manifest keys and device-ABI fallback rules.
 
 For full per-platform packaging details see:
 - [release-macos.md](release-macos.md)
