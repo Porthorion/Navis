@@ -14,7 +14,6 @@ if rg -n --hidden \
   --glob '!pubspec.lock' \
   --glob '!tool/security_audit.sh' \
   --glob '!tool/release.env' \
-  --glob '!tool/secrets/**' \
   --glob '!test/**' \
   --glob '!android/key.properties.example' \
   '(^[[:space:]]*(storePassword|keyPassword)=[^[:space:]]+|api[_-]?key[[:space:]]*[:=][[:space:]]*["'\'']?[A-Za-z0-9._-]{16,}|shared[_-]?secret[[:space:]]*[:=]|bearer[[:space:]]+[A-Za-z0-9._-]{16,}|password[[:space:]]*[=:][[:space:]]*["'\''][^"'\'']{8,}|private[_-]?key[[:space:]]*[:=]|BEGIN (RSA |EC |OPENSSH )?PRIVATE KEY|keystore[[:space:]]*[:=])' \

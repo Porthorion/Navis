@@ -172,32 +172,37 @@ void main() {
       expect(find.text('© 2026 Porthorion'), findsOneWidget);
     });
 
-    testWidgets('links to the website, policy, terms and support', (
-      tester,
-    ) async {
-      final launcher = FakeUrlLauncher.install();
-      await pumpAbout(tester, updateInfo: null);
+    testWidgets(
+      'links to the website, source, issues, support, policy and licence',
+      (tester) async {
+        final launcher = FakeUrlLauncher.install();
+        await pumpAbout(tester, updateInfo: null);
 
-      for (final title in <String>[
-        'Website',
-        'Privacy policy',
-        'Terms of use',
-        'Contact support',
-      ]) {
-        final tile = find.widgetWithText(ListTile, title);
-        await tester.scrollUntilVisible(tile, 200);
-        await tester.pumpAndSettle();
-        await tester.tap(tile);
-        await tester.pumpAndSettle();
-      }
+        for (final title in <String>[
+          'Website',
+          'Source code',
+          'Report a bug',
+          'Contact support',
+          'Privacy policy',
+          'License',
+        ]) {
+          final tile = find.widgetWithText(ListTile, title);
+          await tester.scrollUntilVisible(tile, 200);
+          await tester.pumpAndSettle();
+          await tester.tap(tile);
+          await tester.pumpAndSettle();
+        }
 
-      expect(launcher.launched, <String>[
-        'https://navis.porthorion.com',
-        'https://navis.porthorion.com/privacy/app',
-        'https://navis.porthorion.com/eula',
-        'mailto:support@porthorion.com',
-      ]);
-    });
+        expect(launcher.launched, <String>[
+          'https://navis.porthorion.com',
+          'https://github.com/Porthorion/Navis',
+          'https://github.com/Porthorion/Navis/issues',
+          'mailto:support@porthorion.com',
+          'https://navis.porthorion.com/privacy/app',
+          'https://github.com/Porthorion/Navis/blob/main/LICENSE',
+        ]);
+      },
+    );
 
     testWidgets('shows update section on Android', (tester) async {
       debugDefaultTargetPlatformOverride = TargetPlatform.android;

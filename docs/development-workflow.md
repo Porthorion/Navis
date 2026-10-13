@@ -1489,11 +1489,20 @@ For Android releases, `tool/release.sh` builds the default universal
 `navis-<tag>-android-<abi>.apk`. It stages the universal before cleaning outputs
 for the split build, removes existing same-name root assets before copying,
 and validates every APK's metadata, signature and release strings. Both builds
-keep symbols in separate `universal/` and `split-per-abi/` directories under
-`build/obfuscation/android/<tag>/`. The Gradle property
+use `--split-debug-info` without Dart obfuscation, keeping symbols in separate
+`universal/` and `split-per-abi/` directories under
+`build/symbols/android/<tag>/`. The Gradle property
 `force-version-code-ignoring-abi=true` keeps all APKs at the same version code,
 without Flutter's ABI offsets. The updater selects the primary ABI's split
 when present and otherwise uses the universal; see [release-r2.md](release-r2.md).
+
+For a staged publish, `--github` can accompany `--forgejo` to push `main` and
+the tag to the `github` remote and create a GitHub release after the existing
+publish succeeds. It uses authenticated `gh`, staged notes/prerelease metadata,
+and only staged assets plus dist `SHA256SUMS`, checking every asset name and
+size. Missing remotes and existing releases are refused; see
+[release-from-linux.md](release-from-linux.md) for the repository override and
+retry procedure. The signed R2 update channel is unchanged.
 
 `tool/release.sh` fails when the requested version's release tag already
 exists, locally or on origin. A version that `dev` already names in

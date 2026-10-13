@@ -6,7 +6,9 @@ abstract final class AppConstants {
   /// Porthorion's public pages for Navis, linked from About and Privacy.
   static const String websiteUrl = 'https://navis.porthorion.com';
   static const String privacyPolicyUrl = '$websiteUrl/privacy/app';
-  static const String eulaUrl = '$websiteUrl/eula';
+  static const String sourceCodeUrl = 'https://github.com/Porthorion/Navis';
+  static const String issuesUrl = '$sourceCodeUrl/issues';
+  static const String licenseUrl = '$sourceCodeUrl/blob/main/LICENSE';
   static const String supportEmail = 'support@porthorion.com';
 
   /// Shared HTTP identity derived from the current app changelog version.

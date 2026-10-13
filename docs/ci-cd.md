@@ -582,14 +582,15 @@ publication isolation, source/checksum guards and exact dist-file uploads.
    The universal remains the default download and the 1.4.x Forgejo bridge asset.
    Each build cleans stale Flutter/Gradle outputs; the universal is staged at
    the repo root before the split build, and same-name root assets are removed
-   before copying. Symbols are retained separately under
-   `build/obfuscation/android/<tag>/{universal,split-per-abi}/`.
+   before copying. Dart obfuscation is disabled; `--split-debug-info` retains
+   symbols separately under
+   `build/symbols/android/<tag>/{universal,split-per-abi}/`.
    `force-version-code-ignoring-abi=true` in `android/gradle.properties` skips
    Flutter's ABI version-code offsets, so all four APKs share the release build
    number and can update over one another. See [release-r2.md](release-r2.md).
    Linux x86_64 builds use the Ubuntu 22.04 container, preserving glibc 2.35
-   compatibility, release AOT/obfuscation and separate LGPL libmpv. Select
-   `--linux-package=bundle|deb|rpm|all`; `all` packages one bundle three ways.
+   compatibility, release AOT with split debug info and separate LGPL libmpv.
+   Select `--linux-package=bundle|deb|rpm|all`; `all` packages one bundle three ways.
    Package launchers use absolute desktop Exec paths and the existing icons.
    See [release-linux.md](release-linux.md) for capped local-only builds,
    package installation checks and AUR maintenance. RPM secret scanning
@@ -618,6 +619,13 @@ publication isolation, source/checksum guards and exact dist-file uploads.
    Both calls load Authorization from a mode-600 header file in the private
    release secrets directory (`curl -H @file`, curl 7.55+), which the EXIT trap
    removes. The token stays out of curl's command-line arguments.
+10. With `--publish-from` and `--github`, after the existing publish succeeds,
+    pushes `main` and the tag to the `github` remote and creates a GitHub release
+    using staged notes/prerelease metadata. Uploads only the staged assets and
+    dist `SHA256SUMS`, then verifies every name and size. Requires authenticated
+    `gh`; defaults to `Porthorion/Navis` (`NAVIS_GITHUB_REPO` overrides it).
+    A missing remote or existing release fails before publication. See
+    [release-from-linux.md](release-from-linux.md) for setup and retries.
 
 Before building anything (after the version checks), `release.sh` runs
 `tool/r2_publish.sh check`, which fails early if an R2 setting or the signing key is
@@ -627,7 +635,7 @@ built files stay on disk until every publish step succeeds, so a failed upload i
 retried with `./tool/r2_publish.sh publish --tag=<tag> --channel=<channel> --notes-file=<md> <files…>`.
 Stable release tags must be plain `vX.Y.Z`; dev/staging also accept
 `vX.Y.Z-<channel>.<build>`. Other suffixes such as `-beta.1` remain rejected.
-`tool/dev_release.sh [--dry-run]` builds a release-signed, obfuscated arm64
+`tool/dev_release.sh [--dry-run]` builds a release-signed arm64
 Navis Dev sidecar, publishes its unique build and cleans the previous unique dev
 tag after verification. It reuses `dev_app.sh` and `r2_publish.sh`; symbols stay
 in `~/.cache/navis/dev-releases/`. Build numbering and deletion guards are in

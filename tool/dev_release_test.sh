@@ -239,7 +239,7 @@ cat > "${tmp}/bin/flutter" <<'SHFLUTTER'
 #!/usr/bin/env bash
 set -euo pipefail
 [[ "${NAVIS_ALLOW_DEBUG_SIGNED_RELEASE}" == 0 && "${NAVIS_APP_ID_SUFFIX}" == .dev && "${NAVIS_APP_NAME}" == 'Navis Dev' ]]
-[[ "$*" == *--obfuscate* && "$*" == *--split-debug-info=* && "$*" == *--target-platform=android-arm64* && "$*" == *--dart-define=NAVIS_UPDATE_CHANNEL=dev* ]]
+[[ "$*" != *--obfuscate* && "$*" == *--split-debug-info=* && "$*" == *--target-platform=android-arm64* && "$*" == *--dart-define=NAVIS_UPDATE_CHANNEL=dev* ]]
 for arg in "$@"; do
   case "${arg}" in --build-number=*) echo "${arg#--build-number=}" > "${FAKE_BUILD}" ;; esac
 done
@@ -269,9 +269,9 @@ FAKE_PACKAGE=com.navis.app.navis refused ./tool/dev_release.sh --dry-run
 rg -Fq 'package/version metadata' "${tmp}/refused.log" || fail 'package validation missing'
 # Default dev_app APK allocations increase without touching any channel. An
 # exhausted allocator must stop the script before Flutter sees an empty code.
-NAVIS_ALLOW_DEBUG_SIGNED_RELEASE=0 ./tool/dev_app.sh apk --target-platform=android-arm64 --obfuscate --split-debug-info="${tmp}/symbols" >/dev/null
+NAVIS_ALLOW_DEBUG_SIGNED_RELEASE=0 ./tool/dev_app.sh apk --target-platform=android-arm64 --split-debug-info="${tmp}/symbols" >/dev/null
 manual1="$(cat "${FAKE_BUILD}")"
-NAVIS_ALLOW_DEBUG_SIGNED_RELEASE=0 ./tool/dev_app.sh apk --target-platform=android-arm64 --obfuscate --split-debug-info="${tmp}/symbols" >/dev/null
+NAVIS_ALLOW_DEBUG_SIGNED_RELEASE=0 ./tool/dev_app.sh apk --target-platform=android-arm64 --split-debug-info="${tmp}/symbols" >/dev/null
 manual2="$(cat "${FAKE_BUILD}")"
 [[ "${manual2}" -gt "${manual1}" && "${manual1}" -gt "${build}" ]] || fail 'manual dev APK counter did not increase'
 printf '2099999999\n' > "${HOME}/.cache/navis/dev-releases/build-number"

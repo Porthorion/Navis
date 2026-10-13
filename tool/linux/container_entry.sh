@@ -14,16 +14,14 @@ if [[ "${build}" == true ]]; then
   cd /tmp/navis-work
   flutter pub get --enforce-lockfile
   args=("$@")
-  obfuscate=false; symbols=false; channel=false
+  symbols=false; channel=false
   for arg in "${args[@]}"; do
     case "${arg}" in
-      --obfuscate) obfuscate=true ;;
       --split-debug-info=*) symbols=true ;;
       --dart-define=NAVIS_UPDATE_CHANNEL=*) channel=true ;;
     esac
   done
-  [[ "${obfuscate}" == true ]] || args+=(--obfuscate)
-  [[ "${symbols}" == true ]] || args+=("--split-debug-info=${repo}/build/obfuscation/linux/${version}")
+  [[ "${symbols}" == true ]] || args+=("--split-debug-info=${repo}/build/symbols/linux/${version}")
   [[ "${channel}" == true ]] || args+=(--dart-define=NAVIS_UPDATE_CHANNEL=stable)
   flutter build linux --release "${args[@]}"
   mkdir -p "${repo}/build/linux/x64/release"

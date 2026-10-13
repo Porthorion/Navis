@@ -65,7 +65,10 @@ void main() {
       () async {
         final licenses = await entries(platform: platform);
         final packages = licenses.expand((entry) => entry.packages).toSet();
-        expect(packages, containsAll(['Inter font', 'AutoEq', 'color-names']));
+        expect(
+          packages,
+          containsAll(['Navis', 'Inter font', 'AutoEq', 'color-names']),
+        );
         expect(packages.contains('mimalloc'), platform == TargetPlatform.linux);
         expect(
           packages.contains('Rust crates (Windows media controls)'),
@@ -82,6 +85,12 @@ void main() {
       },
     );
   }
+
+  test('Navis itself is registered under the bundled GPL text', () async {
+    final licenses = await entries(platform: TargetPlatform.android);
+    final navis = licenses.singleWhere((e) => e.packages.contains('Navis'));
+    expect(navis.text, contains('GNU GENERAL PUBLIC LICENSE'));
+  });
 
   for (final platform in [TargetPlatform.linux, TargetPlatform.windows]) {
     test(
@@ -130,7 +139,7 @@ void main() {
         );
         expect(
           licenses.expand((entry) => entry.packages),
-          unorderedEquals(['Inter font', 'AutoEq', 'color-names']),
+          unorderedEquals(['Navis', 'Inter font', 'AutoEq', 'color-names']),
         );
       },
     );
@@ -143,7 +152,7 @@ void main() {
     );
     expect(
       licenses.expand((entry) => entry.packages),
-      unorderedEquals(['Inter font', 'AutoEq', 'color-names']),
+      unorderedEquals(['Navis', 'Inter font', 'AutoEq', 'color-names']),
     );
   });
 }

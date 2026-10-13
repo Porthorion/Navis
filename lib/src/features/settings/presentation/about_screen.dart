@@ -492,8 +492,8 @@ class _AboutInformation extends ConsumerWidget {
   }
 }
 
-/// Links to Porthorion's website, the app privacy policy, the licence
-/// agreement and support, at the end of About.
+/// Links to Porthorion's website, source code, bug reports, support, the privacy policy
+/// and the licence, at the end of About.
 class _AboutLegal extends StatelessWidget {
   const new();
 
@@ -515,6 +515,39 @@ class _AboutLegal extends StatelessWidget {
           ),
         ),
         ListTile(
+          leading: const Icon(Icons.code),
+          title: Text(l10n.aboutSourceCode),
+          subtitle: const Text(AppConstants.sourceCodeUrl),
+          trailing: const Icon(Icons.open_in_new),
+          onTap: () => openExternalLink(
+            context,
+            Uri.parse(AppConstants.sourceCodeUrl),
+            label: l10n.aboutSourceCode,
+          ),
+        ),
+        ListTile(
+          leading: const Icon(Icons.bug_report_outlined),
+          title: Text(l10n.aboutReportBug),
+          subtitle: const Text(AppConstants.issuesUrl),
+          trailing: const Icon(Icons.open_in_new),
+          onTap: () => openExternalLink(
+            context,
+            Uri.parse(AppConstants.issuesUrl),
+            label: l10n.aboutReportBug,
+          ),
+        ),
+        ListTile(
+          leading: const Icon(Icons.mail_outline),
+          title: Text(l10n.aboutContact),
+          subtitle: const Text(AppConstants.supportEmail),
+          trailing: const Icon(Icons.open_in_new),
+          onTap: () => openExternalLink(
+            context,
+            supportEmailUri,
+            label: AppConstants.supportEmail,
+          ),
+        ),
+        ListTile(
           leading: const Icon(Icons.policy_outlined),
           title: Text(l10n.aboutPrivacyPolicy),
           subtitle: Text(l10n.aboutPrivacyPolicySub),
@@ -527,24 +560,13 @@ class _AboutLegal extends StatelessWidget {
         ),
         ListTile(
           leading: const Icon(Icons.gavel_outlined),
-          title: Text(l10n.aboutTerms),
-          subtitle: Text(l10n.aboutTermsSub),
+          title: Text(l10n.aboutLicense),
+          subtitle: Text(l10n.aboutLicenseSub),
           trailing: const Icon(Icons.open_in_new),
           onTap: () => openExternalLink(
             context,
-            Uri.parse(AppConstants.eulaUrl),
-            label: l10n.aboutTerms,
-          ),
-        ),
-        ListTile(
-          leading: const Icon(Icons.mail_outline),
-          title: Text(l10n.aboutContact),
-          subtitle: const Text(AppConstants.supportEmail),
-          trailing: const Icon(Icons.open_in_new),
-          onTap: () => openExternalLink(
-            context,
-            supportEmailUri,
-            label: AppConstants.supportEmail,
+            Uri.parse(AppConstants.licenseUrl),
+            label: l10n.aboutLicense,
           ),
         ),
       ],

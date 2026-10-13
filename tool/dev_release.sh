@@ -37,7 +37,7 @@ APK="build/dev-releases/Navis-Dev-${VERSION}-${BUILD}-arm64.apk"
 echo "==> Building ${TAG}; symbols: ${SYMBOLS_DIR}"
 NAVIS_APP_ID_SUFFIX=.dev NAVIS_APP_NAME='Navis Dev' NAVIS_ALLOW_DEBUG_SIGNED_RELEASE=0 \
   "${SCRIPT_DIR}/dev_app.sh" apk --target-platform=android-arm64 \
-  --obfuscate "--split-debug-info=${SYMBOLS_DIR}" "--build-number=${BUILD}" "--build-name=${VERSION}"
+  "--split-debug-info=${SYMBOLS_DIR}" "--build-number=${BUILD}" "--build-name=${VERSION}"
 cp build/app/outputs/flutter-apk/app-sideload-release.apk "${APK}"
 
 # Apply release.sh's metadata and signer checks before any remote write. Never

@@ -24,7 +24,7 @@ for arg in "$@"; do
       file="$(realpath "${arg#*=}")"
       mounts+=(--mount "type=bind,src=${file},dst=${file},readonly")
       args+=("--dart-define-from-file=${file}") ;;
-    --obfuscate|--split-debug-info=*|--dart-define=*) args+=("${arg}") ;;
+    --split-debug-info=*|--dart-define=*) args+=("${arg}") ;;
     -h|--help)
       echo 'Usage: tool/linux/build_in_container.sh [--package=bundle|deb|rpm|all] [--package-only] [--version=vX.Y.Z] [--asset-prefix=navis|navis-dev] [--dart-define=KEY=VALUE]'
       echo 'Local only; defaults: all packages, pubspec version, stable, 6 GiB, 2 CPUs.'

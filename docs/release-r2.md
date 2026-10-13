@@ -4,7 +4,8 @@ From 1.5.0 on, Navis checks for updates at
 `https://downloads.porthorion.com/navis/channels/<channel>/manifest.json` and
 downloads release files from the same host. Versions before 1.5.0 read the
 Forgejo releases API instead. 1.5.0 is the bridge release: it goes out through
-Forgejo *and* R2, and every later release goes out through R2 only.
+Forgejo *and* R2. Every later update goes through R2; GitHub releases can also
+publish the staged assets for manual downloads.
 
 ## Bucket layout
 
@@ -103,10 +104,10 @@ package, version name/code, release-certificate, secret-scan and release-string
 validation before publication.
 
 The universal APK is copied outside `build/app` before the split build cleans
-its outputs. Both builds use the same sideload flavor, obfuscation and Dart
-defines; their symbols remain separate under
-`build/obfuscation/android/<tag>/universal/` and
-`build/obfuscation/android/<tag>/split-per-abi/`.
+its outputs. Both builds use the same sideload flavor and Dart defines, with
+`--split-debug-info` and no Dart obfuscation; their symbols remain separate under
+`build/symbols/android/<tag>/universal/` and
+`build/symbols/android/<tag>/split-per-abi/`.
 
 ## Publishing
 
@@ -122,6 +123,25 @@ verifies the staged files and source commit, repeats the normal remote
 preconditions, and runs the same Git and R2 publication flow without rebuilding.
 The channel, prerelease state and notes come from the bundle; `--forgejo` is
 still required on release day for the 1.5.0 bridge. The dist files are retained.
+Add `--github` next to `--forgejo` to also create a GitHub release, for example:
+
+```bash
+./tool/release.sh v1.5.0 --publish-from=dist/v1.5.0 --skip-checks --forgejo --github
+```
+
+`--github` is valid only with `--publish-from`. It requires authenticated `gh`
+and a Git remote named `github`; a missing remote or an existing release for
+the tag fails before publication. After the existing publish steps succeed,
+it pushes `main` and the version tag to that remote, creates a release in
+`Porthorion/Navis` (override with `NAVIS_GITHUB_REPO` and a matching remote),
+with notes that start with a Download section linking every file on
+`downloads.porthorion.com` (R2 is the official source; GitHub's attached files are
+identical mirrors) followed by `release-notes.md`, uses the staged prerelease state, and attaches exactly
+the staged asset files plus dist `SHA256SUMS`. It verifies each asset name and
+byte size, failing on missing or mismatched assets. Existing releases are never
+overwritten; resolve any partial GitHub release before retrying. R2 still
+provides the signed manifest and updater downloads.
+
 See [release-from-linux.md](release-from-linux.md#build-and-verify-150-now-publish-those-files-later)
 for the exact 1.5.0 build, verify and publish commands.
 
@@ -156,7 +176,7 @@ settings in `tool/release.env`, run:
 ```
 
 Both commands build an arm64, release-signed `.dev` sidecar through
-`dev_app.sh apk`, with `NAVIS_UPDATE_CHANNEL=dev`, Dart obfuscation and split
+`dev_app.sh apk`, with `NAVIS_UPDATE_CHANNEL=dev`, no Dart obfuscation and split
 debug info. Dry-run does the local build, validates the APK package/version and
 release certificate, signs the planned manifest, and performs read-only R2
 checks. It prints `DRY-RUN PUT`, `DRY-RUN VERIFY` and `DRY-RUN DELETE` operations;

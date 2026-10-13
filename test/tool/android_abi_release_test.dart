@@ -153,7 +153,6 @@ printf "%s\n" "${ASSET_NAMES[@]}" > "$FIXTURE/assets"
       final args = await File(p.join(fixture.path, 'args')).readAsLines();
       for (final flag in [
         '--release',
-        '--obfuscate',
         'sideload',
         '--dart-define=NAVIS_UPDATE_CHANNEL=stable',
         '--dart-define=NAVIS_SELF_UPDATE=true',
@@ -161,6 +160,7 @@ printf "%s\n" "${ASSET_NAMES[@]}" > "$FIXTURE/assets"
       ]) {
         expect(args.where((arg) => arg == flag), hasLength(2));
       }
+      expect(args, isNot(contains('--obfuscate')));
       expect(args.where((arg) => arg == '--split-per-abi'), hasLength(1));
       for (final (variant, contents) in [
         ('universal', 'universal symbols\n'),
@@ -170,7 +170,7 @@ printf "%s\n" "${ASSET_NAMES[@]}" > "$FIXTURE/assets"
           p.join(
             fixture.path,
             'build',
-            'obfuscation',
+            'symbols',
             'android',
             'v1.5.0',
             variant,

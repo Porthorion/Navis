@@ -7,7 +7,8 @@ mode="${1:?bundle|deb|rpm|all}"; version="${2:?vX.Y.Z}"; prefix="${3:-navis}"
 bundle="${repo}/build/linux/x64/release/bundle"
 [[ -x "${bundle}/navis" && -f "${bundle}/lib/libapp.so" && -f "${bundle}/lib/libmpv.so.2" ]] || { echo 'Incomplete release bundle' >&2; exit 1; }
 mkdir -p "${bundle}/data/licenses"
-install -m 644 "${repo}/LICENSE" "${bundle}/data/licenses/LicenseRef-Navis.txt"
+rm -f "${bundle}/data/licenses/LicenseRef-Navis.txt"
+install -m 644 "${repo}/LICENSE" "${bundle}/data/licenses/GPL-3.0.txt"
 install -m 644 "${repo}/assets/licenses/LGPL-2.1.txt" "${repo}/assets/licenses/libmpv-ffmpeg-NOTICE.txt" "${bundle}/data/licenses/"
 # Strip ELF symbols only. libmpv stays a separate, replaceable shared library.
 while IFS= read -r -d '' elf; do
@@ -36,6 +37,18 @@ if [[ "${prefix}" != navis ]]; then
   while IFS= read -r -d '' icon; do mv "${icon}" "$(dirname "${icon}")/${prefix}.png"; done < <(find "${root}/usr/share/icons" -name navis.png -print0)
 fi
 desktop-file-validate "${root}/usr/share/applications/${prefix}.desktop"
+mkdir -p "${root}/usr/share/doc/${prefix}"
+cat > "${root}/usr/share/doc/${prefix}/copyright" <<COPYRIGHT
+Format: https://www.debian.org/doc/packaging-manuals/copyright-format/1.0/
+Upstream-Name: Navis
+Source: https://github.com/Porthorion/Navis
+
+Files: *
+Copyright: Porthorion and third-party contributors (see bundled notices)
+License: GPL-3.0-or-later AND LGPL-2.1-or-later
+ Full licence texts and libmpv notices are installed under
+ /opt/${prefix}/data/licenses/.
+COPYRIGHT
 if [[ "${mode}" == deb || "${mode}" == all ]]; then
   mkdir -p "${root}/DEBIAN"
   cat > "${root}/DEBIAN/control" <<CONTROL
@@ -48,7 +61,8 @@ Maintainer: ${NAVIS_DEB_MAINTAINER:-Porthorion <support@porthorion.com>}
 Depends: libgtk-3-0, libsecret-1-0, libpulse0, libasound2 | libasound2t64
 Homepage: https://navis.porthorion.com
 Description: Navis music player
- Proprietary Subsonic/OpenSubsonic music player built with Flutter.
+ Open-source Subsonic/OpenSubsonic music player built with Flutter,
+ with a replaceable LGPL libmpv.
 CONTROL
   dpkg-deb --root-owner-group --build "${root}" "${repo}/${prefix}-${version}-linux-amd64.deb"
   rm -rf "${root}/DEBIAN"
@@ -62,7 +76,7 @@ Name: ${prefix}
 Version: ${version#v}
 Release: 1
 Summary: Navis Subsonic/OpenSubsonic music player
-License: LicenseRef-Navis AND LGPL-2.1-or-later
+License: GPL-3.0-or-later AND LGPL-2.1-or-later
 URL: https://navis.porthorion.com
 BuildArch: x86_64
 Requires: gtk3, libsecret, pulseaudio-libs, alsa-lib
@@ -72,7 +86,7 @@ Requires: gtk3, libsecret, pulseaudio-libs, alsa-lib
 %global debug_package %{nil}
 %global __os_install_post %{nil}
 %description
-Proprietary Subsonic/OpenSubsonic music player with a replaceable LGPL libmpv.
+Open-source Subsonic/OpenSubsonic music player with a replaceable LGPL libmpv.
 %install
 mkdir -p %{buildroot}
 cp -a "${root}/." "%{buildroot}/"
@@ -81,6 +95,7 @@ cp -a "${root}/." "%{buildroot}/"
 /opt/${prefix}
 /usr/bin/${prefix}
 /usr/share/applications/${prefix}.desktop
+/usr/share/doc/${prefix}/copyright
 /usr/share/icons/hicolor/*/apps/${prefix}.png
 SPEC
   rpmbuild --define "_topdir ${stage}/rpmbuild" --define '_build_id_links none' -bb "${stage}/navis.spec"

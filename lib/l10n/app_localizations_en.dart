@@ -3839,10 +3839,16 @@ class AppLocalizationsEn extends AppLocalizations {
   String get aboutPrivacyPolicySub => 'The full policy on the Navis website.';
 
   @override
-  String get aboutTerms => 'Terms of use';
+  String get aboutLicense => 'License';
 
   @override
-  String get aboutTermsSub => 'The licence agreement for using Navis.';
+  String get aboutLicenseSub => 'GNU GPL v3.0 or later';
+
+  @override
+  String get aboutSourceCode => 'Source code';
+
+  @override
+  String get aboutReportBug => 'Report a bug';
 
   @override
   String get aboutContact => 'Contact support';
