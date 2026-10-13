@@ -3253,8 +3253,13 @@ these hold; each failure is recorded as a reject reason and nothing is offered:
   `PackageInfo.buildNumber` (`version_not_newer`). Stable and manifests without
   `build` use semver alone; malformed build values reject as `malformed_payload`;
 - the platform's asset key exists (`missing_asset`). Keys are the `UpdateInstallMode`
-  names, with `linuxDeb-<arch>` (`amd64` or `arm64`) for Debian packages. There is no
-  fallback to another architecture or another install mode;
+  names, with `linuxDeb-<arch>` (`amd64` or `arm64`) for Debian packages; Debian never
+  falls back across architectures. Android's existing `com.navis.app/distribution`
+  `getInstallSource` response includes `primaryAbi` from `Build.SUPPORTED_ABIS[0]`.
+  For `arm64-v8a`, `armeabi-v7a` and `x86_64`, the updater prefers
+  `androidApk-<abi>` when present, otherwise `androidApk` (universal). Unknown or
+  unavailable ABIs also use universal. This adds optional asset keys while
+  retaining schema 1 and existing manifests;
 - the asset URL is HTTPS under `AppConstants.updateBaseUrl`, and its `sha256` and `size`
   are well formed (`invalid_asset_url`, `invalid_asset_sha256`, `invalid_asset_size`).
 

@@ -181,8 +181,12 @@ user validates a new one.
 
 ## Google Play Android Releases
 
-Android updates are Play-only for public/release builds. Forgejo releases remain
-the canonical desktop artifact and release-notes record.
+Google Play installs update through the Play Store. Sideload releases include a
+default universal APK plus `arm64-v8a`, `armeabi-v7a` and `x86_64` APKs. From
+1.5.0, the in-app updater reads the signed R2 manifest and downloads the device's
+primary ABI when available, falling back to the universal APK. The 1.5.0 bridge
+release also retains the universal `navis-v1.5.0.apk` on Forgejo for older clients.
+See [the R2 release guide](docs/release-r2.md).
 
 ```bash
 tool/play_release.sh --dry-run

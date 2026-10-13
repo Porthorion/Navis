@@ -1462,7 +1462,7 @@ When a feature, bug fix, or phase is complete and merged to `main`:
 ./tool/release.sh v0.2.0
 ```
 
-This runs the full quality gate, builds a release APK, tags the commit, and publishes the APK to R2 with a signed update manifest (a Forgejo release only with `--forgejo`). See [ci-cd.md](ci-cd.md) for setup details.
+This runs the full quality gate, builds universal and per-architecture release APKs, tags the commit, and publishes the APKs to R2 with a signed update manifest (a Forgejo release only with `--forgejo`). See [ci-cd.md](ci-cd.md) for setup details.
 
 Optional Forgejo publishing requires curl 7.55+ and reads its Authorization header
 from a mode-600 file, cleaned by the release EXIT trap, rather than passing the
@@ -1471,10 +1471,16 @@ token in curl's command-line arguments.
 Windows Inno Setup silent updates relaunch Navis as the original user via
 `runasoriginaluser`; installation elevation is not carried into the app.
 
-For Android releases, `tool/release.sh` cleans stale APK build outputs before
-building, removes an existing same-name root release asset before copying, and
-fails publication if the final APK metadata/signature or release string
-sentinels do not match the expected release.
+For Android releases, `tool/release.sh` builds the default universal
+`navis-<tag>.apk` and splits for `arm64-v8a`, `armeabi-v7a` and `x86_64` named
+`navis-<tag>-android-<abi>.apk`. It stages the universal before cleaning outputs
+for the split build, removes existing same-name root assets before copying,
+and validates every APK's metadata, signature and release strings. Both builds
+keep symbols in separate `universal/` and `split-per-abi/` directories under
+`build/obfuscation/android/<tag>/`. The Gradle property
+`force-version-code-ignoring-abi=true` keeps all APKs at the same version code,
+without Flutter's ABI offsets. The updater selects the primary ABI's split
+when present and otherwise uses the universal; see [release-r2.md](release-r2.md).
 
 `tool/release.sh` fails when the requested version's release tag already
 exists, locally or on origin. A version that `dev` already names in

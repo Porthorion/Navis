@@ -165,16 +165,12 @@ const List<ChangelogVersion> changelogs = [
     ],
     entries: [
       ChangelogEntry(
-        'Library rebuilds refresh queued song and album ratings and keep removed songs out of the library while preserving the queue and permanent downloads',
-        type: ChangelogEntryType.fix,
-      ),
-      ChangelogEntry(
-        'Fixed the play queue being lost after the library rebuild when updating',
-        type: ChangelogEntryType.fix,
-      ),
-      ChangelogEntry(
         'The background sync battery tip no longer reappears every time you open Navis after you choose Later',
         type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
+        'Android downloads are now available per device architecture, and updates choose the matching APK automatically',
+        type: ChangelogEntryType.improvement,
       ),
       ChangelogEntry(
         'Fixed sign-in and playback getting stuck when secure storage is temporarily unavailable',

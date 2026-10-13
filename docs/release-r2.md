@@ -53,9 +53,12 @@ The decoded payload:
 }
 ```
 
-Asset keys are the `UpdateInstallMode` names: `androidApk`, `windowsInstaller`,
-`windowsPortable`, `macosBundle`, `linuxDeb-amd64`, `linuxDeb-arm64` and
-`linuxPortable`. iOS has no updater, so `.ipa` files are not published.
+Asset keys are based on the `UpdateInstallMode` names: `androidApk`,
+`androidApk-arm64-v8a`, `androidApk-armeabi-v7a`, `androidApk-x86_64`,
+`windowsInstaller`, `windowsPortable`, `macosBundle`, `linuxDeb-amd64`,
+`linuxDeb-arm64` and `linuxPortable`. iOS has no updater, so `.ipa` files are
+not published. Additional asset keys do not change schema 1; clients ignore
+keys they do not select.
 
 `build` is an optional integer in the signed payload. Stable compares only
 semver. Dev and staging also accept an equal semver when `build` is greater
@@ -69,6 +72,39 @@ channel, the version/build is newer under those rules, and the asset URL is
 under `AppConstants.updateBaseUrl`. After downloading, it checks the file's
 size and SHA-256 before installing anything. Anyone who can write to the
 bucket can therefore break updates, but cannot ship a different build.
+
+### Android APKs
+
+Starting with 1.5.0, `tool/release.sh <tag> --targets=android` produces all four APKs:
+
+| Asset | Manifest key | Purpose |
+|---|---|---|
+| `navis-<tag>.apk` | `androidApk` | Universal, default manual download and fallback |
+| `navis-<tag>-android-arm64-v8a.apk` | `androidApk-arm64-v8a` | ARM 64-bit |
+| `navis-<tag>-android-armeabi-v7a.apk` | `androidApk-armeabi-v7a` | ARM 32-bit |
+| `navis-<tag>-android-x86_64.apk` | `androidApk-x86_64` | x86 64-bit |
+
+Flutter does not build a 32-bit x86 APK. Keep the universal filename exactly
+`navis-<tag>.apk`: 1.4.x Forgejo clients look for it during the 1.5.0 bridge
+release. Dev-channel `release.sh` builds use the `navis-dev` prefix.
+The 1.5.0+ updater reads `Build.SUPPORTED_ABIS[0]` through the existing Android
+distribution channel and prefers the corresponding split asset. Missing split
+assets, unknown ABIs and unavailable device metadata fall back to `androidApk`.
+The chosen asset still requires the signed URL, size and SHA-256 checks.
+
+`android/gradle.properties` sets `force-version-code-ignoring-abi=true`.
+Flutter's Gradle plugin reads this property and skips its usual split APK
+`abiVersionCode * 1000 + versionCode` override. Universal and split APKs
+therefore share the release build number (10500 for 1.5.0), allowing updates
+between them without an ABI offset causing a downgrade. Every APK must pass
+package, version name/code, release-certificate, secret-scan and release-string
+validation before publication.
+
+The universal APK is copied outside `build/app` before the split build cleans
+its outputs. Both builds use the same sideload flavor, obfuscation and Dart
+defines; their symbols remain separate under
+`build/obfuscation/android/<tag>/universal/` and
+`build/obfuscation/android/<tag>/split-per-abi/`.
 
 ## Publishing
 

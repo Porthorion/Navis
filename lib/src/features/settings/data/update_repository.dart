@@ -209,11 +209,21 @@ class UpdateRepository {
         return reject('malformed_payload');
       }
 
+      final installSource = _isAndroid
+          ? await _installSourceService.getInstallSource()
+          : null;
       final mode = _installModeDetector();
       assetKey = mode == UpdateInstallMode.linuxDeb
           ? 'linuxDeb-${_debArch()}'
           : mode.name;
       final assets = payload['assets'];
+      if (mode == UpdateInstallMode.androidApk && assets is Map) {
+        final abi = installSource?.primaryAbi;
+        if (const {'arm64-v8a', 'armeabi-v7a', 'x86_64'}.contains(abi)) {
+          final splitKey = 'androidApk-$abi';
+          if (assets.containsKey(splitKey)) assetKey = splitKey;
+        }
+      }
       final asset = assets is Map ? assets[assetKey] : null;
       if (asset is! Map) return reject('missing_asset');
       final assetUrl = asset['url'];
@@ -232,7 +242,11 @@ class UpdateRepository {
       final size = asset['size'];
       if (size is! int || size <= 0) return reject('invalid_asset_size');
 
-      final delivery = await _resolveDelivery();
+      final delivery = resolveUpdateDelivery(
+        isAndroid: _isAndroid,
+        selfUpdateBuildEnabled: selfUpdateBuildEnabled,
+        installerPackage: installSource?.installerPackage,
+      );
       final storeRedirect = delivery == UpdateDelivery.storeRedirect;
       final notesUrl = payload['notes_url'];
       final notesUri = notesUrl is String ? Uri.tryParse(notesUrl) : null;
@@ -263,16 +277,6 @@ class UpdateRepository {
       record(rejectReason: 'fetch_failed');
       rethrow;
     }
-  }
-
-  Future<UpdateDelivery> _resolveDelivery() async {
-    if (!_isAndroid) return UpdateDelivery.desktopSelfUpdate;
-    final installSource = await _installSourceService.getInstallSource();
-    return resolveUpdateDelivery(
-      isAndroid: _isAndroid,
-      selfUpdateBuildEnabled: selfUpdateBuildEnabled,
-      installerPackage: installSource?.installerPackage,
-    );
   }
 }
 
