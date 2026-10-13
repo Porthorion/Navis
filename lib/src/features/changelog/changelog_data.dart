@@ -165,6 +165,10 @@ const List<ChangelogVersion> changelogs = [
     ],
     entries: [
       ChangelogEntry(
+        'Library rebuilds refresh queued song and album ratings and keep removed songs out of the library while preserving the queue and permanent downloads',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
         'Fixed the play queue being lost after the library rebuild when updating',
         type: ChangelogEntryType.fix,
       ),

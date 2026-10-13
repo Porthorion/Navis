@@ -25,11 +25,14 @@ import 'package:navis/src/common_widgets/cover_art_cache_manager.dart';
 import 'package:navis/src/features/player/data/radio_metadata_service.dart';
 import 'package:just_audio/just_audio.dart';
 import 'package:navis/src/api/subsonic_api_client.dart';
+import 'package:navis/src/api/models/models.dart' as models;
 import 'package:navis/src/api/subsonic_auth_interceptor.dart';
 import 'package:navis/src/database/navis_database.dart';
 import 'package:navis/src/database/daos/library_dao.dart';
 import 'package:navis/src/database/tables/schema_enums.dart';
 import 'package:navis/src/features/cache/data/rolling_cache_manager.dart';
+import 'package:navis/src/features/library/domain/library_sync_request.dart';
+import 'package:navis/src/features/library/domain/library_sync_state.dart';
 import 'package:navis/src/features/integrations/domain/integration_artwork.dart';
 import 'package:navis/src/features/integrations/domain/integration_feature.dart';
 import 'package:navis/src/features/player/data/listenbrainz_feedback_service.dart';
@@ -42,6 +45,8 @@ import 'package:navis/src/features/player/domain/playback_snapshot.dart';
 import 'package:navis/src/features/player/domain/streaming_quality.dart';
 
 import '../../../../helpers/test_database.dart';
+import '../../../../helpers/library_sync_fakes.dart';
+import '../../../../helpers/library_sync_plan.dart';
 
 class _MockRadioDio extends Mock implements Dio;
 
@@ -7679,6 +7684,56 @@ void main() {
 
     String restoreOutcome(NavisAudioHandler handler) =>
         handler.collectPlaybackDiagnostics()['queueRestoreOutcome']! as String;
+
+    test('restores a reconfirmed song after the library rebuild', () async {
+      final directory = await Directory.systemTemp.createTemp(
+        'navis-rebuilt-queue-restore-',
+      );
+      final api = createApiClient();
+      final (handler, player, database) = await createHandler(
+        directory,
+        1,
+        savedQueueIndex: 0,
+        cacheSongs: false,
+        readApiClient: () => api,
+        seed: (database) async {
+          final repository = await seedSyncSession(database);
+          await database.libraryDao.clearLibraryData();
+          const album = models.Album(
+            id: 'album',
+            name: 'Album',
+            songCount: 1,
+            songs: [
+              models.Song(
+                id: 'song-0',
+                title: 'Reconfirmed song',
+                albumId: 'album',
+              ),
+            ],
+          );
+          final syncApi = FakeLibrarySyncApi()
+            ..fastPathPages[0] = [album]
+            ..albumDetails['album'] = album;
+          final result = await serialDriftEngine(
+            api: syncApi,
+            database: database,
+            repository: repository,
+          ).executeSyncPlan(syncPlanForTest(LibrarySyncPlanKind.fullRepair));
+          expect(result.freshness, LibrarySyncFreshness.current);
+        },
+      );
+      addTearDown(() async {
+        await handler.disposeHandler();
+        await database.close();
+        await directory.delete(recursive: true);
+      });
+      expect(restoreOutcome(handler), 'restored');
+      expect(handler.snapshot.queueSongIds, ['song-0']);
+      expect(handler.snapshot.currentIndex, 0);
+      expect(handler.mediaItem.value?.title, 'Reconfirmed song');
+      expect(player.isPlaying, isFalse);
+      expect(await database.playQueueDao.getQueueItems(), hasLength(1));
+    });
 
     test('retries paused once a session becomes available', () async {
       final directory = await Directory.systemTemp.createTemp(

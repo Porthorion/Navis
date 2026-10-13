@@ -466,6 +466,7 @@ class LibrarySyncCandidateDao extends DatabaseAccessor<NavisDatabase>
                 ..limit(1))
               .getSingleOrNull();
       if (existing == null ||
+          existing.isProvisional ||
           !existing.songsHydrated ||
           !_candidateMatchesExistingAlbum(candidate, existing)) {
         continue;
@@ -630,6 +631,8 @@ class LibrarySyncCandidateDao extends DatabaseAccessor<NavisDatabase>
     required String afterId,
     required int limit,
   }) {
+    // Reset references need absence confirmation even if legacy preservation
+    // made them provisional or they never had server parent IDs.
     return customSelect(
       '''
       SELECT s.*
@@ -640,9 +643,13 @@ class LibrarySyncCandidateDao extends DatabaseAccessor<NavisDatabase>
        AND c.id = s.id
       WHERE c.id IS NULL
         AND s.id > ?3
-        AND s.is_provisional = 0
         AND s.server_deleted_at IS NULL
-        AND (s.album_id IS NOT NULL OR s.artist_id IS NOT NULL)
+        AND (
+          (s.is_provisional = 0
+            AND (s.album_id IS NOT NULL OR s.artist_id IS NOT NULL))
+          OR (s.is_external = 0
+            AND s.catalog_availability = 'pendingRebuild')
+        )
         AND NOT EXISTS (
           SELECT 1
           FROM library_sync_candidate_albums pending

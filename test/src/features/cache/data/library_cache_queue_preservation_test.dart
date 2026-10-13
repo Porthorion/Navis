@@ -110,18 +110,35 @@ void main() {
       expect(await database.playQueueDao.getQueueState(), state);
       expect(
         await database.select(database.songsTable).get(),
-        unorderedEquals(songs),
+        unorderedEquals([
+          for (final song in songs)
+            song.copyWith(
+              isProvisional: true,
+              catalogAvailability: const Value('pendingRebuild'),
+            ),
+        ]),
       );
       expect(
         (await database.select(database.albumsTable).get()).map(
           (row) => row.toJson(),
         ),
-        albums.map((row) => row.toJson()),
+        albums.map((row) => row.copyWith(isProvisional: true).toJson()),
       );
       expect(
         await database.select(database.artistsTable).get(),
-        unorderedEquals(artists),
+        unorderedEquals([
+          for (final artist in artists) artist.copyWith(isProvisional: true),
+        ]),
       );
+      expect(await database.libraryDao.getAllSongs(), isEmpty);
+      expect(await database.libraryDao.searchSongsLocal('Old'), isEmpty);
+      expect(await database.libraryDao.searchSongsLocal(''), isEmpty);
+      expect(await database.libraryDao.searchSongsLocal('Loose'), isEmpty);
+      expect(await database.libraryDao.countSongsByAlbum('album'), 0);
+      expect(await database.libraryDao.watchAlbumCount().first, 0);
+      expect(await database.libraryDao.countArtists(), 0);
+      expect(await database.libraryDao.getAllAlbums(), isEmpty);
+      expect(await database.libraryDao.getAllArtists(), isEmpty);
       expect(
         await database.customSelect('PRAGMA foreign_key_check').get(),
         isEmpty,
@@ -141,6 +158,93 @@ void main() {
       expect(await database.playQueueDao.getQueueItems(), isEmpty);
       expect(await database.playQueueDao.getQueueState(), isNull);
     });
+
+    test(
+      'legacy tree preservation cannot hide reset rows from reconciliation',
+      () async {
+        await seedLibrary();
+        await saveQueue();
+        await reset.reset();
+        final preserved = await database.libraryDao
+            .preserveCachedLegacyRowsAsProvisional(
+              staleArtistIds: ['song-artist'],
+              staleAlbumIds: ['album'],
+              protectedSongIds: ['b'],
+            );
+        expect(preserved.songIds, contains('b'));
+        final stale = await database.librarySyncCandidateDao.getStaleSongsPage(
+          serverId: 1,
+          generation: 1,
+          afterId: '',
+          limit: 10,
+        );
+        expect(stale.map((song) => song.id), ['a', 'b', 'c', 'loose']);
+        expect(stale.every((song) => song.isProvisional), isTrue);
+      },
+    );
+
+    test(
+      'pending album hydration does not reconfirm reset references',
+      () async {
+        await seedLibrary();
+        await saveQueue();
+        await (database.update(
+          database.albumsTable,
+        )..where((table) => table.id.equals('album'))).write(
+          const AlbumsTableCompanion(
+            songsHydrated: Value(true),
+            songCount: Value(3),
+          ),
+        );
+        final album = (await database.libraryDao.getAlbumById('album'))!;
+        await reset.reset();
+        await database.librarySyncCandidateDao.upsertAlbums(
+          serverId: 1,
+          generation: 1,
+          albums: [
+            album
+                .toCompanion(false)
+                .copyWith(songsHydrated: const Value(false)),
+          ],
+        );
+        expect(
+          await database.librarySyncCandidateDao.carryForwardPendingAlbums(
+            serverId: 1,
+            generation: 1,
+          ),
+          isEmpty,
+        );
+        final stale = await database.librarySyncCandidateDao.getStaleSongsPage(
+          serverId: 1,
+          generation: 1,
+          afterId: '',
+          limit: 10,
+        );
+        // Parentless references have no unresolved album protecting them.
+        expect(stale.map((song) => song.id), ['loose']);
+        expect(
+          (await database.libraryDao.getSongById('a'))!.catalogAvailability,
+          'pendingRebuild',
+        );
+        expect(await database.libraryDao.getAllSongs(), isEmpty);
+      },
+    );
+
+    test(
+      'isolated 404 suspicion keeps queued search references searchable',
+      () async {
+        await database.libraryDao.upsertProvisionalSongs([
+          SongsTableCompanion.insert(id: 'reference', title: 'Reference'),
+        ]);
+        await database.playQueueDao.saveQueue(songIds: ['reference']);
+        await database.libraryDao.markSongsSuspectedMissing(['reference']);
+        expect(
+          (await database.libraryDao.searchSongsLocal('Reference'))
+              .map((song) => song.id),
+          ['reference'],
+        );
+      },
+    );
 
     for (final succeeds in [false, true]) {
       test(
@@ -191,6 +295,146 @@ void main() {
       expect(await database.playQueueDao.getQueueState(), isNull);
     });
 
+    for (final rating in [4, null]) {
+      test('rebuild refreshes retained ratings to $rating', () async {
+        final repository = await seedSyncSession(database);
+        await database.libraryDao.upsertArtists([
+          ArtistsTableCompanion.insert(
+            id: 'artist',
+            name: 'Artist',
+            albumCount: const Value(1),
+          ),
+        ]);
+        await database.libraryDao.upsertAlbums([
+          AlbumsTableCompanion.insert(
+            id: 'album',
+            name: 'Album',
+            artistId: const Value('artist'),
+            artistName: const Value('Artist'),
+            songCount: const Value(1),
+            songsHydrated: const Value(true),
+            userRating: const Value(1),
+          ),
+        ]);
+        await database.libraryDao.upsertSongs([
+          SongsTableCompanion.insert(
+            id: 'song',
+            title: 'Song',
+            albumId: const Value('album'),
+            artistId: const Value('artist'),
+            artistName: const Value('Artist'),
+            albumName: const Value('Album'),
+            userRating: const Value(1),
+          ),
+        ]);
+        await database.playQueueDao.saveQueue(songIds: ['song', 'song']);
+        final items = await database.select(database.playQueueItemsTable).get();
+        await reset.reset();
+        final album = Album(
+          id: 'album',
+          name: 'Album',
+          artistId: 'artist',
+          artist: 'Artist',
+          songCount: 1,
+          userRating: rating,
+          songs: [
+            Song(
+              id: 'song',
+              title: 'Song',
+              albumId: 'album',
+              artistId: 'artist',
+              artist: 'Artist',
+              album: 'Album',
+              userRating: rating,
+            ),
+          ],
+        );
+        final api = FakeLibrarySyncApi()
+          ..artists.add(
+            const Artist(id: 'artist', name: 'Artist', albumCount: 1),
+          )
+          ..fastPathPages[0] = [album]
+          ..albumDetails['album'] = album;
+        final result = await serialDriftEngine(
+          api: api,
+          database: database,
+          repository: repository,
+        ).executeSyncPlan(syncPlanForTest(LibrarySyncPlanKind.fullRepair));
+        expect(result.freshness, LibrarySyncFreshness.current);
+        final song = (await database.libraryDao.getSongById('song'))!;
+        final refreshedAlbum = (await database.libraryDao.getAlbumById(
+          'album',
+        ))!;
+        expect(song.userRating, rating);
+        expect(refreshedAlbum.userRating, rating);
+        expect(song.isProvisional, isFalse);
+        expect(song.catalogAvailability, isNull);
+        expect(refreshedAlbum.isProvisional, isFalse);
+        expect(
+          await database.select(database.playQueueItemsTable).get(),
+          items,
+        );
+      });
+    }
+
+    test(
+      'missing downloaded queued song remains playable after rebuild',
+      () async {
+        await seedLibrary();
+        await saveQueue();
+        final repository = await seedSyncSession(database);
+        final directory = await Directory.systemTemp.createTemp(
+          'navis-reset-download-',
+        );
+        addTearDown(() => directory.delete(recursive: true));
+        final file = File.fromUri(directory.uri.resolve('b.mp3'));
+        await file.writeAsBytes([1, 2, 3]);
+        await database.cacheDao.upsertCachedTrack(
+          CachedTracksTableCompanion.insert(
+            songId: 'b',
+            filePath: file.path,
+            fileSize: 3,
+            format: 'mp3',
+            cacheType: CacheType.permanent,
+            downloadStatus: DownloadStatus.complete,
+            lastAccessedAt: DateTime.now(),
+          ),
+        );
+        final items = await database.select(database.playQueueItemsTable).get();
+        final resolver = PlaybackSourceResolver(
+          cacheDao: database.cacheDao,
+          libraryDao: database.libraryDao,
+          rollingCacheManager: RollingCacheManager(cacheDao: database.cacheDao),
+          readApiClient: () => null,
+          readStreamingQuality: () => const StreamingQuality(label: 'wifi'),
+          readRollingCacheDirectory: () async => directory,
+        );
+        await reset.reset();
+        expect(
+          (await resolver.resolveForSong(
+            (await database.libraryDao.getSongById('b'))!,
+          )).uri,
+          file.uri,
+        );
+        final result = await serialDriftEngine(
+          api: FakeLibrarySyncApi(),
+          database: database,
+          repository: repository,
+        ).executeSyncPlan(syncPlanForTest(LibrarySyncPlanKind.fullRepair));
+        expect(result.freshness, LibrarySyncFreshness.current);
+        final missing = (await database.libraryDao.getSongById('b'))!;
+        expect(missing.serverDeletedAt, isNotNull);
+        expect(missing.catalogAvailability, 'confirmedMissing');
+        expect(await database.libraryDao.searchSongsLocal('Old b'), isEmpty);
+        expect((await resolver.resolveForSong(missing)).uri, file.uri);
+        expect(file.existsSync(), isTrue);
+        expect(
+          await database.select(database.playQueueItemsTable).get(),
+          items,
+        );
+      },
+    );
+
     for (final albumRemoved in [false, true]) {
       test(
         'full rescan reconciles missing queued songs: albumRemoved=$albumRemoved',
@@ -234,9 +478,9 @@ void main() {
           final plan = syncPlanForTest(LibrarySyncPlanKind.fullRepair);
           final first = await engine.executeSyncPlan(plan);
           expect(first.status, LibrarySyncStatus.succeeded);
-          // This fixture loses most of its catalog. Normal deletion safety
-          // requires the same complete snapshot twice before promotion.
-          expect(first.freshness, LibrarySyncFreshness.repairRecommended);
+          // Reset references are outside the canonical catalog; the complete
+          // rebuild can publish without deleting their queue occurrences.
+          expect(first.freshness, LibrarySyncFreshness.current);
           final result = await engine.executeSyncPlan(plan);
           expect(result.status, LibrarySyncStatus.succeeded);
           expect(result.freshness, LibrarySyncFreshness.current);
@@ -249,6 +493,19 @@ void main() {
           expect(
             (await database.libraryDao.getAllSongs()).map((song) => song.id),
             isNot(contains('b')),
+          );
+          final loose = (await database.libraryDao.getSongById('loose'))!;
+          expect(loose.albumId, isNull);
+          expect(loose.artistId, isNull);
+          expect(loose.serverDeletedAt, isNotNull);
+          expect(loose.catalogAvailability, 'confirmedMissing');
+          expect(await database.libraryDao.searchSongsLocal('Loose'), isEmpty);
+          expect(await database.libraryDao.searchSongsLocal('Old b'), isEmpty);
+          expect(
+            (await database.playQueueDao.getQueueEntries()).map(
+              (entry) => entry.song.id,
+            ),
+            ['a', 'b', 'a', 'c', 'loose'],
           );
           if (!albumRemoved) {
             final refreshed = (await database.libraryDao.getSongById('a'))!;

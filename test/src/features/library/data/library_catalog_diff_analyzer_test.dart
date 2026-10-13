@@ -74,6 +74,25 @@ void main() {
   });
 
   test(
+    'reset references force apply even with otherwise identical metadata',
+    () async {
+      final database = createTestDatabase();
+      addTearDown(database.close);
+      await _seedMatchingCatalog(database, songCount: 1);
+      await database.playQueueDao.saveQueue(songIds: ['song-0']);
+      await database.libraryDao.clearLibraryData();
+
+      final stats = await LibraryCatalogDiffAnalyzer(database)
+          .analyze(serverId: 1, generation: 2);
+
+      expect(stats.artistChangedCount, 1);
+      expect(stats.albumChangedCount, 1);
+      expect(stats.songChangedCount, 1);
+      expect(stats.unchangedCount, 0);
+    },
+  );
+
+  test(
     'candidate without created preserves an existing server creation date',
     () async {
       final database = createTestDatabase();

@@ -5249,16 +5249,21 @@ download naming throws when all 100 collision candidates are occupied.
    and their files; the upgrade marker is written only after that full scan.
    The reset keeps exactly the song rows referenced by `play_queue_items`,
    their albums, and artists referenced by those songs or albums. Queue items
-   cascade on song deletion; the song and album parent FKs use `SET NULL`, but
-   retaining parents also keeps the server IDs needed by stale-song
-   reconciliation. Saved queue occurrences and playback state stay in the
+   cascade on song deletion; retained songs and parents become provisional.
+   On-server songs awaiting reconfirmation also receive `pendingRebuild`
+   catalog availability, excluding them from normal search even with queue or
+   download references. This is distinct from isolated-404 suspicion, which
+   remains searchable. Saved queue occurrences and playback state stay in the
    database throughout the rebuild, including failed scans and process restarts;
    live queue clears, edits, and shuffle persistence use their existing paths.
    No snapshot, post-scan restoration, or schema change is needed. Authoritative
-   sync upserts re-observed song metadata by ID, including explicit null values,
-   and clears absence/provisional markers. Missing queued songs follow normal
-   reconciliation: they are retained as confirmed-missing with `serverDeletedAt`
-   and excluded from normal library selection. Existing playback source resolution
+   sync force-applies re-observed provisional song and parent metadata by ID,
+   including ratings and explicit null values, and clears availability/provisional
+   markers. Provisional albums cannot carry old songs forward as authoritative
+   hydration. Unresolved candidate albums defer absence confirmation until
+   hydrated. Missing queued songs follow normal reconciliation: they are retained
+   as confirmed-missing with `serverDeletedAt` regardless of parent IDs, and
+   excluded from normal library selection. Existing playback source resolution
    prunes an unavailable retained song and its saved queue occurrences when no
    permanent download remains. An empty queue still clears the whole library.
 

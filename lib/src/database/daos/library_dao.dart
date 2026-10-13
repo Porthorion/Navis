@@ -2667,8 +2667,24 @@ class LibraryDao extends DatabaseAccessor<NavisDatabase>
         updates: {songsTable},
         updateKind: UpdateKind.delete,
       );
-      // Parent deletion uses SET NULL, but stale-song reconciliation needs a
-      // parent ID to recognize retained songs as server-library rows.
+      // Kept rows are references until the rebuild reconfirms them. Availability
+      // distinguishes these provisional songs from playable search results,
+      // and lets a complete scan reconcile them even without parent IDs.
+      await update(songsTable)
+          .write(const SongsTableCompanion(isProvisional: Value(true)));
+      await (update(songsTable)..where(
+            (table) =>
+                table.isExternal.equals(false) & table.serverDeletedAt.isNull(),
+          ))
+          .write(
+            SongsTableCompanion(
+              catalogAvailability: Value(
+                CatalogAvailability.pendingRebuild.name,
+              ),
+            ),
+          );
+      // Keep parent metadata for exact detail and identity reconciliation,
+      // but force server-observed parents through the normal metadata upsert.
       await customUpdate(
         'DELETE FROM albums WHERE id NOT IN '
         '(SELECT album_id FROM songs WHERE album_id IS NOT NULL)',
@@ -2682,6 +2698,10 @@ class LibraryDao extends DatabaseAccessor<NavisDatabase>
         updates: {artistsTable},
         updateKind: UpdateKind.delete,
       );
+      await update(albumsTable)
+          .write(const AlbumsTableCompanion(isProvisional: Value(true)));
+      await update(artistsTable)
+          .write(const ArtistsTableCompanion(isProvisional: Value(true)));
     });
   }
 
@@ -3878,6 +3898,9 @@ class LibraryDao extends DatabaseAccessor<NavisDatabase>
   }
 
   static const String _searchableSongSql = '''
+      (songs.is_provisional = 0 OR
+       COALESCE(songs.catalog_availability, 'present') != 'pendingRebuild')
+      AND
       (
         songs.is_provisional = 0
         OR EXISTS (
