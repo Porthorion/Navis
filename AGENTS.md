@@ -154,7 +154,10 @@ are planning/evidence records, not implementation authority.
 Development happens in Porthorion's private repository (remote `origin`). The public
 source is `https://github.com/Porthorion/Navis` (remote `github`): only `main`,
 `dev` and version tags are pushed there, never feature branches, and public
-issues live on GitHub. Forgejo's public `khalifa/Navis` keeps only a README and
+issues live on GitHub. The maintainer clone gives `origin` two push URLs
+(Forgejo and GitHub), so one `git push origin dev` updates both with no runner
+or mirror; GitHub pull requests are merged locally and pushed back the same way.
+Never force-push shared branches. Forgejo's public `khalifa/Navis` keeps only a README and
 the 1.5.0 bridge release for 1.4.x updaters. Never print credential material.
 
 Tool compatibility entry points are `.cursor/rules/navis-agents.mdc`,
