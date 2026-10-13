@@ -26,13 +26,11 @@ fixes since. Navis pins the LGPL-2.1+ variant from
 v0.41.0-1104-geb0ee1031 (`-Dgpl=false`) and FFmpeg N-127222-g151814650
 (without `--enable-gpl`), with the `volume` and `biquad` filters present.
 
-CMake tries the navis-third-party Forgejo mirror, then
-`https://downloads.porthorion.com/navis/third-party/`, then the pinned upstream
-release. Each attempt is SHA-256 verified; failed or mismatched downloads are
+CMake tries `https://downloads.porthorion.com/navis/third-party/`, then the
+pinned upstream release. Each attempt is SHA-256 verified; failed or mismatched downloads are
 deleted before trying the next URL. A verified build-directory cache works
-offline. Extraction is per archive pin. The mirror keeps old Navis versions
-buildable when upstream prunes daily releases and stays separate from the
-Navis releases read by the app's update check.
+offline. Extraction is per archive pin. The R2 mirror keeps old Navis versions
+buildable when upstream prunes daily releases.
 
 To update the pin:
 
@@ -43,12 +41,11 @@ To update the pin:
    exits 1 for zero matches). Inspect the embedded meson configuration for
    `-Dgpl=false`; confirm the FFmpeg configuration also lacks `--enable-nonfree`
    and that `volume` and `biquad` are available.
-3. Create a `libmpv-windows-x86_64-lgpl-<date>` release in
-   [navis-third-party](https://git.porthorion.com/khalifa/navis-third-party).
-   Attach the binary, `SOURCES.md` (upstream URL, SHA-256, versions, licence
-   and build configuration), and the corresponding mpv/FFmpeg source tarballs.
-   Use the API for `.7z` uploads. Preserve older releases.
-4. Copy the identical archive to R2 at
+3. Upload the binary, `SOURCES.md` (upstream URL, SHA-256, versions, licence
+   and build configuration) and the corresponding mpv/FFmpeg source tarballs
+   to R2 at `navis/third-party/libmpv-windows-x86_64-lgpl-<date>/`. Preserve
+   older folders; the in-app licence notice links to them.
+4. Also copy the archive to the flat path
    `https://downloads.porthorion.com/navis/third-party/<archive-name>` and verify
    its SHA-256 there. Update `LIBMPV`, ordered `LIBMPV_URLS` and
    `LIBMPV_SHA256` in the vendored CMake file.

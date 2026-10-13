@@ -5,8 +5,9 @@ These libraries are dynamically linked as separate shared libraries
 (libmpv-2.dll on Windows / lib/libmpv.so.2 on Linux) that can be replaced.
 
 The corresponding source archives, build configuration and provenance
-(SOURCES.md) are available in the matching navis-third-party releases:
-Windows: https://git.porthorion.com/khalifa/navis-third-party/releases/tag/libmpv-windows-x86_64-lgpl-20261006
-Linux: https://git.porthorion.com/khalifa/navis-third-party/releases/tag/libmpv-linux-x86_64-lgpl-20261007
+(SOURCES.md) are available at:
+Windows: https://downloads.porthorion.com/navis/third-party/libmpv-windows-x86_64-lgpl-20261006/SOURCES.md
+Linux: https://downloads.porthorion.com/navis/third-party/libmpv-linux-x86_64-lgpl-20261007/SOURCES.md
+The other files listed in each SOURCES.md are in the same folder.
 
 For source assistance, write to Porthorion at support@porthorion.com.

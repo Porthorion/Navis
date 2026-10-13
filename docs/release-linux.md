@@ -164,7 +164,7 @@ for them. Custom packages without the bundle need their own system-mpv dependenc
 
 The current archive is `libmpv-linux-x86_64-lgpl-20261007.tar.gz`, SHA-256
 `759bb6586b4d772bb78a565609dcccc5205741c8b1163c1d47ed3493bf227f6e`.
-CMake tries the matching navis-third-party release, then
+CMake downloads
 `https://downloads.porthorion.com/navis/third-party/libmpv-linux-x86_64-lgpl-20261007.tar.gz`.
 Every attempt is verified, failures are deleted, and the archive is cached in
 the CMake build directory. A verified cached archive supports offline builds;
@@ -174,9 +174,10 @@ into the standard bundle `lib/` directory alongside Flutter's libraries.
 To update, use [the build recipe](../tool/libmpv/README.md), check the embedded
 mpv `-Dgpl=false` and absence of FFmpeg `--enable-gpl`/`--enable-nonfree`,
 and review `BUILDINFO.txt`'s ELF dependencies. Package the library, headers and
-recipe under `libmpv-linux-x86_64-lgpl/`, then publish the dated tarball in
-navis-third-party with `SOURCES.md` and the corresponding source archives.
-Copy the identical tarball to the R2 fallback path. Update the filename,
+recipe under `libmpv-linux-x86_64-lgpl/`, then upload the dated tarball,
+`SOURCES.md` and the corresponding source archives to R2 at
+`navis/third-party/<release tag>/`, plus the tarball at the flat
+`navis/third-party/<tarball-name>` path CMake reads. Update the filename,
 ordered URLs and SHA-256 in CMake and the in-app source-location notice.
 
 The Debian package no longer depends on system `libmpv2 | libmpv1`. Its minimal
