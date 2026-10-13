@@ -1312,7 +1312,10 @@ class DownloadService {
   Future<void> _fillWorkers() async {
     if (_stopped || _maintenanceInProgress) return;
     final queue = await _downloadQueueDao.getQueuedItems();
-    if (queue.isEmpty && _folderProblem == DownloadFolderProblem.noSpace) {
+    // In-flight workers may still requeue a no-space failure.
+    if (queue.isEmpty &&
+        _workers.isEmpty &&
+        _folderProblem == DownloadFolderProblem.noSpace) {
       _setFolderProblem(null);
     }
     if (_folderProblem != null || !_readIsOnline()) {
