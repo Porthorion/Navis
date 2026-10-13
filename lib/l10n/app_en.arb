@@ -66,7 +66,7 @@
   "requiredSyncStageFinalizing": "Finalizing library",
   "initialSyncComplete": "Library ready",
   "initialSyncCompletedWithWarnings": "Your library is ready. A few items are still syncing in the background.",
-  "serverOfflineBanner": "Server unreachable. Retrying every 30s.",
+  "serverOfflineBanner": "Offline. Retrying…",
   "serverOfflineChip": "Offline",
   "batteryOptimizationPromptTitle": "Keep Background Sync Alive",
   "batteryOptimizationPromptBody": "Battery optimization is still enabled for Navis. Disabling it helps background sync finish reliably without the system shutting the app down early.",

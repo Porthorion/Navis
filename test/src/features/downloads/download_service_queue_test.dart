@@ -617,6 +617,74 @@ void main() {
     skip: !sqliteAvailable,
   );
 
+  for (final clearAll in [false, true]) {
+    test(
+      '${clearAll ? 'clearing the queue' : 'cancelling the last item'} emits a cleared no-space hold while offline and paused',
+      () async {
+        final service = buildService(readFreeBytes: (_) async => 0);
+        final problems = <DownloadFolderProblem?>[];
+        final subscription = service.folderChanges.listen(problems.add);
+        addTearDown(subscription.cancel);
+        await service.start();
+        await addSongs(1);
+        await service.enqueueSong('song-0');
+        await service.processQueuedDownloads();
+        expect(service.folderProblem, DownloadFolderProblem.noSpace);
+        expect((await queue()).single.status, DownloadStatus.queued);
+        await waitUntil(() => problems.last == DownloadFolderProblem.noSpace);
+
+        online = false;
+        await service.setPaused(paused: true);
+        if (clearAll) {
+          await service.clearQueue();
+        } else {
+          await service.cancelQueueItem((await queue()).single.id);
+        }
+
+        await waitUntil(() => problems.last == null);
+        expect(service.folderProblem, isNull);
+        expect(await queue(), isEmpty);
+        expect(server.requests, isEmpty);
+      },
+      skip: !sqliteAvailable,
+    );
+  }
+
+  for (final problem in [
+    DownloadFolderProblem.unset,
+    DownloadFolderProblem.missing,
+    DownloadFolderProblem.inaccessible,
+  ]) {
+    test(
+      'cancelling the last item preserves the $problem folder problem',
+      () async {
+        final service = buildService(
+          customEnabled: () => true,
+          customPath: () =>
+              problem == DownloadFolderProblem.unset ? null : supportDir.path,
+          validateCustomRoot: (_) async =>
+              throw DownloadFolderUnavailableException(problem),
+        );
+        final problems = <DownloadFolderProblem?>[];
+        final subscription = service.folderChanges.listen(problems.add);
+        addTearDown(subscription.cancel);
+        await service.start();
+        await addSongs(1);
+        await service.enqueueSong('song-0');
+        expect(service.folderProblem, problem);
+
+        await service.cancelQueueItem((await queue()).single.id);
+        await service.processQueuedDownloads();
+
+        expect(await queue(), isEmpty);
+        expect(service.folderProblem, problem);
+        expect(problems, [null, problem]);
+        expect(server.requests, isEmpty);
+      },
+      skip: !sqliteAvailable,
+    );
+  }
+
   test('free space preflight holds all items and automatically resumes after space is freed', () async {
     var free = 1;
     final paths = <String>[];
@@ -820,6 +888,9 @@ void main() {
       await service.enqueuePlaylist('playlist', ['a', 'b']);
       await Future<void>.delayed(Duration.zero);
       expect(notices, [DownloadFolderProblem.noSpace]);
+      await service.setMaxConcurrentDownloads(1);
+      expect(service.folderProblem, DownloadFolderProblem.noSpace);
+      expect(await queue(), hasLength(2));
       expect((await queue()).map((i) => i.retryCount), everyElement(0));
     },
     skip: !sqliteAvailable,

@@ -1310,14 +1310,15 @@ class DownloadService {
   }
 
   Future<void> _fillWorkers() async {
-    if (_stopped ||
-        _maintenanceInProgress ||
-        _folderProblem != null ||
-        !_readIsOnline()) {
+    if (_stopped || _maintenanceInProgress) return;
+    final queue = await _downloadQueueDao.getQueuedItems();
+    if (queue.isEmpty && _folderProblem == DownloadFolderProblem.noSpace) {
+      _setFolderProblem(null);
+    }
+    if (_folderProblem != null || !_readIsOnline()) {
       if (!_readIsOnline()) _retryTimer?.cancel();
       return;
     }
-    final queue = await _downloadQueueDao.getQueuedItems();
     if (queue.isNotEmpty && !await _checkDownloadFolder()) return;
     if (_startupRecoveryPending) {
       await _recoverStartup();

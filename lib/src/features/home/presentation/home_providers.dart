@@ -262,6 +262,7 @@ final class HomeRandomShowcaseTrending extends HomeRandomShowcasePlaylist {
 }
 
 const int _homeRandomShowcaseLimit = 12;
+const int _homeRandomShowcaseMinSongCount = 3;
 const int _homeRandomDiscoverySeedCount = 3;
 const int _homeRandomDiscoveryMinLikedSongs = 5;
 const int _homeRandomDiscoverySongCountPerSeed = 20;
@@ -1980,6 +1981,26 @@ final homeDownloadedRandomAlbumsProvider =
       });
     });
 
+// Stable partition: retain each source's random order within both groups.
+List<HomeRandomShowcaseAlbum> _selectHomeRandomShowcaseAlbums(
+  Iterable<HomeRandomShowcaseAlbum> albums,
+) {
+  final preferred = <HomeRandomShowcaseAlbum>[];
+  final shorter = <HomeRandomShowcaseAlbum>[];
+  for (final album in albums) {
+    if ((album.songCount ?? _homeRandomShowcaseMinSongCount) >=
+        _homeRandomShowcaseMinSongCount) {
+      preferred.add(album);
+    } else {
+      shorter.add(album);
+    }
+  }
+  return [
+    ...preferred,
+    ...shorter,
+  ].take(_homeRandomShowcaseLimit).toList(growable: false);
+}
+
 final homeRandomAlbumShowcaseProvider =
     FutureProvider.family<
       List<HomeRandomShowcaseAlbum>,
@@ -2028,9 +2049,7 @@ final homeRandomAlbumShowcaseProvider =
               shuffleSeed: shuffleSeed,
             );
             if (discovery.length >= _homeRandomDiscoveryMinResults) {
-              return discovery
-                  .take(_homeRandomShowcaseLimit)
-                  .toList(growable: false);
+              return _selectHomeRandomShowcaseAlbums(discovery);
             }
           }
 
@@ -2039,16 +2058,15 @@ final homeRandomAlbumShowcaseProvider =
               homeRandomAlbumsProvider.future,
             );
             if (serverRandom.isNotEmpty) {
-              return serverRandom
-                  .take(_homeRandomShowcaseLimit)
-                  .map(
-                    (album) => HomeRandomShowcaseAlbum.fromServer(
-                      album,
-                      coverArtRevision:
-                          scopedById[album.id]?.coverArtRevision ?? 0,
-                    ),
-                  )
-                  .toList(growable: false);
+              return _selectHomeRandomShowcaseAlbums(
+                serverRandom.map(
+                  (album) => HomeRandomShowcaseAlbum.fromServer(
+                    album,
+                    coverArtRevision:
+                        scopedById[album.id]?.coverArtRevision ?? 0,
+                  ),
+                ),
+              );
             }
           } on Exception {
             // Fall back to local candidates when server random fails.
@@ -2103,10 +2121,9 @@ final homeRandomAlbumShowcaseProvider =
             candidates.length,
       );
       candidates.shuffle(random);
-      return candidates
-          .take(_homeRandomShowcaseLimit)
-          .map(HomeRandomShowcaseAlbum.fromLocal)
-          .toList(growable: false);
+      return _selectHomeRandomShowcaseAlbums(
+        candidates.map(HomeRandomShowcaseAlbum.fromLocal),
+      );
     });
 
 final homeRandomShowcaseProvider =

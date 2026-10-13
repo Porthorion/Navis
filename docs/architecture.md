@@ -3100,6 +3100,13 @@ works like the weekly playlists. `homeTrendingProvider`
   open the Trending page. The row shows the chart's covers and "N of M
   available • Deezer", like the weekly rows' "… • ListenBrainz".
 
+**Hero albums.** The random album showcase prefers releases with at least three
+songs (unknown counts qualify), preserving source order within the preferred
+and shorter groups before taking up to twelve albums. Shorter releases fill
+any remaining slots, including when every candidate is short. Server random,
+liked discovery and local downloaded/liked/offline candidates reuse their
+existing song counts without additional API requests.
+
 **Hero items.** `HomeRandomShowcaseItem` is `sealed`: a
 `HomeRandomShowcaseAlbum`, or a `HomeRandomShowcasePlaylist` (sealed too:
 `HomeRandomShowcaseListenBrainz` or `HomeRandomShowcaseTrending`). The hero
@@ -5426,8 +5433,10 @@ bridge to check persisted access and safe replacement. Permission loss during a
 transfer is also a configuration hold, including filesystem errors wrapped by
 Dio. Workers return to `queued` without increasing retry counts or scheduling
 backoff; other transient transfer failures retain the existing backoff.
-The service exposes hold changes through `downloadFolderProblemProvider`, and
-Downloads shows the existing filled-card notice pattern with **Choose folder**
+A no-space hold clears when no queued items remain, even while offline or
+paused; unset, missing and inaccessible folder problems persist with an empty
+queue. The service exposes hold changes through `downloadFolderProblemProvider`,
+and Downloads shows the existing filled-card notice pattern with **Choose folder**
 and **Use app storage** actions across tabs. Both reuse the same picker,
 confirmation and app-lifetime `CustomDownloadFolderController` as Settings.
 **Use app storage** skips confirmation when the configured path is unset or
