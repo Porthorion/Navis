@@ -36,16 +36,16 @@ During the audit, no application implementation was changed. Real-server work us
 
 | Boundary | Main implementation |
 |---|---|
-| Setup and readiness | [initial_server_sync_provider.dart](lib/src/features/auth/presentation/initial_server_sync_provider.dart), [session_route_provider.dart](lib/src/features/auth/presentation/session_route_provider.dart) |
-| UI scheduling/coalescing | [library_sync_provider.dart](lib/src/features/library/presentation/library_sync_provider.dart) |
-| Planning and execution ownership | [library_sync_planner.dart](lib/src/features/library/data/library_sync_planner.dart), [adaptive_library_sync_coordinator.dart](lib/src/features/library/data/adaptive_library_sync_coordinator.dart), [sync_run_contract.dart](lib/src/features/library/domain/sync_run_contract.dart) |
-| Catalog, targets, and auxiliary execution | [library_sync_engine.dart](lib/src/features/library/data/library_sync_engine.dart) |
-| Candidate storage, diff and visibility | [library_sync_candidate_dao.dart](lib/src/database/daos/library_sync_candidate_dao.dart), [library_catalog_diff_analyzer.dart](lib/src/features/library/data/library_catalog_diff_analyzer.dart), [library_dao.dart](lib/src/database/daos/library_dao.dart) |
-| Durable work, leases, history, mutations | [library_sync_dao.dart](lib/src/database/daos/library_sync_dao.dart) |
-| Source and identity | [catalog_source.dart](lib/src/utils/catalog_source.dart), [song_identity_reconciler.dart](lib/src/features/library/data/song_identity_reconciler.dart), [song_identity_dao.dart](lib/src/database/daos/song_identity_dao.dart) |
-| Protocol | [subsonic_api_client.dart](lib/src/api/subsonic_api_client.dart) |
-| Playlists and likes | [playlist_dao.dart](lib/src/database/daos/playlist_dao.dart), [playlist_providers.dart](lib/src/features/playlists/presentation/playlist_providers.dart), [star_sync_dispatch_provider.dart](lib/src/features/library/presentation/star_sync_dispatch_provider.dart), [star_sync_dao.dart](lib/src/database/daos/star_sync_dao.dart) |
-| Android background | [android_background_sync_entrypoint.dart](lib/src/features/library/data/android_background_sync_entrypoint.dart), [android_background_sync.dart](lib/src/features/library/data/android_background_sync.dart), [NavisBackgroundSyncWorker.kt](android/app/src/main/kotlin/com/navis/app/navis/NavisBackgroundSyncWorker.kt) |
+| Setup and readiness | [initial_server_sync_provider.dart](../../lib/src/features/auth/presentation/initial_server_sync_provider.dart), [session_route_provider.dart](../../lib/src/features/auth/presentation/session_route_provider.dart) |
+| UI scheduling/coalescing | [library_sync_provider.dart](../../lib/src/features/library/presentation/library_sync_provider.dart) |
+| Planning and execution ownership | [library_sync_planner.dart](../../lib/src/features/library/data/library_sync_planner.dart), [adaptive_library_sync_coordinator.dart](../../lib/src/features/library/data/adaptive_library_sync_coordinator.dart), [sync_run_contract.dart](../../lib/src/features/library/domain/sync_run_contract.dart) |
+| Catalog, targets, and auxiliary execution | [library_sync_engine.dart](../../lib/src/features/library/data/library_sync_engine.dart) |
+| Candidate storage, diff and visibility | [library_sync_candidate_dao.dart](../../lib/src/database/daos/library_sync_candidate_dao.dart), [library_catalog_diff_analyzer.dart](../../lib/src/features/library/data/library_catalog_diff_analyzer.dart), [library_dao.dart](../../lib/src/database/daos/library_dao.dart) |
+| Durable work, leases, history, mutations | [library_sync_dao.dart](../../lib/src/database/daos/library_sync_dao.dart) |
+| Source and identity | [catalog_source.dart](../../lib/src/utils/catalog_source.dart), [song_identity_reconciler.dart](../../lib/src/features/library/data/song_identity_reconciler.dart), [song_identity_dao.dart](../../lib/src/database/daos/song_identity_dao.dart) |
+| Protocol | [subsonic_api_client.dart](../../lib/src/api/subsonic_api_client.dart) |
+| Playlists and likes | [playlist_dao.dart](../../lib/src/database/daos/playlist_dao.dart), [playlist_providers.dart](../../lib/src/features/playlists/presentation/playlist_providers.dart), [star_sync_dispatch_provider.dart](../../lib/src/features/library/presentation/star_sync_dispatch_provider.dart), [star_sync_dao.dart](../../lib/src/database/daos/star_sync_dao.dart) |
+| Android background | [android_background_sync_entrypoint.dart](../../lib/src/features/library/data/android_background_sync_entrypoint.dart), [android_background_sync.dart](../../lib/src/features/library/data/android_background_sync.dart), [NavisBackgroundSyncWorker.kt](../../android/app/src/main/kotlin/com/navis/app/navis/NavisBackgroundSyncWorker.kt) |
 
 Line numbers cited below refer to this working-tree audit; named symbols are the stable lookup points.
 
@@ -114,7 +114,7 @@ Local artifacts (ignored `build/`, may be deleted by cleaning):
 - `build/sync-diagnostics/20260919T120805Z-full-rescan/`
 - `build/sync-audit-1-4-0/runtime/`: incremental, offline setup, first-sync, and clean-restart evidence.
 
-The permanent [reproduction appendix](docs/audits/sync-1-4-0-reproductions.md) preserves the sanitized runnable fixture source. This plan preserves the important measurements so cleaning `build/` does not erase the conclusions. Credentials, database copies, raw app logs, bearer handshakes, and user media metadata are not part of that appendix.
+The permanent [reproduction appendix](../audits/sync-1-4-0-reproductions.md) preserves the sanitized runnable fixture source. This plan preserves the important measurements so cleaning `build/` does not erase the conclusions. Credentials, database copies, raw app logs, bearer handshakes, and user media metadata are not part of that appendix.
 
 ## 5. Reproduced findings
 

@@ -64,7 +64,7 @@ endfunction()
 # Navis-owned audio-only LGPL-2.1+ cross-build; mpv and FFmpeg match Linux.
 # All static media dependency sources, recipe and BUILDINFO accompany the ZIP.
 # Includes FFmpeg volume/biquad/equalizer and mpv's internal scaletempo.
-# See tool/libmpv/README.md and docs/release-windows.md to rebuild/update.
+# See tool/libmpv/README.md and docs/release/release-windows.md to rebuild/update.
 set(LIBMPV "libmpv-windows-x86_64-lgpl-20261013.zip")
 
 # We own this build: only the per-build R2 folder supplies the archive.

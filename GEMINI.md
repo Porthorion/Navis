@@ -1,7 +1,7 @@
 # Navis instructions for Gemini
 
 Read [AGENTS.md](AGENTS.md) first. The canonical policy is
-[docs/agentic-engineering.md](docs/agentic-engineering.md), and
+[docs/development/agentic-engineering.md](docs/development/agentic-engineering.md), and
 [docs/README.md](docs/README.md) maps the project documentation.
 
 Before editing, inspect the relevant implementation, callers, configuration,

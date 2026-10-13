@@ -1,7 +1,0 @@
-debug
-package: name='com.navis.app.navis.dev' versionCode='10400' versionName='1.4.0-sidecar' platformBuildVersionName='17' platformBuildVersionCode='37' compileSdkVersion='37' compileSdkVersionCodename='17'
-application-label:'Navis Dev'
-
-release
-package: name='com.navis.app.navis.dev' versionCode='10400' versionName='1.4.0-sidecar' platformBuildVersionName='17' platformBuildVersionCode='37' compileSdkVersion='37' compileSdkVersionCodename='17'
-application-label:'Navis Dev'

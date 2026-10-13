@@ -63,4 +63,4 @@ rule also holds in tests; drive changes through taps and callbacks.
 Run the focused file → read the failing matcher's FlutterError → adjust the
 widget or assertion → rerun. Visible UI changes additionally need the runtime
 loop and a screenshot via `POST /v1/presentation/screenshot` (see
-`docs/development-workflow.md`); widget tests alone do not certify rendering.
+`docs/development/development-workflow.md`); widget tests alone do not certify rendering.

@@ -4,7 +4,7 @@ Scope: loading, sync, playback, caching, downloads, search, rendering and
 memory on desktop (Linux) and mobile (Android), against the live Navidrome
 0.64 server with a 56,300-track library (5,653 albums, 1,780 artists).
 
-Measurement uses `tool/perf_diagnostics.py` (see `docs/development-workflow.md`):
+Measurement uses `tool/perf_diagnostics.py` (see `docs/development/development-workflow.md`):
 an isolated profile build, bounded scenarios driven through the authenticated
 diagnostics API, and one summary per run. "Before" is `63116df7` plus only the
 diagnostics additions; "after" is the audit branch. Android numbers come from

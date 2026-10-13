@@ -18,7 +18,7 @@ description: Diagnose and fix Flutter layout errors in Navis — "RenderFlex ove
   down the window size from the screenshot via `POST /v1/presentation/screenshot`,
   then write the failing widget test at that size before fixing. Do not debug
   layout by window scraping or OCR — the diagnostics API is the sanctioned
-  runtime channel (see `docs/development-workflow.md`).
+  runtime channel (see `docs/development/development-workflow.md`).
 - Write a regression widget test at the failing size; keep it after the fix.
 
 ## Error signatures

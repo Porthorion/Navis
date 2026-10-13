@@ -42,7 +42,7 @@ folders. Upload only into the per-build folder, with no flat copy. Verify the
 tarball at `https://downloads.porthorion.com/navis/third-party/libmpv-linux-x86_64-lgpl-<date>/<tarball-name>`.
 Update the filename, ordered URLs and SHA-256 in `linux/CMakeLists.txt`, plus
 the in-app source location in `assets/licenses/libmpv-ffmpeg-NOTICE.txt`.
-See [the Linux release guide](../../docs/release-linux.md) for the current pin,
+See [the Linux release guide](../../docs/release/release-linux.md) for the current pin,
 runtime dependencies and packaging validation.
 
 ## Windows
@@ -90,7 +90,7 @@ Windows vendored CMake filename, its sole R2 URL and SHA-256, plus the Windows
 line in `assets/licenses/libmpv-ffmpeg-NOTICE.txt` and its licence test.
 Run the offline download checks for both platforms and the licence/changelog
 tests; validate real playback on Windows as described in
-[the release guide](../../docs/release-windows.md#bundled-libmpv).
+[the release guide](../../docs/release/release-windows.md#bundled-libmpv).
 The build does not upload or publish anything. Ubuntu packages are not
 snapshot-pinned, so compare BUILDINFO on rebuilds; equal hashes are not promised
 across toolchain updates. Remove only task-owned Docker images and build caches.

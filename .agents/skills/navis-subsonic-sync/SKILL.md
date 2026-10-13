@@ -13,7 +13,7 @@ metadata:
 # Navis Subsonic API and Synchronization
 
 Task-scoped workflow for API and sync work. AGENTS.md and
-`docs/agentic-engineering.md` are always loaded and govern scope and
+`docs/development/agentic-engineering.md` are always loaded and govern scope and
 validation. The clients live under `lib/src/api/` (Subsonic, Last.fm,
 LRCLIB); sync persistence flows through `lib/src/database/`.
 
@@ -77,7 +77,7 @@ initial request. Preserve the secure-storage abstractions; never disable
 certificate verification, enable insecure networking globally, change server
 credentials, or upgrade auth schemes to make a test pass. Use locally
 controlled fixtures or the explicitly authorized development server
-(`docs/development-workflow.md`); no real server writes are needed for unit
+(`docs/development/development-workflow.md`); no real server writes are needed for unit
 tests.
 
 ## Regression coverage and verification
@@ -93,7 +93,7 @@ patterns in the `dart-add-unit-test` skill).
 
 Run focused tests, `flutter analyze --no-fatal-infos`, and `./tool/check.sh`.
 Runtime-affecting sync work needs the authenticated diagnostics-API loop from
-`docs/development-workflow.md` against the authorized dev server.
+`docs/development/development-workflow.md` against the authorized dev server.
 
 ## Primary references
 

@@ -2,7 +2,7 @@
 # tool/r2_publish.sh — publish Navis update artifacts and a signed manifest to R2.
 #
 # Navis 1.5.0+ reads https://downloads.porthorion.com/navis/channels/<channel>/manifest.json.
-# See docs/release-r2.md for the bucket layout, manifest schema and key handling.
+# See docs/release/release-r2.md for the bucket layout, manifest schema and key handling.
 #
 # Usage:
 #   ./tool/r2_publish.sh publish --tag=<vX.Y.Z> --channel=<stable|dev|staging> [--notes-file=<md>] FILE...

@@ -23,4 +23,4 @@ our build captures all statically linked playback dependencies.
 The release operator publishes the archive, SOURCES.md and every source
 archive into `navis/third-party/libmpv-windows-x86_64-lgpl-<date>/`, with
 no flat copy. Rebuild/update instructions are in `tool/libmpv/README.md`
-and `docs/release-windows.md`. There is no upstream download fallback.
+and `docs/release/release-windows.md`. There is no upstream download fallback.

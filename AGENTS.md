@@ -6,7 +6,7 @@ The current version and supported SDK constraints live in `pubspec.yaml`.
 ## Start here
 
 1. Read [docs/README.md](docs/README.md), then the relevant subsystem document.
-2. Read [docs/agentic-engineering.md](docs/agentic-engineering.md) before
+2. Read [docs/development/agentic-engineering.md](docs/development/agentic-engineering.md) before
    changing implementation, tooling, or documentation.
 3. Inspect the relevant implementation, interfaces, callers, configuration,
    and tests before editing. Search before loading unrelated large files.
@@ -14,13 +14,16 @@ The current version and supported SDK constraints live in `pubspec.yaml`.
    same change. Record material removals or deprecations in
    [docs/history/removed-features.md](docs/history/removed-features.md).
 5. Select focused validation first. Runtime-affecting work must complete the
-   runtime loop in [docs/development-workflow.md](docs/development-workflow.md).
-6. Review the complete diff and run `./tool/check.sh` before handoff, except
+   runtime loop in [docs/development/development-workflow.md](docs/development/development-workflow.md).
+6. Update `docs/project/progress.md` with completion evidence. New implementation
+   plans belong in `docs/plans/`; completed plans go in
+   `docs/history/completed-plans/`.
+7. Review the complete diff and run `./tool/check.sh` before handoff, except
    for documentation-only changes where proportional validation is sufficient.
 
 `AGENTS.md` is the concise, always-loaded entry point. The canonical workflow,
 definition of done, documentation lifecycle, and tool-neutral policy are in
-`docs/agentic-engineering.md`; do not duplicate that policy in tool-specific
+`docs/development/agentic-engineering.md`; do not duplicate that policy in tool-specific
 files. More-specific instructions, if present, override this file for their
 directory.
 
@@ -70,7 +73,7 @@ flows and platform contracts.
 - If the version in `pubspec.yaml` is already released (its `v<version>` tag
   exists), start the next version before new work: bump it and add its
   changelog entry. Patch +0.0.1 for fixes, minor +0.1.0 for reworks, major
-  only for a milestone; see "Versioning" in `docs/agentic-engineering.md`.
+  only for a milestone; see "Versioning" in `docs/development/agentic-engineering.md`.
 - Listen Together/Voyage is retired. Do not restore its networking, sessions,
   settings, queue sync, or visible UI without an explicit product decision.
 - Genres are not a Navis concept: no genre page, route, Library section, Home
@@ -94,8 +97,8 @@ flutter analyze --no-fatal-infos
 `check.sh` runs formatting, code generation, analysis, migration and critical
 reliability tests, then the full test suite. It also treats ad-hoc database
 construction and provider mutation during build as hard failures. Use
-`docs/development-workflow.md` for isolated diagnostics, app API control,
-screenshots, and platform-specific validation; use `docs/ci-cd.md` for release
+`docs/development/development-workflow.md` for isolated diagnostics, app API control,
+screenshots, and platform-specific validation; use `docs/development/ci-cd.md` for release
 and CI-equivalent gates.
 
 The dead-code gate checks public Dart declarations, l10n keys, declared assets
@@ -111,7 +114,7 @@ without reasons go to a pending file and the update is refused.
 
 Android runtime evidence can use a temporary emulator that you create, use
 and delete yourself; see "Temporary Android emulators" in
-`docs/development-workflow.md`. Never wipe or uninstall from an emulator you
+`docs/development/development-workflow.md`. Never wipe or uninstall from an emulator you
 did not start.
 
 For visible Flutter changes, inspect an app-owned screenshot from
@@ -126,14 +129,14 @@ test requires them.
 |---|---|
 | Architecture, routing, providers, playback, adaptive layout | `docs/architecture.md` |
 | Schema or migration | relevant architecture detail + migration test |
-| Quality gate or `tool/*` behavior | `docs/ci-cd.md` and `docs/development-workflow.md` |
+| Quality gate or `tool/*` behavior | `docs/development/ci-cd.md` and `docs/development/development-workflow.md` |
 | User-visible behavior | `changelog_data.dart` (feeds the release notes) |
 | Platform support or public capability | `README.md` and relevant docs |
 | Material removal/deprecation | `docs/history/removed-features.md` |
-| Engineering workflow/policy | `docs/agentic-engineering.md` and this entry point if needed |
+| Engineering workflow/policy | `docs/development/agentic-engineering.md` and this entry point if needed |
 
 Keep active docs current; historical docs explain prior behavior and must not
-be presented as current implementation. `DEVELOPMENT_PLAN.md` and `PROGRESS.md`
+be presented as current implementation. `docs/project/development-plan.md` and `docs/project/progress.md`
 are planning/evidence records, not implementation authority.
 
 ## Platform notes

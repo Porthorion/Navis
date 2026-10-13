@@ -6,7 +6,7 @@ description: Write Effective Dart doc comments (`///`) for Navis code — tone, 
 # Writing Dart Doc Comments in Navis
 
 Follow Effective Dart: Documentation. Comments exist to explain constraints
-and *why* — repo policy (`docs/agentic-engineering.md`) bans narration of
+and *why* — repo policy (`docs/development/agentic-engineering.md`) bans narration of
 obvious control flow and AI-noise commentary; these rules complement that.
 
 ## Scope

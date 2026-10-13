@@ -6,7 +6,7 @@
 #
 # A version has shipped once its release tag (e.g. v1.4.1) exists, locally or
 # on origin; tool/release.sh creates and pushes that tag. pubspec.yaml is not
-# the signal: work on the next version sets it early (docs/agentic-engineering.md
+# the signal: work on the next version sets it early (docs/development/agentic-engineering.md
 # "Versioning"), so it already names a version that has not been released.
 #
 # --local-only checks only local tags for build-only staging; it never contacts

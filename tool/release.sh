@@ -3,7 +3,7 @@
 #
 # Builds selected release artifacts, bumps pubspec.yaml, tags/merges/pushes,
 # and publishes the assets plus a signed update manifest to R2
-# (tool/r2_publish.sh, docs/release-r2.md). With --forgejo it also creates a
+# (tool/r2_publish.sh, docs/release/release-r2.md). With --forgejo it also creates a
 # Forgejo release, which is how 1.4.x installs find 1.5.0.
 #
 # Usage:
@@ -400,7 +400,7 @@ DART_DEFINE_ARGS=("--dart-define=NAVIS_UPDATE_CHANNEL=${UPDATE_CHANNEL}")
 
 # The Last.fm key is bundled masked (key XOR a per-build random pad) through a
 # private defines file, not on the script's own command lines. This deters casual extraction;
-# it is not secrecy. See docs/release-secrets.md.
+# it is not secrecy. See docs/release/release-secrets.md.
 SECRET_TMP_DIR=""
 LASTFM_DEFINES_FILE=""
 DIST_TMP_DIR=""

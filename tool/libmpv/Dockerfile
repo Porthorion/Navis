@@ -1,5 +1,5 @@
 # LGPL libmpv for Navis Linux bundles. Ubuntu 22.04 keeps the glibc baseline
-# of the Linux release build (docs/release-linux.md).
+# of the Linux release build (docs/release/release-linux.md).
 FROM ubuntu:22.04
 ARG DEBIAN_FRONTEND=noninteractive
 RUN apt-get update && apt-get install -y --no-install-recommends \

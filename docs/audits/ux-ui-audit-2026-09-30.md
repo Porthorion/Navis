@@ -1,7 +1,7 @@
 # UX/UI audit — 2026-09-30
 
 This audit covers the desktop and mobile clients before the 1.4.0 release. It
-extends [design-ux-audit.md](../design-ux-audit.md) and does not replace it.
+extends [design-ux-audit.md](design-ux-audit-2026-10-01.md) and does not replace it.
 The motion, Hero and navigation findings recorded there remain current.
 
 The implementation decision is recorded in
