@@ -146,6 +146,13 @@ app.*.symbols
 *.rpm
 *.AppImage
 
+/dist/
+navis-dev-v*.apk
+navis-dev-v*.ipa
+navis-dev-v*-windows.zip
+navis-dev-v*-windows-installer.exe
+navis-dev-v*-macos.zip
+
 # Release artifacts (created by tool/release.sh, uploaded to Forgejo)
 navis-v*.apk
 navis-v*-linux.tar.gz

@@ -1464,6 +1464,19 @@ When a feature, bug fix, or phase is complete and merged to `main`:
 
 This runs the full quality gate, builds universal and per-architecture release APKs, tags the commit, and publishes the APKs to R2 with a signed update manifest (a Forgejo release only with `--forgejo`). See [ci-cd.md](ci-cd.md) for setup details.
 
+To build ahead of publication, use `release.sh <tag> --build-only` with the
+usual target/package options. It requires the release version already committed,
+validates the same artifacts and stages them under `dist/<tag>/` with checksums,
+source metadata and release notes, then stops before Git or release mutations.
+`release.sh <tag> --publish-from=dist/<tag>` verifies the bundle and requires a
+clean branch at its source commit before running the normal remote checks and
+Git/publication flow; it never rebuilds and keeps the dist files. Use `--forgejo`
+on the 1.5.0 publish command. Both modes accept `--skip-checks` for separately
+validated releases. The exact Linux-host commands and headless package checks
+are in [release-from-linux.md](release-from-linux.md#build-and-verify-150-now-publish-those-files-later).
+Focused tooling coverage is `flutter test --concurrency=4 --timeout 60s
+test/tool/release_dist_test.dart` (fixture commands only; no builds or remotes).
+
 Optional Forgejo publishing requires curl 7.55+ and reads its Authorization header
 from a mode-600 file, cleaned by the release EXIT trap, rather than passing the
 token in curl's command-line arguments.

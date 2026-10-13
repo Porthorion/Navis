@@ -206,6 +206,80 @@ instructions.
 
 ## Full Multi-Platform Release
 
+### Build and verify 1.5.0 now; publish those files later
+
+From a clean, committed checkout with `pubspec.yaml` at `1.5.0+10500`:
+
+```bash
+./tool/release.sh v1.5.0 --build-only --skip-checks \
+  --targets=android,linux,windows --channel=stable \
+  --linux-package=all --windows-package=exe \
+  --windows-ssh=khalifa@192.168.122.100 --forgejo
+```
+
+This runs the existing universal and split Android builds, Ubuntu 22.04 Linux
+container build (tar.gz, deb and rpm from one bundle), and remote Windows Inno
+installer build. It preserves obfuscation, local symbols, masked Last.fm
+defines, channel and Android self-update flags. Every APK passes the normal
+metadata, signer and string checks; Linux packaging retains its bundle,
+glibc and desktop-entry checks, and every artifact passes the secret scan.
+Android signing and Last.fm configuration are required now; R2 credentials,
+the update signing key and Forgejo token are needed only on release day.
+RPM scanning requires `bsdtar` on this host.
+
+`--build-only` checks local Git state/tags without querying origin or R2.
+It copies all eight artifacts to the git-ignored `dist/v1.5.0/` and stops
+before any version change, commit, merge, tag, push or publication:
+
+- `navis-v1.5.0.apk`
+- `navis-v1.5.0-android-arm64-v8a.apk`
+- `navis-v1.5.0-android-armeabi-v7a.apk`
+- `navis-v1.5.0-android-x86_64.apk`
+- `navis-v1.5.0-linux.tar.gz`
+- `navis-v1.5.0-linux-amd64.deb`
+- `navis-v1.5.0-linux-x86_64.rpm`
+- `navis-v1.5.0-windows-installer.exe`
+
+The bundle also contains `assets.txt` (one filename per line), `release.json`
+(tag, channel, source commit and prerelease state), `release-notes.md`, and
+`SHA256SUMS` covering the assets and those three handoff files. A repeat build
+refuses to overwrite an existing dist directory. Keep the verified directory
+and `build/obfuscation/`; symbols are never published. Root artifact copies
+remain available for the existing headless package verification:
+
+```bash
+(cd dist/v1.5.0 && sha256sum -c SHA256SUMS)
+./tool/linux/verify_packages.sh v1.5.0
+```
+
+The Windows builder must be running and reachable over SSH. Compilation and
+Inno packaging are headless and do not require a desktop login. Log in to the
+VM only when performing interactive installer/app verification. macOS and iOS
+still require a Mac; `--all-platforms` cannot build them from Linux.
+
+On release day, from a clean branch at the **same source commit**, with R2 and
+Forgejo settings provisioned, run the command printed by build-only:
+
+```bash
+./tool/release.sh v1.5.0 --publish-from=dist/v1.5.0 --skip-checks --forgejo
+```
+
+This verifies the entire bundle and source commit before remote release
+preconditions, skips all builds, then uses the existing fast-forward merge,
+tag and push flow, `r2_publish.sh publish`, and Forgejo bridge release creation.
+Both destinations receive the files named in `assets.txt` from dist, including
+the unchanged universal APK, Windows installer, Debian and portable Linux
+names that 1.4.x clients recognize. Stale root/build outputs cannot be selected.
+The dist bundle remains after success or failure. R2 retries skip identical
+uploads and refuse different bytes; after a tag was created, a retry also needs
+`--allow-existing-version`. Forgejo creation retains its existing behavior:
+if the release was already created, resolve that partial release before
+retrying with `--forgejo`.
+
+These commands explicitly use `--skip-checks` to avoid `tool/check.sh`; run
+the owner's chosen focused validation separately before building. Build-only
+does not establish that the release-day remote preconditions will pass.
+
 ### Android + Linux + Windows (from Linux)
 
 ```bash
