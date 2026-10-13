@@ -1,0 +1,73 @@
+name: Bug report
+description: Something in Navis does not work as expected
+labels: [bug]
+body:
+  - type: input
+    id: version
+    attributes:
+      label: Navis version
+      description: Settings › About
+      placeholder: "1.5.0"
+    validations:
+      required: true
+  - type: dropdown
+    id: platform
+    attributes:
+      label: Platform
+      options: [Android, Windows, Linux deb, Linux rpm, Linux portable, Other]
+    validations:
+      required: true
+  - type: input
+    id: os
+    attributes:
+      label: OS version
+      placeholder: "Android 14, Windows 11 23H2, Ubuntu 24.04"
+    validations:
+      required: true
+  - type: dropdown
+    id: server
+    attributes:
+      label: Server software
+      options: [Navidrome, Gonic, Airsonic, Other]
+    validations:
+      required: true
+  - type: input
+    id: server_version
+    attributes:
+      label: Server version
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1.
+        2.
+        3.
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behaviour
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual behaviour
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs and screenshots
+      description: Drag files in or paste text.
+  - type: checkboxes
+    id: redacted
+    attributes:
+      label: Privacy
+      options:
+        - label: I removed passwords, tokens and server credentials from any logs and screenshots.
+          required: true

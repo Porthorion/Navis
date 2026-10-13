@@ -148,8 +148,7 @@ are planning/evidence records, not implementation authority.
 
 ## Repository operations
 
-Development happens in the private Forgejo repository
-`https://git.porthorion.com/khalifa/Navis-dev` (remote `origin`). The public
+Development happens in Porthorion's private repository (remote `origin`). The public
 source is `https://github.com/Porthorion/Navis` (remote `github`): only `main`,
 `dev` and version tags are pushed there, never feature branches, and public
 issues live on GitHub. Forgejo's public `khalifa/Navis` keeps only a README and

@@ -61,7 +61,7 @@ line, or diagnostics export) per row.
 
 ## Recording results
 
-Append a short results block to `Fix_Stale_Cache_Execution_Plan.md` Stage 12
+Append a short results block to `docs/plans/Fix_Stale_Cache_Execution_Plan.md` Stage 12
 with device/Android version, pass/fail per section, and any diagnostics
 exports. Android remains "user-pending" in the plan's acceptance until this
 checklist is run.

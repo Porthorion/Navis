@@ -165,7 +165,7 @@ this host all equal `b1772918…`. No Pub package version in the lockfile has an
 - compileSdk 37, targetSdk 36 and minSdk 24 are at or above Flutter's defaults (36/36/24).
 
 ## Overlap with codex/dependency-upgrades
-- `/home/khalifa/.codex/worktrees/dependency-upgrades/Navis` is uncommitted work: 551 files, on base `646275b8`
+- `~/.codex/worktrees/dependency-upgrades/Navis` is uncommitted work: 551 files, on base `646275b8`
   (2026-09-26).
 - It already covers:
   - root pub bumps: dio, drift/drift_dev 2.35.0, sqlite3 3.6.0, file_picker 13, android_file_picker 2,

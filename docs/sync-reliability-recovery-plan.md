@@ -316,5 +316,5 @@ existence as visual evidence.
 The dedicated implementation and completion plan for scan-aware promotion,
 identity relinking, catalog availability, recovery review, starred refresh,
 and artwork failure recovery lives in
-[Fix_Stale_Cache_Execution_Plan.md](../Fix_Stale_Cache_Execution_Plan.md)
-(repo root) with its parent plan [Fix_Stale_Cache_Plan.md](../Fix_Stale_Cache_Plan.md).
+[Fix_Stale_Cache_Execution_Plan.md](plans/Fix_Stale_Cache_Execution_Plan.md)
+with its parent plan [Fix_Stale_Cache_Plan.md](plans/Fix_Stale_Cache_Plan.md).

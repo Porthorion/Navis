@@ -437,7 +437,7 @@ git commit -m "fix: release the Personal Radio pool when it expires" -m "Recomme
 - [ ] **Step 4: Merge and push.** In the main checkout (clean `dev`), run `git merge --no-ff fix/radio-pool-memory`, then `git push origin dev`.
 - [ ] **Step 5: Publish the dev build.**
   1. Make a worktree at the merged `dev` and copy in `tool/release.env`, `android/key.properties` and `android/app/navis-release.jks` from the main checkout.
-  2. Run `JAVA_HOME=/home/khalifa/android-studio/jbr PATH=$JAVA_HOME/bin:$PATH ./tool/dev_release.sh` there. It builds the Navis Dev **sidecar** (`com.navis.app.navis.dev`, arm64).
+  2. Run `JAVA_HOME=~/android-studio/jbr PATH=$JAVA_HOME/bin:$PATH ./tool/dev_release.sh` there. It builds the Navis Dev **sidecar** (`com.navis.app.navis.dev`, arm64).
   3. Confirm `signature OK` and the APK URL in its output, stop the Gradle daemons, and remove the worktree.
 - [ ] **Step 6: Owner's phone checklist** (sent with the build):
   1. Start Personal Radio. It should start without a visible hitch.

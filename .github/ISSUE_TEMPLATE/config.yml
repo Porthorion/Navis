@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Navis website
+    url: https://navis.porthorion.com
+    about: Downloads and general information.
+  - name: Private matters
+    url: mailto:support@porthorion.com
+    about: For anything that should not be public. Report security issues through the Security tab instead.

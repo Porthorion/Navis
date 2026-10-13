@@ -1,6 +1,47 @@
 # Navis
 
-Navis is a Flutter Subsonic/OpenSubsonic music client focused on fast library browsing, reliable offline playback, and adaptive UI across phone, tablet, desktop, and in-car workflows.
+Navis is a free, open-source music player for Subsonic and OpenSubsonic servers such as Navidrome, Gonic and Airsonic. It focuses on fast library browsing, reliable offline playback and an adaptive interface for phone, tablet and desktop. Navis is published by [Porthorion](https://navis.porthorion.com).
+
+<!-- TODO: add a real app screenshot here once one is committed to the repo. -->
+
+## Features
+
+- Fast library browsing with resume-safe, network-aware sync
+- Gapless and background playback, queue management, lyrics, and speed and pitch controls
+- Offline cache and permanent downloads
+- Equalizer with AutoEQ headphone profiles ([guide](docs/equalizer.md))
+- Adaptive phone, tablet and desktop layouts, with keyboard shortcuts and a Mini Player on desktop
+- Media keys and system controls: Android media session and Android Auto, Linux MPRIS, Windows SMTC
+- Optional online services (Deezer, Last.fm, ListenBrainz, LRCLIB), each with its own switch
+
+## Download
+
+Get Navis from the [website](https://navis.porthorion.com). Official files are served from Porthorion's Cloudflare R2 storage (`downloads.porthorion.com`).
+
+- Android 7.0+
+- Windows 10/11 x64
+- Linux x86_64: deb, rpm and portable tar.gz (AUR coming soon)
+
+[GitHub Releases](https://github.com/Porthorion/Navis/releases) carry identical copies of every file, plus a `SHA256SUMS` file. Check a download with `sha256sum -c SHA256SUMS`. The app updates itself from a signed manifest on R2.
+
+## Build from source
+
+Prerequisites: Flutter 3.47.5 or newer on the stable channel (active baseline 3.47.x, which includes Dart 3.13), plus the platform toolchain for your target (Android SDK, Linux desktop build packages, or Visual Studio and Rust for Windows). See [docs/development-workflow.md](docs/development-workflow.md).
+
+```bash
+git clone https://github.com/Porthorion/Navis.git
+cd Navis
+./tool/bootstrap.sh   # once: checks Flutter and resolves dependencies
+flutter run           # on a connected device or desktop
+```
+
+## Contributing
+
+Pull requests are welcome and should target `dev`. Run `./tool/check.sh` first. See [CONTRIBUTING.md](CONTRIBUTING.md).
+
+## Support
+
+Open an issue on [GitHub Issues](https://github.com/Porthorion/Navis/issues) using the bug report or feature request form. Use e-mail only if you need to: support@porthorion.com. Report security problems privately as described in [SECURITY.md](SECURITY.md).
 
 ## Platform Support
 
@@ -85,45 +126,11 @@ navigation, artwork, storage, database and Windows components; the
 was checked and what stays pinned. Remaining `pub outdated` entries are
 blocked by SDK/toolchain or upstream constraints rather than local overrides.
 
-## Quick Start
+## Quality gate
 
 ```bash
-# bootstrap dependencies and local tooling
-./tool/bootstrap.sh
-
-# run on connected device / simulator
-flutter run
-
-# full quality gate (format, codegen, analyze, lint, tests)
-./tool/check.sh
+./tool/check.sh   # format, codegen, analyze, dead code, tests
 ```
-
-## Release
-
-```bash
-# default target: android
-./tool/release.sh v1.2.3
-
-# selected targets
-./tool/release.sh v1.2.3 --targets=android,ios,macos
-
-# full matrix
-./tool/release.sh v1.2.3 --all-platforms
-```
-
-### Single-Mac Multi-OS Release Flow
-
-When running release from macOS, Linux and Windows desktop artifacts can be delegated to SSH-accessible builders (typically local VMs on the same Mac):
-
-```bash
-./tool/release.sh v1.2.3 \
-  --targets=linux,windows \
-  --linux-ssh="linux-builder" \
-  --windows-ssh="windows-builder"
-```
-
-Full setup and builder requirements:
-- [`docs/multi-os-build-from-mac.md`](docs/multi-os-build-from-mac.md)
 
 ## Dev Channel Sidecar
 
@@ -179,25 +186,14 @@ resolved track metadata so ListenBrainz events can flush after reconnect even
 if the library row changes. A rejected ListenBrainz token disables it until the
 user validates a new one.
 
-## Google Play Android Releases
+## Building and releasing
 
-Google Play installs update through the Play Store. Sideload releases include a
-default universal APK plus `arm64-v8a`, `armeabi-v7a` and `x86_64` APKs. From
-1.5.0, the in-app updater reads the signed R2 manifest and downloads the device's
-primary ABI when available, falling back to the universal APK. The 1.5.0 bridge
-release also retains the universal `navis-v1.5.0.apk` on Forgejo for older clients.
-See [the R2 release guide](docs/release-r2.md).
+Release builds are made with `tool/release.sh` and need local signing secrets that are not in this repository. See:
 
-```bash
-tool/play_release.sh --dry-run
-tool/play_release.sh --play-track=internal --play-status=draft
-```
-
-`tool/play_release.sh` builds `build/app/outputs/bundle/release/app-release.aab`
-and uploads it through the Google Play Developer Publishing API when
-`PLAY_SERVICE_ACCOUNT_JSON` is set in local `tool/release.env`. Track aliases
-are `internal`, `closed` (`alpha`), `open` (`beta`), and `production`; staged
-rollouts use `--play-status=inProgress --play-user-fraction=<fraction>`.
+- [Release secrets](docs/release-secrets.md)
+- [R2 release guide](docs/release-r2.md) (Android, in-app updates) and [Google Play readiness](docs/google-play-readiness.md)
+- [Linux](docs/release-linux.md), [Windows](docs/release-windows.md) and [macOS](docs/release-macos.md) release guides
+- [Release from Linux](docs/release-from-linux.md) and [multi-OS builds from a Mac](docs/multi-os-build-from-mac.md)
 
 ## Documentation Index
 

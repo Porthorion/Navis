@@ -6,7 +6,7 @@ runtime validation + live-server certification pending (deferred 2026-09-22,
 server under heavy load); workstream A and the device checklist (C) are
 operator-run and still open. Remaining work, prerequisites, and continuation
 rules are consolidated in §8 (Handoff).
-Companion runbook: [docs/server-library-hygiene.md](docs/server-library-hygiene.md)
+Companion runbook: the owner's private server runbook (not in this repository)
 Predecessor evidence: `Fix_Stale_Cache_Plan.md`, `Fix_Stale_Cache_Execution_Plan.md`
 (schema 80 baseline), `docs/sync-reliability-recovery-plan.md`.
 
@@ -96,7 +96,7 @@ Decisions recorded 2026-09-22 (user-approved):
 
 1. **Scope**: all three workstreams (Navis code, server ops, tag cleanup);
    the ops guidance becomes a permanent runbook at
-   `docs/server-library-hygiene.md`.
+   the owner's private server runbook.
 2. **Discovery**: adaptive overlap paging plus a persisted discovery-debt
    ledger with escalation to broader reconciliation.
 3. **Scan guard**: cap consecutive deferrals (3) and allow promotion once a
@@ -109,7 +109,7 @@ Decisions recorded 2026-09-22 (user-approved):
 
 ## 2. Workstream A — Server and library hygiene (runbook; operator-run)
 
-Executed via [docs/server-library-hygiene.md](docs/server-library-hygiene.md).
+Executed via the owner's private server runbook.
 The Navis test account (`navis` on `navidrome.example.test`) is disposable and
 may be written freely; personal accounts are read-only.
 
@@ -588,7 +588,7 @@ live B2 escalation and B6 scan-churn paths open.
   store), B2 (debt ledger), B6 (settle-wait policy).
 - Changelog: both `changelog_data.dart` and `tool/generate_release_notes.dart`
   for user-visible stages (B2, B3, B4, B5, B6).
-- `docs/server-library-hygiene.md` is the owning doc for workstream A;
+- the owner's private server runbook is the owning doc for workstream A;
   `docs/README.md` maps it.
 - This plan moves to `docs/completed-plans/` only after all B stages are
   implemented and validated and the C checklist is confirmed; A stages are
@@ -671,7 +671,7 @@ the clean-restart evidence. Commit as
 
 ### 8.2 Operator-run: workstream A (server)
 
-Steps A1-A4 in [docs/server-library-hygiene.md](docs/server-library-hygiene.md):
+Steps A1-A4 in the owner's private server runbook:
 cap the Navidrome scanner (`Scanner.Schedule`, watcher policy), batch
 SoulSync writes, run the mutagen tag audit/retag, then verify. Needs shell
 access to the server host and the music library filesystem — this
