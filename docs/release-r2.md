@@ -115,6 +115,16 @@ Before it builds anything it runs `tool/r2_publish.sh check`, which fails if
 the R2 settings are missing, if the signing key does not match the key pinned
 in `constants.dart`, or if the channel already holds a newer version.
 
+For a two-phase release, `release.sh <tag> --build-only` instead stages the
+validated selected assets and checksums under `dist/<tag>/`, without R2
+checks or Git/release publication. `release.sh <tag> --publish-from=dist/<tag>`
+verifies the staged files and source commit, repeats the normal remote
+preconditions, and runs the same Git and R2 publication flow without rebuilding.
+The channel, prerelease state and notes come from the bundle; `--forgejo` is
+still required on release day for the 1.5.0 bridge. The dist files are retained.
+See [release-from-linux.md](release-from-linux.md#build-and-verify-150-now-publish-those-files-later)
+for the exact 1.5.0 build, verify and publish commands.
+
 - 1.5.0 only: `./tool/release.sh v1.5.0 --forgejo …` also creates the Forgejo
   release that 1.4.x installs look for.
 - Later releases: `./tool/release.sh v1.5.1 …`.

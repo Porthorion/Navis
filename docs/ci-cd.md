@@ -544,6 +544,24 @@ make release VERSION=v0.2.0
 
 ### What it does
 
+The default one-phase behavior below is unchanged. For advance builds,
+`--build-only` uses the same build/package/validation paths, checks only local
+tags (`release_tag_guard.sh --local-only`), skips R2/Forgejo preconditions, and
+stages assets, metadata and release notes with `SHA256SUMS` in git-ignored
+`dist/<tag>/`. It requires the release version already committed in pubspec and
+stops before any Git mutation or publication. It refuses to overwrite dist.
+`--publish-from=dist/<tag>` skips builds and build-host/signing-tool requirements;
+it verifies all staged checksums and requires a clean checkout at the recorded
+source commit and version before normal remote checks and Git/R2/Forgejo steps.
+Build flags cannot be combined with publish-from. The staged channel and
+prerelease state are retained; an explicit conflicting value is rejected.
+Dist files remain available after publication. Both modes retain the normal
+quality gate unless `--skip-checks` is supplied. See the
+[two-phase 1.5.0 flow](release-from-linux.md#build-and-verify-150-now-publish-those-files-later).
+`test/tool/release_dist_test.dart` runs copied scripts with stub Git, builders,
+R2 and curl via PATH in isolated temporary directories; it covers flag errors,
+publication isolation, source/checksum guards and exact dist-file uploads.
+
 1. Fails if the requested version was already released, meaning its tag
    (for example `v1.4.1`) exists locally or on origin
    (`tool/release_tag_guard.sh`), unless `--allow-existing-version` is passed

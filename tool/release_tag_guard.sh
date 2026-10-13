@@ -2,12 +2,15 @@
 # tool/release_tag_guard.sh — refuse to release a version that already shipped.
 #
 # Usage:
-#   ./tool/release_tag_guard.sh <tag> [--allow-existing-version]
+#   ./tool/release_tag_guard.sh <tag> [--allow-existing-version] [--local-only]
 #
 # A version has shipped once its release tag (e.g. v1.4.1) exists, locally or
 # on origin; tool/release.sh creates and pushes that tag. pubspec.yaml is not
 # the signal: work on the next version sets it early (docs/agentic-engineering.md
 # "Versioning"), so it already names a version that has not been released.
+#
+# --local-only checks only local tags for build-only staging; it never contacts
+# origin. Publication must repeat the full guard on release day.
 #
 # Exits 0 when the release may proceed. With --allow-existing-version an
 # existing tag is accepted for an intentional rebuild or retry, and a tag that
@@ -16,8 +19,10 @@ set -euo pipefail
 
 TAG=""
 ALLOW_EXISTING_VERSION=false
+LOCAL_ONLY=false
 for arg in "$@"; do
   case "${arg}" in
+    --local-only) LOCAL_ONLY=true ;;
     --allow-existing-version) ALLOW_EXISTING_VERSION=true ;;
     -*)
       echo "Unknown option: ${arg}" >&2
@@ -27,7 +32,7 @@ for arg in "$@"; do
   esac
 done
 if [[ -z "${TAG}" ]]; then
-  echo "Usage: ./tool/release_tag_guard.sh <tag> [--allow-existing-version]" >&2
+  echo "Usage: ./tool/release_tag_guard.sh <tag> [--allow-existing-version] [--local-only]" >&2
   exit 2
 fi
 
@@ -36,7 +41,8 @@ if git rev-parse -q --verify "refs/tags/${TAG}" >/dev/null; then
   local_tag=true
 fi
 
-if ! remote_tags="$(git ls-remote --tags origin "refs/tags/${TAG}")"; then
+remote_tags=""
+if [[ "${LOCAL_ONLY}" == false ]] && ! remote_tags="$(git ls-remote --tags origin "refs/tags/${TAG}")"; then
   echo "Error: could not read tags from origin to check whether ${TAG} was already released." >&2
   exit 1
 fi

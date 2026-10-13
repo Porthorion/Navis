@@ -10,6 +10,8 @@
 #   ./tool/release.sh <version> [options]
 #
 # Options:
+#   --build-only              Stage validated assets locally; never tag or publish
+#   --publish-from=<dist/tag>  Publish a verified staged bundle without building
 #   --skip-checks              Skip ./tool/check.sh
 #   --ipa                      Shortcut for --targets=android,ios
 #   --targets=<csv>            Build targets: android,ios,macos,linux,windows
@@ -59,9 +61,19 @@ UPDATE_CHANNEL="stable"
 FORCE_PRERELEASE=false
 ALLOW_EXISTING_VERSION=false
 PUBLISH_FORGEJO=false
+BUILD_ONLY=false
+PUBLISH_FROM=""
+PUBLISH_FROM_SET=false
+CHANNEL_EXPLICIT=false
+BUILD_OPTIONS_SET=false
 
 for arg in "$@"; do
   case "${arg}" in
+    --ipa|--targets=*|--all-platforms|--linux-*|--windows-*|--macos-notarize) BUILD_OPTIONS_SET=true ;;
+  esac
+  case "${arg}" in
+    --build-only) BUILD_ONLY=true ;;
+    --publish-from=*) PUBLISH_FROM="${arg#--publish-from=}"; PUBLISH_FROM_SET=true ;;
     --skip-checks) SKIP_CHECKS=true ;;
     --ipa) TARGETS_SPEC="android,ios" ;;
     --targets=*) TARGETS_SPEC="${arg#--targets=}" ;;
@@ -73,23 +85,31 @@ for arg in "$@"; do
     --linux-remote-dir=*) LINUX_REMOTE_DIR="${arg#--linux-remote-dir=}" ;;
     --windows-remote-dir=*) WINDOWS_REMOTE_DIR="${arg#--windows-remote-dir=}" ;;
     --macos-notarize) MACOS_NOTARIZE=true ;;
-    --channel=*) UPDATE_CHANNEL="${arg#--channel=}" ;;
+    --channel=*) UPDATE_CHANNEL="${arg#--channel=}"; CHANNEL_EXPLICIT=true ;;
     --prerelease) FORCE_PRERELEASE=true ;;
     --allow-existing-version) ALLOW_EXISTING_VERSION=true ;;
     --forgejo) PUBLISH_FORGEJO=true ;;
     v*.*) VERSION="${arg}" ;;
     *)
       echo "Unknown argument: ${arg}"
-      echo "Usage: ./tool/release.sh <version> [--skip-checks] [--ipa] [--targets=<csv>] [--all-platforms] [--linux-package=<bundle|deb|rpm|all>] [--windows-package=<zip|exe>] [--linux-ssh=<user@host>] [--windows-ssh=<user@host>] [--linux-remote-dir=<path>] [--windows-remote-dir=<path>] [--macos-notarize] [--channel=<stable|dev>] [--prerelease] [--allow-existing-version] [--forgejo]"
+      echo "Usage: ./tool/release.sh <version> [--build-only | --publish-from=<dist/tag>] [--skip-checks] [--ipa] [--targets=<csv>] [--all-platforms] [--linux-package=<bundle|deb|rpm|all>] [--windows-package=<zip|exe>] [--linux-ssh=<user@host>] [--windows-ssh=<user@host>] [--linux-remote-dir=<path>] [--windows-remote-dir=<path>] [--macos-notarize] [--channel=<stable|dev>] [--prerelease] [--allow-existing-version] [--forgejo]"
       exit 1
       ;;
   esac
 done
 
 if [[ -z "${VERSION}" ]]; then
-  echo "Usage: ./tool/release.sh <version> [--skip-checks] [--ipa] [--targets=<csv>] [--all-platforms] [--linux-package=<bundle|deb|rpm|all>] [--windows-package=<zip|exe>] [--linux-ssh=<user@host>] [--windows-ssh=<user@host>] [--linux-remote-dir=<path>] [--windows-remote-dir=<path>] [--macos-notarize] [--channel=<stable|dev>] [--prerelease] [--allow-existing-version] [--forgejo]"
+  echo "Usage: ./tool/release.sh <version> [--build-only | --publish-from=<dist/tag>] [--skip-checks] [--ipa] [--targets=<csv>] [--all-platforms] [--linux-package=<bundle|deb|rpm|all>] [--windows-package=<zip|exe>] [--linux-ssh=<user@host>] [--windows-ssh=<user@host>] [--linux-remote-dir=<path>] [--windows-remote-dir=<path>] [--macos-notarize] [--channel=<stable|dev>] [--prerelease] [--allow-existing-version] [--forgejo]"
   echo "  e.g. ./tool/release.sh v0.3.0 --targets=android,macos"
   exit 1
+fi
+
+if [[ "${PUBLISH_FROM_SET}" == true ]]; then
+  if [[ -z "${PUBLISH_FROM}" || "${BUILD_ONLY}" == true || "${BUILD_OPTIONS_SET}" == true ]]; then
+    echo "Error: --publish-from requires a directory and cannot be combined with --build-only or build options."
+    exit 1
+  fi
+  TARGETS_SPEC=""
 fi
 
 LINUX_PACKAGE_MODE="$(echo "${LINUX_PACKAGE_MODE}" | tr '[:upper:]' '[:lower:]')"
@@ -110,10 +130,19 @@ if [[ "${UPDATE_CHANNEL}" != "stable" && "${UPDATE_CHANNEL}" != "dev" ]]; then
   exit 1
 fi
 
+# Validate the namespace locally; build-only must not run R2's remote checks.
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck disable=SC1091
+source "${SCRIPT_DIR}/lib/r2_tags.sh"
+if ! navis_r2_valid_tag "${VERSION}" "${UPDATE_CHANNEL}"; then
+  echo "Error: Invalid release tag for channel ${UPDATE_CHANNEL}: ${VERSION}"
+  exit 1
+fi
+
 # ─── Version ────────────────────────────────────────────────────────────────
 SEMVER="${VERSION#v}"
 IFS='.' read -r MAJOR MINOR PATCH <<< "${SEMVER%%[-+]*}"
-BUILD_NUMBER=$(( (MAJOR * 10000) + (MINOR * 100) + PATCH ))
+BUILD_NUMBER=$(( (10#${MAJOR} * 10000) + (10#${MINOR} * 100) + 10#${PATCH} ))
 
 # ─── Parse targets ──────────────────────────────────────────────────────────
 BUILD_ANDROID=false
@@ -139,13 +168,12 @@ for target in "${TARGETS[@]}"; do
   esac
 done
 
-if [[ "${BUILD_ANDROID}" == "false" && "${BUILD_IOS}" == "false" && "${BUILD_MACOS}" == "false" && "${BUILD_LINUX}" == "false" && "${BUILD_WINDOWS}" == "false" ]]; then
+if [[ "${PUBLISH_FROM_SET}" == false && "${BUILD_ANDROID}" == "false" && "${BUILD_IOS}" == "false" && "${BUILD_MACOS}" == "false" && "${BUILD_LINUX}" == "false" && "${BUILD_WINDOWS}" == "false" ]]; then
   echo "Error: No valid build targets selected."
   exit 1
 fi
 
 # ─── Env file ───────────────────────────────────────────────────────────────
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # Publication always requires the release key, even if local dev builds opt in
 # to debug signing. Fail before loading secrets or running the quality gates.
 if [[ "${BUILD_ANDROID}" == "true" && ! -f "${SCRIPT_DIR}/../android/key.properties" ]]; then
@@ -170,7 +198,7 @@ WINDOWS_REMOTE_DIR="${WINDOWS_REMOTE_DIR:-${NAVIS_WINDOWS_REMOTE_DIR:-.navis/rem
 WINDOWS_FLUTTER_DIR="${NAVIS_WINDOWS_FLUTTER_DIR:-}"
 
 # ─── Validate env ───────────────────────────────────────────────────────────
-if [[ "${PUBLISH_FORGEJO}" == "true" ]]; then
+if [[ "${PUBLISH_FORGEJO}" == "true" && "${BUILD_ONLY}" == false ]]; then
   : "${FORGEJO_URL:?Set FORGEJO_URL in tool/release.env}"
   : "${FORGEJO_REPO:?Set FORGEJO_REPO in tool/release.env}"
   : "${FORGEJO_TOKEN:?Set FORGEJO_TOKEN in tool/release.env}"
@@ -184,7 +212,10 @@ if [[ "${BUILD_ANDROID}" == "true" && -z "${NAVIS_LASTFM_API_KEY:-}" ]]; then
 fi
 
 # ─── Validate tools ─────────────────────────────────────────────────────────
-for tool in jq flutter git curl openssl; do
+REQUIRED_TOOLS=(jq git sha256sum)
+if [[ "${PUBLISH_FROM_SET}" == false ]]; then REQUIRED_TOOLS+=(flutter openssl); fi
+if [[ "${BUILD_ONLY}" == false ]]; then REQUIRED_TOOLS+=(curl openssl); fi
+for tool in "${REQUIRED_TOOLS[@]}"; do
   if ! command -v "${tool}" &>/dev/null; then
     echo "Error: '${tool}' is required but not found on PATH."
     exit 1
@@ -204,6 +235,11 @@ fi
 
 # ─── Root ───────────────────────────────────────────────────────────────────
 cd "${SCRIPT_DIR}/.."
+# shellcheck disable=SC1091
+source "${SCRIPT_DIR}/lib/release_dist.sh"
+if [[ "${PUBLISH_FROM_SET}" == true ]]; then
+  load_release_dist
+fi
 
 UNAME="$(uname)"
 if [[ "${BUILD_IOS}" == "true" || "${BUILD_MACOS}" == "true" ]]; then
@@ -354,13 +390,15 @@ DART_DEFINE_ARGS=("--dart-define=NAVIS_UPDATE_CHANNEL=${UPDATE_CHANNEL}")
 # it is not secrecy. See docs/release-secrets.md.
 SECRET_TMP_DIR=""
 LASTFM_DEFINES_FILE=""
+DIST_TMP_DIR=""
 cleanup_release_secrets() {
+  if [[ -n "${DIST_TMP_DIR}" ]]; then rm -rf "${DIST_TMP_DIR}"; fi
   if [[ -n "${SECRET_TMP_DIR}" ]]; then
     rm -rf "${SECRET_TMP_DIR}"
   fi
 }
 trap cleanup_release_secrets EXIT
-if [[ -n "${NAVIS_LASTFM_API_KEY:-}" ]]; then
+if [[ "${PUBLISH_FROM_SET}" == false && -n "${NAVIS_LASTFM_API_KEY:-}" ]]; then
   mkdir -p "${SCRIPT_DIR}/../build"
   SECRET_TMP_DIR="$(mktemp -d "$(cd "${SCRIPT_DIR}/../build" && pwd)/navis-secrets.XXXXXX")"
   LASTFM_DEFINES_FILE="${SECRET_TMP_DIR}/lastfm-defines.json"
@@ -397,6 +435,19 @@ if [[ -n "$(git status --porcelain)" ]]; then
 fi
 
 CURRENT_BRANCH="$(git branch --show-current)"
+if [[ -z "${CURRENT_BRANCH}" ]]; then
+  echo "Error: Release operations require a named branch, not a detached HEAD."
+  exit 1
+fi
+SOURCE_COMMIT="$(git rev-parse HEAD)"
+if [[ "${PUBLISH_FROM_SET}" == true && "${SOURCE_COMMIT}" != "${DIST_SOURCE_COMMIT}" ]]; then
+  echo "Error: HEAD differs from the staged source commit (${DIST_SOURCE_COMMIT}). Check out that commit before publishing."
+  exit 1
+fi
+if [[ "${BUILD_ONLY}" == true && ( -e "${SCRIPT_DIR}/../dist/${VERSION}" || -L "${SCRIPT_DIR}/../dist/${VERSION}" ) ]]; then
+  echo "Error: dist/${VERSION} already exists; keep the verified bundle or move it before rebuilding."
+  exit 1
+fi
 
 # ─── Existing version guard ─────────────────────────────────────────────────
 # A version has shipped once its tag exists. pubspec.yaml is not the signal:
@@ -408,14 +459,27 @@ TAG_GUARD_ARGS=("${VERSION}")
 if [[ "${ALLOW_EXISTING_VERSION}" == "true" ]]; then
   TAG_GUARD_ARGS+=("--allow-existing-version")
 fi
+if [[ "${BUILD_ONLY}" == true ]]; then TAG_GUARD_ARGS+=(--local-only); fi
 "${SCRIPT_DIR}/release_tag_guard.sh" "${TAG_GUARD_ARGS[@]}"
+if [[ "${PUBLISH_FROM_SET}" == true ]] && git rev-parse -q --verify "refs/tags/${VERSION}" >/dev/null; then
+  if [[ "$(git rev-parse "${VERSION}^{commit}")" != "${DIST_SOURCE_COMMIT}" ]]; then
+    echo "Error: Existing tag ${VERSION} differs from the staged source commit."
+    exit 1
+  fi
+fi
+if [[ ( "${BUILD_ONLY}" == true || "${PUBLISH_FROM_SET}" == true ) && "${CURRENT_PUBSPEC_VERSION}" != "${REQUESTED_PUBSPEC_VERSION}" ]]; then
+  echo "Error: The two-phase release requires pubspec.yaml at ${REQUESTED_PUBSPEC_VERSION}; commit that version before building."
+  exit 1
+fi
 if [[ "${CURRENT_PUBSPEC_VERSION}" == "${REQUESTED_PUBSPEC_VERSION}" ]]; then
   echo "==> pubspec.yaml is already at ${REQUESTED_PUBSPEC_VERSION} (set during development)."
 fi
 
 # ─── R2 preconditions ───────────────────────────────────────────────────────
 # Fail before building or tagging if the R2 publish at the end cannot succeed.
-"${SCRIPT_DIR}/r2_publish.sh" check --tag="${VERSION}" --channel="${UPDATE_CHANNEL}"
+if [[ "${BUILD_ONLY}" == false ]]; then
+  "${SCRIPT_DIR}/r2_publish.sh" check --tag="${VERSION}" --channel="${UPDATE_CHANNEL}"
+fi
 
 # ─── Checks ─────────────────────────────────────────────────────────────────
 if [[ "${SKIP_CHECKS}" == "false" ]]; then
@@ -425,11 +489,15 @@ else
   echo "==> Skipping quality checks (--skip-checks)."
 fi
 
+if [[ "${BUILD_ONLY}" == false && "${PUBLISH_FROM_SET}" == false ]]; then
 # ─── Version bump ───────────────────────────────────────────────────────────
 echo "==> Bumping pubspec.yaml to ${SEMVER}+${BUILD_NUMBER}..."
 sed -i.bak "s/^version: .*/version: ${SEMVER}+${BUILD_NUMBER}/" "${PUBSPEC}"
 rm -f "${PUBSPEC}.bak"
 
+fi
+
+if [[ "${PUBLISH_FROM_SET}" == false ]]; then
 # ─── Build artifacts ────────────────────────────────────────────────────────
 ASSET_FILES=()
 ASSET_NAMES=()
@@ -757,6 +825,29 @@ if [[ "${BUILD_WINDOWS}" == "true" ]]; then
   echo "    Windows -> ${WINDOWS_ASSET_NAME}"
 fi
 
+fi # build artifacts
+
+generate_release_notes() {
+  echo "==> Generating release notes for ${VERSION}..."
+  RELEASE_BODY="$(dart tool/generate_release_notes.dart "${VERSION}" 2>/dev/null)" || true
+  if [[ -z "${RELEASE_BODY}" ]]; then
+    RELEASE_BODY="## Navis ${VERSION} (${UPDATE_CHANNEL})"
+    echo "    No changelog entry found — using generic release body."
+  else
+    echo "    Release notes generated successfully."
+  fi
+}
+
+if [[ "${BUILD_ONLY}" == true ]]; then
+  if [[ -n "$(git status --porcelain)" || "$(git rev-parse HEAD)" != "${SOURCE_COMMIT}" ]]; then
+    echo "Error: Source changed during the build; commit it and rebuild before staging."
+    exit 1
+  fi
+  generate_release_notes
+  stage_release_dist
+  exit 0
+fi
+
 # ─── Commit bump ────────────────────────────────────────────────────────────
 echo "==> Committing pubspec bump..."
 git add pubspec.yaml
@@ -770,6 +861,11 @@ fi
 echo "==> Merging ${CURRENT_BRANCH} -> main..."
 git checkout main
 git merge --ff-only "${CURRENT_BRANCH}"
+# A main that was already ahead stays ahead, so the tag would not match the binaries.
+if [[ "${PUBLISH_FROM_SET}" == true && "$(git rev-parse HEAD)" != "${DIST_SOURCE_COMMIT}" ]]; then
+  echo "Error: main is at $(git rev-parse --short HEAD), not the staged source commit ${DIST_SOURCE_COMMIT}; refusing to tag."
+  exit 1
+fi
 
 if git rev-parse -q --verify "refs/tags/${VERSION}" >/dev/null; then
   # Only reachable with --allow-existing-version (see the version guard).
@@ -787,13 +883,8 @@ git push origin "${VERSION}"
 git checkout "${CURRENT_BRANCH}"
 
 # ─── Generate release notes from changelog_data ─────────────────────────────
-echo "==> Generating release notes for ${VERSION}..."
-RELEASE_BODY="$(dart tool/generate_release_notes.dart "${VERSION}" 2>/dev/null)" || true
-if [[ -z "${RELEASE_BODY}" ]]; then
-  RELEASE_BODY="## Navis ${VERSION} (${UPDATE_CHANNEL})"
-  echo "    No changelog entry found — using generic release body."
-else
-  echo "    Release notes generated successfully."
+if [[ "${PUBLISH_FROM_SET}" == false ]]; then
+  generate_release_notes
 fi
 
 # ─── Publish to R2 ──────────────────────────────────────────────────────────
@@ -849,7 +940,7 @@ fi
 
 # Artifacts stay on disk until every publish step has succeeded, so a failed
 # upload can be retried with ./tool/r2_publish.sh publish.
-rm -f "${ASSET_FILES[@]}"
+if [[ "${PUBLISH_FROM_SET}" == false ]]; then rm -f "${ASSET_FILES[@]}"; fi
 
 echo ""
 echo "==> Done! Release ${VERSION} published."

@@ -12,6 +12,8 @@ void main() {
       fixture = await Directory.systemTemp.createTemp('navis-signing-test-');
       await Directory(p.join(fixture.path, 'tool', 'lib'))
           .create(recursive: true);
+      await File('tool/lib/r2_tags.sh')
+          .copy(p.join(fixture.path, 'tool', 'lib', 'r2_tags.sh'));
     });
     tearDown(() => fixture.delete(recursive: true));
 
