@@ -612,8 +612,14 @@ if [[ "${BUILD_LINUX}" == "true" ]]; then
     set_obfuscation_args linux
     linux_args=("--package=${LINUX_PACKAGE_MODE}" "--version=${VERSION}" "--asset-prefix=${ASSET_PREFIX}"
       "${OBFUSCATION_ARGS[@]}" "${DART_DEFINE_ARGS[@]}")
+    # The container script reads these from its environment.
+    export NAVIS_DEB_MAINTAINER="${NAVIS_DEB_MAINTAINER:-}"
+    NAVIS_FLUTTER_SDK="${NAVIS_FLUTTER_SDK:-$(dirname "$(dirname "$(readlink -f "$(command -v flutter)")")")}"
+    export NAVIS_FLUTTER_SDK
     if [[ -n "${FLATPAK_ID:-}" ]]; then
-      /usr/bin/flatpak-spawn --host -- "${SCRIPT_DIR}/linux/build_in_container.sh" "${linux_args[@]}"
+      /usr/bin/flatpak-spawn --host --env=NAVIS_FLUTTER_SDK="${NAVIS_FLUTTER_SDK}" \
+        --env=NAVIS_DEB_MAINTAINER="${NAVIS_DEB_MAINTAINER}" \
+        -- "${SCRIPT_DIR}/linux/build_in_container.sh" "${linux_args[@]}"
     else
       "${SCRIPT_DIR}/linux/build_in_container.sh" "${linux_args[@]}"
     fi
