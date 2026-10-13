@@ -15,6 +15,6 @@ pkgbase = navis-bin
 	options = !strip
 	options = !debug
 	source = navis-v1.5.0-linux.tar.gz::https://downloads.porthorion.com/navis/releases/v1.5.0/navis-v1.5.0-linux.tar.gz
-	sha256sums = 0b4c4860529af282f21bdb6c1565228743b09b95e6e48551dd9a02012e30ad4b
+	sha256sums = 3e2e1ae4ac52cbf0018e5fed412e85dfc73ac7da4a272cc6dcc6c8aa0fa4a0f2
 
 pkgname = navis-bin
