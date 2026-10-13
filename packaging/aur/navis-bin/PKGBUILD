@@ -1,12 +1,12 @@
 # Maintainer: Khalifa
-# Proprietary release binary; never builds Navis source.
+# Repackages the official release tarball.
 pkgname=navis-bin
 pkgver=1.5.0
 pkgrel=1
 pkgdesc='Subsonic/OpenSubsonic music player'
 arch=('x86_64')
 url='https://navis.porthorion.com'
-license=('LicenseRef-Navis' 'LGPL-2.1-or-later')
+license=('GPL-3.0-or-later' 'LGPL-2.1-or-later')
 depends=('gtk3' 'libsecret' 'alsa-lib' 'libpulse')
 provides=('navis')
 conflicts=('navis')

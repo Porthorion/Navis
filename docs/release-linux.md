@@ -50,13 +50,13 @@ A lock serializes builds across worktrees. Image construction explicitly uses
 Docker's legacy builder so its memory flags are honored; Docker must include
 that builder.
 
-The entry point always uses AOT release mode, `--obfuscate`, split debug info
-under `build/obfuscation/linux/<tag>` and `NAVIS_UPDATE_CHANNEL=stable` unless
+The entry point always uses AOT release mode and `--split-debug-info`
+under `build/symbols/linux/<tag>` and `NAVIS_UPDATE_CHANNEL=stable` unless
 an explicit channel is supplied. `release.sh` passes its existing
-`set_obfuscation_args` and Dart defines (including the private Last.fm defines
+`set_symbol_args` and Dart defines (including the private Last.fm defines
 file) unchanged. Native ELF symbols are stripped before packaging. Symbols
-stay local and are never put into release packages. Do not statically link or
-obfuscate libmpv: `lib/libmpv.so.2` remains replaceable.
+stay local and are never put into release packages. Dart obfuscation is disabled.
+Do not statically link libmpv: `lib/libmpv.so.2` remains replaceable.
 
 `release.sh` and the SSH builder call this same container entry point.
 `tool/linux/package_bundle.sh` contains the extracted existing bundle/Debian
@@ -118,7 +118,7 @@ Portable and Debian updater behavior is described below.
 
 ## AUR owner workflow (manual publication)
 
-The `navis-bin` recipe downloads the proprietary portable release, verifies
+The `navis-bin` recipe downloads the official portable release, verifies
 its SHA-256, and installs its binary, desktop entry, icons and licence notices.
 It does not compile source. Before publication, set `pkgver` and the tarball
 SHA-256 to the FINAL released bytes (the checked-in local validation hash must
@@ -145,12 +145,14 @@ git commit -m "Update Navis binary package"
 git push
 ```
 
-These are owner publication steps, separate from local validation. Verify the
-EULA permits the intended distribution: Navis is closed source and proprietary
-(`LicenseRef-Navis`); third-party components retain their own licences. Keep
+These are owner publication steps, separate from local validation. Navis is
+GPL-3.0-or-later; third-party components retain their own licences. The bundle
+installs `LICENSE` as `data/licenses/GPL-3.0.txt`; Debian copyright and RPM
+metadata declare `GPL-3.0-or-later AND LGPL-2.1-or-later`. AUR declares both
+licences and copies the bundled notices into `/usr/share/licenses/navis-bin/`. Keep
 LGPL notices and the corresponding libmpv/FFmpeg source/build recipe available
 at their recorded locations. Packaging must preserve the separate shared
-libmpv and must never bundle Navis obfuscation symbols.
+libmpv and must never bundle Navis debug symbols.
 
 ## Bundled LGPL libmpv
 
@@ -165,7 +167,7 @@ for them. Custom packages without the bundle need their own system-mpv dependenc
 The current archive is `libmpv-linux-x86_64-lgpl-20261007.tar.gz`, SHA-256
 `759bb6586b4d772bb78a565609dcccc5205741c8b1163c1d47ed3493bf227f6e`.
 CMake downloads
-`https://downloads.porthorion.com/navis/third-party/libmpv-linux-x86_64-lgpl-20261007.tar.gz`.
+`https://downloads.porthorion.com/navis/third-party/libmpv-linux-x86_64-lgpl-20261007/libmpv-linux-x86_64-lgpl-20261007.tar.gz`.
 Every attempt is verified, failures are deleted, and the archive is cached in
 the CMake build directory. A verified cached archive supports offline builds;
 extraction is once per pin, retried if incomplete. The library is installed
@@ -176,8 +178,8 @@ mpv `-Dgpl=false` and absence of FFmpeg `--enable-gpl`/`--enable-nonfree`,
 and review `BUILDINFO.txt`'s ELF dependencies. Package the library, headers and
 recipe under `libmpv-linux-x86_64-lgpl/`, then upload the dated tarball,
 `SOURCES.md` and the corresponding source archives to R2 at
-`navis/third-party/<release tag>/`, plus the tarball at the flat
-`navis/third-party/<tarball-name>` path CMake reads. Update the filename,
+`navis/third-party/libmpv-linux-x86_64-lgpl-<date>/` only, with no flat copy.
+CMake reads the tarball in that per-build folder. Update the filename,
 ordered URLs and SHA-256 in CMake and the in-app source-location notice.
 
 The Debian package no longer depends on system `libmpv2 | libmpv1`. Its minimal

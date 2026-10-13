@@ -6065,17 +6065,29 @@ abstract class AppLocalizations {
   /// **'The full policy on the Navis website.'**
   String get aboutPrivacyPolicySub;
 
-  /// About tile that opens the Navis End User Licence Agreement on the website.
+  /// About tile that opens the Navis GPL licence text on GitHub.
   ///
   /// In en, this message translates to:
-  /// **'Terms of use'**
-  String get aboutTerms;
+  /// **'License'**
+  String get aboutLicense;
 
-  /// No description provided for @aboutTermsSub.
+  /// No description provided for @aboutLicenseSub.
   ///
   /// In en, this message translates to:
-  /// **'The licence agreement for using Navis.'**
-  String get aboutTermsSub;
+  /// **'GNU GPL v3.0 or later'**
+  String get aboutLicenseSub;
+
+  /// About tile that opens the Navis source repository on GitHub.
+  ///
+  /// In en, this message translates to:
+  /// **'Source code'**
+  String get aboutSourceCode;
+
+  /// About tile that opens the Navis issue tracker on GitHub.
+  ///
+  /// In en, this message translates to:
+  /// **'Report a bug'**
+  String get aboutReportBug;
 
   /// About tile that starts an email to Navis support.
   ///

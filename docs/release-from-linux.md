@@ -219,8 +219,8 @@ From a clean, committed checkout with `pubspec.yaml` at `1.5.0+10500`:
 
 This runs the existing universal and split Android builds, Ubuntu 22.04 Linux
 container build (tar.gz, deb and rpm from one bundle), and remote Windows Inno
-installer build. It preserves obfuscation, local symbols, masked Last.fm
-defines, channel and Android self-update flags. Every APK passes the normal
+installer build. It retains split debug info locally without Dart obfuscation,
+masked Last.fm defines, channel and Android self-update flags. Every APK passes the normal
 metadata, signer and string checks; Linux packaging retains its bundle,
 glibc and desktop-entry checks, and every artifact passes the secret scan.
 Android signing and Last.fm configuration are required now; R2 credentials,
@@ -244,7 +244,7 @@ The bundle also contains `assets.txt` (one filename per line), `release.json`
 (tag, channel, source commit and prerelease state), `release-notes.md`, and
 `SHA256SUMS` covering the assets and those three handoff files. A repeat build
 refuses to overwrite an existing dist directory. Keep the verified directory
-and `build/obfuscation/`; symbols are never published. Root artifact copies
+and `build/symbols/`; symbols are never published. Root artifact copies
 remain available for the existing headless package verification:
 
 ```bash
@@ -275,6 +275,24 @@ uploads and refuse different bytes; after a tag was created, a retry also needs
 `--allow-existing-version`. Forgejo creation retains its existing behavior:
 if the release was already created, resolve that partial release before
 retrying with `--forgejo`.
+
+Add `--github` alongside `--forgejo` to publish the staged release on GitHub:
+
+```bash
+./tool/release.sh v1.5.0 --publish-from=dist/v1.5.0 --skip-checks --forgejo --github
+```
+
+`--github` requires `--publish-from`, an authenticated `gh` CLI and a Git remote
+named `github`. The destination defaults to `Porthorion/Navis`; override it with
+`NAVIS_GITHUB_REPO` and configure the remote to match. A missing remote or an
+existing GitHub release for the tag fails before publication. After R2 and the
+optional Forgejo publication succeed, it pushes `main` and the version tag to
+`github`, creates a release using the staged notes and prerelease metadata,
+and attaches exactly `assets.txt`'s files plus the dist `SHA256SUMS`. It verifies
+every asset name and byte size with `gh release view`; a missing asset or size
+mismatch fails and retains dist. It refuses to overwrite an existing release,
+including a partial release from a failed attempt; resolve that release before
+retrying. The signed R2 manifest remains the update channel.
 
 These commands explicitly use `--skip-checks` to avoid `tool/check.sh`; run
 the owner's chosen focused validation separately before building. Build-only

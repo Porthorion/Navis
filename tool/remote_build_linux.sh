@@ -144,8 +144,8 @@ build_args=("--dart-define=NAVIS_UPDATE_CHANNEL=${update_channel}")
 if [[ -n "${lastfm_defines_file}" ]]; then
   build_args+=("--dart-define-from-file=${lastfm_defines_file}")
 fi
-# Same container build and package assembly as the coordinator. Obfuscation is
-# mandatory here too; split symbols stay on the remote host, never in assets.
+# Same container build and package assembly as the coordinator. Split debug
+# symbols stay on the remote host, never in assets.
 ./tool/linux/build_in_container.sh --source-list="$(readlink -f "${source_list}")" --package="${package_mode}" \
   --version="${version}" --asset-prefix="${asset_prefix}" "${build_args[@]}"
 : > "${asset_name_file}"

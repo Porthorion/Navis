@@ -411,10 +411,10 @@ const List<ChangelogVersion> changelogs = [
         "Desktop library data moves out of Documents into Navis's app data folder, and Android keeps Navis data out of system backups",
       ),
       ChangelogEntry(
-        'About links to the Navis website, privacy policy, terms of use and support, and lists complete third-party licence notices',
+        'About links to the Navis website, source code, bug reports, support, privacy policy and licence, and lists complete third-party licence notices',
       ),
       ChangelogEntry(
-        'Navis is now proprietary freeware by Porthorion under the Navis End User Licence Agreement; earlier releases keep their GPL licence',
+        'Navis is open source under the GNU GPL v3.0 or later; the source code and bug reports live on GitHub',
       ),
 
       // Fixed: playback

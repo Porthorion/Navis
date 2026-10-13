@@ -156,8 +156,9 @@ export MACOS_NOTARY_PROFILE="navis-notary-profile"
   (`tool/security_audit.sh` fails otherwise)
 - remote builders receive only tracked files (`git ls-files`), never these
   secrets; their sshd allows key logins from the LAN only
-- obfuscation symbols under `build/obfuscation/<platform>/<version>` stay on the
-  release host and are never uploaded
+- split debug info (without Dart obfuscation) under
+  `build/symbols/<platform>/<version>` stays on the release host and is never
+  uploaded
 - periodic token/password rotation
 
 ## Preflight before release

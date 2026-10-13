@@ -15,6 +15,7 @@ void registerBundledLicenses({
   final target = platform ?? defaultTargetPlatform;
   LicenseRegistry.addLicense(() async* {
     for (final (packages, asset) in const <(List<String>, String)>[
+      (['Navis'], 'LICENSE'),
       (['Inter font'], 'assets/fonts/OFL.txt'),
       (['AutoEq'], 'assets/autoeq/LICENSE'),
       (['color-names'], 'assets/licenses/color-names-MIT.txt'),

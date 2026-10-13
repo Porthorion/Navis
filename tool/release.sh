@@ -24,8 +24,9 @@
 #   --windows-remote-dir=<path> Remote Windows work dir relative to remote HOME
 #   --macos-notarize           Sign + notarize macOS app bundle before packaging
 #   --channel=<stable|dev>     Release/update channel (default: stable)
-#   --prerelease               Force prerelease=true on Forgejo release
+#   --prerelease               Force prerelease=true in release metadata
 #   --forgejo                  Also publish a Forgejo release (only for the 1.5.0 bridge)
+#   --github                   Also publish a GitHub release (requires --publish-from)
 #   --allow-existing-version   Rebuild or retry a version whose release tag already exists
 #
 # Examples:
@@ -61,6 +62,7 @@ UPDATE_CHANNEL="stable"
 FORCE_PRERELEASE=false
 ALLOW_EXISTING_VERSION=false
 PUBLISH_FORGEJO=false
+PUBLISH_GITHUB=false
 BUILD_ONLY=false
 PUBLISH_FROM=""
 PUBLISH_FROM_SET=false
@@ -89,17 +91,23 @@ for arg in "$@"; do
     --prerelease) FORCE_PRERELEASE=true ;;
     --allow-existing-version) ALLOW_EXISTING_VERSION=true ;;
     --forgejo) PUBLISH_FORGEJO=true ;;
+    --github) PUBLISH_GITHUB=true ;;
     v*.*) VERSION="${arg}" ;;
     *)
       echo "Unknown argument: ${arg}"
-      echo "Usage: ./tool/release.sh <version> [--build-only | --publish-from=<dist/tag>] [--skip-checks] [--ipa] [--targets=<csv>] [--all-platforms] [--linux-package=<bundle|deb|rpm|all>] [--windows-package=<zip|exe>] [--linux-ssh=<user@host>] [--windows-ssh=<user@host>] [--linux-remote-dir=<path>] [--windows-remote-dir=<path>] [--macos-notarize] [--channel=<stable|dev>] [--prerelease] [--allow-existing-version] [--forgejo]"
+      echo "Usage: ./tool/release.sh <version> [--build-only | --publish-from=<dist/tag>] [--skip-checks] [--ipa] [--targets=<csv>] [--all-platforms] [--linux-package=<bundle|deb|rpm|all>] [--windows-package=<zip|exe>] [--linux-ssh=<user@host>] [--windows-ssh=<user@host>] [--linux-remote-dir=<path>] [--windows-remote-dir=<path>] [--macos-notarize] [--channel=<stable|dev>] [--prerelease] [--allow-existing-version] [--forgejo] [--github]"
       exit 1
       ;;
   esac
 done
 
+if [[ "${PUBLISH_GITHUB}" == true && "${PUBLISH_FROM_SET}" == false ]]; then
+  echo "Error: --github requires --publish-from=<dist/tag>."
+  exit 1
+fi
+
 if [[ -z "${VERSION}" ]]; then
-  echo "Usage: ./tool/release.sh <version> [--build-only | --publish-from=<dist/tag>] [--skip-checks] [--ipa] [--targets=<csv>] [--all-platforms] [--linux-package=<bundle|deb|rpm|all>] [--windows-package=<zip|exe>] [--linux-ssh=<user@host>] [--windows-ssh=<user@host>] [--linux-remote-dir=<path>] [--windows-remote-dir=<path>] [--macos-notarize] [--channel=<stable|dev>] [--prerelease] [--allow-existing-version] [--forgejo]"
+  echo "Usage: ./tool/release.sh <version> [--build-only | --publish-from=<dist/tag>] [--skip-checks] [--ipa] [--targets=<csv>] [--all-platforms] [--linux-package=<bundle|deb|rpm|all>] [--windows-package=<zip|exe>] [--linux-ssh=<user@host>] [--windows-ssh=<user@host>] [--linux-remote-dir=<path>] [--windows-remote-dir=<path>] [--macos-notarize] [--channel=<stable|dev>] [--prerelease] [--allow-existing-version] [--forgejo] [--github]"
   echo "  e.g. ./tool/release.sh v0.3.0 --targets=android,macos"
   exit 1
 fi
@@ -215,6 +223,7 @@ fi
 REQUIRED_TOOLS=(jq git sha256sum)
 if [[ "${PUBLISH_FROM_SET}" == false ]]; then REQUIRED_TOOLS+=(flutter openssl); fi
 if [[ "${BUILD_ONLY}" == false ]]; then REQUIRED_TOOLS+=(curl openssl); fi
+if [[ "${PUBLISH_GITHUB}" == true ]]; then REQUIRED_TOOLS+=(gh); fi
 for tool in "${REQUIRED_TOOLS[@]}"; do
   if ! command -v "${tool}" &>/dev/null; then
     echo "Error: '${tool}' is required but not found on PATH."
@@ -239,6 +248,18 @@ cd "${SCRIPT_DIR}/.."
 source "${SCRIPT_DIR}/lib/release_dist.sh"
 if [[ "${PUBLISH_FROM_SET}" == true ]]; then
   load_release_dist
+fi
+
+if [[ "${PUBLISH_GITHUB}" == true ]]; then
+  GITHUB_REPO="${NAVIS_GITHUB_REPO:-Porthorion/Navis}"
+  if ! git remote get-url github >/dev/null 2>&1; then
+    echo "Error: --github requires a git remote named github."
+    exit 1
+  fi
+  if gh release view "${VERSION}" --repo "${GITHUB_REPO}" --json tagName >/dev/null 2>&1; then
+    echo "Error: GitHub release ${VERSION} already exists in ${GITHUB_REPO}; refusing to overwrite."
+    exit 1
+  fi
 fi
 
 UNAME="$(uname)"
@@ -494,22 +515,22 @@ if [[ "${PUBLISH_FROM_SET}" == false ]]; then
 ASSET_FILES=()
 ASSET_NAMES=()
 
-# Every release target ships obfuscated Dart symbols; the split debug info stays
-# local under build/obfuscation/<platform>/<version> for symbolising traces.
-set_obfuscation_args() {
-  local symbols_dir="${SCRIPT_DIR}/../build/obfuscation/$1/${VERSION}"
+# Every release target strips Dart debug info into local symbol files. It stays
+# local under build/symbols/<platform>/<version> for symbolising traces.
+set_symbol_args() {
+  local symbols_dir="${SCRIPT_DIR}/../build/symbols/$1/${VERSION}"
   mkdir -p "${symbols_dir}"
-  OBFUSCATION_ARGS=(--obfuscate "--split-debug-info=${symbols_dir}")
+  SYMBOL_ARGS=("--split-debug-info=${symbols_dir}")
 }
 
 build_android_apks() {
   local variant="$1"
-  local symbols_dir="${SCRIPT_DIR}/../build/obfuscation/android/${VERSION}/${variant}"
+  local symbols_dir="${SCRIPT_DIR}/../build/symbols/android/${VERSION}/${variant}"
   local split_args=()
   [[ "${variant}" != split-per-abi ]] || split_args+=(--split-per-abi)
   clean_android_release_outputs
   mkdir -p "${symbols_dir}"
-  local build_args=(build apk --release --flavor sideload --obfuscate
+  local build_args=(build apk --release --flavor sideload
     "--split-debug-info=${symbols_dir}" "${split_args[@]}" "${DART_DEFINE_ARGS[@]}")
   # Gradle needs the host JDK when invoked from a Flatpak sandbox.
   if [[ -n "${FLATPAK_ID:-}" ]]; then
@@ -525,7 +546,7 @@ build_android_apks() {
   else
     flutter "${build_args[@]}"
   fi
-  echo "    Obfuscation symbols -> ${symbols_dir}"
+  echo "    Debug symbols -> ${symbols_dir}"
 }
 
 stage_android_apk() {
@@ -634,8 +655,8 @@ fi
 
 if [[ "${BUILD_IOS}" == "true" ]]; then
   echo "==> Building iOS IPA (ad-hoc)..."
-  set_obfuscation_args ios
-  flutter build ipa --release --export-method ad-hoc "${OBFUSCATION_ARGS[@]}" "${DART_DEFINE_ARGS[@]}"
+  set_symbol_args ios
+  flutter build ipa --release --export-method ad-hoc "${SYMBOL_ARGS[@]}" "${DART_DEFINE_ARGS[@]}"
 
   IPA_DIR="${SCRIPT_DIR}/../build/ios/ipa"
   FOUND_IPA="$(find "${IPA_DIR}" -maxdepth 2 -name "*.ipa" | head -1)"
@@ -656,8 +677,8 @@ fi
 
 if [[ "${BUILD_MACOS}" == "true" ]]; then
   echo "==> Building macOS app..."
-  set_obfuscation_args macos
-  flutter build macos --release "${OBFUSCATION_ARGS[@]}" "${DART_DEFINE_ARGS[@]}"
+  set_symbol_args macos
+  flutter build macos --release "${SYMBOL_ARGS[@]}" "${DART_DEFINE_ARGS[@]}"
 
   MACOS_RELEASE_DIR="${SCRIPT_DIR}/../build/macos/Build/Products/Release"
   MACOS_APP_PATH="$(find "${MACOS_RELEASE_DIR}" -maxdepth 1 -type d -name "*.app" | head -1)"
@@ -686,9 +707,9 @@ fi
 if [[ "${BUILD_LINUX}" == "true" ]]; then
   if [[ "${UNAME}" == "Linux" ]]; then
     echo "==> Building Linux release in Ubuntu 22.04..."
-    set_obfuscation_args linux
+    set_symbol_args linux
     linux_args=("--package=${LINUX_PACKAGE_MODE}" "--version=${VERSION}" "--asset-prefix=${ASSET_PREFIX}"
-      "${OBFUSCATION_ARGS[@]}" "${DART_DEFINE_ARGS[@]}")
+      "${SYMBOL_ARGS[@]}" "${DART_DEFINE_ARGS[@]}")
     # The container script reads these from its environment.
     export NAVIS_DEB_MAINTAINER="${NAVIS_DEB_MAINTAINER:-}"
     NAVIS_FLUTTER_SDK="${NAVIS_FLUTTER_SDK:-$(dirname "$(dirname "$(readlink -f "$(command -v flutter)")")")}"
@@ -731,8 +752,8 @@ fi
 if [[ "${BUILD_WINDOWS}" == "true" ]]; then
   if [[ "${OS:-}" == "Windows_NT" ]]; then
     echo "==> Building Windows bundle..."
-    set_obfuscation_args windows
-    flutter build windows --release "${OBFUSCATION_ARGS[@]}" "${DART_DEFINE_ARGS[@]}"
+    set_symbol_args windows
+    flutter build windows --release "${SYMBOL_ARGS[@]}" "${DART_DEFINE_ARGS[@]}"
 
     WINDOWS_RELEASE_DIR="${SCRIPT_DIR}/../build/windows/x64/runner/Release"
     if [[ ! -d "${WINDOWS_RELEASE_DIR}" ]]; then
@@ -928,6 +949,51 @@ if [[ "${PUBLISH_FORGEJO}" == "true" ]]; then
       -F "attachment=@${asset_file}" >/dev/null
     echo "    Uploaded ${asset_name}"
   done
+fi
+
+# ─── Publish staged assets to GitHub ──────────────────────────────────────
+if [[ "${PUBLISH_GITHUB}" == true ]]; then
+  echo "==> Pushing main and ${VERSION} to github..."
+  git push github main "${VERSION}"
+  github_assets=("${ASSET_FILES[@]}" "${PUBLISH_FROM}/SHA256SUMS")
+  # Downloads are served from Cloudflare R2; the attached files are a mirror.
+  github_notes="$(mktemp)"
+  {
+    echo "## Download"
+    echo
+    echo "Official downloads are served from Porthorion's Cloudflare R2 storage at"
+    echo "https://downloads.porthorion.com, not from GitHub. The files attached below"
+    echo "are identical copies (check them against SHA256SUMS)."
+    echo
+    for asset in "${github_assets[@]}"; do
+      name="$(basename "${asset}")"
+      echo "- [${name}](https://downloads.porthorion.com/navis/releases/${VERSION}/${name})"
+    done
+    echo
+    cat "${PUBLISH_FROM}/release-notes.md"
+  } > "${github_notes}"
+  github_args=(release create "${VERSION}" --repo "${GITHUB_REPO}"
+    --title "Navis ${VERSION}" --notes-file "${github_notes}")
+  if [[ "$(jq -r '.prerelease' "${PUBLISH_FROM}/release.json")" == true ]]; then
+    github_args+=(--prerelease)
+  fi
+  gh "${github_args[@]}" "${github_assets[@]}"
+  rm -f "${github_notes}"
+  github_release="$(gh release view "${VERSION}" --repo "${GITHUB_REPO}" --json assets)"
+  jq -e --argjson count "${#github_assets[@]}" '.assets | length == $count' \
+    <<< "${github_release}" >/dev/null || {
+    echo "Error: GitHub release asset count differs from the staged bundle."; exit 1;
+  }
+  for asset in "${github_assets[@]}"; do
+    name="$(basename "${asset}")"
+    size="$(wc -c < "${asset}")"
+    jq -e --arg name "${name}" --argjson size "${size}" \
+      '[.assets[] | select(.name == $name and .size == $size)] | length == 1' \
+      <<< "${github_release}" >/dev/null || {
+      echo "Error: GitHub release asset missing or size mismatch: ${name}"; exit 1;
+    }
+  done
+  echo "    GitHub release assets verified."
 fi
 
 # Artifacts stay on disk until every publish step has succeeded, so a failed

@@ -1778,11 +1778,19 @@
     "description": "About tile that opens the full Navis app privacy policy on the website."
   },
   "aboutPrivacyPolicySub": "The full policy on the Navis website.",
-  "aboutTerms": "Terms of use",
-  "@aboutTerms": {
-    "description": "About tile that opens the Navis End User Licence Agreement on the website."
+  "aboutLicense": "License",
+  "@aboutLicense": {
+    "description": "About tile that opens the Navis GPL licence text on GitHub."
   },
-  "aboutTermsSub": "The licence agreement for using Navis.",
+  "aboutLicenseSub": "GNU GPL v3.0 or later",
+  "aboutSourceCode": "Source code",
+  "@aboutSourceCode": {
+    "description": "About tile that opens the Navis source repository on GitHub."
+  },
+  "aboutReportBug": "Report a bug",
+  "@aboutReportBug": {
+    "description": "About tile that opens the Navis issue tracker on GitHub."
+  },
   "aboutContact": "Contact support",
   "@aboutContact": {
     "description": "About tile that starts an email to Navis support."

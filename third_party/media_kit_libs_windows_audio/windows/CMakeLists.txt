@@ -66,13 +66,13 @@ endfunction()
 # N-127222-g151814650 without --enable-gpl. Includes libavfilter volume/biquad
 # for the equalizer. Mirrored on Porthorion R2 to keep old pins buildable
 # when upstream prunes daily releases, without polluting Navis update checks.
-# SOURCES.md and the source tarballs are in navis/third-party/<release tag>/.
+# Archive, SOURCES.md and source tarballs share the per-build R2 folder below.
 # To update, see docs/release-windows.md.
 set(LIBMPV "mpv-dev-lgpl-x86_64-20261006-git-eb0ee10315.7z")
 
 # Ordered mirrors followed by upstream; every attempt must match this digest.
 set(LIBMPV_URLS
-  "https://downloads.porthorion.com/navis/third-party/${LIBMPV}"
+  "https://downloads.porthorion.com/navis/third-party/libmpv-windows-x86_64-lgpl-20261006/${LIBMPV}"
   "https://github.com/zhongfly/mpv-winbuild/releases/download/2026-10-06-eb0ee10315/${LIBMPV}"
 )
 set(LIBMPV_SHA256 "0a86c8ee1cd7112d0ab7ae86716ffe468d3fd19e4b0a18a7b2a5f7498f00cf52")

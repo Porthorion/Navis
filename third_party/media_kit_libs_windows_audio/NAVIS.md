@@ -15,6 +15,8 @@ Changes from upstream, all in `windows/CMakeLists.txt`:
 - Downloads try the Porthorion R2 copy, then upstream, verifying SHA-256 on every attempt and deleting failures.
   A verified cached archive is reused offline. The mirror preserves daily
   builds pruned upstream, with `SOURCES.md` and mpv/FFmpeg source tarballs.
+  Upload only into `navis/third-party/libmpv-windows-x86_64-lgpl-<date>/`,
+  with no flat copy; CMake reads the archive in that per-build folder.
 - The archive is extracted to a folder named after it, so changing the pin
   always extracts the new build.
 

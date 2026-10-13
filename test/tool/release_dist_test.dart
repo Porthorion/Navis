@@ -123,13 +123,14 @@ case "$1" in
     elif [[ "$2" == *'^{commit}' ]]; then echo "${TAG_COMMIT:-$SOURCE_COMMIT}"
     else [[ "${LOCAL_TAG:-false}" == true ]]; fi ;;
   ls-remote) [[ "${REMOTE_FAIL:-false}" != true ]] ;;
+  remote) [[ "$*" == 'remote get-url github' && "${MISSING_GITHUB_REMOTE:-false}" != true ]] ;;
   diff) exit 0 ;;
   *) [[ "${ALLOW_PUBLISH_FLOW:-false}" == true ]] || exit 90 ;;
 esac
 ''');
     await executable('bin/flutter', r'''
 echo "flutter:$*" >> "$FIXTURE/log"
-[[ "$*" == *'--obfuscate'* && "$*" == *'--dart-define=NAVIS_SELF_UPDATE=true'* ]]
+[[ "$*" != *'--obfuscate'* && "$*" == *'--split-debug-info='* && "$*" == *'--dart-define=NAVIS_SELF_UPDATE=true'* ]]
 for arg in "$@"; do
   if [[ "$arg" == --dart-define-from-file=* ]]; then
     jq -e 'has("NAVIS_LASTFM_API_KEY_MASKED") and has("NAVIS_LASTFM_API_KEY_PAD")' "${arg#*=}" >/dev/null
@@ -159,7 +160,7 @@ echo 'Signer #1 certificate SHA-256 digest: abcdef'
 ''');
     await executable('tool/linux/build_in_container.sh', r'''
 echo "linux:$*" >> "$FIXTURE/log"
-[[ "$*" == *'--package=all'* && "$*" == *'--obfuscate'* ]]
+[[ "$*" == *'--package=all'* && "$*" != *'--obfuscate'* && "$*" == *'--split-debug-info='* ]]
 prefix=navis
 [[ "$*" != *'--asset-prefix=navis-dev'* ]] || prefix=navis-dev
 for suffix in linux.tar.gz linux-amd64.deb linux-x86_64.rpm; do
@@ -181,10 +182,39 @@ echo "curl:$*" >> "$FIXTURE/log"
 [[ "${ALLOW_PUBLISH_FLOW:-false}" == true ]] || exit 90
 echo '{"id":42}'
 ''');
+    await executable('bin/gh', r'''
+echo "gh:$*" >> "$FIXTURE/log"
+[[ "${ALLOW_PUBLISH_FLOW:-false}" == true ]] || exit 90
+if [[ "$*" == *'--json tagName'* ]]; then
+  [[ "${GITHUB_EXISTS:-false}" == true ]] || exit 1
+  echo '{"tagName":"v1.5.0"}'
+elif [[ "$2" == create ]]; then
+  python3 - "$@" <<'PY'
+import json, os, pathlib, shutil, sys
+root = pathlib.Path(os.environ['FIXTURE'])
+shutil.copy(sys.argv[sys.argv.index('--notes-file') + 1], root / 'github-notes.md')
+assets = [pathlib.Path(arg) for arg in sys.argv if arg.startswith(str(root / 'dist')) and pathlib.Path(arg).name != 'release-notes.md']
+(root / 'github-assets.json').write_text(json.dumps({'assets': [{'name': p.name, 'size': p.stat().st_size} for p in assets]}))
+PY
+else
+  python3 - <<'PY'
+import json, os, pathlib
+data = json.loads((pathlib.Path(os.environ['FIXTURE']) / 'github-assets.json').read_text())
+if os.environ.get('GITHUB_BAD_ASSET') == 'missing':
+    data['assets'].pop()
+elif os.environ.get('GITHUB_BAD_ASSET') == 'name':
+    data['assets'][0]['name'] = 'unexpected.apk'
+elif os.environ.get('GITHUB_BAD_ASSET') == 'size':
+    data['assets'][0]['size'] += 1
+print(json.dumps(data))
+PY
+fi
+''');
     await executable('tool/r2_publish.sh', r'''
 echo "r2:$*" >> "$FIXTURE/log"
 [[ "${ALLOW_PUBLISH_FLOW:-false}" == true ]] || exit 90
 if [[ "$1" == publish ]]; then
+  [[ "${R2_PUBLISH_FAIL:-false}" != true ]] || exit 91
   for arg in "$@"; do
     case "$arg" in
       --notes-file=*) cp "${arg#*=}" "$FIXTURE/published-notes" ;;
@@ -299,6 +329,8 @@ fi
   );
 
   for (final (args, message) in [
+    (['--github'], '--github requires --publish-from'),
+    (['--build-only', '--github'], '--github requires --publish-from'),
     (['--build-only', '--publish-from=dist/v1.5.0'], 'cannot be combined'),
     (['--publish-from='], 'requires a directory'),
     (['--publish-from=dist/v1.5.0', '--targets=linux'], 'build options'),
@@ -312,6 +344,145 @@ fi
       expect(await log(), isEmpty);
     });
   }
+
+  for (final prerelease in [false, true]) {
+    test(
+      'GitHub publishes exactly staged assets, prerelease=$prerelease',
+      () async {
+        await build(extra: [if (prerelease) '--prerelease']);
+        await write('log', '');
+        await write('dist/v1.5.0/unlisted.txt', 'must not upload');
+        final repo = prerelease ? 'fixture/Navis' : 'Porthorion/Navis';
+        final result = await run(
+          ['v1.5.0', '--publish-from=dist/v1.5.0', '--skip-checks', '--github'],
+          environment: {
+            'ALLOW_PUBLISH_FLOW': 'true',
+            if (prerelease) 'NAVIS_GITHUB_REPO': repo,
+          },
+        );
+        expect(
+          result.exitCode,
+          0,
+          reason: '${result.stdout}\n${result.stderr}',
+        );
+        final calls = await log();
+        expect(calls, contains('git:push github main v1.5.0'));
+        final upload = calls.singleWhere(
+          (line) => line.startsWith('gh:release create'),
+        );
+        expect(upload, contains('--repo $repo --title Navis v1.5.0'));
+        final notes = await File(p.join(fixture.path, 'github-notes.md'))
+            .readAsString();
+        expect(notes, startsWith('## Download'));
+        expect(
+          notes,
+          contains(
+            'https://downloads.porthorion.com/navis/releases/v1.5.0/SHA256SUMS',
+          ),
+        );
+        expect(
+          notes,
+          endsWith(
+            await File(p.join(fixture.path, 'dist/v1.5.0/release-notes.md'))
+                .readAsString(),
+          ),
+        );
+        expect(upload.contains('--prerelease'), prerelease);
+        expect(
+          calls,
+          contains('gh:release view v1.5.0 --repo $repo --json assets'),
+        );
+        expect(
+          calls.indexOf(upload),
+          greaterThan(
+            calls.indexWhere((line) => line.startsWith('r2:publish')),
+          ),
+        );
+        final uploaded = jsonDecode(
+          await File(p.join(fixture.path, 'github-assets.json')).readAsString(),
+        ) as Map<String, dynamic>;
+        final uploadedAssets = uploaded['assets'] as List<dynamic>;
+        expect(
+          uploadedAssets.map(
+            (dynamic asset) => (asset as Map<String, dynamic>)['name'],
+          ),
+          [...assets, 'SHA256SUMS'],
+        );
+        for (final dynamic asset in uploadedAssets) {
+          final entry = asset as Map<String, dynamic>;
+          expect(
+            entry['size'],
+            await File(
+              p.join(fixture.path, 'dist/v1.5.0', entry['name'] as String),
+            ).length(),
+          );
+        }
+      },
+    );
+  }
+
+  for (final (environment, message) in [
+    ({'GITHUB_EXISTS': 'true'}, 'already exists'),
+    ({'MISSING_GITHUB_REMOTE': 'true'}, 'remote named github'),
+  ]) {
+    test('GitHub preflight refuses $message', () async {
+      await build();
+      await write('log', '');
+      final result = await run(
+        ['v1.5.0', '--publish-from=dist/v1.5.0', '--skip-checks', '--github'],
+        environment: {'ALLOW_PUBLISH_FLOW': 'true', ...environment},
+      );
+      expect(result.exitCode, 1);
+      expect(result.stdout, contains(message));
+      final calls = await log();
+      expectNoReleaseActions(calls);
+      expect(
+        calls.where((line) => line.startsWith('gh:release create')),
+        isEmpty,
+      );
+    });
+  }
+
+  for (final badAsset in ['missing', 'name', 'size']) {
+    test('GitHub verification rejects asset $badAsset mismatch', () async {
+      await build();
+      final result = await run(
+        ['v1.5.0', '--publish-from=dist/v1.5.0', '--skip-checks', '--github'],
+        environment: {
+          'ALLOW_PUBLISH_FLOW': 'true',
+          'GITHUB_BAD_ASSET': badAsset,
+        },
+      );
+      expect(result.exitCode, 1);
+      expect(result.stdout, contains('Error: GitHub release asset'));
+      expect(
+        File(p.join(fixture.path, 'dist/v1.5.0/SHA256SUMS')).existsSync(),
+        isTrue,
+      );
+    });
+  }
+
+  test(
+    'failed R2 publication never pushes or creates a GitHub release',
+    () async {
+      await build();
+      await write('log', '');
+      final result = await run(
+        ['v1.5.0', '--publish-from=dist/v1.5.0', '--skip-checks', '--github'],
+        environment: {'ALLOW_PUBLISH_FLOW': 'true', 'R2_PUBLISH_FAIL': 'true'},
+      );
+      expect(result.exitCode, 91);
+      final calls = await log();
+      expect(
+        calls.where((line) => line.startsWith('git:push github')),
+        isEmpty,
+      );
+      expect(
+        calls.where((line) => line.startsWith('gh:release create')),
+        isEmpty,
+      );
+    },
+  );
 
   for (final file in [
     assets.first,

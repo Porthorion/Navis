@@ -1,7 +1,6 @@
 # Navis agent guide
 
-Navis is a proprietary (closed-source, free) Flutter client for
-Subsonic/OpenSubsonic servers. It targets Android, iOS, macOS, Linux, and Windows.
+Navis is a GPL-3.0-or-later Flutter client for Subsonic/OpenSubsonic servers. It targets Android, iOS, macOS, Linux, and Windows.
 The current version and supported SDK constraints live in `pubspec.yaml`.
 
 ## Start here
@@ -149,10 +148,12 @@ are planning/evidence records, not implementation authority.
 
 ## Repository operations
 
-Forgejo hosts this private repository at `https://git.porthorion.com/khalifa/Navis-dev`
-(the public `khalifa/Navis` holds only a README, issues and the 1.5.0 bridge release);
-the GitHub CLI is not the issue-tracking client. Use Forgejo's REST API only
-when a task requires issue actions, and never print credential material.
+Development happens in the private Forgejo repository
+`https://git.porthorion.com/khalifa/Navis-dev` (remote `origin`). The public
+source is `https://github.com/Porthorion/Navis` (remote `github`): only `main`,
+`dev` and version tags are pushed there, never feature branches, and public
+issues live on GitHub. Forgejo's public `khalifa/Navis` keeps only a README and
+the 1.5.0 bridge release for 1.4.x updaters. Never print credential material.
 
 Tool compatibility entry points are `.cursor/rules/navis-agents.mdc`,
 `CLAUDE.md`, `GEMINI.md`, and `.github/copilot-instructions.md`. They are

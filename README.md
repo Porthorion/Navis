@@ -208,10 +208,11 @@ contributors should read [`AGENTS.md`](AGENTS.md) and the canonical
 
 ## License
 
-Navis is proprietary freeware published by Porthorion under the
-[Navis End User Licence Agreement](https://navis.porthorion.com/eula).
-Third-party components retain their own licences, listed in the app under
-Settings › About › Open-source licenses.
+Navis is free software published by Porthorion under the
+[GNU General Public License v3.0 or later](LICENSE). Third-party components
+retain their own licences, listed in the app under Settings › About ›
+Open-source licenses. The Navis name and logo are not covered by the GPL; see
+[TRADEMARK.md](TRADEMARK.md).
 
 Navis bundles the [Inter](https://github.com/rsms/inter) typeface under the
 SIL Open Font License 1.1 ([assets/fonts/OFL.txt](assets/fonts/OFL.txt)).
