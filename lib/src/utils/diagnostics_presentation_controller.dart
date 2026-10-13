@@ -151,6 +151,7 @@ class DiagnosticsPresentationController {
     'weeklyLastRow',
   };
   static const trackActions = {
+    'play',
     'scrollToLast',
     'revealFirst',
     'more',
@@ -335,6 +336,10 @@ class DiagnosticsPresentationController {
             PointerUpEvent(pointer: pointer, position: end, viewId: viewId),
           );
         }
+      } else if (action == 'play') {
+        final callback = (rows.first.widget as AdaptiveTrackRow).onTap;
+        if (callback == null) throw const DiagnosticsPresentationUnavailable();
+        callback();
       } else if (action == 'download') {
         final icon = _findElement(
           rows.first,
@@ -1200,6 +1205,8 @@ class DiagnosticsPresentationController {
   /// lists, such as a hero's track list, are smaller than the page's own.
   /// Returns the position after the next quiet frame, once lazily built
   /// content has updated the extent.
+  /// Relative scrolling sends a pointer signal so queue centring yields to
+  /// the user's scroll, just as it does for ordinary input.
   Future<DiagnosticsScrollResult> scrollPrimary({
     double? by,
     double? to,
@@ -1208,6 +1215,8 @@ class DiagnosticsPresentationController {
     final root = _boundaryKey.currentContext;
     if (root is! Element) throw const DiagnosticsPresentationUnavailable();
     ScrollableState? primary;
+    RenderBox? primaryBox;
+    final viewId = View.of(root).viewId;
     var primaryArea = 0.0;
     void collect(Element element) {
       final widget = element.widget;
@@ -1227,8 +1236,19 @@ class DiagnosticsPresentationController {
             state.position.hasContentDimensions) {
           final area = box.size.width * box.size.height;
           if (area > primaryArea) {
-            primary = state;
-            primaryArea = area;
+            final hit = HitTestResult();
+            GestureBinding.instance.hitTestInView(
+              hit,
+              box.localToGlobal(box.size.center(Offset.zero)),
+              viewId,
+            );
+            // Shell overlays do not change ModalRoute.isCurrent. Their
+            // covered page must not win merely because its list is larger.
+            if (hit.path.any((entry) => entry.target == box)) {
+              primary = state;
+              primaryBox = box;
+              primaryArea = area;
+            }
           }
         }
       }
@@ -1242,6 +1262,18 @@ class DiagnosticsPresentationController {
       position.minScrollExtent,
       position.maxScrollExtent,
     );
+    if (by != null) {
+      final box = primaryBox!;
+      GestureBinding.instance.handlePointerEvent(
+        PointerScrollEvent(
+          kind: PointerDeviceKind.mouse,
+          position: box.localToGlobal(box.size.center(Offset.zero)),
+          // Signal user input without scrolling a nested child at this point;
+          // the selected scroll owner below applies the bounded displacement.
+          viewId: viewId,
+        ),
+      );
+    }
     position.jumpTo(target);
     await waitForFrame();
     return DiagnosticsScrollResult(

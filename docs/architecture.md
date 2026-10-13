@@ -3436,6 +3436,10 @@ never `MediaItem.extras`. AzuraCast polling is derived only from `/listen/` or
    → stream. Permanent downloads always win regardless of streaming quality,
    Cached First, or network settings. Rolling entries retain profile matching
    unless Cached First, cellular cache preference, or offline playback applies.
+   Successful rolling-source resolution refreshes its LRU access timestamp.
+   Permanent-source resolution leaves the cache row unchanged: downloads are
+   excluded from LRU eviction, and touching them during large queue fills would
+   repeatedly invalidate the Downloads queries and reorder their results.
 5. Audio handler updates structural state through `playbackSnapshotProvider`
    plus lightweight timeline updates through `positionStream` and the
    track-keyed `bufferStateStream`

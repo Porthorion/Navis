@@ -72,6 +72,7 @@ Dated reports live in `audits/`:
 - [Compliance audit — 2026-10-07](audits/compliance-audit-2026-10-07.md),
   [security audit — 2026-10-09](audits/security-audit-2026-10-09.md)
   and [Linux packages — 2026-10-13](audits/linux-packages-2026-10-13.md).
+- [Large downloaded queue investigation — 2026-10-14](audits/downloads-queue-stall-2026-10-14.md).
 
 The dependency inventory is the retained readable snapshot. Its raw JSON/TXT
 and empty evidence files were removed during the documentation reorganization;

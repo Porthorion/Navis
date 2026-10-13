@@ -419,6 +419,7 @@ void main() {
       frameWaiter: () async {},
     );
     var menus = 0;
+    var plays = 0;
     final scroll = ScrollController();
     addTearDown(scroll.dispose);
     await tester.pumpWidget(
@@ -430,6 +431,7 @@ void main() {
               children: [
                 AdaptiveTrackRow(
                   title: 'Track',
+                  onTap: () => plays++,
                   actions: IconButton(
                     onPressed: () => menus++,
                     icon: const Icon(Icons.more_vert),
@@ -444,6 +446,8 @@ void main() {
     );
     await controller.activateTrackControl(action: 'more');
     expect(menus, 1);
+    await controller.activateTrackControl(action: 'play');
+    expect(plays, 1);
     await controller.activateTrackControl(action: 'revealFirst');
     expect(scroll.offset, 0);
     final scrolling = controller.activateTrackControl(action: 'scrollToLast');
@@ -872,6 +876,7 @@ void main() {
       final hiddenTab = ScrollController();
       final page = ScrollController();
       final nested = ScrollController();
+      var signals = 0;
       addTearDown(hiddenTab.dispose);
       addTearDown(page.dispose);
       addTearDown(nested.dispose);
@@ -896,15 +901,21 @@ void main() {
                     ),
                   ),
                 ),
-                ListView(
-                  controller: page,
-                  children: <Widget>[
-                    SizedBox(
-                      height: 200,
-                      child: ListView(controller: nested, children: [rows(20)]),
-                    ),
-                    rows(60),
-                  ],
+                Listener(
+                  onPointerSignal: (_) => signals++,
+                  child: ListView(
+                    controller: page,
+                    children: <Widget>[
+                      SizedBox(
+                        height: 400,
+                        child: ListView(
+                          controller: nested,
+                          children: [rows(20)],
+                        ),
+                      ),
+                      rows(60),
+                    ],
+                  ),
                 ),
               ],
             ),
@@ -914,6 +925,7 @@ void main() {
 
       expect((await controller.scrollPrimary(by: 300)).pixels, 300);
       expect(page.offset, 300);
+      expect(signals, 1);
       expect(hiddenTab.offset, 0);
       expect(nested.offset, 0);
 
@@ -923,6 +935,7 @@ void main() {
       expect(end.pixels, end.maxScrollExtent);
       expect(end.viewportDimension, 600);
       expect((await controller.scrollPrimary(by: -100000)).pixels, 0);
+      expect(signals, 2);
 
       await expectLater(
         controller.scrollPrimary(by: 1, to: 1),
@@ -934,6 +947,49 @@ void main() {
       );
     },
   );
+
+  testWidgets('scrolling selects an overlay over its larger covered page', (
+    tester,
+  ) async {
+    final root = Directory.systemTemp.createTempSync('navis_overlay_scroll_');
+    addTearDown(() => root.deleteSync(recursive: true));
+    final controller = DiagnosticsPresentationController(
+      artifactRoot: root,
+      frameWaiter: () => tester.pump(),
+    );
+    final page = ScrollController();
+    final overlay = ScrollController();
+    addTearDown(page.dispose);
+    addTearDown(overlay.dispose);
+    await tester.pumpWidget(
+      controller.wrap(
+        MaterialApp(
+          home: Stack(
+            children: [
+              ListView(
+                controller: page,
+                children: const [SizedBox(height: 3000)],
+              ),
+              Center(
+                child: SizedBox(
+                  width: 200,
+                  height: 300,
+                  child: ListView(
+                    controller: overlay,
+                    children: const [SizedBox(height: 3000)],
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+
+    expect((await controller.scrollPrimary(by: 100)).pixels, 100);
+    expect(overlay.offset, 100);
+    expect(page.offset, 0);
+  });
 
   testWidgets('scrolling without a visible list is unavailable', (
     tester,

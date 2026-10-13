@@ -208,7 +208,11 @@ class PlaybackSourceResolver {
           'format=${quality.format ?? 'original'}',
         );
       }
-      await _rollingCacheManager.touchTrack(song.id);
+      // Only rolling entries participate in LRU eviction. Touching downloads
+      // needlessly invalidates every cache-derived watcher during queue fill.
+      if (cachedTrack.cacheType == CacheType.rolling) {
+        await _rollingCacheManager.touchTrack(song.id);
+      }
       return ResolvedPlaybackSource.file(
         songId: song.id,
         uri: _cachedLocatorUri(cachedTrack),
