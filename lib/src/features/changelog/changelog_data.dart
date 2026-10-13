@@ -2421,11 +2421,11 @@ const List<ChangelogVersion> changelogs = [
     released: '2026-06-28',
     entries: [
       ChangelogEntry(
-        'Re-introduced smart in-app updates: Forgejo/sideload Android builds can self-update, Google Play installs are redirected to the Play Store, and desktop keeps the existing updater',
+        'Re-introduced smart in-app updates: sideloaded Android builds can self-update, Google Play installs are redirected to the Play Store, and desktop keeps the existing updater',
         type: ChangelogEntryType.newFeature,
       ),
       ChangelogEntry(
-        'Update checks now respect the auto-check setting, throttle background Forgejo requests to once every 24 hours, and record update download usage in data-usage stats',
+        'Update checks now respect the auto-check setting, throttle background update checks to once every 24 hours, and record update download usage in data-usage stats',
         type: ChangelogEntryType.improvement,
       ),
       ChangelogEntry(
