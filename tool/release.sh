@@ -861,6 +861,11 @@ fi
 echo "==> Merging ${CURRENT_BRANCH} -> main..."
 git checkout main
 git merge --ff-only "${CURRENT_BRANCH}"
+# A main that was already ahead stays ahead, so the tag would not match the binaries.
+if [[ "${PUBLISH_FROM_SET}" == true && "$(git rev-parse HEAD)" != "${DIST_SOURCE_COMMIT}" ]]; then
+  echo "Error: main is at $(git rev-parse --short HEAD), not the staged source commit ${DIST_SOURCE_COMMIT}; refusing to tag."
+  exit 1
+fi
 
 if git rev-parse -q --verify "refs/tags/${VERSION}" >/dev/null; then
   # Only reachable with --allow-existing-version (see the version guard).
