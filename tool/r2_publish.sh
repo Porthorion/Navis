@@ -180,6 +180,7 @@ asset_key_for() {
     *-macos.zip) echo "macosBundle" ;;
     *-linux-amd64.deb) echo "linuxDeb-amd64" ;;
     *-linux-arm64.deb) echo "linuxDeb-arm64" ;;
+    *-linux-x86_64.rpm) echo "linuxRpm-x86_64" ;;
     *-linux.tar.gz) echo "linuxPortable" ;;
     *) echo "" ;;
   esac

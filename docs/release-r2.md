@@ -53,9 +53,12 @@ The decoded payload:
 }
 ```
 
-Asset keys are the `UpdateInstallMode` names: `androidApk`, `windowsInstaller`,
-`windowsPortable`, `macosBundle`, `linuxDeb-amd64`, `linuxDeb-arm64` and
-`linuxPortable`. iOS has no updater, so `.ipa` files are not published.
+App updater keys are `androidApk`, `windowsInstaller`, `windowsPortable`,
+`macosBundle`, `linuxDeb-amd64`, `linuxDeb-arm64` and `linuxPortable`.
+`linuxRpm-x86_64` is available for download consumers; RPM uses manual
+package-manager updates, not a new `UpdateInstallMode`. See
+[release-linux.md](release-linux.md). iOS has no updater, so `.ipa` files are
+not published.
 
 `build` is an optional integer in the signed payload. Stable compares only
 semver. Dev and staging also accept an equal semver when `build` is greater

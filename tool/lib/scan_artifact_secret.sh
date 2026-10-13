@@ -4,7 +4,7 @@
 # scan_artifact_for_secret <artifact> <secret>
 #   <artifact> is a file or a directory. Archives are unpacked and searched
 #   recursively (up to 4 levels): zip/apk/aab/ipa/jar, tar and compressed tar
-#   (gz, xz, zstd, bzip2) and deb. Returns 0 when the secret is absent, 1 when
+#   (gz, xz, zstd, bzip2), deb and rpm. Returns 0 when the secret is absent, 1 when
 #   it is found (the artifact path is reported, never the secret) and 2 when
 #   the scan itself cannot run or finish: empty secret, missing artifact, an
 #   archive that cannot be unpacked (corrupt, or its decompressor is missing),
@@ -44,6 +44,11 @@ _scan_secret_unpack() {
       *.tar.bz2 | *.tbz2)
       # tar detects the compression itself; a missing decompressor fails it.
       tar -xf "${archive}" -C "${dest}" >/dev/null 2>&1 || return 2
+      return 0
+      ;;
+    *.rpm)
+      command -v bsdtar >/dev/null 2>&1 || return 2
+      bsdtar -xf "${archive}" -C "${dest}" >/dev/null 2>&1 || return 2
       return 0
       ;;
     *.deb)
@@ -89,7 +94,7 @@ _scan_secret_walk() {
       -o -iname '*.aab' -o -iname '*.ipa' -o -iname '*.jar' -o -iname '*.tar' \
       -o -iname '*.tar.gz' -o -iname '*.tgz' -o -iname '*.tar.xz' \
       -o -iname '*.txz' -o -iname '*.tar.zst' -o -iname '*.tzst' \
-      -o -iname '*.tar.bz2' -o -iname '*.tbz2' -o -iname '*.deb' \
+      -o -iname '*.tar.bz2' -o -iname '*.tbz2' -o -iname '*.deb' -o -iname '*.rpm' \
       -o -name 'data.tar.*' -o -name 'control.tar.*' \) -print0 >"${listing}"; then
       rm -f "${listing}"
       return 2

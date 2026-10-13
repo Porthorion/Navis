@@ -165,6 +165,10 @@ const List<ChangelogVersion> changelogs = [
     ],
     entries: [
       ChangelogEntry(
+        'Linux releases now build against Ubuntu 22.04 and include Debian, RPM and Arch binary packaging',
+        type: ChangelogEntryType.newFeature,
+      ),
+      ChangelogEntry(
         'Fixed sign-in and playback getting stuck when secure storage is temporarily unavailable',
         type: ChangelogEntryType.fix,
       ),

@@ -562,9 +562,13 @@ make release VERSION=v0.2.0
    Android release builds clean stale Flutter/Gradle APK outputs before
    building and remove any same-name root release asset before copying the new
    APK.
-   Linux target can output either portable `bundle` (tar.gz) or `.deb`
-   (`--linux-package=deb`). Debian package output is architecture-aware
-   (`linux-<arch>.deb`) and includes a launcher binary and desktop entry.
+   Linux x86_64 builds use the Ubuntu 22.04 container, preserving glibc 2.35
+   compatibility, release AOT/obfuscation and separate LGPL libmpv. Select
+   `--linux-package=bundle|deb|rpm|all`; `all` packages one bundle three ways.
+   Package launchers use absolute desktop Exec paths and the existing icons.
+   See [release-linux.md](release-linux.md) for capped local-only builds,
+   package installation checks and AUR maintenance. RPM secret scanning
+   requires `bsdtar` on the coordinator.
    Windows target can output `.zip` (default) or Inno Setup `.exe` installer
    (`--windows-package=exe`). The installer's silent update relaunch uses
    `runasoriginaluser` to avoid restarting Navis with installer elevation.

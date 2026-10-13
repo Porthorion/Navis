@@ -1,0 +1,27 @@
+# Proprietary release binary; never builds Navis source.
+pkgname=navis-bin
+pkgver=1.5.0
+pkgrel=1
+pkgdesc='Subsonic/OpenSubsonic music player'
+arch=('x86_64')
+url='https://navis.porthorion.com'
+license=('LicenseRef-Navis' 'LGPL-2.1-or-later')
+depends=('gtk3' 'libsecret' 'alsa-lib' 'libpulse')
+provides=('navis')
+conflicts=('navis')
+options=('!strip' '!debug')
+source=("navis-v${pkgver}-linux.tar.gz::https://downloads.porthorion.com/navis/releases/v${pkgver}/navis-v${pkgver}-linux.tar.gz")
+sha256sums=('bec1107b4aacf4efe9ef613bf9b89b351c6374a3d8b06066942bb9c46c8d6a54')
+
+package() {
+  install -d "$pkgdir/opt/navis" "$pkgdir/usr/bin"
+  cp -a "$srcdir/navis" "$srcdir/lib" "$srcdir/data" "$pkgdir/opt/navis/"
+  printf '#!/usr/bin/env bash\nexec /opt/navis/navis "$@"\n' > "$pkgdir/usr/bin/navis"
+  chmod 755 "$pkgdir/usr/bin/navis"
+  install -Dm644 "$srcdir/data/com.navis.app.navis.desktop" "$pkgdir/usr/share/applications/navis.desktop"
+  sed -i 's|^Exec=.*|Exec=/usr/bin/navis %U|' "$pkgdir/usr/share/applications/navis.desktop"
+  install -d "$pkgdir/usr/share/icons/hicolor"
+  cp -a "$srcdir/data/icons/hicolor/." "$pkgdir/usr/share/icons/hicolor/"
+  install -d "$pkgdir/usr/share/licenses/$pkgname"
+  cp -a "$srcdir/data/licenses/." "$pkgdir/usr/share/licenses/$pkgname/"
+}

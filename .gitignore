@@ -143,11 +143,13 @@ app.*.symbols
 *.dmg
 *.pkg
 *.deb
+*.rpm
 *.AppImage
 
 # Release artifacts (created by tool/release.sh, uploaded to Forgejo)
 navis-v*.apk
 navis-v*-linux.tar.gz
+navis-dev-v*-linux.tar.gz
 navis-v*-linux-*.deb
 navis-v*-windows.zip
 navis-v*-windows-installer.exe

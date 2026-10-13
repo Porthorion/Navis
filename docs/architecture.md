@@ -3207,6 +3207,11 @@ callback waits for the update check.
     with `NAVIS_SELF_UPDATE=false`) open the Play Store listing instead of sideloading.
   - **Desktop** runs a platform-appropriate apply strategy:
   - **Linux deb:** `pkexec dpkg -i` + relaunch.
+  - **Linux RPM/AUR:** package-manager updates. These use root-owned `/opt/navis`
+    and the existing write-access check shows Download Manually for normal users.
+    The detector still selects Debian mode, so an offer requires `linuxDeb-amd64`;
+    the published `linuxRpm-x86_64` key is for download consumers only. See
+    [release-linux.md](release-linux.md) for the Ubuntu 22.04 build and package flow.
   - **Linux portable / Windows portable / macOS:** extracts the archive to a staging
     subdirectory of the downloaded artifact's private work directory, writes a
     self-deleting shell/batch script inside that same work directory, launches it

@@ -1,126 +1,158 @@
 # Releasing Navis for Linux
 
-Navis for Linux is distributed in two formats:
+Navis ships x86_64 release binaries built against Ubuntu 22.04 (glibc 2.35),
+including the separately built, pinned LGPL libmpv. Supported targets are
+Ubuntu 22.04+, Debian 12+ and compatible glibc desktop distributions; Alpine's
+musl runtime is not supported by these bundles.
 
-| Format | Filename | Target audience |
+| Format | Filename | Install location |
 |---|---|---|
-| Debian package | `navis-v0.x.y-linux-amd64.deb` | Debian, Ubuntu, Mint, Pop!\_OS, Kali, Raspberry Pi OS, etc. |
-| Portable bundle | `navis-v0.x.y-linux.tar.gz` | Fedora, Arch, Gentoo, NixOS, openSUSE, Alpine, any distro |
+| Portable | `navis-vX.Y.Z-linux.tar.gz` | User-selected directory |
+| Debian | `navis-vX.Y.Z-linux-amd64.deb` | `/opt/navis` |
+| RPM | `navis-vX.Y.Z-linux-x86_64.rpm` | `/opt/navis` |
+| AUR binary recipe | `packaging/aur/navis-bin/` | `/opt/navis` |
 
-Both formats are supported by the built-in auto-updater. Ideally ship both formats per
-release to cover the full Linux user base; see "Publishing Both Formats" for the current
-limit.
+Keep the portable filename: 1.4.x clients discover that name. Package-manager
+installs also provide `/usr/bin/navis`, `/usr/share/applications/navis.desktop`
+and all existing hicolor icon sizes under `/usr/share/icons/hicolor`.
 
----
+## Container build and local packaging
 
-## Why These Two Formats?
-
-The `.deb` package covers the Debian/Ubuntu family — the large majority of Linux desktop
-users. The `.tar.gz` portable bundle is a universal fallback that runs on any Linux distro
-without requiring root access or a package manager.
-
-### Why not AppImage?
-
-AppImage is self-contained and runs on most distros, but it requires bundling **all** native
-shared libraries inside the image — including `libmpv`, `libGL`, and their transitive
-dependencies — using tooling such as `appimagetool` or `linuxdeploy`. This adds significant
-build infrastructure and maintenance overhead, and the current target audience is well
-covered by the two existing formats. AppImage support can be added in a future release.
-
----
-
-## Platform Constraint
-
-Linux builds require a Linux host. On macOS or Windows, delegate to a remote Linux builder
-via SSH. See [release-from-linux.md](release-from-linux.md) for remote builder setup.
-
----
-
-## Build Host Prerequisites
-
-### 1. System dependencies
-
-Build on **Ubuntu 22.04 LTS or older** to maximize glibc compatibility. A binary compiled
-against Ubuntu 22.04's glibc runs on Ubuntu 24.04; the reverse is not guaranteed. Binaries
-built on newer distros may fail with `GLIBC_X.XX not found` on users' older systems.
+Install Docker on a Linux x86_64 host and give the build account Docker access.
+The host needs Flutter on PATH (the version required by `pubspec.yaml`), a
+bootstrapped pub cache, Git and `flock`. The release coordinator also needs
+`bsdtar` to scan RPM payloads for the bundled plaintext Last.fm key
+(`libarchive-tools` on Debian/Ubuntu, `libarchive` on Arch).
+No host GTK/compiler/dpkg/rpm toolchain is needed. SSH Linux builders need the
+same Docker/Flutter/cache setup.
 
 ```bash
-sudo apt-get update
-sudo apt-get install -y \
-  clang cmake ninja-build pkg-config \
-  libgtk-3-dev \
-  dpkg-dev jq curl git
+# Local only: no signing, tags, pushes, uploads or GUI launch.
+NAVIS_LINUX_MEMORY=6g NAVIS_LINUX_CPUS=2 ./tool/linux/build_in_container.sh
+# Default: all three formats, version from pubspec.yaml, stable channel.
+./tool/linux/build_in_container.sh --package=deb --version=v1.5.0
+# Repackage the same verified bundle without rebuilding Flutter.
+./tool/linux/build_in_container.sh --package-only --package=all --version=v1.5.0
 ```
 
-`dpkg-dev` is only required for `.deb` packaging; the rest is needed for all Linux builds.
+`tool/linux/Dockerfile` installs clang, cmake, ninja, pkg-config, GTK,
+libsecret (secure-storage plugin), liblzma, libstdc++ 12, dpkg-deb and rpmbuild
+on Ubuntu 22.04. The host SDK and pub cache are mounted read-only and copied
+into writable container storage. Current tracked and non-ignored source files
+are copied into an isolated workspace; host `.dart_tool`, SDK and pub caches
+are not rewritten. Outputs are owned by the invoking user. Allow roughly
+8 GiB of temporary disk space for SDK/cache copies and build outputs.
+`NAVIS_FLUTTER_SDK` and `PUB_CACHE` override the input locations.
 
-### 2. Flutter SDK
+Both image construction and the build have a memory cap (default 6 GiB, no
+extra swap); the build defaults to two CPUs and two parallel CMake jobs.
+A lock serializes builds across worktrees. Image construction explicitly uses
+Docker's legacy builder so its memory flags are honored; Docker must include
+that builder.
+
+The entry point always uses AOT release mode, `--obfuscate`, split debug info
+under `build/obfuscation/linux/<tag>` and `NAVIS_UPDATE_CHANNEL=stable` unless
+an explicit channel is supplied. `release.sh` passes its existing
+`set_obfuscation_args` and Dart defines (including the private Last.fm defines
+file) unchanged. Native ELF symbols are stripped before packaging. Symbols
+stay local and are never put into release packages. Do not statically link or
+obfuscate libmpv: `lib/libmpv.so.2` remains replaceable.
+
+`release.sh` and the SSH builder call this same container entry point.
+`tool/linux/package_bundle.sh` contains the extracted existing bundle/Debian
+assembly plus RPM assembly; there is no independent publishing pipeline.
+The coordinator scans every resulting package, including RPM payloads.
 
 ```bash
-flutter --version          # Flutter 3.x stable
-flutter doctor -v
+# Owner's publication command; this builds AND publishes.
+./tool/release.sh vX.Y.Z --targets=linux --linux-package=all
+# Individual outputs remain available: bundle (default), deb, rpm.
 ```
 
-### 3. R2 publishing settings
-
-Create `tool/release.env` (git-ignored) from `tool/release.env.example`:
+Debian dependencies are `libgtk-3-0, libsecret-1-0, libpulse0,
+libasound2 | libasound2t64` (the latter accommodates Ubuntu 24.04/Debian 13).
+RPM requires `gtk3, libsecret, pulseaudio-libs, alsa-lib`; PulseAudio client
+libraries work with a PipeWire PulseAudio server too. RPM also records ELF
+runtime requirements and excludes private bundled Flutter/plugin SONAMEs
+from global provides/requires. Neither package requires system mpv.
+Debian maintainer defaults to `Porthorion <support@porthorion.com>`;
+`NAVIS_DEB_MAINTAINER` still overrides it.
 
 ```bash
-R2_ACCOUNT_ID="<cloudflare-account-id>"
-R2_BUCKET="downloads"
-R2_PREFIX="navis"
-R2_ACCESS_KEY_ID="<r2-access-key-id>"
-R2_SECRET_ACCESS_KEY="<r2-secret-access-key>"
-NAVIS_UPDATE_SIGNING_KEY="$HOME/.config/navis/update-signing-ed25519.pem"
+sudo apt install ./navis-vX.Y.Z-linux-amd64.deb
+sudo dnf install ./navis-vX.Y.Z-linux-x86_64.rpm
 ```
 
-Releases are published to R2 with a signed update manifest. Add `FORGEJO_URL`,
-`FORGEJO_REPO` and `FORGEJO_TOKEN` only for the 1.5.0 `--forgejo` bridge release. See
-[release-r2.md](release-r2.md) and [release-secrets.md](release-secrets.md).
-
----
-
-## Format 1: Debian Package (`.deb`)
-
-### What it installs
-
-| Path | Content |
-|---|---|
-| `/opt/navis/` | App binary + native libraries + Flutter assets |
-| `/usr/bin/navis` | Launcher wrapper script |
-| `/usr/share/applications/navis.desktop` | Desktop entry (application menu) |
-| `/usr/share/icons/hicolor/512x512/apps/navis.png` | App icon |
-
-Debian packages default to `Porthorion <support@porthorion.com>` as maintainer
-and `https://navis.porthorion.com` as homepage. `NAVIS_DEB_MAINTAINER` remains
-available for custom maintainer metadata in local and remote packaging.
-
-### Building
+## Headless package verification
 
 ```bash
-./tool/release.sh v0.x.y --targets=linux --linux-package=deb
+./tool/linux/verify_packages.sh v1.5.0
+# Retry one distribution if needed:
+./tool/linux/verify_packages.sh v1.5.0 fedora:latest
+objdump -T build/linux/x64/release/bundle/navis | grep GLIBC_
 ```
 
-Output: `navis-v0.x.y-linux-amd64.deb`
+The verification script sequentially installs into disposable Ubuntu 22.04,
+Debian 12 and Fedora latest containers, each capped at 2 GiB/two CPUs.
+Debian-family checks use `dpkg -i` then `apt-get -f install`; Fedora uses
+`dnf install` with zchunk metadata disabled for these fresh containers
+(repository package GPG checking remains enabled). It checks the runner AND each dynamically loaded library with
+`ldd`, desktop Exec/Icon paths and an ordinary user's lack of `/opt/navis`
+write access. It never launches Navis. The packaging gate rejects a runner
+requiring GLIBC newer than 2.35; also inspect library dependencies after
+changing a native dependency or the libmpv pin.
 
-The architecture suffix is detected automatically from the build host (`amd64`, `arm64`,
-etc.) via `dpkg --print-architecture`.
+## Package-manager updates
 
-### User installation
+The existing app detector treats executables under `/opt/navis` as Debian
+mode. Adding a real RPM update mode would require manifest selection and
+installation changes beyond a few-line detector, so RPM/AUR use the existing
+write-access fallback: normal users cannot write the root-owned `/opt/navis`
+and see **Download Manually** when an update is offered. Update RPMs with
+`dnf` and AUR packages with `makepkg`/your AUR helper. Do not run Navis as root
+or grant ordinary users write access to the package-managed directory.
+An in-app offer currently requires the matching `linuxDeb-amd64` asset in the
+manifest even for RPM/AUR; shipping `--linux-package=all` supplies it.
+`linuxRpm-x86_64` is published for download consumers, not native app auto-apply.
+Portable and Debian updater behavior is described below.
+
+## AUR owner workflow (manual publication)
+
+The `navis-bin` recipe downloads the proprietary portable release, verifies
+its SHA-256, and installs its binary, desktop entry, icons and licence notices.
+It does not compile source. Before publication, set `pkgver` and the tarball
+SHA-256 to the FINAL released bytes (the checked-in local validation hash must
+be refreshed for the published artifact), increment `pkgrel` as appropriate,
+and regenerate `.SRCINFO`. Never use `SKIP` for a published binary package.
 
 ```bash
-# Option A: apt (resolves missing dependencies automatically)
-sudo apt install ./navis-v0.x.y-linux-amd64.deb
-
-# Option B: dpkg (does not resolve dependencies)
-sudo dpkg -i navis-v0.x.y-linux-amd64.deb
-# If missing dependencies: sudo apt-get install -f
+sha256sum navis-v1.5.0-linux.tar.gz
+cd packaging/aur/navis-bin
+makepkg --printsrcinfo > .SRCINFO
+# Test a COPY of the recipe with source replaced by the matching file:// URL:
+# systemd-run --user --scope -p MemoryMax=2G -p MemorySwapMax=0 -- makepkg -f --nodeps
 ```
 
-After installation, `navis` is available as a system command and appears in the
-application menu.
+The owner must create an account at https://aur.archlinux.org, add their SSH
+public key in the account settings, then:
 
-### Bundled LGPL libmpv
+```bash
+git clone ssh://aur@aur.archlinux.org/navis-bin.git
+cp packaging/aur/navis-bin/PKGBUILD packaging/aur/navis-bin/.SRCINFO navis-bin/
+cd navis-bin
+git add PKGBUILD .SRCINFO
+git commit -m "Update Navis binary package"
+git push
+```
+
+These are owner publication steps, separate from local validation. Verify the
+EULA permits the intended distribution: Navis is closed source and proprietary
+(`LicenseRef-Navis`); third-party components retain their own licences. Keep
+LGPL notices and the corresponding libmpv/FFmpeg source/build recipe available
+at their recorded locations. Packaging must preserve the separate shared
+libmpv and must never bundle Navis obfuscation symbols.
+
+## Bundled LGPL libmpv
 
 Linux x86_64 packages ship LGPL-2.1+ libmpv/FFmpeg as `lib/libmpv.so.2`.
 Startup selects that file relative to `Platform.resolvedExecutable`; if absent,
@@ -148,7 +180,8 @@ Copy the identical tarball to the R2 fallback path. Update the filename,
 ordered URLs and SHA-256 in CMake and the in-app source-location notice.
 
 The Debian package no longer depends on system `libmpv2 | libmpv1`. Its minimal
-runtime dependencies are `libgtk-3-0, libpulse0, libasound2`: the recipe enables
+runtime dependencies are `libgtk-3-0, libsecret-1-0, libpulse0,
+libasound2 | libasound2t64`: the recipe enables
 both PulseAudio and ALSA, so both shared libraries must load even when only one
 output is used. An alternative (`libpulse0 | libasound2`) would be insufficient.
 GnuTLS is already supplied by GTK's dependency on CUPS on the Ubuntu 22.04
@@ -180,7 +213,7 @@ automatically." with a "Download Manually" button and no Retry.
 
 ---
 
-## Format 2: Portable Bundle (`.tar.gz`)
+## Portable bundle (`.tar.gz`)
 
 ### What it contains
 
@@ -227,18 +260,13 @@ The updater script:
 
 ---
 
-## Publishing Both Formats
+## Publishing all formats
 
-`release.sh` builds one Linux package per run (`--linux-package=bundle|deb`) and
-publishes it to R2 in that run. To ship the other format for the same version, run
-`release.sh` again with `--allow-existing-version` and the other `--linux-package`, or
-pass the file to `tool/r2_publish.sh publish --tag=<tag> --channel=<channel> <file>`.
-When the channel already points at that tag, the publish adds the new asset to the
-signed manifest and rewrites `SHA256SUMS`; existing assets are kept. Each install
-type reads only its own key (`linuxDeb-<arch>` or `linuxPortable`), and an install
-whose key is missing sees no update.
-
----
+`--linux-package=all` builds the bundle once and ships tar.gz, deb and rpm
+in one release. Individual formats can still be added to an existing tag via
+the owner's `--allow-existing-version` flow or `r2_publish.sh`; see
+[release-r2.md](release-r2.md). RPM maps to `linuxRpm-x86_64`, Debian to
+`linuxDeb-amd64` and the tarball to `linuxPortable`.
 
 ## Building from a Non-Linux Host
 
@@ -269,29 +297,13 @@ Assets: `navis-dev-v0.x.y-linux-amd64.deb` / `navis-dev-v0.x.y-linux.tar.gz`
 
 ## Troubleshooting
 
-### `clang++: command not found`
+### Container build failures
 
-```bash
-sudo apt-get install -y clang
-export CXX=clang++ CC=clang
-```
-
-### `flutter build linux` fails in headless / Docker environments
-
-Flutter Linux builds require a GTK display environment. For headless CI:
-
-```bash
-# Set up Xvfb:
-sudo apt-get install -y xvfb
-Xvfb :99 -screen 0 1024x768x24 &
-export DISPLAY=:99
-flutter build linux --release
-```
-
-### `dpkg: error: requested operation requires superuser privilege`
-
-Building the `.deb` package does not need root — only `dpkg -i` during user installation
-does. Use `sudo dpkg -i` or `sudo apt install ./file.deb`.
+Inspect Docker access, available disk space, the selected Flutter SDK and the
+build memory cap. Linux release compilation is headless: it needs no X server,
+Xvfb, emulator or GUI application launch. A killed compiler may indicate the
+container memory limit was reached; adjust `NAVIS_LINUX_MEMORY` within the host
+budget. Use the container entry point rather than the host's newer glibc.
 
 ### Users report audio not working after installing the `.deb`
 
@@ -315,8 +327,6 @@ website). There is no separate prompt before the download, and no Retry button.
 
 ### `dpkg-deb: error: failed to open package info file`
 
-This usually means `dpkg-dev` is not installed on the build host:
-
-```bash
-sudo apt-get install -y dpkg-dev
-```
+`dpkg-deb` is installed in the build image. Inspect the generated package
+stage/control and the preceding container log; installing it on the Arch host
+is unnecessary. Rebuild the image after changing its dependency list.
