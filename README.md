@@ -1,214 +1,127 @@
+<div align="center">
+
+<img src="docs/assets/readme/logo-256.png" alt="Navis logo" width="112" height="112">
+
 # Navis
 
-Navis is a free, open-source music player for Subsonic and OpenSubsonic servers such as Navidrome, Gonic and Airsonic. It focuses on fast library browsing, reliable offline playback and an adaptive interface for phone, tablet and desktop. Navis is published by [Porthorion](https://navis.porthorion.com).
+**A fast, offline-first music player for Navidrome and other Subsonic / OpenSubsonic servers.**
 
-<!-- TODO: add a real app screenshot here once one is committed to the repo. -->
+[![CI](https://img.shields.io/github/actions/workflow/status/Porthorion/Navis/ci.yml?branch=dev&style=flat-square&label=CI)](https://github.com/Porthorion/Navis/actions/workflows/ci.yml)
+[![Release](https://img.shields.io/github/v/release/Porthorion/Navis?style=flat-square&color=e8a598)](https://github.com/Porthorion/Navis/releases/latest)
+[![License: GPL v3+](https://img.shields.io/badge/license-GPL--3.0--or--later-blue?style=flat-square)](LICENSE)
+[![Platforms](https://img.shields.io/badge/platforms-Android%20%7C%20Windows%20%7C%20Linux-555?style=flat-square)](#download)
+[![OpenSubsonic](https://img.shields.io/badge/API-OpenSubsonic%20%7C%20Subsonic-6f42c1?style=flat-square)](https://opensubsonic.netlify.app/)
+[![Stars](https://img.shields.io/github/stars/Porthorion/Navis?style=flat-square&color=f5c518)](https://github.com/Porthorion/Navis/stargazers)
 
-## Features
+[**Website**](https://navis.porthorion.com) · [**Download**](#download) · [**Screenshots**](#screenshots) · [**Report a bug**](https://github.com/Porthorion/Navis/issues/new/choose) · [**Contribute**](CONTRIBUTING.md)
 
-- Fast library browsing with resume-safe, network-aware sync
-- Gapless and background playback, queue management, lyrics, and speed and pitch controls
-- Offline cache and permanent downloads
-- Equalizer with AutoEQ headphone profiles ([guide](docs/equalizer.md))
-- Adaptive phone, tablet and desktop layouts, with keyboard shortcuts and a Mini Player on desktop
-- Media keys and system controls: Android media session and Android Auto, Linux MPRIS, Windows SMTC
-- Optional online services (Deezer, Last.fm, ListenBrainz, LRCLIB), each with its own switch
+<br>
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/assets/readme/hero-dark.webp">
+  <source media="(prefers-color-scheme: light)" srcset="docs/assets/readme/hero-light.webp">
+  <img src="docs/assets/readme/hero-dark.webp" alt="Navis on desktop and phone" width="860">
+</picture>
+
+</div>
+
+## Why Navis
+
+Navis connects straight to **your own music server**. There's no Navis account, no tracking and no cloud in between. It keeps your library on the device, so browsing is instant and playback keeps going when the network doesn't.
+
+<table>
+<tr>
+<td width="50%" valign="top">
+
+### 🎧 Playback done right
+Gapless playback and crossfade, an **equalizer** (simple, 10-band or fully parametric) with AutoEQ headphone profiles, speed and pitch controls, ReplayGain, and synced lyrics.
+
+### 📥 Offline first
+Permanent downloads, a smart rolling cache and an offline mode. Your library stays browsable with no connection at all.
+
+### 📻 Discover more
+Personal Radio, Instant Mix, ListenBrainz **Weekly Jams & Exploration**, Deezer new releases and "This Is" playlists, all matched to songs on your server.
+
+</td>
+<td width="50%" valign="top">
+
+### 🎨 Make it yours
+Light, Dark and OLED, four **Color Styles**, colours taken from the album art, saved Looks, corner and density options, and Flat Surfaces.
+
+### 🚗 Everywhere you listen
+**Android Auto**, lock-screen and notification controls, Windows media controls, Linux MPRIS, desktop keyboard shortcuts and a Mini Player.
+
+### 🔒 Private by design
+Every online service has its own switch. Turn off *Online services* and Navis only ever talks to your server.
+
+</td>
+</tr>
+</table>
+
+## Screenshots
+
+<div align="center">
+
+<img src="docs/assets/readme/phone-home.webp" alt="Home on Android" width="31%">&nbsp;
+<img src="docs/assets/readme/phone-now-playing.webp" alt="Now Playing on Android" width="31%">&nbsp;
+<img src="docs/assets/readme/phone-lyrics.webp" alt="Synced lyrics on Android" width="31%">
+
+<br><br>
+
+<img src="docs/assets/readme/desktop-home.webp" alt="Desktop Home" width="49%">&nbsp;
+<img src="docs/assets/readme/desktop-album.webp" alt="Desktop album page" width="49%">
+
+<br><br>
+
+<img src="docs/assets/readme/color-styles.webp" alt="Color Styles in Light, Dark and OLED" width="98%">
+
+</div>
 
 ## Download
 
-Get Navis from the [website](https://navis.porthorion.com). Official files are served from Porthorion's Cloudflare R2 storage (`downloads.porthorion.com`).
+| Platform | Get it | Requirements |
+|---|---|---|
+| **Android** | [Website](https://navis.porthorion.com) · [GitHub Releases](https://github.com/Porthorion/Navis/releases/latest) | Android 7.0+. One universal APK, or per-architecture APKs |
+| **Windows** | Installer from the [website](https://navis.porthorion.com) or [Releases](https://github.com/Porthorion/Navis/releases/latest) | Windows 10 / 11, x64 |
+| **Linux** | `.deb`, `.rpm` or portable `.tar.gz` | x86_64, glibc 2.35+ (Ubuntu 22.04+, Debian 12+, Fedora). AUR coming soon |
 
-- Android 7.0+
-- Windows 10/11 x64
-- Linux x86_64: deb, rpm and portable tar.gz (AUR coming soon)
+Official downloads are served from Porthorion's Cloudflare R2 storage (`downloads.porthorion.com`). Each GitHub release carries identical copies plus a `SHA256SUMS` file, so you can check any download with `sha256sum -c SHA256SUMS`. Navis updates itself from a signed release manifest.
 
-[GitHub Releases](https://github.com/Porthorion/Navis/releases) carry identical copies of every file, plus a `SHA256SUMS` file. Check a download with `sha256sum -c SHA256SUMS`. The app updates itself from a signed manifest on R2.
+**Works with** [Navidrome](https://www.navidrome.org), the server Navis is developed and tested against, and other Subsonic / OpenSubsonic servers such as Gonic and Airsonic-Advanced. If your server misbehaves, please [tell us](https://github.com/Porthorion/Navis/issues/new?template=server_compatibility.yml).
 
 ## Build from source
 
-Prerequisites: Flutter 3.47.5 or newer on the stable channel (active baseline 3.47.x, which includes Dart 3.13), plus the platform toolchain for your target (Android SDK, Linux desktop build packages, or Visual Studio and Rust for Windows). See [docs/development-workflow.md](docs/development-workflow.md).
+You need Flutter 3.47.5+ (stable) and the toolchain for your platform: Android SDK, Linux desktop packages, or Visual Studio + Rust for Windows. Details are in the [development workflow](docs/development/development-workflow.md).
 
 ```bash
 git clone https://github.com/Porthorion/Navis.git
 cd Navis
 ./tool/bootstrap.sh   # once: checks Flutter and resolves dependencies
 flutter run           # on a connected device or desktop
+./tool/check.sh       # format, codegen, analysis, dead code and tests
 ```
 
 ## Contributing
 
-Pull requests are welcome and should target `dev`. Run `./tool/check.sh` first. See [CONTRIBUTING.md](CONTRIBUTING.md).
+Bug reports, ideas and pull requests are all welcome. Please read [CONTRIBUTING.md](CONTRIBUTING.md) first. Pull requests target `dev`, and `./tool/check.sh` must pass.
 
-## Support
+- 🐞 [Report a bug](https://github.com/Porthorion/Navis/issues/new?template=bug_report.yml)
+- ✨ [Suggest an improvement](https://github.com/Porthorion/Navis/issues/new?template=enhancement.yml)
+- 🔌 [Server compatibility problem](https://github.com/Porthorion/Navis/issues/new?template=server_compatibility.yml)
+- 🔒 Security issues: report them privately, as described in [SECURITY.md](SECURITY.md)
 
-Open an issue on [GitHub Issues](https://github.com/Porthorion/Navis/issues) using the bug report or feature request form. Use e-mail only if you need to: support@porthorion.com. Report security problems privately as described in [SECURITY.md](SECURITY.md).
+If Navis is useful to you, a ⭐ helps other people find it.
 
-## Platform Support
+## Documentation
 
-| Platform | Status | Notes |
-|---|---|---|
-| Android | Supported | Primary mobile target; `audio_service` media session, Android Auto phone projection, and internally gated WorkManager library-sync recovery |
-| iOS | Unreleased scaffold | Configured for iOS 16; requires macOS/Xcode build and runtime validation |
-| macOS | Unreleased scaffold | Configured for macOS 12; build/runtime validation and native media controls remain pending |
-| Linux | Supported | Native desktop build with adaptive shell, shortcuts, MPRIS integration, and bundled LGPL libmpv (x86_64); tar.gz, deb, rpm and AUR binary recipe |
-| Windows | Supported | Native desktop build with adaptive shell, shortcuts, SMTC integration, and bundled LGPL libmpv |
-
-Released target baselines:
-- Android 7.0 (API 24)
-- Ubuntu 22.04+ (or equivalent Linux desktop runtime)
-- Windows 10/11
-
-## Core Capabilities
-
-- Adaptive, resume-safe library sync with hard low-data probes on metered
-  networks, interactive targeted hydration budgets, unmetered-background
-  defaults, one-time mobile-data overrides, compatibility fallbacks, guarded
-  repair, and atomic catalog promotion, plus server reconciliation for liked
-  items, playlist headers, and changed playlist contents. Full repairs compare
-  hidden catalog pages first and apply only actual changes, keeping memory and
-  the final visibility switch bounded.
-- Android uses constrained WorkManager scheduling for eventual automatic
-  library checks after normal process death. It respects the sync network
-  preference and never promises an exact run time; this capability is enabled
-  gradually for internal testing.
-- Gradual speed and independent pitch controls with reusable local presets (pitch on Android and desktop media-kit; unavailable on iOS/default Apple backend)
-- Gapless/background playback and lock-screen controls
-- Queue management, portable Subsonic server mix, Last.fm Same Vibes, balanced Instant Radio, and smart queue behaviors
-- Synced/unsynced lyrics with full-screen now playing
-- Offline cache plus permanent download modes
-- Adaptive phone/tablet layouts plus a desktop-only 800×600 workspace whose persistent bottom player keeps Favorite, Lyrics, Queue, Mini Player, and volume directly visible, alongside a centered same-window Mini Player that opens at 720×405, embeds volume beneath its controls, and resizes down to 560×360
-- Keyboard-first desktop controls with platform-aware shortcuts, quick search, queue toggle, playback speed shortcuts, and guarded transport actions while typing
-- Desktop volume controls that restore the previous per-installation level and mute state on the next launch
-- Channel-aware updater behavior for stable/dev release tracks
-
-## Equalizer
-
-Android, Linux and Windows support dedicated EQ editing, exact presets, AutoEQ import and
-offline headphone search. See [the equalizer guide](docs/equalizer.md) for
-platform and validation limits.
-
-## Media Integration Status
-
-- Android: media session and notification metadata are handled through
-  `audio_service`; Android Auto projects the phone app's Liked, Recent,
-  Playlists, and Library destinations plus search, downloads, queue
-  resume, and transport controls over a validated media browser connection.
-- Linux: desktop now-playing and media-key integration use the app-owned
-  MPRIS bridge over `dbus`.
-- Windows: system media transport controls use Navis’s owned manual-SMTC
-  Rust/WinRT adapter with a stable Navis session identity.
-- Apple scaffolds are not shipped or certified. Native macOS `MPRemoteCommandCenter` / `MPNowPlayingInfoCenter` integration remains planned work.
-
-## Tech Stack
-
-| Layer | Package | Version |
-|---|---|---|
-| UI framework | Flutter | ≥ 3.47.5 |
-| Language | Dart | ^3.13.0 |
-| State management | flutter_riverpod | ^3.4.3 |
-| Navigation | go_router | ^18.0.1 |
-| Local database | drift + drift_flutter | ^2.35.0 / ^0.3.1 |
-| Audio playback | just_audio + audio_service | ^0.10.6 / ^0.18.19 |
-| Android background work | WorkManager | 2.12.0 |
-| Data classes | freezed_annotation + json_annotation | ^3.1.0 / ^4.12.0 |
-| Linux desktop media | dbus | ^0.7.15 |
-| Windows desktop media | Navis-owned `navis_windows_smtc` | local Rust/WinRT adapter |
-
-## Dependency Maintenance
-
-The [September dependency upgrade plan](docs/completed-plans/Dependency_Upgrade_Plan.md) tracks
-the current upgrade work, compatible versions, major migrations, and runtime
-validation gates. The build baseline is Flutter 3.47.5 with Dart 3.13.
-
-The October 2026 upgrade moved Navis to the current Flutter hotfix and current
-navigation, artwork, storage, database and Windows components; the
-[dependency audit](docs/audits/dependency-audit-2026-10-01.md) records what
-was checked and what stays pinned. Remaining `pub outdated` entries are
-blocked by SDK/toolchain or upstream constraints rather than local overrides.
-
-## Quality gate
-
-```bash
-./tool/check.sh   # format, codegen, analyze, dead code, tests
-```
-
-## Dev Channel Sidecar
-
-```bash
-./tool/dev_app.sh run -d <device-id>
-./tool/dev_app.sh apk
-```
-
-This builds a side-by-side dev app (`.dev` suffix, `Navis Dev`) and pins update checks to the `dev` channel.
-
-## Retired Features
-
-Listen Together / Voyage is currently retired. Its backend integration, queue
-synchronization, settings, and user-visible entry points are disabled while a
-future implementation is reconsidered.
-
-## Integrations and Scrobbling
-
-Besides your own server, Navis can use a few online services. Settings ›
-Integrations lists each one with what it sends and to which host, a switch per
-service and per feature, and a master "Online services" switch; with it off,
-Navis only talks to your server. Everything is on by default.
-
-- **Deezer** — artist top songs (Last.fm as fallback), matched to your server in
-  "This Is <Artist>" using the shared weekly-playlist resolver rules; with
-  neither source enabled, Top Tracks and the "This Is" card are hidden. It also
-  supplies artist photos and fan counts, "Fans also like", missing albums
-  (hidden when your server has its own remote catalogue for the artist), New
-  Releases from the artists you play most on Home (or your library's main
-  artists while you have little play history), and a Trending Now playlist of
-  the chart in You Might Like and Library › Playlists, matched to your server
-  like the ListenBrainz weekly playlists. A related artist, missing album or new
-  release you don't have opens as a normal page loaded from your server's remote
-  catalogue (such as Octo-Fiesta), with a search only when your server cannot
-  provide it.
-- **Last.fm** — Same Vibes mixes (the Instant Mix mode: on is Same Vibes, off
-  is your server's mix), the Instant Radio fill and a top-songs fallback. No
-  Last.fm scrobbling. Release builds bundle an API key, masked at build time to
-  deter casual extraction (a Last.fm API key is a client identifier, not a
-  secret, and Navis uses no shared secret); builds without one show a field for
-  your own key.
-- **ListenBrainz** — scrobbling, likes (sent as loved) and weekly playlists,
-  after its User Token validates.
-- **LRCLIB** synced lyrics (server lyrics as fallback), **update checks**,
-  **AutoEQ** headphone profiles, **internet radio** now-playing info and
-  **artwork** your server links from other sites.
-
-A feature whose service needs a credential stays locked until the key or token
-is verified. Subsonic/OpenSubsonic server scrobbling stays independent of
-these switches. The ListenBrainz token is stored through platform secure
-storage; Drift stores only non-secret status flags. The scrobble queue stores
-resolved track metadata so ListenBrainz events can flush after reconnect even
-if the library row changes. A rejected ListenBrainz token disables it until the
-user validates a new one.
-
-## Building and releasing
-
-Release builds are made with `tool/release.sh` and need local signing secrets that are not in this repository. See:
-
-- [Release secrets](docs/release-secrets.md)
-- [R2 release guide](docs/release-r2.md) (Android, in-app updates) and [Google Play readiness](docs/google-play-readiness.md)
-- [Linux](docs/release-linux.md), [Windows](docs/release-windows.md) and [macOS](docs/release-macos.md) release guides
-- [Release from Linux](docs/release-from-linux.md) and [multi-OS builds from a Mac](docs/multi-os-build-from-mac.md)
-
-## Documentation Index
-
-Start with [`docs/README.md`](docs/README.md) for a task-oriented map of
-current reference documents, plans/evidence, and historical records. Agentic
-contributors should read [`AGENTS.md`](AGENTS.md) and the canonical
-[`docs/agentic-engineering.md`](docs/agentic-engineering.md) before editing.
+- [Documentation index](docs/README.md): where everything lives
+- [Technical overview](docs/development/technical-overview.md): platform status, media integrations and tech stack
+- [Architecture](docs/architecture.md) · [Integrations and privacy](docs/features/integrations.md) · [Equalizer](docs/features/equalizer.md)
+- [Release guides](docs/release/): Android/R2, Linux, Windows, macOS and secrets
+- Contributors using AI agents: start with [AGENTS.md](AGENTS.md)
 
 ## License
 
-Navis is free software published by Porthorion under the
-[GNU General Public License v3.0 or later](LICENSE). Third-party components
-retain their own licences, listed in the app under Settings › About ›
-Open-source licenses. The Navis name and logo are not covered by the GPL; see
-[TRADEMARK.md](TRADEMARK.md).
+Navis is free software published by [Porthorion](https://navis.porthorion.com) under the [GNU General Public License v3.0 or later](LICENSE). Third-party components keep their own licences, which are listed in the app under Settings › About › Open-source licenses. The Navis name and logo are not covered by the GPL; see [TRADEMARK.md](TRADEMARK.md).
 
-Navis bundles the [Inter](https://github.com/rsms/inter) typeface under the
-SIL Open Font License 1.1 ([assets/fonts/OFL.txt](assets/fonts/OFL.txt)).
+Navis bundles the [Inter](https://github.com/rsms/inter) typeface under the SIL Open Font License 1.1 ([assets/fonts/OFL.txt](assets/fonts/OFL.txt)).

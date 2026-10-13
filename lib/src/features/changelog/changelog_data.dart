@@ -6,7 +6,8 @@
 ///
 /// When work on a new version starts, add its [ChangelogVersion] at the top
 /// of [changelogs] together with the `pubspec.yaml` bump (see "Versioning" in
-/// `docs/agentic-engineering.md`). Every `x.y.0` release is a major release:
+/// `docs/development/agentic-engineering.md`). Every `x.y.0` release is a major
+/// release:
 /// give it 3–5 [ChangelogVersion.highlights] and, optionally, a
 /// [ChangelogVersion.codename] and [ChangelogVersion.iconAsset].
 class ChangelogVersion {

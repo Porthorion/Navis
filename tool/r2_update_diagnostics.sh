@@ -2,7 +2,7 @@
 # tool/r2_update_diagnostics.sh — Linux end-to-end check of the R2 updater against the real
 # bucket on the staging channel: missing manifest, signed offer, verified download, corrupt
 # asset, forged manifest, then a full apply + swap + relaunch. Deletes its staging objects on exit.
-# Needs the R2 settings and signing key from tool/release.env (see docs/release-r2.md).
+# Needs the R2 settings and signing key from tool/release.env (see docs/release/release-r2.md).
 set -uo pipefail
 WT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$WT"

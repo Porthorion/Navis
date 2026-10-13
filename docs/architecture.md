@@ -108,8 +108,8 @@ Located in `lib/src/providers/app_providers.dart`:
   - `tool/android_auto_cold_start_diagnostics.sh` validates the service-first
     contract from an external MediaBrowser client on a phone emulator before
     the physical-phone DHU projection smoke test.
-  - See `docs/android-auto-testing.md` for DHU validation and
-    `docs/android_auto_real_car_testing.md` for trusted-store real-car checks.
+  - See `docs/platforms/android-auto-testing.md` for DHU validation and
+    `docs/platforms/android-auto-real-car-testing.md` for trusted-store real-car checks.
 
 - **Cache Management**
   - `rollingCacheManagerProvider` - Rolling cache manager
@@ -687,7 +687,7 @@ media-session/MediaBrowser behavior; they do not replace the Navis API for
 Flutter state. AT-SPI and other external desktop/accessibility automation are
 outside this control plane and prohibited unless the platform accessibility
 bridge is explicitly under test with user authorization. See
-`docs/development-workflow.md` for the mandatory validation loop and
+`docs/development/development-workflow.md` for the mandatory validation loop and
 target-selection rules.
 
 ## UI Component Organization
@@ -2256,7 +2256,7 @@ altering transport-button sizes. Radio uses lazy bounded 280–360px station car
 play/stop controls and explicit Now Playing text. Full credential-bearing stream
 URLs remain playback inputs and are never displayed in cards.
 
-The [responsive layout plan](completed-plans/Responsive_Layout_Overhaul_Plan.md)
+The [responsive layout plan](history/completed-plans/Responsive_Layout_Overhaul_Plan.md)
 records the completed implementation and validation evidence; implementation
 is not a claim of native Android Automotive support.
 
@@ -2532,7 +2532,7 @@ and Subsonic delivery continues independently.
   The diagnostics station comes from current handler state rather than the last
   broadcast snapshot, and its
   published artwork is null while the new station loads;
-  see the field contract in [development-workflow.md](development-workflow.md).
+  see the field contract in [development-workflow.md](development/development-workflow.md).
 - **Server-linked images.** `ExternalArtworkImage`
   (`common_widgets/external_artwork_image.dart`) replaces the call sites that
   loaded arbitrary URLs with `CachedNetworkImage` or `Image.network`. It checks
@@ -2667,7 +2667,7 @@ and Subsonic delivery continues independently.
 - **Diagnostics.** Clone-only `GET/POST /v1/presentation/integrations` reports
   and changes the policy; read-only `GET /v1/diagnostics/integrations` returns
   the recorder's counters, calls and spans in every mode. See
-  `docs/development-workflow.md`.
+  `docs/development/development-workflow.md`.
 
 Deezer, Last.fm, ListenBrainz, LRCLIB and Subsonic share
 `AppConstants.userAgent`, derived from the newest changelog version. A client
@@ -3201,7 +3201,7 @@ Null and error results are silent. Neither refresh
 callback waits for the update check.
 
 - `data/update_repository.dart` — fetches the channel's signed manifest from
-  `AppConstants.updateBaseUrl` (R2, see [release-r2.md](release-r2.md)), verifies it,
+  `AppConstants.updateBaseUrl` (R2, see [release-r2.md](release/release-r2.md)), verifies it,
   and selects the platform asset by manifest key using `detectInstallMode()`. Returns
   `UpdateInfo` (with `downloadUrl`, `assetFileName`, `sha256` and `size`) when a newer
   version is available. A manifest that fails any check is dropped (the reason is kept
@@ -3222,7 +3222,7 @@ callback waits for the update check.
     and the existing write-access check shows Download Manually for normal users.
     The detector still selects Debian mode, so an offer requires `linuxDeb-amd64`;
     the published `linuxRpm-x86_64` key is for download consumers only. See
-    [release-linux.md](release-linux.md) for the Ubuntu 22.04 build and package flow.
+    [release-linux.md](release/release-linux.md) for the Ubuntu 22.04 build and package flow.
   - **Linux portable / Windows portable / macOS:** extracts the archive to a staging
     subdirectory of the downloaded artifact's private work directory, writes a
     self-deleting shell/batch script inside that same work directory, launches it
@@ -3295,7 +3295,7 @@ the production download and integrity check without installing anything; it adds
 SHA-256 mismatch). With the body `{"apply": true}` on desktop it then runs the production
 apply (`applyDesktopUpdate`) after responding, which replaces the running build and exits;
 this is how a clone proves the whole R2-to-installed path. The GET route is available in every diagnostics mode; the POST
-routes are clone-only. See [release-r2.md](release-r2.md) for publishing and key handling.
+routes are clone-only. See [release-r2.md](release/release-r2.md) for publishing and key handling.
 
 ### Write-access guard
 
@@ -3331,7 +3331,7 @@ The update channel (`stable` or `dev`) is baked in at compile time via
 (`channels/dev/manifest.json` or `channels/stable/manifest.json`), and a manifest whose
 signed `channel` differs is rejected. This ensures sidecar/dev builds never suggest a
 stable release as an upgrade. Builds with another channel name (for example `staging`)
-read that channel's manifest; see [release-r2.md](release-r2.md).
+read that channel's manifest; see [release-r2.md](release/release-r2.md).
 
 The Last.fm API key used by "Same Vibes" instant mix mode is injected at build
 time as a masked pair, `NAVIS_LASTFM_API_KEY_MASKED` (key XOR a per-build random
@@ -3341,7 +3341,7 @@ runtime and returns an empty key for a missing, malformed or mismatched pair. A
 plain `NAVIS_LASTFM_API_KEY` define is still accepted when the pair is absent so
 local dev runs work. Masking deters casual extraction and is not secrecy: a
 Last.fm API key is a client identifier and no shared secret is used. See
-[ci-cd.md](ci-cd.md#lastfm-key) for the build scripts and the post-build
+[ci-cd.md](development/ci-cd.md#lastfm-key) for the build scripts and the post-build
 artifact scan.
 
 ### Recommendation sessions
@@ -3575,8 +3575,8 @@ hydrates EQ before audio creation; general settings saves omit its fields.
 The handler applies typed configurations to both decks and reports desired
 versus applied status. Android uses the vendored just_audio Media3 PCM processor;
 Linux's and Windows' tracked media-kit adapter owns a combined EQ/tempo chain
-(both on pinned LGPL libmpv; see [release-windows.md](release-windows.md#bundled-libmpv)
-and [release-linux.md](release-linux.md#bundled-lgpl-libmpv)).
+(both on pinned LGPL libmpv; see [release-windows.md](release/release-windows.md#bundled-libmpv)
+and [release-linux.md](release/release-linux.md#bundled-lgpl-libmpv)).
 Windows uses the Navis mingw-w64 cross-build under `tool/libmpv/`, with
 static media dependencies and captured corresponding sources, WASAPI output,
 and Schannel TLS. Its DLL imports only Windows system libraries; the vendored
@@ -3588,7 +3588,7 @@ by default; `NAVIS_BUNDLE_LIBMPV=OFF` supports system-mpv development builds.
 `navisEqualizerSupported()` decides availability for both the controller and the
 handler; unsupported backends disable the entry. Modes, exact preset semantics, AutoEQ provenance,
 headroom, migration, and validation limits are maintained in
-[equalizer.md](equalizer.md).
+[equalizer.md](features/equalizer.md).
 
 Speed and pitch share a long-lived `playbackAdjustmentsProvider` controller.
 Speed is stored and displayed as a multiplier (`1.00×`); independent pitch uses
@@ -5491,7 +5491,7 @@ while the scenario is running.
 
 These rules keep the UI at 60 FPS and memory bounded with libraries of tens
 of thousands of songs. `tool/perf_diagnostics.py` measures them (see
-`docs/development-workflow.md`).
+`docs/development/development-workflow.md`).
 
 - Never load the whole songs table to pick a few rows. Use bounded DAO queries
   (`getSongsSorted`, `getRandomSongs`, `getSongsByIds`) or SQL aggregates.
@@ -5644,7 +5644,7 @@ of thousands of songs. `tool/perf_diagnostics.py` measures them (see
 
 Automated tests are only the first layer for runtime-affecting work. Completion
 also requires launching Navis and repeating the app-API validation loop in
-`docs/development-workflow.md` from a clean isolated state.
+`docs/development/development-workflow.md` from a clean isolated state.
 
 ### Unit Tests
 - Provider logic

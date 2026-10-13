@@ -8,7 +8,7 @@ operator-run and still open. Remaining work, prerequisites, and continuation
 rules are consolidated in §8 (Handoff).
 Companion runbook: the owner's private server runbook (not in this repository)
 Predecessor evidence: `Fix_Stale_Cache_Plan.md`, `Fix_Stale_Cache_Execution_Plan.md`
-(schema 80 baseline), `docs/sync-reliability-recovery-plan.md`.
+(schema 80 baseline), `docs/features/sync-reliability-recovery-plan.md`.
 
 ## 0. Verified during planning
 
@@ -345,7 +345,7 @@ C2 verification queries are provided in the runbook appendix.
 | B6 | scan-guard tests | check.sh | diagnostics app API | clone suite + promotion run |
 | B7 | per decision | check.sh | per decision | n/a |
 
-Runtime-affecting stages follow docs/development-workflow.md: acceptance
+Runtime-affecting stages follow docs/development/development-workflow.md: acceptance
 scenario written before editing, authenticated health gate, bounded polling,
 inspected screenshots for visible changes, clean-restart repeat, completion
 evidence recorded per line 635. Never describe unexecuted validation as
@@ -371,7 +371,7 @@ proves the guardrail itself worked.
 Harness fix 1 (committed with this plan): clone mode now resets overrides and
 drains startup work under real policy before the guardrail scenarios — a
 bounded wait for startup work to appear (never an idle 4-hour wait when none
-exists), then `wait_for_sync`. Documented in docs/development-workflow.md.
+exists), then `wait_for_sync`. Documented in docs/development/development-workflow.md.
 
 Second attempt (17:23Z): the drain worked exactly as designed — it caught the
 startup model repair under Wi-Fi and let it run 10 minutes (86 requests,
@@ -590,7 +590,7 @@ live B2 escalation and B6 scan-churn paths open.
   for user-visible stages (B2, B3, B4, B5, B6).
 - the owner's private server runbook is the owning doc for workstream A;
   `docs/README.md` maps it.
-- This plan moves to `docs/completed-plans/` only after all B stages are
+- This plan moves to `docs/history/completed-plans/` only after all B stages are
   implemented and validated and the C checklist is confirmed; A stages are
   operator work tracked here with explicit blockers.
 
@@ -637,7 +637,7 @@ Prerequisites:
   never commit it). The password is provided by the operator separately.
 - `./tool/check.sh` green on the checkout before starting.
 
-Procedure (documented in docs/development-workflow.md, "Linux Sync
+Procedure (documented in docs/development/development-workflow.md, "Linux Sync
 Diagnostics"):
 
 ```bash
@@ -689,19 +689,19 @@ Most Played ordering. Needs the physical device.
 
 ### 8.4 Closeout
 
-Move this plan to `docs/completed-plans/` only when §5a is fully evidenced
-AND the operator confirms C0-C4; list it in `docs/completed-plans/README.md`
+Move this plan to `docs/history/completed-plans/` only when §5a is fully evidenced
+AND the operator confirms C0-C4; list it in `docs/history/completed-plans/README.md`
 and the `docs/README.md` map when moved. Workstream A acceptance is
 server-side and tracked here, not blocking the plan's move (record it as an
 operator handoff in this section if still open at move time).
 
 ### 8.5 Guardrails for any continuation session
 
-- Read `AGENTS.md` and `docs/agentic-engineering.md` first; this plan is an
+- Read `AGENTS.md` and `docs/development/agentic-engineering.md` first; this plan is an
   evidence record, not implementation authority.
 - `./tool/check.sh` before every commit; one commit per logical change.
 - Never push to origin without an explicit request.
 - Never commit credentials or real server values.
-- Leave the operator's in-flight `docs/agentic-engineering.md` modification
-  and the untracked `.agents/` and `.zcodeignore` out of all commits.
+- Preserve unrelated operator changes and untracked files; do not include them
+  in a continuation commit.
 - Do not run the certification suite against a visibly overloaded server.

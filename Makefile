@@ -1,4 +1,4 @@
-.PHONY: bootstrap check gen gen-watch test test-coverage lint format format-check release outdated dev-linux phase1-closeout phase4-codec-closeout
+.PHONY: bootstrap check gen gen-watch test test-coverage lint format format-check release outdated dev-linux
 
 bootstrap:
 	./tool/bootstrap.sh
@@ -39,11 +39,3 @@ outdated:
 
 dev-linux:
 	./tool/dev_app.sh linux
-
-phase1-closeout:
-	./tool/phase1_closeout.sh
-
-phase4-codec-closeout:
-	@echo "Usage: make phase4-codec-closeout DEVICE_ID=<adb-device-id> [SERVER_VARIANT=OpenSubsonic]"
-	@test -n "$(DEVICE_ID)" || (echo "Error: DEVICE_ID is required" && exit 1)
-	./tool/phase4_codec_closeout.sh $(DEVICE_ID) $(SERVER_VARIANT)

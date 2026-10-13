@@ -13,7 +13,7 @@ metadata:
 # Navis Riverpod State and Lifecycle
 
 Task-scoped workflow for provider work. AGENTS.md and
-`docs/agentic-engineering.md` are always loaded and govern scope and
+`docs/development/agentic-engineering.md` are always loaded and govern scope and
 validation; this skill adds the Riverpod-specific constraints. The Provider
 Organization section of `docs/architecture.md` is the map of the real graph.
 
@@ -91,7 +91,7 @@ all `AsyncValue` states including error.
 
 Run the focused test, `flutter analyze --no-fatal-infos`, and
 `./tool/check.sh`. Runtime-affecting state work additionally needs the
-runtime loop from `docs/development-workflow.md`.
+runtime loop from `docs/development/development-workflow.md`.
 
 ## Primary references
 

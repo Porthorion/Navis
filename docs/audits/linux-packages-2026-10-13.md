@@ -16,8 +16,8 @@ Host: Arch Linux x86_64. No application, emulator or VM was launched, no
 - `tool/lib/scan_artifact_secret.sh`, `tool/scan_artifact_secret_test.sh`
 - `packaging/aur/navis-bin/PKGBUILD`, `packaging/aur/navis-bin/.SRCINFO`
 - `lib/src/features/changelog/changelog_data.dart`
-- `docs/architecture.md`, `docs/ci-cd.md`, `docs/development-workflow.md`
-- `docs/release-linux.md`, `docs/release-from-linux.md`, `docs/release-r2.md`
+- `docs/architecture.md`, `docs/development/ci-cd.md`, `docs/development/development-workflow.md`
+- `docs/release/release-linux.md`, `docs/release/release-from-linux.md`, `docs/release/release-r2.md`
 - This evidence record.
 
 The existing Linux bundle/Debian assembly was extracted into the shared

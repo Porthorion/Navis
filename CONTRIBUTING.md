@@ -5,7 +5,7 @@ Thanks for helping. Navis is licensed GPL-3.0-or-later; by submitting a contribu
 ## Before you start
 
 - Search [existing issues](https://github.com/Porthorion/Navis/issues) first. For bugs, use the bug report template; for ideas, the feature request template.
-- Read [AGENTS.md](AGENTS.md) and [docs/agentic-engineering.md](docs/agentic-engineering.md). They are the canonical project rules, including the Definition of Done. Use [docs/README.md](docs/README.md) to find the subsystem docs.
+- Read [AGENTS.md](AGENTS.md) and [docs/development/agentic-engineering.md](docs/development/agentic-engineering.md). They are the canonical project rules, including the Definition of Done. Use [docs/README.md](docs/README.md) to find the subsystem docs.
 
 ## Setup and checks
 
@@ -14,7 +14,7 @@ Thanks for helping. Navis is licensed GPL-3.0-or-later; by submitting a contribu
 ./tool/check.sh       # format, codegen, analyze, tests; run before every PR
 ```
 
-Setup details are in [docs/development-workflow.md](docs/development-workflow.md).
+Setup details are in [docs/development/development-workflow.md](docs/development/development-workflow.md).
 
 ## Pull requests
 

@@ -105,7 +105,7 @@ in the incident.
 | The browse tree has four roots: Liked, Recent, Playlists, and Library. It exposes albums, artists, downloads, and collection-aware media IDs. | [Media tree](../../lib/src/features/auto/data/auto_media_tree_service.dart), [media IDs](../../lib/src/features/auto/data/auto_media_id.dart) |
 | Existing capabilities include Resume Queue when available, Instant Mix, Instant Radio, and search with local fallback. | [Media tree](../../lib/src/features/auto/data/auto_media_tree_service.dart), [architecture](../architecture.md) |
 | Internet radio stations are not a destination in the inspected car browse tree. Instant Radio is a separate personalized music feature. | [Media tree](../../lib/src/features/auto/data/auto_media_tree_service.dart) |
-| The project has service-first startup handling and a cold-start diagnostics workflow; its car runbooks explicitly concern phone projection. | [Architecture](../architecture.md), [DHU testing](../android-auto-testing.md), [real-car projection testing](../android_auto_real_car_testing.md) |
+| The project has service-first startup handling and a cold-start diagnostics workflow; its car runbooks explicitly concern phone projection. | [Architecture](../architecture.md), [DHU testing](../platforms/android-auto-testing.md), [real-car projection testing](../platforms/android-auto-real-car-testing.md) |
 
 The manifest comment describing optional automotive hardware in terms of
 "Android Auto" should not be interpreted as proof of AAOS support. The

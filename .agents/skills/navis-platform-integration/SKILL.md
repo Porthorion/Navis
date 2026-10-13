@@ -13,7 +13,7 @@ metadata:
 # Navis Native Platform Integration
 
 Task-scoped workflow for platform work. AGENTS.md and
-`docs/agentic-engineering.md` are always loaded and govern scope and
+`docs/development/agentic-engineering.md` are always loaded and govern scope and
 validation; their Platform notes are the support matrix. Platform-neutral
 behavior requires Linux runtime validation; platform-specific work needs
 Linux startup smoke plus the affected platform's authoritative service/API

@@ -13,7 +13,7 @@ metadata:
 # Navis Music Playback Reliability
 
 Task-scoped workflow for playback work. AGENTS.md and
-`docs/agentic-engineering.md` are always loaded and govern scope, review, and
+`docs/development/agentic-engineering.md` are always loaded and govern scope, review, and
 validation; this skill adds the playback-specific constraints.
 
 ## Ground rules
@@ -93,7 +93,7 @@ layout (see the `dart-add-unit-test` skill for harness patterns).
 
 Playback is runtime-affecting: widget tests and fakes are insufficient for
 handoff. Follow the isolated-profile runtime loop and authenticated
-diagnostics API in `docs/development-workflow.md`, then `./tool/check.sh`.
+diagnostics API in `docs/development/development-workflow.md`, then `./tool/check.sh`.
 A fake-player test passing is not proof of audible output, native seeking,
 gapless behavior, background playback, or OS controls — report those
 separately, and coordinate native integration with

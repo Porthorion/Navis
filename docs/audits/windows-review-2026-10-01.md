@@ -81,8 +81,8 @@ was verified, and what still needs a decision.
 
 Decisions 1 to 3 were taken and implemented the same day: EQ on Windows with a
 pinned full libmpv, the indexed track-match lookup, and same-sync rebuild
-matching. Results are in `docs/sync-stability-validation.md`, the Windows
-section below, and `docs/release-windows.md#bundled-libmpv`.
+matching. Results are in `docs/features/sync-stability-validation.md`, the Windows
+section below, and `docs/release/release-windows.md#bundled-libmpv`.
 
 1. **Windows EQ.** The media_kit libmpv builds lack ffmpeg audio filters. A
    full libmpv build (shinchiro 2026-09-28) runs the Navis filter chain but
@@ -92,7 +92,7 @@ section below, and `docs/release-windows.md#bundled-libmpv`.
    - build a slim libmpv with only the audio filters Navis uses;
    - keep EQ unavailable on Windows.
    Decided the same day: Navis ships the full pinned libmpv with EQ enabled
-   (see "Windows EQ verification" below and `docs/release-windows.md`).
+   (see "Windows EQ verification" below and `docs/release/release-windows.md`).
 2. **Track matching (C5).** On the 57,318-song library, matching 50 tracks
    takes 450 to 550 ms, and 448 ms of that is the artist containment scan. An
    indexed rewrite gave nothing. A real gain needs an indexed artist-key table

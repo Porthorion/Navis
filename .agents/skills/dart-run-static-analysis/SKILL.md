@@ -29,7 +29,7 @@ opinionated ruleset. Two deviations matter:
 
 2. Fix reported findings in source. Treat warnings as real signals: a
    suppressed warning is a weakened test by repo policy
-   (`docs/agentic-engineering.md` — never bypass checks to get green).
+   (`docs/development/agentic-engineering.md` — never bypass checks to get green).
 3. Findings inside generated `*.g.dart` / `*.freezed.dart` / Drift output are
    fixed by regenerating, never by hand-editing or ignoring: run `make gen`
    after Freezed, JSON, or Drift changes and commit the generated source.

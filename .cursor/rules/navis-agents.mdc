@@ -6,14 +6,14 @@ alwaysApply: true
 # Navis agent contract
 
 Read `AGENTS.md` first. Then use `docs/README.md` to locate subsystem docs and
-read `docs/agentic-engineering.md` before changing code, tooling, or docs.
+read `docs/development/agentic-engineering.md` before changing code, tooling, or docs.
 
 Inspect implementation, callers, configuration, and tests before editing. Make
 the smallest complete change, update relevant documentation in the same change,
 and record material removals in `docs/history/removed-features.md`. Use scoped
 rules if present. Run proportionate validation; implementation work requires
 `./tool/check.sh`, while runtime-affecting work also requires the app-API and
-app-owned screenshot loop in `docs/development-workflow.md`.
+app-owned screenshot loop in `docs/development/development-workflow.md`.
 
 Never instantiate `NavisDatabase` outside Riverpod, mutate providers during
 widget build, break permanent-download → rolling-cache → stream playback

@@ -13,7 +13,7 @@ metadata:
 # Navis Drift and Offline Library Consistency
 
 Task-scoped workflow for persistence and offline-storage work. AGENTS.md and
-`docs/agentic-engineering.md` are always loaded and govern scope and
+`docs/development/agentic-engineering.md` are always loaded and govern scope and
 validation. The database lives in `lib/src/database/` (tables, DAOs,
 migrations); storage flows through the downloads and cache features.
 
@@ -98,7 +98,7 @@ Include negative tests proving protected media is not deleted.
 Run the migration test and focused suites, `flutter analyze
 --no-fatal-infos`, and `./tool/check.sh`. Runtime-affecting storage work
 needs the runtime loop (persistence + clean restart) from
-`docs/development-workflow.md`.
+`docs/development/development-workflow.md`.
 
 ## Primary references
 

@@ -2,6 +2,7 @@
 
 | Capability | Status and date | Previous purpose | Current state / migration | Evidence and notes |
 |---|---|---|---|---|
+| Phase 1 and Phase 4 close-out helpers | Removed 2026-10-13 | One-off database/server-ping and device codec preflight scripts and Make targets. | Maintained quality/release gates and focused database tests replace the retired instructions; runtime codec checks remain in the troubleshooting guide. | No bootstrap, quality-gate or test consumers. Historical commands remain in the progress log and Git history. |
 | Flat You Might Like colour band, panel and wash | Removed 2026-10-11 | With Flat surfaces, You Might Like drew a cover-coloured full-bleed band on phones, a rounded panel on desktop and a flat wash on tablets, with cover-derived caption tints (`_ShowcaseFlatBand`, the flat `_ShowcaseColourWash`, `_flatPanelTheme`, `flat_band_tone.dart`). | Owner decision: it looked out of place. Under Flat the section draws no background and sits on the page background on every layout; captions use the normal on-surface colours. Non-flat keeps the mesh wash. | 1.5.0; `you_might_like_widgets.dart`, `home_screen.dart`. |
 | Suffix-only cleanup in user download folders | Removed 2026-10-11 | Treated every `.navis-part` file or SAF document as an interrupted Navis transfer. | Custom filesystem cleanup requires an exact queue-journal path persisted before creation. SAF transfers stage privately, so user SAF trees have no suffix sweep. Unknown files and mismatching finish destinations are preserved. | `download_service.dart`; download queue ownership and replacement regressions; [current storage contract](../architecture.md#cache-flow). |
 | Fine-Tune preset library | Removed before shipping, 2026-10-10 | Saved intensity and Light/Dark brightness separately from full appearance Looks. | Looks are the only appearance presets and store the three tuning values directly. Unshipped schema 101 omits the tuning-preset library and selected id; old snapshot reference keys are ignored. | Owner decision: two preset layers were confusing. [Colour-style addendum](../decisions/2026-10-07-colour-styles.md#looks-as-the-only-appearance-presets-and-undo-2026-10-10). |
@@ -11,10 +12,10 @@
 | Legacy song identity alias table | Replaced 2026-10-08 | Song aliases were read from `song_identity_aliases` and written to both alias tables. | Schema 94 deduplicates typed aliases, enforces `(entity_type, old_id)`, and drops the legacy table. Reads and data reset now use `entity_identity_aliases`, preserving cross-profile resolution. | `SongIdentityDao`, `from93To94`, and migration regression tests. |
 | GPL project distribution | Replaced 2026-10-07, restored 2026-10-13 | Navis releases were distributed under GPL-3.0. | Navis briefly became proprietary freeware (2026-10-07) and returned to GPL-3.0-or-later on 2026-10-13 before 1.5.0 shipped; the source is public at github.com/Porthorion/Navis. The LGPL libmpv builds and the MIT colour table from the proprietary period were kept. | Root `LICENSE`, `README.md`; compliance audit L-1; 1.5.0. |
 | GPL colour-naming dependency | Replaced 2026-10-07 | `colornames` guessed names for custom accent colours. | An MIT meodai/color-names table and CIELAB nearest-colour lookup retain named labels. | Compliance audit L-2; `color_namer.dart`; `tool/data/color_names/README.md`; 1.5.0. |
-| Prebuilt zhongfly Windows libmpv | Replaced 2026-10-13 | Windows downloaded an LGPL daily build with an upstream fallback and mpv/FFmpeg source capture. | Navis cross-builds the audio-only engine and captures all static dependency sources. Only the per-build R2 URL is used; old published folders remain for previous users. | `tool/libmpv/README.md`, `docs/release-windows.md`; 1.5.0. |
-| GPL/system desktop libmpv release dependencies | Replaced 2026-10-07 | Windows shipped the GPL shinchiro build; Linux packages relied on distribution-provided mpv. | Windows and Linux x86_64 bundle pinned LGPL-2.1+ libraries with mirrored sources; Linux development may opt out to system mpv. | `docs/release-windows.md`, `docs/release-linux.md`, `tool/libmpv/README.md`; 1.5.0. |
+| Prebuilt zhongfly Windows libmpv | Replaced 2026-10-13 | Windows downloaded an LGPL daily build with an upstream fallback and mpv/FFmpeg source capture. | Navis cross-builds the audio-only engine and captures all static dependency sources. Only the per-build R2 URL is used; old published folders remain for previous users. | `tool/libmpv/README.md`, `docs/release/release-windows.md`; 1.5.0. |
+| GPL/system desktop libmpv release dependencies | Replaced 2026-10-07 | Windows shipped the GPL shinchiro build; Linux packages relied on distribution-provided mpv. | Windows and Linux x86_64 bundle pinned LGPL-2.1+ libraries with mirrored sources; Linux development may opt out to system mpv. | `docs/release/release-windows.md`, `docs/release/release-linux.md`, `tool/libmpv/README.md`; 1.5.0. |
 | Listen Together / Voyage | Retired 2026-06-30 | Voyage-backed multi-device rooms with shared queue and playback synchronization. | No active networking, session state, settings UI, or player entry points. Legacy Drift setting columns remain only for migration compatibility and are exposed as disabled/empty values. No replacement is currently committed. | `c541f74f` (`feat: retire listen together`), `08117d4f` (`fix: retire Listen Together for 1.0.7`), changelog 1.0.6–1.0.8. The reason beyond a redesign/retirement decision is not documented conclusively; do not infer one. |
-| Forgejo-hosted CI quality gates | Removed 2026-02-19 | Server-side quality gate execution. | Local `./tool/check.sh` and the optional `.githooks/pre-commit` hook provide the documented quality gate. | `PROGRESS.md` records removal due to no Forgejo runner. This is an operational change, not a reduction in required validation. |
+| Forgejo-hosted CI quality gates | Removed 2026-02-19 | Server-side quality gate execution. | Local `./tool/check.sh` and the optional `.githooks/pre-commit` hook provide the documented quality gate. | `docs/project/progress.md` records removal due to no Forgejo runner. This is an operational change, not a reduction in required validation. |
 | Deferrable library-cache upgrade prompt | Replaced 2026-08-26 | Let users postpone a required library-cache renewal until a later launch. | The authenticated router now sends profiles with an outdated cache contract directly to the mandatory full-screen rebuild, before onboarding. The rebuild preserves permanent downloads and is only acknowledged after a successful catalog promotion. | `cache_system_upgrade_gate.dart` was replaced by `cacheSystemUpgradeRequiredProvider` and `appRouterProvider`; release 1.3.0. |
 | Random liked-song Instant Radio | Replaced 2026-09-19 | Home seeded the selected song mix from a random liked song; Android Auto had a separate liked/random-song radio path. | Both now start balanced personal radio with liked, recent, server-recommended, and eligible local tracks. Song-based Server mix and Last.fm Same Vibes remain. | Release 1.4.0; `PersonalRadioNotifier` and `RecommendationService`. |
 | Android Auto genre browsing | Removed 2026-09-20 | Android Auto exposed a local `Library → Genres` branch and genre-scoped playback/search. | The Library tree now exposes Downloads, Albums, and Artists. Genre-focused voice input uses the normal text search path; legacy genre browse IDs resolve to no content. Cached genre rows were later dropped by schema 89 (see the 2026-09-30 row). | `AutoMediaTreeService`, `AutoMediaId`, `NavisAudioHandler`, and their regression tests; release 1.4.0. |
@@ -38,7 +39,7 @@ hook path was obsolete. Packaging now requires the exact locked release DLL,
 checks its published SHA-256 locally and again after transfer, and configures
 the supported bundled-file hook source. Missing or mismatched assets fail
 explicitly. See `tool/remote_build_windows.sh`,
-`tool/sqlite3_windows_asset.py`, and `docs/ci-cd.md`.
+`tool/sqlite3_windows_asset.py`, and `docs/development/ci-cd.md`.
 
 ### 2026-09-19 — Direct favorite/rating network writes
 
@@ -82,7 +83,7 @@ more content. Artwork size replaces the active layout meaning with bounded
 card sizes and a column count derived from the pane. Schema 81 preserves the
 legacy column and migrates its preference once (1/2 → Large, 3 → Medium,
 4/5 → Small, null/invalid → Auto). Compact Liked and Home previews use their
-own shelf geometry. See the [responsive layout plan](../completed-plans/Responsive_Layout_Overhaul_Plan.md)
+own shelf geometry. See the [responsive layout plan](completed-plans/Responsive_Layout_Overhaul_Plan.md)
 and [adaptive architecture](../architecture.md#collection-pane-geometry).
 
 ## 2026-09-28 — Stepped speed controls and queue-clear reset replaced
@@ -91,7 +92,7 @@ The 0.25× slider stops and generic 0.5×–2× clamp are replaced by shared Spe
 Pitch rulers, exact decimal input and local named presets. Actual backend limits
 remain centralized in capabilities. Clearing a queue no longer resets playback
 speed; both adjustments persist until changed or None is selected. This is an
-explicit product decision recorded in `Playback_Speed_Pitch_Presets_Plan.md`.
+explicit product decision recorded in `docs/history/completed-plans/Playback_Speed_Pitch_Presets_Plan.md`.
 
 ## 2026-09-28 — Percentage speed presentation replaced
 
@@ -137,7 +138,7 @@ bands. Schema v84 discards the old values without approximation or recovery and
 starts the replacement disabled/flat, with a one-time notice for affected users.
 The dedicated Equalizer page, native filters, authored preamp, and automatic
 headroom replace them; historical migration steps remain. See
-[equalizer.md](../equalizer.md) and the accepted `docs/completed-plans/EQ_System_Plan.md`.
+[equalizer.md](../features/equalizer.md) and the accepted `docs/history/completed-plans/EQ_System_Plan.md`.
 
 ## 2026-09-29 — Equalizer band-card editing replaced
 
@@ -146,7 +147,7 @@ pinned after scrolling are replaced by the large interactive graph and selected
 band controls. Exact input previews inline with Done/Cancel. Existing saved
 presets, v85 draft workspaces, AutoEQ provenance, and native processing retain
 their contracts; this presentation change requires no migration. See
-[equalizer.md](../equalizer.md).
+[equalizer.md](../features/equalizer.md).
 
 ## 2026-09-29 — Equalizer band dropdown and duplicate controls replaced
 
@@ -157,7 +158,7 @@ strip, three value tiles, an inspector Q control, and one preamp control per
 layout replace them; the mode dropdown became a segmented control, and draft
 status moved beside the preset name. Saved presets, drafts, AutoEQ provenance,
 diagnostics actions, and audio behaviour are unchanged; no migration is needed.
-See [equalizer.md](../equalizer.md#editing-workspace).
+See [equalizer.md](../features/equalizer.md#editing-workspace).
 
 ## 2026-10-05 — External-service switches moved to Settings › Integrations
 

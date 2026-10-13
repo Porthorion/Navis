@@ -121,9 +121,9 @@ warm, single-track observations and do not overturn the cold-start findings.
 
 ### 1. Prepare and reproduce
 
-1. Read `AGENTS.md`, `docs/README.md`, `docs/agentic-engineering.md`, the
+1. Read `AGENTS.md`, `docs/README.md`, `docs/development/agentic-engineering.md`, the
    playback section of `docs/architecture.md`, and the runtime loop in
-   `docs/development-workflow.md`. Record commit, dirty state, Flutter version,
+   `docs/development/development-workflow.md`. Record commit, dirty state, Flutter version,
    and the actual deployed image digests. Recheck mutable image tags.
 2. Bootstrap Flutter dependencies. Reproduce the blank fullscreen button
    in a widget test using an external song and an active load. Capture an

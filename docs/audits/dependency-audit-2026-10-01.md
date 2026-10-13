@@ -9,7 +9,7 @@ vendors it and pins a SHA-256-verified shinchiro build (`mpv-dev-x86_64-20261001
 ## Summary
 
 **Update, same day:** the `codex/dependency-upgrades` work was ported onto dev
-and merged (see `docs/completed-plans/Dependency_Upgrade_Plan.md`, "Port onto dev"). That resolves
+and merged (see `docs/history/completed-plans/Dependency_Upgrade_Plan.md`, "Port onto dev"). That resolves
 the items marked "Covered by codex" below: Flutter 3.47.5, the Android
 toolchain and wrapper checksum, the tracked SMTC `Cargo.lock` with current
 crates, and the Windows sqlite3 asset verification. The other findings stand.
@@ -41,18 +41,18 @@ this host all equal `b1772918…`. No Pub package version in the lockfile has an
 
 | Risk | What | Where pinned | Locked/bundled version & date | Latest | Maintainer status | Known advisories | Features lost / risk | Recommendation |
 |---|---|---|---|---|---|---|---|---|
-| High | macOS libmpv via `media_kit_libs_macos_audio` | `pubspec.yaml:64`; `~/.pub-cache/hosted/pub.dev/media_kit_libs_macos_audio-1.1.4/macos/Makefile:3-12` | pkg 1.1.4 (2023-09-27); libmpv-darwin-build v0.6.0 (2023-09-24): FFmpeg 6.0, mpv 0.36.0, Mbed TLS 3.4.1, libxml2 2.11.5 | pub 1.1.4; media-kit `main` has unpublished 1.1.6 → darwin v0.7.2; darwin latest v0.7.3 (2026-09-14) still FFmpeg 6.0 / mpv 0.36.0 / Mbed TLS 3.4.1 | darwin-build repo active (push 2026-09-14), but the component versions are frozen; pub package `isUnlisted: true` | Mbed TLS 3.4.1: CVE-2023-52353, CVE-2025-47917, CVE-2026-25835, CVE-2026-34877, among others (NVD returns 12 CPE matches). FFmpeg 6.0: NVD returns 37 CPE matches, e.g. CVE-2023-6603 (HLS); `hls` protocol is enabled. libxml2 2.11.5 (DASH only): 23 matches, e.g. CVE-2024-25062, CVE-2024-40896 | No `volume`/`biquad` filters, so Navis EQ is impossible (UI already disabled on macOS per `docs/equalizer.md:27`); 3-year-old TLS/demux stack on a supported platform | Same treatment as Windows: vendor and pin a current libmpv for macOS (needs a source; media-kit's own builds don't move FFmpeg/Mbed TLS) |
+| High | macOS libmpv via `media_kit_libs_macos_audio` | `pubspec.yaml:64`; `~/.pub-cache/hosted/pub.dev/media_kit_libs_macos_audio-1.1.4/macos/Makefile:3-12` | pkg 1.1.4 (2023-09-27); libmpv-darwin-build v0.6.0 (2023-09-24): FFmpeg 6.0, mpv 0.36.0, Mbed TLS 3.4.1, libxml2 2.11.5 | pub 1.1.4; media-kit `main` has unpublished 1.1.6 → darwin v0.7.2; darwin latest v0.7.3 (2026-09-14) still FFmpeg 6.0 / mpv 0.36.0 / Mbed TLS 3.4.1 | darwin-build repo active (push 2026-09-14), but the component versions are frozen; pub package `isUnlisted: true` | Mbed TLS 3.4.1: CVE-2023-52353, CVE-2025-47917, CVE-2026-25835, CVE-2026-34877, among others (NVD returns 12 CPE matches). FFmpeg 6.0: NVD returns 37 CPE matches, e.g. CVE-2023-6603 (HLS); `hls` protocol is enabled. libxml2 2.11.5 (DASH only): 23 matches, e.g. CVE-2024-25062, CVE-2024-40896 | No `volume`/`biquad` filters, so Navis EQ is impossible (UI already disabled on macOS per `docs/features/equalizer.md:27`); 3-year-old TLS/demux stack on a supported platform | Same treatment as Windows: vendor and pin a current libmpv for macOS (needs a source; media-kit's own builds don't move FFmpeg/Mbed TLS) |
 | High | libmpv TLS certificate verification off on desktop (related config finding) | Not set anywhere: `third_party/just_audio_media_kit/lib/mediakit_player.dart` sets only `force-seekable`, `prefetch-playlist`, `af`, etc.; media_kit 1.2.6 doesn't set it either | mpv v0.36.0 `stream/stream_lavf.c` defaults omit `tls_verify` (= false); mpv v0.41.0 docs show no default `yes`; this host's Linux libmpv is 0.41.0 | mpv master `stream/network.c:55` `.tls_verify = true`; `DOCS/interface-changes/tls-verify-default.txt` (unreleased) | n/a | n/a | Linux (distro mpv ≤0.41) and macOS (mpv 0.36.0): HTTPS stream likely not certificate-checked; stream URL carries `u`, `t`, `s` (`lib/src/api/subsonic_api_client.dart:1003-1013`). Windows pin = mpv master `3186d369f9`, so default `yes` | Decide whether to set `tls-verify=yes` explicitly on Linux and macOS; Navis's own API client already refuses bad certificates, so no working server would be lost. Default confirmed on Linux mpv 0.41.0; Windows verified at runtime. **Resolved 2026-10-02** for Linux and Windows: `JustAudioMediaKit.tlsVerify` sets `tls-verify=yes` on every player, and `tool/stream_open_diagnostics.py` proves an untrusted certificate is refused (and that the check fails with it off). macOS stays open until its libmpv is replaced. |
 | Medium | Rust SMTC crate lockfile / crates | `third_party/navis_windows_smtc/rust/Cargo.toml:10-14`; `.gitignore:4` (`*.lock`) ignores `Cargo.lock` | This checkout: no `Cargo.lock` (fresh resolve). Main checkout (ignored, untracked): `Cargo.lock` anyhow 1.0.82, tokio 1.39.2, adler 1.0.2, windows 0.58.0 (0.58.0 released 2024-07-03); stale `rust/Cargo.lock` anyhow 1.0.75, tokio 1.34.0, FRB 2.1.0 | windows 0.62.2, anyhow 1.0.104, tokio 1.53.1, FRB 2.13.0 (crates.io) | Upstream `KRTirtho/smtc_windows` last push 2024-07-25 (fork is Navis-owned) | RUSTSEC-2026-0190 (anyhow), RUSTSEC-2025-0023 / GHSA-rr8g-9fpq-6wmg (tokio), RUSTSEC-2025-0056 (adler, unmaintained), all in the main checkout's locks | Unreproducible Windows builds; `tool/remote_build_windows.sh:92-99` tars the working dir incl. ignored locks, so the crate set shipped depends on which checkout built it; cargokit installs floating `stable` toolchain (`cargokit/build_tool/lib/src/rustup.dart:29`) | Covered by codex branch (tracked lock, OSV-clean); see Overlap |
 | Medium | sqlite3 native asset: Windows offline path | `tool/remote_build_windows.sh:379-415` patches `description.dart` in the VM pub cache | Fallback copies any sibling `download-*/sqlite3.dll` before download | — | — | — | Bypasses the hook's SHA-256 check (`fetch()` in `description.dart:140-180` is skipped); could ship an older, unidentified SQLite | Covered by codex (`tool/sqlite3_windows_asset.py`); keep hash verification |
 | Medium | sqlite3 Linux asset hash mismatch report | `pubspec.yaml:48`; `sqlite3-3.5.2/lib/src/hook/asset_hashes.dart` | 3.5.2 (2026-08-19); prebuilt SQLite 3.53.4 (source id 2026-07-24) | sqlite3 3.7.0 (2026-09-30); SQLite 3.53.4 is current per sqlite.org | Upstream very active (push 2026-09-30) | none | Not reproduced, see section below | Record host/network/bytes next time it happens |
 | Medium | Android build toolchain | `android/settings.gradle.kts:22-23`; `android/gradle/wrapper/gradle-wrapper.properties:5`; `android/app/build.gradle.kts:33,65-66` | Gradle 8.14 (2025-04-25), AGP 8.12.1 (POM 2025-08-18), KGP 2.2.20 (2025-09-09), compileSdk 37, targetSdk 36, minSdk 24, JVM 17, NDK = Flutter default 28.2.13676358 | Gradle 9.8.0 (2026-09-24), AGP 9.4.1 (2026-09-18), Kotlin 2.4.20 | n/a | none found | Flutter 3.47.1 `DependencyVersionChecker.kt:96,105,109`: error floor Gradle 8.14.0, AGP 8.11.1, KGP 2.2.20, so Gradle and KGP sit exactly on the floor. Wrapper has no `distributionSha256Sum` | Covered by codex (AGP 9.3.1 / Gradle 9.5.0 + checksum / Kotlin 2.4.20) |
 | Medium | Media3 (ExoPlayer) in just_audio fork | `third_party/just_audio/android/build.gradle.kts:71-75` | 1.4.1 (POM 2024-08-27) | 1.11.1 (2026-09-11) | Upstream just_audio 0.10.6 also pins 1.4.1; no upstream commits since 0.10.6 | OSV: none for media3-exoplayer/common/datasource/extractor 1.4.1 | 7 minor releases of playback/extractor fixes not taken (not reviewed per release) | Treat as High-tier audio change if pursued; not in codex scope |
-| Medium | `scrollable_positioned_list`, `visibility_detector` | `pubspec.yaml:47,51` | 0.3.8 (2023-05-08); 0.4.0+2 (2023-03-09) | same | **`google/flutter.widgets` archived** (API `archived: true`, last push 2024-08-08); not discontinued on pub | none | No fixes possible upstream; `docs/dependency-upgrades.md` watch list retains them but doesn't record the archival | Add "upstream archived" to the watch-list entry; triggers unchanged |
+| Medium | `scrollable_positioned_list`, `visibility_detector` | `pubspec.yaml:47,51` | 0.3.8 (2023-05-08); 0.4.0+2 (2023-03-09) | same | **`google/flutter.widgets` archived** (API `archived: true`, last push 2024-08-08); not discontinued on pub | none | No fixes possible upstream; `docs/development/dependency-upgrades.md` watch list retains them but doesn't record the archival | Add "upstream archived" to the watch-list entry; triggers unchanged |
 | Low | Flutter SDK | `pubspec.yaml:9`; `tool/bootstrap.sh:4` | 3.47.1 / Dart 3.13.1 (2026-08-19) | 3.47.5 / Dart 3.13.4 (2026-09-18) | Google | not checked | 4 stable hotfixes behind | Covered by codex (>=3.47.5) |
 | Low | mimalloc build-time download (Linux) | `~/.pub-cache/hosted/pub.dev/media_kit_libs_linux-1.2.1/linux/CMakeLists.txt:13,57-58` | mimalloc 2.1.2 (MD5-checked), downloaded and compiled on clean builds (seen in `build/linux/x64/profile/mimalloc-2.1.2.tar.gz`) | mimalloc tags up to v3.5.4 | media-kit `main` still pins 2.1.2 | not checked | Not linked: `linux/runner/CMakeLists.txt:23-24` links only flutter+GTK; `nm` finds no `mi_` symbols in the bundle. Dead network dependency (GitHub) + MD5 | Optionally set `MIMALLOC_USE_STATIC_LIBS OFF` to skip it |
 | Low | media_kit libs packages unpublished/unlisted | `pubspec.yaml:59,64` | `media_kit_libs_linux` 1.2.1 (2025-03-24); macOS 1.1.4 (2023-09-27) | same on pub | pub `isUnlisted: true` for media_kit_libs_linux/_macos_audio/_windows_audio/_audio/native_event_loop; `media-kit/media-kit` active (push 2026-08-30); `main` has unpublished macOS 1.1.6 and a Windows switch to `libmpv-win32-audio-cmake` 20251213 | none | Fixes land in git but not on pub | Track git, not pub, for these |
-| Low | Linux libmpv/FFmpeg | `tool/release.sh:616` (`Depends: libgtk-3-0`) | System libmpv at runtime (not bundled); this host: mpv 0.41.0, ffmpeg 9.0.2 | distro | distro-maintained | distro | `.deb` lacks libmpv dependency (documented in `docs/release-linux.md:111-121`); EQ relies on distro FFmpeg having `biquad`/`volume` | Already documented |
+| Low | Linux libmpv/FFmpeg | `tool/release.sh:616` (`Depends: libgtk-3-0`) | System libmpv at runtime (not bundled); this host: mpv 0.41.0, ffmpeg 9.0.2 | distro | distro-maintained | distro | `.deb` lacks libmpv dependency (documented in `docs/release/release-linux.md:111-121`); EQ relies on distro FFmpeg having `biquad`/`volume` | Already documented |
 | Low | `js` (transitive, web) | via `audio_service` 0.18.19 | 0.7.2 (2025-02-11) | — | **Discontinued** on pub | none | Web-only | None needed now |
 | Low | `colornames` | `pubspec.yaml:16` | 0.2.0 (2024-10-19) | same | Repo not archived, last push 2024-10-19 (~2 yrs) | none | — | Watch |
 | Low | Majors behind on pub | `pubspec.yaml` | go_router 17.5.0, cached_network_image 3.4.1 (2024-08-13), file_picker 12.0.0, android_file_picker 1.0.1, very_good_analysis 10.3.0, dbus 0.7.15, flutter_lints 3.0.2 (2024-03-26), transitive nm 0.5.0 (2022-02-08), cli_util 0.4.2 | 18.0.2, 4.0.4, 13.1.0, 2.0.0, 11.0.0, 0.8.0, 6.0.0, 0.6.0, 0.6.0 | All active | none | — | All except flutter_lints/dbus/nm covered by codex; dbus/nm are documented holds |
@@ -116,7 +116,7 @@ this host all equal `b1772918…`. No Pub package version in the lockfile has an
 - `flutter.ndkVersion` resolves to 28.2.13676358 (Flutter `FlutterExtension.kt:42`).
 - No jcenter or jitpack repositories in Navis or the checked plugins.
 - OSV query for Media3 1.4.1, Guava 33.0.0-android, androidx.media 1.7.0 and work-runtime 2.11.2: no matches.
-- The previous audit (`docs/audits/dependency-upgrades-2026-09-27/android-advisories.json`) found no matches across
+- The previous audit (the removed `android-advisories.json` dump, retained in Git history) found no matches across
   the 89 resolved Maven coordinates.
 
 ### Rust crates
@@ -138,7 +138,7 @@ this host all equal `b1772918…`. No Pub package version in the lockfile has an
 
 ### CI
 - There is no CI. `.forgejo/` doesn't exist, and `.github/` holds only `copilot-instructions.md`.
-  `docs/ci-cd.md:3` confirms that gates run locally.
+  `docs/development/ci-cd.md:3` confirms that gates run locally.
 - So there are no action versions or container images to audit. There is no `.fvmrc`. The Flutter floor lives in
   `pubspec.yaml:9` and `tool/bootstrap.sh:4-5`.
 
@@ -160,7 +160,7 @@ this host all equal `b1772918…`. No Pub package version in the lockfile has an
 - The Windows libmpv is pinned to mpv master `3186d369f9` (2026-09-30), which equals the mpv master HEAD seen
   today.
 - `flutter_rust_bridge` 2.13.0 is latest. `win32` 6.4.0 is latest.
-- No Flatpak, AppImage, Snap or RPM manifests exist (`docs/release-linux.md` explains why). The Linux desktop file
+- No Flatpak, AppImage, Snap or RPM manifests exist (`docs/release/release-linux.md` explains why). The Linux desktop file
   pins nothing.
 - compileSdk 37, targetSdk 36 and minSdk 24 are at or above Flutter's defaults (36/36/24).
 
@@ -186,9 +186,9 @@ this host all equal `b1772918…`. No Pub package version in the lockfile has an
   `just_audio_media_kit` and `remote_build_windows.sh` edits will conflict with this branch.
 
 ## Method
-- Read `docs/dependency-upgrades.md`, `docs/completed-plans/Dependency_Upgrade_Plan.md`, `docs/audits/dependency-upgrades-2026-09-27/*`
-  (names), `docs/release-windows.md`, `docs/release-linux.md`, `docs/equalizer.md`, `docs/architecture.md`
-  (desktop streaming), `docs/ci-cd.md`, `README.md`.
+- Read `docs/development/dependency-upgrades.md`, `docs/history/completed-plans/Dependency_Upgrade_Plan.md`, `docs/audits/dependency-upgrades-2026-09-27.md`
+  (raw dump contents remain in Git history), `docs/release/release-windows.md`, `docs/release/release-linux.md`, `docs/features/equalizer.md`, `docs/architecture.md`
+  (desktop streaming), `docs/development/ci-cd.md`, `README.md`.
 - Read `pubspec.yaml`, `pubspec.lock`, Android Gradle files, `linux/`/`windows/`/`macos/` CMake/Podfile/pbxproj,
   `tool/release.sh`, `tool/remote_build_windows.sh`, `tool/windows/build_inno_installer.ps1`, the fork
   pubspecs/CHANGELOGs/NAVIS notes, and the SMTC `Cargo.toml` and cargokit sources.

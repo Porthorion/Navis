@@ -189,13 +189,13 @@ Certified 2026-09-21/22 against `https://navidrome.example.test` (Navidrome
 - [ ] Changelog + release notes for user-visible changes (Relink preview, review reasons,
       suspected-missing behavior, starred refresh, artwork recovery, post-upgrade
       reconciliation).
-- [ ] Docs updated: `architecture.md` (identity/availability/artwork),
-      `sync-reliability-recovery-plan.md` cross-link, `development-workflow.md` if tooling
+- [ ] Docs updated: `docs/architecture.md` (identity/availability/artwork),
+      `docs/features/sync-reliability-recovery-plan.md` cross-link, `docs/development/development-workflow.md` if tooling
       gained timing gates.
 - [ ] Plan doc's 21-row matrix updated with per-row evidence (test name or runtime
       artifact); Phase A fixture note recorded (controls satisfied by the upgraded fake +
       coordinator tests).
-- [ ] Acceptance per §4 checked; `Fix_Stale_Cache_Plan.md` moved to `docs/completed-plans/`
+- [ ] Acceptance per §4 checked; `Fix_Stale_Cache_Plan.md` moved to `docs/history/completed-plans/`
       when all rows have evidence.
 
 ## Ordering and checkpoints

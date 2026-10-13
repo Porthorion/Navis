@@ -297,6 +297,6 @@ promotion fixture measured 56k songs at ~2 s apply. Live-server
 certification on Navidrome 0.64.0 promoted the 56k clone to the exact
 server count (56,166 tracks, 4.8 s apply), kept all user state, passed the
 NieR shared-title artwork retest, and survived cancel and lease-contention
-drills. Remaining before moving this plan to `docs/completed-plans/`:
-the recorded Android checklist (`docs/android-certification-checklist.md`)
+drills. Remaining before moving this plan to `docs/history/completed-plans/`:
+the recorded Android checklist (`docs/platforms/android-certification-checklist.md`)
 and the fresh-profile initial-sync lease-race follow-up.

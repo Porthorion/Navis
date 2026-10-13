@@ -151,7 +151,7 @@ class _MyAppState extends State<MyApp> {
 ```
 
 ### License
-[MIT](packages/smtc_windows/LICENSE)
+[MIT](LICENSE)
 
 ### Author
 

@@ -88,4 +88,4 @@ addTearDown(container.dispose);
 
 Widget-level provider testing belongs to widget tests (see
 `flutter-add-widget-test`). Adding a regression test alongside each bug fix is
-the repo norm per `docs/agentic-engineering.md`.
+the repo norm per `docs/development/agentic-engineering.md`.
