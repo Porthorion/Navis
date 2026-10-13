@@ -5247,16 +5247,20 @@ download naming throws when all 100 collision candidates are occupied.
    metered-data, and sign-out recovery options on failure, and only then opens
    Home. `LibraryCacheResetService` deliberately preserves permanent downloads
    and their files; the upgrade marker is written only after that full scan.
-   Before deleting songs (which cascade-delete saved queue items), the reset
-   snapshots the persisted queue and its playback state in memory. The upgrade,
-   Settings reset, and playback recovery flows restore surviving song occurrences
-   after a successful full scan, retaining play order, original shuffle ranks,
-   repeat/shuffle modes, position, and the current occurrence's remapped index
-   (clamped if removed). Failed scans or no surviving songs leave the saved queue
-   cleared. Restoration never reloads playback and yields to a newly saved live
-   queue. The snapshot is scoped to the rebuild visit, retained through scan
-   retries, and discarded on completion, cancellation, or session change;
-   schema 103 is unchanged.
+   The reset keeps exactly the song rows referenced by `play_queue_items`,
+   their albums, and artists referenced by those songs or albums. Queue items
+   cascade on song deletion; the song and album parent FKs use `SET NULL`, but
+   retaining parents also keeps the server IDs needed by stale-song
+   reconciliation. Saved queue occurrences and playback state stay in the
+   database throughout the rebuild, including failed scans and process restarts;
+   live queue clears, edits, and shuffle persistence use their existing paths.
+   No snapshot, post-scan restoration, or schema change is needed. Authoritative
+   sync upserts re-observed song metadata by ID, including explicit null values,
+   and clears absence/provisional markers. Missing queued songs follow normal
+   reconciliation: they are retained as confirmed-missing with `serverDeletedAt`
+   and excluded from normal library selection. Existing playback source resolution
+   prunes an unavailable retained song and its saved queue occurrences when no
+   permanent download remains. An empty queue still clears the whole library.
 
 ### Download quality, concurrency and artwork
 

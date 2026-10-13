@@ -2659,9 +2659,29 @@ class LibraryDao extends DatabaseAccessor<NavisDatabase>
 
   Future<void> clearLibraryData() async {
     await transaction(() async {
-      await delete(songsTable).go();
-      await delete(albumsTable).go();
-      await delete(artistsTable).go();
+      // Deleting a queued song cascades to its saved occurrences. Keep those
+      // rows in place so queue persistence needs no rebuild coordination.
+      await customUpdate(
+        'DELETE FROM songs WHERE id NOT IN '
+        '(SELECT song_id FROM play_queue_items)',
+        updates: {songsTable},
+        updateKind: UpdateKind.delete,
+      );
+      // Parent deletion uses SET NULL, but stale-song reconciliation needs a
+      // parent ID to recognize retained songs as server-library rows.
+      await customUpdate(
+        'DELETE FROM albums WHERE id NOT IN '
+        '(SELECT album_id FROM songs WHERE album_id IS NOT NULL)',
+        updates: {albumsTable},
+        updateKind: UpdateKind.delete,
+      );
+      await customUpdate(
+        'DELETE FROM artists WHERE id NOT IN ( '
+        'SELECT artist_id FROM songs WHERE artist_id IS NOT NULL '
+        'UNION SELECT artist_id FROM albums WHERE artist_id IS NOT NULL)',
+        updates: {artistsTable},
+        updateKind: UpdateKind.delete,
+      );
     });
   }
 
