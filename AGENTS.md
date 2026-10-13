@@ -149,7 +149,8 @@ are planning/evidence records, not implementation authority.
 
 ## Repository operations
 
-Forgejo hosts this repository at `https://git.porthorion.com/khalifa/Navis`;
+Forgejo hosts this private repository at `https://git.porthorion.com/khalifa/Navis-dev`
+(the public `khalifa/Navis` holds only a README, issues and the 1.5.0 bridge release);
 the GitHub CLI is not the issue-tracking client. Use Forgejo's REST API only
 when a task requires issue actions, and never print credential material.
 

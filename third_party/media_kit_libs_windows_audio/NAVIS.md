@@ -12,8 +12,7 @@ Changes from upstream, all in `windows/CMakeLists.txt`:
   `mpv-dev-lgpl` x86_64 variant (LGPL-2.1+): mpv v0.41.0-1104-geb0ee1031
   with `-Dgpl=false`, FFmpeg N-127222-g151814650 without `--enable-gpl`.
   The `volume` and `biquad` filters are present.
-- Downloads try the navis-third-party Forgejo mirror, the Porthorion R2 copy,
-  then upstream, verifying SHA-256 on every attempt and deleting failures.
+- Downloads try the Porthorion R2 copy, then upstream, verifying SHA-256 on every attempt and deleting failures.
   A verified cached archive is reused offline. The mirror preserves daily
   builds pruned upstream, with `SOURCES.md` and mpv/FFmpeg source tarballs.
 - The archive is extracted to a folder named after it, so changing the pin

@@ -1,7 +1,6 @@
 name: navis_windows_smtc
 description: Navis-owned Windows System Media Transport Controls bridge.
 version: 1.1.0
-repository: https://git.porthorion.com/khalifa/Navis
 
 environment:
   sdk: ">=3.13.0 <4.0.0"

@@ -64,15 +64,14 @@ endfunction()
 # Navis: zhongfly/mpv-winbuild's LGPL variant, licensed LGPL-2.1+:
 # mpv v0.41.0-1104-geb0ee1031 built with -Dgpl=false and FFmpeg
 # N-127222-g151814650 without --enable-gpl. Includes libavfilter volume/biquad
-# for the equalizer. Mirrored in navis-third-party to keep old pins buildable
+# for the equalizer. Mirrored on Porthorion R2 to keep old pins buildable
 # when upstream prunes daily releases, without polluting Navis update checks.
-# SOURCES.md and corresponding source tarballs accompany the mirrored binary.
+# SOURCES.md and the source tarballs are in navis/third-party/<release tag>/.
 # To update, see docs/release-windows.md.
 set(LIBMPV "mpv-dev-lgpl-x86_64-20261006-git-eb0ee10315.7z")
 
 # Ordered mirrors followed by upstream; every attempt must match this digest.
 set(LIBMPV_URLS
-  "https://git.porthorion.com/khalifa/navis-third-party/releases/download/libmpv-windows-x86_64-lgpl-20261006/${LIBMPV}"
   "https://downloads.porthorion.com/navis/third-party/${LIBMPV}"
   "https://github.com/zhongfly/mpv-winbuild/releases/download/2026-10-06-eb0ee10315/${LIBMPV}"
 )
