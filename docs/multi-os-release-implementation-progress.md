@@ -296,10 +296,10 @@ This document is the detailed execution log for preparing Navis as a native app 
   - Added ACP milestone/task checklist (`ACP-M0` through `ACP-M6`) to `PROGRESS.md`.
   - Captured adaptive baseline tests/analyzer before refactor work.
 - Baseline evidence:
-  - `/home/khalifa/Flutter_SDK/flutter/bin/flutter test test/src/routing/desktop_layout_test.dart test/src/routing/desktop_commands_test.dart test/src/routing/app_shell_navigation_test.dart`
+  - `flutter test test/src/routing/desktop_layout_test.dart test/src/routing/desktop_commands_test.dart test/src/routing/app_shell_navigation_test.dart`
     - Result: `desktop_layout_test.dart` and `desktop_commands_test.dart` pass; `app_shell_navigation_test.dart` fails.
     - Failure profile: narrow-width desktop runtime currently forces desktop shell path and triggers `RenderFlex overflow` in desktop player bar; multiple expectation mismatches in shell navigation assertions.
-  - `/home/khalifa/Flutter_SDK/flutter/bin/flutter analyze lib/src/routing lib/src/features/settings/presentation/settings_screen.dart lib/src/features/home/presentation/home_screen.dart lib/src/features/search/presentation/search_screen.dart lib/src/features/library/presentation/library_screen.dart`
+  - `flutter analyze lib/src/routing lib/src/features/settings/presentation/settings_screen.dart lib/src/features/home/presentation/home_screen.dart lib/src/features/search/presentation/search_screen.dart lib/src/features/library/presentation/library_screen.dart`
     - Result: no compile errors; info-level lint debt reported on adaptive-heavy paths.
 - ACP blocker protocol (effective immediately):
   - Every blocked ACP task must append:
@@ -328,9 +328,9 @@ This document is the detailed execution log for preparing Navis as a native app 
     - `test/src/routing/desktop_commands_test.dart` (action-handler text-input guard)
     - `test/src/routing/app_shell_navigation_test.dart` (width-first shell expectations + compact desktop shortcuts).
 - Evidence:
-  - `/home/khalifa/Flutter_SDK/flutter/bin/flutter test test/src/routing/desktop_layout_test.dart test/src/routing/desktop_commands_test.dart test/src/routing/app_shell_navigation_test.dart`
+  - `flutter test test/src/routing/desktop_layout_test.dart test/src/routing/desktop_commands_test.dart test/src/routing/app_shell_navigation_test.dart`
     - Result: pass (27 tests).
-  - `/home/khalifa/Flutter_SDK/flutter/bin/flutter analyze lib/src/routing lib/src/features/settings/presentation/settings_screen.dart lib/src/features/home/presentation/home_screen.dart lib/src/features/search/presentation/search_screen.dart lib/src/features/library/presentation/library_screen.dart`
+  - `flutter analyze lib/src/routing lib/src/features/settings/presentation/settings_screen.dart lib/src/features/home/presentation/home_screen.dart lib/src/features/search/presentation/search_screen.dart lib/src/features/library/presentation/library_screen.dart`
     - Result: no compile errors; existing info-level lint debt remains (57 infos, no new blockers).
 
 ### R. ACP M3 Wave 1 convergence (2026-03-25)
@@ -351,9 +351,9 @@ This document is the detailed execution log for preparing Navis as a native app 
     - Settings: `test/src/features/settings/presentation/settings_screen_test.dart`.
     - Routing adaptive resolver fallback/scope behavior: `test/src/routing/desktop_layout_test.dart`.
 - Evidence:
-  - `/home/khalifa/Flutter_SDK/flutter/bin/flutter test test/src/routing/desktop_layout_test.dart test/src/routing/desktop_commands_test.dart test/src/routing/app_shell_navigation_test.dart test/src/features/home/presentation/home_screen_test.dart test/src/features/settings/presentation/settings_screen_test.dart test/src/features/search/search_screen_adaptive_test.dart test/src/features/search/search_screen_focus_test.dart`
+  - `flutter test test/src/routing/desktop_layout_test.dart test/src/routing/desktop_commands_test.dart test/src/routing/app_shell_navigation_test.dart test/src/features/home/presentation/home_screen_test.dart test/src/features/settings/presentation/settings_screen_test.dart test/src/features/search/search_screen_adaptive_test.dart test/src/features/search/search_screen_focus_test.dart`
     - Result: pass (49 tests).
-  - `/home/khalifa/Flutter_SDK/flutter/bin/flutter analyze lib/src/routing lib/src/features/home/presentation/home_screen.dart lib/src/features/search/presentation/search_screen.dart lib/src/features/settings/presentation/settings_screen.dart test/src/features/home/presentation/home_screen_test.dart test/src/features/settings/presentation/settings_screen_test.dart test/src/features/search/search_screen_adaptive_test.dart test/src/routing/desktop_layout_test.dart`
+  - `flutter analyze lib/src/routing lib/src/features/home/presentation/home_screen.dart lib/src/features/search/presentation/search_screen.dart lib/src/features/settings/presentation/settings_screen.dart test/src/features/home/presentation/home_screen_test.dart test/src/features/settings/presentation/settings_screen_test.dart test/src/features/search/search_screen_adaptive_test.dart test/src/routing/desktop_layout_test.dart`
     - Result: no compile errors; existing info-level lint debt remains (45 infos, no new blockers).
 
 ### S. ACP M3 Wave 2 convergence (2026-03-25)
@@ -368,9 +368,9 @@ This document is the detailed execution log for preparing Navis as a native app 
     - updated Library adaptive parity expectation in `test/src/features/library/presentation/library_screen_test.dart` (compact desktop width uses non-desktop list rows, desktop-wide width uses desktop rows)
     - added `test/src/features/player/presentation/now_playing_screen_adaptive_test.dart` to verify narrow desktop widths keep compact presentation and desktop-wide widths switch to wide mode.
 - Evidence:
-  - `/home/khalifa/Flutter_SDK/flutter/bin/flutter test test/src/routing/desktop_layout_test.dart test/src/routing/desktop_commands_test.dart test/src/routing/app_shell_navigation_test.dart test/src/features/home/presentation/home_screen_test.dart test/src/features/search/search_screen_adaptive_test.dart test/src/features/settings/presentation/settings_screen_test.dart test/src/features/library/presentation/library_screen_test.dart test/src/features/player/presentation/now_playing_screen_transition_test.dart test/src/features/player/presentation/now_playing_screen_adaptive_test.dart`
+  - `flutter test test/src/routing/desktop_layout_test.dart test/src/routing/desktop_commands_test.dart test/src/routing/app_shell_navigation_test.dart test/src/features/home/presentation/home_screen_test.dart test/src/features/search/search_screen_adaptive_test.dart test/src/features/settings/presentation/settings_screen_test.dart test/src/features/library/presentation/library_screen_test.dart test/src/features/player/presentation/now_playing_screen_transition_test.dart test/src/features/player/presentation/now_playing_screen_adaptive_test.dart`
     - Result: pass (70 tests).
-  - `/home/khalifa/Flutter_SDK/flutter/bin/flutter analyze lib/src/routing/desktop_layout.dart lib/src/routing/app_shell.dart lib/src/features/home/presentation/home_screen.dart lib/src/features/search/presentation/search_screen.dart lib/src/features/settings/presentation/settings_screen.dart lib/src/features/library/presentation/library_screen.dart lib/src/features/player/presentation/now_playing_screen.dart test/src/features/library/presentation/library_screen_test.dart test/src/features/player/presentation/now_playing_screen_adaptive_test.dart test/src/features/search/search_screen_adaptive_test.dart`
+  - `flutter analyze lib/src/routing/desktop_layout.dart lib/src/routing/app_shell.dart lib/src/features/home/presentation/home_screen.dart lib/src/features/search/presentation/search_screen.dart lib/src/features/settings/presentation/settings_screen.dart lib/src/features/library/presentation/library_screen.dart lib/src/features/player/presentation/now_playing_screen.dart test/src/features/library/presentation/library_screen_test.dart test/src/features/player/presentation/now_playing_screen_adaptive_test.dart test/src/features/search/search_screen_adaptive_test.dart`
     - Result: no compile errors; analyzer reports existing info-level lint debt only (81 infos, no new blockers).
 
 ### T. ACP usability hardening follow-up (2026-03-25)
@@ -388,9 +388,9 @@ This document is the detailed execution log for preparing Navis as a native app 
     - `test/src/features/player/presentation/now_playing_screen_adaptive_test.dart` now verifies close button visibility at compact and desktop-wide widths.
     - same suite now verifies split-layout lyrics action opens fullscreen lyrics route.
 - Evidence:
-  - `/home/khalifa/Flutter_SDK/flutter/bin/flutter test test/src/features/player/presentation/now_playing_screen_adaptive_test.dart test/src/features/player/presentation/now_playing_screen_transition_test.dart test/src/routing/app_shell_navigation_test.dart`
+  - `flutter test test/src/features/player/presentation/now_playing_screen_adaptive_test.dart test/src/features/player/presentation/now_playing_screen_transition_test.dart test/src/routing/app_shell_navigation_test.dart`
     - Result: pass (19 tests).
-  - `/home/khalifa/Flutter_SDK/flutter/bin/flutter analyze lib/src/features/player/presentation/now_playing_screen.dart lib/src/routing/app_shell.dart test/src/features/player/presentation/now_playing_screen_adaptive_test.dart`
+  - `flutter analyze lib/src/features/player/presentation/now_playing_screen.dart lib/src/routing/app_shell.dart test/src/features/player/presentation/now_playing_screen_adaptive_test.dart`
     - Result: no compile errors; existing info-level lint debt only (58 infos, no new blockers).
 
 ### U. ACP desktop-wide You Might Like redesign (2026-03-26)
@@ -416,9 +416,9 @@ This document is the detailed execution log for preparing Navis as a native app 
     - queue/heart/menu interaction checks
     - desktop overflow guard at `1200/1366/1600`.
 - Evidence:
-  - `/home/khalifa/Flutter_SDK/flutter/bin/flutter test test/src/features/home/presentation/home_screen_test.dart test/src/features/home/presentation/home_random_showcase_provider_test.dart`
+  - `flutter test test/src/features/home/presentation/home_screen_test.dart test/src/features/home/presentation/home_random_showcase_provider_test.dart`
     - Result: pass (25 tests); no failures.
-  - `/home/khalifa/Flutter_SDK/flutter/bin/flutter analyze lib/src/features/home/presentation/home_screen.dart test/src/features/home/presentation/home_screen_test.dart`
+  - `flutter analyze lib/src/features/home/presentation/home_screen.dart test/src/features/home/presentation/home_screen_test.dart`
     - Result: no compile errors and no new warnings; existing info-level lint debt remains in `home_screen.dart` (`discarded_futures` infos).
 
 ### V. ACP desktop-wide You Might Like refinement pass (2026-03-26)
@@ -436,9 +436,9 @@ This document is the detailed execution log for preparing Navis as a native app 
     - `homeRandomShowcaseProvider` now snapshots liked songs via non-reactive read to avoid reshuffling "You Might Like" while users like/unlike tracks.
     - section still refreshes through explicit invalidation/sync paths.
 - Evidence:
-  - `/home/khalifa/Flutter_SDK/flutter/bin/flutter test test/src/features/home/presentation/home_screen_test.dart test/src/features/home/presentation/home_random_showcase_provider_test.dart`
+  - `flutter test test/src/features/home/presentation/home_screen_test.dart test/src/features/home/presentation/home_random_showcase_provider_test.dart`
     - Result: pass.
-  - `/home/khalifa/Flutter_SDK/flutter/bin/flutter analyze lib/src/features/home/presentation/home_providers.dart lib/src/features/home/presentation/home_screen.dart test/src/features/home/presentation/home_screen_test.dart test/src/features/home/presentation/home_random_showcase_provider_test.dart`
+  - `flutter analyze lib/src/features/home/presentation/home_providers.dart lib/src/features/home/presentation/home_screen.dart test/src/features/home/presentation/home_screen_test.dart test/src/features/home/presentation/home_random_showcase_provider_test.dart`
     - Result: no compile errors; info-level lint debt only.
 
 ### W. ACP M4 Wave A input + focus parity hardening (2026-03-26)
@@ -462,11 +462,11 @@ This document is the detailed execution log for preparing Navis as a native app 
     - `test/src/routing/desktop_commands_test.dart`: text-input guard, escape-map control, route-current guard.
     - `test/src/routing/app_shell_navigation_test.dart`: escape queue-first precedence, queue focus restoration, width matrix checks at `700/840/1200/1366`.
 - Evidence:
-  - `/home/khalifa/Flutter_SDK/flutter/bin/flutter test test/src/routing/desktop_commands_test.dart test/src/routing/app_shell_navigation_test.dart test/src/routing/desktop_layout_test.dart`
+  - `flutter test test/src/routing/desktop_commands_test.dart test/src/routing/app_shell_navigation_test.dart test/src/routing/desktop_layout_test.dart`
     - Result: pass (39 tests).
-  - `/home/khalifa/Flutter_SDK/flutter/bin/flutter test test/src/features/home/presentation/home_screen_test.dart test/src/features/search/search_screen_adaptive_test.dart test/src/features/player/presentation/now_playing_screen_adaptive_test.dart`
+  - `flutter test test/src/features/home/presentation/home_screen_test.dart test/src/features/search/search_screen_adaptive_test.dart test/src/features/player/presentation/now_playing_screen_adaptive_test.dart`
     - Result: pass (22 tests).
-  - `/home/khalifa/Flutter_SDK/flutter/bin/flutter analyze lib/src/routing lib/src/features/home/presentation/home_screen.dart lib/src/features/search/presentation/search_screen.dart lib/src/features/player/presentation/now_playing_screen.dart`
+  - `flutter analyze lib/src/routing lib/src/features/home/presentation/home_screen.dart lib/src/features/search/presentation/search_screen.dart lib/src/features/player/presentation/now_playing_screen.dart`
     - Result: no compile errors; existing info-level lint debt remains and existing non-M4 warning in `now_playing_screen.dart` (`unused_local_variable`) persists.
 
 ### X. ACP desktop input and library-filter follow-up (2026-03-27)

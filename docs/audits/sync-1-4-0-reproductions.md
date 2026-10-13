@@ -1,6 +1,6 @@
 # Sync 1.4.0 audit reproduction fixtures
 
-Companion evidence for [Sync Improvement Plan — 1.4.0](../../Sync_Improvement_Plan_1-4-0.md), audited 2026-09-19.
+Companion evidence for [Sync Improvement Plan — 1.4.0](../plans/Sync_Improvement_Plan_1-4-0.md), audited 2026-09-19.
 
 These 19 **characterization tests assert the defective current behavior**. Passing them confirms the audit reproduction; it does not certify correctness. Do not add them unchanged to release acceptance tests. For a fix, reverse the relevant assertions and move a focused regression into its owning test suite.
 

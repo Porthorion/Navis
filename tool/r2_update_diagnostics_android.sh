@@ -5,8 +5,8 @@
 set -uo pipefail
 WT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$WT"
-export JAVA_HOME=/home/khalifa/android-studio/jbr
-ADB=/home/khalifa/Android/Sdk/platform-tools/adb
+export JAVA_HOME="${JAVA_HOME:-$HOME/android-studio/jbr}"
+ADB="${ADB:-$HOME/Android/Sdk/platform-tools/adb}"
 PKG=com.navis.app.navis.r2test
 ROOT=/data/user/0/$PKG/files/diag
 APK="$WT/build/app/outputs/flutter-apk/app-sideload-profile.apk"

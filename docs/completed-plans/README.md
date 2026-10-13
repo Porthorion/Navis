@@ -40,8 +40,9 @@ open blockers, or required follow-up work remain at the repository root.
   head-unit projection remain recorded as unverified. Moved from the root on
   2026-10-12.
 
-## Root plans retained
+## Plans retained elsewhere
 
+- Active plans live in `docs/plans/` (moved from the root on 2026-10-13).
 - `Remote_Song_Handling_Plan.md` remains active because cold remote playback
   work and Android runtime validation are still unresolved.
 - `Sync_Improvement_Plan_1-4-0.md` remains active because its validation

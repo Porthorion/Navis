@@ -1,7 +1,7 @@
 # Navis security audit
 
 - **Audited:** branch `dev` at `f145399e`, 2026-10-09.
-- **Scope:** the shipped app (release builds and what they do on users' devices), as a companion to `COMPLIANCE-AUDIT.md` (2026-10-07, not in the repo). Findings already listed there (D-2 update SHA-256, D-4 debug-key fallback, P-10, P-11, P-15, S-1 and S-5) are not repeated here.
+- **Scope:** the shipped app (release builds and what they do on users' devices), as a companion to `compliance-audit-2026-10-07.md` (2026-10-07, not in the repo). Findings already listed there (D-2 update SHA-256, D-4 debug-key fallback, P-10, P-11, P-15, S-1 and S-5) are not repeated here.
 - **Out of scope:** local development, testing and diagnostics (profile-build diagnostics server, dev/profile signing, release and remote-build tooling, build hosts). These are used locally and are intentionally lightly protected. Items the audit noticed there are listed under "Local tooling notes" for information only; they are not findings.
 - **Method:** read-only review of three areas: network and credentials; filesystem, updater and native code; build and supply chain. Findings marked ✔ were confirmed again by hand, in the code or on disk.
 - **Fix ownership:**

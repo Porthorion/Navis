@@ -17,41 +17,17 @@
 
 
 # Flutter repo-specific
-/bin/cache/
-/bin/internal/bootstrap.bat
-/bin/internal/bootstrap.sh
-/bin/mingit/
-/dev/benchmarks/mega_gallery/
-/dev/bots/.recipe_deps
-/dev/bots/android_tools/
-/dev/devicelab/ABresults*.json
-/dev/docs/doc/
-/dev/docs/flutter.docs.zip
-/dev/docs/lib/
-/dev/docs/pubspec.yaml
-/dev/integration_tests/**/xcuserdata
-/dev/integration_tests/**/Pods
-/packages/flutter/coverage/
-version
-analysis_benchmark.json
 
 # packages file containing multi-root paths
-.packages.generated
 
 # Flutter/Dart/Pub related
-**/doc/api/
 .dart_tool/
 .flutter-plugins
 .flutter-plugins-dependencies
 **/generated_plugin_registrant.dart
 .packages
-.pub-preload-cache/
 .pub/
 build/
-flutter_*.png
-linked_*.ds
-unlinked.ds
-unlinked_spec.ds
 
 # Android related
 **/android/**/gradle-wrapper.jar
@@ -168,10 +144,28 @@ navis-v*.ipa
 !**/ios/**/default.mode2v3
 !**/ios/**/default.pbxuser
 !**/ios/**/default.perspectivev3
-!/packages/flutter_tools/test/data/dart_dependencies_test/**/.packages
-!/dev/ci/**/Gemfile.lock
 **/.DS_Store
 .aider*
 
 # Golden comparison failure output from flutter test
 test/**/failures/
+
+
+# Local secrets and signing material
+.env.*
+!*.example
+*.pem
+*.key
+*.cer
+*.mobileprovision
+
+# Build outputs and local data
+*.apk
+*.aab
+*.sqlite
+*.sqlite-*
+__pycache__/
+
+# Editors and local agent state
+.vscode/
+.claude/

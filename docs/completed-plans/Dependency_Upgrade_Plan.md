@@ -344,7 +344,7 @@ All execution checkboxes remain open.
 
 ### Implementation evidence
 
-- Isolated checkout: `/home/khalifa/.codex/worktrees/dependency-upgrades/Navis`.
+- Isolated checkout: `~/.codex/worktrees/dependency-upgrades/Navis`.
   Original dirty work is preserved. SDK checkout is its sibling `flutter-sdk`.
 - Baseline: after resolving nested package development dependencies,
   `./tool/check.sh` passed (1,626 full-suite tests, one skipped; separate

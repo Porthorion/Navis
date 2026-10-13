@@ -1,0 +1,41 @@
+name: CI
+
+on:
+  pull_request:
+    branches: [dev, main]
+  push:
+    branches: [dev]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+
+      # 3.47.5 is the minimum and active 3.47.x baseline in tool/bootstrap.sh.
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          flutter-version: 3.47.5
+          cache: true
+
+      # Not tool/check.sh: it also runs release/packaging shell tests, Python
+      # tests, a JDK-based equalizer test and needs ripgrep, which are local
+      # release tooling and not part of the app's correctness. check.sh has no
+      # CI-only mode, so this runs its app-level steps in the same order.
+      - run: ./tool/bootstrap.sh
+      - run: ./tool/dart_format.sh --check
+      - run: dart run build_runner build
+      - run: flutter analyze --no-fatal-infos
+      - run: dart run tool/dead_code_check.dart
+      # No secrets: the Last.fm key comes from optional --dart-define values,
+      # and builds without one fall back to a user-supplied key.
+      - run: flutter test

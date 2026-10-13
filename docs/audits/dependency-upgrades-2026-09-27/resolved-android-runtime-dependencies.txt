@@ -502,7 +502,7 @@ sideloadReleaseRuntimeClasspath - Runtime classpath of '/sideloadRelease'.
 
 A web-based, searchable dependency report is available by adding the --scan option.
 
-[Incubating] Problems report is available at: file:///home/khalifa/.codex/worktrees/dependency-upgrades/Navis/build/reports/problems/problems-report.html
+[Incubating] Problems report is available at: file://~/.codex/worktrees/dependency-upgrades/Navis/build/reports/problems/problems-report.html
 
 Deprecated Gradle features were used in this build, making it incompatible with Gradle 10.
 

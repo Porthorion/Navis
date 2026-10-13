@@ -22,14 +22,13 @@ product contracts.
 | Production symptom recovery | [troubleshooting.md](troubleshooting.md) |
 | Active platform-readiness work | [flathub-readiness.md](flathub-readiness.md) or [google-play-readiness.md](google-play-readiness.md) |
 | Current sync design, recovery boundaries, and certification evidence | [sync-reliability-recovery-plan.md](sync-reliability-recovery-plan.md), [sync-stability-validation.md](sync-stability-validation.md) |
-| Navidrome/SoulSync server operations, scan scheduling, and tag hygiene | [server-library-hygiene.md](server-library-hygiene.md) |
 
 ## Document status
 
 ### Active reference
 
 `architecture.md`, `development-workflow.md`, `ci-cd.md`, `dev-testing-builds.md`,
-`troubleshooting.md`, `server-library-hygiene.md`, the Android Auto guides,
+`troubleshooting.md`, the Android Auto guides,
 release guides, and platform readiness documents describe maintained
 workflows or explicit current gaps.
 
@@ -87,7 +86,7 @@ claim of native AAOS support.
 dependency audit, implementation batches, compatibility holds, and required
 validation, and how the upgrades were brought onto dev on 2026-10-01.
 
-[Sync Improvement Plan — 1.4.0](../Sync_Improvement_Plan_1-4-0.md) records the
+[Sync Improvement Plan — 1.4.0](plans/Sync_Improvement_Plan_1-4-0.md) records the
 2026-09-19 sync audit, tested defects, live-server measurements, and phased
 acceptance criteria. Its [reproduction appendix](audits/sync-1-4-0-reproductions.md)
 preserves sanitized characterization fixtures; their passing assertions describe
@@ -98,7 +97,7 @@ records the cross-platform playback burst investigation, repair contracts,
 runtime acceptance matrix and its 2026-10-02 handoff.
 
 `DEVELOPMENT_PLAN.md`, `PROGRESS.md`, `design-ux-audit.md`,
-`../Remote_Song_Handling_Plan.md`,
+the active plans in `plans/`,
 `issue-43-implementation-plan.md`, `android-background-sync-recovery-plan.md`,
 `sync-reliability-recovery-plan.md`, `sync-stability-validation.md`, and
 `multi-os-release-implementation-progress.md` preserve intent, findings, and

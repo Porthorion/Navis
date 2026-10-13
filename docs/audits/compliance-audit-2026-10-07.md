@@ -1,3 +1,5 @@
+> Historical record: this audit prepared the brief closed-source period (2026-10-07 to 2026-10-13). Navis is GPL-3.0-or-later again; the licensing findings no longer apply.
+
 # Navis compliance audit: legal, closed-source and privacy
 
 - **Audited:** branch `dev` at `f145399e` (version `1.4.3+10403`), 2026-10-07.
