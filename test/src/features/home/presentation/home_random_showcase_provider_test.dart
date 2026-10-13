@@ -504,6 +504,8 @@ void main() {
       );
       addTearDown(() async {
         container.dispose();
+        // Let disposed providers' in-flight queries settle before closing.
+        await pumpEventQueue();
         await database.close();
       });
       return (container: container, listenBrainz: listenBrainz);
@@ -765,6 +767,8 @@ void main() {
       );
       addTearDown(() async {
         container.dispose();
+        // Let disposed providers' in-flight queries settle before closing.
+        await pumpEventQueue();
         await database.close();
       });
 
@@ -959,6 +963,8 @@ void main() {
     );
     addTearDown(() async {
       container.dispose();
+      // Let disposed providers' in-flight queries settle before closing.
+      await pumpEventQueue();
       await database.close();
     });
 
@@ -995,6 +1001,8 @@ void main() {
       );
       addTearDown(() async {
         container.dispose();
+        // Let disposed providers' in-flight queries settle before closing.
+        await pumpEventQueue();
         await database.close();
       });
 
@@ -1032,6 +1040,8 @@ void main() {
       );
       addTearDown(() async {
         container.dispose();
+        // Let disposed providers' in-flight queries settle before closing.
+        await pumpEventQueue();
         await database.close();
       });
 
@@ -1060,6 +1070,8 @@ void main() {
       );
       addTearDown(() async {
         container.dispose();
+        // Let disposed providers' in-flight queries settle before closing.
+        await pumpEventQueue();
         await database.close();
       });
 
@@ -1088,6 +1100,8 @@ void main() {
       );
       addTearDown(() async {
         container.dispose();
+        // Let disposed providers' in-flight queries settle before closing.
+        await pumpEventQueue();
         await database.close();
       });
 
@@ -1172,6 +1186,8 @@ void main() {
         );
       }
       container.dispose();
+      // Let disposed providers' in-flight queries settle before closing.
+      await pumpEventQueue();
       await database.close();
     });
 
@@ -1281,6 +1297,8 @@ void main() {
         searchGate.complete();
       }
       container.dispose();
+      // Let disposed providers' in-flight queries settle before closing.
+      await pumpEventQueue();
       await database.close();
     });
 
@@ -1369,6 +1387,8 @@ void main() {
     );
     addTearDown(() async {
       container.dispose();
+      // Let disposed providers' in-flight queries settle before closing.
+      await pumpEventQueue();
       await database.close();
     });
 
@@ -1444,6 +1464,8 @@ void main() {
     );
     addTearDown(() async {
       container.dispose();
+      // Let disposed providers' in-flight queries settle before closing.
+      await pumpEventQueue();
       await database.close();
     });
 
@@ -1514,6 +1536,8 @@ void main() {
     );
     addTearDown(() async {
       container.dispose();
+      // Let disposed providers' in-flight queries settle before closing.
+      await pumpEventQueue();
       await database.close();
     });
 
@@ -1571,6 +1595,8 @@ void main() {
         recommendationCompleter.complete(const <ListenBrainzPlaylist>[]);
       }
       container.dispose();
+      // Let disposed providers' in-flight queries settle before closing.
+      await pumpEventQueue();
       await database.close();
     });
 
@@ -1601,6 +1627,8 @@ void main() {
       );
       addTearDown(() async {
         container.dispose();
+        // Let disposed providers' in-flight queries settle before closing.
+        await pumpEventQueue();
         await database.close();
       });
 
@@ -1629,6 +1657,8 @@ void main() {
     );
     addTearDown(() async {
       container.dispose();
+      // Let disposed providers' in-flight queries settle before closing.
+      await pumpEventQueue();
       await database.close();
     });
 
@@ -1664,6 +1694,8 @@ void main() {
       );
       addTearDown(() async {
         container.dispose();
+        // Let disposed providers' in-flight queries settle before closing.
+        await pumpEventQueue();
         await database.close();
       });
 
@@ -1709,6 +1741,8 @@ void main() {
           searchGate.complete();
         }
         container.dispose();
+        // Let disposed providers' in-flight queries settle before closing.
+        await pumpEventQueue();
         await database.close();
       });
 
@@ -1750,6 +1784,8 @@ void main() {
           searchGate.complete();
         }
         container.dispose();
+        // Let disposed providers' in-flight queries settle before closing.
+        await pumpEventQueue();
         await database.close();
       });
 
@@ -1786,6 +1822,8 @@ void main() {
       );
       addTearDown(() async {
         container.dispose();
+        // Let disposed providers' in-flight queries settle before closing.
+        await pumpEventQueue();
         await database.close();
       });
 
@@ -1829,6 +1867,8 @@ void main() {
       );
       addTearDown(() async {
         container.dispose();
+        // Let disposed providers' in-flight queries settle before closing.
+        await pumpEventQueue();
         await database.close();
       });
 
@@ -1882,6 +1922,8 @@ void main() {
     );
     addTearDown(() async {
       container.dispose();
+      // Let disposed providers' in-flight queries settle before closing.
+      await pumpEventQueue();
       await database.close();
     });
 
@@ -1935,6 +1977,8 @@ void main() {
       );
       addTearDown(() async {
         container.dispose();
+        // Let disposed providers' in-flight queries settle before closing.
+        await pumpEventQueue();
         await database.close();
       });
 
@@ -1967,6 +2011,8 @@ void main() {
     );
     addTearDown(() async {
       container.dispose();
+      // Let disposed providers' in-flight queries settle before closing.
+      await pumpEventQueue();
       await database.close();
     });
 
@@ -2001,6 +2047,8 @@ void main() {
       );
       addTearDown(() async {
         container.dispose();
+        // Let disposed providers' in-flight queries settle before closing.
+        await pumpEventQueue();
         await database.close();
       });
 
@@ -2034,6 +2082,8 @@ void main() {
       );
       addTearDown(() async {
         container.dispose();
+        // Let disposed providers' in-flight queries settle before closing.
+        await pumpEventQueue();
         await database.close();
       });
 
@@ -2059,6 +2109,8 @@ void main() {
     );
     addTearDown(() async {
       container.dispose();
+      // Let disposed providers' in-flight queries settle before closing.
+      await pumpEventQueue();
       await database.close();
     });
 
@@ -2150,6 +2202,8 @@ void main() {
           );
           addTearDown(() async {
             container.dispose();
+            // Let disposed providers' in-flight queries settle before closing.
+            await pumpEventQueue();
             await database.close();
           });
 
@@ -2208,6 +2262,8 @@ void main() {
         );
         addTearDown(() async {
           container.dispose();
+          // Let disposed providers' in-flight queries settle before closing.
+          await pumpEventQueue();
           await database.close();
         });
 
@@ -2254,6 +2310,8 @@ void main() {
     );
     addTearDown(() async {
       container.dispose();
+      // Let disposed providers' in-flight queries settle before closing.
+      await pumpEventQueue();
       await database.close();
     });
 
@@ -2370,6 +2428,8 @@ void main() {
       );
       addTearDown(() async {
         container.dispose();
+        // Let disposed providers' in-flight queries settle before closing.
+        await pumpEventQueue();
         await database.close();
       });
 
@@ -2506,6 +2566,8 @@ void main() {
           recommendationCompleter.complete(const <ListenBrainzPlaylist>[]);
         }
         container.dispose();
+        // Let disposed providers' in-flight queries settle before closing.
+        await pumpEventQueue();
         await database.close();
       });
 
@@ -2584,6 +2646,8 @@ void main() {
     );
     addTearDown(() async {
       container.dispose();
+      // Let disposed providers' in-flight queries settle before closing.
+      await pumpEventQueue();
       await database.close();
     });
 
@@ -2645,6 +2709,8 @@ void main() {
     );
     addTearDown(() async {
       container.dispose();
+      // Let disposed providers' in-flight queries settle before closing.
+      await pumpEventQueue();
       await database.close();
     });
 
@@ -2702,6 +2768,8 @@ void main() {
     );
     addTearDown(() async {
       container.dispose();
+      // Let disposed providers' in-flight queries settle before closing.
+      await pumpEventQueue();
       await database.close();
     });
 
@@ -2773,6 +2841,8 @@ void main() {
       );
       addTearDown(() async {
         container.dispose();
+        // Let disposed providers' in-flight queries settle before closing.
+        await pumpEventQueue();
         await database.close();
       });
 
@@ -2846,6 +2916,8 @@ void main() {
       );
       addTearDown(() async {
         container.dispose();
+        // Let disposed providers' in-flight queries settle before closing.
+        await pumpEventQueue();
         await database.close();
       });
 
@@ -2916,6 +2988,8 @@ void main() {
     );
     addTearDown(() async {
       container.dispose();
+      // Let disposed providers' in-flight queries settle before closing.
+      await pumpEventQueue();
       await database.close();
     });
 
@@ -2990,6 +3064,8 @@ void main() {
     );
     addTearDown(() async {
       container.dispose();
+      // Let disposed providers' in-flight queries settle before closing.
+      await pumpEventQueue();
       await database.close();
     });
 
@@ -3117,6 +3193,8 @@ void main() {
       );
       addTearDown(() async {
         container.dispose();
+        // Let disposed providers' in-flight queries settle before closing.
+        await pumpEventQueue();
         await database.close();
       });
 
@@ -3244,6 +3322,8 @@ void main() {
         recommendationCompleter.complete(const <ListenBrainzPlaylist>[]);
       }
       container.dispose();
+      // Let disposed providers' in-flight queries settle before closing.
+      await pumpEventQueue();
       await database.close();
     });
 
@@ -3331,6 +3411,8 @@ void main() {
           similarGate.complete();
         }
         container.dispose();
+        // Let disposed providers' in-flight queries settle before closing.
+        await pumpEventQueue();
         await database.close();
       });
 
@@ -3366,6 +3448,8 @@ void main() {
     );
     addTearDown(() async {
       container.dispose();
+      // Let disposed providers' in-flight queries settle before closing.
+      await pumpEventQueue();
       await database.close();
     });
 
@@ -3416,6 +3500,8 @@ void main() {
     );
     addTearDown(() async {
       container.dispose();
+      // Let disposed providers' in-flight queries settle before closing.
+      await pumpEventQueue();
       await database.close();
     });
 
@@ -3459,6 +3545,8 @@ void main() {
       );
       addTearDown(() async {
         container.dispose();
+        // Let disposed providers' in-flight queries settle before closing.
+        await pumpEventQueue();
         await database.close();
       });
 
@@ -3519,6 +3607,8 @@ void main() {
       );
       addTearDown(() async {
         container.dispose();
+        // Let disposed providers' in-flight queries settle before closing.
+        await pumpEventQueue();
         await database.close();
       });
 
