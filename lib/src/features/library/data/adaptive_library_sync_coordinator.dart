@@ -175,11 +175,25 @@ class AdaptiveLibrarySyncCoordinator implements LibrarySyncEngine {
     LibrarySyncProgressCallback? onProgress,
   }) async {
     final cancellationGeneration = _cancellationGeneration;
-    final result = await _requestSync(
-      request,
-      priorityAlbumIds: priorityAlbumIds,
-      onProgress: onProgress,
-    );
+    final LibrarySyncState result;
+    try {
+      result = await _requestSync(
+        request,
+        priorityAlbumIds: priorityAlbumIds,
+        onProgress: onProgress,
+      );
+    } on Object catch (error) {
+      // Another engine's long transaction (a worker promotion) held the writer
+      // lock past the busy wait on any write of this request: contention, not
+      // a sync failure.
+      if (!isDatabaseLockTimeout(error)) rethrow;
+      return LibrarySyncState(
+        status: LibrarySyncStatus.deferred,
+        stage: LibrarySyncStage.completed,
+        completedAt: _now(),
+        planReason: 'leaseHeld',
+      );
+    }
     if (request.target.kind != LibrarySyncTargetKind.catalog ||
         cancellationGeneration != _cancellationGeneration ||
         result.status == LibrarySyncStatus.cancelled ||

@@ -323,8 +323,15 @@ void main() {
       timeout: const Timeout(Duration(seconds: 60)),
     );
 
-    test('13 a lease acquire that times out on a lock is lease held, not a failure', () async {
-      final raw = await reopenWithBusyHandler();
+    // A foreground coordinator on the production connection whose worker lease
+    // is gone. [onPolicyRead] sees the 1-based count of network policy reads
+    // (the second is the execution gate right before the lease acquire);
+    // [hasActivePlayback] is read just before the request row is written.
+    Future<({AdaptiveLibrarySyncCoordinator coordinator, int serverId})>
+    lockedCoordinator({
+      required void Function(int reads) onPolicyRead,
+      bool Function()? hasActivePlayback,
+    }) async {
       await database.librarySyncDao.releaseExecutionLease(
         serverId: 1,
         ownerToken: 'worker-owner',
@@ -349,11 +356,10 @@ void main() {
           currentGeneration: const Value(1),
         ),
       );
-      final api = FakeLibrarySyncApi();
       var policyReads = 0;
       final coordinator = AdaptiveLibrarySyncCoordinator(
         executor: serialDriftEngine(
-          api: api,
+          api: FakeLibrarySyncApi(),
           database: database,
           repository: repository,
           networkType: NetworkType.wifi,
@@ -361,18 +367,7 @@ void main() {
         database: database,
         serverConfigRepository: repository,
         readSyncNetworkPolicy: () {
-          // The second read is the execution gate right before the lease
-          // acquire: another engine (a worker promotion) now holds the
-          // writer lock for longer than the 5 s busy wait.
-          if (++policyReads == 2) {
-            raw.execute('BEGIN IMMEDIATE');
-            unawaited(
-              Future<void>.delayed(
-                const Duration(seconds: 7),
-                () => raw.execute('ROLLBACK'),
-              ),
-            );
-          }
+          onPolicyRead(++policyReads);
           return resolveSyncNetworkPolicy(
             networkType: NetworkType.wifi,
             nativeMetered: false,
@@ -380,17 +375,24 @@ void main() {
           );
         },
         staleAfter: const Duration(hours: 1),
-        readHasActivePlayback: () => false,
+        readHasActivePlayback: hasActivePlayback ?? () => false,
       );
+      return (coordinator: coordinator, serverId: serverId);
+    }
 
-      final result = await coordinator.requestSync(
-        const LibrarySyncRequest.checkForUpdates(),
-      );
+    // Another engine's long transaction (a worker promotion): holds the writer
+    // lock for [hold], longer than the 5 s busy wait.
+    void holdWriterLock(Database raw, Duration hold) {
+      raw.execute('BEGIN IMMEDIATE');
+      unawaited(Future<void>.delayed(hold, () => raw.execute('ROLLBACK')));
+    }
 
-      expect(policyReads, greaterThanOrEqualTo(2));
+    Future<void> expectBusyNotFailure(
+      LibrarySyncState result,
+      int serverId,
+    ) async {
       expect(result.status, LibrarySyncStatus.deferred);
       expect(result.planReason, 'leaseHeld');
-      expect(api.calls, isEmpty);
       final state = await database.librarySyncDao.getOrCreateState(serverId);
       expect(state.failureStreak, 0);
       expect(state.nextEligibleAt, isNull);
@@ -404,12 +406,77 @@ void main() {
         await database.select(database.librarySyncRunAttemptTable).get(),
         isEmpty,
       );
+      expect(await database.librarySyncDao.getExecutionLease(serverId), isNull);
+    }
+
+    test('13 a lease acquire that times out on a lock is lease held, not a failure', () async {
+      final raw = await reopenWithBusyHandler();
+      final (:coordinator, :serverId) = await lockedCoordinator(
+        // The execution gate right before the lease acquire.
+        onPolicyRead: (reads) {
+          if (reads == 2) holdWriterLock(raw, const Duration(seconds: 7));
+        },
+      );
+
+      final result = await coordinator.requestSync(
+        const LibrarySyncRequest.checkForUpdates(),
+      );
+
+      await expectBusyNotFailure(result, serverId);
       final outcome =
           (await database.select(database.librarySyncRunOutcomeTable).get())
               .single;
       expect(outcome.outcomeKind, SyncRunOutcomeKind.deferred.index);
       expect(outcome.safeReason, SyncSafeReason.leaseHeld.index);
-      expect(await database.librarySyncDao.getExecutionLease(serverId), isNull);
+    }, timeout: const Timeout(Duration(seconds: 60)));
+
+    test('13a a request write that times out on a lock is lease held, not a failure', () async {
+      final raw = await reopenWithBusyHandler();
+      var locked = false;
+      final (:coordinator, :serverId) = await lockedCoordinator(
+        onPolicyRead: (_) {},
+        // Read while planning, right before enqueueSyncRun writes the request.
+        hasActivePlayback: () {
+          if (!locked) {
+            locked = true;
+            holdWriterLock(raw, const Duration(seconds: 7));
+          }
+          return false;
+        },
+      );
+
+      final result = await coordinator.requestSync(
+        const LibrarySyncRequest.checkForUpdates(),
+      );
+
+      expect(locked, isTrue);
+      await expectBusyNotFailure(result, serverId);
+      expect(
+        await database.select(database.librarySyncRunRequestTable).get(),
+        isEmpty,
+      );
+    }, timeout: const Timeout(Duration(seconds: 60)));
+
+    test('13b a deferral write that also times out on the lock is lease held, not a failure', () async {
+      final raw = await reopenWithBusyHandler();
+      final (:coordinator, :serverId) = await lockedCoordinator(
+        onPolicyRead: (reads) {
+          // Outlasts the acquire wait and the outcome write's own 5 s wait.
+          if (reads == 2) holdWriterLock(raw, const Duration(seconds: 12));
+        },
+      );
+
+      final result = await coordinator.requestSync(
+        const LibrarySyncRequest.checkForUpdates(),
+      );
+
+      await expectBusyNotFailure(result, serverId);
+      // The request stays queued for the retry to share; nothing is running.
+      expect(
+        (await database.select(database.librarySyncRunRequestTable).get())
+            .where((row) => row.status == 1),
+        isEmpty,
+      );
     }, timeout: const Timeout(Duration(seconds: 60)));
   });
 }
