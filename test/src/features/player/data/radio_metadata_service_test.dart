@@ -19,6 +19,8 @@ class _MockPlayer extends Mock implements AudioPlayer;
 
 class _CountingAdapter implements HttpClientAdapter {
   final requested = <Uri>[];
+  Duration? lastConnectTimeout;
+  Duration? lastReceiveTimeout;
   String? body;
   int statusCode = 200;
   DioExceptionType? failure;
@@ -31,6 +33,8 @@ class _CountingAdapter implements HttpClientAdapter {
     Future<void>? cancelFuture,
   ) async {
     requested.add(options.uri);
+    lastConnectTimeout = options.connectTimeout;
+    lastReceiveTimeout = options.receiveTimeout;
     if (pending case final request?) return await request.future;
     if (failure case final type?) {
       throw DioException(requestOptions: options, type: type);
@@ -125,6 +129,10 @@ void main() {
         final service = build();
         listen(service);
         settle(async);
+        if (failure == 'timeout') {
+          expect(adapter.lastConnectTimeout, const Duration(seconds: 10));
+          expect(adapter.lastReceiveTimeout, const Duration(seconds: 10));
+        }
         verifyNever(
           () => handler.updateRadioMetadata(
             title: 'ICY Song',

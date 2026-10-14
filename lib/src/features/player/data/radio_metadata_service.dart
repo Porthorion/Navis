@@ -172,6 +172,7 @@ class RadioMetadataService {
       final response = await _dio.get<Map<String, dynamic>>(
         '$baseUrl/api/nowplaying/$stationShortName',
         options: Options(
+          connectTimeout: const Duration(seconds: 10),
           receiveTimeout: const Duration(seconds: 10),
           sendTimeout: const Duration(seconds: 5),
         ),
