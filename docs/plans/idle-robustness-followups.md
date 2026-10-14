@@ -169,3 +169,11 @@ runtime evidence and `./tool/check.sh`. Record actual symptoms and ordering;
 source-supported races are not proof of the owner's overnight trigger. Keep
 fixtures private and disposable, and keep credentials and media identities out
 of startup details.
+
+## Deferred to 1.5.1: a seek during a failing reload
+
+If the user seeks while a failed song is reloading and that reload fails
+again, the seek target is lost (just_audio ignores a seek during a load).
+The one-retry rule then skips to the next song, so the visible effect is small.
+Fix in 1.5.1 by carrying a seek made during the reload into the held recovery
+record. Found in the batch-2 round-5 review on 2026-10-15.
