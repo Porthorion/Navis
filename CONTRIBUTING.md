@@ -34,3 +34,12 @@ The Navis name and logo are reserved. See [TRADEMARK.md](TRADEMARK.md) before us
 ## Questions and ideas
 
 Use [GitHub Discussions](https://github.com/Porthorion/Navis/discussions) for how-to questions (Q&A) and early ideas (Ideas). Keep Issues for confirmed bugs and concrete enhancement requests.
+
+## Branches
+
+- `dev`: new features and general fixes. Target pull requests here.
+- `release/X.Y` (for example `release/1.5`): the version currently in final
+  testing. Only fixes for that release land here; maintainers merge them back
+  into `dev`. If your fix is for a bug in the upcoming release, mention it in
+  the pull request and we'll route it.
+- `main`: released code only, tagged `vX.Y.Z` on release day.
