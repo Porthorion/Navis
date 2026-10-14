@@ -3557,6 +3557,19 @@ between resume and playback, and reports device connectivity separately from
 server reachability. Scoped container subscriptions keep these bounded
 checks active even when UI provider listeners are paused, and metering is read
 after connectivity settles so a retired future cannot stall reconciliation.
+`networkReconcilingProvider` is true while that check runs: the download and
+scrobble readers (`networkSettled`) then report not settled, so downloads admit
+no new workers and requeue a failure without spending a retry, and scrobble
+dispatch returns before touching saved deadlines. Each service is kicked once
+(`processQueuedDownloads`, `flushDue`) when the check ends. The hold is bounded
+to 15 seconds and clears itself, recording a `resumeReachability` timeout in the
+startup timeline; running download workers are never cancelled.
+Downloads also yield to a loading song: `downloadServiceProvider` listens to
+`playerStateProvider` and passes only "loading, not radio" plus the song id to
+`DownloadService.yieldToPlayback`. New workers wait while the stream loads, at
+most 15 seconds once per track, and the pump restarts when loading ends or the
+bound passes. Running workers continue and live radio never holds downloads;
+the permanent download → rolling cache → stream order is unchanged.
 Native just_audio error fields and legacy stream errors share one recovery
 path; repeated native error data is deduplicated. Android captures ExoPlayer's
 current position before publishing an error and switching to idle, so recovery

@@ -100,6 +100,7 @@ class DownloadService {
     PermanentArtworkStore? artworkStore,
     Future<void> Function(Directory)? validateCustomRoot,
     this.folderRecheckInterval = const Duration(seconds: 5),
+    this.playbackHoldLimit = const Duration(seconds: 15),
     Dio? dio,
     bool? isAndroid,
     this._rejectsCustomFolder = cloneRejectsDownloadFolder,
@@ -170,6 +171,29 @@ class DownloadService {
   @visibleForTesting
   final Duration folderRecheckInterval;
   Timer? _folderRecheckTimer;
+  final Duration playbackHoldLimit;
+  Timer? _playbackHoldTimer;
+  String? _playbackHoldSongId;
+
+  /// New workers wait while a song's stream loads, at most [playbackHoldLimit]
+  /// once per track. Running workers continue.
+  void yieldToPlayback({required bool loading, String? songId}) {
+    if (!loading) return _releasePlaybackHold();
+    if (_playbackHoldTimer != null || songId == _playbackHoldSongId) return;
+    _playbackHoldSongId = songId;
+    _playbackHoldTimer = Timer(playbackHoldLimit, _releasePlaybackHold);
+  }
+
+  void _releasePlaybackHold() {
+    final timer = _playbackHoldTimer;
+    if (timer == null) return;
+    timer.cancel();
+    _playbackHoldTimer = null;
+    if (!_stopped) unawaited(_processNext());
+  }
+
+  @visibleForTesting
+  bool get holdingForPlayback => _playbackHoldTimer != null;
 
   DownloadFolderProblem? _folderProblem;
   int _folderCheckGeneration = 0;
@@ -593,6 +617,8 @@ class DownloadService {
     _folderCheckGeneration++;
     _folderRecheckTimer?.cancel();
     _folderRecheckTimer = null;
+    _playbackHoldTimer?.cancel();
+    _playbackHoldTimer = null;
     await _queueSubscription?.cancel();
     _queueSubscription = null;
     for (final subscription in _settingsSubscriptions) {
@@ -1333,6 +1359,7 @@ class DownloadService {
       }
       return;
     }
+    if (_playbackHoldTimer != null) return;
     final now = DateTime.now();
     DateTime? nextRetry;
     for (final item in queue) {
