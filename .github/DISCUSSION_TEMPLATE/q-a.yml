@@ -1,0 +1,21 @@
+title: "[Q&A] "
+labels: []
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Ask anything about using Navis. Check the [FAQ](https://github.com/Porthorion/Navis/discussions/1) and [existing questions](https://github.com/Porthorion/Navis/discussions/categories/q-a) first.
+        If something is clearly broken, a [bug report](https://github.com/Porthorion/Navis/issues/new?template=bug_report.yml) helps us fix it faster.
+  - type: textarea
+    id: question
+    attributes:
+      label: Your question
+      description: What are you trying to do, and what happened when you tried?
+    validations:
+      required: true
+  - type: input
+    id: setup
+    attributes:
+      label: Your setup (optional)
+      description: Navis version, platform and music server, if it might matter.
+      placeholder: "Navis 1.5.0 on Android 15, Navidrome 0.58"

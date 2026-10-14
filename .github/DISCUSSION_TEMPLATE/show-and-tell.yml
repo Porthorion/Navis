@@ -1,0 +1,8 @@
+body:
+  - type: textarea
+    id: show
+    attributes:
+      label: What are you sharing?
+      description: Your setup, a screenshot of your Look or Color Style, a server tip, anything Navis-related.
+    validations:
+      required: true
