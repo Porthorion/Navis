@@ -965,14 +965,17 @@ extension _NavisRecovery on NavisAudioHandler {
 
   /// Replaces the current remote song's recovery request for this transport
   /// intent and starts recovery. False when the current song is not a remote
-  /// stream that recovery can reload.
+  /// stream that recovery can reload, or when a load or seek owns it.
   bool _rearmRemoteRecovery({
-    required Duration position,
+    required Duration? position,
     required bool autoPlay,
   }) {
     final sourceKind = _currentSourceKind;
     final songId = _resolveCurrentQueueMetadata().mediaItem?.id;
     if (songId == null ||
+        _isLoading ||
+        _pendingLogicalQueueSongIds != null ||
+        _pendingSeek != null ||
         (sourceKind != PlaybackSourceKind.lockCachedStream.name &&
             sourceKind != PlaybackSourceKind.directStream.name)) {
       return false;
@@ -983,11 +986,36 @@ extension _NavisRecovery on NavisAudioHandler {
       songId: songId,
       position: position,
       autoPlay: autoPlay,
+      requested: true,
     );
     unawaited(
       _recoverCurrentSongFromRemotePlaybackFailure(reason: 'user command'),
     );
     return true;
+  }
+
+  /// Restarts recovery for the Play or seek held on the current failed song,
+  /// or applies it once a load has reloaded the song. While a load still
+  /// owns the song the request is kept, and _completeQueueLoad calls this
+  /// again once the load ends.
+  void _rearmHeldRemoteRecovery() {
+    final request = _pendingRemoteRecovery;
+    final songId = _resolveCurrentQueueMetadata().mediaItem?.id;
+    if (request == null ||
+        songId == null ||
+        !_ownsRemoteRecovery(songId) ||
+        _remotePlaybackRecoveryInProgress ||
+        _isLoading ||
+        _pendingLogicalQueueSongIds != null) {
+      return;
+    }
+    if (!_remoteSourceFailed ||
+        !_rearmRemoteRecovery(
+          position: request.position,
+          autoPlay: request.autoPlay,
+        )) {
+      _applyPendingRemoteRecovery();
+    }
   }
 
   bool _ownsRemoteRecovery(String songId) =>
@@ -1001,6 +1029,24 @@ extension _NavisRecovery on NavisAudioHandler {
     ProcessingState.buffering => true,
     ProcessingState.ready || ProcessingState.completed => false,
   };
+
+  /// The native player reported a failure; a source that was never prepared
+  /// is idle without one.
+  bool get _remoteSourceFailed =>
+      _player.processingState == ProcessingState.idle && _loadedSourceFailed;
+
+  /// Applies the pending Play or seek to its song, which plays again without
+  /// a reload.
+  void _applyPendingRemoteRecovery() {
+    final request = _pendingRemoteRecovery!;
+    _pendingRemoteRecovery = null;
+    if (request.position case final target?) unawaited(seek(target));
+    if (request.autoPlay && !_player.playing) {
+      unawaited(_playWithFocusRecovery());
+    }
+    _broadcastPlaybackState();
+    _emitSnapshot();
+  }
 
   void _syncRemotePlaybackStallWatchdog() {
     // A failed seek suppresses automatic recovery so it cannot later restart
@@ -1100,11 +1146,18 @@ extension _NavisRecovery on NavisAudioHandler {
         songId: songId,
         position: _player.position,
         autoPlay: _requestedPlaying,
+        requested: false,
       );
     }
     _broadcastPlaybackState();
     _emitSnapshot();
-    final ({int generation, String songId, Duration position, bool autoPlay})
+    final ({
+      int generation,
+      String songId,
+      Duration? position,
+      bool autoPlay,
+      bool requested,
+    })
     pending;
     try {
       var online = false;
@@ -1125,7 +1178,14 @@ extension _NavisRecovery on NavisAudioHandler {
           _isLoading ||
           _pendingSeek != null ||
           !_remotePlaybackStillFailed) {
-        if (latest?.songId == songId) {
+        if (latest != null &&
+            latest.requested &&
+            _ownsRemoteRecovery(songId) &&
+            !_isLoading &&
+            _pendingSeek == null) {
+          // A seek during a stall still applies once the song plays again.
+          _applyPendingRemoteRecovery();
+        } else if (latest?.songId == songId) {
           _pendingRemoteRecovery = null;
           _broadcastPlaybackState();
           _emitSnapshot();
@@ -1151,7 +1211,7 @@ extension _NavisRecovery on NavisAudioHandler {
       _remotePlaybackRecoveryInProgress = false;
     }
     final transportGeneration = pending.generation;
-    final position = pending.position;
+    final position = pending.position ?? _player.position;
     final autoPlay = pending.autoPlay;
     _remotePlaybackRecoveryInProgress = true;
     final attemptKey = '$transportGeneration:$songId';
@@ -1217,6 +1277,16 @@ extension _NavisRecovery on NavisAudioHandler {
       });
     } finally {
       _remotePlaybackRecoveryInProgress = false;
+      // A Play during the reload re-armed this song; the reload yielded to it.
+      final request = _pendingRemoteRecovery;
+      if (request != null && _ownsRemoteRecovery(songId)) {
+        if (_remoteSourceFailed) {
+          _rearmHeldRemoteRecovery();
+        } else {
+          _applyPendingRemoteRecovery();
+        }
+      }
+      _broadcastPlaybackState();
       _emitSnapshot();
     }
   }

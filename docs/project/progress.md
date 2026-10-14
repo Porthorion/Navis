@@ -31,6 +31,20 @@ Last updated: 2026-10-14
   and platform validation were not run in this worktree; the coordinator owns
   them. Recovery events are recorded once per process in the private startup
   timeline. Cross-engine keystore serialization still needs native work.)
+
+- [x] Silent-recovery review rounds 2–3 (batch 2) — 2026-10-14
+  (`fix/idle-batch2`; Play re-arms song recovery only for a failure the handler
+  recorded, not a stale just_audio error code, and falls back to a plain seek
+  and restarts recovery after a queue load that held a re-failed reload; a seek held during a
+  stall survives a Play while the network check runs; re-armed recovery, seeks
+  and focus retries stay consistent, and a Play that re-arms leaves no old
+  focus budget behind; radio stays silent offline, counts only failure time
+  (dropped streams included), stops paused and gets a fresh budget after a
+  minute of healthy play. Each regression failed on its base commit and passes
+  after; timing-sensitive focus/radio tests now keep at least 1 s margins.
+  `navis_audio_handler_navigation_test.dart` passes 458 tests, three runs in a
+  row. Targeted tests only: `./tool/check.sh`, builds and runtime/device
+  validation were not run for round 3.)
 - [x] Silent-recovery review fixes (P2-1 to P3-9) — 2026-10-14
   (`fix/idle-batch2`; pending song recovery belongs to its song and reloads
   only a player that is still idle/loading/buffering; Play re-prepares a failed

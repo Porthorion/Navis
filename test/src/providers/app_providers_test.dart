@@ -329,6 +329,34 @@ final _snapshotHolder = NotifierProvider<_SnapshotHolder, PlaybackSnapshot>(
 );
 
 void main() {
+  test('a radio notice is not missed after the handler is replaced', () async {
+    final first = StreamController<void>.broadcast();
+    final second = StreamController<void>.broadcast();
+    addTearDown(first.close);
+    addTearDown(second.close);
+    final container = ProviderContainer(
+      overrides: [
+        audioHandlerProvider.overrideWithValue(_RadioErrorHandler(first)),
+      ],
+    );
+    addTearDown(container.dispose);
+    // The condition AppShell uses to show the notice.
+    var notices = 0;
+    container.listen(radioStreamErrorProvider, (prev, next) {
+      if (next.hasValue && next.value != prev?.value) notices++;
+    });
+    await pumpEventQueue();
+    first.add(null);
+    await pumpEventQueue();
+    container.updateOverrides([
+      audioHandlerProvider.overrideWithValue(_RadioErrorHandler(second)),
+    ]);
+    await pumpEventQueue();
+    second.add(null);
+    await pumpEventQueue();
+    expect(notices, 2);
+  });
+
   test('every radio stream failure reaches the notice listener', () async {
     final errors = StreamController<void>.broadcast();
     addTearDown(errors.close);

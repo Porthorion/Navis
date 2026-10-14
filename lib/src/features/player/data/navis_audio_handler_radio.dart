@@ -15,6 +15,8 @@ extension _NavisRadio on NavisAudioHandler {
   /// The station is gone or stayed unreachable: stop it, restore the previous
   /// queue paused, and tell the user once, since only they can pick another.
   void _stopUnavailableRadio() {
+    // The restored queue must stay paused whatever its size, as in stopRadio().
+    _supersedeTransportIntent(shouldPlay: false);
     AppLogger.startup(
       StartupEvent.radioRecovery,
       outcome: StartupOutcome.unavailable,
@@ -51,6 +53,30 @@ extension _NavisRadio on NavisAudioHandler {
     );
   }
 
+  /// Start of the recovery budget for a station that just failed. Only time
+  /// spent failing counts: a station that reconnected carries over the
+  /// failure time it already spent until it has played healthily for a
+  /// while, so one that connects and drops again does not retry forever.
+  DateTime _radioOutageStart(
+    RadioStationMetadata station,
+    ({int generation, RadioStationMetadata station, DateTime since})? previous,
+  ) {
+    final now = DateTime.now();
+    if (identical(previous?.station, station)) return previous!.since;
+    final recovered = _radioRecovered;
+    return identical(recovered?.station, station) &&
+            now.difference(recovered!.recoveredAt) < _timeouts.radioHealthyPlay
+        ? now.subtract(recovered.recoveredAt.difference(recovered.since))
+        : now;
+  }
+
+  /// Stations are third-party hosts: they need a connection, not the
+  /// Navidrome server, so this never waits for the server probe.
+  Future<bool> _deviceConnected() async =>
+      await checkDeviceConnected?.call() ??
+      (await reconcileNetwork?.call())?.connected ??
+      true;
+
   Future<void> _recoverRadioAfterNetworkFailure() async {
     final pending = _pendingRadioRecovery;
     if (pending == null || _radioRecoveryInProgress || _disposeHandlerStarted)
@@ -61,10 +87,22 @@ extension _NavisRadio on NavisAudioHandler {
         _isCurrentTransportIntent(pending.generation) &&
         identical(_radioStation, pending.station);
     try {
-      // Stations are third-party hosts: they need a connection, not the
-      // Navidrome server.
-      if (!((await reconcileNetwork?.call())?.connected ?? true)) return;
+      final connected = await _deviceConnected();
       if (!current()) return;
+      if (!connected) {
+        // Offline the user cannot act: wait silently, without spending the
+        // budget, the way songs do.
+        _pendingRadioRecovery = (
+          generation: pending.generation,
+          station: pending.station,
+          since: DateTime.now(),
+        );
+        return;
+      }
+      if (DateTime.now().difference(pending.since) >= _timeouts.radioRecovery) {
+        _stopUnavailableRadio();
+        return;
+      }
       await _queueLane.run((token) async {
         if (!current()) return;
         final station = pending.station;
@@ -87,6 +125,11 @@ extension _NavisRadio on NavisAudioHandler {
         );
         if (!current()) return;
         _pendingRadioRecovery = null;
+        _radioRecovered = (
+          station: station,
+          since: pending.since,
+          recoveredAt: DateTime.now(),
+        );
         _networkRetryTimer?.cancel();
         _networkRetries = 0;
         queue.add([item]);

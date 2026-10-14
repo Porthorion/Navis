@@ -98,6 +98,7 @@ Future<NavisPlaybackHandler> initNavisAudioHandler({
   required PlaybackRuntimeSettings Function() readRuntimeSettings,
   required StarSyncDao starSyncDao,
   Future<NetworkReconciliation> Function()? reconcileNetwork,
+  Future<bool> Function()? checkDeviceConnected,
   Stream<void>? recoveredNetwork,
   double initialVolume = 1.0,
   NetworkUsageReporter? reportNetworkUsage,
@@ -127,6 +128,7 @@ Future<NavisPlaybackHandler> initNavisAudioHandler({
   NavisAudioHandler createBaseHandler() {
     return NavisAudioHandler(
       reconcileNetwork: reconcileNetwork,
+      checkDeviceConnected: checkDeviceConnected,
       recoveredNetwork: recoveredNetwork,
       libraryDao: libraryDao,
       playlistDao: playlistDao,

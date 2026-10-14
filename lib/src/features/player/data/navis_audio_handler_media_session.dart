@@ -145,6 +145,9 @@ extension _NavisMediaSession on NavisAudioHandler {
           !_player.playing;
       _interruptedTransportGeneration = null;
       if (shouldResume) {
+        // An earlier denial's budget does not cover this resume.
+        _focusDeniedSince = null;
+        _focusRetries = 0;
         unawaited(_playWithFocusRecovery());
       }
     });
@@ -182,9 +185,7 @@ extension _NavisMediaSession on NavisAudioHandler {
           generation: _transportGeneration,
           station: station,
           // A repeated failure during one outage keeps its recovery budget.
-          since: identical(previous?.station, station)
-              ? previous!.since
-              : DateTime.now(),
+          since: _radioOutageStart(station, previous),
         );
         _radioMetadataService.stop();
         AppLogger.startup(
@@ -196,6 +197,7 @@ extension _NavisMediaSession on NavisAudioHandler {
       } else if (_radioStation != null) {
         _stopUnavailableRadio();
       } else {
+        _loadedSourceFailed = true;
         unawaited(
           _recoverCurrentSongFromRemotePlaybackFailure(
             reason: 'playback event stream error',
@@ -224,6 +226,10 @@ extension _NavisMediaSession on NavisAudioHandler {
         );
       } else if (failure.code == null) {
         lastNativeFailure = null;
+        // Loading or playing again without an error: the failure is over.
+        if (event.processingState != ProcessingState.idle) {
+          _loadedSourceFailed = false;
+        }
       }
       // Native playlist edits can emit before the Dart mirror commits.
       if (!_queueLane.isIdle &&

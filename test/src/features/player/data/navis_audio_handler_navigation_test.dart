@@ -370,6 +370,12 @@ class _ControllableAudioPlayer extends Fake implements AudioPlayer {
     }
   }
 
+  /// A native failure, kept until the next load as on Android.
+  int? errorCode;
+
+  /// Loads succeed and then fail at once, as a stream that drops.
+  bool failAfterLoad = false;
+
   @override
   PlaybackEvent get playbackEvent => PlaybackEvent(
     processingState: state,
@@ -377,6 +383,8 @@ class _ControllableAudioPlayer extends Fake implements AudioPlayer {
     bufferedPosition: bufferedPosition,
     duration: duration,
     currentIndex: index,
+    errorCode: errorCode,
+    errorMessage: errorCode == null ? null : 'Source error',
   );
 
   @override
@@ -573,6 +581,9 @@ class _ControllableAudioPlayer extends Fake implements AudioPlayer {
     playRequested = true;
     if (ignorePlay) return;
     if (failPlay) throw StateError('play unavailable');
+    // Like a native player after an error: Play neither re-prepares nor
+    // plays the failed source.
+    if (state == ProcessingState.idle && errorCode != null) return;
     if (!isPlaying) playedFrom.add(position);
     _positionUpdated = DateTime.now();
     isPlaying = true;
@@ -631,6 +642,9 @@ class _ControllableAudioPlayer extends Fake implements AudioPlayer {
   }) => _mutate(() async {
     final source = sources.isEmpty ? null : sources[initialIndex ?? 0];
     sourceLoads++;
+    // Like just_audio, only a prepared, non-empty load clears the idle
+    // player's error.
+    if (preload && sources.isNotEmpty) errorCode = null;
     if (source != null) attemptedSongId = _sourceId(source);
     if (source != null && hungLoadSongs.contains(_sourceId(source))) {
       await Completer<void>().future;
@@ -657,7 +671,21 @@ class _ControllableAudioPlayer extends Fake implements AudioPlayer {
     _sources = List<AudioSource>.of(sources);
     lastSetAudioSourcesCount = sources.length;
     index = sources.isEmpty ? null : initialIndex ?? 0;
-    state = sources.isEmpty ? ProcessingState.idle : ProcessingState.ready;
+    state = sources.isEmpty || !preload
+        ? ProcessingState.idle
+        : ProcessingState.ready;
+    if (failAfterLoad) {
+      // Like a native load: a loading event, then the error.
+      _events.add(
+        PlaybackEvent(
+          processingState: ProcessingState.loading,
+          currentIndex: index,
+        ),
+      );
+      state = ProcessingState.idle;
+      errorCode = 0;
+      _events.add(playbackEvent);
+    }
     _indices.add(index);
     return const Duration(minutes: 3);
   });
@@ -938,6 +966,7 @@ void main() {
     HistoryDao Function(NavisDatabase)? createHistoryDao,
     // Songs stream from a server, with desktop sidecar caching.
     Future<NetworkReconciliation> Function()? reconcileNetwork,
+    Future<bool> Function()? checkDeviceConnected,
     Stream<void>? recoveredNetwork,
     bool sidecarStreams = false,
     Future<void> Function(NavisDatabase database)? seed,
@@ -1014,6 +1043,7 @@ void main() {
     final resolver = wrapResolver?.call(baseResolver) ?? baseResolver;
     NavisAudioHandler buildHandler() => NavisAudioHandler(
       reconcileNetwork: reconcileNetwork,
+      checkDeviceConnected: checkDeviceConnected,
       recoveredNetwork: recoveredNetwork,
       startPersonalRadio: (autoPlay, {isCurrent}) async =>
           await startPersonalRadio?.call(
@@ -1114,15 +1144,18 @@ void main() {
 
     Future<(NavisAudioHandler, _ControllableAudioPlayer, NavisDatabase)> setup({
       Future<NetworkReconciliation> Function()? reconcile,
+      Future<bool> Function()? deviceConnected,
       Stream<void>? recovered,
       bool remote = false,
+      int count = 3,
       NavisPlaybackTimeouts timeouts = const NavisPlaybackTimeouts(),
     }) async {
       final directory = await Directory.systemTemp.createTemp('navis-idle-');
       final created = await createHandler(
         directory,
-        3,
+        count,
         reconcileNetwork: reconcile,
+        checkDeviceConnected: deviceConnected,
         recoveredNetwork: recovered,
         sidecarStreams: remote,
         timeouts: timeouts,
@@ -1475,7 +1508,8 @@ void main() {
       player
         ..simulatedPosition = const Duration(seconds: 42)
         ..state = ProcessingState.idle
-        ..isPlaying = false;
+        ..isPlaying = false
+        ..errorCode = 0;
       player._events.add(nativeError(0));
       await pumpEventQueue();
     }
@@ -1654,11 +1688,173 @@ void main() {
       });
     }
 
-    test('transient station failures stop after the recovery budget', () async {
+    test(
+      'a dead station restores a queue over the eager limit paused',
+      () async {
+        final (handler, player, _) = await setup(
+          reconcile: () async => net(online: true),
+          count: 70,
+        );
+        final songIds = List<String>.generate(70, (index) => 'song-$index');
+        await handler.replaceQueue(
+          songIds,
+          autoPlay: false,
+          expandMatchFlows: false,
+        );
+        await handler.playRadioStream(
+          stationId: 'fixture',
+          stationName: 'Fixture',
+          streamUrl: 'https://radio.example.invalid/live',
+        );
+        player
+          ..state = ProcessingState.idle
+          ..isPlaying = false;
+        final playRequests = player.focusRequests;
+        player._events.add(nativeError(2005));
+        await pumpEventQueue(times: 100);
+        await settleQueue(handler);
+        expect(handler.snapshot.isRadioMode, isFalse);
+        expect(handler.snapshot.queueSongIds, songIds);
+        // A real Play waits for audio focus, so one requested here lands after
+        // the restore's pause and starts the old queue.
+        expect(player.focusRequests, playRequests);
+        expect(player.playing, isFalse);
+      },
+    );
+
+    test(
+      'a dead station on first start does not leave the load stuck',
+      () async {
+        final (handler, player, _) = await setup(
+          reconcile: () async => net(online: true),
+        );
+        final gate = Completer<void>();
+        final entered = Completer<void>();
+        player
+          ..loadGate = gate
+          ..loadEntered = entered;
+        final starting = handler.playRadioStream(
+          stationId: 'fixture',
+          stationName: 'Fixture',
+          streamUrl: 'https://radio.example.invalid/live',
+        );
+        await entered.future;
+        player._events.add(nativeError(2005));
+        await pumpEventQueue();
+        gate.complete();
+        await starting;
+        await pumpEventQueue(times: 100);
+        expect(handler.snapshot.isRadioMode, isFalse);
+        expect(handler.snapshot.isLoading, isFalse);
+      },
+    );
+
+    Future<void> dropStation(_ControllableAudioPlayer player) async {
+      player
+        ..state = ProcessingState.idle
+        ..isPlaying = false;
+      // A stream error, unlike a repeated native error event, is never merged.
+      player._events.addError(PlayerException(0, 'network unavailable', null));
+      await Future<void>.delayed(const Duration(milliseconds: 100));
+      await pumpEventQueue(times: 50);
+    }
+
+    test(
+      'a station that keeps connecting and dropping stops after the budget',
+      () async {
+        final (handler, player, _) = await setup(
+          reconcile: () async => net(online: true),
+          timeouts: const NavisPlaybackTimeouts(
+            radioRecovery: Duration(milliseconds: 600),
+            radioHealthyPlay: Duration(seconds: 30),
+          ),
+        );
+        await handler.playRadioStream(
+          stationId: 'fixture',
+          stationName: 'Fixture',
+          streamUrl: 'https://radio.example.invalid/live',
+        );
+        final notices = <void>[];
+        final subscription = handler.radioStreamErrorStream.listen(notices.add);
+        addTearDown(subscription.cancel);
+        for (var i = 0; i < 12 && handler.snapshot.isRadioMode; i++) {
+          // Each reconnect takes a while: that failure time adds up.
+          final reconnect = Completer<void>();
+          player.loadGate = reconnect;
+          await dropStation(player);
+          reconnect.complete();
+          await pumpEventQueue(times: 50);
+        }
+        expect(handler.snapshot.isRadioMode, isFalse);
+        expect(notices, hasLength(1));
+      },
+    );
+
+    test(
+      'a station that played healthily gets a fresh recovery budget',
+      () async {
+        final (handler, player, _) = await setup(
+          reconcile: () async => net(online: true),
+          timeouts: const NavisPlaybackTimeouts(
+            radioRecovery: Duration(milliseconds: 600),
+            radioHealthyPlay: Duration(milliseconds: 200),
+          ),
+        );
+        await handler.playRadioStream(
+          stationId: 'fixture',
+          stationName: 'Fixture',
+          streamUrl: 'https://radio.example.invalid/live',
+        );
+        // About 250 ms of failure per drop would exceed the budget by the
+        // fourth drop if it carried over.
+        for (var i = 0; i < 5; i++) {
+          final reconnect = Completer<void>();
+          player.loadGate = reconnect;
+          await dropStation(player);
+          await Future<void>.delayed(const Duration(milliseconds: 150));
+          reconnect.complete();
+          await Future<void>.delayed(const Duration(milliseconds: 1200));
+        }
+        expect(handler.snapshot.isRadioMode, isTrue);
+        expect(player.playing, isTrue);
+      },
+    );
+
+    test(
+      'a station on a flaky network that mostly plays keeps playing',
+      () async {
+        final (handler, player, _) = await setup(
+          reconcile: () async => net(online: true),
+          timeouts: const NavisPlaybackTimeouts(
+            radioRecovery: Duration(seconds: 1),
+            radioHealthyPlay: Duration(seconds: 30),
+          ),
+        );
+        await handler.playRadioStream(
+          stationId: 'fixture',
+          stationName: 'Fixture',
+          streamUrl: 'https://radio.example.invalid/live',
+        );
+        // Each drop reconnects at once; only the play time between drops
+        // adds up past the budget.
+        for (var i = 0; i < 5; i++) {
+          await dropStation(player);
+          await Future<void>.delayed(const Duration(milliseconds: 500));
+        }
+        expect(handler.snapshot.isRadioMode, isTrue);
+        expect(player.playing, isTrue);
+      },
+    );
+
+    test('being offline never stops a station or shows a notice', () async {
+      var online = false;
+      final recovered = StreamController<void>.broadcast();
+      addTearDown(recovered.close);
       final (handler, player, _) = await setup(
-        reconcile: () async => net(online: false),
+        reconcile: () async => net(online: online),
+        recovered: recovered.stream,
         timeouts: const NavisPlaybackTimeouts(
-          radioRecovery: Duration(milliseconds: 300),
+          radioRecovery: Duration(seconds: 3),
         ),
       );
       await handler.playRadioStream(
@@ -1669,16 +1865,43 @@ void main() {
       final notices = <void>[];
       final subscription = handler.radioStreamErrorStream.listen(notices.add);
       addTearDown(subscription.cancel);
+      final loads = player.sourceLoads;
       player
         ..state = ProcessingState.idle
         ..isPlaying = false;
       player._events.add(nativeError(2001));
       await pumpEventQueue();
-      expect(handler.snapshot.isRadioMode, isTrue);
-      await Future<void>.delayed(const Duration(milliseconds: 700));
+      // Offline past the budget: the retry at 3 s finds no connection.
+      await Future<void>.delayed(const Duration(milliseconds: 4500));
       await pumpEventQueue(times: 100);
-      expect(handler.snapshot.isRadioMode, isFalse);
-      expect(notices, hasLength(1));
+      expect(handler.snapshot.isRadioMode, isTrue);
+      expect(notices, isEmpty);
+      online = true;
+      recovered.add(null);
+      await pumpEventQueue(times: 100);
+      expect(player.sourceLoads, greaterThan(loads));
+      expect(player.playing, isTrue);
+      expect(handler.snapshot.isRadioMode, isTrue);
+    });
+
+    test('a station reconnect never waits for the server probe', () async {
+      final (handler, player, _) = await setup(
+        reconcile: () => Completer<NetworkReconciliation>().future,
+        deviceConnected: () async => true,
+      );
+      await handler.playRadioStream(
+        stationId: 'fixture',
+        stationName: 'Fixture',
+        streamUrl: 'https://radio.example.invalid/live',
+      );
+      final loads = player.sourceLoads;
+      player
+        ..state = ProcessingState.idle
+        ..isPlaying = false;
+      player._events.add(nativeError(2001));
+      await pumpEventQueue(times: 100);
+      expect(player.sourceLoads, loads + 1);
+      expect(player.playing, isTrue);
     });
 
     test(
@@ -1762,6 +1985,410 @@ void main() {
         expect(player.playing, isTrue);
       },
     );
+
+    test('Play while recovery waits to reload plays with one press', () async {
+      final (handler, player, _) = await setup(
+        reconcile: () async => net(online: true),
+        remote: true,
+      );
+      await handler.replaceQueue(
+        ['song-0', 'song-1'],
+        autoPlay: false,
+        expandMatchFlows: false,
+      );
+      // A queue edit holds the lane, so the reload waits behind it.
+      final gate = Completer<void>();
+      final entered = Completer<void>();
+      player
+        ..appendGate = gate
+        ..appendEntered = entered;
+      final adding = handler
+          .addToQueue(['song-2'], expandMatchFlows: false)
+          .catchError((Object _) {});
+      await entered.future;
+      await failSong(player);
+      await pumpEventQueue(times: 20);
+      await handler.play();
+      gate.complete();
+      await adding;
+      await pumpEventQueue(times: 100);
+      await settleQueue(handler);
+      expect(player.playing, isTrue);
+      expect(
+        handler.snapshot.processingState,
+        isNot(AudioProcessingState.buffering),
+      );
+    });
+
+    test(
+      'Play survives a reload that fails again while the queue fills',
+      () async {
+        final (handler, player, _) = await setup(
+          reconcile: () async => net(online: true),
+          remote: true,
+        );
+        await handler.replaceQueue(
+          ['song-0', 'song-1'],
+          autoPlay: false,
+          expandMatchFlows: false,
+        );
+        // A queue edit holds the lane, so the reload waits behind it.
+        final gate = Completer<void>();
+        final entered = Completer<void>();
+        player
+          ..appendGate = gate
+          ..appendEntered = entered;
+        final adding = handler
+            .addToQueue(['song-2'], expandMatchFlows: false)
+            .catchError((Object _) {});
+        await entered.future;
+        await failSong(player);
+        await pumpEventQueue(times: 20);
+        await handler.play();
+        // The reloaded stream fails at once, and the rest of the queue is
+        // still being restored, so recovery cannot start again.
+        final fill = Completer<void>();
+        player
+          ..failAfterLoad = true
+          ..appendGate = fill
+          ..appendEntered = Completer<void>();
+        gate.complete();
+        await adding;
+        await pumpEventQueue(times: 100);
+        player.failAfterLoad = false;
+        fill.complete();
+        await pumpEventQueue(times: 100);
+        await settleQueue(handler);
+        expect(player.state, ProcessingState.ready);
+        expect(player.playing, isTrue);
+      },
+    );
+
+    test('a held Play applies once a restore reloads its song', () async {
+      final (handler, player, database) = await setup(
+        reconcile: () async => net(online: false),
+        remote: true,
+        count: 70,
+      );
+      final ids = List<String>.generate(70, (index) => 'song-$index');
+      await handler.replaceQueue(ids, autoPlay: false, expandMatchFlows: false);
+      await settleQueue(handler);
+      await database.playQueueDao.saveQueue(currentIndex: 0, songIds: ids);
+      await failSong(player);
+      // Offline, Play holds its request for the failed song.
+      await handler.play();
+      await pumpEventQueue(times: 20);
+      // Android Auto restores the saved queue in two phases without
+      // superseding the Play; the restore reloads the same song.
+      await handler.prepareFromMediaId('recent/resume');
+      await pumpEventQueue(times: 100);
+      await settleQueue(handler);
+      expect(player.state, ProcessingState.ready);
+      expect(player.playing, isTrue);
+      expect(
+        handler.snapshot.processingState,
+        isNot(AudioProcessingState.buffering),
+      );
+    });
+
+    test('an error event that is not idle still counts as a failure', () async {
+      var online = false;
+      final recovered = StreamController<void>.broadcast();
+      addTearDown(recovered.close);
+      final (handler, player, _) = await setup(
+        reconcile: () async => net(online: online),
+        recovered: recovered.stream,
+        remote: true,
+      );
+      await handler.replaceQueue(
+        ['song-0', 'song-1'],
+        autoPlay: false,
+        expandMatchFlows: false,
+      );
+      player
+        ..simulatedPosition = const Duration(seconds: 42)
+        ..state = ProcessingState.idle
+        ..errorCode = 0;
+      player._events.add(
+        PlaybackEvent(
+          processingState: ProcessingState.buffering,
+          updatePosition: const Duration(seconds: 42),
+          currentIndex: 0,
+          errorCode: 0,
+          errorMessage: 'Source error',
+        ),
+      );
+      await pumpEventQueue(times: 20);
+      await handler.play();
+      await pumpEventQueue(times: 20);
+      final loads = player.sourceLoads;
+      online = true;
+      recovered.add(null);
+      await pumpEventQueue(times: 100);
+      await settleQueue(handler);
+      expect(player.sourceLoads, greaterThan(loads));
+      expect(player.playing, isTrue);
+    });
+
+    test('Play on a failed song during a seek never hangs', () async {
+      final (handler, player, _) = await setup(
+        reconcile: () async => net(online: false),
+        remote: true,
+        timeouts: const NavisPlaybackTimeouts(
+          load: Duration(milliseconds: 300),
+          seekProgress: Duration(milliseconds: 300),
+        ),
+      );
+      await handler.replaceQueue(
+        ['song-0', 'song-1'],
+        autoPlay: false,
+        expandMatchFlows: false,
+      );
+      await failSong(player);
+      await handler.pause();
+      // The seek waits for the failed source to become ready.
+      final seeking = handler.seek(const Duration(seconds: 60));
+      await pumpEventQueue();
+      await handler.play();
+      await seeking;
+      await settleQueue(handler);
+      expect(
+        handler.snapshot.processingState,
+        isNot(AudioProcessingState.buffering),
+      );
+    });
+
+    test('Play on a song that was never prepared plays it directly', () async {
+      final (handler, player, _) = await setup(remote: true);
+      await handler.replaceQueue(
+        ['song-0', 'song-1'],
+        autoPlay: false,
+        expandMatchFlows: false,
+      );
+      // With gapless off, an autoPlay:false load stays unprepared.
+      player.state = ProcessingState.idle;
+      final loads = player.sourceLoads;
+      await handler.play();
+      await pumpEventQueue(times: 100);
+      expect(player.sourceLoads, loads);
+      expect(player.playing, isTrue);
+    });
+
+    test(
+      'Play on a song loaded after another one failed plays it directly',
+      () async {
+        final (handler, player, _) = await setup(
+          reconcile: () async => net(online: false),
+          remote: true,
+        );
+        await handler.replaceQueue([
+          'song-0',
+          'song-1',
+        ], expandMatchFlows: false);
+        await failSong(player);
+        await pumpEventQueue(times: 20);
+        await handler.replaceQueue(
+          ['song-1', 'song-2'],
+          autoPlay: false,
+          expandMatchFlows: false,
+        );
+        // just_audio's idle player keeps the failed song's error until the
+        // next song is prepared (a load with preload: false); its Play loads
+        // the song.
+        player
+          ..state = ProcessingState.idle
+          ..errorCode = 0
+          ..playRequested = false;
+        final loads = player.sourceLoads;
+        await handler.play();
+        await pumpEventQueue(times: 100);
+        expect(player.sourceLoads, loads);
+        expect(player.playRequested, isTrue);
+      },
+    );
+
+    test('Play during the probe keeps a seek made during a stall', () async {
+      final probe = Completer<NetworkReconciliation>();
+      final (handler, player, _) = await setup(
+        reconcile: () => probe.future,
+        remote: true,
+      );
+      await handler.replaceQueue(['song-0', 'song-1'], expandMatchFlows: false);
+      player
+        ..simulatedPosition = const Duration(seconds: 42)
+        ..state = ProcessingState.buffering;
+      final recovering = handler.debugRecoverCurrentSong();
+      await pumpEventQueue();
+      await handler.seek(const Duration(seconds: 180));
+      // The stream resumes by itself at 1:00 while the probe still runs.
+      player
+        ..simulatedPosition = const Duration(seconds: 60)
+        ..state = ProcessingState.ready;
+      await handler.play();
+      probe.complete(net(online: true));
+      await recovering;
+      await pumpEventQueue(times: 100);
+      await settleQueue(handler);
+      expect(player.position, const Duration(seconds: 180));
+      expect(player.playing, isTrue);
+    });
+
+    test(
+      'a seek during a stall applies once the song resumes by itself',
+      () async {
+        final (handler, player, _) = await setup(
+          reconcile: () async => net(online: false),
+          remote: true,
+        );
+        await handler.replaceQueue([
+          'song-0',
+          'song-1',
+        ], expandMatchFlows: false);
+        player
+          ..simulatedPosition = const Duration(seconds: 42)
+          ..state = ProcessingState.buffering;
+        await handler.debugRecoverCurrentSong();
+        player.state = ProcessingState.ready;
+        await handler.seek(const Duration(seconds: 60));
+        await pumpEventQueue(times: 100);
+        await settleQueue(handler);
+        expect(player.position, const Duration(seconds: 60));
+        expect(
+          handler.snapshot.processingState,
+          isNot(AudioProcessingState.buffering),
+        );
+      },
+    );
+
+    test('Play in the offline hold keeps an earlier seek target', () async {
+      var online = false;
+      final recovered = StreamController<void>.broadcast();
+      addTearDown(recovered.close);
+      final (handler, player, _) = await setup(
+        reconcile: () async => net(online: online),
+        recovered: recovered.stream,
+        remote: true,
+      );
+      await handler.replaceQueue(['song-0', 'song-1'], expandMatchFlows: false);
+      await failSong(player);
+      await handler.seek(const Duration(seconds: 60));
+      await handler.play();
+      await pumpEventQueue(times: 20);
+      online = true;
+      recovered.add(null);
+      await pumpEventQueue(times: 100);
+      await settleQueue(handler);
+      expect(player.position, const Duration(seconds: 60));
+      expect(player.playing, isTrue);
+    });
+
+    test(
+      'a resume after a long interruption has a fresh focus budget',
+      () async {
+        final (handler, player, _) = await setup(
+          timeouts: const NavisPlaybackTimeouts(
+            focusRetry: Duration(milliseconds: 1500),
+          ),
+        );
+        final session = _TestAudioSession();
+        handler.debugWireAudioSession(session);
+        addTearDown(session.close);
+        await handler.replaceQueue(
+          ['song-0'],
+          autoPlay: false,
+          expandMatchFlows: false,
+        );
+        player.focusDenials = 1;
+        await handler.play();
+        await pumpEventQueue();
+        session.interruptions.add(
+          AudioInterruptionEvent(true, AudioInterruptionType.pause),
+        );
+        // Past the first denial's budget; the resume retries after 1 s.
+        await Future<void>.delayed(const Duration(milliseconds: 2600));
+        player.focusDenials = 1;
+        session.interruptions.add(
+          AudioInterruptionEvent(false, AudioInterruptionType.pause),
+        );
+        await Future<void>.delayed(const Duration(milliseconds: 2500));
+        expect(player.playing, isTrue);
+      },
+    );
+
+    test(
+      'a Play that re-arms recovery leaves no old focus budget behind',
+      () async {
+        var online = false;
+        final recovered = StreamController<void>.broadcast();
+        addTearDown(recovered.close);
+        final (handler, player, _) = await setup(
+          reconcile: () async => net(online: online),
+          recovered: recovered.stream,
+          remote: true,
+          timeouts: const NavisPlaybackTimeouts(
+            focusRetry: Duration(milliseconds: 1500),
+          ),
+        );
+        await handler.replaceQueue(
+          ['song-0', 'song-1'],
+          autoPlay: false,
+          expandMatchFlows: false,
+        );
+        player.focusDenials = 100;
+        await handler.play();
+        await failSong(player);
+        // Re-arms recovery of the failed song without requesting focus.
+        await handler.play();
+        await pumpEventQueue(times: 20);
+        // Offline for longer than the first denial's budget.
+        await Future<void>.delayed(const Duration(milliseconds: 2600));
+        player.focusDenials = 1;
+        online = true;
+        recovered.add(null);
+        await pumpEventQueue(times: 100);
+        await settleQueue(handler);
+        // The reloaded song's denied play retries after 1 s.
+        await Future<void>.delayed(const Duration(milliseconds: 2500));
+        expect(player.playing, isTrue);
+      },
+    );
+
+    test('the media button cancels a pending focus retry', () async {
+      final (handler, player, _) = await setup();
+      await handler.replaceQueue(
+        ['song-0'],
+        autoPlay: false,
+        expandMatchFlows: false,
+      );
+      player.focusDenials = 100;
+      await handler.play();
+      await pumpEventQueue();
+      await handler.click();
+      // Between the cancelled retry at 1 s and the next one at 3 s.
+      await Future<void>.delayed(const Duration(milliseconds: 2000));
+      expect(player.focusRequests, 1);
+      expect(player.playing, isFalse);
+    });
+
+    test('Play during a pending focus retry keeps its budget', () async {
+      final (handler, player, _) = await setup(
+        timeouts: const NavisPlaybackTimeouts(focusRetry: Duration(seconds: 5)),
+      );
+      await handler.replaceQueue(
+        ['song-0'],
+        autoPlay: false,
+        expandMatchFlows: false,
+      );
+      player.focusDenials = 100;
+      await handler.play();
+      await Future<void>.delayed(const Duration(milliseconds: 2000));
+      await handler.play();
+      await Future<void>.delayed(const Duration(milliseconds: 6000));
+      // Denied at 0, 1, 2 (this Play), 3 and the budget's end at 5 s. A
+      // fresh budget would retry again at 7 s.
+      expect(player.focusRequests, 5);
+      expect(handler.playbackState.value.playing, isFalse);
+    });
   });
 
   for (final fails in [false, true]) {

@@ -462,6 +462,30 @@ void kickAfterReconciliation(Ref ref, void Function() kick) {
   });
 }
 
+Future<bool> _refreshDeviceConnected(Ref ref) async {
+  ref.invalidate(connectivityProvider);
+  final connectivity = await ref
+      .read(connectivityProvider.future)
+      .timeout(const Duration(seconds: 3));
+  return resolveNetworkType(connectivity) != NetworkType.offline;
+}
+
+/// Device connectivity alone, for third-party hosts such as radio stations
+/// that never wait for the server probe. A failed or slow check reads as
+/// offline.
+final deviceConnectionCheckProvider = Provider<Future<bool> Function()>((ref) {
+  return () async {
+    final lease = ref.container.listen(connectivityProvider, (_, _) {});
+    try {
+      return await _refreshDeviceConnected(ref);
+    } on Object {
+      return false;
+    } finally {
+      lease.close();
+    }
+  };
+});
+
 /// Coalesces resume and playback checks before either spends recovery work.
 /// Reports device connectivity separately: third-party radio stations need
 /// only a connection, while library songs need the server.
@@ -488,14 +512,10 @@ final networkReconciliationProvider =
           final previousReachabilityCheck = ref
               .read(serverReachabilityControllerProvider)
               .lastCheckedAt;
-          ref.invalidate(connectivityProvider);
           ref.invalidate(nativeNetworkMeteredProvider);
-          final connectivityCheck = ref.read(connectivityProvider.future);
-          final connectivity = await connectivityCheck.timeout(
-            const Duration(seconds: 3),
-          );
+          final deviceConnected = await _refreshDeviceConnected(ref);
           if (!ref.mounted) return (connected: false, serverReachable: false);
-          connected = resolveNetworkType(connectivity) != NetworkType.offline;
+          connected = deviceConnected;
           AppLogger.startup(
             StartupEvent.resumeConnectivity,
             outcome: connected ? StartupOutcome.online : StartupOutcome.offline,
@@ -1319,6 +1339,7 @@ final audioHandlerInitializerProvider = Provider<AudioHandlerInitializer>((
     );
     final handler = await initNavisAudioHandler(
       reconcileNetwork: () => ref.read(networkReconciliationProvider)(),
+      checkDeviceConnected: () => ref.read(deviceConnectionCheckProvider)(),
       recoveredNetwork: recoveredNetwork.stream,
       libraryDao: database.libraryDao,
       playlistDao: database.playlistDao,
@@ -2212,14 +2233,13 @@ final currentMediaItemProvider = StreamProvider<MediaItem?>((ref) async* {
   yield* handler.mediaItemStream;
 });
 
-/// Counts stations stopped because they are unavailable. Consumed by AppShell
-/// to display a dismissible notice; a count, because Riverpod drops a repeated
-/// equal value.
-final radioStreamErrorProvider = StreamProvider<int>((ref) {
+/// Emits one distinct token per station stopped because it is unavailable.
+/// Consumed by AppShell to display a dismissible notice; tokens never compare
+/// equal, so neither a repeat nor a replaced handler hides a notice.
+final radioStreamErrorProvider = StreamProvider<Object>((ref) {
   final handler = ref.watch(audioHandlerProvider);
-  if (handler == null) return const Stream<int>.empty();
-  var count = 0;
-  return handler.radioStreamErrorStream.map((_) => ++count);
+  if (handler == null) return const Stream<Object>.empty();
+  return handler.radioStreamErrorStream.map((_) => Object());
 });
 
 /// Songs the handler dropped from the queue after accepting them. A plain

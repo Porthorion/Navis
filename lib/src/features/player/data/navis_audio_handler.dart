@@ -105,6 +105,7 @@ class NavisAudioHandler extends BaseAudioHandler
     required this._readRuntimeSettings,
     required this._starSyncDao,
     this.reconcileNetwork,
+    this.checkDeviceConnected,
     Stream<void>? recoveredNetwork,
     double initialVolume = 1.0,
     NetworkUsageReporter? reportNetworkUsage,
@@ -206,6 +207,10 @@ class NavisAudioHandler extends BaseAudioHandler
   final NavisPlaybackTimeouts _timeouts;
 
   final Future<NetworkReconciliation> Function()? reconcileNetwork;
+
+  /// Device connectivity alone, for third-party hosts that never need the
+  /// Navidrome server. Falls back to [reconcileNetwork] when absent.
+  final Future<bool> Function()? checkDeviceConnected;
   StreamSubscription<void>? _networkRecoverySubscription;
   Timer? _focusRetryTimer;
   int _focusRetries = 0;
@@ -215,12 +220,29 @@ class NavisAudioHandler extends BaseAudioHandler
   DateTime? _focusDeniedSince;
   Timer? _networkRetryTimer;
   int _networkRetries = 0;
-  ({int generation, String songId, Duration position, bool autoPlay})?
+
+  /// The song to reload once the network is back, at its position (null:
+  /// where the player is). A request that Play or seek armed still applies
+  /// if the song plays again without a reload.
+  ({
+    int generation,
+    String songId,
+    Duration? position,
+    bool autoPlay,
+    bool requested,
+  })?
   _pendingRemoteRecovery;
   ({int generation, RadioStationMetadata station, DateTime since})?
   _pendingRadioRecovery;
+  ({RadioStationMetadata station, DateTime since, DateTime recoveredAt})?
+  _radioRecovered;
   bool _radioRecoveryInProgress = false;
   bool _remoteRecoveryWasOffline = false;
+
+  /// The native player reported that its loaded source failed. Unlike the
+  /// player's error code, which just_audio keeps on an idle player after
+  /// another load, this lasts only until the next load or progress.
+  bool _loadedSourceFailed = false;
 
   final LibraryDao _libraryDao;
   final PlaylistDao _playlistDao;
@@ -1980,6 +2002,11 @@ class NavisAudioHandler extends BaseAudioHandler
   @override
   Future<void> play() async {
     _queueFinished = false;
+    // Play keeps a pending focus retry's budget and a held seek target.
+    final focusDeniedSince = _focusDeniedGeneration == _transportGeneration
+        ? _focusDeniedSince
+        : null;
+    final heldRecovery = _pendingRemoteRecovery;
     final transportGeneration = _supersedeTransportIntent(
       shouldPlay: true,
       preserveSeek: true,
@@ -2002,12 +2029,19 @@ class NavisAudioHandler extends BaseAudioHandler
       if (!_isCurrentTransportIntent(transportGeneration)) return;
     }
 
-    // A failed stream is idle: re-prepare it once where it stopped.
+    // A failed stream cannot play: re-prepare it once where it stopped.
     if (_radioStation == null &&
         _restoredQueueIndex == null &&
         !_isLoading &&
-        _player.processingState == ProcessingState.idle &&
-        _rearmRemoteRecovery(position: _player.position, autoPlay: true)) {
+        _remoteSourceFailed &&
+        _rearmRemoteRecovery(
+          position:
+              heldRecovery?.songId ==
+                  _resolveCurrentQueueMetadata().mediaItem?.id
+              ? heldRecovery?.position
+              : null,
+          autoPlay: true,
+        )) {
       return;
     }
 
@@ -2077,6 +2111,16 @@ class NavisAudioHandler extends BaseAudioHandler
       }
     }
 
+    // The song resumed by itself: Play still lands on its held seek target.
+    if (heldRecovery case final held?
+        when held.requested &&
+            held.position != null &&
+            held.songId == _resolveCurrentQueueMetadata().mediaItem?.id) {
+      unawaited(seek(held.position!));
+    }
+    // Only this Play inherits the budget; returning earlier must not leave it
+    // to a later automatic play.
+    _focusDeniedSince = focusDeniedSince;
     // play() must NOT go through _runSerialized — _player.play() returns a
     // Future that blocks until playback finishes/pauses.  Serializing it would
     // deadlock all subsequent operations (pause, seek, skip, queue changes).
@@ -2105,8 +2149,10 @@ class NavisAudioHandler extends BaseAudioHandler
     switch (button) {
       case MediaButton.media:
         // Android maps media-key Pause to a toggle even during focus loss.
+        // A pending focus retry is a Play the user can cancel.
         if (_visiblePlaying ||
-            _interruptedTransportGeneration == _transportGeneration) {
+            _interruptedTransportGeneration == _transportGeneration ||
+            _focusDeniedGeneration == _transportGeneration) {
           await pause();
         } else {
           await play();
@@ -2177,13 +2223,15 @@ class NavisAudioHandler extends BaseAudioHandler
         _loadingSongId ?? _resolveCurrentQueueMetadata().mediaItem?.id;
     if (songId == null) return Future<void>.value();
     final pending = _pendingRemoteRecovery;
-    if (pending != null && pending.songId == songId && !_isLoading) {
-      // A failed stream cannot seek; recovery reloads it at the new target.
+    // A failed stream cannot seek; recovery reloads it at the new target.
+    if (pending != null &&
+        pending.songId == songId &&
+        !_isLoading &&
+        _rearmRemoteRecovery(
+          position: navisSanitizeSeekPosition(position),
+          autoPlay: pending.autoPlay,
+        )) {
       _queueFinished = false;
-      _rearmRemoteRecovery(
-        position: navisSanitizeSeekPosition(position),
-        autoPlay: pending.autoPlay,
-      );
       return Future<void>.value();
     }
     _queueFinished = false;
@@ -3016,6 +3064,9 @@ class NavisAudioHandler extends BaseAudioHandler
         AppLogger.debug(
           'playRadioStream cancelled — superseded by newer command.',
         );
+        // A station that stopped itself mid-start cancels this work without a
+        // newer load generation; the no-op when superseded keeps this safe.
+        _completeQueueLoad(generation);
       } on Object {
         if (token.isCancelled || !_isActiveLoadGeneration(generation)) return;
         _completeQueueLoad(generation);
