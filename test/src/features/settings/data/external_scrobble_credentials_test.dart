@@ -12,6 +12,7 @@ class _Storage extends Mock implements FlutterSecureStorage;
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
+  setUp(resetSecureStorageQueue);
 
   test('Android scrobble reads disable destructive reset only', () async {
     debugDefaultTargetPlatformOverride = TargetPlatform.android;
@@ -90,6 +91,44 @@ void main() {
       throwsA(isA<CredentialReadException>()),
     );
     verifyNever(() => storage.delete(key: any(named: 'key')));
+  });
+
+  test('token writes wait for an in-flight auth-store native call', () async {
+    final authStorage = _Storage();
+    final tokenStorage = _Storage();
+    final authRead = Completer<String?>();
+    when(() => authStorage.read(key: any(named: 'key')))
+        .thenAnswer((_) => authRead.future);
+    when(
+      () => tokenStorage.write(
+        key: any(named: 'key'),
+        value: any(named: 'value'),
+      ),
+    ).thenAnswer((_) async {});
+    final auth = FlutterSecureCredentialStore(storage: authStorage);
+    final tokens = FlutterExternalScrobbleCredentialStore(
+      storage: tokenStorage,
+    );
+
+    final pendingRead = auth.readPassword();
+    final pendingWrite = tokens.saveListenBrainzToken('fixture-token');
+    await pumpEventQueue();
+    verifyNever(
+      () => tokenStorage.write(
+        key: any(named: 'key'),
+        value: any(named: 'value'),
+      ),
+    );
+
+    authRead.complete('fixture');
+    await pendingRead;
+    await pendingWrite;
+    verify(
+      () => tokenStorage.write(
+        key: 'navis.external_scrobble.listenbrainz.token',
+        value: 'fixture-token',
+      ),
+    ).called(1);
   });
 
   test('clone diagnostics credentials remain process-local', () async {

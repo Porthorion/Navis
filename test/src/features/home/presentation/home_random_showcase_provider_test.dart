@@ -11,6 +11,7 @@ import 'package:navis/src/api/models/listenbrainz_playlist.dart';
 import 'package:navis/src/api/subsonic_api_client.dart';
 import 'package:navis/src/api/subsonic_auth_interceptor.dart';
 import 'package:navis/src/database/navis_database.dart';
+import 'package:navis/src/features/auth/data/secure_credential_store.dart';
 import 'package:navis/src/features/library/domain/library_sync_state.dart';
 import 'package:navis/src/features/home/presentation/home_providers.dart';
 import 'package:navis/src/features/library/presentation/library_sync_provider.dart';
@@ -214,6 +215,19 @@ class _FakeListenBrainzApiClient extends ListenBrainzApiClient {
           (playlist) => playlist.identifier == playlistMbid,
         );
   }
+}
+
+class _UnreadableExternalScrobbleCredentialStore
+    implements ExternalScrobbleCredentialStore {
+  @override
+  Future<void> clearListenBrainzToken() async {}
+
+  @override
+  Future<String?> readListenBrainzToken() async =>
+      throw const CredentialReadException();
+
+  @override
+  Future<void> saveListenBrainzToken(String value) async {}
 }
 
 class _FakeExternalScrobbleCredentialStore
@@ -1572,6 +1586,53 @@ void main() {
       cachedRecommendations.single as Map,
     );
     expect(cachedRecommendation['song'], isNotNull);
+  });
+
+  test('manual rematch with an unreadable token fails retryably', () async {
+    final database = createTestDatabase();
+    final container = ProviderContainer(
+      overrides: withHomeShowcaseTestOverrides(
+        database,
+        overrides: <Override>[
+          appSettingsProvider.overrideWithValue(
+            AsyncData(
+              const AppSettingsModel.defaults().copyWith(
+                listenBrainzScrobblingEnabled: true,
+                listenBrainzTokenValid: true,
+                listenBrainzUserName: 'alice',
+              ),
+            ),
+          ),
+          externalScrobbleCredentialStoreProvider.overrideWithValue(
+            _UnreadableExternalScrobbleCredentialStore(),
+          ),
+        ],
+      ),
+    );
+    addTearDown(() async {
+      container.dispose();
+      await pumpEventQueue();
+      await database.close();
+    });
+    const playlist = ListenBrainzDiscoverPlaylist(
+      playlist: ListenBrainzPlaylist(
+        identifier: 'jams',
+        title: 'Weekly Jams',
+        sourcePatch: 'weekly-jams',
+        tracks: <ListenBrainzPlaylistTrack>[],
+      ),
+      recommendations: <ListenBrainzResolvedRecommendation>[],
+    );
+    final controller = container.read(
+      listenBrainzPlaylistRematchControllerProvider.notifier,
+    );
+
+    // The Home card reports any rematch failure as a retryable error notice.
+    await expectLater(
+      controller.rematch(playlist),
+      throwsA(isA<CredentialReadException>()),
+    );
+    expect(controller.isMatching('weekly-jams'), isFalse);
   });
 
   test('cached weekly playlists emit before remote futures complete', () async {

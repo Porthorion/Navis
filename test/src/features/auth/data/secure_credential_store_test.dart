@@ -18,6 +18,7 @@ void main() {
     late FlutterSecureCredentialStore store;
 
     setUp(() async {
+      resetSecureStorageQueue();
       storage = _Storage();
       when(() => storage.delete(key: any(named: 'key')))
           .thenAnswer((_) async {});
@@ -28,6 +29,7 @@ void main() {
     });
 
     tearDown(() async {
+      resetSecureStorageQueue();
       await store.clearPassword();
       await store.clearUserInfo();
     });
@@ -141,6 +143,39 @@ void main() {
             value: any(named: 'value'),
           ),
         );
+      },
+    );
+
+    test(
+      'a deadline does not release the queue while the native call is stuck',
+      () async {
+        final stuck = Completer<String?>();
+        when(() => storage.read(key: 'navis.auth.active_server.password'))
+            .thenAnswer((_) => stuck.future);
+        when(() => storage.read(key: 'navis.auth.active_server.user_info'))
+            .thenAnswer((_) async => 'info');
+        final slowStore = FlutterSecureCredentialStore(
+          storage: storage,
+          storageDeadline: const Duration(milliseconds: 50),
+        );
+
+        await expectLater(
+          slowStore.readPassword(),
+          throwsA(isA<CredentialReadException>()),
+        );
+        // The caller still gets its deadline, but the next native call must
+        // not overlap the stuck one.
+        await expectLater(
+          slowStore.readUserInfo(),
+          throwsA(isA<CredentialReadException>()),
+        );
+        verifyNever(
+          () => storage.read(key: 'navis.auth.active_server.user_info'),
+        );
+
+        stuck.complete(null);
+        await pumpEventQueue();
+        expect(await slowStore.readUserInfo(), 'info');
       },
     );
 

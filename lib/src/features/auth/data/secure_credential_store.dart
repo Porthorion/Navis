@@ -1,5 +1,6 @@
 import 'dart:io';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:navis/src/utils/app_logger.dart';
 
@@ -18,6 +19,33 @@ class CredentialWriteException implements Exception {
   @override
   String toString() => 'Secure credentials could not be persisted.';
 }
+
+/// Tail of the native secure-storage queue. Top-level so every credential
+/// store in this engine shares it: overlapping native calls race
+/// secure-storage initialization and migration.
+Future<void> _nativeOperations = Future<void>.value();
+
+/// Runs [operation] after every earlier native secure-storage operation has
+/// settled. The caller gets [deadline] as an error, but the queue advances only
+/// when the native call itself settles, so a stuck call is never overlapped.
+/// ponytail: a permanently hung plugin makes later calls time out as
+/// unavailable; the startup Restart Navis recovery covers that.
+Future<T> runSerializedSecureStorage<T>(
+  Future<T> Function() operation,
+  Duration deadline,
+) {
+  final task = _nativeOperations.then((_) => operation());
+  _nativeOperations = task.then<void>(
+    (_) {},
+    onError: (Object _, StackTrace _) {},
+  );
+  return task.timeout(deadline);
+}
+
+/// Forgets queued native operations so a test's deliberately stuck call cannot
+/// block later tests in the same isolate.
+@visibleForTesting
+void resetSecureStorageQueue() => _nativeOperations = Future<void>.value();
 
 abstract class SecureCredentialStore {
   Future<void> savePassword(String password);
@@ -118,20 +146,8 @@ class FlutterSecureCredentialStore implements ServerUrlCredentialStore {
   bool get _mustPersistDurableCredentials =>
       requiresDurableCredentials ?? Platform.isAndroid;
 
-  /// Overlapping native calls race secure-storage initialization and
-  /// migration, so operations from this store run one at a time. The queue
-  /// advances on the deadline too, so one stuck platform call cannot wedge
-  /// every later credential operation.
-  Future<void> _nativeOperations = Future<void>.value();
-
   Future<T> _runSerialized<T>(Future<T> Function() operation) {
-    final task = _nativeOperations.then((_) => operation());
-    final bounded = task.timeout(storageDeadline);
-    _nativeOperations = bounded.then<void>(
-      (_) {},
-      onError: (Object _, StackTrace _) {},
-    );
-    return bounded;
+    return runSerializedSecureStorage(operation, storageDeadline);
   }
 
   Future<String?> _readEntry(String key) {

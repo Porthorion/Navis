@@ -43,7 +43,7 @@ class FlutterExternalScrobbleCredentialStore
 
   final FlutterSecureStorage _storage;
 
-  /// Bound for one native token read. A stuck platform channel surfaces as
+  /// Bound for one native token operation. A stuck platform channel surfaces as
   /// unavailability instead of wedging scrobble dispatch.
   final Duration storageDeadline;
 
@@ -64,7 +64,10 @@ class FlutterExternalScrobbleCredentialStore
 
   Future<void> _write(String key, String value) async {
     try {
-      await _storage.write(key: key, value: value);
+      await runSerializedSecureStorage(
+        () => _storage.write(key: key, value: value),
+        storageDeadline,
+      );
     } on Object catch (error) {
       AppLogger.warning(
         'External credential save failed: ${error.runtimeType}',
@@ -75,7 +78,10 @@ class FlutterExternalScrobbleCredentialStore
 
   Future<String?> _read(String key) async {
     try {
-      return await _storage.read(key: key).timeout(storageDeadline);
+      return await runSerializedSecureStorage(
+        () => _storage.read(key: key),
+        storageDeadline,
+      );
     } on Object catch (error) {
       AppLogger.warning(
         'External credential read failed: ${error.runtimeType}',
@@ -88,7 +94,10 @@ class FlutterExternalScrobbleCredentialStore
 
   Future<void> _delete(String key) async {
     try {
-      await _storage.delete(key: key);
+      await runSerializedSecureStorage(
+        () => _storage.delete(key: key),
+        storageDeadline,
+      );
     } on Object catch (error) {
       AppLogger.warning(
         'External credential clear failed: ${error.runtimeType}',

@@ -91,10 +91,12 @@ cancellation where possible. Preserve lease fencing and bounded transactions.
 ## 11. Pending credential reads and memory-only saves
 
 **Completed for 1.5.0 — 2026-10-14.** Secure-storage reads and writes now run
-through one serialized, deadline-bounded queue per store: a stuck platform
-channel surfaces as `CredentialReadException` (unavailable) instead of hanging
-startup or reading as a missing password, and the queue advances past a stuck
-call. Failed saves retry with backoff; on Android, where durable persistence
+through one serialized, deadline-bounded queue shared by the auth and the
+ListenBrainz token stores: a stuck platform channel surfaces as
+`CredentialReadException` (unavailable) instead of hanging startup or reading
+as a missing password, and the queue waits for a stuck call to settle rather
+than overlapping it (a permanently hung plugin makes later calls time out as
+unavailable; the 5 s Restart Navis recovery covers that). Failed saves retry with backoff; on Android, where durable persistence
 is required, a save that never lands throws instead of declaring a login from
 engine-local memory, so a cold start finds no falsely authenticated profile.
 Desktop keeps the documented keychain fallback. Routing keeps an initial

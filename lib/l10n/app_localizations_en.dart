@@ -100,6 +100,10 @@ class AppLocalizationsEn extends AppLocalizations {
   String get loginErrorUnknown => 'Unexpected error while connecting.';
 
   @override
+  String get loginErrorCredentialSave =>
+      'Navis couldn\'t save your password securely on this device. Try again.';
+
+  @override
   String loginTestConnectionSuccess(Object apiVersion) {
     return 'Connection successful (API $apiVersion).';
   }
