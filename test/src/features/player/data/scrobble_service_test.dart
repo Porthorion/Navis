@@ -55,6 +55,23 @@ class _FakeSubsonicApiClient extends SubsonicApiClient {
 class _MockScrobbleDao extends Mock implements ScrobbleDao;
 class _MockSecureStorage extends Mock implements FlutterSecureStorage;
 
+/// A ListenBrainz client that accepts every listen without touching the
+/// network, counting submissions in [requests].
+ListenBrainzApiClient _acceptingListenBrainzClient(List<int> requests) {
+  final dio = Dio();
+  dio.interceptors.add(
+    InterceptorsWrapper(
+      onRequest: (options, handler) {
+        requests.add(1);
+        handler.resolve(
+          Response<void>(requestOptions: options, statusCode: 200),
+        );
+      },
+    ),
+  );
+  return ListenBrainzApiClient(dio: dio);
+}
+
 void main() {
   group('DriftScrobbleService', () {
     late NavisDatabase database;
@@ -343,6 +360,7 @@ void main() {
 
     test('Subsonic delivery continues while ListenBrainz credentials are unreadable', () async {
       var credentialsReadable = true;
+      final listenBrainzRequests = <int>[];
       final service = DriftScrobbleService(
         dao: database.scrobbleDao,
         readApiClient: () => apiClient,
@@ -353,6 +371,8 @@ void main() {
           if (!credentialsReadable) throw const CredentialReadException();
           return const ListenBrainzScrobbleCredentials(userToken: 'fixture');
         },
+        createListenBrainzClient: () =>
+            _acceptingListenBrainzClient(listenBrainzRequests),
       );
       addTearDown(service.dispose);
       await service.enqueueSubmission(
@@ -378,12 +398,14 @@ void main() {
       now = now.add(const Duration(seconds: 15));
       await service.flushDue();
       expect(await database.scrobbleDao.countEntries(), 0);
+      expect(listenBrainzRequests, hasLength(1));
     }, skip: !sqliteAvailable);
 
     test(
       'ListenBrainz entries stay queued when the token cannot be read',
       () async {
         var credentialsReadable = true;
+        final listenBrainzRequests = <int>[];
         final service = DriftScrobbleService(
           dao: database.scrobbleDao,
           readApiClient: () => apiClient,
@@ -394,6 +416,8 @@ void main() {
             if (!credentialsReadable) throw const CredentialReadException();
             return const ListenBrainzScrobbleCredentials(userToken: 'fixture');
           },
+          createListenBrainzClient: () =>
+              _acceptingListenBrainzClient(listenBrainzRequests),
         );
         addTearDown(service.dispose);
         await service.enqueueSubmission(
@@ -418,6 +442,7 @@ void main() {
         await service.flushDue();
         expect(await database.scrobbleDao.countEntries(), 0);
         expect(apiClient.calls, isEmpty);
+        expect(listenBrainzRequests, hasLength(1));
       },
       skip: !sqliteAvailable,
     );
