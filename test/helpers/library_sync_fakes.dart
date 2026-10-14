@@ -146,6 +146,11 @@ class FakeLibrarySyncApi implements LibrarySyncApi {
   final Map<String, int> transientAlbumFailures = <String, int>{};
   Duration albumDelay = Duration.zero;
   Completer<Album>? albumCompleter;
+
+  /// Awaited right after the call is recorded, so a test can pause a sync at
+  /// that album-list page offset or album detail request.
+  final Map<int, Completer<void>> pageGates = <int, Completer<void>>{};
+  final Map<String, Completer<void>> albumGates = <String, Completer<void>>{};
   bool activeRequestsCancelled = false;
   int currentAlbumRequests = 0;
   int maxConcurrentAlbumRequests = 0;
@@ -167,6 +172,7 @@ class FakeLibrarySyncApi implements LibrarySyncApi {
   @override
   Future<Album> getAlbum(String id, {int? maxResponseBytes}) async {
     calls.add('getAlbum:$id');
+    await albumGates[id]?.future;
     currentAlbumRequests++;
     if (currentAlbumRequests > maxConcurrentAlbumRequests) {
       maxConcurrentAlbumRequests = currentAlbumRequests;
@@ -248,6 +254,7 @@ class FakeLibrarySyncApi implements LibrarySyncApi {
     required int offset,
   }) async {
     calls.add('getAlbumListPage:$offset:$size');
+    await pageGates[offset]?.future;
     final pageError = fastPathErrors[offset];
     if (pageError != null) {
       Error.throwWithStackTrace(pageError, StackTrace.current);

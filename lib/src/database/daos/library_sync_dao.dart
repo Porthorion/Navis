@@ -440,9 +440,10 @@ class LibrarySyncDao extends DatabaseAccessor<NavisDatabase>
   /// Attempts to acquire the server's broad-sync lease.
   ///
   /// The UPSERT is the ownership decision: a fresh lease belonging to another
-  /// engine is never overwritten, while an expired lease can be recovered by
-  /// exactly one writer. Reusing the same token is an idempotent heartbeat,
-  /// which makes retries around a busy database safe.
+  /// engine is never overwritten, except that the foreground app preempts a
+  /// background worker; an expired lease can be recovered by exactly one
+  /// writer. Reusing the same token is an idempotent heartbeat, which makes
+  /// retries around a busy database safe.
   Future<bool> acquireExecutionLease({
     required int serverId,
     required String ownerToken,
@@ -471,7 +472,9 @@ class LibrarySyncDao extends DatabaseAccessor<NavisDatabase>
           heartbeat_at = excluded.heartbeat_at,
           expires_at = excluded.expires_at
         WHERE library_sync_execution_lease.expires_at <= ?
-           OR library_sync_execution_lease.owner_token = excluded.owner_token;
+           OR library_sync_execution_lease.owner_token = excluded.owner_token
+           OR (library_sync_execution_lease.owner_kind = 'androidWorker'
+               AND excluded.owner_kind = 'foreground');
         ''',
         <Object?>[
           serverId,
@@ -485,9 +488,9 @@ class LibrarySyncDao extends DatabaseAccessor<NavisDatabase>
       );
       final lease = await getExecutionLease(serverId);
       final acquired = lease?.ownerToken == ownerToken;
-      // The previous owner's lease expired, so its running work and attempts
-      // can never finish: requeue them under the new ownership, in this
-      // transaction. A clean release leaves no row.
+      // The previous owner (expired or a preempted worker) can no longer
+      // finish its running work or attempts: requeue them under the new
+      // ownership, in this transaction. A clean release leaves no row.
       if (acquired && previous != null && previous.ownerToken != ownerToken) {
         await resetInterruptedWork(serverId, now: timestamp);
         await recoverInterruptedSyncRuns(serverId, now: timestamp);

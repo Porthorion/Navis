@@ -5,7 +5,10 @@ import 'package:flutter/widgets.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:navis/src/api/models/models.dart';
 import 'package:navis/src/database/navis_database.dart';
+import 'package:navis/src/features/auth/data/server_config_repository.dart';
+import 'package:navis/src/features/library/data/adaptive_library_sync_coordinator.dart';
 import 'package:navis/src/features/auth/domain/server_config.dart';
 import 'package:navis/src/features/auth/domain/server_reachability.dart';
 import 'package:navis/src/features/auth/presentation/server_config_provider.dart';
@@ -20,6 +23,7 @@ import 'package:navis/src/providers/app_providers.dart';
 import 'package:navis/src/utils/connectivity.dart';
 import 'package:flutter_riverpod/misc.dart' show Override;
 
+import '../../../../helpers/library_sync_fakes.dart';
 import '../../../../helpers/test_database.dart';
 import '../../../../helpers/reachability_fakes.dart';
 import '../../../../helpers/stub_library_sync_engine.dart';
@@ -727,8 +731,8 @@ void main() {
       },
     );
 
-    test('a lease-held automatic check retries at lease expiry, not a full '
-        'interval later', () async {
+    test('a lease-held automatic check retries at a foreground lease expiry, '
+        'not a full interval later', () async {
       final database = createTestDatabase();
       addTearDown(database.close);
       final config = await _saveAuthenticatedServer(database);
@@ -740,8 +744,8 @@ void main() {
       );
       await database.librarySyncDao.acquireExecutionLease(
         serverId: config.id!,
-        ownerToken: 'worker',
-        ownerKind: 'worker',
+        ownerToken: 'foreground',
+        ownerKind: 'foreground',
         now: DateTime.now(),
         ttl: const Duration(minutes: 3),
       );
@@ -783,6 +787,92 @@ void main() {
       expect(wait, greaterThan(const Duration(minutes: 2)));
       expect(wait, lessThan(const Duration(minutes: 4)));
     });
+
+    test(
+      'an app-open automatic check runs while a worker lease is live',
+      () async {
+        final database = createTestDatabase();
+        addTearDown(database.close);
+        final config = await _saveAuthenticatedServer(database);
+        final credentials = FakeSyncCredentialStore();
+        await credentials.savePassword(config.password);
+        final repository = ServerConfigRepository(
+          database,
+          credentials: credentials,
+        );
+        final api = FakeLibrarySyncApi()
+          ..indexes = Indexes(
+            lastModified: FakeLibrarySyncApi.defaultIndexesCursor,
+          );
+        final coordinator = AdaptiveLibrarySyncCoordinator(
+          executor: serialDriftEngine(
+            api: api,
+            database: database,
+            repository: repository,
+          ),
+          database: database,
+          serverConfigRepository: repository,
+          networkType: NetworkType.wifi,
+          staleAfter: const Duration(hours: 1),
+          readHasActivePlayback: () => false,
+        );
+        await database.librarySyncDao.writeState(
+          LibrarySyncStateTableCompanion(
+            serverId: Value(config.id!),
+            currentGeneration: const Value(1),
+            initialCatalogUsableAt: Value(DateTime.now()),
+          ),
+        );
+        await database.librarySyncDao.setNextAutomaticCheckAt(
+          serverId: config.id!,
+          nextAutomaticCheckAt: DateTime.now().subtract(
+            const Duration(minutes: 1),
+          ),
+        );
+        expect(
+          await database.librarySyncDao.acquireExecutionLease(
+            serverId: config.id!,
+            ownerToken: 'worker',
+            ownerKind: 'androidWorker',
+            now: DateTime.now(),
+            ttl: const Duration(minutes: 3),
+          ),
+          isTrue,
+        );
+        final container = _container(
+          coordinator,
+          database: database,
+          server: config,
+          reachability: ServerReachabilityStatus.offline,
+          interval: _hourlyInterval,
+        );
+        addTearDown(container.dispose);
+        addTearDown(
+          () => container
+              .read(librarySyncControllerProvider.notifier)
+              .cancelAndWait(),
+        );
+
+        final startedAt = DateTime.now();
+        final result = await container
+            .read(librarySyncControllerProvider.notifier)
+            .syncIfStale();
+        final persisted = await database.librarySyncDao.getOrCreateState(
+          config.id!,
+        );
+        final lease = await database.librarySyncDao.getExecutionLease(
+          config.id!,
+        );
+
+        expect(result.planReason, isNot('leaseHeld'));
+        expect(api.calls, isNotEmpty);
+        expect(
+          persisted.nextAutomaticCheckAt!.difference(startedAt),
+          greaterThan(const Duration(minutes: 59)),
+        );
+        expect(lease?.ownerToken, isNot('worker'));
+      },
+    );
 
     test(
       'cancelAndWait drains an automatic check through persistence',

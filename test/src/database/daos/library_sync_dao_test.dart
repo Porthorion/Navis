@@ -1133,6 +1133,26 @@ void main() {
       reason: SyncSafeReason.none,
     );
 
+    test('1 a foreground acquirer preempts a live worker lease', () async {
+      expect(await acquire('worker', 'androidWorker', t0), isTrue);
+      final takeoverAt = t0.add(const Duration(minutes: 1));
+      expect(await acquire('foreground', 'foreground', takeoverAt), isTrue);
+
+      final lease = (await database.librarySyncDao.getExecutionLease(1))!;
+      expect(lease.ownerToken, 'foreground');
+      expect(lease.ownerKind, 'foreground');
+      expect(lease.startedAt.toUtc(), takeoverAt);
+      expect(
+        await database.librarySyncDao.heartbeatExecutionLease(
+          serverId: 1,
+          ownerToken: 'worker',
+          now: takeoverAt.add(const Duration(seconds: 1)),
+          ttl: ttl,
+        ),
+        isFalse,
+      );
+    }, skip: !sqliteAvailable);
+
     test('2 a live foreground lease is never preempted and a worker preempts nobody', () async {
       expect(await acquire('foreground', 'foreground', t0), isTrue);
       final later = t0.add(const Duration(minutes: 1));
@@ -1189,6 +1209,80 @@ void main() {
         expect(after.lastErrorType, 'transport');
       }, skip: !sqliteAvailable);
     }
+
+    test(
+      '4 a takeover recovers run requests and attempts without an outcome',
+      () async {
+        expect(await acquire('worker', 'androidWorker', t0), isTrue);
+        final (requestId, attemptId) = await runningRequest();
+        expect(await requestStatus(requestId), 1);
+
+        expect(
+          await acquire(
+            'foreground',
+            'foreground',
+            t0.add(const Duration(minutes: 1)),
+          ),
+          isTrue,
+        );
+
+        expect(await requestStatus(requestId), 0, reason: 'queued');
+        expect(await attemptStatus(attemptId), 1, reason: 'recovered');
+        expect(await outcomes(), isEmpty);
+      },
+      skip: !sqliteAvailable,
+    );
+
+    test(
+      '5 a clean release does not recover, and recovery stays per server',
+      () async {
+        // saveServer replaces the only server; recovery is keyed by id.
+        await database
+            .into(database.serverConfigTable)
+            .insert(
+              ServerConfigTableCompanion.insert(
+                url: 'https://other.example.test',
+                username: 'listener',
+                apiVersion: '1.16.1',
+              ),
+            );
+        expect(await acquire('first', 'foreground', t0), isTrue);
+        await runningWork();
+        final (requestId, attemptId) = await runningRequest();
+        await database.librarySyncDao.releaseExecutionLease(
+          serverId: 1,
+          ownerToken: 'first',
+        );
+        expect(await acquire('second', 'foreground', t0), isTrue);
+        expect(await workStatus(), 'running');
+        expect(await requestStatus(requestId), 1);
+        expect(await attemptStatus(attemptId), 0);
+
+        // A live in-process section on server 2 keeps its running rows when
+        // server 1 changes hands.
+        expect(await acquire('other', 'foreground', t0, serverId: 2), isTrue);
+        await runningWork(serverId: 2);
+        final (otherRequest, otherAttempt) = await runningRequest(serverId: 2);
+        await database.librarySyncDao.releaseExecutionLease(
+          serverId: 1,
+          ownerToken: 'second',
+        );
+        expect(await acquire('worker', 'androidWorker', t0), isTrue);
+        expect(
+          await acquire(
+            'foreground',
+            'foreground',
+            t0.add(const Duration(minutes: 1)),
+          ),
+          isTrue,
+        );
+        expect(await workStatus(), 'queued');
+        expect(await workStatus(serverId: 2), 'running');
+        expect(await requestStatus(otherRequest), 1);
+        expect(await attemptStatus(otherAttempt), 0);
+      },
+      skip: !sqliteAvailable,
+    );
 
     test('6 a same-token re-acquire does not recover', () async {
       expect(await acquire('owner', 'androidWorker', t0), isTrue);
@@ -1286,6 +1380,40 @@ void main() {
         );
         expect(await requestStatus(queued.id), 2);
         expect((await outcomes()).single.requestId, queued.id);
+      },
+      skip: !sqliteAvailable,
+    );
+
+    test(
+      '9 a worker heartbeat just before the takeover still loses the lease',
+      () async {
+        expect(await acquire('worker', 'androidWorker', t0), isTrue);
+        final beat = t0.add(const Duration(minutes: 1));
+        expect(
+          await database.librarySyncDao.heartbeatExecutionLease(
+            serverId: 1,
+            ownerToken: 'worker',
+            now: beat,
+            ttl: ttl,
+          ),
+          isTrue,
+        );
+        final takeoverAt = beat.add(const Duration(seconds: 1));
+        expect(await acquire('foreground', 'foreground', takeoverAt), isTrue);
+        expect(
+          await database.librarySyncDao.heartbeatExecutionLease(
+            serverId: 1,
+            ownerToken: 'worker',
+            now: takeoverAt.add(const Duration(seconds: 1)),
+            ttl: ttl,
+          ),
+          isFalse,
+        );
+        expect(await acquire('worker', 'androidWorker', takeoverAt), isFalse);
+        expect(
+          (await database.librarySyncDao.getExecutionLease(1))!.ownerToken,
+          'foreground',
+        );
       },
       skip: !sqliteAvailable,
     );

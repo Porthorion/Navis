@@ -42,7 +42,9 @@ Located in `lib/src/providers/app_providers.dart`:
     same production bootstrap used by foreground sync. It validates the
     opaque native profile key before any request and holds the same durable
     execution lease as foreground catalog work, so a late worker cannot run a
-    replaced account or overlap a visible sync.
+    replaced account or overlap a visible sync. The foreground app preempts a
+    live worker lease and continues its committed progress (see the sync
+    ownership and hand-off paragraph under the execution lease).
     `FlutterEngineBackgroundSyncSession` disables the embedding's automatic
     generated plugin registration and uses the allowlist next to the worker:
     `JniPlugin` and `JniFlutterPlugin` for path_provider's application context,
@@ -5907,6 +5909,29 @@ with their outer transaction. Recovery and provider-reset writes use the same
 fence. Heartbeat loss also cancels transport. Ordinary playback and local user
 edits execute outside the sync scope. This uses the existing lease schema; token
 equality plus the database writer lock provides fencing without a new counter.
+
+Ownership and hand-off. A live lease blocks every other acquirer except one
+case: a `foreground` acquirer takes over a live `androidWorker` lease (the SQL
+condition in `acquireExecutionLease`), so opening the app never waits for a
+background pass. Foreground against foreground, and a worker against anyone,
+still get `leaseHeld` until expiry. Whenever an acquire replaces another token
+(preemption or expiry; not a clean release, which deletes the row, nor a
+same-token re-acquire), the same transaction requeues that server's `running`
+work rows (checkpoint, attempt count, `not_before` and error type unchanged),
+returns `running` run requests to `queued` and marks their attempts
+`recovered`. The fenced-out owner's next write throws `SyncLeaseLostException`,
+its heartbeat cancels transport, and it reports `leaseHeld`; `completeSyncRun`
+ignores a recovered attempt and never lets a caller without an attempt finish
+a request someone else is running, so the old owner cannot write a shared
+request's outcome. The new owner continues from committed progress: page
+checkpoints, the resumable candidate generation (boundary pages re-verified),
+`applying` promotion, and pending-hydration markers. A foreground coordinator
+that has not yet recovered this process takes over in its recovery step and
+resumes the requeued catalog work in the same request; an already-recovered one
+plans first, runs its own plan, and the requeued catalog work runs on the next
+catalog check. An acquire that times out on another connection's writer lock
+(for example a long worker promotion) is reported as `leaseHeld`, not as a
+failed run.
 
 Schema v74 extends `star_sync_queue` into a durable annotation outbox with a field
 (`star` or `rating`), attempt count, next retry time and safe failure category.

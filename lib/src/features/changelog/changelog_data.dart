@@ -206,6 +206,10 @@ const List<ChangelogVersion> changelogs = [
         type: ChangelogEntryType.improvement,
       ),
       ChangelogEntry(
+        'Opening Navis during a background library sync takes it over at once and continues from where it stopped, instead of waiting for it to finish',
+        type: ChangelogEntryType.improvement,
+      ),
+      ChangelogEntry(
         'Large selections of downloads start more smoothly',
         type: ChangelogEntryType.fix,
       ),

@@ -1205,13 +1205,21 @@ class AdaptiveLibrarySyncCoordinator implements LibrarySyncEngine {
     bool heartbeat = false,
   }) async {
     final ownerToken = _newLeaseToken();
-    final acquired = await _database.librarySyncDao.acquireExecutionLease(
-      serverId: serverId,
-      ownerToken: ownerToken,
-      ownerKind: _executionOwnerKind,
-      now: _now(),
-      ttl: _executionLeaseTtl,
-    );
+    final bool acquired;
+    try {
+      acquired = await _database.librarySyncDao.acquireExecutionLease(
+        serverId: serverId,
+        ownerToken: ownerToken,
+        ownerKind: _executionOwnerKind,
+        now: _now(),
+        ttl: _executionLeaseTtl,
+      );
+    } on Object catch (error) {
+      // Another engine's long transaction (a worker promotion) holds the
+      // writer lock: that is lease contention, not a sync failure.
+      if (!isDatabaseLockTimeout(error)) rethrow;
+      return await unavailable();
+    }
     if (!acquired) return await unavailable();
     var leaseActive = true;
     final timer = heartbeat

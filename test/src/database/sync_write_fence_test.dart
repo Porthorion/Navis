@@ -1,15 +1,25 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:drift/drift.dart' show Value;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:navis/src/database/navis_database.dart';
 import 'package:navis/src/database/sync_write_fence.dart';
+import 'package:navis/src/features/auth/data/server_config_repository.dart';
+import 'package:navis/src/features/auth/domain/server_config.dart';
+import 'package:navis/src/features/library/data/adaptive_library_sync_coordinator.dart';
+import 'package:navis/src/features/library/domain/library_sync_request.dart';
+import 'package:navis/src/features/library/domain/library_sync_state.dart';
+import 'package:navis/src/features/library/domain/sync_run_contract.dart';
+import 'package:navis/src/utils/connectivity.dart';
 import 'package:sqlite3/sqlite3.dart';
 
+import '../../helpers/library_sync_fakes.dart';
 import '../../helpers/test_database.dart';
 
 void main() {
   late Directory directory;
+  late File file;
   late NavisDatabase database;
   late Database otherConnection;
   late DateTime now;
@@ -17,7 +27,7 @@ void main() {
 
   setUp(() async {
     directory = await Directory.systemTemp.createTemp('navis-sync-fence-');
-    final file = File('${directory.path}/fixture.sqlite');
+    file = File('${directory.path}/fixture.sqlite');
     database = createTestDatabase(file: file);
     await database.serverDao.saveServer(
       ServerConfigTableCompanion.insert(
@@ -171,4 +181,235 @@ void main() {
       );
     },
   );
+
+  group('worker hand-off', () {
+    late SyncWriteFence worker;
+
+    Future<bool> takeOver() => database.librarySyncDao.acquireExecutionLease(
+      serverId: 1,
+      ownerToken: 'foreground-owner',
+      ownerKind: 'foreground',
+      now: now,
+      ttl: const Duration(minutes: 1),
+    );
+
+    Future<void> writeSongs(List<String> ids) =>
+        database.libraryDao.upsertSongs([
+          for (final id in ids) SongsTableCompanion.insert(id: id, title: id),
+        ]);
+
+    setUp(() async {
+      await database.librarySyncDao.releaseExecutionLease(
+        serverId: 1,
+        ownerToken: 'first-owner',
+      );
+      await database.librarySyncDao.acquireExecutionLease(
+        serverId: 1,
+        ownerToken: 'worker-owner',
+        ownerKind: 'androidWorker',
+        now: now,
+        ttl: const Duration(minutes: 1),
+      );
+      worker = SyncWriteFence(
+        serverId: 1,
+        ownerToken: 'worker-owner',
+        now: () => now,
+      );
+    });
+
+    test('10 a preempted worker cannot commit a new write', () async {
+      expect(await takeOver(), isTrue);
+
+      await expectLater(
+        worker.run(() => writeSongs(['standalone'])),
+        throwsA(isA<SyncLeaseLostException>()),
+      );
+      await expectLater(
+        worker.run(
+          () => database.transaction(() async {
+            await writeSongs(['first']);
+            await writeSongs(['second']);
+          }),
+        ),
+        throwsA(isA<SyncLeaseLostException>()),
+      );
+      for (final id in ['standalone', 'first', 'second']) {
+        expect(await database.libraryDao.getSongById(id), isNull);
+      }
+    });
+
+    test(
+      '11 a takeover never interleaves an open worker transaction',
+      () async {
+        final wrote = Completer<void>();
+        final finish = Completer<void>();
+        final open = worker.run(
+          () => database.transaction(() async {
+            await writeSongs(['committed']);
+            wrote.complete();
+            await finish.future;
+          }),
+        );
+        await wrote.future;
+        // Drift opens transactions with BEGIN IMMEDIATE: another engine's
+        // connection cannot take over while this one holds the writer lock,
+        // so a commit can never race a takeover.
+        expect(
+          () => otherConnection.execute(
+            "UPDATE library_sync_execution_lease SET owner_token = 'other'",
+          ),
+          throwsA(isA<SqliteException>()),
+        );
+        // In process, the acquire queues behind the transaction.
+        final takeover = takeOver();
+        finish.complete();
+        await open;
+        expect(await takeover, isTrue);
+
+        expect(await database.libraryDao.getSongById('committed'), isNotNull);
+        await expectLater(
+          worker.run(
+            () => database.transaction(() async {
+              await writeSongs(['late-1']);
+              await writeSongs(['late-2']);
+            }),
+          ),
+          throwsA(isA<SyncLeaseLostException>()),
+        );
+        expect(await database.libraryDao.getSongById('late-1'), isNull);
+        expect(await database.libraryDao.getSongById('late-2'), isNull);
+        expect(
+          (await database.librarySyncDao.getExecutionLease(1))?.ownerToken,
+          'foreground-owner',
+        );
+      },
+    );
+
+    Future<Database> reopenWithBusyHandler() async {
+      // The production connection: background isolate plus the Dart busy
+      // handler that waits up to 5 s for another connection's writer lock.
+      await database.close();
+      database = NavisDatabase.atPath(file.path);
+      await database.customSelect('SELECT 1').get();
+      return otherConnection;
+    }
+
+    test(
+      '12 a foreground acquire waits out a short worker lock, then preempts',
+      () async {
+        final raw = await reopenWithBusyHandler();
+        raw.execute('BEGIN IMMEDIATE');
+        raw.execute(
+          'UPDATE library_sync_execution_lease SET heartbeat_at = '
+          "heartbeat_at WHERE owner_token = 'worker-owner'",
+        );
+        unawaited(
+          Future<void>.delayed(
+            const Duration(seconds: 1),
+            () => raw.execute('COMMIT'),
+          ),
+        );
+        final stopwatch = Stopwatch()..start();
+        expect(await takeOver(), isTrue);
+        expect(
+          stopwatch.elapsed,
+          greaterThan(const Duration(milliseconds: 800)),
+        );
+        expect(
+          (await database.librarySyncDao.getExecutionLease(1))?.ownerKind,
+          'foreground',
+        );
+      },
+      timeout: const Timeout(Duration(seconds: 60)),
+    );
+
+    test('13 a lease acquire that times out on a lock is lease held, not a failure', () async {
+      final raw = await reopenWithBusyHandler();
+      await database.librarySyncDao.releaseExecutionLease(
+        serverId: 1,
+        ownerToken: 'worker-owner',
+      );
+      final repository = ServerConfigRepository(
+        database,
+        credentials: FakeSyncCredentialStore(),
+      );
+      await repository.save(
+        ServerConfigModel(
+          url: 'https://example.test',
+          username: 'fixture',
+          password: 'fixture',
+          apiVersion: '1.16.1',
+          lastSynced: DateTime.now().subtract(const Duration(days: 1)),
+        ),
+      );
+      final serverId = (await repository.getActiveServer())!.id!;
+      await database.librarySyncDao.writeState(
+        LibrarySyncStateTableCompanion(
+          serverId: Value(serverId),
+          currentGeneration: const Value(1),
+        ),
+      );
+      final api = FakeLibrarySyncApi();
+      var policyReads = 0;
+      final coordinator = AdaptiveLibrarySyncCoordinator(
+        executor: serialDriftEngine(
+          api: api,
+          database: database,
+          repository: repository,
+          networkType: NetworkType.wifi,
+        ),
+        database: database,
+        serverConfigRepository: repository,
+        readSyncNetworkPolicy: () {
+          // The second read is the execution gate right before the lease
+          // acquire: another engine (a worker promotion) now holds the
+          // writer lock for longer than the 5 s busy wait.
+          if (++policyReads == 2) {
+            raw.execute('BEGIN IMMEDIATE');
+            unawaited(
+              Future<void>.delayed(
+                const Duration(seconds: 7),
+                () => raw.execute('ROLLBACK'),
+              ),
+            );
+          }
+          return resolveSyncNetworkPolicy(
+            networkType: NetworkType.wifi,
+            nativeMetered: false,
+            backgroundSyncUnmeteredOnly: true,
+          );
+        },
+        staleAfter: const Duration(hours: 1),
+        readHasActivePlayback: () => false,
+      );
+
+      final result = await coordinator.requestSync(
+        const LibrarySyncRequest.checkForUpdates(),
+      );
+
+      expect(policyReads, greaterThanOrEqualTo(2));
+      expect(result.status, LibrarySyncStatus.deferred);
+      expect(result.planReason, 'leaseHeld');
+      expect(api.calls, isEmpty);
+      final state = await database.librarySyncDao.getOrCreateState(serverId);
+      expect(state.failureStreak, 0);
+      expect(state.nextEligibleAt, isNull);
+      expect(
+        await (database.select(
+          database.librarySyncWorkTable,
+        )..where((row) => row.status.equals('failed'))).get(),
+        isEmpty,
+      );
+      expect(
+        await database.select(database.librarySyncRunAttemptTable).get(),
+        isEmpty,
+      );
+      final outcome =
+          (await database.select(database.librarySyncRunOutcomeTable).get())
+              .single;
+      expect(outcome.outcomeKind, SyncRunOutcomeKind.deferred.index);
+      expect(outcome.safeReason, SyncSafeReason.leaseHeld.index);
+      expect(await database.librarySyncDao.getExecutionLease(serverId), isNull);
+    }, timeout: const Timeout(Duration(seconds: 60)));
+  });
 }

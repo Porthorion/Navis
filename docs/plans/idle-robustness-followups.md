@@ -116,9 +116,24 @@ checkpoint as WorkManager cancellation before engine teardown, so a timed-out
 run drains and releases its lease where it can. Regressions: `a lease-held
 automatic check retries at lease expiry, not a full interval later` and the
 instrumented `realWorkerSendsCancelCheckpointWhenItsRunTimesOut` (compiled but
-not run; the single runtime pass covers it). Handing off or cancelling a
-running worker when the app opens stays deferred to 1.5.1: the lease expiry
-bounds the wait.
+not run; the single runtime pass covers it).
+
+**Worker hand-off — 2026-10-15 (branch `fix/idle-handoff`).** Opening the app
+now takes over a running worker instead of waiting for its lease: a
+`foreground` acquire preempts a live `androidWorker` lease, and any takeover
+(preemption or expiry) requeues the previous owner's running work, run requests
+and attempts in the acquire transaction. This also fixes rows left `running`
+after a plain expiry takeover in a process that had already recovered.
+`completeSyncRun` now accepts only a still-running attempt, and a caller without
+an attempt cannot finish a running request, so the fenced-out worker can no
+longer write the shared request's outcome. A lease acquire that times out on a
+database lock counts as `leaseHeld`. The foreground continues from committed
+progress (page checkpoints, the resumable candidate generation, pending
+hydration); there is no new persistence. Foreground against foreground is
+unchanged (`leaseHeld`). Regressions: the `worker hand-off` groups in
+`library_sync_dao_test.dart`, `sync_write_fence_test.dart` and
+`library_sync_regression_test.dart`, the rewritten F09 tests, and the provider
+and worker-entrypoint tests. The emulator runtime pass is still pending.
 
 **Original finding — likelihood:** medium. A killed worker or frozen heartbeat leaves the durable
 ten-minute lease. Foreground work reports `leaseHeld`; treating that as a
