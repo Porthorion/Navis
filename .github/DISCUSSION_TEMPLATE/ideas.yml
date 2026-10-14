@@ -1,0 +1,17 @@
+title: "[Idea] "
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Share an idea that isn't fully formed yet, so others can weigh in. When it's concrete, it can become an [enhancement request](https://github.com/Porthorion/Navis/issues/new?template=enhancement.yml).
+  - type: textarea
+    id: idea
+    attributes:
+      label: The idea
+      description: What would it let you do, and why does it matter to you?
+    validations:
+      required: true
+  - type: textarea
+    id: details
+    attributes:
+      label: Details, sketches or examples from other apps (optional)

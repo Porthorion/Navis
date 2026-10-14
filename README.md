@@ -13,7 +13,7 @@
 [![OpenSubsonic](https://img.shields.io/badge/API-OpenSubsonic%20%7C%20Subsonic-6f42c1?style=flat-square)](https://opensubsonic.netlify.app/)
 [![Stars](https://img.shields.io/github/stars/Porthorion/Navis?style=flat-square&color=f5c518)](https://github.com/Porthorion/Navis/stargazers)
 
-[**Website**](https://navis.porthorion.com) · [**Download**](#download) · [**Screenshots**](#screenshots) · [**Report a bug**](https://github.com/Porthorion/Navis/issues/new/choose) · [**Contribute**](CONTRIBUTING.md)
+[**Website**](https://navis.porthorion.com) · [**Download**](#download) · [**Screenshots**](#screenshots) · [**Discussions**](https://github.com/Porthorion/Navis/discussions) · [**Report a bug**](https://github.com/Porthorion/Navis/issues/new/choose) · [**Contribute**](CONTRIBUTING.md)
 
 <br>
 
@@ -105,6 +105,7 @@ flutter run           # on a connected device or desktop
 
 Bug reports, ideas and pull requests are all welcome. Please read [CONTRIBUTING.md](CONTRIBUTING.md) first. Pull requests target `dev`, and `./tool/check.sh` must pass.
 
+- 💬 [Ask a question or share an idea](https://github.com/Porthorion/Navis/discussions)
 - 🐞 [Report a bug](https://github.com/Porthorion/Navis/issues/new?template=bug_report.yml)
 - ✨ [Suggest an improvement](https://github.com/Porthorion/Navis/issues/new?template=enhancement.yml)
 - 🔌 [Server compatibility problem](https://github.com/Porthorion/Navis/issues/new?template=server_compatibility.yml)

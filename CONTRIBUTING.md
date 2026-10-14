@@ -30,3 +30,7 @@ Development happens in a private repository. On GitHub, `dev` is the integration
 ## Name and logo
 
 The Navis name and logo are reserved. See [TRADEMARK.md](TRADEMARK.md) before using them, for example in a fork.
+
+## Questions and ideas
+
+Use [GitHub Discussions](https://github.com/Porthorion/Navis/discussions) for how-to questions (Q&A) and early ideas (Ideas). Keep Issues for confirmed bugs and concrete enhancement requests.

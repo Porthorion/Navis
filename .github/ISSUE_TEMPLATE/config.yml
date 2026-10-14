@@ -1,5 +1,11 @@
 blank_issues_enabled: false
 contact_links:
+  - name: 💬 Ask a question
+    url: https://github.com/Porthorion/Navis/discussions/categories/q-a
+    about: How-to questions and help with your setup. Answers there help everyone.
+  - name: 💡 Share an idea
+    url: https://github.com/Porthorion/Navis/discussions/categories/ideas
+    about: Early ideas to discuss before they become an enhancement request.
   - name: 🔒 Report a security vulnerability
     url: https://github.com/Porthorion/Navis/security/advisories/new
     about: Please report security problems privately here, never in a public issue.
