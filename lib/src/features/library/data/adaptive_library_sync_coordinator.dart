@@ -784,31 +784,33 @@ class AdaptiveLibrarySyncCoordinator implements LibrarySyncEngine {
       );
     }
 
+    Future<LibrarySyncState> leaseHeld() async {
+      return await _finish(
+        requestId: durableRunId,
+        outcome: const SyncRunOutcome(
+          kind: SyncRunOutcomeKind.deferred,
+          reason: SyncSafeReason.leaseHeld,
+        ),
+        now: _now(),
+
+        state: LibrarySyncState(
+          status: LibrarySyncStatus.deferred,
+          stage: LibrarySyncStage.completed,
+          completedAt: _now(),
+          planKind: plan.kind,
+          planReason: 'leaseHeld',
+          pendingWorkCount: await _database.librarySyncDao.countPendingWork(
+            serverId,
+          ),
+        ),
+      );
+    }
+
     try {
       return await _withLease(
         serverId: serverId,
         heartbeat: true,
-        unavailable: () async {
-          return await _finish(
-            requestId: durableRunId,
-            outcome: const SyncRunOutcome(
-              kind: SyncRunOutcomeKind.deferred,
-              reason: SyncSafeReason.leaseHeld,
-            ),
-            now: _now(),
-
-            state: LibrarySyncState(
-              status: LibrarySyncStatus.deferred,
-              stage: LibrarySyncStage.completed,
-              completedAt: _now(),
-              planKind: plan.kind,
-              planReason: 'leaseHeld',
-              pendingWorkCount: await _database.librarySyncDao.countPendingWork(
-                serverId,
-              ),
-            ),
-          );
-        },
+        unavailable: leaseHeld,
         action: () async {
           final durableAttempt = await _database.librarySyncDao
               .beginSyncRunAttempt(
@@ -816,6 +818,9 @@ class AdaptiveLibrarySyncCoordinator implements LibrarySyncEngine {
                 androidWorker: _isBackgroundExecution,
                 now: startedAt,
               );
+          // A sharing engine already finished this request: do not run it
+          // again. The deferral is then a no-op for a terminal request.
+          if (durableAttempt == null) return await leaseHeld();
           activeAttemptId = durableAttempt.id;
           final matchingWork = await _database.librarySyncDao.getWork(
             serverId: serverId,

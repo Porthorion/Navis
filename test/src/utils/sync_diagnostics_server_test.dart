@@ -1414,10 +1414,10 @@ void main() {
       serverId: 1,
       plan: plan,
     );
-    final attempt = await database.librarySyncDao.beginSyncRunAttempt(
+    final attempt = (await database.librarySyncDao.beginSyncRunAttempt(
       requestId: request.id,
       androidWorker: false,
-    );
+    ))!;
     await database.librarySyncDao.writeAttemptTelemetry(attempt.id, {
       'version': 1,
       'requestId': request.id,

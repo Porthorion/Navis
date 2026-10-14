@@ -239,11 +239,11 @@ void main() {
     );
     expect(duplicate.id, queued.id);
 
-    final attempt = await database.librarySyncDao.beginSyncRunAttempt(
+    final attempt = (await database.librarySyncDao.beginSyncRunAttempt(
       requestId: queued.id,
       androidWorker: false,
       now: now,
-    );
+    ))!;
     await database.librarySyncDao.writeAttemptTelemetry(attempt.id, {
       'version': 1,
       'requestId': queued.id,
@@ -326,6 +326,59 @@ void main() {
     )..where((table) => table.id.equals(queued.id))).getSingle();
     expect(storedRequest.targetKey, isEmpty);
   }, skip: !sqliteAvailable);
+
+  test('a finished request is never reopened by a late attempt', () async {
+    final now = DateTime.utc(2026, 8, 26, 10);
+    const plan = SyncExecutionPlan(
+      request: LibrarySyncRequest(
+        origin: SyncRunOrigin.libraryPullToRefresh,
+        intent: SyncRunIntent.manualCatalogCheck,
+        target: LibrarySyncTarget.catalog(),
+        grant: SyncNetworkGrant.none,
+      ),
+      kind: LibrarySyncPlanKind.deltaReconcile,
+      reason: SyncSafeReason.none,
+      budget: SyncExecutionBudget(
+        allowedEndpoints: <SyncEndpoint>{SyncEndpoint.indexes},
+        maxNewestPages: 1,
+        maxAlbumHydrations: 0,
+        maxResponseBytes: null,
+        maxTotalBytes: null,
+        maxConcurrency: 1,
+      ),
+    );
+    final dao = database.librarySyncDao;
+    final queued = await dao.enqueueSyncRun(serverId: 1, plan: plan, now: now);
+    // Another engine finished the shared request before this one began.
+    await dao.completeSyncRun(
+      requestId: queued.id,
+      outcome: const SyncRunOutcome(
+        kind: SyncRunOutcomeKind.deferred,
+        reason: SyncSafeReason.leaseHeld,
+      ),
+      now: now,
+    );
+
+    final late = await dao.beginSyncRunAttempt(
+      requestId: queued.id,
+      androidWorker: false,
+      now: now.add(const Duration(seconds: 1)),
+    );
+
+    expect(late, isNull);
+    final request = await (database.select(
+      database.librarySyncRunRequestTable,
+    )..where((table) => table.id.equals(queued.id))).getSingle();
+    expect(request.status, 2);
+    expect(
+      await database.select(database.librarySyncRunAttemptTable).get(),
+      isEmpty,
+    );
+    expect(
+      await database.select(database.librarySyncRunOutcomeTable).get(),
+      hasLength(1),
+    );
+  });
 
   test('keeps every historical plan index readable', () async {
     const budget = SyncExecutionBudget(
@@ -445,11 +498,11 @@ void main() {
         plan: plan,
         now: now,
       );
-      final interrupted = await database.librarySyncDao.beginSyncRunAttempt(
+      final interrupted = (await database.librarySyncDao.beginSyncRunAttempt(
         requestId: queued.id,
         androidWorker: false,
         now: now,
-      );
+      ))!;
       await database.librarySyncDao.writeAttemptTelemetry(interrupted.id, {
         'version': 1,
         'captureComplete': false,
@@ -505,10 +558,10 @@ void main() {
       expect(stored.networkGrant, SyncNetworkGrant.none.index);
       expect(stored.targetKey, isEmpty);
       expect(stored.resumedFromRequestId, isNull);
-      final attempt = await database.librarySyncDao.beginSyncRunAttempt(
+      final attempt = (await database.librarySyncDao.beginSyncRunAttempt(
         requestId: queued.id,
         androidWorker: false,
-      );
+      ))!;
       await database.librarySyncDao.completeSyncRun(
         requestId: queued.id,
         attemptId: attempt.id,
@@ -1103,11 +1156,11 @@ void main() {
         plan: plan,
         now: t0,
       );
-      final attempt = await database.librarySyncDao.beginSyncRunAttempt(
+      final attempt = (await database.librarySyncDao.beginSyncRunAttempt(
         requestId: request.id,
         androidWorker: true,
         now: t0,
-      );
+      ))!;
       return (request.id, attempt.id);
     }
 
@@ -1317,11 +1370,11 @@ void main() {
       expect(await attemptStatus(recovered), 1);
       expect(await outcomes(), isEmpty);
 
-      final current = await database.librarySyncDao.beginSyncRunAttempt(
+      final current = (await database.librarySyncDao.beginSyncRunAttempt(
         requestId: requestId,
         androidWorker: false,
         now: t0,
-      );
+      ))!;
       await database.librarySyncDao.completeSyncRun(
         requestId: requestId,
         attemptId: recovered,

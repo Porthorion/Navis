@@ -1788,11 +1788,11 @@ void main() {
             updatedAt: now,
           ),
         );
-    final attempt = await seed.librarySyncDao.beginSyncRunAttempt(
+    final attempt = (await seed.librarySyncDao.beginSyncRunAttempt(
       requestId: requestId,
       androidWorker: true,
       now: now,
-    );
+    ))!;
     await seed.close();
     final raw = sqlite3.open(file.path);
     raw.execute(

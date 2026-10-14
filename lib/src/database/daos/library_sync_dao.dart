@@ -129,21 +129,28 @@ class LibrarySyncDao extends DatabaseAccessor<NavisDatabase>
     return (id: id);
   }
 
-  Future<LibrarySyncRunAttemptTableData> beginSyncRunAttempt({
+  /// Starts an attempt, or returns null when the request already finished (a
+  /// sharing engine completed it first): a terminal request is never reopened.
+  Future<LibrarySyncRunAttemptTableData?> beginSyncRunAttempt({
     required int requestId,
     required bool androidWorker,
     DateTime? now,
   }) async {
     final timestamp = (now ?? DateTime.now()).toUtc();
     return await transaction(() async {
-      await (update(
-        librarySyncRunRequestTable,
-      )..where((table) => table.id.equals(requestId))).write(
-        LibrarySyncRunRequestTableCompanion(
-          status: const Value(_runRunning),
-          updatedAt: Value(timestamp),
-        ),
-      );
+      final changed =
+          await (update(librarySyncRunRequestTable)..where(
+                (table) =>
+                    table.id.equals(requestId) &
+                    table.status.isNotValue(_runTerminal),
+              ))
+              .write(
+                LibrarySyncRunRequestTableCompanion(
+                  status: const Value(_runRunning),
+                  updatedAt: Value(timestamp),
+                ),
+              );
+      if (changed == 0) return null;
       final id = await into(librarySyncRunAttemptTable).insert(
         LibrarySyncRunAttemptTableCompanion.insert(
           requestId: requestId,
