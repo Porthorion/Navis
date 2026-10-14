@@ -2030,8 +2030,11 @@ class _ReopeningExecutor extends QueryExecutor {
   // Statements inside beforeOpen/onUpgrade run on Drift's before-open executor
   // and never re-enter this, so the shared future cannot wait on itself.
   @override
-  Future<bool> ensureOpen(QueryExecutorUser user) =>
-      _opening ??= _open(user).whenComplete(() => _opening = null);
+  Future<bool> ensureOpen(QueryExecutorUser user) {
+    // A closed executor must not silently open a fresh connection.
+    if (_closed) return Future.error(StateError('database closed'));
+    return _opening ??= _open(user).whenComplete(() => _opening = null);
+  }
 
   Future<bool> _open(QueryExecutorUser user) async {
     for (var attempt = 1; ; attempt++) {

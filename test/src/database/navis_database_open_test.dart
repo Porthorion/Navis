@@ -139,6 +139,13 @@ void main() {
 
     expect(remote, isA<DriftRemoteException>());
     expect(isDatabaseLockTimeout(remote!), isTrue);
+    expect((unwrapRemote(remote) as SqliteException).resultCode, 5);
+    expect(
+      isDatabaseLockTimeout(
+        SqliteException(extendedResultCode: 5, message: 'busy'),
+      ),
+      isTrue,
+    );
     expect(
       isDatabaseLockTimeout(
         SqliteException(extendedResultCode: 6, message: 'locked'),
@@ -196,4 +203,107 @@ void main() {
     expect(stopwatch.elapsed, greaterThan(const Duration(seconds: 4)));
     expect(stopwatch.elapsed, lessThan(const Duration(seconds: 8)));
   }, timeout: const Timeout(Duration(seconds: 60)));
+
+  // Drops an index so every open attempt must take the write lock (a no-op
+  // CREATE INDEX IF NOT EXISTS never would), then holds it for the whole test.
+  Database holdWriterLockForever(String path) {
+    final raw = sqlite3.open(path);
+    addTearDown(raw.close);
+    raw.execute('DROP INDEX idx_artists_name');
+    raw.execute('BEGIN IMMEDIATE');
+    return raw;
+  }
+
+  Future<Object?> selectOne(NavisDatabase database) => database
+      .customSelect('SELECT 1')
+      .get()
+      .then<Object?>((rows) => rows, onError: (Object error) => error);
+
+  test('a query after close throws and opens no new connection', () async {
+    final directory = await Directory.systemTemp.createTemp('navis-open-');
+    addTearDown(() => directory.delete(recursive: true));
+    final file = File(p.join(directory.path, 'navis.sqlite'));
+
+    final database = NavisDatabase.atPath(file.path);
+    await database.close();
+
+    await expectLater(
+      database.customSelect('SELECT 1').get(),
+      throwsA(isA<StateError>()),
+    );
+    expect(file.existsSync(), isFalse, reason: 'no new connection was opened');
+  }, timeout: const Timeout(Duration(seconds: 60)));
+
+  test('concurrent queries during the retry delay share one open', () async {
+    final path = await createCurrentDatabase();
+    holdWriterLockForever(path);
+
+    final database = NavisDatabase.atPath(path);
+    addTearDown(database.close);
+    final first = selectOne(database);
+    // Attempt 1 fails at the 5 s busy bound and the chain sleeps 1 s before
+    // its retry; a query issued now must join that same open, not start one.
+    await Future<void>.delayed(const Duration(milliseconds: 5600));
+    final second = selectOne(database);
+    final results = await Future.wait([first, second]);
+
+    expect(isDatabaseLockTimeout(results[0]!), isTrue);
+    expect(isDatabaseLockTimeout(results[1]!), isTrue);
+    // Both awaiters saw the same open chain fail.
+    expect(results[0], same(results[1]));
+  }, timeout: const Timeout(Duration(seconds: 60)));
+
+  test('closing during the retry delay stops further attempts', () async {
+    final path = await createCurrentDatabase();
+    holdWriterLockForever(path);
+
+    final database = NavisDatabase.atPath(path);
+    final stopwatch = Stopwatch()..start();
+    final pending = selectOne(database);
+    // Attempt 1 fails at the 5 s busy bound; close inside the 1 s delay.
+    await Future<void>.delayed(const Duration(milliseconds: 5600));
+    await database.close();
+
+    final error = await pending;
+
+    expect(isDatabaseLockTimeout(error!), isTrue);
+    // Attempts 2 and 3 (a 5 s busy bound plus delay each) would run past
+    // 18 s; the closed guard rethrows out of the delay instead.
+    expect(stopwatch.elapsed, lessThan(const Duration(seconds: 12)));
+  }, timeout: const Timeout(Duration(seconds: 60)));
+
+  test(
+    'a non-lock error during migration surfaces and is not retried',
+    () async {
+      final directory = await Directory.systemTemp.createTemp('navis-open-');
+      addTearDown(() => directory.delete(recursive: true));
+      final valid = await createCurrentDatabase();
+      final path = p.join(directory.path, 'navis.sqlite');
+      File(path).writeAsBytesSync(List.filled(64, 7));
+
+      final database = NavisDatabase.atPath(path);
+      addTearDown(database.close);
+      final error = await selectOne(database);
+
+      final cause = unwrapRemote(error!);
+      expect(cause, isA<SqliteException>());
+      expect((cause as SqliteException).resultCode, 26);
+      expect(isDatabaseLockTimeout(error), isFalse);
+
+      // A non-lock failure keeps the delegate, so Drift's cached migration
+      // error replays instead of opening the valid database now at the path.
+      File(valid).copySync(path);
+      final replayed = unwrapRemote((await selectOne(database))!);
+      expect((replayed as SqliteException).resultCode, 26);
+    },
+    timeout: const Timeout(Duration(seconds: 60)),
+  );
+}
+
+Object unwrapRemote(Object error) {
+  var cause = error;
+  while (cause is DriftRemoteException) {
+    cause = cause.remoteCause;
+  }
+  return cause;
 }
