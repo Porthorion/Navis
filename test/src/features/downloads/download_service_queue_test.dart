@@ -547,6 +547,79 @@ void main() {
       service.yieldToPlayback(loading: true, songId: 'b');
       expect(service.holdingForPlayback, isTrue);
     }, skip: !sqliteAvailable);
+
+    test(
+      'stopAndWait during an armed hold neither pumps nor keeps the hold',
+      () async {
+        final service = buildService();
+        await service.start();
+        await addSongs(1);
+        service.yieldToPlayback(loading: true, songId: 'a');
+        await service.enqueueSong('song-0');
+        await service.stopAndWait();
+        await Future<void>.delayed(const Duration(milliseconds: 50));
+        expect(service.holdingForPlayback, isFalse);
+        expect(server.requests, isEmpty);
+        expect(await queue(), hasLength(1));
+      },
+      skip: !sqliteAvailable,
+    );
+
+    test('a hold released mid-maintenance still pumps afterwards', () async {
+      final customRoot = Directory(p.join(supportDir.path, 'custom'));
+      await customRoot.create();
+      var customOn = false;
+      final validationGate = Completer<void>();
+      var validations = 0;
+      final service = buildService(
+        customEnabled: () => customOn,
+        customPath: () => customOn ? customRoot.path : null,
+        validateCustomRoot: (_) async {
+          if (validations++ == 0) await validationGate.future;
+        },
+      );
+      await service.start();
+      await addSongs(1);
+      service.yieldToPlayback(loading: true, songId: 'a');
+      await service.enqueueSong('song-0');
+      customOn = true;
+      final configuring = service.configureCustomDownloadFolder(
+        enabled: true,
+        path: customRoot.path,
+      );
+      await waitUntil(() => validations == 1);
+      service.yieldToPlayback(loading: false);
+      expect(service.holdingForPlayback, isFalse);
+      await Future<void>.delayed(const Duration(milliseconds: 50));
+      expect(server.requests, isEmpty);
+      validationGate.complete();
+      await configuring;
+      await waitUntil(() => server.requests.length == 1);
+      server.release('song-0');
+      await waitUntil(() => service.activeQueueIds.isEmpty);
+      expect(await database.cacheDao.getCachedTrack('song-0'), isNotNull);
+    }, skip: !sqliteAvailable);
+
+    test(
+      'chained holds are each bounded once and downloads then start',
+      () async {
+        final service = await startedWithSong();
+        service.yieldToPlayback(loading: true, songId: 'a');
+        await service.enqueueSong('song-0');
+        await Future<void>.delayed(const Duration(milliseconds: 50));
+        expect(service.holdingForPlayback, isTrue);
+        expect(server.requests, isEmpty);
+        service.yieldToPlayback(loading: false);
+        service.yieldToPlayback(loading: true, songId: 'b');
+        expect(service.holdingForPlayback, isTrue);
+        await Future<void>.delayed(const Duration(milliseconds: 50));
+        expect(server.requests, isEmpty);
+        await Future<void>.delayed(const Duration(milliseconds: 100));
+        expect(service.holdingForPlayback, isFalse);
+        expect(server.requests, hasLength(1));
+      },
+      skip: !sqliteAvailable,
+    );
   });
 
   test('an already offline queue never starts a transfer', () async {

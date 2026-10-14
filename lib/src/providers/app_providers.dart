@@ -2743,7 +2743,7 @@ final downloadServiceProvider = Provider<DownloadService>((ref) {
               snapshot.processingState == AudioProcessingState.buffering),
       songId: snapshot.currentSongId,
     );
-  });
+  }, fireImmediately: true);
   kickAfterReconciliation(
     ref,
     () => unawaited(service.processQueuedDownloads()),

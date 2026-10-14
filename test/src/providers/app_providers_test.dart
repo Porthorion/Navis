@@ -452,6 +452,23 @@ void main() {
         skip: !sqliteAvailable,
       );
 
+      test('a resume joining a single-flight reconciliation does not re-begin '
+          'the hold', () async {
+        final probe = Provider<void>(
+          (ref) => kickAfterReconciliation(ref, () => kicks++),
+        );
+        container.read(probe);
+        final first = container.read(networkReconciliationProvider)();
+        expect(container.read(networkReconcilingProvider), isTrue);
+        final second = container.read(networkReconciliationProvider)();
+        expect(identical(first, second), isTrue);
+        connectivity.add([ConnectivityResult.wifi]);
+        await second;
+        expect(container.read(networkReconcilingProvider), isFalse);
+        await pumpEventQueue();
+        expect(kicks, 1);
+      }, skip: !sqliteAvailable);
+
       test('a throwing reconciliation still clears the hold', () async {
         final reconciling = container.read(networkReconciliationProvider)();
         expect(container.read(networkReconcilingProvider), isTrue);
@@ -503,6 +520,44 @@ void main() {
       await pumpEventQueue();
       expect(downloads.holdingForPlayback, isTrue);
     }, skip: !sqliteAvailable);
+
+    test(
+      'a service built while a network track is loading holds new downloads',
+      () async {
+        final database = createTestDatabase();
+        final container = ProviderContainer(
+          overrides: withTestDatabase(
+            database,
+            overrides: [
+              networkTypeProvider.overrideWith((_) => NetworkType.wifi),
+              playerStateProvider.overrideWith(
+                (ref) => ref.watch(_snapshotHolder),
+              ),
+            ],
+          ),
+        );
+        addTearDown(() async {
+          container.dispose();
+          await database.close();
+        });
+        final holder = container.read(_snapshotHolder.notifier);
+        holder.set(
+          const PlaybackSnapshot.idle().copyWith(
+            currentSongId: 'song-1',
+            processingState: AudioProcessingState.buffering,
+          ),
+        );
+        await pumpEventQueue();
+        container.listen(downloadServiceProvider, (_, _) {});
+        final downloads = container.read(downloadServiceProvider);
+        await pumpEventQueue();
+        expect(downloads.holdingForPlayback, isTrue);
+        holder.set(const PlaybackSnapshot.idle());
+        await pumpEventQueue();
+        expect(downloads.holdingForPlayback, isFalse);
+      },
+      skip: !sqliteAvailable,
+    );
   });
 
   group('appearance providers', () {
