@@ -938,6 +938,7 @@ void main() {
     HistoryDao Function(NavisDatabase)? createHistoryDao,
     // Songs stream from a server, with desktop sidecar caching.
     Future<NetworkReconciliation> Function()? reconcileNetwork,
+    Future<bool> Function()? checkDeviceConnected,
     Stream<void>? recoveredNetwork,
     bool sidecarStreams = false,
     Future<void> Function(NavisDatabase database)? seed,
@@ -1014,6 +1015,7 @@ void main() {
     final resolver = wrapResolver?.call(baseResolver) ?? baseResolver;
     NavisAudioHandler buildHandler() => NavisAudioHandler(
       reconcileNetwork: reconcileNetwork,
+      checkDeviceConnected: checkDeviceConnected,
       recoveredNetwork: recoveredNetwork,
       startPersonalRadio: (autoPlay, {isCurrent}) async =>
           await startPersonalRadio?.call(
@@ -1114,15 +1116,18 @@ void main() {
 
     Future<(NavisAudioHandler, _ControllableAudioPlayer, NavisDatabase)> setup({
       Future<NetworkReconciliation> Function()? reconcile,
+      Future<bool> Function()? deviceConnected,
       Stream<void>? recovered,
       bool remote = false,
+      int count = 3,
       NavisPlaybackTimeouts timeouts = const NavisPlaybackTimeouts(),
     }) async {
       final directory = await Directory.systemTemp.createTemp('navis-idle-');
       final created = await createHandler(
         directory,
-        3,
+        count,
         reconcileNetwork: reconcile,
+        checkDeviceConnected: deviceConnected,
         recoveredNetwork: recovered,
         sidecarStreams: remote,
         timeouts: timeouts,
@@ -1654,9 +1659,134 @@ void main() {
       });
     }
 
-    test('transient station failures stop after the recovery budget', () async {
+    test(
+      'a dead station restores a queue over the eager limit paused',
+      () async {
+        final (handler, player, _) = await setup(
+          reconcile: () async => net(online: true),
+          count: 70,
+        );
+        final songIds = List<String>.generate(70, (index) => 'song-$index');
+        await handler.replaceQueue(
+          songIds,
+          autoPlay: false,
+          expandMatchFlows: false,
+        );
+        await handler.playRadioStream(
+          stationId: 'fixture',
+          stationName: 'Fixture',
+          streamUrl: 'https://radio.example.invalid/live',
+        );
+        player
+          ..state = ProcessingState.idle
+          ..isPlaying = false;
+        final playRequests = player.focusRequests;
+        player._events.add(nativeError(2005));
+        await pumpEventQueue(times: 100);
+        await settleQueue(handler);
+        expect(handler.snapshot.isRadioMode, isFalse);
+        expect(handler.snapshot.queueSongIds, songIds);
+        // A real Play waits for audio focus, so one requested here lands after
+        // the restore's pause and starts the old queue.
+        expect(player.focusRequests, playRequests);
+        expect(player.playing, isFalse);
+      },
+    );
+
+    test(
+      'a dead station on first start does not leave the load stuck',
+      () async {
+        final (handler, player, _) = await setup(
+          reconcile: () async => net(online: true),
+        );
+        final gate = Completer<void>();
+        final entered = Completer<void>();
+        player
+          ..loadGate = gate
+          ..loadEntered = entered;
+        final starting = handler.playRadioStream(
+          stationId: 'fixture',
+          stationName: 'Fixture',
+          streamUrl: 'https://radio.example.invalid/live',
+        );
+        await entered.future;
+        player._events.add(nativeError(2005));
+        await pumpEventQueue();
+        gate.complete();
+        await starting;
+        await pumpEventQueue(times: 100);
+        expect(handler.snapshot.isRadioMode, isFalse);
+        expect(handler.snapshot.isLoading, isFalse);
+      },
+    );
+
+    Future<void> dropStation(_ControllableAudioPlayer player) async {
+      player
+        ..state = ProcessingState.idle
+        ..isPlaying = false;
+      // A stream error, unlike a repeated native error event, is never merged.
+      player._events.addError(PlayerException(0, 'network unavailable', null));
+      await Future<void>.delayed(const Duration(milliseconds: 100));
+      await pumpEventQueue(times: 50);
+    }
+
+    test(
+      'a station that keeps connecting and dropping stops after the budget',
+      () async {
+        final (handler, player, _) = await setup(
+          reconcile: () async => net(online: true),
+          timeouts: const NavisPlaybackTimeouts(
+            radioRecovery: Duration(milliseconds: 600),
+            radioHealthyPlay: Duration(seconds: 30),
+          ),
+        );
+        await handler.playRadioStream(
+          stationId: 'fixture',
+          stationName: 'Fixture',
+          streamUrl: 'https://radio.example.invalid/live',
+        );
+        final notices = <void>[];
+        final subscription = handler.radioStreamErrorStream.listen(notices.add);
+        addTearDown(subscription.cancel);
+        for (var i = 0; i < 12 && handler.snapshot.isRadioMode; i++) {
+          await dropStation(player);
+        }
+        expect(handler.snapshot.isRadioMode, isFalse);
+        expect(notices, hasLength(1));
+      },
+    );
+
+    test(
+      'a station that played healthily gets a fresh recovery budget',
+      () async {
+        final (handler, player, _) = await setup(
+          reconcile: () async => net(online: true),
+          timeouts: const NavisPlaybackTimeouts(
+            radioRecovery: Duration(milliseconds: 600),
+            radioHealthyPlay: Duration(milliseconds: 150),
+          ),
+        );
+        await handler.playRadioStream(
+          stationId: 'fixture',
+          stationName: 'Fixture',
+          streamUrl: 'https://radio.example.invalid/live',
+        );
+        for (var i = 0; i < 12; i++) {
+          await dropStation(player);
+          await Future<void>.delayed(const Duration(milliseconds: 150));
+        }
+        expect(handler.snapshot.isRadioMode, isTrue);
+        expect(player.playing, isTrue);
+      },
+    );
+
+    test('being offline never stops a station or shows a notice', () async {
+      var online = false;
+      final recovered = StreamController<void>.broadcast();
+      addTearDown(recovered.close);
       final (handler, player, _) = await setup(
-        reconcile: () async => net(online: false),
+        reconcile: () async => net(online: online),
+        recovered: recovered.stream,
         timeouts: const NavisPlaybackTimeouts(
           radioRecovery: Duration(milliseconds: 300),
         ),
@@ -1669,16 +1799,42 @@ void main() {
       final notices = <void>[];
       final subscription = handler.radioStreamErrorStream.listen(notices.add);
       addTearDown(subscription.cancel);
+      final loads = player.sourceLoads;
       player
         ..state = ProcessingState.idle
         ..isPlaying = false;
       player._events.add(nativeError(2001));
       await pumpEventQueue();
-      expect(handler.snapshot.isRadioMode, isTrue);
-      await Future<void>.delayed(const Duration(milliseconds: 700));
+      await Future<void>.delayed(const Duration(milliseconds: 1000));
       await pumpEventQueue(times: 100);
-      expect(handler.snapshot.isRadioMode, isFalse);
-      expect(notices, hasLength(1));
+      expect(handler.snapshot.isRadioMode, isTrue);
+      expect(notices, isEmpty);
+      online = true;
+      recovered.add(null);
+      await pumpEventQueue(times: 100);
+      expect(player.sourceLoads, greaterThan(loads));
+      expect(player.playing, isTrue);
+      expect(handler.snapshot.isRadioMode, isTrue);
+    });
+
+    test('a station reconnect never waits for the server probe', () async {
+      final (handler, player, _) = await setup(
+        reconcile: () => Completer<NetworkReconciliation>().future,
+        deviceConnected: () async => true,
+      );
+      await handler.playRadioStream(
+        stationId: 'fixture',
+        stationName: 'Fixture',
+        streamUrl: 'https://radio.example.invalid/live',
+      );
+      final loads = player.sourceLoads;
+      player
+        ..state = ProcessingState.idle
+        ..isPlaying = false;
+      player._events.add(nativeError(2001));
+      await pumpEventQueue(times: 100);
+      expect(player.sourceLoads, loads + 1);
+      expect(player.playing, isTrue);
     });
 
     test(

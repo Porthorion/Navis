@@ -105,6 +105,7 @@ class NavisAudioHandler extends BaseAudioHandler
     required this._readRuntimeSettings,
     required this._starSyncDao,
     this.reconcileNetwork,
+    this.checkDeviceConnected,
     Stream<void>? recoveredNetwork,
     double initialVolume = 1.0,
     NetworkUsageReporter? reportNetworkUsage,
@@ -206,6 +207,10 @@ class NavisAudioHandler extends BaseAudioHandler
   final NavisPlaybackTimeouts _timeouts;
 
   final Future<NetworkReconciliation> Function()? reconcileNetwork;
+
+  /// Device connectivity alone, for third-party hosts that never need the
+  /// Navidrome server. Falls back to [reconcileNetwork] when absent.
+  final Future<bool> Function()? checkDeviceConnected;
   StreamSubscription<void>? _networkRecoverySubscription;
   Timer? _focusRetryTimer;
   int _focusRetries = 0;
@@ -219,6 +224,8 @@ class NavisAudioHandler extends BaseAudioHandler
   _pendingRemoteRecovery;
   ({int generation, RadioStationMetadata station, DateTime since})?
   _pendingRadioRecovery;
+  ({RadioStationMetadata station, DateTime since, DateTime recoveredAt})?
+  _radioRecovered;
   bool _radioRecoveryInProgress = false;
   bool _remoteRecoveryWasOffline = false;
 
@@ -3016,6 +3023,9 @@ class NavisAudioHandler extends BaseAudioHandler
         AppLogger.debug(
           'playRadioStream cancelled — superseded by newer command.',
         );
+        // A station that stopped itself mid-start cancels this work without a
+        // newer load generation; the no-op when superseded keeps this safe.
+        _completeQueueLoad(generation);
       } on Object {
         if (token.isCancelled || !_isActiveLoadGeneration(generation)) return;
         _completeQueueLoad(generation);

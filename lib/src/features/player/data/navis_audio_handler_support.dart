@@ -96,6 +96,7 @@ class NavisPlaybackTimeouts {
     this.remoteLoad = const Duration(seconds: 45),
     this.focusRetry = const Duration(minutes: 2),
     this.radioRecovery = const Duration(minutes: 10),
+    this.radioHealthyPlay = const Duration(minutes: 1),
   });
 
   /// A native load or queue mutation that takes longer is abandoned and the
@@ -128,6 +129,10 @@ class NavisPlaybackTimeouts {
 
   /// How long a station keeps reconnecting after transient failures.
   final Duration radioRecovery;
+
+  /// How long a reconnected station must play before its next failure starts
+  /// a fresh [radioRecovery] budget.
+  final Duration radioHealthyPlay;
 }
 
 /// A request belongs to the selected queue occurrence, independent of whether
