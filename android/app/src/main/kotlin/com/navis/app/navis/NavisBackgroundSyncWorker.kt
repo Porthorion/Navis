@@ -46,6 +46,10 @@ class NavisBackgroundSyncWorker(
     // owns the Android embedding lifecycle and never performs network I/O.
     override suspend fun doWork(): Result = withContext(Dispatchers.Main.immediate) {
         coroutineScope {
+            val timelineStart = android.os.SystemClock.elapsedRealtime()
+            var timelineOutcome = "failure"
+            StartupWorkerTimeline.record(applicationContext, "workerEntry")
+            try {
             val profileKey = inputData.getString(profileKeyDataKey)
             if (profileKey == null || !profileKey.matches(Regex("[0-9a-f]{32}"))) {
                 return@coroutineScope Result.failure()
@@ -57,6 +61,7 @@ class NavisBackgroundSyncWorker(
                     "alreadyDispatching",
                     "alreadyDispatching",
                 )
+                timelineOutcome = "noWorkDue"
                 return@coroutineScope Result.success()
             }
             try {
@@ -73,6 +78,7 @@ class NavisBackgroundSyncWorker(
             try {
                 val deferral = backgroundSyncPlaybackDeferral(NavisAudioServiceProbe.sessionActive())
                 if (deferral != null) {
+                    timelineOutcome = "deferredPlayback"
                     outcomeStore.record(profileKey, deferral.result, deferral.stopReason)
                     return@coroutineScope Result.success()
                 }
@@ -84,6 +90,8 @@ class NavisBackgroundSyncWorker(
                     workId = id.toString(),
                     attemptCount = runAttemptCount.coerceIn(0, maxReportedAttemptCount),
                 )
+                timelineOutcome = response?.get("category") as? String ?: "failure"
+                if (timelineOutcome == "succeeded") timelineOutcome = "success"
                 // A Dart response is authoritative over an earlier native
                 // bootstrap fallback for this profile.
                 outcomeStore.clear(profileKey)
@@ -93,6 +101,7 @@ class NavisBackgroundSyncWorker(
                     BackgroundSyncWorkerDirective.SUCCESS -> Result.success()
                 }
             } catch (_: TimeoutCancellationException) {
+                timelineOutcome = "timeout"
                 val outcome = BackgroundSyncNativeFailure.TIMEOUT.outcome
                 outcomeStore.record(profileKey, outcome.result, outcome.stopReason)
                 Result.retry()
@@ -122,6 +131,10 @@ class NavisBackgroundSyncWorker(
             }
             } finally {
                 BackgroundSyncDispatchGate.release(profileKey)
+            }
+            } finally {
+                StartupWorkerTimeline.record(applicationContext, "workerExit", timelineOutcome,
+                    android.os.SystemClock.elapsedRealtime() - timelineStart)
             }
         }
     }

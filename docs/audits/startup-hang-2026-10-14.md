@@ -2,6 +2,182 @@
 
 Branch: `fix/startup-hang`. No commits or stashes were made.
 
+## Idle robustness correction and verification
+
+This section supersedes the original timeout-retirement behavior described in
+that commit and the earlier overlay assessment below. The earlier worker plugin
+isolation remains intact. No native plugin rebind was added. The deterministic
+slow-source test reproduced **finding 1** before implementation changes; it does
+not establish the owner's exact physical-device overnight trigger.
+
+### Step 0: same uncached saved queue before and after
+
+`Navis_Idle_Test` used API 37 Play Store PS16K x86_64, 4 GB guest RAM, a 10 GB
+throwaway data partition and SwiftShader under memory-capped `systemd-run` user
+units. All tests used an isolated `.idletest` profile sidecar and the authorized
+disposable server. Credentials were sent in memory to the existing connect API,
+never written to fixture scripts, build defines or logs. The worker fixture used
+the same sidecar secure storage and database as the foreground engine.
+
+The queue contained two songs and zero cached entries. HOME plus `am kill` did
+not always terminate the retained media service; after checking the PID, the
+sidecar's own `run-as … kill -9` completed process death. No other emulator or
+application was killed. Emulator network shaping alone did not reliably delay
+source resolution, and an offline-only attempt deferred restoration rather than
+reproducing the loop. The successful comparison used the permitted profile-only
+12-second stream-source delay, applied after local source checks. This was the
+only reproduction instrumentation added before changing startup behavior.
+
+| Observation | Before | After, same 12-second source delay |
+|---|---|---|
+| Process death confirmed | PID 3903 → 4274 | PID 4538 → 5266 |
+| Bootstrap | Attempts 1–5 in 34 seconds, never ready | Attempt 1, ready in 99 ms |
+| Presentation deadline | Five-second timeout then three-second retry cadence | No timeout or retry |
+| Handler ownership | Late handlers 1–4 discarded as successors began | One construction |
+| Queue/network | Startup waited for uncached source preparation | Two metadata items, saved 5-second position, zero native sources |
+| Blackholed cold start | Loop with slow source | 0.823 seconds end to end; another run 0.861 seconds |
+| Play after network return | Startup remained blocked | Play issued while blackholed; after network returned, streaming reached native position 5,953 ms |
+
+Before logcat starts attempt 1 at 10:46:25.469, times out at 30.472, starts
+attempt 2 at 33.473 and discards handler 1 at 35.606. The same ordering repeats.
+App-owned `before.png` shows the persistent recovery overlay. After captures
+show Home and the restored paused mini player with airplane mode enabled. A
+final install/force-stop screenshot run was slower end to end (2.258 seconds),
+but still used one ready construction and no network wait; the sub-1.5-second
+repeat result is an observation, not an unconditional process-launch guarantee.
+
+Local evidence is in ignored `build/idle-robustness/`: `before.json`,
+`before-timeline.txt`, `after-home.json`, `after-home-timeline.txt`,
+`home-blackhole-final.png`, and the other inspected app-owned captures.
+
+### Emulator matrix
+
+| Scenario | Result and evidence |
+|---|---|
+| Warm worker with paused queue, then resume | Actual forced job 23 succeeded in 6,112 ms while PID 5266 survived; paused queue did not defer it |
+| Worker catalog commit, open Library refresh | Worker changed a server star, original star state restored afterwards; after 31 seconds away the same open Liked Albums screen changed from empty to the new album |
+| Resume reconciliation | Timeline reports `resumeDatabase: changed`, connectivity online, reachability online; Drift announced albums/songs/aliases/sync state and the foreground reloaded durable state |
+| Cold worker, open during work | PID 5266 → 6433; bootstrap ready in 415 ms before worker exit; job 32 succeeded in 5,849 ms |
+| Cold worker, open after work | PID 6433 → 6648; job 33 succeeded in 4,737 ms; attempt 1 ready |
+| System starts canonical AudioService before Activity | PID 6648 → 6841; Launcher remained foreground until explicitly opening Navis; same process ready on attempt 1 |
+| Doze | Battery unplugged, forced deep state `IDLE`, then unforced and battery reset; PID 6841 stayed ready on attempt 1 |
+| Forced never-ready | Existing attempt gate held forever; one attempt, no retry; timeout recorded at 5,093 ms; inspected recovery panel includes Restart, Copy details, reset and sign-out |
+| Restart Navis | NEW_TASK\|CLEAR_TASK launch observed; PID 3777 → 4115, fresh diagnostics handshake and one resumed MainActivity; deliberately retained fault still timed out after relaunch |
+| Remove forced fault | Normal profile reinstalled; Home and paused mini player visible under airplane mode |
+| Copy details | Production recovery action copied the bounded private timeline; inspected 68-event sample was 5,343 bytes with only allowed fields and no identities |
+
+Each visible scenario used `POST /v1/presentation/screenshot`; PNGs were opened
+and inspected. Animated overlay capture waits for frames, so it cannot establish
+the exact button appearance time; the widget regression verifies absence at
+4,999 ms and presence at 5,000 ms. Native logcat supplies the five-second timeout
+ordering. `worker-warm.json`, `emulator-matrix.json`, `restart.json` and
+`startup-details.jsonl` retain sanitized local observations.
+
+### Implementation and regressions
+
+The existing AudioBootstrapController now keeps construction ownership across
+its presentation timeout. Native configure is bounded without reinitializing
+process-wide audio_service callbacks. Saved queue restoration uses the existing
+queue lane to publish metadata, index, position and shuffle/repeat before Play
+or another transport command materializes sources. Download/cache/stream
+priority and stale-generation disposal remain covered by the playback suite.
+
+LibrarySyncController reuses its lifecycle listener, connectivity/metering
+providers and reachability controller. A long resume refreshes one coalesced
+connection probe. Writer-pinned SQLite `data_version` detects external worker
+commits and announces mapped Drift tables, reloads sync state and reapplies
+identity aliases. Retryable transport errors are limited to known read-only GET
+endpoints; Subsonic mutation GETs remain non-retryable. Native and Dart sync
+policies defer only playing/loading/buffering, allowing a paused queue.
+
+AppLogger owns typed private startup events, with a separate locked native
+worker ring (200 + 100 events, below 64 KB). PlaybackRecoveryService handles
+restart and clipboard copying; About's hidden version long-press uses the same
+copy action and AppNotice. Privacy text and the two requested 1.5.0 changelog
+entries are updated.
+
+Focused regressions cover single construction, retirement and late generations;
+metadata-only uncached restoration and first Play/Prepare/Seek/Next; native
+configure timeout; safe retry classification; coalesced long resume and external
+SQLite commit refresh; paused playback policy; exact recovery timing/layout;
+clipboard/About confirmation; and bounded, sanitized timeline persistence.
+Android JVM probe/scheduler tests passed. Linux profile startup reached ready on
+attempt 1 in 71 ms; direct streaming advanced native position to 949 ms and
+Home's paused player screenshot was inspected. After clean shutdown/restart,
+clone credentials (deliberately memory-only, no credential file) were supplied
+again through the connect API; the handler then bound in 8 ms and restored two
+queue items. This does not certify durable desktop credential storage. The
+initial catalog retry completed before the final Home screenshot; an initial
+policy deferral and rejected direct song-selection requests were fixture setup
+issues, not counted as playback failures.
+
+The owned emulator was stopped, clock/Doze/battery state restored, and only
+`Navis_Idle_Test.avd`/`.ini` deleted. The isolated Linux runtime profile was
+removed after preserving its identity-free timeline and screenshot. No server
+star mutation remains. No commits or stashes were made.
+
+### Limits and deferred work
+
+The physical overnight trigger, real-device audio focus/service-destruction
+races and audible output remain unverified. Profile playback was muted and
+verified by native processing/position advancement. Independent paused wake-lock
+release is unavailable through the current audio_service public API without a
+dependency patch; service retention is preserved. Findings 4, 5, 7, 8 and 10–14
+are deferred to [the detailed 1.5.1 plan](../plans/idle-robustness-followups.md).
+
+### Changed files in the idle correction
+
+- `android/app/src/main/java/com/ryanheise/audioservice/NavisAudioServiceProbe.java`
+- `android/app/src/main/kotlin/com/navis/app/navis/MainActivity.kt`
+- `android/app/src/main/kotlin/com/navis/app/navis/NavisBackgroundSyncWorker.kt`
+- `android/app/src/main/kotlin/com/navis/app/navis/StartupWorkerTimeline.kt`
+- `android/app/src/test/kotlin/com/navis/app/navis/NavisAudioServiceProbeTest.kt`
+- `docs/README.md`
+- `docs/architecture.md`
+- `docs/audits/startup-hang-2026-10-14.md`
+- `docs/development/development-workflow.md`
+- `docs/plans/idle-robustness-followups.md`
+- `docs/project/progress.md`
+- `lib/l10n/app_en.arb`
+- `lib/l10n/app_localizations.dart`
+- `lib/l10n/app_localizations_en.dart`
+- `lib/main.dart`
+- `lib/src/api/subsonic_retry_interceptor.dart`
+- `lib/src/app.dart`
+- `lib/src/database/navis_database.dart`
+- `lib/src/features/auth/presentation/server_reachability_provider.dart`
+- `lib/src/features/changelog/changelog_data.dart`
+- `lib/src/features/library/presentation/library_sync_provider.dart`
+- `lib/src/features/player/data/navis_audio_handler.dart`
+- `lib/src/features/player/data/navis_audio_handler_bootstrap.dart`
+- `lib/src/features/player/data/navis_audio_handler_media_session.dart`
+- `lib/src/features/player/data/navis_audio_handler_navigation.dart`
+- `lib/src/features/player/data/navis_audio_handler_persistence.dart`
+- `lib/src/features/player/data/navis_audio_handler_queue_editing.dart`
+- `lib/src/features/player/data/navis_audio_handler_queue_loading.dart`
+- `lib/src/features/player/data/playback_source_resolver.dart`
+- `lib/src/features/player/domain/playback_snapshot.dart`
+- `lib/src/features/player/presentation/playback_recovery_provider.dart`
+- `lib/src/features/settings/presentation/about_screen.dart`
+- `lib/src/providers/app_providers.dart`
+- `lib/src/utils/app_logger.dart`
+- `lib/src/utils/startup_timeline.dart`
+- `lib/src/utils/sync_diagnostics_server.dart`
+- `test/src/api/subsonic_retry_interceptor_test.dart`
+- `test/src/architecture/android_background_playback_isolation_test.dart`
+- `test/src/features/library/presentation/resume_reconciliation_test.dart`
+- `test/src/features/player/data/audio_service_configure_timeout_test.dart`
+- `test/src/features/player/data/navis_audio_handler_navigation_test.dart`
+- `test/src/features/player/domain/playback_snapshot_test.dart`
+- `test/src/features/player/presentation/playback_recovery_sheet_test.dart`
+- `test/src/features/settings/presentation/about_screen_test.dart`
+- `test/src/providers/app_providers_test.dart`
+- `test/src/utils/startup_timeline_test.dart`
+- `test/widget_test.dart`
+- `tool/dead_code_baseline.json`
+
+## Earlier worker-isolation investigation (historical)
+
 ## Findings and limits
 
 The owner's overnight `Preparing Playback` hang was **not reproduced** on the

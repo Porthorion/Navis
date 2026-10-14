@@ -64,6 +64,7 @@ Future<void> _runNavis() async {
     );
   }
 
+  AppLogger.startup(StartupEvent.processStart, outcome: StartupOutcome.cold);
   _initializeDesktopAudioBackend();
   if (_isDesktopRuntime) {
     unawaited(UpdateService.cleanupStaledUpdates());
@@ -166,8 +167,9 @@ Future<void> _runNavis() async {
         );
       },
     );
-    _androidUiLifecycleListener?.dispose();
-    _androidUiLifecycleListener = AppLifecycleListener(
+    _appLifecycleListener?.dispose();
+    _appLifecycleListener = AppLifecycleListener(
+      onStateChange: _recordStartupLifecycle,
       onResume: () {
         unawaited(gate.handleLifecycleState(AppLifecycleState.resumed));
       },
@@ -176,11 +178,28 @@ Future<void> _runNavis() async {
       gate.handleLifecycleState(WidgetsBinding.instance.lifecycleState),
     );
   } else {
+    _appLifecycleListener?.dispose();
+    _appLifecycleListener = AppLifecycleListener(
+      onStateChange: _recordStartupLifecycle,
+    );
     await startUi();
   }
 }
 
-AppLifecycleListener? _androidUiLifecycleListener;
+void _recordStartupLifecycle(AppLifecycleState state) {
+  AppLogger.startup(
+    StartupEvent.lifecycle,
+    outcome: switch (state) {
+      AppLifecycleState.resumed => StartupOutcome.resumed,
+      AppLifecycleState.inactive => StartupOutcome.inactive,
+      AppLifecycleState.paused => StartupOutcome.paused,
+      AppLifecycleState.hidden => StartupOutcome.hidden,
+      AppLifecycleState.detached => StartupOutcome.detached,
+    },
+  );
+}
+
+AppLifecycleListener? _appLifecycleListener;
 
 final _diagnosticsProviderCounter = DiagnosticsProviderCounter();
 
@@ -213,6 +232,14 @@ ProviderContainer _createRootProviderContainer({
       // route. Its focused clone scenario opts back in explicitly.
       if (_syncDiagnosticsRuntimeEnabled && !_allowCacheUpgradeDiagnostics)
         cacheSystemUpgradeRequiredProvider.overrideWithValue(false),
+      if (_syncDiagnosticsRuntimeEnabled &&
+          _syncDiagnosticsMode == SyncDiagnosticsMode.clone &&
+          const bool.fromEnvironment(
+            'NAVIS_DIAGNOSTICS_AUDIO_BOOTSTRAP_NEVER_READY',
+          ))
+        audioBootstrapAttemptGateProvider.overrideWithValue(
+          () => Completer<void>().future,
+        ),
       if (_isCloneBootstrapFailureDiagnostics)
         audioBootstrapAttemptGateProvider.overrideWithValue(() async {
           if (remainingInjectedBootstrapFailures <= 0) {

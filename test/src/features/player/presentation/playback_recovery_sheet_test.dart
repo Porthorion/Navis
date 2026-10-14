@@ -8,6 +8,14 @@ import 'package:navis/src/features/player/presentation/playback_recovery_sheet.d
 
 class _FakeRecoveryService implements PlaybackRecoveryService {
   int retryCalls = 0;
+  int restartCalls = 0;
+  int copyCalls = 0;
+
+  @override
+  Future<void> restartNavis() async => restartCalls++;
+
+  @override
+  Future<void> copyDetails() async => copyCalls++;
   int resetCalls = 0;
 
   @override

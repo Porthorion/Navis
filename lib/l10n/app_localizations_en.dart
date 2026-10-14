@@ -475,7 +475,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get privacyDiagnosticsBody =>
-      'Navis avoids logging raw credentials and redacts sensitive authentication values from diagnostics. Network errors may still include service names or non-secret request context needed to troubleshoot failures.';
+      'Navis avoids logging raw credentials and redacts sensitive authentication values from diagnostics. Network errors may still include service names or non-secret request context needed to troubleshoot failures. Startup details stay on this device until you copy them.';
 
   @override
   String get privacySummary =>
@@ -2407,10 +2407,19 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get playbackBootstrapRecoverySubtitle =>
-      'Navis will keep retrying. You can also recover local playback data or continue without playback.';
+      'You can restart Navis, recover local playback data, or continue without playback.';
 
   @override
   String get playbackBootstrapContinueToSignIn => 'Continue to sign in';
+
+  @override
+  String get playbackRecoveryRestart => 'Restart Navis';
+
+  @override
+  String get startupCopyDetails => 'Copy details';
+
+  @override
+  String get startupDetailsCopied => 'Startup details copied';
 
   @override
   String get playbackRecoveryRetry => 'Retry playback';

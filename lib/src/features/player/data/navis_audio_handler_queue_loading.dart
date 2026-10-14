@@ -82,6 +82,13 @@ extension _NavisQueueLoading on NavisAudioHandler {
   }
 
   NavisResolvedQueueMetadata _resolveCurrentQueueMetadata() {
+    final restoredIndex = _restoredQueueIndex;
+    if (restoredIndex != null && !_isLoading) {
+      return NavisResolvedQueueMetadata(
+        mediaItem: _queueItems.elementAtOrNull(restoredIndex),
+        currentIndex: restoredIndex,
+      );
+    }
     final backendCurrentIndex = _player.currentIndex;
     if (!(_isLoading &&
             (_player.processingState == ProcessingState.idle ||
@@ -654,6 +661,7 @@ extension _NavisQueueLoading on NavisAudioHandler {
     SongsTableData song, {
     required bool preferLockCaching,
   }) async {
+    await (_cacheMaintenance ??= _maintainCacheBeforePlayback());
     final startupTrace = _activeStartupTrace;
     if (startupTrace?.songId == song.id) {
       startupTrace?.markOnce('sourceResolutionStart');
@@ -857,6 +865,7 @@ extension _NavisQueueLoading on NavisAudioHandler {
     _checkQueueWorkCurrent(token, generation);
     // Native index 0 must resolve to the selected occurrence as soon as
     // setAudioSources starts emitting events, including single-song loads.
+    _restoredQueueIndex = null;
     _queueItems
       ..clear()
       ..add(startItem.mediaItem);
@@ -1034,6 +1043,7 @@ extension _NavisQueueLoading on NavisAudioHandler {
     _queueItems
       ..clear()
       ..addAll(prepared.map((entry) => entry.mediaItem));
+    _restoredQueueIndex = null;
     await _clearDeferredTail();
     token?.checkCancelled();
     if (!_isActiveLoadGeneration(generation)) {
@@ -1659,6 +1669,7 @@ extension _NavisQueueLoading on NavisAudioHandler {
     }
 
     checkCurrent();
+    _restoredQueueIndex = null;
     _clearQueueReplacementMetadataAnchor();
     _queueItems.clear();
     // Shuffle stays on for the next queue, which records its own order.

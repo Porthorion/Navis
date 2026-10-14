@@ -181,6 +181,14 @@ class PlaybackSnapshot {
   /// Whether there is something active — either a song queue or a radio stream.
   bool get hasActivePlayback => hasQueue || isRadioMode;
 
+  /// Playing or loading takes priority over automatic background catalog work.
+  /// A paused queue remains visible without indefinitely deferring sync.
+  bool get defersBackgroundSync =>
+      playing ||
+      isLoading ||
+      processingState == AudioProcessingState.loading ||
+      processingState == AudioProcessingState.buffering;
+
   PlaybackSnapshot copyWith({
     List<String>? queueSongIds,
     String? currentSongId,

@@ -166,7 +166,20 @@ class NavisAudioHandler extends BaseAudioHandler
         _persistSafely(_persistPosition, context: 'periodic position timer'),
       ),
     );
+    _cacheMaintenance = _maintainCacheBeforePlayback();
     _ready = _initialize();
+    _startupQueueRestore = _ready
+        .then((_) => _restoreQueueAfterStartup())
+        .catchError((Object error, StackTrace stack) {
+          AppLogger.startup(
+            StartupEvent.queueRestoreEnd,
+            outcome: StartupOutcome.failure,
+          );
+          AppLogger.warning(
+            'Startup queue metadata unavailable: ${error.runtimeType}',
+          );
+        });
+    unawaited(_startupQueueRestore);
     _autoMediaTreeService = AutoMediaTreeService(
       libraryDao: _libraryDao,
       playlistDao: _playlistDao,
@@ -307,6 +320,10 @@ class NavisAudioHandler extends BaseAudioHandler
   PlaybackBufferState _bufferState = const PlaybackBufferState.idle();
   Timer? _positionPersistTimer;
   late final Future<void> _ready;
+  late final Future<void> _startupQueueRestore;
+  Future<void>? _cacheMaintenance;
+  int? _restoredQueueIndex;
+  Duration _restoredQueuePosition = Duration.zero;
   Future<bool>? _prepareQueueForUserPlayInFlight;
   Future<void>? _deferredQueueRestoreRetry;
   final NavisSupersedingLane _queueLane = NavisSupersedingLane();
@@ -572,6 +589,9 @@ class NavisAudioHandler extends BaseAudioHandler
   @override
   Future<void> waitUntilReady() => _ready;
 
+  @visibleForTesting
+  Future<void> debugWaitForStartupQueueRestore() => _startupQueueRestore;
+
   // ── Android Auto browse tree ────────────────────────────────────────────
 
   @override
@@ -611,7 +631,9 @@ class NavisAudioHandler extends BaseAudioHandler
   Future<void> prepare() async {
     AppLogger.info('Android Auto prepare requested.');
     await _ready;
+    await _startupQueueRestore;
     await _restorePersistedQueueForPrepareIfEmpty();
+    await _prepareRestoredQueueForTransport();
     _broadcastPlaybackState();
     _emitSnapshot();
   }
@@ -713,6 +735,20 @@ class NavisAudioHandler extends BaseAudioHandler
         '$error\n$stackTrace',
       );
     }
+    unawaited(
+      _scrobbleService.flushDue().catchError((Object error, StackTrace stack) {
+        AppLogger.warning(
+          'Scrobble flush failed during startup: $error\n$stack',
+        );
+      }),
+    );
+
+    _emitSnapshot();
+    await _notifyAndroidAutoBrowseRefresh();
+    AppLogger.info('Audio handler init: ready.');
+  }
+
+  Future<void> _maintainCacheBeforePlayback() async {
     try {
       // Finish stale partial-file cleanup before queue restoration or an
       // external media-session Play request can start lock-cache downloads.
@@ -727,18 +763,6 @@ class NavisAudioHandler extends BaseAudioHandler
         'Cache maintenance failed during startup: $error\n$stackTrace',
       );
     }
-    unawaited(
-      _scrobbleService.flushDue().catchError((Object error, StackTrace stack) {
-        AppLogger.warning(
-          'Scrobble flush failed during startup: $error\n$stack',
-        );
-      }),
-    );
-
-    await _restoreQueueAfterStartup();
-    _emitSnapshot();
-    await _notifyAndroidAutoBrowseRefresh();
-    AppLogger.info('Audio handler init: ready.');
   }
 
   /// Retries a startup restore that was deferred because no playback source
@@ -999,6 +1023,7 @@ class NavisAudioHandler extends BaseAudioHandler
   Future<void> _restoreQueueFromDisk({
     OperationToken? token,
     int? ownershipGeneration,
+    bool prepareSources = true,
   }) async {
     final queueState = await _playQueueDao.getQueueState();
     final entries = await _playQueueDao.getQueueEntries();
@@ -1039,6 +1064,31 @@ class NavisAudioHandler extends BaseAudioHandler
     final restorePosition = Duration(
       milliseconds: math.max(0, queueState?.positionMs ?? 0),
     );
+
+    if (!prepareSources) {
+      token?.checkCancelled();
+      if (ownershipGeneration != null &&
+          !_isActiveLoadGeneration(ownershipGeneration)) {
+        return;
+      }
+      _desiredLoopMode = switch (queueState?.repeatMode) {
+        schema.RepeatMode.one => LoopMode.one,
+        schema.RepeatMode.all => LoopMode.all,
+        _ => LoopMode.off,
+      };
+      _queueItems
+        ..clear()
+        ..addAll(queuedSongs.map(_mediaItemForSong));
+      _restoredQueueIndex = startIndex;
+      _restoredQueuePosition = restorePosition;
+      _queueRestoreOutcome = 'restored';
+      queue.add(List<MediaItem>.unmodifiable(_queueItems));
+      _setCurrentMediaItem(_queueItems[startIndex]);
+      _broadcastPlaybackState();
+      _emitSnapshot();
+      await _notifyAndroidAutoBrowseRefresh();
+      return;
+    }
 
     // A large saved queue is restored like a queue replacement: the current
     // item first, so startup and media-session Play are not blocked by
@@ -1092,6 +1142,11 @@ class NavisAudioHandler extends BaseAudioHandler
         _queueRestoreOutcome = 'superseded';
       }
       AppLogger.debug('Queue restore superseded by a newer queue command.');
+      return;
+    } on TimeoutException {
+      token?.checkCancelled();
+      await _restoreQueueFromDisk(token: token, prepareSources: false);
+      _queueRestoreOutcome = 'timeout';
       return;
     } on Object catch (error, stackTrace) {
       token?.checkCancelled();
@@ -1662,6 +1717,7 @@ class NavisAudioHandler extends BaseAudioHandler
   Future<void> retainCurrentSongAsQueue(String songId) {
     return _queueLane.run((token) async {
       await _ready;
+      await _prepareRestoredQueueInLane(token);
       final normalizedSongId = songId.trim();
       if (normalizedSongId.isEmpty) {
         return;
@@ -1903,6 +1959,8 @@ class NavisAudioHandler extends BaseAudioHandler
     );
     await _ready;
     if (!_isCurrentTransportIntent(transportGeneration)) return;
+    await _startupQueueRestore;
+    if (!_isCurrentTransportIntent(transportGeneration)) return;
 
     // A selected source has not reached phase one yet. The current play
     // intent will start it there; an empty-queue fallback here could replace
@@ -1914,7 +1972,8 @@ class NavisAudioHandler extends BaseAudioHandler
       return;
     }
 
-    if (_radioStation == null && _queueItems.isEmpty) {
+    if (_radioStation == null &&
+        (_queueItems.isEmpty || _restoredQueueIndex != null)) {
       final prepared = await _prepareBestAvailableQueueForUserPlay();
       if (!_isCurrentTransportIntent(transportGeneration)) return;
       if (!prepared || (_radioStation == null && _queueItems.isEmpty)) {
@@ -2075,6 +2134,8 @@ class NavisAudioHandler extends BaseAudioHandler
       final beforeSourceKind = _currentSourceKind;
       try {
         await _ready;
+        await _startupQueueRestore;
+        await _prepareRestoredQueueForTransport();
         await _waitForSeekSource(request, token);
         _cancelCrossfade();
         await _seekWithRecovery(
@@ -2645,7 +2706,7 @@ class NavisAudioHandler extends BaseAudioHandler
     unawaited(
       _enqueueQueueEdit((_) async {
         _remapQueueToCanonicalIds();
-      }).catchError((Object error) {
+      }, prepareSources: false).catchError((Object error) {
         // A replacement discarded it; the new queue uses canonical rows.
         AppLogger.debug('Song identity queue remap skipped: $error');
       }),

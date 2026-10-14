@@ -14,18 +14,29 @@ Last updated: 2026-10-14
 - ACP status values: `backlog`, `ready`, `in_progress`, `blocked`, `done`.
 
 ## Current Focus
+- [ ] Idle/startup robustness (F1, F2, F3, F6, F9 and private timeline) —
+  partial: 2026-10-14 (`fix/startup-hang`; implementation and focused regressions
+  complete, final `./tool/check.sh` running. Step-0 uncached-source fixture
+  reproduced attempts 1–5 and discarded handlers before changes; the same
+  12-second source delay now reaches one ready construction in 99 ms, restores
+  metadata without sources and streams after network return. Long resume
+  coalesces connection checks and writer data_version reconciliation. Actual
+  paused-queue worker sync succeeded and refreshed an open Liked Albums screen.
+  Worker-first, system-started service and Doze scenarios pass; forced timeout
+  exposes the inspected recovery panel and restart changes the PID with one
+  resumed MainActivity. Linux startup/playback and clean restart with in-memory
+  credential reinjection pass. Owned AVD and isolated Linux runtime profile
+  deleted, original server star restored; no commits/stashes. Independent paused
+  wake-lock release and findings 4, 5, 7, 8, 10–14 are deferred to
+  [1.5.1](../plans/idle-robustness-followups.md). Physical overnight trigger and
+  audible playback remain unverified. See [the updated audit](../audits/startup-hang-2026-10-14.md).)
 - [x] Android background-sync engine plugin isolation — 2026-10-14
-  (`fix/startup-hang`; the worker engine disabled automatic registration but
-  also ran GeneratedPluginRegistrant, attaching audio_service and every player
-  plugin to a second engine in the playback process. It now registers only
-  JNI, secure-storage and connectivity plugins. The owner's overnight
-  "Preparing Playback" hang was not reproduced in emulator scenarios a–d, so
-  this removes the most likely trigger without proving it. A native rebind of
-  a stalled audio_service connection was built and then dropped after review
-  (it could leave media commands without a listener). Next: open the UI
-  without the blocking playback overlay and record a private startup
-  timeline. `./tool/check.sh` passed. See
-  [the sanitized timeline and overlay assessment](../audits/startup-hang-2026-10-14.md).)
+  (the branch's existing commit restricts the worker engine to JNI,
+  secure-storage and connectivity plugins. It removes the observed duplicate
+  player-plugin registration; its presentation-time session-future retirement
+  is replaced by the single-construction work above. The native rebind remains
+  rejected. Original scenarios and source-supported failure ordering are kept
+  as historical evidence in [the audit](../audits/startup-hang-2026-10-14.md).)
 - [x] Large downloaded queue cache churn — 2026-10-14 (permanent source resolution
   no longer touches LRU timestamps; regression demonstrates 171 writes and
   172 snapshots per Downloads watcher before, zero writes and one initial

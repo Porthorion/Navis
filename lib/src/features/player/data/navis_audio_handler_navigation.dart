@@ -75,6 +75,9 @@ extension _NavisNavigation on NavisAudioHandler {
     required bool shouldPlay,
     required String context,
   }) {
+    final restorePosition = _restoredQueueIndex == decision.index
+        ? _restoredQueuePosition
+        : Duration.zero;
     final requestedIndex = decision.index!;
     final targetId = logicalIds[requestedIndex];
     if (_navigationInFlightRevision != null) {
@@ -241,6 +244,7 @@ extension _NavisNavigation on NavisAudioHandler {
           final startItem = await _replaceQueuePhase1(
             songs: songs,
             startIndex: index,
+            initialPosition: restorePosition,
             autoPlay: false,
             persist: false,
             generation: generation,

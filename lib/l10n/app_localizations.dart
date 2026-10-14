@@ -943,7 +943,7 @@ abstract class AppLocalizations {
   /// No description provided for @privacyDiagnosticsBody.
   ///
   /// In en, this message translates to:
-  /// **'Navis avoids logging raw credentials and redacts sensitive authentication values from diagnostics. Network errors may still include service names or non-secret request context needed to troubleshoot failures.'**
+  /// **'Navis avoids logging raw credentials and redacts sensitive authentication values from diagnostics. Network errors may still include service names or non-secret request context needed to troubleshoot failures. Startup details stay on this device until you copy them.'**
   String get privacyDiagnosticsBody;
 
   /// No description provided for @privacySummary.
@@ -3758,7 +3758,7 @@ abstract class AppLocalizations {
   /// No description provided for @playbackBootstrapRecoverySubtitle.
   ///
   /// In en, this message translates to:
-  /// **'Navis will keep retrying. You can also recover local playback data or continue without playback.'**
+  /// **'You can restart Navis, recover local playback data, or continue without playback.'**
   String get playbackBootstrapRecoverySubtitle;
 
   /// No description provided for @playbackBootstrapContinueToSignIn.
@@ -3766,6 +3766,24 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Continue to sign in'**
   String get playbackBootstrapContinueToSignIn;
+
+  /// No description provided for @playbackRecoveryRestart.
+  ///
+  /// In en, this message translates to:
+  /// **'Restart Navis'**
+  String get playbackRecoveryRestart;
+
+  /// No description provided for @startupCopyDetails.
+  ///
+  /// In en, this message translates to:
+  /// **'Copy details'**
+  String get startupCopyDetails;
+
+  /// No description provided for @startupDetailsCopied.
+  ///
+  /// In en, this message translates to:
+  /// **'Startup details copied'**
+  String get startupDetailsCopied;
 
   /// No description provided for @playbackRecoveryRetry.
   ///

@@ -6,6 +6,72 @@ import 'package:navis/src/api/subsonic_retry_interceptor.dart';
 
 void main() {
   group('SubsonicRetryInterceptor', () {
+    for (final type in [
+      DioExceptionType.connectionTimeout,
+      DioExceptionType.receiveTimeout,
+      DioExceptionType.sendTimeout,
+      DioExceptionType.connectionError,
+      DioExceptionType.unknown,
+    ]) {
+      for (final (method, endpoint, safe) in [
+        ('GET', '/rest/getAlbum.view', true),
+        ('POST', '/rest/getAlbum.view', false),
+        ('GET', '/rest/scrobble.view', false),
+        ('GET', '/rest/createPlaylist.view', false),
+        ('GET', '/rest/star.view', false),
+      ]) {
+        test('retry safety for $type $method $endpoint', () async {
+          final dio = Dio();
+          addTearDown(dio.close);
+          var attempts = 0;
+          dio.interceptors
+            ..add(
+              SubsonicRetryInterceptor(dio: dio, backoff: (_) => Duration.zero),
+            )
+            ..add(
+              InterceptorsWrapper(
+                onRequest: (options, handler) {
+                  attempts++;
+                  if (attempts == 1) {
+                    handler.reject(
+                      DioException(
+                        requestOptions: options,
+                        type: type,
+                        error: type == DioExceptionType.unknown
+                            ? const HttpException(
+                                'Connection closed before full header was received',
+                              )
+                            : null,
+                      ),
+                      true,
+                    );
+                  } else {
+                    handler.resolve(
+                      Response<dynamic>(
+                        requestOptions: options,
+                        statusCode: 200,
+                      ),
+                    );
+                  }
+                },
+              ),
+            );
+          if (safe) {
+            await dio.request<dynamic>(
+              endpoint,
+              options: Options(method: method),
+            );
+          } else {
+            await expectLater(
+              dio.request<dynamic>(endpoint, options: Options(method: method)),
+              throwsA(isA<DioException>()),
+            );
+          }
+          expect(attempts, safe ? 2 : 1);
+        });
+      }
+    }
+
     test(
       'retries on transient socket errors and eventually succeeds',
       () async {

@@ -37,4 +37,27 @@ void main() {
       isEmpty,
     );
   });
+  test(
+    'Android recovery relaunches a clean task before killing the process',
+    () {
+      final source = File(
+        'android/app/src/main/kotlin/com/navis/app/navis/MainActivity.kt',
+      ).readAsStringSync();
+      final restart = source.substring(
+        source.indexOf('"restartNavis" ->'),
+        source.indexOf('"getDeviceName" ->'),
+      );
+      expect(
+        restart,
+        contains(
+          'Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK',
+        ),
+      );
+      expect(
+        restart.indexOf('startActivity(restart)'),
+        lessThan(restart.indexOf('killProcess')),
+      );
+      expect(restart, isNot(contains('recoverPendingConnection')));
+    },
+  );
 }

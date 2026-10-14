@@ -174,8 +174,9 @@ extension _NavisQueueEditing on NavisAudioHandler {
   /// the back of the lane, so later edits that reach the front first go
   /// back too: edits always apply in the order they were made.
   Future<void> _enqueueQueueEdit(
-    Future<void> Function(OperationToken token) edit,
-  ) {
+    Future<void> Function(OperationToken token) edit, {
+    bool prepareSources = true,
+  }) {
     final done = Completer<void>();
     final sequence = ++_queueEditSequence;
     var waitedForLoad = false;
@@ -185,6 +186,7 @@ extension _NavisQueueEditing on NavisAudioHandler {
       try {
         await _queueLane.enqueue((token) async {
           await _ready;
+          if (prepareSources) await _prepareRestoredQueueInLane(token);
           final behindWaitingEdit = _requeuedQueueEdits.any(
             (earlier) => earlier < sequence,
           );

@@ -1006,7 +1006,10 @@ void main() {
           );
     if (waitForReady) {
       var ready = false;
-      final waiting = handler.waitUntilReady().then((_) => ready = true);
+      final waiting = handler
+          .waitUntilReady()
+          .then((_) => handler.debugWaitForStartupQueueRestore())
+          .then((_) => ready = true);
       if (clock != null) {
         for (var i = 0; i < 10000 && !ready; i++) {
           clock.flushMicrotasks();
@@ -1016,6 +1019,108 @@ void main() {
       await waiting;
     }
     return (handler, player, database);
+  }
+
+  test('uncached saved queue publishes metadata and position before any source resolution', () async {
+    final directory = await Directory.systemTemp.createTemp(
+      'navis-lazy-restore-',
+    );
+    final api = SubsonicApiClient(
+      baseUrl: 'https://example.com',
+      authConfig: const SubsonicAuthConfig(
+        username: 'fixture',
+        password: 'synthetic',
+        apiVersion: '1.16.1',
+      ),
+      enableLogging: false,
+    );
+    late _GatedSourceResolver resolver;
+    final (handler, player, database) = await createHandler(
+      directory,
+      3,
+      savedQueueIndex: 2,
+      cacheSongs: false,
+      readApiClient: () => api,
+      wrapResolver: (base) => resolver = _GatedSourceResolver(base)
+        ..blockedSongId = 'song-1'
+        ..entered = Completer<void>()
+        ..release = Completer<void>(),
+      seed: (db) => db.playQueueDao.saveQueue(
+        songIds: ['song-1', 'song-0', 'song-1'],
+        currentIndex: 2,
+        positionMs: 42000,
+        repeatMode: RepeatMode.all,
+      ),
+    );
+    addTearDown(() async {
+      if (!resolver.release!.isCompleted) resolver.release!.complete();
+      await handler.disposeHandler();
+      await database.close();
+      api.close();
+      await directory.delete(recursive: true);
+    });
+    expect(resolver.entered!.isCompleted, isFalse);
+    expect(player.sequence, isEmpty);
+    expect(handler.snapshot.currentIndex, 2);
+    expect(handler.snapshot.position, const Duration(seconds: 42));
+    expect(handler.snapshot.queueSongIds, ['song-1', 'song-0', 'song-1']);
+    expect(handler.queue.value.map((item) => item.id), [
+      'song-1',
+      'song-0',
+      'song-1',
+    ]);
+    expect(handler.mediaItem.value?.id, 'song-1');
+    expect(handler.playbackState.value.queueIndex, 2);
+    expect(
+      handler.playbackState.value.processingState,
+      AudioProcessingState.ready,
+    );
+    expect(handler.playbackState.value.playing, isFalse);
+    expect(
+      handler.playbackState.value.updatePosition,
+      const Duration(seconds: 42),
+    );
+    final play = handler.play();
+    await resolver.entered!.future.timeout(const Duration(seconds: 1));
+    expect(handler.snapshot.isLoading, isTrue);
+    resolver.release!.complete();
+    await play;
+    expect(handler.snapshot.currentIndex, 2);
+    expect(player.position, const Duration(seconds: 42));
+    expect(player.isPlaying, isTrue);
+    expect(handler.snapshot.repeatMode, AudioServiceRepeatMode.all);
+    expect(handler.snapshot.queueSongIds, ['song-1', 'song-0', 'song-1']);
+  });
+
+  for (final command in ['prepare', 'seek', 'next']) {
+    test('first $command lazily materializes the restored queue', () async {
+      final directory = await Directory.systemTemp.createTemp(
+        'navis-lazy-transport-',
+      );
+      final (handler, player, database) = await createHandler(
+        directory,
+        3,
+        savedQueueIndex: 1,
+      );
+      addTearDown(() async {
+        await handler.disposeHandler();
+        await database.close();
+        await directory.delete(recursive: true);
+      });
+      expect(player.sequence, isEmpty);
+      switch (command) {
+        case 'prepare':
+          await handler.prepare();
+        case 'seek':
+          await handler.seek(const Duration(seconds: 9));
+        case 'next':
+          await handler.skipToNext();
+      }
+      await settleQueue(handler);
+      expect(player.sequence, hasLength(3));
+      expect(handler.snapshot.currentIndex, command == 'next' ? 2 : 1);
+      expect(player.isPlaying, isFalse);
+    });
   }
 
   group('pending selection metadata', () {
@@ -3930,9 +4035,12 @@ void main() {
       expect(handler.snapshot.currentSongId, 'song-40');
       expect(handler.snapshot.queueSongIds, ids);
 
-      await handler.snapshotStream
-          .firstWhere((snapshot) => player.sequence.length == 100)
-          .timeout(const Duration(seconds: 30));
+      expect(player.sequence, isEmpty);
+      await handler.prepare();
+      if (player.sequence.length != 100)
+        await handler.snapshotStream
+            .firstWhere((snapshot) => player.sequence.length == 100)
+            .timeout(const Duration(seconds: 30));
       await pumpEventQueue();
       expect(
         player.sequence.map((source) => (source.tag as MediaItem).id),
@@ -7601,7 +7709,7 @@ void main() {
   });
 
   for (final (count, lateFailure) in [(3, false), (3, true), (70, false)]) {
-    test('timed-out saved restore cannot change a newer selection '
+    test('timed-out explicit saved queue preparation cannot change a newer selection '
         '(count=$count, lateFailure=$lateFailure)', () async {
       final directory = await Directory.systemTemp.createTemp(
         'navis-restore-timeout-',
@@ -7633,12 +7741,12 @@ void main() {
         await database.close();
         await directory.delete(recursive: true);
       });
+      await handler.waitUntilReady();
+      await handler.debugWaitForStartupQueueRestore();
+      expect(initialPlayer.sequence, isEmpty);
+      final preparing = handler.prepare();
       await entered.future.timeout(const Duration(seconds: 5));
-      await handler.waitUntilReady().timeout(const Duration(seconds: 15));
-      expect(
-        handler.collectPlaybackDiagnostics()['queueRestoreOutcome'],
-        'timeout',
-      );
+      await preparing.timeout(const Duration(seconds: 30));
       expect((await database.playQueueDao.getQueueItems()).length, count);
 
       await handler.replaceQueue(['song-2'], expandMatchFlows: false);
@@ -7735,54 +7843,59 @@ void main() {
       expect(await database.playQueueDao.getQueueItems(), hasLength(1));
     });
 
-    test('retries paused once a session becomes available', () async {
-      final directory = await Directory.systemTemp.createTemp(
-        'navis-deferred-restore-',
-      );
-      SubsonicApiClient? api;
-      final (handler, player, database) = await createHandler(
-        directory,
-        3,
-        savedQueueIndex: 1,
-        cacheSongs: false,
-        readApiClient: () => api,
-      );
-      addTearDown(() async {
-        await handler.disposeHandler();
-        await database.close();
-        await directory.delete(recursive: true);
-      });
+    test(
+      'publishes paused metadata before the session becomes available',
+      () async {
+        final directory = await Directory.systemTemp.createTemp(
+          'navis-deferred-restore-',
+        );
+        SubsonicApiClient? api;
+        final (handler, player, database) = await createHandler(
+          directory,
+          3,
+          savedQueueIndex: 1,
+          cacheSongs: false,
+          readApiClient: () => api,
+        );
+        addTearDown(() async {
+          await handler.disposeHandler();
+          await database.close();
+          await directory.delete(recursive: true);
+        });
 
-      expect(restoreOutcome(handler), 'deferred_auth');
-      expect(handler.snapshot.queueSongIds, isEmpty);
+        expect(restoreOutcome(handler), 'restored');
+        expect(handler.snapshot.queueSongIds, ['song-0', 'song-1', 'song-2']);
+        expect(player.sequence, isEmpty);
 
-      // Still no session: the retry defers again and keeps the saved queue.
-      await handler.retryDeferredQueueRestore();
-      expect(restoreOutcome(handler), 'deferred_auth');
-      expect(handler.snapshot.queueSongIds, isEmpty);
+        // Still no session: the retry defers again and keeps the saved queue.
+        await handler.retryDeferredQueueRestore();
+        expect(restoreOutcome(handler), 'restored');
+        expect(handler.snapshot.queueSongIds, ['song-0', 'song-1', 'song-2']);
+        expect(player.sequence, isEmpty);
 
-      api = createApiClient();
-      await handler.retryDeferredQueueRestore();
+        api = createApiClient();
+        await handler.prepare();
 
-      expect(restoreOutcome(handler), 'restored');
-      expect(handler.snapshot.queueSongIds, ['song-0', 'song-1', 'song-2']);
-      expect(handler.snapshot.currentIndex, 1);
-      expect(player.isPlaying, isFalse);
-      expect((await database.playQueueDao.getQueueItems()).map((s) => s.id), [
-        'song-0',
-        'song-1',
-        'song-2',
-      ]);
+        expect(restoreOutcome(handler), 'restored');
+        expect(handler.snapshot.queueSongIds, ['song-0', 'song-1', 'song-2']);
+        expect(handler.snapshot.currentIndex, 1);
+        expect(player.isPlaying, isFalse);
+        expect((await database.playQueueDao.getQueueItems()).map((s) => s.id), [
+          'song-0',
+          'song-1',
+          'song-2',
+        ]);
 
-      // Once restored, a later session change does not restore again.
-      await handler.replaceQueue(
-        ['song-2'],
-        autoPlay: false,
-        expandMatchFlows: false,
-      );
-      await handler.retryDeferredQueueRestore();
-      expect(handler.snapshot.queueSongIds, ['song-2']);
-    });
+        // Once restored, a later session change does not restore again.
+        await handler.replaceQueue(
+          ['song-2'],
+          autoPlay: false,
+          expandMatchFlows: false,
+        );
+        await handler.retryDeferredQueueRestore();
+        expect(handler.snapshot.queueSongIds, ['song-2']);
+      },
+    );
 
     test('yields to a queue the user starts meanwhile', () async {
       final directory = await Directory.systemTemp.createTemp(
@@ -7801,7 +7914,7 @@ void main() {
         await database.close();
         await directory.delete(recursive: true);
       });
-      expect(restoreOutcome(handler), 'deferred_auth');
+      expect(restoreOutcome(handler), 'restored');
 
       api = createApiClient();
       // The session arrives together with the user's own selection.
@@ -7812,40 +7925,45 @@ void main() {
       await Future.wait([retry, userQueue]);
       await handler.retryDeferredQueueRestore();
 
-      expect(restoreOutcome(handler), 'superseded');
+      expect(handler.snapshot.queueSongIds, ['song-2']);
       expect(handler.snapshot.queueSongIds, ['song-2']);
       expect(player.isPlaying, isTrue);
     });
 
-    test('retries once an offline start comes back online', () async {
-      final directory = await Directory.systemTemp.createTemp(
-        'navis-deferred-restore-offline-',
-      );
-      final api = createApiClient();
-      var online = false;
-      final (handler, player, database) = await createHandler(
-        directory,
-        2,
-        savedQueueIndex: 1,
-        cacheSongs: false,
-        readApiClient: () => api,
-        readCanStream: () => online,
-      );
-      addTearDown(() async {
-        await handler.disposeHandler();
-        await database.close();
-        await directory.delete(recursive: true);
-      });
-      expect(restoreOutcome(handler), 'deferred_auth');
+    test(
+      'restores offline metadata and streams only after explicit Play',
+      () async {
+        final directory = await Directory.systemTemp.createTemp(
+          'navis-deferred-restore-offline-',
+        );
+        final api = createApiClient();
+        var online = false;
+        final (handler, player, database) = await createHandler(
+          directory,
+          2,
+          savedQueueIndex: 1,
+          cacheSongs: false,
+          readApiClient: () => api,
+          readCanStream: () => online,
+        );
+        addTearDown(() async {
+          await handler.disposeHandler();
+          await database.close();
+          await directory.delete(recursive: true);
+        });
+        expect(restoreOutcome(handler), 'restored');
+        expect(player.sequence, isEmpty);
+        expect(handler.snapshot.currentIndex, 1);
 
-      online = true;
-      await handler.retryDeferredQueueRestore();
+        online = true;
+        await handler.play();
 
-      expect(restoreOutcome(handler), 'restored');
-      expect(handler.snapshot.queueSongIds, ['song-0', 'song-1']);
-      expect(handler.snapshot.currentIndex, 1);
-      expect(player.isPlaying, isFalse);
-    });
+        expect(restoreOutcome(handler), 'restored');
+        expect(handler.snapshot.queueSongIds, ['song-0', 'song-1']);
+        expect(handler.snapshot.currentIndex, 1);
+        expect(player.isPlaying, isTrue);
+      },
+    );
   });
 
   group('queue window model', () {

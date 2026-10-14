@@ -83,20 +83,30 @@ Located in `lib/src/providers/app_providers.dart`:
   - Linux uses the app-owned `LinuxMprisBridge` over `dbus`; Windows uses
     `WindowsSmtcBridge` backed by the local `navis_windows_smtc` Rust/WinRT
     manual-SMTC adapter; Android, iOS, and macOS use `audio_service`
-  - Bootstrap retries every three seconds while initialization fails. Its
-    five-second timeout retires the session-handler initialization cache so
-    later attempts do not reuse a stranded session future. The single
-    `AudioService.init` stays the only service init: re-entering that API would
-    overwrite its process-wide Dart callbacks. A native rebind of a stalled
-    connection was rejected because tearing down the only browser binding can
-    destroy the idle service and leave media commands without a listener.
-    Each session attempt retains its own projection, so stale completion
-    disposal cannot detach the newer handler from the shared service. The
-    startup gate exposes cache-reset and sign-out recovery after ten seconds;
-    an unauthenticated user can continue to Login without waiting for audio.
-    A teardown supersedes a hung native attempt without awaiting it, and any
-    later handler is disposed. If audio remains unavailable after Login, the
-    next playback action opens the same non-blocking recovery sheet.
+  - `AudioBootstrapController` owns one handler construction. Its five-second
+    presentation deadline exposes slow-start recovery but never retires the
+    pending session future or starts a competing handler. Completed failures
+    can retry after three seconds. Native audio_service configure has a bounded
+    five-second wait and retains its single process-wide initialization; a
+    permanently pending configure requires a process restart. Explicit session
+    teardown fences and disposes late results before a successor construction.
+    No native plugin rebind is performed.
+  - Handler readiness follows construction and binding, independently of
+    network source preparation. Saved queue metadata, occurrence order,
+    shuffle/repeat, selected index and position restore asynchronously through
+    the existing queue lane, and publish immediately to the mini player and
+    media session. Play, seek, navigation, queue edits or explicit media-session
+    Prepare materialize sources through the existing download → rolling cache
+    → stream resolver. Cache maintenance runs before source preparation, outside
+    startup readiness; generation checks keep late restoration from replacing
+    newer commands. An unavailable saved source retains the existing explicit
+    Play fallback to recent/liked music.
+  - Five seconds after the overlay appears, its recovery panel offers Restart
+    Navis and Copy details alongside secondary cache reset and sign-out. Android
+    restart uses MainActivity's device channel to launch a NEW_TASK|CLEAR_TASK
+    activity and kill the old process. The same PlaybackRecoveryService owns
+    clipboard copying; About's version row exposes it through a hidden long-press
+    and the existing AppNotice confirmation.
   - Android Auto can invoke Dart before `MainActivity` exists. Navis creates
     the provider container and starts audio bootstrap immediately, while
     `AndroidUiBootstrapGate` defers `SystemChrome`, notification, diagnostics
@@ -3438,6 +3448,38 @@ Background refills retry with backoff. After five consecutive failed refills
 Same Vibes, Server Mix and Personal Radio stop refilling and the session stays
 at `retryExhausted`; later playback snapshots, a cleared error notice or an
 expired backoff never resume it. Only starting the mix again re-arms refills.
+
+## Startup and resume evidence
+
+`AppLogger` writes typed, identity-free startup events to a private app-support
+ring (`startup-timeline.jsonl`, up to 200 events and 32 KB). Native WorkManager
+records entry and terminal outcome, including pre-engine deferrals/failures,
+in its separate locked ring (`startup-worker.jsonl`, up to 100 events). Copy
+validates both schemas and merges them by time, staying below 64 KB. Events
+include process startup, warm lifecycle changes, bootstrap attempt/timing and
+failure category, queue restoration timing, reconciliation results and restart
+use. URLs, accounts, tokens, titles and media IDs cannot be passed to this API.
+Nothing is uploaded automatically; the privacy diagnostics text describes local
+retention until copying.
+
+The existing LibrarySyncController lifecycle listener captures the writer
+connection's `PRAGMA main.data_version` before backgrounding. Resume compares it
+on that same connection using a short exclusive Drift scope, not a pooled
+reader. An external commit announces all mapped tables once (SQLite supplies no
+table list), so existing subscriptions re-query, invalidates identity caches,
+reapplies durable aliases and reloads persisted sync state. Checks are bounded,
+coalesced and do not recreate the database or sync engine. After at least 30
+seconds away, the same reconciliation refreshes connectivity and native
+metering through their existing providers, then joins the existing reachability
+probe. Initial connectivity also includes a fresh platform check. Subsonic
+transport timeouts/connection closure retry only read-only GET endpoints;
+mutating GETs such as scrobbles and playlist edits are never replayed.
+
+Both the native audio-service probe and Dart's `defersBackgroundSync` policy
+reserve priority for playing/loading/buffering. A paused queue remains visible
+and published while allowing background sync. Independent paused wake-lock
+release is unavailable in the current plugin; see the
+[1.5.1 follow-ups](plans/idle-robustness-followups.md).
 
 ## Data Flow
 

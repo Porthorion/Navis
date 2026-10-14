@@ -2,10 +2,41 @@ part of 'navis_audio_handler.dart';
 
 extension _NavisPersistence on NavisAudioHandler {
   Future<void> _restoreQueueAfterStartup() async {
-    await _queueLane.run((token) => _restoreSavedQueue(token: token));
+    // Never supersede a command issued while local initialization was pending.
+    if (_activeLoadGeneration != 0 || _disposeHandlerStarted) return;
+    await _queueLane.enqueue((token) async {
+      if (_activeLoadGeneration != 0 || _disposeHandlerStarted) return;
+      final stopwatch = Stopwatch()..start();
+      AppLogger.startup(StartupEvent.queueRestoreStart);
+      await _restoreSavedQueue(token: token, prepareSources: false);
+      AppLogger.startup(
+        StartupEvent.queueRestoreEnd,
+        elapsedMs: stopwatch.elapsedMilliseconds,
+        outcome: _queueRestoreOutcome == 'restored'
+            ? StartupOutcome.success
+            : StartupOutcome.unavailable,
+      );
+    });
   }
 
-  Future<void> _restoreSavedQueue({required OperationToken token}) async {
+  Future<void> _prepareRestoredQueueForTransport() async {
+    if (_restoredQueueIndex == null) return;
+    await _queueLane.enqueue((token) async {
+      await _prepareRestoredQueueInLane(token);
+    });
+  }
+
+  Future<void> _prepareRestoredQueueInLane(OperationToken token) async {
+    if (_restoredQueueIndex == null) return;
+    await (_cacheMaintenance ??= _maintainCacheBeforePlayback());
+    token.checkCancelled();
+    await _restoreQueueFromDisk(token: token, prepareSources: true);
+  }
+
+  Future<void> _restoreSavedQueue({
+    required OperationToken token,
+    bool prepareSources = true,
+  }) async {
     final generation = ++_loadGeneration;
     _activeLoadGeneration = generation;
     try {
@@ -13,6 +44,7 @@ extension _NavisPersistence on NavisAudioHandler {
       await _restoreQueueFromDisk(
         token: token,
         ownershipGeneration: generation,
+        prepareSources: prepareSources,
       ).timeout(const Duration(seconds: 10));
     } on TimeoutException catch (error, stackTrace) {
       token.cancel();
@@ -67,7 +99,7 @@ extension _NavisPersistence on NavisAudioHandler {
       if (token.isCancelled || !_canRetryDeferredQueueRestore) return;
       AppLogger.info('Retrying the deferred startup queue restore.');
       _queueRestoreRetryCount++;
-      await _restoreSavedQueue(token: token);
+      await _restoreSavedQueue(token: token, prepareSources: false);
     });
   }
 
@@ -90,6 +122,7 @@ extension _NavisPersistence on NavisAudioHandler {
   }
 
   Future<void> _restorePersistedQueueForPrepareIfEmpty() async {
+    await _startupQueueRestore;
     if (_radioStation != null || _queueItems.isNotEmpty) {
       AppLogger.debug(
         'Android Auto prepare: active queue already available '
@@ -129,34 +162,22 @@ extension _NavisPersistence on NavisAudioHandler {
   }
 
   Future<bool> _prepareBestAvailableQueueForUserPlayOnce() async {
-    // Let a deferred restore that is already running finish instead of
-    // restoring the saved queue a second time.
+    await _ready;
+    await _startupQueueRestore;
     final deferredRestore = _deferredQueueRestoreRetry;
-    if (deferredRestore != null) {
-      await deferredRestore;
-    }
-    if (_radioStation != null || _queueItems.isNotEmpty) {
-      AppLogger.debug(
-        'Android Auto resume: using active queue '
-        '(queue=${_queueItems.length} radio=${_radioStation != null}).',
-      );
+    if (deferredRestore != null) await deferredRestore;
+    if (_radioStation != null ||
+        (_queueItems.isNotEmpty && _restoredQueueIndex == null)) {
       return true;
     }
-
-    final persistedSongs = await _playQueueDao.getQueueItems();
-    if (persistedSongs.isNotEmpty) {
-      AppLogger.info(
-        'Android Auto resume: restoring persisted queue '
-        '(count=${persistedSongs.length}).',
-      );
-      await _restoreQueueFromDisk();
-      if (_queueItems.isNotEmpty) {
-        return true;
-      }
-      AppLogger.info(
-        'Android Auto resume: persisted queue could not be restored; '
-        'trying recent and fallback sources.',
-      );
+    if (_restoredQueueIndex == null) {
+      final persistedSongs = await _playQueueDao.getQueueItems();
+      if (persistedSongs.isNotEmpty) await _restoreQueueFromDisk();
+      if (_queueItems.isNotEmpty && _restoredQueueIndex == null) return true;
+    }
+    if (_restoredQueueIndex != null) {
+      await _prepareRestoredQueueForTransport();
+      if (_restoredQueueIndex == null && _queueItems.isNotEmpty) return true;
     }
 
     final recentSongs = await _historyDao
@@ -243,7 +264,10 @@ extension _NavisPersistence on NavisAudioHandler {
     },
     _shuffleEnabled ? schema.ShuffleMode.all : schema.ShuffleMode.off,
     includePosition
-        ? _player.position.inMilliseconds
+        ? (_restoredQueueIndex == null
+                  ? _player.position
+                  : _restoredQueuePosition)
+              .inMilliseconds
         : _snapshot.position.inMilliseconds,
   );
 

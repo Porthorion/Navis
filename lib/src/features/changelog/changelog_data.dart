@@ -166,6 +166,14 @@ const List<ChangelogVersion> changelogs = [
     ],
     entries: [
       ChangelogEntry(
+        'Navis no longer gets stuck on Preparing Playback after being idle; if starting takes too long, you can restart it from the same screen',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
+        'Navis refreshes its connection and library when you return to it',
+        type: ChangelogEntryType.improvement,
+      ),
+      ChangelogEntry(
         'Large selections of downloads start more smoothly',
         type: ChangelogEntryType.fix,
       ),

@@ -1336,6 +1336,10 @@ class SyncDiagnosticsServer {
         final action = body['action'];
         final recovery = _container.read(playbackRecoveryServiceProvider);
         switch (action) {
+          case 'restart':
+            await recovery.restartNavis();
+          case 'copyDetails':
+            await recovery.copyDetails();
           case 'retry':
             recovery.retryPlayback();
           case 'resetCache':
@@ -1346,7 +1350,7 @@ class SyncDiagnosticsServer {
             await recovery.signOut(wipeLocalData: true);
           default:
             await _respond(request, HttpStatus.badRequest, <String, Object?>{
-              'error': 'action must be retry, resetCache, signOutKeepData, or signOutWipeData',
+              'error': 'action must be restart, copyDetails, retry, resetCache, signOutKeepData, or signOutWipeData',
             });
             return;
         }
