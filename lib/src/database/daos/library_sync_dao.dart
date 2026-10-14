@@ -159,8 +159,10 @@ class LibrarySyncDao extends DatabaseAccessor<NavisDatabase>
 
   /// Completes a request once with a redacted, typed result.
   ///
-  /// Shared waiters cannot duplicate outcomes or overwrite an executed result.
-  /// Legacy target identifiers are cleared at this boundary.
+  /// Shared waiters cannot duplicate outcomes or overwrite an executed result:
+  /// only a still-running attempt finishes its request, and a caller without
+  /// an attempt never finishes a request another engine is running. Legacy
+  /// target identifiers are cleared at this boundary.
   Future<void> completeSyncRun({
     required int requestId,
     required SyncRunOutcome outcome,
@@ -169,11 +171,21 @@ class LibrarySyncDao extends DatabaseAccessor<NavisDatabase>
   }) async {
     final timestamp = (now ?? DateTime.now()).toUtc();
     await transaction(() async {
+      if (attemptId != null) {
+        final attempt = await (select(
+          librarySyncRunAttemptTable,
+        )..where((table) => table.id.equals(attemptId))).getSingleOrNull();
+        // A recovered attempt lost its lease; the new owner runs the request.
+        if (attempt?.status != _attemptRunning) return;
+      }
       final changed =
           await (update(librarySyncRunRequestTable)..where(
                 (table) =>
                     table.id.equals(requestId) &
-                    table.status.isNotValue(_runTerminal),
+                    table.status.isNotValue(_runTerminal) &
+                    (attemptId == null
+                        ? table.status.isNotValue(_runRunning)
+                        : const Constant(true)),
               ))
               .write(
                 LibrarySyncRunRequestTableCompanion(
@@ -441,6 +453,7 @@ class LibrarySyncDao extends DatabaseAccessor<NavisDatabase>
     final timestamp = now.toUtc();
     final expiry = timestamp.add(ttl);
     return await transaction(() async {
+      final previous = await getExecutionLease(serverId);
       await customStatement(
         '''
         INSERT INTO library_sync_execution_lease (
@@ -471,7 +484,15 @@ class LibrarySyncDao extends DatabaseAccessor<NavisDatabase>
         ],
       );
       final lease = await getExecutionLease(serverId);
-      return lease?.ownerToken == ownerToken;
+      final acquired = lease?.ownerToken == ownerToken;
+      // The previous owner's lease expired, so its running work and attempts
+      // can never finish: requeue them under the new ownership, in this
+      // transaction. A clean release leaves no row.
+      if (acquired && previous != null && previous.ownerToken != ownerToken) {
+        await resetInterruptedWork(serverId, now: timestamp);
+        await recoverInterruptedSyncRuns(serverId, now: timestamp);
+      }
+      return acquired;
     });
   }
 
