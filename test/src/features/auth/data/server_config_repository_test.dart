@@ -159,7 +159,7 @@ void main() {
         key: 'navis.auth.active_server.user_info',
         value: 'proxy:fixture',
       ),
-    ).called(1);
+    ).called(3);
   });
 
   group('ServerConfigRepository', () {
@@ -215,6 +215,42 @@ void main() {
         isTrue,
       );
     }, skip: !sqliteAvailable);
+
+    test(
+      'durable save failure leaves no authenticated profile to reload',
+      () async {
+        final storage = _MockSecureStorage();
+        when(
+          () => storage.write(
+            key: any(named: 'key'),
+            value: any(named: 'value'),
+          ),
+        ).thenThrow(StateError('fixture keystore unavailable'));
+        when(() => storage.read(key: any(named: 'key')))
+            .thenThrow(StateError('fixture keystore unavailable'));
+        when(() => storage.delete(key: any(named: 'key')))
+            .thenAnswer((_) async {});
+        final store = FlutterSecureCredentialStore(
+          storage: storage,
+          requiresDurableCredentials: true,
+        );
+        repository = ServerConfigRepository(database, credentials: store);
+
+        await expectLater(
+          repository.save(proxyConfig),
+          throwsA(isA<CredentialWriteException>()),
+        );
+        expect(await database.serverDao.getRetainedServer(), isNull);
+
+        // A cold start with recovered, empty storage finds no profile
+        // claiming a durable login, so no sign-out is recorded either.
+        when(() => storage.read(key: any(named: 'key')))
+            .thenAnswer((_) async => null);
+        expect(await repository.getActiveServer(), isNull);
+        expect(await database.serverDao.getRetainedServer(), isNull);
+      },
+      skip: !sqliteAvailable,
+    );
 
     test(
       'URL credential read failure preserves authentication and secrets',

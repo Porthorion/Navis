@@ -1,4 +1,5 @@
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+import 'package:navis/src/features/auth/data/secure_credential_store.dart';
 import 'package:navis/src/utils/app_logger.dart';
 
 abstract class ExternalScrobbleCredentialStore {
@@ -34,12 +35,17 @@ class FlutterExternalScrobbleCredentialStore
     this._storage = const FlutterSecureStorage(
       aOptions: AndroidOptions(resetOnError: false),
     ),
+    this.storageDeadline = const Duration(seconds: 5),
   });
 
   static const _listenBrainzTokenKey =
       'navis.external_scrobble.listenbrainz.token';
 
   final FlutterSecureStorage _storage;
+
+  /// Bound for one native token read. A stuck platform channel surfaces as
+  /// unavailability instead of wedging scrobble dispatch.
+  final Duration storageDeadline;
 
   @override
   Future<void> saveListenBrainzToken(String value) {
@@ -69,12 +75,14 @@ class FlutterExternalScrobbleCredentialStore
 
   Future<String?> _read(String key) async {
     try {
-      return await _storage.read(key: key);
+      return await _storage.read(key: key).timeout(storageDeadline);
     } on Object catch (error) {
       AppLogger.warning(
         'External credential read failed: ${error.runtimeType}',
       );
-      return null;
+      // Null would make a stored token look absent, which drops queued
+      // listens; unavailability must stay distinguishable from removal.
+      throw const CredentialReadException();
     }
   }
 

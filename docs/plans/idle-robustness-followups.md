@@ -1,8 +1,8 @@
 # Idle robustness follow-ups — 1.5.1
 
-Status: playback findings 4, 7, 8 and 13 are completed for release/1.5.
-Android acceptance evidence is recorded in the progress log. Findings 5 and
-10–12/14 remain deferred.
+Status: playback findings 4, 7, 8, 11, 12 and 13 are completed for release/1.5.
+Android acceptance evidence is recorded in the progress log. Findings 5,
+10 and 14 remain deferred.
 These originated in the read-only idle audit on 2026-10-14. They are not part
 of `fix/startup-hang` acceptance. The startup audit records the current work:
 [Android startup investigation](../audits/startup-hang-2026-10-14.md).
@@ -90,6 +90,19 @@ cancellation where possible. Preserve lease fencing and bounded transactions.
 
 ## 11. Pending credential reads and memory-only saves
 
+**Completed for 1.5.0 — 2026-10-14.** Secure-storage reads and writes now run
+through one serialized, deadline-bounded queue per store: a stuck platform
+channel surfaces as `CredentialReadException` (unavailable) instead of hanging
+startup or reading as a missing password, and the queue advances past a stuck
+call. Failed saves retry with backoff; on Android, where durable persistence
+is required, a save that never lands throws instead of declaring a login from
+engine-local memory, so a cold start finds no falsely authenticated profile.
+Desktop keeps the documented keychain fallback. Routing keeps an initial
+config error in the loading phase instead of mapping it to unauthenticated.
+Recovery events are recorded once per process in the private startup timeline.
+Cross-engine serialization (foreground plus headless worker writing the same
+keystore) still needs native work and remains open.
+
 **Likelihood:** low for false sign-in, medium for persistent storage failure.
 A failed password save can still allow login through an engine-local memory
 fallback. Process death loses it; the worker also has separate memory. A later
@@ -109,6 +122,14 @@ login, bound reads, distinguish unavailable from missing credentials and
 serialize native credential initialization/migration.
 
 ## 12. ListenBrainz storage failure drops queued events
+
+**Completed for 1.5.0 — 2026-10-14.** An external token read that fails or
+hangs now propagates as `CredentialReadException` (bounded by the same kind
+of read deadline) instead of returning null. Scrobble dispatch treats an
+unreadable token as possibly active, never as absent: ListenBrainz listens
+stay queued with backoff, Subsonic delivery continues, and entries are
+dropped only for confirmed absence, explicit disabling or an invalid token.
+ListenBrainz feedback and the passive token readers defer instead of failing.
 
 **Likelihood:** medium conditional on credential-read failure. External token
 storage converts failures into null. With ListenBrainz alone, a resumed flush

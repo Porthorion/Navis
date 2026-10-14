@@ -14,6 +14,23 @@ Last updated: 2026-10-14
 - ACP status values: `backlog`, `ready`, `in_progress`, `blocked`, `done`.
 
 ## Current Focus
+- [x] Idle-robustness follow-ups 11 and 12 (credential unavailability) —
+  2026-10-14 (`fix/idle-partb`; secure-storage operations are serialized and
+  deadline-bounded per store, so pending reads surface as unavailable and are
+  retried instead of hanging startup or reading as missing; failed saves retry
+  with backoff and Android requires durable persistence before a login is
+  declared, so a cold start never finds a falsely authenticated memory-only
+  profile; routing keeps a config error in loading instead of unauthenticated.
+  ListenBrainz token reads propagate unavailability instead of null, keeping
+  queued listens queued while Subsonic delivery continues; drops remain limited
+  to confirmed absence, explicit disabling or invalid tokens. Eight regressions
+  failed before and pass after, three more cannot compile against the old API
+  and pass after; 116 tests pass across the twelve touched suites
+  (`flutter test --concurrency=4` under a 6G cap). `dart analyze` on changed
+  files is clean and `dart format` applied. `./tool/check.sh`, runtime loops
+  and platform validation were not run in this worktree; the coordinator owns
+  them. Recovery events are recorded once per process in the private startup
+  timeline. Cross-engine keystore serialization still needs native work.)
 - [x] Silent-recovery review fixes (P2-1 to P3-9) — 2026-10-14
   (`fix/idle-batch2`; pending song recovery belongs to its song and reloads
   only a player that is still idle/loading/buffering; Play re-prepares a failed

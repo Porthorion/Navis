@@ -170,6 +170,14 @@ const List<ChangelogVersion> changelogs = [
         type: ChangelogEntryType.fix,
       ),
       ChangelogEntry(
+        'A stuck or briefly unavailable credential store no longer shows the login screen for a signed-in profile',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
+        'Queued ListenBrainz listens are kept when secure storage is briefly unavailable',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
         'Playback and radio recover by themselves when the network returns',
         type: ChangelogEntryType.fix,
       ),

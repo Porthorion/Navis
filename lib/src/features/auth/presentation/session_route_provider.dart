@@ -137,6 +137,11 @@ final sessionRoutePhaseProvider = Provider<SessionRoutePhase>((ref) {
   if (config.isLoading && !config.hasValue) {
     return SessionRoutePhase.loading;
   }
+  if (config.hasError && !config.hasValue) {
+    // Unreadable credentials are unavailable, not absent. Routing must not
+    // infer sign-out from an error, matching the bootstrap overlay.
+    return SessionRoutePhase.loading;
+  }
   if (config.asData?.value == null) {
     return SessionRoutePhase.unauthenticated;
   }

@@ -30,6 +30,7 @@ import 'package:navis/src/utils/sync_diagnostics_overrides.dart';
 import 'package:navis/src/utils/connectivity.dart';
 import 'package:navis/src/utils/app_logger.dart';
 import 'package:navis/src/utils/song_id_utils.dart';
+import 'package:navis/src/features/auth/data/secure_credential_store.dart';
 
 enum HomeRandomShowcaseSource { likedDiscovery, serverRandom, localFallback }
 
@@ -744,9 +745,16 @@ Stream<List<ListenBrainzDiscoverPlaylist>> _listenBrainzDiscoverStream(
     return;
   }
 
-  final token = (await credentialStore.readListenBrainzToken())?.trim() ?? '';
+  String? token;
+  try {
+    token = (await credentialStore.readListenBrainzToken())?.trim();
+  } on CredentialReadException {
+    // Brief unavailability must not present the integration as tokenless.
+    token = null;
+  }
+  final tokenText = token ?? '';
   if (!active()) return;
-  if (token.isEmpty) {
+  if (tokenText.isEmpty) {
     if (useDiagnosticsCache) {
       final cachedUserName = await cacheDao
           .getLatestListenBrainzWeeklyCacheUserName();
@@ -785,7 +793,7 @@ Stream<List<ListenBrainzDiscoverPlaylist>> _listenBrainzDiscoverStream(
     }
     try {
       final details = await client.validateTokenDetails(
-        token,
+        tokenText,
         cancelToken: cancelToken,
       );
       if (!active()) return;
@@ -904,7 +912,7 @@ Stream<List<ListenBrainzDiscoverPlaylist>> _listenBrainzDiscoverStream(
         cacheDao: cacheDao,
         userName: userName,
         sessionKey: sessionKey,
-        token: token,
+        token: tokenText,
         cachedPlaylists: persistentCached,
         automaticRefresh: false,
         emitProgressiveSearchUpdates: true,
@@ -969,7 +977,7 @@ Stream<List<ListenBrainzDiscoverPlaylist>> _listenBrainzDiscoverStream(
       cacheDao: cacheDao,
       userName: userName,
       sessionKey: sessionKey,
-      token: token,
+      token: tokenText,
       cachedPlaylists: persistentCached,
       automaticRefresh: true,
       emitProgressiveSearchUpdates: false,

@@ -115,6 +115,121 @@ void main() {
         );
       },
     );
+
+    test(
+      'indefinitely pending reads surface as unavailable, not missing',
+      () async {
+        final pendingStore = FlutterSecureCredentialStore(
+          storage: storage,
+          storageDeadline: const Duration(milliseconds: 50),
+        );
+        when(() => storage.read(key: any(named: 'key')))
+            .thenAnswer((_) => Completer<String?>().future);
+
+        await expectLater(
+          pendingStore.readPassword(),
+          throwsA(isA<CredentialReadException>()),
+        );
+        await expectLater(
+          pendingStore.readUserInfo(),
+          throwsA(isA<CredentialReadException>()),
+        );
+        verifyNever(() => storage.delete(key: any(named: 'key')));
+        verifyNever(
+          () => storage.write(
+            key: any(named: 'key'),
+            value: any(named: 'value'),
+          ),
+        );
+      },
+    );
+
+    test('durable stores reject a save that stays memory-only', () async {
+      when(
+        () => storage.write(
+          key: any(named: 'key'),
+          value: any(named: 'value'),
+        ),
+      ).thenThrow(PlatformException(code: 'keystore_busy'));
+      when(() => storage.read(key: any(named: 'key')))
+          .thenThrow(PlatformException(code: 'keystore_busy'));
+      final store = FlutterSecureCredentialStore(
+        storage: storage,
+        requiresDurableCredentials: true,
+      );
+
+      await expectLater(
+        store.savePassword('fixture'),
+        throwsA(isA<CredentialWriteException>()),
+      );
+      await expectLater(
+        store.readPassword(),
+        throwsA(isA<CredentialReadException>()),
+      );
+      verifyNever(() => storage.delete(key: any(named: 'key')));
+    });
+
+    test('concurrent native operations never overlap', () async {
+      var inFlight = 0;
+      var maxInFlight = 0;
+      Future<void> track() async {
+        inFlight++;
+        if (inFlight > maxInFlight) maxInFlight = inFlight;
+        await Future<void>.delayed(const Duration(milliseconds: 5));
+        inFlight--;
+      }
+
+      when(
+        () => storage.write(
+          key: any(named: 'key'),
+          value: any(named: 'value'),
+        ),
+      ).thenAnswer((_) => track());
+      when(() => storage.read(key: any(named: 'key'))).thenAnswer((_) async {
+        await track();
+        return null;
+      });
+
+      await Future.wait([
+        store.savePassword('fixture-a'),
+        store.saveUserInfo('fixture-b'),
+        store.readPassword(),
+      ]);
+
+      expect(maxInFlight, 1);
+    });
+
+    test('failed saves retry and persist once storage recovers', () async {
+      final persisted = <String, String>{};
+      var writeFailures = 0;
+      when(
+        () => storage.write(
+          key: any(named: 'key'),
+          value: any(named: 'value'),
+        ),
+      ).thenAnswer((invocation) async {
+        if (writeFailures < 2) {
+          writeFailures++;
+          throw PlatformException(code: 'keystore_busy');
+        }
+        persisted[invocation.namedArguments[#key]! as String] =
+            invocation.namedArguments[#value]! as String;
+      });
+      when(() => storage.read(key: any(named: 'key'))).thenAnswer(
+        (invocation) async =>
+            persisted[invocation.namedArguments[#key]! as String],
+      );
+
+      await store.savePassword('fixture');
+
+      expect(await store.readPassword(), 'fixture');
+      verify(
+        () => storage.write(
+          key: 'navis.auth.active_server.password',
+          value: 'fixture',
+        ),
+      ).called(3);
+    });
   });
 
   test('clone diagnostics retries a failed shared backing read', () async {
@@ -158,7 +273,7 @@ void main() {
         throw PlatformException(code: 'keystore_busy');
       });
 
-      const store = FlutterSecureCredentialStore();
+      final store = FlutterSecureCredentialStore();
       await expectLater(
         store.readPassword(),
         throwsA(isA<CredentialReadException>()),

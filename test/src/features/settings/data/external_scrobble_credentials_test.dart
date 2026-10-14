@@ -1,8 +1,11 @@
+import 'dart:async';
+
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:mocktail/mocktail.dart';
+import 'package:navis/src/features/auth/data/secure_credential_store.dart';
 import 'package:navis/src/features/settings/data/external_scrobble_credentials.dart';
 
 class _Storage extends Mock implements FlutterSecureStorage;
@@ -60,6 +63,35 @@ void main() {
       () => storage.delete(key: 'navis.external_scrobble.listenbrainz.token'),
     ).called(1);
   });
+
+  test('pending token reads surface as unavailable, not absent', () async {
+    final storage = _Storage();
+    when(() => storage.read(key: any(named: 'key')))
+        .thenAnswer((_) => Completer<String?>().future);
+    final store = FlutterExternalScrobbleCredentialStore(
+      storage: storage,
+      storageDeadline: const Duration(milliseconds: 50),
+    );
+
+    await expectLater(
+      store.readListenBrainzToken(),
+      throwsA(isA<CredentialReadException>()),
+    );
+    verifyNever(() => storage.delete(key: any(named: 'key')));
+  });
+
+  test('token read failures propagate as unavailable, not null', () async {
+    final storage = _Storage();
+    when(() => storage.read(key: any(named: 'key')))
+        .thenThrow(PlatformException(code: 'keystore_busy'));
+    final store = FlutterExternalScrobbleCredentialStore(storage: storage);
+    await expectLater(
+      store.readListenBrainzToken(),
+      throwsA(isA<CredentialReadException>()),
+    );
+    verifyNever(() => storage.delete(key: any(named: 'key')));
+  });
+
   test('clone diagnostics credentials remain process-local', () async {
     final store = CloneDiagnosticsExternalScrobbleCredentialStore();
 

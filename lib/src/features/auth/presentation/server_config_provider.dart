@@ -9,7 +9,7 @@ import 'package:navis/src/providers/app_providers.dart';
 import 'package:navis/src/utils/app_logger.dart';
 
 final secureCredentialStoreProvider = Provider<SecureCredentialStore>((ref) {
-  const backing = FlutterSecureCredentialStore();
+  final backing = FlutterSecureCredentialStore();
   const diagnosticsEnabled = bool.fromEnvironment('NAVIS_SYNC_DIAGNOSTICS');
   const diagnosticsMode = String.fromEnvironment('NAVIS_SYNC_DIAGNOSTICS_MODE');
   if (diagnosticsEnabled && diagnosticsMode == 'clone') {

@@ -147,8 +147,7 @@ class _HeadlessBackgroundSyncRunner {
     try {
       final repository = ServerConfigRepository(
         database,
-        credentials:
-            credentialsOverride ?? const FlutterSecureCredentialStore(),
+        credentials: credentialsOverride ?? FlutterSecureCredentialStore(),
       );
       final retained = await repository.getRetainedServer();
       activeServerId = retained?.id;

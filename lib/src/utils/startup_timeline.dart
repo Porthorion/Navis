@@ -25,6 +25,7 @@ enum StartupEvent {
   streamRecovery,
   radioRecovery,
   radioRefillRecovery,
+  credentialRecovery,
 }
 
 enum StartupFailure { timeout, credentials, storage, platform, other }

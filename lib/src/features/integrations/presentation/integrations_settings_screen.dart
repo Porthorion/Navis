@@ -7,6 +7,7 @@ import 'package:navis/l10n/app_localizations.dart';
 import 'package:navis/src/common_widgets/async_body.dart';
 import 'package:navis/src/common_widgets/app_notice.dart';
 import 'package:navis/src/common_widgets/navis_section_header.dart';
+import 'package:navis/src/features/auth/data/secure_credential_store.dart';
 import 'package:navis/src/features/integrations/domain/integration_feature.dart';
 import 'package:navis/src/features/integrations/presentation/integration_copy.dart';
 import 'package:navis/src/features/settings/data/settings_repository.dart';
@@ -76,9 +77,15 @@ class _IntegrationsSettingsScreenState
     _hydrated = true;
     _lastFmKeyController.text = settings.lastFmApiKey ?? '';
     _lastFmKeySaved = (settings.lastFmApiKey ?? '').trim().isNotEmpty;
-    final token = await ref
-        .read(externalScrobbleCredentialStoreProvider)
-        .readListenBrainzToken();
+    String? token;
+    try {
+      token = await ref
+          .read(externalScrobbleCredentialStoreProvider)
+          .readListenBrainzToken();
+    } on CredentialReadException {
+      // Brief unavailability must not present the stored token as removed.
+      token = null;
+    }
     if (!mounted) return;
     setState(() => _listenBrainzTokenController.text = token ?? '');
   }
