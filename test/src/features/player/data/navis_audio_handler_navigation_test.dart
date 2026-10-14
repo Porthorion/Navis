@@ -2064,6 +2064,33 @@ void main() {
       },
     );
 
+    test('a held Play applies once a restore reloads its song', () async {
+      final (handler, player, database) = await setup(
+        reconcile: () async => net(online: false),
+        remote: true,
+        count: 70,
+      );
+      final ids = List<String>.generate(70, (index) => 'song-$index');
+      await handler.replaceQueue(ids, autoPlay: false, expandMatchFlows: false);
+      await settleQueue(handler);
+      await database.playQueueDao.saveQueue(currentIndex: 0, songIds: ids);
+      await failSong(player);
+      // Offline, Play holds its request for the failed song.
+      await handler.play();
+      await pumpEventQueue(times: 20);
+      // Android Auto restores the saved queue in two phases without
+      // superseding the Play; the restore reloads the same song.
+      await handler.prepareFromMediaId('recent/resume');
+      await pumpEventQueue(times: 100);
+      await settleQueue(handler);
+      expect(player.state, ProcessingState.ready);
+      expect(player.playing, isTrue);
+      expect(
+        handler.snapshot.processingState,
+        isNot(AudioProcessingState.buffering),
+      );
+    });
+
     test('an error event that is not idle still counts as a failure', () async {
       var online = false;
       final recovered = StreamController<void>.broadcast();

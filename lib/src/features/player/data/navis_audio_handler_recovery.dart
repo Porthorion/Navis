@@ -994,9 +994,10 @@ extension _NavisRecovery on NavisAudioHandler {
     return true;
   }
 
-  /// Restarts recovery for the Play or seek held on the current failed song.
-  /// While a load still owns the song the request is kept, and
-  /// _completeQueueLoad calls this again once the load ends.
+  /// Restarts recovery for the Play or seek held on the current failed song,
+  /// or applies it once a load has reloaded the song. While a load still
+  /// owns the song the request is kept, and _completeQueueLoad calls this
+  /// again once the load ends.
   void _rearmHeldRemoteRecovery() {
     final request = _pendingRemoteRecovery;
     final songId = _resolveCurrentQueueMetadata().mediaItem?.id;
@@ -1004,15 +1005,15 @@ extension _NavisRecovery on NavisAudioHandler {
         songId == null ||
         !_ownsRemoteRecovery(songId) ||
         _remotePlaybackRecoveryInProgress ||
-        !_remoteSourceFailed ||
         _isLoading ||
         _pendingLogicalQueueSongIds != null) {
       return;
     }
-    if (!_rearmRemoteRecovery(
-      position: request.position,
-      autoPlay: request.autoPlay,
-    )) {
+    if (!_remoteSourceFailed ||
+        !_rearmRemoteRecovery(
+          position: request.position,
+          autoPlay: request.autoPlay,
+        )) {
       _applyPendingRemoteRecovery();
     }
   }
