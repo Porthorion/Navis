@@ -166,6 +166,10 @@ const List<ChangelogVersion> changelogs = [
     ],
     entries: [
       ChangelogEntry(
+        'Pause and Stop stay in effect when repeated Play requests are still preparing personal radio',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
         'Play recovers when a large saved queue is unavailable, repeated Play requests start music reliably, and background sync stays visible after quick pause and resume',
         type: ChangelogEntryType.fix,
       ),

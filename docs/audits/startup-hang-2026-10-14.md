@@ -447,6 +447,8 @@ for this Dart follow-up; the controlled regressions are the evidence for the
 local-init stall and cross-engine commit races.
 
 
+- P2 follow-up (2026-10-14): overlapping empty-queue Plays now carry the existing transport/load ownership and play intent through radio preparation to provisional queue admission; a newer Pause or Stop discards the unadmitted fallback, matching recent/liked semantics. Four integrated cases (Pause, Stop, newer queue and newest Play) failed on HEAD and pass after; all 481 focused tests and `./tool/check.sh` pass (7,954 full-suite tests, one existing skip, 96 migration and 246 critical reliability tests; no new analyzer errors/warnings). Post-gate isolated Linux held-fetch Pause and newest-Play controls pass across clean restarts; Stop is covered by the deterministic regression. App-owned screenshot inspected; owned apps stopped and fixture credential/handshake files removed. Read-only self-review found no new races. No commits or stashes.
+
 ### Re-review of HEAD: three additional P2 findings
 
 The three new findings are fixed without commits or stashes. Preparation reuses

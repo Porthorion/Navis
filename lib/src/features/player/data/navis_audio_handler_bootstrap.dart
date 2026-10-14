@@ -101,9 +101,10 @@ Future<NavisPlaybackHandler> initNavisAudioHandler({
   NetworkUsageReporter? reportNetworkUsage,
   Future<File?> Function(String coverArtId)? readPermanentArtwork,
   void Function(RollingCacheActivity activity)? reportRollingCacheActivity,
-  // Keep the existing method and callback call contract for callers.
+  // Keep autoplay positional; the optional guard follows fallback ownership.
   // ignore: avoid_positional_boolean_parameters
-  required Future<bool> Function(bool autoPlay) startPersonalRadio,
+  required Future<bool> Function(bool autoPlay, {bool Function()? isCurrent})
+  startPersonalRadio,
   void Function(({int index, String songId})? queueEndSkip)?
   onPersonalRadioQueueEnd,
   required Future<void> Function(String) startPreferredMix,

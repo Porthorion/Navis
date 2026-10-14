@@ -67,6 +67,7 @@ class PersonalRadioNotifier extends Notifier<PersonalRadioState> {
   Future<RadioStartResult> start({
     RadioFilters filters = const RadioFilters(),
     bool autoPlay = true,
+    bool Function()? isCurrent,
   }) async {
     if (_starting) {
       return const RadioStartResult(
@@ -115,6 +116,16 @@ class PersonalRadioNotifier extends Notifier<PersonalRadioState> {
           errorCategory: batch.issue.name,
         );
         return RadioStartResult(insertedCount: 0, issue: batch.issue);
+      }
+      // Pause does not stop a recommendation session. Recheck the originating
+      // Play immediately before provisional queue admission; the queue's
+      // startup-selection ownership guards the database awaits after this.
+      if (isCurrent != null && !isCurrent()) {
+        stop();
+        return const RadioStartResult(
+          insertedCount: 0,
+          issue: RecommendationIssue.empty,
+        );
       }
       queueChangeAttempted = true;
       await ref

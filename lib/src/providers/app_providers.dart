@@ -1202,10 +1202,10 @@ final audioHandlerInitializerProvider = Provider<AudioHandlerInitializer>((
           // initializer during root-container teardown.
         }
       },
-      startPersonalRadio: (autoPlay) async =>
+      startPersonalRadio: (autoPlay, {isCurrent}) async =>
           (await ref
                   .read(personalRadioProvider.notifier)
-                  .start(autoPlay: autoPlay))
+                  .start(autoPlay: autoPlay, isCurrent: isCurrent))
               .succeeded,
       onPersonalRadioQueueEnd: (skip) {
         if (!ref.mounted) return;

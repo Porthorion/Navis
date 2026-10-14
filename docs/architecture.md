@@ -4574,7 +4574,11 @@ preparation; the newest Play restarts it if superseded work left no playable
 queue. Only the latest transport intent may admit fallback. Load ownership is
 captured after saved restoration's own generation changes, so an unavailable
 large queue can still fall back. Recent, liked and radio fallbacks honor the
-Play intent through the existing queue-loading path and start playback.
+Play intent through the existing queue-loading path and start playback. Before
+admission they recheck the originating transport generation, play intent and load
+ownership. Radio carries that guard through its recommendation fetch; a newer
+Pause or Stop discards the unadmitted fallback. After provisional admission,
+startup-selection ownership and queue-loading play intent guard later awaits.
 
 Now Playing receives a handler-owned `TransportVisualCue` for every manual
 Previous/Next outcome, regardless of whether it originated from touch, swipe,

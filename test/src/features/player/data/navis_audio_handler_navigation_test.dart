@@ -39,6 +39,9 @@ import 'package:navis/src/features/integrations/domain/integration_artwork.dart'
 import 'package:navis/src/features/integrations/domain/integration_feature.dart';
 import 'package:navis/src/features/player/data/listenbrainz_feedback_service.dart';
 import 'package:navis/src/features/player/data/navis_audio_handler.dart';
+import 'package:navis/src/features/player/data/recommendation_service.dart';
+import 'package:navis/src/features/player/presentation/personal_radio_notifier.dart';
+import 'package:navis/src/features/player/presentation/queue_provider.dart';
 import 'package:navis/src/features/player/data/navis_shuffle_order.dart';
 import 'package:navis/src/features/player/data/playback_source_resolver.dart';
 import 'package:navis/src/features/player/data/real_time_projection_audio_handler.dart';
@@ -49,6 +52,8 @@ import 'package:navis/src/features/player/domain/streaming_quality.dart';
 import '../../../../helpers/test_database.dart';
 import '../../../../helpers/library_sync_fakes.dart';
 import '../../../../helpers/library_sync_plan.dart';
+
+class _MockRecommendationService extends Mock implements RecommendationService;
 
 class _MockRadioDio extends Mock implements Dio;
 
@@ -870,6 +875,7 @@ Future<void> settleQueue(NavisAudioHandler handler) async {
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
+  setUpAll(() => registerFallbackValue(const RadioFilters()));
 
   Future<(NavisAudioHandler, _ControllableAudioPlayer, NavisDatabase)>
   createHandler(
@@ -908,7 +914,8 @@ void main() {
     bool Function()? readRadioMetadataAllowed,
     Dio Function()? createRadioMetadataDio,
     CoverArtHttpFileService? artworkFileService,
-    Future<bool> Function({required bool autoPlay})? startPersonalRadio,
+    Future<bool> Function({required bool autoPlay, bool Function()? isCurrent})?
+    startPersonalRadio,
     void Function(({int index, String songId})? queueEndSkip)?
     onPersonalRadioQueueEnd,
   }) async {
@@ -971,8 +978,12 @@ void main() {
     );
     final resolver = wrapResolver?.call(baseResolver) ?? baseResolver;
     NavisAudioHandler buildHandler() => NavisAudioHandler(
-      startPersonalRadio: (autoPlay) async =>
-          await startPersonalRadio?.call(autoPlay: autoPlay) ?? false,
+      startPersonalRadio: (autoPlay, {isCurrent}) async =>
+          await startPersonalRadio?.call(
+            autoPlay: autoPlay,
+            isCurrent: isCurrent,
+          ) ??
+          false,
       onPersonalRadioQueueEnd: onPersonalRadioQueueEnd,
       startPreferredMix: (_) async {},
       togglePreferredMix: (_) async {},
@@ -1232,6 +1243,109 @@ void main() {
       expect(handler.playbackState.value.errorMessage, isNull);
     },
   );
+
+  for (final command in ['pause', 'stop', 'replace', 'play']) {
+    test(
+      'overlapping empty-queue Plays respect newer $command during radio fetch',
+      () async {
+        final directory = await Directory.systemTemp.createTemp(
+          'navis-radio-transport-',
+        );
+        final entered = Completer<void>();
+        final batch = Completer<RecommendationBatch>();
+        final service = _MockRecommendationService();
+        var fetches = 0;
+        when(
+          () => service.personalRadio(
+            any(),
+            excludedIds: any(named: 'excludedIds'),
+            count: any(named: 'count'),
+            cancelToken: any(named: 'cancelToken'),
+          ),
+        ).thenAnswer((_) {
+          fetches++;
+          if (!entered.isCompleted) entered.complete();
+          return batch.future;
+        });
+        late ProviderContainer container;
+        final (handler, player, database) = await createHandler(
+          directory,
+          2,
+          startPersonalRadio: ({required autoPlay, isCurrent}) async =>
+              (await container
+                      .read(personalRadioProvider.notifier)
+                      .start(autoPlay: autoPlay, isCurrent: isCurrent))
+                  .succeeded,
+        );
+        container = ProviderContainer(
+          overrides: [
+            navisDatabaseProvider.overrideWithValue(database),
+            audioHandlerProvider.overrideWithValue(handler),
+            subsonicApiProvider.overrideWithValue(null),
+            recommendationServiceProvider.overrideWithValue(service),
+            lyricsPrewarmProvider.overrideWithValue((_) async {}),
+          ],
+        );
+        addTearDown(() async {
+          if (!batch.isCompleted) {
+            batch.complete(
+              const RecommendationBatch(
+                songs: [],
+                source: RecommendationSource.server,
+              ),
+            );
+          }
+          container.dispose();
+          await handler.disposeHandler();
+          await database.close();
+          await directory.delete(recursive: true);
+        });
+        final first = handler.play();
+        await entered.future.timeout(const Duration(seconds: 1));
+        final second = handler.play();
+        await pumpEventQueue();
+        expect(fetches, 1, reason: 'both Plays join the held radio fetch');
+        switch (command) {
+          case 'pause':
+            await handler.pause();
+          case 'stop':
+            await handler.stop();
+          case 'replace':
+            await handler.replaceQueue(['song-1'], autoPlay: false);
+          case 'play':
+            // The second Play remains the newest intent.
+            break;
+        }
+        batch.complete(
+          const RecommendationBatch(
+            songs: [models.Song(id: 'song-0', title: 'Song 0')],
+            source: RecommendationSource.server,
+          ),
+        );
+        await Future.wait([first, second]);
+        await settleQueue(handler);
+        expect(handler.snapshot.queueSongIds, switch (command) {
+          'replace' => ['song-1'],
+          'play' => ['song-0'],
+          _ => isEmpty,
+        });
+        expect(handler.snapshot.playing, command == 'play');
+        expect(player.isPlaying, command == 'play');
+        expect(
+          player.sourceLoads,
+          command == 'pause' || command == 'stop' ? 0 : 1,
+        );
+        expect(fetches, command == 'play' ? 2 : 1);
+        expect(container.read(personalRadioProvider).busy, isFalse);
+        expect(handler.playbackState.value.errorMessage, isNull);
+        await handler.debugFlushQueuePersistence();
+        expect(
+          (await database.playQueueDao.getQueueItems()).map((song) => song.id),
+          handler.snapshot.queueSongIds,
+        );
+      },
+    );
+  }
 
   for (final replacement in [false, true]) {
     test(
@@ -2524,7 +2638,7 @@ void main() {
           directory,
           5,
           readCanStream: () => false,
-          startPersonalRadio: ({required autoPlay}) async {
+          startPersonalRadio: ({required autoPlay, isCurrent}) async {
             radioRequests.add(autoPlay);
             if (expected != 'song-4') return false;
             await radioHandler.replaceQueue(

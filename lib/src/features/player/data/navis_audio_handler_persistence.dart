@@ -207,7 +207,9 @@ extension _NavisPersistence on NavisAudioHandler {
     // ownership only once restoration is done, before asynchronous fallbacks.
     final queueGeneration = _activeLoadGeneration;
     bool canApplyFallback() =>
-        isCurrent() && _isActiveLoadGeneration(queueGeneration);
+        isCurrent() &&
+        _requestedPlaying &&
+        _isActiveLoadGeneration(queueGeneration);
 
     final recentSongs = await _historyDao
         .watchRecentlyPlayedSongs(limit: 50)
@@ -242,7 +244,10 @@ extension _NavisPersistence on NavisAudioHandler {
     }
 
     AppLogger.info('Android Auto resume: trying random song fallback.');
-    return await _startInstantRadio(autoPlay: true);
+    return await _startInstantRadio(
+      autoPlay: true,
+      isCurrent: canApplyFallback,
+    );
   }
 
   Future<void> _persistSafely(

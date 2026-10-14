@@ -14,6 +14,23 @@ Last updated: 2026-10-14
 - ACP status values: `backlog`, `ready`, `in_progress`, `blocked`, `done`.
 
 ## Current Focus
+- [x] Overlapping first-Play radio fallback preserves newer transport intent —
+  2026-10-14 (`fix/startup-hang`; existing transport/load generations and play
+  intent guard recent, liked and radio fallback admission. Radio carries the
+  guard through its fetch; a newer Pause or Stop discards the unadmitted queue.
+  Four integrated regressions fail on HEAD and pass after, including newer
+  queue and newest-Play controls; 481 focused tests pass. `./tool/check.sh`
+  passes: 7,954 tests, one existing skip, 96 migration and 246 critical
+  reliability tests, no new analyzer errors/warnings. Post-gate isolated muted
+  Linux held-fetch Pause leaves zero queue items/native sources and no persisted
+  queue; newest Play retries and reaches advancing native playback across clean
+  restarts. App-owned screenshot inspected: Home and paused player, no startup
+  overlay; owned apps stopped and fixture credential/handshake files removed.
+  Stop is covered by deterministic regression; audible output and device/OS
+  controls were not retested. Read-only self-review found no new races.
+  Architecture, changelog and
+  [Review follow-up](../audits/startup-hang-2026-10-14.md#review-follow-up)
+  updated; no commits or stashes.)
 - [x] Startup/idle robustness re-review: three additional P2 defects —
   2026-10-14 (`fix/startup-hang`; fallback captures load ownership after internal
   restore changes, newest Play restarts superseded shared preparation, and each
