@@ -75,7 +75,20 @@ released focus and resumed the same advancing song automatically. See
 
 ## 10. Worker lease left by process death or freezing
 
-**Likelihood:** medium. A killed worker or frozen heartbeat leaves the durable
+**Completed for 1.5.0 — 2026-10-15.** A due automatic check that returns
+`leaseHeld` now persists its next deadline at the foreign lease's expiry (plus
+five seconds, never sooner than 30 seconds or later than the normal cadence)
+instead of a full interval later; the existing durable-deadline timer re-arms
+from it. The native worker timeout now sends the same bounded Dart `cancel`
+checkpoint as WorkManager cancellation before engine teardown, so a timed-out
+run drains and releases its lease where it can. Regressions: `a lease-held
+automatic check retries at lease expiry, not a full interval later` and the
+instrumented `realWorkerSendsCancelCheckpointWhenItsRunTimesOut` (compiled but
+not run; the single runtime pass covers it). Handing off or cancelling a
+running worker when the app opens stays deferred to 1.5.1: the lease expiry
+bounds the wait.
+
+**Original finding — likelihood:** medium. A killed worker or frozen heartbeat leaves the durable
 ten-minute lease. Foreground work reports `leaseHeld`; treating that as a
 completed automatic check can advance the normal cadence beyond lease expiry.
 Opening during a worker does not hand off or cancel its work. Fencing prevents
