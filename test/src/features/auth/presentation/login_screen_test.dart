@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:navis/src/features/settings/data/external_scrobble_credentials.dart';
 import 'package:drift/drift.dart' show Value;
 import 'package:material_ui/material_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -105,6 +106,10 @@ Widget _buildTestApp({
 }) {
   return ProviderScope(
     overrides: [
+      externalScrobbleCredentialStoreProvider.overrideWithValue(
+        CloneDiagnosticsExternalScrobbleCredentialStore(),
+      ),
+
       navisDatabaseProvider.overrideWithValue(database),
       scrobbleDispatchControllerProvider.overrideWith(
         _StaticScrobbleDispatchController.new,
