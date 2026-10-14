@@ -111,7 +111,7 @@ Bug reports, ideas and pull requests are all welcome. Please read [CONTRIBUTING.
 - 🔌 [Server compatibility problem](https://github.com/Porthorion/Navis/issues/new?template=server_compatibility.yml)
 - 🔒 Security issues: report them privately, as described in [SECURITY.md](SECURITY.md)
 
-If Navis is useful to you, a ⭐ helps other people find it.
+If Navis is useful to you, a ⭐ helps other people find it. Navis is free and always will be; if you'd like to support its development, you can [buy me a coffee on Ko-fi](https://ko-fi.com/porthorion). Donations never unlock features.
 
 ## Documentation
 
