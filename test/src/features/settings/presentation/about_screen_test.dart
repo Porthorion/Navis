@@ -1,4 +1,6 @@
 import 'package:flutter/foundation.dart';
+import 'package:navis/src/common_widgets/app_notice.dart';
+import 'package:navis/src/features/player/presentation/playback_recovery_provider.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -19,6 +21,12 @@ import '../../../../helpers/adaptive_test_harness.dart';
 import '../../../../helpers/fake_url_launcher.dart';
 
 class _MockSettingsRepository extends Mock implements SettingsRepository;
+
+class _CopyRecovery extends Fake implements PlaybackRecoveryService {
+  int copies = 0;
+  @override
+  Future<void> copyDetails() async => copies++;
+}
 
 void main() {
   setUpAll(() {
@@ -88,6 +96,8 @@ void main() {
       bool desktopMode = false,
       TextScaler? textScaler,
       AppSettingsModel? storedSettings,
+      PlaybackRecoveryService? recovery,
+      AppNoticeController? notices,
     }) async {
       await tester.binding.setSurfaceSize(
         desktopMode ? const Size(1280, 800) : const Size(900, 1200),
@@ -97,6 +107,8 @@ void main() {
       await tester.pumpWidget(
         ProviderScope(
           overrides: [
+            if (recovery != null)
+              playbackRecoveryServiceProvider.overrideWithValue(recovery),
             settingsRepositoryProvider.overrideWithValue(repository),
             appSettingsProvider.overrideWith(
               (ref) => Stream.value(storedSettings ?? settings),
@@ -148,12 +160,36 @@ void main() {
                     ),
                     child: const AboutScreen(),
                   )
-                : const AboutScreen(),
+                : notices == null
+                ? const AboutScreen()
+                : AppNoticeScope(notifier: notices, child: const AboutScreen()),
           ),
         ),
       );
       await tester.pumpAndSettle();
     }
+
+    testWidgets(
+      'hidden version long-press copies startup details and shows an app notice',
+      (tester) async {
+        final recovery = _CopyRecovery();
+        final notices = AppNoticeController();
+        addTearDown(notices.dispose);
+        await pumpAbout(
+          tester,
+          updateInfo: null,
+          recovery: recovery,
+          notices: notices,
+        );
+        await tester.longPress(
+          find.byKey(const ValueKey<String>('about-startup-details')),
+        );
+        await tester.pump();
+        expect(recovery.copies, 1);
+        expect(notices.notice?.message, 'Startup details copied');
+        notices.dismiss();
+      },
+    );
 
     testWidgets('licence page receives the Porthorion copyright', (
       tester,

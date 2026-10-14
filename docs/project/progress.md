@@ -14,6 +14,75 @@ Last updated: 2026-10-14
 - ACP status values: `backlog`, `ready`, `in_progress`, `blocked`, `done`.
 
 ## Current Focus
+- [x] Overlapping first-Play radio fallback preserves newer transport intent —
+  2026-10-14 (`fix/startup-hang`; existing transport/load generations and play
+  intent guard recent, liked and radio fallback admission. Radio carries the
+  guard through its fetch; a newer Pause or Stop discards the unadmitted queue.
+  Four integrated regressions fail on HEAD and pass after, including newer
+  queue and newest-Play controls; 481 focused tests pass. `./tool/check.sh`
+  passes: 7,954 tests, one existing skip, 96 migration and 246 critical
+  reliability tests, no new analyzer errors/warnings. Post-gate isolated muted
+  Linux held-fetch Pause leaves zero queue items/native sources and no persisted
+  queue; newest Play retries and reaches advancing native playback across clean
+  restarts. App-owned screenshot inspected: Home and paused player, no startup
+  overlay; owned apps stopped and fixture credential/handshake files removed.
+  Stop is covered by deterministic regression; audible output and device/OS
+  controls were not retested. Read-only self-review found no new races.
+  Architecture, changelog and
+  [Review follow-up](../audits/startup-hang-2026-10-14.md#review-follow-up)
+  updated; no commits or stashes.)
+- [x] Startup/idle robustness re-review: three additional P2 defects —
+  2026-10-14 (`fix/startup-hang`; fallback captures load ownership after internal
+  restore changes, newest Play restarts superseded shared preparation, and each
+  resume independently re-arms bounded worker observation. All five new defect
+  cases failed before and pass after. Three focused suites pass 467 tests; the
+  final resume suite passes 11, including pause/dispose/budget controls.
+  `./tool/check.sh` passes: 7,950 tests, one existing skip, 96 migration and 246
+  critical reliability tests, no new analyzer errors/warnings. Post-gate Linux
+  clean restarts with an isolated 70-occurrence queue verify recent and liked
+  fallback plays on the first request, with one native source and advancing
+  position; concurrent empty-queue Plays also pass. Final app-owned screenshot
+  inspected: Home, paused fallback, ordinary offline notice, no startup/internal
+  error overlay. Owned apps shut down; credential/handshake files removed.
+  Android worker lifecycle and external-commit races covered by deterministic
+  two-connection regressions; device/OS/overnight testing not repeated.
+  Architecture, changelog and [the audit](../audits/startup-hang-2026-10-14.md)
+  updated; no commits or stashes.)
+- [x] Startup/idle robustness review follow-up — 2026-10-14
+  (`fix/startup-hang`; all five P2 findings from `ecc21594` fixed through the
+  existing readiness, transport, preparation and resume mechanisms. Ten
+  pre-fix regression failures cover every finding; 488 focused-suite tests
+  and the final 14 selected cases pass, including alias retry and watcher
+  completion. `./tool/check.sh` passes with 7,942 tests and one existing skip.
+  Post-gate Linux clean restart restores the paused later item at 41,999 ms
+  without native sources; first Previous stays on it at zero and clear passes.
+  App-owned screenshot after `appReady` inspected: Home, empty player, no
+  startup overlay. Owned fixture apps shut down, credential/handshake files
+  removed. Architecture, changelog and the audit's Review follow-up updated;
+  no commits/stashes. See [the audit](../audits/startup-hang-2026-10-14.md).)
+- [ ] Idle/startup robustness (F1, F2, F3, F6, F9 and private timeline) —
+  partial: 2026-10-14 (`fix/startup-hang`; implementation and focused regressions
+  complete; review follow-up `./tool/check.sh` passes (7,942 tests, one skip). Step-0 uncached-source fixture
+  reproduced attempts 1–5 and discarded handlers before changes; the same
+  12-second source delay now reaches one ready construction in 99 ms, restores
+  metadata without sources and streams after network return. Long resume
+  coalesces connection checks and writer data_version reconciliation. Actual
+  paused-queue worker sync succeeded and refreshed an open Liked Albums screen.
+  Worker-first, system-started service and Doze scenarios pass; forced timeout
+  exposes the inspected recovery panel and restart changes the PID with one
+  resumed MainActivity. Linux startup/playback and clean restart with in-memory
+  credential reinjection pass. Owned AVD and isolated Linux runtime profile
+  deleted, original server star restored; no commits/stashes. Independent paused
+  wake-lock release and findings 4, 5, 7, 8, 10–14 are deferred to
+  [1.5.1](../plans/idle-robustness-followups.md). Physical overnight trigger and
+  audible playback remain unverified. See [the updated audit](../audits/startup-hang-2026-10-14.md).)
+- [x] Android background-sync engine plugin isolation — 2026-10-14
+  (the branch's existing commit restricts the worker engine to JNI,
+  secure-storage and connectivity plugins. It removes the observed duplicate
+  player-plugin registration; its presentation-time session-future retirement
+  is replaced by the single-construction work above. The native rebind remains
+  rejected. Original scenarios and source-supported failure ordering are kept
+  as historical evidence in [the audit](../audits/startup-hang-2026-10-14.md).)
 - [x] Large downloaded queue cache churn — 2026-10-14 (permanent source resolution
   no longer touches LRU timestamps; regression demonstrates 171 writes and
   172 snapshots per Downloads watcher before, zero writes and one initial

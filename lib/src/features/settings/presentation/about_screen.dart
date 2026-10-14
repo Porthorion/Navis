@@ -1,5 +1,7 @@
 import 'dart:async';
 
+import 'package:navis/src/features/player/presentation/playback_recovery_provider.dart';
+
 import 'package:material_ui/material_ui.dart';
 import 'package:flutter/foundation.dart';
 import 'package:navis/src/common_widgets/app_notice.dart';
@@ -96,6 +98,21 @@ class _AboutScreenState extends ConsumerState<AboutScreen> {
           final useDesktopColumns = desktopMode && constraints.maxWidth >= 1100;
           final identity = _AboutIdentity(
             version: version,
+            onCopyDetails: () async {
+              final l10n = AppLocalizations.of(context)!;
+              try {
+                await ref.read(playbackRecoveryServiceProvider).copyDetails();
+                if (!context.mounted) return;
+                showAppNotice(context, message: l10n.startupDetailsCopied);
+              } on Object {
+                if (!context.mounted) return;
+                showAppNotice(
+                  context,
+                  message: l10n.playbackRecoveryActionFailed,
+                  level: AppNoticeLevel.error,
+                );
+              }
+            },
             alignStart: useDesktopColumns,
           );
           final information = _AboutInformation(
@@ -399,19 +416,28 @@ class _AboutScreenState extends ConsumerState<AboutScreen> {
 }
 
 class _AboutIdentity extends StatelessWidget {
-  const new({required this.version, required this.alignStart});
+  const new({
+    required this.version,
+    required this.alignStart,
+    required this.onCopyDetails,
+  });
 
   final String version;
   final bool alignStart;
+  final VoidCallback onCopyDetails;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final title = Text('Navis', style: theme.textTheme.headlineMedium);
-    final versionLabel = Text(
-      '${AppLocalizations.of(context)!.aboutVersion} $version',
-      style: theme.textTheme.bodyMedium?.copyWith(
-        color: theme.colorScheme.onSurfaceVariant,
+    final versionLabel = GestureDetector(
+      key: const ValueKey<String>('about-startup-details'),
+      onLongPress: onCopyDetails,
+      child: Text(
+        '${AppLocalizations.of(context)!.aboutVersion} $version',
+        style: theme.textTheme.bodyMedium?.copyWith(
+          color: theme.colorScheme.onSurfaceVariant,
+        ),
       ),
     );
 

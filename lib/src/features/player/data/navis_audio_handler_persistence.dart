@@ -2,10 +2,41 @@ part of 'navis_audio_handler.dart';
 
 extension _NavisPersistence on NavisAudioHandler {
   Future<void> _restoreQueueAfterStartup() async {
-    await _queueLane.run((token) => _restoreSavedQueue(token: token));
+    // Never supersede a command issued while local initialization was pending.
+    if (_activeLoadGeneration != 0 || _disposeHandlerStarted) return;
+    await _queueLane.enqueue((token) async {
+      if (_activeLoadGeneration != 0 || _disposeHandlerStarted) return;
+      final stopwatch = Stopwatch()..start();
+      AppLogger.startup(StartupEvent.queueRestoreStart);
+      await _restoreSavedQueue(token: token, prepareSources: false);
+      AppLogger.startup(
+        StartupEvent.queueRestoreEnd,
+        elapsedMs: stopwatch.elapsedMilliseconds,
+        outcome: _queueRestoreOutcome == 'restored'
+            ? StartupOutcome.success
+            : StartupOutcome.unavailable,
+      );
+    });
   }
 
-  Future<void> _restoreSavedQueue({required OperationToken token}) async {
+  Future<void> _prepareRestoredQueueForTransport() async {
+    if (_restoredQueueIndex == null) return;
+    await _queueLane.enqueue((token) async {
+      await _prepareRestoredQueueInLane(token);
+    });
+  }
+
+  Future<void> _prepareRestoredQueueInLane(OperationToken token) async {
+    if (_restoredQueueIndex == null) return;
+    await (_cacheMaintenance ??= _maintainCacheBeforePlayback());
+    token.checkCancelled();
+    await _restoreQueueFromDisk(token: token, prepareSources: true);
+  }
+
+  Future<void> _restoreSavedQueue({
+    required OperationToken token,
+    bool prepareSources = true,
+  }) async {
     final generation = ++_loadGeneration;
     _activeLoadGeneration = generation;
     try {
@@ -13,6 +44,7 @@ extension _NavisPersistence on NavisAudioHandler {
       await _restoreQueueFromDisk(
         token: token,
         ownershipGeneration: generation,
+        prepareSources: prepareSources,
       ).timeout(const Duration(seconds: 10));
     } on TimeoutException catch (error, stackTrace) {
       token.cancel();
@@ -67,7 +99,7 @@ extension _NavisPersistence on NavisAudioHandler {
       if (token.isCancelled || !_canRetryDeferredQueueRestore) return;
       AppLogger.info('Retrying the deferred startup queue restore.');
       _queueRestoreRetryCount++;
-      await _restoreSavedQueue(token: token);
+      await _restoreSavedQueue(token: token, prepareSources: false);
     });
   }
 
@@ -90,6 +122,7 @@ extension _NavisPersistence on NavisAudioHandler {
   }
 
   Future<void> _restorePersistedQueueForPrepareIfEmpty() async {
+    await _startupQueueRestore;
     if (_radioStation != null || _queueItems.isNotEmpty) {
       AppLogger.debug(
         'Android Auto prepare: active queue already available '
@@ -111,13 +144,25 @@ extension _NavisPersistence on NavisAudioHandler {
     await _restoreQueueFromDisk();
   }
 
-  Future<bool> _prepareBestAvailableQueueForUserPlay() async {
+  Future<bool> _prepareBestAvailableQueueForUserPlay(
+    int transportGeneration,
+  ) async {
     final inFlight = _prepareQueueForUserPlayInFlight;
     if (inFlight != null) {
-      return inFlight;
+      final prepared = await inFlight;
+      if (!_isCurrentTransportIntent(transportGeneration) ||
+          _radioStation != null ||
+          (_queueItems.isNotEmpty && _restoredQueueIndex == null)) {
+        return prepared;
+      }
+      // A newer Play may have joined preparation owned by an older transport
+      // intent. Restart only for the newest caller if no playable queue won.
     }
+    if (!_isCurrentTransportIntent(transportGeneration)) return true;
 
-    final preparation = _prepareBestAvailableQueueForUserPlayOnce();
+    final preparation = _prepareBestAvailableQueueForUserPlayOnce(
+      transportGeneration,
+    );
     _prepareQueueForUserPlayInFlight = preparation;
     try {
       return await preparation;
@@ -128,40 +173,48 @@ extension _NavisPersistence on NavisAudioHandler {
     }
   }
 
-  Future<bool> _prepareBestAvailableQueueForUserPlayOnce() async {
-    // Let a deferred restore that is already running finish instead of
-    // restoring the saved queue a second time.
+  Future<bool> _prepareBestAvailableQueueForUserPlayOnce(
+    int transportGeneration,
+  ) async {
+    await _ready;
+    if (!_isCurrentTransportIntent(transportGeneration)) return true;
+    await _startupQueueRestore;
+    if (!_isCurrentTransportIntent(transportGeneration)) return true;
     final deferredRestore = _deferredQueueRestoreRetry;
-    if (deferredRestore != null) {
-      await deferredRestore;
-    }
-    if (_radioStation != null || _queueItems.isNotEmpty) {
-      AppLogger.debug(
-        'Android Auto resume: using active queue '
-        '(queue=${_queueItems.length} radio=${_radioStation != null}).',
-      );
+    if (deferredRestore != null) await deferredRestore;
+    if (!_isCurrentTransportIntent(transportGeneration)) return true;
+    bool isCurrent() => _isCurrentTransportIntent(transportGeneration);
+    // Supersession is normal completion in the preparation lane. Leave any
+    // newer selection alone; Play itself checks its transport ownership.
+    if (_radioStation != null ||
+        (_queueItems.isNotEmpty && _restoredQueueIndex == null)) {
       return true;
     }
-
-    final persistedSongs = await _playQueueDao.getQueueItems();
-    if (persistedSongs.isNotEmpty) {
-      AppLogger.info(
-        'Android Auto resume: restoring persisted queue '
-        '(count=${persistedSongs.length}).',
-      );
-      await _restoreQueueFromDisk();
-      if (_queueItems.isNotEmpty) {
-        return true;
-      }
-      AppLogger.info(
-        'Android Auto resume: persisted queue could not be restored; '
-        'trying recent and fallback sources.',
-      );
+    if (_restoredQueueIndex == null) {
+      final persistedSongs = await _playQueueDao.getQueueItems();
+      if (!isCurrent()) return true;
+      if (persistedSongs.isNotEmpty) await _restoreQueueFromDisk();
+      if (!isCurrent()) return true;
+      if (_queueItems.isNotEmpty && _restoredQueueIndex == null) return true;
     }
+    if (_restoredQueueIndex != null) {
+      await _prepareRestoredQueueForTransport();
+      if (!isCurrent()) return true;
+      if (_restoredQueueIndex == null && _queueItems.isNotEmpty) return true;
+    }
+
+    // Restore can advance load ownership itself (large queues). Capture that
+    // ownership only once restoration is done, before asynchronous fallbacks.
+    final queueGeneration = _activeLoadGeneration;
+    bool canApplyFallback() =>
+        isCurrent() &&
+        _requestedPlaying &&
+        _isActiveLoadGeneration(queueGeneration);
 
     final recentSongs = await _historyDao
         .watchRecentlyPlayedSongs(limit: 50)
         .first;
+    if (!canApplyFallback()) return true;
     if (recentSongs.isNotEmpty) {
       AppLogger.info(
         'Android Auto resume: queueing recently played songs '
@@ -169,13 +222,14 @@ extension _NavisPersistence on NavisAudioHandler {
       );
       await replaceQueueWithData(
         recentSongs,
-        autoPlay: false,
+        autoPlay: true,
         expandMatchFlows: false,
       );
       return _queueItems.isNotEmpty;
     }
 
     final likedSongs = await _libraryDao.watchAllStarredSongs().first;
+    if (!canApplyFallback()) return true;
     if (likedSongs.isNotEmpty) {
       AppLogger.info(
         'Android Auto resume: queueing liked songs '
@@ -183,14 +237,17 @@ extension _NavisPersistence on NavisAudioHandler {
       );
       await replaceQueueWithData(
         likedSongs,
-        autoPlay: false,
+        autoPlay: true,
         expandMatchFlows: false,
       );
       return _queueItems.isNotEmpty;
     }
 
     AppLogger.info('Android Auto resume: trying random song fallback.');
-    return await _startInstantRadio(autoPlay: false);
+    return await _startInstantRadio(
+      autoPlay: true,
+      isCurrent: canApplyFallback,
+    );
   }
 
   Future<void> _persistSafely(
@@ -243,7 +300,10 @@ extension _NavisPersistence on NavisAudioHandler {
     },
     _shuffleEnabled ? schema.ShuffleMode.all : schema.ShuffleMode.off,
     includePosition
-        ? _player.position.inMilliseconds
+        ? (_restoredQueueIndex == null
+                  ? _player.position
+                  : _restoredQueuePosition)
+              .inMilliseconds
         : _snapshot.position.inMilliseconds,
   );
 

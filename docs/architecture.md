@@ -43,6 +43,16 @@ Located in `lib/src/providers/app_providers.dart`:
     opaque native profile key before any request and holds the same durable
     execution lease as foreground catalog work, so a late worker cannot run a
     replaced account or overlap a visible sync.
+    `FlutterEngineBackgroundSyncSession` disables the embedding's automatic
+    generated plugin registration and uses the allowlist next to the worker:
+    `JniPlugin` and `JniFlutterPlugin` for path_provider's application context,
+    `FlutterSecureStoragePlugin` for credentials, and `ConnectivityPlugin` for
+    network policy. Drift/sqlite3 and HTTP use FFI/Dart. Native metering and
+    `NavisAudioServiceProbe` observe policy through the existing app channels;
+    the worker never registers audio_service, just_audio, audio_session,
+    notifications, or other playback/media plugins. Attaching audio_service
+    to a short-lived worker would share its static media-browser connection
+    and handler callbacks with the foreground playback engine.
   - Its `BackgroundSyncPolicyTracker` observes connectivity changes and
     refreshes native metering and audio-session activity every two seconds during
     the pass. The coordinator and engine consume that current policy at their
@@ -73,12 +83,38 @@ Located in `lib/src/providers/app_providers.dart`:
   - Linux uses the app-owned `LinuxMprisBridge` over `dbus`; Windows uses
     `WindowsSmtcBridge` backed by the local `navis_windows_smtc` Rust/WinRT
     manual-SMTC adapter; Android, iOS, and macOS use `audio_service`
-  - Bootstrap retries every three seconds while initialization fails. Its
-    startup gate exposes cache-reset and sign-out recovery after ten seconds;
-    an unauthenticated user can continue to Login without waiting for audio.
-    A teardown supersedes a hung native attempt without awaiting it, and any
-    later handler is disposed. If audio remains unavailable after Login, the
-    next playback action opens the same non-blocking recovery sheet.
+  - `AudioBootstrapController` owns one handler construction. Its five-second
+    presentation deadline exposes slow-start recovery but never retires the
+    pending session future or starts a competing handler. Completed failures
+    can retry after three seconds. Native audio_service configure has a bounded
+    five-second wait and retains its single process-wide initialization; a
+    permanently pending configure requires a process restart. Explicit session
+    teardown fences and disposes late results before a successor construction.
+    No native plugin rebind is performed.
+  - Handler readiness includes local volume and audio-session initialization
+    after construction and binding. A stall keeps the five-second bootstrap
+    deadline and Restart Navis recovery reachable; completed local failures
+    dispose the handler and retry silently. Readiness excludes saved-queue
+    restoration and network source preparation. Saved queue metadata, occurrence order,
+    shuffle/repeat, selected index and position restore asynchronously through
+    the existing queue lane, and publish immediately to the mini player and
+    media session. Play, seek, navigation, queue edits or explicit media-session
+    Prepare materialize sources through the existing download → rolling cache
+    → stream resolver. Cache maintenance runs before source preparation, outside
+    startup readiness; generation checks keep late restoration from replacing
+    newer commands. Queue replacement, clear and radio admission discard lazy
+    restore state, and first Play checks transport/queue ownership before any
+    fallback replacement. Previous uses the saved logical position until the
+    native source is ready, restarting at zero past three seconds. Snapshot
+    publication preserves active radio media-session metadata.
+    An unavailable saved source retains the existing explicit
+    Play fallback to recent/liked music.
+  - Five seconds after the overlay appears, its recovery panel offers Restart
+    Navis and Copy details alongside secondary cache reset and sign-out. Android
+    restart uses MainActivity's device channel to launch a NEW_TASK|CLEAR_TASK
+    activity and kill the old process. The same PlaybackRecoveryService owns
+    clipboard copying; About's version row exposes it through a hidden long-press
+    and the existing AppNotice confirmation.
   - Android Auto can invoke Dart before `MainActivity` exists. Navis creates
     the provider container and starts audio bootstrap immediately, while
     `AndroidUiBootstrapGate` defers `SystemChrome`, notification, diagnostics
@@ -3421,6 +3457,45 @@ Same Vibes, Server Mix and Personal Radio stop refilling and the session stays
 at `retryExhausted`; later playback snapshots, a cleared error notice or an
 expired backoff never resume it. Only starting the mix again re-arms refills.
 
+## Startup and resume evidence
+
+`AppLogger` writes typed, identity-free startup events to a private app-support
+ring (`startup-timeline.jsonl`, up to 200 events and 32 KB). Native WorkManager
+records entry and terminal outcome, including pre-engine deferrals/failures,
+in its separate locked ring (`startup-worker.jsonl`, up to 100 events). Copy
+validates both schemas and merges them by time, staying below 64 KB. Events
+include process startup, warm lifecycle changes, bootstrap attempt/timing and
+failure category, queue restoration timing, reconciliation results and restart
+use. URLs, accounts, tokens, titles and media IDs cannot be passed to this API.
+Nothing is uploaded automatically; the privacy diagnostics text describes local
+retention until copying.
+
+The existing LibrarySyncController lifecycle listener captures the writer
+connection's `PRAGMA main.data_version` before backgrounding. Resume compares it
+on that same connection using a short exclusive Drift scope, not a pooled
+reader. An external commit announces all mapped tables once (SQLite supplies no
+table list), so existing subscriptions re-query, invalidates identity caches,
+reapplies durable aliases and reloads persisted sync state. Checks are bounded,
+coalesced and do not recreate the database or sync engine. A resumed foreground
+worker with a live durable Android lease or an unfinished recent start keeps a
+one-second reconciliation timer until completion or expiry. Each tick reads
+worker completion before comparing data_version, including a final comparison
+when the run ends. The timer stops on backgrounding, session change, disposal,
+or worker completion, with a nine-minute observation budget; it is not a
+permanent database poll. Every foreground resume restarts observation independently
+of an in-flight connectivity/reachability reconciliation. After at least 30
+seconds away, the same reconciliation refreshes connectivity and native
+metering through their existing providers, then joins the existing reachability
+probe. Initial connectivity also includes a fresh platform check. Subsonic
+transport timeouts/connection closure retry only read-only GET endpoints;
+mutating GETs such as scrobbles and playlist edits are never replayed.
+
+Both the native audio-service probe and Dart's `defersBackgroundSync` policy
+reserve priority for playing/loading/buffering. A paused queue remains visible
+and published while allowing background sync. Independent paused wake-lock
+release is unavailable in the current plugin; see the
+[1.5.1 follow-ups](plans/idle-robustness-followups.md).
+
 ## Data Flow
 
 ### Playback Flow
@@ -4494,8 +4569,16 @@ sidecar, subscriptions, browse notifications and owned stream controllers.
 
 Startup waits for cache maintenance before restoring or synthesizing a queue,
 so stale partial-file cleanup cannot race a new lock-cache download. If the OS
-sends duplicate Play requests while the queue is empty, both await the same
-fallback queue preparation instead of cancelling each other.
+sends duplicate Play requests while the queue is empty, they share pending
+preparation; the newest Play restarts it if superseded work left no playable
+queue. Only the latest transport intent may admit fallback. Load ownership is
+captured after saved restoration's own generation changes, so an unavailable
+large queue can still fall back. Recent, liked and radio fallbacks honor the
+Play intent through the existing queue-loading path and start playback. Before
+admission they recheck the originating transport generation, play intent and load
+ownership. Radio carries that guard through its recommendation fetch; a newer
+Pause or Stop discards the unadmitted fallback. After provisional admission,
+startup-selection ownership and queue-loading play intent guard later awaits.
 
 Now Playing receives a handler-owned `TransportVisualCue` for every manual
 Previous/Next outcome, regardless of whether it originated from touch, swipe,

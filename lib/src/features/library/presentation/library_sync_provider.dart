@@ -216,7 +216,7 @@ final librarySyncEngineProvider = Provider<LibrarySyncEngine?>((ref) {
       if (!ref.mounted) {
         return false;
       }
-      return ref.read(audioHandlerProvider)?.snapshot.hasActivePlayback ??
+      return ref.read(audioHandlerProvider)?.snapshot.defersBackgroundSync ??
           false;
     },
     readIsForeground: () {
@@ -310,6 +310,12 @@ class LibrarySyncController extends Notifier<LibrarySyncState> {
   String? _sessionFingerprint;
   ServerReachabilityStatus? _lastReachabilityStatus;
   bool _isForeground = true;
+  DateTime? _backgroundedAt;
+  Future<int?>? _pausedDataVersion;
+  Future<void>? _resumeReconciliation;
+  Timer? _workerReconciliationTimer;
+  int _workerReconciliationEpoch = 0;
+
   ServerConfigModel? _androidScheduledConfig;
   final Queue<String> _priorityAlbumIds = Queue<String>();
   static const int _maxPriorityAlbums = 120;
@@ -356,6 +362,7 @@ class LibrarySyncController extends Notifier<LibrarySyncState> {
     );
     ref.onDispose(() {
       _lifecycleListener.dispose();
+      _cancelWorkerReconciliation();
       _cancelPeriodicSync();
       _cancelBacklogWatchers();
     });
@@ -821,6 +828,7 @@ class LibrarySyncController extends Notifier<LibrarySyncState> {
 
     final serverConfig = next.asData?.value;
     if (serverConfig == null) {
+      _cancelWorkerReconciliation();
       _cancelPeriodicSync();
       _cancelBacklogWatchers();
       final scheduled = _androidScheduledConfig;
@@ -845,6 +853,7 @@ class LibrarySyncController extends Notifier<LibrarySyncState> {
 
     final fingerprint = _toSessionFingerprint(serverConfig);
     if (_sessionFingerprint != fingerprint) {
+      _cancelWorkerReconciliation();
       _startupSyncSuppressed = false;
       _startupSyncEpoch++;
       _retryStartupWhenEngineReady = false;
@@ -972,7 +981,10 @@ class LibrarySyncController extends Notifier<LibrarySyncState> {
     _pendingHydrationCountSub = null;
   }
 
-  Future<void> _loadPersistedSyncState(ServerConfigModel config) async {
+  Future<void> _loadPersistedSyncState(
+    ServerConfigModel config, {
+    bool schedule = true,
+  }) async {
     final serverId = config.id;
     if (serverId == null) {
       return;
@@ -1005,7 +1017,7 @@ class LibrarySyncController extends Notifier<LibrarySyncState> {
       candidateStatus: persisted.candidateStatus,
       deletionCandidateCount: persisted.deletionCandidateCount,
     );
-    _schedulePeriodicSync(ref.read(syncIntervalMinutesProvider));
+    if (schedule) _schedulePeriodicSync(ref.read(syncIntervalMinutesProvider));
   }
 
   void _onReachabilityChanged(ServerReachabilityState next) {
@@ -1634,20 +1646,269 @@ class LibrarySyncController extends Notifier<LibrarySyncState> {
   }
 
   void _onAppBackgrounded() {
+    if (_isForeground) {
+      _backgroundedAt = ref.read(nowProvider)();
+      _pausedDataVersion =
+          ref.read(serverConfigStateProvider).asData?.value == null
+          ? null
+          : _readResumeDataVersion();
+    }
     _isForeground = false;
+    _cancelWorkerReconciliation();
     ref.read(librarySyncForegroundProvider.notifier).setForeground(false);
     _cancelPeriodicSync();
+  }
+
+  Future<int?> _readResumeDataVersion() async {
+    try {
+      return await ref
+          .read(navisDatabaseProvider)
+          .readDataVersion()
+          .timeout(const Duration(seconds: 1));
+    } on Object catch (error) {
+      AppLogger.warning(
+        'Resume database check unavailable: ${error.runtimeType}',
+      );
+      return null;
+    }
   }
 
   void _onAppResumed() {
     final wasForeground = _isForeground;
     _isForeground = true;
     ref.read(librarySyncForegroundProvider.notifier).setForeground(true);
-    if (!wasForeground) {
-      // Re-arm the one-shot deadline timer in case it elapsed while the app
-      // was backgrounded. The schedule gate decides whether it may run.
-      final intervalMinutes = ref.read(syncIntervalMinutesProvider);
-      _schedulePeriodicSync(intervalMinutes);
+    if (wasForeground) return;
+    final pausedVersion = _pausedDataVersion;
+    _pausedDataVersion = null;
+    _cancelWorkerReconciliation();
+    unawaited(
+      _reconcileDatabaseOnResume(pausedVersion, _workerReconciliationEpoch),
+    );
+    _resumeReconciliation ??= _reconcileOnResume().whenComplete(() {
+      _resumeReconciliation = null;
+      if (ref.mounted && _isForeground) {
+        _schedulePeriodicSync(ref.read(syncIntervalMinutesProvider));
+      }
+    });
+    unawaited(_resumeReconciliation);
+  }
+
+  void _cancelWorkerReconciliation() {
+    _workerReconciliationEpoch++;
+    _workerReconciliationTimer?.cancel();
+    _workerReconciliationTimer = null;
+  }
+
+  Future<bool> _workerMayCommit(ServerConfigModel config) async {
+    final serverId = config.id;
+    if (serverId == null) return false;
+    final database = ref.read(navisDatabaseProvider);
+    final lease = await database.librarySyncDao.getExecutionLease(serverId);
+    final persisted = await (database.select(
+      database.librarySyncStateTable,
+    )..where((row) => row.serverId.equals(serverId))).getSingleOrNull();
+    final now = ref.read(nowProvider)();
+    if (lease?.ownerKind == 'androidWorker' && lease!.expiresAt.isAfter(now)) {
+      return true;
+    }
+    final started = persisted?.androidWorkerStartedAt;
+    final completed = persisted?.androidWorkerCompletedAt;
+    // The worker writes its start before acquiring the lease. Bound stale
+    // starts by the native eight-minute run budget plus shutdown grace.
+    return started != null &&
+        (completed == null || completed.isBefore(started)) &&
+        now.difference(started) < const Duration(minutes: 9);
+  }
+
+  Future<int?> _reconcileExternalDatabaseChanges(int? before) async {
+    final fingerprint = _sessionFingerprint;
+    final after = await _readResumeDataVersion();
+    if (!ref.mounted || !_isForeground || fingerprint != _sessionFingerprint) {
+      return after;
+    }
+    // Unknown baseline is conservative: don't retain potentially stale views.
+    final changed = before == null || after == null || before != after;
+    if (changed) {
+      final database = ref.read(navisDatabaseProvider);
+      database.invalidateExternalChanges();
+      SongIdentityCacheEpoch.invalidate();
+      final aliases = await database.songIdentityDao.getAliases().timeout(
+        const Duration(seconds: 1),
+      );
+      if (!ref.mounted ||
+          !_isForeground ||
+          fingerprint != _sessionFingerprint) {
+        return after;
+      }
+      await ref.read(audioHandlerProvider)?.applySongIdentityAliases({
+        for (final alias in aliases) alias.oldSongId: alias.canonicalSongId,
+      });
+      final config = ref.read(serverConfigStateProvider).asData?.value;
+      if (config != null) {
+        await _loadPersistedSyncState(
+          config,
+          schedule: false,
+        ).timeout(const Duration(seconds: 1));
+      }
+    }
+    return after;
+  }
+
+  Future<void> _watchResumedWorker(
+    int? before,
+    int epoch, {
+    bool wasActive = false,
+    DateTime? retryUntil,
+  }) async {
+    if (!ref.mounted || !_isForeground || epoch != _workerReconciliationEpoch) {
+      return;
+    }
+    final config = ref.read(serverConfigStateProvider).asData?.value;
+    if (config == null) return;
+    final retryDeadline =
+        retryUntil ?? ref.read(nowProvider)().add(const Duration(minutes: 9));
+    var keepWatching = wasActive;
+    var after = before;
+    try {
+      // Read completion first, then data_version: even a worker that releases
+      // its lease between these reads gets one final database reconciliation.
+      final active = await _workerMayCommit(config)
+          .timeout(const Duration(seconds: 1));
+      keepWatching = keepWatching || active;
+      if (!ref.mounted ||
+          !_isForeground ||
+          epoch != _workerReconciliationEpoch) {
+        return;
+      }
+      after = await _reconcileExternalDatabaseChanges(before);
+      keepWatching = active && ref.read(nowProvider)().isBefore(retryDeadline);
+    } on Object catch (error) {
+      AppLogger.warning(
+        'Worker reconciliation unavailable: ${error.runtimeType}',
+      );
+      // Retain the old baseline so a transient alias/read failure retries the
+      // same committed change, even if the worker has just finished.
+      keepWatching =
+          keepWatching &&
+          ref.mounted &&
+          ref.read(nowProvider)().isBefore(retryDeadline);
+    }
+    if (!ref.mounted || !_isForeground || epoch != _workerReconciliationEpoch) {
+      return;
+    }
+    if (keepWatching) {
+      _workerReconciliationTimer = Timer(const Duration(seconds: 1), () {
+        _workerReconciliationTimer = null;
+        unawaited(
+          _watchResumedWorker(
+            after,
+            epoch,
+            wasActive: true,
+            retryUntil: retryDeadline,
+          ),
+        );
+      });
+    }
+  }
+
+  Future<void> _reconcileDatabaseOnResume(
+    Future<int?>? pausedVersion,
+    int epoch,
+  ) async {
+    AppLogger.startup(StartupEvent.lifecycle, outcome: StartupOutcome.warm);
+    // No authenticated profile can have a catalog worker to reconcile. Avoid
+    // opening unused persistence merely because Login/teardown resumed.
+    if (ref.read(serverConfigStateProvider).asData?.value == null) return;
+    int? baseline;
+    try {
+      final before = await pausedVersion;
+      baseline = before;
+      if (!ref.mounted ||
+          !_isForeground ||
+          epoch != _workerReconciliationEpoch) {
+        return;
+      }
+      final after = await _reconcileExternalDatabaseChanges(before);
+      if (!ref.mounted ||
+          !_isForeground ||
+          epoch != _workerReconciliationEpoch) {
+        return;
+      }
+      final changed = before == null || after == null || before != after;
+      baseline = after;
+      AppLogger.startup(
+        StartupEvent.resumeDatabase,
+        outcome: changed ? StartupOutcome.changed : StartupOutcome.unchanged,
+      );
+    } on Object catch (error) {
+      AppLogger.startup(
+        StartupEvent.resumeDatabase,
+        outcome: StartupOutcome.failure,
+      );
+      AppLogger.warning(
+        'Resume library reconciliation failed: ${error.runtimeType}',
+      );
+    } finally {
+      // Worker observation has its own lifecycle, even when this resume joins
+      // a pending connection refresh or the first database check failed.
+      unawaited(_watchResumedWorker(baseline, epoch));
+    }
+  }
+
+  Future<void> _reconcileOnResume() async {
+    final away = ref
+        .read(nowProvider)()
+        .difference(_backgroundedAt ?? ref.read(nowProvider)());
+    if (ref.read(serverConfigStateProvider).asData?.value == null ||
+        !ref.mounted ||
+        away < const Duration(seconds: 30)) {
+      return;
+    }
+    try {
+      final previousReachabilityCheck = ref
+          .read(serverReachabilityControllerProvider)
+          .lastCheckedAt;
+      ref.invalidate(connectivityProvider);
+      ref.invalidate(nativeNetworkMeteredProvider);
+      final connectivityCheck = ref.read(connectivityProvider.future);
+      final meteringCheck = ref.read(nativeNetworkMeteredProvider.future);
+      final connectivity = await connectivityCheck.timeout(
+        const Duration(seconds: 3),
+      );
+      await meteringCheck.timeout(const Duration(seconds: 3));
+      if (!ref.mounted) return;
+      AppLogger.startup(
+        StartupEvent.resumeConnectivity,
+        outcome: resolveNetworkType(connectivity) == NetworkType.offline
+            ? StartupOutcome.offline
+            : StartupOutcome.online,
+      );
+      // A fast probe may already have completed while metering refreshed.
+      // Join it while pending; don't launch a second ping after completion.
+      if (ref.read(serverReachabilityControllerProvider).lastCheckedAt ==
+          previousReachabilityCheck) {
+        await ref
+            .read(serverReachabilityControllerProvider.notifier)
+            .retryNow()
+            .timeout(const Duration(seconds: 5));
+      }
+      if (!ref.mounted) return;
+      AppLogger.startup(
+        StartupEvent.resumeReachability,
+        outcome:
+            ref.read(serverReachabilityControllerProvider).status ==
+                ServerReachabilityStatus.online
+            ? StartupOutcome.online
+            : StartupOutcome.offline,
+      );
+    } on Object catch (error) {
+      AppLogger.startup(
+        StartupEvent.resumeReachability,
+        outcome: StartupOutcome.timeout,
+      );
+      AppLogger.warning(
+        'Resume connection reconciliation unavailable: ${error.runtimeType}',
+      );
     }
   }
 

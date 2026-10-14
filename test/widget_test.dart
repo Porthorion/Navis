@@ -49,6 +49,14 @@ class _StaticAudioBootstrapController extends AudioBootstrapController {
 
 class _FakePlaybackRecoveryService implements PlaybackRecoveryService {
   int retryCalls = 0;
+  int restartCalls = 0;
+  int copyCalls = 0;
+
+  @override
+  Future<void> restartNavis() async => restartCalls++;
+
+  @override
+  Future<void> copyDetails() async => copyCalls++;
   int resetCalls = 0;
   bool? signOutWipeLocalData;
 
@@ -232,40 +240,87 @@ void main() {
     expect(find.text('Retry playback startup'), findsNothing);
   });
 
-  testWidgets('shows an unauthenticated recovery escape after ten seconds', (
-    tester,
-  ) async {
-    await tester.pumpWidget(
-      ProviderScope(
-        overrides: _noDbOverrides(
-          extras: [
-            serverConfigStateProvider.overrideWithValue(const AsyncData(null)),
-            audioBootstrapControllerProvider.overrideWith(
-              () => _StaticAudioBootstrapController(
-                state: const AudioBootstrapState.failed('failed'),
+  testWidgets(
+    'shows recovery actions exactly five seconds after the overlay appears',
+    (tester) async {
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: _noDbOverrides(
+            extras: [
+              serverConfigStateProvider.overrideWithValue(
+                const AsyncData(null),
               ),
-            ),
-          ],
+              audioBootstrapControllerProvider.overrideWith(
+                () => _StaticAudioBootstrapController(
+                  state: const AudioBootstrapState.failed('failed'),
+                ),
+              ),
+            ],
+          ),
+          child: const NavisApp(
+            requirePlaybackBootstrap: true,
+            splashFactory: NoSplash.splashFactory,
+          ),
         ),
-        child: const NavisApp(
-          requirePlaybackBootstrap: true,
-          splashFactory: NoSplash.splashFactory,
+      );
+      await tester.pump();
+      expect(find.text('Continue to sign in'), findsNothing);
+
+      await tester.pump(const Duration(milliseconds: 4999));
+      expect(find.text('Restart Navis'), findsNothing);
+      expect(find.text('Copy details'), findsNothing);
+      await tester.pump(const Duration(milliseconds: 1));
+      expect(find.text('Restart Navis'), findsOneWidget);
+      expect(find.text('Copy details'), findsOneWidget);
+      expect(find.text('Continue to sign in'), findsOneWidget);
+
+      await tester.tap(find.text('Continue to sign in'));
+      await tester.pump();
+      expect(
+        find.text('Connect to your Subsonic or Navidrome server.'),
+        findsOneWidget,
+      );
+    },
+  );
+
+  testWidgets(
+    'recovery panel restarts and copies through its existing service',
+    (tester) async {
+      final recovery = _FakePlaybackRecoveryService();
+      await tester.binding.setSurfaceSize(const Size(360, 640));
+      addTearDown(() => tester.binding.setSurfaceSize(null));
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: _noDbOverrides(
+            extras: [
+              serverConfigStateProvider.overrideWithValue(
+                const AsyncData(null),
+              ),
+              playbackRecoveryServiceProvider.overrideWithValue(recovery),
+              audioBootstrapControllerProvider.overrideWith(
+                () => _StaticAudioBootstrapController(
+                  state: const AudioBootstrapState.initializing(),
+                ),
+              ),
+            ],
+          ),
+          child: const NavisApp(
+            requirePlaybackBootstrap: true,
+            splashFactory: NoSplash.splashFactory,
+          ),
         ),
-      ),
-    );
-    await tester.pump();
-    expect(find.text('Continue to sign in'), findsNothing);
-
-    await tester.pump(const Duration(seconds: 10));
-    expect(find.text('Continue to sign in'), findsOneWidget);
-
-    await tester.tap(find.text('Continue to sign in'));
-    await tester.pump();
-    expect(
-      find.text('Connect to your Subsonic or Navidrome server.'),
-      findsOneWidget,
-    );
-  });
+      );
+      await tester.pump(const Duration(seconds: 5));
+      await tester.tap(find.text('Restart Navis'));
+      await tester.pump();
+      expect(recovery.restartCalls, 1);
+      await tester.tap(find.text('Copy details'));
+      await tester.pump();
+      expect(recovery.copyCalls, 1);
+      expect(find.text('Startup details copied'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    },
+  );
 
   for (final serverConfig in <AsyncValue<ServerConfigModel?>>[
     const AsyncLoading(),

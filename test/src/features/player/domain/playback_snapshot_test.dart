@@ -3,6 +3,23 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:navis/src/features/player/domain/playback_snapshot.dart';
 
 void main() {
+  test('paused queue stays visible and permits background sync', () {
+    final paused = const PlaybackSnapshot.idle().copyWith(
+      queueSongIds: ['fixture'],
+      processingState: AudioProcessingState.ready,
+    );
+    expect(paused.hasActivePlayback, isTrue);
+    expect(paused.defersBackgroundSync, isFalse);
+    expect(paused.copyWith(playing: true).defersBackgroundSync, isTrue);
+    expect(paused.copyWith(isLoading: true).defersBackgroundSync, isTrue);
+    expect(
+      paused
+          .copyWith(processingState: AudioProcessingState.buffering)
+          .defersBackgroundSync,
+      isTrue,
+    );
+  });
+
   group('PlaybackSnapshot', () {
     test('pending seek is preserved unless explicitly cleared', () {
       final pending = const PlaybackSnapshot.idle().copyWith(

@@ -119,6 +119,17 @@ class MainActivity : AudioServiceActivity() {
             deviceChannelName
         ).setMethodCallHandler { call, result ->
             when (call.method) {
+                "restartNavis" -> {
+                    val restart = Intent(this, MainActivity::class.java)
+                        .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK)
+                    // Acknowledge first, then have the system schedule the new
+                    // activity before ending this process and its cached engine.
+                    result.success(null)
+                    Handler(Looper.getMainLooper()).post {
+                        startActivity(restart)
+                        android.os.Process.killProcess(android.os.Process.myPid())
+                    }
+                }
                 "getDeviceName" -> {
                     result.success(resolveDeviceName())
                 }

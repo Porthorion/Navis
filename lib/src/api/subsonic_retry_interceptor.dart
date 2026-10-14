@@ -92,7 +92,40 @@ class SubsonicRetryInterceptor extends Interceptor {
   }
 
   bool _shouldRetry(DioException err) {
-    if (err.requestOptions.extra['navisDisableRetry'] == true) {
+    // Subsonic mutations use GET too. Only explicitly read-only endpoints
+    // may be replayed after an uncertain transport outcome.
+    final options = err.requestOptions;
+    final endpoint = Uri.parse(options.path).pathSegments.lastOrNull;
+    final safeRead =
+        options.method == 'GET' &&
+        const {
+          'ping.view',
+          'search3.view',
+          'stream.view',
+          'download.view',
+          'getAlbum.view',
+          'getAlbumInfo2.view',
+          'getAlbumList2.view',
+          'getArtist.view',
+          'getArtistInfo2.view',
+          'getArtists.view',
+          'getCoverArt.view',
+          'getIndexes.view',
+          'getInstantMix.view',
+          'getInternetRadioStations.view',
+          'getLyrics.view',
+          'getLyricsBySongId.view',
+          'getOpenSubsonicExtensions.view',
+          'getPlaylist.view',
+          'getPlaylists.view',
+          'getRandomSongs.view',
+          'getScanStatus.view',
+          'getSimilarSongs.view',
+          'getSimilarSongs2.view',
+          'getSong.view',
+          'getStarred2.view',
+        }.contains(endpoint);
+    if (!safeRead || err.requestOptions.extra['navisDisableRetry'] == true) {
       return false;
     }
     if (err.type == DioExceptionType.cancel) {
@@ -100,7 +133,14 @@ class SubsonicRetryInterceptor extends Interceptor {
     }
 
     final error = err.error;
-    if (error is SocketException || error is TimeoutException) {
+    if (err.type == DioExceptionType.connectionTimeout ||
+        err.type == DioExceptionType.receiveTimeout ||
+        err.type == DioExceptionType.sendTimeout ||
+        err.type == DioExceptionType.connectionError ||
+        error is SocketException ||
+        error is TimeoutException ||
+        (error is HttpException &&
+            error.message.toLowerCase().contains('connection closed'))) {
       return true;
     }
 

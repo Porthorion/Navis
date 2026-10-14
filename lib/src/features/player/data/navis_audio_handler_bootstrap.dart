@@ -23,9 +23,8 @@ Future<void> disposeNavisPlaybackHandler(NavisPlaybackHandler handler) async {
   }
 }
 
-/// Discards a pending platform-handler initialization even when it has not
-/// produced a handler yet. This is used by startup recovery so a retry cannot
-/// be pinned to a native initialization future that will never complete.
+/// Retires session ownership during explicit teardown or completed failure.
+/// A presentation timeout must keep this future: it does not stop construction.
 void invalidateNavisPlaybackHandlerInitialization() {
   final cache = _audioHandlerInitCache;
   if (cache == null) {
@@ -102,9 +101,10 @@ Future<NavisPlaybackHandler> initNavisAudioHandler({
   NetworkUsageReporter? reportNetworkUsage,
   Future<File?> Function(String coverArtId)? readPermanentArtwork,
   void Function(RollingCacheActivity activity)? reportRollingCacheActivity,
-  // Keep the existing method and callback call contract for callers.
+  // Keep autoplay positional; the optional guard follows fallback ownership.
   // ignore: avoid_positional_boolean_parameters
-  required Future<bool> Function(bool autoPlay) startPersonalRadio,
+  required Future<bool> Function(bool autoPlay, {bool Function()? isCurrent})
+  startPersonalRadio,
   void Function(({int index, String songId})? queueEndSkip)?
   onPersonalRadioQueueEnd,
   required Future<void> Function(String) startPreferredMix,
@@ -227,31 +227,28 @@ Future<({SwitchAudioHandler service, NavisPlaybackHandler handler})>
 initNavisAudioServiceHandler({
   required RealTimeProjectionAudioHandler Function() builder,
   required BaseCacheManager cacheManager,
+  Duration configureTimeout = const Duration(seconds: 5),
 }) async {
   // audio_service owns process-wide callbacks and may only be initialized once.
-  final handler = await (_audioServiceInitialization ??=
-      AudioService.init(
-        builder: SwitchAudioHandler.new,
-        cacheManager: cacheManager,
-        config: AudioServiceConfig(
-          androidNotificationChannelId: 'playback',
-          androidNotificationChannelName: 'Playback',
-          androidNotificationIcon: 'drawable/ic_stat_navis_light',
-          androidNotificationOngoing: false,
-          androidStopForegroundOnPause: false,
-          androidBrowsableRootExtras: const <String, dynamic>{
-            AndroidAutoConstants.contentStyleSupportedKey: true,
-            AndroidAutoConstants.contentStyleBrowsableHintKey:
-                AndroidAutoConstants.contentStyleGrid,
-            AndroidAutoConstants.contentStylePlayableHintKey:
-                AndroidAutoConstants.contentStyleList,
-            AndroidAutoConstants.searchSupportedKey: true,
-          },
-        ),
-      ).onError<Object>((error, stackTrace) {
-        _audioServiceInitialization = null;
-        Error.throwWithStackTrace(error, stackTrace);
-      }));
+  final handler = await (_audioServiceInitialization ??= AudioService.init(
+    builder: SwitchAudioHandler.new,
+    cacheManager: cacheManager,
+    config: AudioServiceConfig(
+      androidNotificationChannelId: 'playback',
+      androidNotificationChannelName: 'Playback',
+      androidNotificationIcon: 'drawable/ic_stat_navis_light',
+      androidNotificationOngoing: false,
+      androidStopForegroundOnPause: false,
+      androidBrowsableRootExtras: const <String, dynamic>{
+        AndroidAutoConstants.contentStyleSupportedKey: true,
+        AndroidAutoConstants.contentStyleBrowsableHintKey:
+            AndroidAutoConstants.contentStyleGrid,
+        AndroidAutoConstants.contentStylePlayableHintKey:
+            AndroidAutoConstants.contentStyleList,
+        AndroidAutoConstants.searchSupportedKey: true,
+      },
+    ),
+  )).timeout(configureTimeout);
   _audioServiceHandler = handler;
   final projection = builder();
   final base = projection.inner as NavisAudioHandler;

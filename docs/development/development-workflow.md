@@ -792,7 +792,7 @@ the tree remains otherwise usable.
   narrow production-controller actions for non-route UI instead of simulating
   coordinate clicks.
 - Clone-only `POST /v1/presentation/playback-recovery` drives the production
-  retry, cache-reset, and sign-out recovery controller after delayed playback
+  retry, restart, clipboard-copy, cache-reset, and sign-out recovery controller after delayed playback
   bootstrap. It accepts only its bounded action names and never exposes
   session secrets.
 - Clone-only `POST /v1/presentation/library-filter` applies a type-to-filter
@@ -1876,6 +1876,29 @@ phase are observed when Flutter delivers the timing callback, so batched
 callbacks may label a frame with a slightly later phase. Metrics reset clears
 this trace too.
 
+
+### Startup recovery diagnostics
+
+Clone-only `POST /v1/presentation/playback-recovery` accepts `restart` and
+`copyDetails` alongside `retry`, `resetCache`, `signOutKeepData` and
+`signOutWipeData`. Restart uses the production recovery service; an Android
+HTTP connection can close when the old process exits. Verify the new PID,
+MainActivity task and fresh authenticated handshake instead of requiring the
+old process to return HTTP 200. Copy uses the same clipboard action as the UI.
+App-owned screenshots can capture the overlay before presentation readiness.
+
+An isolated profile may define `NAVIS_DIAGNOSTICS_AUDIO_BOOTSTRAP_NEVER_READY=true`
+to hold the existing bootstrap attempt gate. The overlay offers recovery five
+seconds after appearing. The fault remains enabled after a process restart;
+remove the define to verify ordinary readiness again. For deterministic slow
+saved-stream reproduction, a clone sidecar may define
+`NAVIS_DIAGNOSTICS_STREAM_SOURCE_DELAY_MS=12000`. Only remote source resolution
+is delayed, and only in profile clone builds with a nonempty package suffix.
+This must not delay readiness or metadata-only queue restoration. It is not a
+server delay and is not compiled into ordinary release behavior.
+Profile diagnostics print only the sanitized `Audio bootstrap …` timing lines
+through AppLogger; production startup details remain in private local rings.
+Never put server credentials in fixture scripts, defines, files or logs.
 
 ### Isolated Android worker fixture
 

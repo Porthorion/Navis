@@ -7,6 +7,7 @@ import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:crypto/crypto.dart';
 import 'package:dio/dio.dart' show BaseOptions;
 import 'package:drift/drift.dart' show Variable;
+import 'package:flutter/services.dart' show PlatformException;
 import 'package:flutter/foundation.dart'
     show mapEquals, setEquals, visibleForTesting;
 import 'package:flutter_cache_manager/flutter_cache_manager.dart';
@@ -361,7 +362,21 @@ final clearCoverArtCachesProvider = Provider<Future<void> Function()>((ref) {
 
 final connectivityProvider = StreamProvider<List<ConnectivityResult>>((ref) {
   final connectivity = Connectivity();
-  return connectivity.onConnectivityChanged;
+  return Stream<List<ConnectivityResult>>.multi((controller) {
+    final subscription = connectivity.onConnectivityChanged.listen(
+      controller.add,
+      onError: controller.addError,
+    );
+    // Subscribe first so an interface transition cannot be lost between the
+    // initial check and attaching the live stream. Invalidation refreshes it.
+    unawaited(
+      connectivity.checkConnectivity().then(
+        controller.add,
+        onError: controller.addError,
+      ),
+    );
+    controller.onCancel = subscription.cancel;
+  });
 });
 
 final networkTypeProvider = Provider<NetworkType>((ref) {
@@ -1083,37 +1098,16 @@ final audioBootstrapAttemptGateProvider = Provider<AudioBootstrapAttemptGate>(
   (_) => () async {},
 );
 
-/// Upper bound on waiting for the first connectivity event before the
-/// startup queue restore.
-const Duration audioBootstrapConnectivityWait = Duration(seconds: 2);
-
 final audioHandlerInitializerProvider = Provider<AudioHandlerInitializer>((
   ref,
 ) {
   return () async {
     ref.read(annotationSyncDispatcherProvider);
-    // Queue restoration resolves remote sources during audio initialization.
-    // Hydrate the retained session first so the resolver does not mistake an
-    // as-yet-loading credential for a signed-out session on cold start.
+    // Session hydration is local; source resolution begins only on transport.
     if (ref.read(serverConfigProvider).error is CredentialReadException) {
-      // Provider retries may be exhausted; the bootstrap cadence bounds this
-      // fresh storage read so a recovered keyring can unblock playback.
       ref.invalidate(serverConfigProvider);
     }
     final sessionHydration = ref.read(serverConfigProvider.future);
-    // The resolver treats a network type it does not know yet as offline.
-    // On Android the media service starts before any UI subscribes to
-    // connectivity, so wait briefly for its first event; a late event is
-    // covered by the deferred-restore retry.
-    final connectivityHydration = ref
-        .read(connectivityProvider.future)
-        .timeout(audioBootstrapConnectivityWait)
-        .then<void>(
-          (_) {},
-          onError: (Object error) {
-            AppLogger.info('Connectivity unknown before queue restore: $error');
-          },
-        );
     AppSettingsModel? hydratedSettings;
     try {
       final settingsRepository = ref.read(settingsRepositoryProvider);
@@ -1145,7 +1139,6 @@ final audioHandlerInitializerProvider = Provider<AudioHandlerInitializer>((
     final database = ref.read(navisDatabaseProvider);
     final networkUsageMeter = ref.read(networkUsageMeterProvider);
     await sessionHydration;
-    await connectivityHydration;
     final windowsArtwork = GuardedSystemArtworkLoader(
       artworkRecorder: ref.read(artworkCallRecorderProvider),
       readCacheManager: () => ref.read(coverArtCacheManagerProvider),
@@ -1209,10 +1202,10 @@ final audioHandlerInitializerProvider = Provider<AudioHandlerInitializer>((
           // initializer during root-container teardown.
         }
       },
-      startPersonalRadio: (autoPlay) async =>
+      startPersonalRadio: (autoPlay, {isCurrent}) async =>
           (await ref
                   .read(personalRadioProvider.notifier)
-                  .start(autoPlay: autoPlay))
+                  .start(autoPlay: autoPlay, isCurrent: isCurrent))
               .succeeded,
       onPersonalRadioQueueEnd: (skip) {
         if (!ref.mounted) return;
@@ -1327,22 +1320,12 @@ final audioHandlerInitializerProvider = Provider<AudioHandlerInitializer>((
         );
       },
     );
-    await handler.waitUntilReady();
     final persistedAliases = await database.songIdentityDao.getAliases();
     if (persistedAliases.isNotEmpty) {
       await handler.applySongIdentityAliases(<String, String>{
         for (final alias in persistedAliases)
           alias.oldSongId: alias.canonicalSongId,
       });
-    }
-
-    try {
-      await handler.applyRuntimeSettings();
-    } on Object catch (error, stackTrace) {
-      AppLogger.warning(
-        'Runtime settings apply failed after audio init: '
-        '$error\n$stackTrace',
-      );
     }
 
     if (!_syncDiagnosticsMuted &&
@@ -1443,6 +1426,7 @@ class AudioBootstrapController extends Notifier<AudioBootstrapState> {
   Future<void>? _inFlight;
   Timer? _retryTimer;
   bool _didAttempt = false;
+  bool _retryAfterRetirement = false;
   int _attemptEpoch = 0;
   int _activeAttempt = 0;
 
@@ -1497,8 +1481,8 @@ class AudioBootstrapController extends Notifier<AudioBootstrapState> {
     }
     await ref.read(audioHandlerStateProvider.notifier).clearHandler();
     // Session retirement is not a startup failure; the next request may rebuild.
-    _inFlight = null;
     _didAttempt = false;
+    _retryAfterRetirement = false;
     state = AudioBootstrapState.failed(
       'Playback initialization was stopped.',
       attempt: _activeAttempt,
@@ -1531,141 +1515,132 @@ class AudioBootstrapController extends Notifier<AudioBootstrapState> {
       _retryTimer?.cancel();
       _retryTimer = null;
     }
-    if (_inFlight != null && !force) {
+    // A presentation deadline does not cancel construction. Every caller,
+    // including Retry, joins its owner until it really completes.
+    if (_inFlight != null) {
+      if (!_didAttempt) _retryAfterRetirement = true;
       return _inFlight!;
     }
-    if (_didAttempt && !force && state.status == AudioBootstrapStatus.failed) {
+    if (state.isReady ||
+        (_didAttempt &&
+            !force &&
+            state.status == AudioBootstrapStatus.failed)) {
       return Future<void>.value();
     }
-
-    final completer = Completer<void>();
+    final presented = Completer<void>();
+    final finished = Completer<void>();
     final attemptId = ++_attemptEpoch;
     _activeAttempt = attemptId;
-    _inFlight = completer.future;
+    _inFlight = finished.future;
     _didAttempt = true;
     state = AudioBootstrapState.initializing(attempt: attemptId);
-    final audioHandlerState = ref.read(audioHandlerStateProvider.notifier);
+    final stopwatch = Stopwatch()..start();
+    var timedOut = false;
+    final timeout = ref.read(audioBootstrapTimeoutProvider);
+    final initializer = ref.read(audioHandlerInitializerProvider);
+    final gate = ref.read(audioBootstrapAttemptGateProvider);
+    final deadline = Timer(timeout, () {
+      if (!ref.mounted || _activeAttempt != attemptId) return;
+      timedOut = true;
+      state = AudioBootstrapState.failed(
+        'Playback initialization timed out after ${timeout.inSeconds}s.',
+        attempt: attemptId,
+        elapsedMs: stopwatch.elapsedMilliseconds,
+        timedOut: true,
+      );
+      AppLogger.info('Audio bootstrap timeout (attempt=$attemptId).');
+      AppLogger.startup(
+        StartupEvent.bootstrapTimeout,
+        attempt: attemptId,
+        elapsedMs: stopwatch.elapsedMilliseconds,
+      );
+      if (!presented.isCompleted) presented.complete();
+    });
+    ref.onDispose(deadline.cancel);
     unawaited(() async {
-      await audioHandlerState.clearHandler();
-      final stopwatch = Stopwatch()..start();
-      final timeout = ref.read(audioBootstrapTimeoutProvider);
-      final initializeHandler = ref.read(audioHandlerInitializerProvider);
-      var timedOut = false;
-
-      Future<void> promoteReady(
-        NavisPlaybackHandler audioHandler, {
-        required bool recoveredFromTimeout,
-      }) async {
-        if (_activeAttempt != attemptId) {
-          return;
-        }
-        _retryTimer?.cancel();
-        _retryTimer = null;
-        final audioHandlerState = ref.read(audioHandlerStateProvider.notifier);
-        await audioHandlerState.setHandler(audioHandler);
-        final elapsedMs = stopwatch.elapsedMilliseconds;
-        state = AudioBootstrapState.ready(
-          audioHandler,
-          attempt: attemptId,
-          elapsedMs: elapsedMs,
-          recoveredFromTimeout: recoveredFromTimeout,
-        );
-        if (recoveredFromTimeout) {
-          AppLogger.info(
-            'Audio bootstrap recovered after timeout in ${elapsedMs}ms '
-            '(attempt=$attemptId).',
-          );
-        } else {
-          AppLogger.info(
-            'Audio bootstrap ready in ${elapsedMs}ms '
-            '(attempt=$attemptId).',
-          );
-        }
-        if (!completer.isCompleted) {
-          completer.complete();
-        }
-      }
-
       try {
         AppLogger.info('Audio bootstrap start (attempt=$attemptId).');
-        await ref.read(audioBootstrapAttemptGateProvider)();
-        final initFuture = initializeHandler();
-        unawaited(
-          initFuture.then<void>(
-            (handler) async {
-              if (_activeAttempt != attemptId) {
-                unawaited(() async {
-                  try {
-                    await disposeNavisPlaybackHandler(handler);
-                  } on Object catch (error, stackTrace) {
-                    AppLogger.warning(
-                      'Discarding stale audio bootstrap handler failed: '
-                      '$error\n$stackTrace',
-                    );
-                  }
-                }());
-                return;
-              }
-              if (!timedOut) {
-                return;
-              }
-              await promoteReady(handler, recoveredFromTimeout: true);
-            },
-            onError: (Object error, StackTrace stackTrace) {
-              if (_activeAttempt != attemptId || !timedOut) {
-                return;
-              }
-              AppLogger.error(
-                'Audio bootstrap asynchronous completion failed after timeout '
-                '(attempt=$attemptId).',
-                error,
-                stackTrace,
-              );
-            },
-          ),
-        );
-
-        final audioHandler = await initFuture.timeout(timeout);
-        if (_activeAttempt != attemptId) {
-          if (!completer.isCompleted) {
-            completer.complete();
+        AppLogger.startup(StartupEvent.bootstrapStart, attempt: attemptId);
+        await gate();
+        final handler = await initializer();
+        try {
+          // Local volume/session initialization is part of readiness. Saved
+          // queue metadata and source/network work remain outside this future.
+          await handler.waitUntilReady();
+        } on Object {
+          await disposeNavisPlaybackHandler(handler);
+          rethrow;
+        }
+        if (!ref.mounted || _activeAttempt != attemptId) {
+          AppLogger.info(
+            'Audio bootstrap discarded handler (attempt=$attemptId).',
+          );
+          await disposeNavisPlaybackHandler(handler);
+          return;
+        }
+        await ref.read(audioHandlerStateProvider.notifier).setHandler(handler);
+        if (!ref.mounted || _activeAttempt != attemptId) {
+          if (ref.mounted &&
+              identical(ref.read(audioHandlerStateProvider), handler)) {
+            await ref.read(audioHandlerStateProvider.notifier).clearHandler();
           }
           return;
         }
-        await promoteReady(audioHandler, recoveredFromTimeout: false);
-      } on Object catch (error, stackTrace) {
-        if (_activeAttempt != attemptId) {
-          if (!completer.isCompleted) {
-            completer.complete();
-          }
-          return;
-        }
-        timedOut = error is TimeoutException;
-        final message = error is TimeoutException
-            ? 'Playback initialization timed out after ${timeout.inSeconds}s.'
-            : 'Playback initialization failed.';
-        AppLogger.error(message, error, stackTrace);
-        final elapsedMs = stopwatch.elapsedMilliseconds;
-        final audioHandlerState = ref.read(audioHandlerStateProvider.notifier);
-        await audioHandlerState.clearHandler();
-        state = AudioBootstrapState.failed(
-          message,
+        state = AudioBootstrapState.ready(
+          handler,
           attempt: attemptId,
-          elapsedMs: elapsedMs,
-          timedOut: timedOut,
+          elapsedMs: stopwatch.elapsedMilliseconds,
+          recoveredFromTimeout: timedOut,
         );
-        _scheduleRetry();
-        if (!completer.isCompleted) {
-          completer.complete();
-        }
+        AppLogger.info(
+          'Audio bootstrap ready in ${stopwatch.elapsedMilliseconds}ms (attempt=$attemptId).',
+        );
+        AppLogger.startup(
+          StartupEvent.bootstrapReady,
+          attempt: attemptId,
+          elapsedMs: stopwatch.elapsedMilliseconds,
+        );
+      } on Object catch (error, stackTrace) {
+        if (!ref.mounted || _activeAttempt != attemptId) return;
+        // Only a completed failure can retire a construction. Native configure
+        // retains its one process-wide initialization and requires restart.
+        invalidateNavisPlaybackHandlerInitialization();
+        AppLogger.error('Playback initialization failed.', error, stackTrace);
+        AppLogger.startup(
+          StartupEvent.bootstrapFailure,
+          attempt: attemptId,
+          elapsedMs: stopwatch.elapsedMilliseconds,
+          failureType: switch (error) {
+            TimeoutException() => StartupFailure.timeout,
+            CredentialReadException() => StartupFailure.credentials,
+            FileSystemException() => StartupFailure.storage,
+            PlatformException() => StartupFailure.platform,
+            _ => StartupFailure.other,
+          },
+          outcome: error is TimeoutException
+              ? StartupOutcome.timeout
+              : StartupOutcome.failure,
+        );
+        state = AudioBootstrapState.failed(
+          'Playback initialization failed.',
+          attempt: attemptId,
+          elapsedMs: stopwatch.elapsedMilliseconds,
+          timedOut: timedOut || error is TimeoutException,
+        );
+        if (error is! TimeoutException) _scheduleRetry();
       } finally {
+        deadline.cancel();
         stopwatch.stop();
-        if (_activeAttempt == attemptId) {
-          _inFlight = null;
+        if (identical(_inFlight, finished.future)) _inFlight = null;
+        finished.complete();
+        if (!presented.isCompleted) presented.complete();
+        if (ref.mounted && _retryAfterRetirement) {
+          _retryAfterRetirement = false;
+          unawaited(_initialize(force: true));
         }
       }
     }());
-    return completer.future;
+    return presented.future;
   }
 }
 
