@@ -5465,6 +5465,17 @@ class DriftLibrarySyncEngine implements SyncPlanExecutor {
       generation: catalogGeneration,
     );
     if (candidateIds.length != discoveredCount) {
+      // The checkpoints disagree with the candidate rows, so a resume would
+      // replay this failure for the whole resumability window. Drop both
+      // sides so the next run rebuilds the candidate from fresh pages.
+      await _database.librarySyncCandidateDao.clearGeneration(
+        serverId: serverId,
+        generation: catalogGeneration,
+      );
+      await _database.librarySyncDao.clearCatalogPageWork(
+        serverId: serverId,
+        generation: catalogGeneration,
+      );
       throw StateError(
         'Catalog candidate contains ${candidateIds.length} albums but its '
         'page checkpoints contain $discoveredCount.',

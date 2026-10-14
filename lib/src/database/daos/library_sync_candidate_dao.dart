@@ -312,6 +312,7 @@ class LibrarySyncCandidateDao extends DatabaseAccessor<NavisDatabase>
           const LibrarySyncCandidateAlbumsTableCompanion(
             songsHydrated: Value(true),
             carriedForward: Value(false),
+            applyState: Value(null),
           ),
         );
   }
