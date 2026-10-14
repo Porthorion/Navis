@@ -1,8 +1,8 @@
 # Idle robustness follow-ups — 1.5.1
 
-Status: playback findings 4, 7, 8, 11, 12 and 13, plus 5a, 10 and 14a, are
-completed for release/1.5. Android acceptance evidence is recorded in the
-progress log. Findings 5b, 14b and 14c remain deferred to 1.5.1.
+Status: playback findings 4, 7, 8, 11, 12 and 13, plus 5a, 10, 14a and 14b,
+are completed for release/1.5. Android acceptance evidence is recorded in
+the progress log. Findings 5b and 14c remain deferred to 1.5.1.
 These originated in the read-only idle audit on 2026-10-14. They are not part
 of `fix/startup-hang` acceptance. The startup audit records the current work:
 [Android startup investigation](../audits/startup-hang-2026-10-14.md).
@@ -194,10 +194,19 @@ poll in flight per station generation, so a slow response after an unfreeze or
 on a poor network no longer stacks later ticks; a station switch, stop or policy
 change still polls immediately. Regressions: `a slow Azuracast response never
 overlaps the next poll` and `a station switch is not blocked by the previous
-station's slow poll`. **14b** (coalescing downloads and scrobbles behind resume
-reconciliation) and **14c** (downloads yielding to network playback loading) are
-**deferred to 1.5.1**: there is no runtime evidence of contention, and both
-touch download retry accounting or couple services to player state.
+station's slow poll`.
+
+**14b completed for 1.5.0 — 2026-10-15.** Downloads and scrobbles wait for the
+single-flight resume reconciliation (`networkReconcilingProvider`) through the
+existing `readIsOnline` and `readReachable` gates, so a failure during that
+window keeps its retry budget and saved scrobble deadlines are untouched. A hard
+15-second bound clears the hold on its own and records a `resumeReachability`
+timeout in the startup timeline; each service is kicked once when the hold ends.
+Regressions: `a stuck reconciliation releases downloads and scrobbles after the
+bound`, `reconciliation holds new work and kicks exactly once when it ends` and
+`a throwing reconciliation still clears the hold`.
+
+**14c** (downloads yielding to network playback loading) is deferred to 1.5.1.
 
 **Original finding — likelihood:** medium for contention. Doze can release due download retries,
 scrobble dispatch, playback watchdogs, radio polling and sync close together.

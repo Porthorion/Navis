@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:audio_service/audio_service.dart';
+import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:dio/dio.dart';
 import 'package:drift/drift.dart' show Value;
 import 'package:drift/native.dart';
@@ -18,6 +19,7 @@ import 'package:navis/src/features/auth/data/secure_credential_store.dart';
 import 'package:navis/src/features/auth/domain/server_config.dart';
 import 'package:navis/src/features/auth/data/server_config_repository.dart';
 import 'package:navis/src/features/auth/presentation/server_config_provider.dart';
+import 'package:navis/src/features/auth/presentation/server_reachability_provider.dart';
 import 'package:navis/src/features/equalizer/data/eq_repository.dart';
 import 'package:navis/src/features/equalizer/domain/eq_configuration.dart';
 import 'package:navis/src/features/integrations/domain/integration_feature.dart';
@@ -331,6 +333,121 @@ void main() {
     errors.add(null);
     await pumpEventQueue();
     expect(notified.where((value) => value.hasValue), hasLength(2));
+  });
+
+  group('network reconciliation gate', () {
+    test(
+      'a stuck reconciliation releases downloads and scrobbles after the bound',
+      () {
+        fakeAsync((async) {
+          var kicks = 0;
+          final container = ProviderContainer(
+            overrides: [
+              networkTypeProvider.overrideWithValue(NetworkType.wifi),
+            ],
+          );
+          addTearDown(container.dispose);
+          final probe = Provider<void>(
+            (ref) => kickAfterReconciliation(ref, () => kicks++),
+          );
+          container.read(probe);
+          final controller = container.read(networkReconcilingProvider.notifier)
+            ..begin();
+          expect(container.read(networkReconcilingProvider), isTrue);
+          async.elapse(
+            NetworkReconcilingController.maxHold -
+                const Duration(milliseconds: 1),
+          );
+          expect(container.read(networkReconcilingProvider), isTrue);
+          expect(kicks, 0);
+          async.elapse(const Duration(milliseconds: 1));
+          expect(container.read(networkReconcilingProvider), isFalse);
+          expect(kicks, 1);
+          controller.end();
+          expect(kicks, 1);
+        });
+      },
+    );
+
+    group('with a gated connectivity check', () {
+      late NavisDatabase database;
+      late StreamController<List<ConnectivityResult>> connectivity;
+      late ProviderContainer container;
+      var kicks = 0;
+
+      setUp(() {
+        kicks = 0;
+        database = createTestDatabase();
+        connectivity = StreamController<List<ConnectivityResult>>();
+        container = ProviderContainer(
+          overrides: withTestDatabase(
+            database,
+            overrides: [
+              serverConfigStateProvider.overrideWithValue(
+                const AsyncData(
+                  ServerConfigModel(
+                    id: 1,
+                    url: 'https://fixture.invalid',
+                    username: 'fixture',
+                    password: 'synthetic',
+                    apiVersion: '1.16.1',
+                  ),
+                ),
+              ),
+              networkTypeProvider.overrideWith((_) => NetworkType.wifi),
+              connectivityProvider.overrideWith((_) => connectivity.stream),
+              nativeNetworkMeteredProvider.overrideWith((_) async => false),
+              pingServerProvider.overrideWithValue(() async => 'fixture'),
+            ],
+          ),
+        );
+      });
+
+      tearDown(() async {
+        container.dispose();
+        unawaited(connectivity.close());
+        await database.close();
+      });
+
+      test(
+        'reconciliation holds new work and kicks exactly once when it ends',
+        () async {
+          final settled = Provider<bool Function()>(
+            (ref) =>
+                () => networkSettled(ref),
+          );
+          final probe = Provider<void>(
+            (ref) => kickAfterReconciliation(ref, () => kicks++),
+          );
+          container.read(probe);
+          final downloads = container.read(downloadServiceProvider);
+          expect(container.read(settled)(), isTrue);
+          expect(downloads.effectiveConcurrency, greaterThan(0));
+
+          final reconciling = container.read(networkReconciliationProvider)();
+          expect(container.read(settled)(), isFalse);
+          expect(downloads.effectiveConcurrency, 0);
+          expect(kicks, 0);
+
+          connectivity.add([ConnectivityResult.wifi]);
+          await reconciling;
+          await pumpEventQueue();
+          expect(container.read(settled)(), isTrue);
+          expect(downloads.effectiveConcurrency, greaterThan(0));
+          expect(kicks, 1);
+        },
+        skip: !sqliteAvailable,
+      );
+
+      test('a throwing reconciliation still clears the hold', () async {
+        final reconciling = container.read(networkReconciliationProvider)();
+        expect(container.read(networkReconcilingProvider), isTrue);
+        connectivity.addError(StateError('connectivity unavailable'));
+        await reconciling;
+        expect(container.read(networkReconcilingProvider), isFalse);
+        await pumpEventQueue();
+      }, skip: !sqliteAvailable);
+    });
   });
 
   group('appearance providers', () {
