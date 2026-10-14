@@ -42,14 +42,18 @@ reset. Schema upgrades now commit in one transaction with `user_version`, so
 a reopen reruns an interrupted upgrade from the old schema (`an upgrade that
 fails part-way leaves the old schema and data intact`). Regressions: `a lock held past the busy deadline during open recovers
 without restart`, `an upgrade interrupted by a lock reruns safely` and `only
-SQLite lock errors count as lock timeouts`. **Open finding:** in Linux host tests, the
-SQLite that `sqlite3` 3.6.0 bundles gives up on `PRAGMA busy_timeout` within
-about 30–40 ms instead of waiting. App builds use the same build hook; this is
-not yet confirmed on a device. Its default busy callback does not sleep,
-while a Dart `busyHandler` is honoured. Lock contention therefore fails almost at once,
-and 5b's retries (about 0 s, 1 s and 3 s) are the effective wait. A
-`busyHandler` in `_configureNativeDatabase` would restore the intended 5 s
-wait for every write; that is a separate decision.
+SQLite lock errors count as lock timeouts`. **Busy wait (fixed for 1.5.0):** `PRAGMA busy_timeout` did not wait in
+debug and profile builds on Linux, including host tests, and by the same
+signal mechanism on Android (not checked on a device). SQLite
+sleeps with `nanosleep` and does not resume after `EINTR`. The Dart VM
+profiler's SIGPROF therefore cut each sleep short, and the wait gave up within
+about 30 ms. The same program waits the full time with `--no-profiler` and as
+an AOT release build. Every platform ships the same precompiled `sqlite3`
+3.6.0 binary. `_configureNativeDatabase` now installs a Dart busy handler
+bounded at 5 s, and both `busy_timeout` pragmas are removed, because the pragma
+would replace the handler. Regressions: `a write waits while another
+connection holds the lock` and `a lock held past the busy bound fails within
+it`.
 
 **Original finding — likelihood:** medium for writer contention, low for simultaneous upgrades.
 Worker and foreground open separate WAL connections. WAL permits readers but

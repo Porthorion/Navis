@@ -287,7 +287,6 @@ class NavisDatabase extends _$NavisDatabase {
     beforeOpen: (details) async {
       await customStatement('PRAGMA foreign_keys = ON');
       await customStatement('PRAGMA journal_mode = WAL');
-      await customStatement('PRAGMA busy_timeout = 5000');
       await _createIndexes();
     },
   );
@@ -1987,7 +1986,18 @@ FROM scrobble_queue;
 void _configureNativeDatabase(Database database) {
   database.execute('PRAGMA foreign_keys = ON');
   database.execute('PRAGMA journal_mode = WAL');
-  database.execute('PRAGMA busy_timeout = 5000');
+  // Not PRAGMA busy_timeout: SQLite's own wait sleeps with nanosleep, which the
+  // Dart profiler's SIGPROF cuts short in debug and profile builds (it gave up
+  // within ~30 ms), and the pragma would replace this handler. Dart's sleep
+  // resumes after signals; this runs on Drift's database isolate, never the UI.
+  final busy = Stopwatch();
+  database.busyHandler = (count) {
+    if (count == 0) busy.reset();
+    busy.start();
+    if (busy.elapsed >= const Duration(seconds: 5)) return false;
+    sleep(const Duration(milliseconds: 10));
+    return true;
+  };
   // WAL with synchronous=NORMAL is corruption-safe; only the last commits can
   // be lost on an OS crash or power loss, never on an app kill. It avoids an
   // fsync on every commit.

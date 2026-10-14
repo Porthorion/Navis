@@ -320,7 +320,7 @@ list (header, drag handle) move the sheet even when the list is not at the top.
   (fence(reopening(lazy(native)))). When opening fails with `SQLITE_BUSY` or
   `SQLITE_LOCKED`, including when nested in drift's isolate errors, it closes
   that executor's connections and isolates and opens a fresh one, up to three
-  attempts 1 s and 2 s apart; concurrent queries share one open. It
+  attempts, each waiting up to the 5 s busy bound, 1 s and 2 s apart; concurrent queries share one open. It
   replaces the executor before the final rethrow, so the next query opens
   afresh instead of rethrowing a cached error. Other errors still surface
   unchanged, and the database file is never reset or deleted to recover.
@@ -5802,7 +5802,13 @@ of thousands of songs. `tool/perf_diagnostics.py` measures them (see
   Playing stays mounted under a disabled `TickerMode`, which pauses its
   animations and provider listeners.
 - Database connections use WAL with `synchronous=NORMAL`, an 8 MiB page cache,
-  in-memory temp storage, and a 64 MiB WAL size limit. Deferred startup
+  in-memory temp storage, and a 64 MiB WAL size limit. Each connection waits
+  for a held lock through a Dart busy handler bounded at 5 s (10 ms sleeps on
+  Drift's database isolate) instead of `PRAGMA busy_timeout`: SQLite's
+  `nanosleep` wait is cut short by the Dart profiler's SIGPROF in debug and
+  profile builds on Linux (and by the same mechanism Android), so it gave up
+  within about 30 ms, and
+  the pragma would replace the handler. Deferred startup
   maintenance runs a bounded `PRAGMA optimize`. Reverse-lookup indexes cover
   `songs(artist_id)`, `play_queue_items(song_id)`, `playlist_songs(song_id)`,
   and starred songs.

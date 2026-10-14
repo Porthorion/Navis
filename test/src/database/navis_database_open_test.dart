@@ -62,9 +62,8 @@ void main() {
     return path;
   }
 
-  // Holds the writer lock until the first attempts have failed, then releases
-  // it while a retry waits. The bundled SQLite gives up on busy_timeout almost
-  // at once, so attempts run at about 0 s, 1 s and 3 s.
+  // Holds the writer lock past the 5 s busy bound of the first open attempt,
+  // then releases it while the retry is waiting.
   Database holdWriterLock(String path, {required String before}) {
     final raw = sqlite3.open(path);
     addTearDown(raw.close);
@@ -72,7 +71,7 @@ void main() {
     raw.execute('BEGIN IMMEDIATE');
     unawaited(
       Future<void>.delayed(
-        const Duration(seconds: 2),
+        const Duration(seconds: 7),
         () => raw.execute('ROLLBACK'),
       ),
     );
@@ -154,4 +153,47 @@ void main() {
     );
     expect(isDatabaseLockTimeout(StateError('closed')), isFalse);
   });
+
+  Future<(NavisDatabase, Database)> openWithRawLock() async {
+    final path = await createCurrentDatabase();
+    final database = NavisDatabase.atPath(path);
+    addTearDown(database.close);
+    await database.customSelect('SELECT 1').get();
+    final raw = sqlite3.open(path);
+    addTearDown(raw.close);
+    raw.execute('BEGIN IMMEDIATE');
+    return (database, raw);
+  }
+
+  Future<void> insertSong(NavisDatabase database) => database.customStatement(
+    "INSERT INTO songs (id, title) VALUES ('waited', 'Waited')",
+  );
+
+  test('a write waits while another connection holds the lock', () async {
+    final (database, raw) = await openWithRawLock();
+    unawaited(
+      Future<void>.delayed(
+        const Duration(seconds: 1),
+        () => raw.execute('ROLLBACK'),
+      ),
+    );
+    final stopwatch = Stopwatch()..start();
+
+    await insertSong(database);
+
+    expect(stopwatch.elapsed, greaterThan(const Duration(milliseconds: 900)));
+  }, timeout: const Timeout(Duration(seconds: 60)));
+
+  test('a lock held past the busy bound fails within it', () async {
+    final (database, raw) = await openWithRawLock();
+    addTearDown(() => raw.execute('ROLLBACK'));
+    final stopwatch = Stopwatch()..start();
+
+    final error = await insertSong(database)
+        .then<Object?>((_) => null, onError: (Object error) => error);
+
+    expect(isDatabaseLockTimeout(error!), isTrue);
+    expect(stopwatch.elapsed, greaterThan(const Duration(seconds: 4)));
+    expect(stopwatch.elapsed, lessThan(const Duration(seconds: 8)));
+  }, timeout: const Timeout(Duration(seconds: 60)));
 }
