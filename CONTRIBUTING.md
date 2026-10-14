@@ -2,30 +2,66 @@
 
 Thanks for helping. Navis is licensed GPL-3.0-or-later; by submitting a contribution you agree to license it under the same terms.
 
-## Before you start
+## The most useful contribution is a good issue
 
-- Search [existing issues](https://github.com/Porthorion/Navis/issues) first. For bugs, use the bug report template; for ideas, the feature request template.
-- Read [AGENTS.md](AGENTS.md) and [docs/development/agentic-engineering.md](docs/development/agentic-engineering.md). They are the canonical project rules, including the Definition of Done. Use [docs/README.md](docs/README.md) to find the subsystem docs.
+Navis has one maintainer, so review time is the scarce resource. A clear, accurate issue helps more than an unsolicited patch, because it lets the maintainer (or an invited contributor) fix the right thing.
 
-## Setup and checks
+**Pull requests are taken from two groups:**
+
+- people who already have a pull request merged in Navis, and
+- anyone a maintainer has invited to send one, usually in a comment on an issue.
+
+Any other pull request is closed politely, without review, with a pointer to open an issue first. The code can still serve as a reference for the fix. This is about review capacity, not the quality of anyone's work, and it applies the same way whether or not AI was used.
+
+## Writing a useful issue
+
+Use the bug report, enhancement or server compatibility template, and search [existing issues](https://github.com/Porthorion/Navis/issues) first.
+
+- One problem per issue.
+- Report what you observed before what you think caused it.
+- Give exact steps, the expected result and the actual result.
+- Include the Navis version, platform, and server software and version.
+- Paste raw logs, not summaries. Mark every redaction (credentials, tokens, private server addresses, personal data) so readers know something was removed.
+- For a feature request, describe the problem and who it affects, and check [what is not planned for now](docs/project/non-goals.md) first.
+- A suspected cause or fix is welcome, but put it under "Technical notes", separate from the observations.
+- Disclose any AI use (see [AI-assisted contributions](docs/development/ai-contributions.md)). Fabricated reports lead to a block.
+- Security problems go privately through the Security tab, as described in [SECURITY.md](SECURITY.md). Never open a public issue for them.
+
+## Pull requests (invited or eligible)
+
+- One concern per pull request, with no unrelated cleanup.
+- Follow the existing patterns in the surrounding code.
+- Add tests that fail before the change and pass after it.
+- Exercise user-facing behaviour in the running app when you can.
+- Read the whole diff yourself for stray edits, local paths and credentials.
+- For non-trivial changes, get an independent or adversarial review and resolve its findings.
+- Update the relevant documentation in the same pull request.
+- Target `dev` (see [Branches](#branches)).
+- Fill in the [pull request template](.github/pull_request_template.md). Everything on GitHub is public, so leave out private hostnames, IPs, local paths and credentials, and leave out working-session history.
+
+Read [AGENTS.md](AGENTS.md) and [docs/development/agentic-engineering.md](docs/development/agentic-engineering.md); they are the canonical project rules, including the Definition of Done. [docs/README.md](docs/README.md) indexes the subsystem docs.
+
+### Setup and checks
 
 ```bash
 ./tool/bootstrap.sh   # once
 ./tool/check.sh       # format, codegen, analyze, tests; run before every PR
 ```
 
-Setup details are in [docs/development/development-workflow.md](docs/development/development-workflow.md).
+CI mirrors part of `check.sh`, not all of it. Setup details are in [docs/development/development-workflow.md](docs/development/development-workflow.md). Report only checks you actually ran, and never say a check passed if it did not.
 
-## Pull requests
+## AI-assisted contributions
 
-- Target the `dev` branch. `main` holds releases only.
-- Keep PRs small and focused on one change.
-- Update the relevant documentation in the same PR.
-- Fill in the PR template.
+AI-assisted work is welcome; most of Navis is written with AI help. The person who submits it is responsible for understanding, testing and explaining it. Every issue and pull request must disclose the harness, tools, models and level of AI involvement. The rules, including what gets a contribution closed or a contributor blocked, are in [docs/development/ai-contributions.md](docs/development/ai-contributions.md).
 
-## How merges work
+## Who gets credit
 
-Development happens in a private repository. On GitHub, `dev` is the integration branch and `main` holds releases. Maintainers merge accepted PRs through the private repository, so the merge commit on GitHub may differ from your branch. Your authorship is kept.
+Development happens in a private mirror. Maintainers merge GitHub pull requests locally and push the result to GitHub (see [Branches](#branches)). To keep credit clear:
+
+- Maintainers keep your original commits and authorship by merging without rewriting them. GitHub then shows the pull request as merged, and you appear in the history and the contributor graph.
+- If a squash or rewrite is unavoidable, the resulting commit carries a `Co-authored-by: Name <email>` trailer for every contributor, and the pull request is closed with a comment linking that commit.
+- AI agents that wrote a substantial part of a commit are credited with a trailer in the form `Co-Authored-By: <Agent/Model> <noreply@...>`.
+- Release notes may thank contributors by GitHub handle.
 
 ## Name and logo
 
@@ -43,3 +79,5 @@ Use [GitHub Discussions](https://github.com/Porthorion/Navis/discussions) for ho
   into `dev`. If your fix is for a bug in the upcoming release, mention it in
   the pull request and we'll route it.
 - `main`: released code only, tagged `vX.Y.Z` on release day.
+
+Development happens in a private repository. On GitHub, `dev` is the integration branch and `main` holds releases. Maintainers merge accepted pull requests locally and push them to GitHub, so the merge commit may differ from your branch while your commits and authorship are kept.

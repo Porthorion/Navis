@@ -13,6 +13,7 @@ product contracts.
 | Platform status, media integrations, tech stack | [development/technical-overview.md](development/technical-overview.md) |
 | Online services, scrobbling and what each one sends | [features/integrations.md](features/integrations.md) |
 | Agent workflow and documentation rules | [development/agentic-engineering.md](development/agentic-engineering.md) and [../AGENTS.md](../AGENTS.md) |
+| Contributing, AI disclosure rules and what is not planned for now | [../CONTRIBUTING.md](../CONTRIBUTING.md), [development/ai-contributions.md](development/ai-contributions.md) and [project/non-goals.md](project/non-goals.md) |
 | Architecture, providers, data flows, routing, platform integration | [architecture.md](architecture.md) |
 | Bootstrap, local validation, diagnostics API, runtime evidence | [development/development-workflow.md](development/development-workflow.md) |
 | Dependency audits, upgrade batches, replacement decisions, regression gates | [development/dependency-upgrades.md](development/dependency-upgrades.md) |

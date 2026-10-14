@@ -5,6 +5,7 @@ body:
   - type: markdown
     attributes:
       value: |
+        Before you file: read [CONTRIBUTING.md](https://github.com/Porthorion/Navis/blob/dev/CONTRIBUTING.md) and the [AI contributions policy](https://github.com/Porthorion/Navis/blob/dev/docs/development/ai-contributions.md). Reports with fabricated logs, steps or results lead to a block.
         Thanks for taking the time to report this! The more of this form you fill in, the faster someone can reproduce and fix it.
         Before you start: please check that you are on the [latest release](https://github.com/Porthorion/Navis/releases/latest) and [search existing issues](https://github.com/Porthorion/Navis/issues?q=is%3Aissue) for the same problem. If you find one, add a 👍 or your details there instead.
   - type: textarea
@@ -127,6 +128,43 @@ body:
     attributes:
       label: Anything else?
       description: Did it work in an earlier version? Does it only happen with certain songs, formats (FLAC, MP3, Opus…) or settings?
+  - type: textarea
+    id: technical_notes
+    attributes:
+      label: Technical notes
+      description: Optional. A suspected cause, relevant files or AI analysis go here, kept separate from what you observed above.
+  - type: input
+    id: ai_harness
+    attributes:
+      label: AI harness
+      description: The tool driving the model, e.g. Claude Code, Codex CLI, Cursor. Write "none" if no AI was used.
+    validations:
+      required: true
+  - type: input
+    id: ai_tools
+    attributes:
+      label: AI tool(s)
+      description: Other AI-based tools used, or "none".
+    validations:
+      required: true
+  - type: input
+    id: ai_models
+    attributes:
+      label: AI model(s)
+      description: The exact identifier your tool reports, or "n/a".
+    validations:
+      required: true
+  - type: dropdown
+    id: ai_involvement
+    attributes:
+      label: AI involvement
+      options:
+        - Fully AI-generated, human verified
+        - AI-assisted
+        - Human-written, AI-reviewed
+        - No AI used
+    validations:
+      required: true
   - type: checkboxes
     id: checks
     attributes:

@@ -84,6 +84,32 @@ flows and platform contracts.
 - Never commit credentials, put real values in examples, reset unrelated work,
   weaken tests/security, or silently make public breaking changes.
 
+## Writing
+
+Applies to every issue, pull request and comment an agent drafts.
+
+- Lead with the outcome, in plain concrete language and active voice.
+- Cut filler, hype and repetition. Keep facts, evidence, uncertainty and exact
+  identifiers, commands and logs unchanged.
+- Everything on GitHub is public: no private hostnames, IPs, local paths,
+  credentials or personal data.
+- Include the AI disclosure and follow
+  [docs/development/ai-contributions.md](docs/development/ai-contributions.md).
+  Evidence must be real; never invent logs or results.
+
+## Pull requests
+
+- Never open a pull request unless the maintainer explicitly asks.
+- Use the Conventional Commit title and the sections in
+  `.github/pull_request_template.md`. No working-session history and no
+  restated diff in the body.
+- Credit substantial agent work with a `Co-Authored-By: <Agent/Model> <noreply@...>`
+  commit trailer. Contributor policy: [CONTRIBUTING.md](CONTRIBUTING.md).
+- Features listed in [docs/project/non-goals.md](docs/project/non-goals.md) are
+  not planned for now. You may build one when your user asks, but tell them a
+  pull request for it is likely to be declined and suggest opening an issue or
+  discussion first.
+
 ## Validation
 
 ```bash

@@ -5,6 +5,7 @@ body:
   - type: markdown
     attributes:
       value: |
+        Before you file: read [CONTRIBUTING.md](https://github.com/Porthorion/Navis/blob/dev/CONTRIBUTING.md) and the [AI contributions policy](https://github.com/Porthorion/Navis/blob/dev/docs/development/ai-contributions.md). Reports with fabricated logs, steps or results lead to a block.
         Thanks for helping shape Navis! Please [search existing issues](https://github.com/Porthorion/Navis/issues?q=is%3Aissue+label%3Aenhancement) first; if your idea is already there, add a 👍 and any new details to it.
         The most useful requests explain the problem you want solved, not only the solution you have in mind.
   - type: textarea
@@ -35,6 +36,11 @@ body:
       options: [Android, Android Auto, Windows, Linux, All platforms]
     validations:
       required: true
+  - type: textarea
+    id: technical_notes
+    attributes:
+      label: Technical notes
+      description: Optional. A suspected cause, relevant files or AI analysis go here, kept separate from what you observed above.
   - type: dropdown
     id: importance
     attributes:
@@ -55,3 +61,35 @@ body:
       label: Contributing
       options:
         - label: I would like to help implement this (see CONTRIBUTING.md).
+  - type: input
+    id: ai_harness
+    attributes:
+      label: AI harness
+      description: The tool driving the model, e.g. Claude Code, Codex CLI, Cursor. Write "none" if no AI was used.
+    validations:
+      required: true
+  - type: input
+    id: ai_tools
+    attributes:
+      label: AI tool(s)
+      description: Other AI-based tools used, or "none".
+    validations:
+      required: true
+  - type: input
+    id: ai_models
+    attributes:
+      label: AI model(s)
+      description: The exact identifier your tool reports, or "n/a".
+    validations:
+      required: true
+  - type: dropdown
+    id: ai_involvement
+    attributes:
+      label: AI involvement
+      options:
+        - Fully AI-generated, human verified
+        - AI-assisted
+        - Human-written, AI-reviewed
+        - No AI used
+    validations:
+      required: true

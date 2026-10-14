@@ -105,6 +105,8 @@ flutter run           # on a connected device or desktop
 
 Bug reports, ideas and pull requests are all welcome. Please read [CONTRIBUTING.md](CONTRIBUTING.md) first. Pull requests target `dev`, and `./tool/check.sh` must pass.
 
+Pull requests are invited after an issue: open one first, and a maintainer will say whether and how to send a patch (see [CONTRIBUTING.md](CONTRIBUTING.md)).
+
 - 💬 [Ask a question or share an idea](https://github.com/Porthorion/Navis/discussions)
 - 🐞 [Report a bug](https://github.com/Porthorion/Navis/issues/new?template=bug_report.yml)
 - ✨ [Suggest an improvement](https://github.com/Porthorion/Navis/issues/new?template=enhancement.yml)
