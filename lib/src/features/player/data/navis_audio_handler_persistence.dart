@@ -144,13 +144,25 @@ extension _NavisPersistence on NavisAudioHandler {
     await _restoreQueueFromDisk();
   }
 
-  Future<bool> _prepareBestAvailableQueueForUserPlay() async {
+  Future<bool> _prepareBestAvailableQueueForUserPlay(
+    int transportGeneration,
+  ) async {
     final inFlight = _prepareQueueForUserPlayInFlight;
     if (inFlight != null) {
-      return inFlight;
+      final prepared = await inFlight;
+      if (!_isCurrentTransportIntent(transportGeneration) ||
+          _radioStation != null ||
+          (_queueItems.isNotEmpty && _restoredQueueIndex == null)) {
+        return prepared;
+      }
+      // A newer Play may have joined preparation owned by an older transport
+      // intent. Restart only for the newest caller if no playable queue won.
     }
+    if (!_isCurrentTransportIntent(transportGeneration)) return true;
 
-    final preparation = _prepareBestAvailableQueueForUserPlayOnce();
+    final preparation = _prepareBestAvailableQueueForUserPlayOnce(
+      transportGeneration,
+    );
     _prepareQueueForUserPlayInFlight = preparation;
     try {
       return await preparation;
@@ -161,8 +173,9 @@ extension _NavisPersistence on NavisAudioHandler {
     }
   }
 
-  Future<bool> _prepareBestAvailableQueueForUserPlayOnce() async {
-    final transportGeneration = _transportGeneration;
+  Future<bool> _prepareBestAvailableQueueForUserPlayOnce(
+    int transportGeneration,
+  ) async {
     await _ready;
     if (!_isCurrentTransportIntent(transportGeneration)) return true;
     await _startupQueueRestore;
@@ -170,10 +183,7 @@ extension _NavisPersistence on NavisAudioHandler {
     final deferredRestore = _deferredQueueRestoreRetry;
     if (deferredRestore != null) await deferredRestore;
     if (!_isCurrentTransportIntent(transportGeneration)) return true;
-    final queueGeneration = _activeLoadGeneration;
-    bool isCurrent() =>
-        _isCurrentTransportIntent(transportGeneration) &&
-        _isActiveLoadGeneration(queueGeneration);
+    bool isCurrent() => _isCurrentTransportIntent(transportGeneration);
     // Supersession is normal completion in the preparation lane. Leave any
     // newer selection alone; Play itself checks its transport ownership.
     if (_radioStation != null ||
@@ -193,10 +203,16 @@ extension _NavisPersistence on NavisAudioHandler {
       if (_restoredQueueIndex == null && _queueItems.isNotEmpty) return true;
     }
 
+    // Restore can advance load ownership itself (large queues). Capture that
+    // ownership only once restoration is done, before asynchronous fallbacks.
+    final queueGeneration = _activeLoadGeneration;
+    bool canApplyFallback() =>
+        isCurrent() && _isActiveLoadGeneration(queueGeneration);
+
     final recentSongs = await _historyDao
         .watchRecentlyPlayedSongs(limit: 50)
         .first;
-    if (!isCurrent()) return true;
+    if (!canApplyFallback()) return true;
     if (recentSongs.isNotEmpty) {
       AppLogger.info(
         'Android Auto resume: queueing recently played songs '
@@ -204,14 +220,14 @@ extension _NavisPersistence on NavisAudioHandler {
       );
       await replaceQueueWithData(
         recentSongs,
-        autoPlay: false,
+        autoPlay: true,
         expandMatchFlows: false,
       );
       return _queueItems.isNotEmpty;
     }
 
     final likedSongs = await _libraryDao.watchAllStarredSongs().first;
-    if (!isCurrent()) return true;
+    if (!canApplyFallback()) return true;
     if (likedSongs.isNotEmpty) {
       AppLogger.info(
         'Android Auto resume: queueing liked songs '
@@ -219,14 +235,14 @@ extension _NavisPersistence on NavisAudioHandler {
       );
       await replaceQueueWithData(
         likedSongs,
-        autoPlay: false,
+        autoPlay: true,
         expandMatchFlows: false,
       );
       return _queueItems.isNotEmpty;
     }
 
     AppLogger.info('Android Auto resume: trying random song fallback.');
-    return await _startInstantRadio(autoPlay: false);
+    return await _startInstantRadio(autoPlay: true);
   }
 
   Future<void> _persistSafely(

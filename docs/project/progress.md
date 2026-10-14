@@ -14,6 +14,23 @@ Last updated: 2026-10-14
 - ACP status values: `backlog`, `ready`, `in_progress`, `blocked`, `done`.
 
 ## Current Focus
+- [x] Startup/idle robustness re-review: three additional P2 defects —
+  2026-10-14 (`fix/startup-hang`; fallback captures load ownership after internal
+  restore changes, newest Play restarts superseded shared preparation, and each
+  resume independently re-arms bounded worker observation. All five new defect
+  cases failed before and pass after. Three focused suites pass 467 tests; the
+  final resume suite passes 11, including pause/dispose/budget controls.
+  `./tool/check.sh` passes: 7,950 tests, one existing skip, 96 migration and 246
+  critical reliability tests, no new analyzer errors/warnings. Post-gate Linux
+  clean restarts with an isolated 70-occurrence queue verify recent and liked
+  fallback plays on the first request, with one native source and advancing
+  position; concurrent empty-queue Plays also pass. Final app-owned screenshot
+  inspected: Home, paused fallback, ordinary offline notice, no startup/internal
+  error overlay. Owned apps shut down; credential/handshake files removed.
+  Android worker lifecycle and external-commit races covered by deterministic
+  two-connection regressions; device/OS/overnight testing not repeated.
+  Architecture, changelog and [the audit](../audits/startup-hang-2026-10-14.md)
+  updated; no commits or stashes.)
 - [x] Startup/idle robustness review follow-up — 2026-10-14
   (`fix/startup-hang`; all five P2 findings from `ecc21594` fixed through the
   existing readiness, transport, preparation and resume mechanisms. Ten

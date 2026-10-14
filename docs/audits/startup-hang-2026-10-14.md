@@ -445,3 +445,49 @@ the authenticated API; fixture credentials and handshake files were removed.
 Android device/OS-control and physical overnight verification were not repeated
 for this Dart follow-up; the controlled regressions are the evidence for the
 local-init stall and cross-engine commit races.
+
+
+### Re-review of HEAD: three additional P2 findings
+
+The three new findings are fixed without commits or stashes. Preparation reuses
+its existing shared future and the transport/load generations; no new flags or
+generation counters were added. All five new defect cases failed on the original
+implementation and pass with the fixes. Recovery does not publish internal
+errors.
+
+| Finding | Root fix | Regression and result |
+|---|---|---|
+| Large-queue restoration suppressed fallback | Transport ownership guards restoration; load ownership for asynchronous fallbacks is captured after restoration's internal generation changes. Recent, liked and radio fallback admission honors Play through the existing autoplay queue-loading path. | `large unavailable saved queue falls back on first Play (recent: false/true)` — both failed before and pass after; a 70-song unavailable saved queue falls back to one playable song, starts audio, persists the replacement and publishes no playback error. |
+| Second Play inherited superseded preparation | A caller awaits existing preparation, then only the newest transport intent starts fresh preparation if no playable queue remains. Stale callers complete normally. | `second Play restarts superseded recent preparation for the newest command` — failed before and passes after; a held history lookup returns distinct stale/new rows, only the newer row applies, exactly one native source load occurs and playback starts without an error. |
+| Rapid pause/resume permanently cancelled the foreground watcher | Each resume starts database reconciliation and worker observation independently of the coalesced connectivity/reachability refresh. Existing epochs cancel stale observation; pause, disposal, completion and the nine-minute budget stop it. Initial database-check failures also hand off to silent watcher recovery. | `worker commit after resume refreshes catalog and aliases (rapid: true, lease: false/true)` — both failed before and pass after while metering remains pending. Catalog subscribers, durable sync state and playback aliases refresh after the external worker commit. Additional pause, dispose and budget controls pass. |
+
+The three focused suites passed 467 tests. The final resume-reconciliation suite
+passed all 11 tests, including the three additional lifetime controls. Existing
+resume precedence assertions now require successful fallback to play; saved
+restore, superseded queue selection and connectivity coalescing controls pass.
+
+Linux runtime used the existing isolated loopback fixture, profile driver and
+authenticated app API. Across clean restarts, a 70-occurrence saved queue restored
+paused with zero native sources. With streaming forced offline and only the
+fallback song available locally, both recent and liked fallback reached one
+native source and an advancing position on the first Play. Two concurrent Play
+requests from an empty queue also reached one playable song. The inspected
+app-owned screenshot shows Home and the paused fallback song, with the ordinary
+offline notice and no startup overlay or internal-error presentation. The app
+instances shut down through the authenticated API; fixture credential and
+handshake files were removed. Android worker lifecycle races are covered by
+the deterministic two-connection regressions; physical-device/OS-control and
+overnight verification were not repeated for this re-review.
+
+`./tool/check.sh` passed with 7,950 full-suite tests and one existing skip,
+96 migration tests and 246 critical reliability tests. Formatting, generation,
+analysis, dead-code and all script/native gates passed; analysis reports only
+175 pre-existing infos, with no new errors or warnings.
+
+The post-gate repeat used a fresh disposable fixture database after reconnecting
+the prior loopback session encountered the host's unavailable libsecret
+collection. All first-Play fallback and concurrent-Play assertions passed again
+across clean app restarts. The final app-owned PNG was inspected with the same
+Home/paused-fallback result. Owned app processes stopped, and no credential or
+handshake file remains in the fixture root. Sanitized report and screenshots
+are retained under ignored `build/new-review-runtime-1791973286/`.

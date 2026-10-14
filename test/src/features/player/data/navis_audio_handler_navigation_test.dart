@@ -29,6 +29,7 @@ import 'package:navis/src/api/models/models.dart' as models;
 import 'package:navis/src/api/subsonic_auth_interceptor.dart';
 import 'package:navis/src/database/navis_database.dart';
 import 'package:navis/src/database/daos/library_dao.dart';
+import 'package:navis/src/database/daos/history_dao.dart';
 import 'package:navis/src/database/daos/play_queue_dao.dart';
 import 'package:navis/src/database/tables/schema_enums.dart';
 import 'package:navis/src/features/cache/data/rolling_cache_manager.dart';
@@ -72,6 +73,27 @@ class _GatedLibraryDao extends LibraryDao {
       songIds,
       includeLocalOnly: includeLocalOnly,
     );
+  }
+}
+
+class _GatedHistoryDao extends HistoryDao {
+  new(super.attachedDatabase);
+
+  final entered = Completer<void>();
+  final release = Completer<void>();
+  int lookups = 0;
+
+  @override
+  Stream<List<SongsTableData>> watchRecentlyPlayedSongs({
+    int limit = 20,
+  }) async* {
+    lookups++;
+    final lookup = lookups;
+    if (!entered.isCompleted) entered.complete();
+    await release.future;
+    yield await attachedDatabase.libraryDao.getSongsByIds([
+      if (lookup == 1) 'song-0' else 'song-1',
+    ]);
   }
 }
 
@@ -272,6 +294,7 @@ class _ControllableAudioPlayer extends Fake implements AudioPlayer {
   final List<Duration> playedFrom = <Duration>[];
   bool nativePositionFrozen = false;
   bool keepStreamsAfterDispose = false;
+  int sourceLoads = 0;
   int seekCalls = 0;
   int stopCalls = 0;
   int? index;
@@ -569,6 +592,7 @@ class _ControllableAudioPlayer extends Fake implements AudioPlayer {
     ShuffleOrder? shuffleOrder,
   }) => _mutate(() async {
     final source = sources.isEmpty ? null : sources[initialIndex ?? 0];
+    sourceLoads++;
     if (source != null) attemptedSongId = _sourceId(source);
     if (source != null && hungLoadSongs.contains(_sourceId(source))) {
       await Completer<void>().future;
@@ -872,6 +896,7 @@ void main() {
     NavisDatabase? sharedDatabase,
     LibraryDao Function(NavisDatabase)? createLibraryDao,
     PlayQueueDao Function(NavisDatabase)? createPlayQueueDao,
+    HistoryDao Function(NavisDatabase)? createHistoryDao,
     // Songs stream from a server, with desktop sidecar caching.
     bool sidecarStreams = false,
     Future<void> Function(NavisDatabase database)? seed,
@@ -960,7 +985,7 @@ void main() {
       playlistDao: database.playlistDao,
       playQueueDao: createPlayQueueDao?.call(database) ?? database.playQueueDao,
       matchFlowDao: database.matchFlowDao,
-      historyDao: database.historyDao,
+      historyDao: createHistoryDao?.call(database) ?? database.historyDao,
       sourceResolver: resolver,
       readApiClient: readApiClient ?? () => apiClient,
       rollingCacheManager: cache,
@@ -1129,6 +1154,84 @@ void main() {
     expect(handler.snapshot.currentIndex, 1);
     expect(player.sequence, isEmpty);
   });
+
+  for (final recent in [false, true]) {
+    test(
+      'large unavailable saved queue falls back on first Play (recent: $recent)',
+      () async {
+        final directory = await Directory.systemTemp.createTemp(
+          'navis-large-fallback-',
+        );
+        final (handler, player, database) = await createHandler(
+          directory,
+          70,
+          savedQueueIndex: 0,
+          seed: (db) async {
+            final cached = await db.cacheDao.getCachedTrack('song-0');
+            await File(cached!.filePath).delete();
+            if (recent) {
+              await db.historyDao.addPlayHistory('song-1');
+            } else {
+              await db.libraryDao.setEntityStarred(
+                'song',
+                'song-1',
+                DateTime.now(),
+              );
+            }
+          },
+        );
+        addTearDown(() async {
+          await handler.disposeHandler();
+          await database.close();
+          await directory.delete(recursive: true);
+        });
+        await handler.play();
+        expect(handler.snapshot.queueSongIds, ['song-1']);
+        await settleQueue(handler);
+        expect(player.sourceIds, ['song-1']);
+        expect(player.isPlaying, isTrue);
+        expect(handler.playbackState.value.errorMessage, isNull);
+        await handler.debugFlushQueuePersistence();
+        expect((await database.playQueueDao.getQueueItems()).map((s) => s.id), [
+          'song-1',
+        ]);
+      },
+    );
+  }
+
+  test(
+    'second Play restarts superseded recent preparation for the newest command',
+    () async {
+      final directory = await Directory.systemTemp.createTemp(
+        'navis-second-play-',
+      );
+      late _GatedHistoryDao history;
+      final (handler, player, database) = await createHandler(
+        directory,
+        2,
+        createHistoryDao: (db) => history = _GatedHistoryDao(db),
+      );
+      addTearDown(() async {
+        if (!history.release.isCompleted) history.release.complete();
+        await handler.disposeHandler();
+        await database.close();
+        await directory.delete(recursive: true);
+      });
+      final first = handler.play();
+      await history.entered.future.timeout(const Duration(seconds: 1));
+      final second = handler.play();
+      await pumpEventQueue();
+      history.release.complete();
+      await Future.wait([first, second]);
+      await settleQueue(handler);
+      expect(history.lookups, 2);
+      expect(handler.snapshot.queueSongIds, ['song-1']);
+      expect(player.sourceIds, ['song-1']);
+      expect(player.isPlaying, isTrue);
+      expect(player.sourceLoads, 1);
+      expect(handler.playbackState.value.errorMessage, isNull);
+    },
+  );
 
   for (final replacement in [false, true]) {
     test(
@@ -2429,7 +2532,7 @@ void main() {
               autoPlay: autoPlay,
               expandMatchFlows: false,
             );
-            expect(radioHandler.snapshot.playing, isFalse);
+            expect(radioHandler.snapshot.playing, isTrue);
             return true;
           },
         );
@@ -2472,10 +2575,10 @@ void main() {
         }
 
         expect(handler.snapshot.currentSongId, expected);
-        expect(player.playing, active || expected == 'song-1');
+        expect(player.playing, expected != null);
         expect(
           radioRequests,
-          !active && !saved && !recent && !liked ? [false] : isEmpty,
+          !active && !saved && !recent && !liked ? [true] : isEmpty,
         );
         if (expected == null && unavailable == null) {
           expect(

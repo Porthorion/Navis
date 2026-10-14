@@ -166,6 +166,10 @@ const List<ChangelogVersion> changelogs = [
     ],
     entries: [
       ChangelogEntry(
+        'Play recovers when a large saved queue is unavailable, repeated Play requests start music reliably, and background sync stays visible after quick pause and resume',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
         'Restored queues now honour Previous and newer selections, radio keeps its system metadata, and background sync updates appear when you return',
         type: ChangelogEntryType.fix,
       ),

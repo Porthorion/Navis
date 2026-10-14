@@ -1678,6 +1678,12 @@ class LibrarySyncController extends Notifier<LibrarySyncState> {
     _isForeground = true;
     ref.read(librarySyncForegroundProvider.notifier).setForeground(true);
     if (wasForeground) return;
+    final pausedVersion = _pausedDataVersion;
+    _pausedDataVersion = null;
+    _cancelWorkerReconciliation();
+    unawaited(
+      _reconcileDatabaseOnResume(pausedVersion, _workerReconciliationEpoch),
+    );
     _resumeReconciliation ??= _reconcileOnResume().whenComplete(() {
       _resumeReconciliation = null;
       if (ref.mounted && _isForeground) {
@@ -1775,7 +1781,7 @@ class LibrarySyncController extends Notifier<LibrarySyncState> {
         return;
       }
       after = await _reconcileExternalDatabaseChanges(before);
-      keepWatching = active;
+      keepWatching = active && ref.read(nowProvider)().isBefore(retryDeadline);
     } on Object catch (error) {
       AppLogger.warning(
         'Worker reconciliation unavailable: ${error.runtimeType}',
@@ -1805,24 +1811,31 @@ class LibrarySyncController extends Notifier<LibrarySyncState> {
     }
   }
 
-  Future<void> _reconcileOnResume() async {
-    final pausedVersion = _pausedDataVersion;
-    final away = ref
-        .read(nowProvider)()
-        .difference(_backgroundedAt ?? ref.read(nowProvider)());
-    _pausedDataVersion = null;
+  Future<void> _reconcileDatabaseOnResume(
+    Future<int?>? pausedVersion,
+    int epoch,
+  ) async {
     AppLogger.startup(StartupEvent.lifecycle, outcome: StartupOutcome.warm);
     // No authenticated profile can have a catalog worker to reconcile. Avoid
     // opening unused persistence merely because Login/teardown resumed.
     if (ref.read(serverConfigStateProvider).asData?.value == null) return;
+    int? baseline;
     try {
       final before = await pausedVersion;
-      if (!ref.mounted) return;
+      baseline = before;
+      if (!ref.mounted ||
+          !_isForeground ||
+          epoch != _workerReconciliationEpoch) {
+        return;
+      }
       final after = await _reconcileExternalDatabaseChanges(before);
-      if (!ref.mounted || !_isForeground) return;
+      if (!ref.mounted ||
+          !_isForeground ||
+          epoch != _workerReconciliationEpoch) {
+        return;
+      }
       final changed = before == null || after == null || before != after;
-      _cancelWorkerReconciliation();
-      unawaited(_watchResumedWorker(after, _workerReconciliationEpoch));
+      baseline = after;
       AppLogger.startup(
         StartupEvent.resumeDatabase,
         outcome: changed ? StartupOutcome.changed : StartupOutcome.unchanged,
@@ -1835,8 +1848,22 @@ class LibrarySyncController extends Notifier<LibrarySyncState> {
       AppLogger.warning(
         'Resume library reconciliation failed: ${error.runtimeType}',
       );
+    } finally {
+      // Worker observation has its own lifecycle, even when this resume joins
+      // a pending connection refresh or the first database check failed.
+      unawaited(_watchResumedWorker(baseline, epoch));
     }
-    if (!ref.mounted || away < const Duration(seconds: 30)) return;
+  }
+
+  Future<void> _reconcileOnResume() async {
+    final away = ref
+        .read(nowProvider)()
+        .difference(_backgroundedAt ?? ref.read(nowProvider)());
+    if (ref.read(serverConfigStateProvider).asData?.value == null ||
+        !ref.mounted ||
+        away < const Duration(seconds: 30)) {
+      return;
+    }
     try {
       final previousReachabilityCheck = ref
           .read(serverReachabilityControllerProvider)

@@ -1976,7 +1976,9 @@ class NavisAudioHandler extends BaseAudioHandler
 
     if (_radioStation == null &&
         (_queueItems.isEmpty || _restoredQueueIndex != null)) {
-      final prepared = await _prepareBestAvailableQueueForUserPlay();
+      final prepared = await _prepareBestAvailableQueueForUserPlay(
+        transportGeneration,
+      );
       if (!_isCurrentTransportIntent(transportGeneration)) return;
       if (!prepared || (_radioStation == null && _queueItems.isEmpty)) {
         AppLogger.info('Android Auto resume: play ignored; queue is empty.');

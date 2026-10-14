@@ -3481,7 +3481,9 @@ worker with a live durable Android lease or an unfinished recent start keeps a
 one-second reconciliation timer until completion or expiry. Each tick reads
 worker completion before comparing data_version, including a final comparison
 when the run ends. The timer stops on backgrounding, session change, disposal,
-or worker completion; it is not a permanent database poll. After at least 30
+or worker completion, with a nine-minute observation budget; it is not a
+permanent database poll. Every foreground resume restarts observation independently
+of an in-flight connectivity/reachability reconciliation. After at least 30
 seconds away, the same reconciliation refreshes connectivity and native
 metering through their existing providers, then joins the existing reachability
 probe. Initial connectivity also includes a fresh platform check. Subsonic
@@ -4567,8 +4569,12 @@ sidecar, subscriptions, browse notifications and owned stream controllers.
 
 Startup waits for cache maintenance before restoring or synthesizing a queue,
 so stale partial-file cleanup cannot race a new lock-cache download. If the OS
-sends duplicate Play requests while the queue is empty, both await the same
-fallback queue preparation instead of cancelling each other.
+sends duplicate Play requests while the queue is empty, they share pending
+preparation; the newest Play restarts it if superseded work left no playable
+queue. Only the latest transport intent may admit fallback. Load ownership is
+captured after saved restoration's own generation changes, so an unavailable
+large queue can still fall back. Recent, liked and radio fallbacks honor the
+Play intent through the existing queue-loading path and start playback.
 
 Now Playing receives a handler-owned `TransportVisualCue` for every manual
 Previous/Next outcome, regardless of whether it originated from touch, swipe,

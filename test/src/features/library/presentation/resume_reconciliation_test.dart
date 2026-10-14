@@ -305,9 +305,18 @@ void main() {
     expect(container.read(librarySyncControllerProvider).lastRunBytes, 1234);
     expect(handler.aliases.last, {'before': 'after'});
   });
-  for (final (leased, retry) in [(false, false), (true, false), (true, true)]) {
+  for (final (leased, retry, rapid, stop) in [
+    (false, false, false, 'complete'),
+    (true, false, false, 'complete'),
+    (true, true, false, 'complete'),
+    (false, false, true, 'complete'),
+    (true, false, true, 'complete'),
+    (true, false, false, 'pause'),
+    (true, false, false, 'dispose'),
+    (true, false, false, 'budget'),
+  ]) {
     test(
-      'worker commit after resume refreshes catalog and aliases (lease: $leased, retry: $retry)',
+      'worker commit after resume refreshes catalog and aliases (lease: $leased, retry: $retry, rapid: $rapid, stop: $stop)',
       () async {
         final directory = await Directory.systemTemp.createTemp(
           'navis-worker-resume-',
@@ -338,14 +347,27 @@ void main() {
             ownerToken: 'fixture-worker',
             ownerKind: 'androidWorker',
             now: DateTime.now(),
-            ttl: const Duration(minutes: 1),
+            ttl: Duration(minutes: stop == 'budget' ? 20 : 1),
           );
         }
+        var now = DateTime.now();
+        final metering = Completer<bool>();
+        final meteringEntered = Completer<void>();
         final handler = _Handler()..failAliasesOnce = retry;
         final container = ProviderContainer(
           overrides: withTestDatabase(
             database,
             overrides: [
+              nowProvider.overrideWithValue(() => now),
+              if (rapid) ...[
+                connectivityProvider.overrideWith(
+                  (_) => Stream.value([ConnectivityResult.wifi]),
+                ),
+                nativeNetworkMeteredProvider.overrideWith((_) {
+                  if (!meteringEntered.isCompleted) meteringEntered.complete();
+                  return metering.future;
+                }),
+              ],
               serverConfigStateProvider.overrideWithValue(
                 AsyncData(
                   ServerConfigModel(
@@ -370,6 +392,7 @@ void main() {
           ),
         );
         addTearDown(() async {
+          if (!metering.isCompleted) metering.complete(false);
           container.dispose();
           await database.close();
           await directory.delete(recursive: true);
@@ -393,11 +416,37 @@ void main() {
         binding.handleAppLifecycleStateChanged(AppLifecycleState.hidden);
         binding.handleAppLifecycleStateChanged(AppLifecycleState.paused);
         await pumpEventQueue();
+        if (rapid) now = now.add(const Duration(seconds: 31));
         binding.handleAppLifecycleStateChanged(AppLifecycleState.hidden);
         binding.handleAppLifecycleStateChanged(AppLifecycleState.inactive);
         binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
         await pumpEventQueue(times: 100);
         expect(counts.last, 1);
+        if (rapid) {
+          await meteringEntered.future.timeout(const Duration(seconds: 1));
+          // Cancel the watcher while the connectivity/metering reconciliation
+          // is still pending, then resume into that same in-flight future.
+          binding.handleAppLifecycleStateChanged(AppLifecycleState.inactive);
+          binding.handleAppLifecycleStateChanged(AppLifecycleState.hidden);
+          binding.handleAppLifecycleStateChanged(AppLifecycleState.paused);
+          await pumpEventQueue();
+          binding.handleAppLifecycleStateChanged(AppLifecycleState.hidden);
+          binding.handleAppLifecycleStateChanged(AppLifecycleState.inactive);
+          binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
+          await pumpEventQueue(times: 100);
+          expect(metering.isCompleted, isFalse);
+        }
+        switch (stop) {
+          case 'pause':
+            binding.handleAppLifecycleStateChanged(AppLifecycleState.inactive);
+            binding.handleAppLifecycleStateChanged(AppLifecycleState.hidden);
+            binding.handleAppLifecycleStateChanged(AppLifecycleState.paused);
+            await pumpEventQueue();
+          case 'dispose':
+            container.dispose();
+          case 'budget':
+            now = now.add(const Duration(minutes: 10));
+        }
         final worker = sqlite3.open(file.path);
         try {
           worker.execute(
@@ -409,12 +458,14 @@ void main() {
           worker.execute(
             "INSERT INTO entity_identity_aliases(entity_type, old_id, new_id, match_reason, matched_at) VALUES ('song', 'before', 'after', 'fixture', 1)",
           );
-          worker.execute(
-            'DELETE FROM library_sync_execution_lease WHERE server_id = 1',
-          );
-          worker.execute(
-            "UPDATE library_sync_state SET android_worker_completed_at = strftime('%s', 'now'), android_worker_result = 'succeeded' WHERE server_id = 1",
-          );
+          if (stop == 'complete') {
+            worker.execute(
+              'DELETE FROM library_sync_execution_lease WHERE server_id = 1',
+            );
+            worker.execute(
+              "UPDATE library_sync_state SET android_worker_completed_at = strftime('%s', 'now'), android_worker_result = 'succeeded' WHERE server_id = 1",
+            );
+          }
         } finally {
           worker.close();
         }
@@ -425,6 +476,13 @@ void main() {
           1,
           reason: 'external SQLite commits have no Drift notifications',
         );
+        if (stop == 'pause' || stop == 'dispose') {
+          await Future<void>.delayed(const Duration(milliseconds: 1200));
+          await pumpEventQueue();
+          expect(counts.last, 1);
+          expect(handler.aliases, isEmpty);
+          return;
+        }
         for (var i = 0; i < 40 && handler.aliases.isEmpty; i++) {
           await Future<void>.delayed(const Duration(milliseconds: 100));
           await pumpEventQueue();
@@ -436,8 +494,8 @@ void main() {
         );
         expect(handler.aliases.last, {'before': 'after'});
         expect(handler.aliasAttempts, retry ? 2 : 1);
-        // Completion must stop the watcher: unrelated foreground commits
-        // should not start a permanent polling loop.
+        // Completion or the observation budget must stop polling, even
+        // if a worker lease outlives the foreground observation window.
         final later = sqlite3.open(file.path);
         try {
           later.execute(
