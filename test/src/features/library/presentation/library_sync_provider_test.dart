@@ -785,6 +785,127 @@ void main() {
     });
 
     test(
+      'an expired or released lease retries at the 30 second floor',
+      () async {
+        final database = createTestDatabase();
+        addTearDown(database.close);
+        final config = await _saveAuthenticatedServer(database);
+        await database.librarySyncDao.setNextAutomaticCheckAt(
+          serverId: config.id!,
+          nextAutomaticCheckAt: DateTime.now().subtract(
+            const Duration(minutes: 1),
+          ),
+        );
+        // Acquired five minutes ago with a one minute ttl: already expired, so
+        // expiry + 5s lies in the past and the floor applies.
+        await database.librarySyncDao.acquireExecutionLease(
+          serverId: config.id!,
+          ownerToken: 'worker',
+          ownerKind: 'worker',
+          now: DateTime.now().subtract(const Duration(minutes: 5)),
+          ttl: const Duration(minutes: 1),
+        );
+        final engine = StubLibrarySyncEngine((request, {onProgress}) async {
+          if (request.isAutomatic) {
+            return LibrarySyncState(
+              status: LibrarySyncStatus.deferred,
+              stage: LibrarySyncStage.completed,
+              completedAt: DateTime.now(),
+              planReason: 'leaseHeld',
+            );
+          }
+          return _succeeded;
+        });
+        final startedAt = DateTime.now();
+        final container = _container(
+          engine,
+          database: database,
+          server: config,
+          reachability: ServerReachabilityStatus.offline,
+          interval: _hourlyInterval,
+        );
+        addTearDown(container.dispose);
+        addTearDown(
+          () => container
+              .read(librarySyncControllerProvider.notifier)
+              .cancelAndWait(),
+        );
+
+        await container
+            .read(librarySyncControllerProvider.notifier)
+            .syncIfStale();
+        final persisted = await database.librarySyncDao.getOrCreateState(
+          config.id!,
+        );
+
+        final wait = persisted.nextAutomaticCheckAt!.difference(startedAt);
+        expect(wait, greaterThanOrEqualTo(const Duration(seconds: 29)));
+        expect(wait, lessThanOrEqualTo(const Duration(seconds: 31)));
+      },
+    );
+
+    test(
+      'a lease outliving the interval caps the retry at the full interval',
+      () async {
+        final database = createTestDatabase();
+        addTearDown(database.close);
+        final config = await _saveAuthenticatedServer(database);
+        await database.librarySyncDao.setNextAutomaticCheckAt(
+          serverId: config.id!,
+          nextAutomaticCheckAt: DateTime.now().subtract(
+            const Duration(minutes: 1),
+          ),
+        );
+        await database.librarySyncDao.acquireExecutionLease(
+          serverId: config.id!,
+          ownerToken: 'worker',
+          ownerKind: 'worker',
+          now: DateTime.now(),
+          ttl: const Duration(hours: 2),
+        );
+        final engine = StubLibrarySyncEngine((request, {onProgress}) async {
+          if (request.isAutomatic) {
+            return LibrarySyncState(
+              status: LibrarySyncStatus.deferred,
+              stage: LibrarySyncStage.completed,
+              completedAt: DateTime.now(),
+              planReason: 'leaseHeld',
+            );
+          }
+          return _succeeded;
+        });
+        final startedAt = DateTime.now();
+        final container = _container(
+          engine,
+          database: database,
+          server: config,
+          reachability: ServerReachabilityStatus.offline,
+          interval: _hourlyInterval,
+        );
+        addTearDown(container.dispose);
+        addTearDown(
+          () => container
+              .read(librarySyncControllerProvider.notifier)
+              .cancelAndWait(),
+        );
+
+        await container
+            .read(librarySyncControllerProvider.notifier)
+            .syncIfStale();
+        final persisted = await database.librarySyncDao.getOrCreateState(
+          config.id!,
+        );
+
+        final wait = persisted.nextAutomaticCheckAt!.difference(startedAt);
+        expect(
+          wait,
+          greaterThanOrEqualTo(const Duration(minutes: 59, seconds: 59)),
+        );
+        expect(wait, lessThanOrEqualTo(const Duration(hours: 1, seconds: 1)));
+      },
+    );
+
+    test(
       'cancelAndWait drains an automatic check through persistence',
       () async {
         final database = createTestDatabase();

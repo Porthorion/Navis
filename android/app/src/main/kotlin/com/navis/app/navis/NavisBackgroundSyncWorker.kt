@@ -114,6 +114,7 @@ class NavisBackgroundSyncWorker(
             } catch (_: Throwable) {
                 val outcome = BackgroundSyncNativeFailure.BOOTSTRAP_FAILURE.outcome
                 outcomeStore.record(profileKey, outcome.result, outcome.stopReason)
+                cancelCheckpoint(session)
                 Result.retry()
             } finally {
                 withContext(NonCancellable + Dispatchers.Main.immediate) {

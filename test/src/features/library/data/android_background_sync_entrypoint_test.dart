@@ -12,6 +12,8 @@ import 'package:navis/src/features/auth/data/secure_credential_store.dart';
 import 'package:navis/src/features/auth/domain/server_config.dart';
 import 'package:navis/src/features/library/data/android_background_sync_entrypoint.dart';
 import 'package:navis/src/features/library/domain/library_sync_request.dart';
+import 'package:path_provider_platform_interface/path_provider_platform_interface.dart';
+import 'package:sqlite3/sqlite3.dart' show OpenMode, sqlite3;
 
 import '../../../../helpers/test_database.dart';
 
@@ -32,6 +34,19 @@ class _WorkerCredentialStore implements SecureCredentialStore {
 
   @override
   Future<void> clearPassword() async => clearCalls++;
+}
+
+class _TempPathProvider extends PathProviderPlatform {
+  new({required this.support, required this.documents});
+
+  final Directory support;
+  final Directory documents;
+
+  @override
+  Future<String?> getApplicationSupportPath() async => support.path;
+
+  @override
+  Future<String?> getApplicationDocumentsPath() async => documents.path;
 }
 
 void main() {
@@ -233,6 +248,80 @@ void main() {
         ),
         isFalse,
       );
+    },
+    skip: !sqliteAvailable,
+  );
+
+  test(
+    'worker defers on a pending schema upgrade and writes no status row',
+    () async {
+      final support = await Directory.systemTemp.createTemp('navis-support');
+      final documents = await Directory.systemTemp.createTemp('navis-docs');
+      addTearDown(() async {
+        await support.delete(recursive: true);
+        await documents.delete(recursive: true);
+      });
+      // A real database file one schema version behind the app: the gate must
+      // defer before anything opens or writes it.
+      final file = File('${support.path}/navis.sqlite.sqlite');
+      final database = createTestDatabase(file: file);
+      await database.serverDao.saveServer(
+        ServerConfigTableCompanion.insert(
+          url: 'https://example.test',
+          username: 'fixture',
+          apiVersion: '1.16.1',
+        ),
+      );
+      await database.close();
+      const olderVersion = NavisDatabase.currentSchemaVersion - 1;
+      final downgrade = sqlite3.open(file.path);
+      downgrade.execute('PRAGMA user_version = $olderVersion');
+      downgrade.close();
+
+      final previousProvider = PathProviderPlatform.instance;
+      PathProviderPlatform.instance = _TempPathProvider(
+        support: support,
+        documents: documents,
+      );
+      addTearDown(() => PathProviderPlatform.instance = previousProvider);
+
+      // Drive the real retained entrypoint, not the databaseOverride seam, so
+      // the schema gate itself runs.
+      final entry = navisBackgroundSyncEntrypoint();
+      await Future<void>.delayed(Duration.zero);
+      const codec = StandardMethodCodec();
+      final response = Completer<Object?>();
+      await messenger.handlePlatformMessage(
+        channel.name,
+        codec.encodeMethodCall(
+          const MethodCall('runAutomaticBackgroundSync', <String, Object?>{
+            'profileKey': '00000000000000000000000000000000',
+            'workId': 'a1b2c3',
+            'attemptCount': 0,
+          }),
+        ),
+        (data) => response.complete(codec.decodeEnvelope(data!)),
+      );
+      final result = (await response.future)! as Map<Object?, Object?>;
+      final stopped = Completer<void>();
+      await messenger.handlePlatformMessage(
+        channel.name,
+        codec.encodeMethodCall(const MethodCall('shutdown')),
+        (_) => stopped.complete(),
+      );
+      await stopped.future;
+      await entry;
+      channel.setMethodCallHandler(null);
+
+      expect(result['category'], 'deferredUpgrade');
+      final after = sqlite3.open(file.path, mode: OpenMode.readOnly);
+      addTearDown(after.close);
+      expect(after.userVersion, olderVersion);
+      final statusRows = after.select(
+        'SELECT COUNT(*) AS c FROM library_sync_state '
+        'WHERE android_worker_result IS NOT NULL',
+      );
+      expect(statusRows.first['c'], 0);
     },
     skip: !sqliteAvailable,
   );
