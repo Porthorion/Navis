@@ -122,7 +122,7 @@ ListenBrainz token stores: a stuck platform channel surfaces as
 `CredentialReadException` (unavailable) instead of hanging startup or reading
 as a missing password, and the queue waits for a stuck call to settle rather
 than overlapping it (a permanently hung plugin makes later calls time out as
-unavailable; the 5 s Restart Navis recovery covers that). Failed saves retry with backoff; on Android, where durable persistence
+unavailable. At startup the 5 s Restart Navis recovery covers that; a plugin that first hangs mid-session leaves credential actions timing out until the app restarts). Failed saves retry with backoff; on Android, where durable persistence
 is required, a save that never lands throws instead of declaring a login from
 engine-local memory, so a cold start finds no falsely authenticated profile.
 Desktop keeps the documented keychain fallback. Routing keeps an initial
