@@ -1187,7 +1187,11 @@ class LibrarySyncController extends Notifier<LibrarySyncState> {
       tolerateUnavailableEngine: true,
     );
     if (automaticCheckIsDue && result.completedAt != null) {
-      await _recordAutomaticCheckCompletion(interval);
+      if (result.planReason == 'leaseHeld') {
+        await _scheduleAfterLeaseExpiry(interval);
+      } else {
+        await _recordAutomaticCheckCompletion(interval);
+      }
     }
     if (ref.mounted) {
       _schedulePeriodicSync(ref.read(syncIntervalMinutesProvider));
@@ -1268,6 +1272,32 @@ class LibrarySyncController extends Notifier<LibrarySyncState> {
       return;
     }
     final next = DateTime.now().toUtc().add(interval);
+    await _writeNextAutomaticCheck(serverId, config!, next);
+  }
+
+  /// Another engine's lease (possibly orphaned by a killed or frozen worker)
+  /// blocked a due check. Retry once it can be taken over, never later than the
+  /// normal cadence.
+  Future<void> _scheduleAfterLeaseExpiry(Duration interval) async {
+    final config = ref.read(serverConfigStateProvider).asData?.value;
+    final serverId = config?.id;
+    if (serverId == null) {
+      return;
+    }
+    final lease = await ref
+        .read(navisDatabaseProvider)
+        .librarySyncDao
+        .getExecutionLease(serverId);
+    final now = DateTime.now().toUtc();
+    // The floor stops a spin if the lease is released between the two reads.
+    final earliest = now.add(const Duration(seconds: 30));
+    final normal = now.add(interval);
+    final atExpiry = (lease?.expiresAt.toUtc() ?? now).add(
+      const Duration(seconds: 5),
+    );
+    final next = atExpiry.isBefore(earliest)
+        ? earliest
+        : (atExpiry.isAfter(normal) ? normal : atExpiry);
     await _writeNextAutomaticCheck(serverId, config!, next);
   }
 

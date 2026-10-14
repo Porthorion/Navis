@@ -727,6 +727,63 @@ void main() {
       },
     );
 
+    test('a lease-held automatic check retries at lease expiry, not a full '
+        'interval later', () async {
+      final database = createTestDatabase();
+      addTearDown(database.close);
+      final config = await _saveAuthenticatedServer(database);
+      await database.librarySyncDao.setNextAutomaticCheckAt(
+        serverId: config.id!,
+        nextAutomaticCheckAt: DateTime.now().subtract(
+          const Duration(minutes: 1),
+        ),
+      );
+      await database.librarySyncDao.acquireExecutionLease(
+        serverId: config.id!,
+        ownerToken: 'worker',
+        ownerKind: 'worker',
+        now: DateTime.now(),
+        ttl: const Duration(minutes: 3),
+      );
+      final engine = StubLibrarySyncEngine((request, {onProgress}) async {
+        if (request.isAutomatic) {
+          return LibrarySyncState(
+            status: LibrarySyncStatus.deferred,
+            stage: LibrarySyncStage.completed,
+            completedAt: DateTime.now(),
+            planReason: 'leaseHeld',
+          );
+        }
+        return _succeeded;
+      });
+      final startedAt = DateTime.now();
+      final container = _container(
+        engine,
+        database: database,
+        server: config,
+        reachability: ServerReachabilityStatus.offline,
+        interval: _hourlyInterval,
+      );
+      addTearDown(container.dispose);
+      addTearDown(
+        () => container
+            .read(librarySyncControllerProvider.notifier)
+            .cancelAndWait(),
+      );
+
+      await container
+          .read(librarySyncControllerProvider.notifier)
+          .syncIfStale();
+      final persisted = await database.librarySyncDao.getOrCreateState(
+        config.id!,
+      );
+
+      expect(engine.automaticRequests, [_automaticRequest]);
+      final wait = persisted.nextAutomaticCheckAt!.difference(startedAt);
+      expect(wait, greaterThan(const Duration(minutes: 2)));
+      expect(wait, lessThan(const Duration(minutes: 4)));
+    });
+
     test(
       'cancelAndWait drains an automatic check through persistence',
       () async {
