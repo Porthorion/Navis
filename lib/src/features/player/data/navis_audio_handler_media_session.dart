@@ -197,6 +197,7 @@ extension _NavisMediaSession on NavisAudioHandler {
       } else if (_radioStation != null) {
         _stopUnavailableRadio();
       } else {
+        _loadedSourceFailed = true;
         unawaited(
           _recoverCurrentSongFromRemotePlaybackFailure(
             reason: 'playback event stream error',
@@ -225,6 +226,10 @@ extension _NavisMediaSession on NavisAudioHandler {
         );
       } else if (failure.code == null) {
         lastNativeFailure = null;
+      }
+      // Loading or playing again: the failure is over.
+      if (event.processingState != ProcessingState.idle) {
+        _loadedSourceFailed = false;
       }
       // Native playlist edits can emit before the Dart mirror commits.
       if (!_queueLane.isIdle &&

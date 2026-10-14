@@ -1105,6 +1105,8 @@ extension _NavisQueueLoading on NavisAudioHandler {
     Duration? timeout,
     OperationToken? token,
   }) async {
+    // A new load replaces the failed source, even one left unprepared.
+    _loadedSourceFailed = false;
     const operations = <String>[
       'active queue apply',
       'active queue apply retry',

@@ -3526,7 +3526,8 @@ startup timeline. The retry state clears when a playback event reports the
 granted focus. Pause, Stop, selection and disposal cancel pending intent;
 transient interruptions block automatic retries until they end, and the resume
 then gets a fresh budget. While a retry is pending the media button cancels it
-like Pause, and Play asks again at once within the same budget. An explicit
+like Pause, and Play asks again at once within the same budget; a Play that
+instead re-arms song recovery leaves no budget behind for later automatic plays. An explicit
 Play (app, notification, media button, Android Auto) overrides a transient
 interruption: it abandons the cached focus request and asks again. A late
 denied activation cannot release a newer Play's focus. Permanent focus loss
@@ -3551,11 +3552,14 @@ loading or buffering, so a stream that recovered by itself is never reloaded or
 rewound. Pause and Play supersede the pending request. Play on a remote song
 whose native player reported a failure re-prepares it once, at a seek target
 that is still waiting or else at its position, and waits again while offline;
-a song that was never prepared (gapless off) simply plays. A seek during the
-wait moves the recovery target instead of seeking the failed player, and still
-applies if the song plays again by itself. While a load or another seek owns
+a song that was never prepared (gapless off) simply plays. The handler records
+the failure itself and forgets it at the next queue load or player progress,
+because just_audio keeps an old error code on an idle player after a new load.
+A seek during the wait moves the recovery target instead of seeking the failed
+player, and still applies if the song plays again by itself, including when
+Play arrives while the network check runs. While a load or another seek owns
 the song, Play and seek take their normal path; a Play during a reload starts
-the reloaded song. Song and station state remain buffering while waiting, preserving OS
+the reloaded song, as a plain seek and Play when recovery cannot start again. Song and station state remain buffering while waiting, preserving OS
 transport controls.
 Verified recovery after an observed outage re-arms the song's reload allowance
 so a later outage does not skip it.
@@ -3571,9 +3575,10 @@ transient; 4xx statuses, missing files, unsupported or malformed content and
 decoder failures are permanent. media-kit reports every source failure as code
 1, which stays transient. Transient reconnection stops after ten minutes of
 failures while the device is online (`NavisPlaybackTimeouts.radioRecovery`):
-being offline waits silently without spending it, and a station that
-reconnects keeps its budget until it has played for a minute
-(`radioHealthyPlay`), so one that connects and drops again still stops. A
+being offline waits silently without spending it, and only time spent failing
+counts. A station that reconnects carries over its failure time until it has
+played for a minute (`radioHealthyPlay`), so one that connects and drops again
+still stops while one that mostly plays on a flaky network keeps going. A
 permanent failure or an exhausted budget stops the station, restores the previous queue paused and shows one
 "Radio stream unavailable" notice, since only the user can pick another
 station. A new Play during an older

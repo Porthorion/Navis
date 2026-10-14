@@ -53,8 +53,9 @@ extension _NavisRadio on NavisAudioHandler {
     );
   }
 
-  /// Start of the recovery budget for a station that just failed. A station
-  /// that reconnected keeps its budget until it has played healthily for a
+  /// Start of the recovery budget for a station that just failed. Only time
+  /// spent failing counts: a station that reconnected carries over the
+  /// failure time it already spent until it has played healthily for a
   /// while, so one that connects and drops again does not retry forever.
   DateTime _radioOutageStart(
     RadioStationMetadata station,
@@ -65,7 +66,7 @@ extension _NavisRadio on NavisAudioHandler {
     final recovered = _radioRecovered;
     return identical(recovered?.station, station) &&
             now.difference(recovered!.recoveredAt) < _timeouts.radioHealthyPlay
-        ? recovered.since
+        ? now.subtract(recovered.recoveredAt.difference(recovered.since))
         : now;
   }
 

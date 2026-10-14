@@ -239,6 +239,11 @@ class NavisAudioHandler extends BaseAudioHandler
   bool _radioRecoveryInProgress = false;
   bool _remoteRecoveryWasOffline = false;
 
+  /// The native player reported that its loaded source failed. Unlike the
+  /// player's error code, which just_audio keeps on an idle player after
+  /// another load, this lasts only until the next load or progress.
+  bool _loadedSourceFailed = false;
+
   final LibraryDao _libraryDao;
   final PlaylistDao _playlistDao;
   final PlayQueueDao _playQueueDao;
@@ -2006,7 +2011,6 @@ class NavisAudioHandler extends BaseAudioHandler
       shouldPlay: true,
       preserveSeek: true,
     );
-    _focusDeniedSince = focusDeniedSince;
     await _ready;
     if (!_isCurrentTransportIntent(transportGeneration)) return;
     await _startupQueueRestore;
@@ -2107,6 +2111,16 @@ class NavisAudioHandler extends BaseAudioHandler
       }
     }
 
+    // The song resumed by itself: Play still lands on its held seek target.
+    if (heldRecovery case final held?
+        when held.requested &&
+            held.position != null &&
+            held.songId == _resolveCurrentQueueMetadata().mediaItem?.id) {
+      unawaited(seek(held.position!));
+    }
+    // Only this Play inherits the budget; returning earlier must not leave it
+    // to a later automatic play.
+    _focusDeniedSince = focusDeniedSince;
     // play() must NOT go through _runSerialized — _player.play() returns a
     // Future that blocks until playback finishes/pauses.  Serializing it would
     // deadlock all subsequent operations (pause, seek, skip, queue changes).

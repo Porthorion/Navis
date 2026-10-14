@@ -1009,8 +1009,7 @@ extension _NavisRecovery on NavisAudioHandler {
   /// The native player reported a failure; a source that was never prepared
   /// is idle without one.
   bool get _remoteSourceFailed =>
-      _player.processingState == ProcessingState.idle &&
-      _player.playbackEvent.errorCode != null;
+      _player.processingState == ProcessingState.idle && _loadedSourceFailed;
 
   /// Applies the pending Play or seek to its song, which plays again without
   /// a reload.
@@ -1257,13 +1256,13 @@ extension _NavisRecovery on NavisAudioHandler {
       // A Play during the reload re-armed this song; the reload yielded to it.
       final request = _pendingRemoteRecovery;
       if (request != null && _ownsRemoteRecovery(songId)) {
-        if (_remoteSourceFailed) {
-          _pendingRemoteRecovery = null;
-          _rearmRemoteRecovery(
-            position: request.position,
-            autoPlay: request.autoPlay,
-          );
-        } else {
+        // When recovery cannot start again (the queue is still filling), the
+        // request applies as a plain seek and Play.
+        if (!_remoteSourceFailed ||
+            !_rearmRemoteRecovery(
+              position: request.position,
+              autoPlay: request.autoPlay,
+            )) {
           _applyPendingRemoteRecovery();
         }
       }
