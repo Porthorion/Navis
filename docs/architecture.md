@@ -3569,9 +3569,12 @@ Navidrome server. Android reports Media3's `PlaybackException.errorCode` and,
 for a bad HTTP status, the status: connection and timeout failures are
 transient; 4xx statuses, missing files, unsupported or malformed content and
 decoder failures are permanent. media-kit reports every source failure as code
-1, which stays transient. Transient reconnection stops after ten minutes
-(`NavisPlaybackTimeouts.radioRecovery`). A permanent failure or an exhausted
-budget stops the station, restores the previous queue paused and shows one
+1, which stays transient. Transient reconnection stops after ten minutes of
+failures while the device is online (`NavisPlaybackTimeouts.radioRecovery`):
+being offline waits silently without spending it, and a station that
+reconnects keeps its budget until it has played for a minute
+(`radioHealthyPlay`), so one that connects and drops again still stops. A
+permanent failure or an exhausted budget stops the station, restores the previous queue paused and shows one
 "Radio stream unavailable" notice, since only the user can pick another
 station. A new Play during an older
 reconciliation re-arms its own recovery after that check finishes. Verified

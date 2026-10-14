@@ -836,7 +836,7 @@ class _AppShellState extends ConsumerState<AppShell> {
       }
     });
     // Global Radio stream error snackbar.
-    ref.listen<AsyncValue<int>>(radioStreamErrorProvider, (prev, next) {
+    ref.listen<AsyncValue<Object>>(radioStreamErrorProvider, (prev, next) {
       if (!mounted) return;
       if (next.hasValue && next.value != prev?.value) {
         _appNoticeController.show(

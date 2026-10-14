@@ -185,9 +185,7 @@ extension _NavisMediaSession on NavisAudioHandler {
           generation: _transportGeneration,
           station: station,
           // A repeated failure during one outage keeps its recovery budget.
-          since: identical(previous?.station, station)
-              ? previous!.since
-              : DateTime.now(),
+          since: _radioOutageStart(station, previous),
         );
         _radioMetadataService.stop();
         AppLogger.startup(
