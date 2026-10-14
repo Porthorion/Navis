@@ -1,8 +1,8 @@
 # Idle robustness follow-ups — 1.5.1
 
-Status: playback findings 4, 7, 8, 11, 12 and 13, plus 5a, 10, 14a and 14b,
-are completed for release/1.5. Android acceptance evidence is recorded in
-the progress log. Findings 5b and 14c remain deferred to 1.5.1.
+Status: playback findings 4, 7, 8, 11, 12 and 13, plus 5a, 10, 14a, 14b and
+14c, are completed for release/1.5. Android acceptance evidence is recorded in
+the progress log. Finding 5b remains deferred to 1.5.1.
 These originated in the read-only idle audit on 2026-10-14. They are not part
 of `fix/startup-hang` acceptance. The startup audit records the current work:
 [Android startup investigation](../audits/startup-hang-2026-10-14.md).
@@ -206,7 +206,16 @@ Regressions: `a stuck reconciliation releases downloads and scrobbles after the
 bound`, `reconciliation holds new work and kicks exactly once when it ends` and
 `a throwing reconciliation still clears the hold`.
 
-**14c** (downloads yielding to network playback loading) is deferred to 1.5.1.
+**14c completed for 1.5.0 — 2026-10-15.** New download workers yield while a
+network song is loading: `downloadServiceProvider` passes the existing
+`playerStateProvider`'s loading flag and song id to
+`DownloadService.yieldToPlayback`, which holds new admissions for at most 15
+seconds once per track and re-pumps when loading ends. Running workers are never
+cancelled and radio never holds downloads. Regressions: `new downloads wait
+while a song loads and start when it is ready`, `a stuck loading state releases
+downloads after the hold limit`, `a rebuffer of the same track does not hold
+again` and `radio buffering never holds downloads` (plus the guard `playback
+loading never cancels a running download`).
 
 **Original finding — likelihood:** medium for contention. Doze can release due download retries,
 scrobble dispatch, playback watchdogs, radio polling and sync close together.

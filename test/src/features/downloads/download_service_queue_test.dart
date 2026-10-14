@@ -174,6 +174,7 @@ void main() {
     bool? isAndroid,
     Future<int?> Function(String)? readFreeBytes,
     Duration folderRecheckInterval = const Duration(seconds: 5),
+    Duration playbackHoldLimit = const Duration(seconds: 15),
   }) {
     final lrclib = _MockLrclibClient();
     final cacheManager = _MockCacheManager();
@@ -194,6 +195,7 @@ void main() {
       validateCustomRoot: validateCustomRoot,
       isAndroid: isAndroid,
       folderRecheckInterval: folderRecheckInterval,
+      playbackHoldLimit: playbackHoldLimit,
       lrclibClient: lrclib,
       readCoverArtCacheManager: () => cacheManager,
       readApplicationSupportDirectory: () async => supportDir,
@@ -478,6 +480,74 @@ void main() {
     expect(await queue(), isEmpty);
     expect(await database.cacheDao.getCachedTrack('song-0'), isNotNull);
   }, skip: !sqliteAvailable);
+
+  group('playback loading', () {
+    Future<DownloadService> startedWithSong() async {
+      final service = buildService(
+        playbackHoldLimit: const Duration(milliseconds: 100),
+      );
+      await service.start();
+      await addSongs(1);
+      return service;
+    }
+
+    test(
+      'new downloads wait while a song loads and start when it is ready',
+      () async {
+        final service = await startedWithSong();
+        service.yieldToPlayback(loading: true, songId: 'a');
+        await service.enqueueSong('song-0');
+        await service.processQueuedDownloads();
+        await Future<void>.delayed(const Duration(milliseconds: 50));
+        expect(server.requests, isEmpty);
+        service.yieldToPlayback(loading: false);
+        await Future<void>.delayed(const Duration(milliseconds: 50));
+        expect(server.requests, hasLength(1));
+      },
+      skip: !sqliteAvailable,
+    );
+
+    test('playback loading never cancels a running download', () async {
+      final service = await startedWithSong();
+      await service.enqueueSong('song-0');
+      await waitUntil(() => server.requests.length == 1);
+      service.yieldToPlayback(loading: true, songId: 'a');
+      server.release('song-0');
+      await waitUntil(() => server.active == 0);
+      await service.processQueuedDownloads();
+      await waitUntil(() => service.activeQueueIds.isEmpty);
+      expect(await queue(), isEmpty);
+      expect(await database.cacheDao.getCachedTrack('song-0'), isNotNull);
+    }, skip: !sqliteAvailable);
+
+    test(
+      'a stuck loading state releases downloads after the hold limit',
+      () async {
+        final service = await startedWithSong();
+        service.yieldToPlayback(loading: true, songId: 'a');
+        await service.enqueueSong('song-0');
+        await Future<void>.delayed(const Duration(milliseconds: 50));
+        expect(server.requests, isEmpty);
+        await Future<void>.delayed(const Duration(milliseconds: 100));
+        expect(service.holdingForPlayback, isFalse);
+        expect(server.requests, hasLength(1));
+      },
+      skip: !sqliteAvailable,
+    );
+
+    test('a rebuffer of the same track does not hold again', () async {
+      final service = await startedWithSong();
+      service.yieldToPlayback(loading: true, songId: 'a');
+      service.yieldToPlayback(loading: false);
+      service.yieldToPlayback(loading: true, songId: 'a');
+      expect(service.holdingForPlayback, isFalse);
+      await service.enqueueSong('song-0');
+      await waitUntil(() => server.requests.length == 1);
+      // A different track holds again.
+      service.yieldToPlayback(loading: true, songId: 'b');
+      expect(service.holdingForPlayback, isTrue);
+    }, skip: !sqliteAvailable);
+  });
 
   test('an already offline queue never starts a transfer', () async {
     online = false;

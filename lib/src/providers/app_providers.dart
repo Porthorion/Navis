@@ -2733,6 +2733,17 @@ final downloadServiceProvider = Provider<DownloadService>((ref) {
       unawaited(service.processQueuedDownloads());
     }
   });
+  ref.listen<PlaybackSnapshot>(playerStateProvider, (_, snapshot) {
+    // Live radio rebuffers indefinitely on poor links; it never holds downloads.
+    service.yieldToPlayback(
+      loading:
+          !snapshot.isRadioMode &&
+          (snapshot.isLoading ||
+              snapshot.processingState == AudioProcessingState.loading ||
+              snapshot.processingState == AudioProcessingState.buffering),
+      songId: snapshot.currentSongId,
+    );
+  });
   kickAfterReconciliation(
     ref,
     () => unawaited(service.processQueuedDownloads()),

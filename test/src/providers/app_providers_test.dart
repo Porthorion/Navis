@@ -315,6 +315,19 @@ class _FakePlaybackHandler extends InertPlaybackHandler {
   }
 }
 
+class _SnapshotHolder extends Notifier<PlaybackSnapshot> {
+  @override
+  PlaybackSnapshot build() => const PlaybackSnapshot.idle();
+
+  // A named method reads better at the call sites than a getter-less setter.
+  // ignore: use_setters_to_change_properties
+  void set(PlaybackSnapshot value) => state = value;
+}
+
+final _snapshotHolder = NotifierProvider<_SnapshotHolder, PlaybackSnapshot>(
+  _SnapshotHolder.new,
+);
+
 void main() {
   test('every radio stream failure reaches the notice listener', () async {
     final errors = StreamController<void>.broadcast();
@@ -448,6 +461,48 @@ void main() {
         await pumpEventQueue();
       }, skip: !sqliteAvailable);
     });
+  });
+
+  group('downloads yield to playback loading', () {
+    test('radio buffering never holds downloads', () async {
+      final database = createTestDatabase();
+      final container = ProviderContainer(
+        overrides: withTestDatabase(
+          database,
+          overrides: [
+            networkTypeProvider.overrideWith((_) => NetworkType.wifi),
+            playerStateProvider.overrideWith(
+              (ref) => ref.watch(_snapshotHolder),
+            ),
+          ],
+        ),
+      );
+      addTearDown(() async {
+        container.dispose();
+        await database.close();
+      });
+      final song = const PlaybackSnapshot.idle().copyWith(
+        currentSongId: 'song-1',
+        processingState: AudioProcessingState.buffering,
+      );
+      container.listen(downloadServiceProvider, (_, _) {});
+      final downloads = container.read(downloadServiceProvider);
+      final holder = container.read(_snapshotHolder.notifier);
+      holder.set(
+        song.copyWith(
+          radioStation: const RadioStationMetadata(
+            stationId: 'station-1',
+            stationName: 'Test Station',
+            streamUrl: 'https://example.com/stream',
+          ),
+        ),
+      );
+      await pumpEventQueue();
+      expect(downloads.holdingForPlayback, isFalse);
+      holder.set(song);
+      await pumpEventQueue();
+      expect(downloads.holdingForPlayback, isTrue);
+    }, skip: !sqliteAvailable);
   });
 
   group('appearance providers', () {
