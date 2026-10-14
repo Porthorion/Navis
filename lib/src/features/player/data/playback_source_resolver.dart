@@ -254,6 +254,21 @@ class PlaybackSourceResolver {
       );
     }
 
+    // An isolated profile can reproduce slow cold restoration without
+    // changing the server or storing a credential-bearing stream URL.
+    if (kProfileMode &&
+        const bool.fromEnvironment('NAVIS_SYNC_DIAGNOSTICS') &&
+        const String.fromEnvironment('NAVIS_SYNC_DIAGNOSTICS_MODE') ==
+            'clone' &&
+        const String.fromEnvironment('NAVIS_APP_ID_SUFFIX').isNotEmpty) {
+      await Future<void>.delayed(
+        const Duration(
+          milliseconds: int.fromEnvironment(
+            'NAVIS_DIAGNOSTICS_STREAM_SOURCE_DELAY_MS',
+          ),
+        ),
+      );
+    }
     final streamUri = _buildStreamUri(api: api, song: song, quality: quality);
     // Desktop/media_kit cannot seek LockCachingAudioSource's local proxy.
     // Play via direct HTTPS (Range-seekable) and fill the rolling cache with a

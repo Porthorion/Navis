@@ -1,4 +1,8 @@
 import 'dart:async';
+import 'dart:io';
+
+import 'package:flutter/services.dart';
+import 'package:navis/src/utils/app_logger.dart';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:navis/src/features/auth/data/sign_out_service.dart';
@@ -13,6 +17,8 @@ import 'package:navis/src/routing/app_router.dart';
 /// it: a platform initializer may be the failure being recovered from.
 abstract interface class PlaybackRecoveryService {
   void retryPlayback();
+  Future<void> restartNavis();
+  Future<void> copyDetails();
   Future<void> resetLibraryCacheAndRetry();
   Future<void> signOut({required bool wipeLocalData});
 }
@@ -60,6 +66,25 @@ class _PlaybackRecoveryService implements PlaybackRecoveryService {
   @override
   void retryPlayback() {
     unawaited(_startBootstrapRetry());
+  }
+
+  @override
+  Future<void> restartNavis() async {
+    if (!Platform.isAndroid) {
+      retryPlayback();
+      return;
+    }
+    AppLogger.startup(StartupEvent.restart);
+    await AppLogger.startupDetails(); // Flush evidence before process death.
+    await const MethodChannel('com.navis.app/device')
+        .invokeMethod<void>('restartNavis');
+  }
+
+  @override
+  Future<void> copyDetails() async {
+    await Clipboard.setData(
+      ClipboardData(text: await AppLogger.startupDetails()),
+    );
   }
 
   @override

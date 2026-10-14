@@ -1513,52 +1513,52 @@ void main() {
       expect(handler.resetSessionCalls, 1);
     });
 
-    test(
-      'bootstrap teardown abandons a stuck initializer and retries fresh',
-      () async {
-        final stuckInitializer = Completer<NavisPlaybackHandler>();
-        final staleHandler = _FakePlaybackHandler();
-        final freshHandler = _FakePlaybackHandler();
-        var initializerCalls = 0;
-        final container = ProviderContainer(
-          overrides: [
-            audioHandlerInitializerProvider.overrideWithValue(() {
-              initializerCalls += 1;
-              return initializerCalls == 1
-                  ? stuckInitializer.future
-                  : Future<NavisPlaybackHandler>.value(freshHandler);
-            }),
-          ],
-        );
-        addTearDown(() async {
-          container.dispose();
-          await staleHandler.dispose();
-          await freshHandler.dispose();
-        });
+    test('bootstrap teardown retires a late handler before constructing its successor', () async {
+      final stuckInitializer = Completer<NavisPlaybackHandler>();
+      final staleHandler = _FakePlaybackHandler();
+      final freshHandler = _FakePlaybackHandler();
+      var initializerCalls = 0;
+      final container = ProviderContainer(
+        overrides: [
+          audioHandlerInitializerProvider.overrideWithValue(() {
+            initializerCalls += 1;
+            return initializerCalls == 1
+                ? stuckInitializer.future
+                : Future<NavisPlaybackHandler>.value(freshHandler);
+          }),
+        ],
+      );
+      addTearDown(() async {
+        container.dispose();
+        await staleHandler.dispose();
+        await freshHandler.dispose();
+      });
 
-        container
-            .read(audioBootstrapControllerProvider.notifier)
-            .ensureInitialized();
-        await Future<void>.delayed(Duration.zero);
-        await container
-            .read(audioBootstrapControllerProvider.notifier)
-            .abortForSessionTeardown();
+      container
+          .read(audioBootstrapControllerProvider.notifier)
+          .ensureInitialized();
+      await Future<void>.delayed(Duration.zero);
+      await container
+          .read(audioBootstrapControllerProvider.notifier)
+          .abortForSessionTeardown();
 
-        expect(
-          container.read(audioBootstrapControllerProvider).status,
-          AudioBootstrapStatus.failed,
-        );
-        expect(container.read(audioHandlerStateProvider), isNull);
+      expect(
+        container.read(audioBootstrapControllerProvider).status,
+        AudioBootstrapStatus.failed,
+      );
+      expect(container.read(audioHandlerStateProvider), isNull);
 
-        await container.read(audioBootstrapControllerProvider.notifier).retry();
-        expect(initializerCalls, 2);
-        expect(container.read(audioHandlerStateProvider), same(freshHandler));
-
-        stuckInitializer.complete(staleHandler);
-        await Future<void>.delayed(const Duration(milliseconds: 10));
-        expect(container.read(audioHandlerStateProvider), same(freshHandler));
-      },
-    );
+      final joined = container
+          .read(audioBootstrapControllerProvider.notifier)
+          .retry();
+      expect(initializerCalls, 1);
+      stuckInitializer.complete(staleHandler);
+      await joined;
+      await container.read(audioBootstrapControllerProvider.notifier).retry();
+      expect(initializerCalls, 2);
+      await Future<void>.delayed(const Duration(milliseconds: 10));
+      expect(container.read(audioHandlerStateProvider), same(freshHandler));
+    });
 
     test('saving a new session resumes a retired playback bootstrap', () async {
       final repository = _MockServerConfigRepository();
@@ -1644,6 +1644,13 @@ void main() {
           await controller.abortForSessionTeardown();
           controller.ensureInitialized();
           await Future<void>.delayed(Duration.zero);
+          if (stuck) {
+            expect(calls, 1);
+            pending.complete(first);
+            await Future<void>.delayed(Duration.zero);
+            controller.ensureInitialized();
+            await Future<void>.delayed(Duration.zero);
+          }
 
           expect(calls, 2);
           expect(
@@ -1763,7 +1770,7 @@ void main() {
     });
 
     test(
-      'late timeout recovery cancels the scheduled automatic retry',
+      'late timeout recovery keeps one construction without scheduling a retry',
       () async {
         final delayedCompleter = Completer<NavisPlaybackHandler>();
         final delayedHandler = _FakePlaybackHandler();
@@ -1792,7 +1799,7 @@ void main() {
           container
               .read(audioBootstrapControllerProvider.notifier)
               .isRetryScheduled,
-          isTrue,
+          isFalse,
         );
 
         delayedCompleter.complete(delayedHandler);
@@ -1810,6 +1817,54 @@ void main() {
 
         await Future<void>.delayed(const Duration(milliseconds: 60));
         expect(attempts, 1);
+      },
+    );
+
+    test(
+      'timeout and repeated retries join one pending construction',
+      () async {
+        final pending = Completer<NavisPlaybackHandler>();
+        final handler = _FakePlaybackHandler();
+        var attempts = 0;
+        final container = ProviderContainer(
+          overrides: [
+            audioBootstrapTimeoutProvider.overrideWithValue(
+              const Duration(milliseconds: 5),
+            ),
+            audioBootstrapRetryDelayProvider.overrideWithValue(
+              const Duration(milliseconds: 5),
+            ),
+            audioHandlerInitializerProvider.overrideWithValue(() {
+              attempts++;
+              return pending.future;
+            }),
+          ],
+        );
+        addTearDown(() async {
+          container.dispose();
+          await handler.dispose();
+        });
+        final controller = container.read(
+          audioBootstrapControllerProvider.notifier,
+        );
+        await controller.retry();
+        expect(
+          container.read(audioBootstrapControllerProvider).timedOut,
+          isTrue,
+        );
+        final joined = [controller.retry(), controller.retry()];
+        controller.ensureInitialized();
+        await Future<void>.delayed(const Duration(milliseconds: 30));
+        expect(attempts, 1);
+        expect(controller.isRetryScheduled, isFalse);
+        pending.complete(handler);
+        await Future.wait(joined);
+        expect(
+          container.read(audioBootstrapControllerProvider).isReady,
+          isTrue,
+        );
+        expect(container.read(audioBootstrapControllerProvider).attempt, 1);
+        expect(container.read(audioHandlerProvider), same(handler));
       },
     );
 
@@ -1841,7 +1896,7 @@ void main() {
     });
 
     test(
-      'audio bootstrap ignores stale completion after a newer retry succeeds',
+      'session teardown discards its late completion before the next handler',
       () async {
         final staleCompleter = Completer<NavisPlaybackHandler>();
         final staleHandler = _FakePlaybackHandler();
@@ -1874,12 +1929,19 @@ void main() {
           AudioBootstrapStatus.failed,
         );
 
-        await container.read(audioBootstrapControllerProvider.notifier).retry();
+        final controller = container.read(
+          audioBootstrapControllerProvider.notifier,
+        );
+        await controller.abortForSessionTeardown();
+        final joined = controller.retry();
+        expect(attempt, 1);
+        staleCompleter.complete(staleHandler);
+        await joined;
+        await controller.retry();
         final bootstrap = container.read(audioBootstrapControllerProvider);
         expect(bootstrap.status, AudioBootstrapStatus.ready);
         expect(bootstrap.handler, same(nextHandler));
 
-        staleCompleter.complete(staleHandler);
         await Future<void>.delayed(const Duration(milliseconds: 30));
         final afterStaleCompletion = container.read(
           audioBootstrapControllerProvider,

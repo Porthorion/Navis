@@ -193,6 +193,22 @@ class NavisDatabase extends _$NavisDatabase {
     return result;
   }
 
+  /// Reads SQLite's connection-local counter on the same writer every time.
+  /// Ordinary pooled reads cannot be compared: each reader has its own counter.
+  Future<int> readDataVersion() => exclusively(() async {
+    final row = await customSelect('PRAGMA main.data_version').getSingle();
+    return row.read<int>('data_version');
+  });
+
+  /// Announces an external commit to this engine's existing Drift subscribers.
+  /// SQLite does not identify its changed tables, so all mapped tables are
+  /// announced once; only subscribed queries are re-read.
+  void invalidateExternalChanges() {
+    notifyUpdates({
+      for (final table in allTables) TableUpdate(table.actualTableName),
+    });
+  }
+
   /// Fences sync writes. A supplied [DatabaseConnection] keeps its own stream
   /// store, so tests can opt into synchronous stream closing.
   static QueryExecutor _withSyncWriteFence(QueryExecutor executor) {

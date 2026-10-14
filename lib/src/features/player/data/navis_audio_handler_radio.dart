@@ -45,8 +45,10 @@ extension _NavisRadio on NavisAudioHandler {
     return first.isEmpty ? null : first.first.id;
   }
 
-  Future<bool> _startInstantRadio({required bool autoPlay}) =>
-      _startPersonalRadio(autoPlay);
+  Future<bool> _startInstantRadio({
+    required bool autoPlay,
+    bool Function()? isCurrent,
+  }) => _startPersonalRadio(autoPlay, isCurrent: isCurrent);
 
   Future<void> _restorePreviousQueueAfterRadio(
     OperationToken token, {

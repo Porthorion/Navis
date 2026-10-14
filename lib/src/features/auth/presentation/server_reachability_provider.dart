@@ -86,7 +86,7 @@ class ServerReachabilityController extends Notifier<ServerReachabilityState> {
           clearErrorMessage: true,
         );
       }
-      unawaited(_checkReachability());
+      unawaited(retryNow());
     });
 
     return const ServerReachabilityState(

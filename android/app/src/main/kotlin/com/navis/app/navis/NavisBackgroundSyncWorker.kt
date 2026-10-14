@@ -14,7 +14,11 @@ import com.ryanheise.audioservice.NavisAudioServiceProbe
 import io.flutter.FlutterInjector
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.embedding.engine.dart.DartExecutor
-import io.flutter.plugins.GeneratedPluginRegistrant
+import com.github.dart_lang.jni.JniPlugin
+import com.github.dart_lang.jni_flutter.JniFlutterPlugin
+import com.it_nomads.fluttersecurestorage.FlutterSecureStoragePlugin
+import dev.fluttercommunity.plus.connectivity.ConnectivityPlugin
+import io.flutter.embedding.engine.plugins.FlutterPlugin
 import io.flutter.plugin.common.MethodChannel
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CancellationException
@@ -42,6 +46,10 @@ class NavisBackgroundSyncWorker(
     // owns the Android embedding lifecycle and never performs network I/O.
     override suspend fun doWork(): Result = withContext(Dispatchers.Main.immediate) {
         coroutineScope {
+            val timelineStart = android.os.SystemClock.elapsedRealtime()
+            var timelineOutcome = "failure"
+            StartupWorkerTimeline.record(applicationContext, "workerEntry")
+            try {
             val profileKey = inputData.getString(profileKeyDataKey)
             if (profileKey == null || !profileKey.matches(Regex("[0-9a-f]{32}"))) {
                 return@coroutineScope Result.failure()
@@ -53,6 +61,7 @@ class NavisBackgroundSyncWorker(
                     "alreadyDispatching",
                     "alreadyDispatching",
                 )
+                timelineOutcome = "noWorkDue"
                 return@coroutineScope Result.success()
             }
             try {
@@ -69,6 +78,7 @@ class NavisBackgroundSyncWorker(
             try {
                 val deferral = backgroundSyncPlaybackDeferral(NavisAudioServiceProbe.sessionActive())
                 if (deferral != null) {
+                    timelineOutcome = "deferredPlayback"
                     outcomeStore.record(profileKey, deferral.result, deferral.stopReason)
                     return@coroutineScope Result.success()
                 }
@@ -80,6 +90,8 @@ class NavisBackgroundSyncWorker(
                     workId = id.toString(),
                     attemptCount = runAttemptCount.coerceIn(0, maxReportedAttemptCount),
                 )
+                timelineOutcome = response?.get("category") as? String ?: "failure"
+                if (timelineOutcome == "succeeded") timelineOutcome = "success"
                 // A Dart response is authoritative over an earlier native
                 // bootstrap fallback for this profile.
                 outcomeStore.clear(profileKey)
@@ -89,6 +101,7 @@ class NavisBackgroundSyncWorker(
                     BackgroundSyncWorkerDirective.SUCCESS -> Result.success()
                 }
             } catch (_: TimeoutCancellationException) {
+                timelineOutcome = "timeout"
                 val outcome = BackgroundSyncNativeFailure.TIMEOUT.outcome
                 outcomeStore.record(profileKey, outcome.result, outcome.stopReason)
                 Result.retry()
@@ -118,6 +131,10 @@ class NavisBackgroundSyncWorker(
             }
             } finally {
                 BackgroundSyncDispatchGate.release(profileKey)
+            }
+            } finally {
+                StartupWorkerTimeline.record(applicationContext, "workerExit", timelineOutcome,
+                    android.os.SystemClock.elapsedRealtime() - timelineStart)
             }
         }
     }
@@ -166,9 +183,11 @@ private class FlutterEngineBackgroundSyncSession(
     private var networkCostChannel: MethodChannel? = null
 
     override suspend fun start() {
-        engine = FlutterEngine(context)
+        // The default constructor also runs GeneratedPluginRegistrant. A sync
+        // engine must never attach process-wide playback/media plugins.
+        engine = FlutterEngine(context, null, false)
         channel = MethodChannel(engine.dartExecutor.binaryMessenger, backgroundSyncChannelName)
-        GeneratedPluginRegistrant.registerWith(engine)
+        backgroundSyncPlugins().forEach { engine.plugins.add(it) }
         networkCostChannel = registerNetworkCostChannel(context, engine.dartExecutor.binaryMessenger)
         channel.setMethodCallHandler { call, result ->
             if (call.method == "ready") {
@@ -215,6 +234,19 @@ private class FlutterEngineBackgroundSyncSession(
         if (::engine.isInitialized) engine.destroy()
     }
 }
+
+/**
+ * Native dependencies of navisBackgroundSyncEntrypoint only: path_provider's
+ * JNI application context, encrypted credentials, and connectivity policy.
+ * Drift/sqlite3 and HTTP use FFI/Dart; metering and playback observation use
+ * the app-owned channels/probe below, never audio_service or a player plugin.
+ */
+internal fun backgroundSyncPlugins(): List<FlutterPlugin> = listOf(
+    JniPlugin(),
+    JniFlutterPlugin(),
+    FlutterSecureStoragePlugin(),
+    ConnectivityPlugin(),
+)
 
 /** Bounded native categories persisted when Dart cannot return an outcome. */
 internal enum class BackgroundSyncNativeFailure(

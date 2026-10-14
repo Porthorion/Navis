@@ -39,6 +39,9 @@ than defining implementation authority.
 
 ### Active plans
 
+- [Idle robustness follow-ups — 1.5.1](plans/idle-robustness-followups.md) —
+  owner-deferred service lifecycle, storage, network recovery and radio work.
+
 New implementation plans go in `plans/`. Keep plans here while implementation,
 required validation or acceptance is open:
 

@@ -176,7 +176,9 @@ extension _NavisMediaSession on NavisAudioHandler {
           previous: _finishObservedProcessingState,
           current: processing,
           continuingPastCompletion: _continuingIntoDeferredTail,
-          position: _player.position,
+          position: _restoredQueueIndex != null
+              ? _restoredQueuePosition
+              : _player.position,
           duration: _player.duration,
         )) {
           _queueFinished = true;
@@ -618,7 +620,9 @@ extension _NavisMediaSession on NavisAudioHandler {
             _player.processingState == ProcessingState.idle ||
             nativeSource == null ||
             navisNativeSourceSongId(nativeSource) != _loadingSongId);
-    final processingState = pending
+    final processingState = _restoredQueueIndex != null && !pending
+        ? AudioProcessingState.ready
+        : pending
         ? AudioProcessingState.loading
         : _mapProcessingState(_player.processingState);
     final effectiveDuration = _effectivePlaybackDuration(currentItem);
@@ -640,10 +644,16 @@ extension _NavisMediaSession on NavisAudioHandler {
           navisNotificationCompactActionIndicesForControls(controls),
       processingState: processingState,
       playing: _visiblePlaying,
-      updatePosition: pending ? Duration.zero : _player.position,
+      updatePosition: _restoredQueueIndex != null
+          ? _restoredQueuePosition
+          : pending
+          ? Duration.zero
+          : _player.position,
       bufferedPosition: pending ? Duration.zero : _player.bufferedPosition,
       speed: _player.speed,
-      queueIndex: _radioStation == null ? _player.currentIndex : null,
+      queueIndex: _radioStation == null
+          ? (_restoredQueueIndex ?? _player.currentIndex)
+          : null,
       repeatMode: _mapRepeatMode(_desiredLoopMode),
       shuffleMode: _shuffleEnabled
           ? AudioServiceShuffleMode.all
@@ -816,7 +826,7 @@ extension _NavisMediaSession on NavisAudioHandler {
     final currentItem = resolved.mediaItem;
     // Native seek/playlist events may settle before their index subscription.
     // Publish media-session metadata from the same authority as this snapshot.
-    if (_currentMediaItem?.id != currentItem?.id) {
+    if (_radioStation == null && _currentMediaItem?.id != currentItem?.id) {
       _setCurrentMediaItem(currentItem);
     }
     final isLiked = currentItem?.extras?['liked'] as bool? ?? false;
@@ -827,8 +837,12 @@ extension _NavisMediaSession on NavisAudioHandler {
           ? null
           : _logicalIndexOf(resolved.currentIndex),
       playing: _visiblePlaying,
-      processingState: _mapProcessingState(_player.processingState),
-      position: _player.position,
+      processingState: _restoredQueueIndex != null && !_isLoading
+          ? AudioProcessingState.ready
+          : _mapProcessingState(_player.processingState),
+      position: _restoredQueueIndex != null
+          ? _restoredQueuePosition
+          : _player.position,
       duration: _effectivePlaybackDuration(currentItem),
       bufferedPosition: _player.bufferedPosition,
       shuffleMode: _shuffleEnabled

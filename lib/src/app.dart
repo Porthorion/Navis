@@ -244,6 +244,7 @@ class _AppBootstrapOverlayState extends ConsumerState<_AppBootstrapOverlay>
   bool _allowRouterWhilePlaybackUnavailable = false;
   bool _isRecovering = false;
   String? _recoveryError;
+  bool _detailsCopied = false;
 
   @override
   void initState() {
@@ -269,7 +270,7 @@ class _AppBootstrapOverlayState extends ConsumerState<_AppBootstrapOverlay>
         });
       }
     });
-    _recoveryTimer = Timer(const Duration(seconds: 10), () {
+    _recoveryTimer = Timer(const Duration(seconds: 5), () {
       if (mounted && !_overlayDismissed && !_completionTriggered) {
         setState(() => _recoveryAvailable = true);
       }
@@ -403,6 +404,12 @@ class _AppBootstrapOverlayState extends ConsumerState<_AppBootstrapOverlay>
               _recoveryTimer?.cancel();
               setState(() => _allowRouterWhilePlaybackUnavailable = true);
             },
+            onRestart: () => _runRecovery((service) => service.restartNavis()),
+            onCopyDetails: () => _runRecovery((service) async {
+              await service.copyDetails();
+              if (mounted) setState(() => _detailsCopied = true);
+            }),
+            detailsCopied: _detailsCopied,
             onResetCache: _resetCache,
             onSignOutKeepData: () => _signOut(wipeLocalData: false),
             onSignOutWipeData: () => _signOut(wipeLocalData: true),
@@ -424,6 +431,9 @@ class _BootstrapSplashScreen extends StatelessWidget {
     required this.recoveryError,
     required this.onContinueToSignIn,
     required this.onResetCache,
+    required this.onRestart,
+    required this.onCopyDetails,
+    required this.detailsCopied,
     required this.onSignOutKeepData,
     required this.onSignOutWipeData,
   });
@@ -442,6 +452,9 @@ class _BootstrapSplashScreen extends StatelessWidget {
   final String? recoveryError;
   final VoidCallback onContinueToSignIn;
   final VoidCallback onResetCache;
+  final VoidCallback onRestart;
+  final VoidCallback onCopyDetails;
+  final bool detailsCopied;
   final VoidCallback onSignOutKeepData;
   final VoidCallback onSignOutWipeData;
 
@@ -476,110 +489,138 @@ class _BootstrapSplashScreen extends StatelessWidget {
             child: Transform.scale(
               scale: scale,
               child: Center(
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: <Widget>[
-                    Stack(
-                      alignment: Alignment.center,
-                      children: <Widget>[
-                        SizedBox.square(
-                          dimension: logoSize,
-                          child: Padding(
-                            padding: EdgeInsets.all(strokeWidth / 2),
-                            child: CircularProgressIndicator(
-                              value: isRingCompleting
-                                  ? ringFill.clamp(0.0, 1.0)
-                                  : null,
-                              strokeWidth: strokeWidth,
-                              color: ringColor,
-                              backgroundColor: ringTrackColor,
+                child: SingleChildScrollView(
+                  padding: MediaQuery.paddingOf(context),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: <Widget>[
+                      Stack(
+                        alignment: Alignment.center,
+                        children: <Widget>[
+                          SizedBox.square(
+                            dimension: logoSize,
+                            child: Padding(
+                              padding: EdgeInsets.all(strokeWidth / 2),
+                              child: CircularProgressIndicator(
+                                value: isRingCompleting
+                                    ? ringFill.clamp(0.0, 1.0)
+                                    : null,
+                                strokeWidth: strokeWidth,
+                                color: ringColor,
+                                backgroundColor: ringTrackColor,
+                              ),
                             ),
                           ),
-                        ),
-                        NavisIcon(
-                          key: const ValueKey<String>('bootstrap-logo'),
-                          size: logoSize,
-                          tintWithAccent: true,
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 24),
-                    Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 32),
-                      child: Column(
-                        children: <Widget>[
-                          Text(
-                            showRecovery
-                                ? AppLocalizations.of(context)!
-                                      .playbackBootstrapRecoveryTitle
-                                : AppLocalizations.of(context)!
-                                      .playbackBootstrapLoadingTitle,
-                            style: Theme.of(context).textTheme.titleLarge,
-                            textAlign: TextAlign.center,
+                          NavisIcon(
+                            key: const ValueKey<String>('bootstrap-logo'),
+                            size: logoSize,
+                            tintWithAccent: true,
                           ),
-                          const SizedBox(height: 8),
-                          Text(
-                            showRecovery
-                                ? AppLocalizations.of(context)!
-                                      .playbackBootstrapRecoverySubtitle
-                                : AppLocalizations.of(context)!
-                                      .playbackBootstrapLoadingSubtitle,
-                            style: Theme.of(context).textTheme.bodyMedium,
-                            textAlign: TextAlign.center,
-                          ),
-                          if (showRecovery) ...<Widget>[
-                            const SizedBox(height: 20),
-                            if (isRecovering)
-                              const CircularProgressIndicator()
-                            else if (hasAuthenticatedSession) ...<Widget>[
-                              OutlinedButton(
-                                onPressed: onResetCache,
-                                child: Text(
-                                  AppLocalizations.of(context)!
-                                      .playbackRecoveryResetCache,
-                                ),
-                              ),
-                              const SizedBox(height: 8),
-                              TextButton(
-                                onPressed: onSignOutKeepData,
-                                child: Text(
-                                  AppLocalizations.of(context)!
-                                      .serverSettingsSignOutKeepData,
-                                ),
-                              ),
-                              TextButton(
-                                onPressed: onSignOutWipeData,
-                                child: Text(
-                                  AppLocalizations.of(context)!
-                                      .serverSettingsSignOutWipeData,
-                                ),
-                              ),
-                            ] else
-                              FilledButton(
-                                onPressed: onContinueToSignIn,
-                                child: Text(
-                                  AppLocalizations.of(context)!
-                                      .playbackBootstrapContinueToSignIn,
-                                ),
-                              ),
-                            if (recoveryError != null) ...<Widget>[
-                              const SizedBox(height: 12),
-                              Text(
-                                recoveryError!,
-                                style: Theme.of(context).textTheme.bodySmall
-                                    ?.copyWith(
-                                      color: Theme.of(context)
-                                          .colorScheme
-                                          .error,
-                                    ),
-                                textAlign: TextAlign.center,
-                              ),
-                            ],
-                          ],
                         ],
                       ),
-                    ),
-                  ],
+                      const SizedBox(height: 24),
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 32),
+                        child: Column(
+                          children: <Widget>[
+                            Text(
+                              showRecovery
+                                  ? AppLocalizations.of(context)!
+                                        .playbackBootstrapRecoveryTitle
+                                  : AppLocalizations.of(context)!
+                                        .playbackBootstrapLoadingTitle,
+                              style: Theme.of(context).textTheme.titleLarge,
+                              textAlign: TextAlign.center,
+                            ),
+                            const SizedBox(height: 8),
+                            Text(
+                              showRecovery
+                                  ? AppLocalizations.of(context)!
+                                        .playbackBootstrapRecoverySubtitle
+                                  : AppLocalizations.of(context)!
+                                        .playbackBootstrapLoadingSubtitle,
+                              style: Theme.of(context).textTheme.bodyMedium,
+                              textAlign: TextAlign.center,
+                            ),
+                            if (showRecovery) ...<Widget>[
+                              const SizedBox(height: 20),
+                              if (!isRecovering) ...<Widget>[
+                                FilledButton(
+                                  onPressed: onRestart,
+                                  child: Text(
+                                    Theme.of(context).platform ==
+                                            TargetPlatform.android
+                                        ? AppLocalizations.of(context)!
+                                              .playbackRecoveryRestart
+                                        : AppLocalizations.of(context)!
+                                              .playbackRecoveryRetry,
+                                  ),
+                                ),
+                                TextButton(
+                                  onPressed: onCopyDetails,
+                                  child: Text(
+                                    AppLocalizations.of(context)!
+                                        .startupCopyDetails,
+                                  ),
+                                ),
+                                if (detailsCopied)
+                                  Text(
+                                    AppLocalizations.of(context)!
+                                        .startupDetailsCopied,
+                                  ),
+                              ],
+                              if (isRecovering)
+                                const CircularProgressIndicator()
+                              else if (hasAuthenticatedSession) ...<Widget>[
+                                OutlinedButton(
+                                  onPressed: onResetCache,
+                                  child: Text(
+                                    AppLocalizations.of(context)!
+                                        .playbackRecoveryResetCache,
+                                  ),
+                                ),
+                                const SizedBox(height: 8),
+                                TextButton(
+                                  onPressed: onSignOutKeepData,
+                                  child: Text(
+                                    AppLocalizations.of(context)!
+                                        .serverSettingsSignOutKeepData,
+                                  ),
+                                ),
+                                TextButton(
+                                  onPressed: onSignOutWipeData,
+                                  child: Text(
+                                    AppLocalizations.of(context)!
+                                        .serverSettingsSignOutWipeData,
+                                  ),
+                                ),
+                              ] else
+                                FilledButton(
+                                  onPressed: onContinueToSignIn,
+                                  child: Text(
+                                    AppLocalizations.of(context)!
+                                        .playbackBootstrapContinueToSignIn,
+                                  ),
+                                ),
+                              if (recoveryError != null) ...<Widget>[
+                                const SizedBox(height: 12),
+                                Text(
+                                  recoveryError!,
+                                  style: Theme.of(context).textTheme.bodySmall
+                                      ?.copyWith(
+                                        color: Theme.of(context)
+                                            .colorScheme
+                                            .error,
+                                      ),
+                                  textAlign: TextAlign.center,
+                                ),
+                              ],
+                            ],
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
               ),
             ),

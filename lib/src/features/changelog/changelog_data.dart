@@ -166,6 +166,26 @@ const List<ChangelogVersion> changelogs = [
     ],
     entries: [
       ChangelogEntry(
+        'Pause and Stop stay in effect when repeated Play requests are still preparing personal radio',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
+        'Play recovers when a large saved queue is unavailable, repeated Play requests start music reliably, and background sync stays visible after quick pause and resume',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
+        'Restored queues now honour Previous and newer selections, radio keeps its system metadata, and background sync updates appear when you return',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
+        'Navis no longer gets stuck on Preparing Playback after being idle; if starting takes too long, you can restart it from the same screen',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
+        'Navis refreshes its connection and library when you return to it',
+        type: ChangelogEntryType.improvement,
+      ),
+      ChangelogEntry(
         'Large selections of downloads start more smoothly',
         type: ChangelogEntryType.fix,
       ),

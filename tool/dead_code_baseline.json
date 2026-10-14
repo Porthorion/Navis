@@ -26,12 +26,6 @@
     },
     {
       "kind": "declaration",
-      "path": "lib/src/features/library/domain/library_sync_request.dart",
-      "name": "SyncRunOrigin.startup",
-      "reason": "deliberate: persisted enum index"
-    },
-    {
-      "kind": "declaration",
       "path": "lib/src/features/library/domain/sync_run_contract.dart",
       "name": "SyncRunOutcomeKind.noChanges",
       "reason": "deliberate: enum index retained for decoding historical sync diagnostics rows in library_sync_dao.dart"
