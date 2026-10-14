@@ -226,6 +226,24 @@ class NavisDatabase extends _$NavisDatabase {
     return _openFileConnection(await resolveDatabaseFile());
   });
 
+  /// Only the app engine migrates. A background engine must not race it, so
+  /// any version other than the current one (or an unreadable file) defers.
+  static bool schemaUpgradePending(File file) {
+    if (!file.existsSync()) return true;
+    try {
+      // readWrite never creates the file; a read-only open of a WAL database
+      // can fail when its -shm is missing. Reading user_version takes no lock.
+      final db = sqlite3.open(file.path, mode: OpenMode.readWrite);
+      try {
+        return db.userVersion != currentSchemaVersion;
+      } finally {
+        db.close();
+      }
+    } on SqliteException {
+      return true;
+    }
+  }
+
   static QueryExecutor _openFileConnection(File file) {
     return NativeDatabase.createInBackground(
       file,
@@ -237,8 +255,10 @@ class NavisDatabase extends _$NavisDatabase {
     );
   }
 
+  static const currentSchemaVersion = 103;
+
   @override
-  int get schemaVersion => 103;
+  int get schemaVersion => currentSchemaVersion;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(

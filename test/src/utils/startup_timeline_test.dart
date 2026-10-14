@@ -69,12 +69,13 @@ void main() {
     expect(await file.readAsLines(), hasLength(200));
     expect(await file.length(), lessThan(32768));
     await File(p.join(directory.path, 'startup-worker.jsonl')).writeAsString(
-      '${jsonEncode({'at': DateTime.now().toUtc().toIso8601String(), 'event': 'workerExit', 'outcome': 'success', 'title': 'PRIVATE', 'url': 'https://private.invalid', 'token': 'SECRET'})}\n{interrupted',
+      '${jsonEncode({'at': DateTime.now().toUtc().toIso8601String(), 'event': 'workerExit', 'outcome': 'success', 'title': 'PRIVATE', 'url': 'https://private.invalid', 'token': 'SECRET'})}\n${jsonEncode({'at': DateTime.now().toUtc().toIso8601String(), 'event': 'workerExit', 'outcome': 'deferredUpgrade'})}\n{interrupted',
     );
     final reopened = StartupTimeline(readDirectory: () async => directory);
     final details = await reopened.copyDetails();
-    expect(details.split('\n'), hasLength(201));
+    expect(details.split('\n'), hasLength(202));
     expect(details, contains('workerExit'));
+    expect(details, contains('deferredUpgrade'));
     expect(details, isNot(contains('PRIVATE')));
     expect(details, isNot(contains('SECRET')));
     expect(details, isNot(contains('private.invalid')));

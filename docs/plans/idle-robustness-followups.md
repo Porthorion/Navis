@@ -1,8 +1,8 @@
 # Idle robustness follow-ups — 1.5.1
 
-Status: playback findings 4, 7, 8, 11, 12 and 13 are completed for release/1.5.
-Android acceptance evidence is recorded in the progress log. Findings 5,
-10 and 14 remain deferred.
+Status: playback findings 4, 7, 8, 11, 12 and 13, plus 5a, 10 and 14a, are
+completed for release/1.5. Android acceptance evidence is recorded in the
+progress log. Findings 5b, 14b and 14c remain deferred to 1.5.1.
 These originated in the read-only idle audit on 2026-10-14. They are not part
 of `fix/startup-hang` acceptance. The startup audit records the current work:
 [Android startup investigation](../audits/startup-hang-2026-10-14.md).
@@ -23,7 +23,20 @@ worked afterward. See [completion evidence](../project/progress.md#current-focus
 
 ## 5. Failed database opening poisons later retries
 
-**Likelihood:** medium for writer contention, low for simultaneous upgrades.
+**5a completed for 1.5.0 — 2026-10-15; 5b deferred to 1.5.1.** Only the app
+engine migrates the database. The Android worker first reads `user_version`
+through `NavisDatabase.schemaUpgradePending` and, for any version other than
+the current one (older, newer or unreadable) or a missing file, returns
+`deferredUpgrade` before any provider read or status write, so it never opens
+or migrates. It then runs each period until the app has migrated once. The
+regression is `background engines defer while the app has not migrated the
+schema`; the worker wiring is one guarded statement that `databaseOverride`
+bypasses in tests. **5b** (discarding the cached open failure and reopening
+after a lock timeout, via a reopening executor) is **deferred to 1.5.1** and
+still needs the lock-held-open regression, the interrupted-upgrade rerun check
+and the classifier tests below.
+
+**Original finding — likelihood:** medium for writer contention, low for simultaneous upgrades.
 Worker and foreground open separate WAL connections. WAL permits readers but
 only one writer. A migration/index/open operation can exceed the five-second
 busy timeout; Drift then caches that executor's opening failure. Later queries
