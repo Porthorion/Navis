@@ -1295,7 +1295,10 @@ class LibrarySyncController extends Notifier<LibrarySyncState> {
     final atExpiry = (lease?.expiresAt.toUtc() ?? now).add(
       const Duration(seconds: 5),
     );
-    final next = atExpiry.isBefore(earliest)
+    // A live worker's heartbeats keep extending its expiry, so waiting for it
+    // could take the whole interval; the app preempts a worker, so retry soon.
+    final next =
+        lease?.ownerKind == 'androidWorker' || atExpiry.isBefore(earliest)
         ? earliest
         : (atExpiry.isAfter(normal) ? normal : atExpiry);
     await _writeNextAutomaticCheck(serverId, config!, next);
