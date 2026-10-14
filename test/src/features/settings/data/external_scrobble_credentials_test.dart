@@ -13,6 +13,7 @@ class _Storage extends Mock implements FlutterSecureStorage;
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
   setUp(resetSecureStorageQueue);
+  tearDown(resetSecureStorageQueue);
 
   test('Android scrobble reads disable destructive reset only', () async {
     debugDefaultTargetPlatformOverride = TargetPlatform.android;
