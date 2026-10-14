@@ -370,6 +370,9 @@ class _ControllableAudioPlayer extends Fake implements AudioPlayer {
     }
   }
 
+  /// A native failure, kept until the next load as on Android.
+  int? errorCode;
+
   @override
   PlaybackEvent get playbackEvent => PlaybackEvent(
     processingState: state,
@@ -377,6 +380,8 @@ class _ControllableAudioPlayer extends Fake implements AudioPlayer {
     bufferedPosition: bufferedPosition,
     duration: duration,
     currentIndex: index,
+    errorCode: errorCode,
+    errorMessage: errorCode == null ? null : 'Source error',
   );
 
   @override
@@ -631,6 +636,7 @@ class _ControllableAudioPlayer extends Fake implements AudioPlayer {
   }) => _mutate(() async {
     final source = sources.isEmpty ? null : sources[initialIndex ?? 0];
     sourceLoads++;
+    errorCode = null;
     if (source != null) attemptedSongId = _sourceId(source);
     if (source != null && hungLoadSongs.contains(_sourceId(source))) {
       await Completer<void>().future;
@@ -1475,7 +1481,8 @@ void main() {
       player
         ..simulatedPosition = const Duration(seconds: 42)
         ..state = ProcessingState.idle
-        ..isPlaying = false;
+        ..isPlaying = false
+        ..errorCode = 0;
       player._events.add(nativeError(0));
       await pumpEventQueue();
     }
@@ -1762,6 +1769,202 @@ void main() {
         expect(player.playing, isTrue);
       },
     );
+
+    test('Play while recovery waits to reload plays with one press', () async {
+      final (handler, player, _) = await setup(
+        reconcile: () async => net(online: true),
+        remote: true,
+      );
+      await handler.replaceQueue(
+        ['song-0', 'song-1'],
+        autoPlay: false,
+        expandMatchFlows: false,
+      );
+      // A queue edit holds the lane, so the reload waits behind it.
+      final gate = Completer<void>();
+      final entered = Completer<void>();
+      player
+        ..appendGate = gate
+        ..appendEntered = entered;
+      final adding = handler
+          .addToQueue(['song-2'], expandMatchFlows: false)
+          .catchError((Object _) {});
+      await entered.future;
+      await failSong(player);
+      await pumpEventQueue(times: 20);
+      await handler.play();
+      gate.complete();
+      await adding;
+      await pumpEventQueue(times: 100);
+      await settleQueue(handler);
+      expect(player.playing, isTrue);
+      expect(
+        handler.snapshot.processingState,
+        isNot(AudioProcessingState.buffering),
+      );
+    });
+
+    test('Play on a failed song during a seek never hangs', () async {
+      final (handler, player, _) = await setup(
+        reconcile: () async => net(online: false),
+        remote: true,
+        timeouts: const NavisPlaybackTimeouts(
+          load: Duration(milliseconds: 300),
+          seekProgress: Duration(milliseconds: 300),
+        ),
+      );
+      await handler.replaceQueue(
+        ['song-0', 'song-1'],
+        autoPlay: false,
+        expandMatchFlows: false,
+      );
+      await failSong(player);
+      await handler.pause();
+      // The seek waits for the failed source to become ready.
+      final seeking = handler.seek(const Duration(seconds: 60));
+      await pumpEventQueue();
+      await handler.play();
+      await seeking;
+      await settleQueue(handler);
+      expect(
+        handler.snapshot.processingState,
+        isNot(AudioProcessingState.buffering),
+      );
+    });
+
+    test('Play on a song that was never prepared plays it directly', () async {
+      final (handler, player, _) = await setup(remote: true);
+      await handler.replaceQueue(
+        ['song-0', 'song-1'],
+        autoPlay: false,
+        expandMatchFlows: false,
+      );
+      // With gapless off, an autoPlay:false load stays unprepared.
+      player.state = ProcessingState.idle;
+      final loads = player.sourceLoads;
+      await handler.play();
+      await pumpEventQueue(times: 100);
+      expect(player.sourceLoads, loads);
+      expect(player.playing, isTrue);
+    });
+
+    test(
+      'a seek during a stall applies once the song resumes by itself',
+      () async {
+        final (handler, player, _) = await setup(
+          reconcile: () async => net(online: false),
+          remote: true,
+        );
+        await handler.replaceQueue([
+          'song-0',
+          'song-1',
+        ], expandMatchFlows: false);
+        player
+          ..simulatedPosition = const Duration(seconds: 42)
+          ..state = ProcessingState.buffering;
+        await handler.debugRecoverCurrentSong();
+        player.state = ProcessingState.ready;
+        await handler.seek(const Duration(seconds: 60));
+        await pumpEventQueue(times: 100);
+        await settleQueue(handler);
+        expect(player.position, const Duration(seconds: 60));
+        expect(
+          handler.snapshot.processingState,
+          isNot(AudioProcessingState.buffering),
+        );
+      },
+    );
+
+    test('Play in the offline hold keeps an earlier seek target', () async {
+      var online = false;
+      final recovered = StreamController<void>.broadcast();
+      addTearDown(recovered.close);
+      final (handler, player, _) = await setup(
+        reconcile: () async => net(online: online),
+        recovered: recovered.stream,
+        remote: true,
+      );
+      await handler.replaceQueue(['song-0', 'song-1'], expandMatchFlows: false);
+      await failSong(player);
+      await handler.seek(const Duration(seconds: 60));
+      await handler.play();
+      await pumpEventQueue(times: 20);
+      online = true;
+      recovered.add(null);
+      await pumpEventQueue(times: 100);
+      await settleQueue(handler);
+      expect(player.position, const Duration(seconds: 60));
+      expect(player.playing, isTrue);
+    });
+
+    test(
+      'a resume after a long interruption has a fresh focus budget',
+      () async {
+        final (handler, player, _) = await setup(
+          timeouts: const NavisPlaybackTimeouts(
+            focusRetry: Duration(milliseconds: 1500),
+          ),
+        );
+        final session = _TestAudioSession();
+        handler.debugWireAudioSession(session);
+        addTearDown(session.close);
+        await handler.replaceQueue(
+          ['song-0'],
+          autoPlay: false,
+          expandMatchFlows: false,
+        );
+        player.focusDenials = 1;
+        await handler.play();
+        await pumpEventQueue();
+        session.interruptions.add(
+          AudioInterruptionEvent(true, AudioInterruptionType.pause),
+        );
+        await Future<void>.delayed(const Duration(milliseconds: 2000));
+        player.focusDenials = 1;
+        session.interruptions.add(
+          AudioInterruptionEvent(false, AudioInterruptionType.pause),
+        );
+        await Future<void>.delayed(const Duration(milliseconds: 1300));
+        expect(player.playing, isTrue);
+      },
+    );
+
+    test('the media button cancels a pending focus retry', () async {
+      final (handler, player, _) = await setup();
+      await handler.replaceQueue(
+        ['song-0'],
+        autoPlay: false,
+        expandMatchFlows: false,
+      );
+      player.focusDenials = 100;
+      await handler.play();
+      await pumpEventQueue();
+      await handler.click();
+      await Future<void>.delayed(const Duration(milliseconds: 1150));
+      expect(player.focusRequests, 1);
+      expect(player.playing, isFalse);
+    });
+
+    test('Play during a pending focus retry keeps its budget', () async {
+      final (handler, player, _) = await setup(
+        timeouts: const NavisPlaybackTimeouts(
+          focusRetry: Duration(milliseconds: 1500),
+        ),
+      );
+      await handler.replaceQueue(
+        ['song-0'],
+        autoPlay: false,
+        expandMatchFlows: false,
+      );
+      player.focusDenials = 100;
+      await handler.play();
+      await Future<void>.delayed(const Duration(milliseconds: 1200));
+      await handler.play();
+      await Future<void>.delayed(const Duration(milliseconds: 2300));
+      // Denied at 0, 1, 1.2 (this Play) and the budget's end at 1.5 s.
+      expect(player.focusRequests, 4);
+      expect(handler.playbackState.value.playing, isFalse);
+    });
   });
 
   for (final fails in [false, true]) {

@@ -215,7 +215,17 @@ class NavisAudioHandler extends BaseAudioHandler
   DateTime? _focusDeniedSince;
   Timer? _networkRetryTimer;
   int _networkRetries = 0;
-  ({int generation, String songId, Duration position, bool autoPlay})?
+
+  /// The song to reload once the network is back, at its position (null:
+  /// where the player is). A request that Play or seek armed still applies
+  /// if the song plays again without a reload.
+  ({
+    int generation,
+    String songId,
+    Duration? position,
+    bool autoPlay,
+    bool requested,
+  })?
   _pendingRemoteRecovery;
   ({int generation, RadioStationMetadata station, DateTime since})?
   _pendingRadioRecovery;
@@ -1980,10 +1990,16 @@ class NavisAudioHandler extends BaseAudioHandler
   @override
   Future<void> play() async {
     _queueFinished = false;
+    // Play keeps a pending focus retry's budget and a held seek target.
+    final focusDeniedSince = _focusDeniedGeneration == _transportGeneration
+        ? _focusDeniedSince
+        : null;
+    final heldRecovery = _pendingRemoteRecovery;
     final transportGeneration = _supersedeTransportIntent(
       shouldPlay: true,
       preserveSeek: true,
     );
+    _focusDeniedSince = focusDeniedSince;
     await _ready;
     if (!_isCurrentTransportIntent(transportGeneration)) return;
     await _startupQueueRestore;
@@ -2002,12 +2018,19 @@ class NavisAudioHandler extends BaseAudioHandler
       if (!_isCurrentTransportIntent(transportGeneration)) return;
     }
 
-    // A failed stream is idle: re-prepare it once where it stopped.
+    // A failed stream cannot play: re-prepare it once where it stopped.
     if (_radioStation == null &&
         _restoredQueueIndex == null &&
         !_isLoading &&
-        _player.processingState == ProcessingState.idle &&
-        _rearmRemoteRecovery(position: _player.position, autoPlay: true)) {
+        _remoteSourceFailed &&
+        _rearmRemoteRecovery(
+          position:
+              heldRecovery?.songId ==
+                  _resolveCurrentQueueMetadata().mediaItem?.id
+              ? heldRecovery?.position
+              : null,
+          autoPlay: true,
+        )) {
       return;
     }
 
@@ -2105,8 +2128,10 @@ class NavisAudioHandler extends BaseAudioHandler
     switch (button) {
       case MediaButton.media:
         // Android maps media-key Pause to a toggle even during focus loss.
+        // A pending focus retry is a Play the user can cancel.
         if (_visiblePlaying ||
-            _interruptedTransportGeneration == _transportGeneration) {
+            _interruptedTransportGeneration == _transportGeneration ||
+            _focusDeniedGeneration == _transportGeneration) {
           await pause();
         } else {
           await play();
@@ -2177,13 +2202,15 @@ class NavisAudioHandler extends BaseAudioHandler
         _loadingSongId ?? _resolveCurrentQueueMetadata().mediaItem?.id;
     if (songId == null) return Future<void>.value();
     final pending = _pendingRemoteRecovery;
-    if (pending != null && pending.songId == songId && !_isLoading) {
-      // A failed stream cannot seek; recovery reloads it at the new target.
+    // A failed stream cannot seek; recovery reloads it at the new target.
+    if (pending != null &&
+        pending.songId == songId &&
+        !_isLoading &&
+        _rearmRemoteRecovery(
+          position: navisSanitizeSeekPosition(position),
+          autoPlay: pending.autoPlay,
+        )) {
       _queueFinished = false;
-      _rearmRemoteRecovery(
-        position: navisSanitizeSeekPosition(position),
-        autoPlay: pending.autoPlay,
-      );
       return Future<void>.value();
     }
     _queueFinished = false;

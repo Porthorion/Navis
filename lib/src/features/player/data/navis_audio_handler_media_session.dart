@@ -145,6 +145,9 @@ extension _NavisMediaSession on NavisAudioHandler {
           !_player.playing;
       _interruptedTransportGeneration = null;
       if (shouldResume) {
+        // An earlier denial's budget does not cover this resume.
+        _focusDeniedSince = null;
+        _focusRetries = 0;
         unawaited(_playWithFocusRecovery());
       }
     });
