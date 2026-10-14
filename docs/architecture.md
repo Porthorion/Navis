@@ -225,6 +225,11 @@ list (header, drag handle) move the sheet even when the list is not at the top.
   databases drop all user tables, indexes, views, and triggers with foreign
   keys disabled, then run the same creation and defaults as a fresh install.
   Schema 43 and later preserve data through an ordered migration-step table.
+  The steps, index creation, settings defaults and `user_version` commit in
+  one transaction, so a failure or lock timeout part-way leaves the previous
+  schema and data intact and a reopen reruns the whole upgrade from the same
+  version. This matters for the v75→76 playlist-membership copy and the v46
+  scrobble-queue rebuild, which cannot be re-entered after a partial run.
 - Schema v71 adds redacted sync diagnostics history alongside the durable
   `library_sync_work` queue: `library_sync_run_request`,
   `library_sync_run_attempt`, and `library_sync_run_outcome`. Schema v93

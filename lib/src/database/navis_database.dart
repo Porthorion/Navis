@@ -272,9 +272,17 @@ class NavisDatabase extends _$NavisDatabase {
         await _resetPreReleaseDatabase(m);
         return;
       }
-      await _runMigrations(m, from, to);
-      await _createIndexes();
-      await _ensureAppSettingsDefaults();
+      // One transaction: a failure or lock timeout part-way leaves the old
+      // schema intact. v75 and the v46 scrobble rebuild cannot be re-entered
+      // after a partial run.
+      await transaction(() async {
+        await _runMigrations(m, from, to);
+        await _createIndexes();
+        await _ensureAppSettingsDefaults();
+        // Commit the version with the schema. Drift's own write after this is
+        // then a same-value no-op that a reopen can safely repeat.
+        await customStatement('PRAGMA user_version = $to');
+      });
     },
     beforeOpen: (details) async {
       await customStatement('PRAGMA foreign_keys = ON');

@@ -38,7 +38,9 @@ bypasses in tests.
 executor, together with Drift's cached error, and opens a fresh connection, up
 to three attempts. The executor is replaced before the last rethrow, so a
 later query opens again. Other errors are unchanged, and the file is never
-reset. Regressions: `a lock held past the busy deadline during open recovers
+reset. Schema upgrades now commit in one transaction with `user_version`, so
+a reopen reruns an interrupted upgrade from the old schema (`an upgrade that
+fails part-way leaves the old schema and data intact`). Regressions: `a lock held past the busy deadline during open recovers
 without restart`, `an upgrade interrupted by a lock reruns safely` and `only
 SQLite lock errors count as lock timeouts`. **Open finding:** in Linux host tests, the
 SQLite that `sqlite3` 3.6.0 bundles gives up on `PRAGMA busy_timeout` within
