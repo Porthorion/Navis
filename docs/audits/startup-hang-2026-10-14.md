@@ -408,3 +408,40 @@ new implementation plan. The overlay was not redesigned in this task.
 ## Follow-up (2026-10-14)
 
 The native rebind (`NavisAudioServiceProbe.recoverPendingConnection`) was removed after a read-only review: removing the only MediaBrowser binding can queue the idle AudioService for destruction, whose `onDestroy` then clears the listener the re-added plugin just installed, so notification and Android Auto commands would be ignored until restart. Only the background-engine plugin isolation and the session-future retirement remain.
+
+
+## Review follow-up
+
+The five P2 findings from the review of `ecc21594` are fixed without commits
+or stashes. Existing transport generations, preparation-lane cancellation,
+bootstrap deadline and resume reconciliation remain the owners of recovery.
+
+| Finding | Root fix | Regression and result |
+|---|---|---|
+| Local initialization escaped readiness | Bootstrap awaits `waitUntilReady()` before binding/publishing the handler; failed local initialization disposes it and uses the existing silent retry. Saved-queue and network preparation remain outside readiness. | `bootstrap includes local initialization (failure: false/true)` — both failed before and pass after. `bootstrap readiness excludes saved queue restoration` also passes with restoration blocked. |
+| Cancelled first Play replaced newer selection | Queue replacement/clear discard lazy restore state; preparation checks transport/load ownership after awaits and before fallback admission. Normal lane cancellation cannot proceed into fallback. | `cancelled first Play preserves newer queue (replacement: false/true)` — both failed before and pass after, retaining an empty queue or the newer album selection. |
+| First Previous ignored saved position | Navigation uses the restored logical position until a source exists; restart decisions prepare at zero rather than the saved offset. | `first Previous uses saved position (index: 0/1, seconds: 2/42)` — all four pass; three failed before, while the later-item/two-second control already passed. |
+| Radio lost system metadata | Radio admission clears restore state; song snapshot reconciliation cannot overwrite an active radio media item. | `radio after metadata restore retains station media-session metadata` — failed before and passes after, including no null publication after the station item. |
+| Worker committed after resume comparison | A foreground one-second watcher follows a durable Android worker lease or unfinished recent start, reusing the database/alias/state reconciliation. Completion is read before the final version comparison. Completion, backgrounding, session change and disposal stop it; stale starts expire and transient alias failures retry silently. | `worker commit after resume refreshes catalog and aliases (lease: false/true, retry: false/true)` — the two commit races failed before; all three cases pass after and verify polling stops after completion. |
+
+The three focused suites initially passed 488 tests. The final selected run
+passed 14 tests, including the added alias-retry case, saved-queue readiness
+boundary and existing offline-restoration control. The original regressions
+produced ten failures before implementation changes, covering every finding.
+
+`./tool/check.sh` passed: 7,942 full-suite tests and one existing skip,
+plus 96 migration and 246 critical reliability tests. Formatting, generation,
+analysis, dead-code and the script/native gates passed. No new analyzer
+errors or warnings were introduced.
+
+Linux runtime used an isolated three-song loopback fixture and authenticated
+app API. After a clean restart, metadata restored the later item at 41,999 ms
+(native rounding of the 42-second seek), paused, with zero prepared native
+sources. First Previous retained that item and restarted at zero; queue clear
+also passed. The post-gate repeat passed the same assertions and waited for
+app-owned `appReady` before capture. The inspected PNG shows Home with an
+empty player and no bootstrap overlay. Both app instances shut down through
+the authenticated API; fixture credentials and handshake files were removed.
+Android device/OS-control and physical overnight verification were not repeated
+for this Dart follow-up; the controlled regressions are the evidence for the
+local-init stall and cross-engine commit races.

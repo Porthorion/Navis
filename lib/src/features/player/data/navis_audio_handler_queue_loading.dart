@@ -1265,6 +1265,8 @@ extension _NavisQueueLoading on NavisAudioHandler {
     List<SongsTableData>? suppliedRows,
   }) {
     _cancelCrossfade();
+    _restoredQueueIndex = null;
+    _restoredQueuePosition = Duration.zero;
     _navigationIntent.reset();
     _pendingLogicalQueueSongs = suppliedRows;
     _supersedeTransportIntent(shouldPlay: autoPlay);

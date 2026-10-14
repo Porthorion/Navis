@@ -162,27 +162,41 @@ extension _NavisPersistence on NavisAudioHandler {
   }
 
   Future<bool> _prepareBestAvailableQueueForUserPlayOnce() async {
+    final transportGeneration = _transportGeneration;
     await _ready;
+    if (!_isCurrentTransportIntent(transportGeneration)) return true;
     await _startupQueueRestore;
+    if (!_isCurrentTransportIntent(transportGeneration)) return true;
     final deferredRestore = _deferredQueueRestoreRetry;
     if (deferredRestore != null) await deferredRestore;
+    if (!_isCurrentTransportIntent(transportGeneration)) return true;
+    final queueGeneration = _activeLoadGeneration;
+    bool isCurrent() =>
+        _isCurrentTransportIntent(transportGeneration) &&
+        _isActiveLoadGeneration(queueGeneration);
+    // Supersession is normal completion in the preparation lane. Leave any
+    // newer selection alone; Play itself checks its transport ownership.
     if (_radioStation != null ||
         (_queueItems.isNotEmpty && _restoredQueueIndex == null)) {
       return true;
     }
     if (_restoredQueueIndex == null) {
       final persistedSongs = await _playQueueDao.getQueueItems();
+      if (!isCurrent()) return true;
       if (persistedSongs.isNotEmpty) await _restoreQueueFromDisk();
+      if (!isCurrent()) return true;
       if (_queueItems.isNotEmpty && _restoredQueueIndex == null) return true;
     }
     if (_restoredQueueIndex != null) {
       await _prepareRestoredQueueForTransport();
+      if (!isCurrent()) return true;
       if (_restoredQueueIndex == null && _queueItems.isNotEmpty) return true;
     }
 
     final recentSongs = await _historyDao
         .watchRecentlyPlayedSongs(limit: 50)
         .first;
+    if (!isCurrent()) return true;
     if (recentSongs.isNotEmpty) {
       AppLogger.info(
         'Android Auto resume: queueing recently played songs '
@@ -197,6 +211,7 @@ extension _NavisPersistence on NavisAudioHandler {
     }
 
     final likedSongs = await _libraryDao.watchAllStarredSongs().first;
+    if (!isCurrent()) return true;
     if (likedSongs.isNotEmpty) {
       AppLogger.info(
         'Android Auto resume: queueing liked songs '

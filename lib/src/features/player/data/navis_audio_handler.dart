@@ -1880,6 +1880,8 @@ class NavisAudioHandler extends BaseAudioHandler
 
   @override
   Future<void> clearQueue() {
+    _restoredQueueIndex = null;
+    _restoredQueuePosition = Duration.zero;
     _invalidatePendingStartupSelection();
     _navigationIntent.reset();
     _pendingLogicalQueueSongs = null;
@@ -2829,6 +2831,8 @@ class NavisAudioHandler extends BaseAudioHandler
     if (!(_readRadioPlaybackAllowed?.call(Uri.parse(streamUrl)) ?? true)) {
       return Future<void>.error(const RadioPlaybackBlockedException());
     }
+    _restoredQueueIndex = null;
+    _restoredQueuePosition = Duration.zero;
     _supersedeTransportIntent();
     final generation = _supersedeQueueWork(isLoading: true);
     return _queueLane.run((token) async {

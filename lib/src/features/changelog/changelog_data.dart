@@ -166,6 +166,10 @@ const List<ChangelogVersion> changelogs = [
     ],
     entries: [
       ChangelogEntry(
+        'Restored queues now honour Previous and newer selections, radio keeps its system metadata, and background sync updates appear when you return',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
         'Navis no longer gets stuck on Preparing Playback after being idle; if starting takes too long, you can restart it from the same screen',
         type: ChangelogEntryType.fix,
       ),

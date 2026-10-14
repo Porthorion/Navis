@@ -24,9 +24,17 @@ import '../../../../helpers/test_database.dart';
 
 class _Handler extends InertPlaybackHandler {
   final aliases = <Map<String, String>>[];
+  bool failAliasesOnce = false;
+  int aliasAttempts = 0;
   @override
-  Future<void> applySongIdentityAliases(Map<String, String> value) async =>
-      aliases.add(value);
+  Future<void> applySongIdentityAliases(Map<String, String> value) async {
+    aliasAttempts++;
+    if (failAliasesOnce) {
+      failAliasesOnce = false;
+      throw StateError('temporary alias failure');
+    }
+    aliases.add(value);
+  }
 }
 
 void main() {
@@ -297,4 +305,151 @@ void main() {
     expect(container.read(librarySyncControllerProvider).lastRunBytes, 1234);
     expect(handler.aliases.last, {'before': 'after'});
   });
+  for (final (leased, retry) in [(false, false), (true, false), (true, true)]) {
+    test(
+      'worker commit after resume refreshes catalog and aliases (lease: $leased, retry: $retry)',
+      () async {
+        final directory = await Directory.systemTemp.createTemp(
+          'navis-worker-resume-',
+        );
+        final file = File(p.join(directory.path, 'navis.sqlite'));
+        final database = createTestDatabase(file: file);
+        await database.serverDao.saveServer(
+          ServerConfigTableCompanion.insert(
+            url: 'https://fixture.invalid',
+            username: 'fixture',
+            apiVersion: '1.16.1',
+            lastSynced: Value(DateTime.now()),
+            isAuthenticated: const Value(true),
+          ),
+        );
+        await database.libraryDao.upsertSongs([
+          SongsTableCompanion.insert(id: 'before', title: 'Before'),
+        ]);
+        await database.librarySyncDao.getOrCreateState(1);
+        await database.librarySyncDao.writeAndroidBackgroundStatus(
+          serverId: 1,
+          workerStartedAt: DateTime.now(),
+          workState: 'running',
+        );
+        if (leased) {
+          await database.librarySyncDao.acquireExecutionLease(
+            serverId: 1,
+            ownerToken: 'fixture-worker',
+            ownerKind: 'androidWorker',
+            now: DateTime.now(),
+            ttl: const Duration(minutes: 1),
+          );
+        }
+        final handler = _Handler()..failAliasesOnce = retry;
+        final container = ProviderContainer(
+          overrides: withTestDatabase(
+            database,
+            overrides: [
+              serverConfigStateProvider.overrideWithValue(
+                AsyncData(
+                  ServerConfigModel(
+                    id: 1,
+                    url: 'https://fixture.invalid',
+                    username: 'fixture',
+                    password: 'synthetic',
+                    apiVersion: '1.16.1',
+                    lastSynced: DateTime.now(),
+                  ),
+                ),
+              ),
+              networkTypeProvider.overrideWithValue(NetworkType.offline),
+              pingServerProvider.overrideWithValue(null),
+              audioHandlerProvider.overrideWithValue(handler),
+              librarySyncEngineProvider.overrideWithValue(
+                StubLibrarySyncEngine.returning(const LibrarySyncState.idle()),
+              ),
+              syncIntervalMinutesProvider.overrideWithValue(0),
+              initialSyncRequiredProvider.overrideWith((_) async => false),
+            ],
+          ),
+        );
+        addTearDown(() async {
+          container.dispose();
+          await database.close();
+          await directory.delete(recursive: true);
+        });
+        binding.handleAppLifecycleStateChanged(AppLifecycleState.detached);
+        binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
+        container.listen(librarySyncControllerProvider, (_, _) {});
+        final counts = <int>[];
+        final subscription = database
+            .customSelect(
+              'SELECT count(*) AS n FROM songs',
+              readsFrom: {database.songsTable},
+            )
+            .watch()
+            .listen((rows) => counts.add(rows.single.read<int>('n')));
+        addTearDown(subscription.cancel);
+        await pumpEventQueue();
+        expect(counts.last, 1);
+        final before = await database.readDataVersion();
+        binding.handleAppLifecycleStateChanged(AppLifecycleState.inactive);
+        binding.handleAppLifecycleStateChanged(AppLifecycleState.hidden);
+        binding.handleAppLifecycleStateChanged(AppLifecycleState.paused);
+        await pumpEventQueue();
+        binding.handleAppLifecycleStateChanged(AppLifecycleState.hidden);
+        binding.handleAppLifecycleStateChanged(AppLifecycleState.inactive);
+        binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
+        await pumpEventQueue(times: 100);
+        expect(counts.last, 1);
+        final worker = sqlite3.open(file.path);
+        try {
+          worker.execute(
+            "INSERT INTO songs(id, title) VALUES ('after', 'After')",
+          );
+          worker.execute(
+            'UPDATE library_sync_state SET last_run_bytes = 1234 WHERE server_id = 1',
+          );
+          worker.execute(
+            "INSERT INTO entity_identity_aliases(entity_type, old_id, new_id, match_reason, matched_at) VALUES ('song', 'before', 'after', 'fixture', 1)",
+          );
+          worker.execute(
+            'DELETE FROM library_sync_execution_lease WHERE server_id = 1',
+          );
+          worker.execute(
+            "UPDATE library_sync_state SET android_worker_completed_at = strftime('%s', 'now'), android_worker_result = 'succeeded' WHERE server_id = 1",
+          );
+        } finally {
+          worker.close();
+        }
+        expect(await database.readDataVersion(), isNot(before));
+        await pumpEventQueue();
+        expect(
+          counts.last,
+          1,
+          reason: 'external SQLite commits have no Drift notifications',
+        );
+        for (var i = 0; i < 40 && handler.aliases.isEmpty; i++) {
+          await Future<void>.delayed(const Duration(milliseconds: 100));
+          await pumpEventQueue();
+        }
+        expect(counts.last, 2);
+        expect(
+          container.read(librarySyncControllerProvider).lastRunBytes,
+          1234,
+        );
+        expect(handler.aliases.last, {'before': 'after'});
+        expect(handler.aliasAttempts, retry ? 2 : 1);
+        // Completion must stop the watcher: unrelated foreground commits
+        // should not start a permanent polling loop.
+        final later = sqlite3.open(file.path);
+        try {
+          later.execute(
+            "INSERT INTO songs(id, title) VALUES ('later', 'Later')",
+          );
+        } finally {
+          later.close();
+        }
+        await Future<void>.delayed(const Duration(milliseconds: 1200));
+        await pumpEventQueue();
+        expect(counts.last, 2);
+      },
+    );
+  }
 }

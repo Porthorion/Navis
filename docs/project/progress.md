@@ -14,9 +14,21 @@ Last updated: 2026-10-14
 - ACP status values: `backlog`, `ready`, `in_progress`, `blocked`, `done`.
 
 ## Current Focus
+- [x] Startup/idle robustness review follow-up — 2026-10-14
+  (`fix/startup-hang`; all five P2 findings from `ecc21594` fixed through the
+  existing readiness, transport, preparation and resume mechanisms. Ten
+  pre-fix regression failures cover every finding; 488 focused-suite tests
+  and the final 14 selected cases pass, including alias retry and watcher
+  completion. `./tool/check.sh` passes with 7,942 tests and one existing skip.
+  Post-gate Linux clean restart restores the paused later item at 41,999 ms
+  without native sources; first Previous stays on it at zero and clear passes.
+  App-owned screenshot after `appReady` inspected: Home, empty player, no
+  startup overlay. Owned fixture apps shut down, credential/handshake files
+  removed. Architecture, changelog and the audit's Review follow-up updated;
+  no commits/stashes. See [the audit](../audits/startup-hang-2026-10-14.md).)
 - [ ] Idle/startup robustness (F1, F2, F3, F6, F9 and private timeline) —
   partial: 2026-10-14 (`fix/startup-hang`; implementation and focused regressions
-  complete, final `./tool/check.sh` running. Step-0 uncached-source fixture
+  complete; review follow-up `./tool/check.sh` passes (7,942 tests, one skip). Step-0 uncached-source fixture
   reproduced attempts 1–5 and discarded handlers before changes; the same
   12-second source delay now reaches one ready construction in 99 ms, restores
   metadata without sources and streams after network return. Long resume

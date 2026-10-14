@@ -826,7 +826,7 @@ extension _NavisMediaSession on NavisAudioHandler {
     final currentItem = resolved.mediaItem;
     // Native seek/playlist events may settle before their index subscription.
     // Publish media-session metadata from the same authority as this snapshot.
-    if (_currentMediaItem?.id != currentItem?.id) {
+    if (_radioStation == null && _currentMediaItem?.id != currentItem?.id) {
       _setCurrentMediaItem(currentItem);
     }
     final isLiked = currentItem?.extras?['liked'] as bool? ?? false;

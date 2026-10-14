@@ -30,7 +30,9 @@ extension _NavisNavigation on NavisAudioHandler {
     final decision = _navigationIntent.relative(
       forward: forward,
       confirmedIndex: confirmedIndex,
-      confirmedPosition: _player.position,
+      confirmedPosition: _restoredQueueIndex != null
+          ? _restoredQueuePosition
+          : _player.position,
       effectiveOrder: effectiveOrder,
       // The user's mode: the native loop is off while songs are deferred.
       loopAll: _desiredLoopMode == LoopMode.all,
@@ -75,7 +77,9 @@ extension _NavisNavigation on NavisAudioHandler {
     required bool shouldPlay,
     required String context,
   }) {
-    final restorePosition = _restoredQueueIndex == decision.index
+    final restorePosition =
+        decision.outcome != PlaybackNavigationOutcome.restart &&
+            _restoredQueueIndex == decision.index
         ? _restoredQueuePosition
         : Duration.zero;
     final requestedIndex = decision.index!;

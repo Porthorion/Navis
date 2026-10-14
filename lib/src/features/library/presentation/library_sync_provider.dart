@@ -313,6 +313,8 @@ class LibrarySyncController extends Notifier<LibrarySyncState> {
   DateTime? _backgroundedAt;
   Future<int?>? _pausedDataVersion;
   Future<void>? _resumeReconciliation;
+  Timer? _workerReconciliationTimer;
+  int _workerReconciliationEpoch = 0;
 
   ServerConfigModel? _androidScheduledConfig;
   final Queue<String> _priorityAlbumIds = Queue<String>();
@@ -360,6 +362,7 @@ class LibrarySyncController extends Notifier<LibrarySyncState> {
     );
     ref.onDispose(() {
       _lifecycleListener.dispose();
+      _cancelWorkerReconciliation();
       _cancelPeriodicSync();
       _cancelBacklogWatchers();
     });
@@ -825,6 +828,7 @@ class LibrarySyncController extends Notifier<LibrarySyncState> {
 
     final serverConfig = next.asData?.value;
     if (serverConfig == null) {
+      _cancelWorkerReconciliation();
       _cancelPeriodicSync();
       _cancelBacklogWatchers();
       final scheduled = _androidScheduledConfig;
@@ -849,6 +853,7 @@ class LibrarySyncController extends Notifier<LibrarySyncState> {
 
     final fingerprint = _toSessionFingerprint(serverConfig);
     if (_sessionFingerprint != fingerprint) {
+      _cancelWorkerReconciliation();
       _startupSyncSuppressed = false;
       _startupSyncEpoch++;
       _retryStartupWhenEngineReady = false;
@@ -1649,6 +1654,7 @@ class LibrarySyncController extends Notifier<LibrarySyncState> {
           : _readResumeDataVersion();
     }
     _isForeground = false;
+    _cancelWorkerReconciliation();
     ref.read(librarySyncForegroundProvider.notifier).setForeground(false);
     _cancelPeriodicSync();
   }
@@ -1681,6 +1687,124 @@ class LibrarySyncController extends Notifier<LibrarySyncState> {
     unawaited(_resumeReconciliation);
   }
 
+  void _cancelWorkerReconciliation() {
+    _workerReconciliationEpoch++;
+    _workerReconciliationTimer?.cancel();
+    _workerReconciliationTimer = null;
+  }
+
+  Future<bool> _workerMayCommit(ServerConfigModel config) async {
+    final serverId = config.id;
+    if (serverId == null) return false;
+    final database = ref.read(navisDatabaseProvider);
+    final lease = await database.librarySyncDao.getExecutionLease(serverId);
+    final persisted = await (database.select(
+      database.librarySyncStateTable,
+    )..where((row) => row.serverId.equals(serverId))).getSingleOrNull();
+    final now = ref.read(nowProvider)();
+    if (lease?.ownerKind == 'androidWorker' && lease!.expiresAt.isAfter(now)) {
+      return true;
+    }
+    final started = persisted?.androidWorkerStartedAt;
+    final completed = persisted?.androidWorkerCompletedAt;
+    // The worker writes its start before acquiring the lease. Bound stale
+    // starts by the native eight-minute run budget plus shutdown grace.
+    return started != null &&
+        (completed == null || completed.isBefore(started)) &&
+        now.difference(started) < const Duration(minutes: 9);
+  }
+
+  Future<int?> _reconcileExternalDatabaseChanges(int? before) async {
+    final fingerprint = _sessionFingerprint;
+    final after = await _readResumeDataVersion();
+    if (!ref.mounted || !_isForeground || fingerprint != _sessionFingerprint) {
+      return after;
+    }
+    // Unknown baseline is conservative: don't retain potentially stale views.
+    final changed = before == null || after == null || before != after;
+    if (changed) {
+      final database = ref.read(navisDatabaseProvider);
+      database.invalidateExternalChanges();
+      SongIdentityCacheEpoch.invalidate();
+      final aliases = await database.songIdentityDao.getAliases().timeout(
+        const Duration(seconds: 1),
+      );
+      if (!ref.mounted ||
+          !_isForeground ||
+          fingerprint != _sessionFingerprint) {
+        return after;
+      }
+      await ref.read(audioHandlerProvider)?.applySongIdentityAliases({
+        for (final alias in aliases) alias.oldSongId: alias.canonicalSongId,
+      });
+      final config = ref.read(serverConfigStateProvider).asData?.value;
+      if (config != null) {
+        await _loadPersistedSyncState(
+          config,
+          schedule: false,
+        ).timeout(const Duration(seconds: 1));
+      }
+    }
+    return after;
+  }
+
+  Future<void> _watchResumedWorker(
+    int? before,
+    int epoch, {
+    bool wasActive = false,
+    DateTime? retryUntil,
+  }) async {
+    if (!ref.mounted || !_isForeground || epoch != _workerReconciliationEpoch) {
+      return;
+    }
+    final config = ref.read(serverConfigStateProvider).asData?.value;
+    if (config == null) return;
+    final retryDeadline =
+        retryUntil ?? ref.read(nowProvider)().add(const Duration(minutes: 9));
+    var keepWatching = wasActive;
+    var after = before;
+    try {
+      // Read completion first, then data_version: even a worker that releases
+      // its lease between these reads gets one final database reconciliation.
+      final active = await _workerMayCommit(config)
+          .timeout(const Duration(seconds: 1));
+      keepWatching = keepWatching || active;
+      if (!ref.mounted ||
+          !_isForeground ||
+          epoch != _workerReconciliationEpoch) {
+        return;
+      }
+      after = await _reconcileExternalDatabaseChanges(before);
+      keepWatching = active;
+    } on Object catch (error) {
+      AppLogger.warning(
+        'Worker reconciliation unavailable: ${error.runtimeType}',
+      );
+      // Retain the old baseline so a transient alias/read failure retries the
+      // same committed change, even if the worker has just finished.
+      keepWatching =
+          keepWatching &&
+          ref.mounted &&
+          ref.read(nowProvider)().isBefore(retryDeadline);
+    }
+    if (!ref.mounted || !_isForeground || epoch != _workerReconciliationEpoch) {
+      return;
+    }
+    if (keepWatching) {
+      _workerReconciliationTimer = Timer(const Duration(seconds: 1), () {
+        _workerReconciliationTimer = null;
+        unawaited(
+          _watchResumedWorker(
+            after,
+            epoch,
+            wasActive: true,
+            retryUntil: retryDeadline,
+          ),
+        );
+      });
+    }
+  }
+
   Future<void> _reconcileOnResume() async {
     final pausedVersion = _pausedDataVersion;
     final away = ref
@@ -1694,29 +1818,11 @@ class LibrarySyncController extends Notifier<LibrarySyncState> {
     try {
       final before = await pausedVersion;
       if (!ref.mounted) return;
-      final after = await _readResumeDataVersion();
-      if (!ref.mounted) return;
-      // Unknown baseline is conservative: don't retain potentially stale views.
+      final after = await _reconcileExternalDatabaseChanges(before);
+      if (!ref.mounted || !_isForeground) return;
       final changed = before == null || after == null || before != after;
-      if (changed) {
-        final database = ref.read(navisDatabaseProvider);
-        database.invalidateExternalChanges();
-        SongIdentityCacheEpoch.invalidate();
-        final aliases = await database.songIdentityDao.getAliases().timeout(
-          const Duration(seconds: 1),
-        );
-        if (!ref.mounted) return;
-        await ref.read(audioHandlerProvider)?.applySongIdentityAliases({
-          for (final alias in aliases) alias.oldSongId: alias.canonicalSongId,
-        });
-        final config = ref.read(serverConfigStateProvider).asData?.value;
-        if (config != null) {
-          await _loadPersistedSyncState(
-            config,
-            schedule: false,
-          ).timeout(const Duration(seconds: 1));
-        }
-      }
+      _cancelWorkerReconciliation();
+      unawaited(_watchResumedWorker(after, _workerReconciliationEpoch));
       AppLogger.startup(
         StartupEvent.resumeDatabase,
         outcome: changed ? StartupOutcome.changed : StartupOutcome.unchanged,

@@ -1563,6 +1563,14 @@ class AudioBootstrapController extends Notifier<AudioBootstrapState> {
         AppLogger.startup(StartupEvent.bootstrapStart, attempt: attemptId);
         await gate();
         final handler = await initializer();
+        try {
+          // Local volume/session initialization is part of readiness. Saved
+          // queue metadata and source/network work remain outside this future.
+          await handler.waitUntilReady();
+        } on Object {
+          await disposeNavisPlaybackHandler(handler);
+          rethrow;
+        }
         if (!ref.mounted || _activeAttempt != attemptId) {
           AppLogger.info(
             'Audio bootstrap discarded handler (attempt=$attemptId).',

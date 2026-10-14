@@ -91,15 +91,23 @@ Located in `lib/src/providers/app_providers.dart`:
     permanently pending configure requires a process restart. Explicit session
     teardown fences and disposes late results before a successor construction.
     No native plugin rebind is performed.
-  - Handler readiness follows construction and binding, independently of
-    network source preparation. Saved queue metadata, occurrence order,
+  - Handler readiness includes local volume and audio-session initialization
+    after construction and binding. A stall keeps the five-second bootstrap
+    deadline and Restart Navis recovery reachable; completed local failures
+    dispose the handler and retry silently. Readiness excludes saved-queue
+    restoration and network source preparation. Saved queue metadata, occurrence order,
     shuffle/repeat, selected index and position restore asynchronously through
     the existing queue lane, and publish immediately to the mini player and
     media session. Play, seek, navigation, queue edits or explicit media-session
     Prepare materialize sources through the existing download → rolling cache
     → stream resolver. Cache maintenance runs before source preparation, outside
     startup readiness; generation checks keep late restoration from replacing
-    newer commands. An unavailable saved source retains the existing explicit
+    newer commands. Queue replacement, clear and radio admission discard lazy
+    restore state, and first Play checks transport/queue ownership before any
+    fallback replacement. Previous uses the saved logical position until the
+    native source is ready, restarting at zero past three seconds. Snapshot
+    publication preserves active radio media-session metadata.
+    An unavailable saved source retains the existing explicit
     Play fallback to recent/liked music.
   - Five seconds after the overlay appears, its recovery panel offers Restart
     Navis and Copy details alongside secondary cache reset and sign-out. Android
@@ -3468,7 +3476,12 @@ on that same connection using a short exclusive Drift scope, not a pooled
 reader. An external commit announces all mapped tables once (SQLite supplies no
 table list), so existing subscriptions re-query, invalidates identity caches,
 reapplies durable aliases and reloads persisted sync state. Checks are bounded,
-coalesced and do not recreate the database or sync engine. After at least 30
+coalesced and do not recreate the database or sync engine. A resumed foreground
+worker with a live durable Android lease or an unfinished recent start keeps a
+one-second reconciliation timer until completion or expiry. Each tick reads
+worker completion before comparing data_version, including a final comparison
+when the run ends. The timer stops on backgrounding, session change, disposal,
+or worker completion; it is not a permanent database poll. After at least 30
 seconds away, the same reconciliation refreshes connectivity and native
 metering through their existing providers, then joins the existing reachability
 probe. Initial connectivity also includes a fresh platform check. Subsonic
