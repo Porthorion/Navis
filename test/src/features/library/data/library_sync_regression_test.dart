@@ -2657,6 +2657,12 @@ void main() {
         ),
       );
       baseline = await readState();
+      // Two engines on one file is the point of this test: each has its own
+      // connection, so drift's shared-executor warning does not apply.
+      driftRuntimeOptions.dontWarnAboutMultipleDatabases = true;
+      addTearDown(
+        () => driftRuntimeOptions.dontWarnAboutMultipleDatabases = false,
+      );
       final workerDb = NavisDatabase.atPath(path);
       addTearDown(workerDb.close);
       final workerRepo = ServerConfigRepository(
