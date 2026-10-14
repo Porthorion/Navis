@@ -1,8 +1,8 @@
 # Idle robustness follow-ups — 1.5.1
 
-Status: playback findings 4, 7, 8, 11, 12 and 13, plus 5a, 10 and 14a, are
+Status: playback findings 4, 7, 8, 11, 12 and 13, plus 5, 10 and 14a, are
 completed for release/1.5. Android acceptance evidence is recorded in the
-progress log. Findings 5b, 14b and 14c remain deferred to 1.5.1.
+progress log. Findings 14b and 14c remain deferred to 1.5.1.
 These originated in the read-only idle audit on 2026-10-14. They are not part
 of `fix/startup-hang` acceptance. The startup audit records the current work:
 [Android startup investigation](../audits/startup-hang-2026-10-14.md).
@@ -23,7 +23,7 @@ worked afterward. See [completion evidence](../project/progress.md#current-focus
 
 ## 5. Failed database opening poisons later retries
 
-**5a completed for 1.5.0 — 2026-10-15; 5b deferred to 1.5.1.** Only the app
+**Completed for 1.5.0 — 2026-10-15.** Only the app
 engine migrates the database. The Android worker first reads `user_version`
 through `NavisDatabase.schemaUpgradePending` and, for any version other than
 the current one (older, newer or unreadable) or a missing file, returns
@@ -31,10 +31,23 @@ the current one (older, newer or unreadable) or a missing file, returns
 or migrates. It then runs each period until the app has migrated once. The
 regression is `background engines defer while the app has not migrated the
 schema`; the worker wiring is one guarded statement that `databaseOverride`
-bypasses in tests. **5b** (discarding the cached open failure and reopening
-after a lock timeout, via a reopening executor) is **deferred to 1.5.1** and
-still needs the lock-held-open regression, the interrupted-upgrade rerun check
-and the classifier tests below.
+bypasses in tests.
+
+**5b:** the app's database opens through a reopening executor. A
+`SQLITE_BUSY`/`SQLITE_LOCKED` failure while opening or migrating discards the
+executor, together with Drift's cached error, and opens a fresh connection, up
+to three attempts. The executor is replaced before the last rethrow, so a
+later query opens again. Other errors are unchanged, and the file is never
+reset. Regressions: `a lock held past the busy deadline during open recovers
+without restart`, `an upgrade interrupted by a lock reruns safely` and `only
+SQLite lock errors count as lock timeouts`. **Open finding:** in Linux host tests, the
+SQLite that `sqlite3` 3.6.0 bundles gives up on `PRAGMA busy_timeout` within
+about 30–40 ms instead of waiting. App builds use the same build hook; this is
+not yet confirmed on a device. Its default busy callback does not sleep,
+while a Dart `busyHandler` is honoured. Lock contention therefore fails almost at once,
+and 5b's retries (about 0 s, 1 s and 3 s) are the effective wait. A
+`busyHandler` in `_configureNativeDatabase` would restore the intended 5 s
+wait for every write; that is a separate decision.
 
 **Original finding — likelihood:** medium for writer contention, low for simultaneous upgrades.
 Worker and foreground open separate WAL connections. WAL permits readers but

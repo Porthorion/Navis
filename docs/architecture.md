@@ -309,6 +309,18 @@ list (header, drag handle) move the sheet even when the list is not at the top.
   and classification stay on the writer while an interactive read can proceed
   alongside a long catalog read, without a second `NavisDatabase` or candidate
   visibility in reactive providers.
+- Drift caches a failed open or migration on its executor for the life of the
+  database. `NavisDatabase()` and `NavisDatabase.atPath` therefore open
+  through a reopening executor inside the sync write fence
+  (fence(reopening(lazy(native)))). When opening fails with `SQLITE_BUSY` or
+  `SQLITE_LOCKED`, including when nested in drift's isolate errors, it closes
+  that executor's connections and isolates and opens a fresh one, up to three
+  attempts 1 s and 2 s apart; concurrent queries share one open. It
+  replaces the executor before the final rethrow, so the next query opens
+  afresh instead of rethrowing a cached error. Other errors still surface
+  unchanged, and the database file is never reset or deleted to recover.
+  Failed and recovering attempts are recorded as bounded `databaseOpen`
+  startup events.
 - All transactional writes go through `NavisDatabase.transaction`, including
   DAO calls routed by `NavisDaoTransactions`. Drift 2.35 announces nested
   savepoint updates on the root stream store before the outer commit, so WAL

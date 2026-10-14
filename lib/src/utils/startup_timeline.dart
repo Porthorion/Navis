@@ -17,6 +17,7 @@ enum StartupEvent {
   resumeConnectivity,
   resumeReachability,
   resumeDatabase,
+  databaseOpen,
   workerEntry,
   workerExit,
   restart,

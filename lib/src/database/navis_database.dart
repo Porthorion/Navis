@@ -8,6 +8,8 @@ import 'dart:io';
 import 'package:drift/drift.dart';
 import 'package:navis/src/database/sync_write_fence.dart';
 import 'package:drift/native.dart';
+// ignore: experimental_member_use, reason: DriftRemoteException is how drift's isolates report a SQLite error.
+import 'package:drift/remote.dart';
 import 'package:navis/src/api/models/artist_ref.dart';
 import 'package:navis/src/database/daos/app_settings_dao.dart';
 import 'package:navis/src/database/daos/eq_dao.dart';
@@ -71,6 +73,8 @@ import 'package:navis/src/database/tables/album_artist_index_table.dart';
 import 'package:navis/src/database/tables/star_sync_queue_table.dart';
 import 'package:navis/src/database/tables/starred_absence_candidates_table.dart';
 import 'package:navis/src/database/database_location.dart';
+import 'package:navis/src/utils/app_logger.dart';
+import 'package:meta/meta.dart' show visibleForTesting;
 import 'package:sqlite3/sqlite3.dart';
 
 part 'navis_database.g.dart';
@@ -147,7 +151,7 @@ class NavisDatabase extends _$NavisDatabase {
     : super(_withSyncWriteFence(executor ?? _openConnection()));
 
   new atPath(String databasePath)
-    : this(_openFileConnection(File(databasePath)));
+    : this(_ReopeningExecutor(() => _openFileConnection(File(databasePath))));
 
   final _transactionZoneKey = Object();
 
@@ -222,9 +226,9 @@ class NavisDatabase extends _$NavisDatabase {
     return executor.interceptWith(SyncWriteFenceInterceptor());
   }
 
-  static QueryExecutor _openConnection() => LazyDatabase(() async {
-    return _openFileConnection(await resolveDatabaseFile());
-  });
+  static QueryExecutor _openConnection() => _ReopeningExecutor(
+    () async => _openFileConnection(await resolveDatabaseFile()),
+  );
 
   /// Only the app engine migrates. A background engine must not race it, so
   /// any version other than the current one (or an unreadable file) defers.
@@ -1986,6 +1990,112 @@ void _configureNativeDatabase(Database database) {
   database.execute('PRAGMA cache_size = -8192');
   database.execute('PRAGMA temp_store = MEMORY');
   database.execute('PRAGMA journal_size_limit = 67108864');
+}
+
+/// Drift caches an opening or migration failure on its executor for good
+/// (`DelegatedDatabase._migrationError`, `LazyDatabase._openDelegate`). A lock
+/// timeout is transient: discard that executor and open a fresh connection, a
+/// bounded number of times. Other errors keep today's behaviour.
+class _ReopeningExecutor extends QueryExecutor {
+  new(this._opener) : _delegate = LazyDatabase(_opener);
+
+  static const _attempts = 3;
+  final DatabaseOpener _opener;
+  QueryExecutor _delegate;
+  Future<bool>? _opening;
+  bool _closed = false;
+
+  @override
+  SqlDialect get dialect => SqlDialect.sqlite;
+
+  // Concurrent queries share one open (and its retries); later calls re-check.
+  // Statements inside beforeOpen/onUpgrade run on Drift's before-open executor
+  // and never re-enter this, so the shared future cannot wait on itself.
+  @override
+  Future<bool> ensureOpen(QueryExecutorUser user) =>
+      _opening ??= _open(user).whenComplete(() => _opening = null);
+
+  Future<bool> _open(QueryExecutorUser user) async {
+    for (var attempt = 1; ; attempt++) {
+      final executor = _delegate;
+      try {
+        final opened = await executor.ensureOpen(user);
+        if (attempt > 1) {
+          AppLogger.startup(
+            StartupEvent.databaseOpen,
+            attempt: attempt,
+            outcome: StartupOutcome.success,
+          );
+        }
+        return opened;
+      } on Object catch (error) {
+        if (!isDatabaseLockTimeout(error)) rethrow;
+        // Replaced before any rethrow: the next query anywhere opens afresh.
+        _delegate = LazyDatabase(_opener);
+        // ponytail: per-isolate write chain, rows can race the app engine.
+        AppLogger.startup(
+          StartupEvent.databaseOpen,
+          attempt: attempt,
+          outcome: StartupOutcome.failure,
+          failureType: StartupFailure.storage,
+        );
+        // Only closes connections (and their isolates); never touches the file.
+        await executor.close().catchError((Object _) {});
+        if (attempt >= _attempts) rethrow;
+        await Future<void>.delayed(Duration(seconds: attempt));
+        if (_closed) rethrow;
+      }
+    }
+  }
+
+  @override
+  QueryExecutor beginExclusive() => _delegate.beginExclusive();
+
+  @override
+  TransactionExecutor beginTransaction() => _delegate.beginTransaction();
+
+  @override
+  Future<void> runBatched(BatchedStatements statements) =>
+      _delegate.runBatched(statements);
+
+  @override
+  Future<void> runCustom(String statement, [List<Object?>? args]) =>
+      _delegate.runCustom(statement, args);
+
+  @override
+  Future<int> runDelete(String statement, List<Object?> args) =>
+      _delegate.runDelete(statement, args);
+
+  @override
+  Future<int> runInsert(String statement, List<Object?> args) =>
+      _delegate.runInsert(statement, args);
+
+  @override
+  Future<List<Map<String, Object?>>> runSelect(
+    String statement,
+    List<Object?> args,
+  ) => _delegate.runSelect(statement, args);
+
+  @override
+  Future<int> runUpdate(String statement, List<Object?> args) =>
+      _delegate.runUpdate(statement, args);
+
+  @override
+  Future<void> close() {
+    _closed = true;
+    return _delegate.close();
+  }
+}
+
+@visibleForTesting
+bool isDatabaseLockTimeout(Object error) {
+  var cause = error;
+  while (cause is DriftRemoteException) {
+    cause = cause.remoteCause;
+  }
+  // SQLITE_BUSY (5) and SQLITE_LOCKED (6), primary codes.
+  return cause is SqliteException &&
+      (cause.resultCode == 5 || cause.resultCode == 6);
 }
 
 /// Routes DAO transactions through the database's post-commit invalidation.
