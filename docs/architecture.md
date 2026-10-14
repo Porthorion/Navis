@@ -43,6 +43,16 @@ Located in `lib/src/providers/app_providers.dart`:
     opaque native profile key before any request and holds the same durable
     execution lease as foreground catalog work, so a late worker cannot run a
     replaced account or overlap a visible sync.
+    `FlutterEngineBackgroundSyncSession` disables the embedding's automatic
+    generated plugin registration and uses the allowlist next to the worker:
+    `JniPlugin` and `JniFlutterPlugin` for path_provider's application context,
+    `FlutterSecureStoragePlugin` for credentials, and `ConnectivityPlugin` for
+    network policy. Drift/sqlite3 and HTTP use FFI/Dart. Native metering and
+    `NavisAudioServiceProbe` observe policy through the existing app channels;
+    the worker never registers audio_service, just_audio, audio_session,
+    notifications, or other playback/media plugins. Attaching audio_service
+    to a short-lived worker would share its static media-browser connection
+    and handler callbacks with the foreground playback engine.
   - Its `BackgroundSyncPolicyTracker` observes connectivity changes and
     refreshes native metering and audio-session activity every two seconds during
     the pass. The coordinator and engine consume that current policy at their
@@ -74,6 +84,14 @@ Located in `lib/src/providers/app_providers.dart`:
     `WindowsSmtcBridge` backed by the local `navis_windows_smtc` Rust/WinRT
     manual-SMTC adapter; Android, iOS, and macOS use `audio_service`
   - Bootstrap retries every three seconds while initialization fails. Its
+    five-second timeout retires the session-handler initialization cache so
+    later attempts do not reuse a stranded session future. The single
+    `AudioService.init` stays the only service init: re-entering that API would
+    overwrite its process-wide Dart callbacks. A native rebind of a stalled
+    connection was rejected because tearing down the only browser binding can
+    destroy the idle service and leave media commands without a listener.
+    Each session attempt retains its own projection, so stale completion
+    disposal cannot detach the newer handler from the shared service. The
     startup gate exposes cache-reset and sign-out recovery after ten seconds;
     an unauthenticated user can continue to Login without waiting for audio.
     A teardown supersedes a hung native attempt without awaiting it, and any

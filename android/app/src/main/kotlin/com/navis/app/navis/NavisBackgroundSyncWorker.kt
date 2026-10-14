@@ -14,7 +14,11 @@ import com.ryanheise.audioservice.NavisAudioServiceProbe
 import io.flutter.FlutterInjector
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.embedding.engine.dart.DartExecutor
-import io.flutter.plugins.GeneratedPluginRegistrant
+import com.github.dart_lang.jni.JniPlugin
+import com.github.dart_lang.jni_flutter.JniFlutterPlugin
+import com.it_nomads.fluttersecurestorage.FlutterSecureStoragePlugin
+import dev.fluttercommunity.plus.connectivity.ConnectivityPlugin
+import io.flutter.embedding.engine.plugins.FlutterPlugin
 import io.flutter.plugin.common.MethodChannel
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CancellationException
@@ -166,9 +170,11 @@ private class FlutterEngineBackgroundSyncSession(
     private var networkCostChannel: MethodChannel? = null
 
     override suspend fun start() {
-        engine = FlutterEngine(context)
+        // The default constructor also runs GeneratedPluginRegistrant. A sync
+        // engine must never attach process-wide playback/media plugins.
+        engine = FlutterEngine(context, null, false)
         channel = MethodChannel(engine.dartExecutor.binaryMessenger, backgroundSyncChannelName)
-        GeneratedPluginRegistrant.registerWith(engine)
+        backgroundSyncPlugins().forEach { engine.plugins.add(it) }
         networkCostChannel = registerNetworkCostChannel(context, engine.dartExecutor.binaryMessenger)
         channel.setMethodCallHandler { call, result ->
             if (call.method == "ready") {
@@ -215,6 +221,19 @@ private class FlutterEngineBackgroundSyncSession(
         if (::engine.isInitialized) engine.destroy()
     }
 }
+
+/**
+ * Native dependencies of navisBackgroundSyncEntrypoint only: path_provider's
+ * JNI application context, encrypted credentials, and connectivity policy.
+ * Drift/sqlite3 and HTTP use FFI/Dart; metering and playback observation use
+ * the app-owned channels/probe below, never audio_service or a player plugin.
+ */
+internal fun backgroundSyncPlugins(): List<FlutterPlugin> = listOf(
+    JniPlugin(),
+    JniFlutterPlugin(),
+    FlutterSecureStoragePlugin(),
+    ConnectivityPlugin(),
+)
 
 /** Bounded native categories persisted when Dart cannot return an outcome. */
 internal enum class BackgroundSyncNativeFailure(

@@ -1641,6 +1641,9 @@ class AudioBootstrapController extends Notifier<AudioBootstrapState> {
           return;
         }
         timedOut = error is TimeoutException;
+        // Retire the session future, not AudioService.init: retrying the latter
+        // concurrently would replace its process-wide callbacks.
+        invalidateNavisPlaybackHandlerInitialization();
         final message = error is TimeoutException
             ? 'Playback initialization timed out after ${timeout.inSeconds}s.'
             : 'Playback initialization failed.';

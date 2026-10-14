@@ -1813,6 +1813,45 @@ void main() {
       },
     );
 
+    test(
+      'automatic retry succeeds while the first initialization stays pending',
+      () async {
+        final neverCompletes = Completer<NavisPlaybackHandler>();
+        final handler = _FakePlaybackHandler();
+        var attempts = 0;
+        final container = ProviderContainer(
+          overrides: [
+            audioBootstrapTimeoutProvider.overrideWithValue(
+              const Duration(milliseconds: 5),
+            ),
+            audioBootstrapRetryDelayProvider.overrideWithValue(
+              const Duration(milliseconds: 5),
+            ),
+            audioHandlerInitializerProvider.overrideWithValue(() {
+              attempts++;
+              return attempts == 1
+                  ? neverCompletes.future
+                  : Future.value(handler);
+            }),
+          ],
+        );
+        addTearDown(() async {
+          container.dispose();
+          await handler.dispose();
+        });
+        container
+            .read(audioBootstrapControllerProvider.notifier)
+            .ensureInitialized();
+        await Future.doWhile(() async {
+          await Future<void>.delayed(const Duration(milliseconds: 5));
+          return !container.read(audioBootstrapControllerProvider).isReady;
+        }).timeout(const Duration(seconds: 1));
+        expect(attempts, 2);
+        expect(neverCompletes.isCompleted, isFalse);
+        expect(container.read(audioHandlerProvider), same(handler));
+      },
+    );
+
     test('audio bootstrap cancels a scheduled retry when disposed', () async {
       var attempts = 0;
       final container = ProviderContainer(

@@ -14,6 +14,18 @@ Last updated: 2026-10-14
 - ACP status values: `backlog`, `ready`, `in_progress`, `blocked`, `done`.
 
 ## Current Focus
+- [x] Android background-sync engine plugin isolation — 2026-10-14
+  (`fix/startup-hang`; the worker engine disabled automatic registration but
+  also ran GeneratedPluginRegistrant, attaching audio_service and every player
+  plugin to a second engine in the playback process. It now registers only
+  JNI, secure-storage and connectivity plugins. The owner's overnight
+  "Preparing Playback" hang was not reproduced in emulator scenarios a–d, so
+  this removes the most likely trigger without proving it. A native rebind of
+  a stalled audio_service connection was built and then dropped after review
+  (it could leave media commands without a listener). Next: open the UI
+  without the blocking playback overlay and record a private startup
+  timeline. `./tool/check.sh` passed. See
+  [the sanitized timeline and overlay assessment](../audits/startup-hang-2026-10-14.md).)
 - [x] Large downloaded queue cache churn — 2026-10-14 (permanent source resolution
   no longer touches LRU timestamps; regression demonstrates 171 writes and
   172 snapshots per Downloads watcher before, zero writes and one initial
