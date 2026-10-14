@@ -39,12 +39,17 @@ void main() {
   test('exports media browser service with car-visible metadata', () {
     expect(
       manifest,
-      contains('android:name="com.ryanheise.audioservice.AudioService"'),
+      contains('android:name="com.ryanheise.audioservice.NavisAudioService"'),
+    );
+    expect(
+      manifest,
+      isNot(contains('android:name="com.ryanheise.audioservice.AudioService"')),
     );
     expect(
       manifest,
       isNot(contains('android:name="com.navis.app.navis.NavisAudioService"')),
     );
+    expect(manifest, contains('android:name=".NavisApplication"'));
     expect(manifest, contains('android:label="@string/app_name"'));
     expect(manifest, contains('android:icon="@mipmap/ic_launcher_navis"'));
     expect(manifest, contains('android:exported="true"'));

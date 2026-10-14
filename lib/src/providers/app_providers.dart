@@ -90,6 +90,8 @@ import 'package:navis/src/theme/color_adjustment.dart';
 import 'package:navis/src/theme/artwork_shape.dart';
 import 'package:navis/src/theme/navis_color_style.dart';
 import 'package:navis/src/utils/app_logger.dart';
+import 'package:navis/src/features/auth/domain/server_reachability.dart';
+import 'package:navis/src/features/auth/presentation/server_reachability_provider.dart';
 import 'package:navis/src/utils/notifications/notification_localizations.dart';
 import 'package:navis/src/utils/connectivity.dart';
 import 'package:navis/src/utils/constants.dart';
@@ -406,6 +408,85 @@ final nativeNetworkMeteredProvider = FutureProvider<bool?>((ref) async {
   }
   ref.watch(connectivityProvider);
   return await ref.read(networkCostBridgeProvider).isActiveNetworkMetered();
+});
+
+/// Coalesces resume and playback checks before either spends recovery work.
+final networkReconciliationProvider = Provider<Future<bool> Function()>((ref) {
+  Future<bool>? pending;
+  Future<bool> reconcile() async {
+    // Imperative playback recovery must run even when Riverpod pauses the
+    // UI's provider listeners. Keep only these bounded checks active.
+    final connectivityLease = ref.container.listen(
+      connectivityProvider,
+      (_, _) {},
+    );
+    final meteringLease = ref.container.listen(
+      nativeNetworkMeteredProvider,
+      (_, _) {},
+    );
+    final reachabilityLease = ref.container.listen(
+      serverReachabilityControllerProvider,
+      (_, _) {},
+    );
+    try {
+      final previousReachabilityCheck = ref
+          .read(serverReachabilityControllerProvider)
+          .lastCheckedAt;
+      ref.invalidate(connectivityProvider);
+      ref.invalidate(nativeNetworkMeteredProvider);
+      final connectivityCheck = ref.read(connectivityProvider.future);
+      final connectivity = await connectivityCheck.timeout(
+        const Duration(seconds: 3),
+      );
+      if (!ref.mounted) return false;
+      // Connectivity rebuilds the metering provider. Read its current future
+      // after that update, rather than await the retired loading generation.
+      await ref
+          .read(nativeNetworkMeteredProvider.future)
+          .timeout(const Duration(seconds: 3));
+      if (!ref.mounted) return false;
+      AppLogger.startup(
+        StartupEvent.resumeConnectivity,
+        outcome: resolveNetworkType(connectivity) == NetworkType.offline
+            ? StartupOutcome.offline
+            : StartupOutcome.online,
+      );
+      // A fast probe may already have completed while metering refreshed.
+      // Join it while pending; don't launch a second ping after completion.
+      if (ref.read(serverReachabilityControllerProvider).lastCheckedAt ==
+          previousReachabilityCheck) {
+        await ref
+            .read(serverReachabilityControllerProvider.notifier)
+            .retryNow()
+            .timeout(const Duration(seconds: 5));
+      }
+      if (!ref.mounted) return false;
+      AppLogger.startup(
+        StartupEvent.resumeReachability,
+        outcome:
+            ref.read(serverReachabilityControllerProvider).status ==
+                ServerReachabilityStatus.online
+            ? StartupOutcome.online
+            : StartupOutcome.offline,
+      );
+      return ref.read(serverReachabilityControllerProvider).status ==
+          ServerReachabilityStatus.online;
+    } on Object {
+      AppLogger.startup(
+        StartupEvent.resumeReachability,
+        outcome: StartupOutcome.timeout,
+      );
+      return false;
+    } finally {
+      connectivityLease.close();
+      meteringLease.close();
+      reachabilityLease.close();
+    }
+  }
+
+  return () => pending ??= reconcile().whenComplete(() {
+    pending = null;
+  });
 });
 
 final backgroundSyncUnmeteredOnlyProvider = Provider<bool>((ref) {
@@ -1147,7 +1228,20 @@ final audioHandlerInitializerProvider = Provider<AudioHandlerInitializer>((
           : const IntegrationPolicy.denyAll(),
       readServerHost: () => ref.mounted ? ref.read(serverHostProvider) : null,
     );
+    final recoveredNetwork = StreamController<void>.broadcast();
+    ref.onDispose(() => unawaited(recoveredNetwork.close()));
+    ref.listen<ServerReachabilityState>(serverReachabilityControllerProvider, (
+      previous,
+      next,
+    ) {
+      if (next.status == ServerReachabilityStatus.online &&
+          next.lastCheckedAt != previous?.lastCheckedAt) {
+        recoveredNetwork.add(null);
+      }
+    });
     final handler = await initNavisAudioHandler(
+      reconcileNetwork: () => ref.read(networkReconciliationProvider)(),
+      recoveredNetwork: recoveredNetwork.stream,
       libraryDao: database.libraryDao,
       playlistDao: database.playlistDao,
       playQueueDao: database.playQueueDao,

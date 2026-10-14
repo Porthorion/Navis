@@ -166,6 +166,18 @@ const List<ChangelogVersion> changelogs = [
     ],
     entries: [
       ChangelogEntry(
+        'Notification, Bluetooth and car controls keep working after Android restarts the media service',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
+        'Playback and radio recover by themselves when the network returns',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
+        'Play starts automatically when audio becomes available again',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
         'Pause and Stop stay in effect when repeated Play requests are still preparing personal radio',
         type: ChangelogEntryType.fix,
       ),

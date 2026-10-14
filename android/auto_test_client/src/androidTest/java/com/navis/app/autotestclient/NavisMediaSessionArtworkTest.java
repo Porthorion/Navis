@@ -44,7 +44,7 @@ import java.util.regex.Pattern;
 @RunWith(AndroidJUnit4.class)
 public final class NavisMediaSessionArtworkTest {
     private static final long TIMEOUT_SECONDS = 10;
-    private static final String SERVICE_CLASS = "com.ryanheise.audioservice.AudioService";
+    private static final String SERVICE_CLASS = "com.ryanheise.audioservice.NavisAudioService";
     private static final Pattern CREDENTIAL = Pattern.compile(
             "[?&](u|t|s|p|apiKey)=", Pattern.CASE_INSENSITIVE);
 

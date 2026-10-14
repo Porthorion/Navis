@@ -39,6 +39,17 @@ class MainActivity : AudioServiceActivity() {
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
+        if (BuildConfig.APPLICATION_ID != "com.navis.app.navis" &&
+            (BuildConfig.DEBUG || BuildConfig.BUILD_TYPE == "profile")) {
+            MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "com.navis.app/playback_recovery")
+                .setMethodCallHandler { call, result ->
+                    if (call.method != "recreateService") result.notImplemented()
+                    else (application as NavisApplication).recreateMediaServiceForDiagnostics(
+                        { result.success(null) },
+                        { result.error("RECOVERY_UNAVAILABLE", "Service or surviving engine unavailable", null) },
+                    )
+                }
+        }
         MethodChannel(
             flutterEngine.dartExecutor.binaryMessenger,
             "com.navis.app/storage_capacity",

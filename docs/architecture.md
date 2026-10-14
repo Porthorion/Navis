@@ -121,10 +121,10 @@ Located in `lib/src/providers/app_providers.dart`:
     UI, and `runApp` work until the first Android `resumed` lifecycle state.
 
 - **Android Auto phone projection**
-  - The canonical `com.ryanheise.audioservice.AudioService` is the exported
-    native `MediaBrowserService`. The plugin binds and starts that exact
-    component during playback bootstrap, then delegates browse requests to the
-    shared `NavisAudioHandler`.
+  - The app-owned `com.ryanheise.audioservice.NavisAudioService` subclass is the
+    exported native `MediaBrowserService`. Narrow app-owned redirects route the
+    plugin's explicit base-service binding and foreground start to it. The plugin
+    still delegates browse requests to the shared `NavisAudioHandler`.
   - `AutoMediaTreeService` builds the local database-backed browse tree. Its
     four root tabs are Liked, Recent, Playlists, and Library, stored once per
     service instance. Collection projections cap browse lists and liked songs
@@ -3453,9 +3453,11 @@ recommendation tracks restore as an ordinary queue after restart, without
 restarting refills.
 
 Background refills retry with backoff. After five consecutive failed refills
-Same Vibes, Server Mix and Personal Radio stop refilling and the session stays
-at `retryExhausted`; later playback snapshots, a cleared error notice or an
-expired backoff never resume it. Only starting the mix again re-arms refills.
+Same Vibes, Server Mix and Personal Radio stop refilling at `retryExhausted`;
+later playback snapshots, a cleared error notice or an expired backoff do not
+resume them. A verified network recovery re-arms Personal Radio's exhausted
+refill within its existing recommendation session. Starting a mix again also
+re-arms refills.
 
 ## Startup and resume evidence
 
@@ -3497,6 +3499,52 @@ release is unavailable in the current plugin; see the
 [1.5.1 follow-ups](plans/idle-robustness-followups.md).
 
 ## Data Flow
+
+### Silent playback recovery
+
+Android declares the app-owned `com.ryanheise.audioservice.NavisAudioService`
+subclass. `NavisApplication` redirects audio_service 0.18.19's explicit browser
+binding, and the service redirects its hard-coded foreground start, to this
+component. MediaBrowser discovery, notification controls and Android Auto still
+use the plugin's media session. After `super.onCreate()`, the subclass restores
+a missing static listener only if the plugin retains its handler interface.
+One guarded reflection method owns the two private field accesses; a JVM
+contract test checks their names, static modifiers and listener types. Its
+custom action forces the Dart projection to republish metadata, the windowed
+queue and playback state even when their identities have not changed. No plugin
+removal or engine reattachment occurs.
+
+Vendored just_audio abandons denied audio-focus requests, then retries twice
+with 200/400 ms delays. Exhaustion completes Play with `AudioFocusDeniedException`.
+Navis retains the requested transport generation and retries silently with a
+1–8 second backoff. Pause, Stop, selection and disposal cancel pending intent;
+transient interruptions block retry until they end. A late denied activation
+cannot release a newer Play's focus. Permanent focus loss still permits a later
+explicit Play.
+
+Lock-cache origin and range fetches have cancellable 15-second connection and
+header deadlines and a 30-second body-progress deadline. Failed partial files
+are discarded and requests may restart. `networkReconciliationProvider` shares
+the existing bounded connectivity, metering and server-reachability check
+between resume and playback. Scoped container subscriptions keep these bounded
+checks active even when UI provider listeners are paused, and metering is read
+after connectivity settles so a retired future cannot stall reconciliation.
+Native just_audio error fields and legacy stream errors share one recovery
+path; repeated native error data is deduplicated. Android captures ExoPlayer's
+current position before publishing an error and switching to idle, so recovery
+uses the native failure position rather than the last ready-event position. An offline song retains its
+position and play intent without spending the reload retry. Song and station
+state remain buffering while waiting, preserving OS transport controls.
+Verified recovery after an observed outage re-arms the song's reload allowance
+so a later outage does not skip it.
+Network wait retries back off from 3 to 24 seconds. Internet radio retains its
+station after a transient source/network error and reconnects through the queue
+lane, unless a newer user command superseded it. A new Play during an older
+reconciliation re-arms its own recovery after that check finishes. Verified
+reachability also re-arms exhausted personal-radio refills without replacing
+recommendation-session
+ownership. Automatic recovery records identity-free events in the private
+startup timeline and does not publish a playback-failure notice.
 
 ### Playback Flow
 
@@ -4230,9 +4278,10 @@ current song is prepared at its saved position first, and the rest is filled
 in the queue lane, so handler readiness and media-session Play do not wait for
 every source. A startup, deferred-retry or post-radio restore timeout keeps the
 saved queue instead of deleting it. Radio Stop returns after stopping the stream; its
-background restore and the restore after radio failure share this preservation
-policy. Stopping radio, or a radio failure, restores the previous queue
-paused, exactly like startup restore: it never resumes playback on its own.
+background restore and the restore after a terminal radio failure share this
+preservation policy. Stopping radio, or a terminal radio failure, restores the
+previous queue paused, exactly like startup restore: it never resumes playback
+on its own.
 This is intended (owner decision 2026-10-09), not a gap to close. Before releasing the lane it cancels the restore token,
 retires its load generation, and replaces the native player, so a late native
 load or its inner deadline cannot change a newer selection. Eager restores

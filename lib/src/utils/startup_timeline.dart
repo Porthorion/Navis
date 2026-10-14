@@ -20,6 +20,11 @@ enum StartupEvent {
   workerEntry,
   workerExit,
   restart,
+  mediaServiceRecovery,
+  audioFocusRecovery,
+  streamRecovery,
+  radioRecovery,
+  radioRefillRecovery,
 }
 
 enum StartupFailure { timeout, credentials, storage, platform, other }

@@ -3142,6 +3142,94 @@ class SyncDiagnosticsServer {
         );
         return;
       }
+      if (request.method == 'POST' && path == '/v1/playback/recovery-fixture') {
+        if (!allowsMutations) {
+          await _forbidden(request);
+          return;
+        }
+        final body = await _readJson(request);
+        final action = body['action'];
+        if (action != 'denyFocus' && action != 'recreateService') {
+          await _respond(request, HttpStatus.badRequest, {
+            'error': 'invalid playback recovery fixture',
+          });
+          return;
+        }
+        final handler = await _waitForPlaybackHandler();
+        if (handler is! NavisAudioHandler) {
+          await _respond(request, HttpStatus.serviceUnavailable, {
+            'error': 'native handler unavailable',
+          });
+          return;
+        }
+        await handler.customAction(
+          action == 'denyFocus'
+              ? 'navisDiagnosticsDenyFocus'
+              : 'navisDiagnosticsRecreateService',
+        );
+        await _respond(request, HttpStatus.ok, {'action': action});
+        return;
+      }
+      if (request.method == 'POST' && path == '/v1/playback/radio') {
+        if (!allowsMutations) {
+          await _forbidden(request);
+          return;
+        }
+        final body = await _readJson(request);
+        final fixtureSong = body['songId'];
+        if (fixtureSong is String &&
+            fixtureSong.isNotEmpty &&
+            fixtureSong.length <= 256 &&
+            !body.containsKey('stationId')) {
+          final api = _container.read(subsonicApiProvider);
+          if (api == null) {
+            await _respond(request, HttpStatus.serviceUnavailable, {
+              'error': 'server unavailable',
+            });
+            return;
+          }
+          await api.getSong(fixtureSong);
+          final handler = await _waitForPlaybackHandler();
+          await handler.playRadioStream(
+            stationId: 'diagnostics-finite-radio',
+            stationName: 'Recovery fixture',
+            streamUrl: api
+                .streamUrl(
+                  id: fixtureSong,
+                  maxBitRate: 192,
+                  format: 'mp3',
+                  estimateContentLength: true,
+                )
+                .toString(),
+          );
+          await _respond(request, HttpStatus.ok, {
+            'started': true,
+            'source': 'finiteSongFixture',
+          });
+          return;
+        }
+        final id = body['stationId'];
+        final api = _container.read(subsonicApiProvider);
+        final stations = await api?.getInternetRadioStations() ?? [];
+        final station = stations
+            .where((station) => station.id == id)
+            .firstOrNull;
+        if (station == null) {
+          await _respond(request, HttpStatus.notFound, {
+            'error': 'station unavailable',
+          });
+          return;
+        }
+        final handler = await _waitForPlaybackHandler();
+        await handler.playRadioStream(
+          stationId: station.id,
+          stationName: station.name,
+          streamUrl: station.streamUrl,
+          homePageUrl: station.homePageUrl,
+        );
+        await _respond(request, HttpStatus.ok, {'started': true});
+        return;
+      }
       if (request.method == 'GET' && path == '/v1/playback/status') {
         final handler = await _waitForPlaybackHandler();
         await handler.waitUntilReady();

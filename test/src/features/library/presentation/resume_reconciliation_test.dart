@@ -39,6 +39,39 @@ class _Handler extends InertPlaybackHandler {
 
 void main() {
   final binding = TestWidgetsFlutterBinding.ensureInitialized();
+  test('imperative playback reconciliation keeps network providers active and joins fresh metering', () async {
+    final database = createTestDatabase();
+    const config = ServerConfigModel(
+      id: 1,
+      url: 'https://fixture.invalid',
+      username: 'fixture',
+      password: 'synthetic',
+      apiVersion: '1.16.1',
+    );
+    final never = Completer<bool?>();
+    final container = ProviderContainer(
+      overrides: withTestDatabase(
+        database,
+        overrides: [
+          serverConfigStateProvider.overrideWithValue(const AsyncData(config)),
+          connectivityProvider.overrideWith(
+            (_) => Stream.value([ConnectivityResult.wifi]),
+          ),
+          nativeNetworkMeteredProvider.overrideWith((ref) {
+            final connectivity = ref.watch(connectivityProvider);
+            return connectivity.isLoading ? never.future : Future.value(false);
+          }),
+          pingServerProvider.overrideWithValue(() async => 'fixture'),
+        ],
+      ),
+    );
+    addTearDown(() async {
+      container.dispose();
+      await database.close();
+    });
+    expect(await container.read(networkReconciliationProvider)(), isTrue);
+  });
+
   test('long resume coalesces connectivity refresh and server probe', () async {
     final database = createTestDatabase();
     await database.serverDao.saveServer(
@@ -116,7 +149,9 @@ void main() {
       reason: 'resume must join the already-running server probe',
     );
     expect(metering, 2);
+    final playbackCheck = container.read(networkReconciliationProvider)();
     ping.complete('fixture');
+    expect(await playbackCheck, isTrue);
     await pumpEventQueue();
   });
 

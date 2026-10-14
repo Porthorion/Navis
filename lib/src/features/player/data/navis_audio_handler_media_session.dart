@@ -116,6 +116,7 @@ extension _NavisMediaSession on NavisAudioHandler {
           }
           return;
         }
+        _audioInterrupted = event.type == AudioInterruptionType.pause;
         _interruptedTransportGeneration = _player.playing
             ? _transportGeneration
             : null;
@@ -132,19 +133,21 @@ extension _NavisMediaSession on NavisAudioHandler {
         return;
       }
 
+      _audioInterrupted = false;
       final shouldResume =
-          _interruptedTransportGeneration == _transportGeneration &&
+          (_interruptedTransportGeneration == _transportGeneration ||
+              _focusDeniedGeneration == _transportGeneration) &&
           !_player.playing;
       _interruptedTransportGeneration = null;
       if (shouldResume) {
-        unawaited(_player.play());
+        unawaited(_playWithFocusRecovery());
       }
     });
 
     _becomingNoisySubscription = session.becomingNoisyEventStream.listen((_) {
       _cancelCrossfade();
-      if (_player.playing) {
-        unawaited(_player.pause());
+      if (_player.playing || _focusDeniedGeneration != null) {
+        unawaited(pause());
       }
     });
   }
@@ -158,103 +161,131 @@ extension _NavisMediaSession on NavisAudioHandler {
       bufferedPosition: Duration.zero,
       force: true,
     );
-    _playbackEventSubscription = _player.playbackEventStream.listen(
-      (_) {
-        if (!identical(_player, wiredPlayer)) return;
-        // Native playlist edits can emit before the Dart mirror commits.
-        if (!_queueLane.isIdle &&
-            _queueReplacementMetadataAnchor == null &&
-            !_sequenceMatchesQueue(_player)) {
-          return;
-        }
-        final processing = _player.processingState;
-        final index = _player.currentIndex;
-        if (processing == ProcessingState.completed) {
-          _continueIntoDeferredTail();
-        }
-        if (navisQueueJustFinished(
-          previous: _finishObservedProcessingState,
-          current: processing,
-          continuingPastCompletion: _continuingIntoDeferredTail,
-          position: _restoredQueueIndex != null
-              ? _restoredQueuePosition
-              : _player.position,
-          duration: _player.duration,
-        )) {
-          _queueFinished = true;
-        } else if (processing != ProcessingState.completed) {
-          _queueFinished = false;
-        }
-        _finishObservedProcessingState = processing;
-        if (processing != _eqObservedProcessingState ||
-            index != _eqObservedIndex) {
-          _eqObservedProcessingState = processing;
-          _eqObservedIndex = index;
-          if (processing == ProcessingState.ready &&
-              equalizerCapabilities.supported) {
-            unawaited(
-              refreshEqualizerState().catchError((
-                Object error,
-                StackTrace trace,
-              ) {
-                AppLogger.warning('EQ status refresh failed: $error\n$trace');
-              }),
-            );
-          }
-        }
-        _handleScrobbleSignals();
+    ({int? code, String? message, int? index})? lastNativeFailure;
+    void fail(Object error, StackTrace stackTrace) {
+      if (!identical(_player, wiredPlayer)) return;
+      AppLogger.error(
+        'Playback event stream error.',
+        error.runtimeType,
+        stackTrace,
+      );
+      // Network failures retain the station and its requested playback.
+      if (_radioStation != null && _isTransientRadioFailure(error)) {
+        _pendingRadioRecovery = (
+          generation: _transportGeneration,
+          station: _radioStation!,
+        );
+        _radioMetadataService.stop();
+        AppLogger.startup(
+          StartupEvent.radioRecovery,
+          outcome: StartupOutcome.offline,
+        );
+        _scheduleNetworkPlaybackRetry();
+        unawaited(_recoverRadioAfterNetworkFailure());
+      } else if (_radioStation != null) {
+        // Tear down radio state synchronously so that no further metadata
+        // callbacks (Azuracast polling / ICY subscription) fire while the
+        // lane is busy cleaning up the player. This also lets the UI reflect
+        // the stopped state immediately rather than waiting for lane turn.
+        _radioStation = null;
+        _radioMetadataService.stop();
         _broadcastPlaybackState();
         _emitSnapshot();
-        _syncRemotePlaybackStallWatchdog();
-      },
-      onError: (Object error, StackTrace stackTrace) {
-        if (!identical(_player, wiredPlayer)) return;
-        AppLogger.error(
-          'Playback event stream error.',
-          _radioStation == null ? error : error.runtimeType,
-          stackTrace,
+        _radioStreamErrorController.add(null);
+        // Schedule player cleanup and queue restore on the lane.
+        unawaited(
+          _queueLane.run((_) async {
+            await _player.stop();
+            await _player.setAudioSources(const <AudioSource>[]);
+            queue.add(const <MediaItem>[]);
+            _setCurrentMediaItem(null);
+            _broadcastPlaybackState();
+            _emitSnapshot();
+          }),
         );
-        // If a radio stream is active, stop it and notify the UI.
-        if (_radioStation != null) {
-          // Tear down radio state synchronously so that no further metadata
-          // callbacks (Azuracast polling / ICY subscription) fire while the
-          // lane is busy cleaning up the player. This also lets the UI reflect
-          // the stopped state immediately rather than waiting for lane turn.
-          _radioStation = null;
-          _radioMetadataService.stop();
-          _broadcastPlaybackState();
-          _emitSnapshot();
-          _radioStreamErrorController.add(null);
-          // Schedule player cleanup and queue restore on the lane.
+        unawaited(
+          _queueLane.run((token) async {
+            await _restorePreviousQueueAfterRadio(
+              token,
+              context: 'radio stream error',
+            );
+          }),
+        );
+      } else {
+        unawaited(
+          _recoverCurrentSongFromRemotePlaybackFailure(
+            reason: 'playback event stream error',
+            error: error,
+            stackTrace: stackTrace,
+          ),
+        );
+      }
+    }
+
+    _playbackEventSubscription = _player.playbackEventStream.listen((event) {
+      if (!identical(_player, wiredPlayer)) return;
+      // just_audio 0.10 reports native failures as event data. Repeated idle
+      // events carry the same error; admit that failure only once.
+      final failure = (
+        code: event.errorCode,
+        message: event.errorMessage,
+        index: event.currentIndex,
+      );
+      if (failure.code != null && failure != lastNativeFailure) {
+        lastNativeFailure = failure;
+        fail(
+          PlayerException(failure.code!, failure.message, failure.index),
+          StackTrace.current,
+        );
+      } else if (failure.code == null) {
+        lastNativeFailure = null;
+      }
+      // Native playlist edits can emit before the Dart mirror commits.
+      if (!_queueLane.isIdle &&
+          _queueReplacementMetadataAnchor == null &&
+          !_sequenceMatchesQueue(_player)) {
+        return;
+      }
+      final processing = _player.processingState;
+      final index = _player.currentIndex;
+      if (processing == ProcessingState.completed) {
+        _continueIntoDeferredTail();
+      }
+      if (navisQueueJustFinished(
+        previous: _finishObservedProcessingState,
+        current: processing,
+        continuingPastCompletion: _continuingIntoDeferredTail,
+        position: _restoredQueueIndex != null
+            ? _restoredQueuePosition
+            : _player.position,
+        duration: _player.duration,
+      )) {
+        _queueFinished = true;
+      } else if (processing != ProcessingState.completed) {
+        _queueFinished = false;
+      }
+      _finishObservedProcessingState = processing;
+      if (processing != _eqObservedProcessingState ||
+          index != _eqObservedIndex) {
+        _eqObservedProcessingState = processing;
+        _eqObservedIndex = index;
+        if (processing == ProcessingState.ready &&
+            equalizerCapabilities.supported) {
           unawaited(
-            _queueLane.run((_) async {
-              await _player.stop();
-              await _player.setAudioSources(const <AudioSource>[]);
-              queue.add(const <MediaItem>[]);
-              _setCurrentMediaItem(null);
-              _broadcastPlaybackState();
-              _emitSnapshot();
+            refreshEqualizerState().catchError((
+              Object error,
+              StackTrace trace,
+            ) {
+              AppLogger.warning('EQ status refresh failed: $error\n$trace');
             }),
-          );
-          unawaited(
-            _queueLane.run((token) async {
-              await _restorePreviousQueueAfterRadio(
-                token,
-                context: 'radio stream error',
-              );
-            }),
-          );
-        } else {
-          unawaited(
-            _recoverCurrentSongFromRemotePlaybackFailure(
-              reason: 'playback event stream error',
-              error: error,
-              stackTrace: stackTrace,
-            ),
           );
         }
-      },
-    );
+      }
+      _handleScrobbleSignals();
+      _broadcastPlaybackState();
+      _emitSnapshot();
+      _syncRemotePlaybackStallWatchdog();
+    }, onError: fail);
 
     _currentIndexSubscription = _player.currentIndexStream.listen((index) {
       if (!identical(_player, wiredPlayer) ||
@@ -620,7 +651,10 @@ extension _NavisMediaSession on NavisAudioHandler {
             _player.processingState == ProcessingState.idle ||
             nativeSource == null ||
             navisNativeSourceSongId(nativeSource) != _loadingSongId);
-    final processingState = _restoredQueueIndex != null && !pending
+    final processingState =
+        _pendingRemoteRecovery != null || _pendingRadioRecovery != null
+        ? AudioProcessingState.buffering
+        : _restoredQueueIndex != null && !pending
         ? AudioProcessingState.ready
         : pending
         ? AudioProcessingState.loading
@@ -837,7 +871,10 @@ extension _NavisMediaSession on NavisAudioHandler {
           ? null
           : _logicalIndexOf(resolved.currentIndex),
       playing: _visiblePlaying,
-      processingState: _restoredQueueIndex != null && !_isLoading
+      processingState:
+          _pendingRemoteRecovery != null || _pendingRadioRecovery != null
+          ? AudioProcessingState.buffering
+          : _restoredQueueIndex != null && !_isLoading
           ? AudioProcessingState.ready
           : _mapProcessingState(_player.processingState),
       position: _restoredQueueIndex != null

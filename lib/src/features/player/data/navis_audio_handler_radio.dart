@@ -1,6 +1,87 @@
 part of 'navis_audio_handler.dart';
 
 extension _NavisRadio on NavisAudioHandler {
+  bool _isTransientRadioFailure(Object error) =>
+      error is SocketException ||
+      error is HttpException ||
+      error is TimeoutException ||
+      (error is PlayerException &&
+          navisShouldReconnectRadioSource(
+            errorCode: error.code,
+            usesMediaKit: JustAudioMediaKit.isRegistered,
+          ));
+
+  Future<void> _recoverRadioAfterNetworkFailure() async {
+    final pending = _pendingRadioRecovery;
+    if (pending == null || _radioRecoveryInProgress || _disposeHandlerStarted)
+      return;
+    _radioRecoveryInProgress = true;
+    bool current() =>
+        !_disposeHandlerStarted &&
+        _isCurrentTransportIntent(pending.generation) &&
+        identical(_radioStation, pending.station);
+    try {
+      if (!(await reconcileNetwork?.call() ?? true)) return;
+      if (!current()) return;
+      await _queueLane.run((token) async {
+        if (!current()) return;
+        final station = pending.station;
+        final generation = _loadGeneration;
+        await _runTimedPlayerOperation(
+          generation: generation,
+          operation: 'radio recovery stop',
+          action: _player.stop,
+          timeout: _playerResetTimeout,
+        );
+        if (!current()) return;
+        final item = _mediaItemForRadioStation(station);
+        await _runTimedPlayerOperation(
+          generation: generation,
+          operation: 'radio recovery source',
+          action: () => _player.setAudioSource(
+            AudioSource.uri(Uri.parse(station.streamUrl), tag: item),
+          ),
+          timeout: _playerLoadTimeout,
+        );
+        if (!current()) return;
+        _pendingRadioRecovery = null;
+        _networkRetryTimer?.cancel();
+        _networkRetries = 0;
+        queue.add([item]);
+        _setCurrentMediaItem(item);
+        final azura = NavisAudioHandler._tryExtractAzuracast(station.streamUrl);
+        _radioMetadataService.startListening(
+          stationId: station.stationId,
+          azuracastApiUrl: azura?.$1,
+          stationShortName: azura?.$2,
+        );
+        if (_latestExplicitTransportPlaying != false)
+          unawaited(_playWithFocusRecovery());
+        AppLogger.startup(
+          StartupEvent.radioRecovery,
+          outcome: StartupOutcome.success,
+        );
+        _broadcastPlaybackState();
+        _emitSnapshot();
+      });
+    } on Object {
+      AppLogger.startup(
+        StartupEvent.radioRecovery,
+        outcome: StartupOutcome.failure,
+      );
+    } finally {
+      _radioRecoveryInProgress = false;
+      // Pause then Play may replace the request while reconciliation awaits.
+      // Re-arm that current request even when this attempt was superseded.
+      final latest = _pendingRadioRecovery;
+      if (!_disposeHandlerStarted &&
+          latest != null &&
+          _isCurrentTransportIntent(latest.generation) &&
+          identical(_radioStation, latest.station))
+        _scheduleNetworkPlaybackRetry();
+    }
+  }
+
   RadioMetadataService _newRadioMetadataService() => RadioMetadataService(
     handler: this,
     player: _player,

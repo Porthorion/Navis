@@ -132,7 +132,7 @@ Symptoms:
 
 Checklist:
 1. Confirm `/Users/khalifaalzarooni/Documents/forgejo_projects/Navis/android/app/src/main/AndroidManifest.xml` includes:
-   - `com.ryanheise.audioservice.AudioService` `<service>` declaration
+   - `com.ryanheise.audioservice.NavisAudioService` `<service>` declaration
    - `com.ryanheise.audioservice.MediaButtonReceiver` `<receiver>` declaration
    - `WAKE_LOCK`, `FOREGROUND_SERVICE`, and `FOREGROUND_SERVICE_MEDIA_PLAYBACK` permissions
 2. Confirm `/Users/khalifaalzarooni/Documents/forgejo_projects/Navis/android/app/src/main/kotlin/com/navis/app/navis/MainActivity.kt` extends `AudioServiceActivity`.

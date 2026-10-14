@@ -2854,6 +2854,32 @@ void main() {
     },
   );
 
+  test('playback recovery fixtures reject primary mutations', () async {
+    final primary = await _startFixture(
+      SyncDiagnosticsMode.primaryCertification,
+    );
+    addTearDown(primary.close);
+    for (final path in [
+      '/v1/playback/recovery-fixture',
+      '/v1/playback/radio',
+    ]) {
+      final result = await primary.post(path, {
+        'action': 'denyFocus',
+        'stationId': 'fixture',
+      });
+      expect(result.statusCode, HttpStatus.forbidden);
+    }
+  });
+
+  test('playback recovery fixture rejects malformed clone actions', () async {
+    final clone = await _startFixture(SyncDiagnosticsMode.clone);
+    addTearDown(clone.close);
+    final invalid = await clone.post('/v1/playback/recovery-fixture', {
+      'action': 'unknown',
+    });
+    expect(invalid.statusCode, HttpStatus.badRequest);
+  });
+
   test(
     'release card control taps a card and reports its page, clone-only',
     () async {

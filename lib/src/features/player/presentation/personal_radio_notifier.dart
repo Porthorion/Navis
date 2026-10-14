@@ -6,6 +6,9 @@ import 'package:navis/src/features/player/domain/playback_snapshot.dart';
 import 'package:navis/src/features/player/presentation/queue_provider.dart';
 import 'package:navis/src/features/player/presentation/recommendation_session_coordinator.dart';
 import 'package:navis/src/providers/app_providers.dart';
+import 'package:navis/src/features/auth/domain/server_reachability.dart';
+import 'package:navis/src/features/auth/presentation/server_reachability_provider.dart';
+import 'package:navis/src/utils/app_logger.dart';
 
 class PersonalRadioState {
   const new({
@@ -59,6 +62,27 @@ class PersonalRadioNotifier extends Notifier<PersonalRadioState> {
       if (session != null && next.generation != session.generation) {
         _clearLocalSession();
       }
+    });
+    ref.listen<ServerReachabilityState>(serverReachabilityControllerProvider, (
+      previous,
+      next,
+    ) {
+      final session = _session;
+      if (next.status != ServerReachabilityStatus.online ||
+          next.lastCheckedAt == previous?.lastCheckedAt ||
+          session == null ||
+          !state.active ||
+          _failures == 0 ||
+          !ref.read(recommendationSessionProvider.notifier).owns(session))
+        return;
+      _retryTimer?.cancel();
+      _failures = 0;
+      _nextRetryAt = null;
+      AppLogger.startup(
+        StartupEvent.radioRefillRecovery,
+        outcome: StartupOutcome.online,
+      );
+      _onSnapshot(null, ref.read(playerStateProvider));
     });
     ref.onDispose(() => _retryTimer?.cancel());
     return const PersonalRadioState();
@@ -380,6 +404,11 @@ class PersonalRadioNotifier extends Notifier<PersonalRadioState> {
     RecommendationIssue issue,
   ) {
     _failures++;
+    AppLogger.startup(
+      StartupEvent.radioRefillRecovery,
+      attempt: _failures,
+      outcome: StartupOutcome.failure,
+    );
     final exhausted = _failures >= 5;
     final delay = Duration(seconds: 3 * (1 << (_failures - 1).clamp(0, 4)));
     _nextRetryAt = DateTime.now().add(delay);

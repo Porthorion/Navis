@@ -27,7 +27,7 @@
         android:allowBackup="false"
         android:dataExtractionRules="@xml/data_extraction_rules"
         android:label="@string/app_name"
-        android:name="${applicationName}"
+        android:name=".NavisApplication"
         android:icon="@mipmap/ic_launcher_navis"
         android:roundIcon="@mipmap/ic_launcher_navis"
         android:appCategory="audio"
@@ -69,7 +69,7 @@
             </intent-filter>
         </activity>
         <service
-            android:name="com.ryanheise.audioservice.AudioService"
+            android:name="com.ryanheise.audioservice.NavisAudioService"
             android:label="@string/app_name"
             android:icon="@mipmap/ic_launcher_navis"
             android:exported="true"

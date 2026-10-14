@@ -1595,7 +1595,7 @@ before starting DHU:
 ```
 
 The verifier requires the automotive descriptor, projection metadata, exported
-canonical `com.ryanheise.audioservice.AudioService`, media-browser intent
+app-owned `com.ryanheise.audioservice.NavisAudioService`, media-browser intent
 filter, icon/theme metadata, and the absence of the privileged bind permission.
 If an APK already exists, it also confirms that the descriptor was packaged.
 
@@ -1899,6 +1899,26 @@ server delay and is not compiled into ordinary release behavior.
 Profile diagnostics print only the sanitized `Audio bootstrap …` timing lines
 through AppLogger; production startup details remain in private local rings.
 Never put server credentials in fixture scripts, defines, files or logs.
+
+### Playback recovery fixtures
+
+An authenticated profile clone with a nonempty `NAVIS_APP_ID_SUFFIX` accepts
+`POST /v1/playback/recovery-fixture` with `action: denyFocus` or
+`action: recreateService`. Focus denies the next three activation attempts,
+using the production abandon/retry branch. Service recreation temporarily releases the clone's browser binding and stops
+only its service, then rebinds after Android destroys the old instance. It verifies
+a new service instance and the same Flutter engine. This fixture changes no
+plugin registration and does not kill the app process. Follow with `cmd media_session dispatch play`, `pause` and `next`
+and inspect real playback through `/v1/playback/status`.
+
+Clone-only `POST /v1/playback/radio` accepts `stationId`, resolves the station
+through the active server and starts it through the production handler. As a
+transport fixture, `songId` instead runs a finite Subsonic MP3 stream in the same
+radio mode, with a fixed fixture label and no server station mutation. It verifies
+reconnect transport, not live-provider metadata or an infinite broadcast. Neither
+fixture accepts credentials or stream URLs. Primary certification rejects these
+mutations. Capture app-owned screenshots and the private startup timeline after
+network interruption and restoration; never dump credential-bearing native URLs.
 
 ### Isolated Android worker fixture
 

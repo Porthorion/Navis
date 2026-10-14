@@ -25,6 +25,48 @@ void main() {
     duration: Duration(minutes: 3),
   );
 
+  test(
+    'service recreation republishes deduped metadata, queue and playback state',
+    () async {
+      final inner = _InnerHandler();
+      final projection = RealTimeProjectionAudioHandler(inner);
+      addTearDown(projection.dispose);
+      inner.queue.add([const MediaItem(id: 'song', title: 'Song')]);
+      inner.mediaItem.add(const MediaItem(id: 'song', title: 'Song'));
+      inner.playbackState.add(
+        PlaybackState(
+          playing: true,
+          processingState: AudioProcessingState.ready,
+          queueIndex: 0,
+        ),
+      );
+      await pumpEventQueue();
+      final queues = <List<MediaItem>>[];
+      final items = <MediaItem?>[];
+      final states = <PlaybackState>[];
+      final subscriptions = [
+        projection.queue.listen(queues.add),
+        projection.mediaItem.listen(items.add),
+        projection.playbackState.listen(states.add),
+      ];
+      addTearDown(() async {
+        for (final subscription in subscriptions) {
+          await subscription.cancel();
+        }
+      });
+      await pumpEventQueue();
+      final before = (queues.length, items.length, states.length);
+      await projection.customAction('navisServiceRecreated');
+      await pumpEventQueue();
+      expect(
+        (queues.length, items.length, states.length),
+        (before.$1 + 1, before.$2 + 1, before.$3 + 1),
+      );
+      expect(items.last?.id, 'song');
+      expect(states.last.playing, isTrue);
+    },
+  );
+
   test('publishes real listening time at non-normal speeds', () async {
     final inner = _InnerHandler();
     final projection = RealTimeProjectionAudioHandler(inner);

@@ -434,7 +434,7 @@ extension _NavisQueueLoading on NavisAudioHandler {
           'that could not be prepared: ${dropped.take(8).join(', ')}',
         );
       }
-      if (_requestedPlaying) unawaited(_player.play());
+      if (_requestedPlaying) unawaited(_playWithFocusRecovery());
     } on Object catch (error, stackTrace) {
       AppLogger.warning(
         'Could not reload the queue after a player timeout. '
@@ -930,7 +930,7 @@ extension _NavisQueueLoading on NavisAudioHandler {
     if (!holdPlayback &&
         (_latestExplicitTransportPlaying == true ||
             (autoPlay && _latestExplicitTransportPlaying != false))) {
-      unawaited(_player.play());
+      unawaited(_playWithFocusRecovery());
     } else {
       await _player.pause();
     }
@@ -1089,7 +1089,7 @@ extension _NavisQueueLoading on NavisAudioHandler {
     // it inside a _runSerialized block would deadlock all subsequent serialized
     // operations (pause, seek, skip, queue mutations) until the track ends.
     if (autoPlay) {
-      unawaited(_player.play());
+      unawaited(_playWithFocusRecovery());
     } else {
       await _player.pause();
     }

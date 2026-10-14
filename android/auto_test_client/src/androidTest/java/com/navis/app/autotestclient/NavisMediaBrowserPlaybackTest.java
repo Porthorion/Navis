@@ -57,7 +57,7 @@ public final class NavisMediaBrowserPlaybackTest {
         final MediaBrowserCompat[] holder = new MediaBrowserCompat[1];
         InstrumentationRegistry.getInstrumentation().runOnMainSync(() -> {
             holder[0] = new MediaBrowserCompat(InstrumentationRegistry.getInstrumentation().getTargetContext(),
-                    new ComponentName(target, "com.ryanheise.audioservice.AudioService"),
+                    new ComponentName(target, "com.ryanheise.audioservice.NavisAudioService"),
                     new MediaBrowserCompat.ConnectionCallback() {
                         @Override public void onConnected() { connected.countDown(); }
                     }, null);

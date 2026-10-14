@@ -1,5 +1,17 @@
 part of 'navis_audio_handler.dart';
 
+/// Whether a native source failure can recover after reconnecting a station.
+///
+/// Android's code 1 is a renderer failure; media-kit uses its own code 1 for
+/// terminal source errors. Do not turn Android renderer failures into retries.
+bool navisShouldReconnectRadioSource({
+  required int errorCode,
+  required bool usesMediaKit,
+}) =>
+    errorCode == 0 ||
+    (usesMediaKit && errorCode == MediaKitPlayer.kErrorCode) ||
+    (errorCode >= 2000 && errorCode <= 2008);
+
 enum NavisAndroidAutoSearchType {
   empty,
   general,

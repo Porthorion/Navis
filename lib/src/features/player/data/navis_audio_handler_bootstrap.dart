@@ -97,6 +97,8 @@ Future<NavisPlaybackHandler> initNavisAudioHandler({
   required ListenBrainzFeedbackService listenBrainzFeedbackService,
   required PlaybackRuntimeSettings Function() readRuntimeSettings,
   required StarSyncDao starSyncDao,
+  Future<bool> Function()? reconcileNetwork,
+  Stream<void>? recoveredNetwork,
   double initialVolume = 1.0,
   NetworkUsageReporter? reportNetworkUsage,
   Future<File?> Function(String coverArtId)? readPermanentArtwork,
@@ -124,6 +126,8 @@ Future<NavisPlaybackHandler> initNavisAudioHandler({
 
   NavisAudioHandler createBaseHandler() {
     return NavisAudioHandler(
+      reconcileNetwork: reconcileNetwork,
+      recoveredNetwork: recoveredNetwork,
       libraryDao: libraryDao,
       playlistDao: playlistDao,
       playQueueDao: playQueueDao,

@@ -998,6 +998,8 @@ public class AudioPlayer implements MethodCallHandler, Player.Listener, Metadata
     }
 
     private void sendError(int errorCode, String errorMsg, Object details, boolean switchToIdle) {
+        // Navis: recovery needs the native stop position, not the last ready event.
+        if (switchToIdle && player != null) updatePosition();
         eventChannel.error(String.valueOf(errorCode), errorMsg, details);
         this.errorCode = errorCode;
         this.errorMessage = errorMsg;

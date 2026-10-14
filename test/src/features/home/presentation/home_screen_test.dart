@@ -505,6 +505,7 @@ Future<void> _pumpHomeWithSyncState(
           appSettingsProvider.overrideWithValue(
             const AsyncData(AppSettingsModel.defaults()),
           ),
+          connectivityProvider.overrideWith((ref) => const Stream.empty()),
           serverConfigStateProvider.overrideWithValue(
             const AsyncData<ServerConfigModel?>(null),
           ),
@@ -567,6 +568,7 @@ Future<void> _pumpHomeWithControllerOverride(
           appSettingsProvider.overrideWithValue(
             const AsyncData(AppSettingsModel.defaults()),
           ),
+          connectivityProvider.overrideWith((ref) => const Stream.empty()),
           serverConfigStateProvider.overrideWithValue(
             const AsyncData<ServerConfigModel?>(null),
           ),
@@ -642,6 +644,7 @@ Future<void> _pumpRandomSectionHome(
           ),
         ),
       ),
+      connectivityProvider.overrideWith((ref) => const Stream.empty()),
       serverConfigStateProvider.overrideWithValue(
         const AsyncData<ServerConfigModel?>(null),
       ),
@@ -813,6 +816,7 @@ Future<void> _pumpHomeWithAppSettings(
         database,
         overrides: <Override>[
           appSettingsProvider.overrideWithValue(AsyncData(appSettings)),
+          connectivityProvider.overrideWith((ref) => const Stream.empty()),
           serverConfigStateProvider.overrideWithValue(
             const AsyncData<ServerConfigModel?>(null),
           ),

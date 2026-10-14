@@ -9,6 +9,14 @@ extension _NavisNavigation on NavisAudioHandler {
       _seekLane.cancelCurrent();
       _cancelPendingSeek();
     }
+    _focusRetryTimer?.cancel();
+    _focusDeniedGeneration = null;
+    _focusRetries = 0;
+    _networkRetryTimer?.cancel();
+    _networkRetries = 0;
+    _pendingRemoteRecovery = null;
+    _remoteRecoveryWasOffline = false;
+    _pendingRadioRecovery = null;
     _remotePlaybackRecoveryAttempts.clear();
     if (shouldPlay != null) _latestExplicitTransportPlaying = shouldPlay;
     return ++_transportGeneration;
@@ -256,7 +264,7 @@ extension _NavisNavigation on NavisAudioHandler {
           );
           _checkQueueWorkCurrent(token, generation);
           if (shouldPlay && _isCurrentTransportIntent(transportGeneration)) {
-            unawaited(_player.play());
+            unawaited(_playWithFocusRecovery());
           }
           final preparedMetadata = _resolveCurrentQueueMetadata();
           if (preparedMetadata.currentIndex == index &&
@@ -368,7 +376,7 @@ extension _NavisNavigation on NavisAudioHandler {
         if (shouldPlay &&
             _isCurrentTransportIntent(transportGeneration) &&
             !_player.playing) {
-          unawaited(_player.play());
+          unawaited(_playWithFocusRecovery());
         }
         confirmSelection();
         _completeQueueLoad(generation);
