@@ -5,6 +5,7 @@ import 'package:navis/src/features/library/domain/library_sync_request.dart';
 
 import 'dart:convert';
 import 'dart:async';
+import 'dart:io';
 
 import 'package:dio/dio.dart';
 import 'package:drift/drift.dart' hide isNotNull, isNull;
@@ -2623,5 +2624,192 @@ void main() {
       );
       expect((await pageWork(0))!.id, isNot(pageZero.id));
     });
+
+    // Two production-style engines (own connection, 5 s busy wait) on one
+    // file. The worker's promotion transaction outlasts the foreground's busy
+    // wait, so the foreground defers; then the worker's lock is released and
+    // the foreground retries. [workerDies] makes the worker roll back instead
+    // of committing the promotion.
+    Future<void> crossConnectionHold({required bool workerDies}) async {
+      final directory = await Directory.systemTemp.createTemp('navis-xconn-');
+      addTearDown(() => directory.delete(recursive: true));
+      final path = '${directory.path}/fixture.sqlite';
+      final credentials = FakeSyncCredentialStore();
+
+      // A plain read: getOrCreateState opens a write transaction, which would
+      // wait on the worker's lock like any other write.
+      Future<LibrarySyncStateTableData> readState() => (db.select(
+        db.librarySyncStateTable,
+      )..where((t) => t.serverId.equals(serverId))).getSingle();
+
+      await db.close();
+      db = NavisDatabase.atPath(path);
+      repo = ServerConfigRepository(db, credentials: credentials);
+      serverId = await session();
+      await seed();
+      final seededAt = DateTime.now();
+      await db.librarySyncDao.writeState(
+        LibrarySyncStateTableCompanion(
+          serverId: Value(serverId),
+          currentGeneration: const Value(1),
+          lastAuditAt: Value(seededAt),
+          lastAuxiliarySyncedAt: Value(seededAt),
+        ),
+      );
+      baseline = await readState();
+      final workerDb = NavisDatabase.atPath(path);
+      addTearDown(workerDb.close);
+      final workerRepo = ServerConfigRepository(
+        workerDb,
+        credentials: credentials,
+      );
+
+      // A provisional song matched by recording id makes the promotion
+      // transaction call the remap hook, which holds the worker's lock.
+      const remapped = Song(
+        id: 's-f',
+        title: 'Song f',
+        albumId: 'f',
+        artistId: 'ar3',
+        musicBrainzId: 'recording-mbid',
+      );
+      for (final api in [apiW, apiF]) {
+        api.albumDetails['f'] = albumOf('f').copyWith(songs: [remapped]);
+      }
+      await db.libraryDao.upsertProvisionalSongs([
+        SongsTableCompanion.insert(
+          id: 'cached-remote-song',
+          title: 'Song f',
+          albumId: const Value('a'),
+          artistId: const Value('ar'),
+          recordingMbid: const Value('recording-mbid'),
+        ),
+      ]);
+      final inTransaction = Completer<void>();
+      final release = Completer<void>();
+      worker = AdaptiveLibrarySyncCoordinator(
+        executor: serialDriftEngine(
+          api: apiW,
+          database: workerDb,
+          repository: workerRepo,
+          networkType: NetworkType.wifi,
+          fastPathPageSize: 2,
+          writeChunkSize: 1,
+          onBeforeSongIdentityRemap: (_) async {
+            inTransaction.complete();
+            await release.future;
+          },
+        ),
+        database: workerDb,
+        serverConfigRepository: workerRepo,
+        networkType: NetworkType.wifi,
+        staleAfter: const Duration(hours: 1),
+        readHasActivePlayback: () => false,
+        readIsForeground: () => false,
+        isBackgroundExecution: true,
+        executionOwnerKind: 'androidWorker',
+        executionLeaseHeartbeatInterval: const Duration(milliseconds: 50),
+        executionLeaseTtl: const Duration(seconds: 10),
+      );
+      fg = newForeground(newEngine(apiF));
+      await warmUp();
+
+      final w = startWorker();
+      await inTransaction.future.timeout(const Duration(seconds: 20));
+      final candidate = (await readState()).candidateGeneration;
+      expect(candidate, baseline.currentGeneration + 1);
+
+      // The foreground's writes queue behind the worker for the full 5 s busy
+      // wait: contention, not a failure.
+      final busy = await fg.requestSync(check);
+
+      expect(busy.status, LibrarySyncStatus.deferred);
+      expect(busy.planReason, 'leaseHeld');
+      var state = await readState();
+      expect(state.failureStreak, baseline.failureStreak);
+      expect(state.nextEligibleAt, baseline.nextEligibleAt);
+      // The provider retries a live worker lease at its 30 s floor, not at
+      // the heartbeat-extended expiry.
+      final lease = (await db.librarySyncDao.getExecutionLease(serverId))!;
+      expect(lease.ownerKind, 'androidWorker');
+      expect(lease.expiresAt.isAfter(DateTime.now().toUtc()), isTrue);
+      expect(apiF.calls, isEmpty);
+
+      if (workerDies) {
+        // A killed process: the connection closes under the open transaction,
+        // which rolls back and frees the lock, but the worker's lease and
+        // running rows are left behind for the takeover to recover.
+        await workerDb.close().timeout(const Duration(seconds: 20));
+      }
+      release.complete();
+      final workerResult = await w.catchError(
+        (Object _) => const LibrarySyncState(
+          status: LibrarySyncStatus.failed,
+          stage: LibrarySyncStage.completed,
+        ),
+      );
+      if (workerDies) {
+        // The promotion rolled back: the candidate and its pages survive.
+        expect(workerResult.status, isNot(LibrarySyncStatus.succeeded));
+        expect(
+          (await readState()).currentGeneration,
+          baseline.currentGeneration,
+        );
+      } else {
+        expect(workerResult.status, LibrarySyncStatus.succeeded);
+      }
+
+      var retried = await fg.requestSync(check);
+      if (workerDies) {
+        // As test 15w: a warm foreground's first request takes over the dead
+        // worker's lease and requeues its catalog row; the next one continues
+        // the candidate.
+        expect(retried.planReason, isNot('leaseHeld'));
+        expect((await catalogWork())!.status, 'queued');
+        await expectNothingRunning();
+        retried = await fg.requestSync(check);
+      }
+
+      expect(retried.planReason, isNot('leaseHeld'));
+      expect(
+        retried.status,
+        anyOf(
+          LibrarySyncStatus.succeeded,
+          LibrarySyncStatus.partial,
+          LibrarySyncStatus.skipped,
+        ),
+      );
+      state = await readState();
+      // Exactly one promotion, of the very candidate the worker built.
+      expect(state.currentGeneration, candidate);
+      final liveAlbums = (await db.libraryDao.getAllAlbums()).map((a) => a.id);
+      expect(liveAlbums.toList()..sort(), albumIds);
+      expect(await db.librarySyncDao.getExecutionLease(serverId), isNull);
+      await expectNothingRunning();
+      expect(
+        (await db.select(db.librarySyncRunRequestTable).get()).where(
+          (r) => r.status == 1,
+        ),
+        isEmpty,
+      );
+      // No second download of anything the worker already fetched.
+      expect(fetches(apiF), only({}));
+      expect(pages(apiF).values.reduce((a, b) => a + b), lessThanOrEqualTo(2));
+      await workerDb.close();
+    }
+
+    test(
+      '26 a worker transaction past the busy wait defers the foreground, '
+      'which then finds the single promotion',
+      () => crossConnectionHold(workerDies: false),
+      timeout: const Timeout(Duration(seconds: 90)),
+    );
+
+    test(
+      '27 a worker that dies in its transaction hands the same candidate '
+      'generation to the retrying foreground',
+      () => crossConnectionHold(workerDies: true),
+      timeout: const Timeout(Duration(seconds: 90)),
+    );
   });
 }

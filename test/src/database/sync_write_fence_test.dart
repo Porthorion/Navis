@@ -15,6 +15,7 @@ import 'package:navis/src/utils/connectivity.dart';
 import 'package:sqlite3/sqlite3.dart';
 
 import '../../helpers/library_sync_fakes.dart';
+import '../../helpers/library_sync_plan.dart';
 import '../../helpers/test_database.dart';
 
 void main() {
@@ -322,6 +323,52 @@ void main() {
       },
       timeout: const Timeout(Duration(seconds: 60)),
     );
+
+    test('12a a failed lease acquire leaves the previous owner running work as it was', () async {
+      final dao = database.librarySyncDao;
+      await dao.enqueueWork(serverId: 1, kind: 'catalogSnapshot', priority: 50);
+      final work = (await dao.getWork(serverId: 1, kind: 'catalogSnapshot'))!;
+      await dao.markRunning(work.id, now: now);
+      final request = await dao.enqueueSyncRun(
+        serverId: 1,
+        plan: syncPlanForTest(LibrarySyncPlanKind.catalogSnapshot),
+        now: now,
+      );
+      final attempt = (await dao.beginSyncRunAttempt(
+        requestId: request.id,
+        androidWorker: true,
+        now: now,
+      ))!;
+      // Fail after the lease upsert, inside the acquire transaction.
+      await database.customStatement(
+        'CREATE TRIGGER fail_requeue BEFORE UPDATE ON library_sync_work '
+        "BEGIN SELECT RAISE(ABORT, 'injected'); END",
+      );
+
+      await expectLater(takeOver(), throwsA(anything));
+
+      expect((await dao.getExecutionLease(1))?.ownerToken, 'worker-owner');
+      expect(
+        (await dao.getWork(serverId: 1, kind: 'catalogSnapshot'))!.status,
+        'running',
+      );
+      final attempts = await database
+          .select(database.librarySyncRunAttemptTable)
+          .get();
+      expect(attempts.single.id, attempt.id);
+      expect(attempts.single.status, 0);
+      final requests = await database
+          .select(database.librarySyncRunRequestTable)
+          .get();
+      expect(requests.single.status, 1);
+      await database.customStatement('DROP TRIGGER fail_requeue');
+      // The worker's run is still its own: the takeover can succeed later.
+      expect(await takeOver(), isTrue);
+      expect(
+        (await dao.getWork(serverId: 1, kind: 'catalogSnapshot'))!.status,
+        'queued',
+      );
+    });
 
     // A foreground coordinator on the production connection whose worker lease
     // is gone. [onPolicyRead] sees the 1-based count of network policy reads
