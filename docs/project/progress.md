@@ -14,6 +14,22 @@ Last updated: 2026-10-14
 - ACP status values: `backlog`, `ready`, `in_progress`, `blocked`, `done`.
 
 ## Current Focus
+- [x] Silent-recovery review fixes (P2-1 to P3-9) — 2026-10-14
+  (`fix/idle-batch2`; pending song recovery belongs to its song and reloads
+  only a player that is still idle/loading/buffering; Play re-prepares a failed
+  stream once and a seek moves the recovery target; an explicit Play overrides
+  a lingering transient interruption; focus retries stop after two minutes and
+  just_audio reports `playing` only once focus is granted; radio waits for
+  device connectivity only, Android passes Media3 error codes and HTTP status,
+  permanent or ten-minute-exhausted station failures stop with one notice
+  (the notice provider now counts failures, so repeats are not dropped);
+  Personal Radio re-arms only network failures; the network signal is created
+  once per initializer. Each regression failed before its fix and passes after;
+  JVM `JustAudioErrorCodeTest`, `JustAudioRecoveryPositionTest` and
+  `NavisAudioServiceRecoveryTest` pass. `./tool/check.sh` passes: 7,999 tests,
+  one existing skip, 96 migration and 249 critical reliability tests, no
+  analyzer errors/warnings. No runtime, device or audible-playback validation
+  was run for this follow-up; no commits or stashes.)
 - [x] Overlapping first-Play radio fallback preserves newer transport intent —
   2026-10-14 (`fix/startup-hang`; existing transport/load generations and play
   intent guard recent, liked and radio fallback admission. Radio carries the

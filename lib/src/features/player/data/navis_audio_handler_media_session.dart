@@ -3,6 +3,10 @@ part of 'navis_audio_handler.dart';
 extension _NavisMediaSession on NavisAudioHandler {
   void _setCurrentMediaItem(MediaItem? item) {
     _currentMediaItem = item;
+    // A natural advance or queue edit replaced the song awaiting recovery.
+    if (_pendingRemoteRecovery?.songId != item?.id) {
+      _pendingRemoteRecovery = null;
+    }
     final nextSongId = _radioStation == null ? item?.id : null;
     if (_bufferState.songId != nextSongId) {
       _emitBufferState(
@@ -107,6 +111,7 @@ extension _NavisMediaSession on NavisAudioHandler {
   }
 
   void _wireAudioSession(AudioSession session) {
+    _audioSession = session;
     _interruptionSubscription = session.interruptionEventStream.listen((event) {
       if (event.begin) {
         if (event.type == AudioInterruptionType.duck) {
@@ -171,9 +176,15 @@ extension _NavisMediaSession on NavisAudioHandler {
       );
       // Network failures retain the station and its requested playback.
       if (_radioStation != null && _isTransientRadioFailure(error)) {
+        final station = _radioStation!;
+        final previous = _pendingRadioRecovery;
         _pendingRadioRecovery = (
           generation: _transportGeneration,
-          station: _radioStation!,
+          station: station,
+          // A repeated failure during one outage keeps its recovery budget.
+          since: identical(previous?.station, station)
+              ? previous!.since
+              : DateTime.now(),
         );
         _radioMetadataService.stop();
         AppLogger.startup(
@@ -183,34 +194,7 @@ extension _NavisMediaSession on NavisAudioHandler {
         _scheduleNetworkPlaybackRetry();
         unawaited(_recoverRadioAfterNetworkFailure());
       } else if (_radioStation != null) {
-        // Tear down radio state synchronously so that no further metadata
-        // callbacks (Azuracast polling / ICY subscription) fire while the
-        // lane is busy cleaning up the player. This also lets the UI reflect
-        // the stopped state immediately rather than waiting for lane turn.
-        _radioStation = null;
-        _radioMetadataService.stop();
-        _broadcastPlaybackState();
-        _emitSnapshot();
-        _radioStreamErrorController.add(null);
-        // Schedule player cleanup and queue restore on the lane.
-        unawaited(
-          _queueLane.run((_) async {
-            await _player.stop();
-            await _player.setAudioSources(const <AudioSource>[]);
-            queue.add(const <MediaItem>[]);
-            _setCurrentMediaItem(null);
-            _broadcastPlaybackState();
-            _emitSnapshot();
-          }),
-        );
-        unawaited(
-          _queueLane.run((token) async {
-            await _restorePreviousQueueAfterRadio(
-              token,
-              context: 'radio stream error',
-            );
-          }),
-        );
+        _stopUnavailableRadio();
       } else {
         unawaited(
           _recoverCurrentSongFromRemotePlaybackFailure(
@@ -224,6 +208,7 @@ extension _NavisMediaSession on NavisAudioHandler {
 
     _playbackEventSubscription = _player.playbackEventStream.listen((event) {
       if (!identical(_player, wiredPlayer)) return;
+      if (_player.playing) _onPlayerPlaying();
       // just_audio 0.10 reports native failures as event data. Repeated idle
       // events carry the same error; admit that failure only once.
       final failure = (

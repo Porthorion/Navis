@@ -8,8 +8,48 @@ extension _NavisRadio on NavisAudioHandler {
       (error is PlayerException &&
           navisShouldReconnectRadioSource(
             errorCode: error.code,
+            message: error.message,
             usesMediaKit: JustAudioMediaKit.isRegistered,
           ));
+
+  /// The station is gone or stayed unreachable: stop it, restore the previous
+  /// queue paused, and tell the user once, since only they can pick another.
+  void _stopUnavailableRadio() {
+    AppLogger.startup(
+      StartupEvent.radioRecovery,
+      outcome: StartupOutcome.unavailable,
+    );
+    // Tear down radio state synchronously so that no further metadata
+    // callbacks (Azuracast polling / ICY subscription) fire while the
+    // lane is busy cleaning up the player. This also lets the UI reflect
+    // the stopped state immediately rather than waiting for lane turn.
+    _radioStation = null;
+    _pendingRadioRecovery = null;
+    _networkRetryTimer?.cancel();
+    _radioMetadataService.stop();
+    _broadcastPlaybackState();
+    _emitSnapshot();
+    _radioStreamErrorController.add(null);
+    // Schedule player cleanup and queue restore on the lane.
+    unawaited(
+      _queueLane.run((_) async {
+        await _player.stop();
+        await _player.setAudioSources(const <AudioSource>[]);
+        queue.add(const <MediaItem>[]);
+        _setCurrentMediaItem(null);
+        _broadcastPlaybackState();
+        _emitSnapshot();
+      }),
+    );
+    unawaited(
+      _queueLane.run((token) async {
+        await _restorePreviousQueueAfterRadio(
+          token,
+          context: 'radio stream error',
+        );
+      }),
+    );
+  }
 
   Future<void> _recoverRadioAfterNetworkFailure() async {
     final pending = _pendingRadioRecovery;
@@ -21,7 +61,9 @@ extension _NavisRadio on NavisAudioHandler {
         _isCurrentTransportIntent(pending.generation) &&
         identical(_radioStation, pending.station);
     try {
-      if (!(await reconcileNetwork?.call() ?? true)) return;
+      // Stations are third-party hosts: they need a connection, not the
+      // Navidrome server.
+      if (!((await reconcileNetwork?.call())?.connected ?? true)) return;
       if (!current()) return;
       await _queueLane.run((token) async {
         if (!current()) return;
@@ -77,8 +119,14 @@ extension _NavisRadio on NavisAudioHandler {
       if (!_disposeHandlerStarted &&
           latest != null &&
           _isCurrentTransportIntent(latest.generation) &&
-          identical(_radioStation, latest.station))
-        _scheduleNetworkPlaybackRetry();
+          identical(_radioStation, latest.station)) {
+        if (DateTime.now().difference(latest.since) >=
+            _timeouts.radioRecovery) {
+          _stopUnavailableRadio();
+        } else {
+          _scheduleNetworkPlaybackRetry();
+        }
+      }
     }
   }
 

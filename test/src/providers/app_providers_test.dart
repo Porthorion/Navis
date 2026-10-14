@@ -314,6 +314,25 @@ class _FakePlaybackHandler extends InertPlaybackHandler {
 }
 
 void main() {
+  test('every radio stream failure reaches the notice listener', () async {
+    final errors = StreamController<void>.broadcast();
+    addTearDown(errors.close);
+    final container = ProviderContainer(
+      overrides: [
+        audioHandlerProvider.overrideWithValue(_RadioErrorHandler(errors)),
+      ],
+    );
+    addTearDown(container.dispose);
+    final notified = <AsyncValue<Object?>>[];
+    container.listen(radioStreamErrorProvider, (_, next) => notified.add(next));
+    await pumpEventQueue();
+    errors.add(null);
+    await pumpEventQueue();
+    errors.add(null);
+    await pumpEventQueue();
+    expect(notified.where((value) => value.hasValue), hasLength(2));
+  });
+
   group('appearance providers', () {
     test('expose persisted preferences and defaults while loading', () async {
       final settings = StreamController<AppSettingsModel>();
@@ -2810,4 +2829,12 @@ class _NoOpUpdateCheckStore extends UpdateCheckStore {
 
   @override
   Future<void> recordCheck([DateTime? checkedAt]) async {}
+}
+
+class _RadioErrorHandler extends InertPlaybackHandler {
+  new(this.errors);
+  final StreamController<void> errors;
+
+  @override
+  Stream<void> get radioStreamErrorStream => errors.stream;
 }

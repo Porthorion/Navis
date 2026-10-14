@@ -1086,31 +1086,25 @@ class AudioPlayer {
   /// [processingStateStream].
   ///
   /// Activates the audio session before playback. Denied focus is abandoned
-  /// between up to three attempts with bounded delays. If focus remains
-  /// unavailable, playing becomes false and [AudioFocusDeniedException] is
-  /// thrown. Pause, Stop and disposal cancel a pending activation.
+  /// between up to three attempts with bounded delays. [playing] becomes true
+  /// only once focus is granted; if focus remains unavailable,
+  /// [AudioFocusDeniedException] is thrown. Pause, Stop and disposal cancel a
+  /// pending activation.
   Future<void> play() async {
     if (_disposed) return;
     if (playing) return;
     final generation = ++_playRequestGeneration;
     _playInterrupted = false;
-    // Broadcast to clients immediately, but revert to false if we fail to
-    // activate the audio session. This allows setAudioSource to be aware of a
-    // prior play request.
-    _playerEventSubject.add(PlayerEvent(
-      playing: true,
-      playbackEvent: playbackEvent.copyWith(
-        updatePosition: position,
-        updateTime: DateTime.now(),
-      ),
-    ));
+    // Navis: report playing only once focus is granted. A load that runs
+    // while focus is pending must not take the implicit play path.
+    bool superseded() => _disposed || generation != _playRequestGeneration;
     final playCompleter = Completer<dynamic>();
     final audioSession = await AudioSession.instance;
     Future<bool> activate(bool active) =>
         _activateAudioSession?.call(active) ?? audioSession.setActive(active);
     var focused = !_handleAudioSessionActivation;
     for (var attempt = 0; !focused && attempt < 3; attempt++) {
-      if (_disposed || !playing || generation != _playRequestGeneration) return;
+      if (superseded()) return;
       if (debugAudioFocusDenialsRemaining > 0) {
         debugAudioFocusDenialsRemaining--;
         focused = false;
@@ -1118,7 +1112,7 @@ class AudioPlayer {
         focused = await activate(true);
       }
       // A delayed denial must not abandon focus acquired by a newer Play.
-      if (_disposed || !playing || generation != _playRequestGeneration) return;
+      if (superseded()) return;
       if (!focused) {
         // audio_session caches even a denied request. Abandon it before retry.
         await activate(false);
@@ -1127,30 +1121,31 @@ class AudioPlayer {
               Duration(milliseconds: 200 * (attempt + 1)));
       }
     }
-    if (_disposed || !playing || generation != _playRequestGeneration) return;
-    if (focused) {
-      if (!playing) return;
-      // TODO: rewrite this to more cleanly handle simultaneous load/play
-      // requests which each may result in platform play requests.
-      final requireActive = _playlist.children.isNotEmpty;
-      if (requireActive) {
-        if (_active) {
-          // If the native platform is already active, send it a play request.
-          // NOTE: If a load() request happens simultaneously, this may result
-          // in two play requests being sent. The platform implementation should
-          // ignore the second play request since it is already playing.
-          _sendPlayRequest(await _platform, playCompleter);
-        } else {
-          // If the native platform wasn't already active, activating it will
-          // implicitly restore the playing state and send a play request.
-          _setPlatformActive(true, playCompleter: playCompleter)
-              ?.catchError((dynamic e) async => null);
-        }
+    if (superseded() || playing) return;
+    if (!focused) throw AudioFocusDeniedException();
+    _playerEventSubject.add(PlayerEvent(
+      playing: true,
+      playbackEvent: playbackEvent.copyWith(
+        updatePosition: position,
+        updateTime: DateTime.now(),
+      ),
+    ));
+    // TODO: rewrite this to more cleanly handle simultaneous load/play
+    // requests which each may result in platform play requests.
+    final requireActive = _playlist.children.isNotEmpty;
+    if (requireActive) {
+      if (_active) {
+        // If the native platform is already active, send it a play request.
+        // NOTE: If a load() request happens simultaneously, this may result
+        // in two play requests being sent. The platform implementation should
+        // ignore the second play request since it is already playing.
+        _sendPlayRequest(await _platform, playCompleter);
+      } else {
+        // If the native platform wasn't already active, activating it will
+        // implicitly restore the playing state and send a play request.
+        _setPlatformActive(true, playCompleter: playCompleter)
+            ?.catchError((dynamic e) async => null);
       }
-    } else {
-      // Revert if we fail to activate the audio session.
-      _playerEventSubject.add(playerEvent.copyWith(playing: false));
-      throw AudioFocusDeniedException();
     }
     await playCompleter.future;
   }
@@ -1880,13 +1875,13 @@ class AudioPlayer {
 class PlayerException implements Exception {
   PlayerException(this.code, this.message, this.index);
 
-  /// On iOS and macOS, maps to `NSError.code`. On Android, maps to
-  /// `ExoPlaybackException.type`. On Web, maps to `MediaError.code`.
+  /// On iOS and macOS, maps to `NSError.code`. On Android, maps to Media3's
+  /// `PlaybackException.errorCode` (Navis). On Web, maps to `MediaError.code`.
   final int code;
 
   /// On iOS and macOS, maps to `NSError.localizedDescription`. On Android,
-  /// maps to `ExoPlaybackException.getMessage()`. On Web, a generic message
-  /// is provided.
+  /// maps to `PlaybackException.getMessage()`, followed by ` (HTTP <status>)`
+  /// for a bad HTTP status (Navis). On Web, a generic message is provided.
   final String? message;
 
   /// The index of the audio source associated with this error.

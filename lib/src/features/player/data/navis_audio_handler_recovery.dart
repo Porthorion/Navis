@@ -862,7 +862,7 @@ extension _NavisRecovery on NavisAudioHandler {
     );
   }
 
-  Future<void> _playWithFocusRecovery() async {
+  Future<void> _playWithFocusRecovery({bool lastFocusAttempt = false}) async {
     if (_disposeHandlerStarted) return;
     final generation = _transportGeneration;
     final player = _player;
@@ -871,36 +871,48 @@ extension _NavisRecovery on NavisAudioHandler {
       return;
     }
     try {
+      // Completes only when playback pauses; the playback event listener
+      // records the grant through _onPlayerPlaying.
       await player.play();
-      if (_focusDeniedGeneration == generation) {
-        _focusDeniedGeneration = null;
-        _focusRetries = 0;
-        AppLogger.startup(
-          StartupEvent.audioFocusRecovery,
-          outcome: StartupOutcome.success,
-        );
-      }
     } on AudioFocusDeniedException {
       if (_disposeHandlerStarted ||
           !_isCurrentTransportIntent(generation) ||
           !identical(player, _player))
         return;
       _focusDeniedGeneration = generation;
+      final since = _focusDeniedSince ??= DateTime.now();
+      final remaining = _timeouts.focusRetry - DateTime.now().difference(since);
+      // Publish the paused state; the notification must not show Playing.
+      _broadcastPlaybackState();
+      _emitSnapshot();
+      if (lastFocusAttempt || remaining <= Duration.zero) {
+        // Focus stayed unavailable: stay paused silently until the user acts.
+        _focusDeniedGeneration = null;
+        _focusDeniedSince = null;
+        _latestExplicitTransportPlaying = false;
+        AppLogger.startup(
+          StartupEvent.audioFocusRecovery,
+          attempt: _focusRetries,
+          outcome: StartupOutcome.timeout,
+        );
+        _broadcastPlaybackState();
+        _emitSnapshot();
+        return;
+      }
       AppLogger.startup(
         StartupEvent.audioFocusRecovery,
         attempt: ++_focusRetries,
         outcome: StartupOutcome.unavailable,
       );
+      final backoff = Duration(seconds: 1 << (_focusRetries - 1).clamp(0, 3));
+      final last = backoff >= remaining;
       _focusRetryTimer?.cancel();
-      _focusRetryTimer = Timer(
-        Duration(seconds: 1 << (_focusRetries - 1).clamp(0, 3)),
-        () {
-          if (_focusDeniedGeneration == _transportGeneration &&
-              !_audioInterrupted) {
-            unawaited(_playWithFocusRecovery());
-          }
-        },
-      );
+      _focusRetryTimer = Timer(last ? remaining : backoff, () {
+        if (_focusDeniedGeneration == _transportGeneration &&
+            !_audioInterrupted) {
+          unawaited(_playWithFocusRecovery(lastFocusAttempt: last));
+        }
+      });
     } on Object {
       // Player event errors own source recovery; never leak a Play future error.
       AppLogger.startup(
@@ -910,15 +922,32 @@ extension _NavisRecovery on NavisAudioHandler {
     }
   }
 
+  /// just_audio reports playing only once audio focus is granted.
+  void _onPlayerPlaying() {
+    if (_focusDeniedGeneration == null && _focusDeniedSince == null) return;
+    _focusRetryTimer?.cancel();
+    _focusDeniedGeneration = null;
+    _focusRetries = 0;
+    _focusDeniedSince = null;
+    AppLogger.startup(
+      StartupEvent.audioFocusRecovery,
+      outcome: StartupOutcome.success,
+    );
+  }
+
   void _scheduleNetworkPlaybackRetry() {
     if (_disposeHandlerStarted || _networkRetryTimer?.isActive == true) return;
-    _networkRetryTimer = Timer(
-      Duration(seconds: 3 * (1 << _networkRetries.clamp(0, 3))),
-      () {
-        _networkRetries++;
-        _retryNetworkPlayback();
-      },
-    );
+    var delay = Duration(seconds: 3 * (1 << _networkRetries.clamp(0, 3)));
+    // A station's last attempt falls on its recovery deadline.
+    if (_pendingRadioRecovery case final radio?) {
+      final left =
+          _timeouts.radioRecovery - DateTime.now().difference(radio.since);
+      if (left < delay) delay = left.isNegative ? Duration.zero : left;
+    }
+    _networkRetryTimer = Timer(delay, () {
+      _networkRetries++;
+      _retryNetworkPlayback();
+    });
   }
 
   void _retryNetworkPlayback() {
@@ -933,6 +962,45 @@ extension _NavisRecovery on NavisAudioHandler {
       );
     }
   }
+
+  /// Replaces the current remote song's recovery request for this transport
+  /// intent and starts recovery. False when the current song is not a remote
+  /// stream that recovery can reload.
+  bool _rearmRemoteRecovery({
+    required Duration position,
+    required bool autoPlay,
+  }) {
+    final sourceKind = _currentSourceKind;
+    final songId = _resolveCurrentQueueMetadata().mediaItem?.id;
+    if (songId == null ||
+        (sourceKind != PlaybackSourceKind.lockCachedStream.name &&
+            sourceKind != PlaybackSourceKind.directStream.name)) {
+      return false;
+    }
+    _seekFailureBlocksRecovery = false;
+    _pendingRemoteRecovery = (
+      generation: _transportGeneration,
+      songId: songId,
+      position: position,
+      autoPlay: autoPlay,
+    );
+    unawaited(
+      _recoverCurrentSongFromRemotePlaybackFailure(reason: 'user command'),
+    );
+    return true;
+  }
+
+  bool _ownsRemoteRecovery(String songId) =>
+      _pendingRemoteRecovery?.songId == songId &&
+      _pendingRemoteRecovery?.generation == _transportGeneration;
+
+  /// A failed source is idle; a stalled one is still waiting for data.
+  bool get _remotePlaybackStillFailed => switch (_player.processingState) {
+    ProcessingState.idle ||
+    ProcessingState.loading ||
+    ProcessingState.buffering => true,
+    ProcessingState.ready || ProcessingState.completed => false,
+  };
 
   void _syncRemotePlaybackStallWatchdog() {
     // A failed seek suppresses automatic recovery so it cannot later restart
@@ -1024,47 +1092,48 @@ extension _NavisRecovery on NavisAudioHandler {
     _remotePlaybackRecoveryInProgress = true;
     _cancelRemotePlaybackStallWatchdog();
     final songId = _queueItems[currentIndex].id;
-    final candidate = _pendingRemoteRecovery;
-    final pending =
-        candidate?.songId == songId &&
-            candidate?.generation == _transportGeneration
-        ? candidate
-        : null;
-    final autoPlay = pending?.autoPlay ?? _requestedPlaying;
-    final position = pending?.position ?? _player.position;
-    final transportGeneration = _transportGeneration;
-    _pendingRemoteRecovery = (
-      generation: transportGeneration,
-      songId: songId,
-      position: position,
-      autoPlay: autoPlay,
-    );
+    // The pending request is the one record of what to restore: Play and
+    // seek may update it while the network check below is awaited.
+    if (!_ownsRemoteRecovery(songId)) {
+      _pendingRemoteRecovery = (
+        generation: _transportGeneration,
+        songId: songId,
+        position: _player.position,
+        autoPlay: _requestedPlaying,
+      );
+    }
     _broadcastPlaybackState();
     _emitSnapshot();
+    final ({int generation, String songId, Duration position, bool autoPlay})
+    pending;
     try {
       var online = false;
       try {
-        online = await reconcileNetwork?.call() ?? true;
+        online = (await reconcileNetwork?.call())?.serverReachable ?? true;
       } on Object {
         AppLogger.startup(
           StartupEvent.streamRecovery,
           outcome: StartupOutcome.unavailable,
         );
       }
-      if (_disposeHandlerStarted ||
-          !_isCurrentTransportIntent(transportGeneration) ||
-          _resolveCurrentQueueMetadata().mediaItem?.id != songId ||
+      if (_disposeHandlerStarted) return;
+      final latest = _pendingRemoteRecovery;
+      // A song change, transport command or load replaced the request, or the
+      // player recovered by itself: never reload a song that plays.
+      if (latest == null ||
+          !_ownsRemoteRecovery(songId) ||
           _isLoading ||
-          _pendingSeek != null)
+          _pendingSeek != null ||
+          !_remotePlaybackStillFailed) {
+        if (latest?.songId == songId) {
+          _pendingRemoteRecovery = null;
+          _broadcastPlaybackState();
+          _emitSnapshot();
+        }
         return;
+      }
       if (!online) {
         _remoteRecoveryWasOffline = true;
-        _pendingRemoteRecovery = (
-          generation: transportGeneration,
-          songId: songId,
-          position: position,
-          autoPlay: autoPlay,
-        );
         AppLogger.startup(
           StartupEvent.streamRecovery,
           outcome: StartupOutcome.offline,
@@ -1076,11 +1145,14 @@ extension _NavisRecovery on NavisAudioHandler {
         _remotePlaybackRecoveryAttempts.clear();
         _remoteRecoveryWasOffline = false;
       }
+      pending = latest;
       _pendingRemoteRecovery = null;
     } finally {
       _remotePlaybackRecoveryInProgress = false;
     }
-    if (!_isCurrentTransportIntent(transportGeneration)) return;
+    final transportGeneration = pending.generation;
+    final position = pending.position;
+    final autoPlay = pending.autoPlay;
     _remotePlaybackRecoveryInProgress = true;
     final attemptKey = '$transportGeneration:$songId';
     final isRetry = navisShouldRetryRemotePlayback(

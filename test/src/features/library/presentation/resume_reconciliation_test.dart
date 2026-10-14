@@ -69,7 +69,10 @@ void main() {
       container.dispose();
       await database.close();
     });
-    expect(await container.read(networkReconciliationProvider)(), isTrue);
+    expect(await container.read(networkReconciliationProvider)(), (
+      connected: true,
+      serverReachable: true,
+    ));
   });
 
   test('long resume coalesces connectivity refresh and server probe', () async {
@@ -151,7 +154,7 @@ void main() {
     expect(metering, 2);
     final playbackCheck = container.read(networkReconciliationProvider)();
     ping.complete('fixture');
-    expect(await playbackCheck, isTrue);
+    expect(await playbackCheck, (connected: true, serverReachable: true));
     await pumpEventQueue();
   });
 

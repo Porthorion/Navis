@@ -52,6 +52,7 @@ import 'package:navis/src/features/player/data/windows_smtc_bridge.dart';
 import 'package:navis/src/features/player/domain/playback_snapshot.dart';
 import 'package:navis/src/utils/app_logger.dart';
 import 'package:navis/src/utils/catalog_source.dart';
+import 'package:navis/src/utils/connectivity.dart';
 import 'package:navis/src/utils/network_usage_meter.dart';
 import 'package:rxdart/rxdart.dart';
 
@@ -204,17 +205,20 @@ class NavisAudioHandler extends BaseAudioHandler
   final AudioPlayer Function()? _playerFactory;
   final NavisPlaybackTimeouts _timeouts;
 
-  final Future<bool> Function()? reconcileNetwork;
+  final Future<NetworkReconciliation> Function()? reconcileNetwork;
   StreamSubscription<void>? _networkRecoverySubscription;
   Timer? _focusRetryTimer;
   int _focusRetries = 0;
   int? _focusDeniedGeneration;
   bool _audioInterrupted = false;
+  AudioSession? _audioSession;
+  DateTime? _focusDeniedSince;
   Timer? _networkRetryTimer;
   int _networkRetries = 0;
   ({int generation, String songId, Duration position, bool autoPlay})?
   _pendingRemoteRecovery;
-  ({int generation, RadioStationMetadata station})? _pendingRadioRecovery;
+  ({int generation, RadioStationMetadata station, DateTime since})?
+  _pendingRadioRecovery;
   bool _radioRecoveryInProgress = false;
   bool _remoteRecoveryWasOffline = false;
 
@@ -1985,11 +1989,34 @@ class NavisAudioHandler extends BaseAudioHandler
     await _startupQueueRestore;
     if (!_isCurrentTransportIntent(transportGeneration)) return;
 
+    if (_audioInterrupted) {
+      // The user overrides a focus holder that may never return focus.
+      // Abandon the cached request so that Play asks for focus again.
+      _audioInterrupted = false;
+      _interruptedTransportGeneration = null;
+      try {
+        await _audioSession?.setActive(false);
+      } on Object {
+        // Play still requests focus; a stale request only delays it.
+      }
+      if (!_isCurrentTransportIntent(transportGeneration)) return;
+    }
+
+    // A failed stream is idle: re-prepare it once where it stopped.
+    if (_radioStation == null &&
+        _restoredQueueIndex == null &&
+        !_isLoading &&
+        _player.processingState == ProcessingState.idle &&
+        _rearmRemoteRecovery(position: _player.position, autoPlay: true)) {
+      return;
+    }
+
     if (_radioStation != null &&
         _player.processingState == ProcessingState.idle) {
       _pendingRadioRecovery = (
         generation: transportGeneration,
         station: _radioStation!,
+        since: DateTime.now(),
       );
       await _recoverRadioAfterNetworkFailure();
       return;
@@ -2149,6 +2176,16 @@ class NavisAudioHandler extends BaseAudioHandler
     final songId =
         _loadingSongId ?? _resolveCurrentQueueMetadata().mediaItem?.id;
     if (songId == null) return Future<void>.value();
+    final pending = _pendingRemoteRecovery;
+    if (pending != null && pending.songId == songId && !_isLoading) {
+      // A failed stream cannot seek; recovery reloads it at the new target.
+      _queueFinished = false;
+      _rearmRemoteRecovery(
+        position: navisSanitizeSeekPosition(position),
+        autoPlay: pending.autoPlay,
+      );
+      return Future<void>.value();
+    }
     _queueFinished = false;
     final generation = _supersedeTransportIntent(preserveSeek: true);
     _cancelPendingSeek();

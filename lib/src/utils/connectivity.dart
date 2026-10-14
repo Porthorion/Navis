@@ -1,5 +1,9 @@
 import 'package:connectivity_plus/connectivity_plus.dart';
 
+/// One coalesced network check: whether the device has any connection, and
+/// whether the Navidrome server answered.
+typedef NetworkReconciliation = ({bool connected, bool serverReachable});
+
 /// Simplified network type used by streaming quality logic.
 enum NetworkType { offline, wifi, cellular, other }
 

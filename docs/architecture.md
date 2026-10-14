@@ -3456,7 +3456,8 @@ Background refills retry with backoff. After five consecutive failed refills
 Same Vibes, Server Mix and Personal Radio stop refilling at `retryExhausted`;
 later playback snapshots, a cleared error notice or an expired backoff do not
 resume them. A verified network recovery re-arms Personal Radio's exhausted
-refill within its existing recommendation session. Starting a mix again also
+refill within its existing recommendation session, but only after network
+failures; rate limits, invalid keys and unsupported servers keep their backoff. Starting a mix again also
 re-arms refills.
 
 ## Startup and resume evidence
@@ -3516,30 +3517,57 @@ removal or engine reattachment occurs.
 
 Vendored just_audio abandons denied audio-focus requests, then retries twice
 with 200/400 ms delays. Exhaustion completes Play with `AudioFocusDeniedException`.
+just_audio reports `playing` only once focus is granted, so a load during the
+request cannot start native playback and a denial never publishes Playing.
 Navis retains the requested transport generation and retries silently with a
-1–8 second backoff. Pause, Stop, selection and disposal cancel pending intent;
-transient interruptions block retry until they end. A late denied activation
-cannot release a newer Play's focus. Permanent focus loss still permits a later
-explicit Play.
+1–8 second backoff for at most two minutes (`NavisPlaybackTimeouts.focusRetry`);
+it then stays paused, publishes the paused state and records the timeout in the
+startup timeline. The retry state clears when a playback event reports the
+granted focus. Pause, Stop, selection and disposal cancel pending intent;
+transient interruptions block automatic retries until they end. An explicit
+Play (app, notification, media button, Android Auto) overrides a transient
+interruption: it abandons the cached focus request and asks again. A late
+denied activation cannot release a newer Play's focus. Permanent focus loss
+still permits a later explicit Play.
 
 Lock-cache origin and range fetches have cancellable 15-second connection and
 header deadlines and a 30-second body-progress deadline. Failed partial files
 are discarded and requests may restart. `networkReconciliationProvider` shares
 the existing bounded connectivity, metering and server-reachability check
-between resume and playback. Scoped container subscriptions keep these bounded
+between resume and playback, and reports device connectivity separately from
+server reachability. Scoped container subscriptions keep these bounded
 checks active even when UI provider listeners are paused, and metering is read
 after connectivity settles so a retired future cannot stall reconciliation.
 Native just_audio error fields and legacy stream errors share one recovery
 path; repeated native error data is deduplicated. Android captures ExoPlayer's
 current position before publishing an error and switching to idle, so recovery
 uses the native failure position rather than the last ready-event position. An offline song retains its
-position and play intent without spending the reload retry. Song and station
-state remain buffering while waiting, preserving OS transport controls.
+position and play intent without spending the reload retry. The pending request
+belongs to that song: a natural advance or queue edit that changes the current
+song drops it. Before reloading, recovery checks that the player is still idle,
+loading or buffering, so a stream that recovered by itself is never reloaded or
+rewound. Pause and Play supersede the pending request; Play on an idle (failed)
+remote song re-prepares it once at its position and waits again while offline.
+A seek during the wait moves the recovery target instead of seeking the failed
+player. Song and station state remain buffering while waiting, preserving OS
+transport controls.
 Verified recovery after an observed outage re-arms the song's reload allowance
 so a later outage does not skip it.
-Network wait retries back off from 3 to 24 seconds. Internet radio retains its
-station after a transient source/network error and reconnects through the queue
-lane, unless a newer user command superseded it. A new Play during an older
+Network wait retries back off from 3 to 24 seconds. The audio handler's network
+signal fires when the server answers again or the device reconnects; it is
+created once per handler initializer, not per bootstrap attempt. Internet radio
+retains its station after a transient source/network error and reconnects
+through the queue lane, unless a newer user command superseded it. Stations are
+third-party hosts, so radio waits only for device connectivity, never for the
+Navidrome server. Android reports Media3's `PlaybackException.errorCode` and,
+for a bad HTTP status, the status: connection and timeout failures are
+transient; 4xx statuses, missing files, unsupported or malformed content and
+decoder failures are permanent. media-kit reports every source failure as code
+1, which stays transient. Transient reconnection stops after ten minutes
+(`NavisPlaybackTimeouts.radioRecovery`). A permanent failure or an exhausted
+budget stops the station, restores the previous queue paused and shows one
+"Radio stream unavailable" notice, since only the user can pick another
+station. A new Play during an older
 reconciliation re-arms its own recovery after that check finishes. Verified
 reachability also re-arms exhausted personal-radio refills without replacing
 recommendation-session

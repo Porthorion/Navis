@@ -2,15 +2,31 @@ part of 'navis_audio_handler.dart';
 
 /// Whether a native source failure can recover after reconnecting a station.
 ///
-/// Android's code 1 is a renderer failure; media-kit uses its own code 1 for
-/// terminal source errors. Do not turn Android renderer failures into retries.
+/// Android reports Media3 `PlaybackException.errorCode`: network and timeout
+/// failures are transient; a 4xx HTTP status (the vendored player appends
+/// `(HTTP <status>)` to the message), a missing file, unsupported or
+/// malformed content and decoder failures are permanent. media-kit reports
+/// every source failure as its code 1, so those stay transient and only the
+/// recovery budget ends them. Code 0 is an unclassified source failure.
 bool navisShouldReconnectRadioSource({
   required int errorCode,
+  String? message,
   required bool usesMediaKit,
-}) =>
-    errorCode == 0 ||
-    (usesMediaKit && errorCode == MediaKitPlayer.kErrorCode) ||
-    (errorCode >= 2000 && errorCode <= 2008);
+}) {
+  if (usesMediaKit && errorCode == MediaKitPlayer.kErrorCode) return true;
+  if (errorCode == 2004) {
+    final status = RegExp(r'\(HTTP (\d{3})\)').firstMatch(message ?? '');
+    final code = int.tryParse(status?.group(1) ?? '');
+    return code == null || code < 400 || code >= 500;
+  }
+  return switch (errorCode) {
+    // Unclassified, unspecified, remote, behind live window and timeout.
+    0 || 1000 || 1001 || 1002 || 1003 => true,
+    // Unspecified IO, connection failed or timed out, read out of range.
+    2000 || 2001 || 2002 || 2008 => true,
+    _ => false,
+  };
+}
 
 enum NavisAndroidAutoSearchType {
   empty,

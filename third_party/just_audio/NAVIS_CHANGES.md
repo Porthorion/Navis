@@ -34,3 +34,17 @@ still provide sized ranges.
 
 Keep upgrades narrow and re-run the native response/lifecycle fixtures and
 Navis playback tests when updating either vendored package.
+
+Android source errors report Media3's `PlaybackException.errorCode` (for
+example 2001 for a failed connection, 2005 for a missing file) instead of the
+coarse `ExoPlaybackException.type`, and a bad HTTP status appends
+` (HTTP <status>)` to the error message. Navis uses both to tell a dead radio
+station from a network failure.
+
+`AudioPlayer.play()` abandons a denied audio-focus request and asks again up
+to three times, then throws `AudioFocusDeniedException`; Pause, Stop and
+disposal cancel a pending request. It reports `playing` only once focus is
+granted. A
+load that runs while focus is pending therefore cannot start native playback
+through the implicit play path, and a denied request never publishes a
+transient playing state.

@@ -34,6 +34,27 @@ void main() {
         isTrue,
       );
     });
+    test(
+      'radio treats Android missing, malformed and 4xx sources as permanent',
+      () {
+        bool reconnects(int code, [String? message]) =>
+            navisShouldReconnectRadioSource(
+              errorCode: code,
+              message: message,
+              usesMediaKit: false,
+            );
+        expect(reconnects(2002), isTrue);
+        expect(reconnects(1003), isTrue);
+        expect(reconnects(2004, 'Source error (HTTP 503)'), isTrue);
+        expect(reconnects(2004, 'Source error'), isTrue);
+        expect(reconnects(2004, 'Source error (HTTP 404)'), isFalse);
+        expect(reconnects(2004, 'Source error (HTTP 403)'), isFalse);
+        expect(reconnects(2005), isFalse);
+        expect(reconnects(2003), isFalse);
+        expect(reconnects(3003), isFalse);
+        expect(reconnects(4001), isFalse);
+      },
+    );
     for (final (playing, transportAction) in [
       (false, MediaAction.play),
       (true, MediaAction.pause),

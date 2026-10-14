@@ -836,9 +836,9 @@ class _AppShellState extends ConsumerState<AppShell> {
       }
     });
     // Global Radio stream error snackbar.
-    ref.listen<AsyncValue<void>>(radioStreamErrorProvider, (prev, next) {
+    ref.listen<AsyncValue<int>>(radioStreamErrorProvider, (prev, next) {
       if (!mounted) return;
-      if (next.hasValue && prev != null && prev.hasValue) {
+      if (next.hasValue && next.value != prev?.value) {
         _appNoticeController.show(
           message: l10n.radioStreamUnavailable,
           level: AppNoticeLevel.error,

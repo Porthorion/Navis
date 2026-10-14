@@ -305,6 +305,37 @@ void main() {
       },
     );
 
+    testWidgets(
+      'network recovery leaves a rate-limited refill on its backoff',
+      (tester) async {
+        final radio = container.read(personalRadioProvider.notifier);
+        final start = radio.start();
+        calls[0].complete(batchOf(['r1']));
+        await tester.pump();
+        await start;
+        radio.requestSkipAfterRefill(0, 'r1');
+        await tester.pump();
+        expect(calls, hasLength(2));
+        calls[1].complete(
+          const RecommendationBatch(
+            songs: [],
+            source: RecommendationSource.server,
+            issue: RecommendationIssue.rateLimited,
+          ),
+        );
+        await tester.pump();
+        expect(container.read(personalRadioProvider).retryCount, 1);
+        (container.read(
+          serverReachabilityControllerProvider.notifier,
+        ) as _Reachability).recover();
+        await tester.pump();
+        expect(calls, hasLength(2));
+        expect(container.read(personalRadioProvider).retryCount, 1);
+        radio.stop();
+        await tester.pump(const Duration(seconds: 31));
+      },
+    );
+
     test('refill starts at eight remaining tracks, but not nine', () async {
       final radio = container.read(personalRadioProvider.notifier);
       final start = radio.start();

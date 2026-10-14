@@ -12,6 +12,7 @@ extension _NavisNavigation on NavisAudioHandler {
     _focusRetryTimer?.cancel();
     _focusDeniedGeneration = null;
     _focusRetries = 0;
+    _focusDeniedSince = null;
     _networkRetryTimer?.cancel();
     _networkRetries = 0;
     _pendingRemoteRecovery = null;

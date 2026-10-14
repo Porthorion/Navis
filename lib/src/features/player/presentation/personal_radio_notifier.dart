@@ -73,6 +73,8 @@ class PersonalRadioNotifier extends Notifier<PersonalRadioState> {
           session == null ||
           !state.active ||
           _failures == 0 ||
+          // Rate limits, keys and unsupported servers keep their backoff.
+          state.issue != RecommendationIssue.networkFailure ||
           !ref.read(recommendationSessionProvider.notifier).owns(session))
         return;
       _retryTimer?.cancel();
