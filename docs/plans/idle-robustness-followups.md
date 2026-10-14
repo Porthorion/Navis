@@ -176,7 +176,17 @@ outside this evidence. See [completion evidence](../project/progress.md#current-
 
 ## 14. Several overdue subsystems resume together
 
-**Likelihood:** medium for contention. Doze can release due download retries,
+**14a completed for 1.5.0 — 2026-10-15.** Radio metadata allows one Azuracast
+poll in flight per station generation, so a slow response after an unfreeze or
+on a poor network no longer stacks later ticks; a station switch, stop or policy
+change still polls immediately. Regressions: `a slow Azuracast response never
+overlaps the next poll` and `a station switch is not blocked by the previous
+station's slow poll`. **14b** (coalescing downloads and scrobbles behind resume
+reconciliation) and **14c** (downloads yielding to network playback loading) are
+**deferred to 1.5.1**: there is no runtime evidence of contention, and both
+touch download retry accounting or couple services to player state.
+
+**Original finding — likelihood:** medium for contention. Doze can release due download retries,
 scrobble dispatch, playback watchdogs, radio polling and sync close together.
 There is no evidence that every missed periodic timer tick is replayed. Sync
 already cancels its background timer and re-arms one durable deadline; scrobbles
