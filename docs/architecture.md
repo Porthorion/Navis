@@ -3559,7 +3559,9 @@ A seek during the wait moves the recovery target instead of seeking the failed
 player, and still applies if the song plays again by itself, including when
 Play arrives while the network check runs. While a load or another seek owns
 the song, Play and seek take their normal path; a Play during a reload starts
-the reloaded song, as a plain seek and Play when recovery cannot start again. Song and station state remain buffering while waiting, preserving OS
+the reloaded song. If the reloaded song fails again while the rest of the
+queue is still loading, the Play waits and restarts recovery once that load
+completes; only an error-free event that is not idle clears the failure. Song and station state remain buffering while waiting, preserving OS
 transport controls.
 Verified recovery after an observed outage re-arms the song's reload allowance
 so a later outage does not skip it.

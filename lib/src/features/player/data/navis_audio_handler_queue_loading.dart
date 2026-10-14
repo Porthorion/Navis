@@ -160,6 +160,7 @@ extension _NavisQueueLoading on NavisAudioHandler {
     _broadcastPlaybackState();
     _applyReplayGainVolume();
     _syncRemotePlaybackStallWatchdog();
+    _rearmHeldRemoteRecovery();
     if (_navigationIntent.isPending &&
         _navigationIntent.desiredIndex == _logicalCurrentIndex) {
       _navigationIntent.confirm(_navigationIntent.revision);

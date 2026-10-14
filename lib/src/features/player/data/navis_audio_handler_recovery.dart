@@ -994,6 +994,29 @@ extension _NavisRecovery on NavisAudioHandler {
     return true;
   }
 
+  /// Restarts recovery for the Play or seek held on the current failed song.
+  /// While a load still owns the song the request is kept, and
+  /// _completeQueueLoad calls this again once the load ends.
+  void _rearmHeldRemoteRecovery() {
+    final request = _pendingRemoteRecovery;
+    final songId = _resolveCurrentQueueMetadata().mediaItem?.id;
+    if (request == null ||
+        songId == null ||
+        !_ownsRemoteRecovery(songId) ||
+        _remotePlaybackRecoveryInProgress ||
+        !_remoteSourceFailed ||
+        _isLoading ||
+        _pendingLogicalQueueSongIds != null) {
+      return;
+    }
+    if (!_rearmRemoteRecovery(
+      position: request.position,
+      autoPlay: request.autoPlay,
+    )) {
+      _applyPendingRemoteRecovery();
+    }
+  }
+
   bool _ownsRemoteRecovery(String songId) =>
       _pendingRemoteRecovery?.songId == songId &&
       _pendingRemoteRecovery?.generation == _transportGeneration;
@@ -1256,13 +1279,9 @@ extension _NavisRecovery on NavisAudioHandler {
       // A Play during the reload re-armed this song; the reload yielded to it.
       final request = _pendingRemoteRecovery;
       if (request != null && _ownsRemoteRecovery(songId)) {
-        // When recovery cannot start again (the queue is still filling), the
-        // request applies as a plain seek and Play.
-        if (!_remoteSourceFailed ||
-            !_rearmRemoteRecovery(
-              position: request.position,
-              autoPlay: request.autoPlay,
-            )) {
+        if (_remoteSourceFailed) {
+          _rearmHeldRemoteRecovery();
+        } else {
           _applyPendingRemoteRecovery();
         }
       }

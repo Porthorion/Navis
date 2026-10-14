@@ -581,6 +581,9 @@ class _ControllableAudioPlayer extends Fake implements AudioPlayer {
     playRequested = true;
     if (ignorePlay) return;
     if (failPlay) throw StateError('play unavailable');
+    // Like a native player after an error: Play neither re-prepares nor
+    // plays the failed source.
+    if (state == ProcessingState.idle && errorCode != null) return;
     if (!isPlaying) playedFrom.add(position);
     _positionUpdated = DateTime.now();
     isPlaying = true;
@@ -2047,7 +2050,8 @@ void main() {
         final fill = Completer<void>();
         player
           ..failAfterLoad = true
-          ..appendGate = fill;
+          ..appendGate = fill
+          ..appendEntered = Completer<void>();
         gate.complete();
         await adding;
         await pumpEventQueue(times: 100);
@@ -2055,9 +2059,49 @@ void main() {
         fill.complete();
         await pumpEventQueue(times: 100);
         await settleQueue(handler);
+        expect(player.state, ProcessingState.ready);
         expect(player.playing, isTrue);
       },
     );
+
+    test('an error event that is not idle still counts as a failure', () async {
+      var online = false;
+      final recovered = StreamController<void>.broadcast();
+      addTearDown(recovered.close);
+      final (handler, player, _) = await setup(
+        reconcile: () async => net(online: online),
+        recovered: recovered.stream,
+        remote: true,
+      );
+      await handler.replaceQueue(
+        ['song-0', 'song-1'],
+        autoPlay: false,
+        expandMatchFlows: false,
+      );
+      player
+        ..simulatedPosition = const Duration(seconds: 42)
+        ..state = ProcessingState.idle
+        ..errorCode = 0;
+      player._events.add(
+        PlaybackEvent(
+          processingState: ProcessingState.buffering,
+          updatePosition: const Duration(seconds: 42),
+          currentIndex: 0,
+          errorCode: 0,
+          errorMessage: 'Source error',
+        ),
+      );
+      await pumpEventQueue(times: 20);
+      await handler.play();
+      await pumpEventQueue(times: 20);
+      final loads = player.sourceLoads;
+      online = true;
+      recovered.add(null);
+      await pumpEventQueue(times: 100);
+      await settleQueue(handler);
+      expect(player.sourceLoads, greaterThan(loads));
+      expect(player.playing, isTrue);
+    });
 
     test('Play on a failed song during a seek never hangs', () async {
       final (handler, player, _) = await setup(
@@ -2122,15 +2166,17 @@ void main() {
           expandMatchFlows: false,
         );
         // just_audio's idle player keeps the failed song's error until the
-        // next song is prepared (a load with preload: false).
+        // next song is prepared (a load with preload: false); its Play loads
+        // the song.
         player
           ..state = ProcessingState.idle
-          ..errorCode = 0;
+          ..errorCode = 0
+          ..playRequested = false;
         final loads = player.sourceLoads;
         await handler.play();
         await pumpEventQueue(times: 100);
         expect(player.sourceLoads, loads);
-        expect(player.playing, isTrue);
+        expect(player.playRequested, isTrue);
       },
     );
 
