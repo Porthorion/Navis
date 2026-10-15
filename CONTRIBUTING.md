@@ -36,7 +36,7 @@ Use the bug report, enhancement or server compatibility template, and search [ex
 - Read the whole diff yourself for stray edits, local paths and credentials.
 - For non-trivial changes, get an independent or adversarial review and resolve its findings.
 - Update the relevant documentation in the same pull request.
-- Target `dev` (see [Branches](#branches)).
+- Target `dev`, or `release/X.Y` for a fix to a shipped version (see [Branches](#branches)).
 - Fill in the [pull request template](.github/pull_request_template.md). Everything on GitHub is public, so leave out private hostnames, IPs, local paths and credentials, and leave out working-session history.
 
 Read [AGENTS.md](AGENTS.md) and [docs/development/agentic-engineering.md](docs/development/agentic-engineering.md); they are the canonical project rules, including the Definition of Done. [docs/README.md](docs/README.md) indexes the subsystem docs.
@@ -56,9 +56,9 @@ AI-assisted work is welcome; most of Navis is written with AI help. The person w
 
 ## Who gets credit
 
-Development happens in a private mirror. Maintainers merge GitHub pull requests locally and push the result to GitHub (see [Branches](#branches)). To keep credit clear:
+Pull requests are merged on GitHub with a merge commit. To keep credit clear:
 
-- Maintainers keep your original commits and authorship by merging without rewriting them. GitHub then shows the pull request as merged, and you appear in the history and the contributor graph.
+- Maintainers keep your original commits and authorship by merging without rewriting them. You appear in the history and the contributor graph.
 - If a squash or rewrite is unavoidable, the resulting commit carries a `Co-authored-by: Name <email>` trailer for every contributor, and the pull request is closed with a comment linking that commit.
 - AI agents that wrote a substantial part of a commit are credited with a trailer in the form `Co-Authored-By: <Agent/Model> <noreply@...>`.
 - Release notes may thank contributors by GitHub handle.
@@ -74,10 +74,10 @@ Use [GitHub Discussions](https://github.com/Porthorion/Navis/discussions) for ho
 ## Branches
 
 - `dev`: new features and general fixes. Target pull requests here.
-- `release/X.Y` (for example `release/1.5`): the version currently in final
-  testing. Only fixes for that release land here; maintainers merge them back
-  into `dev`. If your fix is for a bug in the upcoming release, mention it in
-  the pull request and we'll route it.
+- `release/X.Y` (for example `release/1.5`): the maintenance line of a
+  release. Fixes to that version target this branch; maintainers merge them
+  back into `dev`. If unsure, target `dev` and mention it in the pull request.
 - `main`: released code only, tagged `vX.Y.Z` on release day.
 
-Development happens in a private repository. On GitHub, `dev` is the integration branch and `main` holds releases. Maintainers merge accepted pull requests locally and push them to GitHub, so the merge commit may differ from your branch while your commits and authorship are kept.
+Use a topic branch named `<type>/<short-kebab>`. The full workflow is in
+[docs/development/git-workflow.md](docs/development/git-workflow.md).

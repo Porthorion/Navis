@@ -1420,7 +1420,7 @@ This runs `./tool/check.sh` before each commit.
 
 ## Publishing a Release
 
-When a feature, bug fix, or phase is complete and merged to `main`:
+When a feature, bug fix, or phase is complete and merged to `dev`, release it from `release/X.Y` as described in [git-workflow.md](git-workflow.md#versions-and-releases):
 
 ```bash
 ./tool/release.sh v0.2.0

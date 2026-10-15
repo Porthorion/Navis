@@ -178,23 +178,17 @@ are planning/evidence records, not implementation authority.
 
 ## Repository operations
 
-Development happens in Porthorion's private repository (remote `origin`). The public
-source is `https://github.com/Porthorion/Navis` (remote `github`): only `main`,
-`dev` and version tags are pushed there, never feature branches, and public
-issues live on GitHub. The maintainer clone gives `origin` two push URLs
-(Forgejo and GitHub), so one `git push origin dev` updates both with no runner
-or mirror; GitHub pull requests are merged locally and pushed back the same way.
-Never force-push shared branches.
-
-Branches: `main` is exactly what has been released (it changes only on release
-day, then gets the `vX.Y.Z` tag); `dev` collects work for the next version;
-`release/X.Y` is cut from `dev` when a version enters final testing and then
-accepts fixes only, never features. Every fix that lands on `release/X.Y` is
-merged back into `dev`. Test builds and the final release are built from
-`release/X.Y`, which merges into `main` on release day. Hotfixes for a shipped
-version branch from `main` (or the release branch) and merge back to both.
-Feature and fix branches stay local and short-lived. Forgejo's public `khalifa/Navis` keeps only a README and
-the 1.5.0 bridge release for 1.4.x updaters. Never print credential material.
+The public GitHub repository `Porthorion/Navis` is the primary place for work:
+every change goes through a topic branch (`<type>/<short-kebab>`) and a GitHub
+pull request, so CI runs before merge. The private Forgejo repository is the
+owner's backup; the maintainer clone's `origin` has two push URLs so one
+`git push origin <branch>` updates both. `main` is exactly what has been
+released; `dev` collects the next version; `release/X.Y` is cut from `dev` at
+feature freeze and stays as the X.Y.x maintenance line (fixes only, merged back
+into `dev`). Pull requests target `dev`, or `release/X.Y` for a fix to a shipped
+line, and merge with a merge commit. Never force-push `main`, `dev` or
+`release/*`. Full rules: [docs/development/git-workflow.md](docs/development/git-workflow.md).
+Never print credential material.
 
 Tool compatibility entry points are `.cursor/rules/navis-agents.mdc`,
 `CLAUDE.md`, `GEMINI.md`, and `.github/copilot-instructions.md`. They are
