@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:dio/dio.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
@@ -7,6 +9,17 @@ import 'package:uuid/uuid.dart';
 class _MockUuid extends Mock implements Uuid;
 
 void main() {
+  test('subsonicClientName names the platform', () {
+    expect(
+      subsonicClientName,
+      'Navis [${Platform.isLinux
+          ? 'Linux'
+          : Platform.isWindows
+          ? 'Windows'
+          : 'macOS'}]',
+    );
+  });
+
   group('buildSubsonicAuthQuery', () {
     test(
       'uses the first 12 UUID hex characters and hashes password plus salt',
@@ -50,7 +63,7 @@ void main() {
         expect(query, <String, String>{
           'u': 'bob',
           'v': '1.12.0',
-          'c': 'Navis',
+          'c': subsonicClientName,
           'f': 'json',
           'p': 'enc:70c3a47373f09f9492',
         });
@@ -104,7 +117,7 @@ void main() {
 
       expect(captured.queryParameters['id'], 'track-1');
       expect(captured.queryParameters['u'], 'alice');
-      expect(captured.queryParameters['c'], 'Navis');
+      expect(captured.queryParameters['c'], subsonicClientName);
       expect(captured.queryParameters['s'], isNot('old-salt'));
       expect(captured.queryParameters['t'], isNot('old-token'));
       expect(captured.queryParameters['v'], '1.16.1');
@@ -160,7 +173,7 @@ void main() {
       expect(captured.queryParameters['id'], 'track-1');
       expect(captured.queryParameters['u'], 'bob');
       expect(captured.queryParameters['v'], '1.12.0');
-      expect(captured.queryParameters['c'], 'Navis');
+      expect(captured.queryParameters['c'], subsonicClientName);
       expect(captured.queryParameters['p'], 'enc:68756e74657232');
       expect(captured.queryParameters['f'], 'json');
       expect('${captured.queryParameters['p']}', startsWith('enc:'));

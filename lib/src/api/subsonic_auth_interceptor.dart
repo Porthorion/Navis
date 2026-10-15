@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:io';
 
 import 'package:convert/convert.dart';
 import 'package:crypto/crypto.dart';
@@ -14,16 +15,30 @@ class SubsonicAuthConfig {
     required this.username,
     required this.password,
     required this.apiVersion,
-    this.client = 'Navis',
+    this.client,
     this.authType = SubsonicAuthType.token,
   });
 
   final String username;
   final String password;
   final String apiVersion;
-  final String client;
+
+  /// Overrides [subsonicClientName]; tests only.
+  final String? client;
   final SubsonicAuthType authType;
 }
+
+/// Player name servers show, e.g. `Navis [Android]`. Stable per platform so
+/// Navidrome keeps one player entry per platform.
+final String subsonicClientName =
+    'Navis [${switch (Platform.operatingSystem) {
+      'android' => 'Android',
+      'linux' => 'Linux',
+      'windows' => 'Windows',
+      'macos' => 'macOS',
+      'ios' => 'iOS',
+      final other => other,
+    }}]';
 
 /// Builds the Subsonic authentication and protocol query parameters.
 Map<String, String> buildSubsonicAuthQuery(
@@ -33,7 +48,7 @@ Map<String, String> buildSubsonicAuthQuery(
   final query = <String, String>{
     'u': config.username,
     'v': config.apiVersion,
-    'c': config.client,
+    'c': config.client ?? subsonicClientName,
     'f': 'json',
   };
   switch (config.authType) {
