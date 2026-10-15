@@ -104,21 +104,17 @@ class NavisBackgroundSyncWorker(
                 timelineOutcome = "timeout"
                 val outcome = BackgroundSyncNativeFailure.TIMEOUT.outcome
                 outcomeStore.record(profileKey, outcome.result, outcome.stopReason)
+                cancelCheckpoint(session)
                 Result.retry()
             } catch (error: CancellationException) {
                 val outcome = BackgroundSyncNativeFailure.CANCELLED.outcome
                 outcomeStore.record(profileKey, outcome.result, outcome.stopReason)
-                withContext(NonCancellable + Dispatchers.Main.immediate) {
-                    runCatching {
-                        withTimeout(cancellationCheckpointTimeoutMillis) {
-                            session?.cancel()
-                        }
-                    }
-                }
+                cancelCheckpoint(session)
                 throw error
             } catch (_: Throwable) {
                 val outcome = BackgroundSyncNativeFailure.BOOTSTRAP_FAILURE.outcome
                 outcomeStore.record(profileKey, outcome.result, outcome.stopReason)
+                cancelCheckpoint(session)
                 Result.retry()
             } finally {
                 withContext(NonCancellable + Dispatchers.Main.immediate) {
@@ -135,6 +131,15 @@ class NavisBackgroundSyncWorker(
             } finally {
                 StartupWorkerTimeline.record(applicationContext, "workerExit", timelineOutcome,
                     android.os.SystemClock.elapsedRealtime() - timelineStart)
+            }
+        }
+    }
+
+    /** Bounded Dart-side cancel (drains the sync and releases its lease) before engine teardown. */
+    private suspend fun cancelCheckpoint(session: BackgroundSyncFlutterSession?) {
+        withContext(NonCancellable + Dispatchers.Main.immediate) {
+            runCatching {
+                withTimeout(cancellationCheckpointTimeoutMillis) { session?.cancel() }
             }
         }
     }

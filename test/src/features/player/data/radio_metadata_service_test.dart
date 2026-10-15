@@ -19,6 +19,8 @@ class _MockPlayer extends Mock implements AudioPlayer;
 
 class _CountingAdapter implements HttpClientAdapter {
   final requested = <Uri>[];
+  Duration? lastConnectTimeout;
+  Duration? lastReceiveTimeout;
   String? body;
   int statusCode = 200;
   DioExceptionType? failure;
@@ -31,6 +33,8 @@ class _CountingAdapter implements HttpClientAdapter {
     Future<void>? cancelFuture,
   ) async {
     requested.add(options.uri);
+    lastConnectTimeout = options.connectTimeout;
+    lastReceiveTimeout = options.receiveTimeout;
     if (pending case final request?) return await request.future;
     if (failure case final type?) {
       throw DioException(requestOptions: options, type: type);
@@ -125,6 +129,10 @@ void main() {
         final service = build();
         listen(service);
         settle(async);
+        if (failure == 'timeout') {
+          expect(adapter.lastConnectTimeout, const Duration(seconds: 10));
+          expect(adapter.lastReceiveTimeout, const Duration(seconds: 10));
+        }
         verifyNever(
           () => handler.updateRadioMetadata(
             title: 'ICY Song',
@@ -348,6 +356,58 @@ void main() {
       service.dispose();
     });
   });
+
+  test('a slow Azuracast response never overlaps the next poll', () {
+    fakeAsync((async) {
+      final pending = Completer<ResponseBody>();
+      adapter.pending = pending;
+      final service = build();
+      listen(service);
+      settle(async);
+      async.elapse(RadioMetadataService.pollingInterval * 3);
+      settle(async);
+      expect(adapter.requested, hasLength(1));
+
+      adapter.pending = null;
+      pending.complete(
+        ResponseBody.fromString(
+          '{"now_playing":{"song":{"title":"Song"}}}',
+          200,
+          headers: {
+            Headers.contentTypeHeader: ['application/json'],
+          },
+        ),
+      );
+      settle(async);
+      async.elapse(RadioMetadataService.pollingInterval);
+      settle(async);
+      expect(adapter.requested, hasLength(2));
+      service.dispose();
+    });
+  });
+
+  test(
+    "a station switch is not blocked by the previous station's slow poll",
+    () {
+      fakeAsync((async) {
+        adapter.pending = Completer<ResponseBody>();
+        final service = build();
+        listen(service);
+        settle(async);
+        expect(adapter.requested, hasLength(1));
+
+        service.startListening(
+          stationId: 'other',
+          azuracastApiUrl: 'https://other.example.invalid',
+          stationShortName: 'second',
+        );
+        settle(async);
+        expect(adapter.requested, hasLength(2));
+        expect(adapter.requested.last.host, 'other.example.invalid');
+        service.dispose();
+      });
+    },
+  );
 
   test('does not poll at all when radio lookups are off at the start', () {
     policy = const IntegrationPolicy(disabledKeys: {'radio.nowPlaying'});

@@ -5,6 +5,7 @@ import 'package:navis/src/api/listenbrainz_api_client.dart';
 import 'package:navis/src/api/subsonic_api_client.dart';
 import 'package:navis/src/database/daos/scrobble_dao.dart';
 import 'package:navis/src/database/navis_database.dart';
+import 'package:navis/src/features/auth/data/secure_credential_store.dart';
 import 'package:navis/src/features/integrations/domain/integration_feature.dart';
 import 'package:navis/src/utils/app_logger.dart';
 
@@ -205,10 +206,21 @@ class DriftScrobbleService implements ScrobbleService {
     if (_readScrobbleEnabled()) {
       providers.add(ScrobbleProvider.subsonic);
     }
-    if (await _readListenBrainzCredentials() != null) {
+    if (await _listenBrainzMayBeActive()) {
       providers.add(ScrobbleProvider.listenBrainz);
     }
     return providers;
+  }
+
+  /// Credential storage may be briefly unavailable; an unreadable token is
+  /// not an absent one, so listens stay queued for a later flush instead of
+  /// being dropped or silently skipping the ListenBrainz provider.
+  Future<bool> _listenBrainzMayBeActive() async {
+    try {
+      return await _readListenBrainzCredentials() != null;
+    } on CredentialReadException {
+      return true;
+    }
   }
 
   @override
@@ -219,8 +231,7 @@ class DriftScrobbleService implements ScrobbleService {
     _isDispatching = true;
     try {
       final hasAnyProvider =
-          _readScrobbleEnabled() ||
-          await _readListenBrainzCredentials() != null;
+          _readScrobbleEnabled() || await _listenBrainzMayBeActive();
       if (!hasAnyProvider) {
         await _dao.clearAll();
         _stopDispatchTimer();

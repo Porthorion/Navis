@@ -114,6 +114,7 @@ class AudioPlayer {
     bool handleInterruptions = true,
     bool androidApplyAudioAttributes = true,
     bool handleAudioSessionActivation = true,
+    @visibleForTesting Future<bool> Function(bool)? activateAudioSession,
     AudioLoadConfiguration? audioLoadConfiguration,
     AudioPipeline? audioPipeline,
     EqualizerConfigurationMessage? equalizerConfiguration,
@@ -129,6 +130,7 @@ class AudioPlayer {
         _androidApplyAudioAttributes =
             androidApplyAudioAttributes && _isAndroid(),
         _handleAudioSessionActivation = handleAudioSessionActivation,
+        _activateAudioSession = activateAudioSession,
         _audioLoadConfiguration = audioLoadConfiguration,
         _equalizerConfiguration = equalizerConfiguration,
         _audioPipeline = audioPipeline ?? AudioPipeline(),
@@ -1061,6 +1063,13 @@ class AudioPlayer {
     return duration;
   }
 
+  final Future<bool> Function(bool)? _activateAudioSession;
+  int _playRequestGeneration = 0;
+
+  /// Clone diagnostics may deny a bounded number of focus requests.
+  @visibleForTesting
+  int debugAudioFocusDenialsRemaining = 0;
+
   /// Tells the player to play audio at the current [speed] and [volume] as soon
   /// as an audio source is loaded and ready to play. If an audio source has
   /// been set but not preloaded, this method will also initiate the loading.
@@ -1076,15 +1085,44 @@ class AudioPlayer {
   /// [processingState] becomes [ProcessingState.completed] by listening to
   /// [processingStateStream].
   ///
-  /// This method activates the audio session before playback, and will do
-  /// nothing if activation of the audio session fails for any reason.
+  /// Activates the audio session before playback. Denied focus is abandoned
+  /// between up to three attempts with bounded delays. [playing] becomes true
+  /// only once focus is granted; if focus remains unavailable,
+  /// [AudioFocusDeniedException] is thrown. Pause, Stop and disposal cancel a
+  /// pending activation.
   Future<void> play() async {
     if (_disposed) return;
     if (playing) return;
+    final generation = ++_playRequestGeneration;
     _playInterrupted = false;
-    // Broadcast to clients immediately, but revert to false if we fail to
-    // activate the audio session. This allows setAudioSource to be aware of a
-    // prior play request.
+    // Navis: report playing only once focus is granted. A load that runs
+    // while focus is pending must not take the implicit play path.
+    bool superseded() => _disposed || generation != _playRequestGeneration;
+    final playCompleter = Completer<dynamic>();
+    final audioSession = await AudioSession.instance;
+    Future<bool> activate(bool active) =>
+        _activateAudioSession?.call(active) ?? audioSession.setActive(active);
+    var focused = !_handleAudioSessionActivation;
+    for (var attempt = 0; !focused && attempt < 3; attempt++) {
+      if (superseded()) return;
+      if (debugAudioFocusDenialsRemaining > 0) {
+        debugAudioFocusDenialsRemaining--;
+        focused = false;
+      } else {
+        focused = await activate(true);
+      }
+      // A delayed denial must not abandon focus acquired by a newer Play.
+      if (superseded()) return;
+      if (!focused) {
+        // audio_session caches even a denied request. Abandon it before retry.
+        await activate(false);
+        if (attempt < 2)
+          await Future<void>.delayed(
+              Duration(milliseconds: 200 * (attempt + 1)));
+      }
+    }
+    if (superseded() || playing) return;
+    if (!focused) throw AudioFocusDeniedException();
     _playerEventSubject.add(PlayerEvent(
       playing: true,
       playbackEvent: playbackEvent.copyWith(
@@ -1092,30 +1130,22 @@ class AudioPlayer {
         updateTime: DateTime.now(),
       ),
     ));
-    final playCompleter = Completer<dynamic>();
-    final audioSession = await AudioSession.instance;
-    if (!_handleAudioSessionActivation || await audioSession.setActive(true)) {
-      if (!playing) return;
-      // TODO: rewrite this to more cleanly handle simultaneous load/play
-      // requests which each may result in platform play requests.
-      final requireActive = _playlist.children.isNotEmpty;
-      if (requireActive) {
-        if (_active) {
-          // If the native platform is already active, send it a play request.
-          // NOTE: If a load() request happens simultaneously, this may result
-          // in two play requests being sent. The platform implementation should
-          // ignore the second play request since it is already playing.
-          _sendPlayRequest(await _platform, playCompleter);
-        } else {
-          // If the native platform wasn't already active, activating it will
-          // implicitly restore the playing state and send a play request.
-          _setPlatformActive(true, playCompleter: playCompleter)
-              ?.catchError((dynamic e) async => null);
-        }
+    // TODO: rewrite this to more cleanly handle simultaneous load/play
+    // requests which each may result in platform play requests.
+    final requireActive = _playlist.children.isNotEmpty;
+    if (requireActive) {
+      if (_active) {
+        // If the native platform is already active, send it a play request.
+        // NOTE: If a load() request happens simultaneously, this may result
+        // in two play requests being sent. The platform implementation should
+        // ignore the second play request since it is already playing.
+        _sendPlayRequest(await _platform, playCompleter);
+      } else {
+        // If the native platform wasn't already active, activating it will
+        // implicitly restore the playing state and send a play request.
+        _setPlatformActive(true, playCompleter: playCompleter)
+            ?.catchError((dynamic e) async => null);
       }
-    } else {
-      // Revert if we fail to activate the audio session.
-      _playerEventSubject.add(playerEvent.copyWith(playing: false));
     }
     await playCompleter.future;
   }
@@ -1123,6 +1153,7 @@ class AudioPlayer {
   /// Pauses the currently playing media. This method does nothing if
   /// ![playing].
   Future<void> pause() async {
+    ++_playRequestGeneration;
     if (_disposed) return;
     if (!playing) return;
     final stopwatch = Stopwatch();
@@ -1163,6 +1194,7 @@ class AudioPlayer {
   /// finished playing audio. Use [pause] instead if you would like to keep the
   /// decoders alive so that the app can quickly resume audio playback.
   Future<void> stop() async {
+    ++_playRequestGeneration;
     if (_disposed) return;
     final future =
         _setPlatformActive(false)?.catchError((dynamic e) async => null);
@@ -1843,13 +1875,13 @@ class AudioPlayer {
 class PlayerException implements Exception {
   PlayerException(this.code, this.message, this.index);
 
-  /// On iOS and macOS, maps to `NSError.code`. On Android, maps to
-  /// `ExoPlaybackException.type`. On Web, maps to `MediaError.code`.
+  /// On iOS and macOS, maps to `NSError.code`. On Android, maps to Media3's
+  /// `PlaybackException.errorCode` (Navis). On Web, maps to `MediaError.code`.
   final int code;
 
   /// On iOS and macOS, maps to `NSError.localizedDescription`. On Android,
-  /// maps to `ExoPlaybackException.getMessage()`. On Web, a generic message
-  /// is provided.
+  /// maps to `PlaybackException.getMessage()`, followed by ` (HTTP <status>)`
+  /// for a bad HTTP status (Navis). On Web, a generic message is provided.
   final String? message;
 
   /// The index of the audio source associated with this error.
@@ -1861,6 +1893,12 @@ class PlayerException implements Exception {
 
 /// An error that occurs when one operation on the player has been interrupted
 /// (e.g. by another simultaneous operation).
+/// Audio focus remained unavailable after bounded activation retries.
+class AudioFocusDeniedException implements Exception {
+  @override
+  String toString() => 'Audio focus unavailable';
+}
+
 class PlayerInterruptedException implements Exception {
   PlayerInterruptedException(this.message);
   final String? message;
@@ -3385,12 +3423,18 @@ class LockCachingAudioSource extends StreamAudioSource {
     this.uri, {
     this.headers,
     File? cacheFile,
+    this.connectionTimeout = const Duration(seconds: 15),
+    this.headerTimeout = const Duration(seconds: 15),
+    this.bodyProgressTimeout = const Duration(seconds: 30),
     dynamic tag,
   })  : cacheFile =
             cacheFile != null ? Future.value(cacheFile) : _getCacheFile(uri),
         super(tag: tag) {
     _init();
   }
+  final Duration connectionTimeout;
+  final Duration headerTimeout;
+  final Duration bodyProgressTimeout;
   Future<HttpClientResponse>? _response;
   final Uri uri;
   final Map<String, String>? headers;
@@ -3495,10 +3539,36 @@ class LockCachingAudioSource extends StreamAudioSource {
         partialCacheFile.existsSync() ? partialCacheFile : cacheFile;
 
     final httpClient = _createHttpClient(userAgent: _player?._userAgent);
-    final httpRequest = await _getUrl(httpClient, uri, headers: headers);
-    final response = await httpRequest.close();
+    httpClient.connectionTimeout = connectionTimeout;
+    final cancelled = Completer<Never>();
+    final rangeClients = <HttpClient>{};
+    _abortDownload = () async {
+      if (!cancelled.isCompleted)
+        cancelled.completeError(StateError('Download cancelled'));
+      httpClient.close(force: true);
+      for (final client in rangeClients) client.close(force: true);
+    };
+    cancelled.future.ignore();
+    late HttpClientResponse response;
+    try {
+      final httpRequest = await Future.any([
+        _getUrl(httpClient, uri, headers: headers).timeout(connectionTimeout),
+        cancelled.future,
+      ]);
+      response = await Future.any([
+        httpRequest.close().timeout(headerTimeout),
+        cancelled.future,
+      ]);
+    } catch (_) {
+      httpClient.close(force: true);
+      _abortDownload = null;
+      _downloading = false;
+      rethrow;
+    }
     if (response.statusCode != 200) {
-      httpClient.close();
+      httpClient.close(force: true);
+      _abortDownload = null;
+      _downloading = false;
       throw Exception('HTTP Status Error: ${response.statusCode}');
     }
     (await _partialCacheFile).createSync(recursive: true);
@@ -3524,7 +3594,7 @@ class LockCachingAudioSource extends StreamAudioSource {
     }
 
     _progress = 0;
-    subscription = response.listen((data) async {
+    subscription = response.timeout(bodyProgressTimeout).listen((data) async {
       _progress += data.length;
       final newPercentProgress = (sourceLength == null)
           ? 0
@@ -3611,14 +3681,16 @@ class LockCachingAudioSource extends StreamAudioSource {
         _requests.remove(request);
         final start = request.start!;
         final end = request.end ?? sourceLength;
-        final httpClient = _createHttpClient(userAgent: _player?._userAgent);
+        final httpClient = _createHttpClient(userAgent: _player?._userAgent)
+          ..connectionTimeout = connectionTimeout;
+        rangeClients.add(httpClient);
 
         final rangeRequest = _HttpRangeRequest(start, end);
         _getUrl(httpClient, uri, headers: {
           if (headers != null) ...headers!,
           HttpHeaders.rangeHeader: rangeRequest.header,
-        }).then((httpRequest) async {
-          final response = await httpRequest.close();
+        }).timeout(connectionTimeout).then((httpRequest) async {
+          final response = await httpRequest.close().timeout(headerTimeout);
           if (response.statusCode != 206) {
             httpClient.close();
             throw Exception('HTTP Status Error: ${response.statusCode}');
@@ -3629,11 +3701,21 @@ class LockCachingAudioSource extends StreamAudioSource {
             contentLength: end != null ? end - start : null,
             offset: start,
             contentType: mimeType,
-            stream: response.asBroadcastStream(),
+            stream: response.timeout(bodyProgressTimeout).doOnDone(() {
+              httpClient.close();
+              rangeClients.remove(httpClient);
+            }).doOnError((Object error, StackTrace stack) {
+              httpClient.close(force: true);
+              rangeClients.remove(httpClient);
+            }).asBroadcastStream(),
           ));
         }, onError: (dynamic e, StackTrace? stackTrace) {
+          httpClient.close(force: true);
+          rangeClients.remove(httpClient);
           request.fail(e, stackTrace);
         }).onError((Object e, StackTrace st) {
+          httpClient.close(force: true);
+          rangeClients.remove(httpClient);
           request.fail(e, st);
         });
       }
@@ -3653,8 +3735,12 @@ class LockCachingAudioSource extends StreamAudioSource {
       _downloading = false;
     }, onError: (Object e, StackTrace stackTrace) async {
       _abortDownload = null;
-      (await _partialCacheFile).deleteSync();
-      httpClient.close();
+      httpClient.close(force: true);
+      for (final client in rangeClients) client.close(force: true);
+      await sink.close();
+      final partial = await _partialCacheFile;
+      if (partial.existsSync()) partial.deleteSync();
+      _response = null;
       // Fail all pending requests
       for (final req in _requests) {
         req.fail(e, stackTrace);
@@ -3671,6 +3757,8 @@ class LockCachingAudioSource extends StreamAudioSource {
       _abortDownload = null;
       await subscription.cancel();
       httpClient.close(force: true);
+      for (final client in rangeClients) client.close(force: true);
+      await sink.close();
       final error = Exception('Download cancelled');
       for (final req in _requests) {
         req.fail(error);
@@ -3715,8 +3803,12 @@ class LockCachingAudioSource extends StreamAudioSource {
       for (final req in _requests) {
         req.fail(error, stackTrace);
       }
+      _requests.clear();
+      _downloading = false;
       return Future<HttpClientResponse>.error(error as Object, stackTrace);
     });
+    // Errors reach every request; the retained fetch future has no direct caller.
+    _response!.ignore();
     return byteRangeRequest.future.then((response) {
       response.stream.listen((event) {}, onError: (Object e, StackTrace st) {
         // So that we can restart later

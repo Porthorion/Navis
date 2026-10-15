@@ -10,6 +10,7 @@ import 'package:navis/l10n/app_localizations.dart';
 import 'package:navis/src/common_widgets/confirm_dialog.dart';
 import 'package:navis/src/common_widgets/navis_icon.dart';
 import 'package:navis/src/features/home/presentation/home_onboarding_warmup.dart';
+import 'package:navis/src/features/auth/data/secure_credential_store.dart';
 import 'package:navis/src/features/integrations/domain/integration_feature.dart';
 import 'package:navis/src/features/integrations/presentation/integration_copy.dart';
 import 'package:navis/src/features/onboarding/presentation/onboarding_provider.dart';
@@ -169,9 +170,15 @@ class OnboardingScreenState extends ConsumerState<OnboardingScreen> {
   }
 
   Future<void> _readListenBrainzToken() async {
-    final token = await ref
-        .read(externalScrobbleCredentialStoreProvider)
-        .readListenBrainzToken();
+    String? token;
+    try {
+      token = await ref
+          .read(externalScrobbleCredentialStoreProvider)
+          .readListenBrainzToken();
+    } on CredentialReadException {
+      // Brief unavailability must not present the stored token as removed.
+      return;
+    }
     if (mounted && token != null) _listenBrainzToken.text = token;
   }
 

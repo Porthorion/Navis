@@ -69,6 +69,10 @@ class AndroidBackgroundSyncSchedulerTest {
         )
         assertEquals(
             BackgroundSyncWorkerDirective.SUCCESS,
+            BackgroundSyncWorkerResultMapper.directiveFor("deferredUpgrade"),
+        )
+        assertEquals(
+            BackgroundSyncWorkerDirective.SUCCESS,
             BackgroundSyncWorkerResultMapper.directiveFor(null),
         )
     }

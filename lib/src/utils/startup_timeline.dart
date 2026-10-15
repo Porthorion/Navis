@@ -17,9 +17,16 @@ enum StartupEvent {
   resumeConnectivity,
   resumeReachability,
   resumeDatabase,
+  databaseOpen,
   workerEntry,
   workerExit,
   restart,
+  mediaServiceRecovery,
+  audioFocusRecovery,
+  streamRecovery,
+  radioRecovery,
+  radioRefillRecovery,
+  credentialRecovery,
 }
 
 enum StartupFailure { timeout, credentials, storage, platform, other }
@@ -45,6 +52,7 @@ enum StartupOutcome {
   deferredPolicy,
   credentialUnavailable,
   deferredSetup,
+  deferredUpgrade,
   leaseHeld,
   permanentFailure,
   transientFailure,
@@ -73,6 +81,7 @@ class StartupTimeline {
     StartupOutcome.noWorkDue,
     StartupOutcome.credentialUnavailable,
     StartupOutcome.deferredSetup,
+    StartupOutcome.deferredUpgrade,
     StartupOutcome.leaseHeld,
     StartupOutcome.permanentFailure,
     StartupOutcome.transientFailure,

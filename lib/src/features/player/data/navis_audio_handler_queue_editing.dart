@@ -356,7 +356,7 @@ extension _NavisQueueEditing on NavisAudioHandler {
     if (resumeIndex >= 0 && resumeIndex < _queueItems.length) {
       _setCurrentMediaItem(_queueItems[resumeIndex]);
     }
-    unawaited(_player.play());
+    unawaited(_playWithFocusRecovery());
   }
 
   /// [removeAt] for index [index] past the deferred head.

@@ -168,7 +168,8 @@ are planning/evidence records, not implementation authority.
 ## Platform notes
 
 - Android Auto is MediaBrowserService projection, not a Flutter head-unit UI.
-  Keep the canonical `com.ryanheise.audioservice.AudioService` registration.
+  Keep the app-owned `com.ryanheise.audioservice.NavisAudioService` subclass and
+  the explicit plugin-component redirects.
 - Linux uses the app-owned D-Bus MPRIS bridge; Windows uses the tracked
   `third_party/navis_windows_smtc` Rust/WinRT adapter; macOS media controls
   remain incomplete. See architecture and platform testing documents.

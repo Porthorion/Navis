@@ -5637,6 +5637,153 @@ void main() {
       },
       skip: !sqliteAvailable,
     );
+
+    test(
+      'a resumed promotion reclassifies an album hydrated after classification',
+      () async {
+        await saveSession();
+        api.artists.add(const Artist(id: 'artist-1', name: 'Artist 1'));
+        api.fastPathPages[0] = const <Album>[
+          Album(
+            id: 'album-1',
+            name: 'Album 1',
+            artist: 'Artist 1',
+            artistId: 'artist-1',
+          ),
+        ];
+        api.albumDetails['album-1'] = const Album(
+          id: 'album-1',
+          name: 'Album 1',
+          songs: <Song>[
+            Song(id: 'song-1', title: 'Song 1', albumId: 'album-1'),
+          ],
+        );
+        // Runs one and two leave the album unhydrated, so run two classifies
+        // it unchanged against the equally unhydrated live row.
+        api.transientAlbumFailures['album-1'] = 2;
+
+        final first = await engine.executeSyncPlan(
+          syncPlanForTest(LibrarySyncPlanKind.fullRepair),
+        );
+        expect(first.status, LibrarySyncStatus.succeeded);
+
+        // A second album gives the next promotion an insert to make, and the
+        // trigger fails that promotion after classification so the candidate
+        // stays resumable from 'applying'.
+        api.artists.add(const Artist(id: 'artist-2', name: 'Artist 2'));
+        api.fastPathPages[0] = const <Album>[
+          Album(
+            id: 'album-1',
+            name: 'Album 1',
+            artist: 'Artist 1',
+            artistId: 'artist-1',
+          ),
+          Album(
+            id: 'album-2',
+            name: 'Album 2',
+            artist: 'Artist 2',
+            artistId: 'artist-2',
+          ),
+        ];
+        await database.customStatement(
+          'CREATE TRIGGER fail_promotion_album2 BEFORE INSERT ON albums '
+          "WHEN NEW.id = 'album-2' BEGIN "
+          "SELECT RAISE(ABORT, 'injected promotion failure'); END;",
+        );
+        final failed = await engine.executeSyncPlan(
+          syncPlanForTest(LibrarySyncPlanKind.fullRepair),
+        );
+        expect(failed.status, LibrarySyncStatus.failed);
+        await database.customStatement('DROP TRIGGER fail_promotion_album2');
+
+        api.calls.clear();
+        final resumed = await engine.executeSyncPlan(
+          syncPlanForTest(LibrarySyncPlanKind.fullRepair),
+        );
+        final liveAlbum = await (database.select(
+          database.albumsTable,
+        )..where((table) => table.id.equals('album-1'))).getSingle();
+
+        expect(resumed.status, LibrarySyncStatus.succeeded);
+        expect(liveAlbum.songsHydrated, isTrue);
+        expect(
+          api.calls.where((call) => call == 'getAlbum:album-1'),
+          hasLength(1),
+        );
+      },
+      skip: !sqliteAvailable,
+    );
+
+    test('an inconsistent candidate rebuilds on the next run', () async {
+      await saveSession();
+      final serverId = (await serverConfigRepository.getActiveServer())!.id!;
+      api.artists.add(const Artist(id: 'artist-1', name: 'Artist 1'));
+      api.fastPathPages[0] = const <Album>[
+        Album(
+          id: 'album-1',
+          name: 'Album 1',
+          artist: 'Artist 1',
+          artistId: 'artist-1',
+        ),
+        Album(
+          id: 'album-2',
+          name: 'Album 2',
+          artist: 'Artist 1',
+          artistId: 'artist-1',
+        ),
+      ];
+      api.albumDetails['album-1'] = const Album(
+        id: 'album-1',
+        name: 'Album 1',
+        songs: <Song>[Song(id: 'song-1', title: 'Song 1', albumId: 'album-1')],
+      );
+      api.albumDetails['album-2'] = const Album(
+        id: 'album-2',
+        name: 'Album 2',
+        songs: <Song>[Song(id: 'song-2', title: 'Song 2', albumId: 'album-2')],
+      );
+
+      // Fail the first promotion after the page checkpoints committed, so
+      // generation 1 stays resumable from 'applying'.
+      await database.customStatement(
+        'CREATE TRIGGER fail_promotion_album2 BEFORE INSERT ON albums '
+        "WHEN NEW.id = 'album-2' BEGIN "
+        "SELECT RAISE(ABORT, 'injected promotion failure'); END;",
+      );
+      final seeded = await engine.executeSyncPlan(
+        syncPlanForTest(LibrarySyncPlanKind.fullRepair),
+      );
+      expect(seeded.status, LibrarySyncStatus.failed);
+      await database.customStatement('DROP TRIGGER fail_promotion_album2');
+
+      // A checkpoint count that no longer matches the candidate rows.
+      final work = await database.librarySyncDao.getWork(
+        serverId: serverId,
+        kind: 'catalogAlbumPage',
+        entityId: '1:0',
+      );
+      final checkpoint =
+          jsonDecode(work!.checkpointJson!) as Map<String, dynamic>;
+      checkpoint['count'] = (checkpoint['count'] as int) - 1;
+      await database.librarySyncDao.updateCheckpoint(
+        work.id,
+        checkpointJson: jsonEncode(checkpoint),
+      );
+
+      final first = await engine.executeSyncPlan(
+        syncPlanForTest(LibrarySyncPlanKind.fullRepair),
+      );
+      expect(first.status, LibrarySyncStatus.failed);
+
+      api.calls.clear();
+      final second = await engine.executeSyncPlan(
+        syncPlanForTest(LibrarySyncPlanKind.fullRepair),
+      );
+
+      expect(second.status, LibrarySyncStatus.succeeded);
+      expect(api.calls, contains('getAlbumListPage:0:500'));
+      expect(await database.select(database.albumsTable).get(), hasLength(2));
+    }, skip: !sqliteAvailable);
   });
 }
 

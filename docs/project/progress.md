@@ -2,7 +2,7 @@
 
 Tracks completion of all phases and sub-tasks defined in [docs/project/development-plan.md](development-plan.md). Checkboxes are updated as work is completed.
 
-Last updated: 2026-10-14
+Last updated: 2026-10-15
 
 ---
 
@@ -14,6 +14,68 @@ Last updated: 2026-10-14
 - ACP status values: `backlog`, `ready`, `in_progress`, `blocked`, `done`.
 
 ## Current Focus
+- [x] Idle-robustness final fixes (shared sync requests and busy databases) —
+  2026-10-15 (`fix/idle-integration`, aa3d3452..abf8f071; a lease-held check
+  against a live worker lease retries at the 30 s floor instead of waiting out
+  its heartbeat-extended expiry, because the app preempts the worker; any
+  writer-lock timeout inside a sync request is surfaced as `leaseHeld` (busy)
+  instead of a raw failure; an inconsistent catalog candidate and its page
+  checkpoints are cleared in one transaction; `beginSyncRunAttempt` refuses to
+  reopen a request another engine already finished, so a sharing engine defers
+  instead of running the completed work twice. Regressions added with the
+  fixes: the provider 30 s-floor test, fence tests 12a and 13/13a/13b, the DAO
+  terminal-guard test, and cross-connection hand-off tests 26/27 in
+  `library_sync_regression_test.dart`. Reviewed read-only in this worktree;
+  `./tool/check.sh`, the full suite and runtime validation were not run here,
+  the coordinator owns them.)
+
+- [x] Idle-robustness follow-ups 11 and 12 (credential unavailability) —
+  2026-10-14 (`fix/idle-partb`; secure-storage operations are serialized and
+  deadline-bounded per store, so pending reads surface as unavailable and are
+  retried instead of hanging startup or reading as missing; failed saves retry
+  with backoff and Android requires durable persistence before a login is
+  declared, so a cold start never finds a falsely authenticated memory-only
+  profile; routing keeps a config error in loading instead of unauthenticated.
+  ListenBrainz token reads propagate unavailability instead of null, keeping
+  queued listens queued while Subsonic delivery continues; drops remain limited
+  to confirmed absence, explicit disabling or invalid tokens. Eight regressions
+  failed before and pass after, three more cannot compile against the old API
+  and pass after; 116 tests pass across the twelve touched suites
+  (`flutter test --concurrency=4` under a 6G cap). `dart analyze` on changed
+  files is clean and `dart format` applied. `./tool/check.sh`, runtime loops
+  and platform validation were not run in this worktree; the coordinator owns
+  them. Recovery events are recorded once per process in the private startup
+  timeline. Cross-engine keystore serialization still needs native work.)
+
+- [x] Silent-recovery review rounds 2–3 (batch 2) — 2026-10-14
+  (`fix/idle-batch2`; Play re-arms song recovery only for a failure the handler
+  recorded, not a stale just_audio error code, and falls back to a plain seek
+  and restarts recovery after a queue load that held a re-failed reload; a seek held during a
+  stall survives a Play while the network check runs; re-armed recovery, seeks
+  and focus retries stay consistent, and a Play that re-arms leaves no old
+  focus budget behind; radio stays silent offline, counts only failure time
+  (dropped streams included), stops paused and gets a fresh budget after a
+  minute of healthy play. Each regression failed on its base commit and passes
+  after; timing-sensitive focus/radio tests now keep at least 1 s margins.
+  `navis_audio_handler_navigation_test.dart` passes 458 tests, three runs in a
+  row. Targeted tests only: `./tool/check.sh`, builds and runtime/device
+  validation were not run for round 3.)
+- [x] Silent-recovery review fixes (P2-1 to P3-9) — 2026-10-14
+  (`fix/idle-batch2`; pending song recovery belongs to its song and reloads
+  only a player that is still idle/loading/buffering; Play re-prepares a failed
+  stream once and a seek moves the recovery target; an explicit Play overrides
+  a lingering transient interruption; focus retries stop after two minutes and
+  just_audio reports `playing` only once focus is granted; radio waits for
+  device connectivity only, Android passes Media3 error codes and HTTP status,
+  permanent or ten-minute-exhausted station failures stop with one notice
+  (the notice provider now counts failures, so repeats are not dropped);
+  Personal Radio re-arms only network failures; the network signal is created
+  once per initializer. Each regression failed before its fix and passes after;
+  JVM `JustAudioErrorCodeTest`, `JustAudioRecoveryPositionTest` and
+  `NavisAudioServiceRecoveryTest` pass. `./tool/check.sh` passes: 7,999 tests,
+  one existing skip, 96 migration and 249 critical reliability tests, no
+  analyzer errors/warnings. No runtime, device or audible-playback validation
+  was run for this follow-up; no commits or stashes.)
 - [x] Overlapping first-Play radio fallback preserves newer transport intent —
   2026-10-14 (`fix/startup-hang`; existing transport/load generations and play
   intent guard recent, liked and radio fallback admission. Radio carries the

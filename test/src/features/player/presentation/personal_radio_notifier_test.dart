@@ -11,7 +11,10 @@ import 'package:navis/src/features/player/data/recommendation_service.dart';
 import 'package:navis/src/features/player/domain/playback_snapshot.dart';
 import 'package:navis/src/features/player/presentation/personal_radio_notifier.dart';
 import 'package:navis/src/features/player/presentation/queue_provider.dart';
+import 'package:navis/src/features/player/presentation/recommendation_session_coordinator.dart';
 import 'package:navis/src/providers/app_providers.dart';
+import 'package:navis/src/features/auth/domain/server_reachability.dart';
+import 'package:navis/src/features/auth/presentation/server_reachability_provider.dart';
 
 import '../../../../helpers/recommendation_test_harness.dart';
 
@@ -78,6 +81,17 @@ class _QueueController extends RecordingRecommendationQueue {
   }
 }
 
+class _Reachability extends ServerReachabilityController {
+  @override
+  ServerReachabilityState build() =>
+      const ServerReachabilityState(status: ServerReachabilityStatus.offline);
+
+  void recover() => state = ServerReachabilityState(
+    status: ServerReachabilityStatus.online,
+    lastCheckedAt: DateTime.now(),
+  );
+}
+
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
   setUpAll(() => registerFallbackValue(const RadioFilters()));
@@ -90,6 +104,7 @@ void main() {
     late final ProviderContainer container;
     return container = ProviderContainer(
       overrides: [
+        serverReachabilityControllerProvider.overrideWith(_Reachability.new),
         playerStateProvider.overrideWith((ref) => ref.watch(snapshotProvider)),
         audioHandlerProvider.overrideWithValue(handler),
         subsonicApiProvider.overrideWithValue(null),
@@ -239,6 +254,87 @@ void main() {
       container.listen(personalRadioProvider, (_, _) {});
       container.read(snapshots.notifier).setQueue(<String>['old']);
     });
+
+    testWidgets(
+      'verified network recovery rearms an exhausted refill in the same session',
+      (tester) async {
+        final radio = container.read(personalRadioProvider.notifier);
+        final start = radio.start();
+        calls[0].complete(batchOf(['r1']));
+        await tester.pump();
+        await start;
+        radio.requestSkipAfterRefill(0, 'r1');
+        await tester.pump();
+        for (var failure = 1; failure <= 5; failure++) {
+          expect(calls, hasLength(failure + 1));
+          calls[failure].complete(
+            const RecommendationBatch(
+              songs: [],
+              source: RecommendationSource.server,
+              issue: RecommendationIssue.networkFailure,
+            ),
+          );
+          await tester.pump();
+          if (failure < 5)
+            await tester.pump(Duration(seconds: 3 * (1 << (failure - 1))));
+        }
+        expect(container.read(personalRadioProvider).retryCount, 5);
+        final generation = container
+            .read(recommendationSessionProvider)
+            .generation;
+        (container.read(
+          serverReachabilityControllerProvider.notifier,
+        ) as _Reachability).recover();
+        await tester.pump();
+        expect(calls, hasLength(7));
+        calls[6].complete(
+          batchOf(['recovered', ...List.generate(12, (i) => 'new-$i')]),
+        );
+        await tester.pump();
+        expect(container.read(personalRadioProvider).retryCount, 0);
+        expect(
+          container.read(recommendationSessionProvider).generation,
+          generation,
+        );
+        expect(
+          container.read(playerStateProvider).queueSongIds,
+          contains('recovered'),
+        );
+        radio.stop();
+        await tester.pump(const Duration(seconds: 31));
+      },
+    );
+
+    testWidgets(
+      'network recovery leaves a rate-limited refill on its backoff',
+      (tester) async {
+        final radio = container.read(personalRadioProvider.notifier);
+        final start = radio.start();
+        calls[0].complete(batchOf(['r1']));
+        await tester.pump();
+        await start;
+        radio.requestSkipAfterRefill(0, 'r1');
+        await tester.pump();
+        expect(calls, hasLength(2));
+        calls[1].complete(
+          const RecommendationBatch(
+            songs: [],
+            source: RecommendationSource.server,
+            issue: RecommendationIssue.rateLimited,
+          ),
+        );
+        await tester.pump();
+        expect(container.read(personalRadioProvider).retryCount, 1);
+        (container.read(
+          serverReachabilityControllerProvider.notifier,
+        ) as _Reachability).recover();
+        await tester.pump();
+        expect(calls, hasLength(2));
+        expect(container.read(personalRadioProvider).retryCount, 1);
+        radio.stop();
+        await tester.pump(const Duration(seconds: 31));
+      },
+    );
 
     test('refill starts at eight remaining tracks, but not nine', () async {
       final radio = container.read(personalRadioProvider.notifier);

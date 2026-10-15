@@ -121,8 +121,16 @@ require_contains \
   "car app theme metadata exists"
 require_contains \
   "$MANIFEST_PATH" \
-  'android:name="com.ryanheise.audioservice.AudioService"' \
+  'android:name="com.ryanheise.audioservice.NavisAudioService"' \
   "audio_service MediaBrowserService is declared"
+require_not_contains \
+  "$MANIFEST_PATH" \
+  'android:name="com.ryanheise.audioservice.AudioService"' \
+  "no duplicate plugin base-service component is declared"
+require_contains \
+  "$MANIFEST_PATH" \
+  'NavisApplication"' \
+  "app-owned plugin binding redirect is registered"
 require_not_contains \
   "$MANIFEST_PATH" \
   'android:name="com.navis.app.navis.NavisAudioService"' \
@@ -178,9 +186,9 @@ if [[ -n "$APK_PATH" ]]; then
     pass "APK packages automotive_app_desc.xml"
 
     apk_manifest="$("$aapt_bin" dump xmltree "$APK_PATH" AndroidManifest.xml)"
-    grep -Fq 'com.ryanheise.audioservice.AudioService' <<<"$apk_manifest" \
-      || fail "APK does not declare the canonical audio_service component"
-    pass "APK declares the canonical audio_service component"
+    grep -Fq 'com.ryanheise.audioservice.NavisAudioService' <<<"$apk_manifest" \
+      || fail "APK does not declare the app-owned audio_service subclass"
+    pass "APK declares the app-owned audio_service subclass"
     if grep -Fq 'com.navis.app.navis.NavisAudioService' <<<"$apk_manifest"; then
       fail "APK declares the incompatible custom media-service component"
     fi

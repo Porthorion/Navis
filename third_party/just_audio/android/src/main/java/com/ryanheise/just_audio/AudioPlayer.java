@@ -55,6 +55,7 @@ import androidx.media3.exoplayer.trackselection.TrackSelectionArray;
 import androidx.media3.datasource.DataSource;
 import androidx.media3.datasource.DefaultDataSource;
 import androidx.media3.datasource.DefaultHttpDataSource;
+import androidx.media3.datasource.HttpDataSource;
 import androidx.media3.common.MimeTypes;
 import androidx.media3.common.util.Util;
 import io.flutter.Log;
@@ -431,12 +432,24 @@ public class AudioPlayer implements MethodCallHandler, Player.Listener, Metadata
             default:
                 Log.e(TAG, "default ExoPlaybackException: " + exoError.getUnexpectedException().getMessage());
             }
-            // TODO: send both errorCode and type
-            sendError(exoError.type, exoError.getMessage(), mapOf("index", currentIndex));
         } else {
             Log.e(TAG, "default PlaybackException: " + error.getMessage());
-            sendError(error.errorCode, error.getMessage(), mapOf("index", currentIndex));
         }
+        // Navis: send Media3's specific error code rather than the coarse
+        // ExoPlaybackException type, so Dart can tell a dead source from a
+        // network failure.
+        sendError(error.errorCode, describeError(error), mapOf("index", currentIndex));
+    }
+
+    /** Navis: appends the HTTP status of a bad-status source error. */
+    static String describeError(PlaybackException error) {
+        for (Throwable cause = error.getCause(); cause != null; cause = cause.getCause()) {
+            if (cause instanceof HttpDataSource.InvalidResponseCodeException) {
+                return error.getMessage() + " (HTTP "
+                        + ((HttpDataSource.InvalidResponseCodeException) cause).responseCode + ")";
+            }
+        }
+        return error.getMessage();
     }
 
     private void completeSeek() {
@@ -998,6 +1011,8 @@ public class AudioPlayer implements MethodCallHandler, Player.Listener, Metadata
     }
 
     private void sendError(int errorCode, String errorMsg, Object details, boolean switchToIdle) {
+        // Navis: recovery needs the native stop position, not the last ready event.
+        if (switchToIdle && player != null) updatePosition();
         eventChannel.error(String.valueOf(errorCode), errorMsg, details);
         this.errorCode = errorCode;
         this.errorMessage = errorMsg;

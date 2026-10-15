@@ -187,6 +187,33 @@ class AndroidBackgroundSyncSchedulerInstrumentedTest {
     }
 
     @Test
+    fun realWorkerSendsCancelCheckpointWhenItsRunTimesOut() = runBlocking {
+        val profileKey = "5".repeat(32)
+        val calls = java.util.concurrent.CopyOnWriteArrayList<String>()
+        BackgroundSyncFlutterSessions.testFactory = { RunTimeoutFlutterSession(calls) }
+        val scheduler = AndroidBackgroundSyncScheduler(context)
+        val catchup = scheduler.enqueueCatchup(
+            BackgroundSyncScheduleSpec(profileKey, 60, true),
+        )
+
+        WorkManagerTestInitHelper.getTestDriver(context)
+            ?.setAllConstraintsMet(java.util.UUID.fromString(requireNotNull(catchup.workId)))
+
+        assertEquals(
+            BackgroundSyncNativeFailure.TIMEOUT.outcome.result,
+            awaitOutcome(profileKey)?.result,
+        )
+        // close() runs in the worker's finally, after the outcome is stored.
+        repeat(50) {
+            if (calls.size >= 2) return@repeat
+            delay(20)
+        }
+        assertEquals(listOf("cancel", "close"), calls.toList())
+        scheduler.cancel(profileKey)
+        Unit
+    }
+
+    @Test
     fun realWorkerPersistsBootstrapFallbackWhenItsFlutterSessionFails() = runBlocking {
         val profileKey = "2".repeat(32)
         BackgroundSyncFlutterSessions.testFactory = { FailingFlutterSession() }
@@ -288,6 +315,29 @@ private class TimeoutFlutterSession : BackgroundSyncFlutterSession {
     override suspend fun cancel() {}
 
     override suspend fun close() {}
+}
+
+private class RunTimeoutFlutterSession(
+    private val calls: MutableList<String>,
+) : BackgroundSyncFlutterSession {
+    override suspend fun start() {}
+
+    override suspend fun runAutomatic(
+        profileKey: String,
+        workId: String,
+        attemptCount: Int,
+    ): Map<String, Any?>? {
+        withTimeout(1) { delay(10) }
+        return null
+    }
+
+    override suspend fun cancel() {
+        calls += "cancel"
+    }
+
+    override suspend fun close() {
+        calls += "close"
+    }
 }
 
 private class FailingFlutterSession : BackgroundSyncFlutterSession {

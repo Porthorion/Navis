@@ -32,7 +32,7 @@ import java.util.concurrent.TimeUnit;
 public final class NavisMediaBrowserColdStartTest {
     private static final long CONNECTION_TIMEOUT_SECONDS = 10;
     private static final String SERVICE_CLASS =
-            "com.ryanheise.audioservice.AudioService";
+            "com.ryanheise.audioservice.NavisAudioService";
     private static final String ROOT_ID = "root";
 
     @Test

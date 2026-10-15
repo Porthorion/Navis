@@ -1,6 +1,8 @@
 import 'dart:async';
 
 import 'package:dio/dio.dart';
+import 'package:flutter/services.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:navis/src/api/listenbrainz_api_client.dart';
@@ -8,8 +10,10 @@ import 'package:navis/src/api/subsonic_api_client.dart';
 import 'package:navis/src/api/subsonic_auth_interceptor.dart';
 import 'package:navis/src/database/daos/scrobble_dao.dart';
 import 'package:navis/src/database/navis_database.dart';
+import 'package:navis/src/features/auth/data/secure_credential_store.dart';
 import 'package:navis/src/features/integrations/domain/integration_feature.dart';
 import 'package:navis/src/features/player/data/scrobble_service.dart';
+import 'package:navis/src/features/settings/data/external_scrobble_credentials.dart';
 
 import '../../../../helpers/test_database.dart';
 
@@ -49,6 +53,24 @@ class _FakeSubsonicApiClient extends SubsonicApiClient {
 }
 
 class _MockScrobbleDao extends Mock implements ScrobbleDao;
+class _MockSecureStorage extends Mock implements FlutterSecureStorage;
+
+/// A ListenBrainz client that accepts every listen without touching the
+/// network, counting submissions in [requests].
+ListenBrainzApiClient _acceptingListenBrainzClient(List<int> requests) {
+  final dio = Dio();
+  dio.interceptors.add(
+    InterceptorsWrapper(
+      onRequest: (options, handler) {
+        requests.add(1);
+        handler.resolve(
+          Response<void>(requestOptions: options, statusCode: 200),
+        );
+      },
+    ),
+  );
+  return ListenBrainzApiClient(dio: dio);
+}
 
 void main() {
   group('DriftScrobbleService', () {
@@ -293,6 +315,170 @@ void main() {
       skip: !sqliteAvailable,
     );
 
+    test(
+      'storage failure does not drop a ListenBrainz entry beside Subsonic',
+      () async {
+        final storage = _MockSecureStorage();
+        when(
+          () => storage.read(key: 'navis.external_scrobble.listenbrainz.token'),
+        ).thenThrow(PlatformException(code: 'keystore_busy'));
+        final service = DriftScrobbleService(
+          dao: database.scrobbleDao,
+          readApiClient: () => apiClient,
+          readScrobbleEnabled: () => true,
+          readReachable: () => true,
+          now: () => now,
+          readListenBrainzCredentials: () =>
+              readListenBrainzScrobbleCredentials(
+                policy: const IntegrationPolicy(listenBrainzVerified: true),
+                readToken: () =>
+                    FlutterExternalScrobbleCredentialStore(storage: storage)
+                        .readListenBrainzToken(),
+              ),
+        );
+        addTearDown(service.dispose);
+        await service.enqueueSubmission(
+          songId: 'song-1',
+          sessionKey: 'fixture',
+          track: const ScrobbleTrackPayload(
+            songId: 'song-1',
+            title: 'Track',
+            artist: 'Artist',
+          ),
+        );
+
+        await service.flushDue();
+
+        expect(apiClient.calls, hasLength(1));
+        final queued = await database.select(database.scrobbleQueueTable).get();
+        expect(queued, hasLength(1));
+        expect(queued.single.provider, ScrobbleProvider.listenBrainz.id);
+        expect(queued.single.attempts, 1);
+      },
+      skip: !sqliteAvailable,
+    );
+
+    test('Subsonic delivery continues while ListenBrainz credentials are unreadable', () async {
+      var credentialsReadable = true;
+      final listenBrainzRequests = <int>[];
+      final service = DriftScrobbleService(
+        dao: database.scrobbleDao,
+        readApiClient: () => apiClient,
+        readScrobbleEnabled: () => true,
+        readReachable: () => true,
+        now: () => now,
+        readListenBrainzCredentials: () async {
+          if (!credentialsReadable) throw const CredentialReadException();
+          return const ListenBrainzScrobbleCredentials(userToken: 'fixture');
+        },
+        createListenBrainzClient: () =>
+            _acceptingListenBrainzClient(listenBrainzRequests),
+      );
+      addTearDown(service.dispose);
+      await service.enqueueSubmission(
+        songId: 'song-1',
+        sessionKey: 'fixture',
+        track: const ScrobbleTrackPayload(
+          songId: 'song-1',
+          title: 'Track',
+          artist: 'Artist',
+        ),
+      );
+
+      credentialsReadable = false;
+      await service.flushDue();
+
+      expect(apiClient.calls, hasLength(1));
+      final queued = await database.select(database.scrobbleQueueTable).get();
+      expect(queued, hasLength(1));
+      expect(queued.single.provider, ScrobbleProvider.listenBrainz.id);
+      expect(queued.single.attempts, 1);
+
+      credentialsReadable = true;
+      now = now.add(const Duration(seconds: 15));
+      await service.flushDue();
+      expect(await database.scrobbleDao.countEntries(), 0);
+      expect(listenBrainzRequests, hasLength(1));
+    }, skip: !sqliteAvailable);
+
+    test(
+      'ListenBrainz entries stay queued when the token cannot be read',
+      () async {
+        var credentialsReadable = true;
+        final listenBrainzRequests = <int>[];
+        final service = DriftScrobbleService(
+          dao: database.scrobbleDao,
+          readApiClient: () => apiClient,
+          readScrobbleEnabled: () => false,
+          readReachable: () => true,
+          now: () => now,
+          readListenBrainzCredentials: () async {
+            if (!credentialsReadable) throw const CredentialReadException();
+            return const ListenBrainzScrobbleCredentials(userToken: 'fixture');
+          },
+          createListenBrainzClient: () =>
+              _acceptingListenBrainzClient(listenBrainzRequests),
+        );
+        addTearDown(service.dispose);
+        await service.enqueueSubmission(
+          songId: 'song-1',
+          sessionKey: 'fixture',
+          track: const ScrobbleTrackPayload(
+            songId: 'song-1',
+            title: 'Track',
+            artist: 'Artist',
+          ),
+        );
+
+        credentialsReadable = false;
+        await service.flushDue();
+
+        final queued = await database.select(database.scrobbleQueueTable).get();
+        expect(queued, hasLength(1));
+        expect(queued.single.attempts, 1);
+
+        credentialsReadable = true;
+        now = now.add(const Duration(seconds: 15));
+        await service.flushDue();
+        expect(await database.scrobbleDao.countEntries(), 0);
+        expect(apiClient.calls, isEmpty);
+        expect(listenBrainzRequests, hasLength(1));
+      },
+      skip: !sqliteAvailable,
+    );
+
+    test(
+      'enqueue still queues ListenBrainz while credentials are unreadable',
+      () async {
+        final service = DriftScrobbleService(
+          dao: database.scrobbleDao,
+          readApiClient: () => apiClient,
+          readScrobbleEnabled: () => true,
+          readReachable: () => true,
+          now: () => now,
+          readListenBrainzCredentials: () async =>
+              throw const CredentialReadException(),
+        );
+        addTearDown(service.dispose);
+        await service.enqueueSubmission(
+          songId: 'song-1',
+          sessionKey: 'fixture',
+          track: const ScrobbleTrackPayload(
+            songId: 'song-1',
+            title: 'Track',
+            artist: 'Artist',
+          ),
+        );
+
+        final queued = await database.select(database.scrobbleQueueTable).get();
+        expect(queued.map((row) => row.provider).toSet(), {
+          ScrobbleProvider.subsonic.id,
+          ScrobbleProvider.listenBrainz.id,
+        });
+      },
+      skip: !sqliteAvailable,
+    );
+
     test('flushDue delivers due events and removes them', () async {
       final service = DriftScrobbleService(
         dao: database.scrobbleDao,
@@ -510,6 +696,16 @@ void main() {
           readToken: () async => null,
         ),
         isNull,
+      );
+    });
+
+    test('read failures propagate as unavailable', () async {
+      await expectLater(
+        readListenBrainzScrobbleCredentials(
+          policy: verified,
+          readToken: () async => throw const CredentialReadException(),
+        ),
+        throwsA(isA<CredentialReadException>()),
       );
     });
   });

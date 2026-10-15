@@ -33,6 +33,7 @@
   "loginErrorConnection": "Could not reach server. Check URL and network.",
   "loginErrorInsecureLegacyAuth": "This server requires legacy authentication. Use HTTPS to protect your password.",
   "loginErrorUnknown": "Unexpected error while connecting.",
+  "loginErrorCredentialSave": "Navis couldn't save your password securely on this device. Try again.",
   "loginTestConnectionSuccess": "Connection successful (API {apiVersion}).",
   "@loginTestConnectionSuccess": {
     "placeholders": {

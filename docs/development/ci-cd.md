@@ -133,8 +133,8 @@ gate:
 ./tool/verify_android_auto_manifest.sh
 ```
 
-It checks that release discovery metadata and the canonical
-`com.ryanheise.audioservice.AudioService` are present and no privileged
+It checks that release discovery metadata and the app-owned
+`com.ryanheise.audioservice.NavisAudioService` are present and no privileged
 media-browser bind permission blocks Android Auto.
 
 Mix and radio runtime checks use an isolated Linux diagnostics clone. The
@@ -936,3 +936,16 @@ or test infrastructure. Use `./tool/check.sh` and `./tool/release_gate_core.sh`
 for maintained gates; see [development-workflow.md](development-workflow.md)
 and [troubleshooting.md](troubleshooting.md) for focused database tests and
 runtime codec certification. Historical results remain in the progress log.
+
+### Android media-service upgrade contract
+
+After changing audio_service or the app-owned media service, configure
+`JAVA_HOME` for the Android build's JDK and run
+`cd android && ./gradlew :app:testSideloadDebugUnitTest --tests '*NavisAudioServiceRecoveryTest' --tests '*JustAudioRecoveryPositionTest'`.
+This reflects on the private listener and handler-interface names/types relied
+on by the lifecycle repair. The position test exercises the vendored Android
+error-event path and requires the actual player position before idle/error
+publication. Run it after changing just_audio too. Follow with the profile-clone
+recovery fixtures in
+[development-workflow.md](development-workflow.md); JVM reflection checks alone
+do not prove media-session commands or engine survival.

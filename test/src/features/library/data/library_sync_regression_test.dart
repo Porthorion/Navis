@@ -5,6 +5,7 @@ import 'package:navis/src/features/library/domain/library_sync_request.dart';
 
 import 'dart:convert';
 import 'dart:async';
+import 'dart:io';
 
 import 'package:dio/dio.dart';
 import 'package:drift/drift.dart' hide isNotNull, isNull;
@@ -1607,46 +1608,84 @@ void main() {
       expect((await db.librarySyncDao.getOrCreateState(id)).failureStreak, 1);
     },
   );
-  test(
-    'F09 second coordinator leaves the active lease owner untouched',
-    () async {
-      final id = await session();
-      await seed();
-      await db.librarySyncDao.writeState(
-        LibrarySyncStateTableCompanion(
-          serverId: Value(id),
-          currentGeneration: const Value(1),
-          lastAuditAt: Value(DateTime.now()),
-          lastAuxiliarySyncedAt: Value(DateTime.now()),
-        ),
-      );
-      await db.librarySyncDao.enqueueWork(
-        serverId: id,
-        kind: 'probe',
-        priority: 10,
-      );
-      final work = (await db.librarySyncDao.getWork(
-        serverId: id,
-        kind: 'probe',
-      ))!;
-      await db.librarySyncDao.markRunning(work.id);
-      await db.librarySyncDao.acquireExecutionLease(
-        serverId: id,
-        ownerToken: 'fixture-owner',
-        ownerKind: 'androidWorker',
-        now: DateTime.now(),
-        ttl: const Duration(minutes: 10),
-      );
-      final result = await coordinator.requestSync(
-        const LibrarySyncRequest.automatic(),
-      );
-      expect(result.planReason, 'leaseHeld');
-      expect(
-        (await db.librarySyncDao.getWork(serverId: id, kind: 'probe'))!.status,
-        'running',
-      );
-    },
-  );
+  test('F09 a foreground coordinator takes over a worker lease and recovers its running probe', () async {
+    final id = await session();
+    await seed();
+    await db.librarySyncDao.writeState(
+      LibrarySyncStateTableCompanion(
+        serverId: Value(id),
+        currentGeneration: const Value(1),
+        lastAuditAt: Value(DateTime.now()),
+        lastAuxiliarySyncedAt: Value(DateTime.now()),
+      ),
+    );
+    await db.librarySyncDao.enqueueWork(
+      serverId: id,
+      kind: 'probe',
+      priority: 10,
+    );
+    final work = (await db.librarySyncDao.getWork(
+      serverId: id,
+      kind: 'probe',
+    ))!;
+    await db.librarySyncDao.markRunning(work.id);
+    await db.librarySyncDao.acquireExecutionLease(
+      serverId: id,
+      ownerToken: 'fixture-owner',
+      ownerKind: 'androidWorker',
+      now: DateTime.now(),
+      ttl: const Duration(minutes: 10),
+    );
+    final result = await coordinator.requestSync(
+      const LibrarySyncRequest.automatic(),
+    );
+    expect(result.planReason, isNot('leaseHeld'));
+    expect(
+      (await db.librarySyncDao.getWork(serverId: id, kind: 'probe'))!.status,
+      isNot('running'),
+    );
+    expect(await db.librarySyncDao.getExecutionLease(id), isNull);
+  });
+  test('F09 a second foreground coordinator leaves the active foreground owner untouched', () async {
+    final id = await session();
+    await seed();
+    await db.librarySyncDao.writeState(
+      LibrarySyncStateTableCompanion(
+        serverId: Value(id),
+        currentGeneration: const Value(1),
+        lastAuditAt: Value(DateTime.now()),
+        lastAuxiliarySyncedAt: Value(DateTime.now()),
+      ),
+    );
+    await db.librarySyncDao.enqueueWork(
+      serverId: id,
+      kind: 'probe',
+      priority: 10,
+    );
+    final work = (await db.librarySyncDao.getWork(
+      serverId: id,
+      kind: 'probe',
+    ))!;
+    await db.librarySyncDao.markRunning(work.id);
+    await db.librarySyncDao.acquireExecutionLease(
+      serverId: id,
+      ownerToken: 'fixture-owner',
+      ownerKind: 'foreground',
+      now: DateTime.now(),
+      ttl: const Duration(minutes: 10),
+    );
+    final result = await coordinator.requestSync(
+      const LibrarySyncRequest.automatic(),
+    );
+    expect(result.planReason, 'leaseHeld');
+    expect(
+      (await db.librarySyncDao.getWork(serverId: id, kind: 'probe'))!.status,
+      'running',
+    );
+    final lease = await db.librarySyncDao.getExecutionLease(id);
+    expect(lease?.ownerToken, 'fixture-owner');
+    expect(lease?.ownerKind, 'foreground');
+  });
   test(
     'F13 background executor can resume admitted automatic delta work',
     () async {
@@ -1804,4 +1843,979 @@ void main() {
       );
     },
   );
+
+  group('worker hand-off', () {
+    const albumIds = ['a', 'b', 'c', 'd', 'e', 'f'];
+    const pageOffsets = [0, 2, 4, 6];
+    late FakeLibrarySyncApi apiW;
+    late FakeLibrarySyncApi apiF;
+    late DriftLibrarySyncEngine engineW;
+    late DriftLibrarySyncEngine engineF;
+    late AdaptiveLibrarySyncCoordinator worker;
+    late AdaptiveLibrarySyncCoordinator fg;
+    late int serverId;
+    late LibrarySyncStateTableData baseline;
+    // Started workers, so a failing test lets them finish before the database
+    // closes.
+    final workerRuns = <Future<void>>[];
+
+    String artistOf(String id) => switch (id) {
+      'a' || 'b' || 'g' => 'ar',
+      'c' || 'd' => 'ar2',
+      _ => 'ar3',
+    };
+    Album albumOf(String id) => id == 'a'
+        ? album
+        : Album(
+            id: id,
+            name: 'Album $id',
+            artistId: artistOf(id),
+            artist: 'Artist ${artistOf(id)}',
+            songCount: 1,
+          );
+    List<Song> songsOf(String id) => id == 'a'
+        ? [song1, song2]
+        : [
+            Song(
+              id: 's-$id',
+              title: 'Song $id',
+              albumId: id,
+              artistId: artistOf(id),
+            ),
+          ];
+
+    // Three artists, six albums in pages of two (the empty page at offset 6
+    // ends the listing), every album with songs. The newest feed lists only
+    // the live baseline album, so a delta check has nothing new to hydrate and
+    // newest-feed calls never count as album-list pages.
+    void serve(FakeLibrarySyncApi api) {
+      api.artists.addAll(const [
+        Artist(id: 'ar', name: 'Artist ar', albumCount: 2),
+        Artist(id: 'ar2', name: 'Artist ar2', albumCount: 2),
+        Artist(id: 'ar3', name: 'Artist ar3', albumCount: 2),
+      ]);
+      const layout = {
+        0: ['a', 'b'],
+        2: ['c', 'd'],
+        4: ['e', 'f'],
+      };
+      layout.forEach((offset, ids) {
+        api.fastPathPages[offset] = [for (final id in ids) albumOf(id)];
+      });
+      for (final id in albumIds) {
+        api.albumDetails[id] = albumOf(id).copyWith(songs: songsOf(id));
+      }
+      api.newestPages[0] = [album];
+    }
+
+    DriftLibrarySyncEngine newEngine(
+      FakeLibrarySyncApi api, {
+      Future<void> Function(Map<String, String> aliases)? onBeforeRemap,
+    }) => serialDriftEngine(
+      api: api,
+      database: db,
+      repository: repo,
+      networkType: NetworkType.wifi,
+      fastPathPageSize: 2,
+      // One album per hydration batch, so a hydrated album is committed
+      // before the next one is requested.
+      writeChunkSize: 1,
+      onBeforeSongIdentityRemap: onBeforeRemap,
+    );
+    AdaptiveLibrarySyncCoordinator newWorker(DriftLibrarySyncEngine engine) =>
+        AdaptiveLibrarySyncCoordinator(
+          executor: engine,
+          database: db,
+          serverConfigRepository: repo,
+          networkType: NetworkType.wifi,
+          staleAfter: const Duration(hours: 1),
+          readHasActivePlayback: () => false,
+          readIsForeground: () => false,
+          isBackgroundExecution: true,
+          executionOwnerKind: 'androidWorker',
+          executionLeaseHeartbeatInterval: const Duration(milliseconds: 50),
+          executionLeaseTtl: const Duration(seconds: 10),
+        );
+    AdaptiveLibrarySyncCoordinator newForeground(
+      DriftLibrarySyncEngine engine,
+    ) => AdaptiveLibrarySyncCoordinator(
+      executor: engine,
+      database: db,
+      serverConfigRepository: repo,
+      networkType: NetworkType.wifi,
+      staleAfter: const Duration(hours: 1),
+      readHasActivePlayback: () => false,
+    );
+
+    setUp(() async {
+      serverId = await session();
+      await seed();
+      final now = DateTime.now();
+      await db.librarySyncDao.writeState(
+        LibrarySyncStateTableCompanion(
+          serverId: Value(serverId),
+          currentGeneration: const Value(1),
+          lastAuditAt: Value(now),
+          lastAuxiliarySyncedAt: Value(now),
+        ),
+      );
+      baseline = await db.librarySyncDao.getOrCreateState(serverId);
+      apiW = FakeLibrarySyncApi();
+      apiF = FakeLibrarySyncApi();
+      serve(apiW);
+      serve(apiF);
+      engineW = newEngine(apiW);
+      engineF = newEngine(apiF);
+      worker = newWorker(engineW);
+      fg = newForeground(engineF);
+    });
+    tearDown(() async {
+      for (final api in [apiW, apiF]) {
+        for (final gate in [
+          ...api.pageGates.values,
+          ...api.albumGates.values,
+        ]) {
+          if (!gate.isCompleted) gate.complete();
+        }
+        final artists = api.artistsCompleter;
+        if (artists != null && !artists.isCompleted) {
+          artists.complete(api.artists);
+        }
+      }
+      await Future.wait(
+        workerRuns,
+      ).timeout(const Duration(seconds: 10), onTimeout: () => const <void>[]);
+      workerRuns.clear();
+    });
+
+    int callCount(FakeLibrarySyncApi api, String call) =>
+        api.calls.where((c) => c == call).length;
+    Map<int, int> pages(FakeLibrarySyncApi api) => {
+      for (final o in pageOffsets)
+        o: api.calls.where((c) => c.startsWith('getAlbumListPage:$o:')).length,
+    };
+    Map<String, int> fetches(
+      FakeLibrarySyncApi api, [
+      List<String> ids = albumIds,
+    ]) => {for (final id in ids) id: callCount(api, 'getAlbum:$id')};
+    Map<String, int> only(Map<String, int> some, [List<String>? ids]) => {
+      for (final id in ids ?? albumIds) id: some[id] ?? 0,
+    };
+
+    Future<void> until(bool Function() done, String what) async {
+      for (var i = 0; i < 500 && !done(); i++) {
+        await Future<void>.delayed(const Duration(milliseconds: 10));
+      }
+      expect(done(), isTrue, reason: 'timed out waiting for $what');
+    }
+
+    Future<void> queueCatalog() => db.librarySyncDao.enqueueWork(
+      serverId: serverId,
+      kind: 'catalogSnapshot',
+      priority: 50,
+    );
+    // The realistic route into a catalog snapshot: a queued snapshot row that a
+    // background automatic request resumes.
+    Future<LibrarySyncState> startWorker() {
+      final run = () async {
+        await queueCatalog();
+        return await worker.requestSync(const LibrarySyncRequest.automatic());
+      }();
+      workerRuns.add(run.then((_) {}, onError: (Object _) {}));
+      return run;
+    }
+
+    // The foreground's first request only runs the once-per-process recovery
+    // block (everything is fresh, so the plan is skipped), so a later takeover
+    // happens at the execution acquire and not in the recovery block.
+    Future<void> warmUp() async {
+      await db.librarySyncDao.writeState(
+        LibrarySyncStateTableCompanion(
+          serverId: Value(serverId),
+          lastCheckedAt: Value(DateTime.now()),
+        ),
+      );
+      final result = await fg.requestSync(const LibrarySyncRequest.automatic());
+      expect(result.status, LibrarySyncStatus.skipped);
+      await db.librarySyncDao.writeState(
+        LibrarySyncStateTableCompanion(
+          serverId: Value(serverId),
+          lastCheckedAt: const Value(null),
+        ),
+      );
+      apiF.calls.clear();
+    }
+
+    Future<LibrarySyncWorkTableData?> catalogWork() =>
+        db.librarySyncDao.getWork(serverId: serverId, kind: 'catalogSnapshot');
+    Future<LibrarySyncWorkTableData?> pageWork(int offset) =>
+        db.librarySyncDao.getWork(
+          serverId: serverId,
+          kind: 'catalogAlbumPage',
+          entityId: '2:$offset',
+        );
+    Future<void> expectNothingRunning() async {
+      expect(
+        (await db.select(db.librarySyncWorkTable).get()).where(
+          (w) => w.status == 'running',
+        ),
+        isEmpty,
+      );
+      expect(
+        (await db.select(db.librarySyncRunAttemptTable).get()).where(
+          (a) => a.status == 0,
+        ),
+        isEmpty,
+      );
+    }
+
+    // The assertions every takeover shares. [worker] is null when no worker is
+    // involved. [workerMayFinish] relaxes the worker-side ledger checks for
+    // cases where the worker can complete before the takeover lands.
+    // [leaseLost] is the exact number of executionLeaseLost ledger rows, or
+    // null for "at most one".
+    Future<void> expectHandedOff(
+      LibrarySyncState foreground,
+      LibrarySyncState? workerResult, {
+      Set<String> albums = const {'a', 'b', 'c', 'd', 'e', 'f'},
+      int generationAdvance = 1,
+      bool workerMayFinish = false,
+      int? leaseLost = 1,
+    }) async {
+      expect(foreground.planReason, isNot('leaseHeld'));
+      expect(
+        foreground.status,
+        anyOf(LibrarySyncStatus.succeeded, LibrarySyncStatus.partial),
+      );
+      expect(foreground.failureCategory, isNull);
+
+      final state = await db.librarySyncDao.getOrCreateState(serverId);
+      expect(
+        state.currentGeneration,
+        baseline.currentGeneration + generationAdvance,
+      );
+      final liveAlbums = (await db.libraryDao.getAllAlbums()).map((a) => a.id);
+      expect(liveAlbums.toList()..sort(), albums.toList()..sort());
+      final expectedSongs = [
+        for (final id in albums)
+          ...apiF.albumDetails[id]!.songs.map((s) => s.id),
+      ]..sort();
+      final liveSongs = (await db.libraryDao.getAllSongs()).map((s) => s.id);
+      expect(liveSongs.toList()..sort(), expectedSongs);
+
+      expect(await db.librarySyncDao.getExecutionLease(serverId), isNull);
+      await expectNothingRunning();
+
+      final attempts = await db.select(db.librarySyncRunAttemptTable).get();
+      final outcomes = await db.select(db.librarySyncRunOutcomeTable).get();
+      final workerAttempts = {
+        for (final a in attempts)
+          if (a.ownerKind == 1) a.id,
+      };
+      if (!workerMayFinish) {
+        expect(
+          outcomes.where((o) => workerAttempts.contains(o.attemptId)),
+          isEmpty,
+          reason: 'a fenced-out worker must not write an outcome',
+        );
+      }
+      final perRequest = <int, int>{};
+      for (final o in outcomes) {
+        perRequest[o.requestId] = (perRequest[o.requestId] ?? 0) + 1;
+      }
+      expect(perRequest.values.where((n) => n > 1), isEmpty);
+      final mine = outcomes.where(
+        (o) => o.requestId == foreground.runRequestId,
+      );
+      expect(mine, hasLength(1));
+      expect(mine.single.attemptId, foreground.runAttemptId);
+      expect(workerAttempts, isNot(contains(foreground.runAttemptId)));
+
+      if (workerResult != null) {
+        expect(
+          workerResult.planReason == 'leaseHeld' ||
+              workerResult.status == LibrarySyncStatus.cancelled ||
+              (workerMayFinish &&
+                  (workerResult.status == LibrarySyncStatus.succeeded ||
+                      workerResult.status == LibrarySyncStatus.partial)),
+          isTrue,
+          reason:
+              'worker ended ${workerResult.status} ${workerResult.planReason}',
+        );
+      }
+      expect(state.failureStreak, baseline.failureStreak);
+      expect(state.nextEligibleAt, baseline.nextEligibleAt);
+
+      final lost = (await db.librarySyncDao.getRecentOperationLedgerEntries(
+        serverId,
+      )).where((e) => e.operation == 'executionLeaseLost').length;
+      if (leaseLost == null) {
+        expect(lost, lessThanOrEqualTo(1));
+      } else {
+        expect(lost, leaseLost);
+      }
+    }
+
+    const check = LibrarySyncRequest.checkForUpdates();
+
+    test(
+      '14 takeover before the first page starts a fresh generation',
+      () async {
+        apiW.artistsCompleter = Completer<List<Artist>>();
+        final w = startWorker();
+        await until(
+          () => apiW.calls.contains('getArtists'),
+          'worker at artists',
+        );
+        expect(
+          (await db.librarySyncDao.getOrCreateState(serverId)).candidateStatus,
+          'collecting',
+        );
+
+        final f = await fg.requestSync(check);
+        apiW.artistsCompleter!.complete(apiW.artists);
+        final workerResult = await w;
+
+        await expectHandedOff(f, workerResult);
+        expect(pages(apiW), {0: 0, 2: 0, 4: 0, 6: 0});
+        // No completed page to re-verify, so no boundary request either.
+        expect(pages(apiF), {0: 1, 2: 1, 4: 1, 6: 1});
+        expect(fetches(apiW), only({}));
+        expect(fetches(apiF), only({for (final id in albumIds) id: 1}));
+      },
+    );
+
+    for (final warm in [false, true]) {
+      test(
+        '15${warm ? 'w' : ''} takeover after page 0 resumes the same candidate generation${warm ? ' (warm foreground)' : ''}',
+        () async {
+          if (warm) await warmUp();
+          apiW.pageGates[2] = Completer<void>();
+          final w = startWorker();
+          await until(
+            () => apiW.calls.any((c) => c.startsWith('getAlbumListPage:2:')),
+            'worker at page 2',
+          );
+          final pageZero = (await pageWork(0))!;
+          expect(pageZero.status, 'completed');
+          expect(await pageWork(2), isNull);
+
+          final LibrarySyncState f;
+          if (warm) {
+            // The takeover happens at the execution acquire, after the
+            // foreground planned: it runs its own plan and only requeues the
+            // worker's catalog row.
+            final first = await fg.requestSync(check);
+            expect(first.planReason, isNot('leaseHeld'));
+            expect(first.planKind, isNot(LibrarySyncPlanKind.catalogSnapshot));
+            await expectNothingRunning();
+            expect((await catalogWork())!.status, 'queued');
+            expect(pages(apiF), {0: 0, 2: 0, 4: 0, 6: 0});
+            f = await fg.requestSync(check);
+          } else {
+            f = await fg.requestSync(check);
+          }
+          apiW.pageGates[2]!.complete();
+          final workerResult = await w;
+
+          await expectHandedOff(f, workerResult);
+          expect(pages(apiW), {0: 1, 2: 1, 4: 0, 6: 0});
+          // Page 0 is the boundary re-check; page 2 was in flight in W.
+          expect(pages(apiF), {0: 1, 2: 1, 4: 1, 6: 1});
+          expect(fetches(apiW), only({}));
+          expect(fetches(apiF), only({for (final id in albumIds) id: 1}));
+          // The page row is the one the worker committed, not a rebuilt one.
+          expect((await pageWork(0))!.id, pageZero.id);
+        },
+      );
+    }
+
+    test('16 takeover after all pages, before promotion', () async {
+      var scanCalls = 0;
+      final gate = Completer<void>();
+      apiW.onGetScanStatus = () async {
+        if (++scanCalls == 2) await gate.future;
+        return null;
+      };
+      final w = startWorker();
+      await until(() => scanCalls >= 2, 'worker at the promotion scan check');
+      expect(
+        (await db.librarySyncDao.getOrCreateState(serverId)).candidateStatus,
+        'ready',
+      );
+      final pageTwo = (await pageWork(2))!;
+
+      final f = await fg.requestSync(check);
+      gate.complete();
+      final workerResult = await w;
+
+      await expectHandedOff(f, workerResult);
+      expect(pages(apiW), {0: 1, 2: 1, 4: 1, 6: 1});
+      // Only the first and last completed pages (offset 6 is the empty
+      // terminal page) are re-verified.
+      expect(pages(apiF), {0: 1, 2: 0, 4: 0, 6: 1});
+      expect(fetches(apiW), only({for (final id in albumIds) id: 1}));
+      expect(fetches(apiF), only({}));
+      expect((await pageWork(2))!.id, pageTwo.id);
+    });
+
+    test(
+      '17 takeover during promotion waits for the worker transaction',
+      () async {
+        // A provisional song matched by recording id makes the promotion
+        // transaction call the remap hook, which pauses the worker inside it.
+        const remapped = Song(
+          id: 's-f',
+          title: 'Song f',
+          albumId: 'f',
+          artistId: 'ar3',
+          musicBrainzId: 'recording-mbid',
+        );
+        for (final api in [apiW, apiF]) {
+          api.albumDetails['f'] = albumOf('f').copyWith(songs: [remapped]);
+        }
+        await db.libraryDao.upsertProvisionalSongs([
+          SongsTableCompanion.insert(
+            id: 'cached-remote-song',
+            title: 'Song f',
+            albumId: const Value('a'),
+            artistId: const Value('ar'),
+            recordingMbid: const Value('recording-mbid'),
+          ),
+        ]);
+        final inTransaction = Completer<void>();
+        final release = Completer<void>();
+        engineW = newEngine(
+          apiW,
+          onBeforeRemap: (_) async {
+            inTransaction.complete();
+            await release.future;
+          },
+        );
+        worker = newWorker(engineW);
+        final w = startWorker();
+        await inTransaction.future.timeout(const Duration(seconds: 20));
+
+        var finished = false;
+        final fFuture = fg
+            .requestSync(check)
+            .whenComplete(() => finished = true);
+        await Future<void>.delayed(const Duration(milliseconds: 300));
+        // Same connection: the worker's open transaction holds everything back,
+        // and nothing of the promotion is visible before it commits.
+        expect(finished, isFalse);
+        expect(apiF.calls, isEmpty);
+        release.complete();
+        final f = await fFuture;
+        final workerResult = await w;
+
+        await expectHandedOff(
+          f,
+          workerResult,
+          workerMayFinish: true,
+          leaseLost: null,
+        );
+        expect(pages(apiW), {0: 1, 2: 1, 4: 1, 6: 1});
+        expect(fetches(apiW), only({for (final id in albumIds) id: 1}));
+        // Promoted once: the foreground neither resumes nor promotes again.
+        expect(pages(apiF), {0: 0, 2: 0, 4: 0, 6: 0});
+        expect(fetches(apiF), only({}));
+        expect(await db.libraryDao.getSongById('cached-remote-song'), isNull);
+      },
+    );
+
+    test('18 takeover mid album hydration keeps hydrated albums', () async {
+      // Hydration fills the candidate before promotion, tracked by the
+      // candidate's own pending-hydration markers while the catalog work row
+      // stays running.
+      apiW.albumGates['c'] = Completer<void>();
+      final w = startWorker();
+      await until(() => apiW.calls.contains('getAlbum:c'), 'worker at album c');
+
+      final f = await fg.requestSync(check);
+      apiW.albumGates['c']!.complete();
+      final workerResult = await w;
+
+      await expectHandedOff(f, workerResult);
+      expect(pages(apiW), {0: 1, 2: 1, 4: 1, 6: 1});
+      expect(pages(apiF), {0: 1, 2: 0, 4: 0, 6: 1});
+      expect(fetches(apiW), only({'a': 1, 'b': 1, 'c': 1}));
+      // The album in flight in the worker is fetched again, once.
+      expect(fetches(apiF), only({'c': 1, 'd': 1, 'e': 1, 'f': 1}));
+    });
+
+    test('19 takeover while the worker is finishing', () async {
+      await warmUp();
+      final workerResult = await startWorker();
+      expect(workerResult.status, LibrarySyncStatus.succeeded);
+      expect(await db.librarySyncDao.getExecutionLease(serverId), isNull);
+      // The worker's promotion is committed and only its lease release is
+      // pending: nothing is running, but the lease is still live.
+      await db.librarySyncDao.acquireExecutionLease(
+        serverId: serverId,
+        ownerToken: 'finishing-worker',
+        ownerKind: 'androidWorker',
+        now: DateTime.now(),
+        ttl: const Duration(minutes: 10),
+      );
+
+      final f = await fg.requestSync(check);
+
+      await expectHandedOff(
+        f,
+        workerResult,
+        workerMayFinish: true,
+        leaseLost: 0,
+      );
+      expect(pages(apiW), {0: 1, 2: 1, 4: 1, 6: 1});
+      expect(fetches(apiW), only({for (final id in albumIds) id: 1}));
+      // The foreground ran its own plan and fetched no catalog pages.
+      expect(pages(apiF), {0: 0, 2: 0, 4: 0, 6: 0});
+      expect(fetches(apiF), only({}));
+    });
+
+    test('20 the heartbeat stops a worker whose lease was taken', () async {
+      await warmUp();
+      apiW.pageGates[2] = Completer<void>();
+      final w = startWorker();
+      await until(
+        () => apiW.calls.any((c) => c.startsWith('getAlbumListPage:2:')),
+        'worker at page 2',
+      );
+      expect(apiW.activeRequestsCancelled, isFalse);
+
+      final first = await fg.requestSync(check);
+      expect(first.planReason, isNot('leaseHeld'));
+      await until(
+        () => apiW.activeRequestsCancelled,
+        'the worker engine to be cancelled by its heartbeat',
+      );
+      final callsAtTakeover = apiW.calls.length;
+      apiW.pageGates[2]!.complete();
+      final workerResult = await w;
+
+      expect(apiW.calls, hasLength(callsAtTakeover));
+      expect(
+        workerResult.planReason == 'leaseHeld' ||
+            workerResult.status == LibrarySyncStatus.cancelled,
+        isTrue,
+      );
+      expect(await db.librarySyncDao.getExecutionLease(serverId), isNull);
+      await expectNothingRunning();
+      expect((await catalogWork())!.status, 'queued');
+      final state = await db.librarySyncDao.getOrCreateState(serverId);
+      expect(state.currentGeneration, baseline.currentGeneration);
+      expect(state.failureStreak, baseline.failureStreak);
+    });
+
+    test('21 a second foreground request joins the takeover run', () async {
+      apiW.pageGates[2] = Completer<void>();
+      final w = startWorker();
+      await until(
+        () => apiW.calls.any((c) => c.startsWith('getAlbumListPage:2:')),
+        'worker at page 2',
+      );
+      apiF.pageGates[4] = Completer<void>();
+      final first = fg.requestSync(check);
+      await until(
+        () => apiF.calls.any((c) => c.startsWith('getAlbumListPage:4:')),
+        'foreground at page 4',
+      );
+
+      final second = fg.requestSync(check);
+      await Future<void>.delayed(const Duration(milliseconds: 100));
+      apiF.pageGates[4]!.complete();
+      final f = await first;
+      final joined = await second;
+      apiW.pageGates[2]!.complete();
+      final workerResult = await w;
+
+      await expectHandedOff(f, workerResult);
+      expect(joined.planReason, isNot('leaseHeld'));
+      expect(joined.status, isNot(LibrarySyncStatus.deferred));
+      final outcomes = await db.select(db.librarySyncRunOutcomeTable).get();
+      expect(
+        outcomes.where((o) => o.safeReason == SyncSafeReason.leaseHeld.index),
+        isEmpty,
+      );
+      expect(pages(apiF), {0: 1, 2: 1, 4: 1, 6: 1});
+    });
+
+    test(
+      '22 a second foreground coordinator leaves the first untouched',
+      () async {
+        final apiF2 = FakeLibrarySyncApi();
+        serve(apiF2);
+        final fg2 = newForeground(newEngine(apiF2));
+        await queueCatalog();
+        apiF.pageGates[2] = Completer<void>();
+        final first = fg.requestSync(check);
+        await until(
+          () => apiF.calls.any((c) => c.startsWith('getAlbumListPage:2:')),
+          'first foreground at page 2',
+        );
+        final lease = (await db.librarySyncDao.getExecutionLease(serverId))!;
+        expect(lease.ownerKind, 'foreground');
+        final requests = await db.select(db.librarySyncRunRequestTable).get();
+
+        final second = await fg2.requestSync(check);
+
+        expect(second.planReason, 'leaseHeld');
+        expect(apiF2.calls, isEmpty);
+        final after = (await db.librarySyncDao.getExecutionLease(serverId))!;
+        expect(after.ownerToken, lease.ownerToken);
+        expect((await catalogWork())!.status, 'running');
+        expect(
+          (await db.select(db.librarySyncRunAttemptTable).get()).map(
+            (a) => a.status,
+          ),
+          [0],
+        );
+        expect(
+          (await db.select(db.librarySyncRunRequestTable).get()).map(
+            (r) => (r.id, r.status),
+          ),
+          requests.map((r) => (r.id, r.status)),
+        );
+
+        apiF.pageGates[2]!.complete();
+        final f = await first;
+        await expectHandedOff(f, null, leaseLost: 0);
+        expect(pages(apiF), {0: 1, 2: 1, 4: 1, 6: 1});
+      },
+    );
+
+    test(
+      '23 an expiring lease during the takeover behaves like preemption',
+      () async {
+        await warmUp();
+        apiW.pageGates[2] = Completer<void>();
+        final w = startWorker();
+        await until(
+          () => apiW.calls.any((c) => c.startsWith('getAlbumListPage:2:')),
+          'worker at page 2',
+        );
+        final pageZero = (await pageWork(0))!;
+        await db.customStatement(
+          'UPDATE library_sync_execution_lease SET expires_at = ? '
+          'WHERE server_id = ?',
+          [
+            DateTime.now()
+                    .subtract(const Duration(minutes: 1))
+                    .millisecondsSinceEpoch ~/
+                1000,
+            serverId,
+          ],
+        );
+
+        final first = await fg.requestSync(check);
+        expect(first.planReason, isNot('leaseHeld'));
+        await expectNothingRunning();
+        expect((await catalogWork())!.status, 'queued');
+        final f = await fg.requestSync(check);
+        apiW.pageGates[2]!.complete();
+        final workerResult = await w;
+
+        await expectHandedOff(f, workerResult);
+        expect(pages(apiW), {0: 1, 2: 1, 4: 0, 6: 0});
+        expect(pages(apiF), {0: 1, 2: 1, 4: 1, 6: 1});
+        expect(fetches(apiF), only({for (final id in albumIds) id: 1}));
+        expect((await pageWork(0))!.id, pageZero.id);
+      },
+    );
+
+    test(
+      '24 an OS cancel racing the takeover leaves one consistent outcome',
+      () async {
+        apiW.pageGates[2] = Completer<void>();
+        final w = startWorker();
+        await until(
+          () => apiW.calls.any((c) => c.startsWith('getAlbumListPage:2:')),
+          'worker at page 2',
+        );
+
+        // The cancel is flagged while the worker is still paused, so the
+        // takeover lands before the worker can write anything.
+        final cancel = worker.cancelAndWait();
+        final fFuture = fg.requestSync(check);
+        final f = await fFuture;
+        apiW.pageGates[2]!.complete();
+        await cancel;
+        final workerResult = await w;
+
+        await expectHandedOff(f, workerResult);
+        expect(pages(apiW), {0: 1, 2: 1, 4: 0, 6: 0});
+        expect(pages(apiF), {0: 1, 2: 1, 4: 1, 6: 1});
+      },
+    );
+
+    test(
+      '24b an OS cancel and the foreground request start together',
+      () async {
+        apiW.pageGates[2] = Completer<void>();
+        final w = startWorker();
+        await until(
+          () => apiW.calls.any((c) => c.startsWith('getAlbumListPage:2:')),
+          'worker at page 2',
+        );
+
+        final cancel = worker.cancelAndWait();
+        apiW.pageGates[2]!.complete();
+        final f = await fg.requestSync(check);
+        await cancel;
+        final workerResult = await w;
+
+        // Whichever side wins, the ledger and the lease stay consistent. If
+        // the cancel committed first the worker parks the catalog work as
+        // cancelled and the foreground's check must not resume it.
+        final state = await db.librarySyncDao.getOrCreateState(serverId);
+        final promoted = state.currentGeneration > baseline.currentGeneration;
+        await expectHandedOff(
+          f,
+          workerResult,
+          albums: promoted ? {'a', 'b', 'c', 'd', 'e', 'f'} : {'a'},
+          generationAdvance: promoted ? 1 : 0,
+          workerMayFinish: true,
+          leaseLost: null,
+        );
+      },
+    );
+
+    test('25 a server catalog that changed since the worker starts a new candidate', () async {
+      apiW.pageGates[2] = Completer<void>();
+      final w = startWorker();
+      await until(
+        () => apiW.calls.any((c) => c.startsWith('getAlbumListPage:2:')),
+        'worker at page 2',
+      );
+      final pageZero = (await pageWork(0))!;
+      // Album b is replaced by g on the server after the worker committed
+      // page 0.
+      apiF.albumDetails['g'] = albumOf('g').copyWith(songs: songsOf('g'));
+      apiF.fastPathPages[0] = [albumOf('a'), albumOf('g')];
+
+      final f = await fg.requestSync(check);
+      apiW.pageGates[2]!.complete();
+      final workerResult = await w;
+
+      await expectHandedOff(
+        f,
+        workerResult,
+        albums: {'a', 'c', 'd', 'e', 'f', 'g'},
+      );
+      expect(pages(apiW), {0: 1, 2: 1, 4: 0, 6: 0});
+      // The boundary check fails, so page 0 is requested again for the new
+      // candidate.
+      expect(pages(apiF), {0: 2, 2: 1, 4: 1, 6: 1});
+      expect(fetches(apiW, [...albumIds, 'g']), only({}, [...albumIds, 'g']));
+      expect(
+        fetches(apiF, [...albumIds, 'g']),
+        only(
+          {'a': 1, 'c': 1, 'd': 1, 'e': 1, 'f': 1, 'g': 1},
+          [...albumIds, 'g'],
+        ),
+      );
+      expect(
+        await db.librarySyncCandidateDao.getAlbumIds(
+          serverId: serverId,
+          generation: 2,
+        ),
+        isEmpty,
+      );
+      expect((await pageWork(0))!.id, isNot(pageZero.id));
+    });
+
+    // Two production-style engines (own connection, 5 s busy wait) on one
+    // file. The worker's promotion transaction outlasts the foreground's busy
+    // wait, so the foreground defers; then the worker's lock is released and
+    // the foreground retries. [workerDies] makes the worker roll back instead
+    // of committing the promotion.
+    Future<void> crossConnectionHold({required bool workerDies}) async {
+      final directory = await Directory.systemTemp.createTemp('navis-xconn-');
+      addTearDown(() => directory.delete(recursive: true));
+      final path = '${directory.path}/fixture.sqlite';
+      final credentials = FakeSyncCredentialStore();
+
+      // A plain read: getOrCreateState opens a write transaction, which would
+      // wait on the worker's lock like any other write.
+      Future<LibrarySyncStateTableData> readState() => (db.select(
+        db.librarySyncStateTable,
+      )..where((t) => t.serverId.equals(serverId))).getSingle();
+
+      await db.close();
+      db = NavisDatabase.atPath(path);
+      repo = ServerConfigRepository(db, credentials: credentials);
+      serverId = await session();
+      await seed();
+      final seededAt = DateTime.now();
+      await db.librarySyncDao.writeState(
+        LibrarySyncStateTableCompanion(
+          serverId: Value(serverId),
+          currentGeneration: const Value(1),
+          lastAuditAt: Value(seededAt),
+          lastAuxiliarySyncedAt: Value(seededAt),
+        ),
+      );
+      baseline = await readState();
+      // Two engines on one file is the point of this test: each has its own
+      // connection, so drift's shared-executor warning does not apply.
+      driftRuntimeOptions.dontWarnAboutMultipleDatabases = true;
+      addTearDown(
+        () => driftRuntimeOptions.dontWarnAboutMultipleDatabases = false,
+      );
+      final workerDb = NavisDatabase.atPath(path);
+      addTearDown(workerDb.close);
+      final workerRepo = ServerConfigRepository(
+        workerDb,
+        credentials: credentials,
+      );
+
+      // A provisional song matched by recording id makes the promotion
+      // transaction call the remap hook, which holds the worker's lock.
+      const remapped = Song(
+        id: 's-f',
+        title: 'Song f',
+        albumId: 'f',
+        artistId: 'ar3',
+        musicBrainzId: 'recording-mbid',
+      );
+      for (final api in [apiW, apiF]) {
+        api.albumDetails['f'] = albumOf('f').copyWith(songs: [remapped]);
+      }
+      await db.libraryDao.upsertProvisionalSongs([
+        SongsTableCompanion.insert(
+          id: 'cached-remote-song',
+          title: 'Song f',
+          albumId: const Value('a'),
+          artistId: const Value('ar'),
+          recordingMbid: const Value('recording-mbid'),
+        ),
+      ]);
+      final inTransaction = Completer<void>();
+      final release = Completer<void>();
+      worker = AdaptiveLibrarySyncCoordinator(
+        executor: serialDriftEngine(
+          api: apiW,
+          database: workerDb,
+          repository: workerRepo,
+          networkType: NetworkType.wifi,
+          fastPathPageSize: 2,
+          writeChunkSize: 1,
+          onBeforeSongIdentityRemap: (_) async {
+            inTransaction.complete();
+            await release.future;
+          },
+        ),
+        database: workerDb,
+        serverConfigRepository: workerRepo,
+        networkType: NetworkType.wifi,
+        staleAfter: const Duration(hours: 1),
+        readHasActivePlayback: () => false,
+        readIsForeground: () => false,
+        isBackgroundExecution: true,
+        executionOwnerKind: 'androidWorker',
+        executionLeaseHeartbeatInterval: const Duration(milliseconds: 50),
+        executionLeaseTtl: const Duration(seconds: 10),
+      );
+      fg = newForeground(newEngine(apiF));
+      await warmUp();
+
+      final w = startWorker();
+      await inTransaction.future.timeout(const Duration(seconds: 20));
+      final candidate = (await readState()).candidateGeneration;
+      expect(candidate, baseline.currentGeneration + 1);
+
+      // The foreground's writes queue behind the worker for the full 5 s busy
+      // wait: contention, not a failure.
+      final busy = await fg.requestSync(check);
+
+      expect(busy.status, LibrarySyncStatus.deferred);
+      expect(busy.planReason, 'leaseHeld');
+      var state = await readState();
+      expect(state.failureStreak, baseline.failureStreak);
+      expect(state.nextEligibleAt, baseline.nextEligibleAt);
+      // The provider retries a live worker lease at its 30 s floor, not at
+      // the heartbeat-extended expiry.
+      final lease = (await db.librarySyncDao.getExecutionLease(serverId))!;
+      expect(lease.ownerKind, 'androidWorker');
+      expect(lease.expiresAt.isAfter(DateTime.now().toUtc()), isTrue);
+      expect(apiF.calls, isEmpty);
+
+      if (workerDies) {
+        // A killed process: the connection closes under the open transaction,
+        // which rolls back and frees the lock, but the worker's lease and
+        // running rows are left behind for the takeover to recover.
+        await workerDb.close().timeout(const Duration(seconds: 20));
+      }
+      release.complete();
+      final workerResult = await w.catchError(
+        (Object _) => const LibrarySyncState(
+          status: LibrarySyncStatus.failed,
+          stage: LibrarySyncStage.completed,
+        ),
+      );
+      if (workerDies) {
+        // The promotion rolled back: the candidate and its pages survive.
+        expect(workerResult.status, isNot(LibrarySyncStatus.succeeded));
+        expect(
+          (await readState()).currentGeneration,
+          baseline.currentGeneration,
+        );
+      } else {
+        expect(workerResult.status, LibrarySyncStatus.succeeded);
+      }
+
+      var retried = await fg.requestSync(check);
+      if (workerDies) {
+        // As test 15w: a warm foreground's first request takes over the dead
+        // worker's lease and requeues its catalog row; the next one continues
+        // the candidate.
+        expect(retried.planReason, isNot('leaseHeld'));
+        expect((await catalogWork())!.status, 'queued');
+        await expectNothingRunning();
+        retried = await fg.requestSync(check);
+      }
+
+      expect(retried.planReason, isNot('leaseHeld'));
+      expect(
+        retried.status,
+        anyOf(
+          LibrarySyncStatus.succeeded,
+          LibrarySyncStatus.partial,
+          LibrarySyncStatus.skipped,
+        ),
+      );
+      state = await readState();
+      // Exactly one promotion, of the very candidate the worker built.
+      expect(state.currentGeneration, candidate);
+      final liveAlbums = (await db.libraryDao.getAllAlbums()).map((a) => a.id);
+      expect(liveAlbums.toList()..sort(), albumIds);
+      expect(await db.librarySyncDao.getExecutionLease(serverId), isNull);
+      await expectNothingRunning();
+      expect(
+        (await db.select(db.librarySyncRunRequestTable).get()).where(
+          (r) => r.status == 1,
+        ),
+        isEmpty,
+      );
+      // No second download of anything the worker already fetched.
+      expect(fetches(apiF), only({}));
+      expect(pages(apiF).values.reduce((a, b) => a + b), lessThanOrEqualTo(2));
+      await workerDb.close();
+    }
+
+    test(
+      '26 a worker transaction past the busy wait defers the foreground, '
+      'which then finds the single promotion',
+      () => crossConnectionHold(workerDies: false),
+      timeout: const Timeout(Duration(seconds: 90)),
+    );
+
+    test(
+      '27 a worker that dies in its transaction hands the same candidate '
+      'generation to the retrying foreground',
+      () => crossConnectionHold(workerDies: true),
+      timeout: const Timeout(Duration(seconds: 90)),
+    );
+  });
 }

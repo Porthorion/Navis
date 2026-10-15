@@ -6,6 +6,7 @@ import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:navis/src/api/subsonic_api_client.dart';
 import 'package:navis/src/api/subsonic_auth_interceptor.dart';
+import 'package:navis/src/database/database_location.dart';
 import 'package:navis/src/database/navis_database.dart';
 import 'package:navis/src/features/auth/domain/server_config.dart';
 import 'package:navis/src/features/auth/presentation/session_route_provider.dart';
@@ -145,10 +146,15 @@ class _HeadlessBackgroundSyncRunner {
     }
 
     try {
+      // Opening the database migrates it, and only the app engine may. This
+      // gate runs before anything reads or writes, including a status row.
+      if (databaseOverride == null &&
+          NavisDatabase.schemaUpgradePending(await resolveDatabaseFile())) {
+        return _result('deferredUpgrade');
+      }
       final repository = ServerConfigRepository(
         database,
-        credentials:
-            credentialsOverride ?? const FlutterSecureCredentialStore(),
+        credentials: credentialsOverride ?? FlutterSecureCredentialStore(),
       );
       final retained = await repository.getRetainedServer();
       activeServerId = retained?.id;
