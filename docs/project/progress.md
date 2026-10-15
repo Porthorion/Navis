@@ -2,7 +2,7 @@
 
 Tracks completion of all phases and sub-tasks defined in [docs/project/development-plan.md](development-plan.md). Checkboxes are updated as work is completed.
 
-Last updated: 2026-10-14
+Last updated: 2026-10-15
 
 ---
 
@@ -14,6 +14,21 @@ Last updated: 2026-10-14
 - ACP status values: `backlog`, `ready`, `in_progress`, `blocked`, `done`.
 
 ## Current Focus
+- [x] Idle-robustness final fixes (shared sync requests and busy databases) —
+  2026-10-15 (`fix/idle-integration`, aa3d3452..abf8f071; a lease-held check
+  against a live worker lease retries at the 30 s floor instead of waiting out
+  its heartbeat-extended expiry, because the app preempts the worker; any
+  writer-lock timeout inside a sync request is surfaced as `leaseHeld` (busy)
+  instead of a raw failure; an inconsistent catalog candidate and its page
+  checkpoints are cleared in one transaction; `beginSyncRunAttempt` refuses to
+  reopen a request another engine already finished, so a sharing engine defers
+  instead of running the completed work twice. Regressions added with the
+  fixes: the provider 30 s-floor test, fence tests 12a and 13/13a/13b, the DAO
+  terminal-guard test, and cross-connection hand-off tests 26/27 in
+  `library_sync_regression_test.dart`. Reviewed read-only in this worktree;
+  `./tool/check.sh`, the full suite and runtime validation were not run here,
+  the coordinator owns them.)
+
 - [x] Idle-robustness follow-ups 11 and 12 (credential unavailability) —
   2026-10-14 (`fix/idle-partb`; secure-storage operations are serialized and
   deadline-bounded per store, so pending reads surface as unavailable and are

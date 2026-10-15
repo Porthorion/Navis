@@ -111,8 +111,11 @@ released focus and resumed the same advancing song automatically. See
 `leaseHeld` now persists its next deadline at the foreign lease's expiry (plus
 five seconds, never sooner than 30 seconds or later than the normal cadence)
 instead of a full interval later; the existing durable-deadline timer re-arms
-from it. The native worker timeout now sends the same bounded Dart `cancel`
-checkpoint as WorkManager cancellation before engine teardown, so a timed-out
+from it. A live `androidWorker` lease retries at the 30-second floor itself,
+because the app preempts the worker instead of waiting out the heartbeats
+that keep extending the expiry. The native worker timeout now sends the same
+bounded Dart `cancel` checkpoint as WorkManager cancellation before engine
+teardown, so a timed-out
 run drains and releases its lease where it can. Regressions: `a lease-held
 automatic check retries at lease expiry, not a full interval later` and the
 instrumented `realWorkerSendsCancelCheckpointWhenItsRunTimesOut` (compiled but
@@ -126,14 +129,25 @@ and attempts in the acquire transaction. This also fixes rows left `running`
 after a plain expiry takeover in a process that had already recovered.
 `completeSyncRun` now accepts only a still-running attempt, and a caller without
 an attempt cannot finish a running request, so the fenced-out worker can no
-longer write the shared request's outcome. A lease acquire that times out on a
-database lock counts as `leaseHeld`. The foreground continues from committed
+longer write the shared request's outcome. A lease acquire that times out on
+a database lock counts as `leaseHeld`, as does any other writer-lock timeout
+inside the request. The foreground continues from committed
 progress (page checkpoints, the resumable candidate generation, pending
 hydration); there is no new persistence. Foreground against foreground is
 unchanged (`leaseHeld`). Regressions: the `worker hand-off` groups in
 `library_sync_dao_test.dart`, `sync_write_fence_test.dart` and
 `library_sync_regression_test.dart`, the rewritten F09 tests, and the provider
 and worker-entrypoint tests. The emulator runtime pass is still pending.
+
+Final fixes on `fix/idle-integration` (2026-10-15): a failed acquire rolls
+back atomically and leaves the previous owner's running rows untouched; a
+request another engine finished is never reopened by a late attempt (it defers
+as `leaseHeld`); an inconsistent candidate and its page checkpoints are
+cleared in one transaction; and the foreground's lease-held retry against a
+live worker uses the 30-second floor. Regressions: the lease-acquire
+atomicity and lock-timeout tests in `sync_write_fence_test.dart` (12a,
+13/13a/13b), the terminal-guard test in `library_sync_dao_test.dart`, and the
+cross-connection hand-off tests in `library_sync_regression_test.dart` (26-27).
 
 **Original finding — likelihood:** medium. A killed worker or frozen heartbeat leaves the durable
 ten-minute lease. Foreground work reports `leaseHeld`; treating that as a
@@ -281,10 +295,16 @@ source-supported races are not proof of the owner's overnight trigger. Keep
 fixtures private and disposable, and keep credentials and media identities out
 of startup details.
 
-## Deferred to 1.5.1: a seek during a failing reload
+## Deferred to 1.5.1
 
-If the user seeks while a failed song is reloading and that reload fails
-again, the seek target is lost (just_audio ignores a seek during a load).
-The one-retry rule then skips to the next song, so the visible effect is small.
-Fix in 1.5.1 by carrying a seek made during the reload into the held recovery
-record. Found in the batch-2 round-5 review on 2026-10-15.
+- A seek during a failing reload: if the user seeks while a failed song is
+  reloading and that reload fails again, the seek target is lost (just_audio
+  ignores a seek during a load). The one-retry rule then skips to the next
+  song, so the visible effect is small. Fix by carrying a seek made during the
+  reload into the held recovery record. Found in the batch-2 round-5 review on
+  2026-10-15.
+- Paused-playback wake-lock (finding 9): evaluate an upstream fix or a
+  separately reviewed dependency patch for audio_service's pause wake-lock
+  release being coupled to foreground demotion.
+- Cross-engine keystore serialization (finding 11): the foreground app and the
+  headless worker writing the same Android keystore still need native work.

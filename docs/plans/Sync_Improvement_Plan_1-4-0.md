@@ -530,6 +530,18 @@ also blocks a delayed album response after replacement and preserves the newer
 owner's song and lease (`fence-database-tests.log`, `fence-regression-tests.log`).
 These results do not substitute for actual Android worker lifecycle validation.
 
+The 1.5.0 idle work closed the remaining F09 hand-off gaps on
+`fix/idle-integration`: takeover recovery (requeued work, requests, attempts)
+is atomic inside the lease-acquire transaction, and a failed acquire rolls
+back and leaves the previous owner's running rows untouched; a request
+another engine finished is never reopened (`beginSyncRunAttempt` returns null
+for a terminal request); any writer-lock timeout during a request maps to
+`leaseHeld` instead of a failure; and an inconsistent candidate is cleared
+together with its page checkpoints in one transaction. Cross-connection
+regressions cover a live and a killed worker
+(`library_sync_regression_test.dart` 26–27, `sync_write_fence_test.dart`
+12a/13/13a/13b).
+
 The next full `./tool/check.sh` passed: **1,455 tests passed, one skipped**, with
 formatting, generation and analysis passing (`check-third.log`). This checkpoint
 precedes the following diagnostics fix and later work.

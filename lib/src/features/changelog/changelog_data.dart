@@ -210,6 +210,14 @@ const List<ChangelogVersion> changelogs = [
         type: ChangelogEntryType.improvement,
       ),
       ChangelogEntry(
+        'A library check that meets a busy database waits and retries shortly after instead of reporting a failure',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
+        'The app and a background sync never run the same library check twice, and an interrupted large library sync rebuilds its progress instead of repeating the same error',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
         'Large selections of downloads start more smoothly',
         type: ChangelogEntryType.fix,
       ),
