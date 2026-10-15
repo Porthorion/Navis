@@ -14,7 +14,7 @@ class SubsonicAuthConfig {
     required this.username,
     required this.password,
     required this.apiVersion,
-    this.client = 'navis',
+    this.client = 'Navis',
     this.authType = SubsonicAuthType.token,
   });
 
