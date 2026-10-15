@@ -40,7 +40,7 @@ git remote set-url --add --push origin <forgejo-navis-dev-url>
 git remote -v   # fetch: GitHub; push: GitHub and Forgejo
 ```
 
-With fetch on GitHub, the separate `github` remote is no longer needed.
+Keep the separate `github` remote: `tool/release.sh --github` pushes to it.
 
 ## Branches
 
