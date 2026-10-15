@@ -1,10 +1,21 @@
 name: CI
 
+# Docs-only changes skip CI, so the maintainer merges them as admin.
 on:
   pull_request:
     branches: [dev, main, 'release/**']
+    paths-ignore:
+      - 'docs/**'
+      - '**/*.md'
+      - '.github/ISSUE_TEMPLATE/**'
+      - '.github/DISCUSSION_TEMPLATE/**'
   push:
     branches: [dev, 'release/**']
+    paths-ignore:
+      - 'docs/**'
+      - '**/*.md'
+      - '.github/ISSUE_TEMPLATE/**'
+      - '.github/DISCUSSION_TEMPLATE/**'
 
 permissions:
   contents: read
@@ -14,9 +25,10 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  check:
+  # Format, committed generated code, analyze and dead-code gate.
+  static:
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
 
@@ -34,8 +46,37 @@ jobs:
       - run: ./tool/bootstrap.sh
       - run: ./tool/dart_format.sh --check
       - run: dart run build_runner build
+      # Generated files are committed; a diff here means they are stale.
+      - run: git diff --exit-code -- '*.g.dart' '*.freezed.dart'
       - run: flutter analyze --no-fatal-infos
       - run: dart run tool/dead_code_check.dart
+
+  # Generated code is committed, so shards skip build_runner.
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [0, 1, 2, 3]
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          flutter-version: 3.47.5
+          cache: true
+
+      - run: ./tool/bootstrap.sh
       # No secrets: the Last.fm key comes from optional --dart-define values,
       # and builds without one fall back to a user-supplied key.
-      - run: flutter test
+      - run: flutter test --total-shards 4 --shard-index ${{ matrix.shard }}
+
+  # One stable name to require in branch protection.
+  ci:
+    needs: [static, test]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - run: test "${{ needs.static.result }}" = success && test "${{ needs.test.result }}" = success

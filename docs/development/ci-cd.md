@@ -1,6 +1,10 @@
 # Quality Gates & Releases
 
-All quality gates and release publishing run locally. There is no CI runner — `tool/check.sh` and `tool/release.sh` replace what Forgejo Actions workflows would do.
+Releases are built and published locally with `tool/release.sh`; `tool/check.sh` is the full local gate. GitHub Actions (`.github/workflows/ci.yml`) runs a subset of `check.sh` on pull requests and on pushes to `dev` and `release/**`; docs-only changes are skipped. Jobs:
+
+- `static`: bootstrap, format check, `build_runner build` followed by a diff check (committed generated code must be current), analyze and the dead-code check.
+- `test`: four parallel shards of `flutter test`; they skip `build_runner` because generated code is committed.
+- `ci`: waits for both and fails unless both succeeded. This is the one status to require in branch protection ([git-workflow.md](git-workflow.md#github-settings)).
 
 Windows media-session changes additionally require the Windows-only isolated
 GMTC validation command described in `docs/development/development-workflow.md`:
