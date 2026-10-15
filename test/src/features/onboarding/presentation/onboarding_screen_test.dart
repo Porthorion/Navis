@@ -1,4 +1,5 @@
 import 'package:dio/dio.dart';
+import 'package:navis/src/features/settings/data/external_scrobble_credentials.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -32,6 +33,10 @@ void main() {
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
+          externalScrobbleCredentialStoreProvider.overrideWithValue(
+            CloneDiagnosticsExternalScrobbleCredentialStore(),
+          ),
+
           onboardingRequiredProvider.overrideWithValue(true),
           appSettingsProvider.overrideWithValue(
             const AsyncData(AppSettingsModel.defaults()),
@@ -59,6 +64,10 @@ void main() {
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
+          externalScrobbleCredentialStoreProvider.overrideWithValue(
+            CloneDiagnosticsExternalScrobbleCredentialStore(),
+          ),
+
           onboardingRequiredProvider.overrideWithValue(true),
           appSettingsProvider.overrideWithValue(
             const AsyncData(AppSettingsModel.defaults()),
@@ -95,6 +104,10 @@ void main() {
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
+          externalScrobbleCredentialStoreProvider.overrideWithValue(
+            CloneDiagnosticsExternalScrobbleCredentialStore(),
+          ),
+
           onboardingRequiredProvider.overrideWithValue(true),
           appSettingsProvider.overrideWithValue(
             const AsyncData(AppSettingsModel.defaults()),
@@ -181,6 +194,10 @@ void main() {
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
+          externalScrobbleCredentialStoreProvider.overrideWithValue(
+            CloneDiagnosticsExternalScrobbleCredentialStore(),
+          ),
+
           onboardingRequiredProvider.overrideWithValue(true),
           appSettingsProvider.overrideWithValue(
             AsyncData(
@@ -237,6 +254,10 @@ void main() {
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
+          externalScrobbleCredentialStoreProvider.overrideWithValue(
+            CloneDiagnosticsExternalScrobbleCredentialStore(),
+          ),
+
           onboardingRequiredProvider.overrideWithValue(true),
           appSettingsProvider.overrideWithValue(AsyncData(settings)),
           customColorPresetsProvider.overrideWithValue(
@@ -273,6 +294,10 @@ void main() {
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
+          externalScrobbleCredentialStoreProvider.overrideWithValue(
+            CloneDiagnosticsExternalScrobbleCredentialStore(),
+          ),
+
           onboardingRequiredProvider.overrideWithValue(true),
           appSettingsProvider.overrideWithValue(
             const AsyncData(AppSettingsModel.defaults()),

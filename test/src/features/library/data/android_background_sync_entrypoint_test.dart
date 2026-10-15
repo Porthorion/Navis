@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:connectivity_plus/connectivity_plus.dart';
@@ -10,21 +11,25 @@ import 'package:navis/src/features/library/domain/sync_run_contract.dart';
 import 'package:navis/src/database/navis_database.dart';
 import 'package:navis/src/features/auth/data/secure_credential_store.dart';
 import 'package:navis/src/features/auth/domain/server_config.dart';
+import 'package:navis/src/features/library/data/android_background_sync.dart';
 import 'package:navis/src/features/library/data/android_background_sync_entrypoint.dart';
 import 'package:navis/src/features/library/domain/library_sync_request.dart';
+import 'package:path_provider_platform_interface/path_provider_platform_interface.dart';
+import 'package:sqlite3/sqlite3.dart' show OpenMode, sqlite3;
 
 import '../../../../helpers/test_database.dart';
 
 class _WorkerCredentialStore implements SecureCredentialStore {
-  new({required this.failRead});
+  new({required this.failRead, this.password});
 
   final bool failRead;
+  final String? password;
   int clearCalls = 0;
 
   @override
   Future<String?> readPassword() async {
     if (failRead) throw const CredentialReadException();
-    return null;
+    return password;
   }
 
   @override
@@ -32,6 +37,19 @@ class _WorkerCredentialStore implements SecureCredentialStore {
 
   @override
   Future<void> clearPassword() async => clearCalls++;
+}
+
+class _TempPathProvider extends PathProviderPlatform {
+  new({required this.support, required this.documents});
+
+  final Directory support;
+  final Directory documents;
+
+  @override
+  Future<String?> getApplicationSupportPath() async => support.path;
+
+  @override
+  Future<String?> getApplicationDocumentsPath() async => documents.path;
 }
 
 void main() {
@@ -80,6 +98,143 @@ void main() {
       );
     }, skip: !sqliteAvailable);
   }
+
+  test('a worker fenced out mid-pass reports leaseHeld or stoppedBySystem '
+      'without a retry', () async {
+    const connectivityChannel = MethodChannel(
+      'dev.fluttercommunity.plus/connectivity',
+    );
+    messenger
+      ..setMockMethodCallHandler(connectivityChannel, (_) async => ['wifi'])
+      ..setMockStreamHandler(
+        const EventChannel('dev.fluttercommunity.plus/connectivity_status'),
+        MockStreamHandler.inline(onListen: (_, _) {}),
+      )
+      ..setMockMethodCallHandler(
+        const MethodChannel('com.navis.app/network_cost'),
+        (_) async => false,
+      );
+    addTearDown(() {
+      messenger
+        ..setMockMethodCallHandler(connectivityChannel, null)
+        ..setMockStreamHandler(
+          const EventChannel('dev.fluttercommunity.plus/connectivity_status'),
+          null,
+        )
+        ..setMockMethodCallHandler(
+          const MethodChannel('com.navis.app/network_cost'),
+          null,
+        );
+    });
+
+    // The test binding answers every HttpClient request with a 400.
+    final httpOverrides = HttpOverrides.current;
+    HttpOverrides.global = null;
+    addTearDown(() => HttpOverrides.global = httpOverrides);
+
+    final requests = <String>[];
+    final heldRequestArrived = Completer<void>();
+    final answerHeldRequest = Completer<void>();
+    final httpServer = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
+    addTearDown(() => httpServer.close(force: true));
+    httpServer.listen((request) async {
+      requests.add(request.uri.path);
+      if (requests.length == 1) {
+        heldRequestArrived.complete();
+        await answerHeldRequest.future;
+      }
+      request.response.headers.contentType = ContentType.json;
+      request.response.write(
+        jsonEncode({
+          'subsonic-response': {
+            'status': 'ok',
+            'version': '1.16.1',
+            'indexes': {'lastModified': 1767225600000},
+            'albumList2': <String, Object?>{},
+            'starred2': <String, Object?>{},
+            'playlists': <String, Object?>{},
+            'scanStatus': {'scanning': false, 'count': 0},
+          },
+        }),
+      );
+      await request.response.close();
+    });
+
+    final database = createTestDatabase();
+    addTearDown(database.close);
+    Future<Map<String, Object?>>? workerRun;
+    addTearDown(() async {
+      if (!answerHeldRequest.isCompleted) answerHeldRequest.complete();
+      await workerRun;
+    });
+    await database.serverDao.saveServer(
+      ServerConfigTableCompanion.insert(
+        url: 'http://127.0.0.1:${httpServer.port}',
+        username: 'fixture',
+        apiVersion: '1.16.1',
+        isAuthenticated: const Value(true),
+        lastSynced: Value(DateTime.now().subtract(const Duration(days: 1))),
+      ),
+    );
+    final server = (await database.serverDao.getActiveServer())!;
+    await database.librarySyncDao.writeState(
+      LibrarySyncStateTableCompanion(
+        serverId: Value(server.id),
+        currentGeneration: const Value(1),
+        initialCatalogUsableAt: Value(DateTime.now()),
+        androidBackgroundSyncEnabled: const Value(true),
+      ),
+    );
+
+    workerRun = runAndroidBackgroundSyncForTesting(
+      database: database,
+      credentials: _WorkerCredentialStore(failRead: false, password: 'pw'),
+      profileKey: AndroidBackgroundSyncScheduler.profileKeyFor(
+        ServerConfigModel(
+          url: server.url,
+          username: server.username,
+          password: 'pw',
+          apiVersion: server.apiVersion,
+        ),
+      ),
+    );
+    await heldRequestArrived.future.timeout(const Duration(seconds: 20));
+    final workerLease = await database.librarySyncDao.getExecutionLease(
+      server.id,
+    );
+    expect(workerLease?.ownerKind, 'androidWorker');
+
+    expect(
+      await database.librarySyncDao.acquireExecutionLease(
+        serverId: server.id,
+        ownerToken: 'foreground-owner',
+        ownerKind: 'foreground',
+        now: DateTime.now(),
+        ttl: const Duration(minutes: 10),
+      ),
+      isTrue,
+    );
+    answerHeldRequest.complete();
+    final result = await workerRun.timeout(const Duration(seconds: 30));
+
+    expect(result['category'], anyOf('leaseHeld', 'stoppedBySystem'));
+    expect(result['retry'], isFalse);
+    expect(
+      (await database.librarySyncDao.getOrCreateState(server.id))
+          .androidWorkerResult,
+      result['category'],
+    );
+    expect(
+      (await database.librarySyncDao.getExecutionLease(server.id))?.ownerToken,
+      'foreground-owner',
+    );
+    expect(
+      await (database.select(
+        database.librarySyncWorkTable,
+      )..where((work) => work.status.equals('running'))).get(),
+      isEmpty,
+    );
+  }, skip: !sqliteAvailable);
 
   test('entrypoint supplies the cached native playback reader to sync', () {
     final source = File(
@@ -233,6 +388,80 @@ void main() {
         ),
         isFalse,
       );
+    },
+    skip: !sqliteAvailable,
+  );
+
+  test(
+    'worker defers on a pending schema upgrade and writes no status row',
+    () async {
+      final support = await Directory.systemTemp.createTemp('navis-support');
+      final documents = await Directory.systemTemp.createTemp('navis-docs');
+      addTearDown(() async {
+        await support.delete(recursive: true);
+        await documents.delete(recursive: true);
+      });
+      // A real database file one schema version behind the app: the gate must
+      // defer before anything opens or writes it.
+      final file = File('${support.path}/navis.sqlite.sqlite');
+      final database = createTestDatabase(file: file);
+      await database.serverDao.saveServer(
+        ServerConfigTableCompanion.insert(
+          url: 'https://example.test',
+          username: 'fixture',
+          apiVersion: '1.16.1',
+        ),
+      );
+      await database.close();
+      const olderVersion = NavisDatabase.currentSchemaVersion - 1;
+      final downgrade = sqlite3.open(file.path);
+      downgrade.execute('PRAGMA user_version = $olderVersion');
+      downgrade.close();
+
+      final previousProvider = PathProviderPlatform.instance;
+      PathProviderPlatform.instance = _TempPathProvider(
+        support: support,
+        documents: documents,
+      );
+      addTearDown(() => PathProviderPlatform.instance = previousProvider);
+
+      // Drive the real retained entrypoint, not the databaseOverride seam, so
+      // the schema gate itself runs.
+      final entry = navisBackgroundSyncEntrypoint();
+      await Future<void>.delayed(Duration.zero);
+      const codec = StandardMethodCodec();
+      final response = Completer<Object?>();
+      await messenger.handlePlatformMessage(
+        channel.name,
+        codec.encodeMethodCall(
+          const MethodCall('runAutomaticBackgroundSync', <String, Object?>{
+            'profileKey': '00000000000000000000000000000000',
+            'workId': 'a1b2c3',
+            'attemptCount': 0,
+          }),
+        ),
+        (data) => response.complete(codec.decodeEnvelope(data!)),
+      );
+      final result = (await response.future)! as Map<Object?, Object?>;
+      final stopped = Completer<void>();
+      await messenger.handlePlatformMessage(
+        channel.name,
+        codec.encodeMethodCall(const MethodCall('shutdown')),
+        (_) => stopped.complete(),
+      );
+      await stopped.future;
+      await entry;
+      channel.setMethodCallHandler(null);
+
+      expect(result['category'], 'deferredUpgrade');
+      final after = sqlite3.open(file.path, mode: OpenMode.readOnly);
+      addTearDown(after.close);
+      expect(after.userVersion, olderVersion);
+      final statusRows = after.select(
+        'SELECT COUNT(*) AS c FROM library_sync_state '
+        'WHERE android_worker_result IS NOT NULL',
+      );
+      expect(statusRows.first['c'], 0);
     },
     skip: !sqliteAvailable,
   );

@@ -1,11 +1,13 @@
 import 'dart:async';
 
+import 'package:navis/src/features/settings/data/external_scrobble_credentials.dart';
 import 'package:drift/drift.dart' show Value;
 import 'package:material_ui/material_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:navis/src/api/models/models.dart';
 import 'package:navis/src/api/subsonic_error.dart';
+import 'package:navis/src/features/auth/data/secure_credential_store.dart';
 import 'package:navis/src/features/auth/data/server_connection_service.dart';
 import 'package:navis/src/features/auth/domain/server_config.dart';
 import 'package:navis/src/features/auth/presentation/server_config_provider.dart';
@@ -105,6 +107,10 @@ Widget _buildTestApp({
 }) {
   return ProviderScope(
     overrides: [
+      externalScrobbleCredentialStoreProvider.overrideWithValue(
+        CloneDiagnosticsExternalScrobbleCredentialStore(),
+      ),
+
       navisDatabaseProvider.overrideWithValue(database),
       scrobbleDispatchControllerProvider.overrideWith(
         _StaticScrobbleDispatchController.new,
@@ -457,6 +463,43 @@ void main() {
 
     expect(
       find.text('Could not reach server. Check URL and network.'),
+      findsOneWidget,
+    );
+    await _disposeApp(tester);
+  });
+
+  testWidgets('a failed secure password save asks the user to try again', (
+    tester,
+  ) async {
+    final fakeService = _FakeServerConnectionService(
+      error: const CredentialWriteException(),
+    );
+
+    await tester.pumpWidget(
+      _buildTestApp(
+        database: database,
+        overrides: [
+          serverConfigProvider.overrideWith(_TestServerConfigNotifier.new),
+          serverConnectionServiceProvider.overrideWithValue(fakeService),
+          librarySyncControllerProvider.overrideWith(
+            _StaticLibrarySyncController.new,
+          ),
+        ],
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.enterText(find.byType(TextFormField).at(0), 'https://x.test');
+    await tester.enterText(find.byType(TextFormField).at(1), 'alice');
+    await tester.enterText(find.byType(TextFormField).at(2), 'secret');
+    await tester.ensureVisible(find.text('Connect'));
+    await tester.tap(find.text('Connect'));
+    await tester.pumpAndSettle();
+
+    expect(
+      find.text(
+        "Navis couldn't save your password securely on this device. Try again.",
+      ),
       findsOneWidget,
     );
     await _disposeApp(tester);

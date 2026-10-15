@@ -166,6 +166,26 @@ const List<ChangelogVersion> changelogs = [
     ],
     entries: [
       ChangelogEntry(
+        'Notification, Bluetooth and car controls keep working after Android restarts the media service',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
+        'A stuck or briefly unavailable credential store no longer shows the login screen for a signed-in profile',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
+        'Queued ListenBrainz listens are kept when secure storage is briefly unavailable',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
+        'Playback and radio recover by themselves when the network returns',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
+        'Play starts automatically when audio becomes available again',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
         'Pause and Stop stay in effect when repeated Play requests are still preparing personal radio',
         type: ChangelogEntryType.fix,
       ),
@@ -184,6 +204,18 @@ const List<ChangelogVersion> changelogs = [
       ChangelogEntry(
         'Navis refreshes its connection and library when you return to it',
         type: ChangelogEntryType.improvement,
+      ),
+      ChangelogEntry(
+        'Opening Navis during a background library sync takes it over at once and continues from where it stopped, instead of waiting for it to finish',
+        type: ChangelogEntryType.improvement,
+      ),
+      ChangelogEntry(
+        'A library check that meets a busy database waits and retries shortly after instead of reporting a failure',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
+        'The app and a background sync never run the same library check twice, and an interrupted large library sync rebuilds its progress instead of repeating the same error',
+        type: ChangelogEntryType.fix,
       ),
       ChangelogEntry(
         'Large selections of downloads start more smoothly',

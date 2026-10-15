@@ -1788,11 +1788,11 @@ void main() {
             updatedAt: now,
           ),
         );
-    final attempt = await seed.librarySyncDao.beginSyncRunAttempt(
+    final attempt = (await seed.librarySyncDao.beginSyncRunAttempt(
       requestId: requestId,
       androidWorker: true,
       now: now,
-    );
+    ))!;
     await seed.close();
     final raw = sqlite3.open(file.path);
     raw.execute(
@@ -2495,6 +2495,99 @@ CREATE TABLE scrobble_queue (
       'lastfm',
       'listenbrainz',
     });
+  }, skip: !sqliteAvailable);
+
+  test('an upgrade that fails part-way leaves the old schema and data intact', () async {
+    final tempDir = await Directory.systemTemp.createTemp(
+      'navis_upgrade_rollback_test_',
+    );
+    addTearDown(() => tempDir.delete(recursive: true));
+    final dbPath = p.join(tempDir.path, 'navis.sqlite');
+
+    final seedDatabase = NavisDatabase(NativeDatabase(File(dbPath)));
+    await seedDatabase
+        .into(seedDatabase.songsTable)
+        .insert(SongsTableCompanion.insert(id: 'song-1', title: 'Song 1'));
+    await seedDatabase
+        .into(seedDatabase.playlistsTable)
+        .insert(PlaylistsTableCompanion.insert(id: 'p1', name: 'P1'));
+    await seedDatabase
+        .into(seedDatabase.playlistSongsTable)
+        .insert(
+          PlaylistSongsTableCompanion.insert(
+            playlistId: 'p1',
+            songId: 'song-1',
+            sortOrder: 0,
+          ),
+        );
+    await seedDatabase.close();
+
+    final createdAt = DateTime.utc(2026, 1, 1).millisecondsSinceEpoch;
+    final raw = sqlite3.open(dbPath);
+    addTearDown(raw.close);
+    raw.execute('DROP TABLE scrobble_queue;');
+    raw.execute('''
+CREATE TABLE scrobble_queue (
+  id INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+  song_id TEXT NOT NULL REFERENCES songs(id) ON DELETE CASCADE,
+  submission INTEGER NOT NULL CHECK (submission IN (0, 1)),
+  created_at INTEGER NOT NULL,
+  next_attempt_at INTEGER NOT NULL,
+  attempts INTEGER NOT NULL DEFAULT 0,
+  expires_at INTEGER NOT NULL,
+  session_key TEXT NOT NULL,
+  last_error TEXT NULL,
+  UNIQUE (song_id, submission, session_key)
+);
+''');
+    raw.execute(
+      'INSERT INTO scrobble_queue (song_id, submission, created_at, next_attempt_at, expires_at, session_key) '
+      "VALUES ('song-1', 1, $createdAt, $createdAt, $createdAt, 'session-1');",
+    );
+    // Fires at _ensureAppSettingsDefaults, after every migration step.
+    raw.execute(
+      'CREATE TRIGGER inject_failure BEFORE INSERT ON app_settings '
+      "BEGIN SELECT RAISE(ABORT, 'injected'); END;",
+    );
+    raw.execute('PRAGMA user_version = 45;');
+
+    final failing = NavisDatabase(NativeDatabase(File(dbPath)));
+    await expectLater(
+      failing.customSelect('SELECT 1').get(),
+      throwsA(anything),
+    );
+    await failing.close();
+
+    List<String> scrobbleColumns() => [
+      for (final row in raw.select("PRAGMA table_info('scrobble_queue')"))
+        row['name'] as String,
+    ];
+    List<Object?> memberships() => [
+      for (final row in raw.select(
+        'SELECT playlist_id, song_id, sort_order FROM playlist_songs',
+      ))
+        row.values,
+    ];
+    expect(raw.userVersion, 45);
+    expect(scrobbleColumns(), isNot(contains('provider')));
+    expect(raw.select('SELECT song_id FROM scrobble_queue'), hasLength(1));
+    expect(memberships(), [
+      ['p1', 'song-1', 0],
+    ]);
+
+    raw.execute('DROP TRIGGER inject_failure;');
+    final migrated = NavisDatabase(NativeDatabase(File(dbPath)));
+    addTearDown(migrated.close);
+    await migrated.customSelect('SELECT 1').get();
+
+    expect(raw.userVersion, NavisDatabase.currentSchemaVersion);
+    expect(
+      raw.select('SELECT provider FROM scrobble_queue').single['provider'],
+      'subsonic',
+    );
+    expect(memberships(), [
+      ['p1', 'song-1', 0],
+    ]);
   }, skip: !sqliteAvailable);
 
   test('latest schema includes local-only song columns', () async {

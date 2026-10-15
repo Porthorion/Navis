@@ -10,7 +10,7 @@ import org.json.JSONObject
 internal object StartupWorkerTimeline {
     private val outcomes = setOf(
         "success", "failure", "timeout", "deferredPlayback", "noWorkDue",
-        "deferredPolicy", "credentialUnavailable", "deferredSetup", "leaseHeld",
+        "deferredPolicy", "credentialUnavailable", "deferredSetup", "deferredUpgrade", "leaseHeld",
         "permanentFailure", "transientFailure", "stoppedBySystem",
     )
 

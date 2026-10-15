@@ -1187,7 +1187,11 @@ class LibrarySyncController extends Notifier<LibrarySyncState> {
       tolerateUnavailableEngine: true,
     );
     if (automaticCheckIsDue && result.completedAt != null) {
-      await _recordAutomaticCheckCompletion(interval);
+      if (result.planReason == 'leaseHeld') {
+        await _scheduleAfterLeaseExpiry(interval);
+      } else {
+        await _recordAutomaticCheckCompletion(interval);
+      }
     }
     if (ref.mounted) {
       _schedulePeriodicSync(ref.read(syncIntervalMinutesProvider));
@@ -1268,6 +1272,35 @@ class LibrarySyncController extends Notifier<LibrarySyncState> {
       return;
     }
     final next = DateTime.now().toUtc().add(interval);
+    await _writeNextAutomaticCheck(serverId, config!, next);
+  }
+
+  /// Another engine's lease (possibly orphaned by a killed or frozen worker)
+  /// blocked a due check. Retry once it can be taken over, never later than the
+  /// normal cadence.
+  Future<void> _scheduleAfterLeaseExpiry(Duration interval) async {
+    final config = ref.read(serverConfigStateProvider).asData?.value;
+    final serverId = config?.id;
+    if (serverId == null) {
+      return;
+    }
+    final lease = await ref
+        .read(navisDatabaseProvider)
+        .librarySyncDao
+        .getExecutionLease(serverId);
+    final now = DateTime.now().toUtc();
+    // The floor stops a spin if the lease is released between the two reads.
+    final earliest = now.add(const Duration(seconds: 30));
+    final normal = now.add(interval);
+    final atExpiry = (lease?.expiresAt.toUtc() ?? now).add(
+      const Duration(seconds: 5),
+    );
+    // A live worker's heartbeats keep extending its expiry, so waiting for it
+    // could take the whole interval; the app preempts a worker, so retry soon.
+    final next =
+        lease?.ownerKind == 'androidWorker' || atExpiry.isBefore(earliest)
+        ? earliest
+        : (atExpiry.isAfter(normal) ? normal : atExpiry);
     await _writeNextAutomaticCheck(serverId, config!, next);
   }
 
@@ -1864,52 +1897,7 @@ class LibrarySyncController extends Notifier<LibrarySyncState> {
         away < const Duration(seconds: 30)) {
       return;
     }
-    try {
-      final previousReachabilityCheck = ref
-          .read(serverReachabilityControllerProvider)
-          .lastCheckedAt;
-      ref.invalidate(connectivityProvider);
-      ref.invalidate(nativeNetworkMeteredProvider);
-      final connectivityCheck = ref.read(connectivityProvider.future);
-      final meteringCheck = ref.read(nativeNetworkMeteredProvider.future);
-      final connectivity = await connectivityCheck.timeout(
-        const Duration(seconds: 3),
-      );
-      await meteringCheck.timeout(const Duration(seconds: 3));
-      if (!ref.mounted) return;
-      AppLogger.startup(
-        StartupEvent.resumeConnectivity,
-        outcome: resolveNetworkType(connectivity) == NetworkType.offline
-            ? StartupOutcome.offline
-            : StartupOutcome.online,
-      );
-      // A fast probe may already have completed while metering refreshed.
-      // Join it while pending; don't launch a second ping after completion.
-      if (ref.read(serverReachabilityControllerProvider).lastCheckedAt ==
-          previousReachabilityCheck) {
-        await ref
-            .read(serverReachabilityControllerProvider.notifier)
-            .retryNow()
-            .timeout(const Duration(seconds: 5));
-      }
-      if (!ref.mounted) return;
-      AppLogger.startup(
-        StartupEvent.resumeReachability,
-        outcome:
-            ref.read(serverReachabilityControllerProvider).status ==
-                ServerReachabilityStatus.online
-            ? StartupOutcome.online
-            : StartupOutcome.offline,
-      );
-    } on Object catch (error) {
-      AppLogger.startup(
-        StartupEvent.resumeReachability,
-        outcome: StartupOutcome.timeout,
-      );
-      AppLogger.warning(
-        'Resume connection reconciliation unavailable: ${error.runtimeType}',
-      );
-    }
+    await ref.read(networkReconciliationProvider)();
   }
 
   // ---------------------------------------------------------------------------

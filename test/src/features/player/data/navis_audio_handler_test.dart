@@ -4,6 +4,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:audio_service/audio_service.dart';
 import 'package:just_audio/just_audio.dart';
+import 'package:just_audio_media_kit/mediakit_player.dart' show MediaKitPlayer;
 import 'package:navis/src/database/navis_database.dart';
 import 'package:navis/src/features/auto/domain/android_auto_constants.dart';
 import 'package:navis/src/features/player/data/navis_audio_handler.dart';
@@ -12,6 +13,48 @@ import 'package:navis/src/features/player/domain/playback_snapshot.dart';
 
 void main() {
   group('NavisAudioHandler fallback helpers', () {
+    test('radio reconnects media-kit source failures but leaves Android renderer failures terminal', () {
+      expect(
+        navisShouldReconnectRadioSource(
+          errorCode: MediaKitPlayer.kErrorCode,
+          usesMediaKit: true,
+        ),
+        isTrue,
+      );
+      expect(
+        navisShouldReconnectRadioSource(errorCode: 1, usesMediaKit: false),
+        isFalse,
+      );
+      expect(
+        navisShouldReconnectRadioSource(errorCode: 0, usesMediaKit: false),
+        isTrue,
+      );
+      expect(
+        navisShouldReconnectRadioSource(errorCode: 2001, usesMediaKit: false),
+        isTrue,
+      );
+    });
+    test(
+      'radio treats Android missing, malformed and 4xx sources as permanent',
+      () {
+        bool reconnects(int code, [String? message]) =>
+            navisShouldReconnectRadioSource(
+              errorCode: code,
+              message: message,
+              usesMediaKit: false,
+            );
+        expect(reconnects(2002), isTrue);
+        expect(reconnects(1003), isTrue);
+        expect(reconnects(2004, 'Source error (HTTP 503)'), isTrue);
+        expect(reconnects(2004, 'Source error'), isTrue);
+        expect(reconnects(2004, 'Source error (HTTP 404)'), isFalse);
+        expect(reconnects(2004, 'Source error (HTTP 403)'), isFalse);
+        expect(reconnects(2005), isFalse);
+        expect(reconnects(2003), isFalse);
+        expect(reconnects(3003), isFalse);
+        expect(reconnects(4001), isFalse);
+      },
+    );
     for (final (playing, transportAction) in [
       (false, MediaAction.play),
       (true, MediaAction.pause),

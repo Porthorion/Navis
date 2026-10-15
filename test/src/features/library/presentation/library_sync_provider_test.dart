@@ -5,7 +5,10 @@ import 'package:flutter/widgets.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:navis/src/api/models/models.dart';
 import 'package:navis/src/database/navis_database.dart';
+import 'package:navis/src/features/auth/data/server_config_repository.dart';
+import 'package:navis/src/features/library/data/adaptive_library_sync_coordinator.dart';
 import 'package:navis/src/features/auth/domain/server_config.dart';
 import 'package:navis/src/features/auth/domain/server_reachability.dart';
 import 'package:navis/src/features/auth/presentation/server_config_provider.dart';
@@ -20,6 +23,7 @@ import 'package:navis/src/providers/app_providers.dart';
 import 'package:navis/src/utils/connectivity.dart';
 import 'package:flutter_riverpod/misc.dart' show Override;
 
+import '../../../../helpers/library_sync_fakes.dart';
 import '../../../../helpers/test_database.dart';
 import '../../../../helpers/reachability_fakes.dart';
 import '../../../../helpers/stub_library_sync_engine.dart';
@@ -724,6 +728,326 @@ void main() {
           persisted.nextAutomaticCheckAt!.difference(startedAt),
           greaterThan(const Duration(minutes: 59)),
         );
+      },
+    );
+
+    test('a lease-held automatic check retries at a foreground lease expiry, '
+        'not a full interval later', () async {
+      final database = createTestDatabase();
+      addTearDown(database.close);
+      final config = await _saveAuthenticatedServer(database);
+      await database.librarySyncDao.setNextAutomaticCheckAt(
+        serverId: config.id!,
+        nextAutomaticCheckAt: DateTime.now().subtract(
+          const Duration(minutes: 1),
+        ),
+      );
+      await database.librarySyncDao.acquireExecutionLease(
+        serverId: config.id!,
+        ownerToken: 'foreground',
+        ownerKind: 'foreground',
+        now: DateTime.now(),
+        ttl: const Duration(minutes: 3),
+      );
+      final engine = StubLibrarySyncEngine((request, {onProgress}) async {
+        if (request.isAutomatic) {
+          return LibrarySyncState(
+            status: LibrarySyncStatus.deferred,
+            stage: LibrarySyncStage.completed,
+            completedAt: DateTime.now(),
+            planReason: 'leaseHeld',
+          );
+        }
+        return _succeeded;
+      });
+      final startedAt = DateTime.now();
+      final container = _container(
+        engine,
+        database: database,
+        server: config,
+        reachability: ServerReachabilityStatus.offline,
+        interval: _hourlyInterval,
+      );
+      addTearDown(container.dispose);
+      addTearDown(
+        () => container
+            .read(librarySyncControllerProvider.notifier)
+            .cancelAndWait(),
+      );
+
+      await container
+          .read(librarySyncControllerProvider.notifier)
+          .syncIfStale();
+      final persisted = await database.librarySyncDao.getOrCreateState(
+        config.id!,
+      );
+
+      expect(engine.automaticRequests, [_automaticRequest]);
+      final wait = persisted.nextAutomaticCheckAt!.difference(startedAt);
+      expect(wait, greaterThan(const Duration(minutes: 2)));
+      expect(wait, lessThan(const Duration(minutes: 4)));
+    });
+
+    test(
+      'an app-open automatic check runs while a worker lease is live',
+      () async {
+        final database = createTestDatabase();
+        addTearDown(database.close);
+        final config = await _saveAuthenticatedServer(database);
+        final credentials = FakeSyncCredentialStore();
+        await credentials.savePassword(config.password);
+        final repository = ServerConfigRepository(
+          database,
+          credentials: credentials,
+        );
+        final api = FakeLibrarySyncApi()
+          ..indexes = Indexes(
+            lastModified: FakeLibrarySyncApi.defaultIndexesCursor,
+          );
+        final coordinator = AdaptiveLibrarySyncCoordinator(
+          executor: serialDriftEngine(
+            api: api,
+            database: database,
+            repository: repository,
+          ),
+          database: database,
+          serverConfigRepository: repository,
+          networkType: NetworkType.wifi,
+          staleAfter: const Duration(hours: 1),
+          readHasActivePlayback: () => false,
+        );
+        await database.librarySyncDao.writeState(
+          LibrarySyncStateTableCompanion(
+            serverId: Value(config.id!),
+            currentGeneration: const Value(1),
+            initialCatalogUsableAt: Value(DateTime.now()),
+          ),
+        );
+        await database.librarySyncDao.setNextAutomaticCheckAt(
+          serverId: config.id!,
+          nextAutomaticCheckAt: DateTime.now().subtract(
+            const Duration(minutes: 1),
+          ),
+        );
+        expect(
+          await database.librarySyncDao.acquireExecutionLease(
+            serverId: config.id!,
+            ownerToken: 'worker',
+            ownerKind: 'androidWorker',
+            now: DateTime.now(),
+            ttl: const Duration(minutes: 3),
+          ),
+          isTrue,
+        );
+        final container = _container(
+          coordinator,
+          database: database,
+          server: config,
+          reachability: ServerReachabilityStatus.offline,
+          interval: _hourlyInterval,
+        );
+        addTearDown(container.dispose);
+        addTearDown(
+          () => container
+              .read(librarySyncControllerProvider.notifier)
+              .cancelAndWait(),
+        );
+
+        final startedAt = DateTime.now();
+        final result = await container
+            .read(librarySyncControllerProvider.notifier)
+            .syncIfStale();
+        final persisted = await database.librarySyncDao.getOrCreateState(
+          config.id!,
+        );
+        final lease = await database.librarySyncDao.getExecutionLease(
+          config.id!,
+        );
+
+        expect(result.planReason, isNot('leaseHeld'));
+        expect(api.calls, isNotEmpty);
+        expect(
+          persisted.nextAutomaticCheckAt!.difference(startedAt),
+          greaterThan(const Duration(minutes: 59)),
+        );
+        expect(lease?.ownerToken, isNot('worker'));
+      },
+    );
+
+    test('a lease-held check against a live worker lease retries at the 30 '
+        'second floor, not at its heartbeat-extended expiry', () async {
+      final database = createTestDatabase();
+      addTearDown(database.close);
+      final config = await _saveAuthenticatedServer(database);
+      await database.librarySyncDao.setNextAutomaticCheckAt(
+        serverId: config.id!,
+        nextAutomaticCheckAt: DateTime.now().subtract(
+          const Duration(minutes: 1),
+        ),
+      );
+      await database.librarySyncDao.acquireExecutionLease(
+        serverId: config.id!,
+        ownerToken: 'worker',
+        ownerKind: 'androidWorker',
+        now: DateTime.now(),
+        ttl: const Duration(minutes: 3),
+      );
+      final engine = StubLibrarySyncEngine((request, {onProgress}) async {
+        if (request.isAutomatic) {
+          return LibrarySyncState(
+            status: LibrarySyncStatus.deferred,
+            stage: LibrarySyncStage.completed,
+            completedAt: DateTime.now(),
+            planReason: 'leaseHeld',
+          );
+        }
+        return _succeeded;
+      });
+      final startedAt = DateTime.now();
+      final container = _container(
+        engine,
+        database: database,
+        server: config,
+        reachability: ServerReachabilityStatus.offline,
+        interval: _hourlyInterval,
+      );
+      addTearDown(container.dispose);
+      addTearDown(
+        () => container
+            .read(librarySyncControllerProvider.notifier)
+            .cancelAndWait(),
+      );
+
+      await container
+          .read(librarySyncControllerProvider.notifier)
+          .syncIfStale();
+      final persisted = await database.librarySyncDao.getOrCreateState(
+        config.id!,
+      );
+
+      final wait = persisted.nextAutomaticCheckAt!.difference(startedAt);
+      expect(wait, greaterThanOrEqualTo(const Duration(seconds: 29)));
+      expect(wait, lessThanOrEqualTo(const Duration(seconds: 31)));
+    });
+
+    test(
+      'an expired or released lease retries at the 30 second floor',
+      () async {
+        final database = createTestDatabase();
+        addTearDown(database.close);
+        final config = await _saveAuthenticatedServer(database);
+        await database.librarySyncDao.setNextAutomaticCheckAt(
+          serverId: config.id!,
+          nextAutomaticCheckAt: DateTime.now().subtract(
+            const Duration(minutes: 1),
+          ),
+        );
+        // Acquired five minutes ago with a one minute ttl: already expired, so
+        // expiry + 5s lies in the past and the floor applies.
+        await database.librarySyncDao.acquireExecutionLease(
+          serverId: config.id!,
+          ownerToken: 'worker',
+          ownerKind: 'worker',
+          now: DateTime.now().subtract(const Duration(minutes: 5)),
+          ttl: const Duration(minutes: 1),
+        );
+        final engine = StubLibrarySyncEngine((request, {onProgress}) async {
+          if (request.isAutomatic) {
+            return LibrarySyncState(
+              status: LibrarySyncStatus.deferred,
+              stage: LibrarySyncStage.completed,
+              completedAt: DateTime.now(),
+              planReason: 'leaseHeld',
+            );
+          }
+          return _succeeded;
+        });
+        final startedAt = DateTime.now();
+        final container = _container(
+          engine,
+          database: database,
+          server: config,
+          reachability: ServerReachabilityStatus.offline,
+          interval: _hourlyInterval,
+        );
+        addTearDown(container.dispose);
+        addTearDown(
+          () => container
+              .read(librarySyncControllerProvider.notifier)
+              .cancelAndWait(),
+        );
+
+        await container
+            .read(librarySyncControllerProvider.notifier)
+            .syncIfStale();
+        final persisted = await database.librarySyncDao.getOrCreateState(
+          config.id!,
+        );
+
+        final wait = persisted.nextAutomaticCheckAt!.difference(startedAt);
+        expect(wait, greaterThanOrEqualTo(const Duration(seconds: 29)));
+        expect(wait, lessThanOrEqualTo(const Duration(seconds: 31)));
+      },
+    );
+
+    test(
+      'a lease outliving the interval caps the retry at the full interval',
+      () async {
+        final database = createTestDatabase();
+        addTearDown(database.close);
+        final config = await _saveAuthenticatedServer(database);
+        await database.librarySyncDao.setNextAutomaticCheckAt(
+          serverId: config.id!,
+          nextAutomaticCheckAt: DateTime.now().subtract(
+            const Duration(minutes: 1),
+          ),
+        );
+        await database.librarySyncDao.acquireExecutionLease(
+          serverId: config.id!,
+          ownerToken: 'worker',
+          ownerKind: 'worker',
+          now: DateTime.now(),
+          ttl: const Duration(hours: 2),
+        );
+        final engine = StubLibrarySyncEngine((request, {onProgress}) async {
+          if (request.isAutomatic) {
+            return LibrarySyncState(
+              status: LibrarySyncStatus.deferred,
+              stage: LibrarySyncStage.completed,
+              completedAt: DateTime.now(),
+              planReason: 'leaseHeld',
+            );
+          }
+          return _succeeded;
+        });
+        final startedAt = DateTime.now();
+        final container = _container(
+          engine,
+          database: database,
+          server: config,
+          reachability: ServerReachabilityStatus.offline,
+          interval: _hourlyInterval,
+        );
+        addTearDown(container.dispose);
+        addTearDown(
+          () => container
+              .read(librarySyncControllerProvider.notifier)
+              .cancelAndWait(),
+        );
+
+        await container
+            .read(librarySyncControllerProvider.notifier)
+            .syncIfStale();
+        final persisted = await database.librarySyncDao.getOrCreateState(
+          config.id!,
+        );
+
+        final wait = persisted.nextAutomaticCheckAt!.difference(startedAt);
+        expect(
+          wait,
+          greaterThanOrEqualTo(const Duration(minutes: 59, seconds: 59)),
+        );
+        expect(wait, lessThanOrEqualTo(const Duration(hours: 1, seconds: 1)));
       },
     );
 

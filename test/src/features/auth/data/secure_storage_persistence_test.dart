@@ -35,8 +35,8 @@ void main() {
   });
 
   test('password survives a store recreation and can be cleared', () async {
-    const original = FlutterSecureCredentialStore();
-    const restarted = FlutterSecureCredentialStore();
+    final original = FlutterSecureCredentialStore();
+    final restarted = FlutterSecureCredentialStore();
 
     await original.savePassword('upgrade-safe-password');
     expect(await restarted.readPassword(), 'upgrade-safe-password');

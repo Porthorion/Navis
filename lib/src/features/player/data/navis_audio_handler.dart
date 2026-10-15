@@ -14,6 +14,7 @@ import 'package:flutter_cache_manager/flutter_cache_manager.dart';
 import 'package:flutter/services.dart';
 import 'package:just_audio/just_audio.dart';
 import 'package:just_audio_media_kit/just_audio_media_kit.dart';
+import 'package:just_audio_media_kit/mediakit_player.dart' show MediaKitPlayer;
 import 'package:navis/src/features/equalizer/domain/eq_configuration.dart';
 import 'package:navis/src/features/player/domain/playback_adjustments.dart';
 import 'package:navis/src/api/subsonic_api_client.dart';
@@ -51,6 +52,7 @@ import 'package:navis/src/features/player/data/windows_smtc_bridge.dart';
 import 'package:navis/src/features/player/domain/playback_snapshot.dart';
 import 'package:navis/src/utils/app_logger.dart';
 import 'package:navis/src/utils/catalog_source.dart';
+import 'package:navis/src/utils/connectivity.dart';
 import 'package:navis/src/utils/network_usage_meter.dart';
 import 'package:rxdart/rxdart.dart';
 
@@ -102,6 +104,9 @@ class NavisAudioHandler extends BaseAudioHandler
     required this._listenBrainzFeedbackService,
     required this._readRuntimeSettings,
     required this._starSyncDao,
+    this.reconcileNetwork,
+    this.checkDeviceConnected,
+    Stream<void>? recoveredNetwork,
     double initialVolume = 1.0,
     NetworkUsageReporter? reportNetworkUsage,
     Future<File?> Function(String coverArtId)? readPermanentArtwork,
@@ -167,6 +172,9 @@ class NavisAudioHandler extends BaseAudioHandler
       ),
     );
     _cacheMaintenance = _maintainCacheBeforePlayback();
+    _networkRecoverySubscription = recoveredNetwork?.listen(
+      (_) => _retryNetworkPlayback(),
+    );
     _ready = _initialize();
     _startupQueueRestore = _ready
         .then((_) => _restoreQueueAfterStartup())
@@ -197,6 +205,44 @@ class NavisAudioHandler extends BaseAudioHandler
   /// Builds the main player instead of the platform player (tests).
   final AudioPlayer Function()? _playerFactory;
   final NavisPlaybackTimeouts _timeouts;
+
+  final Future<NetworkReconciliation> Function()? reconcileNetwork;
+
+  /// Device connectivity alone, for third-party hosts that never need the
+  /// Navidrome server. Falls back to [reconcileNetwork] when absent.
+  final Future<bool> Function()? checkDeviceConnected;
+  StreamSubscription<void>? _networkRecoverySubscription;
+  Timer? _focusRetryTimer;
+  int _focusRetries = 0;
+  int? _focusDeniedGeneration;
+  bool _audioInterrupted = false;
+  AudioSession? _audioSession;
+  DateTime? _focusDeniedSince;
+  Timer? _networkRetryTimer;
+  int _networkRetries = 0;
+
+  /// The song to reload once the network is back, at its position (null:
+  /// where the player is). A request that Play or seek armed still applies
+  /// if the song plays again without a reload.
+  ({
+    int generation,
+    String songId,
+    Duration? position,
+    bool autoPlay,
+    bool requested,
+  })?
+  _pendingRemoteRecovery;
+  ({int generation, RadioStationMetadata station, DateTime since})?
+  _pendingRadioRecovery;
+  ({RadioStationMetadata station, DateTime since, DateTime recoveredAt})?
+  _radioRecovered;
+  bool _radioRecoveryInProgress = false;
+  bool _remoteRecoveryWasOffline = false;
+
+  /// The native player reported that its loaded source failed. Unlike the
+  /// player's error code, which just_audio keeps on an idle player after
+  /// another load, this lasts only until the next load or progress.
+  bool _loadedSourceFailed = false;
 
   final LibraryDao _libraryDao;
   final PlaylistDao _playlistDao;
@@ -1800,7 +1846,7 @@ class NavisAudioHandler extends BaseAudioHandler
           _setCurrentMediaItem(_queueItems.first);
         }
         if (wasPlayingBeforeMutation && !_player.playing) {
-          unawaited(_player.play());
+          unawaited(_playWithFocusRecovery());
         }
       });
       queue.add(List<MediaItem>.unmodifiable(_queueItems));
@@ -1956,6 +2002,11 @@ class NavisAudioHandler extends BaseAudioHandler
   @override
   Future<void> play() async {
     _queueFinished = false;
+    // Play keeps a pending focus retry's budget and a held seek target.
+    final focusDeniedSince = _focusDeniedGeneration == _transportGeneration
+        ? _focusDeniedSince
+        : null;
+    final heldRecovery = _pendingRemoteRecovery;
     final transportGeneration = _supersedeTransportIntent(
       shouldPlay: true,
       preserveSeek: true,
@@ -1964,6 +2015,46 @@ class NavisAudioHandler extends BaseAudioHandler
     if (!_isCurrentTransportIntent(transportGeneration)) return;
     await _startupQueueRestore;
     if (!_isCurrentTransportIntent(transportGeneration)) return;
+
+    if (_audioInterrupted) {
+      // The user overrides a focus holder that may never return focus.
+      // Abandon the cached request so that Play asks for focus again.
+      _audioInterrupted = false;
+      _interruptedTransportGeneration = null;
+      try {
+        await _audioSession?.setActive(false);
+      } on Object {
+        // Play still requests focus; a stale request only delays it.
+      }
+      if (!_isCurrentTransportIntent(transportGeneration)) return;
+    }
+
+    // A failed stream cannot play: re-prepare it once where it stopped.
+    if (_radioStation == null &&
+        _restoredQueueIndex == null &&
+        !_isLoading &&
+        _remoteSourceFailed &&
+        _rearmRemoteRecovery(
+          position:
+              heldRecovery?.songId ==
+                  _resolveCurrentQueueMetadata().mediaItem?.id
+              ? heldRecovery?.position
+              : null,
+          autoPlay: true,
+        )) {
+      return;
+    }
+
+    if (_radioStation != null &&
+        _player.processingState == ProcessingState.idle) {
+      _pendingRadioRecovery = (
+        generation: transportGeneration,
+        station: _radioStation!,
+        since: DateTime.now(),
+      );
+      await _recoverRadioAfterNetworkFailure();
+      return;
+    }
 
     // A selected source has not reached phase one yet. The current play
     // intent will start it there; an empty-queue fallback here could replace
@@ -2020,10 +2111,20 @@ class NavisAudioHandler extends BaseAudioHandler
       }
     }
 
+    // The song resumed by itself: Play still lands on its held seek target.
+    if (heldRecovery case final held?
+        when held.requested &&
+            held.position != null &&
+            held.songId == _resolveCurrentQueueMetadata().mediaItem?.id) {
+      unawaited(seek(held.position!));
+    }
+    // Only this Play inherits the budget; returning earlier must not leave it
+    // to a later automatic play.
+    _focusDeniedSince = focusDeniedSince;
     // play() must NOT go through _runSerialized — _player.play() returns a
     // Future that blocks until playback finishes/pauses.  Serializing it would
     // deadlock all subsequent operations (pause, seek, skip, queue changes).
-    unawaited(_player.play());
+    unawaited(_playWithFocusRecovery());
     _scheduleTransportPersistence(context: 'play');
   }
 
@@ -2048,8 +2149,10 @@ class NavisAudioHandler extends BaseAudioHandler
     switch (button) {
       case MediaButton.media:
         // Android maps media-key Pause to a toggle even during focus loss.
+        // A pending focus retry is a Play the user can cancel.
         if (_visiblePlaying ||
-            _interruptedTransportGeneration == _transportGeneration) {
+            _interruptedTransportGeneration == _transportGeneration ||
+            _focusDeniedGeneration == _transportGeneration) {
           await pause();
         } else {
           await play();
@@ -2119,6 +2222,18 @@ class NavisAudioHandler extends BaseAudioHandler
     final songId =
         _loadingSongId ?? _resolveCurrentQueueMetadata().mediaItem?.id;
     if (songId == null) return Future<void>.value();
+    final pending = _pendingRemoteRecovery;
+    // A failed stream cannot seek; recovery reloads it at the new target.
+    if (pending != null &&
+        pending.songId == songId &&
+        !_isLoading &&
+        _rearmRemoteRecovery(
+          position: navisSanitizeSeekPosition(position),
+          autoPlay: pending.autoPlay,
+        )) {
+      _queueFinished = false;
+      return Future<void>.value();
+    }
     _queueFinished = false;
     final generation = _supersedeTransportIntent(preserveSeek: true);
     _cancelPendingSeek();
@@ -2732,6 +2847,28 @@ class NavisAudioHandler extends BaseAudioHandler
 
   @override
   Future<void> customAction(String name, [Map<String, dynamic>? extras]) {
+    if (kProfileMode &&
+        const bool.fromEnvironment('NAVIS_SYNC_DIAGNOSTICS') &&
+        const String.fromEnvironment('NAVIS_SYNC_DIAGNOSTICS_MODE') ==
+            'clone' &&
+        const String.fromEnvironment('NAVIS_APP_ID_SUFFIX') != '') {
+      if (name == 'navisDiagnosticsDenyFocus') {
+        // ignore: invalid_use_of_visible_for_testing_member, reason: bounded fault in an authenticated profile clone only.
+        _player.debugAudioFocusDenialsRemaining = 3;
+        return Future<void>.value();
+      }
+      if (name == 'navisDiagnosticsRecreateService') {
+        return const MethodChannel('com.navis.app/playback_recovery')
+            .invokeMethod<void>('recreateService');
+      }
+    }
+    if (name == 'navisServiceRecreated') {
+      AppLogger.startup(
+        StartupEvent.mediaServiceRecovery,
+        outcome: StartupOutcome.success,
+      );
+      return Future<void>.value();
+    }
     if (name == 'clearQueue') {
       return clearQueue();
     }
@@ -2775,6 +2912,8 @@ class NavisAudioHandler extends BaseAudioHandler
 
   Future<void> _disposeHandler() async {
     _disposeHandlerStarted = true;
+    _focusRetryTimer?.cancel();
+    _networkRetryTimer?.cancel();
     final projectionDisposal = _detachNavisAudioServiceHandler(this);
     _artCache?.dispose();
     _cancelCrossfade();
@@ -2783,6 +2922,7 @@ class NavisAudioHandler extends BaseAudioHandler
     _transportPersistTimer?.cancel();
     _radioStation = null;
     _radioMetadataService.dispose();
+    await _networkRecoverySubscription?.cancel();
     await _disposeInactiveCrossfadeDeck();
     await _flushQueueItemsPersistence();
     await _sidecarDownloader.dispose();
@@ -2836,7 +2976,7 @@ class NavisAudioHandler extends BaseAudioHandler
     }
     _restoredQueueIndex = null;
     _restoredQueuePosition = Duration.zero;
-    _supersedeTransportIntent();
+    _supersedeTransportIntent(shouldPlay: true);
     final generation = _supersedeQueueWork(isLoading: true);
     return _queueLane.run((token) async {
       try {
@@ -2897,6 +3037,8 @@ class NavisAudioHandler extends BaseAudioHandler
           );
           _radioMetadataService.stop();
           _radioStation = null;
+          _pendingRadioRecovery = null;
+          _networkRetryTimer?.cancel();
           _completeQueueLoad(
             generation,
             failed: error is PlaybackLoadTimeoutException,
@@ -2915,13 +3057,16 @@ class NavisAudioHandler extends BaseAudioHandler
           stationShortName: azuraInfo?.$2,
         );
 
-        unawaited(_player.play());
+        unawaited(_playWithFocusRecovery());
         _broadcastPlaybackState();
         _completeQueueLoad(generation);
       } on OperationCancelledException {
         AppLogger.debug(
           'playRadioStream cancelled — superseded by newer command.',
         );
+        // A station that stopped itself mid-start cancels this work without a
+        // newer load generation; the no-op when superseded keeps this safe.
+        _completeQueueLoad(generation);
       } on Object {
         if (token.isCancelled || !_isActiveLoadGeneration(generation)) return;
         _completeQueueLoad(generation);
@@ -2932,6 +3077,7 @@ class NavisAudioHandler extends BaseAudioHandler
 
   @override
   Future<void> stopRadio() {
+    _supersedeTransportIntent(shouldPlay: false);
     final generation = _supersedeQueueWork();
     // Phase 1: Stop radio and update the UI immediately. stopRadio() returns
     // when this phase completes so the caller (and the player bar) are

@@ -54,6 +54,20 @@ class RealTimeProjectionAudioHandler extends CompositeAudioHandler {
       );
   }
 
+  @override
+  Future<dynamic> customAction(
+    String name, [
+    Map<String, dynamic>? extras,
+  ]) async {
+    if (name == 'navisServiceRecreated') {
+      // Bypass the projection's identity dedupe after native state was lost.
+      if (_queue.hasValue) _queue.add(_queue.value);
+      if (_mediaItem.hasValue) _mediaItem.add(_mediaItem.value);
+      if (_playbackState.hasValue) _playbackState.add(_playbackState.value);
+    }
+    return super.customAction(name, extras);
+  }
+
   Future<void>? _disposal;
 
   /// Releases the projection when its session handler is retired.

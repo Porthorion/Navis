@@ -42,7 +42,9 @@ Located in `lib/src/providers/app_providers.dart`:
     same production bootstrap used by foreground sync. It validates the
     opaque native profile key before any request and holds the same durable
     execution lease as foreground catalog work, so a late worker cannot run a
-    replaced account or overlap a visible sync.
+    replaced account or overlap a visible sync. The foreground app preempts a
+    live worker lease and continues its committed progress (see the sync
+    ownership and hand-off paragraph under the execution lease).
     `FlutterEngineBackgroundSyncSession` disables the embedding's automatic
     generated plugin registration and uses the allowlist next to the worker:
     `JniPlugin` and `JniFlutterPlugin` for path_provider's application context,
@@ -121,10 +123,10 @@ Located in `lib/src/providers/app_providers.dart`:
     UI, and `runApp` work until the first Android `resumed` lifecycle state.
 
 - **Android Auto phone projection**
-  - The canonical `com.ryanheise.audioservice.AudioService` is the exported
-    native `MediaBrowserService`. The plugin binds and starts that exact
-    component during playback bootstrap, then delegates browse requests to the
-    shared `NavisAudioHandler`.
+  - The app-owned `com.ryanheise.audioservice.NavisAudioService` subclass is the
+    exported native `MediaBrowserService`. Narrow app-owned redirects route the
+    plugin's explicit base-service binding and foreground start to it. The plugin
+    still delegates browse requests to the shared `NavisAudioHandler`.
   - `AutoMediaTreeService` builds the local database-backed browse tree. Its
     four root tabs are Liked, Recent, Playlists, and Library, stored once per
     service instance. Collection projections cap browse lists and liked songs
@@ -225,6 +227,11 @@ list (header, drag handle) move the sheet even when the list is not at the top.
   databases drop all user tables, indexes, views, and triggers with foreign
   keys disabled, then run the same creation and defaults as a fresh install.
   Schema 43 and later preserve data through an ordered migration-step table.
+  The steps, index creation, settings defaults and `user_version` commit in
+  one transaction, so a failure or lock timeout part-way leaves the previous
+  schema and data intact and a reopen reruns the whole upgrade from the same
+  version. This matters for the v75→76 playlist-membership copy and the v46
+  scrobble-queue rebuild, which cannot be re-entered after a partial run.
 - Schema v71 adds redacted sync diagnostics history alongside the durable
   `library_sync_work` queue: `library_sync_run_request`,
   `library_sync_run_attempt`, and `library_sync_run_outcome`. Schema v93
@@ -309,6 +316,18 @@ list (header, drag handle) move the sheet even when the list is not at the top.
   and classification stay on the writer while an interactive read can proceed
   alongside a long catalog read, without a second `NavisDatabase` or candidate
   visibility in reactive providers.
+- Drift caches a failed open or migration on its executor for the life of the
+  database. `NavisDatabase()` and `NavisDatabase.atPath` therefore open
+  through a reopening executor inside the sync write fence
+  (fence(reopening(lazy(native)))). When opening fails with `SQLITE_BUSY` or
+  `SQLITE_LOCKED`, including when nested in drift's isolate errors, it closes
+  that executor's connections and isolates and opens a fresh one, up to three
+  attempts, each waiting up to the 5 s busy bound, 1 s and 2 s apart; concurrent queries share one open. It
+  replaces the executor before the final rethrow, so the next query opens
+  afresh instead of rethrowing a cached error. Other errors still surface
+  unchanged, and the database file is never reset or deleted to recover.
+  Failed and recovering attempts are recorded as bounded `databaseOpen`
+  startup events.
 - All transactional writes go through `NavisDatabase.transaction`, including
   DAO calls routed by `NavisDaoTransactions`. Drift 2.35 announces nested
   savepoint updates on the root stream store before the outer commit, so WAL
@@ -3453,9 +3472,12 @@ recommendation tracks restore as an ordinary queue after restart, without
 restarting refills.
 
 Background refills retry with backoff. After five consecutive failed refills
-Same Vibes, Server Mix and Personal Radio stop refilling and the session stays
-at `retryExhausted`; later playback snapshots, a cleared error notice or an
-expired backoff never resume it. Only starting the mix again re-arms refills.
+Same Vibes, Server Mix and Personal Radio stop refilling at `retryExhausted`;
+later playback snapshots, a cleared error notice or an expired backoff do not
+resume them. A verified network recovery re-arms Personal Radio's exhausted
+refill within its existing recommendation session, but only after network
+failures; rate limits, invalid keys and unsupported servers keep their backoff. Starting a mix again also
+re-arms refills.
 
 ## Startup and resume evidence
 
@@ -3497,6 +3519,108 @@ release is unavailable in the current plugin; see the
 [1.5.1 follow-ups](plans/idle-robustness-followups.md).
 
 ## Data Flow
+
+### Silent playback recovery
+
+Android declares the app-owned `com.ryanheise.audioservice.NavisAudioService`
+subclass. `NavisApplication` redirects audio_service 0.18.19's explicit browser
+binding, and the service redirects its hard-coded foreground start, to this
+component. MediaBrowser discovery, notification controls and Android Auto still
+use the plugin's media session. After `super.onCreate()`, the subclass restores
+a missing static listener only if the plugin retains its handler interface.
+One guarded reflection method owns the two private field accesses; a JVM
+contract test checks their names, static modifiers and listener types. Its
+custom action forces the Dart projection to republish metadata, the windowed
+queue and playback state even when their identities have not changed. No plugin
+removal or engine reattachment occurs.
+
+Vendored just_audio abandons denied audio-focus requests, then retries twice
+with 200/400 ms delays. Exhaustion completes Play with `AudioFocusDeniedException`.
+just_audio reports `playing` only once focus is granted, so a load during the
+request cannot start native playback and a denial never publishes Playing.
+Navis retains the requested transport generation and retries silently with a
+1–8 second backoff for at most two minutes (`NavisPlaybackTimeouts.focusRetry`);
+it then stays paused, publishes the paused state and records the timeout in the
+startup timeline. The retry state clears when a playback event reports the
+granted focus. Pause, Stop, selection and disposal cancel pending intent;
+transient interruptions block automatic retries until they end, and the resume
+then gets a fresh budget. While a retry is pending the media button cancels it
+like Pause, and Play asks again at once within the same budget; a Play that
+instead re-arms song recovery leaves no budget behind for later automatic plays. An explicit
+Play (app, notification, media button, Android Auto) overrides a transient
+interruption: it abandons the cached focus request and asks again. A late
+denied activation cannot release a newer Play's focus. Permanent focus loss
+still permits a later explicit Play.
+
+Lock-cache origin and range fetches have cancellable 15-second connection and
+header deadlines and a 30-second body-progress deadline. Failed partial files
+are discarded and requests may restart. `networkReconciliationProvider` shares
+the existing bounded connectivity, metering and server-reachability check
+between resume and playback, and reports device connectivity separately from
+server reachability. Scoped container subscriptions keep these bounded
+checks active even when UI provider listeners are paused, and metering is read
+after connectivity settles so a retired future cannot stall reconciliation.
+`networkReconcilingProvider` is true while that check runs: the download and
+scrobble readers (`networkSettled`) then report not settled, so downloads admit
+no new workers and requeue a failure without spending a retry, and scrobble
+dispatch returns before touching saved deadlines. Each service is kicked once
+(`processQueuedDownloads`, `flushDue`) when the check ends. The hold is bounded
+to 15 seconds and clears itself, recording a `resumeReachability` timeout in the
+startup timeline; running download workers are never cancelled.
+Downloads also yield to a loading song: `downloadServiceProvider` listens to
+`playerStateProvider` and passes only "loading, not radio" plus the song id to
+`DownloadService.yieldToPlayback`. New workers wait while the stream loads, at
+most 15 seconds once per track, and the pump restarts when loading ends or the
+bound passes. Running workers continue and live radio never holds downloads;
+the permanent download → rolling cache → stream order is unchanged.
+Native just_audio error fields and legacy stream errors share one recovery
+path; repeated native error data is deduplicated. Android captures ExoPlayer's
+current position before publishing an error and switching to idle, so recovery
+uses the native failure position rather than the last ready-event position. An offline song retains its
+position and play intent without spending the reload retry. The pending request
+belongs to that song: a natural advance or queue edit that changes the current
+song drops it. Before reloading, recovery checks that the player is still idle,
+loading or buffering, so a stream that recovered by itself is never reloaded or
+rewound. Pause and Play supersede the pending request. Play on a remote song
+whose native player reported a failure re-prepares it once, at a seek target
+that is still waiting or else at its position, and waits again while offline;
+a song that was never prepared (gapless off) simply plays. The handler records
+the failure itself and forgets it at the next queue load or player progress,
+because just_audio keeps an old error code on an idle player after a new load.
+A seek during the wait moves the recovery target instead of seeking the failed
+player, and still applies if the song plays again by itself, including when
+Play arrives while the network check runs. While a load or another seek owns
+the song, Play and seek take their normal path; a Play during a reload starts
+the reloaded song. If the reloaded song fails again while the rest of the
+queue is still loading, the Play waits and restarts recovery once that load
+completes; only an error-free event that is not idle clears the failure. Song and station state remain buffering while waiting, preserving OS
+transport controls.
+Verified recovery after an observed outage re-arms the song's reload allowance
+so a later outage does not skip it.
+Network wait retries back off from 3 to 24 seconds. The audio handler's network
+signal fires when the server answers again or the device reconnects; it is
+created once per handler initializer, not per bootstrap attempt. Internet radio
+retains its station after a transient source/network error and reconnects
+through the queue lane, unless a newer user command superseded it. Stations are
+third-party hosts, so radio waits only for device connectivity, never for the
+Navidrome server. Android reports Media3's `PlaybackException.errorCode` and,
+for a bad HTTP status, the status: connection and timeout failures are
+transient; 4xx statuses, missing files, unsupported or malformed content and
+decoder failures are permanent. media-kit reports every source failure as code
+1, which stays transient. Transient reconnection stops after ten minutes of
+failures while the device is online (`NavisPlaybackTimeouts.radioRecovery`):
+being offline waits silently without spending it, and only time spent failing
+counts. A station that reconnects carries over its failure time until it has
+played for a minute (`radioHealthyPlay`), so one that connects and drops again
+still stops while one that mostly plays on a flaky network keeps going. A
+permanent failure or an exhausted budget stops the station, restores the previous queue paused and shows one
+"Radio stream unavailable" notice, since only the user can pick another
+station. A new Play during an older
+reconciliation re-arms its own recovery after that check finishes. Verified
+reachability also re-arms exhausted personal-radio refills without replacing
+recommendation-session
+ownership. Automatic recovery records identity-free events in the private
+startup timeline and does not publish a playback-failure notice.
 
 ### Playback Flow
 
@@ -4230,9 +4354,10 @@ current song is prepared at its saved position first, and the rest is filled
 in the queue lane, so handler readiness and media-session Play do not wait for
 every source. A startup, deferred-retry or post-radio restore timeout keeps the
 saved queue instead of deleting it. Radio Stop returns after stopping the stream; its
-background restore and the restore after radio failure share this preservation
-policy. Stopping radio, or a radio failure, restores the previous queue
-paused, exactly like startup restore: it never resumes playback on its own.
+background restore and the restore after a terminal radio failure share this
+preservation policy. Stopping radio, or a terminal radio failure, restores the
+previous queue paused, exactly like startup restore: it never resumes playback
+on its own.
 This is intended (owner decision 2026-10-09), not a gap to close. Before releasing the lane it cancels the restore token,
 retires its load generation, and replaces the native player, so a late native
 load or its inner deadline cannot change a newer selection. Eager restores
@@ -5708,7 +5833,13 @@ of thousands of songs. `tool/perf_diagnostics.py` measures them (see
   Playing stays mounted under a disabled `TickerMode`, which pauses its
   animations and provider listeners.
 - Database connections use WAL with `synchronous=NORMAL`, an 8 MiB page cache,
-  in-memory temp storage, and a 64 MiB WAL size limit. Deferred startup
+  in-memory temp storage, and a 64 MiB WAL size limit. Each connection waits
+  for a held lock through a Dart busy handler bounded at 5 s (10 ms sleeps on
+  Drift's database isolate) instead of `PRAGMA busy_timeout`: SQLite's
+  `nanosleep` wait is cut short by the Dart profiler's SIGPROF in debug and
+  profile builds on Linux (and by the same mechanism Android), so it gave up
+  within about 30 ms, and
+  the pragma would replace the handler. Deferred startup
   maintenance runs a bounded `PRAGMA optimize`. Reverse-lookup indexes cover
   `songs(artist_id)`, `play_queue_items(song_id)`, `playlist_songs(song_id)`,
   and starred songs.
@@ -5807,6 +5938,29 @@ with their outer transaction. Recovery and provider-reset writes use the same
 fence. Heartbeat loss also cancels transport. Ordinary playback and local user
 edits execute outside the sync scope. This uses the existing lease schema; token
 equality plus the database writer lock provides fencing without a new counter.
+
+Ownership and hand-off. A live lease blocks every other acquirer except one
+case: a `foreground` acquirer takes over a live `androidWorker` lease (the SQL
+condition in `acquireExecutionLease`), so opening the app never waits for a
+background pass. Foreground against foreground, and a worker against anyone,
+still get `leaseHeld` until expiry. Whenever an acquire replaces another token
+(preemption or expiry; not a clean release, which deletes the row, nor a
+same-token re-acquire), the same transaction requeues that server's `running`
+work rows (checkpoint, attempt count, `not_before` and error type unchanged),
+returns `running` run requests to `queued` and marks their attempts
+`recovered`. The fenced-out owner's next write throws `SyncLeaseLostException`,
+its heartbeat cancels transport, and it reports `leaseHeld`; `completeSyncRun`
+ignores a recovered attempt and never lets a caller without an attempt finish
+a request someone else is running, so the old owner cannot write a shared
+request's outcome. The new owner continues from committed progress: page
+checkpoints, the resumable candidate generation (boundary pages re-verified),
+`applying` promotion, and pending-hydration markers. A foreground coordinator
+that has not yet recovered this process takes over in its recovery step and
+resumes the requeued catalog work in the same request; an already-recovered one
+plans first, runs its own plan, and the requeued catalog work runs on the next
+catalog check. An acquire that times out on another connection's writer lock
+(for example a long worker promotion) is reported as `leaseHeld`, not as a
+failed run.
 
 Schema v74 extends `star_sync_queue` into a durable annotation outbox with a field
 (`star` or `rating`), attempt count, next retry time and safe failure category.

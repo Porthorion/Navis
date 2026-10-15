@@ -175,11 +175,25 @@ class AdaptiveLibrarySyncCoordinator implements LibrarySyncEngine {
     LibrarySyncProgressCallback? onProgress,
   }) async {
     final cancellationGeneration = _cancellationGeneration;
-    final result = await _requestSync(
-      request,
-      priorityAlbumIds: priorityAlbumIds,
-      onProgress: onProgress,
-    );
+    final LibrarySyncState result;
+    try {
+      result = await _requestSync(
+        request,
+        priorityAlbumIds: priorityAlbumIds,
+        onProgress: onProgress,
+      );
+    } on Object catch (error) {
+      // Another engine's long transaction (a worker promotion) held the writer
+      // lock past the busy wait on any write of this request: contention, not
+      // a sync failure.
+      if (!isDatabaseLockTimeout(error)) rethrow;
+      return LibrarySyncState(
+        status: LibrarySyncStatus.deferred,
+        stage: LibrarySyncStage.completed,
+        completedAt: _now(),
+        planReason: 'leaseHeld',
+      );
+    }
     if (request.target.kind != LibrarySyncTargetKind.catalog ||
         cancellationGeneration != _cancellationGeneration ||
         result.status == LibrarySyncStatus.cancelled ||
@@ -770,31 +784,33 @@ class AdaptiveLibrarySyncCoordinator implements LibrarySyncEngine {
       );
     }
 
+    Future<LibrarySyncState> leaseHeld() async {
+      return await _finish(
+        requestId: durableRunId,
+        outcome: const SyncRunOutcome(
+          kind: SyncRunOutcomeKind.deferred,
+          reason: SyncSafeReason.leaseHeld,
+        ),
+        now: _now(),
+
+        state: LibrarySyncState(
+          status: LibrarySyncStatus.deferred,
+          stage: LibrarySyncStage.completed,
+          completedAt: _now(),
+          planKind: plan.kind,
+          planReason: 'leaseHeld',
+          pendingWorkCount: await _database.librarySyncDao.countPendingWork(
+            serverId,
+          ),
+        ),
+      );
+    }
+
     try {
       return await _withLease(
         serverId: serverId,
         heartbeat: true,
-        unavailable: () async {
-          return await _finish(
-            requestId: durableRunId,
-            outcome: const SyncRunOutcome(
-              kind: SyncRunOutcomeKind.deferred,
-              reason: SyncSafeReason.leaseHeld,
-            ),
-            now: _now(),
-
-            state: LibrarySyncState(
-              status: LibrarySyncStatus.deferred,
-              stage: LibrarySyncStage.completed,
-              completedAt: _now(),
-              planKind: plan.kind,
-              planReason: 'leaseHeld',
-              pendingWorkCount: await _database.librarySyncDao.countPendingWork(
-                serverId,
-              ),
-            ),
-          );
-        },
+        unavailable: leaseHeld,
         action: () async {
           final durableAttempt = await _database.librarySyncDao
               .beginSyncRunAttempt(
@@ -802,6 +818,9 @@ class AdaptiveLibrarySyncCoordinator implements LibrarySyncEngine {
                 androidWorker: _isBackgroundExecution,
                 now: startedAt,
               );
+          // A sharing engine already finished this request: do not run it
+          // again. The deferral is then a no-op for a terminal request.
+          if (durableAttempt == null) return await leaseHeld();
           activeAttemptId = durableAttempt.id;
           final matchingWork = await _database.librarySyncDao.getWork(
             serverId: serverId,
@@ -1205,13 +1224,21 @@ class AdaptiveLibrarySyncCoordinator implements LibrarySyncEngine {
     bool heartbeat = false,
   }) async {
     final ownerToken = _newLeaseToken();
-    final acquired = await _database.librarySyncDao.acquireExecutionLease(
-      serverId: serverId,
-      ownerToken: ownerToken,
-      ownerKind: _executionOwnerKind,
-      now: _now(),
-      ttl: _executionLeaseTtl,
-    );
+    final bool acquired;
+    try {
+      acquired = await _database.librarySyncDao.acquireExecutionLease(
+        serverId: serverId,
+        ownerToken: ownerToken,
+        ownerKind: _executionOwnerKind,
+        now: _now(),
+        ttl: _executionLeaseTtl,
+      );
+    } on Object catch (error) {
+      // Another engine's long transaction (a worker promotion) holds the
+      // writer lock: that is lease contention, not a sync failure.
+      if (!isDatabaseLockTimeout(error)) rethrow;
+      return await unavailable();
+    }
     if (!acquired) return await unavailable();
     var leaseActive = true;
     final timer = heartbeat

@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:navis/src/features/settings/data/external_scrobble_credentials.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -100,6 +101,10 @@ void main() {
       () async {
         final container = ProviderContainer(
           overrides: [
+            externalScrobbleCredentialStoreProvider.overrideWithValue(
+              CloneDiagnosticsExternalScrobbleCredentialStore(),
+            ),
+
             homeSectionOrderProvider.overrideWithValue(const <String>[
               HomeSectionIds.randomAlbums,
             ]),
@@ -152,6 +157,10 @@ void main() {
     var newReleasesBuilt = false;
     final container = ProviderContainer(
       overrides: [
+        externalScrobbleCredentialStoreProvider.overrideWithValue(
+          CloneDiagnosticsExternalScrobbleCredentialStore(),
+        ),
+
         homeSectionOrderProvider.overrideWithValue(null),
         homeSectionsHiddenProvider.overrideWithValue(<String>[
           for (final id in HomeSectionIds.defaultOrder)
@@ -280,6 +289,10 @@ void main() {
         await tester.pumpWidget(
           ProviderScope(
             overrides: [
+              externalScrobbleCredentialStoreProvider.overrideWithValue(
+                CloneDiagnosticsExternalScrobbleCredentialStore(),
+              ),
+
               onboardingRequiredProvider.overrideWithValue(true),
               appSettingsProvider.overrideWithValue(
                 const AsyncData(AppSettingsModel.defaults()),

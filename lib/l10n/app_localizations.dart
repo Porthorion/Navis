@@ -262,6 +262,12 @@ abstract class AppLocalizations {
   /// **'Unexpected error while connecting.'**
   String get loginErrorUnknown;
 
+  /// No description provided for @loginErrorCredentialSave.
+  ///
+  /// In en, this message translates to:
+  /// **'Navis couldn\'t save your password securely on this device. Try again.'**
+  String get loginErrorCredentialSave;
+
   /// No description provided for @loginTestConnectionSuccess.
   ///
   /// In en, this message translates to:

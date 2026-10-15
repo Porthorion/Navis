@@ -31,8 +31,9 @@ routine cleanup.
 Known contracts (verify in source, do not restate from memory alone):
 
 - **Android Auto** is MediaBrowserService projection, not a Flutter
-  head-unit UI; keep the canonical
-  `com.ryanheise.audioservice.AudioService` registration.
+  head-unit UI; keep the app-owned
+  `com.ryanheise.audioservice.NavisAudioService` subclass and the explicit
+  plugin-component redirects.
 - **Linux** uses the app-owned D-Bus MPRIS bridge; dependency presence of
   `dbus` is not its implementation.
 - **Windows** uses the tracked `third_party/navis_windows_smtc` Rust/WinRT

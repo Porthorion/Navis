@@ -33,7 +33,7 @@ audio bootstrap, notifications, or media browsing changes:
 
 It requires one running standard Android **phone emulator**. The command builds
 and installs only `Navis Dev`, force-stops it, then runs a separate test-client
-APK that binds the canonical `AudioService` as a head unit would. It never
+APK that binds the declared `NavisAudioService` as a head unit would. It never
 launches `MainActivity`, and asserts the service initializes in 10 seconds and
 returns the four root tabs: Liked, Recent, Playlists, and Library.
 
@@ -349,9 +349,9 @@ Once the DHU is running, use these commands in the DHU terminal:
    `androidx.car.app.TintableAttributionIcon`, and
    `com.google.android.gms.car.application.theme`.
 7. Confirm the service class is
-   `com.ryanheise.audioservice.AudioService`. The plugin binds and starts this
-   exact component during playback initialization; replacing it with an app
-   subclass prevents the phone app from starting playback.
+   `com.ryanheise.audioservice.NavisAudioService`. `NavisApplication` and the
+   subclass redirect the plugin's explicit base-service binding and foreground
+   start; keep these redirects with the listener-lifecycle repair.
 8. **Do NOT add `android:permission="android.permission.BIND_MEDIA_BROWSER_SERVICE"` to the
    AudioService** declaration.  That permission has `protectionLevel="signature|privileged"`.
    On devices where Android Auto is installed from the Play Store (not a privileged system

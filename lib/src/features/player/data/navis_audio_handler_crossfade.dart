@@ -525,7 +525,7 @@ extension _NavisCrossfade on NavisAudioHandler {
       await _setVolumeIfChanged(_crossfadePlayer!, 0);
       if (!stillWanted()) return;
       if (shouldKeepPlaying && !_player.playing) {
-        unawaited(_player.play());
+        unawaited(_playWithFocusRecovery());
       }
       sw.stop();
 

@@ -239,11 +239,11 @@ void main() {
     );
     expect(duplicate.id, queued.id);
 
-    final attempt = await database.librarySyncDao.beginSyncRunAttempt(
+    final attempt = (await database.librarySyncDao.beginSyncRunAttempt(
       requestId: queued.id,
       androidWorker: false,
       now: now,
-    );
+    ))!;
     await database.librarySyncDao.writeAttemptTelemetry(attempt.id, {
       'version': 1,
       'requestId': queued.id,
@@ -326,6 +326,59 @@ void main() {
     )..where((table) => table.id.equals(queued.id))).getSingle();
     expect(storedRequest.targetKey, isEmpty);
   }, skip: !sqliteAvailable);
+
+  test('a finished request is never reopened by a late attempt', () async {
+    final now = DateTime.utc(2026, 8, 26, 10);
+    const plan = SyncExecutionPlan(
+      request: LibrarySyncRequest(
+        origin: SyncRunOrigin.libraryPullToRefresh,
+        intent: SyncRunIntent.manualCatalogCheck,
+        target: LibrarySyncTarget.catalog(),
+        grant: SyncNetworkGrant.none,
+      ),
+      kind: LibrarySyncPlanKind.deltaReconcile,
+      reason: SyncSafeReason.none,
+      budget: SyncExecutionBudget(
+        allowedEndpoints: <SyncEndpoint>{SyncEndpoint.indexes},
+        maxNewestPages: 1,
+        maxAlbumHydrations: 0,
+        maxResponseBytes: null,
+        maxTotalBytes: null,
+        maxConcurrency: 1,
+      ),
+    );
+    final dao = database.librarySyncDao;
+    final queued = await dao.enqueueSyncRun(serverId: 1, plan: plan, now: now);
+    // Another engine finished the shared request before this one began.
+    await dao.completeSyncRun(
+      requestId: queued.id,
+      outcome: const SyncRunOutcome(
+        kind: SyncRunOutcomeKind.deferred,
+        reason: SyncSafeReason.leaseHeld,
+      ),
+      now: now,
+    );
+
+    final late = await dao.beginSyncRunAttempt(
+      requestId: queued.id,
+      androidWorker: false,
+      now: now.add(const Duration(seconds: 1)),
+    );
+
+    expect(late, isNull);
+    final request = await (database.select(
+      database.librarySyncRunRequestTable,
+    )..where((table) => table.id.equals(queued.id))).getSingle();
+    expect(request.status, 2);
+    expect(
+      await database.select(database.librarySyncRunAttemptTable).get(),
+      isEmpty,
+    );
+    expect(
+      await database.select(database.librarySyncRunOutcomeTable).get(),
+      hasLength(1),
+    );
+  });
 
   test('keeps every historical plan index readable', () async {
     const budget = SyncExecutionBudget(
@@ -445,11 +498,11 @@ void main() {
         plan: plan,
         now: now,
       );
-      final interrupted = await database.librarySyncDao.beginSyncRunAttempt(
+      final interrupted = (await database.librarySyncDao.beginSyncRunAttempt(
         requestId: queued.id,
         androidWorker: false,
         now: now,
-      );
+      ))!;
       await database.librarySyncDao.writeAttemptTelemetry(interrupted.id, {
         'version': 1,
         'captureComplete': false,
@@ -505,10 +558,10 @@ void main() {
       expect(stored.networkGrant, SyncNetworkGrant.none.index);
       expect(stored.targetKey, isEmpty);
       expect(stored.resumedFromRequestId, isNull);
-      final attempt = await database.librarySyncDao.beginSyncRunAttempt(
+      final attempt = (await database.librarySyncDao.beginSyncRunAttempt(
         requestId: queued.id,
         androidWorker: false,
-      );
+      ))!;
       await database.librarySyncDao.completeSyncRun(
         requestId: queued.id,
         attemptId: attempt.id,
@@ -1040,4 +1093,382 @@ void main() {
     await database.librarySyncDao.markCompleted(row.id);
     await waitForCount(counts, 1);
   }, skip: !sqliteAvailable);
+
+  group('worker hand-off', () {
+    final t0 = DateTime.utc(2026, 10, 15, 10);
+    const ttl = Duration(minutes: 10);
+    const plan = SyncExecutionPlan(
+      request: LibrarySyncRequest.automatic(),
+      kind: LibrarySyncPlanKind.catalogSnapshot,
+      reason: SyncSafeReason.none,
+      budget: SyncExecutionBudget(
+        allowedEndpoints: <SyncEndpoint>{SyncEndpoint.catalogAlbums},
+        maxNewestPages: 0,
+        maxAlbumHydrations: 0,
+        maxResponseBytes: null,
+        maxTotalBytes: null,
+        maxConcurrency: 1,
+      ),
+    );
+
+    Future<bool> acquire(
+      String token,
+      String kind,
+      DateTime now, {
+      int serverId = 1,
+      Duration leaseTtl = ttl,
+    }) => database.librarySyncDao.acquireExecutionLease(
+      serverId: serverId,
+      ownerToken: token,
+      ownerKind: kind,
+      now: now,
+      ttl: leaseTtl,
+    );
+
+    Future<LibrarySyncWorkTableData> runningWork({int serverId = 1}) async {
+      await database.librarySyncDao.enqueueWork(
+        serverId: serverId,
+        kind: 'catalogSnapshot',
+        priority: 20,
+        checkpointJson: '{"version":3,"generation":7}',
+        now: t0,
+      );
+      final work = (await database.librarySyncDao.getWork(
+        serverId: serverId,
+        kind: 'catalogSnapshot',
+      ))!;
+      await database.librarySyncDao.markFailed(
+        work.id,
+        errorType: 'transport',
+        notBefore: t0.subtract(const Duration(minutes: 1)),
+        now: t0,
+      );
+      await database.librarySyncDao.markRunning(work.id, now: t0);
+      return (await database.librarySyncDao.getWork(
+        serverId: serverId,
+        kind: 'catalogSnapshot',
+      ))!;
+    }
+
+    Future<(int, int)> runningRequest({int serverId = 1}) async {
+      final request = await database.librarySyncDao.enqueueSyncRun(
+        serverId: serverId,
+        plan: plan,
+        now: t0,
+      );
+      final attempt = (await database.librarySyncDao.beginSyncRunAttempt(
+        requestId: request.id,
+        androidWorker: true,
+        now: t0,
+      ))!;
+      return (request.id, attempt.id);
+    }
+
+    Future<int> requestStatus(int id) async => (await (database.select(
+      database.librarySyncRunRequestTable,
+    )..where((row) => row.id.equals(id))).getSingle()).status;
+
+    Future<int> attemptStatus(int id) async => (await (database.select(
+      database.librarySyncRunAttemptTable,
+    )..where((row) => row.id.equals(id))).getSingle()).status;
+
+    Future<List<LibrarySyncRunOutcomeTableData>> outcomes() =>
+        database.select(database.librarySyncRunOutcomeTable).get();
+
+    Future<String> workStatus({int serverId = 1}) async =>
+        (await database.librarySyncDao.getWork(
+          serverId: serverId,
+          kind: 'catalogSnapshot',
+        ))!.status;
+
+    const outcome = SyncRunOutcome(
+      kind: SyncRunOutcomeKind.completed,
+      reason: SyncSafeReason.none,
+    );
+
+    test('1 a foreground acquirer preempts a live worker lease', () async {
+      expect(await acquire('worker', 'androidWorker', t0), isTrue);
+      final takeoverAt = t0.add(const Duration(minutes: 1));
+      expect(await acquire('foreground', 'foreground', takeoverAt), isTrue);
+
+      final lease = (await database.librarySyncDao.getExecutionLease(1))!;
+      expect(lease.ownerToken, 'foreground');
+      expect(lease.ownerKind, 'foreground');
+      expect(lease.startedAt.toUtc(), takeoverAt);
+      expect(
+        await database.librarySyncDao.heartbeatExecutionLease(
+          serverId: 1,
+          ownerToken: 'worker',
+          now: takeoverAt.add(const Duration(seconds: 1)),
+          ttl: ttl,
+        ),
+        isFalse,
+      );
+    }, skip: !sqliteAvailable);
+
+    test('2 a live foreground lease is never preempted and a worker preempts nobody', () async {
+      expect(await acquire('foreground', 'foreground', t0), isTrue);
+      final later = t0.add(const Duration(minutes: 1));
+      expect(await acquire('second-foreground', 'foreground', later), isFalse);
+      expect(await acquire('worker', 'androidWorker', later), isFalse);
+      final held = (await database.librarySyncDao.getExecutionLease(1))!;
+      expect(held.ownerToken, 'foreground');
+      expect(held.startedAt.toUtc(), t0);
+
+      await database.librarySyncDao.releaseExecutionLease(
+        serverId: 1,
+        ownerToken: 'foreground',
+      );
+      expect(await acquire('worker', 'androidWorker', later), isTrue);
+      expect(await acquire('second-worker', 'androidWorker', later), isFalse);
+      expect(
+        (await database.librarySyncDao.getExecutionLease(1))!.ownerToken,
+        'worker',
+      );
+    }, skip: !sqliteAvailable);
+
+    for (final (previousKind, nextKind) in [
+      ('androidWorker', 'foreground'),
+      ('foreground', 'androidWorker'),
+      ('foreground', 'foreground'),
+    ]) {
+      test('3 taking over an expired $previousKind lease as $nextKind requeues '
+          'its running work unchanged', () async {
+        expect(
+          await acquire(
+            'previous',
+            previousKind,
+            t0,
+            leaseTtl: const Duration(minutes: 1),
+          ),
+          isTrue,
+        );
+        final before = await runningWork();
+        expect(before.status, 'running');
+
+        expect(
+          await acquire('next', nextKind, t0.add(const Duration(minutes: 2))),
+          isTrue,
+        );
+
+        final after = (await database.librarySyncDao.getWork(
+          serverId: 1,
+          kind: 'catalogSnapshot',
+        ))!;
+        expect(after.status, 'queued');
+        expect(after.checkpointJson, before.checkpointJson);
+        expect(after.attemptCount, 1);
+        expect(after.notBefore, before.notBefore);
+        expect(after.lastErrorType, 'transport');
+      }, skip: !sqliteAvailable);
+    }
+
+    test(
+      '4 a takeover recovers run requests and attempts without an outcome',
+      () async {
+        expect(await acquire('worker', 'androidWorker', t0), isTrue);
+        final (requestId, attemptId) = await runningRequest();
+        expect(await requestStatus(requestId), 1);
+
+        expect(
+          await acquire(
+            'foreground',
+            'foreground',
+            t0.add(const Duration(minutes: 1)),
+          ),
+          isTrue,
+        );
+
+        expect(await requestStatus(requestId), 0, reason: 'queued');
+        expect(await attemptStatus(attemptId), 1, reason: 'recovered');
+        expect(await outcomes(), isEmpty);
+      },
+      skip: !sqliteAvailable,
+    );
+
+    test(
+      '5 a clean release does not recover, and recovery stays per server',
+      () async {
+        // saveServer replaces the only server; recovery is keyed by id.
+        await database
+            .into(database.serverConfigTable)
+            .insert(
+              ServerConfigTableCompanion.insert(
+                url: 'https://other.example.test',
+                username: 'listener',
+                apiVersion: '1.16.1',
+              ),
+            );
+        expect(await acquire('first', 'foreground', t0), isTrue);
+        await runningWork();
+        final (requestId, attemptId) = await runningRequest();
+        await database.librarySyncDao.releaseExecutionLease(
+          serverId: 1,
+          ownerToken: 'first',
+        );
+        expect(await acquire('second', 'foreground', t0), isTrue);
+        expect(await workStatus(), 'running');
+        expect(await requestStatus(requestId), 1);
+        expect(await attemptStatus(attemptId), 0);
+
+        // A live in-process section on server 2 keeps its running rows when
+        // server 1 changes hands.
+        expect(await acquire('other', 'foreground', t0, serverId: 2), isTrue);
+        await runningWork(serverId: 2);
+        final (otherRequest, otherAttempt) = await runningRequest(serverId: 2);
+        await database.librarySyncDao.releaseExecutionLease(
+          serverId: 1,
+          ownerToken: 'second',
+        );
+        expect(await acquire('worker', 'androidWorker', t0), isTrue);
+        expect(
+          await acquire(
+            'foreground',
+            'foreground',
+            t0.add(const Duration(minutes: 1)),
+          ),
+          isTrue,
+        );
+        expect(await workStatus(), 'queued');
+        expect(await workStatus(serverId: 2), 'running');
+        expect(await requestStatus(otherRequest), 1);
+        expect(await attemptStatus(otherAttempt), 0);
+      },
+      skip: !sqliteAvailable,
+    );
+
+    test('6 a same-token re-acquire does not recover', () async {
+      expect(await acquire('owner', 'androidWorker', t0), isTrue);
+      await runningWork();
+      final (requestId, attemptId) = await runningRequest();
+
+      expect(
+        await acquire(
+          'owner',
+          'androidWorker',
+          t0.add(const Duration(minutes: 1)),
+        ),
+        isTrue,
+      );
+
+      expect(await workStatus(), 'running');
+      expect(await requestStatus(requestId), 1);
+      expect(await attemptStatus(attemptId), 0);
+    }, skip: !sqliteAvailable);
+
+    test('7 completing with a recovered attempt is a no-op', () async {
+      final (requestId, recovered) = await runningRequest();
+      await database.librarySyncDao.recoverInterruptedSyncRuns(1, now: t0);
+
+      await database.librarySyncDao.completeSyncRun(
+        requestId: requestId,
+        attemptId: recovered,
+        outcome: outcome,
+        now: t0,
+      );
+      expect(await requestStatus(requestId), 0, reason: 'still queued');
+      expect(await attemptStatus(recovered), 1);
+      expect(await outcomes(), isEmpty);
+
+      final current = (await database.librarySyncDao.beginSyncRunAttempt(
+        requestId: requestId,
+        androidWorker: false,
+        now: t0,
+      ))!;
+      await database.librarySyncDao.completeSyncRun(
+        requestId: requestId,
+        attemptId: recovered,
+        outcome: outcome,
+        now: t0,
+      );
+      expect(await requestStatus(requestId), 1, reason: 'still running');
+      expect(await outcomes(), isEmpty);
+
+      await database.librarySyncDao.completeSyncRun(
+        requestId: requestId,
+        attemptId: current.id,
+        outcome: outcome,
+        now: t0,
+      );
+      expect(await requestStatus(requestId), 2);
+      expect(await attemptStatus(current.id), 2);
+      expect((await outcomes()).single.attemptId, current.id);
+    }, skip: !sqliteAvailable);
+
+    test(
+      '8 completing without an attempt never terminates a running request',
+      () async {
+        final (running, attemptId) = await runningRequest();
+        await database.librarySyncDao.completeSyncRun(
+          requestId: running,
+          outcome: outcome,
+          now: t0,
+        );
+        expect(await requestStatus(running), 1);
+        expect(await attemptStatus(attemptId), 0);
+        expect(await outcomes(), isEmpty);
+
+        // A queued request is still finished by a waiter that never ran it.
+        final queued = await database.librarySyncDao.enqueueSyncRun(
+          serverId: 1,
+          plan: const SyncExecutionPlan(
+            request: LibrarySyncRequest.checkForUpdates(),
+            kind: LibrarySyncPlanKind.deltaReconcile,
+            reason: SyncSafeReason.none,
+            budget: SyncExecutionBudget(
+              allowedEndpoints: <SyncEndpoint>{SyncEndpoint.indexes},
+              maxNewestPages: 1,
+              maxAlbumHydrations: 0,
+              maxResponseBytes: null,
+              maxTotalBytes: null,
+              maxConcurrency: 1,
+            ),
+          ),
+          now: t0,
+        );
+        await database.librarySyncDao.completeSyncRun(
+          requestId: queued.id,
+          outcome: outcome,
+          now: t0,
+        );
+        expect(await requestStatus(queued.id), 2);
+        expect((await outcomes()).single.requestId, queued.id);
+      },
+      skip: !sqliteAvailable,
+    );
+
+    test(
+      '9 a worker heartbeat just before the takeover still loses the lease',
+      () async {
+        expect(await acquire('worker', 'androidWorker', t0), isTrue);
+        final beat = t0.add(const Duration(minutes: 1));
+        expect(
+          await database.librarySyncDao.heartbeatExecutionLease(
+            serverId: 1,
+            ownerToken: 'worker',
+            now: beat,
+            ttl: ttl,
+          ),
+          isTrue,
+        );
+        final takeoverAt = beat.add(const Duration(seconds: 1));
+        expect(await acquire('foreground', 'foreground', takeoverAt), isTrue);
+        expect(
+          await database.librarySyncDao.heartbeatExecutionLease(
+            serverId: 1,
+            ownerToken: 'worker',
+            now: takeoverAt.add(const Duration(seconds: 1)),
+            ttl: ttl,
+          ),
+          isFalse,
+        );
+        expect(await acquire('worker', 'androidWorker', takeoverAt), isFalse);
+        expect(
+          (await database.librarySyncDao.getExecutionLease(1))!.ownerToken,
+          'foreground',
+        );
+      },
+      skip: !sqliteAvailable,
+    );
+  });
 }

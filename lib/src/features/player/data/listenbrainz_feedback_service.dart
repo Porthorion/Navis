@@ -5,6 +5,7 @@ import 'package:navis/src/api/listenbrainz_api_client.dart';
 import 'package:navis/src/database/daos/listenbrainz_feedback_dao.dart';
 import 'package:navis/src/database/daos/library_dao.dart';
 import 'package:navis/src/database/navis_database.dart';
+import 'package:navis/src/features/auth/data/secure_credential_store.dart';
 import 'package:navis/src/features/integrations/domain/integration_feature.dart';
 import 'package:navis/src/utils/app_logger.dart';
 
@@ -33,8 +34,19 @@ class ListenBrainzFeedbackService {
 
   bool _flushing = false;
 
+  /// Credential storage may be briefly unavailable; queued feedback stays
+  /// queued and is retried on the next flush instead of failing dispatch.
+  Future<ListenBrainzFeedbackCredentials?>
+  _readCredentialsWhenAvailable() async {
+    try {
+      return await _readCredentials();
+    } on CredentialReadException {
+      return null;
+    }
+  }
+
   Future<void> enqueueSongFeedback(String songId, {required bool liked}) async {
-    final credentials = await _readCredentials();
+    final credentials = await _readCredentialsWhenAvailable();
     if (credentials == null) {
       return;
     }
@@ -64,7 +76,7 @@ class ListenBrainzFeedbackService {
     }
     _flushing = true;
     try {
-      final credentials = await _readCredentials();
+      final credentials = await _readCredentialsWhenAvailable();
       if (credentials == null) {
         return;
       }

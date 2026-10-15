@@ -10,6 +10,7 @@ import 'package:navis/src/common_widgets/confirm_dialog.dart';
 import 'package:navis/src/api/subsonic_error.dart';
 import 'package:navis/src/common_widgets/navis_icon.dart';
 import 'package:navis/src/features/auth/domain/server_config.dart';
+import 'package:navis/src/features/auth/data/secure_credential_store.dart';
 import 'package:navis/src/features/auth/data/server_config_repository.dart';
 import 'package:navis/src/features/auth/data/sign_out_service.dart';
 import 'package:navis/src/features/auth/presentation/server_config_provider.dart';
@@ -510,6 +511,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
       SubsonicAuthException() => l10n.loginErrorAuthentication,
       SubsonicConnectionException() => l10n.loginErrorConnection,
       SubsonicApiException(:final message) => message,
+      CredentialWriteException() => l10n.loginErrorCredentialSave,
       _ => l10n.loginErrorUnknown,
     };
   }

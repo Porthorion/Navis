@@ -20,6 +20,7 @@ import 'package:navis/src/features/auth/presentation/server_reachability_provide
 import 'package:navis/src/features/auth/presentation/session_route_provider.dart';
 import 'package:navis/src/features/cache/presentation/library_cache_reset_provider.dart';
 import 'package:navis/src/features/home/presentation/home_providers.dart';
+import 'package:navis/src/features/settings/data/external_scrobble_credentials.dart';
 import 'package:navis/src/features/library/domain/library_sync_state.dart';
 import 'package:navis/src/features/library/presentation/album_detail_screen.dart';
 import 'package:navis/src/features/onboarding/presentation/onboarding_provider.dart';
@@ -175,6 +176,11 @@ Future<ProviderContainer> _createContainerWithDatabase({
     overrides: withTestDatabase(
       database,
       overrides: <Override>[
+        // The real store waits on a platform channel that never answers under
+        // fake async, leaving its read deadline timer pending at teardown.
+        externalScrobbleCredentialStoreProvider.overrideWithValue(
+          CloneDiagnosticsExternalScrobbleCredentialStore(),
+        ),
         packageInfoProvider.overrideWith(
           (ref) async => PackageInfo(
             appName: 'Navis',

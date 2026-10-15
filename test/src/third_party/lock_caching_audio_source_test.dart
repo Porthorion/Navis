@@ -6,6 +6,20 @@ import 'package:just_audio/just_audio.dart';
 import 'package:just_audio_platform_interface/just_audio_platform_interface.dart'
     as platform;
 import 'package:path/path.dart' as p;
+import 'package:mocktail/mocktail.dart';
+
+class _StalledConnection extends Fake implements HttpClient {
+  bool closed = false;
+  @override
+  set connectionTimeout(Duration? value) {}
+  @override
+  Future<HttpClientRequest> getUrl(Uri uri) =>
+      Completer<HttpClientRequest>().future;
+  @override
+  void close({bool force = false}) {
+    closed = force;
+  }
+}
 
 class _ProxyPlatform extends platform.JustAudioPlatform {
   late _ProxyPlayer player;
@@ -286,5 +300,85 @@ void main() {
     expect(downloads, hasLength(2));
     await Future<void>.delayed(const Duration(milliseconds: 50));
     expect(cacheFile.lengthSync(), body.length);
+  });
+  test(
+    'the connection deadline cancels even an unresolved origin connection',
+    () async {
+      final client = _StalledConnection();
+      await HttpOverrides.runZoned(() async {
+        // ignore: experimental_member_use, reason: validates the vendored connection deadline.
+        final source = LockCachingAudioSource(
+          Uri.parse('https://fixture.invalid/song'),
+          cacheFile: File(p.join(directory.path, 'connection.mp3')),
+          connectionTimeout: const Duration(milliseconds: 100),
+        );
+        await expectLater(source.request(), throwsA(isA<TimeoutException>()));
+        expect(client.closed, isTrue);
+      }, createHttpClient: (_) => client);
+    },
+  );
+
+  for (final bodyStall in [false, true]) {
+    test(
+      'a ${bodyStall ? 'body-progress' : 'header'} deadline cancels and permits a fresh fetch',
+      () async {
+        var attempts = 0;
+        final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
+        addTearDown(() => server.close(force: true));
+        server.listen((request) async {
+          attempts++;
+          if (attempts == 1) {
+            if (bodyStall) {
+              request.response.add([1, 2, 3]);
+              await request.response.flush();
+            }
+            return;
+          }
+          request.response.add([4, 5, 6]);
+          await request.response.close();
+        });
+        final cacheFile = File(p.join(directory.path, 'deadline.mp3'));
+        // ignore: experimental_member_use, reason: validates vendored cache deadlines.
+        final source = LockCachingAudioSource(
+          Uri.parse('http://127.0.0.1:${server.port}/song'),
+          cacheFile: cacheFile,
+          headerTimeout: const Duration(milliseconds: 100),
+          bodyProgressTimeout: const Duration(milliseconds: 100),
+        );
+        Future<void> fetch() async {
+          final response = await source.request();
+          await response.stream.drain<void>();
+        }
+
+        await expectLater(fetch(), throwsA(isA<TimeoutException>()));
+        await Future<void>.delayed(const Duration(milliseconds: 30));
+        expect(cacheFile.existsSync(), isFalse);
+        expect(File('${cacheFile.path}.part').existsSync(), isFalse);
+        final retried = await source.request();
+        expect(await retried.stream.expand((bytes) => bytes).toList(), [
+          4,
+          5,
+          6,
+        ]);
+        expect(attempts, 2);
+      },
+    );
+  }
+
+  test('cancellation before headers unblocks the pending request', () async {
+    final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
+    addTearDown(() => server.close(force: true));
+    final entered = Completer<void>();
+    server.listen((_) => entered.complete());
+    // ignore: experimental_member_use, reason: validates pre-header cancellation.
+    final source = LockCachingAudioSource(
+      Uri.parse('http://127.0.0.1:${server.port}/song'),
+      cacheFile: File(p.join(directory.path, 'cancel.mp3')),
+    );
+    final request = source.request();
+    final failed = expectLater(request, throwsA(isA<StateError>()));
+    await entered.future;
+    await source.cancelDownload();
+    await failed.timeout(const Duration(seconds: 1));
   });
 }

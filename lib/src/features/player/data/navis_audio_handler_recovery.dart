@@ -106,7 +106,7 @@ extension _NavisRecovery on NavisAudioHandler {
         operation: 'seek after player reset',
       );
       if (await _waitForSeekSettlement(seekRequest, token)) {
-        if (_requestedPlaying) unawaited(_player.play());
+        if (_requestedPlaying) unawaited(_playWithFocusRecovery());
         return;
       }
       throw StateError('Seek failed after the player was reset.');
@@ -173,7 +173,8 @@ extension _NavisRecovery on NavisAudioHandler {
       reloadQueueOnTimeout: true,
     );
     _checkSeekCurrent(request, token);
-    if (_requestedPlaying && !_player.playing) unawaited(_player.play());
+    if (_requestedPlaying && !_player.playing)
+      unawaited(_playWithFocusRecovery());
     if (!_requestedPlaying && _player.playing) {
       await _runTimedPlayerOperation(
         generation: _activeLoadGeneration,
@@ -816,7 +817,7 @@ extension _NavisRecovery on NavisAudioHandler {
       if (!current()) return;
     }
     if (seekRequest == null ? autoPlay : _requestedPlaying) {
-      unawaited(_player.play());
+      unawaited(_playWithFocusRecovery());
     }
   }
 
@@ -859,6 +860,192 @@ extension _NavisRecovery on NavisAudioHandler {
       capture: capture,
       missing: const <String>[],
     );
+  }
+
+  Future<void> _playWithFocusRecovery({bool lastFocusAttempt = false}) async {
+    if (_disposeHandlerStarted) return;
+    final generation = _transportGeneration;
+    final player = _player;
+    if (_audioInterrupted) {
+      _focusDeniedGeneration = generation;
+      return;
+    }
+    try {
+      // Completes only when playback pauses; the playback event listener
+      // records the grant through _onPlayerPlaying.
+      await player.play();
+    } on AudioFocusDeniedException {
+      if (_disposeHandlerStarted ||
+          !_isCurrentTransportIntent(generation) ||
+          !identical(player, _player))
+        return;
+      _focusDeniedGeneration = generation;
+      final since = _focusDeniedSince ??= DateTime.now();
+      final remaining = _timeouts.focusRetry - DateTime.now().difference(since);
+      // Publish the paused state; the notification must not show Playing.
+      _broadcastPlaybackState();
+      _emitSnapshot();
+      if (lastFocusAttempt || remaining <= Duration.zero) {
+        // Focus stayed unavailable: stay paused silently until the user acts.
+        _focusDeniedGeneration = null;
+        _focusDeniedSince = null;
+        _latestExplicitTransportPlaying = false;
+        AppLogger.startup(
+          StartupEvent.audioFocusRecovery,
+          attempt: _focusRetries,
+          outcome: StartupOutcome.timeout,
+        );
+        _broadcastPlaybackState();
+        _emitSnapshot();
+        return;
+      }
+      AppLogger.startup(
+        StartupEvent.audioFocusRecovery,
+        attempt: ++_focusRetries,
+        outcome: StartupOutcome.unavailable,
+      );
+      final backoff = Duration(seconds: 1 << (_focusRetries - 1).clamp(0, 3));
+      final last = backoff >= remaining;
+      _focusRetryTimer?.cancel();
+      _focusRetryTimer = Timer(last ? remaining : backoff, () {
+        if (_focusDeniedGeneration == _transportGeneration &&
+            !_audioInterrupted) {
+          unawaited(_playWithFocusRecovery(lastFocusAttempt: last));
+        }
+      });
+    } on Object {
+      // Player event errors own source recovery; never leak a Play future error.
+      AppLogger.startup(
+        StartupEvent.streamRecovery,
+        outcome: StartupOutcome.failure,
+      );
+    }
+  }
+
+  /// just_audio reports playing only once audio focus is granted.
+  void _onPlayerPlaying() {
+    if (_focusDeniedGeneration == null && _focusDeniedSince == null) return;
+    _focusRetryTimer?.cancel();
+    _focusDeniedGeneration = null;
+    _focusRetries = 0;
+    _focusDeniedSince = null;
+    AppLogger.startup(
+      StartupEvent.audioFocusRecovery,
+      outcome: StartupOutcome.success,
+    );
+  }
+
+  void _scheduleNetworkPlaybackRetry() {
+    if (_disposeHandlerStarted || _networkRetryTimer?.isActive == true) return;
+    var delay = Duration(seconds: 3 * (1 << _networkRetries.clamp(0, 3)));
+    // A station's last attempt falls on its recovery deadline.
+    if (_pendingRadioRecovery case final radio?) {
+      final left =
+          _timeouts.radioRecovery - DateTime.now().difference(radio.since);
+      if (left < delay) delay = left.isNegative ? Duration.zero : left;
+    }
+    _networkRetryTimer = Timer(delay, () {
+      _networkRetries++;
+      _retryNetworkPlayback();
+    });
+  }
+
+  void _retryNetworkPlayback() {
+    if (_disposeHandlerStarted) return;
+    if (_pendingRadioRecovery != null)
+      unawaited(_recoverRadioAfterNetworkFailure());
+    if (_pendingRemoteRecovery != null) {
+      unawaited(
+        _recoverCurrentSongFromRemotePlaybackFailure(
+          reason: 'network recovered',
+        ),
+      );
+    }
+  }
+
+  /// Replaces the current remote song's recovery request for this transport
+  /// intent and starts recovery. False when the current song is not a remote
+  /// stream that recovery can reload, or when a load or seek owns it.
+  bool _rearmRemoteRecovery({
+    required Duration? position,
+    required bool autoPlay,
+  }) {
+    final sourceKind = _currentSourceKind;
+    final songId = _resolveCurrentQueueMetadata().mediaItem?.id;
+    if (songId == null ||
+        _isLoading ||
+        _pendingLogicalQueueSongIds != null ||
+        _pendingSeek != null ||
+        (sourceKind != PlaybackSourceKind.lockCachedStream.name &&
+            sourceKind != PlaybackSourceKind.directStream.name)) {
+      return false;
+    }
+    _seekFailureBlocksRecovery = false;
+    _pendingRemoteRecovery = (
+      generation: _transportGeneration,
+      songId: songId,
+      position: position,
+      autoPlay: autoPlay,
+      requested: true,
+    );
+    unawaited(
+      _recoverCurrentSongFromRemotePlaybackFailure(reason: 'user command'),
+    );
+    return true;
+  }
+
+  /// Restarts recovery for the Play or seek held on the current failed song,
+  /// or applies it once a load has reloaded the song. While a load still
+  /// owns the song the request is kept, and _completeQueueLoad calls this
+  /// again once the load ends.
+  void _rearmHeldRemoteRecovery() {
+    final request = _pendingRemoteRecovery;
+    final songId = _resolveCurrentQueueMetadata().mediaItem?.id;
+    if (request == null ||
+        songId == null ||
+        !_ownsRemoteRecovery(songId) ||
+        _remotePlaybackRecoveryInProgress ||
+        _isLoading ||
+        _pendingLogicalQueueSongIds != null) {
+      return;
+    }
+    if (!_remoteSourceFailed ||
+        !_rearmRemoteRecovery(
+          position: request.position,
+          autoPlay: request.autoPlay,
+        )) {
+      _applyPendingRemoteRecovery();
+    }
+  }
+
+  bool _ownsRemoteRecovery(String songId) =>
+      _pendingRemoteRecovery?.songId == songId &&
+      _pendingRemoteRecovery?.generation == _transportGeneration;
+
+  /// A failed source is idle; a stalled one is still waiting for data.
+  bool get _remotePlaybackStillFailed => switch (_player.processingState) {
+    ProcessingState.idle ||
+    ProcessingState.loading ||
+    ProcessingState.buffering => true,
+    ProcessingState.ready || ProcessingState.completed => false,
+  };
+
+  /// The native player reported a failure; a source that was never prepared
+  /// is idle without one.
+  bool get _remoteSourceFailed =>
+      _player.processingState == ProcessingState.idle && _loadedSourceFailed;
+
+  /// Applies the pending Play or seek to its song, which plays again without
+  /// a reload.
+  void _applyPendingRemoteRecovery() {
+    final request = _pendingRemoteRecovery!;
+    _pendingRemoteRecovery = null;
+    if (request.position case final target?) unawaited(seek(target));
+    if (request.autoPlay && !_player.playing) {
+      unawaited(_playWithFocusRecovery());
+    }
+    _broadcastPlaybackState();
+    _emitSnapshot();
   }
 
   void _syncRemotePlaybackStallWatchdog() {
@@ -951,9 +1138,82 @@ extension _NavisRecovery on NavisAudioHandler {
     _remotePlaybackRecoveryInProgress = true;
     _cancelRemotePlaybackStallWatchdog();
     final songId = _queueItems[currentIndex].id;
-    final autoPlay = _player.playing;
-    final position = _player.position;
-    final transportGeneration = _transportGeneration;
+    // The pending request is the one record of what to restore: Play and
+    // seek may update it while the network check below is awaited.
+    if (!_ownsRemoteRecovery(songId)) {
+      _pendingRemoteRecovery = (
+        generation: _transportGeneration,
+        songId: songId,
+        position: _player.position,
+        autoPlay: _requestedPlaying,
+        requested: false,
+      );
+    }
+    _broadcastPlaybackState();
+    _emitSnapshot();
+    final ({
+      int generation,
+      String songId,
+      Duration? position,
+      bool autoPlay,
+      bool requested,
+    })
+    pending;
+    try {
+      var online = false;
+      try {
+        online = (await reconcileNetwork?.call())?.serverReachable ?? true;
+      } on Object {
+        AppLogger.startup(
+          StartupEvent.streamRecovery,
+          outcome: StartupOutcome.unavailable,
+        );
+      }
+      if (_disposeHandlerStarted) return;
+      final latest = _pendingRemoteRecovery;
+      // A song change, transport command or load replaced the request, or the
+      // player recovered by itself: never reload a song that plays.
+      if (latest == null ||
+          !_ownsRemoteRecovery(songId) ||
+          _isLoading ||
+          _pendingSeek != null ||
+          !_remotePlaybackStillFailed) {
+        if (latest != null &&
+            latest.requested &&
+            _ownsRemoteRecovery(songId) &&
+            !_isLoading &&
+            _pendingSeek == null) {
+          // A seek during a stall still applies once the song plays again.
+          _applyPendingRemoteRecovery();
+        } else if (latest?.songId == songId) {
+          _pendingRemoteRecovery = null;
+          _broadcastPlaybackState();
+          _emitSnapshot();
+        }
+        return;
+      }
+      if (!online) {
+        _remoteRecoveryWasOffline = true;
+        AppLogger.startup(
+          StartupEvent.streamRecovery,
+          outcome: StartupOutcome.offline,
+        );
+        _scheduleNetworkPlaybackRetry();
+        return;
+      }
+      if (_remoteRecoveryWasOffline) {
+        _remotePlaybackRecoveryAttempts.clear();
+        _remoteRecoveryWasOffline = false;
+      }
+      pending = latest;
+      _pendingRemoteRecovery = null;
+    } finally {
+      _remotePlaybackRecoveryInProgress = false;
+    }
+    final transportGeneration = pending.generation;
+    final position = pending.position ?? _player.position;
+    final autoPlay = pending.autoPlay;
+    _remotePlaybackRecoveryInProgress = true;
     final attemptKey = '$transportGeneration:$songId';
     final isRetry = navisShouldRetryRemotePlayback(
       alreadyRetried: _remotePlaybackRecoveryAttempts.contains(attemptKey),
@@ -961,24 +1221,11 @@ extension _NavisRecovery on NavisAudioHandler {
     if (isRetry) {
       _remotePlaybackRecoveryAttempts.add(attemptKey);
     }
-    _lastFailedSongId = songId;
-    _emitLoadFailure(
-      operation: reason,
-      message: 'Remote playback failed.',
-      songId: songId,
-      isTimeout: reason == 'remote playback stalled',
+    AppLogger.startup(
+      StartupEvent.streamRecovery,
+      attempt: isRetry ? 1 : 2,
+      outcome: StartupOutcome.changed,
     );
-    if (error != null) {
-      AppLogger.warning(
-        'Remote playback recovery for song=$songId sourceKind=$sourceKind '
-        'reason=$reason: $error\n${stackTrace ?? StackTrace.current}',
-      );
-    } else {
-      AppLogger.warning(
-        'Remote playback recovery for song=$songId sourceKind=$sourceKind '
-        'reason=$reason.',
-      );
-    }
 
     try {
       if (isRetry) {
@@ -990,6 +1237,12 @@ extension _NavisRecovery on NavisAudioHandler {
             token: recoveryToken,
             transportGeneration: transportGeneration,
           );
+          AppLogger.startup(
+            StartupEvent.streamRecovery,
+            outcome: rebuilt
+                ? StartupOutcome.success
+                : StartupOutcome.unchanged,
+          );
           _recordSeekDiagnosticsEvent(<String, Object?>{
             'at': DateTime.now().toUtc().toIso8601String(),
             'path': 'remote_retry',
@@ -999,10 +1252,10 @@ extension _NavisRecovery on NavisAudioHandler {
             'outcome': rebuilt ? 'reloaded' : 'notRebuilt',
           });
           return;
-        } on Object catch (rebuildError, rebuildStackTrace) {
-          AppLogger.warning(
-            'Remote playback retry failed for song=$songId. '
-            '$rebuildError\n$rebuildStackTrace',
+        } on Object {
+          AppLogger.startup(
+            StartupEvent.streamRecovery,
+            outcome: StartupOutcome.failure,
           );
         }
       }
@@ -1024,6 +1277,16 @@ extension _NavisRecovery on NavisAudioHandler {
       });
     } finally {
       _remotePlaybackRecoveryInProgress = false;
+      // A Play during the reload re-armed this song; the reload yielded to it.
+      final request = _pendingRemoteRecovery;
+      if (request != null && _ownsRemoteRecovery(songId)) {
+        if (_remoteSourceFailed) {
+          _rearmHeldRemoteRecovery();
+        } else {
+          _applyPendingRemoteRecovery();
+        }
+      }
+      _broadcastPlaybackState();
       _emitSnapshot();
     }
   }

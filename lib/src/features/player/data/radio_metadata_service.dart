@@ -40,6 +40,9 @@ class RadioMetadataService {
   String? _stationShortName;
   bool _candidateRejected = false;
   int _generation = 0;
+
+  /// Generation whose Azuracast poll is in flight, so polls never stack.
+  int? _pollGeneration;
   int _initialFailureCount = 0;
   bool _hasAzuracastSuccess = false;
   IcyMetadata? _latestIcyMetadata;
@@ -160,11 +163,16 @@ class RadioMetadataService {
       refreshPolicy();
       return;
     }
+    // One poll per station at a time: a slow response must not stack later
+    // ticks. A generation bump (station switch, stop, policy) polls at once.
+    if (_pollGeneration == generation) return;
+    _pollGeneration = generation;
 
     try {
       final response = await _dio.get<Map<String, dynamic>>(
         '$baseUrl/api/nowplaying/$stationShortName',
         options: Options(
+          connectTimeout: const Duration(seconds: 10),
           receiveTimeout: const Duration(seconds: 10),
           sendTimeout: const Duration(seconds: 5),
         ),
@@ -217,6 +225,8 @@ class RadioMetadataService {
       if (generation == _generation && _isAllowed()) {
         _recordInitialFailure();
       }
+    } finally {
+      if (_pollGeneration == generation) _pollGeneration = null;
     }
   }
 
