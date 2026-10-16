@@ -347,6 +347,14 @@ void main() {
     }, skip: !sqliteAvailable);
 
     test('saveSettings writes and overwrites single-row settings', () async {
+      await database.appSettingsDao.updateNowPlayingBackground('plain');
+      await database.appSettingsDao.updateOledForAuto(enabled: true);
+      await database.appSettingsDao.updateFlatSurfaces(enabled: true);
+      await database.appSettingsDao.updateNightSchedule(
+        enabled: true,
+        startMinutes: 1200,
+        endMinutes: 480,
+      );
       await database.appSettingsDao.saveSettings(
         wifiMaxBitRate: 320,
         wifiFormat: 'opus',
@@ -366,19 +374,9 @@ void main() {
         autoDownloadStarredOnWifi: false,
         customDownloadFolderEnabled: false,
         customDownloadFolderPath: null,
-        themeMode: 'dark',
-        colorStyle: 'neutral',
-        oledForAuto: true,
-        nightScheduleEnabled: true,
-        nightScheduleStartMinutes: 1200,
-        nightScheduleEndMinutes: 480,
-        flatSurfaces: true,
-        colorSchemeSeed: null,
         crossfadeEnabled: false,
         crossfadeDurationSeconds: 5,
         crossfadeType: 'normal',
-        nowPlayingBackground: 'plain',
-        dynamicAlbumColorEnabled: false,
         updateCheckEnabled: true,
         updateChannel: 'stable',
         syncIntervalMinutes: 60,
@@ -387,18 +385,12 @@ void main() {
         replayGainMode: 'off',
         replayGainPreamp: 0,
         playbackSpeed: 1,
-        coverArtShape: 'rounded',
-        nowPlayingArtShape: 'rounded',
-        artistCardShape: 'circle',
-        artistViewMode: 'grid',
-        homeDensity: 'comfortable',
       );
 
       final first = await database.appSettingsDao.getSettings();
       expect(first, isNotNull);
       expect(first!.id, AppSettingsDao.primarySettingsId);
       expect(first.wifiMaxBitRate, 320);
-      expect(first.nowPlayingBackground, 'plain');
       expect(first.nowPlayingBackground, 'plain');
       expect(first.wifiFormat, 'opus');
       expect(first.cellularMaxBitRate, 128);
@@ -418,6 +410,13 @@ void main() {
       expect(first.customDownloadFolderEnabled, isFalse);
       expect(first.customDownloadFolderPath, isNull);
 
+      await database.appSettingsDao.updateOledForAuto(enabled: false);
+      await database.appSettingsDao.updateFlatSurfaces(enabled: false);
+      await database.appSettingsDao.updateNightSchedule(
+        enabled: false,
+        startMinutes: 1320,
+        endMinutes: 420,
+      );
       await database.appSettingsDao.saveSettings(
         wifiMaxBitRate: null,
         wifiFormat: null,
@@ -437,19 +436,9 @@ void main() {
         autoDownloadStarredOnWifi: false,
         customDownloadFolderEnabled: false,
         customDownloadFolderPath: null,
-        themeMode: 'dark',
-        colorStyle: 'neutral',
-        oledForAuto: false,
-        nightScheduleEnabled: false,
-        nightScheduleStartMinutes: 1320,
-        nightScheduleEndMinutes: 420,
-        flatSurfaces: false,
-        colorSchemeSeed: null,
         crossfadeEnabled: false,
         crossfadeDurationSeconds: 5,
         crossfadeType: 'normal',
-        nowPlayingBackground: 'plain',
-        dynamicAlbumColorEnabled: false,
         updateCheckEnabled: false,
         updateChannel: 'beta',
         syncIntervalMinutes: 60,
@@ -458,11 +447,6 @@ void main() {
         replayGainMode: 'off',
         replayGainPreamp: 0,
         playbackSpeed: 1,
-        coverArtShape: 'rounded',
-        nowPlayingArtShape: 'rounded',
-        artistCardShape: 'circle',
-        artistViewMode: 'grid',
-        homeDensity: 'compact',
       );
 
       final second = await database.appSettingsDao.getSettings();
@@ -489,6 +473,19 @@ void main() {
     }, skip: !sqliteAvailable);
 
     test('resetDefaults restores app defaults', () async {
+      await database.appSettingsDao.updateThemeMode('oled');
+      await database.appSettingsDao.updateColorStyle('night');
+      await database.appSettingsDao.updateOledForAuto(enabled: true);
+      await database.appSettingsDao.updateFlatSurfaces(enabled: true);
+      await database.appSettingsDao.updateNightSchedule(
+        enabled: true,
+        startMinutes: 1200,
+        endMinutes: 480,
+      );
+      await database.appSettingsDao.updateColorSchemeSeed(4283215696);
+      await database.appSettingsDao.updateNowPlayingBackground('plain');
+      await database.appSettingsDao.updateCoverArtShape('rounded');
+      await database.appSettingsDao.updateDensity(NavisDensity.compact);
       await database.appSettingsDao.saveSettings(
         wifiMaxBitRate: 320,
         wifiFormat: 'opus',
@@ -508,19 +505,9 @@ void main() {
         autoDownloadStarredOnWifi: false,
         customDownloadFolderEnabled: false,
         customDownloadFolderPath: null,
-        themeMode: 'oled',
-        colorStyle: 'night',
-        oledForAuto: true,
-        nightScheduleEnabled: true,
-        nightScheduleStartMinutes: 1200,
-        nightScheduleEndMinutes: 480,
-        flatSurfaces: true,
-        colorSchemeSeed: 4283215696,
         crossfadeEnabled: false,
         crossfadeDurationSeconds: 5,
         crossfadeType: 'normal',
-        nowPlayingBackground: 'plain',
-        dynamicAlbumColorEnabled: false,
         updateCheckEnabled: false,
         updateChannel: 'beta',
         syncIntervalMinutes: 60,
@@ -529,11 +516,6 @@ void main() {
         replayGainMode: 'off',
         replayGainPreamp: 0,
         playbackSpeed: 1,
-        coverArtShape: 'rounded',
-        nowPlayingArtShape: 'rounded',
-        artistCardShape: 'circle',
-        artistViewMode: 'grid',
-        homeDensity: 'compact',
       );
 
       await database.appSettingsDao.resetDefaults();
@@ -649,18 +631,9 @@ void main() {
         wifiOnlyDownloads: false,
         autoDownloadStarredOnWifi: false,
         customDownloadFolderEnabled: false,
-        themeMode: 'dark',
-        colorStyle: 'neutral',
-        oledForAuto: false,
-        nightScheduleEnabled: false,
-        nightScheduleStartMinutes: 1320,
-        nightScheduleEndMinutes: 420,
-        flatSurfaces: false,
         crossfadeEnabled: false,
         crossfadeDurationSeconds: 5,
         crossfadeType: 'normal',
-        nowPlayingBackground: 'plain',
-        dynamicAlbumColorEnabled: false,
         updateCheckEnabled: updateCheckEnabled,
         updateChannel: 'stable',
         syncIntervalMinutes: 60,
@@ -668,11 +641,6 @@ void main() {
         legacyInstantMixEnabled: legacyInstantMixEnabled,
         replayGainMode: 'off',
         replayGainPreamp: 0,
-        coverArtShape: 'rounded',
-        nowPlayingArtShape: 'rounded',
-        artistCardShape: 'circle',
-        artistViewMode: 'grid',
-        homeDensity: 'comfortable',
         listenBrainzScrobblingEnabled: listenBrainzScrobblingEnabled,
       );
 

@@ -47,7 +47,7 @@ PresetPickerLabels _labels(
   deleteAction: l10n.commonDelete,
 );
 
-/// Looks: saved snapshots of the whole appearance, at the top of Appearance
+/// Looks: saved snapshots of colours and style, at the top of Appearance
 /// settings, acting through [AppearanceLooksController]. Choosing a Look
 /// applies it.
 ///

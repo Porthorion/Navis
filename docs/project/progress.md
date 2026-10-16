@@ -2127,3 +2127,14 @@ Latest activity (2026-03-07): published `v0.8.0` APK via `tool/release.sh` and s
   equality and old-Look application (comfortable became compact); all 90 focused
   domain/storage/controller/audit tests passed after the fix. Runtime and full
   quality gate are prohibited on this host and remain coordinator-owned.
+
+- 2026-10-16 — Issue #7 stale settings-write fix: generic DAO/repository saves
+  omit all Look and layout columns, Look library/selection and Home section
+  order/visibility; Library's artist list/grid toggle uses the existing targeted
+  writer, and reset plus appearance fixtures use targeted lanes. The regression
+  first failed with `Expected: 'light' / Actual: 'dark'`, then passed while
+  comparing the complete stored row except the requested scrobble change and
+  timestamp. Library's test first failed on `Bad state: full draft read`; its
+  targeted-writer path passed in the broader suite. That run passed 982 tests
+  with only the desktop Appearance copy golden failing; the updated golden's
+  focused test passed. Final combined validation is recorded below.

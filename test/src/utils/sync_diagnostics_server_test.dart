@@ -2513,7 +2513,7 @@ void main() {
     );
     expect(badRatio.statusCode, HttpStatus.badRequest);
     when(() => presentation.capture(label: 'sharp', deviceResolution: true))
-        .thenAnswer((_) async => (await presentation.capture(label: 'target')));
+        .thenAnswer((_) async => await presentation.capture(label: 'target'));
     final sharp = await fixture.post(
       '/v1/presentation/screenshot',
       const <String, Object?>{'label': 'sharp', 'pixelRatio': 'device'},
@@ -3052,17 +3052,9 @@ void main() {
         wifiOnlyDownloads: true,
         autoDownloadStarredOnWifi: false,
         customDownloadFolderEnabled: false,
-        themeMode: 'dark',
-        colorStyle: 'neutral',
-        oledForAuto: false,
-        nightScheduleEnabled: false,
-        nightScheduleStartMinutes: 1320,
-        nightScheduleEndMinutes: 420,
-        flatSurfaces: false,
         crossfadeEnabled: false,
         crossfadeDurationSeconds: 5,
         crossfadeType: 'normal',
-        dynamicAlbumColorEnabled: false,
         updateCheckEnabled: true,
         updateChannel: 'stable',
         syncIntervalMinutes: 60,
@@ -3071,13 +3063,8 @@ void main() {
         legacyInstantMixEnabled: false,
         replayGainMode: 'off',
         replayGainPreamp: 0,
-        coverArtShape: 'square',
-        nowPlayingArtShape: 'rounded',
-        artistCardShape: 'circle',
-        artistViewMode: 'grid',
         desktopPlaybackVolume: 0.37,
         desktopLastAudibleVolume: 0.37,
-        homeDensity: 'comfortable',
         listenBrainzTokenValid: true,
         listenBrainzUserName: 'fixture-listener',
       );

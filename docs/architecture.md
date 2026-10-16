@@ -1038,6 +1038,13 @@ target-selection rules.
     writes and preserves explicitly cleared selections at normal speed across
     later appearance saves. Unsupported saved playback presets retain a Delete
     menu action; Normal is built in and cannot be deleted. Delete failures use app notices.
+  - Generic `AppSettingsDao.saveSettings` / `SettingsRepository.saveSettings`
+    saves omit all Look fields, layout preferences (including legacy grid
+    density), the Look library/selection, and Home section order/visibility.
+    These settings use targeted writers, so Playback autosave cannot revert
+    newer changes from Appearance or Home. The Library artist-view toggle
+    uses `updateArtistViewMode`; reset explicitly uses the same targeted lanes
+    and retains the Look library while clearing its selection.
   - Looks (`AppearanceLook`, version 1, `AppearanceSnapshot`,
     `AppearanceLooksController`) capture colour and style choices: theme mode,
     OLED-for-Auto, saved colour style, nullable accent seed, dynamic album

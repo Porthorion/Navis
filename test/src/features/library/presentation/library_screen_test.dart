@@ -4,6 +4,8 @@ import 'package:material_ui/material_ui.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:mocktail/mocktail.dart';
+import 'package:navis/src/features/settings/data/settings_repository.dart';
 import 'package:go_router/go_router.dart';
 import 'package:navis/src/features/auth/presentation/server_reachability_provider.dart';
 import 'package:navis/src/features/auth/domain/server_reachability.dart';
@@ -43,6 +45,8 @@ import '../../../../helpers/test_theme.dart';
 
 import 'package:navis/src/routing/library_section_navigation_scope.dart';
 
+class _MockSettingsRepository extends Mock implements SettingsRepository;
+
 class _FakeLibrarySyncController extends LibrarySyncController {
   new(this._initialState, {this.onSyncNow, this.onCancel, this.onTarget});
 
@@ -75,7 +79,7 @@ class _FakeLibrarySyncController extends LibrarySyncController {
   void cancelSync() => onCancel?.call();
 }
 
-/// A sync that reports running at once and finishes only when [finish] runs,
+/// A sync that reports running at once and finishes only when [pending] completes,
 /// like a real catalog sync that outlasts a pull to refresh.
 class _LongSyncController extends LibrarySyncController {
   static Completer<LibrarySyncState>? pending;
@@ -434,6 +438,44 @@ void main() {
       await _switchToArtistsTab(tester);
 
       expect(find.byTooltip('Switch to artist list view'), findsOneWidget);
+    },
+  );
+
+  _testWidgetsWithCleanup(
+    'artist view toggle writes only its setting without reading a full draft',
+    (tester) async {
+      final repository = _MockSettingsRepository();
+      when(repository.getSettings).thenThrow(StateError('full draft read'));
+      when(repository.watchSettings).thenAnswer(
+        (_) => SettingsRepository(_testDatabase.appSettingsDao).watchSettings(),
+      );
+      await tester.runAsync(() async {
+        await _testDatabase.appSettingsDao.updateThemeMode('light');
+        await _testDatabase.appSettingsDao.updateArtistViewMode('list');
+        await _testDatabase.appSettingsDao.updateHomeSectionsHidden('[]');
+      });
+      await _pumpLibraryScreen(
+        tester,
+        overrides: [
+          settingsRepositoryProvider.overrideWithValue(repository),
+          artistsProvider.overrideWithValue(
+            const AsyncData(<ArtistsTableData>[]),
+          ),
+          albumCountProvider.overrideWithValue(const AsyncData(0)),
+          pagedAlbumsProvider.overrideWith(
+            (ref, request) => Stream.value(const <AlbumsTableData>[]),
+          ),
+        ],
+      );
+      await _switchToArtistsTab(tester);
+      await tester.tap(find.byTooltip('Switch to artist grid view'));
+      await tester.runAsync(() async {
+        final row = await _testDatabase.appSettingsDao.getSettings();
+        expect(row!.artistViewMode, 'grid');
+        expect(row.themeMode, 'light');
+        expect(row.homeSectionsHidden, '[]');
+      });
+      verifyNever(repository.getSettings);
     },
   );
 

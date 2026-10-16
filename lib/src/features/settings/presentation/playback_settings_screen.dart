@@ -656,8 +656,8 @@ class _PlaybackSettingsScreenState
       final wifiFormat = _normalizeFormat(_wifiFormat);
       final cellularFormat = _normalizeFormat(_cellularFormat);
       // Copy the stored row so fields owned by other screens (integrations,
-      // ListenBrainz, sync, desktop volume, appearance) survive this full-row
-      // write.
+      // ListenBrainz, sync and desktop volume) survive this general save.
+      // Appearance and Home sections are protected by targeted-only writers.
       final settings = currentSettings.copyWith(
         wifiMaxBitRate: _wifiBitRate,
         clearWifiBitRate: _wifiBitRate == null,

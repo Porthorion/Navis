@@ -166,6 +166,10 @@ const List<ChangelogVersion> changelogs = [
     ],
     entries: [
       ChangelogEntry(
+        'Saving Playback settings keeps newer appearance, Look and Home section choices',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
         'Looks keep layout preferences independent: density, artist view, artwork size and art shapes stay as you set them when switching Looks',
       ),
       ChangelogEntry(

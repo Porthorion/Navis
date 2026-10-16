@@ -1,15 +1,15 @@
 import 'dart:convert';
 
+import 'package:drift/drift.dart' show Value;
+import 'package:navis/src/database/navis_database.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:navis/src/features/settings/data/settings_repository.dart';
 import 'package:navis/src/features/settings/domain/app_settings.dart';
 import 'package:navis/src/features/settings/domain/appearance_presets.dart';
 import 'package:navis/src/features/settings/domain/flat_areas.dart';
-import 'package:navis/src/features/settings/domain/navis_density.dart';
 import 'package:navis/src/features/settings/domain/now_playing_background.dart';
 import 'package:navis/src/providers/app_providers.dart';
-import 'package:navis/src/routing/content_layout.dart';
 import 'package:navis/src/theme/color_adjustment.dart';
 import 'package:navis/src/theme/navis_corner_style.dart';
 
@@ -41,18 +41,15 @@ void main() {
       flatSurfaces: true,
       flatAreas: FlatAreas.fromBits(2),
       cornerStyle: NavisCornerStyle.square,
-      coverArtShape: 'rounded',
-      nowPlayingArtShape: 'circle',
-      artistCardShape: 'square',
-      gridArtworkSize: GridArtworkSize.large,
-      albumGridDensity: 6,
-      density: NavisDensity.compact,
-      artistViewMode: 'list',
       nowPlayingBackground: NowPlayingBackground.artwork,
       appLocale: 'en',
       homeRecommendationsAutoAdvance: true,
     );
-    await repository.saveSettings(settings);
+    await dao.applyAppearanceSnapshot(AppearanceSnapshot.capture(settings));
+    await dao.updateAppLocale(settings.appLocale);
+    await dao.updateHomeRecommendationsAutoAdvance(
+      enabled: settings.homeRecommendationsAutoAdvance,
+    );
     final original = AppearanceSnapshot.capture(await repository.getSettings());
     expect(
       original.toJson().length,
@@ -90,6 +87,10 @@ void main() {
       addTearDown(database.close);
       final dao = database.appSettingsDao;
       final repository = SettingsRepository(dao);
+      await dao.getSettings();
+      await database
+          .update(database.appSettingsTable)
+          .write(const AppSettingsTableCompanion(albumGridDensity: Value(4)));
       final before = await repository.getSettings();
       final legacy = {
         'id': 'old',
@@ -131,12 +132,10 @@ void main() {
     addTearDown(database.close);
     final repository = SettingsRepository(database.appSettingsDao);
     final initial = AppearanceSnapshot.capture(await repository.getSettings());
-    await repository.saveSettings(
-      const AppSettingsModel.defaults().copyWith(
-        colorSchemeSeed: 1,
-        albumGridDensity: 4,
-      ),
-    );
+    await database.appSettingsDao.updateColorSchemeSeed(1);
+    await database
+        .update(database.appSettingsTable)
+        .write(const AppSettingsTableCompanion(albumGridDensity: Value(4)));
     await database.appSettingsDao.applyAppearanceSnapshot(
       AppearanceSnapshot.fromJson(initial.toJson()),
     );

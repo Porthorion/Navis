@@ -19,7 +19,7 @@ void main() {
       presets: [preset],
     );
     await repository.saveSettings(
-      const AppSettingsModel.defaults().copyWith(themeMode: 'oled'),
+      const AppSettingsModel.defaults().copyWith(scrobbleEnabled: false),
     );
     var saved = await repository.getSettings();
     expect(saved.playbackSpeed, values.speed);
@@ -27,7 +27,7 @@ void main() {
     expect(saved.lockPitchToSpeed, isTrue);
     expect(saved.selectedPlaybackPresetId, 'p1');
     expect(saved.playbackPresets.single.values, values);
-    expect(saved.themeMode, 'oled');
+    expect(saved.scrobbleEnabled, isFalse);
     await repository.resetDefaults();
     saved = await repository.getSettings();
     expect(saved.playbackSpeed, 1);
