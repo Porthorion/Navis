@@ -5,6 +5,7 @@ import 'package:dio/dio.dart';
 import 'package:drift/drift.dart' hide isNotNull, isNull;
 import 'package:file/memory.dart';
 import 'package:flutter_cache_manager/flutter_cache_manager.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:navis/src/api/lrclib_client.dart';
@@ -20,6 +21,7 @@ import 'package:navis/src/features/downloads/data/download_service.dart';
 import 'package:navis/src/features/downloads/data/permanent_artwork_store.dart';
 import 'package:navis/src/features/downloads/data/permanent_download_import_service.dart';
 import 'package:navis/src/features/player/domain/lyrics_resolution.dart';
+import 'package:navis/src/providers/app_providers.dart';
 import 'package:path/path.dart' as p;
 
 import '../../../helpers/test_database.dart';
@@ -1069,6 +1071,72 @@ void main() {
         }
       }, skip: !sqliteAvailable);
     }
+
+    test(
+      'interactive server success makes a negative song eligible for backfill',
+      () async {
+        await _seedPermanentSong(database, id: 'song-healed', title: 'Healed');
+        await database.libraryDao.upsertExternalLyricsCache(
+          songId: 'song-healed',
+          source: 'lrclibPlain',
+          failureCount: 1,
+          lastFailedAt: DateTime.now(),
+        );
+        final api = _MockSubsonicApiClient();
+        when(() => api.getLyricsBySongId('song-healed'))
+            .thenAnswer((_) async => const LyricsList(value: 'server words'));
+        final lrclib = _answeringLrclib();
+        final container = ProviderContainer(
+          overrides: [
+            navisDatabaseProvider.overrideWithValue(database),
+            lrclibClientProvider.overrideWithValue(lrclib),
+            subsonicApiProvider.overrideWithValue(api),
+            useLrclibProvider.overrideWithValue(false),
+            currentMediaItemProvider.overrideWithValue(const AsyncData(null)),
+          ],
+        );
+        addTearDown(container.dispose);
+        expect(
+          (await container.read(lyricsProvider('song-healed').future))
+              .lyrics
+              .value,
+          'server words',
+        );
+        final backfill = DownloadService(
+          appSettingsDao: database.appSettingsDao,
+          cacheDao: database.cacheDao,
+          downloadQueueDao: database.downloadQueueDao,
+          libraryDao: database.libraryDao,
+          readApiClient: () => api,
+          readWifiOnly: () => false,
+          readIsWifi: () => true,
+          readCustomDownloadFolderEnabled: () => false,
+          readCustomDownloadFolderPath: () => null,
+          readApplicationSupportDirectory: () async => serviceSupportDir,
+          lrclibClient: lrclib,
+          readCoverArtCacheManager: _MockCacheManager.new,
+          artworkStore: _OfflineArtworkStore(),
+        );
+        addTearDown(backfill.stopAndWait);
+        await backfill.start();
+        ExternalLyricsCacheTableData? cached;
+        for (var i = 0; i < 40; i++) {
+          cached = await database.libraryDao.getExternalLyricsCache(
+            'song-healed',
+          );
+          if (cached?.syncedLyrics != null) break;
+          await Future<void>.delayed(const Duration(milliseconds: 50));
+        }
+        expect(
+          cached?.syncedLyrics,
+          '[00:01.00]line',
+          reason: 'the old negative marker must not suppress an upgrade',
+        );
+        expect(cached?.failureCount, 0);
+        expect(cached?.lastFailedAt, isNull);
+      },
+      skip: !sqliteAvailable,
+    );
 
     test(
       'an empty lyrics lookup is negatively cached and backed off',

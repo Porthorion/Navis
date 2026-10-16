@@ -2,7 +2,7 @@
 
 Tracks completion of all phases and sub-tasks defined in [docs/project/development-plan.md](development-plan.md). Checkboxes are updated as work is completed.
 
-Last updated: 2026-10-15
+Last updated: 2026-10-16
 
 ---
 
@@ -14,6 +14,24 @@ Last updated: 2026-10-15
 - ACP status values: `backlog`, `ready`, `in_progress`, `blocked`, `done`.
 
 ## Current Focus
+- [x] Download lyrics/artwork backfill review fixes (issue #9) — 2026-10-16
+  (`fix/download-lyrics-art-backfill`; the shared lyrics resolver distinguishes
+  confirmed misses from transport/API failures, so only confirmed misses get
+  a seven-day negative entry. Both backfills recheck stop/network eligibility
+  after a playback hold and before a request; stopped passes drain without new
+  network work, and a Wi-Fi-only pass interrupted by cellular stays pending
+  and resumes through the pump on Wi-Fi. Interactive server lyrics for permanent
+  downloads use the resolver cache path and clear failure metadata, permitting
+  later synced-lyrics upgrades; rolling/uncached songs retain their previous
+  caching behavior. Twelve regressions failed before their fixes; all nineteen
+  new regression/control cases pass. The requested downloads, lyrics-resolver,
+  song-identity DAO and provider suites pass 372 tests with concurrency 4 under
+  a 6G cap. Changed-file analysis and formatting and the dead-code gate pass.
+  Two existing provider brace-style infos were corrected during analysis;
+  the provider suite then passed all 94 tests again.
+  Runtime/app/emulator validation and `./tool/check.sh` were not run under the
+  host limits; the coordinator owns broader validation.)
+
 - [x] Idle-robustness final fixes (shared sync requests and busy databases) —
   2026-10-15 (`fix/idle-integration`, aa3d3452..abf8f071; a lease-held check
   against a live worker lease retries at the 30 s floor instead of waiting out

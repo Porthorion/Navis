@@ -526,8 +526,9 @@ final networkReconciliationProvider =
           await ref
               .read(nativeNetworkMeteredProvider.future)
               .timeout(const Duration(seconds: 3));
-          if (!ref.mounted)
+          if (!ref.mounted) {
             return (connected: connected, serverReachable: false);
+          }
           // A fast probe may already have completed while metering refreshed.
           // Join it while pending; don't launch a second ping after completion.
           if (ref.read(serverReachabilityControllerProvider).lastCheckedAt ==
@@ -537,8 +538,9 @@ final networkReconciliationProvider =
                 .retryNow()
                 .timeout(const Duration(seconds: 5));
           }
-          if (!ref.mounted)
+          if (!ref.mounted) {
             return (connected: connected, serverReachable: false);
+          }
           final reachable =
               ref.read(serverReachabilityControllerProvider).status ==
               ServerReachabilityStatus.online;
@@ -2484,6 +2486,7 @@ final lyricsProvider = FutureProvider.family<LyricsResolution, String>((
     lyricsCacheTtlSeconds: cachedTrack?.cacheType == CacheType.permanent
         ? permanentLyricsCacheTtlSeconds
         : normalLyricsCacheTtlSeconds,
+    cacheServerLyrics: cachedTrack?.cacheType == CacheType.permanent,
   );
 });
 

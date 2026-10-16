@@ -12,7 +12,7 @@ class LyricsResolution {
   final LyricsList lyrics;
   final LyricsSource source;
 
-  /// Every attempted source answered without lyrics, with no lookup failure.
+  /// Whether every attempted source answered without lyrics or lookup failure.
   final bool confirmedMiss;
 
   bool get isExternal =>

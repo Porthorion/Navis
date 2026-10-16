@@ -226,6 +226,10 @@ const List<ChangelogVersion> changelogs = [
         type: ChangelogEntryType.fix,
       ),
       ChangelogEntry(
+        'Temporary lyrics lookup failures no longer delay retries for a week, and opening server lyrics saves them for downloaded songs',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
         'Windows now uses a Navis-built playback engine with complete corresponding source provided alongside the download',
       ),
       ChangelogEntry(

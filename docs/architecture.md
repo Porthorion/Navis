@@ -1837,13 +1837,16 @@ stream load holds new work, and never runs twice at once; a completed pass
 does not repeat in the same session. Each item rechecks stop state and network
 eligibility after the playback hold and before its network work; teardown
 releases held passes without starting requests, and a mid-pass network
-restriction leaves the pass pending for the existing pump. Promoting a rolling-cached track to a
-permanent download prefetches lyrics alongside its cover art. A server
-connection appearing also re-arms a blocked pass. When every attempted source
-answers successfully without lyrics for a downloaded song, the backfill records
-the miss (`failureCount`, `lastFailedAt`) and skips that song for a week, so repeated starts don't
-spend the LRCLIB budget on it; the empty row is never shown as lyrics.
-Transport and API failures do not create these negative entries.
+restriction leaves the pass pending for the existing pump. Promoting a
+rolling-cached track to a permanent download prefetches lyrics alongside its
+cover art. A server connection appearing also re-arms a blocked pass. When every
+attempted source answers successfully without lyrics for a downloaded song,
+the backfill records the miss (`failureCount`, `lastFailedAt`) and skips that
+song for a week, so repeated starts don't spend the LRCLIB budget on it; the
+empty row is never shown as lyrics.
+Transport and API failures do not create these negative entries. Successful
+on-demand server lookups for permanent downloads use the same durable lyrics
+cache and clear failure metadata; server lyrics for other songs remain uncached.
 Lyrics rows of permanent downloads survive a library rebuild: the
 provisional-metadata cleanup spares them while their songs are being
 re-confirmed, like download covers. Lyrics may therefore be unavailable
