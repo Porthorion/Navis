@@ -1043,8 +1043,8 @@ target-selection rules.
     density), the Look library/selection, and Home section order/visibility.
     These settings use targeted writers, so Playback autosave cannot revert
     newer changes from Appearance or Home. The Library artist-view toggle
-    uses `updateArtistViewMode`; reset explicitly uses the same targeted lanes
-    and retains the Look library while clearing its selection.
+    uses `updateArtistViewMode`. Playback reset uses targeted playback writers
+    and preserves appearance, layout, the Look library and its selection.
   - Looks (`AppearanceLook`, version 1, `AppearanceSnapshot`,
     `AppearanceLooksController`) capture colour and style choices: theme mode,
     OLED-for-Auto, saved colour style, nullable accent seed, dynamic album
@@ -2505,8 +2505,7 @@ and Subsonic delivery continues independently.
   then on feedback follows only its own policy switches.
 - **Writers.** The three new columns are deliberately absent from the full-row
   `AppSettingsDao.saveSettings`, so a stale screen snapshot cannot overwrite
-  them (`resetDefaults` resets the master and the JSON set explicitly). They are
-  written only by `updateIntegrationPolicy`, `setExternalIntegrationsEnabled`,
+  them. They are written only by `updateIntegrationPolicy`, `setExternalIntegrationsEnabled`,
   `updateIntegrationsNoticeDismissed` and `setIntegrationEnabled(key, enabled:)`,
   the single path for any feature or service toggle: it writes the legacy column
   for a column-backed feature and otherwise read-modify-writes the JSON set in a
@@ -2516,8 +2515,8 @@ and Subsonic delivery continues independently.
   when given, and `SettingsRepository.saveSettings` never gives them: they
   change through `setIntegrationEnabled`, `updateLastFmApiKey` (the key
   alone) and `updateListenBrainzConnection`, so a stale screen snapshot cannot
-  revert a switch, a key or a token clear. `resetDefaults` resets them through
-  those writers.
+  revert a switch, a key or a token clear. No settings page resets them: the
+  Playback page's Reset Defaults is scoped to `resetPlaybackDefaults`.
 - **Provider.** `integrationPolicyProvider` selects only scalar settings and the
   raw JSON string, so unrelated settings saves do not rebuild it, and it is
   **fail-closed**: while settings load or have failed it is
@@ -4156,9 +4155,13 @@ stays deferred with the songs farther from the window: following songs in
 the tail or earlier songs in the head. Tail releases back off and retry; a
 backward jump can release the playable head suffix and leaves unavailable
 history queued for a later attempt. Shuffled queues defer like any other (see Shuffle below).
-Repeat-all stays off natively while anything is deferred on either side, so
-the player never wraps early; the reported repeat mode is the user's, and at
-the end of the last song Navis wraps to the first itself.
+Repeat-all stays off natively while the initial logical queue is filling,
+anything is deferred on either side, or shuffle is on for a multi-song queue.
+The player never wraps early; the reported repeat mode is the user's, and at
+the end of the last song Navis starts the next pass itself. If the selected
+song completes before the initial fill finishes, the shared completion path
+continues at the next logical occurrence once filling settles. Only Repeat One
+may loop the temporary one-song playlist.
 `GET /v1/playback/status` reports `materializedLength`, `deferredLength`,
 `deferredHeadLength` and release counters. The queue window model test
 (`queue window model` in
@@ -4181,7 +4184,8 @@ shuffles the rest; a queue started with shuffle on begins at the chosen song
 with the others shuffled. The unshuffled order is kept in `_originalOrder`
 (entity Shuffle callers pass the optional `originalOrder` of their unshuffled
 IDs alongside pre-shuffled rows, so the handler preserves the supplied order
-and never shuffles it twice). Android Auto’s Shuffle liked projection passes
+and never shuffles it twice). Supplying that order also enables shuffle mode,
+including its persisted toggle state. Android Auto’s Shuffle liked projection passes
 the same original order through the row-loading adapter. It is reconciled lazily with edits
 (`reconcileOriginalRanks`: songs matched by occurrence, a song played next
 lands after the current song, appended songs go last, removed songs drop).
@@ -4193,7 +4197,17 @@ Schema v88 saves each queue row's
 unshuffled position in `play_queue_items.original_order` next to its play
 position, so a shuffled queue restores in the order it was playing; a queue
 saved by an older build (shuffle on, no original order) keeps its history and
-current song and shuffles the rest. Remote rows keep
+current song and shuffles the rest. Repeat-all completion, forward Next at the
+end, and Play on a completed shuffled queue share one next-pass operation. It
+uses the existing shuffle helper and queue rearrangement, retains original
+ranks and every occurrence, and chooses a first song different from the one
+that just ended whenever another song exists. A random draw matching the old
+order is changed when an alternative is available (a two-song queue has only
+one order with a different starting song). Paused Next keeps playback paused.
+Normal crossfades can start the next shuffled pass when the whole queue fits
+the player; their outgoing occurrence stays last so a failed prewarm still
+stops at the correct boundary. Released-window and Smart-mode wraps continue
+through completion and navigation. Remote rows keep
 their own row whenever a materialised song returns to the tail (reorders,
 deferred ranges, far jumps, seek recovery, crossfade deck sync): the
 handler remembers the rows of materialised remote songs instead of re-reading

@@ -55,7 +55,10 @@ void main() {
       original.toJson().length,
       20,
     ); // Every Look setting; tuning is Custom.
-    await repository.resetDefaults();
+    await dao.applyAppearanceSnapshot(
+      AppearanceSnapshot.capture(const AppSettingsModel.defaults()),
+    );
+    await repository.saveSettings(const AppSettingsModel.defaults());
     await dao.updateCustomColorPresets(jsonEncode([0xFF123456]));
     await dao.updateShowArtistsPage(enabled: false);
     await dao.updateDesktopNavbarStyle('icons');
@@ -179,36 +182,6 @@ void main() {
         AppearanceSnapshot.capture(after),
         AppearanceSnapshot.capture(before.copyWith(colorStyle: 'pastel')),
       );
-    },
-    skip: !sqliteAvailable,
-  );
-
-  test(
-    'reset retains the Look library and resets its selected marker',
-    () async {
-      final database = createTestDatabase();
-      addTearDown(database.close);
-      final dao = database.appSettingsDao;
-      final repository = SettingsRepository(dao);
-      final look = AppearanceLook(
-        id: 'l',
-        name: 'My look',
-        snapshot: AppearanceSnapshot.capture(
-          const AppSettingsModel.defaults().copyWith(themeMode: 'light'),
-        ),
-      );
-      await dao.updateColorTuning(
-        const ColorTuning(vividness: 2, lightDepth: -3, darkDepth: 4),
-      );
-      await dao.updateAppearanceLooks(
-        selectedLookId: look.id,
-        looksJson: jsonEncode([look.toJson()]),
-      );
-      await repository.resetDefaults();
-      final settings = await repository.getSettings();
-      expect(settings.colorTuning, ColorTuning.none);
-      expect(settings.appearanceLooks.single.id, 'l');
-      expect(settings.selectedAppearanceLookId, isNull);
     },
     skip: !sqliteAvailable,
   );

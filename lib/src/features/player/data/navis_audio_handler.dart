@@ -338,6 +338,7 @@ class NavisAudioHandler extends BaseAudioHandler
   /// shuffle orders only what the player holds (so it cannot shuffle a
   /// deferred tail), and media_kit reorders mpv's playlist behind just_audio.
   bool _shuffleEnabled = false;
+  Future<void>? _nextShufflePass;
 
   /// While [_shuffleEnabled], the queue's unshuffled order as last recorded;
   /// reconciled with later edits by [reconcileOriginalRanks] when it is
@@ -1025,6 +1026,16 @@ class NavisAudioHandler extends BaseAudioHandler
 
     final nextIndex = _getNextEffectiveIndex();
     if (nextIndex == null) {
+      if (_shouldStartNextShufflePass &&
+          !_shouldDeferTail(_logicalQueueIds.length) &&
+          _crossfadeType == 'normal') {
+        unawaited(
+          _startNextShufflePass(
+            crossfade: true,
+            delayBeforeFade: delayBeforeFade,
+          ),
+        );
+      }
       return;
     }
 
@@ -2081,33 +2092,35 @@ class NavisAudioHandler extends BaseAudioHandler
       }
     }
 
-    // Edge case: when the queue has played to completion (processingState ==
-    // completed) and the user presses play, just_audio stays stuck at the end
-    // rather than restarting.  Seek back to the beginning of the queue first
-    // so playback actually resumes from the start.
     if (_player.processingState == ProcessingState.completed &&
         _radioStation == null &&
-        _deferredTail.isNotEmpty) {
-      await playFromIndex(_deferredHead.length + _queueItems.length);
-      return;
-    }
-    if (_player.processingState == ProcessingState.completed &&
-        navisShouldRestartCompletedQueue(
-          queueLength: _queueItems.length,
-          currentIndex: _resolveCurrentQueueMetadata().currentIndex,
-          hasPendingLogicalQueue: _pendingLogicalQueueSongIds != null,
-        )) {
-      if (_radioStation == null && _deferredHead.isNotEmpty) {
-        // The first songs were released from the player.
-        await playFromIndex(0);
+        _pendingLogicalQueueSongIds == null) {
+      final current = _logicalCurrentIndex;
+      final length = _logicalQueueIds.length;
+      if (current != null && current + 1 < length) {
+        await playFromIndex(current + 1);
         return;
       }
-      await _player.seek(Duration.zero, index: 0);
-      if (!_isCurrentTransportIntent(transportGeneration)) return;
-      final inactiveDeck = _crossfadePlayer;
-      if (inactiveDeck != null) {
-        await inactiveDeck.seek(Duration.zero, index: 0);
+      if (navisShouldRestartCompletedQueue(
+        queueLength: length,
+        currentIndex: current,
+        hasPendingLogicalQueue: false,
+      )) {
+        if (_shuffleEnabled && length > 1) {
+          await _startNextShufflePass();
+          return;
+        }
+        if (_deferredHead.isNotEmpty) {
+          await playFromIndex(0);
+          return;
+        }
+        await _player.seek(Duration.zero, index: 0);
         if (!_isCurrentTransportIntent(transportGeneration)) return;
+        final inactiveDeck = _crossfadePlayer;
+        if (inactiveDeck != null) {
+          await inactiveDeck.seek(Duration.zero, index: 0);
+          if (!_isCurrentTransportIntent(transportGeneration)) return;
+        }
       }
     }
 
@@ -2583,6 +2596,7 @@ class NavisAudioHandler extends BaseAudioHandler
       () => _persistQueueState(includePosition: false),
       context: 'set shuffle mode',
     );
+    await _syncNativeLoopMode();
     _broadcastPlaybackState();
     _emitSnapshot();
   }
@@ -2765,6 +2779,12 @@ class NavisAudioHandler extends BaseAudioHandler
   @visibleForTesting
   Future<void> debugStartCrossfade() async {
     final next = _getNextEffectiveIndex();
+    if (next == null &&
+        _shouldStartNextShufflePass &&
+        !_shouldDeferTail(_logicalQueueIds.length)) {
+      await _startNextShufflePass(crossfade: true);
+      return;
+    }
     if (next == null) throw StateError('Nothing follows the current song.');
     await _startCrossfade(next, delayBeforeFade: Duration.zero);
   }

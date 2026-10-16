@@ -2,7 +2,7 @@
 
 Tracks completion of all phases and sub-tasks defined in [docs/project/development-plan.md](development-plan.md). Checkboxes are updated as work is completed.
 
-Last updated: 2026-10-15
+Last updated: 2026-10-16
 
 ---
 
@@ -14,6 +14,37 @@ Last updated: 2026-10-15
 - ACP status values: `backlog`, `ready`, `in_progress`, `blocked`, `done`.
 
 ## Current Focus
+
+- [x] Shuffled repeat/restart passes (issue #5) — 2026-10-16: automatic
+  completion, forward wrap, completed-queue Play and short Normal crossfades
+  share one next-pass operation built on the existing shuffle helpers, queue
+  rearrangement and navigation intent. It avoids repeating the ending song
+  when another identity exists, retains duplicate occurrences and original
+  ranks, persists the new order, and preserves paused Next. Released-window
+  and Smart-mode wraps use completion/navigation. Final capped validation:
+  navigation + shuffle + navigation-intent suites 521 passed (including the
+  500-seed queue-window model); latest shuffle matrix/edge cases 68 passed;
+  handler/projection suites 61 passed. Earlier red matrices: initial fill
+  0 passed/16 failed, entity state 0/18, next pass 0/18. Formatting and diff
+  checks passed. App/emulator runtime, analyzer and `check.sh` were not run
+  under the task's host-resource rules; Android reproduction/entry-point and
+  repeat-setting confirmation remain coordinator/owner validation.
+
+- [x] Entity Shuffle mode and original-order persistence (issue #5) —
+  2026-10-16: the shared row/ID load-order adapter now enables shuffle when
+  entity callers supply original ranks. All 18 stopped/playing/paused ×
+  crossfade × repeat regression cases failed before the fix and pass after it,
+  including persisted shuffle/ranks and restoring the original queue order.
+  Capped targeted tests only; runtime and full gate remain coordinator-owned.
+
+- [x] Initial queue-fill completion race (issue #5) — 2026-10-16: reproduced
+  native Repeat All replaying the temporary one-song playlist and repeat-off
+  stalling after completion (16 failing regression cases before the fix).
+  Native Repeat All now waits for logical fill; the existing completion path
+  advances after fill settles. Expanded matrix: 24 passed across queue sizes
+  6/300, shuffle toggle/entity inputs, crossfade off/on and repeat none/all/one.
+  Capped targeted tests only; runtime and `check.sh` remain coordinator-owned
+  under this task's host-resource rules.
 - [x] Idle-robustness final fixes (shared sync requests and busy databases) —
   2026-10-15 (`fix/idle-integration`, aa3d3452..abf8f071; a lease-held check
   against a live worker lease retries at the 30 s floor instead of waiting out
@@ -2153,3 +2184,19 @@ Latest activity (2026-03-07): published `v0.8.0` APK via `tool/release.sh` and s
   Look picker and desktop Appearance goldens. No app/emulator launch, runtime
   diagnostics screenshot/restart loop or `./tool/check.sh`: prohibited by this
   task's host limits, with runtime acceptance left to the coordinator.
+
+- 2026-10-16 — Playback Reset Defaults scope fix (issue #13): the button now calls the playback-scoped `AppSettingsDao.resetPlaybackDefaults()` so theme, Looks, colour tuning, setup highlights, download options, the Last.fm key and ListenBrainz survive the reset, while the page's fields plus speed/pitch reset and saved presets are kept; the Fullscreen Mode Lyrics switch stays on the page and is reset with it; Reset now cancels the queued autosave, waits for a running one and re-hydrates from the stored row; the unused global `resetDefaults()` (DAO and repository) was deleted. Validation: `flutter test --concurrency=4 test/src/database/daos/app_settings_dao_test.dart test/src/features/settings/presentation/playback_settings_screen_test.dart` passed (36 tests, includes the new playback-scope reset test), touched-file `dart analyze` and `dart format` clean, `flutter gen-l10n` regenerated. No app launches or full gate, per machine rules.
+
+- 2026-10-16 — Merged `origin/dev` into `fix/appearance-looks-update`:
+  retained issue #7's 20-field Looks, origin tracking and targeted-only
+  appearance/layout/Home writes alongside issue #13's playback-scoped reset
+  and stored-row autosave fallback; the global DAO/repository reset stays
+  deleted. Preserved both changelog/progress lists and adapted overlapping
+  fixtures to targeted writers. `make gen` passed with no tracked generated
+  changes. `dart analyze lib test` exited 0 with 0 errors, 0 warnings and 177
+  informational findings (`177 issues found.`). The requested 6G-capped settings,
+  DAO, Library, Home, onboarding and changelog suite passed:
+  `01:04 +1013: All tests passed!`; exit 0, peak 3735M, swap peak 124M,
+  zero OOM kills. `dart run tool/dead_code_check.dart` exited 0 against the
+  existing baseline; formatting and diff checks passed. No app launch or
+  `./tool/check.sh`, as explicitly prohibited for this merge task.

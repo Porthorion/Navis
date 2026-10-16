@@ -1,7 +1,6 @@
 import 'dart:convert';
 
 import 'package:navis/src/features/settings/domain/appearance_presets.dart';
-import 'package:navis/src/features/settings/domain/app_settings.dart';
 
 import 'package:drift/drift.dart';
 import 'package:meta/meta.dart' show visibleForTesting;
@@ -88,7 +87,6 @@ class AppSettingsDao extends DatabaseAccessor<NavisDatabase>
   static const int primarySettingsId = 1;
   static const int defaultCellularBitRate = 192;
   static const String defaultCellularFormat = 'opus';
-  static const int defaultSyncIntervalMinutes = 60;
   static const double defaultDesktopPlaybackVolume = 1;
 
   Stream<AppSettingsTableData?> watchSettings() {
@@ -298,94 +296,37 @@ class AppSettingsDao extends DatabaseAccessor<NavisDatabase>
     }
   });
 
-  Future<void> resetDefaults() async {
-    const defaults = AppSettingsModel.defaults();
-    await applyAppearanceSnapshot(AppearanceSnapshot.capture(defaults));
-    await updateDensity(defaults.density);
-    await updateGridArtworkSize(defaults.gridArtworkSize.name);
-    await updateCoverArtShape(defaults.coverArtShape);
-    await updateNowPlayingArtShape(defaults.nowPlayingArtShape);
-    await updateArtistCardShape(defaults.artistCardShape);
-    await updateArtistViewMode(defaults.artistViewMode);
-    await updateHomeSectionOrder(null);
-    await updateHomeSectionsHidden(null);
-    await updateAppearanceLooks(selectedLookId: null);
-    await clearSetupHighlightsSeen();
-    await updateSetupHighlightsSeenRelease(null);
-    await updateSetupCardDismissedRelease(null);
+  /// Resets only the settings the Playback page shows: streaming quality,
+  /// scrobbling, gapless/cross-fade, ReplayGain, queue options, the
+  /// fullscreen-lyrics switch and the current speed and pitch. Appearance,
+  /// Looks, colours, setup highlights, downloads, integrations and saved
+  /// presets are left untouched.
+  Future<void> resetPlaybackDefaults() async {
     await updatePlaybackAdjustments(
       speed: 1,
       pitchSemitones: 0,
       selectedPresetId: 'none',
     );
-    // Integration-owned columns are not written by [saveSettings] unless
-    // given; reset them through their targeted writers.
-    await updateLastFmApiKey(null);
-    await updateListenBrainzScrobblingState(
-      enabled: false,
-      tokenValid: false,
-      clearUserName: true,
-    );
-    await saveSettings(
-      wifiMaxBitRate: null,
-      wifiFormat: null,
-      cellularMaxBitRate: defaultCellularBitRate,
-      cellularFormat: defaultCellularFormat,
-      cachedPlaybackFirst: false,
-      scrobbleEnabled: true,
-      gaplessEnabled: true,
-      skipSilenceEnabled: false,
-      showAlbumsPage: true,
-      showRadioPage: true,
-      showPlaylistsPage: true,
-      showArtistsPage: true,
-      showLikedPage: true,
-
-      wifiOnlyDownloads: true,
-      autoDownloadStarredOnWifi: false,
-      customDownloadFolderEnabled: false,
-      customDownloadFolderPath: null,
-      appLocale: null,
-      crossfadeEnabled: false,
-      crossfadeDurationSeconds: 5,
-      crossfadeType: 'normal',
-      updateCheckEnabled: true,
-      updateChannel: 'stable',
-      syncIntervalMinutes: defaultSyncIntervalMinutes,
-      backgroundSyncUnmeteredOnly: true,
-      useLrclib: true,
-      legacyInstantMixEnabled: false,
-      replayGainMode: 'off',
-      replayGainPreamp: 0,
-      playbackSpeed: 1,
-      desktopFocusPlayerModeEnabled: false,
-      desktopPlaybackVolume: defaultDesktopPlaybackVolume,
-      desktopLastAudibleVolume: defaultDesktopPlaybackVolume,
-      libraryPageOrder: null,
-      desktopNavbarStyle: 'comfortable',
-      desktopNavbarAutohide: false,
-      albumQueueEnabled: true,
-      matchFlowEnabled: false,
-      likedQueueEnabled: true,
-      lastFmScrobblingEnabled: false,
-      lastFmSessionConnected: false,
-    );
-    // The full-row save leaves the policy columns alone; reset them here.
-    await updateIntegrationPolicy(master: true, disabledJson: '[]');
-    // The retired AudioMuse client no longer reads these columns, but a key
-    // saved by an older version must still be cleared by a reset.
-    await (update(
-      appSettingsTable,
-    )..where((t) => t.id.equals(primarySettingsId))).write(
+    await _writeSettings(
       const AppSettingsTableCompanion(
-        albumGridDensity: Value(null),
-        audioMuseServerUrl: Value(null),
-        audioMuseApiKey: Value(null),
-        audioMuseEnabled: Value(false),
+        wifiMaxBitRate: Value(null),
+        wifiFormat: Value(null),
+        cellularMaxBitRate: Value(defaultCellularBitRate),
+        cellularFormat: Value(defaultCellularFormat),
+        cachedPlaybackFirst: Value(false),
+        scrobbleEnabled: Value(true),
+        gaplessEnabled: Value(true),
+        skipSilenceEnabled: Value(false),
+        crossfadeEnabled: Value(false),
+        crossfadeDurationSeconds: Value(5),
+        crossfadeType: Value('normal'),
+        replayGainMode: Value('off'),
+        replayGainPreamp: Value(0),
+        albumQueueEnabled: Value(true),
+        likedQueueEnabled: Value(true),
+        matchFlowEnabled: Value(false),
       ),
     );
-    await updateSetupHighlightsSeenRelease(null);
-    await updateSetupCardDismissedRelease(null);
   }
 
   /// Writes changed setup listening and queue options without a full-row save.
