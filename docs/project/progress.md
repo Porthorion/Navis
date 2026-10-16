@@ -14,6 +14,14 @@ Last updated: 2026-10-16
 - ACP status values: `backlog`, `ready`, `in_progress`, `blocked`, `done`.
 
 ## Current Focus
+- [x] PR A UI: device radio stations and admin station editing —
+  2026-10-16 (`feat/radio-device-stations`; Sonnet). Radio tab sections, add
+  button, long-press/secondary-click Edit/Delete (device or admin only), editor
+  and delete dialogs in `radio_station_dialogs.dart`, 17 new l10n strings, two
+  radio goldens regenerated (the add button is the only visual change),
+  architecture and changelog updated. Targeted widget tests only
+  (`radio_screen_test.dart`); no app/emulator launch or `./tool/check.sh`.
+  Runtime verification and independent review remain.
 - [x] PR A backend: device radio stations and server station editing —
   2026-10-16 (`feat/radio-device-stations`; Codex implementation, based on
   schema-104 commits `ae8d3991` and `5e65e9be`). Added admin lookup and radio

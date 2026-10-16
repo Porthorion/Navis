@@ -166,6 +166,10 @@ const List<ChangelogVersion> changelogs = [
     ],
     entries: [
       ChangelogEntry(
+        'Add radio stations that stay on this device, and edit or delete stations if you are a server admin',
+        type: ChangelogEntryType.newFeature,
+      ),
+      ChangelogEntry(
         'The clear-data sign-out confirmation now explicitly includes playlists and radio stations saved on this device',
         type: ChangelogEntryType.improvement,
       ),
