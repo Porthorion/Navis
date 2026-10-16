@@ -39,6 +39,7 @@ import 'package:navis/src/features/player/presentation/queue_provider.dart';
 import 'package:navis/src/features/playlists/data/playlist_actions.dart';
 import 'package:navis/src/features/playlists/domain/playlist_ownership.dart';
 import 'package:navis/src/features/playlists/presentation/create_playlist_dialog.dart';
+import 'package:navis/src/common_widgets/navis_section_header.dart';
 import 'package:navis/src/features/playlists/presentation/playlist_providers.dart';
 import 'package:navis/src/features/search/presentation/search_controller_provider.dart'
     show quickSearchOverlayVisibleProvider;
