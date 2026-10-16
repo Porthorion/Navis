@@ -166,7 +166,7 @@ const List<ChangelogVersion> changelogs = [
     ],
     entries: [
       ChangelogEntry(
-        'Dragging Now Playing open or closed is smoother, and its top edge now follows your finger from the mini player',
+        'Dragging Now Playing open or closed is smoother: its top edge follows your finger from the mini player and covers the navigation bar as it rises, and it is fullscreen when open',
         type: ChangelogEntryType.fix,
       ),
       ChangelogEntry(

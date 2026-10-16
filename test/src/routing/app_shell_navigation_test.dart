@@ -2564,7 +2564,8 @@ void main() {
   );
 
   testWidgets('expanded phone player covers the whole screen and the nav bar '
-      'only fades away', (tester) async {
+      'is hidden, unreachable and keeps its size', (tester) async {
+    final semantics = tester.ensureSemantics();
     tester.view.devicePixelRatio = 1;
     tester.view.physicalSize = const Size(390, 844);
     addTearDown(() {
@@ -2582,17 +2583,29 @@ void main() {
     await tester.pumpAndSettle();
 
     double navBarOpacity() => tester
-        .widget<Opacity>(
+        .widget<AnimatedOpacity>(
           find
               .ancestor(
                 of: find.byType(NavigationBar),
-                matching: find.byType(Opacity),
+                matching: find.byType(AnimatedOpacity),
               )
               .first,
         )
         .opacity;
     final navBarSize = tester.getSize(find.byType(NavigationBar));
+    // `find.bySemanticsLabel` reads stale nodes of hidden widgets, so look at
+    // the live semantics tree instead.
+    bool navBarInSemantics() => tester
+        .binding
+        .renderViews
+        .first
+        .owner!
+        .semanticsOwner!
+        .rootSemanticsNode!
+        .toStringDeep()
+        .contains('Tab 4 of 4');
     expect(navBarOpacity(), 1);
+    expect(navBarInSemantics(), isTrue);
 
     container.read(playerOverlayStackProvider.notifier).expand();
     await tester.pumpAndSettle();
@@ -2602,6 +2615,11 @@ void main() {
       const Rect.fromLTWH(0, 0, 390, 844),
     );
     expect(navBarOpacity(), 0);
+    expect(
+      navBarInSemantics(),
+      isFalse,
+      reason: 'not reachable by screen readers',
+    );
     expect(tester.getSize(find.byType(NavigationBar)), navBarSize);
     expect(
       find.ancestor(
@@ -2617,7 +2635,107 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(navBarOpacity(), 1);
+    expect(navBarInSemantics(), isTrue);
     expect(tester.getSize(find.byType(NavigationBar)), navBarSize);
+    semantics.dispose();
+  });
+
+  testWidgets('mid-drag the player panel covers the nav bar: taps there reach '
+      'the panel and the bar is not painted over it', (tester) async {
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(390, 844);
+    addTearDown(() {
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+    });
+
+    final container = _createContainerWithDatabase(
+      overrides: _authenticatedShellOverrides(),
+    );
+
+    await tester.pumpWidget(
+      UncontrolledProviderScope(container: container, child: testNavisApp),
+    );
+    await tester.pumpAndSettle();
+
+    double navBarOpacity() => tester
+        .widget<AnimatedOpacity>(
+          find
+              .ancestor(
+                of: find.byType(NavigationBar),
+                matching: find.byType(AnimatedOpacity),
+              )
+              .first,
+        )
+        .opacity;
+    final navBar = tester.renderObject(find.byType(NavigationBar));
+    final navBarCenter = tester.getCenter(find.byType(NavigationBar));
+    final miniPlayer = Offset(195, navBarCenter.dy - 80 / 2 - 32);
+
+    final gesture = await tester.startGesture(miniPlayer);
+    for (final dy in [-40.0, -40.0, -40.0]) {
+      await gesture.moveBy(Offset(0, dy));
+      await tester.pump(const Duration(milliseconds: 16));
+      final targets = tester
+          .hitTestOnBinding(navBarCenter)
+          .path
+          .map((entry) => entry.target);
+      expect(targets, isNot(contains(navBar)), reason: 'bar must not be hit');
+      expect(
+        targets,
+        contains(tester.renderObject(find.byType(NowPlayingScreen))),
+        reason: 'the panel takes the tap',
+      );
+
+      // The panel is above the bar for the whole drag, so the bar never shows
+      // over it, however little the panel has moved.
+      expect(navBarOpacity(), 0);
+    }
+    await gesture.up();
+    await tester.pumpAndSettle();
+  });
+
+  testWidgets('expanded Now Playing keeps its controls above the bottom system '
+      'inset now that the nav bar no longer sits under it', (tester) async {
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(390, 844);
+    const inset = 34.0;
+    tester.view
+      ..padding = const FakeViewPadding(bottom: inset)
+      ..viewPadding = const FakeViewPadding(bottom: inset);
+    addTearDown(() {
+      tester.view
+        ..resetPhysicalSize()
+        ..resetDevicePixelRatio()
+        ..resetPadding()
+        ..resetViewPadding();
+    });
+
+    final container = _createContainerWithDatabase(
+      overrides: _authenticatedShellOverrides(),
+    );
+
+    await tester.pumpWidget(
+      UncontrolledProviderScope(container: container, child: testNavisApp),
+    );
+    await tester.pumpAndSettle();
+    container.read(playerOverlayStackProvider.notifier).expand();
+    await tester.pumpAndSettle();
+
+    expect(
+      tester.getRect(find.byType(NowPlayingScreen)),
+      const Rect.fromLTWH(0, 0, 390, 844),
+    );
+    final buttons = find.descendant(
+      of: find.byType(NowPlayingScreen),
+      matching: find.byType(IconButton),
+    );
+    expect(buttons, findsWidgets);
+    for (final rect in buttons.evaluate().map(
+      (e) => tester.getRect(find.byWidget(e.widget)),
+    )) {
+      expect(rect.bottom, lessThanOrEqualTo(844 - inset));
+    }
   });
 
   testWidgets('expanded player uses bottom-sheet mode on phone', (

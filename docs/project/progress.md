@@ -2,7 +2,7 @@
 
 Tracks completion of all phases and sub-tasks defined in [docs/project/development-plan.md](development-plan.md). Checkboxes are updated as work is completed.
 
-Last updated: 2026-10-16
+Last updated: 2026-10-17
 
 ---
 
@@ -14,6 +14,19 @@ Last updated: 2026-10-16
 - ACP status values: `backlog`, `ready`, `in_progress`, `blocked`, `done`.
 
 ## Current Focus
+- [x] Issue #12 Now Playing on top of the nav bar, review fixes — 2026-10-17
+  (`perf/now-playing-drag`): owner design change. The panel is painted above
+  the mini player and, from its first pixel of travel, covers the bottom nav
+  bar (hit-tested first, so taps reach the panel); `_BottomNavReveal` now hides
+  the bar (opacity 0, `IgnorePointer`, `ExcludeSemantics`) while the sheet is
+  above collapsed and fades it in over 150 ms after collapse. No page or nav
+  bar re-layout (both layout probe tests green). Review fixes: queue-swipe
+  guard reads the real system inset from the view (the shell scope zeroes
+  `MediaQuery` padding and view padding, so GLM's `viewPaddingOf` suggestion
+  would still be 0); a state-changing release no longer restarts its fling when
+  the parent flips `isExpanded`; reduced-motion collapse test asserts the
+  report; `_travel` ceiling commented. Tests: `expandable_player_sheet_test.dart`,
+  `app_shell_navigation_test.dart`.
 - [x] Issue #12 Now Playing drag, review follow-ups — 2026-10-16
   (`perf/now-playing-drag`): `onExpand`/`onCollapse` fire at drag release again
   (deduplicated against the lagging `isExpanded`, so reduced-motion completion

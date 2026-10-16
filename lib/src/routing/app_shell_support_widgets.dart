@@ -127,8 +127,15 @@ class _BatteryOptimizationSheet extends StatelessWidget {
   }
 }
 
-/// Fades and slides the bottom navigation bar away as the player sheet rises
-/// over it.
+/// Hides the bottom navigation bar while the player panel is up.
+///
+/// The scaffold paints the bar above the body, where the sheet lives, but the
+/// panel covers the bar's whole strip from the first pixel of its travel
+/// (it is as wide as the screen and reaches the bottom edge). So the bar is
+/// simply not painted and not hit-testable (the panel takes the taps) while
+/// the sheet is anywhere above collapsed, and fades back in once it is
+/// collapsed. Its semantics are excluded too, so screen readers cannot
+/// reach it under the panel.
 ///
 /// Only paint and composite change: the bar keeps its layout size, so the page
 /// behind it is not laid out again while the sheet animates.
@@ -146,11 +153,6 @@ class _BottomNavReveal extends StatelessWidget {
   final bool enabled;
   final Widget child;
 
-  /// Share of the sheet's travel over which the bar fades out. The panel
-  /// covers the bar's strip from its first pixel, so the bar is only a
-  /// cross-fade at the start of the gesture and the end of a collapse.
-  static const double _span = 0.25;
-
   @override
   Widget build(BuildContext context) {
     return ValueListenableBuilder<double>(
@@ -158,13 +160,18 @@ class _BottomNavReveal extends StatelessWidget {
       // The bar keeps its own layer, so its pixels are reused every frame.
       child: RepaintBoundary(child: child),
       builder: (context, value, bar) {
-        final reveal = enabled ? (1 - value / _span).clamp(0.0, 1.0) : 1.0;
+        final covered = enabled && value > 0;
         return IgnorePointer(
-          ignoring: reveal < 0.98,
-          child: FractionalTranslation(
-            translation: Offset(0, 1 - reveal),
-            child: Opacity(
-              opacity: Curves.easeOut.transform(reveal),
+          ignoring: covered,
+          child: ExcludeSemantics(
+            excluding: covered,
+            child: AnimatedOpacity(
+              opacity: covered ? 0 : 1,
+              // Vanish at once so the bar is never painted over the panel;
+              // ease back in when the sheet has finished collapsing.
+              duration: covered
+                  ? Duration.zero
+                  : const Duration(milliseconds: 150),
               child: bar,
             ),
           ),

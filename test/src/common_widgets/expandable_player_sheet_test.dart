@@ -11,9 +11,16 @@ class _SheetHarness extends StatefulWidget {
     required this.progress,
     this.bottomInset = 0,
     this.onDragStart,
+    this.onSwipeUp,
+    this.removeBottomPadding = false,
   });
 
   final VoidCallback? onDragStart;
+  final VoidCallback? onSwipeUp;
+
+  /// Like the shell's `_BottomNavInsetScope`, which removes the bottom padding
+  /// the sheet would otherwise inherit from the system.
+  final bool removeBottomPadding;
   final double bottomInset;
   final ValueNotifier<int> expandCalls;
   final ValueNotifier<int> collapseCalls;
@@ -48,30 +55,36 @@ class _SheetHarnessState extends State<_SheetHarness> {
             Expanded(
               child: SizedBox.expand(
                 key: const Key('sheet-area'),
-                child: ExpandablePlayerSheet(
-                  isExpanded: _expanded,
-                  bottomInset: widget.bottomInset,
-                  onDragStart: widget.onDragStart,
-                  // Like the shell, mirror the reported state back in.
-                  onExpand: () {
-                    widget.expandCalls.value += 1;
-                    setState(() => _expanded = true);
-                  },
-                  onCollapse: () {
-                    widget.collapseCalls.value += 1;
-                    setState(() => _expanded = false);
-                  },
-                  onProgressChanged: (value) {
-                    widget.progress.value = value;
-                  },
-                  miniPlayer: const SizedBox(
-                    key: Key('mini-player'),
-                    height: ExpandablePlayerSheet.miniPlayerHeight,
-                    child: Text('Mini Player'),
-                  ),
-                  fullPlayer: const SizedBox(
-                    key: Key('full-player'),
-                    child: Text('Full Player'),
+                child: Builder(
+                  builder: (context) => _scoped(
+                    context,
+                    ExpandablePlayerSheet(
+                      isExpanded: _expanded,
+                      bottomInset: widget.bottomInset,
+                      onDragStart: widget.onDragStart,
+                      onSwipeUp: widget.onSwipeUp,
+                      // Like the shell, mirror the reported state back in.
+                      onExpand: () {
+                        widget.expandCalls.value += 1;
+                        setState(() => _expanded = true);
+                      },
+                      onCollapse: () {
+                        widget.collapseCalls.value += 1;
+                        setState(() => _expanded = false);
+                      },
+                      onProgressChanged: (value) {
+                        widget.progress.value = value;
+                      },
+                      miniPlayer: const SizedBox(
+                        key: Key('mini-player'),
+                        height: ExpandablePlayerSheet.miniPlayerHeight,
+                        child: Text('Mini Player'),
+                      ),
+                      fullPlayer: const SizedBox(
+                        key: Key('full-player'),
+                        child: Text('Full Player'),
+                      ),
+                    ),
                   ),
                 ),
               ),
@@ -81,6 +94,15 @@ class _SheetHarnessState extends State<_SheetHarness> {
       ),
     );
   }
+
+  Widget _scoped(BuildContext context, Widget child) =>
+      widget.removeBottomPadding
+      ? MediaQuery.removePadding(
+          context: context,
+          removeBottom: true,
+          child: child,
+        )
+      : child;
 }
 
 void main() {
@@ -388,6 +410,127 @@ void main() {
       await down.up();
       await tester.pump();
       expect(rig.progress.value, 0);
+      expect(rig.collapseCalls.value, 1);
+    });
+  });
+
+  group('layering and release', () {
+    testWidgets('mid-drag the panel covers the mini player and takes its hits', (
+      tester,
+    ) async {
+      final rig = _Rig();
+      await tester.pumpWidget(
+        _SheetHarness(
+          expandCalls: rig.expandCalls,
+          collapseCalls: rig.collapseCalls,
+          progress: rig.progress,
+          bottomInset: 80,
+        ),
+      );
+      await tester.pumpAndSettle();
+      final miniCenter = tester.getCenter(find.byKey(const Key('mini-player')));
+
+      final gesture = await tester.startGesture(miniCenter);
+      await gesture.moveBy(const Offset(0, -150));
+      await tester.pump();
+      await gesture.up();
+      // Released mid-travel: the settle is running and the panel is on its way.
+      await tester.pump(const Duration(milliseconds: 16));
+      expect(rig.progress.value, inExclusiveRange(0, 0.5));
+
+      final hit = tester.hitTestOnBinding(miniCenter);
+      final targets = hit.path.map((entry) => entry.target).toList();
+      expect(
+        targets,
+        contains(tester.renderObject(find.byKey(const Key('full-player')))),
+        reason: 'the panel is on top of the mini player',
+      );
+      expect(
+        targets,
+        isNot(
+          contains(tester.renderObject(find.byKey(const Key('mini-player')))),
+        ),
+      );
+      await tester.pumpAndSettle();
+    });
+
+    testWidgets('a fast fling is not restarted when the parent mirrors the '
+        'reported state back in', (tester) async {
+      final rig = _Rig();
+      await tester.pumpWidget(
+        _SheetHarness(
+          expandCalls: rig.expandCalls,
+          collapseCalls: rig.collapseCalls,
+          progress: rig.progress,
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      await tester.fling(
+        find.byKey(const Key('mini-player')),
+        const Offset(0, -200),
+        8000,
+      );
+      final samples = <double>[];
+      for (var i = 0; i < 6; i++) {
+        await tester.pump(const Duration(milliseconds: 16));
+        samples.add(rig.progress.value);
+      }
+      // The release flings at the 6x cap. Re-flinging at 2.5x when the parent
+      // flips `isExpanded` slows it: the third frame is at ~0.55 instead of
+      // ~0.60.
+      expect(samples[2], greaterThan(0.58), reason: 'samples: $samples');
+      await tester.pumpAndSettle();
+    });
+
+    group('queue swipe guard', () {
+      Future<int> swipeUpFrom(WidgetTester tester, double bottomGap) async {
+        tester.view
+          ..devicePixelRatio = 1
+          ..padding = const FakeViewPadding(bottom: 100)
+          ..viewPadding = const FakeViewPadding(bottom: 100);
+        addTearDown(() {
+          tester.view
+            ..resetDevicePixelRatio()
+            ..resetPadding()
+            ..resetViewPadding();
+        });
+        var swipeUps = 0;
+        final rig = _Rig();
+        await tester.pumpWidget(
+          _SheetHarness(
+            expandCalls: rig.expandCalls,
+            collapseCalls: rig.collapseCalls,
+            progress: rig.progress,
+            onSwipeUp: () => swipeUps++,
+            removeBottomPadding: true,
+          ),
+        );
+        await tester.pumpAndSettle();
+        await tester.tap(find.text('expand'));
+        await tester.pumpAndSettle();
+
+        final height = tester.view.physicalSize.height;
+        await tester.flingFrom(
+          Offset(100, height - bottomGap),
+          const Offset(0, -150),
+          2000,
+        );
+        await tester.pumpAndSettle();
+        return swipeUps;
+      }
+
+      testWidgets('is lengthened by the system inset the shell scope removes', (
+        tester,
+      ) async {
+        // 150 px above the screen bottom: outside the 120 px base guard, but
+        // inside it once the 100 px system inset is added.
+        expect(await swipeUpFrom(tester, 150), 0);
+      });
+
+      testWidgets('lets a swipe from higher up open the queue', (tester) async {
+        expect(await swipeUpFrom(tester, 300), 1);
+      });
     });
   });
 }

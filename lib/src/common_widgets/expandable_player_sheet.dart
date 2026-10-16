@@ -11,8 +11,10 @@ import 'package:navis/src/theme/motion_policy.dart';
 /// while collapsed. Dragging the [miniPlayer] up moves the panel from the mini
 /// player's top edge to the top of the sheet, one pixel per pixel of finger
 /// travel. The panel is an opaque, repaint-isolated layer that only changes
-/// position (no page layout, no opacity layer); the mini player fades out over
-/// the first half of the gesture on top of it.
+/// position (no page layout, no opacity layer). It is painted above the mini
+/// player (which still fades out over the first half of the gesture) and
+/// above the page, so from its first pixel of travel it covers the mini player
+/// and whatever sits below its top edge, such as a bottom navigation bar.
 ///
 /// [onExpand] and [onCollapse] report a user gesture at drag release, while
 /// the settle animation is still running, so a back press during the settle
@@ -129,6 +131,12 @@ class _ExpandablePlayerSheetState extends State<ExpandablePlayerSheet>
     super.didUpdateWidget(oldWidget);
     if (widget.isExpanded != oldWidget.isExpanded) {
       _reportedExpanded = widget.isExpanded;
+      // A release already started this settle (and reported it, which is what
+      // flipped `isExpanded`); restarting would cut a fast fling short.
+      final status = widget.isExpanded
+          ? AnimationStatus.forward
+          : AnimationStatus.reverse;
+      if (_controller.isAnimating && _controller.status == status) return;
       _settleTo(widget.isExpanded ? 1 : 0, velocity: 2.5);
     }
   }
@@ -170,9 +178,13 @@ class _ExpandablePlayerSheetState extends State<ExpandablePlayerSheet>
   }
 
   bool _didDragStartInQueueGuardZone(DragStartDetails details) {
+    // The shell removes the bottom padding (and view padding) from this
+    // subtree, so the system inset is read from the view itself, as Now
+    // Playing does for its own bottom padding.
+    final view = View.of(context);
     final guardHeight =
         _bottomQueueSwipeGuardHeight +
-        MediaQuery.paddingOf(context).bottom +
+        view.viewPadding.bottom / view.devicePixelRatio +
         MediaQuery.systemGestureInsetsOf(context).bottom;
     return details.globalPosition.dy >=
         MediaQuery.sizeOf(context).height - guardHeight;
@@ -180,6 +192,10 @@ class _ExpandablePlayerSheetState extends State<ExpandablePlayerSheet>
 
   /// Distance the panel travels between collapsed and expanded; a finger delta
   /// of this many pixels moves the sheet from one edge to the other.
+  // ponytail: the 1 px floor only guards a divide-by-zero; `collapsedTop` is
+  // always the mini player's top (tens of px) on real layouts, so it is
+  // unreachable today. Revisit if the sheet can ever be shorter than its mini
+  // player.
   double get _travel => math.max(_geometry.collapsedTop, 1);
 
   void _handleDragUpdate(DragUpdateDetails details) {
@@ -282,35 +298,8 @@ class _ExpandablePlayerSheetState extends State<ExpandablePlayerSheet>
           geometry: _geometry,
         ),
         children: <Widget>[
-          // ── Full player (rises from the mini player's top edge) ───────
-          // Only reachable from progress >= 0.5 (expanding or expanded); when
-          // collapsed it is behind an IgnorePointer so it never steals
-          // vertical scrolls from pages. It stays mounted (so opening it is
-          // instant) but hidden, and a disabled TickerMode stops its
-          // animations and pauses its provider listeners, such as the
-          // 5-10 Hz position stream.
-          LayoutId(
-            id: _SheetSlot.panel,
-            child: AnimatedBuilder(
-              animation: _controller,
-              child: _dragSurface(
-                behavior: HitTestBehavior.opaque,
-                child: RepaintBoundary(child: widget.fullPlayer),
-              ),
-              builder: (context, panel) {
-                final progress = _controller.value;
-                return Offstage(
-                  offstage: progress == 0,
-                  child: IgnorePointer(
-                    ignoring: progress < 0.5,
-                    child: TickerMode(enabled: progress > 0, child: panel!),
-                  ),
-                );
-              },
-            ),
-          ),
-
           // ── Mini player (fades out, anchored above the bottom inset) ──
+          // Below the panel, which covers it from its first pixel of travel.
           // Only reachable while progress < 0.5 (collapsed or collapsing).
           // It is scoped to the mini player strip so it cannot intercept
           // scrolls on content pages above.
@@ -332,6 +321,29 @@ class _ExpandablePlayerSheetState extends State<ExpandablePlayerSheet>
                   ),
                 ),
               ),
+            ),
+          ),
+          // ── Full player (rises from the mini player's top edge) ───────
+          // Painted above the mini player: it covers the mini player and the
+          // page below its top edge, and takes their hits. It stays mounted
+          // (so opening it is instant) but hidden while collapsed, and a
+          // disabled TickerMode stops its animations and pauses its provider
+          // listeners, such as the 5-10 Hz position stream.
+          LayoutId(
+            id: _SheetSlot.panel,
+            child: AnimatedBuilder(
+              animation: _controller,
+              child: _dragSurface(
+                behavior: HitTestBehavior.opaque,
+                child: RepaintBoundary(child: widget.fullPlayer),
+              ),
+              builder: (context, panel) {
+                final progress = _controller.value;
+                return Offstage(
+                  offstage: progress == 0,
+                  child: TickerMode(enabled: progress > 0, child: panel!),
+                );
+              },
             ),
           ),
         ],
