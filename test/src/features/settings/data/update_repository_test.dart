@@ -375,6 +375,90 @@ void main() {
     expect(await repo.checkForUpdate(updateChannel: 'dev'), isNotNull);
     store.allowCheck = false;
     expect((await repo.checkForUpdate(updateChannel: 'dev'))!.buildNumber, 999);
+    PackageInfo.setMockInitialValues(appName: 'Navis', packageName: 'com.navis.app.navis', version: '1.5.0-dev', buildNumber: '999', buildSignature: '');
+    expect(await repo.checkForUpdate(updateChannel: 'dev'), isNull);
+  });
+
+  for (final field in ['payload', 'signature']) {
+    test('tampered cached $field cannot supply an update', () async {
+      final repo = repository();
+      await repo.checkForUpdate();
+      final signed = envelope! as Map<String, String>;
+      final bytes = base64Decode(signed[field]!);
+      bytes[0] ^= 1;
+      store.verifiedUpdate = {
+        ...store.verifiedUpdate!,
+        ...signed,
+        field: base64Encode(bytes),
+      };
+      store.allowCheck = false;
+      expect(await repo.checkForUpdate(), isNull);
+      expect(requests, hasLength(1));
+    });
+  }
+
+  test('cache retains the signed envelope exactly', () async {
+    await repository().checkForUpdate();
+    expect(store.verifiedUpdate, envelope);
+  });
+
+  test('cached manifest must match the current channel', () async {
+    final repo = repository();
+    await repo.checkForUpdate();
+    store.allowCheck = false;
+    expect(await repo.checkForUpdate(updateChannel: 'dev'), isNull);
+    expect(requests, hasLength(1));
+  });
+
+  for (final mode in [UpdateInstallMode.windowsInstaller, UpdateInstallMode.linuxDeb]) {
+    test('cached manifest requires an asset for current $mode and ABI', () async {
+      await repository().checkForUpdate();
+      store.allowCheck = false;
+      expect(await repository(mode: mode, arch: 'arm64').checkForUpdate(), isNull);
+      expect(requests, hasLength(1));
+    });
+  }
+
+  test('cached APK must match the current Android ABI', () async {
+    final assets = payload['assets']! as Map;
+    assets['androidApk-arm64-v8a'] = assets.remove('androidApk');
+    envelope = await sign(payload);
+    expect(await repository(isAndroid: true, mode: UpdateInstallMode.androidApk, primaryAbi: 'arm64-v8a').checkForUpdate(), isNotNull);
+    store.allowCheck = false;
+    expect(await repository(isAndroid: true, mode: UpdateInstallMode.androidApk, primaryAbi: 'x86_64').checkForUpdate(), isNull);
+  });
+
+  test('cached manifest resolves a transition to Play installer', () async {
+    await repository(isAndroid: true, mode: UpdateInstallMode.androidApk, installer: 'com.android.shell').checkForUpdate();
+    store.allowCheck = false;
+    final result = await repository(isAndroid: true, mode: UpdateInstallMode.androidApk, installer: 'com.android.vending').checkForUpdate();
+    expect(result?.delivery, UpdateDelivery.storeRedirect);
+    expect(result?.downloadUrl, isNull);
+    expect(result?.sha256, isNull);
+    expect(result?.size, isNull);
+    expect(requests, hasLength(1));
+  });
+
+  test('cached stable equal-version higher build is not newer', () async {
+    payload['build'] = 999;
+    envelope = await sign(payload);
+    final repo = repository();
+    await repo.checkForUpdate();
+    PackageInfo.setMockInitialValues(appName: 'Navis', packageName: 'com.navis.app.navis', version: '1.5.1', buildNumber: '43', buildSignature: '');
+    store.allowCheck = false;
+    expect(await repo.checkForUpdate(), isNull);
+  });
+
+  test('transport failure keeps the verified cache for a later check', () async {
+    final repo = repository();
+    await repo.checkForUpdate();
+    final cached = store.verifiedUpdate;
+    when(() => dio.get<Object?>(any(), options: any(named: 'options'))).thenThrow(DioException(requestOptions: RequestOptions(path: '/manifest.json')));
+    await expectLater(repo.checkForUpdate(forceCheck: true), throwsA(isA<DioException>()));
+    expect(store.verifiedUpdate, cached);
+    store.allowCheck = false;
+    expect(await repo.checkForUpdate(), isNotNull);
+    expect(store.recordCount, 1);
   });
 
   test('channels are normalized and remain single URL path segments', () async {
