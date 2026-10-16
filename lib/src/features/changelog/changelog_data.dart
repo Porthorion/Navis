@@ -166,6 +166,10 @@ const List<ChangelogVersion> changelogs = [
     ],
     entries: [
       ChangelogEntry(
+        'Shuffled queues get a fresh order on repeat or restart and avoid starting with the song that just finished',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
         'Shuffle actions turn on the queue toggle and retain the original order when shuffle is turned off',
         type: ChangelogEntryType.fix,
       ),

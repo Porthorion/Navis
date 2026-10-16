@@ -4140,10 +4140,13 @@ stays deferred with the songs farther from the window: following songs in
 the tail or earlier songs in the head. Tail releases back off and retry; a
 backward jump can release the playable head suffix and leaves unavailable
 history queued for a later attempt. Shuffled queues defer like any other (see Shuffle below).
-Repeat-all stays off natively while the initial logical queue is filling or
-anything is deferred on either side, so
-the player never wraps early; the reported repeat mode is the user's, and at
-the end of the last song Navis wraps to the first itself.
+Repeat-all stays off natively while the initial logical queue is filling,
+anything is deferred on either side, or shuffle is on for a multi-song queue.
+The player never wraps early; the reported repeat mode is the user's, and at
+the end of the last song Navis starts the next pass itself. If the selected
+song completes before the initial fill finishes, the shared completion path
+continues at the next logical occurrence once filling settles. Only Repeat One
+may loop the temporary one-song playlist.
 `GET /v1/playback/status` reports `materializedLength`, `deferredLength`,
 `deferredHeadLength` and release counters. The queue window model test
 (`queue window model` in
@@ -4179,7 +4182,17 @@ Schema v88 saves each queue row's
 unshuffled position in `play_queue_items.original_order` next to its play
 position, so a shuffled queue restores in the order it was playing; a queue
 saved by an older build (shuffle on, no original order) keeps its history and
-current song and shuffles the rest. Remote rows keep
+current song and shuffles the rest. Repeat-all completion, forward Next at the
+end, and Play on a completed shuffled queue share one next-pass operation. It
+uses the existing shuffle helper and queue rearrangement, retains original
+ranks and every occurrence, and chooses a first song different from the one
+that just ended whenever another song exists. A random draw matching the old
+order is changed when an alternative is available (a two-song queue has only
+one order with a different starting song). Paused Next keeps playback paused.
+Normal crossfades can start the next shuffled pass when the whole queue fits
+the player; their outgoing occurrence stays last so a failed prewarm still
+stops at the correct boundary. Released-window and Smart-mode wraps continue
+through completion and navigation. Remote rows keep
 their own row whenever a materialised song returns to the tail (reorders,
 deferred ranges, far jumps, seek recovery, crossfade deck sync): the
 handler remembers the rows of materialised remote songs instead of re-reading

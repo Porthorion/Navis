@@ -2,7 +2,7 @@
 
 Tracks completion of all phases and sub-tasks defined in [docs/project/development-plan.md](development-plan.md). Checkboxes are updated as work is completed.
 
-Last updated: 2026-10-15
+Last updated: 2026-10-16
 
 ---
 
@@ -14,6 +14,21 @@ Last updated: 2026-10-15
 - ACP status values: `backlog`, `ready`, `in_progress`, `blocked`, `done`.
 
 ## Current Focus
+
+- [x] Shuffled repeat/restart passes (issue #5) — 2026-10-16: automatic
+  completion, forward wrap, completed-queue Play and short Normal crossfades
+  share one next-pass operation built on the existing shuffle helpers, queue
+  rearrangement and navigation intent. It avoids repeating the ending song
+  when another identity exists, retains duplicate occurrences and original
+  ranks, persists the new order, and preserves paused Next. Released-window
+  and Smart-mode wraps use completion/navigation. Final capped validation:
+  navigation + shuffle + navigation-intent suites 521 passed (including the
+  500-seed queue-window model); latest shuffle matrix/edge cases 68 passed;
+  handler/projection suites 61 passed. Earlier red matrices: initial fill
+  0 passed/16 failed, entity state 0/18, next pass 0/18. Formatting and diff
+  checks passed. App/emulator runtime, analyzer and `check.sh` were not run
+  under the task's host-resource rules; Android reproduction/entry-point and
+  repeat-setting confirmation remain coordinator/owner validation.
 
 - [x] Entity Shuffle mode and original-order persistence (issue #5) —
   2026-10-16: the shared row/ID load-order adapter now enables shuffle when

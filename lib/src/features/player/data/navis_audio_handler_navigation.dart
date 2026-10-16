@@ -73,6 +73,11 @@ extension _NavisNavigation on NavisAudioHandler {
     // A newer Next, Previous or restart replaces any Next held at the tail.
     _onPersonalRadioQueueEnd?.call(null);
     _invalidatePendingStartupSelection();
+    if (forward && decision.index == 0 && _shouldStartNextShufflePass) {
+      return _startNextShufflePass(
+        shouldPlay: _latestExplicitTransportPlaying ?? _player.playing,
+      );
+    }
     return _applyNavigationDecision(
       decision,
       logicalIds: logicalIds,
@@ -585,6 +590,97 @@ extension _NavisNavigation on NavisAudioHandler {
     }
     _afterQueueEdit(context: 'shuffle order');
     return true;
+  }
+
+  bool get _shouldStartNextShufflePass =>
+      _shuffleEnabled &&
+      _desiredLoopMode == LoopMode.all &&
+      _logicalQueueIds.length > 1 &&
+      _logicalCurrentIndex == _logicalQueueIds.length - 1;
+
+  /// All forward wraps share one shuffle and keep the original ranks intact.
+  Future<void> _startNextShufflePass({
+    bool crossfade = false,
+    bool shouldPlay = true,
+    Duration delayBeforeFade = Duration.zero,
+  }) => _nextShufflePass ??= _runNextShufflePass(
+    crossfade: crossfade,
+    shouldPlay: shouldPlay,
+    delayBeforeFade: delayBeforeFade,
+  ).whenComplete(() => _nextShufflePass = null);
+
+  Future<void> _runNextShufflePass({
+    required bool crossfade,
+    required bool shouldPlay,
+    required Duration delayBeforeFade,
+  }) async {
+    final generation = _activeLoadGeneration;
+    final transport = _transportGeneration;
+    bool stillWanted() =>
+        _isActiveLoadGeneration(generation) &&
+        _isCurrentTransportIntent(transport);
+    var rearranged = false;
+    try {
+      await _enqueueQueueEdit((token) async {
+        if (!stillWanted() || !_shuffleEnabled) return;
+        final entries = _logicalQueueEntries();
+        final current = _logicalCurrentIndex;
+        if (current == null || current != entries.length - 1) return;
+        final finished = entries[current];
+        final starts = <int>[
+          for (var i = 0; i < entries.length; i++)
+            if (entries[i].id != finished.id) i,
+        ];
+        // A queue consisting of one repeated song has no different start.
+        final start = starts.isEmpty
+            ? 0
+            : starts[_shuffleRandom.nextInt(starts.length)];
+        final order = shuffledFromStart(entries, start, _shuffleRandom);
+        if (crossfade) {
+          // Native completion must still stop here if deck preparation fails.
+          order.remove(finished);
+          order.add(finished);
+        }
+        if (order.length > 2 && listEquals(order, entries)) {
+          // Do not reuse an entire pass just because the random draw matched.
+          final other = order.indexWhere(
+            (entry) => entry.id != order.first.id && entry.id != finished.id,
+            1,
+          );
+          if (other >= 0) {
+            final item = order[0];
+            order[0] = order[other];
+            order[other] = item;
+          }
+        }
+        _cancelCrossfade();
+        rearranged = await _rearrangeQueue(
+          order,
+          current: current,
+          newCurrent: order.indexOf(finished),
+          token: token,
+        );
+        token.checkCancelled();
+      });
+    } on OperationCancelledException {
+      return;
+    }
+    if (!rearranged || !stillWanted() || !_shuffleEnabled) return;
+    _navigationIntent.reset();
+    if (crossfade && _deferredHead.isEmpty) {
+      await _startCrossfade(
+        0,
+        delayBeforeFade: delayBeforeFade,
+        startsNextPass: true,
+      );
+    } else {
+      await _applyNavigationDecision(
+        _navigationIntent.select(0),
+        logicalIds: _logicalQueueIds,
+        shouldPlay: shouldPlay,
+        context: 'shuffle next pass',
+      );
+    }
   }
 
   void _emitTransportVisualCue(

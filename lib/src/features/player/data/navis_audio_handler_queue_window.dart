@@ -73,13 +73,13 @@ extension _NavisQueueWindow on NavisAudioHandler {
   bool _shouldDeferTail(int queueLength) =>
       queueLength > _queueWindow.deferThreshold;
 
-  /// Applies the user's repeat mode to the native player, except that "all"
-  /// waits until initial filling and deferred playback finish: the player
-  /// would otherwise wrap before reaching every logical occurrence.
+  /// Native Repeat All requires a complete, unshuffled queue. Navis owns
+  /// shuffled passes and wraps across deferred songs itself.
   Future<void> _syncNativeLoopMode() async {
     final native =
         _desiredLoopMode == LoopMode.all &&
-            (_pendingLogicalQueueSongIds != null ||
+            ((_shuffleEnabled && _logicalQueueIds.length > 1) ||
+                _pendingLogicalQueueSongIds != null ||
                 _deferredTail.isNotEmpty ||
                 _deferredHead.isNotEmpty)
         ? LoopMode.off
@@ -112,6 +112,8 @@ extension _NavisQueueWindow on NavisAudioHandler {
   /// release, or wraps a queue whose played head has been released.
   void _continueIntoDeferredTail() {
     if (_continuingIntoDeferredTail ||
+        _nextShufflePass != null ||
+        _isCrossfading ||
         _radioStation != null ||
         _pendingLogicalQueueSongIds != null ||
         _isLoading ||
@@ -124,12 +126,14 @@ extension _NavisQueueWindow on NavisAudioHandler {
     final next = current + 1;
     final wrap =
         next >= _logicalQueueIds.length &&
-        _deferredHead.isNotEmpty &&
+        (_deferredHead.isNotEmpty || _shuffleEnabled) &&
         _desiredLoopMode == LoopMode.all;
     if (next >= _logicalQueueIds.length && !wrap) return;
     _continuingIntoDeferredTail = true;
     unawaited(
-      playFromIndex(wrap ? 0 : next)
+      (wrap && _shuffleEnabled && _logicalQueueIds.length > 1
+              ? _startNextShufflePass()
+              : playFromIndex(wrap ? 0 : next))
           .whenComplete(() => _continuingIntoDeferredTail = false),
     );
   }

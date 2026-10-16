@@ -3304,6 +3304,175 @@ void main() {
 
     for (final count in [6, 300]) {
       for (final crossfade in [false, true]) {
+        for (final action in [
+          'auto',
+          'next',
+          'paused-next',
+          'play',
+          'restart',
+          if (crossfade) 'fade',
+        ]) {
+          test(
+            'shuffled next pass count=$count fade=$crossfade action=$action',
+            () async {
+              final players = <_ControllableAudioPlayer>[];
+              final (handler, _, database) = await fixture(
+                players,
+                count: count,
+                crossfade: crossfade,
+                queueWindow: const NavisQueueWindow(),
+              );
+              await handler.setShuffleMode(AudioServiceShuffleMode.all);
+              await handler.replaceQueue(
+                ids(count),
+                startIndex: 2,
+                expandMatchFlows: false,
+              );
+              await handler.setRepeatMode(
+                action == 'restart'
+                    ? AudioServiceRepeatMode.none
+                    : AudioServiceRepeatMode.all,
+              );
+              final previous = List<String>.of(handler.snapshot.queueSongIds);
+              await handler.playFromIndex(count - 1);
+              await settleQueue(handler);
+              expect(handler.snapshot.currentIndex, count - 1);
+              if (action == 'paused-next') await handler.pause();
+              final finished = handler.snapshot.currentSongId;
+              // A real overlap intentionally runs both decks. Assert its
+              // settled handoff; other paths retain per-emission checks.
+              final check = action == 'fade' && count == 6
+                  ? () async => expectAudioMatchesMetadata(
+                      handler,
+                      players,
+                      settled: true,
+                    )
+                  : watchAudioMetadata(handler, players);
+              final active =
+                  handler.debugActivePlayer as _ControllableAudioPlayer;
+              switch (action) {
+                case 'auto':
+                  active.finishCurrentTrack();
+                  await pumpEventQueue();
+                case 'next':
+                case 'paused-next':
+                  await handler.skipToNext();
+                case 'play':
+                case 'restart':
+                  active
+                    ..state = ProcessingState.completed
+                    ..simulatedPosition = active.simulatedDuration;
+                  await handler.play();
+                case 'fade':
+                  if (count == 6) {
+                    await handler.debugStartCrossfade();
+                    await handler.debugCompleteCrossfade();
+                  } else {
+                    // Released windows already wrap through navigation.
+                    handler.debugCheckCrossfadeTrigger(
+                      active.simulatedDuration - const Duration(seconds: 5),
+                    );
+                    active.finishCurrentTrack();
+                    await pumpEventQueue();
+                  }
+              }
+              await settleQueue(handler);
+              final order = handler.snapshot.queueSongIds;
+              expect(order, isNot(previous));
+              expect(order.toSet(), previous.toSet());
+              expect(order, hasLength(count));
+              expect(order.first, isNot(finished));
+              expect(handler.snapshot.currentIndex, 0);
+              expect(handler.snapshot.currentSongId, order.first);
+              expect(
+                (handler.debugActivePlayer as _ControllableAudioPlayer)
+                    .audibleSongId,
+                action == 'paused-next' ? null : order.first,
+              );
+              expect(handler.snapshot.playing, action != 'paused-next');
+              await check();
+              await handler.debugFlushQueuePersistence();
+              expect(
+                (await database.playQueueDao.getQueueItems()).map(
+                  (song) => song.id,
+                ),
+                order,
+              );
+              await handler.setShuffleMode(AudioServiceShuffleMode.none);
+              await settleQueue(handler);
+              expect(handler.snapshot.queueSongIds, ids(count));
+              expect(handler.snapshot.currentSongId, order.first);
+            },
+          );
+        }
+      }
+    }
+
+    for (final original in <List<String>>[
+      ['song-0', 'song-1'],
+      ['song-0', 'song-1', 'song-0', 'song-2', 'song-2'],
+      ['song-0', 'song-0', 'song-0'],
+    ]) {
+      test('shuffled next pass preserves occurrences $original', () async {
+        final players = <_ControllableAudioPlayer>[];
+        final (handler, _, _) = await fixture(players, count: 3);
+        await handler.setShuffleMode(AudioServiceShuffleMode.all);
+        await handler.replaceQueue(original, expandMatchFlows: false);
+        await handler.setRepeatMode(AudioServiceRepeatMode.all);
+        await handler.playFromIndex(original.length - 1);
+        await settleQueue(handler);
+        final finished = handler.snapshot.currentSongId;
+        final check = watchAudioMetadata(handler, players);
+        (handler.debugActivePlayer as _ControllableAudioPlayer)
+            .finishCurrentTrack();
+        await pumpEventQueue();
+        await settleQueue(handler);
+        final order = List<String>.of(handler.snapshot.queueSongIds);
+        expect(order..sort(), List<String>.of(original)..sort());
+        if (original.toSet().length > 1) {
+          expect(handler.snapshot.currentSongId, isNot(finished));
+        }
+        await check();
+        await handler.setShuffleMode(AudioServiceShuffleMode.none);
+        await settleQueue(handler);
+        expect(handler.snapshot.queueSongIds, original);
+      });
+    }
+
+    test(
+      'failed shuffled wrap crossfade advances through completion',
+      () async {
+        final players = <_ControllableAudioPlayer>[];
+        final (handler, _, _) = await fixture(
+          players,
+          count: 6,
+          crossfade: true,
+        );
+        await handler.setShuffleMode(AudioServiceShuffleMode.all);
+        await handler.replaceQueue(ids(6), expandMatchFlows: false);
+        await handler.setRepeatMode(AudioServiceRepeatMode.all);
+        await handler.playFromIndex(5);
+        await settleQueue(handler);
+        final active = handler.debugActivePlayer as _ControllableAudioPlayer;
+        final finished = handler.snapshot.currentSongId;
+        (handler.debugInactiveDeck as _ControllableAudioPlayer).failPlay = true;
+        final check = watchAudioMetadata(handler, players);
+        await handler.debugStartCrossfade();
+        await pumpEventQueue();
+        expect(active.index, active.sourceIds.length - 1);
+        expect(handler.snapshot.currentSongId, finished);
+        active.finishCurrentTrack();
+        await pumpEventQueue();
+        await settleQueue(handler);
+        expect(handler.snapshot.currentIndex, 0);
+        expect(handler.snapshot.currentSongId, isNot(finished));
+        expect(handler.snapshot.queueSongIds.toSet(), ids(6).toSet());
+        await check();
+      },
+    );
+
+    for (final count in [6, 300]) {
+      for (final crossfade in [false, true]) {
         for (final repeat in [
           AudioServiceRepeatMode.none,
           AudioServiceRepeatMode.all,
