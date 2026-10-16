@@ -290,7 +290,9 @@ class SettingsRepository {
     }
   }
 
-  Future<void> resetDefaults() => _dao.resetDefaults();
+  /// Resets only the fields the Playback settings page shows; see
+  /// [AppSettingsDao.resetPlaybackDefaults].
+  Future<void> resetPlaybackDefaults() => _dao.resetPlaybackDefaults();
 
   /// Switches one integration service or feature; see
   /// [AppSettingsDao.setIntegrationEnabled].
