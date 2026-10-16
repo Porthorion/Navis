@@ -1608,7 +1608,8 @@ extension _NavisQueueLoading on NavisAudioHandler {
     if (originalOrder != null && !inPlayOrder) {
       // Entity Shuffle supplies its play order and its pre-shuffle ranks.
       // Never shuffle it twice or record randomized ranks as the original.
-      _originalOrder = _shuffleEnabled ? List<String>.of(originalOrder) : null;
+      _shuffleEnabled = true;
+      _originalOrder = List<String>.of(originalOrder);
       return (items, startIndex);
     }
     if (inPlayOrder || items.isEmpty) return (items, startIndex);

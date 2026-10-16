@@ -166,6 +166,10 @@ const List<ChangelogVersion> changelogs = [
     ],
     entries: [
       ChangelogEntry(
+        'Shuffle actions turn on the queue toggle and retain the original order when shuffle is turned off',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
         'The first song no longer repeats or stalls when it ends while the rest of the queue is loading',
         type: ChangelogEntryType.fix,
       ),

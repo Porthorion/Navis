@@ -3408,6 +3408,20 @@ void main() {
                 handler.snapshot.queueSongIds,
                 rows.map((song) => song.id),
               );
+              expect(handler.snapshot.shuffleMode, AudioServiceShuffleMode.all);
+              await handler.debugFlushQueuePersistence();
+              expect(
+                (await database.playQueueDao.getQueueState())!.shuffleMode,
+                ShuffleMode.all,
+              );
+              final saved = await database.playQueueDao.getQueueEntries();
+              final original = List.of(saved)
+                ..sort((a, b) => a.originalOrder!.compareTo(b.originalOrder!));
+              expect(original.map((entry) => entry.song.id), ids(60));
+              await handler.setShuffleMode(AudioServiceShuffleMode.none);
+              await settleQueue(handler);
+              expect(handler.snapshot.queueSongIds, ids(60));
+              expect(handler.snapshot.currentSongId, rows.first.id);
               await check();
             },
           );

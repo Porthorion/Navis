@@ -15,6 +15,13 @@ Last updated: 2026-10-15
 
 ## Current Focus
 
+- [x] Entity Shuffle mode and original-order persistence (issue #5) —
+  2026-10-16: the shared row/ID load-order adapter now enables shuffle when
+  entity callers supply original ranks. All 18 stopped/playing/paused ×
+  crossfade × repeat regression cases failed before the fix and pass after it,
+  including persisted shuffle/ranks and restoring the original queue order.
+  Capped targeted tests only; runtime and full gate remain coordinator-owned.
+
 - [x] Initial queue-fill completion race (issue #5) — 2026-10-16: reproduced
   native Repeat All replaying the temporary one-song playlist and repeat-off
   stalling after completion (16 failing regression cases before the fix).
