@@ -9,8 +9,10 @@ class _SheetHarness extends StatefulWidget {
     required this.expandCalls,
     required this.collapseCalls,
     required this.progress,
+    this.bottomInset = 0,
   });
 
+  final double bottomInset;
   final ValueNotifier<int> expandCalls;
   final ValueNotifier<int> collapseCalls;
   final ValueNotifier<double> progress;
@@ -43,8 +45,10 @@ class _SheetHarnessState extends State<_SheetHarness> {
             ),
             Expanded(
               child: SizedBox.expand(
+                key: const Key('sheet-area'),
                 child: ExpandablePlayerSheet(
                   isExpanded: _expanded,
+                  bottomInset: widget.bottomInset,
                   onExpand: () {
                     widget.expandCalls.value += 1;
                   },
@@ -186,4 +190,158 @@ void main() {
     await tester.pump();
     expect(progress.value, 0);
   });
+
+  group('drag tracking', () {
+    Future<_Rig> pumpRig(WidgetTester tester, {double bottomInset = 0}) async {
+      final rig = _Rig();
+      await tester.pumpWidget(
+        _SheetHarness(
+          expandCalls: rig.expandCalls,
+          collapseCalls: rig.collapseCalls,
+          progress: rig.progress,
+          bottomInset: bottomInset,
+        ),
+      );
+      await tester.pumpAndSettle();
+      return rig;
+    }
+
+    double panelTop(WidgetTester tester) => tester
+        .getTopLeft(find.byKey(const Key('full-player'), skipOffstage: false))
+        .dy;
+
+    testWidgets('full player is hidden while collapsed', (tester) async {
+      await pumpRig(tester);
+
+      expect(find.byKey(const Key('full-player')), findsNothing);
+      expect(
+        find.byKey(const Key('full-player'), skipOffstage: false),
+        findsOneWidget,
+      );
+    });
+
+    testWidgets('panel top starts at the mini player top and tracks the '
+        'finger 1:1, including the touch slop', (tester) async {
+      await pumpRig(tester, bottomInset: 80);
+      final miniTop = tester.getTopLeft(find.byKey(const Key('mini-player')));
+      final sheetBottom = tester
+          .getBottomLeft(find.byKey(const Key('sheet-area')))
+          .dy;
+      expect(miniTop.dy, closeTo(sheetBottom - 80 - 64, 0.5));
+
+      final gesture = await tester.startGesture(
+        tester.getCenter(find.byKey(const Key('mini-player'))),
+      );
+      await gesture.moveBy(const Offset(0, -100));
+      await tester.pump();
+      expect(panelTop(tester), closeTo(miniTop.dy - 100, 0.5));
+
+      await gesture.moveBy(const Offset(0, -50));
+      await tester.pump();
+      expect(panelTop(tester), closeTo(miniTop.dy - 150, 0.5));
+
+      await gesture.up();
+      await tester.pumpAndSettle();
+    });
+
+    testWidgets('panel top follows a downward drag from the expanded sheet', (
+      tester,
+    ) async {
+      await pumpRig(tester);
+      await tester.tap(find.text('expand'));
+      await tester.pumpAndSettle();
+      expect(
+        panelTop(tester),
+        closeTo(tester.getTopLeft(find.byKey(const Key('sheet-area'))).dy, 0.5),
+      );
+
+      final gesture = await tester.startGesture(
+        tester.getCenter(find.byKey(const Key('full-player'))),
+      );
+      final top = panelTop(tester);
+      await gesture.moveBy(const Offset(0, 120));
+      await tester.pump();
+      expect(panelTop(tester), closeTo(top + 120, 0.5));
+
+      await gesture.up();
+      await tester.pumpAndSettle();
+    });
+
+    testWidgets('onExpand and onCollapse fire when the animation completes, '
+        'not when the fling starts', (tester) async {
+      final rig = await pumpRig(tester);
+
+      final up = await tester.startGesture(
+        tester.getCenter(find.byKey(const Key('mini-player'))),
+      );
+      await up.moveBy(const Offset(0, -150));
+      await up.moveBy(const Offset(0, -150));
+      await tester.pump(const Duration(milliseconds: 16));
+      await up.up();
+      await tester.pump(const Duration(milliseconds: 16));
+      expect(rig.progress.value, inExclusiveRange(0, 1));
+      expect(rig.expandCalls.value, 0);
+
+      await tester.pumpAndSettle();
+      expect(rig.progress.value, closeTo(1, 0.01));
+      expect(rig.expandCalls.value, 1);
+    });
+
+    testWidgets('a short drag snaps back without calling onExpand', (
+      tester,
+    ) async {
+      final rig = await pumpRig(tester);
+
+      final gesture = await tester.startGesture(
+        tester.getCenter(find.byKey(const Key('mini-player'))),
+      );
+      await gesture.moveBy(const Offset(0, -40));
+      await tester.pump();
+      await gesture.up();
+      await tester.pumpAndSettle();
+
+      expect(rig.progress.value, 0);
+      expect(rig.expandCalls.value, 0);
+    });
+
+    testWidgets('reduced motion jumps to the target on release and reports '
+        'it', (tester) async {
+      final rig = _Rig();
+      await tester.pumpWidget(
+        MediaQuery(
+          data: const MediaQueryData(disableAnimations: true),
+          child: _SheetHarness(
+            expandCalls: rig.expandCalls,
+            collapseCalls: rig.collapseCalls,
+            progress: rig.progress,
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      final up = await tester.startGesture(
+        tester.getCenter(find.byKey(const Key('mini-player'))),
+      );
+      await up.moveBy(const Offset(0, -300));
+      await up.up();
+      await tester.pump();
+      expect(rig.progress.value, 1);
+      expect(rig.expandCalls.value, 1);
+      expect(find.byKey(const Key('full-player')), findsOneWidget);
+
+      final down = await tester.startGesture(
+        tester.getCenter(find.byKey(const Key('full-player'))),
+      );
+      await down.moveBy(const Offset(0, 300));
+      await down.up();
+      await tester.pump();
+      expect(rig.progress.value, 0);
+    });
+  });
+}
+
+class _Rig {
+  final expandCalls = ValueNotifier<int>(0);
+  final collapseCalls = ValueNotifier<int>(0);
+  final progress = ValueNotifier<double>(0);
 }
