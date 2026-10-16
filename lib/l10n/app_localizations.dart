@@ -1236,11 +1236,11 @@ abstract class AppLocalizations {
   /// **'Last run: {requests, plural, =1{1 request} other{{requests} requests}} • {bytes}'**
   String syncSettingsUsage(int requests, String bytes);
 
-  /// No description provided for @syncSettingsCheckForUpdates.
+  /// No description provided for @syncSettingsSyncLibraryNow.
   ///
   /// In en, this message translates to:
-  /// **'Check for updates'**
-  String get syncSettingsCheckForUpdates;
+  /// **'Sync library now'**
+  String get syncSettingsSyncLibraryNow;
 
   /// No description provided for @syncSettingsFreshnessCurrent.
   ///
