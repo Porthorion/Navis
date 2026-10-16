@@ -3144,6 +3144,25 @@ works like the weekly playlists. `homeTrendingProvider`
   (`HomeRandomShowcaseTrending.forHero`) once at least 8 chart songs are
   playable, unless the downloaded-only or liked-only filter is on; under them
   `homeTrendingProvider` is not even read.
+- `playlistLibraryItemsProvider` groups rows as Your playlists, Made for you,
+  then Other playlists. Device and own server playlists sort together by name
+  ignoring case; other server playlists sort the same way. The DAO also uses
+  `Collate.noCase` for its playlist stream. Ownership reads the retained
+  `serverConfigProvider` username, so it does not depend on an online API.
+  `canEditPlaylist` accepts local rows; server rows must not have `readOnly`
+  true, and their owner must match the username ignoring case when both are
+  known. A missing owner or username preserves editable behavior. Own rows
+  additionally exclude comments starting with `Auto-imported from '`.
+  Read-only smart playlists therefore fall under Other. Old Navidrome imports
+  with edited comments and imports from servers without `readonly` cannot
+  always be recognized; playlists created by the user in other clients remain
+  their own. Each `PlaylistLibraryItem` exposes its section for the Library UI.
+- `PlaylistActions` supplies throwing server rename/delete/add/remove/reorder
+  methods and owns their existing header/detail sync invalidations. Reorder
+  atomically replaces the ordered song IDs, including duplicates, and refreshes
+  detail on failure to revert optimistic UI state. Unavailable APIs throw;
+  local rows are explicitly rejected until B2 adds local branches. Widget
+  adoption and error notices remain the B1 UI integration step.
 - `playlistLibraryItemsProvider` adds a `PlaylistLibraryItem.trending` after
   the weekly playlists while the switch is allowed and an account is signed
   in, whatever the chart holds (rows are still loading, or there is no chart
@@ -5083,8 +5102,12 @@ collaborators does not read locale settings or open the database for localizatio
     announce update-only Drift writes, avoiding delete-cascade invalidation
     of dependent tables.
     Playlist headers upsert without replacing parent rows, so an unchanged
-    header refresh cannot cascade-delete cached membership. The authoritative
-    header list prunes confirmed server deletions and queues new, count-changed,
+    header refresh cannot cascade-delete cached membership. Both header and
+    detail hydration persist the optional Subsonic `readonly` field, and its
+    changes count as header changes. Adding it to serialized evidence causes
+    one refresh of non-empty server playlists after upgrade. Local playlists
+    are excluded from header reconciliation and fetch scheduling. The
+    authoritative header list prunes confirmed server deletions and queues new, count-changed,
     or metadata-changed playlist contents for resumable targeted hydration.
     Explicit favorites include referenced external/provisional identities while
     ordinary library enumeration remains canonical. Best-effort detail

@@ -14,6 +14,36 @@ Last updated: 2026-10-16
 - ACP status values: `backlog`, `ready`, `in_progress`, `blocked`, `done`.
 
 ## Current Focus
+- [x] PR B1 backend: playlist ownership, sections and throwing server actions —
+  2026-10-16 (`feat/playlists-sections`, based on PR0 commits ae8d3991 and
+  5e65e9be; Codex implementation). Added optional API `readonly` parsing and
+  generated output, header/detail persistence and header comparison, pure
+  ownership rules, case-insensitive playlist ordering, and Yours → Made for you
+  → Other section metadata. Virtual playlist gates, routing, and availability
+  during server-read failures remain covered. `PlaylistActions` exposes server
+  rename/delete/add/remove/reorder with existing sync invalidations; errors
+  propagate, offline calls throw, and local IDs are rejected pending B2.
+  Tests were written first: new APIs failed compilation and the DAO ordering
+  assertion failed against the old behavior. After implementation, the capped
+  six-file run reported `00:12 +197: All tests passed!` and
+  `[capped] exit=0 peak=2327M swappeak=0M oom_kills=0`, using
+  `~/.cache/claude-navis-tools/capped.sh 6G "$PWD" flutter test --concurrency=4`
+  with `models_serialization_test.dart`, `playlist_dao_test.dart`,
+  `playlist_ownership_test.dart`, `playlist_actions_test.dart`,
+  `playlist_library_items_test.dart`, and `library_sync_engine_test.dart`.
+  `make gen` succeeded: `Built with build_runner/aot in 52s; wrote 2003 outputs.`
+  `dart format` covered all 15 changed Dart files; capped scoped
+  `flutter analyze --no-fatal-infos` reported `No issues found!` (exit 0).
+  `dart run tool/dead_code_check.dart` exited 1 with exactly two new test-only
+  entries awaiting the B1 UI wiring: `PlaylistActions.addSongs` (line 37) and
+  `playlistActionsProvider` (line 7) in
+  `lib/src/features/playlists/data/playlist_actions.dart`; the baseline is
+  unchanged. B1 UI wiring, filter, edit gating, notices and widget coverage
+  remain with the UI agent. B2 local DAO/actions/create/detail-sync changes
+  were not implemented. No new PR0 issue was identified. The full check,
+  application/emulator runs and runtime evidence were prohibited by the task's
+  host limits; independent review remains for the coordinating agent.
+
 - [x] PR0: schema 104 foundation for device playlists and radio stations —
   2026-10-16 (`feat/schema-104-device-items`; Codex implementation). Added
   guarded 103→104 migration, playlist scope/read-only columns, local station

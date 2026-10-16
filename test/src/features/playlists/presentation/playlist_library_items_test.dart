@@ -4,6 +4,8 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:navis/src/api/models/listenbrainz_playlist.dart';
 import 'package:navis/src/api/models/models.dart';
 import 'package:navis/src/database/navis_database.dart';
+import 'package:navis/src/features/auth/domain/server_config.dart';
+import 'package:navis/src/features/auth/presentation/server_config_provider.dart';
 import 'package:navis/src/features/home/presentation/home_deezer_providers.dart';
 import 'package:navis/src/features/home/presentation/home_providers.dart';
 import 'package:navis/src/features/integrations/domain/integration_feature.dart';
@@ -50,9 +52,21 @@ void main() {
           ),
         ]),
     bool withWeekly = true,
+    String? me = 'alice',
   }) {
     final c = ProviderContainer(
       overrides: <Override>[
+        subsonicApiProvider.overrideWithValue(null),
+        serverConfigProvider.overrideWithBuild(
+          (ref, _) => me == null
+              ? null
+              : ServerConfigModel(
+                  url: 'https://example.com',
+                  username: me,
+                  password: '',
+                  apiVersion: '1.16.1',
+                ),
+        ),
         integrationPolicyProvider.overrideWithValue(policy),
         integrationAccountScopeProvider.overrideWithValue(scope),
         homeTrendingProvider.overrideWith(
@@ -75,14 +89,95 @@ void main() {
     return c.read(playlistLibraryItemsProvider).requireValue;
   }
 
+  test('sections order yours, made for you, other and mix own names', () async {
+    final result = await items(
+      container(
+        playlists: const AsyncData([
+          PlaylistsTableData(
+            isLocal: false,
+            id: 'other',
+            name: 'A stranger',
+            owner: 'bob',
+          ),
+          PlaylistsTableData(
+            isLocal: false,
+            id: 'own-z',
+            name: 'Zulu',
+            owner: 'ALICE',
+            readOnly: false,
+          ),
+          PlaylistsTableData(isLocal: true, id: 'local:a', name: 'alpha'),
+          PlaylistsTableData(
+            isLocal: false,
+            id: 'own-b',
+            name: 'Bravo',
+            owner: 'alice',
+          ),
+          PlaylistsTableData(
+            isLocal: false,
+            id: 'smart',
+            name: 'Smart',
+            owner: 'alice',
+            readOnly: true,
+          ),
+          PlaylistsTableData(
+            isLocal: false,
+            id: 'import',
+            name: 'Import',
+            comment: "Auto-imported from 'mix.m3u'",
+          ),
+        ]),
+      ),
+    );
+    expect(result.map((item) => item.id), [
+      'local:a',
+      'own-b',
+      'own-z',
+      listenBrainzWeeklyJamsVirtualPlaylistId,
+      trendingVirtualPlaylistId,
+      'other',
+      'import',
+      'smart',
+    ]);
+    expect(result.map((item) => item.section), [
+      PlaylistLibrarySection.yours,
+      PlaylistLibrarySection.yours,
+      PlaylistLibrarySection.yours,
+      PlaylistLibrarySection.madeForYou,
+      PlaylistLibrarySection.madeForYou,
+      PlaylistLibrarySection.other,
+      PlaylistLibrarySection.other,
+      PlaylistLibrarySection.other,
+    ]);
+  });
+
+  test('unknown username preserves editable ownership', () async {
+    final result = await items(
+      container(
+        me: null,
+        withWeekly: false,
+        policy: const IntegrationPolicy(masterEnabled: false),
+        playlists: const AsyncData([
+          PlaylistsTableData(
+            isLocal: false,
+            id: 'p',
+            name: 'Other client',
+            owner: 'bob',
+          ),
+        ]),
+      ),
+    );
+    expect(result.single.section, PlaylistLibrarySection.yours);
+  });
+
   test('Trending sits right under the weekly playlists', () async {
     final result = await items(container());
     expect(result.map((item) => item.id), <String>[
+      'server-playlist',
       listenBrainzWeeklyJamsVirtualPlaylistId,
       trendingVirtualPlaylistId,
-      'server-playlist',
     ]);
-    final trending = result[1];
+    final trending = result[2];
     expect(trending.isVirtual, isTrue);
     expect(trending.isTrending, isTrue);
     expect(trending.trendingTracks, hasLength(2));
@@ -126,7 +221,7 @@ void main() {
             .read(playlistLibraryItemsProvider)
             .requireValue
             .map((item) => item.id),
-        <String>[listenBrainzWeeklyJamsVirtualPlaylistId, 'server-playlist'],
+        <String>['server-playlist', listenBrainzWeeklyJamsVirtualPlaylistId],
       );
     }
   });

@@ -13,7 +13,9 @@ class PlaylistDao extends DatabaseAccessor<NavisDatabase>
 
   Stream<List<PlaylistsTableData>> watchPlaylists() {
     final query = select(playlistsTable)
-      ..orderBy([(table) => OrderingTerm.asc(table.name)]);
+      ..orderBy([
+        (table) => OrderingTerm.asc(table.name.collate(Collate.noCase)),
+      ]);
     return query.watch();
   }
 
