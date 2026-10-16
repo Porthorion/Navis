@@ -69,6 +69,23 @@ Last updated: 2026-10-16
   were not implemented. No new PR0 issue was identified. The full check,
   application/emulator runs and runtime evidence were prohibited by the task's
   host limits; independent review remains for the coordinating agent.
+- [x] Download lyrics/artwork backfill review fixes (issue #9) — 2026-10-16
+  (`fix/download-lyrics-art-backfill`; the shared lyrics resolver distinguishes
+  confirmed misses from transport/API failures, so only confirmed misses get
+  a seven-day negative entry. Both backfills recheck stop/network eligibility
+  after a playback hold and before a request; stopped passes drain without new
+  network work, and a Wi-Fi-only pass interrupted by cellular stays pending
+  and resumes through the pump on Wi-Fi. Interactive server lyrics for permanent
+  downloads use the resolver cache path and clear failure metadata, permitting
+  later synced-lyrics upgrades; rolling/uncached songs retain their previous
+  caching behavior. Twelve regressions failed before their fixes; all nineteen
+  new regression/control cases pass. The requested downloads, lyrics-resolver,
+  song-identity DAO and provider suites pass 372 tests with concurrency 4 under
+  a 6G cap. Changed-file analysis and formatting and the dead-code gate pass.
+  Two existing provider brace-style infos were corrected during analysis;
+  the provider suite then passed all 94 tests again.
+  Runtime/app/emulator validation and `./tool/check.sh` were not run under the
+  host limits; the coordinator owns broader validation.)
 
 - [x] Radio UI review fixes for issue #14 — 2026-10-16
   (`feat/radio-device-stations`; Codex). Save failures now appear inside the
@@ -2334,6 +2351,7 @@ Latest activity (2026-03-07): published `v0.8.0` APK via `tool/release.sh` and s
 - 2026-10-10 — Phone-test UI fixes: Pill corner style with explicit component shapes, Night Schedule under Color, centered fullscreen lyrics title, pull to refresh that retracts while the sync keeps running, dismissible offline banner with an Offline chip, and Album Queue applied to every song list. Task 6 validation: the six-file focused suite passed (153 tests, one skipped), touched-file `dart analyze` reported no errors or warnings (eight existing infos), and `flutter gen-l10n` completed. No app launches or full gate, per machine rules.
 - 2026-10-10 — Fine-Tune Colors UI: Color and Brightness rulers (the Speed and Pitch ruler in whole-step mode with a live stepped-swatch band) under Color Style in Appearance and in setup's More appearance options; live preview per step, saved on release, Reset. Focused ruler, Appearance, setup and theme tests recorded in the handoff; runtime loop and full gate reserved for coordinator.
 - 2026-10-11 — Now Playing phone layout: height classes, bottom-pinned controls, artwork as the flexible element with shared gap interpolation and exact-square covers (`NowPlayingPhoneLayout`); the 700 dp scroll cliff is gone. Focused player and routing suites recorded in the handoff; runtime loop and full gate reserved for coordinator.
+- 2026-10-16 — Download backfill fix (issue #9 part 1): lyrics and artwork backfill now follow the Wi-Fi-only download policy instead of unconditionally requiring Wi-Fi, a pass gated by a missing API client, network policy or an LRCLIB cooldown re-arms from `processQueuedDownloads`, both backfill loops pause during the playback hold, and `promoteToPermanent` prefetches lyrics next to cover art. Tests written first and confirmed failing (five behavioural tests), then fixed: both download service suites green (248 tests), `dart analyze` clean and `dart format` applied on changed files. No app launch or full gate, per machine rules.
 - 2026-10-16 — Appearance Looks (issue #7, branch `fix/appearance-looks-update`): Update/Rename/Delete follow the persisted last-chosen Look while the appearance is Custom ("Custom · edited from <Look>"), surviving page re-entry and restart; table-driven audit `appearance_controls_audit_test.dart` drives every Appearance control through the real screen (columns written, provider effect, Look → Custom with origin, Update restores it) with a source guard for new writers; found and fixed un-hiding the last hidden Home section restoring the default hidden sections. Focused tests only (looks, audit, repository, changelog); no app launch, `./tool/check.sh` and the runtime screenshot pass reserved for the coordinator.
 
 - 2026-10-16 — Issue #7 owner-approved Look scope fix: removed density, artist
