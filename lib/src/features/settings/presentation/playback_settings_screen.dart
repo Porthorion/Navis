@@ -55,6 +55,7 @@ class _PlaybackSettingsScreenState
   bool _cachedPlaybackFirst = false;
   bool _scrobbleEnabled = true;
   bool _gaplessEnabled = true;
+  bool _fullscreenModeLyrics = false;
   bool _albumQueueEnabled = false;
   bool _likedQueueEnabled = false;
   bool _matchFlowEnabled = false;
@@ -71,6 +72,7 @@ class _PlaybackSettingsScreenState
   bool _experimentalExpanded = false;
   String _lastSavedSignature = '';
   Timer? _autosaveDebounce;
+  Completer<void>? _autosaveDone;
 
   @override
   Widget build(BuildContext context) {
@@ -347,6 +349,18 @@ class _PlaybackSettingsScreenState
                       ),
                     ),
                   ],
+                  SwitchListTile(
+                    contentPadding: EdgeInsets.zero,
+                    value: _fullscreenModeLyrics,
+                    onChanged: _isSaving
+                        ? null
+                        : (value) =>
+                              setState(() => _fullscreenModeLyrics = value),
+                    title: Text(l10n.playbackSettingsFullscreenLyricsTitle),
+                    subtitle: Text(
+                      l10n.playbackSettingsFullscreenLyricsSubtitle,
+                    ),
+                  ),
                   // ── ReplayGain section ─────────────────────────────────────
                   const SizedBox(height: 24),
                   Text(
@@ -575,6 +589,7 @@ class _PlaybackSettingsScreenState
     _cachedPlaybackFirst = settings.cachedPlaybackFirst;
     _scrobbleEnabled = settings.scrobbleEnabled;
     _gaplessEnabled = settings.gaplessEnabled || settings.crossfadeEnabled;
+    _fullscreenModeLyrics = settings.skipSilenceEnabled;
     _albumQueueEnabled = settings.albumQueueEnabled;
     _likedQueueEnabled = settings.likedQueueEnabled;
     _matchFlowEnabled = settings.matchFlowEnabled;
@@ -611,6 +626,7 @@ class _PlaybackSettingsScreenState
       _cachedPlaybackFirst,
       _scrobbleEnabled,
       _gaplessEnabled,
+      _fullscreenModeLyrics,
 
       _crossfadeEnabled,
       _crossfadeDurationSeconds,
@@ -624,6 +640,10 @@ class _PlaybackSettingsScreenState
   }
 
   Future<void> _persistAutosave(String signature) async {
+    // A reset owns the settings row until it has re-hydrated the form.
+    if (_isSaving) {
+      return;
+    }
     if (_isAutoSaving) {
       _pendingAutosave = true;
       return;
@@ -631,6 +651,7 @@ class _PlaybackSettingsScreenState
     if (!_formKey.currentState!.validate()) {
       return;
     }
+    final done = _autosaveDone = Completer<void>();
     if (mounted) {
       setState(() => _isAutoSaving = true);
     }
@@ -655,6 +676,7 @@ class _PlaybackSettingsScreenState
         cachedPlaybackFirst: _cachedPlaybackFirst,
         scrobbleEnabled: _scrobbleEnabled,
         gaplessEnabled: _gaplessEnabled || _crossfadeEnabled,
+        skipSilenceEnabled: _fullscreenModeLyrics,
         crossfadeEnabled: _crossfadeEnabled,
         crossfadeDurationSeconds: _crossfadeDurationSeconds,
         crossfadeType: _crossfadeType,
@@ -684,6 +706,7 @@ class _PlaybackSettingsScreenState
       if (mounted) {
         setState(() => _isAutoSaving = false);
       }
+      done.complete();
       if (_pendingAutosave) {
         _pendingAutosave = false;
         _scheduleAutosave();
@@ -712,13 +735,19 @@ class _PlaybackSettingsScreenState
   Future<void> _resetDefaults() async {
     final l10n = AppLocalizations.of(context)!;
     setState(() => _isSaving = true);
+    // Drop the queued autosave and let a running one finish first, so neither
+    // can write the old form values back over the defaults.
+    _autosaveDebounce?.cancel();
+    _pendingAutosave = false;
     try {
-      await ref.read(settingsRepositoryProvider).resetPlaybackDefaults();
+      await _autosaveDone?.future;
+      final repository = ref.read(settingsRepositoryProvider);
+      await repository.resetPlaybackDefaults();
       await ref
           .read(playbackAdjustmentsProvider.notifier)
           .selectPreset(PlaybackPreset.noneId);
       await ref.read(equalizerProvider.notifier).reset();
-      const defaults = AppSettingsModel.defaults();
+      final persisted = await repository.getSettings();
       final handler = ref.read(audioHandlerProvider);
       if (handler != null) {
         await handler.applyRuntimeSettings();
@@ -727,9 +756,7 @@ class _PlaybackSettingsScreenState
         return;
       }
       setState(() {
-        _hydrate(defaults);
-        _didHydrateForm = true;
-        _lastSavedSignature = _formSignature();
+        _hydrate(persisted);
       });
       showAppNotice(
         context,

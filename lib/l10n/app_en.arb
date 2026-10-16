@@ -481,6 +481,8 @@
   "playbackSettingsReplayGainPreampLabel": "Pre-amp (dB)",
   "playbackSettingsReplayGainPreampSubtitle": "Additional gain adjustment. Range: −6 to +6 dB.",
   "playbackSettingsPlaybackSpeedLabel": "Playback Speed",
+  "playbackSettingsFullscreenLyricsTitle": "Fullscreen Mode Lyrics",
+  "playbackSettingsFullscreenLyricsSubtitle": "Open lyrics in fullscreen directly from Now Playing.",
   "playbackSettingsAlbumQueueTitle": "Album Queue",
   "playbackSettingsAlbumQueueSubtitle": "Tapping a track in an album or playlist queues the whole list and starts playback at that track.",
   "playbackSettingsExperimentalTitle": "Experimental",

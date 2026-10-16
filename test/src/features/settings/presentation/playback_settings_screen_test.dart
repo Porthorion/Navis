@@ -6,6 +6,9 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:navis/l10n/app_localizations.dart';
 import 'package:navis/l10n/navis_localizations.dart';
+import 'package:navis/src/features/equalizer/domain/eq_configuration.dart';
+import 'package:navis/src/features/equalizer/presentation/eq_controller.dart';
+import 'package:navis/src/features/player/presentation/playback_adjustment_controller.dart';
 import 'package:navis/src/features/settings/data/settings_repository.dart';
 import 'package:navis/src/features/settings/domain/app_settings.dart';
 import 'package:navis/src/features/settings/presentation/playback_settings_screen.dart';
@@ -16,6 +19,25 @@ import '../../../../helpers/adaptive_test_harness.dart';
 import '../../../../helpers/test_theme.dart';
 
 class _MockSettingsRepository extends Mock implements SettingsRepository;
+
+/// Reset-path stand-ins: the screen only needs these controllers to accept
+/// the reset calls, not to touch storage or the audio engine.
+class _FakeAdjustments extends PlaybackAdjustmentController {
+  @override
+  Future<PlaybackAdjustmentState> build() async => PlaybackAdjustmentState();
+
+  @override
+  Future<bool> selectPreset(String id) async => true;
+}
+
+class _FakeEq extends EqController {
+  @override
+  Future<EqState> build() async =>
+      EqState(configuration: EqConfiguration.flat(), presets: const []);
+
+  @override
+  Future<void> reset() async {}
+}
 
 void main() {
   setUpAll(() {
@@ -101,7 +123,6 @@ void main() {
       expect(find.text('Experimental'), findsOneWidget);
       expect(find.text('Show Radio page'), findsNothing);
       expect(find.text('Skip silence when possible'), findsNothing);
-      expect(find.text('Fullscreen Mode Lyrics'), findsNothing);
       expect(find.text('Changes save automatically'), findsOneWidget);
       expect(find.text('Reset Defaults'), findsOneWidget);
     });
@@ -207,8 +228,139 @@ void main() {
       await tester.pumpAndSettle();
 
       verify(() => repository.resetPlaybackDefaults()).called(1);
-      verifyNever(() => repository.resetDefaults());
       expect(tester.takeException(), isNull);
+    });
+
+    group('reset vs autosave', () {
+      late AppSettingsModel stored;
+      late List<String> events;
+      Completer<void>? saveGate;
+
+      setUp(() {
+        stored = initialSettings;
+        events = <String>[];
+        saveGate = null;
+        when(() => repository.getSettings()).thenAnswer((_) async => stored);
+        when(() => repository.saveSettings(any()))
+            .thenAnswer((invocation) async {
+              events.add('save:begin');
+              await saveGate?.future;
+              stored = invocation.positionalArguments.first as AppSettingsModel;
+              events.add('save:end');
+            });
+        when(() => repository.resetPlaybackDefaults()).thenAnswer((_) async {
+          events.add('reset');
+          stored = initialSettings;
+        });
+      });
+
+      Future<void> pumpScreen(WidgetTester tester) async {
+        await tester.pumpWidget(
+          ProviderScope(
+            overrides: [
+              settingsRepositoryProvider.overrideWithValue(repository),
+              appSettingsProvider.overrideWithValue(
+                const AsyncData(initialSettings),
+              ),
+              playbackAdjustmentsProvider.overrideWith(_FakeAdjustments.new),
+              equalizerProvider.overrideWith(_FakeEq.new),
+            ],
+            child: _buildTestApp(),
+          ),
+        );
+        await tester.pumpAndSettle();
+      }
+
+      Future<void> editWifiBitRate(WidgetTester tester) async {
+        await tester.tap(find.byType(DropdownButtonFormField<int?>).first);
+        await tester.pumpAndSettle();
+        await tester.tap(find.text('320 kbps').last);
+        // No settle: the 420 ms autosave debounce stays pending.
+        await tester.pump(const Duration(milliseconds: 50));
+      }
+
+      Future<void> tapReset(WidgetTester tester) async {
+        final resetDefaults = find.text('Reset Defaults');
+        await tester.ensureVisible(resetDefaults);
+        await tester.pump(const Duration(milliseconds: 50));
+        await tester.tap(resetDefaults);
+      }
+
+      testWidgets('reset cancels a pending autosave and shows persisted '
+          'defaults', (tester) async {
+        await pumpScreen(tester);
+        await editWifiBitRate(tester);
+
+        await tapReset(tester);
+        await tester.pump(const Duration(seconds: 2));
+        await tester.pumpAndSettle();
+
+        expect(events, ['reset']);
+        expect(stored.wifiMaxBitRate, initialSettings.wifiMaxBitRate);
+        final wifiField = tester.widget<DropdownButtonFormField<int?>>(
+          find.byType(DropdownButtonFormField<int?>).first,
+        );
+        expect(wifiField.initialValue, initialSettings.wifiMaxBitRate);
+      });
+
+      testWidgets('reset waits for an in-flight autosave and is not '
+          'overwritten by it', (tester) async {
+        saveGate = Completer<void>();
+        await pumpScreen(tester);
+        await editWifiBitRate(tester);
+        await tester.pump(const Duration(milliseconds: 500));
+        expect(events, ['save:begin']);
+
+        await tapReset(tester);
+        await tester.pump(const Duration(milliseconds: 100));
+        expect(events, ['save:begin'], reason: 'reset must wait for the save');
+
+        saveGate!.complete();
+        await tester.pump(const Duration(seconds: 2));
+        await tester.pumpAndSettle();
+
+        expect(events, ['save:begin', 'save:end', 'reset']);
+        expect(stored.wifiMaxBitRate, initialSettings.wifiMaxBitRate);
+        final wifiField = tester.widget<DropdownButtonFormField<int?>>(
+          find.byType(DropdownButtonFormField<int?>).first,
+        );
+        expect(wifiField.initialValue, initialSettings.wifiMaxBitRate);
+      });
+    });
+
+    testWidgets('fullscreen lyrics switch persists and is shown', (
+      tester,
+    ) async {
+      AppSettingsModel? savedModel;
+      when(() => repository.saveSettings(any())).thenAnswer((invocation) async {
+        savedModel = invocation.positionalArguments.first as AppSettingsModel;
+      });
+
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            settingsRepositoryProvider.overrideWithValue(repository),
+            appSettingsProvider.overrideWithValue(
+              const AsyncData(initialSettings),
+            ),
+          ],
+          child: _buildTestApp(),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      final fullscreenToggle = find.widgetWithText(
+        SwitchListTile,
+        'Fullscreen Mode Lyrics',
+      );
+      await tester.ensureVisible(fullscreenToggle);
+      await tester.pumpAndSettle();
+      await tester.tap(fullscreenToggle);
+      await tester.pump(); // build schedules the debounce
+      await tester.pump(const Duration(milliseconds: 700));
+      await tester.pumpAndSettle();
+
+      expect(savedModel?.skipSilenceEnabled, isTrue);
     });
 
     testWidgets('autosave preserves settings owned by other screens', (
@@ -374,7 +526,10 @@ void main() {
         'Enable Gapless Playback',
       );
       const crossfadeText = 'Enable Cross-Fade';
-      final replayGainSection = find.text('Volume Normalization (ReplayGain)');
+      final fullscreenToggle = find.widgetWithText(
+        SwitchListTile,
+        'Fullscreen Mode Lyrics',
+      );
 
       expect(find.widgetWithText(SwitchListTile, crossfadeText), findsNothing);
 
@@ -388,9 +543,10 @@ void main() {
         crossfadeText,
       );
       expect(crossfadeToggle, findsOneWidget);
+      expect(fullscreenToggle, findsOneWidget);
       expect(
         tester.getTopLeft(crossfadeToggle).dy,
-        lessThan(tester.getTopLeft(replayGainSection).dy),
+        lessThan(tester.getTopLeft(fullscreenToggle).dy),
       );
 
       await tester.ensureVisible(crossfadeToggle);

@@ -664,11 +664,13 @@ void main() {
         expect(settings.matchFlowEnabled, isFalse);
         expect(settings.playbackSpeed, 1);
         expect(settings.playbackPitchSemitones, 0);
+        expect(settings.lockPitchToSpeed, isFalse);
         expect(settings.selectedPlaybackPresetId, 'none');
         // Saved playback presets survive the reset.
         expect(settings.playbackPresets, '[{"id":"club","name":"Club"}]');
-        // The retired fullscreen-lyrics column stays as it was.
-        expect(settings.skipSilenceEnabled, isTrue);
+        // Fullscreen Mode Lyrics is a Playback page switch (stored in the
+        // compatibility column), so it resets too.
+        expect(settings.skipSilenceEnabled, isFalse);
         // Everything the Playback page does not show is untouched.
         expect(settings.themeMode, 'light');
         expect(settings.colorStyle, 'night');

@@ -486,9 +486,10 @@ class AppSettingsDao extends DatabaseAccessor<NavisDatabase>
   }
 
   /// Resets only the settings the Playback page shows: streaming quality,
-  /// scrobbling, gapless/cross-fade, ReplayGain, queue options and the
-  /// current speed and pitch. Appearance, Looks, colours, setup highlights,
-  /// downloads, integrations and saved presets are left untouched.
+  /// scrobbling, gapless/cross-fade, ReplayGain, queue options, the
+  /// fullscreen-lyrics switch and the current speed and pitch. Appearance,
+  /// Looks, colours, setup highlights, downloads, integrations and saved
+  /// presets are left untouched.
   Future<void> resetPlaybackDefaults() async {
     await updatePlaybackAdjustments(
       speed: 1,
@@ -504,6 +505,7 @@ class AppSettingsDao extends DatabaseAccessor<NavisDatabase>
         cachedPlaybackFirst: Value(false),
         scrobbleEnabled: Value(true),
         gaplessEnabled: Value(true),
+        skipSilenceEnabled: Value(false),
         crossfadeEnabled: Value(false),
         crossfadeDurationSeconds: Value(5),
         crossfadeType: Value('normal'),

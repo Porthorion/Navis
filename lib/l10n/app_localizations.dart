@@ -1710,6 +1710,18 @@ abstract class AppLocalizations {
   /// **'Playback Speed'**
   String get playbackSettingsPlaybackSpeedLabel;
 
+  /// No description provided for @playbackSettingsFullscreenLyricsTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Fullscreen Mode Lyrics'**
+  String get playbackSettingsFullscreenLyricsTitle;
+
+  /// No description provided for @playbackSettingsFullscreenLyricsSubtitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Open lyrics in fullscreen directly from Now Playing.'**
+  String get playbackSettingsFullscreenLyricsSubtitle;
+
   /// No description provided for @playbackSettingsAlbumQueueTitle.
   ///
   /// In en, this message translates to:
