@@ -28,12 +28,13 @@ void main() {
     expect(saved.selectedPlaybackPresetId, 'p1');
     expect(saved.playbackPresets.single.values, values);
     expect(saved.themeMode, 'oled');
-    await repository.resetDefaults();
+    await repository.resetPlaybackDefaults();
     saved = await repository.getSettings();
     expect(saved.playbackSpeed, 1);
     expect(saved.playbackPitchSemitones, 0);
     expect(saved.lockPitchToSpeed, isFalse);
     expect(saved.selectedPlaybackPresetId, 'none');
     expect(saved.playbackPresets.single.name, 'Slow');
+    expect(saved.themeMode, 'oled');
   }, skip: !sqliteAvailable);
 }

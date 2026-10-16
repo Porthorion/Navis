@@ -2,7 +2,7 @@
 
 Tracks completion of all phases and sub-tasks defined in [docs/project/development-plan.md](development-plan.md). Checkboxes are updated as work is completed.
 
-Last updated: 2026-10-15
+Last updated: 2026-10-16
 
 ---
 
@@ -14,6 +14,37 @@ Last updated: 2026-10-15
 - ACP status values: `backlog`, `ready`, `in_progress`, `blocked`, `done`.
 
 ## Current Focus
+
+- [x] Shuffled repeat/restart passes (issue #5) — 2026-10-16: automatic
+  completion, forward wrap, completed-queue Play and short Normal crossfades
+  share one next-pass operation built on the existing shuffle helpers, queue
+  rearrangement and navigation intent. It avoids repeating the ending song
+  when another identity exists, retains duplicate occurrences and original
+  ranks, persists the new order, and preserves paused Next. Released-window
+  and Smart-mode wraps use completion/navigation. Final capped validation:
+  navigation + shuffle + navigation-intent suites 521 passed (including the
+  500-seed queue-window model); latest shuffle matrix/edge cases 68 passed;
+  handler/projection suites 61 passed. Earlier red matrices: initial fill
+  0 passed/16 failed, entity state 0/18, next pass 0/18. Formatting and diff
+  checks passed. App/emulator runtime, analyzer and `check.sh` were not run
+  under the task's host-resource rules; Android reproduction/entry-point and
+  repeat-setting confirmation remain coordinator/owner validation.
+
+- [x] Entity Shuffle mode and original-order persistence (issue #5) —
+  2026-10-16: the shared row/ID load-order adapter now enables shuffle when
+  entity callers supply original ranks. All 18 stopped/playing/paused ×
+  crossfade × repeat regression cases failed before the fix and pass after it,
+  including persisted shuffle/ranks and restoring the original queue order.
+  Capped targeted tests only; runtime and full gate remain coordinator-owned.
+
+- [x] Initial queue-fill completion race (issue #5) — 2026-10-16: reproduced
+  native Repeat All replaying the temporary one-song playlist and repeat-off
+  stalling after completion (16 failing regression cases before the fix).
+  Native Repeat All now waits for logical fill; the existing completion path
+  advances after fill settles. Expanded matrix: 24 passed across queue sizes
+  6/300, shuffle toggle/entity inputs, crossfade off/on and repeat none/all/one.
+  Capped targeted tests only; runtime and `check.sh` remain coordinator-owned
+  under this task's host-resource rules.
 - [x] Idle-robustness final fixes (shared sync requests and busy databases) —
   2026-10-15 (`fix/idle-integration`, aa3d3452..abf8f071; a lease-held check
   against a live worker lease retries at the 30 s floor instead of waiting out
@@ -2118,3 +2149,4 @@ Latest activity (2026-03-07): published `v0.8.0` APK via `tool/release.sh` and s
 - 2026-10-10 — Fine-Tune Colors UI: Color and Brightness rulers (the Speed and Pitch ruler in whole-step mode with a live stepped-swatch band) under Color Style in Appearance and in setup's More appearance options; live preview per step, saved on release, Reset. Focused ruler, Appearance, setup and theme tests recorded in the handoff; runtime loop and full gate reserved for coordinator.
 - 2026-10-11 — Now Playing phone layout: height classes, bottom-pinned controls, artwork as the flexible element with shared gap interpolation and exact-square covers (`NowPlayingPhoneLayout`); the 700 dp scroll cliff is gone. Focused player and routing suites recorded in the handoff; runtime loop and full gate reserved for coordinator.
 - 2026-10-16 — Now Playing settings sheet/panel list the Sound section (Speed & Pitch, mini Equalizer) only while the transport row lacks EQ and Speed buttons; Settings › Playback drops its duplicate Equalizer entry (Porthorion/Navis#8). Focused widget tests only (Now Playing adaptive, Playback settings); no runtime loop or full gate yet.
+- 2026-10-16 — Playback Reset Defaults scope fix (issue #13): the button now calls the playback-scoped `AppSettingsDao.resetPlaybackDefaults()` so theme, Looks, colour tuning, setup highlights, download options, the Last.fm key and ListenBrainz survive the reset, while the page's fields plus speed/pitch reset and saved presets are kept; the Fullscreen Mode Lyrics switch stays on the page and is reset with it; Reset now cancels the queued autosave, waits for a running one and re-hydrates from the stored row; the unused global `resetDefaults()` (DAO and repository) was deleted. Validation: `flutter test --concurrency=4 test/src/database/daos/app_settings_dao_test.dart test/src/features/settings/presentation/playback_settings_screen_test.dart` passed (36 tests, includes the new playback-scope reset test), touched-file `dart analyze` and `dart format` clean, `flutter gen-l10n` regenerated. No app launches or full gate, per machine rules.
