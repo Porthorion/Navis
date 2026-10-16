@@ -14,6 +14,24 @@ Last updated: 2026-10-16
 - ACP status values: `backlog`, `ready`, `in_progress`, `blocked`, `done`.
 
 ## Current Focus
+- [x] Update check on every app open — 2026-10-16 (`feat/update-check-on-open`;
+  automatic checks are throttled to 1 h and returning after 30 s away
+  invalidates `updateProvider` through the existing resume hook. Fix round:
+  cache only the signed envelope in `verifiedManifest` and run the same
+  signature, channel, version/build, install mode, Android installer/ABI and
+  asset validation for fresh and cached checks. Completed fetches replace or
+  clear the cache; transport failures preserve it. Home Dismiss persists the
+  tag/build identity without hiding the update in About; a different identity
+  shows again. The Sync settings library-sync button is labelled "Sync library
+  now". Ten regression tests failed before the fix. Targeted capped Flutter
+  tests: `update_repository_test.dart`, `update_check_store_test.dart` and
+  `home_screen_test.dart` (223 passing); update cases of
+  `app_providers_test.dart` and `sync_diagnostics_server_test.dart` (11 passing);
+  `about_screen_test.dart` and `update_pull_test.dart` (24 passing).
+  `dart analyze` on changed files has no new findings (six existing infos on
+  unchanged lines); `dart format` and the dead-code gate pass. Per host limits,
+  `./tool/check.sh`, app/emulator launches and runtime screenshot/restart
+  validation were not run; the coordinator owns those remaining checks.)
 
 - [x] Shuffled repeat/restart passes (issue #5) — 2026-10-16: automatic
   completion, forward wrap, completed-queue Play and short Normal crossfades
