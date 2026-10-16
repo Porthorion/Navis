@@ -2493,8 +2493,9 @@ class DownloadService {
   /// completes never runs again in this session. Uses the transfers' rule —
   /// any connection unless the user restricted downloads to Wi-Fi — pauses
   /// while a song's stream load holds new work, skips songs that already
-  /// have lyrics, and throttles requests to avoid hammering the server or
-  /// LrcLib. Never throws. Returns whether the pass completed.
+  /// have lyrics or whose empty lookup is less than a week old, and
+  /// throttles requests to avoid hammering the server or LrcLib. Never
+  /// throws. Returns whether the pass completed.
   Future<bool> _backfillLyricsForDownloadedSongs() async {
     try {
       if (_stopped) {
@@ -2528,6 +2529,15 @@ class DownloadService {
         final existing = await _libraryDao.getExternalLyricsCache(song.id);
         if (existing != null && existing.syncedLyrics != null) {
           // Already have synced lyrics — best possible quality, nothing to do.
+          continue;
+        }
+        if (existing != null &&
+            existing.failureCount > 0 &&
+            existing.lastFailedAt != null &&
+            DateTime.now().difference(existing.lastFailedAt!) <
+                const Duration(days: 7)) {
+          // A recent empty lookup is backed off so repeated starts do not
+          // re-query songs the sources have no lyrics for.
           continue;
         }
         // Songs with only plain lyrics are still processed to try to upgrade
@@ -2633,6 +2643,20 @@ class DownloadService {
         'DownloadService: Lyrics prefetch resolved ${resolution.source.name} '
         'for $songId',
       );
+      if (!hasAnyLyrics(resolution.lyrics) && !_lrclibClient.isRateLimited) {
+        // Remember the miss so repeated starts stop re-querying a song the
+        // sources have no lyrics for; the backfill retries after a week.
+        final existing = await _libraryDao.getExternalLyricsCache(songId);
+        await _libraryDao.upsertExternalLyricsCache(
+          songId: songId,
+          source: existing?.source ?? resolution.source.name,
+          syncedLyrics: existing?.syncedLyrics,
+          plainLyrics: existing?.plainLyrics,
+          ttlSeconds: existing?.ttlSeconds ?? normalLyricsCacheTtlSeconds,
+          failureCount: (existing?.failureCount ?? 0) + 1,
+          lastFailedAt: DateTime.now(),
+        );
+      }
     } on Object catch (e) {
       // Never let a lyrics error abort or surface through the download flow.
       AppLogger.warning(

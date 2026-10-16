@@ -8,6 +8,7 @@ import 'package:flutter_cache_manager/flutter_cache_manager.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:navis/src/api/lrclib_client.dart';
+import 'package:navis/src/api/models/models.dart';
 import 'package:navis/src/api/subsonic_api_client.dart';
 import 'package:navis/src/api/subsonic_auth_interceptor.dart';
 import 'package:navis/src/common_widgets/cover_art_cache_manager.dart';
@@ -23,6 +24,8 @@ import 'package:path/path.dart' as p;
 import '../../../helpers/test_database.dart';
 
 class _MockCacheManager extends Mock implements BaseCacheManager;
+
+class _MockSubsonicApiClient extends Mock implements SubsonicApiClient;
 
 class _MockLrclibClient extends Mock implements LrclibClient {
   @override
@@ -111,6 +114,20 @@ _MockLrclibClient _answeringLrclib() {
     ),
   ).thenAnswer((_) async => null);
   return lrclib;
+}
+
+/// A client whose server definitively has no lyrics for any song.
+SubsonicApiClient _lyriclessApiClient() {
+  final api = _MockSubsonicApiClient();
+  when(() => api.getLyricsBySongId(any()))
+      .thenAnswer((_) async => LyricsList());
+  when(
+    () => api.getLyrics(
+      artist: any(named: 'artist'),
+      title: any(named: 'title'),
+    ),
+  ).thenAnswer((_) async => LyricsList());
+  return api;
 }
 
 /// Seeds a permanently-downloaded song for backfill tests.
@@ -954,6 +971,103 @@ void main() {
         ),
       ).called(1);
     }, skip: sqliteAvailable ? null : 'sqlite3 not available');
+
+    test(
+      'an empty lyrics lookup is negatively cached and backed off',
+      () async {
+        // Other permanently-cached songs from earlier tests share the
+        // database, so only this song's lookups are counted.
+        var searches = 0;
+        final lrclib = _MockLrclibClient();
+        when(
+          () => lrclib.searchLyrics(
+            artist: any(named: 'artist'),
+            title: any(named: 'title'),
+          ),
+        ).thenAnswer((invocation) async {
+          if (invocation.namedArguments[#title] == 'No Lyrics') searches++;
+          return <LrclibLyrics>[];
+        });
+        when(
+          () => lrclib.getLyrics(
+            artist: any(named: 'artist'),
+            title: any(named: 'title'),
+            album: any(named: 'album'),
+            duration: any(named: 'duration'),
+          ),
+        ).thenAnswer((_) async => null);
+        final api = _lyriclessApiClient();
+        DownloadService serviceWith() => DownloadService(
+          appSettingsDao: database.appSettingsDao,
+          cacheDao: database.cacheDao,
+          downloadQueueDao: database.downloadQueueDao,
+          libraryDao: database.libraryDao,
+          readApiClient: () => api,
+          readWifiOnly: () => false,
+          readIsWifi: () => true,
+          readCustomDownloadFolderEnabled: () => false,
+          readCustomDownloadFolderPath: () => null,
+          readApplicationSupportDirectory: () async => serviceSupportDir,
+          lrclibClient: lrclib,
+          readCoverArtCacheManager: _MockCacheManager.new,
+          artworkStore: _OfflineArtworkStore(),
+        );
+        await _seedPermanentSong(
+          database,
+          id: 'song-empty',
+          title: 'No Lyrics',
+        );
+
+        final service = serviceWith();
+        addTearDown(service.stopAndWait);
+        await service.start();
+        final marker = await _pollLyrics(database, 'song-empty');
+        expect(marker, isNotNull, reason: 'the empty lookup must be recorded');
+        expect(marker!.syncedLyrics, isNull);
+        expect(marker.plainLyrics, isNull);
+        expect(marker.failureCount, 1);
+        expect(marker.lastFailedAt, isNotNull);
+
+        // The next start skips the song: a fresh negative marker is not
+        // re-queried, so starts stop burning the LRCLIB rate budget.
+        final skipService = serviceWith();
+        addTearDown(skipService.stopAndWait);
+        await skipService.start();
+        await Future<void>.delayed(const Duration(milliseconds: 300));
+        expect(searches, 1);
+
+        // Once the backoff window has passed, the song is queried again.
+        await database.libraryDao.upsertExternalLyricsCache(
+          songId: 'song-empty',
+          source: marker.source,
+          failureCount: marker.failureCount,
+          lastFailedAt: DateTime.now().subtract(const Duration(days: 8)),
+        );
+        final retryService = serviceWith();
+        addTearDown(retryService.stopAndWait);
+        await retryService.start();
+        for (var i = 0; i < 40 && searches < 2; i++) {
+          await Future<void>.delayed(const Duration(milliseconds: 50));
+        }
+        expect(searches, 2);
+        // Drift stores timestamps at second granularity, so the re-armed
+        // marker is detected through its incremented failure count.
+        ExternalLyricsCacheTableData? refreshed;
+        for (var i = 0; i < 40; i++) {
+          refreshed = await database.libraryDao.getExternalLyricsCache(
+            'song-empty',
+          );
+          if ((refreshed?.failureCount ?? 0) >= 2) break;
+          await Future<void>.delayed(const Duration(milliseconds: 50));
+        }
+        expect(
+          refreshed!.failureCount,
+          2,
+          reason: 'the retried miss must refresh the marker',
+        );
+      },
+      skip: sqliteAvailable ? null : 'sqlite3 not available',
+    );
 
     test(
       'a running lyrics backfill pass is not started twice concurrently',
