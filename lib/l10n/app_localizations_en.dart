@@ -2447,7 +2447,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get playbackRecoveryWipeConfirmBody =>
-      'This permanently deletes your sign-in, downloaded music, caches, library metadata, and history from this device.';
+      'This permanently deletes your sign-in, downloaded music, caches, library metadata, and history from this device, including playlists and radio stations saved on this device.';
 
   @override
   String get playbackRecoveryWipeConfirmAction => 'Clear Local Data';
@@ -4353,7 +4353,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get serverSettingsSignOutConfirmMessage =>
-      'How would you like to handle your local library data?';
+      'How would you like to handle your local library data? Clearing local data permanently deletes your downloads, caches, library metadata, and history, including playlists and radio stations saved on this device.';
 
   @override
   String get songStatusQueued => 'Queued for download';

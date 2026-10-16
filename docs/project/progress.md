@@ -14,6 +14,39 @@ Last updated: 2026-10-16
 - ACP status values: `backlog`, `ready`, `in_progress`, `blocked`, `done`.
 
 ## Current Focus
+- [x] PR A backend: device radio stations and server station editing —
+  2026-10-16 (`feat/radio-device-stations`; Codex implementation, based on
+  schema-104 commits `ae8d3991` and `5e65e9be`). Added admin lookup and radio
+  mutation endpoints, retry suppression for station creation, registered local
+  station DAO, local/admin providers, and validated local/server save/delete
+  actions. DAO deletion is named `deleteStation(id)` because Drift owns
+  `delete(table)`; the actions API exposes `delete(station, isLocal: ...)`.
+  Both clear-data confirmation paths explicitly mention device playlists and
+  stations. Architecture and the unreleased 1.5.0 changelog are updated.
+  Evidence: `./tool/bootstrap.sh`, `make gen` (existing
+  `json_annotation >=4.12.0` dependency-bound warning), and
+  `flutter gen-l10n` succeeded. Tests were added first and failed on the missing
+  backend APIs; the final capped run passed **78 tests** with
+  `capped.sh 6G "$PWD" flutter test --concurrency=4` over
+  `test/src/api/subsonic_api_client_test.dart`,
+  `test/src/database/daos/local_radio_station_dao_test.dart`,
+  `test/src/features/library/data/radio_station_actions_test.dart`, and
+  `test/src/providers/radio_station_providers_test.dart` (`All tests passed!`,
+  exit 0, peak 2144M, no OOM kills). Coverage includes URL/name rejection,
+  request/response homepage spelling, homepage clearing, unique local UUIDs,
+  reactive ordering/update/delete, local/server routing, error propagation,
+  successful-server-only invalidation, and offline/admin-error fallbacks.
+  `dart format` covers changed Dart files. Targeted `dart analyze` exits 0
+  with only three pre-existing infos outside changed hunks:
+  `avoid_catching_errors` in `navis_database.dart` and two
+  `curly_braces_in_flow_control_structures` in `app_providers.dart`.
+  `dart run tool/dead_code_check.dart` exits 1 for exactly three new test-only
+  declarations: `localRadioStationsProvider`, `serverUserIsAdminProvider`, and
+  `radioStationActionsProvider`; baseline unchanged. Their UI consumers, radio
+  dialogs/widget tests, feature changelog entry, independent PR review, and
+  runtime verification remain for the next step. No PR0 defects found.
+  No app/emulator launch or `./tool/check.sh` was performed, as required by
+  this task's host limits.
 - [x] PR0: schema 104 foundation for device playlists and radio stations —
   2026-10-16 (`feat/schema-104-device-items`; Codex implementation). Added
   guarded 103→104 migration, playlist scope/read-only columns, local station

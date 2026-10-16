@@ -1104,7 +1104,7 @@
   "playbackRecoveryResetConfirmBody": "This permanently deletes your streaming cache, cover art cache, and local library metadata. Downloaded music and your sign-in will be kept.",
   "playbackRecoveryResetConfirmAction": "Reset Cache",
   "playbackRecoveryWipeConfirmTitle": "Sign Out and Clear Local Data?",
-  "playbackRecoveryWipeConfirmBody": "This permanently deletes your sign-in, downloaded music, caches, library metadata, and history from this device.",
+  "playbackRecoveryWipeConfirmBody": "This permanently deletes your sign-in, downloaded music, caches, library metadata, and history from this device, including playlists and radio stations saved on this device.",
   "playbackRecoveryWipeConfirmAction": "Clear Local Data",
   "playbackRecoveryActionFailed": "Could not complete playback recovery. Try again.",
   "playbackRecoverySheetTitle": "Playback Unavailable",
@@ -2050,7 +2050,7 @@
   },
 
   "serverSettingsSignOutConfirmTitle": "Sign Out",
-  "serverSettingsSignOutConfirmMessage": "How would you like to handle your local library data?",
+  "serverSettingsSignOutConfirmMessage": "How would you like to handle your local library data? Clearing local data permanently deletes your downloads, caches, library metadata, and history, including playlists and radio stations saved on this device.",
   "songStatusQueued": "Queued for download",
   "songStatusDownloading": "Downloading…",
   "songStatusCachedTooltip": "Cached — tap to download",

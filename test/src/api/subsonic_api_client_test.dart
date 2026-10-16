@@ -33,6 +33,155 @@ void main() {
   }
 
   group('SubsonicApiClient', () {
+    group('radio administration', () {
+      late SubsonicApiClient client;
+      late List<RequestOptions> requests;
+      var payload = <String, dynamic>{};
+
+      setUp(() {
+        requests = [];
+        payload = {};
+        final dio = Dio();
+        dio.interceptors.add(
+          InterceptorsWrapper(
+            onRequest: (options, handler) {
+              requests.add(options);
+              handler.resolve(
+                Response<dynamic>(
+                  requestOptions: options,
+                  statusCode: 200,
+                  data: ok(payload),
+                ),
+              );
+            },
+          ),
+        );
+        client = createClient(dio: dio);
+      });
+
+      for (final role in <Object?>[true, false, null, 'true']) {
+        test('adminRole $role grants only explicit true', () async {
+          payload = {
+            'user': {'adminRole': ?role},
+          };
+          expect(await client.getUserIsAdmin('alice'), role == true);
+          expect(requests.single.path, '/rest/getUser.view');
+          expect(requests.single.queryParameters['username'], 'alice');
+        });
+      }
+
+      test('missing user is not an admin', () async {
+        expect(await client.getUserIsAdmin('alice'), isFalse);
+      });
+
+      test('create uses homepageUrl and disables retries', () async {
+        await client.createInternetRadioStation(
+          name: 'Station',
+          streamUrl: 'https://radio.example/stream',
+          homepageUrl: 'https://radio.example',
+        );
+        final request = requests.single;
+        expect(request.path, '/rest/createInternetRadioStation.view');
+        expect(request.queryParameters, containsPair('name', 'Station'));
+        expect(
+          request.queryParameters,
+          containsPair('streamUrl', 'https://radio.example/stream'),
+        );
+        expect(
+          request.queryParameters,
+          containsPair('homepageUrl', 'https://radio.example'),
+        );
+        expect(request.queryParameters, isNot(contains('homePageUrl')));
+        expect(request.extra['navisDisableRetry'], isTrue);
+      });
+
+      test('create omits an absent homepage', () async {
+        await client.createInternetRadioStation(
+          name: 'Station',
+          streamUrl: 'https://radio.example/stream',
+        );
+        expect(requests.single.queryParameters, isNot(contains('homepageUrl')));
+      });
+
+      test(
+        'update sends all fields and an empty homepageUrl to clear',
+        () async {
+          for (final homepage in <String?>['https://radio.example', null, '']) {
+            await client.updateInternetRadioStation(
+              id: 'r1',
+              name: 'Renamed',
+              streamUrl: 'https://radio.example/new',
+              homepageUrl: homepage,
+            );
+            final request = requests.last;
+            expect(request.path, '/rest/updateInternetRadioStation.view');
+            expect(request.queryParameters, containsPair('id', 'r1'));
+            expect(request.queryParameters, containsPair('name', 'Renamed'));
+            expect(
+              request.queryParameters,
+              containsPair('streamUrl', 'https://radio.example/new'),
+            );
+            expect(
+              request.queryParameters,
+              containsPair('homepageUrl', homepage ?? ''),
+            );
+            expect(request.queryParameters, isNot(contains('homePageUrl')));
+          }
+        },
+      );
+
+      test('delete sends the station id', () async {
+        await client.deleteInternetRadioStation('r1');
+        expect(requests.single.path, '/rest/deleteInternetRadioStation.view');
+        expect(requests.single.queryParameters, containsPair('id', 'r1'));
+      });
+
+      test('response parses homePageUrl', () async {
+        payload = {
+          'internetRadioStations': {
+            'internetRadioStation': [
+              {
+                'id': 'r1',
+                'name': 'Station',
+                'streamUrl': 'https://radio.example/stream',
+                'homePageUrl': 'https://radio.example',
+              },
+            ],
+          },
+        };
+        expect(
+          (await client.getInternetRadioStations()).single.homePageUrl,
+          'https://radio.example',
+        );
+      });
+
+      test('mutations propagate Subsonic permission errors', () async {
+        payload = {
+          'status': 'failed',
+          'error': {'code': 50, 'message': 'Permission denied'},
+        };
+        await expectLater(
+          client.createInternetRadioStation(
+            name: 'Station',
+            streamUrl: 'https://radio.example/stream',
+          ),
+          throwsA(isA<SubsonicException>()),
+        );
+        await expectLater(
+          client.updateInternetRadioStation(
+            id: 'r1',
+            name: 'Station',
+            streamUrl: 'https://radio.example/stream',
+          ),
+          throwsA(isA<SubsonicException>()),
+        );
+        await expectLater(
+          client.deleteInternetRadioStation('r1'),
+          throwsA(isA<SubsonicException>()),
+        );
+      });
+    });
+
     test(
       'parses the typed scan status node with an optional lastScan',
       () async {

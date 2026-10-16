@@ -6045,8 +6045,23 @@ songs, retaining their parent metadata. Confirmed server absence and provisional
 metadata garbage collection already treat all playlist entries as owned
 references; song identity remapping updates every ordered occurrence.
 `ServerDataResetService` deletes all playlist entries, playlist headers and
-device stations together. The clear-data confirmation copy will explicitly
-mention device playlists and stations when the radio UI ships.
+device stations together. Both settings sign-out and playback-recovery clear-data
+confirmations explicitly include device playlists and stations.
+
+The radio backend exposes device stations through `LocalRadioStationDao` and
+`localRadioStationsProvider`, mapping the rows to the existing
+`InternetRadioStation` model. Inserts generate `local:<uuid>` IDs; the live list
+sorts names without case sensitivity. `RadioStationActions` owns local/server
+save and delete routing, trims names and URLs, requires a non-empty name, and
+accepts only absolute HTTP(S) stream/homepage URLs with a host. Empty homepages
+clear the stored value. Local edits leave playback and the server list alone;
+successful server mutations invalidate `radioStationsProvider` and failures
+propagate to the caller. Server creation disables transport retries to avoid
+duplicate stations. Requests spell the homepage parameter `homepageUrl`, while
+responses use `homePageUrl`. `serverUserIsAdminProvider` checks the connected
+username through `getUser.adminRole`; no connection or any lookup failure yields
+false, with lookup failures logged at info level without request details.
+The radio editing UI remains a follow-up.
 
 Incremental artist metadata and its traversal cursor commit together before
 track hydration. A budget interruption retains completed artists and requeues

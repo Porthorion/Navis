@@ -3830,7 +3830,7 @@ abstract class AppLocalizations {
   /// No description provided for @playbackRecoveryWipeConfirmBody.
   ///
   /// In en, this message translates to:
-  /// **'This permanently deletes your sign-in, downloaded music, caches, library metadata, and history from this device.'**
+  /// **'This permanently deletes your sign-in, downloaded music, caches, library metadata, and history from this device, including playlists and radio stations saved on this device.'**
   String get playbackRecoveryWipeConfirmBody;
 
   /// No description provided for @playbackRecoveryWipeConfirmAction.
@@ -6926,7 +6926,7 @@ abstract class AppLocalizations {
   /// No description provided for @serverSettingsSignOutConfirmMessage.
   ///
   /// In en, this message translates to:
-  /// **'How would you like to handle your local library data?'**
+  /// **'How would you like to handle your local library data? Clearing local data permanently deletes your downloads, caches, library metadata, and history, including playlists and radio stations saved on this device.'**
   String get serverSettingsSignOutConfirmMessage;
 
   /// No description provided for @songStatusQueued.
