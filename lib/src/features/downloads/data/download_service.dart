@@ -2643,7 +2643,7 @@ class DownloadService {
         'DownloadService: Lyrics prefetch resolved ${resolution.source.name} '
         'for $songId',
       );
-      if (!hasAnyLyrics(resolution.lyrics) && !_lrclibClient.isRateLimited) {
+      if (resolution.confirmedMiss && !_lrclibClient.isRateLimited) {
         // Remember the miss so repeated starts stop re-querying a song the
         // sources have no lyrics for; the backfill retries after a week.
         final existing = await _libraryDao.getExternalLyricsCache(songId);

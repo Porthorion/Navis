@@ -11,6 +11,7 @@ import 'package:navis/src/api/lrclib_client.dart';
 import 'package:navis/src/api/models/models.dart';
 import 'package:navis/src/api/subsonic_api_client.dart';
 import 'package:navis/src/api/subsonic_auth_interceptor.dart';
+import 'package:navis/src/api/subsonic_error.dart';
 import 'package:navis/src/common_widgets/cover_art_cache_manager.dart';
 import 'package:navis/src/database/daos/app_settings_dao.dart';
 import 'package:navis/src/database/navis_database.dart';
@@ -971,6 +972,99 @@ void main() {
         ),
       ).called(1);
     }, skip: sqliteAvailable ? null : 'sqlite3 not available');
+
+    for (final failure in [
+      'LRCLIB transport',
+      'server connection',
+      'server API',
+      'legacy connection',
+      'none',
+    ]) {
+      test('lyrics backfill confirms misses after $failure result', () async {
+        final lrclib = _MockLrclibClient();
+        when(
+          () => lrclib.searchLyrics(
+            artist: any(named: 'artist'),
+            title: any(named: 'title'),
+          ),
+        ).thenAnswer((_) async {
+          if (failure == 'LRCLIB transport') {
+            throw DioException(
+              requestOptions: RequestOptions(),
+              type: DioExceptionType.connectionError,
+            );
+          }
+          return <LrclibLyrics>[];
+        });
+        when(
+          () => lrclib.getLyrics(
+            artist: any(named: 'artist'),
+            title: any(named: 'title'),
+            album: any(named: 'album'),
+            duration: any(named: 'duration'),
+          ),
+        ).thenAnswer((_) async => null);
+        final api = _MockSubsonicApiClient();
+        when(() => api.getLyricsBySongId(any())).thenAnswer((_) async {
+          if (failure == 'server connection') {
+            throw const SubsonicConnectionException('offline');
+          }
+          if (failure == 'server API') {
+            throw const SubsonicGenericException(
+              code: 0,
+              message: 'server unavailable',
+            );
+          }
+          return const LyricsList();
+        });
+        final legacyReached = Completer<void>();
+        when(
+          () => api.getLyrics(
+            artist: any(named: 'artist'),
+            title: any(named: 'title'),
+          ),
+        ).thenAnswer((_) async {
+          legacyReached.complete();
+          if (failure == 'legacy connection') {
+            throw const SubsonicConnectionException('offline');
+          }
+          return const LyricsList();
+        });
+        final backfill = DownloadService(
+          appSettingsDao: database.appSettingsDao,
+          cacheDao: database.cacheDao,
+          downloadQueueDao: database.downloadQueueDao,
+          libraryDao: database.libraryDao,
+          readApiClient: () => api,
+          readWifiOnly: () => false,
+          readIsWifi: () => true,
+          readCustomDownloadFolderEnabled: () => false,
+          readCustomDownloadFolderPath: () => null,
+          readApplicationSupportDirectory: () async => serviceSupportDir,
+          lrclibClient: lrclib,
+          readCoverArtCacheManager: _MockCacheManager.new,
+          artworkStore: _OfflineArtworkStore(),
+        );
+        addTearDown(backfill.stopAndWait);
+        await _seedPermanentSong(database, id: 'song-miss', title: 'No Lyrics');
+        await backfill.start();
+        await legacyReached.future.timeout(const Duration(seconds: 3));
+        await backfill.stopAndWait();
+        final marker = await database.libraryDao.getExternalLyricsCache(
+          'song-miss',
+        );
+        if (failure == 'none') {
+          expect(marker?.failureCount, 1);
+          expect(marker?.lastFailedAt, isNotNull);
+        } else {
+          expect(
+            marker,
+            isNull,
+            reason: 'a failed lookup is not a confirmed miss',
+          );
+        }
+      }, skip: !sqliteAvailable);
+    }
 
     test(
       'an empty lyrics lookup is negatively cached and backed off',
