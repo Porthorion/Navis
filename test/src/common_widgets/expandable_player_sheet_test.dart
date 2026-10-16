@@ -10,8 +10,10 @@ class _SheetHarness extends StatefulWidget {
     required this.collapseCalls,
     required this.progress,
     this.bottomInset = 0,
+    this.onDragStart,
   });
 
+  final VoidCallback? onDragStart;
   final double bottomInset;
   final ValueNotifier<int> expandCalls;
   final ValueNotifier<int> collapseCalls;
@@ -49,6 +51,7 @@ class _SheetHarnessState extends State<_SheetHarness> {
                 child: ExpandablePlayerSheet(
                   isExpanded: _expanded,
                   bottomInset: widget.bottomInset,
+                  onDragStart: widget.onDragStart,
                   onExpand: () {
                     widget.expandCalls.value += 1;
                   },
@@ -285,6 +288,34 @@ void main() {
       await tester.pumpAndSettle();
       expect(rig.progress.value, closeTo(1, 0.01));
       expect(rig.expandCalls.value, 1);
+    });
+
+    testWidgets('onDragStart fires once per drag, before any callback', (
+      tester,
+    ) async {
+      final rig = _Rig();
+      var dragStarts = 0;
+      await tester.pumpWidget(
+        _SheetHarness(
+          expandCalls: rig.expandCalls,
+          collapseCalls: rig.collapseCalls,
+          progress: rig.progress,
+          onDragStart: () => dragStarts++,
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      final gesture = await tester.startGesture(
+        tester.getCenter(find.byKey(const Key('mini-player'))),
+      );
+      await gesture.moveBy(const Offset(0, -100));
+      await gesture.moveBy(const Offset(0, -20));
+      await tester.pump();
+      expect(dragStarts, 1);
+      expect(rig.expandCalls.value, 0);
+
+      await gesture.up();
+      await tester.pumpAndSettle();
     });
 
     testWidgets('a short drag snaps back without calling onExpand', (

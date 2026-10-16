@@ -5,6 +5,8 @@ import 'dart:ui' show SemanticsAction;
 import 'package:audio_service/audio_service.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:flutter/gestures.dart';
+import 'package:flutter/foundation.dart' show debugPrint, describeIdentity;
+import 'package:flutter/rendering.dart' show debugPrintLayouts;
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -2425,6 +2427,133 @@ void main() {
       matchesGoldenFile('goldens/phone_mini_player_strip_390x844.png'),
     );
     await tester.pump(const Duration(milliseconds: 201));
+  });
+
+  testWidgets(
+    'animating the player sheet never re-lays out the page behind it',
+    (tester) async {
+      tester.view.devicePixelRatio = 1;
+      tester.view.physicalSize = const Size(390, 844);
+      addTearDown(() {
+        tester.view.resetPhysicalSize();
+        tester.view.resetDevicePixelRatio();
+      });
+
+      final container = _createContainerWithDatabase(
+        overrides: _authenticatedShellOverrides(),
+      );
+
+      await tester.pumpWidget(
+        UncontrolledProviderScope(container: container, child: testNavisApp),
+      );
+      await tester.pumpAndSettle();
+
+      final page = tester.renderObject(find.byType(HomeScreen));
+      final pageId = describeIdentity(page);
+      final navBarHeight = tester.getSize(find.byType(NavigationBar)).height;
+      final bodyHeight = tester.getSize(find.byType(HomeScreen)).height;
+
+      final layouts = <String>[];
+      final originalDebugPrint = debugPrint;
+      debugPrint = (message, {wrapWidth}) {
+        if (message != null && message.contains('Laying out')) {
+          layouts.add(message);
+        }
+      };
+      debugPrintLayouts = true;
+
+      Future<void> animate(VoidCallback trigger) async {
+        layouts.clear();
+        trigger();
+        var frames = 0;
+        do {
+          await tester.pump(const Duration(milliseconds: 16));
+          // The nav bar keeps its layout size; it only moves and fades.
+          expect(
+            tester.getSize(find.byType(NavigationBar)).height,
+            navBarHeight,
+          );
+          expect(tester.getSize(find.byType(HomeScreen)).height, bodyHeight);
+        } while (tester.binding.hasScheduledFrame && ++frames < 40);
+        expect(frames, greaterThan(3), reason: 'the sheet should animate');
+        // The sheet itself is laid out every tick, so the probe is live.
+        expect(layouts, isNotEmpty);
+        expect(
+          layouts.where((line) => line.contains(pageId)),
+          isEmpty,
+          reason: 'the page re-laid out while the sheet animated',
+        );
+      }
+
+      try {
+        await animate(
+          container.read(playerOverlayStackProvider.notifier).expand,
+        );
+        await animate(
+          container.read(playerOverlayStackProvider.notifier).collapse,
+        );
+      } finally {
+        debugPrintLayouts = false;
+        debugPrint = originalDebugPrint;
+      }
+    },
+  );
+
+  testWidgets('expanded phone player covers the whole screen and the nav bar '
+      'only fades away', (tester) async {
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(390, 844);
+    addTearDown(() {
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+    });
+
+    final container = _createContainerWithDatabase(
+      overrides: _authenticatedShellOverrides(),
+    );
+
+    await tester.pumpWidget(
+      UncontrolledProviderScope(container: container, child: testNavisApp),
+    );
+    await tester.pumpAndSettle();
+
+    double navBarOpacity() => tester
+        .widget<Opacity>(
+          find
+              .ancestor(
+                of: find.byType(NavigationBar),
+                matching: find.byType(Opacity),
+              )
+              .first,
+        )
+        .opacity;
+    final navBarSize = tester.getSize(find.byType(NavigationBar));
+    expect(navBarOpacity(), 1);
+
+    container.read(playerOverlayStackProvider.notifier).expand();
+    await tester.pumpAndSettle();
+
+    expect(
+      tester.getRect(find.byType(NowPlayingScreen)),
+      const Rect.fromLTWH(0, 0, 390, 844),
+    );
+    expect(navBarOpacity(), 0);
+    expect(tester.getSize(find.byType(NavigationBar)), navBarSize);
+    expect(
+      find.ancestor(
+        of: find.byType(NavigationBar),
+        matching: find.byWidgetPredicate(
+          (widget) => widget is IgnorePointer && widget.ignoring,
+        ),
+      ),
+      findsOneWidget,
+    );
+
+    container.read(playerOverlayStackProvider.notifier).collapse();
+    await tester.pumpAndSettle();
+
+    expect(navBarOpacity(), 1);
+    expect(tester.getSize(find.byType(NavigationBar)), navBarSize);
   });
 
   testWidgets('expanded player uses bottom-sheet mode on phone', (
