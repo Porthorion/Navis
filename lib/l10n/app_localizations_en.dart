@@ -3540,6 +3540,11 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
+  String appearanceLooksCustomEdited(String name) {
+    return 'Custom · edited from $name';
+  }
+
+  @override
   String get appearancePresetCustom => 'Custom';
 
   @override

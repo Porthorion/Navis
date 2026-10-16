@@ -51,23 +51,7 @@ void main() {
     addTearDown(notices.dispose);
   });
 
-  /// The option alone, or the whole Appearance screen when [screen] is set.
-  Future<void> pump(
-    WidgetTester tester, {
-    bool screen = false,
-    Set<SetupHighlight> highlights = const <SetupHighlight>{},
-    Future<void> Function()? seed,
-  }) async {
-    setAdaptiveTestViewport(
-      tester,
-      screen ? const Size(390, 1500) : const Size(390, 400),
-    );
-    database = createTestDatabase();
-    await tester.runAsync(() async {
-      await database.appSettingsDao.getSettings();
-      await database.appSettingsDao.updateColorStyle('pastel');
-      await database.appSettingsDao.updateThemeMode('dark');
-    });
+  void openContainer(Set<SetupHighlight> highlights) {
     container = ProviderContainer(
       overrides: withTestDatabase(
         database,
@@ -87,57 +71,97 @@ void main() {
         ],
       ),
     );
+  }
+
+  Widget app({required bool screen}) => UncontrolledProviderScope(
+    container: container,
+    child: MaterialApp(
+      debugShowCheckedModeBanner: false,
+      localizationsDelegates: navisLocalizationsDelegates,
+      supportedLocales: AppLocalizations.supportedLocales,
+      builder: (context, child) => AppNoticeScope(
+        notifier: notices,
+        child: Material(
+          type: MaterialType.transparency,
+          child: Stack(
+            fit: StackFit.expand,
+            children: <Widget>[
+              child!,
+              AppNoticeHost(controller: notices),
+            ],
+          ),
+        ),
+      ),
+      theme: buildDarkTheme(
+        resolveColorSchemeSeedColor(null),
+        style: NavisColorStyle.pastel,
+      ),
+      home: screen
+          ? const AppearanceSettingsScreen()
+          : Scaffold(
+              body: Align(
+                alignment: Alignment.topCenter,
+                child: RepaintBoundary(
+                  key: const ValueKey<String>('looksShot'),
+                  child: Builder(
+                    builder: (context) => ColoredBox(
+                      color: Theme.of(context).colorScheme.surface,
+                      child: const AppearanceLooksOption(),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+    ),
+  );
+
+  Future<void> settleFirstFrame(WidgetTester tester) async {
+    await tester.pump();
+    await tester.runAsync(() => Future<void>.delayed(Duration.zero));
+    await tester.pump(const Duration(milliseconds: 500));
+  }
+
+  /// The option alone, or the whole Appearance screen when [screen] is set.
+  Future<void> pump(
+    WidgetTester tester, {
+    bool screen = false,
+    Set<SetupHighlight> highlights = const <SetupHighlight>{},
+    Future<void> Function()? seed,
+  }) async {
+    setAdaptiveTestViewport(
+      tester,
+      screen ? const Size(390, 1500) : const Size(390, 400),
+    );
+    database = createTestDatabase();
+    await tester.runAsync(() async {
+      await database.appSettingsDao.getSettings();
+      await database.appSettingsDao.updateColorStyle('pastel');
+      await database.appSettingsDao.updateThemeMode('dark');
+    });
+    openContainer(highlights);
     addTearDown(() async {
       container.dispose();
       await database.close();
     });
     if (seed != null) await tester.runAsync(seed);
-    await tester.pumpWidget(
-      UncontrolledProviderScope(
-        container: container,
-        child: MaterialApp(
-          debugShowCheckedModeBanner: false,
-          localizationsDelegates: navisLocalizationsDelegates,
-          supportedLocales: AppLocalizations.supportedLocales,
-          builder: (context, child) => AppNoticeScope(
-            notifier: notices,
-            child: Material(
-              type: MaterialType.transparency,
-              child: Stack(
-                fit: StackFit.expand,
-                children: <Widget>[
-                  child!,
-                  AppNoticeHost(controller: notices),
-                ],
-              ),
-            ),
-          ),
-          theme: buildDarkTheme(
-            resolveColorSchemeSeedColor(null),
-            style: NavisColorStyle.pastel,
-          ),
-          home: screen
-              ? const AppearanceSettingsScreen()
-              : Scaffold(
-                  body: Align(
-                    alignment: Alignment.topCenter,
-                    child: RepaintBoundary(
-                      key: const ValueKey<String>('looksShot'),
-                      child: Builder(
-                        builder: (context) => ColoredBox(
-                          color: Theme.of(context).colorScheme.surface,
-                          child: const AppearanceLooksOption(),
-                        ),
-                      ),
-                    ),
-                  ),
-                ),
-        ),
-      ),
-    );
-    await tester.pump();
-    await tester.runAsync(() => Future<void>.delayed(Duration.zero));
-    await tester.pump(const Duration(milliseconds: 500));
+    await tester.pumpWidget(app(screen: screen));
+    await settleFirstFrame(tester);
+  }
+
+  /// A fresh provider container over the same database, as after a restart.
+  Future<void> restart(WidgetTester tester, {bool screen = false}) async {
+    await tester.pumpWidget(const SizedBox());
+    container.dispose();
+    openContainer(const <SetupHighlight>{});
+    await tester.pumpWidget(app(screen: screen));
+    await settleFirstFrame(tester);
+  }
+
+  /// Leaves the page and comes back to it with the same container.
+  Future<void> reenter(WidgetTester tester, {bool screen = false}) async {
+    await tester.pumpWidget(const SizedBox());
+    await tester.pumpWidget(app(screen: screen));
+    await settleFirstFrame(tester);
   }
 
   Future<void> settleWrites(WidgetTester tester) async {
@@ -188,6 +212,9 @@ void main() {
 
   final dropdown = find.byKey(const ValueKey<String>('appearanceLookDropdown'));
   final input = find.byKey(const ValueKey<String>('appearanceLookNameInput'));
+
+  /// The picker's text for values changed away from the Look [name].
+  String edited(String name) => 'Custom · edited from $name';
 
   String pickerText(WidgetTester tester) => tester
       .widget<TextField>(
@@ -334,7 +361,7 @@ void main() {
         () => database.appSettingsDao.updateCornerStyle('rounded'),
         () => database.appSettingsDao.updateColorTuning(ColorTuning.none),
       ]);
-      expect(pickerText(tester), 'Custom');
+      expect(pickerText(tester), edited('Crisp'));
       expect(looks().selectedLookId, isNull);
 
       await chooseLook(tester, 'Crisp');
@@ -367,7 +394,7 @@ void main() {
             const ColorTuning(vividness: -3, lightDepth: 1),
           ),
         ]);
-        expect(pickerText(tester), 'Custom');
+        expect(pickerText(tester), edited('Crisp'));
         return AppearanceSnapshot.capture(
           container.read(appSettingsProvider).requireValue,
         );
@@ -412,7 +439,7 @@ void main() {
           settings.colorTuning,
           const ColorTuning(vividness: -3, lightDepth: 1),
         );
-        expect(pickerText(tester), 'Custom');
+        expect(pickerText(tester), edited('Crisp'));
         expect(looks().selectedLookId, isNull);
         expect(find.text('Undo'), findsNothing);
       });
@@ -453,7 +480,7 @@ void main() {
       await change(tester, [
         () => database.appSettingsDao.updateCornerStyle('square'),
       ]);
-      expect(pickerText(tester), 'Custom');
+      expect(pickerText(tester), edited('Evening'));
     });
 
     testWidgets('Update saves the current appearance over the Look it came '
@@ -463,13 +490,124 @@ void main() {
       await change(tester, [
         () => database.appSettingsDao.updateCornerStyle('square'),
       ]);
-      expect(pickerText(tester), 'Custom');
+      expect(pickerText(tester), edited('Evening'));
 
       await menu(tester, 'Update');
       await settleWrites(tester);
       await tester.pumpAndSettle();
       expect(pickerText(tester), 'Evening');
       expect(looks().looks.single.snapshot.cornerStyle, 'square');
+    });
+
+    group('Custom keeps the Look it came from', () {
+      /// Evening saved, then the corners changed: Custom, edited from Evening.
+      Future<void> editedFromEvening(WidgetTester tester) async {
+        await pump(tester);
+        await saveLook(tester, 'Evening');
+        await change(tester, [
+          () => database.appSettingsDao.updateCornerStyle('square'),
+        ]);
+        expect(pickerText(tester), edited('Evening'));
+      }
+
+      Future<void> expectUpdateOffered(WidgetTester tester, String name) async {
+        await tester.tap(
+          find.byKey(const ValueKey<String>('appearanceLookActions')),
+        );
+        await tester.pumpAndSettle();
+        expect(find.text('Update “$name”'), findsOneWidget);
+        await tester.tapAt(const Offset(5, 395));
+        await tester.pumpAndSettle();
+      }
+
+      testWidgets('Update is still offered after leaving and re-entering', (
+        tester,
+      ) async {
+        await editedFromEvening(tester);
+        await reenter(tester);
+        expect(pickerText(tester), edited('Evening'));
+        await expectUpdateOffered(tester, 'Evening');
+
+        await menu(tester, 'Update');
+        await settleWrites(tester);
+        await tester.pumpAndSettle();
+        expect(pickerText(tester), 'Evening');
+        expect(looks().looks.single.snapshot.cornerStyle, 'square');
+      });
+
+      testWidgets('Update is still offered after a restart', (tester) async {
+        await editedFromEvening(tester);
+        await restart(tester);
+        expect(pickerText(tester), edited('Evening'));
+        await menu(tester, 'Update');
+        await settleWrites(tester);
+        await tester.pumpAndSettle();
+        expect(pickerText(tester), 'Evening');
+      });
+
+      testWidgets('Rename and Delete act on that Look', (tester) async {
+        await editedFromEvening(tester);
+        await menu(tester, 'Rename');
+        expect(await submitName(tester, 'Night Drive'), isNull);
+        expect(looks().looks.single.name, 'Night Drive');
+        expect(pickerText(tester), edited('Night Drive'));
+        await expectUpdateOffered(tester, 'Night Drive');
+
+        await menu(tester, 'Delete');
+        await tester.tap(
+          find.byKey(const ValueKey<String>('appearanceLookDeleteConfirm')),
+        );
+        await tester.pump();
+        await settleWrites(tester);
+        await tester.pumpAndSettle();
+        expect(looks().looks, isEmpty);
+        expect(pickerText(tester), 'Custom');
+      });
+
+      testWidgets('saving as a new Look makes that Look the origin', (
+        tester,
+      ) async {
+        await editedFromEvening(tester);
+        await saveLook(tester, 'Crisp');
+        expect(pickerText(tester), 'Crisp');
+        await change(tester, [
+          () => database.appSettingsDao.updateDensity(NavisDensity.compact),
+        ]);
+        expect(pickerText(tester), edited('Crisp'));
+        await expectUpdateOffered(tester, 'Crisp');
+      });
+
+      testWidgets('Undo back to Custom keeps the origin', (tester) async {
+        await editedFromEvening(tester);
+        await saveLook(tester, 'Crisp');
+        await chooseLook(tester, 'Evening', keepNotice: true);
+        expect(pickerText(tester), 'Evening');
+        await change(tester, [
+          () => database.appSettingsDao.updateDensity(NavisDensity.compact),
+        ]);
+        await chooseLook(tester, 'Crisp', keepNotice: true);
+        await tester.tap(find.text('Undo'));
+        await tester.pump();
+        await settleWrites(tester);
+        await tester.pumpAndSettle();
+        expect(pickerText(tester), edited('Evening'));
+        await expectUpdateOffered(tester, 'Evening');
+      });
+
+      testWidgets('a Look that no longer exists is not an origin', (
+        tester,
+      ) async {
+        await editedFromEvening(tester);
+        await tester.runAsync(
+          () => database.appSettingsDao.updateAppearanceLooks(
+            selectedLookId: 'gone',
+            looksJson: '[]',
+          ),
+        );
+        await settleWrites(tester);
+        await tester.pumpAndSettle();
+        expect(pickerText(tester), 'Custom');
+      });
     });
 
     testWidgets('Rename keeps the snapshot and validates the name', (

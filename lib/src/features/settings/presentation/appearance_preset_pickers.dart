@@ -26,13 +26,14 @@ String presetFailureMessage(
 /// Shared wording for saved Looks.
 PresetPickerLabels _labels(
   AppLocalizations l10n, {
+  required String custom,
   required String picker,
   required String actions,
   required String saveNew,
   required String nameField,
 }) => PresetPickerLabels(
   picker: picker,
-  custom: l10n.appearancePresetCustom,
+  custom: custom,
   actions: actions,
   saveNew: saveNew,
   update: l10n.appearancePresetUpdateNamed,
@@ -46,41 +47,19 @@ PresetPickerLabels _labels(
   deleteAction: l10n.commonDelete,
 );
 
-/// The preset a menu's Update, Rename and Delete act on.
-///
-/// Update is offered while the values are Custom and came from [origin];
-/// Rename and Delete act on the chosen preset, else on that origin.
-({String? update, String? manage}) _targets({
-  required String? selected,
-  required String? origin,
-  required Set<String> known,
-}) {
-  final chosen = known.contains(selected) ? selected : null;
-  final edited = selected == null && known.contains(origin) ? origin : null;
-  return (update: edited, manage: chosen ?? edited);
-}
-
 /// Looks: saved snapshots of the whole appearance, at the top of Appearance
 /// settings, acting through [AppearanceLooksController]. Choosing a Look
 /// applies it.
 ///
 /// With no Looks the picker reads Custom (the current appearance) and its menu
-/// offers the first save, which the subtitle points to.
-class AppearanceLooksOption extends ConsumerStatefulWidget {
+/// offers the first save, which the subtitle points to. A changed appearance
+/// reads "Custom · edited from <Look>" and Update saves over that Look, which
+/// is the stored selection, so it survives leaving the page and restarts.
+class AppearanceLooksOption extends ConsumerWidget {
   const new({super.key});
 
-  @override
-  ConsumerState<AppearanceLooksOption> createState() =>
-      _AppearanceLooksOptionState();
-}
-
-class _AppearanceLooksOptionState extends ConsumerState<AppearanceLooksOption> {
-  /// The Look the appearance was last on, so Update can save over it after
-  /// something changed.
-  String? _origin;
-
-  void _notice(PresetFailure? failure) {
-    if (failure == null || !mounted) return;
+  void _notice(BuildContext context, PresetFailure? failure) {
+    if (failure == null || !context.mounted) return;
     showAppNotice(
       context,
       message: presetFailureMessage(
@@ -93,17 +72,15 @@ class _AppearanceLooksOptionState extends ConsumerState<AppearanceLooksOption> {
   }
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final l10n = AppLocalizations.of(context)!;
     final state = ref.watch(appearanceLooksControllerProvider);
     final controller = ref.read(appearanceLooksControllerProvider.notifier);
     final selected = state.selectedLookId;
-    if (selected != null) _origin = selected;
-    final targets = _targets(
-      selected: selected,
-      origin: _origin,
-      known: {for (final look in state.looks) look.id},
-    );
+    final origin = state.originLookId;
+    final originName = selected == null
+        ? state.looks.where((look) => look.id == origin).firstOrNull?.name
+        : null;
     return HighlightedAppearanceOption(
       highlight: SetupHighlight.appearanceLooks,
       builder: (context, adornment) => AppearanceChoiceSection(
@@ -120,10 +97,13 @@ class _AppearanceLooksOptionState extends ConsumerState<AppearanceLooksOption> {
             for (final look in state.looks)
               PresetPickerEntry(id: look.id, label: look.name),
           ],
-          updateId: targets.update,
-          manageId: targets.manage,
+          updateId: selected == null ? origin : null,
+          manageId: selected ?? origin,
           labels: _labels(
             l10n,
+            custom: originName == null
+                ? l10n.appearancePresetCustom
+                : l10n.appearanceLooksCustomEdited(originName),
             picker: l10n.appearanceLooksPicker,
             actions: l10n.appearanceLooksActions,
             saveNew: l10n.appearanceLooksSaveNew,
@@ -135,14 +115,17 @@ class _AppearanceLooksOptionState extends ConsumerState<AppearanceLooksOption> {
                 .firstOrNull
                 ?.name;
             final previous = await controller.apply(id);
-            if (previous == null) return _notice(PresetFailure.persistence);
+            if (previous == null) {
+              return _notice(context, PresetFailure.persistence);
+            }
             if (name == null || !context.mounted) return;
             showAppNotice(
               context,
               message: l10n.appearanceLooksApplied(name),
               duration: const Duration(seconds: 6),
               actionLabel: l10n.commonUndo,
-              onAction: () async => _notice(await controller.restore(previous)),
+              onAction: () async =>
+                  _notice(context, await controller.restore(previous)),
             );
           },
           onSaveNew: (name) async {
@@ -151,14 +134,14 @@ class _AppearanceLooksOptionState extends ConsumerState<AppearanceLooksOption> {
                 ? null
                 : presetFailureMessage(l10n, failure, look: true);
           },
-          onUpdate: (id) async => _notice(await controller.update(id)),
+          onUpdate: (id) async => _notice(context, await controller.update(id)),
           onRename: (id, name) async {
             final failure = await controller.rename(id, name);
             return failure == null
                 ? null
                 : presetFailureMessage(l10n, failure, look: true);
           },
-          onDelete: (id) async => _notice(await controller.delete(id)),
+          onDelete: (id) async => _notice(context, await controller.delete(id)),
         ),
       ),
     );

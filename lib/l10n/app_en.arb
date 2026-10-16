@@ -1630,6 +1630,12 @@
       "name": {"type": "String"}
     }
   },
+  "appearanceLooksCustomEdited": "Custom · edited from {name}",
+  "@appearanceLooksCustomEdited": {
+    "placeholders": {
+      "name": {"type": "String"}
+    }
+  },
   "appearancePresetCustom": "Custom",
   "appearancePresetUpdateNamed": "Update “{name}”",
   "@appearancePresetUpdateNamed": {

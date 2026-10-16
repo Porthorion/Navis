@@ -285,6 +285,18 @@ String? matchingAppearanceLookId(AppSettingsModel settings, {String? prefer}) {
   return looks.where((look) => look.snapshot == current).firstOrNull?.id;
 }
 
+/// The Look to store as selected: the one the appearance is on, else the one
+/// it was last on ([prefer], else the stored selection) while it still exists.
+/// A changed (Custom) appearance keeps that origin so Update has its target.
+String? storedAppearanceLookId(AppSettingsModel settings, {String? prefer}) {
+  final matching = matchingAppearanceLookId(settings, prefer: prefer);
+  if (matching != null) return matching;
+  final chosen = prefer ?? settings.selectedAppearanceLookId;
+  return settings.appearanceLooks.any((look) => look.id == chosen)
+      ? chosen
+      : null;
+}
+
 List<AppearanceLook> decodeAppearanceLooks(String raw) => _decodePresets(
   raw,
   AppearanceLook.fromJson,

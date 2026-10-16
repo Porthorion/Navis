@@ -5585,6 +5585,12 @@ abstract class AppLocalizations {
   /// **'Applied {name}'**
   String appearanceLooksApplied(String name);
 
+  /// No description provided for @appearanceLooksCustomEdited.
+  ///
+  /// In en, this message translates to:
+  /// **'Custom · edited from {name}'**
+  String appearanceLooksCustomEdited(String name);
+
   /// No description provided for @appearancePresetCustom.
   ///
   /// In en, this message translates to:
