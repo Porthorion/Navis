@@ -264,6 +264,29 @@ void main() {
     // enqueuePlaylist
     // -----------------------------------------------------------------------
 
+    test(
+      'device playlist songs enqueue offline with local ownership',
+      () async {
+        await database.libraryDao.upsertSongs([
+          SongsTableCompanion.insert(id: 'a', title: 'A'),
+          SongsTableCompanion.insert(id: 'b', title: 'B'),
+        ]);
+        final id = await database.playlistDao.createLocalPlaylist('Device', [
+          'a',
+          'b',
+        ]);
+        final songs = await database.playlistDao.watchPlaylistSongs(id).first;
+        expect(
+          await service.enqueuePlaylist(id, songs.map((s) => s.id).toList()),
+          songs.length,
+        );
+        final queued = await database.downloadQueueDao.watchQueue().first;
+        expect(queued.map((q) => q.songId), unorderedEquals(['a', 'b']));
+        expect(queued.map((q) => q.playlistId), everyElement(id));
+      },
+      skip: !sqliteAvailable,
+    );
+
     test('enqueuePlaylist queues specified songs', () async {
       await database.libraryDao.upsertSongs(<SongsTableCompanion>[
         SongsTableCompanion.insert(id: 'song-a', title: 'Song A'),

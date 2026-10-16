@@ -14,6 +14,53 @@ Last updated: 2026-10-16
 - ACP status values: `backlog`, `ready`, `in_progress`, `blocked`, `done`.
 
 ## Current Focus
+- [x] PR B2 backend: device-only playlist storage, actions and create destination —
+  2026-10-16 (`feat/playlists-device`, based on B1 backend cec268ee; Codex
+  implementation). Added transactional local creation/replacement with UUID
+  IDs, ordered duplicate occurrences, FK-safe unknown-ID filtering, skipped
+  counts, metadata recomputation and rollback coverage. Local actions use only
+  the DAO; server create disables transport retries and existing server-action
+  invalidations remain. Detail sync skips local rows and deleted `local:` IDs.
+  Android Auto browse, the real queue-controller handoff (mocked audio handler
+  and lyrics prewarm), and offline download enqueue reuse existing stored rows.
+  The targeted playlist destination writer and notifier retain explicit choices
+  across new dialogs; offline connectivity, unreachable servers and missing
+  APIs force the effective choice off without persisting that forced state.
+  The UI reads `playlistCreateOnServerProvider`, writes through its notifier's
+  `setOnServer(enabled: value)`, and enables the switch with
+  `playlistServerCreationAvailableProvider`.
+  Tests were written first: the new DAO/actions/settings APIs failed compilation;
+  a deleted local detail ID incorrectly queued a server target, and a connected
+  but unreachable server initially left server creation enabled. These cases
+  now pass. The final capped eight-file suite reported
+  `00:03 +209: All tests passed!` and
+  `[capped] exit=0 peak=3541M swappeak=0M oom_kills=0`, using
+  `~/.cache/claude-navis-tools/capped.sh 6G "$PWD" flutter test --concurrency=4`
+  with `playlist_dao_test.dart`, `playlist_actions_test.dart`,
+  `playlist_device_providers_test.dart`, `app_settings_dao_test.dart`,
+  `settings_repository_test.dart`, `auto_media_tree_service_test.dart`,
+  `download_service_test.dart`, and `subsonic_api_client_test.dart`.
+  `make gen` exited 0: `Built with build_runner/aot in 49s; wrote 2005 outputs.`
+  It left no tracked generated-file changes. All 15 changed Dart files were
+  formatted; capped scoped `flutter analyze --no-fatal-infos` reported
+  `No issues found!` (exit 0). The complete diff was reviewed and
+  `git diff --check` passed.
+  The dead-code check exited 1 with exactly four NEW entries awaiting UI wiring:
+  `PlaylistActions.addSongs` and `playlistActionsProvider` in
+  `lib/src/features/playlists/data/playlist_actions.dart` (inherited from B1),
+  plus `PlaylistCreateOnServerController.setOnServer` and
+  `playlistCreateOnServerProvider` in
+  `lib/src/features/playlists/presentation/playlist_providers.dart` (new in B2).
+  The baseline is unchanged. UI files were not edited.
+  Integration gaps: the supplied B1 branch lacks the specified PR0 follow-up
+  f686cff8 (`fix(db): keep songs that device playlists hold during playback
+  cleanup`); no earlier commits were modified. Existing download batch enqueue
+  does not deduplicate repeated IDs within a single request (`[a, b, a]` inserts
+  three queue rows); this applies to server playlists too and was left unchanged.
+  The create switch, badges, local UI action paths and widget tests remain for
+  the UI step. The full check, application/emulator runs and runtime loop were
+  prohibited by the task's host limits; independent review remains with the
+  coordinating agent.
 - [x] PR B1 UI: playlist sections, filter, gated edits and visible failures —
   2026-10-16 (`feat/playlists-sections`, on top of the B1 backend commit; Sonnet
   implementation). Library › Playlists shows Your playlists / Made for you /

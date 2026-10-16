@@ -3158,11 +3158,28 @@ works like the weekly playlists. `homeTrendingProvider`
   with edited comments and imports from servers without `readonly` cannot
   always be recognized; playlists created by the user in other clients remain
   their own. Each `PlaylistLibraryItem` exposes its section for the Library UI.
-- `PlaylistActions` supplies throwing server rename/delete/add/remove/reorder
-  methods and owns their existing header/detail sync invalidations. Reorder
-  atomically replaces the ordered song IDs, including duplicates, and refreshes
-  detail on failure to revert optimistic UI state. Unavailable APIs throw;
-  local rows are explicitly rejected until B2 adds local branches.
+- `PlaylistActions` supplies create/rename/delete/add/remove/reorder methods.
+  Device mutations use only `PlaylistDao`; server mutations retain their
+  header/detail sync invalidations and throw when the API is unavailable.
+  Creation and rename reject blank trimmed names. Server creation disables
+  transport retries because repeating it can create another playlist. Server
+  reorder refreshes detail even on failure to revert optimistic UI state.
+- Device playlists use `local:<uuid>` IDs and `isLocal: true`. The DAO replaces
+  their song occurrences in one transaction, preserving duplicates and order,
+  skipping IDs absent from `songs`, and recomputing count, duration (missing
+  durations count as zero), and the first retained song's cover. Empty lists
+  clear the cover and have zero count and duration. Detail sync skips local
+  rows; queue loading, downloads and Android Auto reuse the existing stored
+  song paths without fetching a server playlist.
+- `playlistCreateOnServerProvider` exposes the sticky create destination
+  (default on), and its notifier's `setOnServer` persists explicit choices
+  through a targeted settings writer. `playlistServerCreationAvailableProvider`
+  supplies the dialog's enabled state. Offline or without an API, the effective
+  choice is off and writes are ignored; the saved preference is retained.
+  Server creation requires the existing reachability controller to report online,
+  so a failed server probe disables it even on a connected network.
+  Full settings saves cannot overwrite it. The create switch, local badges,
+  detail labels and action adoption remain the B1/B2 UI integration work.
 - Library › Playlists shows each section under a `NavisSectionHeader` only when
   more than one section has rows (the retired `listenBrainzPlaylistDivider`).
   Touch layouts put a `ListFilterField` (shared with Downloads) above the list;

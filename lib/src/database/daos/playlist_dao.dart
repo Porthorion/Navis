@@ -1,8 +1,10 @@
 import 'package:drift/drift.dart';
+import 'package:navis/src/database/database_utils.dart';
 import 'package:navis/src/database/navis_database.dart';
 import 'package:navis/src/database/tables/playlist_songs_table.dart';
 import 'package:navis/src/database/tables/playlists_table.dart';
 import 'package:navis/src/database/tables/songs_table.dart';
+import 'package:uuid/uuid.dart';
 
 part 'playlist_dao.g.dart';
 
@@ -23,6 +25,68 @@ class PlaylistDao extends DatabaseAccessor<NavisDatabase>
     return (select(
       playlistsTable,
     )..where((table) => table.isLocal.equals(false))).get();
+  }
+
+  Future<String> createLocalPlaylist(String name, List<String> songIds) {
+    return transaction(() async {
+      final id = 'local:${const Uuid().v4()}';
+      await into(playlistsTable).insert(
+        PlaylistsTableCompanion.insert(
+          id: id,
+          name: name,
+          isLocal: const Value(true),
+        ),
+      );
+      await setLocalPlaylistSongs(id, songIds);
+      return id;
+    });
+  }
+
+  Future<void> renamePlaylist(String id, String name) {
+    return (update(playlistsTable)..where((table) => table.id.equals(id)))
+        .write(PlaylistsTableCompanion(name: Value(name)));
+  }
+
+  /// Replaces device playlist occurrences and returns the number not in songs.
+  Future<int> setLocalPlaylistSongs(String id, List<String> songIds) {
+    return transaction(() async {
+      final playlist =
+          await (select(playlistsTable)..where(
+                (table) => table.id.equals(id) & table.isLocal.equals(true),
+              ))
+              .getSingleOrNull();
+      if (playlist == null) throw StateError('Device playlist does not exist.');
+      final songsById = <String, SongsTableData>{};
+      for (final ids in chunked(songIds.toSet().toList(), 500)) {
+        final songs = await (select(
+          songsTable,
+        )..where((table) => table.id.isIn(ids))).get();
+        for (final song in songs) {
+          songsById[song.id] = song;
+        }
+      }
+      final songs = [for (final id in songIds) ?songsById[id]];
+      await replacePlaylistSongs(id, [
+        for (var index = 0; index < songs.length; index++)
+          PlaylistSongsTableCompanion.insert(
+            playlistId: id,
+            songId: songs[index].id,
+            sortOrder: index,
+          ),
+      ]);
+      await (update(
+        playlistsTable,
+      )..where((table) => table.id.equals(id))).write(
+        PlaylistsTableCompanion(
+          songCount: Value(songs.length),
+          duration: Value(
+            songs.fold<int>(0, (sum, song) => sum + (song.duration ?? 0)),
+          ),
+          coverArt: Value(songs.firstOrNull?.coverArt),
+        ),
+      );
+      return songIds.length - songs.length;
+    });
   }
 
   Future<Map<String, int>> getPlaylistSongCounts() async {

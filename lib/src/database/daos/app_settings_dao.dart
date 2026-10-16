@@ -588,6 +588,13 @@ class AppSettingsDao extends DatabaseAccessor<NavisDatabase>
     );
   }
 
+  /// Saves the explicit destination choice without changing other settings.
+  Future<void> updatePlaylistCreateOnServer({required bool enabled}) {
+    return _writeSettings(
+      AppSettingsTableCompanion(playlistCreateOnServer: Value(enabled)),
+    );
+  }
+
   /// Targeted update for show playlists page.
   Future<void> updateShowPlaylistsPage({required bool enabled}) {
     return _writeSettings(

@@ -25,6 +25,28 @@ void main() {
     });
 
     test(
+      'playlist destination targeted save survives stale full-row save',
+      () async {
+        final stale = await repository.getSettings();
+        await repository.setPlaylistCreateOnServer(enabled: false);
+        expect(
+          (await repository.watchSettings().first).playlistCreateOnServer,
+          isFalse,
+        );
+        await repository.saveSettings(stale.copyWith(themeMode: 'light'));
+        expect(
+          (await repository.getSettings()).playlistCreateOnServer,
+          isFalse,
+        );
+        await repository.setPlaylistCreateOnServer(enabled: true);
+        final restored = await repository.getSettings();
+        expect(restored.playlistCreateOnServer, isTrue);
+        expect(restored.themeMode, 'light');
+      },
+      skip: !sqliteAvailable,
+    );
+
+    test(
       'playlist destination defaults on and decodes the stored preference',
       () async {
         expect(

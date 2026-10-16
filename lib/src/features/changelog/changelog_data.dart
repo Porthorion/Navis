@@ -166,6 +166,11 @@ const List<ChangelogVersion> changelogs = [
     ],
     entries: [
       ChangelogEntry(
+        'Device-only playlists can be created and edited offline, with '
+        'their songs available to the queue, downloads and Android Auto.',
+        type: ChangelogEntryType.newFeature,
+      ),
+      ChangelogEntry(
         'Your playlists appear before weekly mixes and other server playlists, under section headings',
       ),
       ChangelogEntry('Playlists can be filtered by name'),

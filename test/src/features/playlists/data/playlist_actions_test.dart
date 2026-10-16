@@ -1,3 +1,4 @@
+import 'package:drift/drift.dart' hide isNotNull, isNull;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
@@ -7,6 +8,8 @@ import 'package:navis/src/database/navis_database.dart';
 import 'package:navis/src/features/playlists/data/playlist_actions.dart';
 import 'package:navis/src/features/playlists/presentation/playlist_providers.dart';
 import 'package:navis/src/providers/app_providers.dart';
+
+import '../../../../helpers/test_database.dart';
 
 class _MockApi extends Mock implements SubsonicApiClient;
 
@@ -42,6 +45,129 @@ void main() {
   });
 
   Future<void> flush() => Future<void>.delayed(Duration.zero);
+
+  test('create trims names, refreshes headers and returns server ID', () async {
+    when(() => api.createPlaylist('New', songIds: ['a']))
+        .thenAnswer((_) async => _response);
+    await flush();
+    expect(await actions.create('  New  ', ['a'], onServer: true), 'p');
+    await flush();
+    expect(headerSyncs, 2);
+    verify(() => api.createPlaylist('New', songIds: ['a'])).called(1);
+  });
+
+  test('server creation fails visibly when offline', () async {
+    final offline = ProviderContainer(
+      overrides: [subsonicApiProvider.overrideWithValue(null)],
+    );
+    addTearDown(offline.dispose);
+    await expectLater(
+      offline.read(playlistActionsProvider).create('New', [], onServer: true),
+      throwsStateError,
+    );
+  });
+
+  test('create propagates server failure', () async {
+    when(() => api.createPlaylist('New', songIds: []))
+        .thenThrow(StateError('failed'));
+    await expectLater(
+      actions.create('New', [], onServer: true),
+      throwsStateError,
+    );
+  });
+
+  test('blank create and rename names fail before contacting server', () async {
+    for (final onServer in [true, false]) {
+      await expectLater(
+        actions.create('  ', [], onServer: onServer),
+        throwsArgumentError,
+      );
+    }
+    await expectLater(actions.rename(_playlist, '  '), throwsArgumentError);
+    verifyZeroInteractions(api);
+  });
+
+  test('rename trims the name', () async {
+    when(() => api.updatePlaylist(id: 'p', name: 'New'))
+        .thenAnswer((_) async => _response);
+    await actions.rename(_playlist, ' New ');
+    verify(() => api.updatePlaylist(id: 'p', name: 'New')).called(1);
+  });
+
+  test(
+    'all device actions work offline and leave sync and API untouched',
+    () async {
+      final database = createTestDatabase();
+      addTearDown(database.close);
+      final local = ProviderContainer(
+        overrides: withTestDatabase(
+          database,
+          overrides: [
+            subsonicApiProvider.overrideWithValue(api),
+            playlistSyncProvider.overrideWith(
+              (ref) => throw StateError('unexpected sync'),
+            ),
+            playlistDetailSyncProvider.overrideWith(
+              (ref, id) => throw StateError('unexpected detail'),
+            ),
+          ],
+        ),
+      );
+      addTearDown(local.dispose);
+      await database.libraryDao.upsertSongs([
+        SongsTableCompanion.insert(
+          id: 'a',
+          title: 'A',
+          duration: const Value(5),
+        ),
+        SongsTableCompanion.insert(
+          id: 'b',
+          title: 'B',
+          duration: const Value(10),
+        ),
+      ]);
+      final a = local.read(playlistActionsProvider);
+      final id = await a.create(' Mix ', ['a', 'a'], onServer: false);
+      final p = (await database.playlistDao.watchPlaylistById(id).first)!;
+      expect(p.name, 'Mix');
+      expect(await a.addSongs(p, ['b', 'missing']), 1);
+      expect(
+        (await database.playlistDao.watchPlaylistSongs(id).first).map(
+          (s) => s.id,
+        ),
+        ['a', 'a', 'b'],
+      );
+      final ids = ['a', 'a', 'b'];
+      await a.reorder(p, ids, 1, 2);
+      expect(ids, ['a', 'a', 'b']);
+      await a.removeAt(p, ['a', 'b', 'a'], 2);
+      await a.rename(p, ' Renamed ');
+      final updated = (await database.playlistDao.watchPlaylistById(id).first)!;
+      expect(
+        (updated.name, updated.songCount, updated.duration),
+        ('Renamed', 2, 15),
+      );
+      expect(
+        (await database.playlistDao.watchPlaylistSongs(id).first).map(
+          (s) => s.id,
+        ),
+        ['a', 'b'],
+      );
+      final offline = ProviderContainer(
+        overrides: withTestDatabase(
+          database,
+          overrides: [subsonicApiProvider.overrideWithValue(null)],
+        ),
+      );
+      addTearDown(offline.dispose);
+      await offline.read(playlistActionsProvider).rename(p, 'Offline');
+      await offline.read(playlistActionsProvider).delete(p);
+      expect(await database.playlistDao.watchPlaylistById(id).first, isNull);
+      expect(await database.playlistDao.watchPlaylistSongs(id).first, isEmpty);
+      verifyZeroInteractions(api);
+    },
+    skip: !sqliteAvailable,
+  );
 
   test('rename and delete call the server and refresh headers', () async {
     when(() => api.updatePlaylist(id: 'p', name: 'New'))
@@ -153,14 +279,6 @@ void main() {
         operation(offline.read(playlistActionsProvider), _playlist),
         throwsStateError,
       );
-    });
-
-    test('$label never sends a local ID to the server before B2', () async {
-      await expectLater(
-        operation(actions, _playlist.copyWith(isLocal: true)),
-        throwsUnsupportedError,
-      );
-      verifyZeroInteractions(api);
     });
   }
 }

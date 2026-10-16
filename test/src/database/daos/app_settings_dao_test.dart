@@ -20,6 +20,24 @@ void main() {
       await database.close();
     });
 
+    test('playlist destination writer preserves other settings', () async {
+      final dao = database.appSettingsDao;
+      await dao.updatePlaylistCreateOnServer(enabled: false);
+      expect(
+        (await dao.watchSettings().first)!.playlistCreateOnServer,
+        isFalse,
+      );
+      await dao.updateThemeMode('dark');
+      await dao.updatePlaylistCreateOnServer(enabled: true);
+      final row = (await dao.getSettings())!;
+      expect(row.playlistCreateOnServer, isTrue);
+      expect(row.themeMode, 'dark');
+      expect(
+        await database.select(database.appSettingsTable).get(),
+        hasLength(1),
+      );
+    }, skip: !sqliteAvailable);
+
     for (final legacy in [false, true]) {
       test(
         'delete all presets clears libraries and selections, legacy=$legacy',
