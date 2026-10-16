@@ -4,9 +4,10 @@ import 'dart:io';
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
 
-/// Persists update-check timing and the last update announced in Library.
+/// Persists update-check timing, the last verified update, and the last
+/// update announced in Library.
 class UpdateCheckStore {
-  new({this._throttle = const Duration(hours: 24), DateTime Function()? now})
+  new({this._throttle = const Duration(hours: 1), DateTime Function()? now})
     : _now = now ?? DateTime.now;
 
   static const _fileName = 'update_check_state.json';
@@ -37,6 +38,12 @@ class UpdateCheckStore {
     return raw is String ? raw : null;
   }
 
+  /// Reads the last verified update, or null when none is stored.
+  Future<Map<String, Object?>?> readVerifiedUpdate() async {
+    final raw = (await _readState())['verifiedUpdate'];
+    return raw is Map<String, Object?> ? raw : null;
+  }
+
   Future<void> recordCheck([DateTime? checkedAt]) =>
       _mergeState('lastCheckAt', (checkedAt ?? _now()).toIso8601String());
 
@@ -44,10 +51,21 @@ class UpdateCheckStore {
   Future<void> recordNotifiedVersion(String version) =>
       _mergeState('notifiedVersion', version);
 
-  Future<void> _mergeState(String key, String value) {
+  /// Stores the last update a completed manifest fetch verified, so a
+  /// throttled check can keep showing it.
+  Future<void> recordVerifiedUpdate(Map<String, Object?> value) =>
+      _mergeState('verifiedUpdate', value);
+
+  Future<void> clearVerifiedUpdate() => _mergeState('verifiedUpdate', null);
+
+  Future<void> _mergeState(String key, Object? value) {
     final write = _writes.then((_) async {
       final state = await _readState();
-      state[key] = value;
+      if (value == null) {
+        state.remove(key);
+      } else {
+        state[key] = value;
+      }
       final file = await _stateFile();
       await file.parent.create(recursive: true);
       await file.writeAsString(jsonEncode(state));

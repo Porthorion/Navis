@@ -89,16 +89,21 @@ class UpdateRepository {
       '${AppConstants.updateBaseUrl}channels/'
       '${Uri.encodeComponent(channelFor(channel))}/manifest.json';
 
-  /// Returns an update only when the signed manifest and selected asset are valid.
+  /// Returns an update only when the signed manifest and selected asset are
+  /// valid, or the last update a completed fetch verified while the throttle
+  /// skips fetching.
   ///
   /// Transport errors propagate to the existing provider error state. Rejected
-  /// manifests return `null`, and successful fetches retain the 24-hour throttle.
+  /// manifests return `null`; successful fetches retain the one-hour throttle.
   Future<UpdateInfo?> checkForUpdate({
     String? updateChannel,
     bool forceCheck = false,
   }) async {
-    if (_isIOS || !await _updateCheckStore.shouldCheck(force: forceCheck)) {
+    if (_isIOS) {
       return null;
+    }
+    if (!await _updateCheckStore.shouldCheck(force: forceCheck)) {
+      return await _verifiedUpdateIfStillNewer();
     }
 
     final packageInfo = await PackageInfo.fromPlatform();
@@ -147,6 +152,9 @@ class UpdateRepository {
         ),
       );
       await _updateCheckStore.recordCheck();
+      // A completed fetch supersedes whatever it verified earlier: only its
+      // own outcome may stay cached. A transport error above keeps the cache.
+      await _updateCheckStore.clearVerifiedUpdate();
 
       signatureValid = false;
       // Dio decodes JSON only when the response is labelled as JSON; accept
@@ -257,7 +265,7 @@ class UpdateRepository {
           ? notesUrl! as String
           : AppConstants.updateManualDownloadUrl;
       record(tag: tag);
-      return UpdateInfo(
+      final info = UpdateInfo(
         tagName: tag,
         version: payloadVersion,
         buildNumber: build as int?,
@@ -269,6 +277,8 @@ class UpdateRepository {
         sha256: storeRedirect ? null : hash,
         size: storeRedirect ? null : size,
       );
+      await _updateCheckStore.recordVerifiedUpdate(info.toJson());
+      return info;
     } on FormatException {
       return reject(
         signatureValid == true ? 'malformed_payload' : 'malformed_envelope',
@@ -277,6 +287,38 @@ class UpdateRepository {
       record(rejectReason: 'fetch_failed');
       rethrow;
     }
+  }
+
+  /// Returns the last update a completed fetch verified, dropping it once the
+  /// installed version is no longer older. The stored JSON passed
+  /// verification when it was written; only its freshness is re-decided here.
+  Future<UpdateInfo?> _verifiedUpdateIfStillNewer() async {
+    final stored = await _updateCheckStore.readVerifiedUpdate();
+    final info = stored == null ? null : UpdateInfo.fromJson(stored);
+    if (info == null) return null;
+    final packageInfo = await PackageInfo.fromPlatform();
+    final currentSemver = parseSemver(
+      packageInfo.version,
+      allowExtraParts: true,
+    );
+    final candidateSemver = parseSemver(
+      info.version ?? info.tagName,
+      allowExtraParts: true,
+    );
+    if (currentSemver == null || candidateSemver == null) return null;
+    final versionOrder = compareSemver(candidateSemver, currentSemver);
+    final build = info.buildNumber;
+    final currentBuild = int.tryParse(packageInfo.buildNumber);
+    final newerBuild =
+        versionOrder == 0 &&
+        build != null &&
+        currentBuild != null &&
+        build > currentBuild;
+    if (versionOrder < 0 || (versionOrder == 0 && !newerBuild)) {
+      await _updateCheckStore.clearVerifiedUpdate();
+      return null;
+    }
+    return info;
   }
 }
 

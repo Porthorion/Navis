@@ -35,12 +35,23 @@ class _MemoryUpdateCheckStore extends UpdateCheckStore {
 
   bool allowCheck;
   int recordCount = 0;
+  Map<String, Object?>? verifiedUpdate;
 
   @override
   Future<bool> shouldCheck({bool force = false}) async => force || allowCheck;
 
   @override
   Future<void> recordCheck([DateTime? checkedAt]) async => recordCount++;
+
+  @override
+  Future<Map<String, Object?>?> readVerifiedUpdate() async => verifiedUpdate;
+
+  @override
+  Future<void> recordVerifiedUpdate(Map<String, Object?> value) async =>
+      verifiedUpdate = value;
+
+  @override
+  Future<void> clearVerifiedUpdate() async => verifiedUpdate = null;
 }
 
 const _hash =
@@ -302,17 +313,68 @@ void main() {
     expect(repo.lastCheck, isNull);
   });
 
-  test('24-hour throttle skips fetching and preserves last check', () async {
+  test(
+    'throttle skips fetching and preserves last check and verified update',
+    () async {
+      final repo = repository();
+      final first = await repo.checkForUpdate();
+      final last = repo.lastCheck;
+      store.allowCheck = false;
+      final throttled = await repo.checkForUpdate();
+      expect(throttled!.tagName, first!.tagName);
+      expect(throttled.version, '1.5.1');
+      expect(throttled.downloadUrl, _assetUrl);
+      expect(throttled.delivery, UpdateDelivery.desktopSelfUpdate);
+      expect(requests, hasLength(1));
+      expect(repo.lastCheck, same(last));
+      expect(store.recordCount, 1);
+      expect(await repo.checkForUpdate(forceCheck: true), isNotNull);
+      expect(requests, hasLength(2));
+    },
+  );
+
+  test(
+    'cached verified update drops when the installed version catches up',
+    () async {
+      final repo = repository();
+      await repo.checkForUpdate();
+      PackageInfo.setMockInitialValues(
+        appName: 'Navis',
+        packageName: 'com.navis.app.navis',
+        version: '1.5.1+43',
+        buildNumber: '43',
+        buildSignature: '',
+      );
+      store.allowCheck = false;
+      expect(await repo.checkForUpdate(), isNull);
+      expect(store.verifiedUpdate, isNull);
+    },
+  );
+
+  test(
+    'a fresh fetch clears a cached update the manifest no longer offers',
+    () async {
+      final repo = repository();
+      await repo.checkForUpdate();
+      payload['version'] = '1.4.9';
+      payload['tag'] = 'v1.4.9';
+      envelope = await sign(payload);
+      expect(await repo.checkForUpdate(forceCheck: true), isNull);
+      store.allowCheck = false;
+      expect(await repo.checkForUpdate(), isNull);
+      expect(store.verifiedUpdate, isNull);
+    },
+  );
+
+  test('cached dev build survives a same-version installed build', () async {
+    payload['channel'] = 'dev';
+    payload['version'] = '1.5.0-dev+999';
+    payload['build'] = 999;
+    envelope = await sign(payload);
     final repo = repository();
-    await repo.checkForUpdate();
-    final last = repo.lastCheck;
+    expect(await repo.checkForUpdate(updateChannel: 'dev'), isNotNull);
     store.allowCheck = false;
-    expect(await repo.checkForUpdate(), isNull);
-    expect(requests, hasLength(1));
-    expect(repo.lastCheck, same(last));
-    expect(store.recordCount, 1);
-    expect(await repo.checkForUpdate(forceCheck: true), isNotNull);
-    expect(requests, hasLength(2));
+    expect((await repo.checkForUpdate(updateChannel: 'dev'))!.buildNumber, 999);
   });
 
   test('channels are normalized and remain single URL path segments', () async {

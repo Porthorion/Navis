@@ -3144,7 +3144,7 @@ final packageInfoProvider = FutureProvider<PackageInfo>((ref) async {
 });
 
 /// Carries a manual "Check now" request to the next [updateProvider] run,
-/// which then bypasses the 24-hour throttle.
+/// which then bypasses the one-hour throttle.
 ///
 /// The request is a plain field rather than provider state: [updateProvider]
 /// consumes it while building, and a provider must not modify another
