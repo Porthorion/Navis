@@ -166,6 +166,9 @@ const List<ChangelogVersion> changelogs = [
     ],
     entries: [
       ChangelogEntry(
+        'The Now Playing settings sheet no longer repeats the Equalizer and Speed & Pitch buttons already in the player controls, and Settings › Playback no longer repeats the Equalizer entry',
+      ),
+      ChangelogEntry(
         'Notification, Bluetooth and car controls keep working after Android restarts the media service',
         type: ChangelogEntryType.fix,
       ),

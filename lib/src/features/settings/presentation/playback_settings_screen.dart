@@ -1,4 +1,3 @@
-import 'package:navis/src/features/equalizer/presentation/eq_entry.dart';
 import 'package:navis/src/features/equalizer/presentation/eq_controller.dart';
 
 import 'dart:async';
@@ -130,8 +129,6 @@ class _PlaybackSettingsScreenState
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: <Widget>[
-                  const EqualizerEntry(),
-                  const SizedBox(height: 16),
                   Text(
                     l10n.playbackSettingsWifiSectionTitle,
                     style: Theme.of(context).textTheme.titleMedium,
