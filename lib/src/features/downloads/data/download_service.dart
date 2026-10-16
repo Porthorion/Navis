@@ -966,7 +966,7 @@ class DownloadService {
   /// Whether a background backfill may use the network now — the transfers'
   /// rule: any connection, unless the user restricted downloads to Wi-Fi.
   bool _backfillNetworkAllowed() =>
-      _readIsOnline() && (!_readWifiOnly() || _readIsWifi());
+      !_stopped && _readIsOnline() && (!_readWifiOnly() || _readIsWifi());
 
   final _BackfillGate _lyricsBackfillGate = _BackfillGate();
   final _BackfillGate _artworkBackfillGate = _BackfillGate();
@@ -2526,6 +2526,7 @@ class DownloadService {
           return false;
         }
         await _waitForPlaybackHold();
+        if (!_backfillNetworkAllowed()) return false;
         final existing = await _libraryDao.getExternalLyricsCache(song.id);
         if (existing != null && existing.syncedLyrics != null) {
           // Already have synced lyrics — best possible quality, nothing to do.
@@ -2543,6 +2544,7 @@ class DownloadService {
         // Songs with only plain lyrics are still processed to try to upgrade
         // to synced lyrics.
 
+        if (!_backfillNetworkAllowed()) return false;
         await _prefetchLyrics(song.id, song, api);
         if (_lrclibClient.isRateLimited) {
           AppLogger.info(
@@ -2589,7 +2591,9 @@ class DownloadService {
       for (final id in coverArtIds) {
         if (_stopped) return false;
         await _waitForPlaybackHold();
+        if (!_backfillNetworkAllowed()) return false;
         if (await _artworkStore.fileFor(id) != null) continue;
+        if (!_backfillNetworkAllowed()) return false;
         if (await _artworkStore.ensure(id, api)) stored++;
         // Throttle to avoid hammering the server.
         await Future<void>.delayed(const Duration(milliseconds: 100));

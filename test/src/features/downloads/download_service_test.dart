@@ -46,14 +46,18 @@ class _OfflineArtworkStore extends PermanentArtworkStore {
 
 /// Counts [PermanentArtworkStore.ensure] calls to observe artwork backfill.
 class _CountingArtworkStore extends PermanentArtworkStore {
-  new(Future<Directory> Function() read)
+  new(Future<Directory> Function() read, {this.onEnsure})
     : super(readApplicationSupportDirectory: read);
 
+  final void Function()? onEnsure;
   int ensureCalls = 0;
+  final ensuredIds = <String?>[];
 
   @override
   Future<bool> ensure(String? coverArtId, SubsonicApiClient api) async {
     ensureCalls++;
+    ensuredIds.add(coverArtId);
+    onEnsure?.call();
     return false;
   }
 }
@@ -1236,6 +1240,172 @@ void main() {
       },
       skip: sqliteAvailable ? null : 'sqlite3 not available',
     );
+
+    for (final artwork in [false, true]) {
+      final kind = artwork ? 'artwork' : 'lyrics';
+      test(
+        'stopAndWait drains held $kind backfill without network work',
+        () async {
+          final lrclib = _answeringLrclib();
+          final artworkStore = _CountingArtworkStore(
+            () async => serviceSupportDir,
+          );
+          final backfill = DownloadService(
+            appSettingsDao: database.appSettingsDao,
+            cacheDao: database.cacheDao,
+            downloadQueueDao: database.downloadQueueDao,
+            libraryDao: database.libraryDao,
+            readApiClient: _lyriclessApiClient,
+            readWifiOnly: () => false,
+            readIsWifi: () => true,
+            readCustomDownloadFolderEnabled: () => false,
+            readCustomDownloadFolderPath: () => null,
+            readApplicationSupportDirectory: () async => serviceSupportDir,
+            lrclibClient: lrclib,
+            readCoverArtCacheManager: _MockCacheManager.new,
+            artworkStore: artworkStore,
+            playbackHoldLimit: const Duration(minutes: 10),
+          );
+          addTearDown(backfill.stopAndWait);
+          await _seedPermanentSong(
+            database,
+            id: 'song-held',
+            title: 'Held',
+            coverArt: artwork ? 'held-cover' : null,
+          );
+          backfill.yieldToPlayback(loading: true, songId: 'playing');
+          await backfill.start();
+          await Future<void>.delayed(const Duration(milliseconds: 300));
+          expect(backfill.holdingForPlayback, isTrue);
+          await expectLater(
+            backfill.stopAndWait().timeout(const Duration(seconds: 3)),
+            completes,
+          );
+          if (artwork) {
+            expect(artworkStore.ensureCalls, 0);
+          } else {
+            verifyNever(
+              () => lrclib.searchLyrics(
+                artist: any(named: 'artist'),
+                title: any(named: 'title'),
+              ),
+            );
+          }
+          expect(
+            await database.libraryDao.getExternalLyricsCache('song-held'),
+            isNull,
+          );
+        },
+        skip: !sqliteAvailable,
+      );
+
+      test(
+        '$kind backfill pauses on cellular mid-pass and resumes on wifi',
+        () async {
+          var wifi = true;
+          var requests = 0;
+          final firstRequest = Completer<void>();
+          late DownloadService backfill;
+          void requested() {
+            requests++;
+            if (requests == 1) {
+              wifi = false;
+              backfill.yieldToPlayback(loading: true, songId: 'playing');
+              firstRequest.complete();
+            }
+          }
+
+          final artworkStore = _CountingArtworkStore(
+            () async => serviceSupportDir,
+            onEnsure: artwork ? requested : null,
+          );
+          final lrclib = _answeringLrclib();
+          if (!artwork) {
+            when(
+              () => lrclib.searchLyrics(
+                artist: any(named: 'artist'),
+                title: any(named: 'title'),
+              ),
+            ).thenAnswer((invocation) async {
+              requested();
+              return [
+                LrclibLyrics(
+                  artistName: 'Artist',
+                  trackName: invocation.namedArguments[#title] as String,
+                  duration: 200,
+                  syncedLyrics: '[00:01.00]line',
+                ),
+              ];
+            });
+          }
+          backfill = DownloadService(
+            appSettingsDao: database.appSettingsDao,
+            cacheDao: database.cacheDao,
+            downloadQueueDao: database.downloadQueueDao,
+            libraryDao: database.libraryDao,
+            readApiClient: _lyriclessApiClient,
+            readWifiOnly: () => true,
+            readIsWifi: () => wifi,
+            readCustomDownloadFolderEnabled: () => false,
+            readCustomDownloadFolderPath: () => null,
+            readApplicationSupportDirectory: () async => serviceSupportDir,
+            lrclibClient: lrclib,
+            readCoverArtCacheManager: _MockCacheManager.new,
+            artworkStore: artworkStore,
+            playbackHoldLimit: const Duration(minutes: 10),
+          );
+          addTearDown(backfill.stopAndWait);
+          for (final id in ['one', 'two']) {
+            await _seedPermanentSong(
+              database,
+              id: id,
+              title: id,
+              coverArt: artwork ? 'cover-$id' : null,
+            );
+            if (artwork) {
+              await database.libraryDao.upsertExternalLyricsCache(
+                songId: id,
+                source: 'serverSynced',
+                syncedLyrics: '[00:01.00]cached',
+              );
+            }
+          }
+          await backfill.start();
+          await firstRequest.future.timeout(const Duration(seconds: 3));
+          await Future<void>.delayed(const Duration(milliseconds: 350));
+          backfill.yieldToPlayback(loading: false);
+          await Future<void>.delayed(const Duration(milliseconds: 400));
+          expect(
+            requests,
+            1,
+            reason: 'the second item must not start on cellular after the hold',
+          );
+          wifi = true;
+          await backfill.processQueuedDownloads();
+          if (artwork) {
+            for (
+              var i = 0;
+              i < 60 && artworkStore.ensuredIds.toSet().length < 2;
+              i++
+            ) {
+              await Future<void>.delayed(const Duration(milliseconds: 50));
+            }
+            expect(artworkStore.ensuredIds.toSet(), {'cover-one', 'cover-two'});
+          } else {
+            expect(
+              (await _pollLyrics(database, 'one'))?.syncedLyrics,
+              isNotNull,
+            );
+            expect(
+              (await _pollLyrics(database, 'two'))?.syncedLyrics,
+              isNotNull,
+            );
+            expect(requests, 2);
+          }
+        },
+        skip: !sqliteAvailable,
+      );
+    }
 
     test('lyrics backfill waits while the playback hold is active', () async {
       final lrclib = _answeringLrclib();

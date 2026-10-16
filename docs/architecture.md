@@ -1834,7 +1834,10 @@ lookups are enabled. A pass blocked at startup (no server connection yet,
 network not allowed, or an LRCLIB cooldown) re-arms from the queue pump that
 already reacts to connectivity and policy changes, pauses while a song's
 stream load holds new work, and never runs twice at once; a completed pass
-does not repeat in the same session. Promoting a rolling-cached track to a
+does not repeat in the same session. Each item rechecks stop state and network
+eligibility after the playback hold and before its network work; teardown
+releases held passes without starting requests, and a mid-pass network
+restriction leaves the pass pending for the existing pump. Promoting a rolling-cached track to a
 permanent download prefetches lyrics alongside its cover art. A server
 connection appearing also re-arms a blocked pass. When every attempted source
 answers successfully without lyrics for a downloaded song, the backfill records
