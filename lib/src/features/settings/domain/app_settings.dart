@@ -39,6 +39,7 @@ class AppSettingsModel {
     required this.showAlbumsPage,
     required this.showRadioPage,
     required this.showPlaylistsPage,
+    this.playlistCreateOnServer = true,
     required this.showArtistsPage,
     required this.showLikedPage,
 
@@ -131,6 +132,7 @@ class AppSettingsModel {
       showAlbumsPage = true,
       showRadioPage = true,
       showPlaylistsPage = true,
+      playlistCreateOnServer = true,
       showArtistsPage = true,
       showLikedPage = true,
 
@@ -223,6 +225,7 @@ class AppSettingsModel {
   final bool showAlbumsPage;
   final bool showRadioPage;
   final bool showPlaylistsPage;
+  final bool playlistCreateOnServer;
   final bool showArtistsPage;
   final bool showLikedPage;
 
@@ -406,6 +409,7 @@ class AppSettingsModel {
     bool? showAlbumsPage,
     bool? showRadioPage,
     bool? showPlaylistsPage,
+    bool? playlistCreateOnServer,
     bool? showArtistsPage,
     bool? showLikedPage,
 
@@ -521,6 +525,8 @@ class AppSettingsModel {
       showAlbumsPage: showAlbumsPage ?? this.showAlbumsPage,
       showRadioPage: showRadioPage ?? this.showRadioPage,
       showPlaylistsPage: showPlaylistsPage ?? this.showPlaylistsPage,
+      playlistCreateOnServer:
+          playlistCreateOnServer ?? this.playlistCreateOnServer,
       showArtistsPage: showArtistsPage ?? this.showArtistsPage,
       showLikedPage: showLikedPage ?? this.showLikedPage,
 

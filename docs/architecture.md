@@ -5546,16 +5546,17 @@ download naming throws when all 100 collision candidates are occupied.
    metered-data, and sign-out recovery options on failure, and only then opens
    Home. `LibraryCacheResetService` deliberately preserves permanent downloads
    and their files; the upgrade marker is written only after that full scan.
-   The reset keeps exactly the song rows referenced by `play_queue_items`,
-   their albums, and artists referenced by those songs or albums. Queue items
-   cascade on song deletion; retained songs and parents become provisional.
+   The reset keeps song rows referenced by `play_queue_items` or device-only
+   playlists (`playlists.is_local = 1`), their albums, and artists referenced
+   by those songs or albums. Queue and playlist entries cascade on song deletion;
+   retained songs and parents become provisional.
    On-server songs awaiting reconfirmation also receive `pendingRebuild`
    catalog availability, excluding them from normal search even with queue or
    download references. This is distinct from isolated-404 suspicion, which
    remains searchable. Saved queue occurrences and playback state stay in the
    database throughout the rebuild, including failed scans and process restarts;
    live queue clears, edits, and shuffle persistence use their existing paths.
-   No snapshot, post-scan restoration, or schema change is needed. Authoritative
+   No snapshot or post-scan restoration is needed. Authoritative
    sync force-applies re-observed provisional song and parent metadata by ID,
    including ratings and explicit null values, and clears availability/provisional
    markers. Provisional albums cannot carry old songs forward as authoritative
@@ -5564,7 +5565,8 @@ download naming throws when all 100 collision candidates are occupied.
    as confirmed-missing with `serverDeletedAt` regardless of parent IDs, and
    excluded from normal library selection. Existing playback source resolution
    prunes an unavailable retained song and its saved queue occurrences when no
-   permanent download remains. An empty queue still clears the whole library.
+   permanent download remains. With neither queue nor device-playlist references,
+   the reset clears the whole library.
 
 ### Download quality, concurrency and artwork
 
@@ -6083,6 +6085,34 @@ writers across app processes. The one-minute lease renews every ten seconds;
 acknowledgement and failure bookkeeping recheck ownership under SQLite's writer
 transaction. Process death leaves persisted intent for a later owner. This lease
 is independent of catalog sync so local annotations remain responsive during it.
+
+Schema 104 adds the shared persistence foundation for device-only playlists
+and radio stations; their creation and editing UI are separate follow-ups.
+`playlists.is_local` defaults to false, preserving existing server rows, and
+nullable `playlists.read_only` reserves the OpenSubsonic ownership hint.
+`local_radio_stations` stores a text primary key (`local:<uuid>`), name, stream
+URL and nullable homepage URL, with no timestamps. The guarded 103→104 step
+adds missing columns and creates the station table only if absent; shipped
+schema 103 is unchanged. `app_settings.playlist_create_on_server` defaults to
+true and is decoded into settings for the later sticky create-dialog switch;
+its targeted writer and offline UI behavior belong to that follow-up.
+
+| Event | Server playlists | Device playlists | Device radio stations |
+|---|---|---|---|
+| Library reset (upgrade, required rebuild, manual cache reset) | Headers kept; contents re-fetched | Headers and ordered entries kept | Kept |
+| Sign out, keep data | Kept | Kept | Kept |
+| Sign out and clear local data, or diagnostics server-data reset | Deleted | Deleted | Deleted |
+| App upgrade | Kept | Kept | Kept |
+
+Server playlist reconciliation and its existing-header lookup exclude local
+rows, including an empty server response. Library resets preserve device
+playlist songs through the same provisional/`pendingRebuild` path as queued
+songs, retaining their parent metadata. Confirmed server absence and provisional
+metadata garbage collection already treat all playlist entries as owned
+references; song identity remapping updates every ordered occurrence.
+`ServerDataResetService` deletes all playlist entries, playlist headers and
+device stations together. The clear-data confirmation copy will explicitly
+mention device playlists and stations when the radio UI ships.
 
 Incremental artist metadata and its traversal cursor commit together before
 track hydration. A budget interruption retains completed artists and requeues

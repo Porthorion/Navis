@@ -81,6 +81,7 @@ void main() {
             playlistByIdProvider('occurrences').overrideWith(
               (ref) => Stream.value(
                 const PlaylistsTableData(
+                  isLocal: false,
                   id: 'occurrences',
                   name: 'Occurrences',
                 ),
