@@ -272,6 +272,14 @@ const List<ChangelogVersion> changelogs = [
         type: ChangelogEntryType.fix,
       ),
       ChangelogEntry(
+        'Downloaded songs get their lyrics and artwork back reliably: the backfill follows your download network setting instead of always requiring Wi-Fi, retries once the server connection or network appears, and promoted cache downloads fetch lyrics too',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
+        'Temporary lyrics lookup failures no longer delay retries for a week, and opening server lyrics saves them for downloaded songs',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
         'Windows now uses a Navis-built playback engine with complete corresponding source provided alongside the download',
       ),
       ChangelogEntry(

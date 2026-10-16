@@ -1872,10 +1872,31 @@ server lyrics and all newly fetched edition-aware lyrics survive reopen.
 The schema version is the durable completion marker, so no settings column
 or repeated TTL-based purge is needed. Downloaded audio files are unaffected.
 Downloaded songs whose LRCLIB cache entries were purged are eligible for the
-existing `DownloadService` lyrics backfill on startup; it runs only on Wi-Fi
-and refetches through the lyrics resolver when LRCLIB lookups are enabled.
-Those lyrics may therefore be unavailable offline until a Wi-Fi startup
-backfills them (or an allowed on-demand lookup fetches them).
+existing `DownloadService` lyrics backfill on startup; it follows the
+downloads network policy — any connection unless the user restricted
+downloads to Wi-Fi — and refetches through the lyrics resolver when LRCLIB
+lookups are enabled. A pass blocked at startup (no server connection yet,
+network not allowed, or an LRCLIB cooldown) re-arms from the queue pump that
+already reacts to connectivity and policy changes, pauses while a song's
+stream load holds new work, and never runs twice at once; a completed pass
+does not repeat in the same session. Each item rechecks stop state and network
+eligibility after the playback hold and before its network work; teardown
+releases held passes without starting requests, and a mid-pass network
+restriction leaves the pass pending for the existing pump. Promoting a
+rolling-cached track to a permanent download prefetches lyrics alongside its
+cover art. A server connection appearing also re-arms a blocked pass. When every
+attempted source answers successfully without lyrics for a downloaded song,
+the backfill records the miss (`failureCount`, `lastFailedAt`) and skips that
+song for a week, so repeated starts don't spend the LRCLIB budget on it; the
+empty row is never shown as lyrics.
+Transport and API failures do not create these negative entries. Successful
+on-demand server lookups for permanent downloads use the same durable lyrics
+cache and clear failure metadata; server lyrics for other songs remain uncached.
+Lyrics rows of permanent downloads survive a library rebuild: the
+provisional-metadata cleanup spares them while their songs are being
+re-confirmed, like download covers. Lyrics may therefore be unavailable
+offline only until a backfill pass or an allowed on-demand lookup fetches
+them.
 
 Apple runners remain unreleased scaffolds. Their native configuration floors
 are iOS 16 and macOS 12; Linux validation does not certify either runner. This
@@ -2474,7 +2495,8 @@ The provider-held LRCLIB client shares a Retry-After cooldown across exact
 lookups, search and downloads. HTTP 429/503 pauses requests until the supplied
 seconds or HTTP-date (60 seconds without valid guidance). Lyrics use cached
 or server alternatives without warning spam; backfill stops the current pass
-after a rate limit. Subsonic shares the HTTP Retry-After parser.
+after a rate limit and retries on the next queue pump. Subsonic shares the
+HTTP Retry-After parser.
 
 Last.fm `track.getsimilar` responses are cached for 24 hours in
 `IntegrationJsonCache` under `lastfm.similar-tracks`, keyed by normalized artist
