@@ -5714,13 +5714,13 @@ abstract class AppLocalizations {
   /// No description provided for @appearanceLooksSub.
   ///
   /// In en, this message translates to:
-  /// **'Save and switch your whole appearance.'**
+  /// **'Save and switch your colours and style.'**
   String get appearanceLooksSub;
 
   /// No description provided for @appearanceLooksSubEmpty.
   ///
   /// In en, this message translates to:
-  /// **'Save your whole appearance from the menu, then switch back to it any time.'**
+  /// **'Save your colours and style from the menu, then switch back any time.'**
   String get appearanceLooksSubEmpty;
 
   /// No description provided for @appearanceLooksPicker.
@@ -5758,6 +5758,12 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Applied {name}'**
   String appearanceLooksApplied(String name);
+
+  /// No description provided for @appearanceLooksCustomEdited.
+  ///
+  /// In en, this message translates to:
+  /// **'Custom · edited from {name}'**
+  String appearanceLooksCustomEdited(String name);
 
   /// No description provided for @appearancePresetCustom.
   ///

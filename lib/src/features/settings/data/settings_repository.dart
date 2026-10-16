@@ -55,30 +55,10 @@ class SettingsRepository {
       autoDownloadStarredOnWifi: settings.autoDownloadStarredOnWifi,
       customDownloadFolderEnabled: settings.customDownloadFolderEnabled,
       customDownloadFolderPath: settings.customDownloadFolderPath,
-      themeMode: settings.themeMode,
-      colorStyle: settings.colorStyle,
-      oledForAuto: settings.oledForAuto,
-      nightScheduleEnabled: settings.nightScheduleEnabled,
-      nightScheduleStartMinutes: settings.nightScheduleStartMinutes,
-      nightScheduleEndMinutes: settings.nightScheduleEndMinutes,
-      flatSurfaces: settings.flatSurfaces,
-      flatAreas: settings.flatAreas.bits,
-      colorVividness: settings.colorVividness,
-      surfaceDepthLight: settings.surfaceDepthLight,
-      surfaceDepthDark: settings.surfaceDepthDark,
-      surfaceTintLight: settings.surfaceTintLight,
-      surfaceTintDark: settings.surfaceTintDark,
-      controlColor: settings.controlColor,
-      albumArtShade: settings.albumArtShade,
-      albumArtColoredShade: settings.albumArtColoredShade,
-      colorSchemeSeed: settings.colorSchemeSeed,
       appLocale: settings.appLocale,
       crossfadeEnabled: settings.crossfadeEnabled,
       crossfadeDurationSeconds: settings.crossfadeDurationSeconds,
       crossfadeType: settings.crossfadeType,
-      nowPlayingBackground: settings.nowPlayingBackground.storageKey,
-      cornerStyle: settings.cornerStyle.name,
-      dynamicAlbumColorEnabled: settings.dynamicAlbumColorEnabled,
       updateChannel: settings.updateChannel,
       syncIntervalMinutes: settings.syncIntervalMinutes,
       backgroundSyncUnmeteredOnly: settings.backgroundSyncUnmeteredOnly,
@@ -86,13 +66,7 @@ class SettingsRepository {
       replayGainPreamp: settings.replayGainPreamp,
       // Playback adjustments have a dedicated writer; stale screen snapshots
       // must not overwrite the current sound or selected preset.
-      albumGridDensity: settings.albumGridDensity,
-      gridArtworkSize: settings.gridArtworkSize.name,
       homeRecommendationsAutoAdvance: settings.homeRecommendationsAutoAdvance,
-      coverArtShape: settings.coverArtShape,
-      nowPlayingArtShape: settings.nowPlayingArtShape,
-      artistCardShape: settings.artistCardShape,
-      artistViewMode: settings.artistViewMode,
       desktopFocusPlayerModeEnabled: settings.desktopFocusPlayerModeEnabled,
       desktopPlaybackVolume: sanitizeDesktopPlaybackVolume(
         settings.desktopPlaybackVolume,
@@ -100,9 +74,6 @@ class SettingsRepository {
       desktopLastAudibleVolume: sanitizeDesktopLastAudibleVolume(
         settings.desktopLastAudibleVolume,
       ),
-      homeDensity: settings.homeDensity.storageKey,
-      homeSectionOrder: _encodeStringList(settings.homeSectionOrder),
-      homeSectionsHidden: _encodeStringList(settings.homeSectionsHidden),
       libraryPageOrder: _encodeStringList(settings.libraryPageOrder),
       desktopNavbarStyle: settings.desktopNavbarStyle,
       desktopNavbarAutohide: settings.desktopNavbarAutohide,
@@ -110,8 +81,8 @@ class SettingsRepository {
       matchFlowEnabled: settings.matchFlowEnabled,
       likedQueueEnabled: settings.likedQueueEnabled,
     );
-    // Setup release markers are targeted-only, so a stale onboarding draft
-    // cannot overwrite acknowledgements or card dismissals.
+    // Appearance, layout, Looks, Home sections and setup release markers use
+    // targeted writers so stale drafts cannot overwrite newer choices.
     // Integration-owned columns (the policy columns, the legacy feature
     // columns, the Last.fm key and the ListenBrainz connection) are not part
     // of the full-row save; see AppSettingsDao.saveSettings.

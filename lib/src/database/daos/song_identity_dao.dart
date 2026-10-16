@@ -538,6 +538,9 @@ class SongIdentityDao extends DatabaseAccessor<NavisDatabase>
         ''',
         updates: <TableInfo<Table, Object?>>{songsTable},
       );
+      // A permanent download keeps its lyrics while the library is being
+      // rebuilt: clearLibraryData removes the songs row until the catalog
+      // re-inserts it, and cached_tracks still references the download.
       await customUpdate(
         '''
         DELETE FROM external_lyrics_cache
@@ -545,6 +548,12 @@ class SongIdentityDao extends DatabaseAccessor<NavisDatabase>
           SELECT 1
           FROM songs s
           WHERE s.id = external_lyrics_cache.song_id
+        )
+        AND NOT EXISTS (
+          SELECT 1
+          FROM cached_tracks c
+          WHERE c.song_id = external_lyrics_cache.song_id
+            AND c.cache_type = 'permanent'
         );
         ''',
         updates: <TableInfo<Table, Object?>>{externalLyricsCacheTable},

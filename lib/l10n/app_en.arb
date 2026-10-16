@@ -1663,8 +1663,8 @@
   },
   "appearanceColorTuningSummaryWhiteControls": "White controls",
   "appearanceLooksLabel": "Looks",
-  "appearanceLooksSub": "Save and switch your whole appearance.",
-  "appearanceLooksSubEmpty": "Save your whole appearance from the menu, then switch back to it any time.",
+  "appearanceLooksSub": "Save and switch your colours and style.",
+  "appearanceLooksSubEmpty": "Save your colours and style from the menu, then switch back any time.",
   "appearanceLooksPicker": "Look",
   "appearanceLooksActions": "Look actions",
   "appearanceLooksSaveNew": "Save Current as New Look",
@@ -1672,6 +1672,12 @@
   "appearanceLooksMissing": "That Look no longer exists.",
   "appearanceLooksApplied": "Applied {name}",
   "@appearanceLooksApplied": {
+    "placeholders": {
+      "name": {"type": "String"}
+    }
+  },
+  "appearanceLooksCustomEdited": "Custom · edited from {name}",
+  "@appearanceLooksCustomEdited": {
     "placeholders": {
       "name": {"type": "String"}
     }

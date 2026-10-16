@@ -113,4 +113,66 @@ void main() {
   test('another version is used when it is the only LRCLIB result', () async {
     expect(await resolve('Wonder', const [japanese]), 'japanese words');
   });
+
+  test(
+    'a negative cache row is never rendered and never blocks a lookup',
+    () async {
+      await database.libraryDao.upsertExternalLyricsCache(
+        songId: 'song',
+        source: 'lrclibPlain',
+        failureCount: 1,
+        lastFailedAt: DateTime.now(),
+      );
+      final negative = (await database.libraryDao.getExternalLyricsCache(
+        'song',
+      ))!;
+      expect(lyricsResolutionFromExternalCache(negative), isNull);
+
+      // When nothing is found the marker still renders no lyrics.
+      final stillEmpty =
+          await LyricsResolver(
+            libraryDao: database.libraryDao,
+            lrclibClient: _FakeLrclibClient(const []),
+            apiClient: null,
+          ).resolve(
+            songId: 'song',
+            metadata: (
+              artist: 'ONE OK ROCK',
+              title: 'Wonder',
+              album: null,
+              durationSeconds: 200,
+            ),
+            useLrclib: true,
+          );
+      expect(stillEmpty.lyrics.value, isNull);
+      expect(
+        (await database.libraryDao.getExternalLyricsCache('song'))!.plainLyrics,
+        isNull,
+      );
+
+      // An interactive lookup still tries the sources despite the marker, and
+      // a success clears it.
+      final recovered =
+          await LyricsResolver(
+            libraryDao: database.libraryDao,
+            lrclibClient: _FakeLrclibClient(const [english]),
+            apiClient: null,
+          ).resolve(
+            songId: 'song',
+            metadata: (
+              artist: 'ONE OK ROCK',
+              title: 'Wonder',
+              album: null,
+              durationSeconds: 200,
+            ),
+            useLrclib: true,
+          );
+      expect(recovered.lyrics.value, 'english words');
+      final healed = (await database.libraryDao.getExternalLyricsCache(
+        'song',
+      ))!;
+      expect(healed.failureCount, 0);
+      expect(healed.lastFailedAt, isNull);
+    },
+  );
 }

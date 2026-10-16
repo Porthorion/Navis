@@ -15,6 +15,7 @@ import 'package:navis/src/api/lrclib_client.dart';
 import 'package:navis/src/api/models/models.dart';
 import 'package:navis/src/api/subsonic_api_client.dart';
 import 'package:navis/src/database/navis_database.dart';
+import 'package:navis/src/database/tables/schema_enums.dart';
 import 'package:navis/src/features/auth/data/secure_credential_store.dart';
 import 'package:navis/src/features/auth/domain/server_config.dart';
 import 'package:navis/src/features/auth/data/server_config_repository.dart';
@@ -25,6 +26,7 @@ import 'package:navis/src/features/equalizer/domain/eq_configuration.dart';
 import 'package:navis/src/features/integrations/domain/integration_feature.dart';
 import 'package:navis/src/features/library/data/annotation_sync_dispatcher.dart';
 import 'package:navis/src/features/library/presentation/library_scroll_provider.dart';
+import 'package:navis/src/features/player/data/lyrics_resolver.dart';
 import 'package:navis/src/features/player/data/navis_audio_handler.dart';
 import 'package:navis/src/features/player/domain/lyrics_resolution.dart';
 import 'package:navis/src/features/player/domain/playback_snapshot.dart';
@@ -2518,7 +2520,7 @@ void main() {
 
   group('lyricsProvider LRCLIB-first resolution', () {
     Future<NavisDatabase> createLyricsDatabase() async {
-      final database = NavisDatabase(NativeDatabase.memory());
+      final database = createTestDatabase();
       await database.libraryDao.upsertAlbums(<AlbumsTableCompanion>[
         AlbumsTableCompanion.insert(
           id: 'album-1',
@@ -2537,6 +2539,96 @@ void main() {
         ),
       ]);
       return database;
+    }
+
+    for (final cacheType in [CacheType.permanent, CacheType.rolling, null]) {
+      for (final serverKind in ['plain', 'synced', 'legacy']) {
+        test(
+          'interactive $serverKind lyrics heal negatives only for $cacheType downloads',
+          () async {
+            final database = await createLyricsDatabase();
+            addTearDown(database.close);
+            if (cacheType != null) {
+              await database.cacheDao.upsertCachedTrack(
+                CachedTracksTableCompanion.insert(
+                  songId: 'song-1',
+                  filePath: '/fake/song.mp3',
+                  fileSize: 500,
+                  format: 'mp3',
+                  cacheType: cacheType,
+                  downloadStatus: DownloadStatus.complete,
+                  lastAccessedAt: DateTime.now(),
+                ),
+              );
+            }
+            await database.libraryDao.upsertExternalLyricsCache(
+              songId: 'song-1',
+              source: 'lrclibPlain',
+              failureCount: 1,
+              lastFailedAt: DateTime.now(),
+            );
+            final api = _MockSubsonicApiClient();
+            final serverLyrics = serverKind == 'synced'
+                ? const LyricsList(
+                    structuredLyrics: [
+                      StructuredLyrics(
+                        synced: true,
+                        line: [LyricLine(start: 1000, value: 'server words')],
+                      ),
+                    ],
+                  )
+                : const LyricsList(value: 'server words');
+            when(() => api.getLyricsBySongId('song-1')).thenAnswer(
+              (_) async =>
+                  serverKind == 'legacy' ? const LyricsList() : serverLyrics,
+            );
+            when(
+              () => api.getLyrics(
+                artist: any(named: 'artist'),
+                title: any(named: 'title'),
+              ),
+            ).thenAnswer((_) async => serverLyrics);
+            final container = ProviderContainer(
+              overrides: [
+                navisDatabaseProvider.overrideWithValue(database),
+                lrclibClientProvider.overrideWithValue(_MockLrclibClient()),
+                subsonicApiProvider.overrideWithValue(api),
+                useLrclibProvider.overrideWithValue(false),
+                currentMediaItemProvider.overrideWithValue(
+                  const AsyncData(null),
+                ),
+              ],
+            );
+            addTearDown(container.dispose);
+            final resolution = await container.read(
+              lyricsProvider('song-1').future,
+            );
+            expect(hasAnyLyrics(resolution.lyrics), isTrue);
+            final cached = (await database.libraryDao.getExternalLyricsCache(
+              'song-1',
+            ))!;
+            if (cacheType == CacheType.permanent) {
+              expect(cached.failureCount, 0);
+              expect(cached.lastFailedAt, isNull);
+              expect(cached.ttlSeconds, permanentLyricsCacheTtlSeconds);
+              expect(
+                lyricsResolutionFromExternalCache(cached)?.source,
+                resolution.source,
+              );
+              if (serverKind == 'synced') {
+                expect(cached.syncedLyrics, '[00:01.00]server words');
+              } else {
+                expect(cached.plainLyrics, 'server words');
+              }
+            } else {
+              expect(cached.failureCount, 1);
+              expect(cached.plainLyrics, isNull);
+              expect(cached.syncedLyrics, isNull);
+            }
+          },
+          skip: !sqliteAvailable,
+        );
+      }
     }
 
     test('searches LRCLIB before server when enabled', () async {

@@ -2531,6 +2531,7 @@ final lyricsProvider = FutureProvider.family<LyricsResolution, String>((
     lyricsCacheTtlSeconds: cachedTrack?.cacheType == CacheType.permanent
         ? permanentLyricsCacheTtlSeconds
         : normalLyricsCacheTtlSeconds,
+    cacheServerLyrics: cachedTrack?.cacheType == CacheType.permanent,
   );
 });
 
@@ -2792,6 +2793,13 @@ final downloadServiceProvider = Provider<DownloadService>((ref) {
   );
   ref.listen<bool>(wifiOnlyDownloadsProvider, (previous, next) {
     if (previous != next) {
+      unawaited(service.processQueuedDownloads());
+    }
+  });
+  ref.listen<SubsonicApiClient?>(subsonicApiProvider, (previous, next) {
+    if (previous != next) {
+      // A client appearing re-arms queued transfers and the gated
+      // lyrics/artwork backfills that deferred without one.
       unawaited(service.processQueuedDownloads());
     }
   });
@@ -3150,7 +3158,7 @@ final homeSectionOrderProvider = Provider<List<String>?>((ref) {
   return settings.homeSectionOrder;
 });
 
-/// Hidden home section IDs (null = none hidden).
+/// Hidden Home section IDs (`null` = built-in defaults, `[]` = none hidden).
 final homeSectionsHiddenProvider = Provider<List<String>?>((ref) {
   final settings =
       ref.watch(appSettingsProvider).asData?.value ??

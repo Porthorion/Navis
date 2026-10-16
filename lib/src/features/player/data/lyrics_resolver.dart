@@ -19,6 +19,8 @@ typedef LyricsLookupMetadata = ({
   int? durationSeconds,
 });
 
+typedef _LyricsLookupResult = ({LyricsResolution? resolution, bool failed});
+
 class LyricsResolver {
   const new({
     required this._libraryDao,
@@ -55,8 +57,8 @@ class LyricsResolver {
         metadata: metadata,
         lyricsCacheTtlSeconds: lyricsCacheTtlSeconds,
       );
-      if (lrclibResult != null) {
-        return lrclibResult;
+      if (lrclibResult.resolution case final resolution?) {
+        return resolution;
       }
 
       final server = await _resolveWithServer(
@@ -65,16 +67,18 @@ class LyricsResolver {
         cacheServerLyrics: cacheServerLyrics,
         lyricsCacheTtlSeconds: lyricsCacheTtlSeconds,
       );
-      if (server != null) {
-        return server;
+      if (server.resolution case final resolution?) {
+        return resolution;
       }
 
       if (cachedResolution != null) {
         return cachedResolution;
       }
-      return const LyricsResolution(
-        lyrics: LyricsList(),
+      return LyricsResolution(
+        lyrics: const LyricsList(),
         source: LyricsSource.lrclibPlain,
+        confirmedMiss:
+            _apiClient != null && !lrclibResult.failed && !server.failed,
       );
     }
 
@@ -91,38 +95,39 @@ class LyricsResolver {
       cacheServerLyrics: cacheServerLyrics,
       lyricsCacheTtlSeconds: lyricsCacheTtlSeconds,
     );
-    if (server != null) {
-      return server;
+    if (server.resolution case final resolution?) {
+      return resolution;
     }
 
     if (cachedResolution != null) {
       return cachedResolution;
     }
 
-    return const LyricsResolution(
-      lyrics: LyricsList(),
+    return LyricsResolution(
+      lyrics: const LyricsList(),
       source: LyricsSource.serverPlain,
+      confirmedMiss: _apiClient != null && !server.failed,
     );
   }
 
-  Future<LyricsResolution?> _resolveWithLrclib({
+  Future<_LyricsLookupResult> _resolveWithLrclib({
     required String songId,
     required LyricsLookupMetadata? metadata,
     required int lyricsCacheTtlSeconds,
   }) async {
     if (metadata == null) {
-      return null;
+      return (resolution: null, failed: false);
     }
 
     try {
       final best = await _findBestLrclibMatch(metadata);
       if (best == null) {
-        return null;
+        return (resolution: null, failed: false);
       }
 
       final parsedSynced = tryParseLrc(best.syncedLyrics);
       if (parsedSynced == null && !best.hasPlain) {
-        return null;
+        return (resolution: null, failed: false);
       }
       final source = parsedSynced != null
           ? LyricsSource.lrclibSynced
@@ -140,17 +145,20 @@ class LyricsResolver {
         lastFailedAt: null,
       );
       AppLogger.info('Lyrics source resolved: ${source.name} for song=$songId');
-      return LyricsResolution(lyrics: resolvedLyrics, source: source);
+      return (
+        resolution: LyricsResolution(lyrics: resolvedLyrics, source: source),
+        failed: false,
+      );
     } on LrclibRateLimitedException {
-      return null;
+      return (resolution: null, failed: true);
     } on DioException catch (error) {
       AppLogger.warning(
         'Lyrics: LRCLIB lookup failed for $songId: ${error.message}',
       );
-      return null;
+      return (resolution: null, failed: true);
     } on Object catch (error) {
       AppLogger.warning('Lyrics: LRCLIB lookup failed for $songId: $error');
-      return null;
+      return (resolution: null, failed: true);
     }
   }
 
@@ -219,7 +227,7 @@ class LyricsResolver {
     );
   }
 
-  Future<LyricsResolution?> _resolveWithServer({
+  Future<_LyricsLookupResult> _resolveWithServer({
     required String songId,
     required LyricsLookupMetadata? metadata,
     required bool cacheServerLyrics,
@@ -227,9 +235,10 @@ class LyricsResolver {
   }) async {
     final api = _apiClient;
     if (api == null) {
-      return null;
+      return (resolution: null, failed: false);
     }
 
+    var failed = false;
     try {
       final serverLyrics = await api.getLyricsBySongId(songId);
       final source = resolveServerLyricsSource(serverLyrics);
@@ -242,18 +251,17 @@ class LyricsResolver {
             ttlSeconds: lyricsCacheTtlSeconds,
           );
         }
-        return LyricsResolution(lyrics: serverLyrics, source: source);
+        return (
+          resolution: LyricsResolution(lyrics: serverLyrics, source: source),
+          failed: false,
+        );
       }
-    } on SubsonicNotFoundException {
-      // Continue fallback chain.
-    } on SubsonicApiException {
-      // Continue fallback chain.
-    } on SubsonicConnectionException {
-      // Continue fallback chain.
+    } on SubsonicException {
+      failed = true;
     }
 
     if (metadata == null) {
-      return null;
+      return (resolution: null, failed: failed);
     }
 
     try {
@@ -270,16 +278,19 @@ class LyricsResolver {
             ttlSeconds: lyricsCacheTtlSeconds,
           );
         }
-        return LyricsResolution(
-          lyrics: legacy,
-          source: LyricsSource.serverPlain,
+        return (
+          resolution: LyricsResolution(
+            lyrics: legacy,
+            source: LyricsSource.serverPlain,
+          ),
+          failed: false,
         );
       }
     } on SubsonicException {
-      // Continue fallback chain.
+      failed = true;
     }
 
-    return null;
+    return (resolution: null, failed: failed);
   }
 
   Future<void> _cacheServerLyrics({

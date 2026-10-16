@@ -707,6 +707,48 @@ void main() {
     expect(typedAliases.single.read<String>('old_id'), 'remote-song');
     expect(typedAliases.single.read<String>('new_id'), 'server-song');
   }, skip: !sqliteAvailable);
+
+  test(
+    'a library rebuild never loses the lyrics of permanent downloads',
+    () async {
+      // clearLibraryData removes a download's songs row until the rebuild
+      // re-inserts it; the provisional GC that runs meanwhile must keep the
+      // lyrics the download still needs, like the artwork prune does.
+      await database.libraryDao.upsertExternalLyricsCache(
+        songId: 'server-song',
+        source: 'lrclibSynced',
+        syncedLyrics: '[00:01.00]line',
+      );
+      await database.libraryDao.upsertExternalLyricsCache(
+        songId: 'ghost-song',
+        source: 'lrclibSynced',
+        syncedLyrics: '[00:02.00]gone',
+      );
+      await database
+          .into(database.cachedTracksTable)
+          .insert(
+            CachedTracksTableCompanion.insert(
+              songId: 'server-song',
+              filePath: '${tempDirectory.path}/download.mp3',
+              fileSize: 3,
+              format: 'mp3',
+              lastAccessedAt: DateTime.now(),
+              cacheType: CacheType.permanent,
+              downloadStatus: DownloadStatus.complete,
+            ),
+          );
+      await database.customStatement(
+        "DELETE FROM songs WHERE id = 'server-song'",
+      );
+
+      await database.songIdentityDao
+          .garbageCollectUnreferencedProvisionalMetadata();
+
+      expect(await _count(database, 'external_lyrics_cache', 'server-song'), 1);
+      expect(await _count(database, 'external_lyrics_cache', 'ghost-song'), 0);
+    },
+    skip: !sqliteAvailable,
+  );
 }
 
 Future<int> _count(NavisDatabase database, String table, String songId) async {

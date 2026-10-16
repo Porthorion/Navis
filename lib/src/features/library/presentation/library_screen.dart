@@ -988,13 +988,10 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
                     ? l10n.librarySwitchToArtistList
                     : l10n.librarySwitchToArtistGrid,
                 onPressed: () async {
-                  final repo = ref.read(settingsRepositoryProvider);
-                  final settings = await repo.getSettings();
-                  await repo.saveSettings(
-                    settings.copyWith(
-                      artistViewMode: isGridMode ? 'list' : 'grid',
-                    ),
-                  );
+                  await ref
+                      .read(navisDatabaseProvider)
+                      .appSettingsDao
+                      .updateArtistViewMode(isGridMode ? 'list' : 'grid');
                 },
               ),
             ],

@@ -187,6 +187,21 @@ const List<ChangelogVersion> changelogs = [
         type: ChangelogEntryType.fix,
       ),
       ChangelogEntry(
+        'Saving Playback settings keeps newer appearance, Look and Home section choices',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
+        'Looks keep layout preferences independent: density, artist view, artwork size and art shapes stay as you set them when switching Looks',
+      ),
+      ChangelogEntry(
+        'Looks: after you change a colour or style setting the picker reads “Custom · edited from” the Look it came from, and Update keeps working after you leave Appearance or restart',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
+        'Showing the last hidden Home section no longer brings the default hidden sections back',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
         'Radio station save failures now appear inside the editor and preserve your input; filters stay usable while server stations load',
         type: ChangelogEntryType.fix,
       ),
@@ -275,6 +290,14 @@ const List<ChangelogVersion> changelogs = [
       ),
       ChangelogEntry(
         'Large selections of downloads start more smoothly',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
+        'Downloaded songs get their lyrics and artwork back reliably: the backfill follows your download network setting instead of always requiring Wi-Fi, retries once the server connection or network appears, and promoted cache downloads fetch lyrics too',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
+        'Temporary lyrics lookup failures no longer delay retries for a week, and opening server lyrics saves them for downloaded songs',
         type: ChangelogEntryType.fix,
       ),
       ChangelogEntry(
@@ -386,7 +409,7 @@ const List<ChangelogVersion> changelogs = [
         type: ChangelogEntryType.newFeature,
       ),
       ChangelogEntry(
-        'Looks save your whole appearance under a name, so you can switch between them in one tap from Settings › Appearance, with Undo right after',
+        'Looks save your colours and style under a name, so you can switch between them in one tap from Settings › Appearance, with Undo right after',
         type: ChangelogEntryType.newFeature,
       ),
       ChangelogEntry(
