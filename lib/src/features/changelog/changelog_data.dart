@@ -166,6 +166,10 @@ const List<ChangelogVersion> changelogs = [
     ],
     entries: [
       ChangelogEntry(
+        'Reset Defaults on the Playback settings page now resets only playback settings; appearance, Looks, downloads and service connections are left alone',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
         'Shuffled queues get a fresh order on repeat or restart and avoid starting with the song that just finished',
         type: ChangelogEntryType.fix,
       ),

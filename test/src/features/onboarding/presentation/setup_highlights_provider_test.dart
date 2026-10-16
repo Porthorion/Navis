@@ -297,11 +297,6 @@ void main() {
       expect((await repository.getSettings()).setupHighlightsSeen, {
         SetupHighlight.cornerStyle.storageKey,
       });
-      await repository.resetDefaults();
-      final reset = await repository.getSettings();
-      expect(reset.setupHighlightsSeen, isEmpty);
-      expect(reset.setupHighlightsSeenRelease, isNull);
-      expect(reset.setupCardDismissedRelease, isNull);
     },
     skip: !sqliteAvailable,
   );
