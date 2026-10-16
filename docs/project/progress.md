@@ -14,6 +14,78 @@ Last updated: 2026-10-16
 - ACP status values: `backlog`, `ready`, `in_progress`, `blocked`, `done`.
 
 ## Current Focus
+- [x] False offline alarms, issue #6 state/logic — 2026-10-16
+  (`fix/offline-false-alarms`; replaced-client failures trigger one immediate
+  current-client probe, repeated replacement waits for the quick retry, and
+  only two current-client failures confirm an outage. The three-second
+  confirmation retry shares the existing timer field; the 30-second offline
+  retry and three-visible-count budget start at confirmation and survive
+  connectivity checks. Connectivity reloads retain the previous network type;
+  initial unknown connectivity uses conservatively metered `other`. Search
+  uses local-only mode only for confirmed offline, and banner dismissal lasts
+  until confirmed online. Tests first: `+114 -9: Some tests failed.` before
+  implementation; after, `+215: All tests passed!` across reachability,
+  app providers, banner state, search, routing, library sync and starred-download
+  dispatch suites under the required 6G cap (`peak=2954M`, no OOM kills).
+  Changed-file `dart analyze`: `No issues found!`; formatting and
+  `dart run tool/dead_code_check.dart` pass with no baseline changes. Banner/chip
+  layout is deferred. Per task host limits, no app/emulator, runtime loop,
+  full suite or `./tool/check.sh` ran here; independent review and real-device
+  confirmation of this fix remain with the coordinator.)
+- [x] PR0: schema 104 foundation for device playlists and radio stations —
+  2026-10-16 (`feat/schema-104-device-items`; Codex implementation). Added
+  guarded 103→104 migration, playlist scope/read-only columns, local station
+  table, and sticky playlist destination setting/model decode (writer deferred
+  to B2). Library resets preserve local entries and provisional parent metadata;
+  server reconciliation excludes local rows; clear-data sign-out wipes local
+  playlists and stations. Architecture records the retention table; confirmation
+  copy is deferred to PR A. No user-facing feature ships in PR0, so no changelog
+  entry was added.
+  Evidence: `./tool/bootstrap.sh`; `make gen` succeeded (existing
+  `json_annotation >=4.12.0` dependency-bound warning); regression tests failed
+  first on the missing schema, then the six-file focused run passed **224 tests**
+  with `~/.cache/claude-navis-tools/capped.sh 6G "$PWD" flutter test --concurrency=4`
+  over `navis_migration_test.dart`, `playlist_dao_test.dart`,
+  `library_cache_reset_service_test.dart`, `sign_out_service_test.dart`,
+  `settings_repository_test.dart`, and `library_sync_regression_test.dart`.
+  Covered partial columns/table, migration re-entry, duplicate local entries,
+  repeated cache resets, provisional GC, confirmed server absence, empty server
+  responses, both sign-out modes, and sticky-setting decode/preservation.
+  Follow-up migration/auth tests passed **113 tests** after strengthening the
+  populated migration fixture and authenticated sign-out setup. Eight existing
+  `PlaylistsTableData` fixtures across five files now explicitly set
+  `isLocal: false`; their playlist, Home and Library suites passed **126 tests**.
+  `dart format` covered all 22 changed Dart files; `dart analyze` over those
+  files exited 0 with eight existing informational findings outside changed
+  hunks (four `async_return_with_no_await`, one `avoid_catching_errors`,
+  `overridden_fields`/`annotate_overrides` on the existing sync-test fake, and
+  an existing `comment_references` finding in the Library widget tests).
+  `dart run tool/dead_code_check.dart` exited 0 against the unchanged baseline
+  (declaration=4, l10n=0, asset=1, asset-missing=0, font=0, dependency=5;
+  test-only=2). Full `./tool/check.sh`, app/emulator runs, and runtime evidence
+  were explicitly prohibited by the task's host limits and were not run.
+  Retention follow-up: existing playback `deleteLocalOnlySong` can still cascade
+  playlist entries when a confirmed-missing song has no available cached audio;
+  this is outside library reset/sync and needs review before PR B2 ships.
+
+- [x] Update check on every app open — 2026-10-16 (`feat/update-check-on-open`;
+  automatic checks are throttled to 1 h and returning after 30 s away
+  invalidates `updateProvider` through the existing resume hook. Fix round:
+  cache only the signed envelope in `verifiedManifest` and run the same
+  signature, channel, version/build, install mode, Android installer/ABI and
+  asset validation for fresh and cached checks. Completed fetches replace or
+  clear the cache; transport failures preserve it. Home Dismiss persists the
+  tag/build identity without hiding the update in About; a different identity
+  shows again. The Sync settings library-sync button is labelled "Sync library
+  now". Ten regression tests failed before the fix. Targeted capped Flutter
+  tests: `update_repository_test.dart`, `update_check_store_test.dart` and
+  `home_screen_test.dart` (223 passing); update cases of
+  `app_providers_test.dart` and `sync_diagnostics_server_test.dart` (11 passing);
+  `about_screen_test.dart` and `update_pull_test.dart` (24 passing).
+  `dart analyze` on changed files has no new findings (six existing infos on
+  unchanged lines); `dart format` and the dead-code gate pass. Per host limits,
+  `./tool/check.sh`, app/emulator launches and runtime screenshot/restart
+  validation were not run; the coordinator owns those remaining checks.)
 
 - [x] Shuffled repeat/restart passes (issue #5) — 2026-10-16: automatic
   completion, forward wrap, completed-queue Play and short Normal crossfades
@@ -2185,6 +2257,7 @@ Latest activity (2026-03-07): published `v0.8.0` APK via `tool/release.sh` and s
   diagnostics screenshot/restart loop or `./tool/check.sh`: prohibited by this
   task's host limits, with runtime acceptance left to the coordinator.
 
+- 2026-10-16 — Now Playing settings sheet/panel list the Sound section (Speed & Pitch, mini Equalizer) only while the transport row lacks EQ and Speed buttons; Settings › Playback drops its duplicate Equalizer entry (Porthorion/Navis#8). Focused widget tests only (Now Playing adaptive, Playback settings); no runtime loop or full gate yet.
 - 2026-10-16 — Playback Reset Defaults scope fix (issue #13): the button now calls the playback-scoped `AppSettingsDao.resetPlaybackDefaults()` so theme, Looks, colour tuning, setup highlights, download options, the Last.fm key and ListenBrainz survive the reset, while the page's fields plus speed/pitch reset and saved presets are kept; the Fullscreen Mode Lyrics switch stays on the page and is reset with it; Reset now cancels the queued autosave, waits for a running one and re-hydrates from the stored row; the unused global `resetDefaults()` (DAO and repository) was deleted. Validation: `flutter test --concurrency=4 test/src/database/daos/app_settings_dao_test.dart test/src/features/settings/presentation/playback_settings_screen_test.dart` passed (36 tests, includes the new playback-scope reset test), touched-file `dart analyze` and `dart format` clean, `flutter gen-l10n` regenerated. No app launches or full gate, per machine rules.
 
 - 2026-10-16 — Merged `origin/dev` into `fix/appearance-looks-update`:

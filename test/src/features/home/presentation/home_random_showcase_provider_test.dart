@@ -2562,7 +2562,11 @@ void main() {
           ),
           playlistListProvider.overrideWithValue(
             const AsyncData<List<PlaylistsTableData>>(<PlaylistsTableData>[
-              PlaylistsTableData(id: 'server-playlist', name: 'Server Mix'),
+              PlaylistsTableData(
+                isLocal: false,
+                id: 'server-playlist',
+                name: 'Server Mix',
+              ),
             ]),
           ),
           listenBrainzDiscoverStreamProvider.overrideWithValue(

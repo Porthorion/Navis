@@ -5,6 +5,9 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:navis/l10n/app_localizations.dart';
 import 'package:navis/src/common_widgets/app_notice.dart';
+import 'package:navis/src/features/auth/domain/server_reachability.dart';
+import 'package:navis/src/features/auth/presentation/server_config_provider.dart';
+import 'package:navis/src/features/auth/presentation/server_reachability_provider.dart';
 import 'package:navis/src/features/integrations/domain/integration_feature.dart';
 import 'package:navis/src/features/library/domain/library_sync_state.dart';
 import 'package:navis/src/features/library/presentation/library_sync_provider.dart';
@@ -17,6 +20,8 @@ import 'package:navis/src/features/settings/domain/update_info.dart';
 import 'package:navis/src/features/settings/presentation/update_pull_check.dart';
 import 'package:navis/src/providers/app_providers.dart';
 
+import '../../helpers/reachability_fakes.dart';
+
 class _Sync extends LibrarySyncController {
   @override
   LibrarySyncState build() => const LibrarySyncState.idle();
@@ -28,6 +33,11 @@ class _Sync extends LibrarySyncController {
 }
 
 class _Store extends UpdateCheckStore {
+  new({this.allowAutomatic = false});
+
+  /// Whether an unforced (automatic) check passes the throttle, so tests can
+  /// observe the provider re-running without a manual request.
+  final bool allowAutomatic;
   final forces = <bool>[];
   String? notifiedVersion;
   final recordedNotices = <String>[];
@@ -44,7 +54,7 @@ class _Store extends UpdateCheckStore {
   @override
   Future<bool> shouldCheck({bool force = false}) async {
     forces.add(force);
-    return force; // A prior check is still inside the throttle window.
+    return force || allowAutomatic;
   }
 }
 
@@ -72,6 +82,7 @@ const _update = UpdateInfo(
 );
 
 void main() {
+  var clock = DateTime.utc(2026, 10, 16, 12);
   for (final outcome in ['update', 'none', 'error', 'disposed']) {
     testWidgets(
       'Library pull resolves $outcome without waiting for the check',
@@ -263,4 +274,106 @@ void main() {
       await tester.pumpWidget(const SizedBox());
     });
   }
+
+  ProviderContainer resumeContainer({
+    required AppSettingsModel settings,
+    required _Store store,
+  }) {
+    final result = Completer<UpdateInfo?>()..complete(null);
+    final container = ProviderContainer(
+      overrides: [
+        appSettingsProvider.overrideWithValue(AsyncData(settings)),
+        nowProvider.overrideWithValue(() => clock),
+        serverConfigStateProvider.overrideWithValue(const AsyncData(null)),
+        syncIntervalMinutesProvider.overrideWithValue(0),
+        serverReachabilityControllerProvider.overrideWith(
+          () => StaticReachabilityController(
+            const ServerReachabilityState(
+              status: ServerReachabilityStatus.checking,
+            ),
+          ),
+        ),
+        updateCheckStoreProvider.overrideWithValue(store),
+        updateRepositoryProvider.overrideWithValue(_Repository(store, result)),
+      ],
+    );
+    return container;
+  }
+
+  test('resume re-runs the automatic update check when allowed', () async {
+    final binding = TestWidgetsFlutterBinding.ensureInitialized();
+    clock = DateTime.utc(2026, 10, 16, 12);
+    final store = _Store(allowAutomatic: true);
+    final container = resumeContainer(
+      settings: const AppSettingsModel.defaults(),
+      store: store,
+    );
+    addTearDown(() async {
+      container.dispose();
+      binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
+    });
+    container.read(librarySyncControllerProvider.notifier);
+    container.listen(updateProvider, (_, _) {});
+    await container.read(updateProvider.future);
+    expect(store.forces, [false]);
+
+    binding.handleAppLifecycleStateChanged(AppLifecycleState.inactive);
+    clock = clock.add(const Duration(seconds: 31));
+    binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
+    await container.read(updateProvider.future);
+    expect(store.forces, [false, false]);
+  });
+
+  test(
+    'resume skips the update check while automatic checks are off',
+    () async {
+      final binding = TestWidgetsFlutterBinding.ensureInitialized();
+      clock = DateTime.utc(2026, 10, 16, 12);
+      final store = _Store(allowAutomatic: true);
+      final container = resumeContainer(
+        settings: const AppSettingsModel.defaults().copyWith(
+          updateCheckEnabled: false,
+        ),
+        store: store,
+      );
+      addTearDown(() async {
+        container.dispose();
+        binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
+      });
+      container.read(librarySyncControllerProvider.notifier);
+      container.listen(updateProvider, (_, _) {});
+      await container.read(updateProvider.future);
+      expect(store.forces, isEmpty);
+
+      binding.handleAppLifecycleStateChanged(AppLifecycleState.inactive);
+      clock = clock.add(const Duration(seconds: 31));
+      binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
+      await Future<void>.delayed(Duration.zero);
+      expect(store.forces, isEmpty);
+    },
+  );
+
+  test('resume within 30 seconds does not re-check', () async {
+    final binding = TestWidgetsFlutterBinding.ensureInitialized();
+    clock = DateTime.utc(2026, 10, 16, 12);
+    final store = _Store(allowAutomatic: true);
+    final container = resumeContainer(
+      settings: const AppSettingsModel.defaults(),
+      store: store,
+    );
+    addTearDown(() async {
+      container.dispose();
+      binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
+    });
+    container.read(librarySyncControllerProvider.notifier);
+    container.listen(updateProvider, (_, _) {});
+    await container.read(updateProvider.future);
+    expect(store.forces, [false]);
+
+    binding.handleAppLifecycleStateChanged(AppLifecycleState.inactive);
+    clock = clock.add(const Duration(seconds: 29));
+    binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
+    await Future<void>.delayed(Duration.zero);
+    expect(store.forces, [false]);
+  });
 }

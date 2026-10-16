@@ -754,6 +754,21 @@ class $AppSettingsTableTable extends AppSettingsTable
     ),
     defaultValue: const Constant(true),
   );
+  static const VerificationMeta _playlistCreateOnServerMeta =
+      const VerificationMeta('playlistCreateOnServer');
+  @override
+  late final GeneratedColumn<bool> playlistCreateOnServer =
+      GeneratedColumn<bool>(
+        'playlist_create_on_server',
+        aliasedName,
+        false,
+        type: DriftSqlType.bool,
+        requiredDuringInsert: false,
+        defaultConstraints: GeneratedColumn.constraintIsAlways(
+          'CHECK ("playlist_create_on_server" IN (0, 1))',
+        ),
+        defaultValue: const Constant(true),
+      );
   static const VerificationMeta _showArtistsPageMeta = const VerificationMeta(
     'showArtistsPage',
   );
@@ -1980,6 +1995,7 @@ class $AppSettingsTableTable extends AppSettingsTable
     showAlbumsPage,
     showRadioPage,
     showPlaylistsPage,
+    playlistCreateOnServer,
     showArtistsPage,
     showLikedPage,
     rollingCacheBudgetMb,
@@ -2193,6 +2209,15 @@ class $AppSettingsTableTable extends AppSettingsTable
         showPlaylistsPage.isAcceptableOrUnknown(
           data['show_playlists_page']!,
           _showPlaylistsPageMeta,
+        ),
+      );
+    }
+    if (data.containsKey('playlist_create_on_server')) {
+      context.handle(
+        _playlistCreateOnServerMeta,
+        playlistCreateOnServer.isAcceptableOrUnknown(
+          data['playlist_create_on_server']!,
+          _playlistCreateOnServerMeta,
         ),
       );
     }
@@ -3096,6 +3121,10 @@ class $AppSettingsTableTable extends AppSettingsTable
         DriftSqlType.bool,
         data['${effectivePrefix}show_playlists_page'],
       )!,
+      playlistCreateOnServer: attachedDatabase.typeMapping.read(
+        DriftSqlType.bool,
+        data['${effectivePrefix}playlist_create_on_server'],
+      )!,
       showArtistsPage: attachedDatabase.typeMapping.read(
         DriftSqlType.bool,
         data['${effectivePrefix}show_artists_page'],
@@ -3506,6 +3535,7 @@ class AppSettingsTableData extends DataClass
   final bool showAlbumsPage;
   final bool showRadioPage;
   final bool showPlaylistsPage;
+  final bool playlistCreateOnServer;
   final bool showArtistsPage;
   final bool showLikedPage;
 
@@ -3798,6 +3828,7 @@ class AppSettingsTableData extends DataClass
     required this.showAlbumsPage,
     required this.showRadioPage,
     required this.showPlaylistsPage,
+    required this.playlistCreateOnServer,
     required this.showArtistsPage,
     required this.showLikedPage,
     required this.rollingCacheBudgetMb,
@@ -3918,6 +3949,7 @@ class AppSettingsTableData extends DataClass
     map['show_albums_page'] = Variable<bool>(showAlbumsPage);
     map['show_radio_page'] = Variable<bool>(showRadioPage);
     map['show_playlists_page'] = Variable<bool>(showPlaylistsPage);
+    map['playlist_create_on_server'] = Variable<bool>(playlistCreateOnServer);
     map['show_artists_page'] = Variable<bool>(showArtistsPage);
     map['show_liked_page'] = Variable<bool>(showLikedPage);
     map['rolling_cache_budget_mb'] = Variable<int>(rollingCacheBudgetMb);
@@ -4113,6 +4145,7 @@ class AppSettingsTableData extends DataClass
       showAlbumsPage: Value(showAlbumsPage),
       showRadioPage: Value(showRadioPage),
       showPlaylistsPage: Value(showPlaylistsPage),
+      playlistCreateOnServer: Value(playlistCreateOnServer),
       showArtistsPage: Value(showArtistsPage),
       showLikedPage: Value(showLikedPage),
       rollingCacheBudgetMb: Value(rollingCacheBudgetMb),
@@ -4272,6 +4305,9 @@ class AppSettingsTableData extends DataClass
       showAlbumsPage: serializer.fromJson<bool>(json['showAlbumsPage']),
       showRadioPage: serializer.fromJson<bool>(json['showRadioPage']),
       showPlaylistsPage: serializer.fromJson<bool>(json['showPlaylistsPage']),
+      playlistCreateOnServer: serializer.fromJson<bool>(
+        json['playlistCreateOnServer'],
+      ),
       showArtistsPage: serializer.fromJson<bool>(json['showArtistsPage']),
       showLikedPage: serializer.fromJson<bool>(json['showLikedPage']),
       rollingCacheBudgetMb: serializer.fromJson<int>(
@@ -4482,6 +4518,7 @@ class AppSettingsTableData extends DataClass
       'showAlbumsPage': serializer.toJson<bool>(showAlbumsPage),
       'showRadioPage': serializer.toJson<bool>(showRadioPage),
       'showPlaylistsPage': serializer.toJson<bool>(showPlaylistsPage),
+      'playlistCreateOnServer': serializer.toJson<bool>(playlistCreateOnServer),
       'showArtistsPage': serializer.toJson<bool>(showArtistsPage),
       'showLikedPage': serializer.toJson<bool>(showLikedPage),
       'rollingCacheBudgetMb': serializer.toJson<int>(rollingCacheBudgetMb),
@@ -4644,6 +4681,7 @@ class AppSettingsTableData extends DataClass
     bool? showAlbumsPage,
     bool? showRadioPage,
     bool? showPlaylistsPage,
+    bool? playlistCreateOnServer,
     bool? showArtistsPage,
     bool? showLikedPage,
     int? rollingCacheBudgetMb,
@@ -4759,6 +4797,8 @@ class AppSettingsTableData extends DataClass
     showAlbumsPage: showAlbumsPage ?? this.showAlbumsPage,
     showRadioPage: showRadioPage ?? this.showRadioPage,
     showPlaylistsPage: showPlaylistsPage ?? this.showPlaylistsPage,
+    playlistCreateOnServer:
+        playlistCreateOnServer ?? this.playlistCreateOnServer,
     showArtistsPage: showArtistsPage ?? this.showArtistsPage,
     showLikedPage: showLikedPage ?? this.showLikedPage,
     rollingCacheBudgetMb: rollingCacheBudgetMb ?? this.rollingCacheBudgetMb,
@@ -4951,6 +4991,9 @@ class AppSettingsTableData extends DataClass
       showPlaylistsPage: data.showPlaylistsPage.present
           ? data.showPlaylistsPage.value
           : this.showPlaylistsPage,
+      playlistCreateOnServer: data.playlistCreateOnServer.present
+          ? data.playlistCreateOnServer.value
+          : this.playlistCreateOnServer,
       showArtistsPage: data.showArtistsPage.present
           ? data.showArtistsPage.value
           : this.showArtistsPage,
@@ -5247,6 +5290,7 @@ class AppSettingsTableData extends DataClass
           ..write('showAlbumsPage: $showAlbumsPage, ')
           ..write('showRadioPage: $showRadioPage, ')
           ..write('showPlaylistsPage: $showPlaylistsPage, ')
+          ..write('playlistCreateOnServer: $playlistCreateOnServer, ')
           ..write('showArtistsPage: $showArtistsPage, ')
           ..write('showLikedPage: $showLikedPage, ')
           ..write('rollingCacheBudgetMb: $rollingCacheBudgetMb, ')
@@ -5369,6 +5413,7 @@ class AppSettingsTableData extends DataClass
     showAlbumsPage,
     showRadioPage,
     showPlaylistsPage,
+    playlistCreateOnServer,
     showArtistsPage,
     showLikedPage,
     rollingCacheBudgetMb,
@@ -5482,6 +5527,7 @@ class AppSettingsTableData extends DataClass
           other.showAlbumsPage == this.showAlbumsPage &&
           other.showRadioPage == this.showRadioPage &&
           other.showPlaylistsPage == this.showPlaylistsPage &&
+          other.playlistCreateOnServer == this.playlistCreateOnServer &&
           other.showArtistsPage == this.showArtistsPage &&
           other.showLikedPage == this.showLikedPage &&
           other.rollingCacheBudgetMb == this.rollingCacheBudgetMb &&
@@ -5601,6 +5647,7 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
   final Value<bool> showAlbumsPage;
   final Value<bool> showRadioPage;
   final Value<bool> showPlaylistsPage;
+  final Value<bool> playlistCreateOnServer;
   final Value<bool> showArtistsPage;
   final Value<bool> showLikedPage;
   final Value<int> rollingCacheBudgetMb;
@@ -5710,6 +5757,7 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
     this.showAlbumsPage = const Value.absent(),
     this.showRadioPage = const Value.absent(),
     this.showPlaylistsPage = const Value.absent(),
+    this.playlistCreateOnServer = const Value.absent(),
     this.showArtistsPage = const Value.absent(),
     this.showLikedPage = const Value.absent(),
     this.rollingCacheBudgetMb = const Value.absent(),
@@ -5820,6 +5868,7 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
     this.showAlbumsPage = const Value.absent(),
     this.showRadioPage = const Value.absent(),
     this.showPlaylistsPage = const Value.absent(),
+    this.playlistCreateOnServer = const Value.absent(),
     this.showArtistsPage = const Value.absent(),
     this.showLikedPage = const Value.absent(),
     this.rollingCacheBudgetMb = const Value.absent(),
@@ -5930,6 +5979,7 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
     Expression<bool>? showAlbumsPage,
     Expression<bool>? showRadioPage,
     Expression<bool>? showPlaylistsPage,
+    Expression<bool>? playlistCreateOnServer,
     Expression<bool>? showArtistsPage,
     Expression<bool>? showLikedPage,
     Expression<int>? rollingCacheBudgetMb,
@@ -6043,6 +6093,8 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
       if (showAlbumsPage != null) 'show_albums_page': showAlbumsPage,
       if (showRadioPage != null) 'show_radio_page': showRadioPage,
       if (showPlaylistsPage != null) 'show_playlists_page': showPlaylistsPage,
+      if (playlistCreateOnServer != null)
+        'playlist_create_on_server': playlistCreateOnServer,
       if (showArtistsPage != null) 'show_artists_page': showArtistsPage,
       if (showLikedPage != null) 'show_liked_page': showLikedPage,
       if (rollingCacheBudgetMb != null)
@@ -6205,6 +6257,7 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
     Value<bool>? showAlbumsPage,
     Value<bool>? showRadioPage,
     Value<bool>? showPlaylistsPage,
+    Value<bool>? playlistCreateOnServer,
     Value<bool>? showArtistsPage,
     Value<bool>? showLikedPage,
     Value<int>? rollingCacheBudgetMb,
@@ -6315,6 +6368,8 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
       showAlbumsPage: showAlbumsPage ?? this.showAlbumsPage,
       showRadioPage: showRadioPage ?? this.showRadioPage,
       showPlaylistsPage: showPlaylistsPage ?? this.showPlaylistsPage,
+      playlistCreateOnServer:
+          playlistCreateOnServer ?? this.playlistCreateOnServer,
       showArtistsPage: showArtistsPage ?? this.showArtistsPage,
       showLikedPage: showLikedPage ?? this.showLikedPage,
       rollingCacheBudgetMb: rollingCacheBudgetMb ?? this.rollingCacheBudgetMb,
@@ -6485,6 +6540,11 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
     }
     if (showPlaylistsPage.present) {
       map['show_playlists_page'] = Variable<bool>(showPlaylistsPage.value);
+    }
+    if (playlistCreateOnServer.present) {
+      map['playlist_create_on_server'] = Variable<bool>(
+        playlistCreateOnServer.value,
+      );
     }
     if (showArtistsPage.present) {
       map['show_artists_page'] = Variable<bool>(showArtistsPage.value);
@@ -6872,6 +6932,7 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
           ..write('showAlbumsPage: $showAlbumsPage, ')
           ..write('showRadioPage: $showRadioPage, ')
           ..write('showPlaylistsPage: $showPlaylistsPage, ')
+          ..write('playlistCreateOnServer: $playlistCreateOnServer, ')
           ..write('showArtistsPage: $showArtistsPage, ')
           ..write('showLikedPage: $showLikedPage, ')
           ..write('rollingCacheBudgetMb: $rollingCacheBudgetMb, ')
@@ -13525,6 +13586,35 @@ class $PlaylistsTableTable extends PlaylistsTable
       'CHECK ("is_public" IN (0, 1))',
     ),
   );
+  static const VerificationMeta _isLocalMeta = const VerificationMeta(
+    'isLocal',
+  );
+  @override
+  late final GeneratedColumn<bool> isLocal = GeneratedColumn<bool>(
+    'is_local',
+    aliasedName,
+    false,
+    type: DriftSqlType.bool,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'CHECK ("is_local" IN (0, 1))',
+    ),
+    defaultValue: const Constant(false),
+  );
+  static const VerificationMeta _readOnlyMeta = const VerificationMeta(
+    'readOnly',
+  );
+  @override
+  late final GeneratedColumn<bool> readOnly = GeneratedColumn<bool>(
+    'read_only',
+    aliasedName,
+    true,
+    type: DriftSqlType.bool,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'CHECK ("read_only" IN (0, 1))',
+    ),
+  );
   static const VerificationMeta _coverArtMeta = const VerificationMeta(
     'coverArt',
   );
@@ -13555,6 +13645,8 @@ class $PlaylistsTableTable extends PlaylistsTable
     duration,
     owner,
     isPublic,
+    isLocal,
+    readOnly,
     coverArt,
     comment,
   ];
@@ -13607,6 +13699,18 @@ class $PlaylistsTableTable extends PlaylistsTable
         isPublic.isAcceptableOrUnknown(data['is_public']!, _isPublicMeta),
       );
     }
+    if (data.containsKey('is_local')) {
+      context.handle(
+        _isLocalMeta,
+        isLocal.isAcceptableOrUnknown(data['is_local']!, _isLocalMeta),
+      );
+    }
+    if (data.containsKey('read_only')) {
+      context.handle(
+        _readOnlyMeta,
+        readOnly.isAcceptableOrUnknown(data['read_only']!, _readOnlyMeta),
+      );
+    }
     if (data.containsKey('cover_art')) {
       context.handle(
         _coverArtMeta,
@@ -13652,6 +13756,14 @@ class $PlaylistsTableTable extends PlaylistsTable
         DriftSqlType.bool,
         data['${effectivePrefix}is_public'],
       ),
+      isLocal: attachedDatabase.typeMapping.read(
+        DriftSqlType.bool,
+        data['${effectivePrefix}is_local'],
+      )!,
+      readOnly: attachedDatabase.typeMapping.read(
+        DriftSqlType.bool,
+        data['${effectivePrefix}read_only'],
+      ),
       coverArt: attachedDatabase.typeMapping.read(
         DriftSqlType.string,
         data['${effectivePrefix}cover_art'],
@@ -13677,6 +13789,8 @@ class PlaylistsTableData extends DataClass
   final int? duration;
   final String? owner;
   final bool? isPublic;
+  final bool isLocal;
+  final bool? readOnly;
   final String? coverArt;
   final String? comment;
   const PlaylistsTableData({
@@ -13686,6 +13800,8 @@ class PlaylistsTableData extends DataClass
     this.duration,
     this.owner,
     this.isPublic,
+    required this.isLocal,
+    this.readOnly,
     this.coverArt,
     this.comment,
   });
@@ -13705,6 +13821,10 @@ class PlaylistsTableData extends DataClass
     }
     if (!nullToAbsent || isPublic != null) {
       map['is_public'] = Variable<bool>(isPublic);
+    }
+    map['is_local'] = Variable<bool>(isLocal);
+    if (!nullToAbsent || readOnly != null) {
+      map['read_only'] = Variable<bool>(readOnly);
     }
     if (!nullToAbsent || coverArt != null) {
       map['cover_art'] = Variable<String>(coverArt);
@@ -13731,6 +13851,10 @@ class PlaylistsTableData extends DataClass
       isPublic: isPublic == null && nullToAbsent
           ? const Value.absent()
           : Value(isPublic),
+      isLocal: Value(isLocal),
+      readOnly: readOnly == null && nullToAbsent
+          ? const Value.absent()
+          : Value(readOnly),
       coverArt: coverArt == null && nullToAbsent
           ? const Value.absent()
           : Value(coverArt),
@@ -13752,6 +13876,8 @@ class PlaylistsTableData extends DataClass
       duration: serializer.fromJson<int?>(json['duration']),
       owner: serializer.fromJson<String?>(json['owner']),
       isPublic: serializer.fromJson<bool?>(json['isPublic']),
+      isLocal: serializer.fromJson<bool>(json['isLocal']),
+      readOnly: serializer.fromJson<bool?>(json['readOnly']),
       coverArt: serializer.fromJson<String?>(json['coverArt']),
       comment: serializer.fromJson<String?>(json['comment']),
     );
@@ -13766,6 +13892,8 @@ class PlaylistsTableData extends DataClass
       'duration': serializer.toJson<int?>(duration),
       'owner': serializer.toJson<String?>(owner),
       'isPublic': serializer.toJson<bool?>(isPublic),
+      'isLocal': serializer.toJson<bool>(isLocal),
+      'readOnly': serializer.toJson<bool?>(readOnly),
       'coverArt': serializer.toJson<String?>(coverArt),
       'comment': serializer.toJson<String?>(comment),
     };
@@ -13778,6 +13906,8 @@ class PlaylistsTableData extends DataClass
     Value<int?> duration = const Value.absent(),
     Value<String?> owner = const Value.absent(),
     Value<bool?> isPublic = const Value.absent(),
+    bool? isLocal,
+    Value<bool?> readOnly = const Value.absent(),
     Value<String?> coverArt = const Value.absent(),
     Value<String?> comment = const Value.absent(),
   }) => PlaylistsTableData(
@@ -13787,6 +13917,8 @@ class PlaylistsTableData extends DataClass
     duration: duration.present ? duration.value : this.duration,
     owner: owner.present ? owner.value : this.owner,
     isPublic: isPublic.present ? isPublic.value : this.isPublic,
+    isLocal: isLocal ?? this.isLocal,
+    readOnly: readOnly.present ? readOnly.value : this.readOnly,
     coverArt: coverArt.present ? coverArt.value : this.coverArt,
     comment: comment.present ? comment.value : this.comment,
   );
@@ -13798,6 +13930,8 @@ class PlaylistsTableData extends DataClass
       duration: data.duration.present ? data.duration.value : this.duration,
       owner: data.owner.present ? data.owner.value : this.owner,
       isPublic: data.isPublic.present ? data.isPublic.value : this.isPublic,
+      isLocal: data.isLocal.present ? data.isLocal.value : this.isLocal,
+      readOnly: data.readOnly.present ? data.readOnly.value : this.readOnly,
       coverArt: data.coverArt.present ? data.coverArt.value : this.coverArt,
       comment: data.comment.present ? data.comment.value : this.comment,
     );
@@ -13812,6 +13946,8 @@ class PlaylistsTableData extends DataClass
           ..write('duration: $duration, ')
           ..write('owner: $owner, ')
           ..write('isPublic: $isPublic, ')
+          ..write('isLocal: $isLocal, ')
+          ..write('readOnly: $readOnly, ')
           ..write('coverArt: $coverArt, ')
           ..write('comment: $comment')
           ..write(')'))
@@ -13826,6 +13962,8 @@ class PlaylistsTableData extends DataClass
     duration,
     owner,
     isPublic,
+    isLocal,
+    readOnly,
     coverArt,
     comment,
   );
@@ -13839,6 +13977,8 @@ class PlaylistsTableData extends DataClass
           other.duration == this.duration &&
           other.owner == this.owner &&
           other.isPublic == this.isPublic &&
+          other.isLocal == this.isLocal &&
+          other.readOnly == this.readOnly &&
           other.coverArt == this.coverArt &&
           other.comment == this.comment);
 }
@@ -13850,6 +13990,8 @@ class PlaylistsTableCompanion extends UpdateCompanion<PlaylistsTableData> {
   final Value<int?> duration;
   final Value<String?> owner;
   final Value<bool?> isPublic;
+  final Value<bool> isLocal;
+  final Value<bool?> readOnly;
   final Value<String?> coverArt;
   final Value<String?> comment;
   final Value<int> rowid;
@@ -13860,6 +14002,8 @@ class PlaylistsTableCompanion extends UpdateCompanion<PlaylistsTableData> {
     this.duration = const Value.absent(),
     this.owner = const Value.absent(),
     this.isPublic = const Value.absent(),
+    this.isLocal = const Value.absent(),
+    this.readOnly = const Value.absent(),
     this.coverArt = const Value.absent(),
     this.comment = const Value.absent(),
     this.rowid = const Value.absent(),
@@ -13871,6 +14015,8 @@ class PlaylistsTableCompanion extends UpdateCompanion<PlaylistsTableData> {
     this.duration = const Value.absent(),
     this.owner = const Value.absent(),
     this.isPublic = const Value.absent(),
+    this.isLocal = const Value.absent(),
+    this.readOnly = const Value.absent(),
     this.coverArt = const Value.absent(),
     this.comment = const Value.absent(),
     this.rowid = const Value.absent(),
@@ -13883,6 +14029,8 @@ class PlaylistsTableCompanion extends UpdateCompanion<PlaylistsTableData> {
     Expression<int>? duration,
     Expression<String>? owner,
     Expression<bool>? isPublic,
+    Expression<bool>? isLocal,
+    Expression<bool>? readOnly,
     Expression<String>? coverArt,
     Expression<String>? comment,
     Expression<int>? rowid,
@@ -13894,6 +14042,8 @@ class PlaylistsTableCompanion extends UpdateCompanion<PlaylistsTableData> {
       if (duration != null) 'duration': duration,
       if (owner != null) 'owner': owner,
       if (isPublic != null) 'is_public': isPublic,
+      if (isLocal != null) 'is_local': isLocal,
+      if (readOnly != null) 'read_only': readOnly,
       if (coverArt != null) 'cover_art': coverArt,
       if (comment != null) 'comment': comment,
       if (rowid != null) 'rowid': rowid,
@@ -13907,6 +14057,8 @@ class PlaylistsTableCompanion extends UpdateCompanion<PlaylistsTableData> {
     Value<int?>? duration,
     Value<String?>? owner,
     Value<bool?>? isPublic,
+    Value<bool>? isLocal,
+    Value<bool?>? readOnly,
     Value<String?>? coverArt,
     Value<String?>? comment,
     Value<int>? rowid,
@@ -13918,6 +14070,8 @@ class PlaylistsTableCompanion extends UpdateCompanion<PlaylistsTableData> {
       duration: duration ?? this.duration,
       owner: owner ?? this.owner,
       isPublic: isPublic ?? this.isPublic,
+      isLocal: isLocal ?? this.isLocal,
+      readOnly: readOnly ?? this.readOnly,
       coverArt: coverArt ?? this.coverArt,
       comment: comment ?? this.comment,
       rowid: rowid ?? this.rowid,
@@ -13945,6 +14099,12 @@ class PlaylistsTableCompanion extends UpdateCompanion<PlaylistsTableData> {
     if (isPublic.present) {
       map['is_public'] = Variable<bool>(isPublic.value);
     }
+    if (isLocal.present) {
+      map['is_local'] = Variable<bool>(isLocal.value);
+    }
+    if (readOnly.present) {
+      map['read_only'] = Variable<bool>(readOnly.value);
+    }
     if (coverArt.present) {
       map['cover_art'] = Variable<String>(coverArt.value);
     }
@@ -13966,8 +14126,331 @@ class PlaylistsTableCompanion extends UpdateCompanion<PlaylistsTableData> {
           ..write('duration: $duration, ')
           ..write('owner: $owner, ')
           ..write('isPublic: $isPublic, ')
+          ..write('isLocal: $isLocal, ')
+          ..write('readOnly: $readOnly, ')
           ..write('coverArt: $coverArt, ')
           ..write('comment: $comment, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
+class $LocalRadioStationsTableTable extends LocalRadioStationsTable
+    with TableInfo<$LocalRadioStationsTableTable, LocalRadioStationsTableData> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $LocalRadioStationsTableTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<String> id = GeneratedColumn<String>(
+    'id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _nameMeta = const VerificationMeta('name');
+  @override
+  late final GeneratedColumn<String> name = GeneratedColumn<String>(
+    'name',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _streamUrlMeta = const VerificationMeta(
+    'streamUrl',
+  );
+  @override
+  late final GeneratedColumn<String> streamUrl = GeneratedColumn<String>(
+    'stream_url',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _homePageUrlMeta = const VerificationMeta(
+    'homePageUrl',
+  );
+  @override
+  late final GeneratedColumn<String> homePageUrl = GeneratedColumn<String>(
+    'home_page_url',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  @override
+  List<GeneratedColumn> get $columns => [id, name, streamUrl, homePageUrl];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'local_radio_stations';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<LocalRadioStationsTableData> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    } else if (isInserting) {
+      context.missing(_idMeta);
+    }
+    if (data.containsKey('name')) {
+      context.handle(
+        _nameMeta,
+        name.isAcceptableOrUnknown(data['name']!, _nameMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_nameMeta);
+    }
+    if (data.containsKey('stream_url')) {
+      context.handle(
+        _streamUrlMeta,
+        streamUrl.isAcceptableOrUnknown(data['stream_url']!, _streamUrlMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_streamUrlMeta);
+    }
+    if (data.containsKey('home_page_url')) {
+      context.handle(
+        _homePageUrlMeta,
+        homePageUrl.isAcceptableOrUnknown(
+          data['home_page_url']!,
+          _homePageUrlMeta,
+        ),
+      );
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  LocalRadioStationsTableData map(
+    Map<String, dynamic> data, {
+    String? tablePrefix,
+  }) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return LocalRadioStationsTableData(
+      id: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}id'],
+      )!,
+      name: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}name'],
+      )!,
+      streamUrl: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}stream_url'],
+      )!,
+      homePageUrl: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}home_page_url'],
+      ),
+    );
+  }
+
+  @override
+  $LocalRadioStationsTableTable createAlias(String alias) {
+    return $LocalRadioStationsTableTable(attachedDatabase, alias);
+  }
+}
+
+class LocalRadioStationsTableData extends DataClass
+    implements Insertable<LocalRadioStationsTableData> {
+  final String id;
+  final String name;
+  final String streamUrl;
+  final String? homePageUrl;
+  const LocalRadioStationsTableData({
+    required this.id,
+    required this.name,
+    required this.streamUrl,
+    this.homePageUrl,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<String>(id);
+    map['name'] = Variable<String>(name);
+    map['stream_url'] = Variable<String>(streamUrl);
+    if (!nullToAbsent || homePageUrl != null) {
+      map['home_page_url'] = Variable<String>(homePageUrl);
+    }
+    return map;
+  }
+
+  LocalRadioStationsTableCompanion toCompanion(bool nullToAbsent) {
+    return LocalRadioStationsTableCompanion(
+      id: Value(id),
+      name: Value(name),
+      streamUrl: Value(streamUrl),
+      homePageUrl: homePageUrl == null && nullToAbsent
+          ? const Value.absent()
+          : Value(homePageUrl),
+    );
+  }
+
+  factory LocalRadioStationsTableData.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return LocalRadioStationsTableData(
+      id: serializer.fromJson<String>(json['id']),
+      name: serializer.fromJson<String>(json['name']),
+      streamUrl: serializer.fromJson<String>(json['streamUrl']),
+      homePageUrl: serializer.fromJson<String?>(json['homePageUrl']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<String>(id),
+      'name': serializer.toJson<String>(name),
+      'streamUrl': serializer.toJson<String>(streamUrl),
+      'homePageUrl': serializer.toJson<String?>(homePageUrl),
+    };
+  }
+
+  LocalRadioStationsTableData copyWith({
+    String? id,
+    String? name,
+    String? streamUrl,
+    Value<String?> homePageUrl = const Value.absent(),
+  }) => LocalRadioStationsTableData(
+    id: id ?? this.id,
+    name: name ?? this.name,
+    streamUrl: streamUrl ?? this.streamUrl,
+    homePageUrl: homePageUrl.present ? homePageUrl.value : this.homePageUrl,
+  );
+  LocalRadioStationsTableData copyWithCompanion(
+    LocalRadioStationsTableCompanion data,
+  ) {
+    return LocalRadioStationsTableData(
+      id: data.id.present ? data.id.value : this.id,
+      name: data.name.present ? data.name.value : this.name,
+      streamUrl: data.streamUrl.present ? data.streamUrl.value : this.streamUrl,
+      homePageUrl: data.homePageUrl.present
+          ? data.homePageUrl.value
+          : this.homePageUrl,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('LocalRadioStationsTableData(')
+          ..write('id: $id, ')
+          ..write('name: $name, ')
+          ..write('streamUrl: $streamUrl, ')
+          ..write('homePageUrl: $homePageUrl')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(id, name, streamUrl, homePageUrl);
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is LocalRadioStationsTableData &&
+          other.id == this.id &&
+          other.name == this.name &&
+          other.streamUrl == this.streamUrl &&
+          other.homePageUrl == this.homePageUrl);
+}
+
+class LocalRadioStationsTableCompanion
+    extends UpdateCompanion<LocalRadioStationsTableData> {
+  final Value<String> id;
+  final Value<String> name;
+  final Value<String> streamUrl;
+  final Value<String?> homePageUrl;
+  final Value<int> rowid;
+  const LocalRadioStationsTableCompanion({
+    this.id = const Value.absent(),
+    this.name = const Value.absent(),
+    this.streamUrl = const Value.absent(),
+    this.homePageUrl = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  LocalRadioStationsTableCompanion.insert({
+    required String id,
+    required String name,
+    required String streamUrl,
+    this.homePageUrl = const Value.absent(),
+    this.rowid = const Value.absent(),
+  }) : id = Value(id),
+       name = Value(name),
+       streamUrl = Value(streamUrl);
+  static Insertable<LocalRadioStationsTableData> custom({
+    Expression<String>? id,
+    Expression<String>? name,
+    Expression<String>? streamUrl,
+    Expression<String>? homePageUrl,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (name != null) 'name': name,
+      if (streamUrl != null) 'stream_url': streamUrl,
+      if (homePageUrl != null) 'home_page_url': homePageUrl,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  LocalRadioStationsTableCompanion copyWith({
+    Value<String>? id,
+    Value<String>? name,
+    Value<String>? streamUrl,
+    Value<String?>? homePageUrl,
+    Value<int>? rowid,
+  }) {
+    return LocalRadioStationsTableCompanion(
+      id: id ?? this.id,
+      name: name ?? this.name,
+      streamUrl: streamUrl ?? this.streamUrl,
+      homePageUrl: homePageUrl ?? this.homePageUrl,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<String>(id.value);
+    }
+    if (name.present) {
+      map['name'] = Variable<String>(name.value);
+    }
+    if (streamUrl.present) {
+      map['stream_url'] = Variable<String>(streamUrl.value);
+    }
+    if (homePageUrl.present) {
+      map['home_page_url'] = Variable<String>(homePageUrl.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('LocalRadioStationsTableCompanion(')
+          ..write('id: $id, ')
+          ..write('name: $name, ')
+          ..write('streamUrl: $streamUrl, ')
+          ..write('homePageUrl: $homePageUrl, ')
           ..write('rowid: $rowid')
           ..write(')'))
         .toString();
@@ -33540,6 +34023,8 @@ abstract class _$NavisDatabase extends GeneratedDatabase {
   late final $ExternalLyricsCacheTableTable externalLyricsCacheTable =
       $ExternalLyricsCacheTableTable(this);
   late final $PlaylistsTableTable playlistsTable = $PlaylistsTableTable(this);
+  late final $LocalRadioStationsTableTable localRadioStationsTable =
+      $LocalRadioStationsTableTable(this);
   late final $PlaylistSongsTableTable playlistSongsTable =
       $PlaylistSongsTableTable(this);
   late final $CachedTracksTableTable cachedTracksTable =
@@ -33654,6 +34139,7 @@ abstract class _$NavisDatabase extends GeneratedDatabase {
     albumInfoCacheTable,
     externalLyricsCacheTable,
     playlistsTable,
+    localRadioStationsTable,
     playlistSongsTable,
     cachedTracksTable,
     cacheSystemStateTable,
@@ -35159,6 +35645,7 @@ typedef $$AppSettingsTableTableCreateCompanionBuilder =
       Value<bool> showAlbumsPage,
       Value<bool> showRadioPage,
       Value<bool> showPlaylistsPage,
+      Value<bool> playlistCreateOnServer,
       Value<bool> showArtistsPage,
       Value<bool> showLikedPage,
       Value<int> rollingCacheBudgetMb,
@@ -35270,6 +35757,7 @@ typedef $$AppSettingsTableTableUpdateCompanionBuilder =
       Value<bool> showAlbumsPage,
       Value<bool> showRadioPage,
       Value<bool> showPlaylistsPage,
+      Value<bool> playlistCreateOnServer,
       Value<bool> showArtistsPage,
       Value<bool> showLikedPage,
       Value<int> rollingCacheBudgetMb,
@@ -35438,6 +35926,11 @@ class $$AppSettingsTableTableFilterComposer
 
   ColumnFilters<bool> get showPlaylistsPage => $composableBuilder(
     column: $table.showPlaylistsPage,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<bool> get playlistCreateOnServer => $composableBuilder(
+    column: $table.playlistCreateOnServer,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -35992,6 +36485,11 @@ class $$AppSettingsTableTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<bool> get playlistCreateOnServer => $composableBuilder(
+    column: $table.playlistCreateOnServer,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<bool> get showArtistsPage => $composableBuilder(
     column: $table.showArtistsPage,
     builder: (column) => ColumnOrderings(column),
@@ -36542,6 +37040,11 @@ class $$AppSettingsTableTableAnnotationComposer
     builder: (column) => column,
   );
 
+  GeneratedColumn<bool> get playlistCreateOnServer => $composableBuilder(
+    column: $table.playlistCreateOnServer,
+    builder: (column) => column,
+  );
+
   GeneratedColumn<bool> get showArtistsPage => $composableBuilder(
     column: $table.showArtistsPage,
     builder: (column) => column,
@@ -37060,6 +37563,7 @@ class $$AppSettingsTableTableTableManager
                 Value<bool> showAlbumsPage = const Value.absent(),
                 Value<bool> showRadioPage = const Value.absent(),
                 Value<bool> showPlaylistsPage = const Value.absent(),
+                Value<bool> playlistCreateOnServer = const Value.absent(),
                 Value<bool> showArtistsPage = const Value.absent(),
                 Value<bool> showLikedPage = const Value.absent(),
                 Value<int> rollingCacheBudgetMb = const Value.absent(),
@@ -37174,6 +37678,7 @@ class $$AppSettingsTableTableTableManager
                 showAlbumsPage: showAlbumsPage,
                 showRadioPage: showRadioPage,
                 showPlaylistsPage: showPlaylistsPage,
+                playlistCreateOnServer: playlistCreateOnServer,
                 showArtistsPage: showArtistsPage,
                 showLikedPage: showLikedPage,
                 rollingCacheBudgetMb: rollingCacheBudgetMb,
@@ -37286,6 +37791,7 @@ class $$AppSettingsTableTableTableManager
                 Value<bool> showAlbumsPage = const Value.absent(),
                 Value<bool> showRadioPage = const Value.absent(),
                 Value<bool> showPlaylistsPage = const Value.absent(),
+                Value<bool> playlistCreateOnServer = const Value.absent(),
                 Value<bool> showArtistsPage = const Value.absent(),
                 Value<bool> showLikedPage = const Value.absent(),
                 Value<int> rollingCacheBudgetMb = const Value.absent(),
@@ -37400,6 +37906,7 @@ class $$AppSettingsTableTableTableManager
                 showAlbumsPage: showAlbumsPage,
                 showRadioPage: showRadioPage,
                 showPlaylistsPage: showPlaylistsPage,
+                playlistCreateOnServer: playlistCreateOnServer,
                 showArtistsPage: showArtistsPage,
                 showLikedPage: showLikedPage,
                 rollingCacheBudgetMb: rollingCacheBudgetMb,
@@ -41771,6 +42278,8 @@ typedef $$PlaylistsTableTableCreateCompanionBuilder =
       Value<int?> duration,
       Value<String?> owner,
       Value<bool?> isPublic,
+      Value<bool> isLocal,
+      Value<bool?> readOnly,
       Value<String?> coverArt,
       Value<String?> comment,
       Value<int> rowid,
@@ -41783,6 +42292,8 @@ typedef $$PlaylistsTableTableUpdateCompanionBuilder =
       Value<int?> duration,
       Value<String?> owner,
       Value<bool?> isPublic,
+      Value<bool> isLocal,
+      Value<bool?> readOnly,
       Value<String?> coverArt,
       Value<String?> comment,
       Value<int> rowid,
@@ -41865,6 +42376,16 @@ class $$PlaylistsTableTableFilterComposer
     builder: (column) => ColumnFilters(column),
   );
 
+  ColumnFilters<bool> get isLocal => $composableBuilder(
+    column: $table.isLocal,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<bool> get readOnly => $composableBuilder(
+    column: $table.readOnly,
+    builder: (column) => ColumnFilters(column),
+  );
+
   ColumnFilters<String> get coverArt => $composableBuilder(
     column: $table.coverArt,
     builder: (column) => ColumnFilters(column),
@@ -41940,6 +42461,16 @@ class $$PlaylistsTableTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<bool> get isLocal => $composableBuilder(
+    column: $table.isLocal,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<bool> get readOnly => $composableBuilder(
+    column: $table.readOnly,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<String> get coverArt => $composableBuilder(
     column: $table.coverArt,
     builder: (column) => ColumnOrderings(column),
@@ -41977,6 +42508,12 @@ class $$PlaylistsTableTableAnnotationComposer
 
   GeneratedColumn<bool> get isPublic =>
       $composableBuilder(column: $table.isPublic, builder: (column) => column);
+
+  GeneratedColumn<bool> get isLocal =>
+      $composableBuilder(column: $table.isLocal, builder: (column) => column);
+
+  GeneratedColumn<bool> get readOnly =>
+      $composableBuilder(column: $table.readOnly, builder: (column) => column);
 
   GeneratedColumn<String> get coverArt =>
       $composableBuilder(column: $table.coverArt, builder: (column) => column);
@@ -42047,6 +42584,8 @@ class $$PlaylistsTableTableTableManager
                 Value<int?> duration = const Value.absent(),
                 Value<String?> owner = const Value.absent(),
                 Value<bool?> isPublic = const Value.absent(),
+                Value<bool> isLocal = const Value.absent(),
+                Value<bool?> readOnly = const Value.absent(),
                 Value<String?> coverArt = const Value.absent(),
                 Value<String?> comment = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
@@ -42057,6 +42596,8 @@ class $$PlaylistsTableTableTableManager
                 duration: duration,
                 owner: owner,
                 isPublic: isPublic,
+                isLocal: isLocal,
+                readOnly: readOnly,
                 coverArt: coverArt,
                 comment: comment,
                 rowid: rowid,
@@ -42069,6 +42610,8 @@ class $$PlaylistsTableTableTableManager
                 Value<int?> duration = const Value.absent(),
                 Value<String?> owner = const Value.absent(),
                 Value<bool?> isPublic = const Value.absent(),
+                Value<bool> isLocal = const Value.absent(),
+                Value<bool?> readOnly = const Value.absent(),
                 Value<String?> coverArt = const Value.absent(),
                 Value<String?> comment = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
@@ -42079,6 +42622,8 @@ class $$PlaylistsTableTableTableManager
                 duration: duration,
                 owner: owner,
                 isPublic: isPublic,
+                isLocal: isLocal,
+                readOnly: readOnly,
                 coverArt: coverArt,
                 comment: comment,
                 rowid: rowid,
@@ -42140,6 +42685,220 @@ typedef $$PlaylistsTableTableProcessedTableManager =
       (PlaylistsTableData, $$PlaylistsTableTableReferences),
       PlaylistsTableData,
       PrefetchHooks Function({bool playlistSongsTableRefs})
+    >;
+typedef $$LocalRadioStationsTableTableCreateCompanionBuilder =
+    LocalRadioStationsTableCompanion Function({
+      required String id,
+      required String name,
+      required String streamUrl,
+      Value<String?> homePageUrl,
+      Value<int> rowid,
+    });
+typedef $$LocalRadioStationsTableTableUpdateCompanionBuilder =
+    LocalRadioStationsTableCompanion Function({
+      Value<String> id,
+      Value<String> name,
+      Value<String> streamUrl,
+      Value<String?> homePageUrl,
+      Value<int> rowid,
+    });
+
+class $$LocalRadioStationsTableTableFilterComposer
+    extends Composer<_$NavisDatabase, $LocalRadioStationsTableTable> {
+  $$LocalRadioStationsTableTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get name => $composableBuilder(
+    column: $table.name,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get streamUrl => $composableBuilder(
+    column: $table.streamUrl,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get homePageUrl => $composableBuilder(
+    column: $table.homePageUrl,
+    builder: (column) => ColumnFilters(column),
+  );
+}
+
+class $$LocalRadioStationsTableTableOrderingComposer
+    extends Composer<_$NavisDatabase, $LocalRadioStationsTableTable> {
+  $$LocalRadioStationsTableTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get name => $composableBuilder(
+    column: $table.name,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get streamUrl => $composableBuilder(
+    column: $table.streamUrl,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get homePageUrl => $composableBuilder(
+    column: $table.homePageUrl,
+    builder: (column) => ColumnOrderings(column),
+  );
+}
+
+class $$LocalRadioStationsTableTableAnnotationComposer
+    extends Composer<_$NavisDatabase, $LocalRadioStationsTableTable> {
+  $$LocalRadioStationsTableTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<String> get name =>
+      $composableBuilder(column: $table.name, builder: (column) => column);
+
+  GeneratedColumn<String> get streamUrl =>
+      $composableBuilder(column: $table.streamUrl, builder: (column) => column);
+
+  GeneratedColumn<String> get homePageUrl => $composableBuilder(
+    column: $table.homePageUrl,
+    builder: (column) => column,
+  );
+}
+
+class $$LocalRadioStationsTableTableTableManager
+    extends
+        RootTableManager<
+          _$NavisDatabase,
+          $LocalRadioStationsTableTable,
+          LocalRadioStationsTableData,
+          $$LocalRadioStationsTableTableFilterComposer,
+          $$LocalRadioStationsTableTableOrderingComposer,
+          $$LocalRadioStationsTableTableAnnotationComposer,
+          $$LocalRadioStationsTableTableCreateCompanionBuilder,
+          $$LocalRadioStationsTableTableUpdateCompanionBuilder,
+          (
+            LocalRadioStationsTableData,
+            BaseReferences<
+              _$NavisDatabase,
+              $LocalRadioStationsTableTable,
+              LocalRadioStationsTableData
+            >,
+          ),
+          LocalRadioStationsTableData,
+          PrefetchHooks Function()
+        > {
+  $$LocalRadioStationsTableTableTableManager(
+    _$NavisDatabase db,
+    $LocalRadioStationsTableTable table,
+  ) : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$LocalRadioStationsTableTableFilterComposer(
+                $db: db,
+                $table: table,
+              ),
+          createOrderingComposer: () =>
+              $$LocalRadioStationsTableTableOrderingComposer(
+                $db: db,
+                $table: table,
+              ),
+          createComputedFieldComposer: () =>
+              $$LocalRadioStationsTableTableAnnotationComposer(
+                $db: db,
+                $table: table,
+              ),
+          updateCompanionCallback:
+              ({
+                Value<String> id = const Value.absent(),
+                Value<String> name = const Value.absent(),
+                Value<String> streamUrl = const Value.absent(),
+                Value<String?> homePageUrl = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => LocalRadioStationsTableCompanion(
+                id: id,
+                name: name,
+                streamUrl: streamUrl,
+                homePageUrl: homePageUrl,
+                rowid: rowid,
+              ),
+          createCompanionCallback:
+              ({
+                required String id,
+                required String name,
+                required String streamUrl,
+                Value<String?> homePageUrl = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => LocalRadioStationsTableCompanion.insert(
+                id: id,
+                name: name,
+                streamUrl: streamUrl,
+                homePageUrl: homePageUrl,
+                rowid: rowid,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map(
+                (e) => (
+                  e.readTable<
+                    $LocalRadioStationsTableTable,
+                    LocalRadioStationsTableData
+                  >(table),
+                  BaseReferences<
+                    _$NavisDatabase,
+                    $LocalRadioStationsTableTable,
+                    LocalRadioStationsTableData
+                  >(db, table, e),
+                ),
+              )
+              .toList(),
+          prefetchHooksCallback: null,
+        ),
+      );
+}
+
+typedef $$LocalRadioStationsTableTableProcessedTableManager =
+    ProcessedTableManager<
+      _$NavisDatabase,
+      $LocalRadioStationsTableTable,
+      LocalRadioStationsTableData,
+      $$LocalRadioStationsTableTableFilterComposer,
+      $$LocalRadioStationsTableTableOrderingComposer,
+      $$LocalRadioStationsTableTableAnnotationComposer,
+      $$LocalRadioStationsTableTableCreateCompanionBuilder,
+      $$LocalRadioStationsTableTableUpdateCompanionBuilder,
+      (
+        LocalRadioStationsTableData,
+        BaseReferences<
+          _$NavisDatabase,
+          $LocalRadioStationsTableTable,
+          LocalRadioStationsTableData
+        >,
+      ),
+      LocalRadioStationsTableData,
+      PrefetchHooks Function()
     >;
 typedef $$PlaylistSongsTableTableCreateCompanionBuilder =
     PlaylistSongsTableCompanion Function({
@@ -54954,6 +55713,11 @@ class $NavisDatabaseManager {
       );
   $$PlaylistsTableTableTableManager get playlistsTable =>
       $$PlaylistsTableTableTableManager(_db, _db.playlistsTable);
+  $$LocalRadioStationsTableTableTableManager get localRadioStationsTable =>
+      $$LocalRadioStationsTableTableTableManager(
+        _db,
+        _db.localRadioStationsTable,
+      );
   $$PlaylistSongsTableTableTableManager get playlistSongsTable =>
       $$PlaylistSongsTableTableTableManager(_db, _db.playlistSongsTable);
   $$CachedTracksTableTableTableManager get cachedTracksTable =>

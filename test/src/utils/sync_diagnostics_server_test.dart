@@ -4030,6 +4030,7 @@ class _MockUpdateDio extends Mock implements Dio;
 
 class _DiagnosticsUpdateCheckStore extends UpdateCheckStore {
   final List<bool> forceArguments = [];
+  Map<String, Object?>? verifiedManifest;
 
   @override
   Future<bool> shouldCheck({bool force = false}) async {
@@ -4039,4 +4040,15 @@ class _DiagnosticsUpdateCheckStore extends UpdateCheckStore {
 
   @override
   Future<void> recordCheck([DateTime? checkedAt]) async {}
+
+  @override
+  Future<Map<String, Object?>?> readVerifiedManifest() async =>
+      verifiedManifest;
+
+  @override
+  Future<void> recordVerifiedManifest(Map<String, Object?> value) async =>
+      verifiedManifest = value;
+
+  @override
+  Future<void> clearVerifiedManifest() async => verifiedManifest = null;
 }

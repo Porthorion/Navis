@@ -796,7 +796,7 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
-  String get syncSettingsCheckForUpdates => 'Check for updates';
+  String get syncSettingsSyncLibraryNow => 'Sync library now';
 
   @override
   String get syncSettingsFreshnessCurrent => 'Current';

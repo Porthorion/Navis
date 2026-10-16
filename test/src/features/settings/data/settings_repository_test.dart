@@ -93,6 +93,37 @@ void main() {
     );
 
     test(
+      'playlist destination defaults on and decodes the stored preference',
+      () async {
+        expect(
+          const AppSettingsModel.defaults().playlistCreateOnServer,
+          isTrue,
+        );
+        expect((await repository.getSettings()).playlistCreateOnServer, isTrue);
+        await database.customStatement(
+          'UPDATE app_settings SET playlist_create_on_server = 0',
+        );
+        final settings = await repository.getSettings();
+        expect(settings.playlistCreateOnServer, isFalse);
+        expect(
+          (await repository.watchSettings().first).playlistCreateOnServer,
+          isFalse,
+        );
+        expect(
+          settings.copyWith(themeMode: 'light').playlistCreateOnServer,
+          isFalse,
+        );
+        // Unrelated settings saves must not reset the sticky destination.
+        await repository.saveSettings(settings.copyWith(themeMode: 'light'));
+        expect(
+          (await repository.getSettings()).playlistCreateOnServer,
+          isFalse,
+        );
+      },
+      skip: !sqliteAvailable,
+    );
+
+    test(
       'hidden Home sections distinguish built-in defaults from none',
       () async {
         final dao = database.appSettingsDao;

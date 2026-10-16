@@ -1943,6 +1943,7 @@ void main() {
                   ),
                   const PlaylistLibraryItem.normal(
                     PlaylistsTableData(
+                      isLocal: false,
                       id: 'server-mix',
                       name: 'Server Mix',
                       songCount: 3,
@@ -2010,6 +2011,7 @@ void main() {
                   ]),
                   const PlaylistLibraryItem.normal(
                     PlaylistsTableData(
+                      isLocal: false,
                       id: 'server-mix',
                       name: 'Server Mix',
                       songCount: 3,
@@ -2086,6 +2088,7 @@ void main() {
                       )
                     : Stream.value(const <PlaylistsTableData>[
                         PlaylistsTableData(
+                          isLocal: false,
                           id: 'server-mix',
                           name: 'Server Mix',
                           songCount: 3,
@@ -2202,6 +2205,7 @@ void main() {
                   <PlaylistLibraryItem>[
                     PlaylistLibraryItem.normal(
                       PlaylistsTableData(
+                        isLocal: false,
                         id: 'server-mix',
                         name: 'Server Mix',
                         songCount: 3,
