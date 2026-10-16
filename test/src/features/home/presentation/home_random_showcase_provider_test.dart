@@ -2582,9 +2582,10 @@ void main() {
 
       expect(libraryItems.hasValue, isTrue);
       expect(libraryItems.requireValue.map((item) => item.id), <String>[
+        // Your playlists come before the Made for you mixes.
+        'server-playlist',
         listenBrainzWeeklyExplorationVirtualPlaylistId,
         listenBrainzWeeklyJamsVirtualPlaylistId,
-        'server-playlist',
       ]);
     },
   );
