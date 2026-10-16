@@ -2297,5 +2297,56 @@ Latest activity (2026-03-07): published `v0.8.0` APK via `tool/release.sh` and s
 - 2026-10-10 — Fine-Tune Colors UI: Color and Brightness rulers (the Speed and Pitch ruler in whole-step mode with a live stepped-swatch band) under Color Style in Appearance and in setup's More appearance options; live preview per step, saved on release, Reset. Focused ruler, Appearance, setup and theme tests recorded in the handoff; runtime loop and full gate reserved for coordinator.
 - 2026-10-11 — Now Playing phone layout: height classes, bottom-pinned controls, artwork as the flexible element with shared gap interpolation and exact-square covers (`NowPlayingPhoneLayout`); the 700 dp scroll cliff is gone. Focused player and routing suites recorded in the handoff; runtime loop and full gate reserved for coordinator.
 - 2026-10-16 — Download backfill fix (issue #9 part 1): lyrics and artwork backfill now follow the Wi-Fi-only download policy instead of unconditionally requiring Wi-Fi, a pass gated by a missing API client, network policy or an LRCLIB cooldown re-arms from `processQueuedDownloads`, both backfill loops pause during the playback hold, and `promoteToPermanent` prefetches lyrics next to cover art. Tests written first and confirmed failing (five behavioural tests), then fixed: both download service suites green (248 tests), `dart analyze` clean and `dart format` applied on changed files. No app launch or full gate, per machine rules.
+- 2026-10-16 — Appearance Looks (issue #7, branch `fix/appearance-looks-update`): Update/Rename/Delete follow the persisted last-chosen Look while the appearance is Custom ("Custom · edited from <Look>"), surviving page re-entry and restart; table-driven audit `appearance_controls_audit_test.dart` drives every Appearance control through the real screen (columns written, provider effect, Look → Custom with origin, Update restores it) with a source guard for new writers; found and fixed un-hiding the last hidden Home section restoring the default hidden sections. Focused tests only (looks, audit, repository, changelog); no app launch, `./tool/check.sh` and the runtime screenshot pass reserved for the coordinator.
+
+- 2026-10-16 — Issue #7 owner-approved Look scope fix: removed density, artist
+  view, artwork size, artwork shapes and legacy grid density from Look capture,
+  comparison and application; old version-1 JSON ignores these keys without a
+  migration. Updated Appearance audit rows, help text, goldens, architecture,
+  decision addendum and removal record. Test-first regressions failed on layout
+  equality and old-Look application (comfortable became compact); all 90 focused
+  domain/storage/controller/audit tests passed after the fix. Runtime and full
+  quality gate are prohibited on this host and remain coordinator-owned.
+
+- 2026-10-16 — Issue #7 stale settings-write fix: generic DAO/repository saves
+  omit all Look and layout columns, Look library/selection and Home section
+  order/visibility; Library's artist list/grid toggle uses the existing targeted
+  writer, and reset plus appearance fixtures use targeted lanes. The regression
+  first failed with `Expected: 'light' / Actual: 'dark'`, then passed while
+  comparing the complete stored row except the requested scrobble change and
+  timestamp. Library's test first failed on `Bad state: full draft read`; its
+  targeted-writer path passed in the broader suite. That run passed 982 tests
+  with only the desktop Appearance copy golden failing; the updated golden's
+  focused test passed. Final combined validation is recorded below.
+
+- 2026-10-16 — Issue #7 fix-round final evidence: the new Home storage contract
+  test passed before the documentation correction (`null` = built-in default
+  hidden set, `[]` = none hidden). Corrected table, DAO and provider comments;
+  regenerated the table's data-class comment. Added braces around two existing
+  provider early returns to satisfy analysis without changing their behavior.
+  The final memory-capped command (6G, `flutter test --concurrency=4`) covered
+  all settings, Home and changelog tests, the settings DAO, Library screen and
+  diagnostics server: `01:05 +983: All tests passed!`, exit 0, peak 3764M,
+  zero OOM kills. Changed-file analysis reported `No issues found!`; formatting
+  and diff checks passed, `make gen` succeeded, and the dead-code check passed
+  against the existing baseline without new exceptions. Inspected the updated
+  Look picker and desktop Appearance goldens. No app/emulator launch, runtime
+  diagnostics screenshot/restart loop or `./tool/check.sh`: prohibited by this
+  task's host limits, with runtime acceptance left to the coordinator.
+
 - 2026-10-16 — Now Playing settings sheet/panel list the Sound section (Speed & Pitch, mini Equalizer) only while the transport row lacks EQ and Speed buttons; Settings › Playback drops its duplicate Equalizer entry (Porthorion/Navis#8). Focused widget tests only (Now Playing adaptive, Playback settings); no runtime loop or full gate yet.
 - 2026-10-16 — Playback Reset Defaults scope fix (issue #13): the button now calls the playback-scoped `AppSettingsDao.resetPlaybackDefaults()` so theme, Looks, colour tuning, setup highlights, download options, the Last.fm key and ListenBrainz survive the reset, while the page's fields plus speed/pitch reset and saved presets are kept; the Fullscreen Mode Lyrics switch stays on the page and is reset with it; Reset now cancels the queued autosave, waits for a running one and re-hydrates from the stored row; the unused global `resetDefaults()` (DAO and repository) was deleted. Validation: `flutter test --concurrency=4 test/src/database/daos/app_settings_dao_test.dart test/src/features/settings/presentation/playback_settings_screen_test.dart` passed (36 tests, includes the new playback-scope reset test), touched-file `dart analyze` and `dart format` clean, `flutter gen-l10n` regenerated. No app launches or full gate, per machine rules.
+
+- 2026-10-16 — Merged `origin/dev` into `fix/appearance-looks-update`:
+  retained issue #7's 20-field Looks, origin tracking and targeted-only
+  appearance/layout/Home writes alongside issue #13's playback-scoped reset
+  and stored-row autosave fallback; the global DAO/repository reset stays
+  deleted. Preserved both changelog/progress lists and adapted overlapping
+  fixtures to targeted writers. `make gen` passed with no tracked generated
+  changes. `dart analyze lib test` exited 0 with 0 errors, 0 warnings and 177
+  informational findings (`177 issues found.`). The requested 6G-capped settings,
+  DAO, Library, Home, onboarding and changelog suite passed:
+  `01:04 +1013: All tests passed!`; exit 0, peak 3735M, swap peak 124M,
+  zero OOM kills. `dart run tool/dead_code_check.dart` exited 0 against the
+  existing baseline; formatting and diff checks passed. No app launch or
+  `./tool/check.sh`, as explicitly prohibited for this merge task.

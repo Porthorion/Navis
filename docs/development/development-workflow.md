@@ -977,7 +977,8 @@ All are returned by GET and accepted by POST; invalid values/types or unknown
 keys reject the complete request before writes. Omitted axes retain their
 values and targeted writes use `updateColorTuning`. The old branch-only `surfaceDepth` key is rejected.
 GET also returns `selectedAppearanceLookId` and `appearanceLookCount`; the id
-is derived by matching current appearance values. Looks are the only appearance
+is derived by matching current colour and style values; layout preferences
+are excluded. Looks are the only appearance
 presets; tuning preset ids and counts are no longer returned.
 Authenticated, clone-only `GET /v1/presentation/looks` returns
 `{"looks":[{"id":"...","name":"..."}]}`. Clone-only

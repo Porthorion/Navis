@@ -3158,7 +3158,7 @@ final homeSectionOrderProvider = Provider<List<String>?>((ref) {
   return settings.homeSectionOrder;
 });
 
-/// Hidden home section IDs (null = none hidden).
+/// Hidden Home section IDs (`null` = built-in defaults, `[]` = none hidden).
 final homeSectionsHiddenProvider = Provider<List<String>?>((ref) {
   final settings =
       ref.watch(appSettingsProvider).asData?.value ??

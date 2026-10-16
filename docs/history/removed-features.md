@@ -194,3 +194,12 @@ The Home density string provider/writer are also removed in favour of typed
 `NavisDensity` and `densityProvider`. Appearance consistently uses DAO writers,
 so redundant repository wrappers are removed. No user setting or schema column
 is removed. `NavisShapeData` replaces the duplicate panel-radius token.
+
+## Layout preferences in Appearance Looks (2026-10-16)
+
+Owner decision for issue #7: Looks now save colours and style, while density,
+artist list/grid view, artwork size and artwork shapes stay independent.
+Snapshots no longer capture, compare or apply those settings, including the
+retired `albumGridDensity` override. Older version-1 Look JSON remains readable;
+layout keys are ignored without a data migration. The layout controls and their
+targeted settings writers remain available.
