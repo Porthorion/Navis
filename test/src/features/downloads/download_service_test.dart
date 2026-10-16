@@ -40,6 +40,123 @@ class _OfflineArtworkStore extends PermanentArtworkStore {
   Future<bool> ensure(String? coverArtId, SubsonicApiClient api) async => false;
 }
 
+/// Counts [PermanentArtworkStore.ensure] calls to observe artwork backfill.
+class _CountingArtworkStore extends PermanentArtworkStore {
+  new(Future<Directory> Function() read)
+    : super(readApplicationSupportDirectory: read);
+
+  int ensureCalls = 0;
+
+  @override
+  Future<bool> ensure(String? coverArtId, SubsonicApiClient api) async {
+    ensureCalls++;
+    return false;
+  }
+}
+
+/// A client whose every request fails like an unreachable server; lyrics
+/// tests use it only to satisfy the API-client gate while LRCLIB answers.
+SubsonicApiClient _rejectingApiClient() {
+  final dio = Dio(BaseOptions(baseUrl: 'https://example.com'));
+  dio.interceptors.add(
+    InterceptorsWrapper(
+      onRequest: (options, handler) {
+        handler.reject(
+          DioException(
+            requestOptions: options,
+            type: DioExceptionType.badResponse,
+          ),
+        );
+      },
+    ),
+  );
+  return SubsonicApiClient(
+    baseUrl: 'https://example.com',
+    authConfig: const SubsonicAuthConfig(
+      username: 'alice',
+      password: 'secret',
+      apiVersion: '1.16.1',
+    ),
+    dio: dio,
+    enableLogging: false,
+  );
+}
+
+/// An LRCLIB mock whose search answers with one exact-match synced result
+/// for whatever title was asked, so lookups succeed without the network.
+/// Songs must use artist `Artist` and duration 200 to match.
+_MockLrclibClient _answeringLrclib() {
+  final lrclib = _MockLrclibClient();
+  when(
+    () => lrclib.searchLyrics(
+      artist: any(named: 'artist'),
+      title: any(named: 'title'),
+    ),
+  ).thenAnswer(
+    (invocation) async => <LrclibLyrics>[
+      LrclibLyrics(
+        artistName: 'Artist',
+        trackName: invocation.namedArguments[#title] as String,
+        duration: 200,
+        syncedLyrics: '[00:01.00]line',
+      ),
+    ],
+  );
+  when(
+    () => lrclib.getLyrics(
+      artist: any(named: 'artist'),
+      title: any(named: 'title'),
+      album: any(named: 'album'),
+      duration: any(named: 'duration'),
+    ),
+  ).thenAnswer((_) async => null);
+  return lrclib;
+}
+
+/// Seeds a permanently-downloaded song for backfill tests.
+Future<void> _seedPermanentSong(
+  NavisDatabase database, {
+  required String id,
+  required String title,
+  String? coverArt,
+}) async {
+  await database.libraryDao.upsertSongs(<SongsTableCompanion>[
+    SongsTableCompanion.insert(
+      id: id,
+      title: title,
+      artistName: const Value('Artist'),
+      duration: const Value(200),
+      coverArt: coverArt == null ? const Value.absent() : Value(coverArt),
+    ),
+  ]);
+  await database.cacheDao.upsertCachedTrack(
+    CachedTracksTableCompanion.insert(
+      songId: id,
+      filePath: '/fake/$id.mp3',
+      fileSize: 500,
+      format: 'mp3',
+      cacheType: CacheType.permanent,
+      downloadStatus: DownloadStatus.complete,
+      lastAccessedAt: DateTime.now(),
+    ),
+  );
+}
+
+/// Polls until [songId] has a cached lyrics entry (or the budget runs out).
+Future<ExternalLyricsCacheTableData?> _pollLyrics(
+  NavisDatabase database,
+  String songId,
+) async {
+  ExternalLyricsCacheTableData? cached;
+  for (var i = 0; i < 40 && cached == null; i++) {
+    cached = await database.libraryDao.getExternalLyricsCache(songId);
+    if (cached == null) {
+      await Future<void>.delayed(const Duration(milliseconds: 50));
+    }
+  }
+  return cached;
+}
+
 /// Hands each custom folder setting write to [_follow], as the app's settings
 /// providers see it once the settings stream re-reads the row.
 class _FollowedSettingsDao extends AppSettingsDao {
@@ -688,48 +805,271 @@ void main() {
     test(
       'start() backfill skips when wifi-only is set and device is not on wifi',
       () async {
-        // Build a service that claims wifi-only + not on wifi.
+        final lrclib = _answeringLrclib();
+        // Build a service that claims wifi-only + cellular.
         final wifiOnlyOfflineService = DownloadService(
           appSettingsDao: database.appSettingsDao,
           cacheDao: database.cacheDao,
           downloadQueueDao: database.downloadQueueDao,
           libraryDao: database.libraryDao,
-          readApiClient: () => null,
+          readApiClient: _rejectingApiClient,
           readWifiOnly: () => true,
           readIsWifi: () => false,
           readCustomDownloadFolderEnabled: () => false,
           readCustomDownloadFolderPath: () => null,
           readApplicationSupportDirectory: () async => serviceSupportDir,
-          lrclibClient: LrclibClient(),
+          lrclibClient: lrclib,
           readCoverArtCacheManager: _MockCacheManager.new,
           artworkStore: _OfflineArtworkStore(),
         );
         addTearDown(wifiOnlyOfflineService.stop);
 
-        await database.cacheDao.upsertCachedTrack(
-          CachedTracksTableCompanion.insert(
-            songId: 'song-2',
-            filePath: '/fake/song-2.mp3',
-            fileSize: 500,
-            format: 'mp3',
-            cacheType: CacheType.permanent,
-            downloadStatus: DownloadStatus.complete,
-            lastAccessedAt: DateTime.now(),
-          ),
-        );
+        await _seedPermanentSong(database, id: 'song-2', title: 'Gated Song');
 
         // No lyrics seeded — if the backfill ran it would try to fetch.
-        // Because wifi-only + offline it must not attempt any fetch.
+        // Because wifi-only + cellular it must not attempt any fetch.
         await expectLater(wifiOnlyOfflineService.start(), completes);
+        await Future<void>.delayed(const Duration(milliseconds: 300));
 
         // Nothing should be cached because the backfill was gated out.
         final cached = await database.libraryDao.getExternalLyricsCache(
           'song-2',
         );
         expect(cached, isNull);
+        verifyNever(
+          () => lrclib.searchLyrics(
+            artist: any(named: 'artist'),
+            title: any(named: 'title'),
+          ),
+        );
       },
       skip: sqliteAvailable ? null : 'sqlite3 not available',
     );
+
+    test('start() lyrics backfill runs on cellular when downloads are not wifi-only', () async {
+      final cellularService = DownloadService(
+        appSettingsDao: database.appSettingsDao,
+        cacheDao: database.cacheDao,
+        downloadQueueDao: database.downloadQueueDao,
+        libraryDao: database.libraryDao,
+        readApiClient: _rejectingApiClient,
+        readWifiOnly: () => false,
+        readIsWifi: () => false,
+        readCustomDownloadFolderEnabled: () => false,
+        readCustomDownloadFolderPath: () => null,
+        readApplicationSupportDirectory: () async => serviceSupportDir,
+        lrclibClient: _answeringLrclib(),
+        readCoverArtCacheManager: _MockCacheManager.new,
+        artworkStore: _OfflineArtworkStore(),
+      );
+      addTearDown(cellularService.stop);
+
+      await _seedPermanentSong(database, id: 'song-cell', title: 'Cellular');
+
+      await expectLater(cellularService.start(), completes);
+
+      final cached = await _pollLyrics(database, 'song-cell');
+      expect(cached?.syncedLyrics, '[00:01.00]line');
+    }, skip: sqliteAvailable ? null : 'sqlite3 not available');
+
+    test('start() artwork backfill runs on cellular when downloads are not wifi-only', () async {
+      final artworkStore = _CountingArtworkStore(() async => serviceSupportDir);
+      final cellularService = DownloadService(
+        appSettingsDao: database.appSettingsDao,
+        cacheDao: database.cacheDao,
+        downloadQueueDao: database.downloadQueueDao,
+        libraryDao: database.libraryDao,
+        readApiClient: _rejectingApiClient,
+        readWifiOnly: () => false,
+        readIsWifi: () => false,
+        readCustomDownloadFolderEnabled: () => false,
+        readCustomDownloadFolderPath: () => null,
+        readApplicationSupportDirectory: () async => serviceSupportDir,
+        lrclibClient: _answeringLrclib(),
+        readCoverArtCacheManager: _MockCacheManager.new,
+        artworkStore: artworkStore,
+      );
+      addTearDown(cellularService.stop);
+
+      await _seedPermanentSong(
+        database,
+        id: 'song-art',
+        title: 'Artwork',
+        coverArt: 'cover-art-1',
+      );
+
+      await expectLater(cellularService.start(), completes);
+      for (var i = 0; i < 40 && artworkStore.ensureCalls == 0; i++) {
+        await Future<void>.delayed(const Duration(milliseconds: 50));
+      }
+
+      expect(artworkStore.ensureCalls, greaterThan(0));
+    }, skip: sqliteAvailable ? null : 'sqlite3 not available');
+
+    test('lyrics backfill skipped without an API client re-arms from processQueuedDownloads', () async {
+      var apiReady = false;
+      final client = _rejectingApiClient();
+      final lrclib = _answeringLrclib();
+      final service = DownloadService(
+        appSettingsDao: database.appSettingsDao,
+        cacheDao: database.cacheDao,
+        downloadQueueDao: database.downloadQueueDao,
+        libraryDao: database.libraryDao,
+        readApiClient: () => apiReady ? client : null,
+        readWifiOnly: () => false,
+        readIsWifi: () => true,
+        readCustomDownloadFolderEnabled: () => false,
+        readCustomDownloadFolderPath: () => null,
+        readApplicationSupportDirectory: () async => serviceSupportDir,
+        lrclibClient: lrclib,
+        readCoverArtCacheManager: _MockCacheManager.new,
+        artworkStore: _OfflineArtworkStore(),
+      );
+      addTearDown(service.stopAndWait);
+
+      await _seedPermanentSong(database, id: 'song-rearm', title: 'Re-arm');
+      await service.start();
+      await Future<void>.delayed(const Duration(milliseconds: 300));
+      expect(
+        await database.libraryDao.getExternalLyricsCache('song-rearm'),
+        isNull,
+        reason: 'the pass must be gated out while no API client exists',
+      );
+
+      // The client appears and the existing pump fires; the app calls this
+      // from its network and download-policy listeners.
+      apiReady = true;
+      await service.processQueuedDownloads();
+
+      final cached = await _pollLyrics(database, 'song-rearm');
+      expect(cached?.syncedLyrics, '[00:01.00]line');
+
+      // A completed pass is not re-run in the same session.
+      await service.processQueuedDownloads();
+      await Future<void>.delayed(const Duration(milliseconds: 300));
+      verify(
+        () => lrclib.searchLyrics(
+          artist: any(named: 'artist'),
+          title: any(named: 'title'),
+        ),
+      ).called(1);
+    }, skip: sqliteAvailable ? null : 'sqlite3 not available');
+
+    test(
+      'a running lyrics backfill pass is not started twice concurrently',
+      () async {
+        final firstLookup = Completer<void>();
+        var searches = 0;
+        final lrclib = _MockLrclibClient();
+        when(
+          () => lrclib.searchLyrics(
+            artist: any(named: 'artist'),
+            title: any(named: 'title'),
+          ),
+        ).thenAnswer((invocation) async {
+          searches++;
+          if (searches == 1) await firstLookup.future;
+          return <LrclibLyrics>[
+            LrclibLyrics(
+              artistName: 'Artist',
+              trackName: invocation.namedArguments[#title] as String,
+              duration: 200,
+              syncedLyrics: '[00:01.00]line',
+            ),
+          ];
+        });
+        when(
+          () => lrclib.getLyrics(
+            artist: any(named: 'artist'),
+            title: any(named: 'title'),
+            album: any(named: 'album'),
+            duration: any(named: 'duration'),
+          ),
+        ).thenAnswer((_) async => null);
+        final service = DownloadService(
+          appSettingsDao: database.appSettingsDao,
+          cacheDao: database.cacheDao,
+          downloadQueueDao: database.downloadQueueDao,
+          libraryDao: database.libraryDao,
+          readApiClient: _rejectingApiClient,
+          readWifiOnly: () => false,
+          readIsWifi: () => true,
+          readCustomDownloadFolderEnabled: () => false,
+          readCustomDownloadFolderPath: () => null,
+          readApplicationSupportDirectory: () async => serviceSupportDir,
+          lrclibClient: lrclib,
+          readCoverArtCacheManager: _MockCacheManager.new,
+          artworkStore: _OfflineArtworkStore(),
+        );
+        addTearDown(service.stopAndWait);
+        await _seedPermanentSong(database, id: 'song-a', title: 'Duo A');
+        await _seedPermanentSong(database, id: 'song-b', title: 'Duo B');
+
+        await service.start();
+        for (var i = 0; i < 40 && searches == 0; i++) {
+          await Future<void>.delayed(const Duration(milliseconds: 50));
+        }
+        expect(searches, 1, reason: 'the first pass is hanging on its lookup');
+
+        try {
+          // Pumping twice while the pass runs must not start a second pass.
+          unawaited(service.processQueuedDownloads());
+          unawaited(service.processQueuedDownloads());
+          await Future<void>.delayed(const Duration(milliseconds: 300));
+          expect(searches, 1);
+
+          firstLookup.complete();
+          expect(await _pollLyrics(database, 'song-a'), isNotNull);
+          expect(await _pollLyrics(database, 'song-b'), isNotNull);
+          expect(searches, 2, reason: 'exactly one lookup per song');
+        } finally {
+          if (!firstLookup.isCompleted) firstLookup.complete();
+        }
+      },
+      skip: sqliteAvailable ? null : 'sqlite3 not available',
+    );
+
+    test('lyrics backfill waits while the playback hold is active', () async {
+      final lrclib = _answeringLrclib();
+      final service = DownloadService(
+        appSettingsDao: database.appSettingsDao,
+        cacheDao: database.cacheDao,
+        downloadQueueDao: database.downloadQueueDao,
+        libraryDao: database.libraryDao,
+        readApiClient: _rejectingApiClient,
+        readWifiOnly: () => false,
+        readIsWifi: () => true,
+        readCustomDownloadFolderEnabled: () => false,
+        readCustomDownloadFolderPath: () => null,
+        readApplicationSupportDirectory: () async => serviceSupportDir,
+        lrclibClient: lrclib,
+        readCoverArtCacheManager: _MockCacheManager.new,
+        artworkStore: _OfflineArtworkStore(),
+        playbackHoldLimit: const Duration(minutes: 10),
+      );
+      addTearDown(service.stopAndWait);
+
+      await _seedPermanentSong(database, id: 'song-hold', title: 'Held');
+
+      // A stream load holds new work before the backfill can fetch.
+      service.yieldToPlayback(loading: true, songId: 'now-playing');
+      await service.start();
+      await Future<void>.delayed(const Duration(milliseconds: 300));
+      verifyNever(
+        () => lrclib.searchLyrics(
+          artist: any(named: 'artist'),
+          title: any(named: 'title'),
+        ),
+      );
+      expect(
+        await database.libraryDao.getExternalLyricsCache('song-hold'),
+        isNull,
+      );
+
+      service.yieldToPlayback(loading: false);
+      final cached = await _pollLyrics(database, 'song-hold');
+      expect(cached?.syncedLyrics, '[00:01.00]line');
+    }, skip: sqliteAvailable ? null : 'sqlite3 not available');
 
     test(
       'start() backfill is a no-op when there are no permanent downloads',
@@ -936,6 +1276,63 @@ void main() {
           key: coverArtImageCacheKey('cover-1', kCoverArtStandardSize),
         ),
       ).called(1);
+    }, skip: sqliteAvailable ? null : 'sqlite3 not available');
+
+    test('rolling promotion prefetches lyrics for offline use', () async {
+      final supportDir = await Directory.systemTemp.createTemp(
+        'navis_support_',
+      );
+      final rollingDir = await Directory.systemTemp.createTemp(
+        'navis_rolling_',
+      );
+      addTearDown(() => supportDir.delete(recursive: true));
+      addTearDown(() => rollingDir.delete(recursive: true));
+
+      final rollingFile = File('${rollingDir.path}/song-1.mp3')
+        ..writeAsBytesSync(<int>[1, 2, 3]);
+      final rollingService = DownloadService(
+        appSettingsDao: database.appSettingsDao,
+        cacheDao: database.cacheDao,
+        downloadQueueDao: database.downloadQueueDao,
+        libraryDao: database.libraryDao,
+        readApiClient: _rejectingApiClient,
+        readWifiOnly: () => false,
+        readIsWifi: () => true,
+        readCustomDownloadFolderEnabled: () => false,
+        readCustomDownloadFolderPath: () => null,
+        lrclibClient: _answeringLrclib(),
+        readCoverArtCacheManager: _MockCacheManager.new,
+        artworkStore: _OfflineArtworkStore(),
+        readApplicationSupportDirectory: () async => supportDir,
+      );
+      addTearDown(rollingService.stopAndWait);
+
+      await database.libraryDao.upsertSongs(<SongsTableCompanion>[
+        SongsTableCompanion.insert(
+          id: 'song-1',
+          title: 'Promoted Song',
+          artistName: const Value('Artist'),
+          duration: const Value(200),
+          coverArt: const Value('cover-1'),
+        ),
+      ]);
+      await database.cacheDao.upsertCachedTrack(
+        CachedTracksTableCompanion.insert(
+          songId: 'song-1',
+          filePath: rollingFile.path,
+          fileSize: 3,
+          format: 'mp3',
+          bitRate: const Value(320),
+          cacheType: CacheType.rolling,
+          downloadStatus: DownloadStatus.complete,
+          lastAccessedAt: DateTime.now(),
+        ),
+      );
+
+      expect(await rollingService.promoteToPermanent('song-1'), isTrue);
+
+      final cached = await _pollLyrics(database, 'song-1');
+      expect(cached?.syncedLyrics, '[00:01.00]line');
     }, skip: sqliteAvailable ? null : 'sqlite3 not available');
 
     for (final metadataWriteFails in <bool>[false, true]) {
