@@ -694,6 +694,51 @@ class SubsonicApiClient {
     );
   }
 
+  Future<bool> getUserIsAdmin(String username) async {
+    final root = await _readRoot(
+      '/rest/getUser.view',
+      query: {'username': username},
+    );
+    return _asMap(root['user'])['adminRole'] == true;
+  }
+
+  Future<void> createInternetRadioStation({
+    required String name,
+    required String streamUrl,
+    String? homepageUrl,
+  }) async {
+    await _readRoot(
+      '/rest/createInternetRadioStation.view',
+      query: {
+        'name': name,
+        'streamUrl': streamUrl,
+        'homepageUrl': ?homepageUrl,
+      },
+      disableRetry: true,
+    );
+  }
+
+  Future<void> updateInternetRadioStation({
+    required String id,
+    required String name,
+    required String streamUrl,
+    String? homepageUrl,
+  }) async {
+    await _readRoot(
+      '/rest/updateInternetRadioStation.view',
+      query: {
+        'id': id,
+        'name': name,
+        'streamUrl': streamUrl,
+        'homepageUrl': homepageUrl ?? '',
+      },
+    );
+  }
+
+  Future<void> deleteInternetRadioStation(String id) async {
+    await _readRoot('/rest/deleteInternetRadioStation.view', query: {'id': id});
+  }
+
   Future<List<InternetRadioStation>> getInternetRadioStations({
     CancelToken? cancelToken,
   }) async {
