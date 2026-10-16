@@ -2,7 +2,7 @@
 
 Tracks completion of all phases and sub-tasks defined in [docs/project/development-plan.md](development-plan.md). Checkboxes are updated as work is completed.
 
-Last updated: 2026-10-15
+Last updated: 2026-10-16
 
 ---
 
@@ -14,6 +14,22 @@ Last updated: 2026-10-15
 - ACP status values: `backlog`, `ready`, `in_progress`, `blocked`, `done`.
 
 ## Current Focus
+- [x] Update check on every app open — 2026-10-16 (`feat/update-check-on-open`;
+  the automatic update-check throttle dropped from 24 h to 1 h, coming back to
+  the app after 30 s away now invalidates `updateProvider` through the library
+  sync controller's existing resume hook so the throttle decides, a throttled
+  check returns the last update a completed fetch verified (stored in
+  `update_check_state.json`, dropped once the installed version is no longer
+  older; transport failures keep it, any completed fetch replaces it), and the
+  Sync settings library-sync button is labelled "Sync library now". Evidence:
+  `flutter test --concurrency=4` on `update_repository_test.dart`,
+  `update_check_store_test.dart`, `update_pull_test.dart`,
+  `sync_settings_screen_test.dart` and the regenerated desktop preview golden
+  (135 passing), `resume_reconciliation_test.dart` and
+  `library_sync_provider_test.dart` (67 passing), the update cases of
+  `app_providers_test.dart` and `sync_diagnostics_server_test.dart`, plus
+  `flutter analyze`, the format check and the dead-code gate; `./tool/check.sh`
+  and runtime validation were not run on this host.)
 - [x] Idle-robustness final fixes (shared sync requests and busy databases) —
   2026-10-15 (`fix/idle-integration`, aa3d3452..abf8f071; a lease-held check
   against a live worker lease retries at the 30 s floor instead of waiting out

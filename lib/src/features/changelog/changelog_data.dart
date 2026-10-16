@@ -432,6 +432,12 @@ const List<ChangelogVersion> changelogs = [
         'Pulling down to refresh Home or Library also checks for app updates',
       ),
       ChangelogEntry(
+        'Navis checks for app updates when you open it or come back to it, at most once an hour, and a found update stays on Home until you install it',
+      ),
+      ChangelogEntry(
+        'The Sync settings button that refreshes your library is now labelled "Sync library now" to distinguish it from app update checks',
+      ),
+      ChangelogEntry(
         'Appearance is grouped into Theme, Color, Shape & Layout and Now Playing; Color Scheme is now Accent Color, its swatches preview your style, and custom accent colors have more accurate names',
       ),
       ChangelogEntry(

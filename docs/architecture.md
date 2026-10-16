@@ -3241,7 +3241,7 @@ Settings › Integrations › Updates holds the automatic check
 
 Home and Library pulls (including Library tabs and Liked see-all pages) call
 `checkForUpdatesFromPull`. This uses the same integrations policy and forced
-check request, bypassing the 24-hour throttle only when the master, Updates
+check request, bypassing the one-hour throttle only when the master, Updates
 service and `updates.automatic` switches are on. A temporary manual listener
 keeps the auto-disposed provider active until it resolves and closes on
 completion or widget disposal. Home uses its existing update tile; Library
@@ -3249,11 +3249,21 @@ shows an info notice, “Update available”, with a View action opening the
 existing update dialog, once per available version and build. `UpdateInfo`
 retains the verified manifest version and build in `notificationKey`, so a
 newer dev build sharing a version can show another notice. `UpdateCheckStore`
-reads and merges `lastCheckAt` and `notifiedVersion` in the same JSON file;
-both writers tolerate corrupt state and preserve the other key. Only Library
-notice calls record the key after showing; Home's banner is unchanged.
-Null and error results are silent. Neither refresh
+reads and merges `lastCheckAt`, `notifiedVersion` and `verifiedUpdate` in the
+same JSON file; all writers tolerate corrupt state and preserve the other
+keys. Only Library notice calls record the key after showing; Home's banner
+is unchanged. Null and error results are silent. Neither refresh
 callback waits for the update check.
+
+Automatic checks are throttled to one hour: coming back to the app after at
+least 30 seconds away invalidates `updateProvider` through the library sync
+controller's existing resume hook, and the store's throttle decides whether
+a manifest is fetched again. When the throttle skips the fetch,
+`UpdateRepository` returns the last update a completed fetch verified (also
+kept in `UpdateCheckStore`) while it is still newer than the installed
+version, so the Home tile survives cold starts inside the window; a
+transport failure keeps it, and any completed fetch replaces it with its own
+outcome.
 
 - `data/update_repository.dart` — fetches the channel's signed manifest from
   `AppConstants.updateBaseUrl` (R2, see [release-r2.md](release/release-r2.md)), verifies it,
@@ -3331,7 +3341,7 @@ these hold; each failure is recorded as a reject reason and nothing is offered:
   are well formed (`invalid_asset_url`, `invalid_asset_sha256`, `invalid_asset_size`).
 
 A transport failure is not a reject: it surfaces through the provider's error state, and
-a successful fetch keeps the 24-hour check throttle. The release notes link comes from
+a successful fetch keeps the one-hour check throttle. The release notes link comes from
 the manifest's `notes_url` only when it is an HTTPS URL on `navis.porthorion.com`;
 otherwise "Download Manually" opens `AppConstants.updateManualDownloadUrl`.
 
