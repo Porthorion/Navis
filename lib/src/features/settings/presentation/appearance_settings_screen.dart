@@ -478,8 +478,10 @@ class AppearanceSettingsScreen extends ConsumerWidget {
                                   current.add(sectionId);
                                 }
                               }
+                              // [] is "hide nothing"; null would bring the
+                              // built-in hidden sections back.
                               await db.appSettingsDao.updateHomeSectionsHidden(
-                                current.isEmpty ? null : jsonEncode(current),
+                                jsonEncode(current),
                               );
                             },
                       ),

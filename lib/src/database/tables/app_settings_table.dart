@@ -294,7 +294,9 @@ class AppSettingsTable extends Table {
   /// Null = default order.
   TextColumn get homeSectionOrder => text().nullable()();
 
-  /// JSON-encoded list of hidden home section IDs. Null = none hidden.
+  /// JSON-encoded hidden Home section IDs.
+  ///
+  /// `null` uses the built-in default hidden set; `[]` hides nothing.
   TextColumn get homeSectionsHidden => text().nullable()();
 
   /// JSON-encoded ordered list of library page IDs. Null = default order.

@@ -1,7 +1,6 @@
 import 'package:navis/src/features/settings/domain/navis_density.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:navis/src/features/settings/data/settings_repository.dart';
-import 'package:navis/src/features/settings/domain/app_settings.dart';
 import 'package:navis/src/routing/content_layout.dart';
 
 import '../../../../helpers/test_database.dart';
@@ -27,12 +26,8 @@ void main() {
       final db = createTestDatabase();
       addTearDown(db.close);
       final repository = SettingsRepository(db.appSettingsDao);
-      await repository.saveSettings(
-        const AppSettingsModel.defaults().copyWith(
-          themeMode: 'oled',
-          homeDensity: NavisDensity.compact,
-        ),
-      );
+      await db.appSettingsDao.updateThemeMode('oled');
+      await db.appSettingsDao.updateDensity(NavisDensity.compact);
       await db.appSettingsDao.updateGridArtworkSize('small');
       await db.appSettingsDao.updateHomeRecommendationsAutoAdvance(
         enabled: true,

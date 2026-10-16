@@ -3735,7 +3735,9 @@ class AppSettingsTableData extends DataClass
   /// Null = default order.
   final String? homeSectionOrder;
 
-  /// JSON-encoded list of hidden home section IDs. Null = none hidden.
+  /// JSON-encoded hidden Home section IDs.
+  ///
+  /// `null` uses the built-in default hidden set; `[]` hides nothing.
   final String? homeSectionsHidden;
 
   /// JSON-encoded ordered list of library page IDs. Null = default order.

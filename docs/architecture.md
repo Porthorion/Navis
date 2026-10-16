@@ -1067,22 +1067,32 @@ target-selection rules.
     writes and preserves explicitly cleared selections at normal speed across
     later appearance saves. Unsupported saved playback presets retain a Delete
     menu action; Normal is built in and cannot be deleted. Delete failures use app notices.
+  - Generic `AppSettingsDao.saveSettings` / `SettingsRepository.saveSettings`
+    saves omit all Look fields, layout preferences (including legacy grid
+    density), the Look library/selection, and Home section order/visibility.
+    These settings use targeted writers, so Playback autosave cannot revert
+    newer changes from Appearance or Home. The Library artist-view toggle
+    uses `updateArtistViewMode`. Playback reset uses targeted playback writers
+    and preserves appearance, layout, the Look library and its selection.
   - Looks (`AppearanceLook`, version 1, `AppearanceSnapshot`,
-    `AppearanceLooksController`) capture all appearance choices: theme mode,
+    `AppearanceLooksController`) capture colour and style choices: theme mode,
     OLED-for-Auto, saved colour style, nullable accent seed, dynamic album
     colour, Night Schedule enable/start/end, both album-title shade flags,
     intensity, both brightness values, both tint values and Controls directly,
-    Flat switch and area mask, corners, library/carousel/Now Playing/artist artwork shapes,
-    artwork size and legacy grid-column override, density, artist view mode,
-    and Now Playing background. Excluded: Home section order/visibility,
+    Flat switch and area mask, corner style, and Now Playing background.
+    Layout preferences stay independent: density, artist list/grid view,
+    artwork size, all three artwork shapes and the legacy grid-column override
+    are excluded. Editing them keeps the Look selected, and applying an older
+    stored Look ignores those keys without migrating its JSON. Also excluded:
+    Home section order/visibility,
     page visibility/order and Desktop Navbar (they organize content and
     navigation), and language, saved accent swatches and Home recommendation
     auto-advance (a Look changes how Navis looks, never its language, your
     saved colours or behaviour).
-    `capture` records nullable-setting clear flags so a saved automatic seed or
-    grid size can be restored. JSON decoding is per field: missing,
+    `capture` records a clear flag so a saved automatic accent seed can be
+    restored. JSON decoding is per field: missing,
     unknown or invalid values preserve current settings; explicit null clears
-    those two nullable settings. Unsupported Look versions are discarded.
+    the nullable accent seed. Unsupported Look versions are discarded.
     `applyAppearanceSnapshot` writes supplied appearance columns in one DAO
     transaction. Decoding silently ignores the retired `tuningPresetId` key;
     captured tuning values always apply. The controller offers `apply`,
@@ -1092,8 +1102,8 @@ target-selection rules.
     the Look, or null for an unknown id or failure. The UI can keep that
     snapshot for Undo and pass it to `restore(previous)`. Apply and restore
     update appearance and the derived selected marker in one DAO transaction.
-    Restoration includes theme mode, automatic (null) accent seed, null legacy
-    grid-column override, and every tuning value and Controls. Undo restores
+    Restoration includes theme mode, automatic (null) accent seed, and every
+    tuning value and Controls. Undo restores
     Custom when no Look matches, or re-selects a previously matching Look by value.
     Reset restores appearance defaults and retains the Look library.
     Controllers serialize writes and acknowledge the committed row through
@@ -1304,7 +1314,13 @@ target-selection rules.
     `SetupHighlight.appearanceLooks`: a heading, a subtitle and a
     `PresetPicker` over the saved Looks, with "Custom" while the appearance
     matches none and a ⋮ menu offering Save Current as New Look, Update,
-    Rename and Delete through `AppearanceLooksController`; choosing a Look
+    Rename and Delete through `AppearanceLooksController`. A changed
+    appearance keeps the Look it came from: `selected_appearance_look_id`
+    stays set while the values are Custom (`storedAppearanceLookId`; Save,
+    Update, Rename, Apply and Undo write it, Delete clears it), the picker
+    reads "Custom · edited from {name}" and Update, Rename and Delete act on
+    that origin (`AppearanceLooksState.originLookId`), so they survive leaving
+    the page and restarts. Choosing a Look
     applies it and raises an "Applied {name}" notice with Undo (six seconds,
     `showAppNotice`) that calls `restore` with the snapshot `apply` returned;
     a failed restore shows the existing failure notice. The clone-only apply
@@ -1341,7 +1357,7 @@ target-selection rules.
   - Corner Style: `NavisCornerStyle` (`rounded` default, `soft`, `square`) is
     persisted in `app_settings.corner_style` (schema 97). The guarded 92→97
     migration defaults existing rows to `rounded`. `SettingsRepository`
-    saves it through `updateCornerStyle` or `saveSettings`; `cornerStyleProvider`
+    saves it through `updateCornerStyle`; `cornerStyleProvider`
     derives it from `appSettingsProvider`, falling back to `rounded` while
     loading or on error. It is watched in `app.dart` and passed as `corners:`
     to the three theme builders. `NavisShapeData` (a ThemeExtension,

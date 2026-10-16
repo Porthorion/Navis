@@ -4,6 +4,8 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:navis/src/features/settings/domain/app_settings.dart';
 import 'package:navis/src/features/settings/domain/appearance_presets.dart';
 import 'package:navis/src/theme/color_adjustment.dart';
+import 'package:navis/src/features/settings/domain/navis_density.dart';
+import 'package:navis/src/routing/content_layout.dart';
 
 void main() {
   test('tuning clamps and resolves Light independently from Dark and OLED', () {
@@ -114,7 +116,6 @@ void main() {
               'flatAreas': -1,
               'colorSchemeSeed': -1,
               'cornerStyle': null,
-              'artistViewMode': 'list',
               'colorVividness': -2,
               'futureField': true,
             },
@@ -123,15 +124,44 @@ void main() {
       );
       expect(decoded.map((p) => p.id), ['a', 'e']);
       expect(decoded.first.snapshot, look.snapshot);
-      expect(decoded.last.snapshot.toJson(), {
-        'artistViewMode': 'list',
-        'colorVividness': -2,
-      });
+      expect(decoded.last.snapshot.toJson(), {'colorVividness': -2});
       for (final raw in ['bad', '{}', 'null']) {
         expect(decodeAppearanceLooks(raw), isEmpty);
       }
     },
   );
+
+  test('layout edits keep the Look selected and are absent from snapshots', () {
+    const initial = AppSettingsModel.defaults();
+    final captured = AppearanceSnapshot.capture(initial);
+    final look = AppearanceLook(id: 'base', name: 'Base', snapshot: captured);
+    final edited = initial.copyWith(
+      density: NavisDensity.compact,
+      artistViewMode: 'list',
+      gridArtworkSize: GridArtworkSize.large,
+      coverArtShape: 'circle',
+      nowPlayingArtShape: 'square',
+      artistCardShape: 'rounded',
+      albumGridDensity: 6,
+      appearanceLooks: [look],
+      selectedAppearanceLookId: look.id,
+    );
+    expect(AppearanceSnapshot.capture(edited), captured);
+    expect(matchingAppearanceLookId(edited), look.id);
+    expect(captured.toJson(), hasLength(20));
+    final legacy = {
+      ...captured.toJson(),
+      'density': 'compact',
+      'artistViewMode': 'list',
+      'gridArtworkSize': 'large',
+      'coverArtShape': 'circle',
+      'nowPlayingArtShape': 'square',
+      'artistCardShape': 'rounded',
+      'albumGridDensity': 6,
+    };
+    expect(AppearanceSnapshot.fromJson(legacy), captured);
+    expect(AppearanceSnapshot.fromJson(legacy).hashCode, captured.hashCode);
+  });
 
   test('snapshot ignores retired tuning reference and includes every captured value', () {
     final captured = AppearanceSnapshot.capture(

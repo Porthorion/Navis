@@ -843,14 +843,12 @@ void main() {
       expect(listenBrainz.recommendationPlaylistCalls, 1);
       expect(emissions.last.single.playableSongs.single.id, 'song-jams');
 
+      await database.appSettingsDao.updateGridArtworkSize('large');
       await repository.saveSettings(
         container
             .read(appSettingsProvider)
             .requireValue
-            .copyWith(
-              scrobbleEnabled: false,
-              gridArtworkSize: GridArtworkSize.large,
-            ),
+            .copyWith(scrobbleEnabled: false),
       );
       await settingsApplied(
         (settings) =>
