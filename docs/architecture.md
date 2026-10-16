@@ -3870,8 +3870,11 @@ compact. Choosing an entry selects it with
 `selectPreset(enable: true)`, so picking a sound also turns the EQ on; drafts are
 kept exactly as on the full page. The Now Playing settings sheet and the wide
 settings panel show the same controls inline as `EqQuickCard` in a "Sound"
-section; unsupported backends keep the disabled
-`EqualizerEntry` explanation. The settings sheet is a draggable
+section, but only while the transport row has no EQ and Speed buttons
+(`_TransportControls` reports this through `quickActionsShown`, so the sheet
+never repeats buttons that sit right above it); unsupported backends keep the
+disabled `EqualizerEntry` explanation in that section. Settings › Playback has
+no Equalizer entry; Settings › Equalizer is the only one. The settings sheet is a draggable
 `DraggableScrollableSheet` and returns a follow-up action, so Speed & Pitch or
 the Equalizer page opens only after it has closed.
 

@@ -4,6 +4,10 @@ part of 'now_playing_screen.dart';
 /// panel: Sound (speed/pitch, equalizer), then rating, lyrics, navigation,
 /// playlist and download rows.
 ///
+/// Sound is listed only when [showSound] is true: the transport row already
+/// has EQ and Speed buttons, so the section is for rows too narrow to show
+/// them.
+///
 /// The two hosts differ only in how their actions are reached, so each passes
 /// explicit callbacks:
 /// * [onOpenSpeedPitch] opens the Speed & Pitch panel from the tapped tile.
@@ -20,6 +24,7 @@ List<Widget> _nowPlayingSettingsItems(
   BuildContext context,
   WidgetRef ref, {
   required WidgetRef actionRef,
+  required bool showSound,
   required SongsTableData? song,
   required void Function(BuildContext tileContext) onOpenSpeedPitch,
   required VoidCallback? onOpenEqualizerFullPage,
@@ -42,25 +47,27 @@ List<Widget> _nowPlayingSettingsItems(
   final eqSupported = ref.watch(eqCapabilitiesProvider).supported;
 
   return <Widget>[
-    _NowPlayingSoundSectionLabel(label: l10n.nowPlayingSoundSection),
-    Builder(
-      builder: (tileContext) => ListTile(
-        key: const ValueKey('playbackAdjustmentEntryPoint'),
-        leading: const Icon(Icons.speed),
-        title: Text(l10n.playbackSpeedPitchTitle),
-        subtitle: const PlaybackAdjustmentSummary(),
-        trailing: const Icon(Icons.chevron_right),
-        onTap: () => onOpenSpeedPitch(tileContext),
+    if (showSound) ...<Widget>[
+      _NowPlayingSoundSectionLabel(label: l10n.nowPlayingSoundSection),
+      Builder(
+        builder: (tileContext) => ListTile(
+          key: const ValueKey('playbackAdjustmentEntryPoint'),
+          leading: const Icon(Icons.speed),
+          title: Text(l10n.playbackSpeedPitchTitle),
+          subtitle: const PlaybackAdjustmentSummary(),
+          trailing: const Icon(Icons.chevron_right),
+          onTap: () => onOpenSpeedPitch(tileContext),
+        ),
       ),
-    ),
-    if (eqSupported)
-      Padding(
-        padding: equalizerCardPadding,
-        child: EqQuickCard(onOpenFullPage: onOpenEqualizerFullPage),
-      )
-    else
-      const EqualizerEntry(),
-    const Divider(height: 1),
+      if (eqSupported)
+        Padding(
+          padding: equalizerCardPadding,
+          child: EqQuickCard(onOpenFullPage: onOpenEqualizerFullPage),
+        )
+      else
+        const EqualizerEntry(),
+      const Divider(height: 1),
+    ],
     if (song != null)
       ListTile(
         iconColor: dimRemoteRatingTile && isRemote ? disabledColor : null,

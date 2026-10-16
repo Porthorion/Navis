@@ -571,6 +571,7 @@ void _showNowPlayingSettingsSheet(
   BuildContext context,
   WidgetRef ref,
   SongsTableData? song, {
+  required ValueNotifier<bool> transportQuickActionsShown,
   String? fullscreenLyricsSongId,
   String? fullscreenLyricsTitle,
 }) {
@@ -588,84 +589,93 @@ void _showNowPlayingSettingsSheet(
       builder: (_, scrollController) => Consumer(
         builder: (_, sheetRef, _) {
           final sheetVolume = sheetRef.watch(playbackVolumeProvider);
-          return SafeArea(
-            top: false,
-            child: ListView(
-              key: const ValueKey<String>('nowPlayingSettingsSheet'),
-              controller: scrollController,
-              padding: const EdgeInsets.only(bottom: 12),
-              children: <Widget>[
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(16, 0, 16, 4),
-                  child: Row(
-                    children: <Widget>[
-                      Icon(
-                        sheetVolume <= 0.01
-                            ? Icons.volume_off_rounded
-                            : sheetVolume < 0.5
-                            ? Icons.volume_down_rounded
-                            : Icons.volume_up_rounded,
-                        size: 22,
-                        color: Theme.of(context).colorScheme.onSurfaceVariant,
-                      ),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: Slider(
-                          value: sheetVolume,
-                          min: 0,
-                          max: 1,
-                          onChanged: (v) {
-                            unawaited(
+          return ValueListenableBuilder<bool>(
+            valueListenable: transportQuickActionsShown,
+            builder: (_, quickActionsShown, _) => SafeArea(
+              top: false,
+              child: ListView(
+                key: const ValueKey<String>('nowPlayingSettingsSheet'),
+                controller: scrollController,
+                padding: const EdgeInsets.only(bottom: 12),
+                children: <Widget>[
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 0, 16, 4),
+                    child: Row(
+                      children: <Widget>[
+                        Icon(
+                          sheetVolume <= 0.01
+                              ? Icons.volume_off_rounded
+                              : sheetVolume < 0.5
+                              ? Icons.volume_down_rounded
+                              : Icons.volume_up_rounded,
+                          size: 22,
+                          color: Theme.of(context).colorScheme.onSurfaceVariant,
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Slider(
+                            value: sheetVolume,
+                            min: 0,
+                            max: 1,
+                            onChanged: (v) {
+                              unawaited(
+                                sheetRef
+                                    .read(playbackVolumeProvider.notifier)
+                                    .setVolume(v),
+                              );
+                            },
+                            onChangeEnd: (v) => unawaited(
                               sheetRef
                                   .read(playbackVolumeProvider.notifier)
-                                  .setVolume(v),
-                            );
-                          },
-                          onChangeEnd: (v) => unawaited(
-                            sheetRef
-                                .read(playbackVolumeProvider.notifier)
-                                .setVolume(v, persistImmediately: true),
+                                  .setVolume(v, persistImmediately: true),
+                            ),
                           ),
                         ),
-                      ),
-                      _VolumePercentLabel(volume: sheetVolume),
-                    ],
+                        _VolumePercentLabel(volume: sheetVolume),
+                      ],
+                    ),
                   ),
-                ),
-                const Divider(height: 1),
-                ..._nowPlayingSettingsItems(
-                  context,
-                  sheetRef,
-                  actionRef: ref,
-                  song: song,
-                  // The Speed & Pitch sheet opens once this one has closed,
-                  // so two sheets never animate at the same time.
-                  onOpenSpeedPitch: (_) =>
-                      Navigator.of(sheetContext)
-                          .pop(_SettingsSheetAction.speedPitch),
-                  onOpenEqualizerFullPage: () =>
-                      Navigator.of(sheetContext)
-                          .pop(_SettingsSheetAction.openEqualizer),
-                  equalizerCardPadding: const EdgeInsets.fromLTRB(12, 4, 12, 8),
-                  dimRemoteRatingTile: false,
-                  onOpenFullscreenLyrics:
-                      fullscreenLyricsSongId != null &&
-                          fullscreenLyricsTitle != null
-                      ? () {
-                          Navigator.of(sheetContext).pop();
-                          unawaited(
-                            _openFullscreenLyricsRoute(
-                              context,
-                              fullscreenLyricsSongId,
-                              fullscreenLyricsTitle,
-                            ),
-                          );
-                        }
-                      : null,
-                  beforeNavigate: () => Navigator.of(sheetContext).pop(),
-                  beforeAction: () => Navigator.of(sheetContext).pop(),
-                ),
-              ],
+                  const Divider(height: 1),
+                  ..._nowPlayingSettingsItems(
+                    context,
+                    sheetRef,
+                    actionRef: ref,
+                    showSound: !quickActionsShown,
+                    song: song,
+                    // The Speed & Pitch sheet opens once this one has closed,
+                    // so two sheets never animate at the same time.
+                    onOpenSpeedPitch: (_) =>
+                        Navigator.of(sheetContext)
+                            .pop(_SettingsSheetAction.speedPitch),
+                    onOpenEqualizerFullPage: () =>
+                        Navigator.of(sheetContext)
+                            .pop(_SettingsSheetAction.openEqualizer),
+                    equalizerCardPadding: const EdgeInsets.fromLTRB(
+                      12,
+                      4,
+                      12,
+                      8,
+                    ),
+                    dimRemoteRatingTile: false,
+                    onOpenFullscreenLyrics:
+                        fullscreenLyricsSongId != null &&
+                            fullscreenLyricsTitle != null
+                        ? () {
+                            Navigator.of(sheetContext).pop();
+                            unawaited(
+                              _openFullscreenLyricsRoute(
+                                context,
+                                fullscreenLyricsSongId,
+                                fullscreenLyricsTitle,
+                              ),
+                            );
+                          }
+                        : null,
+                    beforeNavigate: () => Navigator.of(sheetContext).pop(),
+                    beforeAction: () => Navigator.of(sheetContext).pop(),
+                  ),
+                ],
+              ),
             ),
           );
         },
@@ -827,6 +837,11 @@ class _NowPlayingBodyState extends ConsumerState<_NowPlayingBody>
   bool _isCompactWidePanelDismissing = false;
   bool _showLyrics = false;
   bool _showWideFullscreenLyrics = false;
+
+  /// Whether the transport row shows its EQ and Speed buttons. The settings
+  /// sheet and panel list those controls only while it does not; unknown
+  /// counts as not shown.
+  final _transportQuickActionsShown = ValueNotifier<bool>(false);
   bool? _lastReportedCompactWideOverlayActive;
   String? _lastPrefetchedNextSongId;
   final ScrollController _embeddedQueueScrollController = ScrollController();
@@ -953,6 +968,7 @@ class _NowPlayingBodyState extends ConsumerState<_NowPlayingBody>
     widget.onCompactWideOverlayActiveChanged?.call(false);
     widget.onCompactWideQueueRequestChanged?.call(null);
     _embeddedQueueScrollController.dispose();
+    _transportQuickActionsShown.dispose();
     super.dispose();
   }
 
@@ -1761,6 +1777,7 @@ class _NowPlayingBodyState extends ConsumerState<_NowPlayingBody>
             context,
             ref,
             song,
+            transportQuickActionsShown: _transportQuickActionsShown,
             fullscreenLyricsSongId: playback.currentSongId,
             fullscreenLyricsTitle: playback.currentSongId == null
                 ? null
@@ -1954,6 +1971,7 @@ class _NowPlayingBodyState extends ConsumerState<_NowPlayingBody>
                     isRadio: isRadio,
                     compact: true,
                     showVolumeControl: false,
+                    quickActionsShown: _transportQuickActionsShown,
                     onSkipPrevious: _handleManualPreviousButton,
                     onSkipNext: _handleManualNextButton,
                   ),
@@ -2051,6 +2069,7 @@ class _NowPlayingBodyState extends ConsumerState<_NowPlayingBody>
               }),
               child: _NowPlayingSettingsPanel(
                 song: song,
+                transportQuickActionsShown: _transportQuickActionsShown,
                 onCollapse: widget.onCollapse,
                 fullscreenLyricsSongId: playback.currentSongId,
                 fullscreenLyricsTitle: title,
@@ -2323,6 +2342,7 @@ class _NowPlayingBodyState extends ConsumerState<_NowPlayingBody>
           compact: compactTransport,
           large: phoneLayout?.largeTransport ?? false,
           showVolumeControl: showDesktopTransportVolume,
+          quickActionsShown: _transportQuickActionsShown,
           onSkipPrevious: _handleManualPreviousButton,
           onSkipNext: _handleManualNextButton,
         );
@@ -2576,6 +2596,7 @@ class _NowPlayingBodyState extends ConsumerState<_NowPlayingBody>
               isRadio: isRadio,
               compact: compactTransport,
               showVolumeControl: showDesktopTransportVolume,
+              quickActionsShown: _transportQuickActionsShown,
               onSkipPrevious: _handleManualPreviousButton,
               onSkipNext: _handleManualNextButton,
             ),
@@ -2665,6 +2686,7 @@ class _NowPlayingBodyState extends ConsumerState<_NowPlayingBody>
             rightPanePanelHeightFactor = 0.52;
             rightPanePanelChild = _NowPlayingSettingsPanel(
               song: song,
+              transportQuickActionsShown: _transportQuickActionsShown,
               onCollapse: widget.onCollapse,
               fullscreenLyricsSongId: playback.currentSongId,
               fullscreenLyricsTitle: title,
