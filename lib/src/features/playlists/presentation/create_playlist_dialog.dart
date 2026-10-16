@@ -66,6 +66,16 @@ class _CreatePlaylistDialogState extends ConsumerState<_CreatePlaylistDialog> {
   bool get _onServer =>
       _available && (_tapped ?? ref.read(playlistCreateOnServerProvider));
 
+  Future<void> _save(bool enabled) async {
+    try {
+      await ref
+          .read(playlistCreateOnServerProvider.notifier)
+          .setOnServer(enabled: enabled);
+    } on Object catch (error) {
+      AppLogger.warning('Saving the playlist destination failed: $error');
+    }
+  }
+
   void _submit() {
     final name = _controller.text.trim();
     if (name.isEmpty) return;
@@ -102,11 +112,7 @@ class _CreatePlaylistDialogState extends ConsumerState<_CreatePlaylistDialog> {
             onChanged: available
                 ? (enabled) {
                     setState(() => _tapped = enabled);
-                    unawaited(
-                      ref
-                          .read(playlistCreateOnServerProvider.notifier)
-                          .setOnServer(enabled: enabled),
-                    );
+                    unawaited(_save(enabled));
                   }
                 : null,
           ),

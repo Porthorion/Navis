@@ -173,8 +173,8 @@ final playlistServerCreationAvailableProvider = Provider<bool>((ref) {
             serverReachabilityControllerProvider.select(
               (state) => state.status,
             ),
-          ) ==
-          ServerReachabilityStatus.online;
+          ) !=
+          ServerReachabilityStatus.offline;
 });
 
 final playlistCreateOnServerProvider =

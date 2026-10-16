@@ -1,4 +1,5 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_riverpod/misc.dart' show Override;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:mocktail/mocktail.dart';
@@ -7,10 +8,12 @@ import 'package:navis/l10n/navis_localizations.dart';
 import 'package:navis/src/api/models/playlist.dart';
 import 'package:navis/src/api/subsonic_api_client.dart';
 import 'package:navis/src/common_widgets/app_notice.dart';
+import 'package:navis/src/database/daos/app_settings_dao.dart';
 import 'package:navis/src/database/navis_database.dart';
 import 'package:navis/src/features/auth/domain/server_reachability.dart';
 import 'package:navis/src/features/auth/presentation/server_reachability_provider.dart';
 import 'package:navis/src/features/playlists/presentation/create_playlist_dialog.dart';
+import 'package:navis/src/features/settings/data/settings_repository.dart';
 import 'package:navis/src/providers/app_providers.dart';
 import 'package:navis/src/utils/connectivity.dart';
 
@@ -18,6 +21,14 @@ import '../../../../helpers/test_database.dart';
 import '../../../../helpers/test_theme.dart';
 
 class _MockApi extends Mock implements SubsonicApiClient;
+
+class _FailingSettingsRepository extends SettingsRepository {
+  new(AppSettingsDao dao) : super(dao);
+
+  @override
+  Future<void> setPlaylistCreateOnServer({required bool enabled}) =>
+      Future<void>.error(StateError('settings boom'));
+}
 
 class _OnlineReachability extends ServerReachabilityController {
   @override
@@ -42,6 +53,7 @@ Future<void> _pump(
   SubsonicApiClient api,
   AppNoticeController notices, {
   NetworkType network = NetworkType.wifi,
+  List<Override> extraOverrides = const <Override>[],
 }) async {
   await tester.pumpWidget(
     ProviderScope(
@@ -53,6 +65,7 @@ Future<void> _pump(
           serverReachabilityControllerProvider.overrideWith(
             _OnlineReachability.new,
           ),
+          ...extraOverrides,
         ],
       ),
       child: MaterialApp(
@@ -192,5 +205,32 @@ void main() {
 
     expect(notices.notice?.message, 'Failed to create playlist');
     expect(notices.notice?.level, AppNoticeLevel.error);
+  }, skip: !sqliteAvailable);
+
+  testWidgets('a failing settings write does not escape the switch tap', (
+    tester,
+  ) async {
+    await _pump(
+      tester,
+      database,
+      api,
+      notices,
+      extraOverrides: [
+        settingsRepositoryProvider.overrideWith(
+          (ref) => _FailingSettingsRepository(database.appSettingsDao),
+        ),
+      ],
+    );
+
+    await _create(tester, 'One');
+    await tester.tap(find.byType(Switch));
+    await _flush(tester);
+
+    expect(tester.takeException(), isNull);
+    // The dialog keeps the tapped state and still creates the playlist.
+    expect(_switch(tester).value, isFalse);
+    await _submit(tester);
+    expect(notices.notice?.message, 'Playlist created');
+    notices.dismiss();
   }, skip: !sqliteAvailable);
 }

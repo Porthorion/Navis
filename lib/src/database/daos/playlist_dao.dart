@@ -43,7 +43,8 @@ class PlaylistDao extends DatabaseAccessor<NavisDatabase>
   }
 
   Future<void> renamePlaylist(String id, String name) {
-    return (update(playlistsTable)..where((table) => table.id.equals(id)))
+    return (update(playlistsTable)
+          ..where((table) => table.id.equals(id) & table.isLocal.equals(true)))
         .write(PlaylistsTableCompanion(name: Value(name)));
   }
 

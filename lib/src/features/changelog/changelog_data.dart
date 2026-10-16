@@ -183,6 +183,10 @@ const List<ChangelogVersion> changelogs = [
         type: ChangelogEntryType.fix,
       ),
       ChangelogEntry(
+        'Saving the queue as a playlist now offers the Save to server choice, falls back to this device when offline, and tells you when it fails',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
         'Brief connection checks no longer falsely report offline at launch or resume, and dismissed offline notices stay dismissed until recovery',
         type: ChangelogEntryType.fix,
       ),

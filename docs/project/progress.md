@@ -14,6 +14,15 @@ Last updated: 2026-10-16
 - ACP status values: `backlog`, `ready`, `in_progress`, `blocked`, `done`.
 
 ## Current Focus
+- [x] Device playlists review fixes — 2026-10-16 (`feat/playlists-device`):
+  queue "Save as playlist" now uses `showCreatePlaylistDialog` (device fallback,
+  failure notice); the Save to server switch stays available while server
+  reachability is `checking`; partial device adds report the skipped count;
+  `renamePlaylist` only touches device rows; a failed destination-setting write
+  is logged; the Playlists filter clears when its field is hidden. Tests:
+  `queue_save_as_playlist_test.dart`, `playlist_dao_test.dart`,
+  `playlist_device_providers_test.dart`, `add_to_playlist_sheet_test.dart`,
+  `create_playlist_dialog_test.dart`, `library_screen_test.dart`.
 - [x] PR B2 UI: create switch, device playlists in the Library, local detail and
   add paths — 2026-10-16 (`feat/playlists-device`, rebased onto
   `feat/playlists-sections`; Sonnet implementation). New shared

@@ -176,11 +176,21 @@ class _LibraryPlaylistsTabState extends ConsumerState<_LibraryPlaylistsTab>
               )
               .toList(growable: false);
 
+    final showFilterField = !desktopMode && effectiveItems.isNotEmpty;
+    // A hidden field must not keep filtering rows that appear later.
+    if (!showFilterField && _filterController.text.isNotEmpty) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        _filterController.clear();
+        setState(() {});
+      });
+    }
+
     return Stack(
       children: [
         Column(
           children: <Widget>[
-            if (!desktopMode && effectiveItems.isNotEmpty)
+            if (showFilterField)
               ListFilterField(
                 controller: _filterController,
                 hint: l10n.playlistsFilterHint,

@@ -363,10 +363,25 @@ const _deviceMix = PlaylistsTableData(
   songCount: 3,
 );
 
+class _PlaylistItems extends Notifier<AsyncValue<List<PlaylistLibraryItem>>> {
+  @override
+  AsyncValue<List<PlaylistLibraryItem>> build() => const AsyncData(
+    <PlaylistLibraryItem>[PlaylistLibraryItem.normal(_roadTrip)],
+  );
+
+  void set(List<PlaylistLibraryItem> items) => state = AsyncData(items);
+}
+
+final _playlistItemsProvider =
+    NotifierProvider<_PlaylistItems, AsyncValue<List<PlaylistLibraryItem>>>(
+      _PlaylistItems.new,
+    );
+
 /// Opens Library › Playlists with [items] as the already-grouped rows.
 Future<void> _pumpPlaylistsTab(
   WidgetTester tester, {
   required List<PlaylistLibraryItem> items,
+  bool liveItems = false,
   List<Object?> overrides = const <Object?>[],
   String? viewer,
   AppNoticeController? notices,
@@ -390,9 +405,14 @@ Future<void> _pumpPlaylistsTab(
         ),
         playlistSyncProvider.overrideWith((ref) async {}),
         playlistViewerProvider.overrideWithValue(viewer),
-        playlistLibraryItemsProvider.overrideWithValue(
-          AsyncData<List<PlaylistLibraryItem>>(items),
-        ),
+        if (liveItems)
+          playlistLibraryItemsProvider.overrideWith(
+            (ref) => ref.watch(_playlistItemsProvider),
+          )
+        else
+          playlistLibraryItemsProvider.overrideWithValue(
+            AsyncData<List<PlaylistLibraryItem>>(items),
+          ),
         ...overrides,
       ],
     ),
@@ -2287,6 +2307,39 @@ void main() {
       expect(find.text('Rename playlist'), findsNothing);
       expect(find.text('Delete playlist?'), findsNothing);
     });
+
+    _testWidgetsWithCleanup(
+      'playlists tab drops a hidden filter when the list becomes empty',
+      (tester) async {
+        await _pumpPlaylistsTab(
+          tester,
+          items: const <PlaylistLibraryItem>[],
+          liveItems: true,
+        );
+        final container = ProviderScope.containerOf(
+          tester.element(find.byType(Scaffold).first),
+        );
+        final items = container.read(_playlistItemsProvider.notifier);
+
+        await tester.enterText(find.byType(TextField), 'zzz');
+        await tester.pumpAndSettle();
+        expect(find.text('Road Trip'), findsNothing);
+
+        items.set(const <PlaylistLibraryItem>[]);
+        await tester.pumpAndSettle();
+        expect(find.byType(TextField), findsNothing);
+
+        items.set(const <PlaylistLibraryItem>[
+          PlaylistLibraryItem.normal(_roadTrip),
+        ]);
+        await tester.pumpAndSettle();
+        expect(find.text('Road Trip'), findsOneWidget);
+        expect(
+          tester.widget<TextField>(find.byType(TextField)).controller?.text,
+          isEmpty,
+        );
+      },
+    );
 
     _testWidgetsWithCleanup(
       'playlists tab shows a notice when renaming or deleting fails',

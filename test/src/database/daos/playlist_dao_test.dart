@@ -76,6 +76,15 @@ void main() {
       },
     );
 
+    test('renaming only touches device playlists', () async {
+      final dao = database.playlistDao;
+      await dao.upsertPlaylists([
+        PlaylistsTableCompanion.insert(id: 'server', name: 'Server'),
+      ]);
+      await dao.renamePlaylist('server', 'Renamed');
+      expect((await dao.watchPlaylistById('server').first)!.name, 'Server');
+    });
+
     test('a failed join insert rolls back songs and header together', () async {
       final dao = database.playlistDao;
       final id = await dao.createLocalPlaylist('Mix', ['a']);

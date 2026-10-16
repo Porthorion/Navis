@@ -182,18 +182,28 @@ class _AddToPlaylistSheet extends ConsumerWidget {
     PlaylistsTableData playlist,
   ) async {
     final l10n = AppLocalizations.of(launcher)!;
-    String? failure;
+    var skipped = 0;
+    var failed = false;
     try {
-      final skipped = await actions.addSongs(playlist, songIds);
-      if (skipped >= songIds.length) failure = l10n.addToPlaylistFailed;
+      skipped = await actions.addSongs(playlist, songIds);
+      failed = skipped >= songIds.length;
     } on Object {
-      failure = l10n.addToPlaylistFailed;
+      failed = true;
     }
     if (!launcher.mounted) return;
+    final partial = !failed && skipped > 0;
     showAppNotice(
       launcher,
-      message: failure ?? l10n.addToPlaylistSuccess(playlist.name),
-      level: failure == null ? AppNoticeLevel.success : AppNoticeLevel.error,
+      message: failed
+          ? l10n.addToPlaylistFailed
+          : partial
+          ? l10n.addToPlaylistPartial(playlist.name, skipped)
+          : l10n.addToPlaylistSuccess(playlist.name),
+      level: failed
+          ? AppNoticeLevel.error
+          : partial
+          ? AppNoticeLevel.info
+          : AppNoticeLevel.success,
     );
   }
 }

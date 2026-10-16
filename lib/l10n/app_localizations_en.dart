@@ -2707,12 +2707,6 @@ class AppLocalizationsEn extends AppLocalizations {
   String get queueSaveAsPlaylist => 'Save as playlist';
 
   @override
-  String get queueSaveAsPlaylistName => 'Playlist name';
-
-  @override
-  String get queueSaveAsPlaylistSaved => 'Playlist saved';
-
-  @override
   String get searchHint => 'Search artists, albums, songs...';
 
   @override
@@ -2958,6 +2952,17 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String addToPlaylistSuccess(String name) {
     return 'Added to \"$name\"';
+  }
+
+  @override
+  String addToPlaylistPartial(String name, int skipped) {
+    String _temp0 = intl.Intl.pluralLogic(
+      skipped,
+      locale: localeName,
+      other: '$skipped songs were',
+      one: '1 song was',
+    );
+    return 'Added to \"$name\"; $_temp0 skipped';
   }
 
   @override

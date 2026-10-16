@@ -121,6 +121,22 @@ void main() {
     skip: !sqliteAvailable,
   );
 
+  test('server creation stays available while reachability is checking', () {
+    final container = ProviderContainer(
+      overrides: [
+        subsonicApiProvider.overrideWithValue(_MockApi()),
+        networkTypeProvider.overrideWithValue(NetworkType.wifi),
+        serverReachabilityControllerProvider.overrideWith(_Reachability.new),
+      ],
+    );
+    addTearDown(container.dispose);
+    container.listen(playlistServerCreationAvailableProvider, (_, _) {});
+    (container.read(
+      serverReachabilityControllerProvider.notifier,
+    ) as _Reachability).setStatus(ServerReachabilityStatus.checking);
+    expect(container.read(playlistServerCreationAvailableProvider), isTrue);
+  });
+
   test(
     'destination is sticky; offline forced off is never persisted',
     () async {

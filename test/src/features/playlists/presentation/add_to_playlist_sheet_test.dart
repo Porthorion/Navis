@@ -17,13 +17,14 @@ import '../../../../helpers/test_database.dart';
 import '../../../../helpers/test_theme.dart';
 
 class _PickerLauncher extends ConsumerWidget {
-  const new();
+  const new(this.songIds);
+
+  final List<String> songIds;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     return FilledButton(
-      onPressed: () =>
-          showAddToPlaylistSheet(context, ref, const <String>['song-1']),
+      onPressed: () => showAddToPlaylistSheet(context, ref, songIds),
       child: const Text('Open picker'),
     );
   }
@@ -60,8 +61,9 @@ const _picked = <PlaylistsTableData>[
 
 Future<AppNoticeController> _openPicker(
   WidgetTester tester,
-  PlaylistActions actions,
-) async {
+  PlaylistActions actions, {
+  List<String> songIds = const <String>['song-1'],
+}) async {
   final database = createTestDatabase();
   addTearDown(database.close);
   final notices = AppNoticeController();
@@ -83,7 +85,7 @@ Future<AppNoticeController> _openPicker(
         supportedLocales: AppLocalizations.supportedLocales,
         builder: (context, child) =>
             AppNoticeScope(notifier: notices, child: child!),
-        home: const Scaffold(body: Center(child: _PickerLauncher())),
+        home: Scaffold(body: Center(child: _PickerLauncher(songIds))),
       ),
     ),
   );
@@ -137,6 +139,24 @@ void main() {
     expect(notices.notice?.message, 'Failed to add to playlist');
   });
 
+  testWidgets('a partial add reports how many songs were skipped', (
+    tester,
+  ) async {
+    final actions = _MockPlaylistActions();
+    when(() => actions.addSongs(any(), any())).thenAnswer((_) async => 1);
+    final notices = await _openPicker(
+      tester,
+      actions,
+      songIds: const <String>['song-1', 'song-2'],
+    );
+
+    await tester.tap(find.text('My Mix'));
+    await tester.pumpAndSettle();
+    expect(notices.notice?.message, 'Added to "My Mix"; 1 song was skipped');
+    expect(notices.notice?.level, AppNoticeLevel.info);
+    notices.dismiss();
+  });
+
   testWidgets('desktop uses a bounded playlist-picker dialog', (tester) async {
     final database = createTestDatabase();
     addTearDown(database.close);
@@ -158,7 +178,9 @@ void main() {
           theme: testTheme(),
           localizationsDelegates: navisLocalizationsDelegates,
           supportedLocales: AppLocalizations.supportedLocales,
-          home: const Scaffold(body: Center(child: _PickerLauncher())),
+          home: Scaffold(
+            body: Center(child: _PickerLauncher(const <String>['song-1'])),
+          ),
         ),
       ),
     );
@@ -200,7 +222,9 @@ void main() {
           supportedLocales: AppLocalizations.supportedLocales,
           builder: (context, child) =>
               AppNoticeScope(notifier: notices, child: child!),
-          home: const Scaffold(body: Center(child: _PickerLauncher())),
+          home: Scaffold(
+            body: Center(child: _PickerLauncher(const <String>['song-1'])),
+          ),
         ),
       ),
     );

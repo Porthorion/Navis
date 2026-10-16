@@ -1212,8 +1212,6 @@
   },
   "ratingUpdateFailed": "Could not update rating.",
   "queueSaveAsPlaylist": "Save as playlist",
-  "queueSaveAsPlaylistName": "Playlist name",
-  "queueSaveAsPlaylistSaved": "Playlist saved",
 
   "searchHint": "Search artists, albums, songs...",
   "quickSearchHint": "Search library...",
@@ -1351,6 +1349,17 @@
     "placeholders": {
       "name": {
         "type": "String"
+      }
+    }
+  },
+  "addToPlaylistPartial": "Added to \"{name}\"; {skipped, plural, =1{1 song was} other{{skipped} songs were}} skipped",
+  "@addToPlaylistPartial": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      },
+      "skipped": {
+        "type": "int"
       }
     }
   },

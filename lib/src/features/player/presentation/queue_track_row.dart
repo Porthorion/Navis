@@ -1,16 +1,12 @@
-import 'dart:async';
-
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:navis/l10n/app_localizations.dart';
-import 'package:navis/src/common_widgets/app_notice.dart';
 import 'package:navis/src/common_widgets/cover_art_image.dart';
 import 'package:navis/src/common_widgets/remote_source_indicator.dart';
 import 'package:navis/src/common_widgets/song_playback_indicator.dart';
 import 'package:navis/src/features/player/domain/playback_snapshot.dart';
 import 'package:navis/src/features/player/presentation/queue_provider.dart';
-import 'package:navis/src/providers/app_providers.dart'
-    show songByIdProvider, subsonicApiProvider;
+import 'package:navis/src/providers/app_providers.dart' show songByIdProvider;
 import 'package:navis/src/theme/artwork_shape.dart';
 
 /// Queue edits are blocked while a logical queue replacement is still loading.
@@ -65,80 +61,6 @@ Future<void> confirmAndClearQueue(BuildContext context, WidgetRef ref) async {
   if ((confirmed ?? false) && context.mounted) {
     await ref.read(queueProvider.notifier).clear();
   }
-}
-
-/// Prompts for a name and saves [queueIds] as a playlist.
-void showQueueSaveAsPlaylistDialog(
-  BuildContext context,
-  WidgetRef ref,
-  List<String> queueIds,
-) {
-  final l10n = AppLocalizations.of(context)!;
-  final controller = TextEditingController();
-
-  showDialog<void>(
-    context: context,
-    builder: (dialogContext) => AlertDialog(
-      title: Text(l10n.queueSaveAsPlaylist),
-      content: TextField(
-        controller: controller,
-        autofocus: true,
-        decoration: InputDecoration(labelText: l10n.queueSaveAsPlaylistName),
-        onSubmitted: (_) => _saveQueuePlaylist(
-          dialogContext,
-          context,
-          ref,
-          controller.text.trim(),
-          queueIds,
-        ),
-      ),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.of(dialogContext).pop(),
-          child: Text(l10n.cancelAction),
-        ),
-        FilledButton(
-          onPressed: () => _saveQueuePlaylist(
-            dialogContext,
-            context,
-            ref,
-            controller.text.trim(),
-            queueIds,
-          ),
-          child: Text(l10n.queueSaveAsPlaylist),
-        ),
-      ],
-    ),
-  );
-}
-
-void _saveQueuePlaylist(
-  BuildContext dialogContext,
-  BuildContext parentContext,
-  WidgetRef ref,
-  String name,
-  List<String> queueIds,
-) {
-  if (name.isEmpty) {
-    return;
-  }
-  Navigator.of(dialogContext).pop();
-  final api = ref.read(subsonicApiProvider);
-  if (api == null) {
-    return;
-  }
-  final l10n = AppLocalizations.of(parentContext)!;
-  unawaited(
-    api.createPlaylist(name, songIds: queueIds).then((_) {
-      if (parentContext.mounted) {
-        showAppNotice(
-          parentContext,
-          message: l10n.queueSaveAsPlaylistSaved,
-          level: AppNoticeLevel.success,
-        );
-      }
-    }),
-  );
 }
 
 /// One queue row shared by the full Queue screen and the Queue sheet.

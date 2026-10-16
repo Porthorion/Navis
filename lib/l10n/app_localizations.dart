@@ -4277,18 +4277,6 @@ abstract class AppLocalizations {
   /// **'Save as playlist'**
   String get queueSaveAsPlaylist;
 
-  /// No description provided for @queueSaveAsPlaylistName.
-  ///
-  /// In en, this message translates to:
-  /// **'Playlist name'**
-  String get queueSaveAsPlaylistName;
-
-  /// No description provided for @queueSaveAsPlaylistSaved.
-  ///
-  /// In en, this message translates to:
-  /// **'Playlist saved'**
-  String get queueSaveAsPlaylistSaved;
-
   /// No description provided for @searchHint.
   ///
   /// In en, this message translates to:
@@ -4690,6 +4678,12 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Added to \"{name}\"'**
   String addToPlaylistSuccess(String name);
+
+  /// No description provided for @addToPlaylistPartial.
+  ///
+  /// In en, this message translates to:
+  /// **'Added to \"{name}\"; {skipped, plural, =1{1 song was} other{{skipped} songs were}} skipped'**
+  String addToPlaylistPartial(String name, int skipped);
 
   /// No description provided for @addToPlaylistNewPlaylist.
   ///

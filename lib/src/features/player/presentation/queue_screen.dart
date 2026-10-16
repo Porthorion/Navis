@@ -6,6 +6,7 @@ import 'package:navis/src/features/player/presentation/queue_current_row_centeri
 import 'package:navis/src/features/player/presentation/queue_provider.dart';
 import 'package:navis/src/features/player/presentation/queue_track_row.dart';
 import 'package:navis/src/features/player/presentation/queue_unavailable_tracks.dart';
+import 'package:navis/src/features/playlists/presentation/create_playlist_dialog.dart';
 import 'package:navis/src/providers/app_providers.dart'
     show playerStateProvider;
 
@@ -30,7 +31,7 @@ class QueueScreen extends ConsumerWidget {
               icon: const Icon(Icons.playlist_add),
               tooltip: l10n.queueSaveAsPlaylist,
               onPressed: () =>
-                  showQueueSaveAsPlaylistDialog(context, ref, queueIds),
+                  showCreatePlaylistDialog(context, ref, songIds: queueIds),
             ),
           if (queueIds.isNotEmpty)
             IconButton(
