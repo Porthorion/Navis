@@ -739,16 +739,18 @@ class _PlaybackSettingsScreenState
     // can write the old form values back over the defaults.
     _autosaveDebounce?.cancel();
     _pendingAutosave = false;
+    // Read everything before the first await: leaving the page while a save
+    // drains must not cancel the reset, and ref is unusable once disposed.
+    final repository = ref.read(settingsRepositoryProvider);
+    final adjustments = ref.read(playbackAdjustmentsProvider.notifier);
+    final equalizer = ref.read(equalizerProvider.notifier);
+    final handler = ref.read(audioHandlerProvider);
     try {
       await _autosaveDone?.future;
-      final repository = ref.read(settingsRepositoryProvider);
       await repository.resetPlaybackDefaults();
-      await ref
-          .read(playbackAdjustmentsProvider.notifier)
-          .selectPreset(PlaybackPreset.noneId);
-      await ref.read(equalizerProvider.notifier).reset();
+      await adjustments.selectPreset(PlaybackPreset.noneId);
+      await equalizer.reset();
       final persisted = await repository.getSettings();
-      final handler = ref.read(audioHandlerProvider);
       if (handler != null) {
         await handler.applyRuntimeSettings();
       }

@@ -326,6 +326,47 @@ void main() {
         );
         expect(wifiField.initialValue, initialSettings.wifiMaxBitRate);
       });
+      testWidgets('leaving the page while a save drains still resets', (
+        tester,
+      ) async {
+        saveGate = Completer<void>();
+        final showScreen = ValueNotifier<bool>(true);
+        addTearDown(showScreen.dispose);
+        await tester.pumpWidget(
+          ProviderScope(
+            overrides: [
+              settingsRepositoryProvider.overrideWithValue(repository),
+              appSettingsProvider.overrideWithValue(
+                const AsyncData(initialSettings),
+              ),
+              playbackAdjustmentsProvider.overrideWith(_FakeAdjustments.new),
+              equalizerProvider.overrideWith(_FakeEq.new),
+            ],
+            // The app-level scope outlives the page, as in navigation.
+            child: ValueListenableBuilder<bool>(
+              valueListenable: showScreen,
+              builder: (_, show, _) =>
+                  show ? _buildTestApp() : const SizedBox.shrink(),
+            ),
+          ),
+        );
+        await tester.pumpAndSettle();
+        await editWifiBitRate(tester);
+        await tester.pump(const Duration(milliseconds: 500));
+        expect(events, ['save:begin']);
+
+        await tapReset(tester);
+        await tester.pump(const Duration(milliseconds: 100));
+        showScreen.value = false;
+        await tester.pump();
+
+        saveGate!.complete();
+        await tester.pump(const Duration(seconds: 2));
+        await tester.pumpAndSettle();
+
+        expect(events, ['save:begin', 'save:end', 'reset']);
+        expect(tester.takeException(), isNull);
+      });
     });
 
     testWidgets('fullscreen lyrics switch persists and is shown', (
