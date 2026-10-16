@@ -1086,12 +1086,14 @@ void main() {
       delivery: UpdateDelivery.storeRedirect,
     );
     final tile = find.byKey(const ValueKey<String>('updateTileOpen'));
+    late _DismissUpdateStore dismissStore;
+    setUp(() => dismissStore = _DismissUpdateStore());
 
     Future<void> pumpWith(
       WidgetTester tester,
       AppSettingsModel settings, {
       UpdateInfo info = update,
-      void Function()? onBuild,
+      UpdateInfo Function()? currentUpdate,
     }) {
       return _pumpHomeWithAppSettings(
         tester,
@@ -1099,9 +1101,9 @@ void main() {
         appSettings: settings,
         // The tile's own gate is under test, not the provider's.
         overrides: <Override>[
+          updateCheckStoreProvider.overrideWithValue(dismissStore),
           updateProvider.overrideWith((ref) async {
-            onBuild?.call();
-            return info;
+            return currentUpdate?.call() ?? info;
           }),
         ],
       );
@@ -1181,22 +1183,38 @@ void main() {
       });
     }
 
-    testWidgets('the close button dismisses by re-reading the update', (
-      tester,
-    ) async {
-      var builds = 0;
-      await pumpWith(
-        tester,
-        const AppSettingsModel.defaults(),
-        onBuild: () => builds++,
-      );
-      final before = builds;
-      expect(find.byTooltip('Dismiss'), findsWidgets);
-      await tester.tap(find.byKey(const ValueKey<String>('updateTileDismiss')));
-      await tester.pump();
-      await tester.pump();
-      expect(builds, before + 1);
-    });
+    testWidgets(
+      'dismiss hides the current update and a newer build shows again',
+      (tester) async {
+        var current = update;
+        await pumpWith(
+          tester,
+          const AppSettingsModel.defaults(),
+          currentUpdate: () => current,
+        );
+        final container = ProviderScope.containerOf(tester.element(tile));
+        await tester.tap(
+          find.byKey(const ValueKey<String>('updateTileDismiss')),
+        );
+        await tester.pumpAndSettle();
+        expect(tile, findsNothing);
+        expect(await container.read(updateProvider.future), same(update));
+        container.invalidate(updateProvider);
+        await tester.pumpAndSettle();
+        expect(tile, findsNothing);
+        current = const UpdateInfo(
+          tagName: 'v9.9.9',
+          buildNumber: 2,
+          htmlUrl: 'https://example.com/release',
+          delivery: UpdateDelivery.storeRedirect,
+          sha256: null,
+          size: null,
+        );
+        container.invalidate(updateProvider);
+        await tester.pumpAndSettle();
+        expect(tile, findsOneWidget);
+      },
+    );
 
     for (final entry in <String, AppSettingsModel>{
       'automatic checks are off': const AppSettingsModel.defaults().copyWith(
@@ -4826,4 +4844,13 @@ class _PullUpdateStore extends UpdateCheckStore {
     forces.add(force);
     return false;
   }
+}
+
+class _DismissUpdateStore extends UpdateCheckStore {
+  String? dismissed;
+  @override
+  Future<String?> readDismissedUpdate() async => dismissed;
+  @override
+  Future<void> recordDismissedUpdate(String identity) async =>
+      dismissed = identity;
 }

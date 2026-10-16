@@ -133,7 +133,7 @@ class _SyncSettingsPreview extends StatelessWidget {
           child: FilledButton.icon(
             onPressed: () {},
             icon: const Icon(Icons.refresh),
-            label: const Text('Check for updates'),
+            label: const Text('Sync library now'),
           ),
         ),
       ],
