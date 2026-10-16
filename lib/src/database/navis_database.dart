@@ -27,6 +27,7 @@ import 'package:navis/src/database/daos/match_flow_dao.dart';
 import 'package:navis/src/database/daos/network_usage_dao.dart';
 import 'package:navis/src/database/daos/play_queue_dao.dart';
 import 'package:navis/src/database/daos/playlist_dao.dart';
+import 'package:navis/src/database/daos/local_radio_station_dao.dart';
 import 'package:navis/src/database/daos/scrobble_dao.dart';
 import 'package:navis/src/database/daos/server_dao.dart';
 import 'package:navis/src/database/daos/song_identity_dao.dart';
@@ -132,6 +133,7 @@ part 'navis_database.g.dart';
     ServerDao,
     LibraryDao,
     PlaylistDao,
+    LocalRadioStationDao,
     CacheDao,
     CacheSystemStateDao,
     DownloadQueueDao,

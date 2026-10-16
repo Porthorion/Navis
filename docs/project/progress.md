@@ -70,6 +70,64 @@ Last updated: 2026-10-16
   application/emulator runs and runtime evidence were prohibited by the task's
   host limits; independent review remains for the coordinating agent.
 
+- [x] Radio UI review fixes for issue #14 — 2026-10-16
+  (`feat/radio-device-stations`; Codex). Save failures now appear inside the
+  editor with entered values retained, clearing on retry or field/destination
+  edits. Device stations hidden by a filter show filtered-empty guidance while
+  server stations load; the device section title no longer has a redundant
+  condition. Architecture and changelog updated.
+  Regression-first capped widget run: `"00:03 +32 -2: Some tests failed."`
+  (missing inline save error and missing filtered-empty message, exit 1).
+  Final `~/.cache/claude-navis-tools/capped.sh 6G "$PWD" flutter test
+  --concurrency=4 test/src/features/library/presentation/radio_screen_test.dart`:
+  `"00:02 +34: All tests passed!"` (exit 0, peak 1926M, no OOM kills).
+  Changed-file `dart analyze`: `"No issues found!"`, exit 0.
+  Capped `flutter analyze --no-fatal-infos`: exit 0 with 195 existing infos
+  outside changed files. Changed-file format check and `git diff --check` pass.
+  Capped `dart run tool/dead_code_check.dart`: exit 0 (baseline unchanged).
+  App/emulator launch, screenshots, runtime loop and `./tool/check.sh` were
+  excluded by the task's explicit host limits; runtime verification remains.
+- [x] PR A UI: device radio stations and admin station editing —
+  2026-10-16 (`feat/radio-device-stations`; Sonnet). Radio tab sections, add
+  button, long-press/secondary-click Edit/Delete (device or admin only), editor
+  and delete dialogs in `radio_station_dialogs.dart`, 17 new l10n strings, two
+  radio goldens regenerated (the add button is the only visual change),
+  architecture and changelog updated. Targeted widget tests only
+  (`radio_screen_test.dart`); no app/emulator launch or `./tool/check.sh`.
+  Runtime verification and independent review remain.
+- [x] PR A backend: device radio stations and server station editing —
+  2026-10-16 (`feat/radio-device-stations`; Codex implementation, based on
+  schema-104 commits `ae8d3991` and `5e65e9be`). Added admin lookup and radio
+  mutation endpoints, retry suppression for station creation, registered local
+  station DAO, local/admin providers, and validated local/server save/delete
+  actions. DAO deletion is named `deleteStation(id)` because Drift owns
+  `delete(table)`; the actions API exposes `delete(station, isLocal: ...)`.
+  Both clear-data confirmation paths explicitly mention device playlists and
+  stations. Architecture and the unreleased 1.5.0 changelog are updated.
+  Evidence: `./tool/bootstrap.sh`, `make gen` (existing
+  `json_annotation >=4.12.0` dependency-bound warning), and
+  `flutter gen-l10n` succeeded. Tests were added first and failed on the missing
+  backend APIs; the final capped run passed **78 tests** with
+  `capped.sh 6G "$PWD" flutter test --concurrency=4` over
+  `test/src/api/subsonic_api_client_test.dart`,
+  `test/src/database/daos/local_radio_station_dao_test.dart`,
+  `test/src/features/library/data/radio_station_actions_test.dart`, and
+  `test/src/providers/radio_station_providers_test.dart` (`All tests passed!`,
+  exit 0, peak 2144M, no OOM kills). Coverage includes URL/name rejection,
+  request/response homepage spelling, homepage clearing, unique local UUIDs,
+  reactive ordering/update/delete, local/server routing, error propagation,
+  successful-server-only invalidation, and offline/admin-error fallbacks.
+  `dart format` covers changed Dart files. Targeted `dart analyze` exits 0
+  with only three pre-existing infos outside changed hunks:
+  `avoid_catching_errors` in `navis_database.dart` and two
+  `curly_braces_in_flow_control_structures` in `app_providers.dart`.
+  `dart run tool/dead_code_check.dart` exits 1 for exactly three new test-only
+  declarations: `localRadioStationsProvider`, `serverUserIsAdminProvider`, and
+  `radioStationActionsProvider`; baseline unchanged. Their UI consumers, radio
+  dialogs/widget tests, feature changelog entry, independent PR review, and
+  runtime verification remain for the next step. No PR0 defects found.
+  No app/emulator launch or `./tool/check.sh` was performed, as required by
+  this task's host limits.
 - [x] False offline alarms, issue #6 state/logic — 2026-10-16
   (`fix/offline-false-alarms`; replaced-client failures trigger one immediate
   current-client probe, repeated replacement waits for the quick retry, and

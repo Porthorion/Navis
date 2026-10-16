@@ -6151,8 +6151,38 @@ songs, retaining their parent metadata. Confirmed server absence and provisional
 metadata garbage collection already treat all playlist entries as owned
 references; song identity remapping updates every ordered occurrence.
 `ServerDataResetService` deletes all playlist entries, playlist headers and
-device stations together. The clear-data confirmation copy will explicitly
-mention device playlists and stations when the radio UI ships.
+device stations together. Both settings sign-out and playback-recovery clear-data
+confirmations explicitly include device playlists and stations.
+
+The radio backend exposes device stations through `LocalRadioStationDao` and
+`localRadioStationsProvider`, mapping the rows to the existing
+`InternetRadioStation` model. Inserts generate `local:<uuid>` IDs; the live list
+sorts names without case sensitivity. `RadioStationActions` owns local/server
+save and delete routing, trims names and URLs, requires a non-empty name, and
+accepts only absolute HTTP(S) stream/homepage URLs with a host. Empty homepages
+clear the stored value. Local edits leave playback and the server list alone;
+successful server mutations invalidate `radioStationsProvider` and failures
+propagate to the caller. Server creation disables transport retries to avoid
+duplicate stations. Requests spell the homepage parameter `homepageUrl`, while
+responses use `homePageUrl`. `serverUserIsAdminProvider` checks the connected
+username through `getUser.adminRole`; no connection or any lookup failure yields
+false, with lookup failures logged at info level without request details.
+
+The Library Radio tab lists device stations under "On this device" and server
+stations under "On your server"; the headers appear only when device stations
+exist, so a server-only library looks as before, and the type filter covers both
+sections. While server stations load, device stations hidden by the filter
+show the filtered-empty state with its clear-filter action. A server load failure
+keeps the device section and adds an inline retry row. A floating button and the empty state open the editor
+(`radio_station_dialogs.dart`). Long-press or secondary-click on a card offers
+Edit and Delete only for device stations or when `serverUserIsAdminProvider`
+is true; otherwise it does nothing. The editor shows inline errors from the
+actions' validation, and "Save to server" appears only when adding as an admin
+while the server radio list loaded (default off; stations never move between
+device and server). Deleting shows the station's name, stream and homepage URLs
+and where it is stored. Save failures appear inline inside the editor, retain
+all entered values, and clear on the next attempt or edit. Delete failures show
+an error notice.
 
 Incremental artist metadata and its traversal cursor commit together before
 track hydration. A budget interruption retains completed artists and requeues
