@@ -75,9 +75,13 @@ final colorTuningControllerProvider =
 class AppearanceLooksState {
   new(AppSettingsModel settings)
     : looks = List.unmodifiable(settings.appearanceLooks),
-      selectedLookId = matchingAppearanceLookId(settings);
+      selectedLookId = matchingAppearanceLookId(settings),
+      originLookId = storedAppearanceLookId(settings);
   final List<AppearanceLook> looks;
   final String? selectedLookId;
+
+  /// The Look the appearance is on, else (Custom) the one it was last on.
+  final String? originLookId;
 }
 
 class AppearanceLooksController extends Notifier<AppearanceLooksState> {
@@ -109,7 +113,7 @@ class AppearanceLooksController extends Notifier<AppearanceLooksState> {
           .where((p) => p.id == id)
           .firstOrNull;
       if (look == null) return null;
-      _selectionBeforeApply = matchingAppearanceLookId(settings);
+      _selectionBeforeApply = storedAppearanceLookId(settings);
       return await _applySnapshot(look.snapshot, select: look.id);
     } on Object {
       return null;
@@ -140,7 +144,7 @@ class AppearanceLooksController extends Notifier<AppearanceLooksState> {
       final before = AppearanceSnapshot.capture(await repository.getSettings());
       await dao.applyAppearanceSnapshot(snapshot);
       applied = await repository.getSettings();
-      final selected = matchingAppearanceLookId(applied, prefer: select);
+      final selected = storedAppearanceLookId(applied, prefer: select);
       await dao.updateAppearanceLooks(selectedLookId: selected);
       applied = applied.copyWith(selectedAppearanceLookId: selected);
       return before;
@@ -250,7 +254,7 @@ class AppearanceLooksController extends Notifier<AppearanceLooksState> {
         .read(navisDatabaseProvider)
         .appSettingsDao
         .updateAppearanceLooks(
-          selectedLookId: matchingAppearanceLookId(settings, prefer: prefer),
+          selectedLookId: storedAppearanceLookId(settings, prefer: prefer),
           looksJson: jsonEncode(
             settings.appearanceLooks.map((p) => p.toJson()).toList(),
           ),

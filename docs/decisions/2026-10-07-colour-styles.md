@@ -404,3 +404,11 @@ Dark), whose strip is the real page background at each step. OLED keeps
 pure black, so its Tint strip paints the panels and says so. **Controls**
 is an Accent | White segmented switch. The summary lists Tint and White
 controls when not default.
+
+### Looks leave layout preferences independent (2026-10-16)
+
+Owner decision for issue #7 supersedes the earlier full-appearance scope:
+Looks capture colours and style only. Density, artist list/grid view, artwork
+size, all three artwork shapes and the legacy grid-column override stay outside
+capture, comparison and application. Older version-1 JSON keys are ignored;
+no migration is required. See [the current contract](../architecture.md).

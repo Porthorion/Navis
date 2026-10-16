@@ -3591,11 +3591,11 @@ class AppLocalizationsEn extends AppLocalizations {
   String get appearanceLooksLabel => 'Looks';
 
   @override
-  String get appearanceLooksSub => 'Save and switch your whole appearance.';
+  String get appearanceLooksSub => 'Save and switch your colours and style.';
 
   @override
   String get appearanceLooksSubEmpty =>
-      'Save your whole appearance from the menu, then switch back to it any time.';
+      'Save your colours and style from the menu, then switch back any time.';
 
   @override
   String get appearanceLooksPicker => 'Look';
@@ -3615,6 +3615,11 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String appearanceLooksApplied(String name) {
     return 'Applied $name';
+  }
+
+  @override
+  String appearanceLooksCustomEdited(String name) {
+    return 'Custom · edited from $name';
   }
 
   @override
