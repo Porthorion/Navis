@@ -2,7 +2,7 @@
 
 Tracks completion of all phases and sub-tasks defined in [docs/project/development-plan.md](development-plan.md). Checkboxes are updated as work is completed.
 
-Last updated: 2026-10-15
+Last updated: 2026-10-16
 
 ---
 
@@ -14,6 +14,42 @@ Last updated: 2026-10-15
 - ACP status values: `backlog`, `ready`, `in_progress`, `blocked`, `done`.
 
 ## Current Focus
+- [x] PR0: schema 104 foundation for device playlists and radio stations —
+  2026-10-16 (`feat/schema-104-device-items`; Codex implementation). Added
+  guarded 103→104 migration, playlist scope/read-only columns, local station
+  table, and sticky playlist destination setting/model decode (writer deferred
+  to B2). Library resets preserve local entries and provisional parent metadata;
+  server reconciliation excludes local rows; clear-data sign-out wipes local
+  playlists and stations. Architecture records the retention table; confirmation
+  copy is deferred to PR A. No user-facing feature ships in PR0, so no changelog
+  entry was added.
+  Evidence: `./tool/bootstrap.sh`; `make gen` succeeded (existing
+  `json_annotation >=4.12.0` dependency-bound warning); regression tests failed
+  first on the missing schema, then the six-file focused run passed **224 tests**
+  with `~/.cache/claude-navis-tools/capped.sh 6G "$PWD" flutter test --concurrency=4`
+  over `navis_migration_test.dart`, `playlist_dao_test.dart`,
+  `library_cache_reset_service_test.dart`, `sign_out_service_test.dart`,
+  `settings_repository_test.dart`, and `library_sync_regression_test.dart`.
+  Covered partial columns/table, migration re-entry, duplicate local entries,
+  repeated cache resets, provisional GC, confirmed server absence, empty server
+  responses, both sign-out modes, and sticky-setting decode/preservation.
+  Follow-up migration/auth tests passed **113 tests** after strengthening the
+  populated migration fixture and authenticated sign-out setup. Eight existing
+  `PlaylistsTableData` fixtures across five files now explicitly set
+  `isLocal: false`; their playlist, Home and Library suites passed **126 tests**.
+  `dart format` covered all 22 changed Dart files; `dart analyze` over those
+  files exited 0 with eight existing informational findings outside changed
+  hunks (four `async_return_with_no_await`, one `avoid_catching_errors`,
+  `overridden_fields`/`annotate_overrides` on the existing sync-test fake, and
+  an existing `comment_references` finding in the Library widget tests).
+  `dart run tool/dead_code_check.dart` exited 0 against the unchanged baseline
+  (declaration=4, l10n=0, asset=1, asset-missing=0, font=0, dependency=5;
+  test-only=2). Full `./tool/check.sh`, app/emulator runs, and runtime evidence
+  were explicitly prohibited by the task's host limits and were not run.
+  Retention follow-up: existing playback `deleteLocalOnlySong` can still cascade
+  playlist entries when a confirmed-missing song has no available cached audio;
+  this is outside library reset/sync and needs review before PR B2 ships.
+
 - [x] Idle-robustness final fixes (shared sync requests and busy databases) —
   2026-10-15 (`fix/idle-integration`, aa3d3452..abf8f071; a lease-held check
   against a live worker lease retries at the 30 s floor instead of waiting out

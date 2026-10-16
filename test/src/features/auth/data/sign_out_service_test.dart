@@ -128,6 +128,41 @@ void main() {
       }
     }
 
+    for (final wipe in [false, true]) {
+      test('sign out device playlists and stations, wipe=$wipe', () async {
+        final cacheFile = File('${tmpDir.path}/device-items.mp3');
+        await cacheFile.writeAsString('audio');
+        await _seedAuthenticatedData(database, repository, cacheFile.path);
+        await database
+            .into(database.songsTable)
+            .insert(SongsTableCompanion.insert(id: 'kept', title: 'Kept'));
+        await database.customStatement(
+          "INSERT INTO playlists (id, name, is_local) VALUES ('local:list', 'Device list', 1)",
+        );
+        await database.customStatement(
+          "INSERT INTO playlist_songs VALUES ('local:list', 'kept', 0)",
+        );
+        await database.customStatement(
+          "INSERT INTO local_radio_stations (id, name, stream_url) VALUES ('local:radio', 'Radio', 'https://example.test/live')",
+        );
+        await service.signOut(wipeLocalData: wipe);
+        expect(
+          await database.select(database.playlistsTable).get(),
+          hasLength(wipe ? 0 : 2),
+        );
+        expect(
+          await database.select(database.playlistSongsTable).get(),
+          hasLength(wipe ? 0 : 2),
+        );
+        expect(
+          await database
+              .customSelect('SELECT * FROM local_radio_stations')
+              .get(),
+          hasLength(wipe ? 0 : 1),
+        );
+      }, skip: !sqliteAvailable);
+    }
+
     test('credentials-only sign out keeps local data', () async {
       final cacheFile = File('${tmpDir.path}/track.mp3');
       cacheFile.writeAsStringSync('audio');

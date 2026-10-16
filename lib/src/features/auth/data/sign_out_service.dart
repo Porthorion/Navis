@@ -273,6 +273,7 @@ class ServerDataResetService {
       await _database.delete(_database.matchFlowsTable).go();
       await _database.delete(_database.playlistSongsTable).go();
       await _database.delete(_database.playlistsTable).go();
+      await _database.delete(_database.localRadioStationsTable).go();
       await _database.delete(_database.playHistoryTable).go();
       await _database.delete(_database.recentSearchesTable).go();
       await _database.delete(_database.albumInfoCacheTable).go();

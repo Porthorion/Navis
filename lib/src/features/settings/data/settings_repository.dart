@@ -357,6 +357,7 @@ class SettingsRepository {
       showAlbumsPage: row.showAlbumsPage,
       showRadioPage: row.showRadioPage,
       showPlaylistsPage: row.showPlaylistsPage,
+      playlistCreateOnServer: row.playlistCreateOnServer,
       showArtistsPage: row.showArtistsPage,
       showLikedPage: row.showLikedPage,
 

@@ -2659,11 +2659,13 @@ class LibraryDao extends DatabaseAccessor<NavisDatabase>
 
   Future<void> clearLibraryData() async {
     await transaction(() async {
-      // Deleting a queued song cascades to its saved occurrences. Keep those
-      // rows in place so queue persistence needs no rebuild coordination.
+      // Song deletion cascades to queue and playlist entries. Keep device-owned
+      // references in place while server playlist contents are re-fetched.
       await customUpdate(
         'DELETE FROM songs WHERE id NOT IN '
-        '(SELECT song_id FROM play_queue_items)',
+        '(SELECT song_id FROM play_queue_items) '
+        'AND id NOT IN (SELECT ps.song_id FROM playlist_songs ps '
+        'JOIN playlists p ON p.id = ps.playlist_id WHERE p.is_local = 1)',
         updates: {songsTable},
         updateKind: UpdateKind.delete,
       );

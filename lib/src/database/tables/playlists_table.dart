@@ -16,6 +16,10 @@ class PlaylistsTable extends Table {
 
   BoolColumn get isPublic => boolean().nullable()();
 
+  BoolColumn get isLocal => boolean().withDefault(const Constant(false))();
+
+  BoolColumn get readOnly => boolean().nullable()();
+
   TextColumn get coverArt => text().nullable()();
 
   TextColumn get comment => text().nullable()();

@@ -43,7 +43,11 @@ void main() {
     Stream<List<ResolvedArtistTopTrack>>? trending,
     AsyncValue<List<PlaylistsTableData>> playlists =
         const AsyncData<List<PlaylistsTableData>>(<PlaylistsTableData>[
-          PlaylistsTableData(id: 'server-playlist', name: 'Server Mix'),
+          PlaylistsTableData(
+            isLocal: false,
+            id: 'server-playlist',
+            name: 'Server Mix',
+          ),
         ]),
     bool withWeekly = true,
   }) {
