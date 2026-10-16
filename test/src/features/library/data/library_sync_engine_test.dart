@@ -1113,6 +1113,102 @@ void main() {
       });
     }, skip: !sqliteAvailable);
 
+    test('playlist headers store readonly and preserve local rows without fetching them', () async {
+      await saveSession(lastSynced: DateTime.now());
+      final serverId = (await serverConfigRepository.getActiveServer())!.id!;
+      await database.libraryDao.upsertSongs([
+        SongsTableCompanion.insert(id: 'song', title: 'Song'),
+      ]);
+      await database.playlistDao.upsertPlaylists([
+        PlaylistsTableCompanion.insert(
+          id: 'local:p',
+          name: 'Device',
+          isLocal: const Value(true),
+        ),
+      ]);
+      await database.playlistDao.replacePlaylistSongs('local:p', [
+        PlaylistSongsTableCompanion.insert(
+          playlistId: 'local:p',
+          songId: 'song',
+          sortOrder: 0,
+        ),
+      ]);
+      for (final readOnly in <bool?>[true, false, null]) {
+        api.playlists = [
+          Playlist(
+            id: 'server',
+            name: 'Server',
+            songCount: 0,
+            readOnly: readOnly,
+          ),
+        ];
+        expect(
+          (await engine.syncPlaylistHeaders()).status,
+          LibrarySyncStatus.succeeded,
+        );
+        expect(
+          (await database.playlistDao.watchPlaylistById('server').first)!
+              .readOnly,
+          readOnly,
+        );
+      }
+      api.playlists = [];
+      expect(
+        (await engine.syncPlaylistHeaders()).status,
+        LibrarySyncStatus.succeeded,
+      );
+      expect(
+        (await database.playlistDao.watchPlaylistById('local:p').first)!
+            .isLocal,
+        isTrue,
+      );
+      expect(
+        (await database.playlistDao.watchPlaylistSongs('local:p').first).map(
+          (s) => s.id,
+        ),
+        ['song'],
+      );
+      expect(
+        await database.librarySyncDao.getWork(
+          serverId: serverId,
+          kind: LibrarySyncPlanKind.targetedHydration.name,
+          entityId: librarySyncTargetWorkKey(
+            const LibrarySyncTarget.playlist('local:p'),
+          ),
+        ),
+        isNull,
+      );
+      expect(
+        api.calls.where((call) => call.startsWith('getPlaylist:')),
+        isEmpty,
+      );
+    }, skip: !sqliteAvailable);
+
+    test(
+      'playlist hydration stores readonly including cleared values',
+      () async {
+        await saveSession(lastSynced: DateTime.now());
+        for (final readOnly in <bool?>[true, false, null]) {
+          api.playlistDetails['server'] = Playlist(
+            id: 'server',
+            name: 'Server',
+            songCount: 0,
+            readOnly: readOnly,
+          );
+          expect(
+            (await engine.hydratePlaylist('server')).status,
+            LibrarySyncStatus.succeeded,
+          );
+          expect(
+            (await database.playlistDao.watchPlaylistById('server').first)!
+                .readOnly,
+            readOnly,
+          );
+        }
+      },
+      skip: !sqliteAvailable,
+    );
+
     test('playlist headers preserve membership and queue unversioned or changed content', () async {
       await saveSession(lastSynced: DateTime.now());
       final serverId = (await serverConfigRepository.getActiveServer())!.id!;

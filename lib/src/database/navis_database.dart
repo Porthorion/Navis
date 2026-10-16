@@ -27,6 +27,7 @@ import 'package:navis/src/database/daos/match_flow_dao.dart';
 import 'package:navis/src/database/daos/network_usage_dao.dart';
 import 'package:navis/src/database/daos/play_queue_dao.dart';
 import 'package:navis/src/database/daos/playlist_dao.dart';
+import 'package:navis/src/database/daos/local_radio_station_dao.dart';
 import 'package:navis/src/database/daos/scrobble_dao.dart';
 import 'package:navis/src/database/daos/server_dao.dart';
 import 'package:navis/src/database/daos/song_identity_dao.dart';
@@ -63,6 +64,7 @@ import 'package:navis/src/database/tables/play_queue_items_table.dart';
 import 'package:navis/src/database/tables/play_queue_table.dart';
 import 'package:navis/src/database/tables/playlist_songs_table.dart';
 import 'package:navis/src/database/tables/playlists_table.dart';
+import 'package:navis/src/database/tables/local_radio_stations_table.dart';
 import 'package:navis/src/database/tables/recent_searches_table.dart';
 import 'package:navis/src/database/tables/scrobble_queue_table.dart';
 import 'package:navis/src/database/tables/schema_enums.dart';
@@ -92,6 +94,7 @@ part 'navis_database.g.dart';
     AlbumInfoCacheTable,
     ExternalLyricsCacheTable,
     PlaylistsTable,
+    LocalRadioStationsTable,
     PlaylistSongsTable,
     CachedTracksTable,
     CacheSystemStateTable,
@@ -130,6 +133,7 @@ part 'navis_database.g.dart';
     ServerDao,
     LibraryDao,
     PlaylistDao,
+    LocalRadioStationDao,
     CacheDao,
     CacheSystemStateDao,
     DownloadQueueDao,
@@ -258,7 +262,7 @@ class NavisDatabase extends _$NavisDatabase {
     );
   }
 
-  static const currentSchemaVersion = 103;
+  static const currentSchemaVersion = 104;
 
   @override
   int get schemaVersion => currentSchemaVersion;
@@ -381,9 +385,35 @@ class NavisDatabase extends _$NavisDatabase {
       from100To101,
       from101To102,
       from102To103,
+      from103To104,
     ];
     for (var version = from; version < to; version++) {
       await steps[version - firstStepFrom](migrator);
+    }
+  }
+
+  Future<void> from103To104(Migrator migrator) async {
+    for (final column in [playlistsTable.isLocal, playlistsTable.readOnly]) {
+      if (!await _columnExists('playlists', column.name)) {
+        await migrator.addColumn(playlistsTable, column);
+      }
+    }
+    if (!await _columnExists('app_settings', 'playlist_create_on_server')) {
+      await migrator.addColumn(
+        appSettingsTable,
+        appSettingsTable.playlistCreateOnServer,
+      );
+    }
+    if (!await _tableExists('local_radio_stations')) {
+      await migrator.createTable(localRadioStationsTable);
+    }
+    // The AudioMuse client is retired and its settings reset is gone: clear
+    // its stored server and key once, so no stale credential stays behind.
+    if (await _columnExists('app_settings', 'audio_muse_api_key')) {
+      await customStatement(
+        'UPDATE app_settings SET audio_muse_server_url = NULL, '
+        'audio_muse_api_key = NULL, audio_muse_enabled = 0',
+      );
     }
   }
 

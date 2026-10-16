@@ -15,6 +15,7 @@ import 'package:navis/src/api/lrclib_client.dart';
 import 'package:navis/src/api/models/models.dart';
 import 'package:navis/src/api/subsonic_api_client.dart';
 import 'package:navis/src/database/navis_database.dart';
+import 'package:navis/src/database/tables/schema_enums.dart';
 import 'package:navis/src/features/auth/data/secure_credential_store.dart';
 import 'package:navis/src/features/auth/domain/server_config.dart';
 import 'package:navis/src/features/auth/data/server_config_repository.dart';
@@ -25,6 +26,7 @@ import 'package:navis/src/features/equalizer/domain/eq_configuration.dart';
 import 'package:navis/src/features/integrations/domain/integration_feature.dart';
 import 'package:navis/src/features/library/data/annotation_sync_dispatcher.dart';
 import 'package:navis/src/features/library/presentation/library_scroll_provider.dart';
+import 'package:navis/src/features/player/data/lyrics_resolver.dart';
 import 'package:navis/src/features/player/data/navis_audio_handler.dart';
 import 'package:navis/src/features/player/domain/lyrics_resolution.dart';
 import 'package:navis/src/features/player/domain/playback_snapshot.dart';
@@ -374,6 +376,148 @@ void main() {
     errors.add(null);
     await pumpEventQueue();
     expect(notified.where((value) => value.hasValue), hasLength(2));
+  });
+
+  group('network type retention', () {
+    test('unknown initial connectivity is conservative, not offline', () {
+      final container = ProviderContainer(
+        overrides: [
+          connectivityProvider.overrideWith((_) => const Stream.empty()),
+        ],
+      );
+      addTearDown(container.dispose);
+      expect(container.read(networkTypeProvider), NetworkType.other);
+    });
+
+    test(
+      'uses retained connectivity during a dependency-driven reload',
+      () async {
+        final reload = Provider((_) => Object());
+        final streams = <StreamController<List<ConnectivityResult>>>[];
+        final container = ProviderContainer(
+          overrides: [
+            connectivityProvider.overrideWith((ref) {
+              ref.watch(reload);
+              final stream = StreamController<List<ConnectivityResult>>();
+              streams.add(stream);
+              return stream.stream;
+            }),
+          ],
+        );
+        addTearDown(() async {
+          container.dispose();
+          for (final stream in streams) {
+            await stream.close();
+          }
+        });
+        container.listen(networkTypeProvider, (_, _) {});
+        streams.last.add([ConnectivityResult.wifi]);
+        await pumpEventQueue();
+        container.invalidate(reload);
+        expect(container.read(connectivityProvider).isLoading, isTrue);
+        expect(container.read(connectivityProvider).asData, isNull);
+        expect(container.read(networkTypeProvider), NetworkType.wifi);
+        streams.last.add([ConnectivityResult.mobile]);
+        await pumpEventQueue();
+        expect(container.read(networkTypeProvider), NetworkType.cellular);
+      },
+    );
+
+    for (final (result, expected) in [
+      (ConnectivityResult.wifi, NetworkType.wifi),
+      (ConnectivityResult.mobile, NetworkType.cellular),
+      (ConnectivityResult.none, NetworkType.offline),
+    ]) {
+      test(
+        'retains $expected during connectivity reload, then resolves changes',
+        () async {
+          final streams = <StreamController<List<ConnectivityResult>>>[];
+          final container = ProviderContainer(
+            overrides: [
+              connectivityProvider.overrideWith((_) {
+                final stream = StreamController<List<ConnectivityResult>>();
+                streams.add(stream);
+                return stream.stream;
+              }),
+            ],
+          );
+          addTearDown(() async {
+            container.dispose();
+            for (final stream in streams) {
+              await stream.close();
+            }
+          });
+          container.listen(networkTypeProvider, (_, _) {});
+          streams.last.add([result]);
+          await pumpEventQueue();
+          expect(container.read(networkTypeProvider), expected);
+          container.invalidate(connectivityProvider);
+          expect(container.read(connectivityProvider).isLoading, isTrue);
+          expect(container.read(networkTypeProvider), expected);
+          streams.last.add([ConnectivityResult.ethernet]);
+          await pumpEventQueue();
+          expect(container.read(networkTypeProvider), NetworkType.wifi);
+        },
+      );
+    }
+
+    test(
+      'resume reconciliation keeps the same API client on unchanged wifi',
+      () async {
+        final database = createTestDatabase();
+        final streams = <StreamController<List<ConnectivityResult>>>[];
+        final container = ProviderContainer(
+          overrides: withTestDatabase(
+            database,
+            overrides: [
+              serverConfigStateProvider.overrideWithValue(
+                const AsyncData(
+                  ServerConfigModel(
+                    url: 'https://fixture.invalid',
+                    username: 'fixture',
+                    password: 'synthetic',
+                    apiVersion: '1.16.1',
+                  ),
+                ),
+              ),
+              connectivityProvider.overrideWith((_) {
+                final stream = StreamController<List<ConnectivityResult>>();
+                streams.add(stream);
+                return stream.stream;
+              }),
+              nativeNetworkMeteredProvider.overrideWith((_) async => false),
+              pingServerProvider.overrideWithValue(() async => 'ready'),
+            ],
+          ),
+        );
+        addTearDown(() async {
+          container.dispose();
+          for (final stream in streams) {
+            await stream.close();
+          }
+          await database.close();
+        });
+        container.listen(subsonicApiProvider, (_, _) {});
+        streams.last.add([ConnectivityResult.wifi]);
+        await pumpEventQueue();
+        final client = container.read(subsonicApiProvider);
+        expect(client, isNotNull);
+        final replacements = <SubsonicApiClient?>[];
+        container.listen(
+          subsonicApiProvider,
+          (_, next) => replacements.add(next),
+        );
+        final reconcile = container.read(networkReconciliationProvider)();
+        expect(container.read(connectivityProvider).isLoading, isTrue);
+        expect(container.read(networkTypeProvider), NetworkType.wifi);
+        expect(container.read(subsonicApiProvider), same(client));
+        streams.last.add([ConnectivityResult.wifi]);
+        expect(await reconcile, (connected: true, serverReachable: true));
+        expect(container.read(subsonicApiProvider), same(client));
+        expect(replacements, isEmpty);
+      },
+      skip: !sqliteAvailable,
+    );
   });
 
   group('network reconciliation gate', () {
@@ -2376,7 +2520,7 @@ void main() {
 
   group('lyricsProvider LRCLIB-first resolution', () {
     Future<NavisDatabase> createLyricsDatabase() async {
-      final database = NavisDatabase(NativeDatabase.memory());
+      final database = createTestDatabase();
       await database.libraryDao.upsertAlbums(<AlbumsTableCompanion>[
         AlbumsTableCompanion.insert(
           id: 'album-1',
@@ -2395,6 +2539,96 @@ void main() {
         ),
       ]);
       return database;
+    }
+
+    for (final cacheType in [CacheType.permanent, CacheType.rolling, null]) {
+      for (final serverKind in ['plain', 'synced', 'legacy']) {
+        test(
+          'interactive $serverKind lyrics heal negatives only for $cacheType downloads',
+          () async {
+            final database = await createLyricsDatabase();
+            addTearDown(database.close);
+            if (cacheType != null) {
+              await database.cacheDao.upsertCachedTrack(
+                CachedTracksTableCompanion.insert(
+                  songId: 'song-1',
+                  filePath: '/fake/song.mp3',
+                  fileSize: 500,
+                  format: 'mp3',
+                  cacheType: cacheType,
+                  downloadStatus: DownloadStatus.complete,
+                  lastAccessedAt: DateTime.now(),
+                ),
+              );
+            }
+            await database.libraryDao.upsertExternalLyricsCache(
+              songId: 'song-1',
+              source: 'lrclibPlain',
+              failureCount: 1,
+              lastFailedAt: DateTime.now(),
+            );
+            final api = _MockSubsonicApiClient();
+            final serverLyrics = serverKind == 'synced'
+                ? const LyricsList(
+                    structuredLyrics: [
+                      StructuredLyrics(
+                        synced: true,
+                        line: [LyricLine(start: 1000, value: 'server words')],
+                      ),
+                    ],
+                  )
+                : const LyricsList(value: 'server words');
+            when(() => api.getLyricsBySongId('song-1')).thenAnswer(
+              (_) async =>
+                  serverKind == 'legacy' ? const LyricsList() : serverLyrics,
+            );
+            when(
+              () => api.getLyrics(
+                artist: any(named: 'artist'),
+                title: any(named: 'title'),
+              ),
+            ).thenAnswer((_) async => serverLyrics);
+            final container = ProviderContainer(
+              overrides: [
+                navisDatabaseProvider.overrideWithValue(database),
+                lrclibClientProvider.overrideWithValue(_MockLrclibClient()),
+                subsonicApiProvider.overrideWithValue(api),
+                useLrclibProvider.overrideWithValue(false),
+                currentMediaItemProvider.overrideWithValue(
+                  const AsyncData(null),
+                ),
+              ],
+            );
+            addTearDown(container.dispose);
+            final resolution = await container.read(
+              lyricsProvider('song-1').future,
+            );
+            expect(hasAnyLyrics(resolution.lyrics), isTrue);
+            final cached = (await database.libraryDao.getExternalLyricsCache(
+              'song-1',
+            ))!;
+            if (cacheType == CacheType.permanent) {
+              expect(cached.failureCount, 0);
+              expect(cached.lastFailedAt, isNull);
+              expect(cached.ttlSeconds, permanentLyricsCacheTtlSeconds);
+              expect(
+                lyricsResolutionFromExternalCache(cached)?.source,
+                resolution.source,
+              );
+              if (serverKind == 'synced') {
+                expect(cached.syncedLyrics, '[00:01.00]server words');
+              } else {
+                expect(cached.plainLyrics, 'server words');
+              }
+            } else {
+              expect(cached.failureCount, 1);
+              expect(cached.plainLyrics, isNull);
+              expect(cached.syncedLyrics, isNull);
+            }
+          },
+          skip: !sqliteAvailable,
+        );
+      }
     }
 
     test('searches LRCLIB before server when enabled', () async {
@@ -3076,6 +3310,15 @@ class _RecordingUpdateCheckStore extends UpdateCheckStore {
 
   @override
   Future<void> recordCheck([DateTime? checkedAt]) async {}
+
+  @override
+  Future<Map<String, Object?>?> readVerifiedManifest() async => null;
+
+  @override
+  Future<void> recordVerifiedManifest(Map<String, Object?> value) async {}
+
+  @override
+  Future<void> clearVerifiedManifest() async {}
 }
 
 class _NoOpUpdateCheckStore extends UpdateCheckStore {
@@ -3084,6 +3327,15 @@ class _NoOpUpdateCheckStore extends UpdateCheckStore {
 
   @override
   Future<void> recordCheck([DateTime? checkedAt]) async {}
+
+  @override
+  Future<Map<String, Object?>?> readVerifiedManifest() async => null;
+
+  @override
+  Future<void> recordVerifiedManifest(Map<String, Object?> value) async {}
+
+  @override
+  Future<void> clearVerifiedManifest() async {}
 }
 
 class _RadioErrorHandler extends InertPlaybackHandler {

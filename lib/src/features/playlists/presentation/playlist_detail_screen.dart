@@ -20,6 +20,8 @@ import 'package:navis/src/database/navis_database.dart';
 import 'package:navis/src/features/downloads/presentation/download_quality_sheet.dart';
 import 'package:navis/src/features/player/presentation/play_song_in_collection.dart';
 import 'package:navis/src/features/player/presentation/queue_provider.dart';
+import 'package:navis/src/features/playlists/data/playlist_actions.dart';
+import 'package:navis/src/features/playlists/domain/playlist_ownership.dart';
 import 'package:navis/src/features/playlists/presentation/add_to_playlist_sheet.dart';
 import 'package:navis/src/features/playlists/presentation/playlist_providers.dart';
 import 'package:navis/src/providers/app_providers.dart';
@@ -50,6 +52,13 @@ enum _PlaylistSongContextAction {
 }
 
 class _PlaylistDetailScreenState extends ConsumerState<PlaylistDetailScreen> {
+  /// The loaded playlist when the signed-in user may change its songs, else
+  /// null. Set once per build: read-only and other users' playlists show no
+  /// drag handles and no Remove action.
+  PlaylistsTableData? _editable;
+
+  bool get _canEdit => _editable != null;
+
   @override
   void initState() {
     super.initState();
@@ -146,6 +155,9 @@ class _PlaylistDetailScreenState extends ConsumerState<PlaylistDetailScreen> {
     required Set<String> downloadedSongIds,
   }) {
     final l10n = AppLocalizations.of(context)!;
+    _editable = canEditPlaylist(playlist, ref.watch(playlistViewerProvider))
+        ? playlist
+        : null;
     final visibleEntries = songs.indexed
         .where(
           (entry) => !downloadedOnly || downloadedSongIds.contains(entry.$2.id),
@@ -290,7 +302,7 @@ class _PlaylistDetailScreenState extends ConsumerState<PlaylistDetailScreen> {
                   leadingExtent: 32,
                   actionExtent: desktopMode
                       ? null
-                      : (downloadedOnly ? 96 : 144),
+                      : (downloadedOnly || !_canEdit ? 96 : 144),
                 ),
               ),
             ),
@@ -373,8 +385,9 @@ class _PlaylistDetailScreenState extends ConsumerState<PlaylistDetailScreen> {
             SliverPadding(
               padding: desktopMode ? desktopTrackPadding : EdgeInsets.zero,
               sliver: SliverReorderableList(
-                onReorderItem: (oldIndex, newIndex) =>
-                    unawaited(_reorderTrack(songs, oldIndex, newIndex)),
+                onReorderItem: (oldIndex, newIndex) => unawaited(
+                  _reorderTrack(playlist, songs, oldIndex, newIndex),
+                ),
                 itemCount: songs.length,
                 itemBuilder: (context, index) {
                   final song = songs[index];
@@ -383,7 +396,7 @@ class _PlaylistDetailScreenState extends ConsumerState<PlaylistDetailScreen> {
                     type: MaterialType.transparency,
                     child: TrackListTile(
                       song: song,
-                      actionExtent: desktopMode ? null : 144,
+                      actionExtent: desktopMode ? null : (_canEdit ? 144 : 96),
                       onTap: () => playTableSongInCollection(
                         ref,
                         songs,
@@ -416,14 +429,15 @@ class _PlaylistDetailScreenState extends ConsumerState<PlaylistDetailScreen> {
                                   ),
                                 ),
                                 _songActionsButton(song, index),
-                                ReorderableDragStartListener(
-                                  index: index,
-                                  child: const SizedBox(
-                                    width: 48,
-                                    height: 48,
-                                    child: Icon(Icons.drag_handle),
+                                if (_canEdit)
+                                  ReorderableDragStartListener(
+                                    index: index,
+                                    child: const SizedBox(
+                                      width: 48,
+                                      height: 48,
+                                      child: Icon(Icons.drag_handle),
+                                    ),
                                   ),
-                                ),
                               ],
                             ),
                     ),
@@ -496,16 +510,20 @@ class _PlaylistDetailScreenState extends ConsumerState<PlaylistDetailScreen> {
   }
 
   Future<void> _removeTrack(int songIndex) async {
+    final playlist = _editable;
+    if (playlist == null) return;
     final l10n = AppLocalizations.of(context)!;
-    final api = ref.read(subsonicApiProvider);
-    if (api == null) return;
-
+    final songs =
+        ref.read(playlistSongsProvider(widget.playlistId)).asData?.value ??
+        const <SongsTableData>[];
     try {
-      await api.updatePlaylist(
-        id: widget.playlistId,
-        songIndexesToRemove: [songIndex],
-      );
-      ref.invalidate(playlistDetailSyncProvider(widget.playlistId));
+      await ref
+          .read(playlistActionsProvider)
+          .removeAt(
+            playlist,
+            songs.map((song) => song.id).toList(growable: false),
+            songIndex,
+          );
       if (!mounted) return;
       showAppNotice(
         context,
@@ -522,42 +540,28 @@ class _PlaylistDetailScreenState extends ConsumerState<PlaylistDetailScreen> {
     }
   }
 
-  /// Reorder a track within the playlist via the Subsonic API.
-  ///
-  /// Uses `createPlaylist.view?playlistId=…&songId=…` to atomically replace
-  /// the playlist's song list in a single call, avoiding the brittle
-  /// remove-all + re-add pattern that could leave the playlist empty if the
-  /// second request fails.
+  /// Moves a track; [PlaylistActions] refreshes the list afterwards, which
+  /// also reverts the optimistic order when the server refuses.
   Future<void> _reorderTrack(
+    PlaylistsTableData playlist,
     List<SongsTableData> songs,
     int oldIndex,
     int newIndex,
   ) async {
-    if (oldIndex == newIndex) return;
-
-    final api = ref.read(subsonicApiProvider);
-    if (api == null) return;
-
-    // Build the desired order locally.
-    final reordered = songs.map((s) => s.id).toList();
-    final songId = reordered.removeAt(oldIndex);
-    reordered.insert(newIndex, songId);
-
     try {
-      await api.replacePlaylistSongs(
-        playlistId: widget.playlistId,
-        songIds: reordered,
-      );
-
-      ref.invalidate(playlistDetailSyncProvider(widget.playlistId));
+      await ref
+          .read(playlistActionsProvider)
+          .reorder(
+            playlist,
+            songs.map((song) => song.id).toList(growable: false),
+            oldIndex,
+            newIndex,
+          );
     } on Object {
-      // Revert UI by re-syncing.
-      ref.invalidate(playlistDetailSyncProvider(widget.playlistId));
       if (!mounted) return;
-      final l10n = AppLocalizations.of(context)!;
       showAppNotice(
         context,
-        message: l10n.playlistDetailTrackRemoveFailed,
+        message: AppLocalizations.of(context)!.playlistDetailReorderFailed,
         level: AppNoticeLevel.error,
       );
     }
@@ -744,21 +748,23 @@ class _PlaylistDetailScreenState extends ConsumerState<PlaylistDetailScreen> {
                 );
               },
             ),
-            const Divider(height: 1),
-            ListTile(
-              leading: Icon(
-                Icons.remove_circle_outline,
-                color: Theme.of(context).colorScheme.error,
+            if (_canEdit) ...<Widget>[
+              const Divider(height: 1),
+              ListTile(
+                leading: Icon(
+                  Icons.remove_circle_outline,
+                  color: Theme.of(context).colorScheme.error,
+                ),
+                title: Text(
+                  l10n.playlistDetailRemoveTrack,
+                  style: TextStyle(color: Theme.of(context).colorScheme.error),
+                ),
+                onTap: () {
+                  Navigator.of(sheetContext).pop();
+                  unawaited(_removeTrack(songIndex));
+                },
               ),
-              title: Text(
-                l10n.playlistDetailRemoveTrack,
-                style: TextStyle(color: Theme.of(context).colorScheme.error),
-              ),
-              onTap: () {
-                Navigator.of(sheetContext).pop();
-                unawaited(_removeTrack(songIndex));
-              },
-            ),
+            ],
           ],
         ),
       ),
@@ -814,12 +820,14 @@ class _PlaylistDetailScreenState extends ConsumerState<PlaylistDetailScreen> {
             isDownloaded ? l10n.deleteDownloadAction : l10n.downloadAction,
           ),
         ),
-        const PopupMenuDivider(),
-        PopupMenuItem<_PlaylistSongContextAction>(
-          value: _PlaylistSongContextAction.removeFromPlaylist,
-          textStyle: TextStyle(color: colors.error),
-          child: Text(l10n.playlistDetailRemoveTrack),
-        ),
+        if (_canEdit) ...<PopupMenuEntry<_PlaylistSongContextAction>>[
+          const PopupMenuDivider(),
+          PopupMenuItem<_PlaylistSongContextAction>(
+            value: _PlaylistSongContextAction.removeFromPlaylist,
+            textStyle: TextStyle(color: colors.error),
+            child: Text(l10n.playlistDetailRemoveTrack),
+          ),
+        ],
       ],
     );
     if (!mounted || action == null) return;

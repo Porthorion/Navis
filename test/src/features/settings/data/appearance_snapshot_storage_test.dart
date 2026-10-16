@@ -1,15 +1,15 @@
 import 'dart:convert';
 
+import 'package:drift/drift.dart' show Value;
+import 'package:navis/src/database/navis_database.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:navis/src/features/settings/data/settings_repository.dart';
 import 'package:navis/src/features/settings/domain/app_settings.dart';
 import 'package:navis/src/features/settings/domain/appearance_presets.dart';
 import 'package:navis/src/features/settings/domain/flat_areas.dart';
-import 'package:navis/src/features/settings/domain/navis_density.dart';
 import 'package:navis/src/features/settings/domain/now_playing_background.dart';
 import 'package:navis/src/providers/app_providers.dart';
-import 'package:navis/src/routing/content_layout.dart';
 import 'package:navis/src/theme/color_adjustment.dart';
 import 'package:navis/src/theme/navis_corner_style.dart';
 
@@ -41,24 +41,24 @@ void main() {
       flatSurfaces: true,
       flatAreas: FlatAreas.fromBits(2),
       cornerStyle: NavisCornerStyle.square,
-      coverArtShape: 'rounded',
-      nowPlayingArtShape: 'circle',
-      artistCardShape: 'square',
-      gridArtworkSize: GridArtworkSize.large,
-      albumGridDensity: 6,
-      density: NavisDensity.compact,
-      artistViewMode: 'list',
       nowPlayingBackground: NowPlayingBackground.artwork,
       appLocale: 'en',
       homeRecommendationsAutoAdvance: true,
     );
-    await repository.saveSettings(settings);
+    await dao.applyAppearanceSnapshot(AppearanceSnapshot.capture(settings));
+    await dao.updateAppLocale(settings.appLocale);
+    await dao.updateHomeRecommendationsAutoAdvance(
+      enabled: settings.homeRecommendationsAutoAdvance,
+    );
     final original = AppearanceSnapshot.capture(await repository.getSettings());
     expect(
       original.toJson().length,
-      27,
-    ); // Every appearance setting; tuning is Custom.
-    await repository.resetDefaults();
+      20,
+    ); // Every Look setting; tuning is Custom.
+    await dao.applyAppearanceSnapshot(
+      AppearanceSnapshot.capture(const AppSettingsModel.defaults()),
+    );
+    await repository.saveSettings(const AppSettingsModel.defaults());
     await dao.updateCustomColorPresets(jsonEncode([0xFF123456]));
     await dao.updateShowArtistsPage(enabled: false);
     await dao.updateDesktopNavbarStyle('icons');
@@ -84,23 +84,67 @@ void main() {
     expect(restored.scrobbleEnabled, isTrue);
   }, skip: !sqliteAvailable);
 
-  test('captured null clears seed and legacy artwork size', () async {
+  for (final legacyDensity in <int?>[null, 6]) {
+    test('old stored Look ignores layout keys ($legacyDensity)', () async {
+      final database = createTestDatabase();
+      addTearDown(database.close);
+      final dao = database.appSettingsDao;
+      final repository = SettingsRepository(dao);
+      await dao.getSettings();
+      await database
+          .update(database.appSettingsTable)
+          .write(const AppSettingsTableCompanion(albumGridDensity: Value(4)));
+      final before = await repository.getSettings();
+      final legacy = {
+        'id': 'old',
+        'name': 'Old Look',
+        'version': 1,
+        'snapshot': {
+          ...AppearanceSnapshot.capture(before).toJson(),
+          'themeMode': 'light',
+          'density': 'compact',
+          'artistViewMode': 'list',
+          'gridArtworkSize': 'large',
+          'coverArtShape': 'circle',
+          'nowPlayingArtShape': 'square',
+          'artistCardShape': 'rounded',
+          'albumGridDensity': legacyDensity,
+        },
+      };
+      await dao.updateAppearanceLooks(
+        selectedLookId: 'old',
+        looksJson: jsonEncode([legacy]),
+      );
+      final look = (await repository.getSettings()).appearanceLooks.single;
+      await dao.applyAppearanceSnapshot(look.snapshot);
+      final after = await repository.getSettings();
+      expect(after.themeMode, 'light');
+      expect(after.density, before.density);
+      expect(after.artistViewMode, before.artistViewMode);
+      expect(after.gridArtworkSize, before.gridArtworkSize);
+      expect(after.coverArtShape, before.coverArtShape);
+      expect(after.nowPlayingArtShape, before.nowPlayingArtShape);
+      expect(after.artistCardShape, before.artistCardShape);
+      expect(after.albumGridDensity, before.albumGridDensity);
+      expect(matchingAppearanceLookId(after), 'old');
+    }, skip: !sqliteAvailable);
+  }
+
+  test('captured null clears seed and preserves legacy artwork size', () async {
     final database = createTestDatabase();
     addTearDown(database.close);
     final repository = SettingsRepository(database.appSettingsDao);
     final initial = AppearanceSnapshot.capture(await repository.getSettings());
-    await repository.saveSettings(
-      const AppSettingsModel.defaults().copyWith(
-        colorSchemeSeed: 1,
-        albumGridDensity: 4,
-      ),
-    );
+    await database.appSettingsDao.updateColorSchemeSeed(1);
+    await database
+        .update(database.appSettingsTable)
+        .write(const AppSettingsTableCompanion(albumGridDensity: Value(4)));
     await database.appSettingsDao.applyAppearanceSnapshot(
       AppearanceSnapshot.fromJson(initial.toJson()),
     );
     final restored = await repository.getSettings();
     expect(restored.colorSchemeSeed, isNull);
-    expect(restored.albumGridDensity, isNull);
+    expect(restored.albumGridDensity, 4);
   }, skip: !sqliteAvailable);
 
   test(
@@ -130,44 +174,14 @@ void main() {
           'surfaceTintDark': -1,
           'controlColor': 'unknown',
           'nightScheduleStartMinutes': 1440,
-          'artistViewMode': 'list',
+          'colorStyle': 'pastel',
         }),
       );
       final after = await repository.getSettings();
       expect(
         AppearanceSnapshot.capture(after),
-        AppearanceSnapshot.capture(before.copyWith(artistViewMode: 'list')),
+        AppearanceSnapshot.capture(before.copyWith(colorStyle: 'pastel')),
       );
-    },
-    skip: !sqliteAvailable,
-  );
-
-  test(
-    'reset retains the Look library and resets its selected marker',
-    () async {
-      final database = createTestDatabase();
-      addTearDown(database.close);
-      final dao = database.appSettingsDao;
-      final repository = SettingsRepository(dao);
-      final look = AppearanceLook(
-        id: 'l',
-        name: 'My look',
-        snapshot: AppearanceSnapshot.capture(
-          const AppSettingsModel.defaults().copyWith(themeMode: 'light'),
-        ),
-      );
-      await dao.updateColorTuning(
-        const ColorTuning(vividness: 2, lightDepth: -3, darkDepth: 4),
-      );
-      await dao.updateAppearanceLooks(
-        selectedLookId: look.id,
-        looksJson: jsonEncode([look.toJson()]),
-      );
-      await repository.resetDefaults();
-      final settings = await repository.getSettings();
-      expect(settings.colorTuning, ColorTuning.none);
-      expect(settings.appearanceLooks.single.id, 'l');
-      expect(settings.selectedAppearanceLookId, isNull);
     },
     skip: !sqliteAvailable,
   );

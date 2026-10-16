@@ -13,12 +13,16 @@ class PlaylistDao extends DatabaseAccessor<NavisDatabase>
 
   Stream<List<PlaylistsTableData>> watchPlaylists() {
     final query = select(playlistsTable)
-      ..orderBy([(table) => OrderingTerm.asc(table.name)]);
+      ..orderBy([
+        (table) => OrderingTerm.asc(table.name.collate(Collate.noCase)),
+      ]);
     return query.watch();
   }
 
-  Future<List<PlaylistsTableData>> getAllPlaylists() {
-    return select(playlistsTable).get();
+  Future<List<PlaylistsTableData>> getServerPlaylists() {
+    return (select(
+      playlistsTable,
+    )..where((table) => table.isLocal.equals(false))).get();
   }
 
   Future<Map<String, int>> getPlaylistSongCounts() async {
@@ -68,17 +72,20 @@ class PlaylistDao extends DatabaseAccessor<NavisDatabase>
   ) async {
     await transaction(() async {
       await upsertPlaylists(playlists);
-      if (serverIds.isEmpty) {
-        await delete(playlistSongsTable).go();
-        await delete(playlistsTable).go();
-        return;
+      final removedPlaylists = selectOnly(playlistsTable)
+        ..addColumns([playlistsTable.id])
+        ..where(playlistsTable.isLocal.equals(false));
+      if (serverIds.isNotEmpty) {
+        removedPlaylists.where(playlistsTable.id.isNotIn(serverIds));
       }
       await (delete(
         playlistSongsTable,
-      )..where((table) => table.playlistId.isNotIn(serverIds))).go();
-      await (delete(
-        playlistsTable,
-      )..where((table) => table.id.isNotIn(serverIds))).go();
+      )..where((table) => table.playlistId.isInQuery(removedPlaylists))).go();
+      await (delete(playlistsTable)..where(
+            (table) =>
+                table.isLocal.equals(false) & table.id.isNotIn(serverIds),
+          ))
+          .go();
     });
   }
 

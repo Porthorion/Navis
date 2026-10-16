@@ -1144,6 +1144,7 @@ class DriftLibrarySyncEngine implements SyncPlanExecutor {
               duration: Value(playlist.duration),
               owner: Value(playlist.owner),
               isPublic: Value(playlist.isPublic),
+              readOnly: Value(playlist.readOnly),
               coverArt: Value(playlist.coverArt),
               comment: Value(playlist.comment),
             ),
@@ -4473,7 +4474,7 @@ class DriftLibrarySyncEngine implements SyncPlanExecutor {
     final evidenceById = <String, String>{};
     final workById = <String, LibrarySyncWorkTableData?>{};
     final existing = <String, PlaylistsTableData>{
-      for (final playlist in await _database.playlistDao.getAllPlaylists())
+      for (final playlist in await _database.playlistDao.getServerPlaylists())
         playlist.id: playlist,
     };
     final cachedSongCounts = await _database.playlistDao
@@ -4571,6 +4572,7 @@ class DriftLibrarySyncEngine implements SyncPlanExecutor {
         current.duration != remote.duration ||
         current.owner != remote.owner ||
         current.isPublic != remote.isPublic ||
+        current.readOnly != remote.readOnly ||
         current.coverArt != remote.coverArt ||
         current.comment != remote.comment;
   }
@@ -6078,6 +6080,7 @@ class DriftLibrarySyncEngine implements SyncPlanExecutor {
             duration: Value(playlist.duration),
             owner: Value(playlist.owner),
             isPublic: Value(playlist.isPublic),
+            readOnly: Value(playlist.readOnly),
             coverArt: Value(playlist.coverArt),
             comment: Value(playlist.comment),
           ),

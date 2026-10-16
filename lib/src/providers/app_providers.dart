@@ -50,6 +50,7 @@ import 'package:navis/src/features/integrations/data/integration_json_cache.dart
 import 'package:navis/src/features/integrations/domain/integration_artwork.dart';
 import 'package:navis/src/features/integrations/domain/integration_feature.dart';
 import 'package:navis/src/features/library/data/annotation_sync_dispatcher.dart';
+import 'package:navis/src/features/library/data/radio_station_actions.dart';
 import 'package:navis/src/features/library/domain/library_sync_request.dart';
 import 'package:navis/src/features/library/presentation/artist_deezer_providers.dart';
 import 'package:navis/src/features/library/presentation/artist_top_tracks_provider.dart';
@@ -389,9 +390,9 @@ final networkTypeProvider = Provider<NetworkType>((ref) {
     }
   }
   final connectivity = ref.watch(connectivityProvider);
-  return resolveNetworkType(
-    connectivity.asData?.value ?? const <ConnectivityResult>[],
-  );
+  final results = connectivity.value;
+  // Unknown connectivity permits probes but retains conservative metering.
+  return results == null ? NetworkType.other : resolveNetworkType(results);
 });
 
 final networkCostBridgeProvider = Provider<NetworkCostBridge>((ref) {
@@ -526,8 +527,9 @@ final networkReconciliationProvider =
           await ref
               .read(nativeNetworkMeteredProvider.future)
               .timeout(const Duration(seconds: 3));
-          if (!ref.mounted)
+          if (!ref.mounted) {
             return (connected: connected, serverReachable: false);
+          }
           // A fast probe may already have completed while metering refreshed.
           // Join it while pending; don't launch a second ping after completion.
           if (ref.read(serverReachabilityControllerProvider).lastCheckedAt ==
@@ -537,8 +539,9 @@ final networkReconciliationProvider =
                 .retryNow()
                 .timeout(const Duration(seconds: 5));
           }
-          if (!ref.mounted)
+          if (!ref.mounted) {
             return (connected: connected, serverReachable: false);
+          }
           final reachable =
               ref.read(serverReachabilityControllerProvider).status ==
               ServerReachabilityStatus.online;
@@ -2106,6 +2109,50 @@ final radioStationsProvider = FutureProvider<List<InternetRadioStation>>((
   return await api.getInternetRadioStations();
 });
 
+final localRadioStationsProvider = StreamProvider<List<InternetRadioStation>>((
+  ref,
+) {
+  return ref
+      .watch(navisDatabaseProvider)
+      .localRadioStationDao
+      .watchAll()
+      .map(
+        (rows) => rows
+            .map(
+              (row) => InternetRadioStation(
+                id: row.id,
+                name: row.name,
+                streamUrl: row.streamUrl,
+                homePageUrl: row.homePageUrl,
+              ),
+            )
+            .toList(growable: false),
+      );
+});
+
+final serverUserIsAdminProvider = FutureProvider<bool>((ref) async {
+  final api = ref.watch(subsonicApiProvider);
+  if (api == null) return false;
+  try {
+    return await api.getUserIsAdmin(api.authConfig.username);
+  } on Object {
+    AppLogger.info(
+      'Server admin status unavailable; station editing is disabled.',
+    );
+    return false;
+  }
+});
+
+final radioStationActionsProvider = Provider<RadioStationActions>((ref) {
+  return RadioStationActions(
+    localStations: ref.watch(navisDatabaseProvider).localRadioStationDao,
+    api: ref.watch(subsonicApiProvider),
+    onServerChanged: () {
+      if (ref.mounted) ref.invalidate(radioStationsProvider);
+    },
+  );
+});
+
 class AudioHandlerStateController extends Notifier<NavisPlaybackHandler?> {
   NavisPlaybackHandler? _currentHandler;
 
@@ -2484,6 +2531,7 @@ final lyricsProvider = FutureProvider.family<LyricsResolution, String>((
     lyricsCacheTtlSeconds: cachedTrack?.cacheType == CacheType.permanent
         ? permanentLyricsCacheTtlSeconds
         : normalLyricsCacheTtlSeconds,
+    cacheServerLyrics: cachedTrack?.cacheType == CacheType.permanent,
   );
 });
 
@@ -2745,6 +2793,13 @@ final downloadServiceProvider = Provider<DownloadService>((ref) {
   );
   ref.listen<bool>(wifiOnlyDownloadsProvider, (previous, next) {
     if (previous != next) {
+      unawaited(service.processQueuedDownloads());
+    }
+  });
+  ref.listen<SubsonicApiClient?>(subsonicApiProvider, (previous, next) {
+    if (previous != next) {
+      // A client appearing re-arms queued transfers and the gated
+      // lyrics/artwork backfills that deferred without one.
       unawaited(service.processQueuedDownloads());
     }
   });
@@ -3103,7 +3158,7 @@ final homeSectionOrderProvider = Provider<List<String>?>((ref) {
   return settings.homeSectionOrder;
 });
 
-/// Hidden home section IDs (null = none hidden).
+/// Hidden Home section IDs (`null` = built-in defaults, `[]` = none hidden).
 final homeSectionsHiddenProvider = Provider<List<String>?>((ref) {
   final settings =
       ref.watch(appSettingsProvider).asData?.value ??
@@ -3144,7 +3199,7 @@ final packageInfoProvider = FutureProvider<PackageInfo>((ref) async {
 });
 
 /// Carries a manual "Check now" request to the next [updateProvider] run,
-/// which then bypasses the 24-hour throttle.
+/// which then bypasses the one-hour throttle.
 ///
 /// The request is a plain field rather than provider state: [updateProvider]
 /// consumes it while building, and a provider must not modify another
@@ -3175,6 +3230,11 @@ final installSourceServiceProvider = Provider<InstallSourceService>((ref) {
 
 final updateCheckStoreProvider = Provider<UpdateCheckStore>((ref) {
   return UpdateCheckStore();
+});
+
+/// The tag and build identity of the update dismissed on Home.
+final dismissedUpdateProvider = FutureProvider.autoDispose<String?>((ref) {
+  return ref.watch(updateCheckStoreProvider).readDismissedUpdate();
 });
 
 final updateServiceProvider = Provider<UpdateService>((ref) {

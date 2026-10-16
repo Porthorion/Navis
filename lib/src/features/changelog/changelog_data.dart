@@ -170,6 +170,68 @@ const List<ChangelogVersion> changelogs = [
         type: ChangelogEntryType.fix,
       ),
       ChangelogEntry(
+        'Your playlists appear before weekly mixes and other server playlists, under section headings',
+      ),
+      ChangelogEntry('Playlists can be filtered by name'),
+      ChangelogEntry(
+        'Playlists you cannot edit no longer offer rename, delete, reorder or remove, and no longer appear in Add to playlist',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
+        'Renaming, deleting, reordering or adding to a playlist now tells you when it fails',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
+        'Saving Playback settings keeps newer appearance, Look and Home section choices',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
+        'Looks keep layout preferences independent: density, artist view, artwork size and art shapes stay as you set them when switching Looks',
+      ),
+      ChangelogEntry(
+        'Looks: after you change a colour or style setting the picker reads “Custom · edited from” the Look it came from, and Update keeps working after you leave Appearance or restart',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
+        'Showing the last hidden Home section no longer brings the default hidden sections back',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
+        'Radio station save failures now appear inside the editor and preserve your input; filters stay usable while server stations load',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
+        'Add radio stations that stay on this device, and edit or delete stations if you are a server admin',
+        type: ChangelogEntryType.newFeature,
+      ),
+      ChangelogEntry(
+        'The clear-data sign-out confirmation now explicitly includes playlists and radio stations saved on this device',
+        type: ChangelogEntryType.improvement,
+      ),
+      ChangelogEntry(
+        'Brief connection checks no longer falsely report offline at launch or resume, and dismissed offline notices stay dismissed until recovery',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
+        'The Now Playing settings sheet no longer repeats the Equalizer and Speed & Pitch buttons already in the player controls, and Settings › Playback no longer repeats the Equalizer entry',
+      ),
+      ChangelogEntry(
+        'Reset Defaults on the Playback settings page now resets only playback settings; appearance, Looks, downloads and service connections are left alone',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
+        'Shuffled queues get a fresh order on repeat or restart and avoid starting with the song that just finished',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
+        'Shuffle actions turn on the queue toggle and retain the original order when shuffle is turned off',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
+        'The first song no longer repeats or stalls when it ends while the rest of the queue is loading',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
         'Notification, Bluetooth and car controls keep working after Android restarts the media service',
         type: ChangelogEntryType.fix,
       ),
@@ -223,6 +285,14 @@ const List<ChangelogVersion> changelogs = [
       ),
       ChangelogEntry(
         'Large selections of downloads start more smoothly',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
+        'Downloaded songs get their lyrics and artwork back reliably: the backfill follows your download network setting instead of always requiring Wi-Fi, retries once the server connection or network appears, and promoted cache downloads fetch lyrics too',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
+        'Temporary lyrics lookup failures no longer delay retries for a week, and opening server lyrics saves them for downloaded songs',
         type: ChangelogEntryType.fix,
       ),
       ChangelogEntry(
@@ -334,7 +404,7 @@ const List<ChangelogVersion> changelogs = [
         type: ChangelogEntryType.newFeature,
       ),
       ChangelogEntry(
-        'Looks save your whole appearance under a name, so you can switch between them in one tap from Settings › Appearance, with Undo right after',
+        'Looks save your colours and style under a name, so you can switch between them in one tap from Settings › Appearance, with Undo right after',
         type: ChangelogEntryType.newFeature,
       ),
       ChangelogEntry(
@@ -434,6 +504,15 @@ const List<ChangelogVersion> changelogs = [
       ),
       ChangelogEntry(
         'Pulling down to refresh Home or Library also checks for app updates',
+      ),
+      ChangelogEntry(
+        'Navis checks for app updates when you open it or come back to it, at most once an hour, and a found update stays on Home until you install or dismiss it',
+      ),
+      ChangelogEntry(
+        'Dismissing an update on Home keeps it hidden until a different update is available; you can still find it in About',
+      ),
+      ChangelogEntry(
+        'The Sync settings button that refreshes your library is now labelled "Sync library now" to distinguish it from app update checks',
       ),
       ChangelogEntry(
         'Appearance is grouped into Theme, Color, Shape & Layout and Now Playing; Color Scheme is now Accent Color, its swatches preview your style, and custom accent colors have more accurate names',

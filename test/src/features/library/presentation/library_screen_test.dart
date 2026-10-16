@@ -1,9 +1,12 @@
 import 'dart:async';
 
 import 'package:material_ui/material_ui.dart';
+import 'package:flutter/gestures.dart' show kSecondaryMouseButton;
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:mocktail/mocktail.dart';
+import 'package:navis/src/features/settings/data/settings_repository.dart';
 import 'package:go_router/go_router.dart';
 import 'package:navis/src/features/auth/presentation/server_reachability_provider.dart';
 import 'package:navis/src/features/auth/domain/server_reachability.dart';
@@ -12,6 +15,7 @@ import 'package:navis/l10n/navis_localizations.dart';
 import 'package:navis/src/api/models/listenbrainz_playlist.dart';
 import 'package:navis/src/api/models/models.dart';
 import 'package:navis/src/features/library/domain/artist_top_track.dart';
+import 'package:navis/src/common_widgets/app_notice.dart';
 import 'package:navis/src/common_widgets/cover_art_image.dart';
 import 'package:navis/src/common_widgets/adaptive_track_row.dart';
 import 'package:navis/src/common_widgets/content_shelf.dart';
@@ -32,6 +36,7 @@ import 'package:navis/src/features/library/presentation/library_screen.dart';
 import 'package:navis/src/features/library/presentation/library_scroll_provider.dart';
 import 'package:navis/src/features/library/presentation/library_sync_provider.dart';
 import 'package:navis/src/features/player/presentation/queue_provider.dart';
+import 'package:navis/src/features/playlists/data/playlist_actions.dart';
 import 'package:navis/src/features/playlists/presentation/playlist_providers.dart';
 import 'package:navis/src/providers/app_providers.dart';
 import 'package:navis/src/routing/desktop_layout.dart';
@@ -42,6 +47,8 @@ import '../../../../helpers/test_database.dart';
 import '../../../../helpers/test_theme.dart';
 
 import 'package:navis/src/routing/library_section_navigation_scope.dart';
+
+class _MockSettingsRepository extends Mock implements SettingsRepository;
 
 class _FakeLibrarySyncController extends LibrarySyncController {
   new(this._initialState, {this.onSyncNow, this.onCancel, this.onTarget});
@@ -75,7 +82,7 @@ class _FakeLibrarySyncController extends LibrarySyncController {
   void cancelSync() => onCancel?.call();
 }
 
-/// A sync that reports running at once and finishes only when [finish] runs,
+/// A sync that reports running at once and finishes only when [pending] completes,
 /// like a real catalog sync that outlasts a pull to refresh.
 class _LongSyncController extends LibrarySyncController {
   static Completer<LibrarySyncState>? pending;
@@ -275,6 +282,7 @@ Widget _buildLibraryScreenRouter({
   bool showPlaylistsPage = false,
   bool showRadioPage = false,
   bool showArtistsPage = true,
+  AppNoticeController? notices,
 }) {
   final router = GoRouter(
     routes: <RouteBase>[
@@ -329,12 +337,66 @@ Widget _buildLibraryScreenRouter({
       theme: testTheme(),
       localizationsDelegates: navisLocalizationsDelegates,
       supportedLocales: AppLocalizations.supportedLocales,
+      builder: notices == null
+          ? null
+          : (context, child) =>
+                AppNoticeScope(notifier: notices, child: child!),
       routerConfig: router,
     ),
   );
 }
 
 late NavisDatabase _testDatabase;
+
+class _MockPlaylistActions extends Mock implements PlaylistActions;
+
+const _roadTrip = PlaylistsTableData(
+  isLocal: false,
+  id: 'road-trip',
+  name: 'Road Trip',
+  songCount: 4,
+);
+
+/// Opens Library › Playlists with [items] as the already-grouped rows.
+Future<void> _pumpPlaylistsTab(
+  WidgetTester tester, {
+  required List<PlaylistLibraryItem> items,
+  List<Object?> overrides = const <Object?>[],
+  String? viewer,
+  AppNoticeController? notices,
+  Size viewport = const Size(400, 900),
+}) async {
+  setAdaptiveTestViewport(tester, viewport);
+  await tester.pumpWidget(
+    _buildLibraryScreenRouter(
+      showPlaylistsPage: true,
+      notices: notices,
+      overrides: [
+        librarySyncControllerProvider.overrideWith(
+          () => _FakeLibrarySyncController(const LibrarySyncState.idle()),
+        ),
+        albumCountProvider.overrideWithValue(const AsyncData(0)),
+        pagedAlbumsProvider.overrideWith(
+          (ref, request) => Stream.value(const <AlbumsTableData>[]),
+        ),
+        artistsProvider.overrideWithValue(
+          const AsyncData(<ArtistsTableData>[]),
+        ),
+        playlistSyncProvider.overrideWith((ref) async {}),
+        playlistViewerProvider.overrideWithValue(viewer),
+        playlistLibraryItemsProvider.overrideWithValue(
+          AsyncData<List<PlaylistLibraryItem>>(items),
+        ),
+        ...overrides,
+      ],
+    ),
+  );
+  await tester.pumpAndSettle();
+  // The tab strip scrolls on narrow phones.
+  await tester.ensureVisible(find.text('Playlists'));
+  await tester.tap(find.text('Playlists'));
+  await tester.pumpAndSettle();
+}
 
 void _testWidgetsWithCleanup(
   String description,
@@ -391,6 +453,7 @@ Future<void> _switchToArtistsTab(WidgetTester tester) async {
 void main() {
   setUpAll(() {
     _testDatabase = createTestDatabase();
+    registerFallbackValue(_roadTrip);
   });
 
   _testWidgetsWithCleanup(
@@ -434,6 +497,44 @@ void main() {
       await _switchToArtistsTab(tester);
 
       expect(find.byTooltip('Switch to artist list view'), findsOneWidget);
+    },
+  );
+
+  _testWidgetsWithCleanup(
+    'artist view toggle writes only its setting without reading a full draft',
+    (tester) async {
+      final repository = _MockSettingsRepository();
+      when(repository.getSettings).thenThrow(StateError('full draft read'));
+      when(repository.watchSettings).thenAnswer(
+        (_) => SettingsRepository(_testDatabase.appSettingsDao).watchSettings(),
+      );
+      await tester.runAsync(() async {
+        await _testDatabase.appSettingsDao.updateThemeMode('light');
+        await _testDatabase.appSettingsDao.updateArtistViewMode('list');
+        await _testDatabase.appSettingsDao.updateHomeSectionsHidden('[]');
+      });
+      await _pumpLibraryScreen(
+        tester,
+        overrides: [
+          settingsRepositoryProvider.overrideWithValue(repository),
+          artistsProvider.overrideWithValue(
+            const AsyncData(<ArtistsTableData>[]),
+          ),
+          albumCountProvider.overrideWithValue(const AsyncData(0)),
+          pagedAlbumsProvider.overrideWith(
+            (ref, request) => Stream.value(const <AlbumsTableData>[]),
+          ),
+        ],
+      );
+      await _switchToArtistsTab(tester);
+      await tester.tap(find.byTooltip('Switch to artist grid view'));
+      await tester.runAsync(() async {
+        final row = await _testDatabase.appSettingsDao.getSettings();
+        expect(row!.artistViewMode, 'grid');
+        expect(row.themeMode, 'light');
+        expect(row.homeSectionsHidden, '[]');
+      });
+      verifyNever(repository.getSettings);
     },
   );
 
@@ -1873,7 +1974,7 @@ void main() {
     );
 
     _testWidgetsWithCleanup(
-      'playlists tab renders ListenBrainz playlists before normal playlists with divider',
+      'playlists tab groups ListenBrainz playlists before other playlists under headers',
       (tester) async {
         await tester.pumpWidget(
           _buildLibraryScreenRouter(
@@ -1901,10 +2002,12 @@ void main() {
                   ),
                   const PlaylistLibraryItem.normal(
                     PlaylistsTableData(
+                      isLocal: false,
                       id: 'server-mix',
                       name: 'Server Mix',
                       songCount: 3,
                     ),
+                    section: PlaylistLibrarySection.other,
                   ),
                 ]),
               ),
@@ -1919,10 +2022,8 @@ void main() {
         expect(find.text('Weekly Jams'), findsOneWidget);
         expect(find.text('0 of 1 available • ListenBrainz'), findsOneWidget);
         expect(find.text('Server Mix'), findsOneWidget);
-        expect(
-          find.byKey(const ValueKey<String>('listenBrainzPlaylistDivider')),
-          findsOneWidget,
-        );
+        expect(find.text('Made for you'), findsOneWidget);
+        expect(find.text('Other playlists'), findsOneWidget);
         expect(
           tester.getTopLeft(find.text('Weekly Jams')).dy,
           lessThan(tester.getTopLeft(find.text('Server Mix')).dy),
@@ -1968,10 +2069,12 @@ void main() {
                   ]),
                   const PlaylistLibraryItem.normal(
                     PlaylistsTableData(
+                      isLocal: false,
                       id: 'server-mix',
                       name: 'Server Mix',
                       songCount: 3,
                     ),
+                    section: PlaylistLibrarySection.other,
                   ),
                 ]),
               ),
@@ -1990,15 +2093,7 @@ void main() {
         expect(weekly, lessThan(trending));
         expect(
           trending,
-          lessThan(
-            tester
-                .getTopLeft(
-                  find.byKey(
-                    const ValueKey<String>('listenBrainzPlaylistDivider'),
-                  ),
-                )
-                .dy,
-          ),
+          lessThan(tester.getTopLeft(find.text('Other playlists')).dy),
         );
 
         await tester.tap(find.text('Trending Now'));
@@ -2044,6 +2139,7 @@ void main() {
                       )
                     : Stream.value(const <PlaylistsTableData>[
                         PlaylistsTableData(
+                          isLocal: false,
                           id: 'server-mix',
                           name: 'Server Mix',
                           songCount: 3,
@@ -2083,7 +2179,7 @@ void main() {
     );
 
     _testWidgetsWithCleanup(
-      'playlists tab omits ListenBrainz divider without following normal playlists',
+      'playlists tab shows no section headers when only one section has rows',
       (tester) async {
         await tester.pumpWidget(
           _buildLibraryScreenRouter(
@@ -2128,18 +2224,14 @@ void main() {
         expect(find.text('Weekly Exploration'), findsOneWidget);
         expect(find.byType(ListenBrainzPlaylistArtwork), findsOneWidget);
         expect(find.byType(CoverArtImage), findsNWidgets(4));
-        expect(
-          find.byKey(const ValueKey<String>('listenBrainzPlaylistDivider')),
-          findsNothing,
-        );
+        expect(find.text('Made for you'), findsNothing);
       },
     );
 
     _testWidgetsWithCleanup(
       'desktop playlist More opens the anchored owner-action menu',
       (tester) async {
-        await tester.binding.setSurfaceSize(const Size(1366, 900));
-        addTearDown(() => tester.binding.setSurfaceSize(null));
+        setAdaptiveTestViewport(tester, const Size(1366, 900));
         await tester.pumpWidget(
           _buildLibraryScreenRouter(
             showPlaylistsPage: true,
@@ -2160,6 +2252,7 @@ void main() {
                   <PlaylistLibraryItem>[
                     PlaylistLibraryItem.normal(
                       PlaylistsTableData(
+                        isLocal: false,
                         id: 'server-mix',
                         name: 'Server Mix',
                         songCount: 3,
@@ -2226,6 +2319,243 @@ void main() {
       expect(find.text('Rename playlist'), findsNothing);
       expect(find.text('Delete playlist?'), findsNothing);
     });
+
+    _testWidgetsWithCleanup(
+      'playlists tab shows a notice when renaming or deleting fails',
+      (tester) async {
+        final actions = _MockPlaylistActions();
+        when(() => actions.rename(any(), any())).thenThrow(StateError('boom'));
+        when(() => actions.delete(any())).thenThrow(StateError('boom'));
+        final notices = AppNoticeController();
+        addTearDown(notices.dispose);
+        await _pumpPlaylistsTab(
+          tester,
+          items: const <PlaylistLibraryItem>[
+            PlaylistLibraryItem.normal(_roadTrip),
+          ],
+          overrides: [playlistActionsProvider.overrideWithValue(actions)],
+          notices: notices,
+        );
+
+        await tester.longPress(find.text('Road Trip'));
+        await tester.pumpAndSettle();
+        await tester.tap(find.text('Rename Playlist'));
+        await tester.pumpAndSettle();
+        await tester.enterText(
+          find.descendant(
+            of: find.byType(AlertDialog),
+            matching: find.byType(TextField),
+          ),
+          'Renamed',
+        );
+        await tester.tap(find.widgetWithText(FilledButton, 'Rename Playlist'));
+        await tester.pumpAndSettle();
+
+        verify(() => actions.rename(_roadTrip, 'Renamed')).called(1);
+        expect(notices.notice?.message, 'Failed to rename playlist');
+        expect(notices.notice?.level, AppNoticeLevel.error);
+
+        await tester.longPress(find.text('Road Trip'));
+        await tester.pumpAndSettle();
+        await tester.tap(find.text('Delete Playlist?'));
+        await tester.pumpAndSettle();
+        await tester.tap(find.widgetWithText(FilledButton, 'Delete Playlist?'));
+        await tester.pumpAndSettle();
+
+        verify(() => actions.delete(_roadTrip)).called(1);
+        expect(notices.notice?.message, 'Failed to delete playlist');
+      },
+    );
+
+    _testWidgetsWithCleanup(
+      'playlists tab offers no actions on playlists the user cannot edit',
+      (tester) async {
+        const items = <PlaylistLibraryItem>[
+          PlaylistLibraryItem.normal(
+            PlaylistsTableData(
+              isLocal: false,
+              id: 'theirs',
+              name: 'Their Mix',
+              owner: 'alice',
+            ),
+            section: PlaylistLibrarySection.other,
+          ),
+          PlaylistLibraryItem.normal(
+            PlaylistsTableData(
+              isLocal: false,
+              id: 'smart',
+              name: 'Smart Mix',
+              owner: 'me',
+              readOnly: true,
+            ),
+            section: PlaylistLibrarySection.other,
+          ),
+          PlaylistLibraryItem.normal(
+            PlaylistsTableData(
+              isLocal: false,
+              id: 'mine',
+              name: 'My Mix',
+              owner: 'ME',
+            ),
+          ),
+        ];
+
+        // Each long-press ends in a tap that opens the playlist, so every
+        // playlist gets a fresh Library.
+        for (final (name, editable) in <(String, bool)>[
+          ('Their Mix', false),
+          ('Smart Mix', false),
+          ('My Mix', true),
+        ]) {
+          await _pumpPlaylistsTab(tester, viewer: 'me', items: items);
+          await tester.longPress(find.text(name));
+          await tester.pumpAndSettle();
+          expect(
+            find.text('Rename Playlist'),
+            editable ? findsOneWidget : findsNothing,
+            reason: name,
+          );
+          expect(
+            find.byType(BottomSheet),
+            editable ? findsOneWidget : findsNothing,
+            reason: name,
+          );
+        }
+      },
+    );
+
+    _testWidgetsWithCleanup(
+      'desktop playlists tab hides More and the context menu when read-only',
+      (tester) async {
+        await _pumpPlaylistsTab(
+          tester,
+          viewport: const Size(1366, 900),
+          items: const <PlaylistLibraryItem>[
+            PlaylistLibraryItem.normal(
+              PlaylistsTableData(
+                isLocal: false,
+                id: 'smart',
+                name: 'Smart Mix',
+                readOnly: true,
+              ),
+              section: PlaylistLibrarySection.other,
+            ),
+          ],
+        );
+
+        expect(find.byIcon(Icons.more_vert), findsNothing);
+        await tester.tap(
+          find.text('Smart Mix'),
+          buttons: kSecondaryMouseButton,
+        );
+        await tester.pumpAndSettle();
+        expect(find.text('Rename Playlist'), findsNothing);
+      },
+    );
+
+    _testWidgetsWithCleanup('playlists tab shows all three sections in order', (
+      tester,
+    ) async {
+      await _pumpPlaylistsTab(
+        tester,
+        items: <PlaylistLibraryItem>[
+          const PlaylistLibraryItem.normal(_roadTrip),
+          const PlaylistLibraryItem.trending(null),
+          const PlaylistLibraryItem.normal(
+            PlaylistsTableData(isLocal: false, id: 'x', name: 'Their Mix'),
+            section: PlaylistLibrarySection.other,
+          ),
+        ],
+      );
+
+      final tops = <double>[
+        for (final label in <String>[
+          'Your playlists',
+          'Road Trip',
+          'Made for you',
+          'Trending Now',
+          'Other playlists',
+          'Their Mix',
+        ])
+          tester.getTopLeft(find.text(label)).dy,
+      ];
+      expect(tops, orderedEquals(<double>[...tops]..sort()));
+    });
+
+    _testWidgetsWithCleanup(
+      'playlists tab filter field matches displayed titles case-insensitively',
+      (tester) async {
+        await _pumpPlaylistsTab(
+          tester,
+          items: const <PlaylistLibraryItem>[
+            PlaylistLibraryItem.normal(_roadTrip),
+            PlaylistLibraryItem.normal(
+              PlaylistsTableData(isLocal: false, id: 'g', name: 'Gym'),
+            ),
+            PlaylistLibraryItem.trending(null),
+          ],
+        );
+        final field = find.byType(TextField);
+        expect(find.text('Search playlists...'), findsOneWidget);
+
+        await tester.enterText(field, 'GY');
+        await tester.pumpAndSettle();
+        expect(find.text('Gym'), findsOneWidget);
+        expect(find.text('Road Trip'), findsNothing);
+        expect(find.text('Trending Now'), findsNothing);
+        // One section left: no header.
+        expect(find.text('Your playlists'), findsNothing);
+
+        await tester.enterText(field, 'trend');
+        await tester.pumpAndSettle();
+        expect(find.text('Trending Now'), findsOneWidget);
+        expect(find.text('Gym'), findsNothing);
+
+        await tester.enterText(field, 'zzz');
+        await tester.pumpAndSettle();
+        expect(find.text('No results for "zzz"'), findsOneWidget);
+        await tester.tap(
+          find.byKey(const ValueKey<String>('playlistsClearFilterAction')),
+        );
+        await tester.pumpAndSettle();
+        expect(find.text('Road Trip'), findsOneWidget);
+        expect(find.text('Gym'), findsOneWidget);
+        expect(tester.widget<TextField>(field).controller?.text, isEmpty);
+      },
+    );
+
+    _testWidgetsWithCleanup(
+      'desktop playlists tab filters by the Library type-to-filter query',
+      (tester) async {
+        await _pumpPlaylistsTab(
+          tester,
+          viewport: const Size(1366, 900),
+          items: const <PlaylistLibraryItem>[
+            PlaylistLibraryItem.normal(_roadTrip),
+            PlaylistLibraryItem.normal(
+              PlaylistsTableData(isLocal: false, id: 'g', name: 'Gym'),
+            ),
+          ],
+        );
+        // Desktop has no filter field; the typed query drives the list.
+        expect(find.text('Search playlists...'), findsNothing);
+
+        await tester.sendKeyEvent(LogicalKeyboardKey.keyG, character: 'g');
+        await tester.sendKeyEvent(LogicalKeyboardKey.keyY, character: 'y');
+        await tester.pumpAndSettle();
+        expect(find.text('Gym'), findsOneWidget);
+        expect(find.text('Road Trip'), findsNothing);
+
+        await tester.sendKeyEvent(LogicalKeyboardKey.keyQ, character: 'q');
+        await tester.pumpAndSettle();
+        expect(find.text('No results for "gyq"'), findsWidgets);
+        await tester.tap(
+          find.byKey(const ValueKey<String>('playlistsClearFilterAction')),
+        );
+        await tester.pumpAndSettle();
+        expect(find.text('Road Trip'), findsOneWidget);
+      },
+    );
 
     _testWidgetsWithCleanup(
       'playlists tab navigates ListenBrainz rows to detail',

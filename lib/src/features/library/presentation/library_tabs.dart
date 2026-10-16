@@ -65,10 +65,21 @@ class _LikedArtistStripTile extends ConsumerWidget {
 // ---------------------------------------------------------------------------
 
 class _LibraryPlaylistsTab extends ConsumerStatefulWidget {
-  const new({this.scrollController});
+  const new({
+    this.scrollController,
+    this.typeFilterQuery = '',
+    this.onClearTypeFilter,
+  });
 
   /// Optional external [ScrollController] for scroll-to-top support.
   final ScrollController? scrollController;
+
+  /// The Library type-to-filter query (desktop). Touch layouts filter with
+  /// their own field instead.
+  final String typeFilterQuery;
+
+  /// Clears the Library type-to-filter query.
+  final VoidCallback? onClearTypeFilter;
 
   @override
   ConsumerState<_LibraryPlaylistsTab> createState() =>
@@ -78,8 +89,16 @@ class _LibraryPlaylistsTab extends ConsumerStatefulWidget {
 class _LibraryPlaylistsTabState extends ConsumerState<_LibraryPlaylistsTab>
     with AutomaticKeepAliveClientMixin {
   late final ProviderSubscription<AsyncValue<void>> _playlistSyncSubscription;
+  final TextEditingController _filterController = TextEditingController();
   List<PlaylistLibraryItem> _cachedPlaylistItems =
       const <PlaylistLibraryItem>[];
+
+  /// The active filter: the typed Library query on desktop, else the field.
+  String get _query =>
+      (widget.typeFilterQuery.isNotEmpty
+              ? widget.typeFilterQuery
+              : _filterController.text)
+          .trim();
 
   @override
   bool get wantKeepAlive => true;
@@ -113,8 +132,19 @@ class _LibraryPlaylistsTabState extends ConsumerState<_LibraryPlaylistsTab>
   @override
   void dispose() {
     _playlistSyncSubscription.close();
+    _filterController.dispose();
     super.dispose();
   }
+
+  void _clearFilter() {
+    _filterController.clear();
+    widget.onClearTypeFilter?.call();
+    setState(() {});
+  }
+
+  /// The title as shown, so the filter matches what the user reads.
+  String _displayTitle(AppLocalizations l10n, PlaylistLibraryItem item) =>
+      item.isTrending ? l10n.homeTrendingTitle : item.name;
 
   @override
   Widget build(BuildContext context) {
@@ -133,52 +163,102 @@ class _LibraryPlaylistsTabState extends ConsumerState<_LibraryPlaylistsTab>
     });
 
     final effectiveItems = playlistsAsync.asData?.value ?? _cachedPlaylistItems;
+    final desktopMode = resolveAdaptiveContextFor(context).useDesktopShell;
+    final query = _query;
+    final visibleItems = query.isEmpty
+        ? effectiveItems
+        : effectiveItems
+              .where(
+                (item) => _displayTitle(
+                  l10n,
+                  item,
+                ).toLowerCase().contains(query.toLowerCase()),
+              )
+              .toList(growable: false);
 
     return Stack(
       children: [
-        RefreshIndicator(
-          onRefresh: () async {
-            ref.invalidate(playlistSyncProvider);
-            await ref.read(playlistSyncProvider.future);
-          },
-          child: playlistsAsync.when(
-            data: (_) {
-              if (effectiveItems.isEmpty) {
-                return ListView(
-                  children: [
-                    SizedBox(
-                      height: MediaQuery.of(context).size.height * 0.6,
-                      child: EmptyState(
-                        title: l10n.playlistsEmpty,
-                        subtitle: l10n.playlistsEmptySubtitle,
-                        icon: Icons.queue_music_outlined,
-                      ),
-                    ),
-                  ],
-                );
-              }
+        Column(
+          children: <Widget>[
+            if (!desktopMode && effectiveItems.isNotEmpty)
+              ListFilterField(
+                controller: _filterController,
+                hint: l10n.playlistsFilterHint,
+                onChanged: (_) => setState(() {}),
+                onClear: _clearFilter,
+              ),
+            Expanded(
+              child: RefreshIndicator(
+                onRefresh: () async {
+                  ref.invalidate(playlistSyncProvider);
+                  await ref.read(playlistSyncProvider.future);
+                },
+                child: playlistsAsync.when(
+                  data: (_) {
+                    if (effectiveItems.isEmpty) {
+                      return ListView(
+                        children: [
+                          SizedBox(
+                            height: MediaQuery.of(context).size.height * 0.6,
+                            child: EmptyState(
+                              title: l10n.playlistsEmpty,
+                              subtitle: l10n.playlistsEmptySubtitle,
+                              icon: Icons.queue_music_outlined,
+                            ),
+                          ),
+                        ],
+                      );
+                    }
+                    if (visibleItems.isEmpty) {
+                      return ListView(
+                        physics: const AlwaysScrollableScrollPhysics(),
+                        children: [
+                          EmptyState(
+                            title: l10n.libraryFilterNoResults(query),
+                            subtitle: l10n.libraryFilterNoResultsSubtitle,
+                            icon: Icons.search_off,
+                            action: FilledButton.tonalIcon(
+                              style: NavisColorStyleData.tonalStyleOf(context),
+                              key: const ValueKey<String>(
+                                'playlistsClearFilterAction',
+                              ),
+                              onPressed: _clearFilter,
+                              icon: const Icon(Icons.filter_alt_off_outlined),
+                              label: Text(l10n.libraryClearFiltersAction),
+                            ),
+                          ),
+                        ],
+                      );
+                    }
 
-              return _buildPlaylistList(
-                effectiveItems,
-                serverPlaylistsFailed: serverPlaylistsFailed,
-              );
-            },
-            loading: () {
-              if (effectiveItems.isNotEmpty) {
-                return _buildPlaylistList(effectiveItems);
-              }
-              return const ShimmerListPage(count: 8);
-            },
-            error: (error, _) => ListView(
-              physics: const AlwaysScrollableScrollPhysics(),
-              children: [
-                ErrorState(
-                  title: l10n.playlistsLoadError,
-                  onRetry: () => ref.invalidate(playlistSyncProvider),
+                    return _buildPlaylistList(
+                      visibleItems,
+                      desktopMode: desktopMode,
+                      serverPlaylistsFailed: serverPlaylistsFailed,
+                    );
+                  },
+                  loading: () {
+                    if (visibleItems.isNotEmpty) {
+                      return _buildPlaylistList(
+                        visibleItems,
+                        desktopMode: desktopMode,
+                      );
+                    }
+                    return const ShimmerListPage(count: 8);
+                  },
+                  error: (error, _) => ListView(
+                    physics: const AlwaysScrollableScrollPhysics(),
+                    children: [
+                      ErrorState(
+                        title: l10n.playlistsLoadError,
+                        onRetry: () => ref.invalidate(playlistSyncProvider),
+                      ),
+                    ],
+                  ),
                 ),
-              ],
+              ),
             ),
-          ),
+          ],
         ),
         if (playlistSyncAsync.isLoading)
           const Positioned(
@@ -203,46 +283,55 @@ class _LibraryPlaylistsTabState extends ConsumerState<_LibraryPlaylistsTab>
 
   Widget _buildPlaylistList(
     List<PlaylistLibraryItem> items, {
+    required bool desktopMode,
     bool serverPlaylistsFailed = false,
   }) {
-    final firstNormalIndex = items.indexWhere((item) => !item.isVirtual);
-    final hasVirtualPlaylists = items.any((item) => item.isVirtual);
-    final showGroupDivider = hasVirtualPlaylists && firstNormalIndex > 0;
-    final rowCount = items.length + (showGroupDivider ? 1 : 0);
+    final l10n = AppLocalizations.of(context)!;
+    final me = ref.watch(playlistViewerProvider);
+    // Headers only tell sections apart, so a single section has none.
+    final showHeaders = items.map((item) => item.section).toSet().length > 1;
+    final rows = <Object>[];
+    PlaylistLibrarySection? previous;
+    for (final item in items) {
+      if (showHeaders && item.section != previous) rows.add(item.section);
+      previous = item.section;
+      rows.add(item);
+    }
 
     return ListView.builder(
       controller: widget.scrollController,
       padding: const EdgeInsets.only(bottom: 80),
-      itemCount: rowCount + (serverPlaylistsFailed ? 1 : 0),
+      itemCount: rows.length + (serverPlaylistsFailed ? 1 : 0),
       itemBuilder: (context, index) {
-        if (index == rowCount) {
-          final l10n = AppLocalizations.of(context)!;
+        if (index == rows.length) {
           return ErrorState(
             key: const ValueKey<String>('library-playlists-load-error'),
             title: l10n.playlistsLoadError,
             onRetry: _retryServerPlaylists,
           );
         }
-        if (showGroupDivider && index == firstNormalIndex) {
-          return const Divider(
-            key: ValueKey<String>('listenBrainzPlaylistDivider'),
-            height: 16,
-            indent: 16,
-            endIndent: 16,
-          );
-        }
-        final itemIndex = showGroupDivider && index > firstNormalIndex
-            ? index - 1
-            : index;
-        final item = items[itemIndex];
-        final virtual = item.virtualPlaylist;
-        if (virtual != null) {
-          return _buildVirtualPlaylistTile(item, virtual);
-        }
-        if (item.isTrending) {
-          return _buildTrendingTile(item);
-        }
-        return _buildPlaylistTile(item.playlist!);
+        return switch (rows[index]) {
+          final PlaylistLibrarySection section => NavisSectionHeader(
+            title: switch (section) {
+              PlaylistLibrarySection.yours => l10n.playlistsSectionYours,
+              PlaylistLibrarySection.madeForYou =>
+                l10n.playlistsSectionMadeForYou,
+              PlaylistLibrarySection.other => l10n.playlistsSectionOther,
+            },
+            compact: true,
+            padding: const EdgeInsets.fromLTRB(16, 16, 16, 4),
+          ),
+          final PlaylistLibraryItem item when item.virtualPlaylist != null =>
+            _buildVirtualPlaylistTile(item, item.virtualPlaylist!),
+          final PlaylistLibraryItem item when item.isTrending =>
+            _buildTrendingTile(item),
+          final PlaylistLibraryItem item => _buildPlaylistTile(
+            item.playlist!,
+            canEdit: canEditPlaylist(item.playlist!, me),
+            desktopMode: desktopMode,
+          ),
+          _ => const SizedBox.shrink(),
+        };
       },
     );
   }
@@ -319,7 +408,13 @@ class _LibraryPlaylistsTabState extends ConsumerState<_LibraryPlaylistsTab>
     );
   }
 
-  Widget _buildPlaylistTile(PlaylistsTableData playlist) {
+  /// A playlist row. Rename and delete are offered only when [canEdit]: the
+  /// server refuses other users' and read-only playlists anyway.
+  Widget _buildPlaylistTile(
+    PlaylistsTableData playlist, {
+    required bool canEdit,
+    required bool desktopMode,
+  }) {
     final l10n = AppLocalizations.of(context)!;
     final density = NavisDensityScope.of(context);
     final cover = density.listCover;
@@ -344,7 +439,7 @@ class _LibraryPlaylistsTabState extends ConsumerState<_LibraryPlaylistsTab>
       subtitle: playlist.songCount != null
           ? Text(l10n.playlistsSongCount(playlist.songCount!))
           : null,
-      trailing: isDesktopRuntime
+      trailing: desktopMode && canEdit
           ? Row(
               mainAxisSize: MainAxisSize.min,
               children: <Widget>[
@@ -370,11 +465,11 @@ class _LibraryPlaylistsTabState extends ConsumerState<_LibraryPlaylistsTab>
             )
           : const Icon(Icons.chevron_right),
       onTap: () => NavService.openPlaylistDetail(context, ref, playlist.id),
-      onLongPress: isDesktopRuntime
+      onLongPress: desktopMode || !canEdit
           ? null
           : () => _showPlaylistActions(context, playlist),
     );
-    if (!isDesktopRuntime) return tile;
+    if (!desktopMode || !canEdit) return tile;
     return GestureDetector(
       behavior: HitTestBehavior.translucent,
       onSecondaryTapDown: (details) => _showPlaylistActions(
@@ -452,7 +547,7 @@ class _LibraryPlaylistsTabState extends ConsumerState<_LibraryPlaylistsTab>
     PlaylistsTableData playlist, {
     Offset? anchor,
   }) {
-    if (anchor != null && isDesktopRuntime) {
+    if (anchor != null) {
       unawaited(_showDesktopPlaylistActions(context, playlist, anchor: anchor));
       return;
     }
@@ -564,17 +659,30 @@ class _LibraryPlaylistsTabState extends ConsumerState<_LibraryPlaylistsTab>
   ) {
     if (newName.isEmpty) return;
     Navigator.of(dialogContext).pop();
-    final api = ref.read(subsonicApiProvider);
-    if (api == null) return;
     unawaited(
-      api
-          .updatePlaylist(id: playlist.id, name: newName)
-          .then((_) {
-            if (!mounted) return;
-            ref.invalidate(playlistSyncProvider);
-          })
-          .catchError((_) {}),
+      _runPlaylistAction(
+        () => ref.read(playlistActionsProvider).rename(playlist, newName),
+        AppLocalizations.of(context)!.playlistsRenameFailed,
+      ),
     );
+  }
+
+  /// Runs a server playlist change; a failure is shown, never swallowed.
+  Future<void> _runPlaylistAction(
+    Future<void> Function() action,
+    String failureMessage,
+  ) async {
+    try {
+      await action();
+    } on Object catch (error) {
+      AppLogger.warning('Playlist action failed: $error');
+      if (!mounted) return;
+      showAppNotice(
+        context,
+        message: failureMessage,
+        level: AppNoticeLevel.error,
+      );
+    }
   }
 
   void _confirmDelete(BuildContext context, PlaylistsTableData playlist) {
@@ -606,16 +714,11 @@ class _LibraryPlaylistsTabState extends ConsumerState<_LibraryPlaylistsTab>
   }
 
   void _deletePlaylist(PlaylistsTableData playlist) {
-    final api = ref.read(subsonicApiProvider);
-    if (api == null) return;
     unawaited(
-      api
-          .deletePlaylist(playlist.id)
-          .then((_) {
-            if (!mounted) return;
-            ref.invalidate(playlistSyncProvider);
-          })
-          .catchError((_) {}),
+      _runPlaylistAction(
+        () => ref.read(playlistActionsProvider).delete(playlist),
+        AppLocalizations.of(context)!.playlistsDeleteFailed,
+      ),
     );
   }
 }

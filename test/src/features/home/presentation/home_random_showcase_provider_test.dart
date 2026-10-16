@@ -843,14 +843,12 @@ void main() {
       expect(listenBrainz.recommendationPlaylistCalls, 1);
       expect(emissions.last.single.playableSongs.single.id, 'song-jams');
 
+      await database.appSettingsDao.updateGridArtworkSize('large');
       await repository.saveSettings(
         container
             .read(appSettingsProvider)
             .requireValue
-            .copyWith(
-              scrobbleEnabled: false,
-              gridArtworkSize: GridArtworkSize.large,
-            ),
+            .copyWith(scrobbleEnabled: false),
       );
       await settingsApplied(
         (settings) =>
@@ -2562,9 +2560,14 @@ void main() {
           integrationPolicyProvider.overrideWithValue(
             const IntegrationPolicy.denyAll(),
           ),
+          playlistViewerProvider.overrideWithValue(null),
           playlistListProvider.overrideWithValue(
             const AsyncData<List<PlaylistsTableData>>(<PlaylistsTableData>[
-              PlaylistsTableData(id: 'server-playlist', name: 'Server Mix'),
+              PlaylistsTableData(
+                isLocal: false,
+                id: 'server-playlist',
+                name: 'Server Mix',
+              ),
             ]),
           ),
           listenBrainzDiscoverStreamProvider.overrideWithValue(
@@ -2578,9 +2581,10 @@ void main() {
 
       expect(libraryItems.hasValue, isTrue);
       expect(libraryItems.requireValue.map((item) => item.id), <String>[
+        // Your playlists come before the Made for you mixes.
+        'server-playlist',
         listenBrainzWeeklyExplorationVirtualPlaylistId,
         listenBrainzWeeklyJamsVirtualPlaylistId,
-        'server-playlist',
       ]);
     },
   );

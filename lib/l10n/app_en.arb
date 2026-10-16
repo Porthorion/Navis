@@ -336,7 +336,7 @@
       }
     }
   },
-  "syncSettingsCheckForUpdates": "Check for updates",
+  "syncSettingsSyncLibraryNow": "Sync library now",
   "syncSettingsFreshnessCurrent": "Current",
   "syncSettingsFreshnessPending": "Verification pending",
   "syncSettingsFreshnessRepair": "Repair recommended",
@@ -604,7 +604,7 @@
   "homeRecentlyPlayedAlbumsEmptySubtitle": "Start listening to populate this section.",
   "radioTitle": "Radio",
   "radioEmptyTitle": "No Radio Stations Found",
-  "radioEmptySubtitle": "Add internet radio stations on your server to see them here.",
+  "radioEmptySubtitle": "Add a station to this device, or add internet radio stations on your server.",
   "radioFilteredEmptyTitle": "No Stations Match \u201c{query}\u201d",
   "@radioFilteredEmptyTitle": {
     "placeholders": {
@@ -618,6 +618,23 @@
   "radioLoadErrorTitle": "Could Not Load Radio Stations",
   "radioUnsupportedMessage": "This server does not expose internet radio station endpoints.",
   "radioStopStation": "Stop radio",
+  "radioAddStation": "Add station",
+  "radioEditStation": "Edit station",
+  "radioDeleteStation": "Delete station",
+  "radioSectionDevice": "On this device",
+  "radioSectionServer": "On your server",
+  "radioEditorNameLabel": "Name",
+  "radioEditorStreamUrlLabel": "Stream URL",
+  "radioEditorHomepageLabel": "Homepage (optional)",
+  "radioEditorNameError": "Enter a name for this station.",
+  "radioEditorUrlError": "Enter a full address starting with http:// or https://.",
+  "radioEditorSaveToServer": "Save to server",
+  "radioEditorSaveToServerHint": "Visible to every user on this server. Off keeps the station on this device only.",
+  "radioEditorSaveFailed": "Could not save this station. Try again.",
+  "radioDeleteTitle": "Delete Station?",
+  "radioDeleteScopeDevice": "Saved on this device only.",
+  "radioDeleteScopeServer": "This removes the station from the server for everyone.",
+  "radioDeleteFailed": "Could not delete this station. Try again.",
   "radioPlaybackError": "Could not play this radio station.",
   "radioStreamUnavailable": "Radio stream unavailable.",
   "radioNowPlaying": "Now playing on radio",
@@ -1104,7 +1121,7 @@
   "playbackRecoveryResetConfirmBody": "This permanently deletes your streaming cache, cover art cache, and local library metadata. Downloaded music and your sign-in will be kept.",
   "playbackRecoveryResetConfirmAction": "Reset Cache",
   "playbackRecoveryWipeConfirmTitle": "Sign Out and Clear Local Data?",
-  "playbackRecoveryWipeConfirmBody": "This permanently deletes your sign-in, downloaded music, caches, library metadata, and history from this device.",
+  "playbackRecoveryWipeConfirmBody": "This permanently deletes your sign-in, downloaded music, caches, library metadata, and history from this device, including playlists and radio stations saved on this device.",
   "playbackRecoveryWipeConfirmAction": "Clear Local Data",
   "playbackRecoveryActionFailed": "Could not complete playback recovery. Try again.",
   "playbackRecoverySheetTitle": "Playback Unavailable",
@@ -1305,6 +1322,12 @@
     }
   },
   "playlistsRenameTitle": "Rename Playlist",
+  "playlistsRenameFailed": "Failed to rename playlist",
+  "playlistsDeleteFailed": "Failed to delete playlist",
+  "playlistsFilterHint": "Search playlists...",
+  "playlistsSectionYours": "Your playlists",
+  "playlistsSectionMadeForYou": "Made for you",
+  "playlistsSectionOther": "Other playlists",
   "playlistDetailTitle": "Playlist",
   "playlistDetailMeta": "{owner} · {count, plural, =0{No songs} =1{1 song} other{{count} songs}}",
   "@playlistDetailMeta": {
@@ -1325,6 +1348,7 @@
   "playlistDetailRemoveTrack": "Remove from playlist",
   "playlistDetailTrackRemoved": "Track removed",
   "playlistDetailTrackRemoveFailed": "Failed to remove track",
+  "playlistDetailReorderFailed": "Failed to reorder tracks",
 
   "addToPlaylistTitle": "Add to Playlist",
   "addToPlaylistSuccess": "Added to \"{name}\"",
@@ -1336,6 +1360,7 @@
     }
   },
   "addToPlaylistNewPlaylist": "New playlist",
+  "addToPlaylistFailed": "Failed to add to playlist",
   "librarySongMenuAddToPlaylist": "Add to playlist",
 
   "cacheSettingsTitle": "Cache & Storage",
@@ -1617,8 +1642,8 @@
   },
   "appearanceColorTuningSummaryWhiteControls": "White controls",
   "appearanceLooksLabel": "Looks",
-  "appearanceLooksSub": "Save and switch your whole appearance.",
-  "appearanceLooksSubEmpty": "Save your whole appearance from the menu, then switch back to it any time.",
+  "appearanceLooksSub": "Save and switch your colours and style.",
+  "appearanceLooksSubEmpty": "Save your colours and style from the menu, then switch back any time.",
   "appearanceLooksPicker": "Look",
   "appearanceLooksActions": "Look actions",
   "appearanceLooksSaveNew": "Save Current as New Look",
@@ -1626,6 +1651,12 @@
   "appearanceLooksMissing": "That Look no longer exists.",
   "appearanceLooksApplied": "Applied {name}",
   "@appearanceLooksApplied": {
+    "placeholders": {
+      "name": {"type": "String"}
+    }
+  },
+  "appearanceLooksCustomEdited": "Custom · edited from {name}",
+  "@appearanceLooksCustomEdited": {
     "placeholders": {
       "name": {"type": "String"}
     }
@@ -2050,7 +2081,7 @@
   },
 
   "serverSettingsSignOutConfirmTitle": "Sign Out",
-  "serverSettingsSignOutConfirmMessage": "How would you like to handle your local library data?",
+  "serverSettingsSignOutConfirmMessage": "How would you like to handle your local library data? Clearing local data permanently deletes your downloads, caches, library metadata, and history, including playlists and radio stations saved on this device.",
   "songStatusQueued": "Queued for download",
   "songStatusDownloading": "Downloading…",
   "songStatusCachedTooltip": "Cached — tap to download",

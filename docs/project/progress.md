@@ -2,7 +2,7 @@
 
 Tracks completion of all phases and sub-tasks defined in [docs/project/development-plan.md](development-plan.md). Checkboxes are updated as work is completed.
 
-Last updated: 2026-10-15
+Last updated: 2026-10-16
 
 ---
 
@@ -14,6 +14,240 @@ Last updated: 2026-10-15
 - ACP status values: `backlog`, `ready`, `in_progress`, `blocked`, `done`.
 
 ## Current Focus
+- [x] PR B1 UI: playlist sections, filter, gated edits and visible failures —
+  2026-10-16 (`feat/playlists-sections`, on top of the B1 backend commit; Sonnet
+  implementation). Library › Playlists shows Your playlists / Made for you /
+  Other playlists headers only when more than one section has rows (replacing
+  `listenBrainzPlaylistDivider`), a touch filter field (`ListFilterField`, moved
+  out of Downloads) and the desktop type-to-filter, with the shared
+  filtered-empty state. Long-press, ⋮ and right-click open rename/delete only
+  when `canEditPlaylist` holds; rename, delete, add, remove and reorder run
+  through `PlaylistActions` and show new failure notices
+  (`playlistsRenameFailed`, `playlistsDeleteFailed`, `addToPlaylistFailed`,
+  `playlistDetailReorderFailed`). The detail screen hides the drag handle and
+  Remove when not editable; the add sheet lists only editable playlists.
+  Widget tests were written first (compile and assertion failures against the
+  old tab). Capped runs: `library_screen_test.dart` + `test/src/features/playlists`
+  + changelog + downloads/presentation reported `00:10 +181: All tests passed!`
+  (`[capped] exit=0 peak=3344M`); `test/src/features/library`,
+  `test/src/features/downloads`, `test/src/common_widgets`, `test/src/routing`
+  and `test/src/features/changelog` reported `01:20 +2194 ~1: All tests passed!`.
+  `dart format` clean; `flutter analyze --no-fatal-infos lib test` has no errors
+  or warnings in touched files. `dart run tool/dead_code_check.dart` exits 0
+  (`playlistActionsProvider` and `PlaylistActions.addSongs` are now consumed;
+  the unused `PlaylistLibraryItem.isVirtual` getter was removed). No goldens were
+  regenerated. `./tool/check.sh`, the app and emulators were not run (host
+  limits); the touch layout (filter field above the list, section headers) has
+  not been seen on a device or in a screenshot.
+
+- [x] PR B1 backend: playlist ownership, sections and throwing server actions —
+  2026-10-16 (`feat/playlists-sections`, based on PR0 commits ae8d3991 and
+  5e65e9be; Codex implementation). Added optional API `readonly` parsing and
+  generated output, header/detail persistence and header comparison, pure
+  ownership rules, case-insensitive playlist ordering, and Yours → Made for you
+  → Other section metadata. Virtual playlist gates, routing, and availability
+  during server-read failures remain covered. `PlaylistActions` exposes server
+  rename/delete/add/remove/reorder with existing sync invalidations; errors
+  propagate, offline calls throw, and local IDs are rejected pending B2.
+  Tests were written first: new APIs failed compilation and the DAO ordering
+  assertion failed against the old behavior. After implementation, the capped
+  six-file run reported `00:12 +197: All tests passed!` and
+  `[capped] exit=0 peak=2327M swappeak=0M oom_kills=0`, using
+  `~/.cache/claude-navis-tools/capped.sh 6G "$PWD" flutter test --concurrency=4`
+  with `models_serialization_test.dart`, `playlist_dao_test.dart`,
+  `playlist_ownership_test.dart`, `playlist_actions_test.dart`,
+  `playlist_library_items_test.dart`, and `library_sync_engine_test.dart`.
+  `make gen` succeeded: `Built with build_runner/aot in 52s; wrote 2003 outputs.`
+  `dart format` covered all 15 changed Dart files; capped scoped
+  `flutter analyze --no-fatal-infos` reported `No issues found!` (exit 0).
+  `dart run tool/dead_code_check.dart` exited 1 with exactly two new test-only
+  entries awaiting the B1 UI wiring: `PlaylistActions.addSongs` (line 37) and
+  `playlistActionsProvider` (line 7) in
+  `lib/src/features/playlists/data/playlist_actions.dart`; the baseline is
+  unchanged. B1 UI wiring, filter, edit gating, notices and widget coverage
+  remain with the UI agent. B2 local DAO/actions/create/detail-sync changes
+  were not implemented. No new PR0 issue was identified. The full check,
+  application/emulator runs and runtime evidence were prohibited by the task's
+  host limits; independent review remains for the coordinating agent.
+- [x] Download lyrics/artwork backfill review fixes (issue #9) — 2026-10-16
+  (`fix/download-lyrics-art-backfill`; the shared lyrics resolver distinguishes
+  confirmed misses from transport/API failures, so only confirmed misses get
+  a seven-day negative entry. Both backfills recheck stop/network eligibility
+  after a playback hold and before a request; stopped passes drain without new
+  network work, and a Wi-Fi-only pass interrupted by cellular stays pending
+  and resumes through the pump on Wi-Fi. Interactive server lyrics for permanent
+  downloads use the resolver cache path and clear failure metadata, permitting
+  later synced-lyrics upgrades; rolling/uncached songs retain their previous
+  caching behavior. Twelve regressions failed before their fixes; all nineteen
+  new regression/control cases pass. The requested downloads, lyrics-resolver,
+  song-identity DAO and provider suites pass 372 tests with concurrency 4 under
+  a 6G cap. Changed-file analysis and formatting and the dead-code gate pass.
+  Two existing provider brace-style infos were corrected during analysis;
+  the provider suite then passed all 94 tests again.
+  Runtime/app/emulator validation and `./tool/check.sh` were not run under the
+  host limits; the coordinator owns broader validation.)
+
+- [x] Radio UI review fixes for issue #14 — 2026-10-16
+  (`feat/radio-device-stations`; Codex). Save failures now appear inside the
+  editor with entered values retained, clearing on retry or field/destination
+  edits. Device stations hidden by a filter show filtered-empty guidance while
+  server stations load; the device section title no longer has a redundant
+  condition. Architecture and changelog updated.
+  Regression-first capped widget run: `"00:03 +32 -2: Some tests failed."`
+  (missing inline save error and missing filtered-empty message, exit 1).
+  Final `~/.cache/claude-navis-tools/capped.sh 6G "$PWD" flutter test
+  --concurrency=4 test/src/features/library/presentation/radio_screen_test.dart`:
+  `"00:02 +34: All tests passed!"` (exit 0, peak 1926M, no OOM kills).
+  Changed-file `dart analyze`: `"No issues found!"`, exit 0.
+  Capped `flutter analyze --no-fatal-infos`: exit 0 with 195 existing infos
+  outside changed files. Changed-file format check and `git diff --check` pass.
+  Capped `dart run tool/dead_code_check.dart`: exit 0 (baseline unchanged).
+  App/emulator launch, screenshots, runtime loop and `./tool/check.sh` were
+  excluded by the task's explicit host limits; runtime verification remains.
+- [x] PR A UI: device radio stations and admin station editing —
+  2026-10-16 (`feat/radio-device-stations`; Sonnet). Radio tab sections, add
+  button, long-press/secondary-click Edit/Delete (device or admin only), editor
+  and delete dialogs in `radio_station_dialogs.dart`, 17 new l10n strings, two
+  radio goldens regenerated (the add button is the only visual change),
+  architecture and changelog updated. Targeted widget tests only
+  (`radio_screen_test.dart`); no app/emulator launch or `./tool/check.sh`.
+  Runtime verification and independent review remain.
+- [x] PR A backend: device radio stations and server station editing —
+  2026-10-16 (`feat/radio-device-stations`; Codex implementation, based on
+  schema-104 commits `ae8d3991` and `5e65e9be`). Added admin lookup and radio
+  mutation endpoints, retry suppression for station creation, registered local
+  station DAO, local/admin providers, and validated local/server save/delete
+  actions. DAO deletion is named `deleteStation(id)` because Drift owns
+  `delete(table)`; the actions API exposes `delete(station, isLocal: ...)`.
+  Both clear-data confirmation paths explicitly mention device playlists and
+  stations. Architecture and the unreleased 1.5.0 changelog are updated.
+  Evidence: `./tool/bootstrap.sh`, `make gen` (existing
+  `json_annotation >=4.12.0` dependency-bound warning), and
+  `flutter gen-l10n` succeeded. Tests were added first and failed on the missing
+  backend APIs; the final capped run passed **78 tests** with
+  `capped.sh 6G "$PWD" flutter test --concurrency=4` over
+  `test/src/api/subsonic_api_client_test.dart`,
+  `test/src/database/daos/local_radio_station_dao_test.dart`,
+  `test/src/features/library/data/radio_station_actions_test.dart`, and
+  `test/src/providers/radio_station_providers_test.dart` (`All tests passed!`,
+  exit 0, peak 2144M, no OOM kills). Coverage includes URL/name rejection,
+  request/response homepage spelling, homepage clearing, unique local UUIDs,
+  reactive ordering/update/delete, local/server routing, error propagation,
+  successful-server-only invalidation, and offline/admin-error fallbacks.
+  `dart format` covers changed Dart files. Targeted `dart analyze` exits 0
+  with only three pre-existing infos outside changed hunks:
+  `avoid_catching_errors` in `navis_database.dart` and two
+  `curly_braces_in_flow_control_structures` in `app_providers.dart`.
+  `dart run tool/dead_code_check.dart` exits 1 for exactly three new test-only
+  declarations: `localRadioStationsProvider`, `serverUserIsAdminProvider`, and
+  `radioStationActionsProvider`; baseline unchanged. Their UI consumers, radio
+  dialogs/widget tests, feature changelog entry, independent PR review, and
+  runtime verification remain for the next step. No PR0 defects found.
+  No app/emulator launch or `./tool/check.sh` was performed, as required by
+  this task's host limits.
+- [x] False offline alarms, issue #6 state/logic — 2026-10-16
+  (`fix/offline-false-alarms`; replaced-client failures trigger one immediate
+  current-client probe, repeated replacement waits for the quick retry, and
+  only two current-client failures confirm an outage. The three-second
+  confirmation retry shares the existing timer field; the 30-second offline
+  retry and three-visible-count budget start at confirmation and survive
+  connectivity checks. Connectivity reloads retain the previous network type;
+  initial unknown connectivity uses conservatively metered `other`. Search
+  uses local-only mode only for confirmed offline, and banner dismissal lasts
+  until confirmed online. Tests first: `+114 -9: Some tests failed.` before
+  implementation; after, `+215: All tests passed!` across reachability,
+  app providers, banner state, search, routing, library sync and starred-download
+  dispatch suites under the required 6G cap (`peak=2954M`, no OOM kills).
+  Changed-file `dart analyze`: `No issues found!`; formatting and
+  `dart run tool/dead_code_check.dart` pass with no baseline changes. Banner/chip
+  layout is deferred. Per task host limits, no app/emulator, runtime loop,
+  full suite or `./tool/check.sh` ran here; independent review and real-device
+  confirmation of this fix remain with the coordinator.)
+- [x] PR0: schema 104 foundation for device playlists and radio stations —
+  2026-10-16 (`feat/schema-104-device-items`; Codex implementation). Added
+  guarded 103→104 migration, playlist scope/read-only columns, local station
+  table, and sticky playlist destination setting/model decode (writer deferred
+  to B2). Library resets preserve local entries and provisional parent metadata;
+  server reconciliation excludes local rows; clear-data sign-out wipes local
+  playlists and stations. Architecture records the retention table; confirmation
+  copy is deferred to PR A. No user-facing feature ships in PR0, so no changelog
+  entry was added.
+  Evidence: `./tool/bootstrap.sh`; `make gen` succeeded (existing
+  `json_annotation >=4.12.0` dependency-bound warning); regression tests failed
+  first on the missing schema, then the six-file focused run passed **224 tests**
+  with `~/.cache/claude-navis-tools/capped.sh 6G "$PWD" flutter test --concurrency=4`
+  over `navis_migration_test.dart`, `playlist_dao_test.dart`,
+  `library_cache_reset_service_test.dart`, `sign_out_service_test.dart`,
+  `settings_repository_test.dart`, and `library_sync_regression_test.dart`.
+  Covered partial columns/table, migration re-entry, duplicate local entries,
+  repeated cache resets, provisional GC, confirmed server absence, empty server
+  responses, both sign-out modes, and sticky-setting decode/preservation.
+  Follow-up migration/auth tests passed **113 tests** after strengthening the
+  populated migration fixture and authenticated sign-out setup. Eight existing
+  `PlaylistsTableData` fixtures across five files now explicitly set
+  `isLocal: false`; their playlist, Home and Library suites passed **126 tests**.
+  `dart format` covered all 22 changed Dart files; `dart analyze` over those
+  files exited 0 with eight existing informational findings outside changed
+  hunks (four `async_return_with_no_await`, one `avoid_catching_errors`,
+  `overridden_fields`/`annotate_overrides` on the existing sync-test fake, and
+  an existing `comment_references` finding in the Library widget tests).
+  `dart run tool/dead_code_check.dart` exited 0 against the unchanged baseline
+  (declaration=4, l10n=0, asset=1, asset-missing=0, font=0, dependency=5;
+  test-only=2). Full `./tool/check.sh`, app/emulator runs, and runtime evidence
+  were explicitly prohibited by the task's host limits and were not run.
+  Retention follow-up: existing playback `deleteLocalOnlySong` can still cascade
+  playlist entries when a confirmed-missing song has no available cached audio;
+  this is outside library reset/sync and needs review before PR B2 ships.
+
+- [x] Update check on every app open — 2026-10-16 (`feat/update-check-on-open`;
+  automatic checks are throttled to 1 h and returning after 30 s away
+  invalidates `updateProvider` through the existing resume hook. Fix round:
+  cache only the signed envelope in `verifiedManifest` and run the same
+  signature, channel, version/build, install mode, Android installer/ABI and
+  asset validation for fresh and cached checks. Completed fetches replace or
+  clear the cache; transport failures preserve it. Home Dismiss persists the
+  tag/build identity without hiding the update in About; a different identity
+  shows again. The Sync settings library-sync button is labelled "Sync library
+  now". Ten regression tests failed before the fix. Targeted capped Flutter
+  tests: `update_repository_test.dart`, `update_check_store_test.dart` and
+  `home_screen_test.dart` (223 passing); update cases of
+  `app_providers_test.dart` and `sync_diagnostics_server_test.dart` (11 passing);
+  `about_screen_test.dart` and `update_pull_test.dart` (24 passing).
+  `dart analyze` on changed files has no new findings (six existing infos on
+  unchanged lines); `dart format` and the dead-code gate pass. Per host limits,
+  `./tool/check.sh`, app/emulator launches and runtime screenshot/restart
+  validation were not run; the coordinator owns those remaining checks.)
+
+- [x] Shuffled repeat/restart passes (issue #5) — 2026-10-16: automatic
+  completion, forward wrap, completed-queue Play and short Normal crossfades
+  share one next-pass operation built on the existing shuffle helpers, queue
+  rearrangement and navigation intent. It avoids repeating the ending song
+  when another identity exists, retains duplicate occurrences and original
+  ranks, persists the new order, and preserves paused Next. Released-window
+  and Smart-mode wraps use completion/navigation. Final capped validation:
+  navigation + shuffle + navigation-intent suites 521 passed (including the
+  500-seed queue-window model); latest shuffle matrix/edge cases 68 passed;
+  handler/projection suites 61 passed. Earlier red matrices: initial fill
+  0 passed/16 failed, entity state 0/18, next pass 0/18. Formatting and diff
+  checks passed. App/emulator runtime, analyzer and `check.sh` were not run
+  under the task's host-resource rules; Android reproduction/entry-point and
+  repeat-setting confirmation remain coordinator/owner validation.
+
+- [x] Entity Shuffle mode and original-order persistence (issue #5) —
+  2026-10-16: the shared row/ID load-order adapter now enables shuffle when
+  entity callers supply original ranks. All 18 stopped/playing/paused ×
+  crossfade × repeat regression cases failed before the fix and pass after it,
+  including persisted shuffle/ranks and restoring the original queue order.
+  Capped targeted tests only; runtime and full gate remain coordinator-owned.
+
+- [x] Initial queue-fill completion race (issue #5) — 2026-10-16: reproduced
+  native Repeat All replaying the temporary one-song playlist and repeat-off
+  stalling after completion (16 failing regression cases before the fix).
+  Native Repeat All now waits for logical fill; the existing completion path
+  advances after fill settles. Expanded matrix: 24 passed across queue sizes
+  6/300, shuffle toggle/entity inputs, crossfade off/on and repeat none/all/one.
+  Capped targeted tests only; runtime and `check.sh` remain coordinator-owned
+  under this task's host-resource rules.
 - [x] Idle-robustness final fixes (shared sync requests and busy databases) —
   2026-10-15 (`fix/idle-integration`, aa3d3452..abf8f071; a lease-held check
   against a live worker lease retries at the 30 s floor instead of waiting out
@@ -2118,3 +2352,57 @@ Latest activity (2026-03-07): published `v0.8.0` APK via `tool/release.sh` and s
 - 2026-10-10 — Fine-Tune Colors UI: Color and Brightness rulers (the Speed and Pitch ruler in whole-step mode with a live stepped-swatch band) under Color Style in Appearance and in setup's More appearance options; live preview per step, saved on release, Reset. Focused ruler, Appearance, setup and theme tests recorded in the handoff; runtime loop and full gate reserved for coordinator.
 - 2026-10-11 — Now Playing phone layout: height classes, bottom-pinned controls, artwork as the flexible element with shared gap interpolation and exact-square covers (`NowPlayingPhoneLayout`); the 700 dp scroll cliff is gone. Focused player and routing suites recorded in the handoff; runtime loop and full gate reserved for coordinator.
 - 2026-10-16 — Now Playing drag (#12): the panel rises from the mini player's top edge and tracks the finger 1:1 as an opaque repaint-isolated layer (no opacity layer, no per-tick rebuild); the bottom navigation bar keeps its layout size and fades away, so the page is no longer laid out on every frame; `onExpand`/`onCollapse` fire at completion. Focused sheet and shell tests, including a page-layout probe, recorded in the handoff; on-device frame timing reserved for the coordinator.
+- 2026-10-16 — Download backfill fix (issue #9 part 1): lyrics and artwork backfill now follow the Wi-Fi-only download policy instead of unconditionally requiring Wi-Fi, a pass gated by a missing API client, network policy or an LRCLIB cooldown re-arms from `processQueuedDownloads`, both backfill loops pause during the playback hold, and `promoteToPermanent` prefetches lyrics next to cover art. Tests written first and confirmed failing (five behavioural tests), then fixed: both download service suites green (248 tests), `dart analyze` clean and `dart format` applied on changed files. No app launch or full gate, per machine rules.
+- 2026-10-16 — Appearance Looks (issue #7, branch `fix/appearance-looks-update`): Update/Rename/Delete follow the persisted last-chosen Look while the appearance is Custom ("Custom · edited from <Look>"), surviving page re-entry and restart; table-driven audit `appearance_controls_audit_test.dart` drives every Appearance control through the real screen (columns written, provider effect, Look → Custom with origin, Update restores it) with a source guard for new writers; found and fixed un-hiding the last hidden Home section restoring the default hidden sections. Focused tests only (looks, audit, repository, changelog); no app launch, `./tool/check.sh` and the runtime screenshot pass reserved for the coordinator.
+
+- 2026-10-16 — Issue #7 owner-approved Look scope fix: removed density, artist
+  view, artwork size, artwork shapes and legacy grid density from Look capture,
+  comparison and application; old version-1 JSON ignores these keys without a
+  migration. Updated Appearance audit rows, help text, goldens, architecture,
+  decision addendum and removal record. Test-first regressions failed on layout
+  equality and old-Look application (comfortable became compact); all 90 focused
+  domain/storage/controller/audit tests passed after the fix. Runtime and full
+  quality gate are prohibited on this host and remain coordinator-owned.
+
+- 2026-10-16 — Issue #7 stale settings-write fix: generic DAO/repository saves
+  omit all Look and layout columns, Look library/selection and Home section
+  order/visibility; Library's artist list/grid toggle uses the existing targeted
+  writer, and reset plus appearance fixtures use targeted lanes. The regression
+  first failed with `Expected: 'light' / Actual: 'dark'`, then passed while
+  comparing the complete stored row except the requested scrobble change and
+  timestamp. Library's test first failed on `Bad state: full draft read`; its
+  targeted-writer path passed in the broader suite. That run passed 982 tests
+  with only the desktop Appearance copy golden failing; the updated golden's
+  focused test passed. Final combined validation is recorded below.
+
+- 2026-10-16 — Issue #7 fix-round final evidence: the new Home storage contract
+  test passed before the documentation correction (`null` = built-in default
+  hidden set, `[]` = none hidden). Corrected table, DAO and provider comments;
+  regenerated the table's data-class comment. Added braces around two existing
+  provider early returns to satisfy analysis without changing their behavior.
+  The final memory-capped command (6G, `flutter test --concurrency=4`) covered
+  all settings, Home and changelog tests, the settings DAO, Library screen and
+  diagnostics server: `01:05 +983: All tests passed!`, exit 0, peak 3764M,
+  zero OOM kills. Changed-file analysis reported `No issues found!`; formatting
+  and diff checks passed, `make gen` succeeded, and the dead-code check passed
+  against the existing baseline without new exceptions. Inspected the updated
+  Look picker and desktop Appearance goldens. No app/emulator launch, runtime
+  diagnostics screenshot/restart loop or `./tool/check.sh`: prohibited by this
+  task's host limits, with runtime acceptance left to the coordinator.
+
+- 2026-10-16 — Now Playing settings sheet/panel list the Sound section (Speed & Pitch, mini Equalizer) only while the transport row lacks EQ and Speed buttons; Settings › Playback drops its duplicate Equalizer entry (Porthorion/Navis#8). Focused widget tests only (Now Playing adaptive, Playback settings); no runtime loop or full gate yet.
+- 2026-10-16 — Playback Reset Defaults scope fix (issue #13): the button now calls the playback-scoped `AppSettingsDao.resetPlaybackDefaults()` so theme, Looks, colour tuning, setup highlights, download options, the Last.fm key and ListenBrainz survive the reset, while the page's fields plus speed/pitch reset and saved presets are kept; the Fullscreen Mode Lyrics switch stays on the page and is reset with it; Reset now cancels the queued autosave, waits for a running one and re-hydrates from the stored row; the unused global `resetDefaults()` (DAO and repository) was deleted. Validation: `flutter test --concurrency=4 test/src/database/daos/app_settings_dao_test.dart test/src/features/settings/presentation/playback_settings_screen_test.dart` passed (36 tests, includes the new playback-scope reset test), touched-file `dart analyze` and `dart format` clean, `flutter gen-l10n` regenerated. No app launches or full gate, per machine rules.
+
+- 2026-10-16 — Merged `origin/dev` into `fix/appearance-looks-update`:
+  retained issue #7's 20-field Looks, origin tracking and targeted-only
+  appearance/layout/Home writes alongside issue #13's playback-scoped reset
+  and stored-row autosave fallback; the global DAO/repository reset stays
+  deleted. Preserved both changelog/progress lists and adapted overlapping
+  fixtures to targeted writers. `make gen` passed with no tracked generated
+  changes. `dart analyze lib test` exited 0 with 0 errors, 0 warnings and 177
+  informational findings (`177 issues found.`). The requested 6G-capped settings,
+  DAO, Library, Home, onboarding and changelog suite passed:
+  `01:04 +1013: All tests passed!`; exit 0, peak 3735M, swap peak 124M,
+  zero OOM kills. `dart run tool/dead_code_check.dart` exited 0 against the
+  existing baseline; formatting and diff checks passed. No app launch or
+  `./tool/check.sh`, as explicitly prohibited for this merge task.

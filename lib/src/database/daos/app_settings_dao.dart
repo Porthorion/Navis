@@ -5,7 +5,6 @@ import 'package:navis/src/features/settings/domain/appearance_presets.dart';
 import 'package:drift/drift.dart';
 import 'package:meta/meta.dart' show visibleForTesting;
 import 'package:navis/src/features/settings/domain/flat_areas.dart';
-import 'package:navis/src/features/settings/domain/night_schedule.dart';
 import 'package:navis/src/database/navis_database.dart';
 import 'package:navis/src/database/tables/app_settings_table.dart';
 import 'package:navis/src/features/downloads/domain/download_preferences.dart';
@@ -88,7 +87,6 @@ class AppSettingsDao extends DatabaseAccessor<NavisDatabase>
   static const int primarySettingsId = 1;
   static const int defaultCellularBitRate = 192;
   static const String defaultCellularFormat = 'opus';
-  static const int defaultSyncIntervalMinutes = 60;
   static const double defaultDesktopPlaybackVolume = 1;
 
   Stream<AppSettingsTableData?> watchSettings() {
@@ -113,15 +111,17 @@ class AppSettingsDao extends DatabaseAccessor<NavisDatabase>
     diagnosticsRoot: _diagnosticsRoot,
   );
 
-  /// Full-row save of the device settings. The integration-owned columns
+  /// Saves general device settings. Appearance (including layout and Looks),
+  /// Home section order/visibility and setup release markers are targeted-only,
+  /// so stale screen snapshots cannot revert newer writes.
+  ///
+  /// The integration-owned columns
   /// (`updateCheckEnabled`, `useLrclib`, `legacyInstantMixEnabled`, the
   /// Last.fm key and the ListenBrainz connection) are written only when
   /// given, and `SettingsRepository.saveSettings` never gives them: they
   /// belong to the targeted writers ([setIntegrationEnabled],
   /// [updateLastFmApiKey], [updateListenBrainzScrobblingState]) so a stale
   /// screen snapshot cannot revert a switch or a token clear.
-  ///
-  /// Setup release markers are also omitted and have targeted writers.
   Future<void> saveSettings({
     int? wifiMaxBitRate,
     String? wifiFormat,
@@ -141,30 +141,10 @@ class AppSettingsDao extends DatabaseAccessor<NavisDatabase>
     required bool autoDownloadStarredOnWifi,
     required bool customDownloadFolderEnabled,
     String? customDownloadFolderPath,
-    required String themeMode,
-    required String colorStyle,
-    required bool oledForAuto,
-    required bool nightScheduleEnabled,
-    required int nightScheduleStartMinutes,
-    required int nightScheduleEndMinutes,
-    required bool flatSurfaces,
-    int? flatAreas,
-    int? colorVividness,
-    int? surfaceDepthLight,
-    int? surfaceDepthDark,
-    int? surfaceTintLight,
-    int? surfaceTintDark,
-    String? controlColor,
-    bool? albumArtShade,
-    bool? albumArtColoredShade,
-    int? colorSchemeSeed,
     String? appLocale,
     required bool crossfadeEnabled,
     required int crossfadeDurationSeconds,
     required String crossfadeType,
-    String nowPlayingBackground = 'tinted',
-    String? cornerStyle,
-    required bool dynamicAlbumColorEnabled,
     bool? updateCheckEnabled,
     required String updateChannel,
     required int syncIntervalMinutes,
@@ -174,19 +154,10 @@ class AppSettingsDao extends DatabaseAccessor<NavisDatabase>
     required String replayGainMode,
     required double replayGainPreamp,
     double? playbackSpeed,
-    int? albumGridDensity,
-    String gridArtworkSize = 'auto',
     bool homeRecommendationsAutoAdvance = false,
-    required String coverArtShape,
-    required String nowPlayingArtShape,
-    required String artistCardShape,
-    required String artistViewMode,
     bool desktopFocusPlayerModeEnabled = false,
     double desktopPlaybackVolume = defaultDesktopPlaybackVolume,
     double desktopLastAudibleVolume = defaultDesktopPlaybackVolume,
-    required String homeDensity,
-    String? homeSectionOrder,
-    String? homeSectionsHidden,
     String? libraryPageOrder,
     String desktopNavbarStyle = 'comfortable',
     bool desktopNavbarAutohide = false,
@@ -200,7 +171,6 @@ class AppSettingsDao extends DatabaseAccessor<NavisDatabase>
     bool? listenBrainzTokenValid,
     String? listenBrainzUserName,
   }) {
-    final background = NowPlayingBackground.parse(nowPlayingBackground);
     return into(appSettingsTable).insertOnConflictUpdate(
       AppSettingsTableCompanion.insert(
         id: Value(primarySettingsId),
@@ -222,52 +192,10 @@ class AppSettingsDao extends DatabaseAccessor<NavisDatabase>
         autoDownloadStarredOnWifi: Value(autoDownloadStarredOnWifi),
         customDownloadFolderEnabled: Value(customDownloadFolderEnabled),
         customDownloadFolderPath: Value(customDownloadFolderPath),
-        themeMode: Value(themeMode),
-        colorStyle: Value(colorStyle),
-        oledForAuto: Value(oledForAuto),
-        nightScheduleEnabled: Value(nightScheduleEnabled),
-        nightScheduleStartMinutes: Value(
-          nightScheduleStartMinutes.clamp(0, 1439),
-        ),
-        nightScheduleEndMinutes: Value(nightScheduleEndMinutes.clamp(0, 1439)),
-        flatSurfaces: Value(flatSurfaces),
-        surfaceTintLight: surfaceTintLight == null
-            ? const Value.absent()
-            : Value(surfaceTintLight.clamp(0, 5)),
-        surfaceTintDark: surfaceTintDark == null
-            ? const Value.absent()
-            : Value(surfaceTintDark.clamp(0, 5)),
-        controlColor: controlColor == null
-            ? const Value.absent()
-            : Value(NavisControlColor.parse(controlColor).name),
-        colorVividness: colorVividness == null
-            ? const Value.absent()
-            : Value(colorVividness.clamp(-5, 5)),
-        surfaceDepthLight: surfaceDepthLight == null
-            ? const Value.absent()
-            : Value(surfaceDepthLight.clamp(-5, 5)),
-        flatAreas: flatAreas == null
-            ? const Value.absent()
-            : Value(FlatAreas.fromBits(flatAreas).bits),
-        surfaceDepthDark: surfaceDepthDark == null
-            ? const Value.absent()
-            : Value(surfaceDepthDark.clamp(-5, 5)),
-        albumArtShade: albumArtShade == null
-            ? const Value.absent()
-            : Value(albumArtShade),
-        albumArtColoredShade: albumArtColoredShade == null
-            ? const Value.absent()
-            : Value(albumArtColoredShade),
-        colorSchemeSeed: Value(colorSchemeSeed),
         appLocale: Value(appLocale),
         crossfadeEnabled: Value(crossfadeEnabled),
         crossfadeDurationSeconds: Value(crossfadeDurationSeconds),
         crossfadeType: Value(crossfadeType),
-        nowPlayingBackground: Value(background.storageKey),
-        cornerStyle: cornerStyle == null
-            ? const Value.absent()
-            : Value(NavisCornerStyle.parse(cornerStyle).name),
-        dynamicAlbumColorEnabled: Value(dynamicAlbumColorEnabled),
         updateCheckEnabled: updateCheckEnabled == null
             ? const Value.absent()
             : Value(updateCheckEnabled),
@@ -283,19 +211,10 @@ class AppSettingsDao extends DatabaseAccessor<NavisDatabase>
         playbackSpeed: playbackSpeed == null
             ? const Value.absent()
             : Value(playbackSpeed),
-        albumGridDensity: Value(albumGridDensity),
-        gridArtworkSize: Value(gridArtworkSize),
         homeRecommendationsAutoAdvance: Value(homeRecommendationsAutoAdvance),
-        coverArtShape: Value(coverArtShape),
-        nowPlayingArtShape: Value(nowPlayingArtShape),
-        artistCardShape: Value(artistCardShape),
-        artistViewMode: Value(artistViewMode),
         desktopFocusPlayerModeEnabled: Value(desktopFocusPlayerModeEnabled),
         desktopPlaybackVolume: Value(desktopPlaybackVolume),
         desktopLastAudibleVolume: Value(desktopLastAudibleVolume),
-        homeDensity: Value(NavisDensity.parse(homeDensity).storageKey),
-        homeSectionOrder: Value(homeSectionOrder),
-        homeSectionsHidden: Value(homeSectionsHidden),
         libraryPageOrder: Value(libraryPageOrder),
         desktopNavbarStyle: Value(desktopNavbarStyle),
         desktopNavbarAutohide: Value(desktopNavbarAutohide),
@@ -377,112 +296,37 @@ class AppSettingsDao extends DatabaseAccessor<NavisDatabase>
     }
   });
 
-  Future<void> resetDefaults() async {
-    await updateColorTuning(ColorTuning.none);
-    await updateAppearanceLooks(selectedLookId: null);
-    await clearSetupHighlightsSeen();
-    await updateSetupHighlightsSeenRelease(null);
-    await updateSetupCardDismissedRelease(null);
+  /// Resets only the settings the Playback page shows: streaming quality,
+  /// scrobbling, gapless/cross-fade, ReplayGain, queue options, the
+  /// fullscreen-lyrics switch and the current speed and pitch. Appearance,
+  /// Looks, colours, setup highlights, downloads, integrations and saved
+  /// presets are left untouched.
+  Future<void> resetPlaybackDefaults() async {
     await updatePlaybackAdjustments(
       speed: 1,
       pitchSemitones: 0,
       selectedPresetId: 'none',
     );
-    // Integration-owned columns are not written by [saveSettings] unless
-    // given; reset them through their targeted writers.
-    await updateLastFmApiKey(null);
-    await updateListenBrainzScrobblingState(
-      enabled: false,
-      tokenValid: false,
-      clearUserName: true,
-    );
-    await saveSettings(
-      wifiMaxBitRate: null,
-      wifiFormat: null,
-      cellularMaxBitRate: defaultCellularBitRate,
-      cellularFormat: defaultCellularFormat,
-      cachedPlaybackFirst: false,
-      scrobbleEnabled: true,
-      gaplessEnabled: true,
-      skipSilenceEnabled: false,
-      showAlbumsPage: true,
-      showRadioPage: true,
-      showPlaylistsPage: true,
-      showArtistsPage: true,
-      showLikedPage: true,
-
-      wifiOnlyDownloads: true,
-      autoDownloadStarredOnWifi: false,
-      customDownloadFolderEnabled: false,
-      customDownloadFolderPath: null,
-      themeMode: 'dark',
-      colorStyle: 'neutral',
-      oledForAuto: false,
-      nightScheduleEnabled: false,
-      nightScheduleStartMinutes: NightSchedule.defaultStartMinutes,
-      nightScheduleEndMinutes: NightSchedule.defaultEndMinutes,
-      flatSurfaces: false,
-      flatAreas: 7,
-      colorVividness: 0,
-      surfaceDepthLight: 0,
-      surfaceDepthDark: 0,
-      surfaceTintLight: 0,
-      surfaceTintDark: 0,
-      controlColor: 'accent',
-      albumArtShade: false,
-      albumArtColoredShade: false,
-      colorSchemeSeed: null,
-      appLocale: null,
-      crossfadeEnabled: false,
-      crossfadeDurationSeconds: 5,
-      crossfadeType: 'normal',
-      nowPlayingBackground: 'tinted',
-      cornerStyle: 'rounded',
-      dynamicAlbumColorEnabled: false,
-      updateCheckEnabled: true,
-      updateChannel: 'stable',
-      syncIntervalMinutes: defaultSyncIntervalMinutes,
-      backgroundSyncUnmeteredOnly: true,
-      useLrclib: true,
-      legacyInstantMixEnabled: false,
-      replayGainMode: 'off',
-      replayGainPreamp: 0,
-      playbackSpeed: 1,
-      albumGridDensity: null,
-      coverArtShape: 'square',
-      nowPlayingArtShape: 'rounded',
-      artistCardShape: 'circle',
-      artistViewMode: 'grid',
-      desktopFocusPlayerModeEnabled: false,
-      desktopPlaybackVolume: defaultDesktopPlaybackVolume,
-      desktopLastAudibleVolume: defaultDesktopPlaybackVolume,
-      homeDensity: 'comfortable',
-      homeSectionOrder: null,
-      homeSectionsHidden: null,
-      libraryPageOrder: null,
-      desktopNavbarStyle: 'comfortable',
-      desktopNavbarAutohide: false,
-      albumQueueEnabled: true,
-      matchFlowEnabled: false,
-      likedQueueEnabled: true,
-      lastFmScrobblingEnabled: false,
-      lastFmSessionConnected: false,
-    );
-    // The full-row save leaves the policy columns alone; reset them here.
-    await updateIntegrationPolicy(master: true, disabledJson: '[]');
-    // The retired AudioMuse client no longer reads these columns, but a key
-    // saved by an older version must still be cleared by a reset.
-    await (update(
-      appSettingsTable,
-    )..where((t) => t.id.equals(primarySettingsId))).write(
+    await _writeSettings(
       const AppSettingsTableCompanion(
-        audioMuseServerUrl: Value(null),
-        audioMuseApiKey: Value(null),
-        audioMuseEnabled: Value(false),
+        wifiMaxBitRate: Value(null),
+        wifiFormat: Value(null),
+        cellularMaxBitRate: Value(defaultCellularBitRate),
+        cellularFormat: Value(defaultCellularFormat),
+        cachedPlaybackFirst: Value(false),
+        scrobbleEnabled: Value(true),
+        gaplessEnabled: Value(true),
+        skipSilenceEnabled: Value(false),
+        crossfadeEnabled: Value(false),
+        crossfadeDurationSeconds: Value(5),
+        crossfadeType: Value('normal'),
+        replayGainMode: Value('off'),
+        replayGainPreamp: Value(0),
+        albumQueueEnabled: Value(true),
+        likedQueueEnabled: Value(true),
+        matchFlowEnabled: Value(false),
       ),
     );
-    await updateSetupHighlightsSeenRelease(null);
-    await updateSetupCardDismissedRelease(null);
   }
 
   /// Writes changed setup listening and queue options without a full-row save.
@@ -879,29 +723,6 @@ class AppSettingsDao extends DatabaseAccessor<NavisDatabase>
             cornerStyle: snapshot.cornerStyle == null
                 ? const Value.absent()
                 : Value(snapshot.cornerStyle!),
-            coverArtShape: snapshot.coverArtShape == null
-                ? const Value.absent()
-                : Value(snapshot.coverArtShape!),
-            nowPlayingArtShape: snapshot.nowPlayingArtShape == null
-                ? const Value.absent()
-                : Value(snapshot.nowPlayingArtShape!),
-            artistCardShape: snapshot.artistCardShape == null
-                ? const Value.absent()
-                : Value(snapshot.artistCardShape!),
-            gridArtworkSize: snapshot.gridArtworkSize == null
-                ? const Value.absent()
-                : Value(snapshot.gridArtworkSize!),
-            albumGridDensity: snapshot.clearAlbumGridDensity
-                ? const Value(null)
-                : snapshot.albumGridDensity == null
-                ? const Value.absent()
-                : Value(snapshot.albumGridDensity),
-            homeDensity: snapshot.density == null
-                ? const Value.absent()
-                : Value(snapshot.density!),
-            artistViewMode: snapshot.artistViewMode == null
-                ? const Value.absent()
-                : Value(snapshot.artistViewMode!),
             nowPlayingBackground: snapshot.nowPlayingBackground == null
                 ? const Value.absent()
                 : Value(snapshot.nowPlayingBackground!),
@@ -1116,7 +937,9 @@ class AppSettingsDao extends DatabaseAccessor<NavisDatabase>
     );
   }
 
-  /// Targeted update for hidden home sections (JSON string list, or null for none).
+  /// Updates hidden Home sections from a JSON string list.
+  ///
+  /// `null` restores the built-in default hidden set; `[]` hides nothing.
   Future<void> updateHomeSectionsHidden(String? json) {
     return _writeSettings(
       AppSettingsTableCompanion(homeSectionsHidden: Value(json)),

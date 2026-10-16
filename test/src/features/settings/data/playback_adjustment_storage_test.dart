@@ -10,7 +10,7 @@ void main() {
     final database = createTestDatabase();
     addTearDown(database.close);
     final repository = SettingsRepository(database.appSettingsDao);
-    await repository.getSettings();
+    await database.appSettingsDao.updateThemeMode('oled');
     const values = PlaybackAdjustments(speed: 1.1375, lockPitchToSpeed: true);
     const preset = PlaybackPreset(id: 'p1', name: 'Slow', values: values);
     await repository.savePlaybackAdjustments(
@@ -19,7 +19,7 @@ void main() {
       presets: [preset],
     );
     await repository.saveSettings(
-      const AppSettingsModel.defaults().copyWith(themeMode: 'oled'),
+      const AppSettingsModel.defaults().copyWith(scrobbleEnabled: false),
     );
     var saved = await repository.getSettings();
     expect(saved.playbackSpeed, values.speed);
@@ -27,13 +27,15 @@ void main() {
     expect(saved.lockPitchToSpeed, isTrue);
     expect(saved.selectedPlaybackPresetId, 'p1');
     expect(saved.playbackPresets.single.values, values);
+    expect(saved.scrobbleEnabled, isFalse);
     expect(saved.themeMode, 'oled');
-    await repository.resetDefaults();
+    await repository.resetPlaybackDefaults();
     saved = await repository.getSettings();
     expect(saved.playbackSpeed, 1);
     expect(saved.playbackPitchSemitones, 0);
     expect(saved.lockPitchToSpeed, isFalse);
     expect(saved.selectedPlaybackPresetId, 'none');
     expect(saved.playbackPresets.single.name, 'Slow');
+    expect(saved.themeMode, 'oled');
   }, skip: !sqliteAvailable);
 }

@@ -16,7 +16,7 @@ T _$identity<T>(T value) => value;
 /// @nodoc
 mixin _$Playlist {
 
- String get id; String get name; int? get songCount; int? get duration; String? get owner;@JsonKey(name: 'public') bool? get isPublic; String? get coverArt; String? get comment; DateTime? get changed; List<Song> get entries;
+ String get id; String get name; int? get songCount; int? get duration; String? get owner;@JsonKey(name: 'public') bool? get isPublic;@JsonKey(name: 'readonly') bool? get readOnly; String? get coverArt; String? get comment; DateTime? get changed; List<Song> get entries;
 /// Create a copy of Playlist
 /// with the given fields replaced by the non-null parameter values.
 @JsonKey(includeFromJson: false, includeToJson: false)
@@ -30,20 +30,20 @@ $PlaylistCopyWith<Playlist> get copyWith => _$PlaylistCopyWithImpl<Playlist>(thi
 @override
 bool operator ==(Object other) {
   final _this = this as Playlist;
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is Playlist&&(identical(other.id, _this.id) || other.id == _this.id)&&(identical(other.name, _this.name) || other.name == _this.name)&&(identical(other.songCount, _this.songCount) || other.songCount == _this.songCount)&&(identical(other.duration, _this.duration) || other.duration == _this.duration)&&(identical(other.owner, _this.owner) || other.owner == _this.owner)&&(identical(other.isPublic, _this.isPublic) || other.isPublic == _this.isPublic)&&(identical(other.coverArt, _this.coverArt) || other.coverArt == _this.coverArt)&&(identical(other.comment, _this.comment) || other.comment == _this.comment)&&(identical(other.changed, _this.changed) || other.changed == _this.changed)&&const DeepCollectionEquality().equals(other.entries, _this.entries));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is Playlist&&(identical(other.id, _this.id) || other.id == _this.id)&&(identical(other.name, _this.name) || other.name == _this.name)&&(identical(other.songCount, _this.songCount) || other.songCount == _this.songCount)&&(identical(other.duration, _this.duration) || other.duration == _this.duration)&&(identical(other.owner, _this.owner) || other.owner == _this.owner)&&(identical(other.isPublic, _this.isPublic) || other.isPublic == _this.isPublic)&&(identical(other.readOnly, _this.readOnly) || other.readOnly == _this.readOnly)&&(identical(other.coverArt, _this.coverArt) || other.coverArt == _this.coverArt)&&(identical(other.comment, _this.comment) || other.comment == _this.comment)&&(identical(other.changed, _this.changed) || other.changed == _this.changed)&&const DeepCollectionEquality().equals(other.entries, _this.entries));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
 int get hashCode {
   final _this = this as Playlist;
-  return Object.hash(runtimeType,_this.id,_this.name,_this.songCount,_this.duration,_this.owner,_this.isPublic,_this.coverArt,_this.comment,_this.changed,const DeepCollectionEquality().hash(_this.entries));
+  return Object.hash(runtimeType,_this.id,_this.name,_this.songCount,_this.duration,_this.owner,_this.isPublic,_this.readOnly,_this.coverArt,_this.comment,_this.changed,const DeepCollectionEquality().hash(_this.entries));
 }
 
 @override
 String toString() {
   final _this = this as Playlist;
-  return 'Playlist(id: ${_this.id}, name: ${_this.name}, songCount: ${_this.songCount}, duration: ${_this.duration}, owner: ${_this.owner}, isPublic: ${_this.isPublic}, coverArt: ${_this.coverArt}, comment: ${_this.comment}, changed: ${_this.changed}, entries: ${_this.entries})';
+  return 'Playlist(id: ${_this.id}, name: ${_this.name}, songCount: ${_this.songCount}, duration: ${_this.duration}, owner: ${_this.owner}, isPublic: ${_this.isPublic}, readOnly: ${_this.readOnly}, coverArt: ${_this.coverArt}, comment: ${_this.comment}, changed: ${_this.changed}, entries: ${_this.entries})';
 }
 
 
@@ -54,7 +54,7 @@ abstract mixin class $PlaylistCopyWith<$Res>  {
   factory $PlaylistCopyWith(Playlist value, $Res Function(Playlist) _then) = _$PlaylistCopyWithImpl;
 @useResult
 $Res call({
- String id, String name, int? songCount, int? duration, String? owner,@JsonKey(name: 'public') bool? isPublic, String? coverArt, String? comment, DateTime? changed, List<Song> entries
+ String id, String name, int? songCount, int? duration, String? owner,@JsonKey(name: 'public') bool? isPublic,@JsonKey(name: 'readonly') bool? readOnly, String? coverArt, String? comment, DateTime? changed, List<Song> entries
 });
 
 
@@ -71,7 +71,7 @@ class _$PlaylistCopyWithImpl<$Res>
 
 /// Create a copy of Playlist
 /// with the given fields replaced by the non-null parameter values.
-@pragma('vm:prefer-inline') @override $Res call({Object? id = null,Object? name = null,Object? songCount = freezed,Object? duration = freezed,Object? owner = freezed,Object? isPublic = freezed,Object? coverArt = freezed,Object? comment = freezed,Object? changed = freezed,Object? entries = null,}) {
+@pragma('vm:prefer-inline') @override $Res call({Object? id = null,Object? name = null,Object? songCount = freezed,Object? duration = freezed,Object? owner = freezed,Object? isPublic = freezed,Object? readOnly = freezed,Object? coverArt = freezed,Object? comment = freezed,Object? changed = freezed,Object? entries = null,}) {
   return _then(Playlist(
 id: null == id ? _self.id : id // ignore: cast_nullable_to_non_nullable
 as String,name: null == name ? _self.name : name // ignore: cast_nullable_to_non_nullable
@@ -79,6 +79,7 @@ as String,songCount: freezed == songCount ? _self.songCount : songCount // ignor
 as int?,duration: freezed == duration ? _self.duration : duration // ignore: cast_nullable_to_non_nullable
 as int?,owner: freezed == owner ? _self.owner : owner // ignore: cast_nullable_to_non_nullable
 as String?,isPublic: freezed == isPublic ? _self.isPublic : isPublic // ignore: cast_nullable_to_non_nullable
+as bool?,readOnly: freezed == readOnly ? _self.readOnly : readOnly // ignore: cast_nullable_to_non_nullable
 as bool?,coverArt: freezed == coverArt ? _self.coverArt : coverArt // ignore: cast_nullable_to_non_nullable
 as String?,comment: freezed == comment ? _self.comment : comment // ignore: cast_nullable_to_non_nullable
 as String?,changed: freezed == changed ? _self.changed : changed // ignore: cast_nullable_to_non_nullable
@@ -168,10 +169,10 @@ return $default(_that);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( String id,  String name,  int? songCount,  int? duration,  String? owner, @JsonKey(name: 'public')  bool? isPublic,  String? coverArt,  String? comment,  DateTime? changed,  List<Song> entries)?  $default,{required TResult orElse(),}) {final _that = this;
+@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( String id,  String name,  int? songCount,  int? duration,  String? owner, @JsonKey(name: 'public')  bool? isPublic, @JsonKey(name: 'readonly')  bool? readOnly,  String? coverArt,  String? comment,  DateTime? changed,  List<Song> entries)?  $default,{required TResult orElse(),}) {final _that = this;
 switch (_that) {
 case _Playlist() when $default != null:
-return $default(_that.id,_that.name,_that.songCount,_that.duration,_that.owner,_that.isPublic,_that.coverArt,_that.comment,_that.changed,_that.entries);case _:
+return $default(_that.id,_that.name,_that.songCount,_that.duration,_that.owner,_that.isPublic,_that.readOnly,_that.coverArt,_that.comment,_that.changed,_that.entries);case _:
   return orElse();
 
 }
@@ -189,10 +190,10 @@ return $default(_that.id,_that.name,_that.songCount,_that.duration,_that.owner,_
 /// }
 /// ```
 
-@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( String id,  String name,  int? songCount,  int? duration,  String? owner, @JsonKey(name: 'public')  bool? isPublic,  String? coverArt,  String? comment,  DateTime? changed,  List<Song> entries)  $default,) {final _that = this;
+@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( String id,  String name,  int? songCount,  int? duration,  String? owner, @JsonKey(name: 'public')  bool? isPublic, @JsonKey(name: 'readonly')  bool? readOnly,  String? coverArt,  String? comment,  DateTime? changed,  List<Song> entries)  $default,) {final _that = this;
 switch (_that) {
 case _Playlist():
-return $default(_that.id,_that.name,_that.songCount,_that.duration,_that.owner,_that.isPublic,_that.coverArt,_that.comment,_that.changed,_that.entries);case _:
+return $default(_that.id,_that.name,_that.songCount,_that.duration,_that.owner,_that.isPublic,_that.readOnly,_that.coverArt,_that.comment,_that.changed,_that.entries);case _:
   throw StateError('Unexpected subclass');
 
 }
@@ -209,10 +210,10 @@ return $default(_that.id,_that.name,_that.songCount,_that.duration,_that.owner,_
 /// }
 /// ```
 
-@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( String id,  String name,  int? songCount,  int? duration,  String? owner, @JsonKey(name: 'public')  bool? isPublic,  String? coverArt,  String? comment,  DateTime? changed,  List<Song> entries)?  $default,) {final _that = this;
+@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( String id,  String name,  int? songCount,  int? duration,  String? owner, @JsonKey(name: 'public')  bool? isPublic, @JsonKey(name: 'readonly')  bool? readOnly,  String? coverArt,  String? comment,  DateTime? changed,  List<Song> entries)?  $default,) {final _that = this;
 switch (_that) {
 case _Playlist() when $default != null:
-return $default(_that.id,_that.name,_that.songCount,_that.duration,_that.owner,_that.isPublic,_that.coverArt,_that.comment,_that.changed,_that.entries);case _:
+return $default(_that.id,_that.name,_that.songCount,_that.duration,_that.owner,_that.isPublic,_that.readOnly,_that.coverArt,_that.comment,_that.changed,_that.entries);case _:
   return null;
 
 }
@@ -224,7 +225,7 @@ return $default(_that.id,_that.name,_that.songCount,_that.duration,_that.owner,_
 @JsonSerializable()
 
 class _Playlist implements Playlist {
-  const _Playlist({required this.id, required this.name, this.songCount, this.duration, this.owner, @JsonKey(name: 'public') this.isPublic, this.coverArt, this.comment, this.changed,  List<Song> entries = const <Song>[]}): _entries = entries;
+  const _Playlist({required this.id, required this.name, this.songCount, this.duration, this.owner, @JsonKey(name: 'public') this.isPublic, @JsonKey(name: 'readonly') this.readOnly, this.coverArt, this.comment, this.changed,  List<Song> entries = const <Song>[]}): _entries = entries;
   factory _Playlist.fromJson(Map<String, dynamic> json) => _$PlaylistFromJson(json);
 
 @override final  String id;
@@ -233,6 +234,7 @@ class _Playlist implements Playlist {
 @override final  int? duration;
 @override final  String? owner;
 @override@JsonKey(name: 'public') final  bool? isPublic;
+@override@JsonKey(name: 'readonly') final  bool? readOnly;
 @override final  String? coverArt;
 @override final  String? comment;
 @override final  DateTime? changed;
@@ -257,18 +259,18 @@ Map<String, dynamic> toJson() {
 
 @override
 bool operator ==(Object other) {
-    return identical(this, other) || (other.runtimeType == runtimeType&&other is _Playlist&&(identical(other.id, id) || other.id == id)&&(identical(other.name, name) || other.name == name)&&(identical(other.songCount, songCount) || other.songCount == songCount)&&(identical(other.duration, duration) || other.duration == duration)&&(identical(other.owner, owner) || other.owner == owner)&&(identical(other.isPublic, isPublic) || other.isPublic == isPublic)&&(identical(other.coverArt, coverArt) || other.coverArt == coverArt)&&(identical(other.comment, comment) || other.comment == comment)&&(identical(other.changed, changed) || other.changed == changed)&&const DeepCollectionEquality().equals(other.entries, _entries));
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is _Playlist&&(identical(other.id, id) || other.id == id)&&(identical(other.name, name) || other.name == name)&&(identical(other.songCount, songCount) || other.songCount == songCount)&&(identical(other.duration, duration) || other.duration == duration)&&(identical(other.owner, owner) || other.owner == owner)&&(identical(other.isPublic, isPublic) || other.isPublic == isPublic)&&(identical(other.readOnly, readOnly) || other.readOnly == readOnly)&&(identical(other.coverArt, coverArt) || other.coverArt == coverArt)&&(identical(other.comment, comment) || other.comment == comment)&&(identical(other.changed, changed) || other.changed == changed)&&const DeepCollectionEquality().equals(other.entries, _entries));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
 int get hashCode {
-    return Object.hash(runtimeType,id,name,songCount,duration,owner,isPublic,coverArt,comment,changed,const DeepCollectionEquality().hash(_entries));
+    return Object.hash(runtimeType,id,name,songCount,duration,owner,isPublic,readOnly,coverArt,comment,changed,const DeepCollectionEquality().hash(_entries));
 }
 
 @override
 String toString() {
-    return 'Playlist(id: $id, name: $name, songCount: $songCount, duration: $duration, owner: $owner, isPublic: $isPublic, coverArt: $coverArt, comment: $comment, changed: $changed, entries: $entries)';
+    return 'Playlist(id: $id, name: $name, songCount: $songCount, duration: $duration, owner: $owner, isPublic: $isPublic, readOnly: $readOnly, coverArt: $coverArt, comment: $comment, changed: $changed, entries: $entries)';
 }
 
 
@@ -279,7 +281,7 @@ abstract mixin class _$PlaylistCopyWith<$Res> implements $PlaylistCopyWith<$Res>
   factory _$PlaylistCopyWith(_Playlist value, $Res Function(_Playlist) _then) = __$PlaylistCopyWithImpl;
 @override @useResult
 $Res call({
- String id, String name, int? songCount, int? duration, String? owner,@JsonKey(name: 'public') bool? isPublic, String? coverArt, String? comment, DateTime? changed, List<Song> entries
+ String id, String name, int? songCount, int? duration, String? owner,@JsonKey(name: 'public') bool? isPublic,@JsonKey(name: 'readonly') bool? readOnly, String? coverArt, String? comment, DateTime? changed, List<Song> entries
 });
 
 
@@ -296,7 +298,7 @@ class __$PlaylistCopyWithImpl<$Res>
 
 /// Create a copy of Playlist
 /// with the given fields replaced by the non-null parameter values.
-@override @pragma('vm:prefer-inline') $Res call({Object? id = null,Object? name = null,Object? songCount = freezed,Object? duration = freezed,Object? owner = freezed,Object? isPublic = freezed,Object? coverArt = freezed,Object? comment = freezed,Object? changed = freezed,Object? entries = null,}) {
+@override @pragma('vm:prefer-inline') $Res call({Object? id = null,Object? name = null,Object? songCount = freezed,Object? duration = freezed,Object? owner = freezed,Object? isPublic = freezed,Object? readOnly = freezed,Object? coverArt = freezed,Object? comment = freezed,Object? changed = freezed,Object? entries = null,}) {
   return _then(_Playlist(
 id: null == id ? _self.id : id // ignore: cast_nullable_to_non_nullable
 as String,name: null == name ? _self.name : name // ignore: cast_nullable_to_non_nullable
@@ -304,6 +306,7 @@ as String,songCount: freezed == songCount ? _self.songCount : songCount // ignor
 as int?,duration: freezed == duration ? _self.duration : duration // ignore: cast_nullable_to_non_nullable
 as int?,owner: freezed == owner ? _self.owner : owner // ignore: cast_nullable_to_non_nullable
 as String?,isPublic: freezed == isPublic ? _self.isPublic : isPublic // ignore: cast_nullable_to_non_nullable
+as bool?,readOnly: freezed == readOnly ? _self.readOnly : readOnly // ignore: cast_nullable_to_non_nullable
 as bool?,coverArt: freezed == coverArt ? _self.coverArt : coverArt // ignore: cast_nullable_to_non_nullable
 as String?,comment: freezed == comment ? _self.comment : comment // ignore: cast_nullable_to_non_nullable
 as String?,changed: freezed == changed ? _self.changed : changed // ignore: cast_nullable_to_non_nullable

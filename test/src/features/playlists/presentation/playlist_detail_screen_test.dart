@@ -1,12 +1,16 @@
 import 'package:material_ui/material_ui.dart';
+import 'package:drift/drift.dart' show Value;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:mocktail/mocktail.dart';
 import 'package:navis/l10n/app_localizations.dart';
 import 'package:navis/l10n/navis_localizations.dart';
+import 'package:navis/src/common_widgets/app_notice.dart';
 import 'package:navis/src/common_widgets/desktop/desktop_primitives.dart';
 import 'package:navis/src/common_widgets/song_download_status_icon.dart';
 import 'package:navis/src/database/navis_database.dart';
 import 'package:navis/src/features/player/presentation/queue_provider.dart';
+import 'package:navis/src/features/playlists/data/playlist_actions.dart';
 import 'package:navis/src/features/playlists/presentation/playlist_detail_screen.dart';
 import 'package:navis/src/features/playlists/presentation/playlist_providers.dart';
 import 'package:navis/src/features/settings/domain/app_settings.dart';
@@ -21,12 +25,88 @@ import '../../../../helpers/test_theme.dart';
 const _playlistId = 'playlist-detail-test';
 
 const _playlist = PlaylistsTableData(
+  isLocal: false,
   id: _playlistId,
   name: 'A deliberately long desktop playlist title',
   owner: 'Navis',
 );
 
+class _MockPlaylistActions extends Mock implements PlaylistActions;
+
+const _twoSongs = <SongsTableData>[
+  SongsTableData(
+    id: 'playlist-1',
+    title: 'First song',
+    isProvisional: false,
+    isExternal: false,
+  ),
+  SongsTableData(
+    id: 'playlist-2',
+    title: 'Second song',
+    isProvisional: false,
+    isExternal: false,
+  ),
+];
+
+/// Pumps the mobile detail screen for [playlist] as seen by [viewer].
+Future<AppNoticeController> _pumpEditableDetail(
+  WidgetTester tester,
+  PlaylistsTableData playlist, {
+  String? viewer,
+  required PlaylistActions actions,
+}) async {
+  setAdaptiveTestViewport(tester, const Size(390, 844));
+  final database = createTestDatabase();
+  addTearDown(database.close);
+  final notices = AppNoticeController();
+  addTearDown(notices.dispose);
+  await tester.pumpWidget(
+    ProviderScope(
+      overrides: withTestDatabase(
+        database,
+        overrides: [
+          playlistViewerProvider.overrideWithValue(viewer),
+          playlistActionsProvider.overrideWithValue(actions),
+          playlistByIdProvider(_playlistId)
+              .overrideWith((ref) => Stream.value(playlist)),
+          playlistSongsProvider(_playlistId)
+              .overrideWith((ref) => Stream.value(_twoSongs)),
+          playlistDetailSyncProvider(_playlistId).overrideWith((ref) async {}),
+          appSettingsProvider.overrideWithValue(
+            const AsyncData(AppSettingsModel.defaults()),
+          ),
+          songDownloadStateProvider.overrideWith(
+            (ref, songId) => SongDownloadState.none,
+          ),
+        ],
+      ),
+      child: MaterialApp(
+        theme: testTheme(),
+        localizationsDelegates: navisLocalizationsDelegates,
+        supportedLocales: AppLocalizations.supportedLocales,
+        builder: (context, child) =>
+            AppNoticeScope(notifier: notices, child: child!),
+        home: AdaptiveContextScope(
+          adaptiveContext: resolveAdaptiveContext(
+            desktopRuntime: false,
+            viewportSize: const Size(390, 844),
+            safePadding: EdgeInsets.zero,
+          ),
+          child: const PlaylistDetailScreen(playlistId: _playlistId),
+        ),
+      ),
+    ),
+  );
+  await tester.pumpAndSettle();
+  return notices;
+}
+
 void main() {
+  setUpAll(() {
+    registerFallbackValue(_playlist);
+    registerFallbackValue(<String>[]);
+  });
+
   for (final albumQueue in <bool>[true, false]) {
     for (final fromMenu in <bool>[false, true]) {
       testWidgets(
@@ -132,6 +212,7 @@ void main() {
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
+          playlistViewerProvider.overrideWithValue(null),
           playlistByIdProvider(_playlistId)
               .overrideWith((ref) => Stream.value(_playlist)),
           playlistSongsProvider(_playlistId)
@@ -171,5 +252,96 @@ void main() {
       find.byType(Scaffold),
       matchesGoldenFile('goldens/playlist_detail_desktop_header.png'),
     );
+  });
+
+  group('playlist edit gating', () {
+    for (final readOnly in <PlaylistsTableData>[
+      _playlist.copyWith(readOnly: const Value(true)),
+      _playlist.copyWith(owner: const Value('alice')),
+    ]) {
+      testWidgets(
+        'hides drag handles and Remove when ${readOnly.readOnly == true ? 'read-only' : 'owned by someone else'}',
+        (tester) async {
+          await _pumpEditableDetail(
+            tester,
+            readOnly,
+            viewer: 'me',
+            actions: _MockPlaylistActions(),
+          );
+
+          expect(find.byIcon(Icons.drag_handle), findsNothing);
+          await tester.longPress(find.text('Second song'));
+          await tester.pumpAndSettle();
+          expect(find.text('Play now'), findsOneWidget);
+          expect(find.text('Remove from playlist'), findsNothing);
+        },
+      );
+    }
+
+    testWidgets('remove goes through PlaylistActions and reports failure', (
+      tester,
+    ) async {
+      final actions = _MockPlaylistActions();
+      when(() => actions.removeAt(any(), any(), any()))
+          .thenAnswer((_) async {});
+      final notices = await _pumpEditableDetail(
+        tester,
+        _playlist,
+        viewer: 'navis',
+        actions: actions,
+      );
+      expect(find.byIcon(Icons.drag_handle), findsNWidgets(2));
+
+      await tester.longPress(find.text('Second song'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Remove from playlist'));
+      await tester.pumpAndSettle();
+      verify(
+        () => actions.removeAt(any(), <String>['playlist-1', 'playlist-2'], 1),
+      ).called(1);
+      expect(notices.notice?.message, 'Track removed');
+
+      when(() => actions.removeAt(any(), any(), any()))
+          .thenThrow(StateError('boom'));
+      await tester.longPress(find.text('First song'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Remove from playlist'));
+      await tester.pumpAndSettle();
+      expect(notices.notice?.message, 'Failed to remove track');
+    });
+
+    testWidgets('a failed reorder shows the reorder failure notice', (
+      tester,
+    ) async {
+      final actions = _MockPlaylistActions();
+      when(() => actions.reorder(any(), any(), any(), any()))
+          .thenThrow(StateError('boom'));
+      final notices = await _pumpEditableDetail(
+        tester,
+        _playlist,
+        actions: actions,
+      );
+
+      final gesture = await tester.startGesture(
+        tester.getCenter(find.byIcon(Icons.drag_handle).first),
+      );
+      await tester.pump(const Duration(milliseconds: 50));
+      for (var i = 0; i < 6; i++) {
+        await gesture.moveBy(const Offset(0, 20));
+        await tester.pump(const Duration(milliseconds: 16));
+      }
+      await gesture.up();
+      await tester.pumpAndSettle();
+
+      verify(
+        () => actions.reorder(
+          any(),
+          <String>['playlist-1', 'playlist-2'],
+          0,
+          any(),
+        ),
+      ).called(1);
+      expect(notices.notice?.message, 'Failed to reorder tracks');
+    });
   });
 }

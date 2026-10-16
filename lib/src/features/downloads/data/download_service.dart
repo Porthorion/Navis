@@ -57,6 +57,14 @@ class _RecoveryCancelled implements Exception {
   const new();
 }
 
+/// Re-arm state of a startup backfill: at most one pass runs at a time
+/// (tracked in [inFlight]) and a completed pass never runs again in this
+/// service's lifetime ([done]).
+class _BackfillGate {
+  bool done = false;
+  Future<void>? inFlight;
+}
+
 /// Orchestrates permanent downloads of tracks from a Subsonic server.
 ///
 /// Up to [kMaxConcurrentDownloads] transfers run at once (the user's setting,
@@ -175,12 +183,17 @@ class DownloadService {
   Timer? _playbackHoldTimer;
   String? _playbackHoldSongId;
 
+  /// Completed when the active playback hold ends; non-null exactly while
+  /// [_playbackHoldTimer] is.
+  Completer<void>? _playbackHoldReleased;
+
   /// New workers wait while a song's stream loads, at most [playbackHoldLimit]
   /// once per track. Running workers continue.
   void yieldToPlayback({required bool loading, String? songId}) {
     if (!loading) return _releasePlaybackHold();
     if (_playbackHoldTimer != null || songId == _playbackHoldSongId) return;
     _playbackHoldSongId = songId;
+    _playbackHoldReleased = Completer<void>();
     _playbackHoldTimer = Timer(playbackHoldLimit, _releasePlaybackHold);
   }
 
@@ -189,7 +202,18 @@ class DownloadService {
     if (timer == null) return;
     timer.cancel();
     _playbackHoldTimer = null;
+    _playbackHoldReleased!.complete();
+    _playbackHoldReleased = null;
     if (!_stopped) unawaited(_processNext());
+  }
+
+  /// Waits while a song's stream load holds new work, so background
+  /// backfills never compete with a stream load. Bounded by the hold itself:
+  /// [playbackHoldLimit], an explicit release, or teardown.
+  Future<void> _waitForPlaybackHold() async {
+    while (!_stopped && _playbackHoldTimer != null) {
+      await _playbackHoldReleased!.future;
+    }
   }
 
   @visibleForTesting
@@ -492,9 +516,9 @@ class DownloadService {
     if (await _checkDownloadFolder()) await _recoverStartup();
     if (_stopped) return;
 
-    // Best-effort lyrics and cover art backfill for already-downloaded songs.
-    _trackBackgroundTask(_backfillLyricsForDownloadedSongs());
-    _trackBackgroundTask(_backfillArtworkForDownloadedSongs());
+    // Best-effort lyrics and cover art backfill for already-downloaded songs;
+    // a pass blocked by a gate re-arms from processQueuedDownloads().
+    _pumpBackfills();
 
     // Read before the queue subscription starts, so a paused queue never
     // begins a transfer while the setting streams are still loading.
@@ -617,8 +641,8 @@ class DownloadService {
     _folderCheckGeneration++;
     _folderRecheckTimer?.cancel();
     _folderRecheckTimer = null;
-    _playbackHoldTimer?.cancel();
-    _playbackHoldTimer = null;
+    // Also completes hold waiters so background backfills can drain.
+    _releasePlaybackHold();
     await _queueSubscription?.cancel();
     _queueSubscription = null;
     for (final subscription in _settingsSubscriptions) {
@@ -926,14 +950,43 @@ class DownloadService {
 
   /// Trigger queue processing after external conditions change, and complete
   /// once no download is running: the queue is empty, held (paused, Wi-Fi
-  /// only), or waiting out a retry backoff.
+  /// only), or waiting out a retry backoff. Also re-arms a startup lyrics or
+  /// artwork backfill pass that was blocked by a missing API client, the
+  /// network policy, or an LRCLIB cooldown.
   ///
   /// The internal processing and Wi-Fi guards remain authoritative, so callers
   /// can invoke this optimistically when settings or connectivity change.
   Future<void> processQueuedDownloads() async {
+    _pumpBackfills();
     if (await _checkDownloadFolder()) await _recoverStartup();
     await _processNext();
     await _waitForIdle();
+  }
+
+  /// Whether a background backfill may use the network now — the transfers'
+  /// rule: any connection, unless the user restricted downloads to Wi-Fi.
+  bool _backfillNetworkAllowed() =>
+      !_stopped && _readIsOnline() && (!_readWifiOnly() || _readIsWifi());
+
+  final _BackfillGate _lyricsBackfillGate = _BackfillGate();
+  final _BackfillGate _artworkBackfillGate = _BackfillGate();
+
+  /// Starts each backfill that has not completed and is not running. A pass
+  /// that returns false (gated or stopped) is retried on the next call.
+  void _pumpBackfills() {
+    if (_stopped) return;
+    _pumpBackfill(_lyricsBackfillGate, _backfillLyricsForDownloadedSongs);
+    _pumpBackfill(_artworkBackfillGate, _backfillArtworkForDownloadedSongs);
+  }
+
+  void _pumpBackfill(_BackfillGate gate, Future<bool> Function() pass) {
+    if (gate.done || gate.inFlight != null) return;
+    gate.inFlight = pass()
+        .then((completed) {
+          gate.done = completed;
+        })
+        .whenComplete(() => gate.inFlight = null);
+    _trackBackgroundTask(gate.inFlight!);
   }
 
   Future<void> _waitForIdle() async {
@@ -1254,6 +1307,7 @@ class DownloadService {
     final api = _readApiClient();
     if (song != null && api != null) {
       _trackBackgroundTask(_precacheCoverArt(song, api));
+      _trackBackgroundTask(_prefetchLyrics(songId, song, api));
     }
     return true;
   }
@@ -2430,37 +2484,38 @@ class DownloadService {
   // Lyrics backfill
   // ---------------------------------------------------------------------------
 
-  /// On app boot, scan all permanently-downloaded tracks and fetch lyrics for
-  /// any that do not yet have a cached entry.
+  /// Scan all permanently-downloaded tracks and fetch lyrics for any that do
+  /// not yet have a cached entry.
   ///
-  /// Runs fire-and-forget from [start]. Respects the wifi-only setting, skips
-  /// songs that already have lyrics, and throttles requests to avoid hammering
-  /// the server or LrcLib. Never throws.
-  Future<void> _backfillLyricsForDownloadedSongs() async {
+  /// Runs fire-and-forget from [start] and re-arms from
+  /// [processQueuedDownloads] when an earlier pass was blocked by a missing
+  /// API client, the network policy, or an LRCLIB cooldown; a pass that
+  /// completes never runs again in this session. Uses the transfers' rule —
+  /// any connection unless the user restricted downloads to Wi-Fi — pauses
+  /// while a song's stream load holds new work, skips songs that already
+  /// have lyrics or whose empty lookup is less than a week old, and
+  /// throttles requests to avoid hammering the server or LrcLib. Never
+  /// throws. Returns whether the pass completed.
+  Future<bool> _backfillLyricsForDownloadedSongs() async {
     try {
       if (_stopped) {
-        return;
-      }
-      if (!_readIsWifi()) {
-        AppLogger.debug(
-          'DownloadService: Lyrics backfill skipped — not on wifi.',
-        );
-        return;
+        return false;
       }
 
       final api = _readApiClient();
-      if (api == null) {
+      if (api == null || !_backfillNetworkAllowed()) {
         AppLogger.debug(
-          'DownloadService: Lyrics backfill skipped — no active API client.',
+          'DownloadService: Lyrics backfill deferred — no server connection '
+          'or network not allowed.',
         );
-        return;
+        return false;
       }
 
       final permanentIds = await _cacheDao.getPermanentlyCachedSongIds();
-      if (permanentIds.isEmpty) return;
+      if (permanentIds.isEmpty) return true;
 
       final songs = await _libraryDao.getSongsByIds(permanentIds);
-      if (songs.isEmpty) return;
+      if (songs.isEmpty) return true;
 
       AppLogger.info(
         'DownloadService: Lyrics backfill — checking ${songs.length} downloaded songs.',
@@ -2468,26 +2523,38 @@ class DownloadService {
 
       for (final song in songs) {
         if (_stopped) {
-          return;
+          return false;
         }
+        await _waitForPlaybackHold();
+        if (!_backfillNetworkAllowed()) return false;
         final existing = await _libraryDao.getExternalLyricsCache(song.id);
         if (existing != null && existing.syncedLyrics != null) {
           // Already have synced lyrics — best possible quality, nothing to do.
           continue;
         }
+        if (existing != null &&
+            existing.failureCount > 0 &&
+            existing.lastFailedAt != null &&
+            DateTime.now().difference(existing.lastFailedAt!) <
+                const Duration(days: 7)) {
+          // A recent empty lookup is backed off so repeated starts do not
+          // re-query songs the sources have no lyrics for.
+          continue;
+        }
         // Songs with only plain lyrics are still processed to try to upgrade
         // to synced lyrics.
 
+        if (!_backfillNetworkAllowed()) return false;
         await _prefetchLyrics(song.id, song, api);
         if (_lrclibClient.isRateLimited) {
           AppLogger.info(
             'DownloadService: Lyrics backfill paused for LRCLIB cooldown.',
           );
-          return;
+          return false;
         }
 
         if (_stopped) {
-          return;
+          return false;
         }
 
         // Throttle to avoid hammering the server or LrcLib.
@@ -2495,16 +2562,21 @@ class DownloadService {
       }
 
       AppLogger.info('DownloadService: Lyrics backfill complete.');
+      return true;
     } on Object catch (e) {
       AppLogger.warning('DownloadService: Lyrics backfill error: $e');
+      return false;
     }
   }
 
-  /// On app boot, stores the cover art of permanent downloads that have none
-  /// yet (downloads from before the artwork store, and adopted files), then
-  /// deletes stored covers no download uses. Fetches only on Wi-Fi. Never
-  /// throws.
-  Future<void> _backfillArtworkForDownloadedSongs() async {
+  /// Stores the cover art of permanent downloads that have none yet
+  /// (downloads from before the artwork store, and adopted files), then
+  /// deletes stored covers no download uses. Gated, paused and re-armed like
+  /// the lyrics backfill: any connection unless the user restricted
+  /// downloads to Wi-Fi, never during a stream load's playback hold, and
+  /// retried from [processQueuedDownloads] when a pass was blocked.
+  /// Never throws. Returns whether the pass completed.
+  Future<bool> _backfillArtworkForDownloadedSongs() async {
     try {
       final referenced = await _downloadCoverArtIds();
       if (referenced != null) await _artworkStore.prune(referenced);
@@ -2514,11 +2586,14 @@ class DownloadService {
           if (song.coverArt?.trim() case final id? when id.isNotEmpty) id,
       };
       final api = _readApiClient();
-      if (api == null || !_readIsWifi()) return;
+      if (api == null || !_backfillNetworkAllowed()) return false;
       var stored = 0;
       for (final id in coverArtIds) {
-        if (_stopped) return;
+        if (_stopped) return false;
+        await _waitForPlaybackHold();
+        if (!_backfillNetworkAllowed()) return false;
         if (await _artworkStore.fileFor(id) != null) continue;
+        if (!_backfillNetworkAllowed()) return false;
         if (await _artworkStore.ensure(id, api)) stored++;
         // Throttle to avoid hammering the server.
         await Future<void>.delayed(const Duration(milliseconds: 100));
@@ -2528,8 +2603,10 @@ class DownloadService {
           'DownloadService: Artwork backfill stored $stored covers.',
         );
       }
+      return true;
     } on Object catch (e) {
       AppLogger.warning('DownloadService: Artwork backfill error: $e');
+      return false;
     }
   }
 
@@ -2570,6 +2647,20 @@ class DownloadService {
         'DownloadService: Lyrics prefetch resolved ${resolution.source.name} '
         'for $songId',
       );
+      if (resolution.confirmedMiss && !_lrclibClient.isRateLimited) {
+        // Remember the miss so repeated starts stop re-querying a song the
+        // sources have no lyrics for; the backfill retries after a week.
+        final existing = await _libraryDao.getExternalLyricsCache(songId);
+        await _libraryDao.upsertExternalLyricsCache(
+          songId: songId,
+          source: existing?.source ?? resolution.source.name,
+          syncedLyrics: existing?.syncedLyrics,
+          plainLyrics: existing?.plainLyrics,
+          ttlSeconds: existing?.ttlSeconds ?? normalLyricsCacheTtlSeconds,
+          failureCount: (existing?.failureCount ?? 0) + 1,
+          lastFailedAt: DateTime.now(),
+        );
+      }
     } on Object catch (e) {
       // Never let a lyrics error abort or surface through the download flow.
       AppLogger.warning(
