@@ -178,6 +178,10 @@ const List<ChangelogVersion> changelogs = [
         type: ChangelogEntryType.fix,
       ),
       ChangelogEntry(
+        'Brief connection checks no longer falsely report offline at launch or resume, and dismissed offline notices stay dismissed until recovery',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
         'The Now Playing settings sheet no longer repeats the Equalizer and Speed & Pitch buttons already in the player controls, and Settings › Playback no longer repeats the Equalizer entry',
       ),
       ChangelogEntry(

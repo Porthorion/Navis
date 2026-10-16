@@ -70,6 +70,24 @@ Last updated: 2026-10-16
   application/emulator runs and runtime evidence were prohibited by the task's
   host limits; independent review remains for the coordinating agent.
 
+- [x] False offline alarms, issue #6 state/logic — 2026-10-16
+  (`fix/offline-false-alarms`; replaced-client failures trigger one immediate
+  current-client probe, repeated replacement waits for the quick retry, and
+  only two current-client failures confirm an outage. The three-second
+  confirmation retry shares the existing timer field; the 30-second offline
+  retry and three-visible-count budget start at confirmation and survive
+  connectivity checks. Connectivity reloads retain the previous network type;
+  initial unknown connectivity uses conservatively metered `other`. Search
+  uses local-only mode only for confirmed offline, and banner dismissal lasts
+  until confirmed online. Tests first: `+114 -9: Some tests failed.` before
+  implementation; after, `+215: All tests passed!` across reachability,
+  app providers, banner state, search, routing, library sync and starred-download
+  dispatch suites under the required 6G cap (`peak=2954M`, no OOM kills).
+  Changed-file `dart analyze`: `No issues found!`; formatting and
+  `dart run tool/dead_code_check.dart` pass with no baseline changes. Banner/chip
+  layout is deferred. Per task host limits, no app/emulator, runtime loop,
+  full suite or `./tool/check.sh` ran here; independent review and real-device
+  confirmation of this fix remain with the coordinator.)
 - [x] PR0: schema 104 foundation for device playlists and radio stations —
   2026-10-16 (`feat/schema-104-device-items`; Codex implementation). Added
   guarded 103→104 migration, playlist scope/read-only columns, local station
