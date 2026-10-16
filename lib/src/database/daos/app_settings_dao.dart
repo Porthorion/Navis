@@ -996,7 +996,9 @@ class AppSettingsDao extends DatabaseAccessor<NavisDatabase>
     );
   }
 
-  /// Targeted update for hidden home sections (JSON string list, or null for none).
+  /// Updates hidden Home sections from a JSON string list.
+  ///
+  /// `null` restores the built-in default hidden set; `[]` hides nothing.
   Future<void> updateHomeSectionsHidden(String? json) {
     return _writeSettings(
       AppSettingsTableCompanion(homeSectionsHidden: Value(json)),

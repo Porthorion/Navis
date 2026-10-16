@@ -526,8 +526,9 @@ final networkReconciliationProvider =
           await ref
               .read(nativeNetworkMeteredProvider.future)
               .timeout(const Duration(seconds: 3));
-          if (!ref.mounted)
+          if (!ref.mounted) {
             return (connected: connected, serverReachable: false);
+          }
           // A fast probe may already have completed while metering refreshed.
           // Join it while pending; don't launch a second ping after completion.
           if (ref.read(serverReachabilityControllerProvider).lastCheckedAt ==
@@ -537,8 +538,9 @@ final networkReconciliationProvider =
                 .retryNow()
                 .timeout(const Duration(seconds: 5));
           }
-          if (!ref.mounted)
+          if (!ref.mounted) {
             return (connected: connected, serverReachable: false);
+          }
           final reachable =
               ref.read(serverReachabilityControllerProvider).status ==
               ServerReachabilityStatus.online;
@@ -3103,7 +3105,7 @@ final homeSectionOrderProvider = Provider<List<String>?>((ref) {
   return settings.homeSectionOrder;
 });
 
-/// Hidden home section IDs (null = none hidden).
+/// Hidden Home section IDs (`null` = built-in defaults, `[]` = none hidden).
 final homeSectionsHiddenProvider = Provider<List<String>?>((ref) {
   final settings =
       ref.watch(appSettingsProvider).asData?.value ??

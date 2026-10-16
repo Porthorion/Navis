@@ -2138,3 +2138,18 @@ Latest activity (2026-03-07): published `v0.8.0` APK via `tool/release.sh` and s
   targeted-writer path passed in the broader suite. That run passed 982 tests
   with only the desktop Appearance copy golden failing; the updated golden's
   focused test passed. Final combined validation is recorded below.
+
+- 2026-10-16 — Issue #7 fix-round final evidence: the new Home storage contract
+  test passed before the documentation correction (`null` = built-in default
+  hidden set, `[]` = none hidden). Corrected table, DAO and provider comments;
+  regenerated the table's data-class comment. Added braces around two existing
+  provider early returns to satisfy analysis without changing their behavior.
+  The final memory-capped command (6G, `flutter test --concurrency=4`) covered
+  all settings, Home and changelog tests, the settings DAO, Library screen and
+  diagnostics server: `01:05 +983: All tests passed!`, exit 0, peak 3764M,
+  zero OOM kills. Changed-file analysis reported `No issues found!`; formatting
+  and diff checks passed, `make gen` succeeded, and the dead-code check passed
+  against the existing baseline without new exceptions. Inspected the updated
+  Look picker and desktop Appearance goldens. No app/emulator launch, runtime
+  diagnostics screenshot/restart loop or `./tool/check.sh`: prohibited by this
+  task's host limits, with runtime acceptance left to the coordinator.
