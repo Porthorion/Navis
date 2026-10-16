@@ -6,6 +6,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:navis/l10n/app_localizations.dart';
 import 'package:navis/l10n/navis_localizations.dart';
+import 'package:navis/src/features/equalizer/presentation/eq_entry.dart';
 import 'package:navis/src/features/equalizer/domain/eq_configuration.dart';
 import 'package:navis/src/features/equalizer/presentation/eq_controller.dart';
 import 'package:navis/src/features/player/presentation/playback_adjustment_controller.dart';
@@ -607,7 +608,9 @@ void main() {
       expect(savedModel!.gaplessEnabled, isTrue);
     });
 
-    testWidgets('integration switches are not on Playback', (tester) async {
+    testWidgets('integration switches and the Equalizer are not on Playback', (
+      tester,
+    ) async {
       await tester.pumpWidget(
         ProviderScope(
           overrides: [
@@ -624,6 +627,8 @@ void main() {
       expect(find.textContaining('LRCLIB'), findsNothing);
       expect(find.textContaining('Same Vibes'), findsNothing);
       expect(find.text('Server Mix'), findsNothing);
+      // Settings › Equalizer is the single settings entry for it.
+      expect(find.byType(EqualizerEntry), findsNothing);
     });
 
     testWidgets('autosave cannot revert a choice made in Integrations', (

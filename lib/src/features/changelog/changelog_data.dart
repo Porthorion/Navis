@@ -170,6 +170,9 @@ const List<ChangelogVersion> changelogs = [
         type: ChangelogEntryType.fix,
       ),
       ChangelogEntry(
+        'The Now Playing settings sheet no longer repeats the Equalizer and Speed & Pitch buttons already in the player controls, and Settings › Playback no longer repeats the Equalizer entry',
+      ),
+      ChangelogEntry(
         'Reset Defaults on the Playback settings page now resets only playback settings; appearance, Looks, downloads and service connections are left alone',
         type: ChangelogEntryType.fix,
       ),
