@@ -2748,6 +2748,13 @@ final downloadServiceProvider = Provider<DownloadService>((ref) {
       unawaited(service.processQueuedDownloads());
     }
   });
+  ref.listen<SubsonicApiClient?>(subsonicApiProvider, (previous, next) {
+    if (previous != next) {
+      // A client appearing re-arms queued transfers and the gated
+      // lyrics/artwork backfills that deferred without one.
+      unawaited(service.processQueuedDownloads());
+    }
+  });
   ref.listen<NetworkType>(networkTypeProvider, (previous, next) {
     if (previous != next) {
       unawaited(service.processQueuedDownloads());

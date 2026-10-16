@@ -1835,9 +1835,16 @@ network not allowed, or an LRCLIB cooldown) re-arms from the queue pump that
 already reacts to connectivity and policy changes, pauses while a song's
 stream load holds new work, and never runs twice at once; a completed pass
 does not repeat in the same session. Promoting a rolling-cached track to a
-permanent download prefetches lyrics alongside its cover art. Lyrics may
-therefore be unavailable offline only until a backfill pass or an allowed
-on-demand lookup fetches them.
+permanent download prefetches lyrics alongside its cover art. A server
+connection appearing also re-arms a blocked pass. When no source has lyrics
+for a downloaded song, the backfill records the miss (`failureCount`,
+`lastFailedAt`) and skips that song for a week, so repeated starts don't
+spend the LRCLIB budget on it; the empty row is never shown as lyrics.
+Lyrics rows of permanent downloads survive a library rebuild: the
+provisional-metadata cleanup spares them while their songs are being
+re-confirmed, like download covers. Lyrics may therefore be unavailable
+offline only until a backfill pass or an allowed on-demand lookup fetches
+them.
 
 Apple runners remain unreleased scaffolds. Their native configuration floors
 are iOS 16 and macOS 12; Linux validation does not certify either runner. This
