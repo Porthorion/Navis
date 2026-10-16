@@ -311,6 +311,105 @@ void main() {
   }
 
   test(
+    'reset preserves device playlists, entries and provisional parents',
+    () async {
+      final database = createTestDatabase();
+      addTearDown(database.close);
+      await database
+          .into(database.artistsTable)
+          .insert(ArtistsTableCompanion.insert(id: 'artist', name: 'Artist'));
+      await database
+          .into(database.albumsTable)
+          .insert(
+            AlbumsTableCompanion.insert(
+              id: 'album',
+              name: 'Album',
+              artistId: const Value('artist'),
+            ),
+          );
+      for (final id in ['kept', 'server-only', 'unowned']) {
+        await database
+            .into(database.songsTable)
+            .insert(
+              SongsTableCompanion.insert(
+                id: id,
+                title: id,
+                albumId: const Value('album'),
+                artistId: const Value('artist'),
+              ),
+            );
+      }
+      await database.customStatement(
+        "INSERT INTO playlists (id, name, is_local) VALUES ('local:list', 'Device list', 1), ('server', 'Server list', 0)",
+      );
+      await database.customStatement(
+        "INSERT INTO playlist_songs VALUES ('local:list', 'kept', 0), ('local:list', 'kept', 1), ('server', 'server-only', 0)",
+      );
+      await database.customStatement(
+        "INSERT INTO local_radio_stations (id, name, stream_url) VALUES ('local:radio', 'Radio', 'https://example.test/live')",
+      );
+
+      for (var reset = 0; reset < 2; reset++) {
+        await LibraryCacheResetService(database: database).reset();
+        await database.songIdentityDao
+            .garbageCollectUnreferencedProvisionalMetadata();
+        expect(
+          await database.select(database.playlistsTable).get(),
+          hasLength(2),
+        );
+        expect(
+          (await database.playlistDao.watchPlaylistSongs('local:list').first)
+              .map((s) => s.id),
+          ['kept', 'kept'],
+        );
+        expect(
+          await database.playlistDao.watchPlaylistSongs('server').first,
+          isEmpty,
+        );
+        final song = (await database.select(database.songsTable).get()).single;
+        expect(song.id, 'kept');
+        expect(song.isProvisional, isTrue);
+        expect(
+          song.catalogAvailability,
+          CatalogAvailability.pendingRebuild.name,
+        );
+        expect(
+          (await database.select(database.albumsTable).get())
+              .single
+              .isProvisional,
+          isTrue,
+        );
+        expect(
+          (await database.select(database.artistsTable).get())
+              .single
+              .isProvisional,
+          isTrue,
+        );
+        expect(
+          await database
+              .customSelect('SELECT * FROM local_radio_stations')
+              .get(),
+          hasLength(1),
+        );
+      }
+      await database.libraryDao.retainOrRemoveServerSongs(
+        await database.select(database.songsTable).get(),
+      );
+      expect(
+        (await database.select(database.songsTable).get())
+            .single
+            .serverDeletedAt,
+        isNotNull,
+      );
+      expect(
+        await database.playlistDao.watchPlaylistSongs('local:list').first,
+        hasLength(2),
+      );
+    },
+    skip: !sqliteAvailable,
+  );
+
+  test(
     'reset removes recoverable cache and metadata but keeps downloads',
     () async {
       final database = NavisDatabase(NativeDatabase.memory());

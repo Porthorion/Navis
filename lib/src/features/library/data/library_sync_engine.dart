@@ -4473,7 +4473,7 @@ class DriftLibrarySyncEngine implements SyncPlanExecutor {
     final evidenceById = <String, String>{};
     final workById = <String, LibrarySyncWorkTableData?>{};
     final existing = <String, PlaylistsTableData>{
-      for (final playlist in await _database.playlistDao.getAllPlaylists())
+      for (final playlist in await _database.playlistDao.getServerPlaylists())
         playlist.id: playlist,
     };
     final cachedSongCounts = await _database.playlistDao

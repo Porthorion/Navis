@@ -40,6 +40,9 @@ class AppSettingsTable extends Table {
   BoolColumn get showPlaylistsPage =>
       boolean().withDefault(const Constant(true))();
 
+  BoolColumn get playlistCreateOnServer =>
+      boolean().withDefault(const Constant(true))();
+
   BoolColumn get showArtistsPage =>
       boolean().withDefault(const Constant(true))();
 
