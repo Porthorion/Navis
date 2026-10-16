@@ -3478,68 +3478,74 @@ void main() {
           AudioServiceRepeatMode.all,
           AudioServiceRepeatMode.one,
         ]) {
-          for (final entity in [false, true]) {
-            test(
-              'first shuffled song completes during initial fill '
-              'count=$count fade=$crossfade repeat=$repeat entity=$entity',
-              () async {
-                final players = <_ControllableAudioPlayer>[];
-                final (handler, player, database) = await fixture(
-                  players,
-                  count: count,
-                  crossfade: crossfade,
-                  queueWindow: const NavisQueueWindow(),
-                );
+          for (final (shuffled, entity) in [
+            (true, false),
+            (true, true),
+            // Native Repeat All must not loop the one-song fill unshuffled
+            // either. Entity Shuffle always turns shuffle on.
+            (false, false),
+          ]) {
+            test('first ${shuffled ? 'shuffled ' : ''}song completes during '
+                'initial fill count=$count fade=$crossfade repeat=$repeat '
+                'entity=$entity', () async {
+              final players = <_ControllableAudioPlayer>[];
+              final (handler, player, database) = await fixture(
+                players,
+                count: count,
+                crossfade: crossfade,
+                queueWindow: const NavisQueueWindow(),
+              );
+              if (shuffled) {
                 await handler.setShuffleMode(AudioServiceShuffleMode.all);
-                await handler.setRepeatMode(repeat);
-                final gate = Completer<void>();
-                final entered = Completer<void>();
-                addTearDown(() {
-                  if (!gate.isCompleted) gate.complete();
-                });
-                player
-                  ..appendGate = gate
-                  ..appendEntered = entered;
-                final rows = await database.libraryDao.getSongsByIds(
-                  ids(count),
-                );
-                rows.shuffle(Random(19));
-                final replacing = entity
-                    ? handler.replaceQueueWithData(
-                        rows,
-                        originalOrder: ids(count),
-                        expandMatchFlows: false,
-                      )
-                    : handler.replaceQueue(
-                        ids(count),
-                        startIndex: 2,
-                        expandMatchFlows: false,
-                      );
-                await entered.future;
-                final order = List<String>.of(handler.snapshot.queueSongIds);
-                expect(player.sourceIds, [order.first]);
-                expect(player.index, 0);
-                final check = watchAudioMetadata(handler, players);
-                player.finishCurrentTrack();
-                // Only Repeat One may replay the temporary one-song playlist.
-                expect(
-                  player.processingState,
-                  repeat == AudioServiceRepeatMode.one
-                      ? ProcessingState.ready
-                      : ProcessingState.completed,
-                );
-                gate.complete();
-                await replacing;
-                await settleQueue(handler);
-                final expected =
-                    order[repeat == AudioServiceRepeatMode.one ? 0 : 1];
-                expect(handler.snapshot.currentSongId, expected);
-                expect(player.audibleSongId, expected);
-                expect(player.simulatedPosition, Duration.zero);
-                expect(handler.snapshot.queueSongIds, order);
-                await check();
-              },
-            );
+              }
+              await handler.setRepeatMode(repeat);
+              final gate = Completer<void>();
+              final entered = Completer<void>();
+              addTearDown(() {
+                if (!gate.isCompleted) gate.complete();
+              });
+              player
+                ..appendGate = gate
+                ..appendEntered = entered;
+              final rows = await database.libraryDao.getSongsByIds(ids(count));
+              rows.shuffle(Random(19));
+              final replacing = entity
+                  ? handler.replaceQueueWithData(
+                      rows,
+                      originalOrder: ids(count),
+                      expandMatchFlows: false,
+                    )
+                  : handler.replaceQueue(
+                      ids(count),
+                      startIndex: 2,
+                      expandMatchFlows: false,
+                    );
+              await entered.future;
+              final order = List<String>.of(handler.snapshot.queueSongIds);
+              // Shuffle moves the start song first; unshuffled it stays put.
+              final start = shuffled ? 0 : 2;
+              expect(player.sourceIds, [order[start]]);
+              expect(player.index, 0);
+              final check = watchAudioMetadata(handler, players);
+              player.finishCurrentTrack();
+              // Only Repeat One may replay the temporary one-song playlist.
+              expect(
+                player.processingState,
+                repeat == AudioServiceRepeatMode.one
+                    ? ProcessingState.ready
+                    : ProcessingState.completed,
+              );
+              gate.complete();
+              await replacing;
+              await settleQueue(handler);
+              final expected =
+                  order[start + (repeat == AudioServiceRepeatMode.one ? 0 : 1)];
+              expect(handler.snapshot.currentSongId, expected);
+              expect(player.audibleSongId, expected);
+              expect(player.simulatedPosition, Duration.zero);
+              expect(handler.snapshot.queueSongIds, order);
+              await check();
+            });
           }
         }
       }
