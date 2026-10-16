@@ -5,7 +5,6 @@ import 'package:navis/src/features/settings/domain/appearance_presets.dart';
 import 'package:drift/drift.dart';
 import 'package:meta/meta.dart' show visibleForTesting;
 import 'package:navis/src/features/settings/domain/flat_areas.dart';
-import 'package:navis/src/features/settings/domain/night_schedule.dart';
 import 'package:navis/src/database/navis_database.dart';
 import 'package:navis/src/database/tables/app_settings_table.dart';
 import 'package:navis/src/features/downloads/domain/download_preferences.dart';
@@ -88,7 +87,6 @@ class AppSettingsDao extends DatabaseAccessor<NavisDatabase>
   static const int primarySettingsId = 1;
   static const int defaultCellularBitRate = 192;
   static const String defaultCellularFormat = 'opus';
-  static const int defaultSyncIntervalMinutes = 60;
   static const double defaultDesktopPlaybackVolume = 1;
 
   Stream<AppSettingsTableData?> watchSettings() {
@@ -376,114 +374,6 @@ class AppSettingsDao extends DatabaseAccessor<NavisDatabase>
       );
     }
   });
-
-  Future<void> resetDefaults() async {
-    await updateColorTuning(ColorTuning.none);
-    await updateAppearanceLooks(selectedLookId: null);
-    await clearSetupHighlightsSeen();
-    await updateSetupHighlightsSeenRelease(null);
-    await updateSetupCardDismissedRelease(null);
-    await updatePlaybackAdjustments(
-      speed: 1,
-      pitchSemitones: 0,
-      selectedPresetId: 'none',
-    );
-    // Integration-owned columns are not written by [saveSettings] unless
-    // given; reset them through their targeted writers.
-    await updateLastFmApiKey(null);
-    await updateListenBrainzScrobblingState(
-      enabled: false,
-      tokenValid: false,
-      clearUserName: true,
-    );
-    await saveSettings(
-      wifiMaxBitRate: null,
-      wifiFormat: null,
-      cellularMaxBitRate: defaultCellularBitRate,
-      cellularFormat: defaultCellularFormat,
-      cachedPlaybackFirst: false,
-      scrobbleEnabled: true,
-      gaplessEnabled: true,
-      skipSilenceEnabled: false,
-      showAlbumsPage: true,
-      showRadioPage: true,
-      showPlaylistsPage: true,
-      showArtistsPage: true,
-      showLikedPage: true,
-
-      wifiOnlyDownloads: true,
-      autoDownloadStarredOnWifi: false,
-      customDownloadFolderEnabled: false,
-      customDownloadFolderPath: null,
-      themeMode: 'dark',
-      colorStyle: 'neutral',
-      oledForAuto: false,
-      nightScheduleEnabled: false,
-      nightScheduleStartMinutes: NightSchedule.defaultStartMinutes,
-      nightScheduleEndMinutes: NightSchedule.defaultEndMinutes,
-      flatSurfaces: false,
-      flatAreas: 7,
-      colorVividness: 0,
-      surfaceDepthLight: 0,
-      surfaceDepthDark: 0,
-      surfaceTintLight: 0,
-      surfaceTintDark: 0,
-      controlColor: 'accent',
-      albumArtShade: false,
-      albumArtColoredShade: false,
-      colorSchemeSeed: null,
-      appLocale: null,
-      crossfadeEnabled: false,
-      crossfadeDurationSeconds: 5,
-      crossfadeType: 'normal',
-      nowPlayingBackground: 'tinted',
-      cornerStyle: 'rounded',
-      dynamicAlbumColorEnabled: false,
-      updateCheckEnabled: true,
-      updateChannel: 'stable',
-      syncIntervalMinutes: defaultSyncIntervalMinutes,
-      backgroundSyncUnmeteredOnly: true,
-      useLrclib: true,
-      legacyInstantMixEnabled: false,
-      replayGainMode: 'off',
-      replayGainPreamp: 0,
-      playbackSpeed: 1,
-      albumGridDensity: null,
-      coverArtShape: 'square',
-      nowPlayingArtShape: 'rounded',
-      artistCardShape: 'circle',
-      artistViewMode: 'grid',
-      desktopFocusPlayerModeEnabled: false,
-      desktopPlaybackVolume: defaultDesktopPlaybackVolume,
-      desktopLastAudibleVolume: defaultDesktopPlaybackVolume,
-      homeDensity: 'comfortable',
-      homeSectionOrder: null,
-      homeSectionsHidden: null,
-      libraryPageOrder: null,
-      desktopNavbarStyle: 'comfortable',
-      desktopNavbarAutohide: false,
-      albumQueueEnabled: true,
-      matchFlowEnabled: false,
-      likedQueueEnabled: true,
-      lastFmScrobblingEnabled: false,
-      lastFmSessionConnected: false,
-    );
-    // The full-row save leaves the policy columns alone; reset them here.
-    await updateIntegrationPolicy(master: true, disabledJson: '[]');
-    // The retired AudioMuse client no longer reads these columns, but a key
-    // saved by an older version must still be cleared by a reset.
-    await (update(
-      appSettingsTable,
-    )..where((t) => t.id.equals(primarySettingsId))).write(
-      const AppSettingsTableCompanion(
-        audioMuseServerUrl: Value(null),
-        audioMuseApiKey: Value(null),
-        audioMuseEnabled: Value(false),
-      ),
-    );
-    await updateSetupHighlightsSeenRelease(null);
-    await updateSetupCardDismissedRelease(null);
-  }
 
   /// Resets only the settings the Playback page shows: streaming quality,
   /// scrobbling, gapless/cross-fade, ReplayGain, queue options, the

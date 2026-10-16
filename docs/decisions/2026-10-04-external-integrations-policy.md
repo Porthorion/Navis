@@ -66,8 +66,8 @@ anything besides my server?" and no way to turn off one feature of a service.
   `updateIntegrationPolicy`, `updateLegacyInstantMixEnabled`,
   `updateListenBrainzScrobblingState`, `updateLastFmApiKey` and
   `updateIntegrationsNoticeDismissed`. `saveSettings` still writes the legacy
-  feature columns, while `resetDefaults` resets the policy through these
-  writers.
+  feature columns. No page-level reset touches the policy; Playback's Reset
+  Defaults is scoped to the Playback fields (`resetPlaybackDefaults`).
   Settings › Integrations changes them at any time, and setup's Integrations
   step writes the master and service switches once, on Finish; Playback and
   About no longer hold copies of their switches.

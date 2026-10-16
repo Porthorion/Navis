@@ -113,23 +113,6 @@ void main() {
         expect(watched.controlColor, adj.controls.name);
         expect(row.themeMode, 'oled');
       }
-      await dao.updateColorTuning(
-        const ColorTuning(
-          vividness: 3,
-          lightDepth: 4,
-          lightTint: 5,
-          darkTint: 3,
-          controls: NavisControlColor.white,
-        ),
-      );
-      await dao.resetDefaults();
-      final reset = (await dao.getSettings())!;
-      expect(reset.colorVividness, 0);
-      expect(reset.surfaceDepthLight, 0);
-      expect(reset.surfaceDepthDark, 0);
-      expect(reset.surfaceTintLight, 0);
-      expect(reset.surfaceTintDark, 0);
-      expect(reset.controlColor, 'accent');
     }, skip: !sqliteAvailable);
 
     test(
@@ -150,9 +133,6 @@ void main() {
           expect(row.updatedAt.isBefore(initial.updatedAt), isFalse);
         }
         await dao.updateCornerStyle('unknown');
-        expect((await dao.getSettings())!.cornerStyle, 'rounded');
-        await dao.updateCornerStyle('square');
-        await dao.resetDefaults();
         expect((await dao.getSettings())!.cornerStyle, 'rounded');
       },
       skip: !sqliteAvailable,
@@ -181,33 +161,22 @@ void main() {
         expect((await dao.getSettings())!.homeDensity, 'compact');
         await dao.updateDensity(NavisDensity.comfortable);
         expect((await dao.getSettings())!.homeDensity, 'comfortable');
-        await dao.updateDensity(NavisDensity.compact);
-        await dao.updateNowPlayingBackground('artwork');
-        await dao.resetDefaults();
-        final reset = (await dao.getSettings())!;
-        expect(reset.nowPlayingBackground, 'tinted');
-        expect(reset.homeDensity, 'comfortable');
       },
       skip: !sqliteAvailable,
     );
 
-    test(
-      'background writes and resets leave the legacy migration source alone',
-      () async {
-        await database.customStatement(
-          'UPDATE app_settings SET art_tinted_now_playing = 0',
-        );
-        final dao = database.appSettingsDao;
-        await dao.updateNowPlayingBackground('artwork');
-        await dao.resetDefaults();
-        final legacy = await database
-            .customSelect('SELECT art_tinted_now_playing FROM app_settings')
-            .getSingle();
-        expect(legacy.read<int>('art_tinted_now_playing'), 0);
-        expect((await dao.getSettings())!.nowPlayingBackground, 'tinted');
-      },
-      skip: !sqliteAvailable,
-    );
+    test('background writes leave the legacy migration source alone', () async {
+      await database.customStatement(
+        'UPDATE app_settings SET art_tinted_now_playing = 0',
+      );
+      final dao = database.appSettingsDao;
+      await dao.updateNowPlayingBackground('artwork');
+      final legacy = await database
+          .customSelect('SELECT art_tinted_now_playing FROM app_settings')
+          .getSingle();
+      expect(legacy.read<int>('art_tinted_now_playing'), 0);
+      expect((await dao.getSettings())!.nowPlayingBackground, 'artwork');
+    }, skip: !sqliteAvailable);
 
     test(
       'setup release writers round trip and preserve other settings',
@@ -228,11 +197,6 @@ void main() {
         row = (await dao.getSettings())!;
         expect(row.setupHighlightsSeenRelease, isNull);
         expect(row.setupCardDismissedRelease, '1.5.0');
-        await dao.updateSetupHighlightsSeenRelease('1.5.0');
-        await dao.resetDefaults();
-        row = (await dao.getSettings())!;
-        expect(row.setupHighlightsSeenRelease, isNull);
-        expect(row.setupCardDismissedRelease, isNull);
       },
       skip: !sqliteAvailable,
     );
@@ -271,10 +235,6 @@ void main() {
       await dao.updateAlbumArtShade(enabled: true);
       await dao.updateAlbumArtColoredShade(enabled: false);
       expect((await dao.getSettings())!.albumArtShade, isTrue);
-      await dao.resetDefaults();
-      final reset = (await dao.getSettings())!;
-      expect(reset.albumArtShade, isFalse);
-      expect(reset.albumArtColoredShade, isFalse);
     }, skip: !sqliteAvailable);
 
     test('Flat areas and shade targeted writes preserve the switch', () async {
@@ -295,11 +255,6 @@ void main() {
         await expectLater(dao.updateFlatAreas(bits), throwsRangeError);
       }
       expect((await dao.getSettings())!.flatAreas, 7);
-      await dao.resetDefaults();
-      final reset = (await dao.getSettings())!;
-      expect(reset.flatAreas, 7);
-      expect(reset.albumArtColoredShade, isFalse);
-      expect(reset.flatSurfaces, isFalse);
     }, skip: !sqliteAvailable);
 
     test('appearance settings default and update independently', () async {
@@ -488,85 +443,6 @@ void main() {
       expect(second.customDownloadFolderPath, isNull);
     }, skip: !sqliteAvailable);
 
-    test('resetDefaults restores app defaults', () async {
-      await database.appSettingsDao.saveSettings(
-        wifiMaxBitRate: 320,
-        wifiFormat: 'opus',
-        cellularMaxBitRate: 96,
-        cellularFormat: 'aac',
-        cachedPlaybackFirst: true,
-        scrobbleEnabled: false,
-        gaplessEnabled: false,
-        skipSilenceEnabled: true,
-        showAlbumsPage: false,
-        showRadioPage: false,
-        showPlaylistsPage: true,
-        showArtistsPage: true,
-        showLikedPage: true,
-
-        wifiOnlyDownloads: true,
-        autoDownloadStarredOnWifi: false,
-        customDownloadFolderEnabled: false,
-        customDownloadFolderPath: null,
-        themeMode: 'oled',
-        colorStyle: 'night',
-        oledForAuto: true,
-        nightScheduleEnabled: true,
-        nightScheduleStartMinutes: 1200,
-        nightScheduleEndMinutes: 480,
-        flatSurfaces: true,
-        colorSchemeSeed: 4283215696,
-        crossfadeEnabled: false,
-        crossfadeDurationSeconds: 5,
-        crossfadeType: 'normal',
-        nowPlayingBackground: 'plain',
-        dynamicAlbumColorEnabled: false,
-        updateCheckEnabled: false,
-        updateChannel: 'beta',
-        syncIntervalMinutes: 60,
-        useLrclib: true,
-        legacyInstantMixEnabled: false,
-        replayGainMode: 'off',
-        replayGainPreamp: 0,
-        playbackSpeed: 1,
-        coverArtShape: 'rounded',
-        nowPlayingArtShape: 'rounded',
-        artistCardShape: 'circle',
-        artistViewMode: 'grid',
-        homeDensity: 'compact',
-      );
-
-      await database.appSettingsDao.resetDefaults();
-
-      final settings = await database.appSettingsDao.getSettings();
-      expect(settings, isNotNull);
-      expect(settings!.wifiMaxBitRate, isNull);
-      expect(settings.wifiFormat, isNull);
-      expect(
-        settings.cellularMaxBitRate,
-        AppSettingsDao.defaultCellularBitRate,
-      );
-      expect(settings.cellularFormat, AppSettingsDao.defaultCellularFormat);
-      expect(settings.cachedPlaybackFirst, isFalse);
-      expect(settings.scrobbleEnabled, isTrue);
-      expect(settings.gaplessEnabled, isTrue);
-      expect(settings.skipSilenceEnabled, isFalse);
-      expect(settings.showAlbumsPage, isTrue);
-      expect(settings.showRadioPage, isTrue);
-
-      expect(settings.customDownloadFolderEnabled, isFalse);
-      expect(settings.customDownloadFolderPath, isNull);
-      expect(settings.dynamicAlbumColorEnabled, isFalse);
-      expect(settings.colorStyle, 'neutral');
-      expect(settings.oledForAuto, isFalse);
-      expect(settings.nightScheduleEnabled, isFalse);
-      expect(settings.nightScheduleStartMinutes, 1320);
-      expect(settings.nightScheduleEndMinutes, 420);
-      expect(settings.flatSurfaces, isFalse);
-      expect(settings.homeDensity, 'comfortable');
-      expect(settings.nowPlayingBackground, 'tinted');
-    }, skip: !sqliteAvailable);
-
     test(
       'playback reset restores playback fields and leaves the rest alone',
       () async {
@@ -724,13 +600,13 @@ void main() {
       expect((await dao.getDownloadQualityPreference()).format, 'aac');
     });
 
-    test('settings resets leave the download preferences alone', () async {
+    test('playback reset leaves the download preferences alone', () async {
       final dao = database.appSettingsDao;
       await dao.updateDownloadQuality(mode: DownloadQualityMode.original);
       await dao.updateDownloadQualityPrompted(prompted: true);
       await dao.updateMaxConcurrentDownloads(3);
 
-      await dao.resetDefaults();
+      await dao.resetPlaybackDefaults();
 
       final preference = await dao.getDownloadQualityPreference();
       expect(preference.mode, DownloadQualityMode.original);
@@ -927,26 +803,6 @@ void main() {
         // The column-backed switches are still part of the full-row save.
         expect(settings.useLrclib, isFalse);
         expect(settings.legacyInstantMixEnabled, isTrue);
-      });
-
-      test('resetDefaults resets the policy but not the notice', () async {
-        final dao = database.appSettingsDao;
-        await dao.updateIntegrationPolicy(
-          master: false,
-          disabledJson: '["deezer","radio"]',
-        );
-        await dao.updateIntegrationsNoticeDismissed(dismissed: true);
-        await saveFullRow(useLrclib: false, updateCheckEnabled: false);
-
-        await dao.resetDefaults();
-
-        final settings = (await dao.getSettings())!;
-        expect(settings.externalIntegrationsEnabled, isTrue);
-        expect(settings.disabledIntegrations, '[]');
-        expect(settings.useLrclib, isTrue);
-        expect(settings.updateCheckEnabled, isTrue);
-        expect(settings.legacyInstantMixEnabled, isFalse);
-        expect(settings.integrationsNoticeDismissed, isTrue);
       });
     });
   });

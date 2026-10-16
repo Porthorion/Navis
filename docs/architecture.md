@@ -2489,8 +2489,7 @@ and Subsonic delivery continues independently.
   then on feedback follows only its own policy switches.
 - **Writers.** The three new columns are deliberately absent from the full-row
   `AppSettingsDao.saveSettings`, so a stale screen snapshot cannot overwrite
-  them (`resetDefaults` resets the master and the JSON set explicitly). They are
-  written only by `updateIntegrationPolicy`, `setExternalIntegrationsEnabled`,
+  them. They are written only by `updateIntegrationPolicy`, `setExternalIntegrationsEnabled`,
   `updateIntegrationsNoticeDismissed` and `setIntegrationEnabled(key, enabled:)`,
   the single path for any feature or service toggle: it writes the legacy column
   for a column-backed feature and otherwise read-modify-writes the JSON set in a
@@ -2500,8 +2499,8 @@ and Subsonic delivery continues independently.
   when given, and `SettingsRepository.saveSettings` never gives them: they
   change through `setIntegrationEnabled`, `updateLastFmApiKey` (the key
   alone) and `updateListenBrainzConnection`, so a stale screen snapshot cannot
-  revert a switch, a key or a token clear. `resetDefaults` resets them through
-  those writers.
+  revert a switch, a key or a token clear. No settings page resets them: the
+  Playback page's Reset Defaults is scoped to `resetPlaybackDefaults`.
 - **Provider.** `integrationPolicyProvider` selects only scalar settings and the
   raw JSON string, so unrelated settings saves do not rebuild it, and it is
   **fail-closed**: while settings load or have failed it is
