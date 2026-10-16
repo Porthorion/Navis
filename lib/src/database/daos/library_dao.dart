@@ -2885,10 +2885,16 @@ class LibraryDao extends DatabaseAccessor<NavisDatabase>
     if (id.isEmpty) {
       return;
     }
-    await (delete(songsTable)..where(
-          (table) => table.id.equals(id) & table.serverDeletedAt.isNotNull(),
-        ))
-        .go();
+    // A device playlist holds the only copy of its entries: keep their songs,
+    // or the playlist_songs cascade would silently edit the playlist.
+    await customUpdate(
+      'DELETE FROM songs WHERE id = ? AND server_deleted_at IS NOT NULL '
+      'AND id NOT IN (SELECT ps.song_id FROM playlist_songs ps '
+      'JOIN playlists p ON p.id = ps.playlist_id WHERE p.is_local = 1)',
+      variables: [Variable.withString(id)],
+      updates: {songsTable, playlistSongsTable},
+      updateKind: UpdateKind.delete,
+    );
   }
 
   /// Removes songs that disappeared from a validated server snapshot.

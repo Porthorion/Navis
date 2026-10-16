@@ -54,4 +54,40 @@ void main() {
       skip: !sqliteAvailable,
     );
   }
+
+  test(
+    'playback cleanup keeps songs that device playlists still hold',
+    () async {
+      final database = createTestDatabase();
+      addTearDown(database.close);
+      // Both songs are confirmed missing on the server.
+      await database.customStatement(
+        "INSERT INTO songs (id, title, server_deleted_at) VALUES "
+        "('in-device', 'Device song', 1), ('server-only', 'Server song', 1)",
+      );
+      await database.customStatement(
+        "INSERT INTO playlists (id, name, is_local) VALUES "
+        "('local:list', 'Device list', 1), ('server:list', 'Server list', 0)",
+      );
+      await database.customStatement(
+        "INSERT INTO playlist_songs VALUES ('local:list', 'in-device', 0), "
+        "('server:list', 'server-only', 0)",
+      );
+
+      await database.libraryDao.deleteLocalOnlySong('in-device');
+      await database.libraryDao.deleteLocalOnlySong('server-only');
+
+      expect(
+        (await database.playlistDao.watchPlaylistSongs('local:list').first).map(
+          (s) => s.id,
+        ),
+        ['in-device'],
+      );
+      expect(
+        (await database.select(database.songsTable).get()).map((s) => s.id),
+        ['in-device'],
+      );
+    },
+    skip: !sqliteAvailable,
+  );
 }
