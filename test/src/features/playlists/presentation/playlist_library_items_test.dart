@@ -178,7 +178,6 @@ void main() {
       trendingVirtualPlaylistId,
     ]);
     final trending = result[2];
-    expect(trending.isVirtual, isTrue);
     expect(trending.isTrending, isTrue);
     expect(trending.trendingTracks, hasLength(2));
     expect(trending.songCount, 2);
@@ -261,7 +260,7 @@ void main() {
       expect(result.map((item) => item.id), [
         listenBrainzWeeklyJamsVirtualPlaylistId,
       ]);
-      expect(result.single.isVirtual, isTrue);
+      expect(result.single.virtualPlaylist, isNotNull);
       expect(result.single.name, 'Weekly Jams');
     },
   );

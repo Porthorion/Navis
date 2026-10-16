@@ -4547,6 +4547,42 @@ abstract class AppLocalizations {
   /// **'Rename Playlist'**
   String get playlistsRenameTitle;
 
+  /// No description provided for @playlistsRenameFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Failed to rename playlist'**
+  String get playlistsRenameFailed;
+
+  /// No description provided for @playlistsDeleteFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Failed to delete playlist'**
+  String get playlistsDeleteFailed;
+
+  /// No description provided for @playlistsFilterHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Search playlists...'**
+  String get playlistsFilterHint;
+
+  /// No description provided for @playlistsSectionYours.
+  ///
+  /// In en, this message translates to:
+  /// **'Your playlists'**
+  String get playlistsSectionYours;
+
+  /// No description provided for @playlistsSectionMadeForYou.
+  ///
+  /// In en, this message translates to:
+  /// **'Made for you'**
+  String get playlistsSectionMadeForYou;
+
+  /// No description provided for @playlistsSectionOther.
+  ///
+  /// In en, this message translates to:
+  /// **'Other playlists'**
+  String get playlistsSectionOther;
+
   /// No description provided for @playlistDetailTitle.
   ///
   /// In en, this message translates to:
@@ -4607,6 +4643,12 @@ abstract class AppLocalizations {
   /// **'Failed to remove track'**
   String get playlistDetailTrackRemoveFailed;
 
+  /// No description provided for @playlistDetailReorderFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Failed to reorder tracks'**
+  String get playlistDetailReorderFailed;
+
   /// No description provided for @addToPlaylistTitle.
   ///
   /// In en, this message translates to:
@@ -4624,6 +4666,12 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'New playlist'**
   String get addToPlaylistNewPlaylist;
+
+  /// No description provided for @addToPlaylistFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Failed to add to playlist'**
+  String get addToPlaylistFailed;
 
   /// No description provided for @librarySongMenuAddToPlaylist.
   ///

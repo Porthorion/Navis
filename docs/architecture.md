@@ -3148,7 +3148,8 @@ works like the weekly playlists. `homeTrendingProvider`
   then Other playlists. Device and own server playlists sort together by name
   ignoring case; other server playlists sort the same way. The DAO also uses
   `Collate.noCase` for its playlist stream. Ownership reads the retained
-  `serverConfigProvider` username, so it does not depend on an online API.
+  username through `playlistViewerProvider` (server config, not the API client),
+  so it does not depend on an online API.
   `canEditPlaylist` accepts local rows; server rows must not have `readOnly`
   true, and their owner must match the username ignoring case when both are
   known. A missing owner or username preserves editable behavior. Own rows
@@ -3161,8 +3162,24 @@ works like the weekly playlists. `homeTrendingProvider`
   methods and owns their existing header/detail sync invalidations. Reorder
   atomically replaces the ordered song IDs, including duplicates, and refreshes
   detail on failure to revert optimistic UI state. Unavailable APIs throw;
-  local rows are explicitly rejected until B2 adds local branches. Widget
-  adoption and error notices remain the B1 UI integration step.
+  local rows are explicitly rejected until B2 adds local branches.
+- Library › Playlists shows each section under a `NavisSectionHeader` only when
+  more than one section has rows (the retired `listenBrainzPlaylistDivider`).
+  Touch layouts put a `ListFilterField` (shared with Downloads) above the list;
+  desktop layouts use the Library type-to-filter query. Both match the
+  displayed title case-insensitively, including the localized Trending Now
+  title, and a filtered-empty list offers the clear action. Desktop versus touch
+  follows `resolveAdaptiveContextFor(...).useDesktopShell`, not the host OS.
+  Long-press, the desktop ⋮ button and right-click open rename/delete only when
+  `canEditPlaylist` holds. Rename, delete, add, remove and reorder all go
+  through `PlaylistActions` and show `playlistsRenameFailed`,
+  `playlistsDeleteFailed`, `addToPlaylistFailed`,
+  `playlistDetailTrackRemoveFailed` or `playlistDetailReorderFailed` instead of
+  swallowing the error. The playlist detail screen computes editability once per
+  build and hides the drag handle and "Remove from playlist" when it is false.
+  The add-to-playlist sheet lists only editable playlists and treats every song
+  skipped (`addSongs` result) as a failure; its notices use the opening
+  context because the sheet is already closed when the result arrives.
 - `playlistLibraryItemsProvider` adds a `PlaylistLibraryItem.trending` after
   the weekly playlists while the switch is allowed and an account is signed
   in, whatever the chart holds (rows are still loading, or there is no chart

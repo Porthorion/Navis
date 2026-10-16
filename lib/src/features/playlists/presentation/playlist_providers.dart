@@ -58,8 +58,6 @@ class PlaylistLibraryItem {
   final bool isTrending;
   final List<ResolvedArtistTopTrack>? trendingTracks;
 
-  bool get isVirtual => virtualPlaylist != null || isTrending;
-
   String get id {
     if (isTrending) return trendingVirtualPlaylistId;
     final virtual = virtualPlaylist;
@@ -93,6 +91,14 @@ final playlistListProvider = StreamProvider<List<PlaylistsTableData>>((ref) {
   return db.playlistDao.watchPlaylists();
 });
 
+/// The signed-in username that [canEditPlaylist] and [isOwnPlaylist] compare
+/// owners with. The server config survives offline; the API client may not.
+final playlistViewerProvider = Provider<String?>(
+  (ref) => ref.watch(
+    serverConfigStateProvider.select((config) => config.value?.username),
+  ),
+);
+
 /// Library › Playlists: yours by name, weekly and Trending mixes, then others.
 /// Trending keeps its existing integration and account gates.
 ///
@@ -102,9 +108,7 @@ final playlistListProvider = StreamProvider<List<PlaylistsTableData>>((ref) {
 final playlistLibraryItemsProvider =
     Provider<AsyncValue<List<PlaylistLibraryItem>>>((ref) {
       final playlistsAsync = ref.watch(playlistListProvider);
-      final me = ref.watch(
-        serverConfigProvider.select((config) => config.value?.username),
-      );
+      final me = ref.watch(playlistViewerProvider);
       final virtualAsync = ref.watch(listenBrainzDiscoverStreamProvider);
       final trendingAllowed =
           ref.watch(

@@ -166,7 +166,16 @@ const List<ChangelogVersion> changelogs = [
     ],
     entries: [
       ChangelogEntry(
-        'Your playlists appear before weekly mixes and other server playlists',
+        'Your playlists appear before weekly mixes and other server playlists, under section headings',
+      ),
+      ChangelogEntry('Playlists can be filtered by name'),
+      ChangelogEntry(
+        'Playlists you cannot edit no longer offer rename, delete, reorder or remove, and no longer appear in Add to playlist',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
+        'Renaming, deleting, reordering or adding to a playlist now tells you when it fails',
+        type: ChangelogEntryType.fix,
       ),
       ChangelogEntry(
         'Notification, Bluetooth and car controls keep working after Android restarts the media service',
