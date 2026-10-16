@@ -18,6 +18,7 @@ import 'package:navis/src/common_widgets/desktop_song_actions.dart';
 import 'package:navis/src/common_widgets/desktop/desktop_context_menu.dart';
 import 'package:navis/src/common_widgets/desktop/desktop_primitives.dart';
 import 'package:navis/src/common_widgets/empty_state.dart';
+import 'package:navis/src/common_widgets/list_filter_field.dart';
 import 'package:navis/src/common_widgets/error_state.dart';
 import 'package:navis/src/common_widgets/shimmer_placeholder.dart';
 import 'package:navis/src/common_widgets/song_context_menu.dart';
@@ -35,6 +36,8 @@ import 'package:navis/src/features/library/presentation/radio_screen.dart';
 import 'package:navis/src/features/library/presentation/library_scroll_provider.dart';
 import 'package:navis/src/features/library/presentation/library_sync_provider.dart';
 import 'package:navis/src/features/player/presentation/queue_provider.dart';
+import 'package:navis/src/features/playlists/data/playlist_actions.dart';
+import 'package:navis/src/features/playlists/domain/playlist_ownership.dart';
 import 'package:navis/src/features/playlists/presentation/playlist_providers.dart';
 import 'package:navis/src/features/search/presentation/search_controller_provider.dart'
     show quickSearchOverlayVisibleProvider;
@@ -42,6 +45,7 @@ import 'package:navis/src/features/library/presentation/unavailable_review_scree
 import 'package:navis/src/providers/app_providers.dart';
 import 'package:navis/src/routing/navigation_service.dart';
 import 'package:navis/src/routing/desktop_layout.dart';
+import 'package:navis/src/utils/app_logger.dart';
 import 'package:navis/src/routing/library_section_navigation_scope.dart';
 import 'package:navis/src/common_widgets/responsive_content_grid.dart';
 import 'package:navis/src/common_widgets/content_shelf.dart';
@@ -501,6 +505,8 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
       LibrarySection.artists => _buildArtistsTab(context),
       LibrarySection.playlists => _LibraryPlaylistsTab(
         scrollController: _playlistsScrollController,
+        typeFilterQuery: _typeFilterQuery,
+        onClearTypeFilter: _clearTypeFilter,
       ),
       LibrarySection.radio => RadioTabContent(
         scrollController: _radioScrollController,

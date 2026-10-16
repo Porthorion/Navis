@@ -13,6 +13,7 @@ abstract class Playlist with _$Playlist {
     int? duration,
     String? owner,
     @JsonKey(name: 'public') bool? isPublic,
+    @JsonKey(name: 'readonly') bool? readOnly,
     String? coverArt,
     String? comment,
     DateTime? changed,

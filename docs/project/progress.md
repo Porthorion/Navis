@@ -14,6 +14,61 @@ Last updated: 2026-10-16
 - ACP status values: `backlog`, `ready`, `in_progress`, `blocked`, `done`.
 
 ## Current Focus
+- [x] PR B1 UI: playlist sections, filter, gated edits and visible failures —
+  2026-10-16 (`feat/playlists-sections`, on top of the B1 backend commit; Sonnet
+  implementation). Library › Playlists shows Your playlists / Made for you /
+  Other playlists headers only when more than one section has rows (replacing
+  `listenBrainzPlaylistDivider`), a touch filter field (`ListFilterField`, moved
+  out of Downloads) and the desktop type-to-filter, with the shared
+  filtered-empty state. Long-press, ⋮ and right-click open rename/delete only
+  when `canEditPlaylist` holds; rename, delete, add, remove and reorder run
+  through `PlaylistActions` and show new failure notices
+  (`playlistsRenameFailed`, `playlistsDeleteFailed`, `addToPlaylistFailed`,
+  `playlistDetailReorderFailed`). The detail screen hides the drag handle and
+  Remove when not editable; the add sheet lists only editable playlists.
+  Widget tests were written first (compile and assertion failures against the
+  old tab). Capped runs: `library_screen_test.dart` + `test/src/features/playlists`
+  + changelog + downloads/presentation reported `00:10 +181: All tests passed!`
+  (`[capped] exit=0 peak=3344M`); `test/src/features/library`,
+  `test/src/features/downloads`, `test/src/common_widgets`, `test/src/routing`
+  and `test/src/features/changelog` reported `01:20 +2194 ~1: All tests passed!`.
+  `dart format` clean; `flutter analyze --no-fatal-infos lib test` has no errors
+  or warnings in touched files. `dart run tool/dead_code_check.dart` exits 0
+  (`playlistActionsProvider` and `PlaylistActions.addSongs` are now consumed;
+  the unused `PlaylistLibraryItem.isVirtual` getter was removed). No goldens were
+  regenerated. `./tool/check.sh`, the app and emulators were not run (host
+  limits); the touch layout (filter field above the list, section headers) has
+  not been seen on a device or in a screenshot.
+
+- [x] PR B1 backend: playlist ownership, sections and throwing server actions —
+  2026-10-16 (`feat/playlists-sections`, based on PR0 commits ae8d3991 and
+  5e65e9be; Codex implementation). Added optional API `readonly` parsing and
+  generated output, header/detail persistence and header comparison, pure
+  ownership rules, case-insensitive playlist ordering, and Yours → Made for you
+  → Other section metadata. Virtual playlist gates, routing, and availability
+  during server-read failures remain covered. `PlaylistActions` exposes server
+  rename/delete/add/remove/reorder with existing sync invalidations; errors
+  propagate, offline calls throw, and local IDs are rejected pending B2.
+  Tests were written first: new APIs failed compilation and the DAO ordering
+  assertion failed against the old behavior. After implementation, the capped
+  six-file run reported `00:12 +197: All tests passed!` and
+  `[capped] exit=0 peak=2327M swappeak=0M oom_kills=0`, using
+  `~/.cache/claude-navis-tools/capped.sh 6G "$PWD" flutter test --concurrency=4`
+  with `models_serialization_test.dart`, `playlist_dao_test.dart`,
+  `playlist_ownership_test.dart`, `playlist_actions_test.dart`,
+  `playlist_library_items_test.dart`, and `library_sync_engine_test.dart`.
+  `make gen` succeeded: `Built with build_runner/aot in 52s; wrote 2003 outputs.`
+  `dart format` covered all 15 changed Dart files; capped scoped
+  `flutter analyze --no-fatal-infos` reported `No issues found!` (exit 0).
+  `dart run tool/dead_code_check.dart` exited 1 with exactly two new test-only
+  entries awaiting the B1 UI wiring: `PlaylistActions.addSongs` (line 37) and
+  `playlistActionsProvider` (line 7) in
+  `lib/src/features/playlists/data/playlist_actions.dart`; the baseline is
+  unchanged. B1 UI wiring, filter, edit gating, notices and widget coverage
+  remain with the UI agent. B2 local DAO/actions/create/detail-sync changes
+  were not implemented. No new PR0 issue was identified. The full check,
+  application/emulator runs and runtime evidence were prohibited by the task's
+  host limits; independent review remains for the coordinating agent.
 - [x] Download lyrics/artwork backfill review fixes (issue #9) — 2026-10-16
   (`fix/download-lyrics-art-backfill`; the shared lyrics resolver distinguishes
   confirmed misses from transport/API failures, so only confirmed misses get

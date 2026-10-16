@@ -5,6 +5,9 @@ import 'package:navis/src/common_widgets/app_notice.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:navis/l10n/app_localizations.dart';
 import 'package:navis/src/common_widgets/cover_art_image.dart';
+import 'package:navis/src/database/navis_database.dart';
+import 'package:navis/src/features/playlists/data/playlist_actions.dart';
+import 'package:navis/src/features/playlists/domain/playlist_ownership.dart';
 import 'package:navis/src/features/playlists/presentation/playlist_providers.dart';
 import 'package:navis/src/providers/app_providers.dart';
 import 'package:navis/src/routing/desktop_layout.dart';
@@ -27,7 +30,7 @@ Future<void> showAddToPlaylistSheet(
           child: SizedBox(
             width: 460,
             height: availableHeight.clamp(320.0, 560.0),
-            child: _AddToPlaylistSheet(songIds: songIds),
+            child: _AddToPlaylistSheet(songIds: songIds, launcher: context),
           ),
         );
       },
@@ -44,8 +47,9 @@ Future<void> showAddToPlaylistSheet(
       minChildSize: 0.3,
       maxChildSize: 0.8,
       expand: false,
-      builder: (context, scrollController) => _AddToPlaylistSheet(
+      builder: (_, scrollController) => _AddToPlaylistSheet(
         songIds: songIds,
+        launcher: context,
         scrollController: scrollController,
       ),
     ),
@@ -53,15 +57,30 @@ Future<void> showAddToPlaylistSheet(
 }
 
 class _AddToPlaylistSheet extends ConsumerWidget {
-  const new({required this.songIds, this.scrollController});
+  const new({
+    required this.songIds,
+    required this.launcher,
+    this.scrollController,
+  });
 
   final List<String> songIds;
+
+  /// The context that opened the sheet; it outlives the sheet, so notices
+  /// shown after the sheet closes still find their host.
+  final BuildContext launcher;
   final ScrollController? scrollController;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final l10n = AppLocalizations.of(context)!;
-    final playlistsAsync = ref.watch(playlistListProvider);
+    final me = ref.watch(playlistViewerProvider);
+    final playlistsAsync = ref
+        .watch(playlistListProvider)
+        .whenData(
+          (all) => all
+              .where((playlist) => canEditPlaylist(playlist, me))
+              .toList(growable: false),
+        );
 
     return Column(
       children: [
@@ -128,12 +147,7 @@ class _AddToPlaylistSheet extends ConsumerWidget {
                     subtitle: Text(
                       l10n.playlistsSongCount(playlist.songCount ?? 0),
                     ),
-                    onTap: () => _addToPlaylist(
-                      context,
-                      ref,
-                      playlist.id,
-                      playlist.name,
-                    ),
+                    onTap: () => _addToPlaylist(context, ref, playlist),
                   );
                 },
               );
@@ -149,37 +163,30 @@ class _AddToPlaylistSheet extends ConsumerWidget {
   void _addToPlaylist(
     BuildContext context,
     WidgetRef ref,
-    String playlistId,
-    String playlistName,
+    PlaylistsTableData playlist,
   ) {
+    final actions = ref.read(playlistActionsProvider);
     Navigator.of(context).pop();
-    final l10n = AppLocalizations.of(context)!;
-    final api = ref.read(subsonicApiProvider);
-    if (api == null) return;
+    unawaited(_add(actions, playlist));
+  }
 
-    unawaited(
-      api
-          .updatePlaylist(id: playlistId, songIdsToAdd: songIds)
-          .then((_) {
-            ref.invalidate(playlistDetailSyncProvider(playlistId));
-            ref.invalidate(playlistSyncProvider);
-            if (context.mounted) {
-              showAppNotice(
-                context,
-                message: l10n.addToPlaylistSuccess(playlistName),
-                level: AppNoticeLevel.success,
-              );
-            }
-          })
-          .catchError((_) {
-            if (context.mounted) {
-              showAppNotice(
-                context,
-                message: l10n.playlistDetailTrackRemoveFailed,
-                level: AppNoticeLevel.error,
-              );
-            }
-          }),
+  Future<void> _add(
+    PlaylistActions actions,
+    PlaylistsTableData playlist,
+  ) async {
+    final l10n = AppLocalizations.of(launcher)!;
+    String? failure;
+    try {
+      final skipped = await actions.addSongs(playlist, songIds);
+      if (skipped >= songIds.length) failure = l10n.addToPlaylistFailed;
+    } on Object {
+      failure = l10n.addToPlaylistFailed;
+    }
+    if (!launcher.mounted) return;
+    showAppNotice(
+      launcher,
+      message: failure ?? l10n.addToPlaylistSuccess(playlist.name),
+      level: failure == null ? AppNoticeLevel.success : AppNoticeLevel.error,
     );
   }
 

@@ -17,6 +17,7 @@ import 'package:navis/src/common_widgets/confirm_dialog.dart';
 import 'package:navis/src/common_widgets/cover_art_image.dart';
 import 'package:navis/src/common_widgets/remote_source_indicator.dart';
 import 'package:navis/src/common_widgets/empty_state.dart';
+import 'package:navis/src/common_widgets/list_filter_field.dart';
 import 'package:navis/src/common_widgets/shimmer_placeholder.dart';
 import 'package:navis/src/common_widgets/song_playback_indicator.dart';
 import 'package:navis/src/database/navis_database.dart';
@@ -104,7 +105,7 @@ class _DownloadsScreenState extends ConsumerState<DownloadsScreen>
               onClearSearch: _clearSearch,
             )
           else if (showSearch)
-            _DownloadsSearchBar(
+            ListFilterField(
               controller: _searchController,
               hint: _tabController.index == 0
                   ? l10n.downloadsQueueSearchHint
@@ -209,7 +210,7 @@ class _DownloadsDesktopCommandStrip extends StatelessWidget {
               child: showSearch
                   ? SizedBox(
                       width: 304,
-                      child: _DownloadsSearchBar(
+                      child: ListFilterField(
                         controller: searchController,
                         hint: searchHint,
                         onChanged: onSearchChanged,
@@ -1601,70 +1602,6 @@ class _ManualMatchingCount extends StatelessWidget {
                 ? colorStyle.onTonalControlFill(colors)
                 : colors.onSurfaceVariant,
             fontWeight: FontWeight.w700,
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-// ---------------------------------------------------------------------------
-// Shared search bar widget used by Queue and Downloaded tabs
-// ---------------------------------------------------------------------------
-
-class _DownloadsSearchBar extends StatelessWidget {
-  const new({
-    required this.controller,
-    required this.hint,
-    required this.onChanged,
-    required this.onClear,
-    this.dense = false,
-  });
-
-  final TextEditingController controller;
-  final String hint;
-  final ValueChanged<String> onChanged;
-  final VoidCallback onClear;
-  final bool dense;
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: dense
-          ? EdgeInsets.zero
-          : const EdgeInsets.fromLTRB(12, 8, 12, 4),
-      child: TextField(
-        controller: controller,
-        onChanged: onChanged,
-        onTapOutside: (_) => FocusManager.instance.primaryFocus?.unfocus(),
-        textInputAction: TextInputAction.search,
-        decoration: InputDecoration(
-          hintText: hint,
-          prefixIcon: const Icon(Icons.search),
-          suffixIcon: controller.text.isNotEmpty
-              ? IconButton(
-                  icon: const Icon(Icons.close),
-                  tooltip: MaterialLocalizations.of(context).clearButtonTooltip,
-                  onPressed: onClear,
-                )
-              : null,
-          filled: true,
-          fillColor: Theme.of(context).colorScheme.surfaceContainerHigh,
-          border: OutlineInputBorder(
-            borderRadius: NavisShapeData.of(context).mdAll,
-            borderSide: BorderSide.none,
-          ),
-          enabledBorder: OutlineInputBorder(
-            borderRadius: NavisShapeData.of(context).mdAll,
-            borderSide: BorderSide.none,
-          ),
-          focusedBorder: OutlineInputBorder(
-            borderRadius: NavisShapeData.of(context).mdAll,
-            borderSide: BorderSide.none,
-          ),
-          contentPadding: EdgeInsets.symmetric(
-            horizontal: 14,
-            vertical: dense ? 10 : 14,
           ),
         ),
       ),

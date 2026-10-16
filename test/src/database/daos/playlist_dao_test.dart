@@ -1,9 +1,28 @@
+import 'package:drift/drift.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:navis/src/database/navis_database.dart';
 
 import '../../../helpers/test_database.dart';
 
 void main() {
+  test('watchPlaylists mixes local and server names ignoring case', () async {
+    final database = createTestDatabase();
+    addTearDown(database.close);
+    await database.playlistDao.upsertPlaylists([
+      PlaylistsTableCompanion.insert(id: 'server:z', name: 'Zulu'),
+      PlaylistsTableCompanion.insert(
+        id: 'local:a',
+        name: 'alpha',
+        isLocal: const Value(true),
+      ),
+      PlaylistsTableCompanion.insert(id: 'server:b', name: 'Bravo'),
+    ]);
+    expect(
+      (await database.playlistDao.watchPlaylists().first).map((p) => p.id),
+      ['local:a', 'server:b', 'server:z'],
+    );
+  }, skip: !sqliteAvailable);
+
   for (final serverIds in <List<String>>[
     [],
     ['server:kept'],

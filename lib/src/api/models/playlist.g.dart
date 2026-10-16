@@ -13,6 +13,7 @@ _Playlist _$PlaylistFromJson(Map<String, dynamic> json) => _Playlist(
   duration: (json['duration'] as num?)?.toInt(),
   owner: json['owner'] as String?,
   isPublic: json['public'] as bool?,
+  readOnly: json['readonly'] as bool?,
   coverArt: json['coverArt'] as String?,
   comment: json['comment'] as String?,
   changed: json['changed'] == null
@@ -32,6 +33,7 @@ Map<String, dynamic> _$PlaylistToJson(_Playlist instance) => <String, dynamic>{
   'duration': instance.duration,
   'owner': instance.owner,
   'public': instance.isPublic,
+  'readonly': instance.readOnly,
   'coverArt': instance.coverArt,
   'comment': instance.comment,
   'changed': instance.changed?.toIso8601String(),

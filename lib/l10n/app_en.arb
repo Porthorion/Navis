@@ -1322,6 +1322,12 @@
     }
   },
   "playlistsRenameTitle": "Rename Playlist",
+  "playlistsRenameFailed": "Failed to rename playlist",
+  "playlistsDeleteFailed": "Failed to delete playlist",
+  "playlistsFilterHint": "Search playlists...",
+  "playlistsSectionYours": "Your playlists",
+  "playlistsSectionMadeForYou": "Made for you",
+  "playlistsSectionOther": "Other playlists",
   "playlistDetailTitle": "Playlist",
   "playlistDetailMeta": "{owner} · {count, plural, =0{No songs} =1{1 song} other{{count} songs}}",
   "@playlistDetailMeta": {
@@ -1342,6 +1348,7 @@
   "playlistDetailRemoveTrack": "Remove from playlist",
   "playlistDetailTrackRemoved": "Track removed",
   "playlistDetailTrackRemoveFailed": "Failed to remove track",
+  "playlistDetailReorderFailed": "Failed to reorder tracks",
 
   "addToPlaylistTitle": "Add to Playlist",
   "addToPlaylistSuccess": "Added to \"{name}\"",
@@ -1353,6 +1360,7 @@
     }
   },
   "addToPlaylistNewPlaylist": "New playlist",
+  "addToPlaylistFailed": "Failed to add to playlist",
   "librarySongMenuAddToPlaylist": "Add to playlist",
 
   "cacheSettingsTitle": "Cache & Storage",

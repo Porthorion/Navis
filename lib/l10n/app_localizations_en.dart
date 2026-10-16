@@ -2928,6 +2928,24 @@ class AppLocalizationsEn extends AppLocalizations {
   String get playlistsRenameTitle => 'Rename Playlist';
 
   @override
+  String get playlistsRenameFailed => 'Failed to rename playlist';
+
+  @override
+  String get playlistsDeleteFailed => 'Failed to delete playlist';
+
+  @override
+  String get playlistsFilterHint => 'Search playlists...';
+
+  @override
+  String get playlistsSectionYours => 'Your playlists';
+
+  @override
+  String get playlistsSectionMadeForYou => 'Made for you';
+
+  @override
+  String get playlistsSectionOther => 'Other playlists';
+
+  @override
   String get playlistDetailTitle => 'Playlist';
 
   @override
@@ -2967,6 +2985,9 @@ class AppLocalizationsEn extends AppLocalizations {
   String get playlistDetailTrackRemoveFailed => 'Failed to remove track';
 
   @override
+  String get playlistDetailReorderFailed => 'Failed to reorder tracks';
+
+  @override
   String get addToPlaylistTitle => 'Add to Playlist';
 
   @override
@@ -2976,6 +2997,9 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get addToPlaylistNewPlaylist => 'New playlist';
+
+  @override
+  String get addToPlaylistFailed => 'Failed to add to playlist';
 
   @override
   String get librarySongMenuAddToPlaylist => 'Add to playlist';

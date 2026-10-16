@@ -3,6 +3,19 @@ import 'package:navis/src/api/models/models.dart';
 
 void main() {
   group('Freezed model serialization', () {
+    for (final readOnly in <bool?>[true, false, null]) {
+      test('playlist parses and round-trips readonly=$readOnly', () {
+        final playlist = Playlist.fromJson(<String, dynamic>{
+          'id': 'playlist',
+          'name': 'Playlist',
+          'readonly': ?readOnly,
+        });
+        expect(playlist.readOnly, readOnly);
+        expect(playlist.toJson()['readonly'], readOnly);
+        expect(Playlist.fromJson(playlist.toJson()), playlist);
+      });
+    }
+
     test('serializes and deserializes Song', () {
       const song = Song(
         id: 's1',
