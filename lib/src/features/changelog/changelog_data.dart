@@ -166,6 +166,10 @@ const List<ChangelogVersion> changelogs = [
     ],
     entries: [
       ChangelogEntry(
+        'Dragging Now Playing open or closed is smoother, and its top edge now follows your finger from the mini player',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
         'Notification, Bluetooth and car controls keep working after Android restarts the media service',
         type: ChangelogEntryType.fix,
       ),

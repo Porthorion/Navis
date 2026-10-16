@@ -1711,24 +1711,30 @@ locked version; this introduces no new renderer or package version.
 
 ### Expandable Player Sheet
 
-The `ExpandablePlayerSheet` widget handles the mini player ↔ now playing transition:
+The `ExpandablePlayerSheet` widget (`common_widgets/expandable_player_sheet.dart`)
+handles the phone mini player ↔ Now Playing transition. Desktop, rail and wide
+layouts do not use it.
 
-```dart
-ExpandablePlayerSheet(
-  miniPlayer: MiniPlayerWidget(),
-  fullPlayer: NowPlayingWidget(),
-  isExpanded: isNowPlayingExpanded,
-  onToggleExpanded: () => setState(() {
-    isNowPlayingExpanded = !isNowPlayingExpanded;
-  }),
-)
-```
-
-Features:
-- Smooth height animation
-- Drag gesture support
-- Velocity-based snap
-- Fade transition for content
+- **Panel.** The full player stays mounted but hidden (`Offstage`, tickers off)
+  while collapsed, so opening is instant. A layout delegate places it: its top
+  edge starts at the mini player's top edge and moves to the top of the sheet.
+  The drag maps finger delta to progress over that measured travel, with
+  `DragStartBehavior.down`, so the edge stays under the finger. The panel is an
+  opaque `RepaintBoundary` with no opacity layer; the mini player cross-fades
+  on top of it over the first half of the travel.
+- **No page layout.** The shell extends the body behind the bottom navigation
+  bar (`Scaffold.extendBody`) and keeps the page area clear of it with
+  `_BottomNavInsetPadding`, so the page never resizes while the sheet moves. The
+  bar keeps its size and only fades and slides away over the first quarter of
+  the travel (`_BottomNavReveal`). `test/src/routing/app_shell_navigation_test.dart`
+  counts page layouts during an expand and a collapse.
+- **Callbacks.** `onExpand` and `onCollapse` report a user gesture when the
+  animation completes, not when the fling starts. `onDragStart` lets the shell
+  dismiss the keyboard before the sheet moves. Reduced motion jumps straight to
+  the target.
+- **Queue swipe.** A fast upward swipe on the fully expanded sheet calls
+  `onSwipeUp`, except when it started in the bottom guard zone (system gesture
+  area).
 
 ### Now Playing phone layout
 
