@@ -656,9 +656,11 @@ class _PlaybackSettingsScreenState
       setState(() => _isAutoSaving = true);
     }
     try {
+      // Build on the stored row, never on defaults: the settings stream has
+      // no value while it reloads, and this write replaces the whole row.
       final currentSettings =
           ref.read(appSettingsProvider).asData?.value ??
-          const AppSettingsModel.defaults();
+          await ref.read(settingsRepositoryProvider).getSettings();
       final wifiFormat = _normalizeFormat(_wifiFormat);
       final cellularFormat = _normalizeFormat(_cellularFormat);
       // Copy the stored row so fields owned by other screens (integrations,
