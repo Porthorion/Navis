@@ -231,6 +231,37 @@ void main() {
       expect(status.count, isNull);
       expect(status.lastScan, isNull);
     });
+    test(
+      'playlist creation disables retries for uncertain server outcomes',
+      () async {
+        final dio = Dio();
+        final client = createClient(dio: dio);
+        var calls = 0;
+        dio.interceptors.add(
+          InterceptorsWrapper(
+            onRequest: (options, handler) {
+              calls++;
+              expect(options.path, '/rest/createPlaylist.view');
+              expect(options.queryParameters['name'], 'Mix');
+              expect(options.queryParameters['songId'], ['a', 'a']);
+              expect(options.extra['navisDisableRetry'], isTrue);
+              handler.reject(
+                DioException(
+                  requestOptions: options,
+                  type: DioExceptionType.connectionTimeout,
+                ),
+              );
+            },
+          ),
+        );
+        await expectLater(
+          client.createPlaylist('Mix', songIds: ['a', 'a']),
+          throwsA(isA<SubsonicConnectionException>()),
+        );
+        expect(calls, 1);
+      },
+    );
+
     test('playlist mutations accept an empty success envelope', () async {
       final dio = Dio();
       dio.interceptors.add(

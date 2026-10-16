@@ -1,10 +1,136 @@
-import 'package:drift/drift.dart';
+import 'package:drift/drift.dart' hide isNotNull, isNull;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:navis/src/database/navis_database.dart';
 
 import '../../../helpers/test_database.dart';
 
 void main() {
+  group('device playlists', () {
+    late NavisDatabase database;
+
+    setUp(() async {
+      database = createTestDatabase();
+      await database.libraryDao.upsertSongs([
+        SongsTableCompanion.insert(
+          id: 'a',
+          title: 'A',
+          duration: const Value(12),
+          coverArt: const Value('art-a'),
+        ),
+        SongsTableCompanion.insert(id: 'b', title: 'B'),
+      ]);
+    });
+    tearDown(() => database.close());
+
+    test(
+      'creates unique local IDs, allows duplicate names and occurrences',
+      () async {
+        final dao = database.playlistDao;
+        final id = await dao.createLocalPlaylist('Mix', [
+          'a',
+          'missing',
+          'a',
+          'b',
+        ]);
+        final other = await dao.createLocalPlaylist('Mix', []);
+        expect(id, matches(RegExp(r'^local:[0-9a-f-]{36}$')));
+        expect(other, isNot(id));
+        final row = (await dao.watchPlaylistById(id).first)!;
+        expect(row.isLocal, isTrue);
+        expect(row.songCount, 3);
+        expect(row.duration, 24);
+        expect(row.coverArt, 'art-a');
+        expect((await dao.watchPlaylistSongs(id).first).map((s) => s.id), [
+          'a',
+          'a',
+          'b',
+        ]);
+      },
+    );
+
+    test(
+      'rewrites order, skips unknown occurrences and clears empty metadata',
+      () async {
+        final dao = database.playlistDao;
+        final id = await dao.createLocalPlaylist('Mix', ['a']);
+        expect(
+          await dao.setLocalPlaylistSongs(id, ['gone', 'b', 'a', 'gone', 'a']),
+          2,
+        );
+        var row = (await dao.watchPlaylistById(id).first)!;
+        expect((row.songCount, row.duration, row.coverArt), (3, 24, null));
+        final joins = await (database.select(
+          database.playlistSongsTable,
+        )..orderBy([(t) => OrderingTerm.asc(t.sortOrder)])).get();
+        expect(joins.map((j) => (j.songId, j.sortOrder)), [
+          ('b', 0),
+          ('a', 1),
+          ('a', 2),
+        ]);
+        await dao.renamePlaylist(id, 'Renamed');
+        expect((await dao.watchPlaylistById(id).first)!.name, 'Renamed');
+        expect(await dao.setLocalPlaylistSongs(id, ['gone']), 1);
+        row = (await dao.watchPlaylistById(id).first)!;
+        expect((row.songCount, row.duration, row.coverArt), (0, 0, null));
+        expect(await dao.watchPlaylistSongs(id).first, isEmpty);
+      },
+    );
+
+    test('renaming only touches device playlists', () async {
+      final dao = database.playlistDao;
+      await dao.upsertPlaylists([
+        PlaylistsTableCompanion.insert(id: 'server', name: 'Server'),
+      ]);
+      await dao.renamePlaylist('server', 'Renamed');
+      expect((await dao.watchPlaylistById('server').first)!.name, 'Server');
+    });
+
+    test('a failed join insert rolls back songs and header together', () async {
+      final dao = database.playlistDao;
+      final id = await dao.createLocalPlaylist('Mix', ['a']);
+      await database.customStatement(
+        "CREATE TRIGGER reject_b BEFORE INSERT ON playlist_songs WHEN NEW.song_id = 'b' BEGIN SELECT RAISE(ABORT, 'fixture failure'); END",
+      );
+      await expectLater(
+        dao.setLocalPlaylistSongs(id, ['b']),
+        throwsA(anything),
+      );
+      expect((await dao.watchPlaylistSongs(id).first).map((s) => s.id), ['a']);
+      final row = (await dao.watchPlaylistById(id).first)!;
+      expect((row.songCount, row.duration, row.coverArt), (1, 12, 'art-a'));
+      await expectLater(
+        dao.createLocalPlaylist('Broken', ['b']),
+        throwsA(anything),
+      );
+      expect((await dao.watchPlaylists().first).map((p) => p.id), [id]);
+    });
+
+    test('local replacement refuses missing or server playlists', () async {
+      final dao = database.playlistDao;
+      await dao.upsertPlaylists([
+        PlaylistsTableCompanion.insert(id: 'server', name: 'Server'),
+      ]);
+      for (final id in ['server', 'missing']) {
+        await expectLater(
+          dao.setLocalPlaylistSongs(id, ['a']),
+          throwsStateError,
+        );
+      }
+      expect(await dao.watchPlaylistSongs('server').first, isEmpty);
+      expect((await dao.watchPlaylistById('server').first)!.songCount, isNull);
+    });
+
+    test('handles more song IDs than SQLite parameter limits', () async {
+      final dao = database.playlistDao;
+      final ids = List.generate(1100, (i) => 'song-$i');
+      await database.libraryDao.upsertSongs([
+        for (final id in ids) SongsTableCompanion.insert(id: id, title: id),
+      ]);
+      final id = await dao.createLocalPlaylist('Large', ids);
+      expect(await dao.watchPlaylistSongs(id).first, hasLength(1100));
+    });
+  }, skip: !sqliteAvailable);
+
   test('watchPlaylists mixes local and server names ignoring case', () async {
     final database = createTestDatabase();
     addTearDown(database.close);

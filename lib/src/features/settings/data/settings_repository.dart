@@ -30,6 +30,9 @@ class SettingsRepository {
     return _mapOrDefault(row);
   }
 
+  Future<void> setPlaylistCreateOnServer({required bool enabled}) =>
+      _dao.updatePlaylistCreateOnServer(enabled: enabled);
+
   Future<void> saveSettings(AppSettingsModel settings) async {
     // skipSilenceEnabled is persisted for compatibility with older schema
     // versions but is currently not applied at runtime playback level.

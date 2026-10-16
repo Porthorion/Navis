@@ -4,6 +4,7 @@ import 'package:material_ui/material_ui.dart';
 import 'package:flutter/gestures.dart' show kSecondaryMouseButton;
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:drift/drift.dart' show Value;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:navis/src/features/settings/data/settings_repository.dart';
@@ -39,6 +40,7 @@ import 'package:navis/src/features/player/presentation/queue_provider.dart';
 import 'package:navis/src/features/playlists/data/playlist_actions.dart';
 import 'package:navis/src/features/playlists/presentation/playlist_providers.dart';
 import 'package:navis/src/providers/app_providers.dart';
+import 'package:navis/src/utils/connectivity.dart';
 import 'package:navis/src/routing/desktop_layout.dart';
 import 'package:scrollable_positioned_list/scrollable_positioned_list.dart';
 
@@ -357,10 +359,32 @@ const _roadTrip = PlaylistsTableData(
   songCount: 4,
 );
 
+const _deviceMix = PlaylistsTableData(
+  isLocal: true,
+  id: 'local:device-mix',
+  name: 'Device Mix',
+  songCount: 3,
+);
+
+class _PlaylistItems extends Notifier<AsyncValue<List<PlaylistLibraryItem>>> {
+  @override
+  AsyncValue<List<PlaylistLibraryItem>> build() => const AsyncData(
+    <PlaylistLibraryItem>[PlaylistLibraryItem.normal(_roadTrip)],
+  );
+
+  void set(List<PlaylistLibraryItem> items) => state = AsyncData(items);
+}
+
+final _playlistItemsProvider =
+    NotifierProvider<_PlaylistItems, AsyncValue<List<PlaylistLibraryItem>>>(
+      _PlaylistItems.new,
+    );
+
 /// Opens Library › Playlists with [items] as the already-grouped rows.
 Future<void> _pumpPlaylistsTab(
   WidgetTester tester, {
   required List<PlaylistLibraryItem> items,
+  bool liveItems = false,
   List<Object?> overrides = const <Object?>[],
   String? viewer,
   AppNoticeController? notices,
@@ -384,9 +408,14 @@ Future<void> _pumpPlaylistsTab(
         ),
         playlistSyncProvider.overrideWith((ref) async {}),
         playlistViewerProvider.overrideWithValue(viewer),
-        playlistLibraryItemsProvider.overrideWithValue(
-          AsyncData<List<PlaylistLibraryItem>>(items),
-        ),
+        if (liveItems)
+          playlistLibraryItemsProvider.overrideWith(
+            (ref) => ref.watch(_playlistItemsProvider),
+          )
+        else
+          playlistLibraryItemsProvider.overrideWithValue(
+            AsyncData<List<PlaylistLibraryItem>>(items),
+          ),
         ...overrides,
       ],
     ),
@@ -2321,6 +2350,39 @@ void main() {
     });
 
     _testWidgetsWithCleanup(
+      'playlists tab drops a hidden filter when the list becomes empty',
+      (tester) async {
+        await _pumpPlaylistsTab(
+          tester,
+          items: const <PlaylistLibraryItem>[],
+          liveItems: true,
+        );
+        final container = ProviderScope.containerOf(
+          tester.element(find.byType(Scaffold).first),
+        );
+        final items = container.read(_playlistItemsProvider.notifier);
+
+        await tester.enterText(find.byType(TextField), 'zzz');
+        await tester.pumpAndSettle();
+        expect(find.text('Road Trip'), findsNothing);
+
+        items.set(const <PlaylistLibraryItem>[]);
+        await tester.pumpAndSettle();
+        expect(find.byType(TextField), findsNothing);
+
+        items.set(const <PlaylistLibraryItem>[
+          PlaylistLibraryItem.normal(_roadTrip),
+        ]);
+        await tester.pumpAndSettle();
+        expect(find.text('Road Trip'), findsOneWidget);
+        expect(
+          tester.widget<TextField>(find.byType(TextField)).controller?.text,
+          isEmpty,
+        );
+      },
+    );
+
+    _testWidgetsWithCleanup(
       'playlists tab shows a notice when renaming or deleting fails',
       (tester) async {
         final actions = _MockPlaylistActions();
@@ -2364,6 +2426,125 @@ void main() {
 
         verify(() => actions.delete(_roadTrip)).called(1);
         expect(notices.notice?.message, 'Failed to delete playlist');
+      },
+    );
+
+    _testWidgetsWithCleanup(
+      'playlists tab marks device playlists and confirms their deletion locally',
+      (tester) async {
+        final actions = _MockPlaylistActions();
+        when(() => actions.delete(any())).thenAnswer((_) async {});
+        await _pumpPlaylistsTab(
+          tester,
+          items: const <PlaylistLibraryItem>[
+            PlaylistLibraryItem.normal(_deviceMix),
+            PlaylistLibraryItem.normal(_roadTrip),
+          ],
+          overrides: [playlistActionsProvider.overrideWithValue(actions)],
+        );
+
+        expect(find.text('On this device · 3 songs'), findsOneWidget);
+        expect(find.text('4 songs'), findsOneWidget);
+
+        await tester.longPress(find.text('Device Mix'));
+        await tester.pumpAndSettle();
+        await tester.tap(find.text('Delete Playlist?'));
+        await tester.pumpAndSettle();
+        expect(
+          find.text(
+            'This will permanently delete "Device Mix" from this device. '
+            'It is not saved on your server.',
+          ),
+          findsOneWidget,
+        );
+        await tester.tap(find.widgetWithText(FilledButton, 'Delete Playlist?'));
+        await tester.pumpAndSettle();
+        verify(() => actions.delete(_deviceMix)).called(1);
+
+        await tester.longPress(find.text('Road Trip'));
+        await tester.pumpAndSettle();
+        await tester.tap(find.text('Delete Playlist?'));
+        await tester.pumpAndSettle();
+        expect(
+          find.text('This will permanently delete "Road Trip".'),
+          findsOneWidget,
+        );
+      },
+    );
+
+    _testWidgetsWithCleanup(
+      'a device playlist created offline appears under Your playlists',
+      (tester) async {
+        final notices = AppNoticeController();
+        addTearDown(notices.dispose);
+        await tester.runAsync(
+          () => _testDatabase.playlistDao.upsertPlaylists([
+            PlaylistsTableCompanion.insert(
+              id: 'theirs',
+              name: 'Their Mix',
+              owner: const Value('alice'),
+            ),
+          ]),
+        );
+        addTearDown(() => _testDatabase.playlistDao.deletePlaylist('theirs'));
+        setAdaptiveTestViewport(tester, const Size(400, 900));
+        await tester.pumpWidget(
+          _buildLibraryScreenRouter(
+            showPlaylistsPage: true,
+            notices: notices,
+            overrides: [
+              librarySyncControllerProvider.overrideWith(
+                () => _FakeLibrarySyncController(const LibrarySyncState.idle()),
+              ),
+              albumCountProvider.overrideWithValue(const AsyncData(0)),
+              pagedAlbumsProvider.overrideWith(
+                (ref, request) => Stream.value(const <AlbumsTableData>[]),
+              ),
+              artistsProvider.overrideWithValue(
+                const AsyncData(<ArtistsTableData>[]),
+              ),
+              playlistSyncProvider.overrideWith((ref) async {}),
+              playlistViewerProvider.overrideWithValue('me'),
+              networkTypeProvider.overrideWithValue(NetworkType.offline),
+            ],
+          ),
+        );
+        await tester.pumpAndSettle();
+        await tester.ensureVisible(find.text('Playlists'));
+        await tester.tap(find.text('Playlists'));
+        await tester.pumpAndSettle();
+        expect(find.text('Your playlists'), findsNothing);
+
+        await tester.tap(find.byTooltip('New Playlist'));
+        await tester.pumpAndSettle();
+        expect(find.text('Save to server'), findsOneWidget);
+        expect(tester.widget<Switch>(find.byType(Switch)).onChanged, isNull);
+        await tester.enterText(
+          find.descendant(
+            of: find.byType(AlertDialog),
+            matching: find.byType(TextField),
+          ),
+          'Commute',
+        );
+        await tester.tap(find.widgetWithText(FilledButton, 'New Playlist'));
+        await tester.runAsync(
+          () => Future<void>.delayed(const Duration(milliseconds: 50)),
+        );
+        await tester.pumpAndSettle();
+
+        final created = (await tester.runAsync(
+          () => _testDatabase.playlistDao.watchPlaylists().first,
+        ))!.singleWhere((playlist) => playlist.isLocal);
+        addTearDown(() => _testDatabase.playlistDao.deletePlaylist(created.id));
+        expect(find.text('Your playlists'), findsOneWidget);
+        expect(find.text('Other playlists'), findsOneWidget);
+        expect(find.text('Commute'), findsOneWidget);
+        expect(find.text('On this device · No songs'), findsOneWidget);
+        expect(
+          tester.getTopLeft(find.text('Commute')).dy,
+          lessThan(tester.getTopLeft(find.text('Their Mix')).dy),
+        );
+        notices.dismiss();
       },
     );
 

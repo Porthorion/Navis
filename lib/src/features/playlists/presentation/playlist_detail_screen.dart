@@ -210,7 +210,9 @@ class _PlaylistDetailScreenState extends ConsumerState<PlaylistDetailScreen> {
                                 const SizedBox(height: 6),
                                 Text(
                                   l10n.playlistDetailMeta(
-                                    playlist.owner ?? '',
+                                    playlist.isLocal
+                                        ? l10n.playlistsOnDevice
+                                        : playlist.owner ?? '',
                                     visibleSongs.length,
                                   ),
                                 ),
@@ -265,7 +267,9 @@ class _PlaylistDetailScreenState extends ConsumerState<PlaylistDetailScreen> {
                         padding: const EdgeInsets.fromLTRB(16, 0, 16, 10),
                         child: Text(
                           l10n.playlistDetailMeta(
-                            playlist.owner ?? '',
+                            playlist.isLocal
+                                ? l10n.playlistsOnDevice
+                                : playlist.owner ?? '',
                             visibleSongs.length,
                           ),
                         ),

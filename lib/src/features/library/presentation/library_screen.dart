@@ -38,6 +38,8 @@ import 'package:navis/src/features/library/presentation/library_sync_provider.da
 import 'package:navis/src/features/player/presentation/queue_provider.dart';
 import 'package:navis/src/features/playlists/data/playlist_actions.dart';
 import 'package:navis/src/features/playlists/domain/playlist_ownership.dart';
+import 'package:navis/src/features/playlists/presentation/create_playlist_dialog.dart';
+import 'package:navis/src/common_widgets/navis_section_header.dart';
 import 'package:navis/src/features/playlists/presentation/playlist_providers.dart';
 import 'package:navis/src/features/search/presentation/search_controller_provider.dart'
     show quickSearchOverlayVisibleProvider;
@@ -51,7 +53,6 @@ import 'package:navis/src/common_widgets/responsive_content_grid.dart';
 import 'package:navis/src/common_widgets/content_shelf.dart';
 import 'package:navis/src/common_widgets/adaptive_track_row.dart';
 import 'package:navis/src/common_widgets/entity_action_bar.dart';
-import 'package:navis/src/common_widgets/navis_section_header.dart';
 import 'package:navis/src/routing/content_layout.dart';
 import 'package:scrollable_positioned_list/scrollable_positioned_list.dart';
 import 'package:navis/src/features/library/presentation/liked_playback_provider.dart';

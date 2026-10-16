@@ -1229,8 +1229,6 @@
   },
   "ratingUpdateFailed": "Could not update rating.",
   "queueSaveAsPlaylist": "Save as playlist",
-  "queueSaveAsPlaylistName": "Playlist name",
-  "queueSaveAsPlaylistSaved": "Playlist saved",
 
   "searchHint": "Search artists, albums, songs...",
   "quickSearchHint": "Search library...",
@@ -1321,6 +1319,18 @@
       }
     }
   },
+  "playlistsDeleteLocalConfirmMessage": "This will permanently delete \"{name}\" from this device. It is not saved on your server.",
+  "@playlistsDeleteLocalConfirmMessage": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "playlistsOnDevice": "On this device",
+  "playlistsSaveToServerLabel": "Save to server",
+  "playlistsSaveToServerSubtitle": "Off keeps this playlist on this device only",
+  "playlistsSaveToServerOfflineSubtitle": "Unavailable offline. The playlist stays on this device",
   "playlistsRenameTitle": "Rename Playlist",
   "playlistsRenameFailed": "Failed to rename playlist",
   "playlistsDeleteFailed": "Failed to delete playlist",
@@ -1356,6 +1366,17 @@
     "placeholders": {
       "name": {
         "type": "String"
+      }
+    }
+  },
+  "addToPlaylistPartial": "Added to \"{name}\"; {skipped, plural, =1{1 song was} other{{skipped} songs were}} skipped",
+  "@addToPlaylistPartial": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      },
+      "skipped": {
+        "type": "int"
       }
     }
   },
