@@ -8,7 +8,11 @@ import 'package:navis/l10n/navis_localizations.dart';
 import 'package:navis/src/common_widgets/app_notice.dart';
 import 'package:navis/src/common_widgets/desktop/desktop_primitives.dart';
 import 'package:navis/src/common_widgets/song_download_status_icon.dart';
+import 'package:navis/src/api/subsonic_api_client.dart';
 import 'package:navis/src/database/navis_database.dart';
+import 'package:navis/src/features/library/domain/library_sync_request.dart';
+import 'package:navis/src/features/library/domain/library_sync_state.dart';
+import 'package:navis/src/features/library/presentation/library_sync_provider.dart';
 import 'package:navis/src/features/player/presentation/queue_provider.dart';
 import 'package:navis/src/features/playlists/data/playlist_actions.dart';
 import 'package:navis/src/features/playlists/presentation/playlist_detail_screen.dart';
@@ -32,6 +36,21 @@ const _playlist = PlaylistsTableData(
 );
 
 class _MockPlaylistActions extends Mock implements PlaylistActions;
+
+class _MockApi extends Mock implements SubsonicApiClient;
+
+class _RecordingSync extends LibrarySyncController {
+  final targets = <LibrarySyncTarget>[];
+
+  @override
+  LibrarySyncState build() => const LibrarySyncState.idle();
+
+  @override
+  Future<LibrarySyncState> requestTarget(LibrarySyncTarget target) async {
+    targets.add(target);
+    return const LibrarySyncState.idle();
+  }
+}
 
 const _twoSongs = <SongsTableData>[
   SongsTableData(
@@ -343,5 +362,84 @@ void main() {
       ).called(1);
       expect(notices.notice?.message, 'Failed to reorder tracks');
     });
+  });
+
+  group('device playlist detail', () {
+    testWidgets(
+      'shows On this device, makes no server call and edits offline',
+      (tester) async {
+        setAdaptiveTestViewport(tester, const Size(390, 844));
+        final database = createTestDatabase();
+        addTearDown(database.close);
+        final api = _MockApi();
+        final sync = _RecordingSync();
+        final notices = AppNoticeController();
+        addTearDown(notices.dispose);
+        final id = (await tester.runAsync(() async {
+          await database.libraryDao.upsertSongs([
+            SongsTableCompanion.insert(id: 'a', title: 'First song'),
+            SongsTableCompanion.insert(id: 'b', title: 'Second song'),
+          ]);
+          return database.playlistDao.createLocalPlaylist('Device', ['a', 'b']);
+        }))!;
+        await tester.pumpWidget(
+          ProviderScope(
+            overrides: withTestDatabase(
+              database,
+              overrides: [
+                subsonicApiProvider.overrideWithValue(api),
+                librarySyncControllerProvider.overrideWith(() => sync),
+                playlistViewerProvider.overrideWithValue('me'),
+                appSettingsProvider.overrideWithValue(
+                  const AsyncData(AppSettingsModel.defaults()),
+                ),
+                songDownloadStateProvider.overrideWith(
+                  (ref, songId) => SongDownloadState.none,
+                ),
+              ],
+            ),
+            child: MaterialApp(
+              theme: testTheme(),
+              localizationsDelegates: navisLocalizationsDelegates,
+              supportedLocales: AppLocalizations.supportedLocales,
+              builder: (context, child) =>
+                  AppNoticeScope(notifier: notices, child: child!),
+              home: AdaptiveContextScope(
+                adaptiveContext: resolveAdaptiveContext(
+                  desktopRuntime: false,
+                  viewportSize: const Size(390, 844),
+                  safePadding: EdgeInsets.zero,
+                ),
+                child: PlaylistDetailScreen(playlistId: id),
+              ),
+            ),
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        expect(find.text('On this device · 2 songs'), findsOneWidget);
+        expect(find.byIcon(Icons.drag_handle), findsNWidgets(2));
+        expect(sync.targets, isEmpty);
+        verifyZeroInteractions(api);
+
+        await tester.longPress(find.text('Second song'));
+        await tester.pumpAndSettle();
+        await tester.tap(find.text('Remove from playlist'));
+        await tester.runAsync(
+          () => Future<void>.delayed(const Duration(milliseconds: 50)),
+        );
+        await tester.pumpAndSettle();
+
+        expect(find.text('On this device · 1 song'), findsOneWidget);
+        final remaining = await tester.runAsync(
+          () => database.playlistDao.watchPlaylistSongs(id).first,
+        );
+        expect(remaining!.map((song) => song.id), ['a']);
+        expect(sync.targets, isEmpty);
+        verifyZeroInteractions(api);
+        notices.dismiss();
+      },
+      skip: !sqliteAvailable,
+    );
   });
 }

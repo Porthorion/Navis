@@ -2761,12 +2761,6 @@ class AppLocalizationsEn extends AppLocalizations {
   String get queueSaveAsPlaylist => 'Save as playlist';
 
   @override
-  String get queueSaveAsPlaylistName => 'Playlist name';
-
-  @override
-  String get queueSaveAsPlaylistSaved => 'Playlist saved';
-
-  @override
   String get searchHint => 'Search artists, albums, songs...';
 
   @override
@@ -2925,6 +2919,25 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
+  String playlistsDeleteLocalConfirmMessage(String name) {
+    return 'This will permanently delete \"$name\" from this device. It is not saved on your server.';
+  }
+
+  @override
+  String get playlistsOnDevice => 'On this device';
+
+  @override
+  String get playlistsSaveToServerLabel => 'Save to server';
+
+  @override
+  String get playlistsSaveToServerSubtitle =>
+      'Off keeps this playlist on this device only';
+
+  @override
+  String get playlistsSaveToServerOfflineSubtitle =>
+      'Unavailable offline. The playlist stays on this device';
+
+  @override
   String get playlistsRenameTitle => 'Rename Playlist';
 
   @override
@@ -2993,6 +3006,17 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String addToPlaylistSuccess(String name) {
     return 'Added to \"$name\"';
+  }
+
+  @override
+  String addToPlaylistPartial(String name, int skipped) {
+    String _temp0 = intl.Intl.pluralLogic(
+      skipped,
+      locale: localeName,
+      other: '$skipped songs were',
+      one: '1 song was',
+    );
+    return 'Added to \"$name\"; $_temp0 skipped';
   }
 
   @override

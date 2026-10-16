@@ -475,6 +475,7 @@ class SubsonicApiClient {
       '/rest/createPlaylist.view',
       query: {'name': name, if (songIds.isNotEmpty) 'songId': songIds},
       cancelToken: cancelToken,
+      disableRetry: true,
     );
 
     final playlist = _asMap(root['playlist']);

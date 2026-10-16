@@ -1,6 +1,8 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:navis/src/database/navis_database.dart';
 import 'package:navis/src/features/auth/presentation/server_config_provider.dart';
+import 'package:navis/src/features/auth/domain/server_reachability.dart';
+import 'package:navis/src/features/auth/presentation/server_reachability_provider.dart';
 import 'package:navis/src/features/home/presentation/home_deezer_providers.dart';
 import 'package:navis/src/features/home/presentation/home_providers.dart';
 import 'package:navis/src/features/integrations/domain/integration_feature.dart';
@@ -12,6 +14,7 @@ import 'package:navis/src/features/playlists/domain/playlist_ownership.dart';
 import 'package:navis/src/providers/app_providers.dart';
 import 'package:navis/src/routing/navigation_service.dart';
 import 'package:navis/src/utils/app_logger.dart';
+import 'package:navis/src/utils/connectivity.dart';
 
 const String listenBrainzWeeklyExplorationVirtualPlaylistId =
     'virtual:listenbrainz:weekly-exploration';
@@ -162,6 +165,43 @@ final playlistLibraryItemsProvider =
       );
     });
 
+/// Whether the create dialog can offer server storage.
+final playlistServerCreationAvailableProvider = Provider<bool>((ref) {
+  return ref.watch(networkTypeProvider) != NetworkType.offline &&
+      ref.watch(subsonicApiProvider) != null &&
+      ref.watch(
+            serverReachabilityControllerProvider.select(
+              (state) => state.status,
+            ),
+          ) !=
+          ServerReachabilityStatus.offline;
+});
+
+final playlistCreateOnServerProvider =
+    NotifierProvider<PlaylistCreateOnServerController, bool>(
+      PlaylistCreateOnServerController.new,
+    );
+
+/// The sticky destination choice, forced off without saving while offline.
+class PlaylistCreateOnServerController extends Notifier<bool> {
+  @override
+  bool build() {
+    final saved = ref.watch(
+      appSettingsProvider.select(
+        (settings) => settings.asData?.value.playlistCreateOnServer ?? true,
+      ),
+    );
+    return ref.watch(playlistServerCreationAvailableProvider) && saved;
+  }
+
+  Future<void> setOnServer({required bool enabled}) async {
+    if (!ref.read(playlistServerCreationAvailableProvider)) return;
+    await ref
+        .read(settingsRepositoryProvider)
+        .setPlaylistCreateOnServer(enabled: enabled);
+  }
+}
+
 /// Reconciles the authoritative server playlist list through the durable sync
 /// coordinator. Changed playlist contents are queued for targeted hydration.
 final playlistSyncProvider = FutureProvider.autoDispose<void>((ref) async {
@@ -173,10 +213,17 @@ final playlistSyncProvider = FutureProvider.autoDispose<void>((ref) async {
   }
 });
 
-/// Family provider: fetches a single playlist's songs from the server
-/// and stores them locally. Returns the playlist metadata + song list.
+/// Hydrates server playlist songs; device playlists use only stored rows.
 final playlistDetailSyncProvider = FutureProvider.autoDispose
     .family<void, String>((ref, playlistId) async {
+      final db = ref.read(navisDatabaseProvider);
+      final playlist = await db.playlistDao.watchPlaylistById(playlistId).first;
+      // Deleted device rows still have a local namespace, never a server ID.
+      if (!ref.mounted ||
+          playlist?.isLocal == true ||
+          playlistId.startsWith('local:')) {
+        return;
+      }
       final result = await ref
           .read(librarySyncControllerProvider.notifier)
           .requestTarget(LibrarySyncTarget.playlist(playlistId));

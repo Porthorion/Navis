@@ -8,8 +8,8 @@ import 'package:navis/src/common_widgets/cover_art_image.dart';
 import 'package:navis/src/database/navis_database.dart';
 import 'package:navis/src/features/playlists/data/playlist_actions.dart';
 import 'package:navis/src/features/playlists/domain/playlist_ownership.dart';
+import 'package:navis/src/features/playlists/presentation/create_playlist_dialog.dart';
 import 'package:navis/src/features/playlists/presentation/playlist_providers.dart';
-import 'package:navis/src/providers/app_providers.dart';
 import 'package:navis/src/routing/desktop_layout.dart';
 import 'package:navis/src/theme/artwork_shape.dart';
 
@@ -107,7 +107,9 @@ class _AddToPlaylistSheet extends ConsumerWidget {
           title: Text(l10n.addToPlaylistNewPlaylist),
           onTap: () {
             Navigator.of(context).pop();
-            _showCreateAndAddDialog(context, ref);
+            unawaited(
+              showCreatePlaylistDialog(launcher, ref, songIds: songIds),
+            );
           },
         ),
         Expanded(
@@ -145,7 +147,12 @@ class _AddToPlaylistSheet extends ConsumerWidget {
                       overflow: TextOverflow.ellipsis,
                     ),
                     subtitle: Text(
-                      l10n.playlistsSongCount(playlist.songCount ?? 0),
+                      playlist.isLocal
+                          ? l10n.playlistDetailMeta(
+                              l10n.playlistsOnDevice,
+                              playlist.songCount ?? 0,
+                            )
+                          : l10n.playlistsSongCount(playlist.songCount ?? 0),
                     ),
                     onTap: () => _addToPlaylist(context, ref, playlist),
                   );
@@ -175,94 +182,28 @@ class _AddToPlaylistSheet extends ConsumerWidget {
     PlaylistsTableData playlist,
   ) async {
     final l10n = AppLocalizations.of(launcher)!;
-    String? failure;
+    var skipped = 0;
+    var failed = false;
     try {
-      final skipped = await actions.addSongs(playlist, songIds);
-      if (skipped >= songIds.length) failure = l10n.addToPlaylistFailed;
+      skipped = await actions.addSongs(playlist, songIds);
+      failed = skipped >= songIds.length;
     } on Object {
-      failure = l10n.addToPlaylistFailed;
+      failed = true;
     }
     if (!launcher.mounted) return;
+    final partial = !failed && skipped > 0;
     showAppNotice(
       launcher,
-      message: failure ?? l10n.addToPlaylistSuccess(playlist.name),
-      level: failure == null ? AppNoticeLevel.success : AppNoticeLevel.error,
-    );
-  }
-
-  void _showCreateAndAddDialog(BuildContext context, WidgetRef ref) {
-    final l10n = AppLocalizations.of(context)!;
-    final controller = TextEditingController();
-
-    showDialog<void>(
-      context: context,
-      builder: (dialogContext) => AlertDialog(
-        title: Text(l10n.playlistsCreateTitle),
-        content: TextField(
-          controller: controller,
-          autofocus: true,
-          decoration: InputDecoration(labelText: l10n.playlistsCreateNameLabel),
-          onSubmitted: (_) => _createAndAdd(
-            dialogContext,
-            context,
-            ref,
-            controller.text.trim(),
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(dialogContext).pop(),
-            child: Text(l10n.cancelAction),
-          ),
-          FilledButton(
-            onPressed: () => _createAndAdd(
-              dialogContext,
-              context,
-              ref,
-              controller.text.trim(),
-            ),
-            child: Text(l10n.playlistsCreateAction),
-          ),
-        ],
-      ),
-    );
-  }
-
-  void _createAndAdd(
-    BuildContext dialogContext,
-    BuildContext parentContext,
-    WidgetRef ref,
-    String name,
-  ) {
-    if (name.isEmpty) return;
-    Navigator.of(dialogContext).pop();
-
-    final l10n = AppLocalizations.of(parentContext)!;
-    final api = ref.read(subsonicApiProvider);
-    if (api == null) return;
-
-    unawaited(
-      api
-          .createPlaylist(name, songIds: songIds)
-          .then((_) {
-            ref.invalidate(playlistSyncProvider);
-            if (parentContext.mounted) {
-              showAppNotice(
-                parentContext,
-                message: l10n.playlistsCreateSuccess,
-                level: AppNoticeLevel.success,
-              );
-            }
-          })
-          .catchError((_) {
-            if (parentContext.mounted) {
-              showAppNotice(
-                parentContext,
-                message: l10n.playlistsCreateFailed,
-                level: AppNoticeLevel.error,
-              );
-            }
-          }),
+      message: failed
+          ? l10n.addToPlaylistFailed
+          : partial
+          ? l10n.addToPlaylistPartial(playlist.name, skipped)
+          : l10n.addToPlaylistSuccess(playlist.name),
+      level: failed
+          ? AppNoticeLevel.error
+          : partial
+          ? AppNoticeLevel.info
+          : AppNoticeLevel.success,
     );
   }
 }

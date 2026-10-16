@@ -166,6 +166,11 @@ const List<ChangelogVersion> changelogs = [
     ],
     entries: [
       ChangelogEntry(
+        'Device-only playlists can be created and edited offline, with '
+        'their songs available to the queue, downloads and Android Auto.',
+        type: ChangelogEntryType.newFeature,
+      ),
+      ChangelogEntry(
         'Your playlists appear before weekly mixes and other server playlists, under section headings',
       ),
       ChangelogEntry('Playlists can be filtered by name'),
@@ -175,6 +180,10 @@ const List<ChangelogVersion> changelogs = [
       ),
       ChangelogEntry(
         'Renaming, deleting, reordering or adding to a playlist now tells you when it fails',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
+        'Saving the queue as a playlist now offers the Save to server choice, falls back to this device when offline, and tells you when it fails',
         type: ChangelogEntryType.fix,
       ),
       ChangelogEntry(

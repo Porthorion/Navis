@@ -176,11 +176,21 @@ class _LibraryPlaylistsTabState extends ConsumerState<_LibraryPlaylistsTab>
               )
               .toList(growable: false);
 
+    final showFilterField = !desktopMode && effectiveItems.isNotEmpty;
+    // A hidden field must not keep filtering rows that appear later.
+    if (!showFilterField && _filterController.text.isNotEmpty) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        _filterController.clear();
+        setState(() {});
+      });
+    }
+
     return Stack(
       children: [
         Column(
           children: <Widget>[
-            if (!desktopMode && effectiveItems.isNotEmpty)
+            if (showFilterField)
               ListFilterField(
                 controller: _filterController,
                 hint: l10n.playlistsFilterHint,
@@ -272,7 +282,7 @@ class _LibraryPlaylistsTabState extends ConsumerState<_LibraryPlaylistsTab>
           right: 16,
           child: FloatingActionButton(
             heroTag: 'library_playlists_fab',
-            onPressed: () => _showCreatePlaylistDialog(context),
+            onPressed: () => showCreatePlaylistDialog(context, ref),
             tooltip: l10n.playlistsCreateAction,
             child: const Icon(Icons.add),
           ),
@@ -436,7 +446,14 @@ class _LibraryPlaylistsTabState extends ConsumerState<_LibraryPlaylistsTab>
         ),
       ),
       title: Text(playlist.name),
-      subtitle: playlist.songCount != null
+      subtitle: playlist.isLocal
+          ? Text(
+              l10n.playlistDetailMeta(
+                l10n.playlistsOnDevice,
+                playlist.songCount ?? 0,
+              ),
+            )
+          : playlist.songCount != null
           ? Text(l10n.playlistsSongCount(playlist.songCount!))
           : null,
       trailing: desktopMode && canEdit
@@ -478,67 +495,6 @@ class _LibraryPlaylistsTabState extends ConsumerState<_LibraryPlaylistsTab>
         anchor: details.globalPosition,
       ),
       child: tile,
-    );
-  }
-
-  void _showCreatePlaylistDialog(BuildContext context) {
-    final l10n = AppLocalizations.of(context)!;
-    final controller = TextEditingController();
-
-    showDialog<void>(
-      context: context,
-      builder: (dialogContext) => AlertDialog(
-        title: Text(l10n.playlistsCreateTitle),
-        content: TextField(
-          controller: controller,
-          autofocus: true,
-          decoration: InputDecoration(labelText: l10n.playlistsCreateNameLabel),
-          onSubmitted: (_) =>
-              _createPlaylist(dialogContext, controller.text.trim()),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(dialogContext).pop(),
-            child: Text(l10n.cancelAction),
-          ),
-          FilledButton(
-            onPressed: () =>
-                _createPlaylist(dialogContext, controller.text.trim()),
-            child: Text(l10n.playlistsCreateAction),
-          ),
-        ],
-      ),
-    );
-  }
-
-  void _createPlaylist(BuildContext dialogContext, String name) {
-    if (name.isEmpty) return;
-    Navigator.of(dialogContext).pop();
-
-    final l10n = AppLocalizations.of(context)!;
-    final api = ref.read(subsonicApiProvider);
-    if (api == null) return;
-
-    unawaited(
-      api
-          .createPlaylist(name)
-          .then((_) {
-            if (!mounted) return;
-            showAppNotice(
-              context,
-              message: l10n.playlistsCreateSuccess,
-              level: AppNoticeLevel.success,
-            );
-            ref.invalidate(playlistSyncProvider);
-          })
-          .catchError((_) {
-            if (!mounted) return;
-            showAppNotice(
-              context,
-              message: l10n.playlistsCreateFailed,
-              level: AppNoticeLevel.error,
-            );
-          }),
     );
   }
 
@@ -691,7 +647,11 @@ class _LibraryPlaylistsTabState extends ConsumerState<_LibraryPlaylistsTab>
       context: context,
       builder: (dialogContext) => AlertDialog(
         title: Text(l10n.playlistsDeleteConfirmTitle),
-        content: Text(l10n.playlistsDeleteConfirmMessage(playlist.name)),
+        content: Text(
+          playlist.isLocal
+              ? l10n.playlistsDeleteLocalConfirmMessage(playlist.name)
+              : l10n.playlistsDeleteConfirmMessage(playlist.name),
+        ),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(dialogContext).pop(),

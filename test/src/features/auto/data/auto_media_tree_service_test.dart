@@ -63,6 +63,33 @@ void main() {
     await database.close();
   });
 
+  test(
+    'device playlists and duplicate songs browse without a server',
+    () async {
+      await database.libraryDao.upsertSongs([
+        SongsTableCompanion.insert(id: 'a', title: 'A'),
+        SongsTableCompanion.insert(id: 'b', title: 'B'),
+      ]);
+      final id = await database.playlistDao.createLocalPlaylist('Device mix', [
+        'a',
+        'b',
+        'a',
+      ]);
+      final lists = await service.getChildren(AutoMediaRoot.playlists);
+      expect(lists.map((p) => p.id), ['playlist/$id']);
+      expect(lists.single.title, 'Device mix');
+      final songs = await service.getChildren(lists.single.id);
+      expect(songs.map((s) => s.title), ['A', 'B', 'A']);
+      expect(songs.every((s) => s.playable == true), isTrue);
+      for (final song in songs) {
+        final parsed = AutoMediaId.parse(song.id)!;
+        expect(parsed.contextType, AutoMediaContextType.playlist);
+        expect(parsed.contextId, id);
+      }
+    },
+    skip: !sqliteAvailable,
+  );
+
   // ── Root children ─────────────────────────────────────────────────────────
 
   group('getChildren - root', () {
