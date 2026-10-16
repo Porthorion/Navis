@@ -645,7 +645,6 @@ void main() {
       'Cover art shape: Rounded',
       writers: {'updateCoverArtShape'},
       columns: {'coverArtShape'},
-      fields: {'coverArtShape'},
       act: (t) => tap(
         t,
         shape(l10n.appearanceCoverArtShapeSubLabel, l10n.shapeRounded),
@@ -656,7 +655,6 @@ void main() {
       'Cover art shape: Square',
       writers: {'updateCoverArtShape'},
       columns: {'coverArtShape'},
-      fields: {'coverArtShape'},
       seed: (db) => db.appSettingsDao.updateCoverArtShape('rounded'),
       act: (t) =>
           tap(t, shape(l10n.appearanceCoverArtShapeSubLabel, l10n.shapeSquare)),
@@ -670,7 +668,6 @@ void main() {
         'Now Playing art shape: $name',
         writers: {'updateNowPlayingArtShape'},
         columns: {'nowPlayingArtShape'},
-        fields: {'nowPlayingArtShape'},
         act: (t) => tap(t, shape(l10n.appearanceNpArtShapeLabel, label)),
         effect: (c) => expect(c.read(nowPlayingArtShapeProvider), name),
       ),
@@ -682,7 +679,6 @@ void main() {
         'Artist card shape: $name',
         writers: {'updateArtistCardShape'},
         columns: {'artistCardShape'},
-        fields: {'artistCardShape'},
         act: (t) => tap(t, shape(l10n.appearanceArtistCardShapeLabel, label)),
         effect: (c) => expect(c.read(artistCardShapeProvider), name),
       ),
@@ -695,7 +691,6 @@ void main() {
         'Artwork size: $name',
         writers: {'updateGridArtworkSize'},
         columns: {'gridArtworkSize'},
-        fields: {'gridArtworkSize'},
         act: (t) => tap(t, find.widgetWithText(ChoiceChip, label)),
         effect: (c) => expect(c.read(gridArtworkSizeProvider).name, name),
       ),
@@ -703,7 +698,6 @@ void main() {
       'Artwork size: Auto',
       writers: {'updateGridArtworkSize'},
       columns: {'gridArtworkSize'},
-      fields: {'gridArtworkSize'},
       seed: (db) => db.appSettingsDao.updateGridArtworkSize('large'),
       act: (t) => tap(
         t,
@@ -715,7 +709,6 @@ void main() {
       'Density: Compact',
       writers: {'updateDensity'},
       columns: {'homeDensity'},
-      fields: {'density'},
       act: (t) =>
           tap(t, inSelector('densitySelector', l10n.appearanceDensityCompact)),
       effect: (c) => expect(c.read(densityProvider).storageKey, 'compact'),
@@ -724,7 +717,6 @@ void main() {
       'Density: Comfortable',
       writers: {'updateDensity'},
       columns: {'homeDensity'},
-      fields: {'density'},
       seed: (db) => db.appSettingsDao.updateDensity(NavisDensity.compact),
       act: (t) => tap(
         t,
@@ -736,7 +728,6 @@ void main() {
       'Artist view: List',
       writers: {'updateArtistViewMode'},
       columns: {'artistViewMode'},
-      fields: {'artistViewMode'},
       act: (t) => tap(t, find.text(l10n.appearanceArtistViewModeList)),
       effect: (c) => expect(c.read(artistViewModeProvider), 'list'),
     ),
@@ -744,7 +735,6 @@ void main() {
       'Artist view: Grid',
       writers: {'updateArtistViewMode'},
       columns: {'artistViewMode'},
-      fields: {'artistViewMode'},
       seed: (db) => db.appSettingsDao.updateArtistViewMode('list'),
       act: (t) => tap(t, find.text(l10n.appearanceArtistViewModeGrid)),
       effect: (c) => expect(c.read(artistViewModeProvider), 'grid'),
@@ -1027,15 +1017,12 @@ void main() {
       );
     });
 
-    test('every Look field has a control, except the stated ones', () {
+    test('every Look field has a control', () {
       final fields = AppearanceSnapshot.capture(
         const AppSettingsModel.defaults(),
       ).toJson().keys.toSet();
       final covered = {for (final c in controls) ...c.fields};
-      // albumGridDensity is a legacy column: nothing reads or writes it
-      // outside the Look snapshot, and the page has no control for it.
-      const withoutControl = {'albumGridDensity'};
-      expect(fields.difference(covered), withoutControl);
+      expect(fields.difference(covered), isEmpty);
       expect(covered.difference(fields), isEmpty);
     });
   });

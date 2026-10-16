@@ -2118,3 +2118,12 @@ Latest activity (2026-03-07): published `v0.8.0` APK via `tool/release.sh` and s
 - 2026-10-10 — Fine-Tune Colors UI: Color and Brightness rulers (the Speed and Pitch ruler in whole-step mode with a live stepped-swatch band) under Color Style in Appearance and in setup's More appearance options; live preview per step, saved on release, Reset. Focused ruler, Appearance, setup and theme tests recorded in the handoff; runtime loop and full gate reserved for coordinator.
 - 2026-10-11 — Now Playing phone layout: height classes, bottom-pinned controls, artwork as the flexible element with shared gap interpolation and exact-square covers (`NowPlayingPhoneLayout`); the 700 dp scroll cliff is gone. Focused player and routing suites recorded in the handoff; runtime loop and full gate reserved for coordinator.
 - 2026-10-16 — Appearance Looks (issue #7, branch `fix/appearance-looks-update`): Update/Rename/Delete follow the persisted last-chosen Look while the appearance is Custom ("Custom · edited from <Look>"), surviving page re-entry and restart; table-driven audit `appearance_controls_audit_test.dart` drives every Appearance control through the real screen (columns written, provider effect, Look → Custom with origin, Update restores it) with a source guard for new writers; found and fixed un-hiding the last hidden Home section restoring the default hidden sections. Focused tests only (looks, audit, repository, changelog); no app launch, `./tool/check.sh` and the runtime screenshot pass reserved for the coordinator.
+
+- 2026-10-16 — Issue #7 owner-approved Look scope fix: removed density, artist
+  view, artwork size, artwork shapes and legacy grid density from Look capture,
+  comparison and application; old version-1 JSON ignores these keys without a
+  migration. Updated Appearance audit rows, help text, goldens, architecture,
+  decision addendum and removal record. Test-first regressions failed on layout
+  equality and old-Look application (comfortable became compact); all 90 focused
+  domain/storage/controller/audit tests passed after the fix. Runtime and full
+  quality gate are prohibited on this host and remain coordinator-owned.

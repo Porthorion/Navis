@@ -56,8 +56,8 @@ void main() {
     final original = AppearanceSnapshot.capture(await repository.getSettings());
     expect(
       original.toJson().length,
-      27,
-    ); // Every appearance setting; tuning is Custom.
+      20,
+    ); // Every Look setting; tuning is Custom.
     await repository.resetDefaults();
     await dao.updateCustomColorPresets(jsonEncode([0xFF123456]));
     await dao.updateShowArtistsPage(enabled: false);
@@ -84,7 +84,49 @@ void main() {
     expect(restored.scrobbleEnabled, isTrue);
   }, skip: !sqliteAvailable);
 
-  test('captured null clears seed and legacy artwork size', () async {
+  for (final legacyDensity in <int?>[null, 6]) {
+    test('old stored Look ignores layout keys ($legacyDensity)', () async {
+      final database = createTestDatabase();
+      addTearDown(database.close);
+      final dao = database.appSettingsDao;
+      final repository = SettingsRepository(dao);
+      final before = await repository.getSettings();
+      final legacy = {
+        'id': 'old',
+        'name': 'Old Look',
+        'version': 1,
+        'snapshot': {
+          ...AppearanceSnapshot.capture(before).toJson(),
+          'themeMode': 'light',
+          'density': 'compact',
+          'artistViewMode': 'list',
+          'gridArtworkSize': 'large',
+          'coverArtShape': 'circle',
+          'nowPlayingArtShape': 'square',
+          'artistCardShape': 'rounded',
+          'albumGridDensity': legacyDensity,
+        },
+      };
+      await dao.updateAppearanceLooks(
+        selectedLookId: 'old',
+        looksJson: jsonEncode([legacy]),
+      );
+      final look = (await repository.getSettings()).appearanceLooks.single;
+      await dao.applyAppearanceSnapshot(look.snapshot);
+      final after = await repository.getSettings();
+      expect(after.themeMode, 'light');
+      expect(after.density, before.density);
+      expect(after.artistViewMode, before.artistViewMode);
+      expect(after.gridArtworkSize, before.gridArtworkSize);
+      expect(after.coverArtShape, before.coverArtShape);
+      expect(after.nowPlayingArtShape, before.nowPlayingArtShape);
+      expect(after.artistCardShape, before.artistCardShape);
+      expect(after.albumGridDensity, before.albumGridDensity);
+      expect(matchingAppearanceLookId(after), 'old');
+    }, skip: !sqliteAvailable);
+  }
+
+  test('captured null clears seed and preserves legacy artwork size', () async {
     final database = createTestDatabase();
     addTearDown(database.close);
     final repository = SettingsRepository(database.appSettingsDao);
@@ -100,7 +142,7 @@ void main() {
     );
     final restored = await repository.getSettings();
     expect(restored.colorSchemeSeed, isNull);
-    expect(restored.albumGridDensity, isNull);
+    expect(restored.albumGridDensity, 4);
   }, skip: !sqliteAvailable);
 
   test(
@@ -130,13 +172,13 @@ void main() {
           'surfaceTintDark': -1,
           'controlColor': 'unknown',
           'nightScheduleStartMinutes': 1440,
-          'artistViewMode': 'list',
+          'colorStyle': 'pastel',
         }),
       );
       final after = await repository.getSettings();
       expect(
         AppearanceSnapshot.capture(after),
-        AppearanceSnapshot.capture(before.copyWith(artistViewMode: 'list')),
+        AppearanceSnapshot.capture(before.copyWith(colorStyle: 'pastel')),
       );
     },
     skip: !sqliteAvailable,

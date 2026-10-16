@@ -424,7 +424,7 @@ void main() {
         );
         final repository = container.read(settingsRepositoryProvider);
         final target = (await controller.saveAsNew('Target')).value!;
-        // Exercise all appearance fields, including both explicit nulls.
+        // Exercise all appearance fields, including the explicit null seed.
         final before = AppearanceSnapshot.fromJson(const {
           'themeMode': 'system',
           'oledForAuto': true,
@@ -445,16 +445,9 @@ void main() {
           'flatSurfaces': true,
           'flatAreas': 2,
           'cornerStyle': 'square',
-          'coverArtShape': 'rounded',
-          'nowPlayingArtShape': 'circle',
-          'artistCardShape': 'square',
-          'gridArtworkSize': 'large',
-          'albumGridDensity': null,
-          'density': 'compact',
-          'artistViewMode': 'list',
           'nowPlayingBackground': 'artwork',
         });
-        expect(before.toJson(), hasLength(27));
+        expect(before.toJson(), hasLength(20));
         await database.appSettingsDao.applyAppearanceSnapshot(before);
         String? previousLookId;
         if (matchedLook) {
@@ -462,7 +455,7 @@ void main() {
         }
         await database.appSettingsDao.applyAppearanceSnapshot(target.snapshot);
         await database.appSettingsDao.applyAppearanceSnapshot(
-          const AppearanceSnapshot(colorSchemeSeed: 1, albumGridDensity: 6),
+          const AppearanceSnapshot(colorSchemeSeed: 1),
         );
         await controller.update(target.id);
         final updatedTarget = AppearanceSnapshot.capture(
@@ -480,7 +473,6 @@ void main() {
         expect(AppearanceSnapshot.capture(restored).toJson(), before.toJson());
         expect(restored.themeMode, 'system');
         expect(restored.colorSchemeSeed, isNull);
-        expect(restored.albumGridDensity, isNull);
         expect(
           restored.colorTuning,
           const ColorTuning(

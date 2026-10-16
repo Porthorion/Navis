@@ -166,7 +166,10 @@ const List<ChangelogVersion> changelogs = [
     ],
     entries: [
       ChangelogEntry(
-        'Looks: after you change an appearance setting the picker reads “Custom · edited from” the Look it came from, and Update keeps working after you leave Appearance or restart',
+        'Looks keep layout preferences independent: density, artist view, artwork size and art shapes stay as you set them when switching Looks',
+      ),
+      ChangelogEntry(
+        'Looks: after you change a colour or style setting the picker reads “Custom · edited from” the Look it came from, and Update keeps working after you leave Appearance or restart',
         type: ChangelogEntryType.fix,
       ),
       ChangelogEntry(
@@ -338,7 +341,7 @@ const List<ChangelogVersion> changelogs = [
         type: ChangelogEntryType.newFeature,
       ),
       ChangelogEntry(
-        'Looks save your whole appearance under a name, so you can switch between them in one tap from Settings › Appearance, with Undo right after',
+        'Looks save your colours and style under a name, so you can switch between them in one tap from Settings › Appearance, with Undo right after',
         type: ChangelogEntryType.newFeature,
       ),
       ChangelogEntry(

@@ -5,7 +5,8 @@ import 'package:flutter/foundation.dart';
 import 'package:navis/src/common/preset_names.dart';
 import 'package:navis/src/features/settings/domain/app_settings.dart';
 
-/// A partial appearance snapshot. Null fields preserve current settings.
+/// A partial colour and style snapshot; layout preferences stay independent.
+/// Null fields preserve current settings.
 /// Explicitly cleared nullable settings use the corresponding clear flag.
 @immutable
 class AppearanceSnapshot {
@@ -29,16 +30,8 @@ class AppearanceSnapshot {
     this.flatSurfaces,
     this.flatAreas,
     this.cornerStyle,
-    this.coverArtShape,
-    this.nowPlayingArtShape,
-    this.artistCardShape,
-    this.gridArtworkSize,
-    this.albumGridDensity,
-    this.density,
-    this.artistViewMode,
     this.nowPlayingBackground,
     this.clearColorSchemeSeed = false,
-    this.clearAlbumGridDensity = false,
   });
 
   factory capture(AppSettingsModel s) => AppearanceSnapshot(
@@ -61,16 +54,8 @@ class AppearanceSnapshot {
     flatSurfaces: s.flatSurfaces,
     flatAreas: s.flatAreas.bits,
     cornerStyle: s.cornerStyle.name,
-    coverArtShape: s.coverArtShape,
-    nowPlayingArtShape: s.nowPlayingArtShape,
-    artistCardShape: s.artistCardShape,
-    gridArtworkSize: s.gridArtworkSize.name,
-    albumGridDensity: s.albumGridDensity,
-    density: s.density.storageKey,
-    artistViewMode: s.artistViewMode,
     nowPlayingBackground: s.nowPlayingBackground.storageKey,
     clearColorSchemeSeed: s.colorSchemeSeed == null,
-    clearAlbumGridDensity: s.albumGridDensity == null,
   );
 
   factory fromJson(Map<String, dynamic> raw) => AppearanceSnapshot(
@@ -111,30 +96,6 @@ class AppearanceSnapshot {
       'soft',
       'square',
     ]),
-    coverArtShape: _choice(raw['coverArtShape'], const [
-      'square',
-      'rounded',
-      'circle',
-    ]),
-    nowPlayingArtShape: _choice(raw['nowPlayingArtShape'], const [
-      'square',
-      'rounded',
-      'circle',
-    ]),
-    artistCardShape: _choice(raw['artistCardShape'], const [
-      'square',
-      'rounded',
-      'circle',
-    ]),
-    gridArtworkSize: _choice(raw['gridArtworkSize'], const [
-      'auto',
-      'small',
-      'medium',
-      'large',
-    ]),
-    albumGridDensity: _integer(raw['albumGridDensity'], 1, 100),
-    density: _choice(raw['density'], const ['comfortable', 'compact']),
-    artistViewMode: _choice(raw['artistViewMode'], const ['list', 'grid']),
     nowPlayingBackground: _choice(raw['nowPlayingBackground'], const [
       'tinted',
       'artwork',
@@ -142,8 +103,6 @@ class AppearanceSnapshot {
     ]),
     clearColorSchemeSeed:
         raw.containsKey('colorSchemeSeed') && raw['colorSchemeSeed'] == null,
-    clearAlbumGridDensity:
-        raw.containsKey('albumGridDensity') && raw['albumGridDensity'] == null,
   );
 
   final String? themeMode;
@@ -165,16 +124,8 @@ class AppearanceSnapshot {
   final bool? flatSurfaces;
   final int? flatAreas;
   final String? cornerStyle;
-  final String? coverArtShape;
-  final String? nowPlayingArtShape;
-  final String? artistCardShape;
-  final String? gridArtworkSize;
-  final int? albumGridDensity;
-  final String? density;
-  final String? artistViewMode;
   final String? nowPlayingBackground;
   final bool clearColorSchemeSeed;
-  final bool clearAlbumGridDensity;
 
   Map<String, Object?> toJson() => {
     if (themeMode != null) 'themeMode': themeMode,
@@ -202,14 +153,6 @@ class AppearanceSnapshot {
     if (flatSurfaces != null) 'flatSurfaces': flatSurfaces,
     if (flatAreas != null) 'flatAreas': flatAreas,
     if (cornerStyle != null) 'cornerStyle': cornerStyle,
-    if (coverArtShape != null) 'coverArtShape': coverArtShape,
-    if (nowPlayingArtShape != null) 'nowPlayingArtShape': nowPlayingArtShape,
-    if (artistCardShape != null) 'artistCardShape': artistCardShape,
-    if (gridArtworkSize != null) 'gridArtworkSize': gridArtworkSize,
-    if (albumGridDensity != null || clearAlbumGridDensity)
-      'albumGridDensity': albumGridDensity,
-    if (density != null) 'density': density,
-    if (artistViewMode != null) 'artistViewMode': artistViewMode,
     if (nowPlayingBackground != null)
       'nowPlayingBackground': nowPlayingBackground,
   };
