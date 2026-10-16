@@ -1275,7 +1275,13 @@ target-selection rules.
     `SetupHighlight.appearanceLooks`: a heading, a subtitle and a
     `PresetPicker` over the saved Looks, with "Custom" while the appearance
     matches none and a ⋮ menu offering Save Current as New Look, Update,
-    Rename and Delete through `AppearanceLooksController`; choosing a Look
+    Rename and Delete through `AppearanceLooksController`. A changed
+    appearance keeps the Look it came from: `selected_appearance_look_id`
+    stays set while the values are Custom (`storedAppearanceLookId`; Save,
+    Update, Rename, Apply and Undo write it, Delete clears it), the picker
+    reads "Custom · edited from {name}" and Update, Rename and Delete act on
+    that origin (`AppearanceLooksState.originLookId`), so they survive leaving
+    the page and restarts. Choosing a Look
     applies it and raises an "Applied {name}" notice with Undo (six seconds,
     `showAppNotice`) that calls `restore` with the snapshot `apply` returned;
     a failed restore shows the existing failure notice. The clone-only apply

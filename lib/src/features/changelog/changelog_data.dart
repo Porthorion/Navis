@@ -166,6 +166,14 @@ const List<ChangelogVersion> changelogs = [
     ],
     entries: [
       ChangelogEntry(
+        'Looks: after you change an appearance setting the picker reads “Custom · edited from” the Look it came from, and Update keeps working after you leave Appearance or restart',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
+        'Showing the last hidden Home section no longer brings the default hidden sections back',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
         'Notification, Bluetooth and car controls keep working after Android restarts the media service',
         type: ChangelogEntryType.fix,
       ),
