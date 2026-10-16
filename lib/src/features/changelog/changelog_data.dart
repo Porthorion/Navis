@@ -166,6 +166,10 @@ const List<ChangelogVersion> changelogs = [
     ],
     entries: [
       ChangelogEntry(
+        'The first song no longer repeats or stalls when it ends while the rest of the queue is loading',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
         'Notification, Bluetooth and car controls keep working after Android restarts the media service',
         type: ChangelogEntryType.fix,
       ),

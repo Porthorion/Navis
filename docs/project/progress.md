@@ -14,6 +14,15 @@ Last updated: 2026-10-15
 - ACP status values: `backlog`, `ready`, `in_progress`, `blocked`, `done`.
 
 ## Current Focus
+
+- [x] Initial queue-fill completion race (issue #5) — 2026-10-16: reproduced
+  native Repeat All replaying the temporary one-song playlist and repeat-off
+  stalling after completion (16 failing regression cases before the fix).
+  Native Repeat All now waits for logical fill; the existing completion path
+  advances after fill settles. Expanded matrix: 24 passed across queue sizes
+  6/300, shuffle toggle/entity inputs, crossfade off/on and repeat none/all/one.
+  Capped targeted tests only; runtime and `check.sh` remain coordinator-owned
+  under this task's host-resource rules.
 - [x] Idle-robustness final fixes (shared sync requests and busy databases) —
   2026-10-15 (`fix/idle-integration`, aa3d3452..abf8f071; a lease-held check
   against a live worker lease retries at the 30 s floor instead of waiting out

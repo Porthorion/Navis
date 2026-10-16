@@ -169,6 +169,7 @@ extension _NavisQueueLoading on NavisAudioHandler {
       _lastFailedSongId = loadingSongId;
     }
     _emitSnapshot();
+    _continueIntoDeferredTail();
   }
 
   void _reportDroppedSongs(List<String> songIds, QueueDropReason reason) {

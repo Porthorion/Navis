@@ -4140,7 +4140,8 @@ stays deferred with the songs farther from the window: following songs in
 the tail or earlier songs in the head. Tail releases back off and retry; a
 backward jump can release the playable head suffix and leaves unavailable
 history queued for a later attempt. Shuffled queues defer like any other (see Shuffle below).
-Repeat-all stays off natively while anything is deferred on either side, so
+Repeat-all stays off natively while the initial logical queue is filling or
+anything is deferred on either side, so
 the player never wraps early; the reported repeat mode is the user's, and at
 the end of the last song Navis wraps to the first itself.
 `GET /v1/playback/status` reports `materializedLength`, `deferredLength`,
