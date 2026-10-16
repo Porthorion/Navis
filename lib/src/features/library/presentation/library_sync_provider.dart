@@ -1889,12 +1889,15 @@ class LibrarySyncController extends Notifier<LibrarySyncState> {
   }
 
   Future<void> _reconcileOnResume() async {
-    final away = ref
-        .read(nowProvider)()
-        .difference(_backgroundedAt ?? ref.read(nowProvider)());
-    if (ref.read(serverConfigStateProvider).asData?.value == null ||
-        !ref.mounted ||
-        away < const Duration(seconds: 30)) {
+    final now = ref.read(nowProvider)();
+    final away = now.difference(_backgroundedAt ?? now);
+    if (!ref.mounted || away < const Duration(seconds: 30)) {
+      return;
+    }
+    // Coming back to the app re-runs the automatic update check watched by
+    // Home and About; the store's one-hour throttle decides whether it fetches.
+    ref.invalidate(updateProvider);
+    if (ref.read(serverConfigStateProvider).asData?.value == null) {
       return;
     }
     await ref.read(networkReconciliationProvider)();

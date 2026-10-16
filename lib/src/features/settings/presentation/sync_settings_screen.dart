@@ -496,7 +496,7 @@ class SyncSettingsScreen extends ConsumerWidget {
                             .read(librarySyncControllerProvider.notifier)
                             .syncNow(),
                   icon: const Icon(Icons.refresh),
-                  label: Text(l10n.syncSettingsCheckForUpdates),
+                  label: Text(l10n.syncSettingsSyncLibraryNow),
                 ),
                 if (showMobileDataAction) ...<Widget>[
                   const SizedBox(height: 8),
