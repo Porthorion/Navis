@@ -2562,6 +2562,7 @@ void main() {
           integrationPolicyProvider.overrideWithValue(
             const IntegrationPolicy.denyAll(),
           ),
+          playlistViewerProvider.overrideWithValue(null),
           playlistListProvider.overrideWithValue(
             const AsyncData<List<PlaylistsTableData>>(<PlaylistsTableData>[
               PlaylistsTableData(
