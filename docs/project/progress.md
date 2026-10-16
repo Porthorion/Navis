@@ -14,6 +14,23 @@ Last updated: 2026-10-16
 - ACP status values: `backlog`, `ready`, `in_progress`, `blocked`, `done`.
 
 ## Current Focus
+- [x] Radio UI review fixes for issue #14 — 2026-10-16
+  (`feat/radio-device-stations`; Codex). Save failures now appear inside the
+  editor with entered values retained, clearing on retry or field/destination
+  edits. Device stations hidden by a filter show filtered-empty guidance while
+  server stations load; the device section title no longer has a redundant
+  condition. Architecture and changelog updated.
+  Regression-first capped widget run: `"00:03 +32 -2: Some tests failed."`
+  (missing inline save error and missing filtered-empty message, exit 1).
+  Final `~/.cache/claude-navis-tools/capped.sh 6G "$PWD" flutter test
+  --concurrency=4 test/src/features/library/presentation/radio_screen_test.dart`:
+  `"00:02 +34: All tests passed!"` (exit 0, peak 1926M, no OOM kills).
+  Changed-file `dart analyze`: `"No issues found!"`, exit 0.
+  Capped `flutter analyze --no-fatal-infos`: exit 0 with 195 existing infos
+  outside changed files. Changed-file format check and `git diff --check` pass.
+  Capped `dart run tool/dead_code_check.dart`: exit 0 (baseline unchanged).
+  App/emulator launch, screenshots, runtime loop and `./tool/check.sh` were
+  excluded by the task's explicit host limits; runtime verification remains.
 - [x] PR A UI: device radio stations and admin station editing —
   2026-10-16 (`feat/radio-device-stations`; Sonnet). Radio tab sections, add
   button, long-press/secondary-click Edit/Delete (device or admin only), editor

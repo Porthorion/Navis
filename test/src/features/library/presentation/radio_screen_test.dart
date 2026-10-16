@@ -11,6 +11,7 @@ import 'package:navis/src/api/models/internet_radio_station.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:navis/src/api/subsonic_api_client.dart';
 import 'package:navis/src/common_widgets/app_notice.dart';
+import 'package:navis/src/common_widgets/shimmer_placeholder.dart';
 import 'package:navis/src/database/daos/local_radio_station_dao.dart';
 import 'package:navis/src/features/library/data/radio_station_actions.dart';
 import 'package:navis/src/features/library/presentation/radio_screen.dart';
@@ -34,6 +35,7 @@ Future<void> _pumpRadio(
   List<InternetRadioStation> local = const [],
   bool admin = false,
   bool serverFails = false,
+  Future<List<InternetRadioStation>>? serverLoad,
   RadioStationActions? actions,
   required String query,
   required VoidCallback? onClearTypeFilter,
@@ -45,9 +47,11 @@ Future<void> _pumpRadio(
   return tester.pumpWidget(
     ProviderScope(
       overrides: [
-        radioStationsProvider.overrideWith(
-          (ref) async => serverFails ? throw StateError('offline') : stations,
-        ),
+        radioStationsProvider.overrideWith((ref) async {
+          if (serverLoad != null) return await serverLoad;
+          if (serverFails) throw StateError('offline');
+          return stations;
+        }),
         localRadioStationsProvider.overrideWith((ref) => Stream.value(local)),
         serverUserIsAdminProvider.overrideWith((ref) async => admin),
         if (actions != null)
@@ -502,6 +506,31 @@ void main() {
       expect(find.text('On your server'), findsNothing);
     });
 
+    testWidgets('filtered device stations stay empty while server loads', (
+      tester,
+    ) async {
+      final serverLoad = Completer<List<InternetRadioStation>>();
+      var cleared = false;
+      await _pumpRadio(
+        tester,
+        stations: const [],
+        local: const [device],
+        serverLoad: serverLoad.future,
+        query: 'lofi',
+        onClearTypeFilter: () => cleared = true,
+      );
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 300));
+      expect(find.text('No Stations Match “lofi”'), findsOneWidget);
+      expect(find.byType(ShimmerListPage), findsNothing);
+      await tester.tap(
+        find.byKey(const ValueKey('radioClearTypeFilterAction')),
+      );
+      expect(cleared, isTrue);
+      serverLoad.complete(const []);
+      await tester.pumpAndSettle();
+    });
+
     testWidgets('a server error keeps device stations and shows a retry row', (
       tester,
     ) async {
@@ -676,11 +705,11 @@ void main() {
       verifyZeroInteractions(dao);
     });
 
-    testWidgets('a failed save keeps the editor open and shows a notice', (
+    testWidgets('a failed save shows an inline error and preserves input', (
       tester,
     ) async {
-      final notices = AppNoticeController();
-      addTearDown(notices.dispose);
+      var attempts = 0;
+      final retry = Completer<String>();
       when(
         () => dao.upsert(
           id: any(named: 'id'),
@@ -688,19 +717,56 @@ void main() {
           streamUrl: any(named: 'streamUrl'),
           homePageUrl: any(named: 'homePageUrl'),
         ),
-      ).thenThrow(StateError('disk'));
-      await pump(tester, notices: notices);
+      ).thenAnswer((_) async {
+        if (++attempts == 2) return await retry.future;
+        throw StateError('disk');
+      });
+      await pump(tester);
       await tester.tap(find.byKey(const ValueKey('radioAddFab')));
       await tester.pumpAndSettle();
       await fill(tester, 'radioEditorName', 'Night Owl');
       await fill(tester, 'radioEditorStreamUrl', 'https://owl.example/live');
+      await fill(tester, 'radioEditorHomepage', 'https://owl.example');
       await save(tester);
-      expect(
-        notices.notice?.message,
-        'Could not save this station. Try again.',
+      final error = find.descendant(
+        of: find.byType(AlertDialog),
+        matching: find.text('Could not save this station. Try again.'),
       );
-      expect(notices.notice?.level, AppNoticeLevel.error);
+      expect(error, findsOneWidget);
       expect(find.byKey(const ValueKey('radioEditorSave')), findsOneWidget);
+      for (final entry in {
+        'radioEditorName': 'Night Owl',
+        'radioEditorStreamUrl': 'https://owl.example/live',
+        'radioEditorHomepage': 'https://owl.example',
+      }.entries) {
+        expect(
+          tester
+              .widget<TextField>(find.byKey(ValueKey(entry.key)))
+              .controller!
+              .text,
+          entry.value,
+        );
+      }
+      await save(tester);
+      expect(error, findsNothing);
+      retry.completeError(StateError('disk again'));
+      await tester.pumpAndSettle();
+      expect(error, findsOneWidget);
+      for (final key in [
+        'radioEditorName',
+        'radioEditorStreamUrl',
+        'radioEditorHomepage',
+      ]) {
+        final text = tester
+            .widget<TextField>(find.byKey(ValueKey(key)))
+            .controller!
+            .text;
+        await fill(tester, key, '${text}2');
+        await tester.pump();
+        expect(error, findsNothing);
+        await save(tester);
+        expect(error, findsOneWidget);
+      }
     });
 
     testWidgets('the delete dialog describes a device station', (tester) async {

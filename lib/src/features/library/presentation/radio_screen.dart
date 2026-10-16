@@ -63,9 +63,12 @@ class RadioTabContent extends ConsumerWidget {
       final visibleServer = filtered(server ?? const <InternetRadioStation>[]);
       final headed = local.isNotEmpty;
       if (visibleLocal.isEmpty && visibleServer.isEmpty && error == null) {
-        if (server == null) return const ShimmerListPage(count: 8);
+        if (server == null && local.isEmpty) {
+          return const ShimmerListPage(count: 8);
+        }
         final isFilteredEmpty =
-            typeFilterQuery.isNotEmpty && (headed || server.isNotEmpty);
+            typeFilterQuery.isNotEmpty &&
+            (headed || (server?.isNotEmpty ?? false));
         return ListView(
           physics: const AlwaysScrollableScrollPhysics(),
           children: <Widget>[
@@ -111,7 +114,7 @@ class RadioTabContent extends ConsumerWidget {
               context,
               ref,
               visibleLocal,
-              title: headed ? l10n.radioSectionDevice : null,
+              title: l10n.radioSectionDevice,
               isLocal: true,
               isAdmin: isAdmin,
             ),

@@ -22,7 +22,6 @@ Future<void> showRadioStationEditor(
   return showDialog<void>(
     context: context,
     builder: (_) => _RadioStationEditor(
-      noticeContext: context,
       existing: existing,
       isLocal: isLocal,
       canChooseServer: canChooseServer,
@@ -92,14 +91,11 @@ Future<void> showRadioStationDelete(
 
 class _RadioStationEditor extends ConsumerStatefulWidget {
   const new({
-    required this.noticeContext,
     required this.existing,
     required this.isLocal,
     required this.canChooseServer,
   });
 
-  /// The screen's context: dialogs sit above the notice scope.
-  final BuildContext noticeContext;
   final InternetRadioStation? existing;
   final bool isLocal;
   final bool canChooseServer;
@@ -119,6 +115,7 @@ class _RadioStationEditorState extends ConsumerState<_RadioStationEditor> {
   );
   var _toServer = false;
   var _saving = false;
+  var _saveFailed = false;
   String? _nameError;
   String? _streamUrlError;
   String? _homepageError;
@@ -131,10 +128,15 @@ class _RadioStationEditorState extends ConsumerState<_RadioStationEditor> {
     super.dispose();
   }
 
+  void _clearSaveError(String value) {
+    if (_saveFailed) setState(() => _saveFailed = false);
+  }
+
   Future<void> _submit() async {
     final l10n = AppLocalizations.of(context)!;
     setState(() {
       _saving = true;
+      _saveFailed = false;
       _nameError = _streamUrlError = _homepageError = null;
     });
     try {
@@ -161,15 +163,10 @@ class _RadioStationEditorState extends ConsumerState<_RadioStationEditor> {
             _streamUrlError = l10n.radioEditorUrlError;
           case 'homePageUrl':
             _homepageError = l10n.radioEditorUrlError;
+          default:
+            _saveFailed = true;
         }
       });
-      if (field == null && widget.noticeContext.mounted) {
-        showAppNotice(
-          widget.noticeContext,
-          message: l10n.radioEditorSaveFailed,
-          level: AppNoticeLevel.error,
-        );
-      }
     }
   }
 
@@ -187,6 +184,7 @@ class _RadioStationEditorState extends ConsumerState<_RadioStationEditor> {
             TextField(
               key: const ValueKey<String>('radioEditorName'),
               controller: _name,
+              onChanged: _clearSaveError,
               autofocus: true,
               textInputAction: TextInputAction.next,
               decoration: InputDecoration(
@@ -198,6 +196,7 @@ class _RadioStationEditorState extends ConsumerState<_RadioStationEditor> {
             TextField(
               key: const ValueKey<String>('radioEditorStreamUrl'),
               controller: _streamUrl,
+              onChanged: _clearSaveError,
               keyboardType: TextInputType.url,
               textInputAction: TextInputAction.next,
               decoration: InputDecoration(
@@ -209,6 +208,7 @@ class _RadioStationEditorState extends ConsumerState<_RadioStationEditor> {
             TextField(
               key: const ValueKey<String>('radioEditorHomepage'),
               controller: _homepage,
+              onChanged: _clearSaveError,
               keyboardType: TextInputType.url,
               onSubmitted: _saving ? null : (_) => _submit(),
               decoration: InputDecoration(
@@ -225,8 +225,24 @@ class _RadioStationEditorState extends ConsumerState<_RadioStationEditor> {
                 value: _toServer,
                 onChanged: _saving
                     ? null
-                    : (value) => setState(() => _toServer = value),
+                    : (value) => setState(() {
+                        _toServer = value;
+                        _saveFailed = false;
+                      }),
               ),
+            if (_saveFailed) ...[
+              const SizedBox(height: 16),
+              Row(
+                children: [
+                  Icon(
+                    Icons.error_outline,
+                    color: Theme.of(context).colorScheme.error,
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(child: Text(l10n.radioEditorSaveFailed)),
+                ],
+              ),
+            ],
           ],
         ),
       ),

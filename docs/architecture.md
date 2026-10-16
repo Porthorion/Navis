@@ -6065,15 +6065,18 @@ false, with lookup failures logged at info level without request details.
 The Library Radio tab lists device stations under "On this device" and server
 stations under "On your server"; the headers appear only when device stations
 exist, so a server-only library looks as before, and the type filter covers both
-sections. A server load failure keeps the device section and adds an inline
-retry row. A floating button and the empty state open the editor
+sections. While server stations load, device stations hidden by the filter
+show the filtered-empty state with its clear-filter action. A server load failure
+keeps the device section and adds an inline retry row. A floating button and the empty state open the editor
 (`radio_station_dialogs.dart`). Long-press or secondary-click on a card offers
 Edit and Delete only for device stations or when `serverUserIsAdminProvider`
 is true; otherwise it does nothing. The editor shows inline errors from the
 actions' validation, and "Save to server" appears only when adding as an admin
 while the server radio list loaded (default off; stations never move between
 device and server). Deleting shows the station's name, stream and homepage URLs
-and where it is stored. Save and delete failures show an error notice.
+and where it is stored. Save failures appear inline inside the editor, retain
+all entered values, and clear on the next attempt or edit. Delete failures show
+an error notice.
 
 Incremental artist metadata and its traversal cursor commit together before
 track hydration. A budget interruption retains completed artists and requeues

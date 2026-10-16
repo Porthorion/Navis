@@ -166,6 +166,10 @@ const List<ChangelogVersion> changelogs = [
     ],
     entries: [
       ChangelogEntry(
+        'Radio station save failures now appear inside the editor and preserve your input; filters stay usable while server stations load',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
         'Add radio stations that stay on this device, and edit or delete stations if you are a server admin',
         type: ChangelogEntryType.newFeature,
       ),
