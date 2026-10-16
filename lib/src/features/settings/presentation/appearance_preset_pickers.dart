@@ -53,13 +53,19 @@ PresetPickerLabels _labels(
 ///
 /// With no Looks the picker reads Custom (the current appearance) and its menu
 /// offers the first save, which the subtitle points to. A changed appearance
-/// reads "Custom · edited from <Look>" and Update saves over that Look, which
+/// reads "Custom · edited from `Look`" and Update saves over that Look, which
 /// is the stored selection, so it survives leaving the page and restarts.
-class AppearanceLooksOption extends ConsumerWidget {
+class AppearanceLooksOption extends ConsumerStatefulWidget {
   const new({super.key});
 
-  void _notice(BuildContext context, PresetFailure? failure) {
-    if (failure == null || !context.mounted) return;
+  @override
+  ConsumerState<AppearanceLooksOption> createState() =>
+      _AppearanceLooksOptionState();
+}
+
+class _AppearanceLooksOptionState extends ConsumerState<AppearanceLooksOption> {
+  void _notice(PresetFailure? failure) {
+    if (failure == null || !mounted) return;
     showAppNotice(
       context,
       message: presetFailureMessage(
@@ -72,7 +78,7 @@ class AppearanceLooksOption extends ConsumerWidget {
   }
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context)!;
     final state = ref.watch(appearanceLooksControllerProvider);
     final controller = ref.read(appearanceLooksControllerProvider.notifier);
@@ -115,17 +121,14 @@ class AppearanceLooksOption extends ConsumerWidget {
                 .firstOrNull
                 ?.name;
             final previous = await controller.apply(id);
-            if (previous == null) {
-              return _notice(context, PresetFailure.persistence);
-            }
+            if (previous == null) return _notice(PresetFailure.persistence);
             if (name == null || !context.mounted) return;
             showAppNotice(
               context,
               message: l10n.appearanceLooksApplied(name),
               duration: const Duration(seconds: 6),
               actionLabel: l10n.commonUndo,
-              onAction: () async =>
-                  _notice(context, await controller.restore(previous)),
+              onAction: () async => _notice(await controller.restore(previous)),
             );
           },
           onSaveNew: (name) async {
@@ -134,14 +137,14 @@ class AppearanceLooksOption extends ConsumerWidget {
                 ? null
                 : presetFailureMessage(l10n, failure, look: true);
           },
-          onUpdate: (id) async => _notice(context, await controller.update(id)),
+          onUpdate: (id) async => _notice(await controller.update(id)),
           onRename: (id, name) async {
             final failure = await controller.rename(id, name);
             return failure == null
                 ? null
                 : presetFailureMessage(l10n, failure, look: true);
           },
-          onDelete: (id) async => _notice(context, await controller.delete(id)),
+          onDelete: (id) async => _notice(await controller.delete(id)),
         ),
       ),
     );

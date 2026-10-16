@@ -24,6 +24,16 @@ void main() {
       await database.close();
     });
 
+    test('nothing hidden on Home survives a full save', () async {
+      final initial = await repository.getSettings();
+      expect(initial.homeSectionsHidden, isNull);
+      await database.appSettingsDao.updateHomeSectionsHidden('[]');
+      final none = await repository.getSettings();
+      expect(none.homeSectionsHidden, isEmpty);
+      await repository.saveSettings(none);
+      expect((await repository.getSettings()).homeSectionsHidden, isEmpty);
+    });
+
     test(
       'setup preserves concurrent tint and controls unless changed in draft',
       () async {

@@ -99,7 +99,12 @@ class SettingsRepository {
       ),
       homeDensity: settings.homeDensity.storageKey,
       homeSectionOrder: _encodeStringList(settings.homeSectionOrder),
-      homeSectionsHidden: _encodeStringList(settings.homeSectionsHidden),
+      // An empty list is the choice to hide nothing; only null means the
+      // built-in default.
+      homeSectionsHidden: _encodeStringList(
+        settings.homeSectionsHidden,
+        keepEmpty: true,
+      ),
       libraryPageOrder: _encodeStringList(settings.libraryPageOrder),
       desktopNavbarStyle: settings.desktopNavbarStyle,
       desktopNavbarAutohide: settings.desktopNavbarAutohide,
@@ -455,8 +460,8 @@ class SettingsRepository {
     }
   }
 
-  String? _encodeStringList(List<String>? values) {
-    if (values == null || values.isEmpty) {
+  String? _encodeStringList(List<String>? values, {bool keepEmpty = false}) {
+    if (values == null || (values.isEmpty && !keepEmpty)) {
       return null;
     }
     return jsonEncode(values);

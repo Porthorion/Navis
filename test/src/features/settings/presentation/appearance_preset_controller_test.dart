@@ -492,11 +492,11 @@ void main() {
             controls: NavisControlColor.white,
           ),
         );
-        expect(
-          container.read(appearanceLooksControllerProvider).selectedLookId,
-          previousLookId,
-        );
-        expect(restored.selectedAppearanceLookId, previousLookId);
+        final state = container.read(appearanceLooksControllerProvider);
+        expect(state.selectedLookId, previousLookId);
+        // Back on a Custom appearance, Undo keeps the Look it was edited from.
+        expect(state.originLookId, previousLookId ?? target.id);
+        expect(restored.selectedAppearanceLookId, previousLookId ?? target.id);
       },
       skip: !sqliteAvailable,
     );
