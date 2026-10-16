@@ -15,21 +15,23 @@ Last updated: 2026-10-16
 
 ## Current Focus
 - [x] Update check on every app open — 2026-10-16 (`feat/update-check-on-open`;
-  the automatic update-check throttle dropped from 24 h to 1 h, coming back to
-  the app after 30 s away now invalidates `updateProvider` through the library
-  sync controller's existing resume hook so the throttle decides, a throttled
-  check returns the last update a completed fetch verified (stored in
-  `update_check_state.json`, dropped once the installed version is no longer
-  older; transport failures keep it, any completed fetch replaces it), and the
-  Sync settings library-sync button is labelled "Sync library now". Evidence:
-  `flutter test --concurrency=4` on `update_repository_test.dart`,
-  `update_check_store_test.dart`, `update_pull_test.dart`,
-  `sync_settings_screen_test.dart` and the regenerated desktop preview golden
-  (135 passing), `resume_reconciliation_test.dart` and
-  `library_sync_provider_test.dart` (67 passing), the update cases of
-  `app_providers_test.dart` and `sync_diagnostics_server_test.dart`, plus
-  `flutter analyze`, the format check and the dead-code gate; `./tool/check.sh`
-  and runtime validation were not run on this host.)
+  automatic checks are throttled to 1 h and returning after 30 s away
+  invalidates `updateProvider` through the existing resume hook. Fix round:
+  cache only the signed envelope in `verifiedManifest` and run the same
+  signature, channel, version/build, install mode, Android installer/ABI and
+  asset validation for fresh and cached checks. Completed fetches replace or
+  clear the cache; transport failures preserve it. Home Dismiss persists the
+  tag/build identity without hiding the update in About; a different identity
+  shows again. The Sync settings library-sync button is labelled "Sync library
+  now". Ten regression tests failed before the fix. Targeted capped Flutter
+  tests: `update_repository_test.dart`, `update_check_store_test.dart` and
+  `home_screen_test.dart` (223 passing); update cases of
+  `app_providers_test.dart` and `sync_diagnostics_server_test.dart` (11 passing);
+  `about_screen_test.dart` and `update_pull_test.dart` (24 passing).
+  `dart analyze` on changed files has no new findings (six existing infos on
+  unchanged lines); `dart format` and the dead-code gate pass. Per host limits,
+  `./tool/check.sh`, app/emulator launches and runtime screenshot/restart
+  validation were not run; the coordinator owns those remaining checks.)
 - [x] Idle-robustness final fixes (shared sync requests and busy databases) —
   2026-10-15 (`fix/idle-integration`, aa3d3452..abf8f071; a lease-held check
   against a live worker lease retries at the 30 s floor instead of waiting out

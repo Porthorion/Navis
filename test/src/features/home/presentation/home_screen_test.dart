@@ -1183,22 +1183,38 @@ void main() {
       });
     }
 
-    testWidgets('dismiss hides the current update and a newer build shows again', (tester) async {
-      var current = update;
-      await pumpWith(tester, const AppSettingsModel.defaults(), currentUpdate: () => current);
-      final container = ProviderScope.containerOf(tester.element(tile));
-      await tester.tap(find.byKey(const ValueKey<String>('updateTileDismiss')));
-      await tester.pumpAndSettle();
-      expect(tile, findsNothing);
-      expect(await container.read(updateProvider.future), same(update));
-      container.invalidate(updateProvider);
-      await tester.pumpAndSettle();
-      expect(tile, findsNothing);
-      current = const UpdateInfo(tagName: 'v9.9.9', buildNumber: 2, htmlUrl: 'https://example.com/release', delivery: UpdateDelivery.storeRedirect, sha256: null, size: null);
-      container.invalidate(updateProvider);
-      await tester.pumpAndSettle();
-      expect(tile, findsOneWidget);
-    });
+    testWidgets(
+      'dismiss hides the current update and a newer build shows again',
+      (tester) async {
+        var current = update;
+        await pumpWith(
+          tester,
+          const AppSettingsModel.defaults(),
+          currentUpdate: () => current,
+        );
+        final container = ProviderScope.containerOf(tester.element(tile));
+        await tester.tap(
+          find.byKey(const ValueKey<String>('updateTileDismiss')),
+        );
+        await tester.pumpAndSettle();
+        expect(tile, findsNothing);
+        expect(await container.read(updateProvider.future), same(update));
+        container.invalidate(updateProvider);
+        await tester.pumpAndSettle();
+        expect(tile, findsNothing);
+        current = const UpdateInfo(
+          tagName: 'v9.9.9',
+          buildNumber: 2,
+          htmlUrl: 'https://example.com/release',
+          delivery: UpdateDelivery.storeRedirect,
+          sha256: null,
+          size: null,
+        );
+        container.invalidate(updateProvider);
+        await tester.pumpAndSettle();
+        expect(tile, findsOneWidget);
+      },
+    );
 
     for (final entry in <String, AppSettingsModel>{
       'automatic checks are off': const AppSettingsModel.defaults().copyWith(
@@ -4832,6 +4848,9 @@ class _PullUpdateStore extends UpdateCheckStore {
 
 class _DismissUpdateStore extends UpdateCheckStore {
   String? dismissed;
+  @override
   Future<String?> readDismissedUpdate() async => dismissed;
-  Future<void> recordDismissedUpdate(String identity) async => dismissed = identity;
+  @override
+  Future<void> recordDismissedUpdate(String identity) async =>
+      dismissed = identity;
 }

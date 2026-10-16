@@ -57,38 +57,48 @@ void main() {
     expect(await throttled.shouldCheck(), isTrue);
   });
 
-  test('verified update round-trips and clears', () async {
-    const update = <String, Object?>{
-      'tagName': 'v1.5.1',
-      'version': '1.5.1',
-      'htmlUrl': 'https://navis.porthorion.com/releases/v1.5.1',
-      'delivery': 'desktopSelfUpdate',
-      'sha256': null,
-      'size': null,
-    };
-    await store.recordVerifiedUpdate(update);
-    expect(await store.readVerifiedUpdate(), update);
-    final reopened = UpdateCheckStore();
-    expect(await reopened.readVerifiedUpdate(), update);
-    expect(await reopened.readLastCheckAt(), isNull);
-    await reopened.clearVerifiedUpdate();
-    expect(await reopened.readVerifiedUpdate(), isNull);
-    // The other keys survive the clear.
-    expect(
-      jsonDecode(
-        await File(p.join(temp.path, 'update_check_state.json')).readAsString(),
-      ),
-      isNot(contains('verifiedUpdate')),
-    );
-  });
+  test(
+    'signed manifest round-trips and clears without losing dismissal',
+    () async {
+      const update = <String, Object?>{
+        'payload': 'cGF5bG9hZA==',
+        'signature': 'c2lnbmF0dXJl',
+      };
+      await store.recordDismissedUpdate('v1.5.1+43');
+      await store.recordVerifiedManifest(update);
+      expect(await store.readVerifiedManifest(), update);
+      final reopened = UpdateCheckStore();
+      expect(await reopened.readVerifiedManifest(), update);
+      expect(await reopened.readLastCheckAt(), isNull);
+      await reopened.clearVerifiedManifest();
+      expect(await reopened.readVerifiedManifest(), isNull);
+      expect(await reopened.readDismissedUpdate(), 'v1.5.1+43');
+      // The other keys survive the clear.
+      expect(
+        jsonDecode(
+          await File(p.join(temp.path, 'update_check_state.json'))
+              .readAsString(),
+        ),
+        isNot(contains('verifiedManifest')),
+      );
+    },
+  );
 
-  test('concurrent writers retain both keys', () async {
+  test('concurrent writers retain all keys', () async {
     await Future.wait([
       store.recordCheck(),
       store.recordNotifiedVersion('1.5.0+43'),
+      store.recordDismissedUpdate('v1.5.1+43'),
+      store.recordVerifiedManifest({'payload': 'abc', 'signature': 'def'}),
     ]);
     expect(await store.readLastCheckAt(), now);
     expect(await store.readNotifiedVersion(), '1.5.0+43');
+    final reopened = UpdateCheckStore();
+    expect(await reopened.readDismissedUpdate(), 'v1.5.1+43');
+    expect(await reopened.readVerifiedManifest(), {
+      'payload': 'abc',
+      'signature': 'def',
+    });
   });
 
   for (final corrupt in [
@@ -96,7 +106,8 @@ void main() {
     '[]',
     'null',
     '{"lastCheckAt":false,"notifiedVersion":42}',
-    '{"verifiedUpdate":"not-a-map"}',
+    '{"verifiedManifest":"not-a-map"}',
+    '{"dismissedUpdate":42}',
   ]) {
     for (final noticeFirst in [false, true]) {
       test(
@@ -106,7 +117,8 @@ void main() {
           await file.writeAsString(corrupt);
           expect(await store.readLastCheckAt(), isNull);
           expect(await store.readNotifiedVersion(), isNull);
-          expect(await store.readVerifiedUpdate(), isNull);
+          expect(await store.readVerifiedManifest(), isNull);
+          expect(await store.readDismissedUpdate(), isNull);
           if (noticeFirst) {
             await store.recordNotifiedVersion('1.5.0+43');
             await store.recordCheck();

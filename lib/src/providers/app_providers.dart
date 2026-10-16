@@ -3177,6 +3177,11 @@ final updateCheckStoreProvider = Provider<UpdateCheckStore>((ref) {
   return UpdateCheckStore();
 });
 
+/// The tag and build identity of the update dismissed on Home.
+final dismissedUpdateProvider = FutureProvider.autoDispose<String?>((ref) {
+  return ref.watch(updateCheckStoreProvider).readDismissedUpdate();
+});
+
 final updateServiceProvider = Provider<UpdateService>((ref) {
   final meter = ref.watch(networkUsageMeterProvider);
   return UpdateService(

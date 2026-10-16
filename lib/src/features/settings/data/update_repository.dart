@@ -26,6 +26,7 @@ class UpdateCheckRecord {
     this.assetKey,
     this.rejectReason,
     this.tag,
+    this.fromCache = false,
   });
 
   final String url;
@@ -35,6 +36,7 @@ class UpdateCheckRecord {
   final String? assetKey;
   final String? rejectReason;
   final String? tag;
+  final bool fromCache;
 
   Map<String, Object?> toJson() => {
     'url': url,
@@ -44,6 +46,7 @@ class UpdateCheckRecord {
     'assetKey': assetKey,
     'rejectReason': rejectReason,
     'tag': tag,
+    'fromCache': fromCache,
   };
 }
 
@@ -89,29 +92,64 @@ class UpdateRepository {
       '${AppConstants.updateBaseUrl}channels/'
       '${Uri.encodeComponent(channelFor(channel))}/manifest.json';
 
-  /// Returns an update only when the signed manifest and selected asset are
-  /// valid, or the last update a completed fetch verified while the throttle
-  /// skips fetching.
+  /// Verifies and selects an update from a fresh or throttled cached manifest.
   ///
-  /// Transport errors propagate to the existing provider error state. Rejected
-  /// manifests return `null`; successful fetches retain the one-hour throttle.
+  /// Transport errors propagate to the existing provider error state and keep
+  /// the cache. Completed fetches replace it with their verified outcome.
   Future<UpdateInfo?> checkForUpdate({
     String? updateChannel,
     bool forceCheck = false,
   }) async {
-    if (_isIOS) {
-      return null;
-    }
+    if (_isIOS) return null;
+    final channel = channelFor(updateChannel);
     if (!await _updateCheckStore.shouldCheck(force: forceCheck)) {
-      return await _verifiedUpdateIfStillNewer();
+      final envelope = await _updateCheckStore.readVerifiedManifest();
+      if (envelope == null) return null;
+      return await _updateFromEnvelope(
+        envelope,
+        channel: channel,
+        fromCache: true,
+      );
     }
 
+    final url = manifestUrlFor(channel);
+    final timestamp = DateTime.now().toUtc();
+    _lastCheck = UpdateCheckRecord(url: url, timestamp: timestamp);
+    try {
+      final response = await _dio.get<Object?>(
+        url,
+        options: Options(
+          responseType: ResponseType.json,
+          receiveTimeout: const Duration(seconds: 10),
+          sendTimeout: const Duration(seconds: 10),
+          extra: <String, dynamic>{
+            if (forceCheck) navisUserInitiatedExtraKey: true,
+          },
+        ),
+      );
+      await _updateCheckStore.recordCheck();
+      await _updateCheckStore.clearVerifiedManifest();
+      return await _updateFromEnvelope(response.data, channel: channel);
+    } on DioException {
+      _lastCheck = UpdateCheckRecord(
+        url: url,
+        timestamp: timestamp,
+        rejectReason: 'fetch_failed',
+      );
+      rethrow;
+    }
+  }
+
+  Future<UpdateInfo?> _updateFromEnvelope(
+    Object? data, {
+    required String channel,
+    bool fromCache = false,
+  }) async {
     final packageInfo = await PackageInfo.fromPlatform();
     final currentSemver = parseSemver(
       packageInfo.version,
       allowExtraParts: true,
     );
-    final channel = channelFor(updateChannel);
     final url = manifestUrlFor(channel);
     final timestamp = DateTime.now().toUtc();
     bool? signatureValid;
@@ -127,6 +165,7 @@ class UpdateRepository {
         assetKey: assetKey,
         rejectReason: rejectReason,
         tag: tag,
+        fromCache: fromCache,
       );
       if (rejectReason != null) {
         AppLogger.warning('Update manifest rejected: $rejectReason');
@@ -140,26 +179,9 @@ class UpdateRepository {
 
     record();
     try {
-      final response = await _dio.get<Object?>(
-        url,
-        options: Options(
-          responseType: ResponseType.json,
-          receiveTimeout: const Duration(seconds: 10),
-          sendTimeout: const Duration(seconds: 10),
-          extra: <String, dynamic>{
-            if (forceCheck) navisUserInitiatedExtraKey: true,
-          },
-        ),
-      );
-      await _updateCheckStore.recordCheck();
-      // A completed fetch supersedes whatever it verified earlier: only its
-      // own outcome may stay cached. A transport error above keeps the cache.
-      await _updateCheckStore.clearVerifiedUpdate();
-
       signatureValid = false;
       // Dio decodes JSON only when the response is labelled as JSON; accept
       // the same document when the host serves it with another content type.
-      final data = response.data;
       final envelope = data is String ? jsonDecode(data) : data;
       if (envelope is! Map ||
           envelope['payload'] is! String ||
@@ -277,48 +299,18 @@ class UpdateRepository {
         sha256: storeRedirect ? null : hash,
         size: storeRedirect ? null : size,
       );
-      await _updateCheckStore.recordVerifiedUpdate(info.toJson());
+      if (!fromCache) {
+        await _updateCheckStore.recordVerifiedManifest({
+          'payload': envelope['payload'] as String,
+          'signature': envelope['signature'] as String,
+        });
+      }
       return info;
     } on FormatException {
       return reject(
         signatureValid == true ? 'malformed_payload' : 'malformed_envelope',
       );
-    } on DioException {
-      record(rejectReason: 'fetch_failed');
-      rethrow;
     }
-  }
-
-  /// Returns the last update a completed fetch verified, dropping it once the
-  /// installed version is no longer older. The stored JSON passed
-  /// verification when it was written; only its freshness is re-decided here.
-  Future<UpdateInfo?> _verifiedUpdateIfStillNewer() async {
-    final stored = await _updateCheckStore.readVerifiedUpdate();
-    final info = stored == null ? null : UpdateInfo.fromJson(stored);
-    if (info == null) return null;
-    final packageInfo = await PackageInfo.fromPlatform();
-    final currentSemver = parseSemver(
-      packageInfo.version,
-      allowExtraParts: true,
-    );
-    final candidateSemver = parseSemver(
-      info.version ?? info.tagName,
-      allowExtraParts: true,
-    );
-    if (currentSemver == null || candidateSemver == null) return null;
-    final versionOrder = compareSemver(candidateSemver, currentSemver);
-    final build = info.buildNumber;
-    final currentBuild = int.tryParse(packageInfo.buildNumber);
-    final newerBuild =
-        versionOrder == 0 &&
-        build != null &&
-        currentBuild != null &&
-        build > currentBuild;
-    if (versionOrder < 0 || (versionOrder == 0 && !newerBuild)) {
-      await _updateCheckStore.clearVerifiedUpdate();
-      return null;
-    }
-    return info;
   }
 }
 

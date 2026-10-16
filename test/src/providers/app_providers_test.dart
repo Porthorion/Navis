@@ -3078,13 +3078,13 @@ class _RecordingUpdateCheckStore extends UpdateCheckStore {
   Future<void> recordCheck([DateTime? checkedAt]) async {}
 
   @override
-  Future<Map<String, Object?>?> readVerifiedUpdate() async => null;
+  Future<Map<String, Object?>?> readVerifiedManifest() async => null;
 
   @override
-  Future<void> recordVerifiedUpdate(Map<String, Object?> value) async {}
+  Future<void> recordVerifiedManifest(Map<String, Object?> value) async {}
 
   @override
-  Future<void> clearVerifiedUpdate() async {}
+  Future<void> clearVerifiedManifest() async {}
 }
 
 class _NoOpUpdateCheckStore extends UpdateCheckStore {
@@ -3095,13 +3095,13 @@ class _NoOpUpdateCheckStore extends UpdateCheckStore {
   Future<void> recordCheck([DateTime? checkedAt]) async {}
 
   @override
-  Future<Map<String, Object?>?> readVerifiedUpdate() async => null;
+  Future<Map<String, Object?>?> readVerifiedManifest() async => null;
 
   @override
-  Future<void> recordVerifiedUpdate(Map<String, Object?> value) async {}
+  Future<void> recordVerifiedManifest(Map<String, Object?> value) async {}
 
   @override
-  Future<void> clearVerifiedUpdate() async {}
+  Future<void> clearVerifiedManifest() async {}
 }
 
 class _RadioErrorHandler extends InertPlaybackHandler {

@@ -4,8 +4,7 @@ import 'dart:io';
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
 
-/// Persists update-check timing, the last verified update, and the last
-/// update announced in Library.
+/// Persists update-check timing, the last signed manifest, and notice identities.
 class UpdateCheckStore {
   new({this._throttle = const Duration(hours: 1), DateTime Function()? now})
     : _now = now ?? DateTime.now;
@@ -38,9 +37,9 @@ class UpdateCheckStore {
     return raw is String ? raw : null;
   }
 
-  /// Reads the last verified update, or null when none is stored.
-  Future<Map<String, Object?>?> readVerifiedUpdate() async {
-    final raw = (await _readState())['verifiedUpdate'];
+  /// Reads the last signed envelope, which must be verified again before use.
+  Future<Map<String, Object?>?> readVerifiedManifest() async {
+    final raw = (await _readState())['verifiedManifest'];
     return raw is Map<String, Object?> ? raw : null;
   }
 
@@ -51,12 +50,20 @@ class UpdateCheckStore {
   Future<void> recordNotifiedVersion(String version) =>
       _mergeState('notifiedVersion', version);
 
-  /// Stores the last update a completed manifest fetch verified, so a
-  /// throttled check can keep showing it.
-  Future<void> recordVerifiedUpdate(Map<String, Object?> value) =>
-      _mergeState('verifiedUpdate', value);
+  /// Stores the signed envelope of an update a completed fetch verified.
+  Future<void> recordVerifiedManifest(Map<String, Object?> value) =>
+      _mergeState('verifiedManifest', value);
 
-  Future<void> clearVerifiedUpdate() => _mergeState('verifiedUpdate', null);
+  Future<void> clearVerifiedManifest() => _mergeState('verifiedManifest', null);
+
+  /// Reads the tag and build identity dismissed on Home.
+  Future<String?> readDismissedUpdate() async {
+    final raw = (await _readState())['dismissedUpdate'];
+    return raw is String ? raw : null;
+  }
+
+  Future<void> recordDismissedUpdate(String identity) =>
+      _mergeState('dismissedUpdate', identity);
 
   Future<void> _mergeState(String key, Object? value) {
     final write = _writes.then((_) async {
