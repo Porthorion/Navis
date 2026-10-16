@@ -1,6 +1,7 @@
 import 'dart:convert';
 
 import 'package:drift/drift.dart' show Value;
+import 'package:meta/meta.dart' show visibleForTesting;
 
 import 'package:navis/src/database/daos/app_settings_dao.dart';
 import 'package:navis/src/database/navis_database.dart';
@@ -290,7 +291,15 @@ class SettingsRepository {
     }
   }
 
+  /// Full reset of every settings column. Production resets are scoped to a
+  /// page (see [resetPlaybackDefaults]); this stays as the test seam that
+  /// verifies full-reset invariants.
+  @visibleForTesting
   Future<void> resetDefaults() => _dao.resetDefaults();
+
+  /// Resets only the fields the Playback settings page shows; see
+  /// [AppSettingsDao.resetPlaybackDefaults].
+  Future<void> resetPlaybackDefaults() => _dao.resetPlaybackDefaults();
 
   /// Switches one integration service or feature; see
   /// [AppSettingsDao.setIntegrationEnabled].

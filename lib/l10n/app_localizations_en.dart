@@ -1156,13 +1156,6 @@ class AppLocalizationsEn extends AppLocalizations {
   String get playbackSettingsPlaybackSpeedLabel => 'Playback Speed';
 
   @override
-  String get playbackSettingsFullscreenLyricsTitle => 'Fullscreen Mode Lyrics';
-
-  @override
-  String get playbackSettingsFullscreenLyricsSubtitle =>
-      'Open lyrics in fullscreen directly from Now Playing.';
-
-  @override
   String get playbackSettingsAlbumQueueTitle => 'Album Queue';
 
   @override

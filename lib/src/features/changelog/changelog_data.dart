@@ -166,6 +166,14 @@ const List<ChangelogVersion> changelogs = [
     ],
     entries: [
       ChangelogEntry(
+        'Reset Defaults on the Playback settings page now resets only playback settings; appearance, Looks, downloads and service connections are left alone',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
+        'Removed the Fullscreen Mode Lyrics switch from Playback settings; it had no effect',
+        type: ChangelogEntryType.improvement,
+      ),
+      ChangelogEntry(
         'Notification, Bluetooth and car controls keep working after Android restarts the media service',
         type: ChangelogEntryType.fix,
       ),

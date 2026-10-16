@@ -55,7 +55,6 @@ class _PlaybackSettingsScreenState
   bool _cachedPlaybackFirst = false;
   bool _scrobbleEnabled = true;
   bool _gaplessEnabled = true;
-  bool _fullscreenModeLyrics = false;
   bool _albumQueueEnabled = false;
   bool _likedQueueEnabled = false;
   bool _matchFlowEnabled = false;
@@ -348,18 +347,6 @@ class _PlaybackSettingsScreenState
                       ),
                     ),
                   ],
-                  SwitchListTile(
-                    contentPadding: EdgeInsets.zero,
-                    value: _fullscreenModeLyrics,
-                    onChanged: _isSaving
-                        ? null
-                        : (value) =>
-                              setState(() => _fullscreenModeLyrics = value),
-                    title: Text(l10n.playbackSettingsFullscreenLyricsTitle),
-                    subtitle: Text(
-                      l10n.playbackSettingsFullscreenLyricsSubtitle,
-                    ),
-                  ),
                   // ── ReplayGain section ─────────────────────────────────────
                   const SizedBox(height: 24),
                   Text(
@@ -588,7 +575,6 @@ class _PlaybackSettingsScreenState
     _cachedPlaybackFirst = settings.cachedPlaybackFirst;
     _scrobbleEnabled = settings.scrobbleEnabled;
     _gaplessEnabled = settings.gaplessEnabled || settings.crossfadeEnabled;
-    _fullscreenModeLyrics = settings.skipSilenceEnabled;
     _albumQueueEnabled = settings.albumQueueEnabled;
     _likedQueueEnabled = settings.likedQueueEnabled;
     _matchFlowEnabled = settings.matchFlowEnabled;
@@ -625,7 +611,6 @@ class _PlaybackSettingsScreenState
       _cachedPlaybackFirst,
       _scrobbleEnabled,
       _gaplessEnabled,
-      _fullscreenModeLyrics,
 
       _crossfadeEnabled,
       _crossfadeDurationSeconds,
@@ -670,7 +655,6 @@ class _PlaybackSettingsScreenState
         cachedPlaybackFirst: _cachedPlaybackFirst,
         scrobbleEnabled: _scrobbleEnabled,
         gaplessEnabled: _gaplessEnabled || _crossfadeEnabled,
-        skipSilenceEnabled: _fullscreenModeLyrics,
         crossfadeEnabled: _crossfadeEnabled,
         crossfadeDurationSeconds: _crossfadeDurationSeconds,
         crossfadeType: _crossfadeType,
@@ -729,7 +713,7 @@ class _PlaybackSettingsScreenState
     final l10n = AppLocalizations.of(context)!;
     setState(() => _isSaving = true);
     try {
-      await ref.read(settingsRepositoryProvider).resetDefaults();
+      await ref.read(settingsRepositoryProvider).resetPlaybackDefaults();
       await ref
           .read(playbackAdjustmentsProvider.notifier)
           .selectPreset(PlaybackPreset.noneId);

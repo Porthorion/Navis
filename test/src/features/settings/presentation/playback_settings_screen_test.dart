@@ -76,7 +76,7 @@ void main() {
     setUp(() {
       repository = _MockSettingsRepository();
       when(() => repository.saveSettings(any())).thenAnswer((_) async {});
-      when(() => repository.resetDefaults()).thenAnswer((_) async {});
+      when(() => repository.resetPlaybackDefaults()).thenAnswer((_) async {});
     });
 
     testWidgets('renders playback settings controls', (tester) async {
@@ -101,6 +101,7 @@ void main() {
       expect(find.text('Experimental'), findsOneWidget);
       expect(find.text('Show Radio page'), findsNothing);
       expect(find.text('Skip silence when possible'), findsNothing);
+      expect(find.text('Fullscreen Mode Lyrics'), findsNothing);
       expect(find.text('Changes save automatically'), findsOneWidget);
       expect(find.text('Reset Defaults'), findsOneWidget);
     });
@@ -205,7 +206,8 @@ void main() {
       await tester.tap(resetDefaults);
       await tester.pumpAndSettle();
 
-      verify(() => repository.resetDefaults()).called(1);
+      verify(() => repository.resetPlaybackDefaults()).called(1);
+      verifyNever(() => repository.resetDefaults());
       expect(tester.takeException(), isNull);
     });
 
@@ -372,10 +374,7 @@ void main() {
         'Enable Gapless Playback',
       );
       const crossfadeText = 'Enable Cross-Fade';
-      final fullscreenToggle = find.widgetWithText(
-        SwitchListTile,
-        'Fullscreen Mode Lyrics',
-      );
+      final replayGainSection = find.text('Volume Normalization (ReplayGain)');
 
       expect(find.widgetWithText(SwitchListTile, crossfadeText), findsNothing);
 
@@ -389,10 +388,9 @@ void main() {
         crossfadeText,
       );
       expect(crossfadeToggle, findsOneWidget);
-      expect(fullscreenToggle, findsOneWidget);
       expect(
         tester.getTopLeft(crossfadeToggle).dy,
-        lessThan(tester.getTopLeft(fullscreenToggle).dy),
+        lessThan(tester.getTopLeft(replayGainSection).dy),
       );
 
       await tester.ensureVisible(crossfadeToggle);

@@ -485,6 +485,37 @@ class AppSettingsDao extends DatabaseAccessor<NavisDatabase>
     await updateSetupCardDismissedRelease(null);
   }
 
+  /// Resets only the settings the Playback page shows: streaming quality,
+  /// scrobbling, gapless/cross-fade, ReplayGain, queue options and the
+  /// current speed and pitch. Appearance, Looks, colours, setup highlights,
+  /// downloads, integrations and saved presets are left untouched.
+  Future<void> resetPlaybackDefaults() async {
+    await updatePlaybackAdjustments(
+      speed: 1,
+      pitchSemitones: 0,
+      selectedPresetId: 'none',
+    );
+    await _writeSettings(
+      const AppSettingsTableCompanion(
+        wifiMaxBitRate: Value(null),
+        wifiFormat: Value(null),
+        cellularMaxBitRate: Value(defaultCellularBitRate),
+        cellularFormat: Value(defaultCellularFormat),
+        cachedPlaybackFirst: Value(false),
+        scrobbleEnabled: Value(true),
+        gaplessEnabled: Value(true),
+        crossfadeEnabled: Value(false),
+        crossfadeDurationSeconds: Value(5),
+        crossfadeType: Value('normal'),
+        replayGainMode: Value('off'),
+        replayGainPreamp: Value(0),
+        albumQueueEnabled: Value(true),
+        likedQueueEnabled: Value(true),
+        matchFlowEnabled: Value(false),
+      ),
+    );
+  }
+
   /// Writes changed setup listening and queue options without a full-row save.
   Future<void> updateSetupListeningPreferences({
     Value<int?> wifiMaxBitRate = const Value.absent(),

@@ -567,6 +567,130 @@ void main() {
       expect(settings.nowPlayingBackground, 'tinted');
     }, skip: !sqliteAvailable);
 
+    test(
+      'playback reset restores playback fields and leaves the rest alone',
+      () async {
+        final dao = database.appSettingsDao;
+        await dao.saveSettings(
+          wifiMaxBitRate: 320,
+          wifiFormat: 'opus',
+          cellularMaxBitRate: 96,
+          cellularFormat: 'aac',
+          cachedPlaybackFirst: true,
+          scrobbleEnabled: false,
+          gaplessEnabled: false,
+          skipSilenceEnabled: true,
+          showAlbumsPage: false,
+          showRadioPage: false,
+          showPlaylistsPage: true,
+          showArtistsPage: true,
+          showLikedPage: true,
+
+          wifiOnlyDownloads: false,
+          autoDownloadStarredOnWifi: true,
+          customDownloadFolderEnabled: true,
+          customDownloadFolderPath: '/music/downloads',
+          themeMode: 'light',
+          colorStyle: 'night',
+          oledForAuto: true,
+          nightScheduleEnabled: true,
+          nightScheduleStartMinutes: 1200,
+          nightScheduleEndMinutes: 480,
+          flatSurfaces: true,
+          colorVividness: 3,
+          crossfadeEnabled: true,
+          crossfadeDurationSeconds: 9,
+          crossfadeType: 'smart',
+          nowPlayingBackground: 'plain',
+          dynamicAlbumColorEnabled: true,
+          updateCheckEnabled: false,
+          updateChannel: 'beta',
+          syncIntervalMinutes: 15,
+          useLrclib: false,
+          legacyInstantMixEnabled: true,
+          replayGainMode: 'track',
+          replayGainPreamp: -4.5,
+          playbackSpeed: 1,
+          coverArtShape: 'rounded',
+          nowPlayingArtShape: 'rounded',
+          artistCardShape: 'circle',
+          artistViewMode: 'list',
+          homeDensity: 'compact',
+          albumQueueEnabled: false,
+          matchFlowEnabled: true,
+          likedQueueEnabled: false,
+        );
+        await dao.updateAppearanceLooks(
+          selectedLookId: 'look',
+          looksJson: '[{"id":"look"}]',
+        );
+        await dao.updateLastFmApiKey('fixture-key');
+        await dao.updateListenBrainzScrobblingState(
+          enabled: true,
+          tokenValid: true,
+          userName: 'listener',
+        );
+        await dao.updateSetupHighlightsSeenRelease('1.5.0');
+        await dao.markSetupHighlightSeen('wifi');
+        await dao.updatePlaybackAdjustments(
+          speed: 1.5,
+          pitchSemitones: 3,
+          lockPitchToSpeed: true,
+          selectedPresetId: 'club',
+          presetsJson: '[{"id":"club","name":"Club"}]',
+        );
+
+        await dao.resetPlaybackDefaults();
+
+        final settings = (await dao.getSettings())!;
+        // Fields shown on the Playback page are back to their defaults.
+        expect(settings.wifiMaxBitRate, isNull);
+        expect(settings.wifiFormat, isNull);
+        expect(
+          settings.cellularMaxBitRate,
+          AppSettingsDao.defaultCellularBitRate,
+        );
+        expect(settings.cellularFormat, AppSettingsDao.defaultCellularFormat);
+        expect(settings.cachedPlaybackFirst, isFalse);
+        expect(settings.scrobbleEnabled, isTrue);
+        expect(settings.gaplessEnabled, isTrue);
+        expect(settings.crossfadeEnabled, isFalse);
+        expect(settings.crossfadeDurationSeconds, 5);
+        expect(settings.crossfadeType, 'normal');
+        expect(settings.replayGainMode, 'off');
+        expect(settings.replayGainPreamp, 0);
+        expect(settings.albumQueueEnabled, isTrue);
+        expect(settings.likedQueueEnabled, isTrue);
+        expect(settings.matchFlowEnabled, isFalse);
+        expect(settings.playbackSpeed, 1);
+        expect(settings.playbackPitchSemitones, 0);
+        expect(settings.selectedPlaybackPresetId, 'none');
+        // Saved playback presets survive the reset.
+        expect(settings.playbackPresets, '[{"id":"club","name":"Club"}]');
+        // The retired fullscreen-lyrics column stays as it was.
+        expect(settings.skipSilenceEnabled, isTrue);
+        // Everything the Playback page does not show is untouched.
+        expect(settings.themeMode, 'light');
+        expect(settings.colorStyle, 'night');
+        expect(settings.colorVividness, 3);
+        expect(settings.selectedAppearanceLookId, 'look');
+        expect(settings.appearanceLooks, '[{"id":"look"}]');
+        expect(settings.wifiOnlyDownloads, isFalse);
+        expect(settings.autoDownloadStarredOnWifi, isTrue);
+        expect(settings.customDownloadFolderEnabled, isTrue);
+        expect(settings.customDownloadFolderPath, '/music/downloads');
+        expect(settings.lastFmApiKey, 'fixture-key');
+        expect(settings.listenBrainzScrobblingEnabled, isTrue);
+        expect(settings.listenBrainzTokenValid, isTrue);
+        expect(settings.listenBrainzUserName, 'listener');
+        expect(settings.setupHighlightsSeenRelease, '1.5.0');
+        expect(settings.setupHighlightsSeen, contains('wifi'));
+        expect(settings.updateChannel, 'beta');
+        expect(settings.homeDensity, 'compact');
+      },
+      skip: !sqliteAvailable,
+    );
+
     test('download preferences are written by targeted updates', () async {
       final dao = database.appSettingsDao;
       expect(
