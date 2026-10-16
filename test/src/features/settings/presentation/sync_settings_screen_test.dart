@@ -495,7 +495,7 @@ void main() {
       find.text('Background Sync Only on Unmetered Networks'),
       findsOneWidget,
     );
-    expect(find.text('Check for updates'), findsOneWidget);
+    expect(find.text('Sync library now'), findsOneWidget);
     expect(find.text('Repair Library'), findsOneWidget);
     expect(
       find.text(

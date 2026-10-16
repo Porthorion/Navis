@@ -709,6 +709,7 @@ class _CompactWideOverlaySheetState extends State<_CompactWideOverlaySheet>
 class _NowPlayingSettingsPanel extends ConsumerWidget {
   const new({
     required this.song,
+    required this.transportQuickActionsShown,
     this.onCollapse,
     this.fullscreenLyricsSongId,
     this.fullscreenLyricsTitle,
@@ -716,6 +717,9 @@ class _NowPlayingSettingsPanel extends ConsumerWidget {
   });
 
   final SongsTableData? song;
+
+  /// Whether the transport row shows EQ and Speed; Sound is listed otherwise.
+  final ValueNotifier<bool> transportQuickActionsShown;
   final VoidCallback? onCollapse;
   final String? fullscreenLyricsSongId;
   final String? fullscreenLyricsTitle;
@@ -723,27 +727,31 @@ class _NowPlayingSettingsPanel extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    return ListView(
-      padding: const EdgeInsets.fromLTRB(8, 8, 8, 12),
-      children: <Widget>[
-        ..._nowPlayingSettingsItems(
-          context,
-          ref,
-          actionRef: ref,
-          song: song,
-          onOpenSpeedPitch: (tileContext) =>
-              unawaited(showPlaybackAdjustmentQuickPanel(tileContext)),
-          onOpenEqualizerFullPage: null,
-          equalizerCardPadding: const EdgeInsets.fromLTRB(4, 4, 4, 8),
-          dimRemoteRatingTile: true,
-          onOpenFullscreenLyrics:
-              fullscreenLyricsSongId != null && fullscreenLyricsTitle != null
-              ? onOpenFullscreenLyrics
-              : null,
-          beforeNavigate: () => onCollapse?.call(),
-          beforeAction: () {},
-        ),
-      ],
+    return ValueListenableBuilder<bool>(
+      valueListenable: transportQuickActionsShown,
+      builder: (context, quickActionsShown, _) => ListView(
+        padding: const EdgeInsets.fromLTRB(8, 8, 8, 12),
+        children: <Widget>[
+          ..._nowPlayingSettingsItems(
+            context,
+            ref,
+            actionRef: ref,
+            showSound: !quickActionsShown,
+            song: song,
+            onOpenSpeedPitch: (tileContext) =>
+                unawaited(showPlaybackAdjustmentQuickPanel(tileContext)),
+            onOpenEqualizerFullPage: null,
+            equalizerCardPadding: const EdgeInsets.fromLTRB(4, 4, 4, 8),
+            dimRemoteRatingTile: true,
+            onOpenFullscreenLyrics:
+                fullscreenLyricsSongId != null && fullscreenLyricsTitle != null
+                ? onOpenFullscreenLyrics
+                : null,
+            beforeNavigate: () => onCollapse?.call(),
+            beforeAction: () {},
+          ),
+        ],
+      ),
     );
   }
 }

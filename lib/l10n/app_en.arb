@@ -336,7 +336,7 @@
       }
     }
   },
-  "syncSettingsCheckForUpdates": "Check for updates",
+  "syncSettingsSyncLibraryNow": "Sync library now",
   "syncSettingsFreshnessCurrent": "Current",
   "syncSettingsFreshnessPending": "Verification pending",
   "syncSettingsFreshnessRepair": "Repair recommended",

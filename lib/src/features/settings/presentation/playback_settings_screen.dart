@@ -1,4 +1,3 @@
-import 'package:navis/src/features/equalizer/presentation/eq_entry.dart';
 import 'package:navis/src/features/equalizer/presentation/eq_controller.dart';
 
 import 'dart:async';
@@ -72,6 +71,7 @@ class _PlaybackSettingsScreenState
   bool _experimentalExpanded = false;
   String _lastSavedSignature = '';
   Timer? _autosaveDebounce;
+  Completer<void>? _autosaveDone;
 
   @override
   Widget build(BuildContext context) {
@@ -130,8 +130,6 @@ class _PlaybackSettingsScreenState
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: <Widget>[
-                  const EqualizerEntry(),
-                  const SizedBox(height: 16),
                   Text(
                     l10n.playbackSettingsWifiSectionTitle,
                     style: Theme.of(context).textTheme.titleMedium,
@@ -639,6 +637,10 @@ class _PlaybackSettingsScreenState
   }
 
   Future<void> _persistAutosave(String signature) async {
+    // A reset owns the settings row until it has re-hydrated the form.
+    if (_isSaving) {
+      return;
+    }
     if (_isAutoSaving) {
       _pendingAutosave = true;
       return;
@@ -646,13 +648,16 @@ class _PlaybackSettingsScreenState
     if (!_formKey.currentState!.validate()) {
       return;
     }
+    final done = _autosaveDone = Completer<void>();
     if (mounted) {
       setState(() => _isAutoSaving = true);
     }
     try {
+      // Build on the stored row, never on defaults: the settings stream has
+      // no value while it reloads, and this write replaces the whole row.
       final currentSettings =
           ref.read(appSettingsProvider).asData?.value ??
-          const AppSettingsModel.defaults();
+          await ref.read(settingsRepositoryProvider).getSettings();
       final wifiFormat = _normalizeFormat(_wifiFormat);
       final cellularFormat = _normalizeFormat(_cellularFormat);
       // Copy the stored row so fields owned by other screens (integrations,
@@ -700,6 +705,7 @@ class _PlaybackSettingsScreenState
       if (mounted) {
         setState(() => _isAutoSaving = false);
       }
+      done.complete();
       if (_pendingAutosave) {
         _pendingAutosave = false;
         _scheduleAutosave();
@@ -728,14 +734,22 @@ class _PlaybackSettingsScreenState
   Future<void> _resetDefaults() async {
     final l10n = AppLocalizations.of(context)!;
     setState(() => _isSaving = true);
+    // Drop the queued autosave and let a running one finish first, so neither
+    // can write the old form values back over the defaults.
+    _autosaveDebounce?.cancel();
+    _pendingAutosave = false;
+    // Read everything before the first await: leaving the page while a save
+    // drains must not cancel the reset, and ref is unusable once disposed.
+    final repository = ref.read(settingsRepositoryProvider);
+    final adjustments = ref.read(playbackAdjustmentsProvider.notifier);
+    final equalizer = ref.read(equalizerProvider.notifier);
+    final handler = ref.read(audioHandlerProvider);
     try {
-      await ref.read(settingsRepositoryProvider).resetDefaults();
-      await ref
-          .read(playbackAdjustmentsProvider.notifier)
-          .selectPreset(PlaybackPreset.noneId);
-      await ref.read(equalizerProvider.notifier).reset();
-      const defaults = AppSettingsModel.defaults();
-      final handler = ref.read(audioHandlerProvider);
+      await _autosaveDone?.future;
+      await repository.resetPlaybackDefaults();
+      await adjustments.selectPreset(PlaybackPreset.noneId);
+      await equalizer.reset();
+      final persisted = await repository.getSettings();
       if (handler != null) {
         await handler.applyRuntimeSettings();
       }
@@ -743,9 +757,7 @@ class _PlaybackSettingsScreenState
         return;
       }
       setState(() {
-        _hydrate(defaults);
-        _didHydrateForm = true;
-        _lastSavedSignature = _formSignature();
+        _hydrate(persisted);
       });
       showAppNotice(
         context,

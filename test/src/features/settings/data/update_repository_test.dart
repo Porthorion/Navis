@@ -35,12 +35,24 @@ class _MemoryUpdateCheckStore extends UpdateCheckStore {
 
   bool allowCheck;
   int recordCount = 0;
+  Map<String, Object?>? verifiedManifest;
 
   @override
   Future<bool> shouldCheck({bool force = false}) async => force || allowCheck;
 
   @override
   Future<void> recordCheck([DateTime? checkedAt]) async => recordCount++;
+
+  @override
+  Future<Map<String, Object?>?> readVerifiedManifest() async =>
+      verifiedManifest;
+
+  @override
+  Future<void> recordVerifiedManifest(Map<String, Object?> value) async =>
+      verifiedManifest = value;
+
+  @override
+  Future<void> clearVerifiedManifest() async => verifiedManifest = null;
 }
 
 const _hash =
@@ -302,18 +314,198 @@ void main() {
     expect(repo.lastCheck, isNull);
   });
 
-  test('24-hour throttle skips fetching and preserves last check', () async {
+  test('throttle re-verifies the cached envelope without fetching or recording a check', () async {
     final repo = repository();
-    await repo.checkForUpdate();
-    final last = repo.lastCheck;
+    final first = await repo.checkForUpdate();
     store.allowCheck = false;
-    expect(await repo.checkForUpdate(), isNull);
+    final throttled = await repo.checkForUpdate();
+    expect(throttled!.tagName, first!.tagName);
+    expect(throttled.version, '1.5.1');
+    expect(throttled.downloadUrl, _assetUrl);
+    expect(throttled.delivery, UpdateDelivery.desktopSelfUpdate);
     expect(requests, hasLength(1));
-    expect(repo.lastCheck, same(last));
+    expect(repo.lastCheck!.fromCache, isTrue);
     expect(store.recordCount, 1);
     expect(await repo.checkForUpdate(forceCheck: true), isNotNull);
     expect(requests, hasLength(2));
   });
+
+  test(
+    'cached verified update drops when the installed version catches up',
+    () async {
+      final repo = repository();
+      await repo.checkForUpdate();
+      PackageInfo.setMockInitialValues(
+        appName: 'Navis',
+        packageName: 'com.navis.app.navis',
+        version: '1.5.1+43',
+        buildNumber: '43',
+        buildSignature: '',
+      );
+      store.allowCheck = false;
+      expect(await repo.checkForUpdate(), isNull);
+      expect(store.verifiedManifest, isNotNull);
+    },
+  );
+
+  test(
+    'a fresh fetch clears a cached update the manifest no longer offers',
+    () async {
+      final repo = repository();
+      await repo.checkForUpdate();
+      payload['version'] = '1.4.9';
+      payload['tag'] = 'v1.4.9';
+      envelope = await sign(payload);
+      expect(await repo.checkForUpdate(forceCheck: true), isNull);
+      store.allowCheck = false;
+      expect(await repo.checkForUpdate(), isNull);
+      expect(store.verifiedManifest, isNull);
+    },
+  );
+
+  test('cached dev build survives a same-version installed build', () async {
+    payload['channel'] = 'dev';
+    payload['version'] = '1.5.0-dev+999';
+    payload['build'] = 999;
+    envelope = await sign(payload);
+    final repo = repository();
+    expect(await repo.checkForUpdate(updateChannel: 'dev'), isNotNull);
+    store.allowCheck = false;
+    expect((await repo.checkForUpdate(updateChannel: 'dev'))!.buildNumber, 999);
+    PackageInfo.setMockInitialValues(
+      appName: 'Navis',
+      packageName: 'com.navis.app.navis',
+      version: '1.5.0-dev',
+      buildNumber: '999',
+      buildSignature: '',
+    );
+    expect(await repo.checkForUpdate(updateChannel: 'dev'), isNull);
+  });
+
+  for (final field in ['payload', 'signature']) {
+    test('tampered cached $field cannot supply an update', () async {
+      final repo = repository();
+      await repo.checkForUpdate();
+      final signed = envelope! as Map<String, String>;
+      final bytes = base64Decode(signed[field]!);
+      bytes[0] ^= 1;
+      store.verifiedManifest = {...signed, field: base64Encode(bytes)};
+      store.allowCheck = false;
+      expect(await repo.checkForUpdate(), isNull);
+      expect(requests, hasLength(1));
+    });
+  }
+
+  test('cache retains the signed envelope exactly', () async {
+    await repository().checkForUpdate();
+    expect(store.verifiedManifest, envelope);
+  });
+
+  test('cached manifest must match the current channel', () async {
+    final repo = repository();
+    await repo.checkForUpdate();
+    store.allowCheck = false;
+    expect(await repo.checkForUpdate(updateChannel: 'dev'), isNull);
+    expect(requests, hasLength(1));
+  });
+
+  for (final mode in [
+    UpdateInstallMode.windowsInstaller,
+    UpdateInstallMode.linuxDeb,
+  ]) {
+    test(
+      'cached manifest requires an asset for current $mode and ABI',
+      () async {
+        await repository().checkForUpdate();
+        store.allowCheck = false;
+        expect(
+          await repository(mode: mode, arch: 'arm64').checkForUpdate(),
+          isNull,
+        );
+        expect(requests, hasLength(1));
+      },
+    );
+  }
+
+  test('cached APK must match the current Android ABI', () async {
+    final assets = payload['assets']! as Map;
+    assets['androidApk-arm64-v8a'] = assets.remove('androidApk');
+    envelope = await sign(payload);
+    expect(
+      await repository(
+        isAndroid: true,
+        mode: UpdateInstallMode.androidApk,
+        primaryAbi: 'arm64-v8a',
+      ).checkForUpdate(),
+      isNotNull,
+    );
+    store.allowCheck = false;
+    expect(
+      await repository(
+        isAndroid: true,
+        mode: UpdateInstallMode.androidApk,
+        primaryAbi: 'x86_64',
+      ).checkForUpdate(),
+      isNull,
+    );
+  });
+
+  test('cached manifest resolves a transition to Play installer', () async {
+    await repository(
+      isAndroid: true,
+      mode: UpdateInstallMode.androidApk,
+      installer: 'com.android.shell',
+    ).checkForUpdate();
+    store.allowCheck = false;
+    final result = await repository(
+      isAndroid: true,
+      mode: UpdateInstallMode.androidApk,
+      installer: 'com.android.vending',
+    ).checkForUpdate();
+    expect(result?.delivery, UpdateDelivery.storeRedirect);
+    expect(result?.downloadUrl, isNull);
+    expect(result?.sha256, isNull);
+    expect(result?.size, isNull);
+    expect(requests, hasLength(1));
+  });
+
+  test('cached stable equal-version higher build is not newer', () async {
+    payload['build'] = 999;
+    envelope = await sign(payload);
+    final repo = repository();
+    await repo.checkForUpdate();
+    PackageInfo.setMockInitialValues(
+      appName: 'Navis',
+      packageName: 'com.navis.app.navis',
+      version: '1.5.1',
+      buildNumber: '43',
+      buildSignature: '',
+    );
+    store.allowCheck = false;
+    expect(await repo.checkForUpdate(), isNull);
+  });
+
+  test(
+    'transport failure keeps the verified cache for a later check',
+    () async {
+      final repo = repository();
+      await repo.checkForUpdate();
+      final cached = store.verifiedManifest;
+      when(
+        () => dio.get<Object?>(any(), options: any(named: 'options')),
+      ).thenThrow(
+        DioException(requestOptions: RequestOptions(path: '/manifest.json')),
+      );
+      await expectLater(
+        repo.checkForUpdate(forceCheck: true),
+        throwsA(isA<DioException>()),
+      );
+      expect(store.verifiedManifest, cached);
+      store.allowCheck = false;
+      expect(await repo.checkForUpdate(), isNotNull);
+      expect(store.recordCount, 1);
+    },
+  );
 
   test('channels are normalized and remain single URL path segments', () async {
     payload['channel'] = 'staging';

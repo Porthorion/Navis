@@ -169,6 +169,7 @@ class _UpdateTile extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final l10n = AppLocalizations.of(context)!;
     final updateAsync = ref.watch(updateProvider);
+    final dismissedUpdate = ref.watch(dismissedUpdateProvider);
     final automaticChecksAllowed = ref.watch(
       integrationPolicyProvider.select(
         (policy) => policy.isEnabled(IntegrationFeature.updatesAutomatic),
@@ -182,7 +183,12 @@ class _UpdateTile extends ConsumerWidget {
 
     return updateAsync.when(
       data: (info) {
-        if (info == null) return const SizedBox.shrink();
+        if (info == null ||
+            dismissedUpdate.isLoading ||
+            dismissedUpdate.asData?.value ==
+                '${info.tagName}+${info.buildNumber ?? 0}') {
+          return const SizedBox.shrink();
+        }
         final actionLabel = switch (info.delivery) {
           UpdateDelivery.storeRedirect => l10n.updateOpenPlayStore,
           UpdateDelivery.selfUpdate => l10n.updateInstall,
@@ -204,7 +210,14 @@ class _UpdateTile extends ConsumerWidget {
           title: l10n.updateReadyTitle(info.tagName),
           subtitle: body,
           dismissTooltip: l10n.updateDismiss,
-          onDismiss: () => ref.invalidate(updateProvider),
+          onDismiss: () async {
+            await ref
+                .read(updateCheckStoreProvider)
+                .recordDismissedUpdate(
+                  '${info.tagName}+${info.buildNumber ?? 0}',
+                );
+            if (context.mounted) ref.invalidate(dismissedUpdateProvider);
+          },
           secondaryAction: info.htmlUrl.isEmpty
               ? null
               : NoticeAction(
