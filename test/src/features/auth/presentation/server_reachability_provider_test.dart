@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:connectivity_plus/connectivity_plus.dart';
+import 'package:fake_async/fake_async.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:navis/src/api/subsonic_error.dart';
@@ -33,6 +34,269 @@ void main() {
     password: 'secret',
     apiVersion: '1.16.1',
   );
+
+  group('false offline regressions', () {
+    ProviderContainer createContainer(PingServer Function() readPing) {
+      final container = ProviderContainer(
+        overrides: [
+          serverConfigStateProvider.overrideWithValue(
+            const AsyncData(authenticatedConfig),
+          ),
+          connectivityProvider.overrideWith((_) => const Stream.empty()),
+          pingServerProvider.overrideWith((_) => readPing()),
+        ],
+      );
+      addTearDown(container.dispose);
+      container.listen(serverReachabilityControllerProvider, (_, _) {});
+      return container;
+    }
+
+    test('replaced-client failure rechecks immediately and stays online', () {
+      fakeAsync((async) {
+        final retiredPing = Completer<String>();
+        var calls = 0;
+        var ping = () async => 'ready';
+        final container = createContainer(() => ping);
+        async.flushMicrotasks();
+        final statuses = <ServerReachabilityStatus>[];
+        container.listen(serverReachabilityControllerProvider, (_, next) {
+          statuses.add(next.status);
+        });
+        ping = () => retiredPing.future;
+        container.invalidate(pingServerProvider);
+        final check = container
+            .read(serverReachabilityControllerProvider.notifier)
+            .retryNow();
+        var finished = false;
+        unawaited(check.then((_) => finished = true));
+        final currentPing = Completer<String>();
+        ping = () {
+          calls++;
+          return currentPing.future;
+        };
+        container.invalidate(pingServerProvider);
+        retiredPing.completeError(const SubsonicConnectionException('closed'));
+        async.flushMicrotasks();
+        expect(calls, 1);
+        expect(
+          finished,
+          isFalse,
+          reason: 'retryNow joins the replacement probe',
+        );
+        expect(statuses, isNot(contains(ServerReachabilityStatus.offline)));
+        currentPing.complete('ready');
+        async.flushMicrotasks();
+        expect(finished, isTrue);
+        final state = container.read(serverReachabilityControllerProvider);
+        expect(state.status, ServerReachabilityStatus.online);
+        expect(state.consecutiveFailureCount, 0);
+        async.elapse(Duration.zero);
+        expect(async.pendingTimers, isEmpty);
+      });
+    });
+
+    test(
+      'repeated client replacement has one immediate follow-up, then waits',
+      () {
+        fakeAsync((async) {
+          final first = Completer<String>();
+          final second = Completer<String>();
+          var ping = () => first.future;
+          final container = createContainer(() => ping);
+          async.flushMicrotasks();
+          ping = () => second.future;
+          container.invalidate(pingServerProvider);
+          first.completeError(const SubsonicConnectionException('closed'));
+          async.flushMicrotasks();
+          var currentCalls = 0;
+          ping = () async {
+            currentCalls++;
+            return 'ready';
+          };
+          container.invalidate(pingServerProvider);
+          second.completeError(
+            const SubsonicConnectionException('closed again'),
+          );
+          async.flushMicrotasks();
+          expect(
+            currentCalls,
+            0,
+            reason: 'no unbounded immediate replacement loop',
+          );
+          expect(
+            container
+                .read(serverReachabilityControllerProvider)
+                .consecutiveFailureCount,
+            0,
+          );
+          async.elapse(const Duration(seconds: 3));
+          expect(currentCalls, 1);
+          expect(
+            container.read(serverReachabilityControllerProvider).status,
+            ServerReachabilityStatus.online,
+          );
+        });
+      },
+    );
+
+    test(
+      'connectivity checks preserve a confirmed outage and its retry budget',
+      () {
+        fakeAsync((async) {
+          final connectivity = StreamController<List<ConnectivityResult>>();
+          final gate = Completer<String>();
+          var gated = false;
+          final container = ProviderContainer(
+            overrides: [
+              serverConfigStateProvider.overrideWithValue(
+                const AsyncData(authenticatedConfig),
+              ),
+              connectivityProvider.overrideWith((_) => connectivity.stream),
+              pingServerProvider.overrideWithValue(() async {
+                if (gated) return await gate.future;
+                throw const SubsonicConnectionException('down');
+              }),
+            ],
+          );
+          addTearDown(() {
+            container.dispose();
+            unawaited(connectivity.close());
+          });
+          container.listen(serverReachabilityControllerProvider, (_, _) {});
+          async.flushMicrotasks();
+          async.elapse(const Duration(seconds: 93));
+          expect(
+            container
+                .read(serverReachabilityControllerProvider)
+                .showRetryBanner,
+            isFalse,
+          );
+          gated = true;
+          connectivity.add([ConnectivityResult.wifi]);
+          async.flushMicrotasks();
+          var state = container.read(serverReachabilityControllerProvider);
+          expect(state.status, ServerReachabilityStatus.offline);
+          expect(state.showRetryBanner, isFalse);
+          expect(state.consecutiveFailureCount, 4);
+          gate.completeError(const SubsonicConnectionException('still down'));
+          async.flushMicrotasks();
+          state = container.read(serverReachabilityControllerProvider);
+          expect(state.status, ServerReachabilityStatus.offline);
+          expect(state.consecutiveFailureCount, 5);
+          expect(state.showRetryBanner, isFalse);
+        });
+      },
+    );
+
+    for (final initiallyOnline in [false, true]) {
+      test('one transient failure stays checking then recovers after 3 seconds '
+          '(initially online: $initiallyOnline)', () {
+        fakeAsync((async) {
+          var calls = 0;
+          var fail = !initiallyOnline;
+          final container = createContainer(
+            () => () async {
+              calls++;
+              if (fail) throw const SubsonicConnectionException('transient');
+              return 'ready';
+            },
+          );
+          async.flushMicrotasks();
+          if (initiallyOnline) {
+            fail = true;
+            unawaited(
+              container
+                  .read(serverReachabilityControllerProvider.notifier)
+                  .retryNow(),
+            );
+            async.flushMicrotasks();
+          }
+          final state = container.read(serverReachabilityControllerProvider);
+          expect(state.status, ServerReachabilityStatus.checking);
+          expect(state.consecutiveFailureCount, 0);
+          final callsBeforeRetry = calls;
+          fail = false;
+          async.elapse(const Duration(milliseconds: 2999));
+          expect(calls, callsBeforeRetry);
+          async.elapse(const Duration(milliseconds: 1));
+          expect(calls, callsBeforeRetry + 1);
+          expect(
+            container.read(serverReachabilityControllerProvider).status,
+            ServerReachabilityStatus.online,
+          );
+          expect(async.pendingTimers, isEmpty);
+        });
+      });
+    }
+
+    test(
+      'real outage is confirmed by second probe; visible retries start there',
+      () {
+        fakeAsync((async) {
+          var calls = 0;
+          final container = createContainer(
+            () => () async {
+              calls++;
+              throw const SubsonicConnectionException('down');
+            },
+          );
+          async.flushMicrotasks();
+          expect(
+            container.read(serverReachabilityControllerProvider).status,
+            ServerReachabilityStatus.checking,
+          );
+          async.elapse(const Duration(seconds: 3));
+          var state = container.read(serverReachabilityControllerProvider);
+          expect(calls, 2);
+          expect(state.status, ServerReachabilityStatus.offline);
+          expect(state.consecutiveFailureCount, 1);
+          expect(state.showRetryBanner, isTrue);
+          async.elapse(const Duration(seconds: 60));
+          state = container.read(serverReachabilityControllerProvider);
+          expect(calls, 4);
+          expect(state.consecutiveFailureCount, 3);
+          expect(state.showRetryBanner, isTrue);
+          async.elapse(const Duration(seconds: 30));
+          state = container.read(serverReachabilityControllerProvider);
+          expect(state.consecutiveFailureCount, 4);
+          expect(state.showRetryBanner, isFalse);
+          container.dispose();
+        });
+      },
+    );
+
+    test(
+      'a manual retry consumes the quick retry without leaving another timer',
+      () {
+        fakeAsync((async) {
+          var calls = 0;
+          var fail = true;
+          final container = createContainer(
+            () => () async {
+              calls++;
+              if (fail) throw const SubsonicConnectionException('down');
+              return 'ready';
+            },
+          );
+          async.flushMicrotasks();
+          fail = false;
+          unawaited(
+            container
+                .read(serverReachabilityControllerProvider.notifier)
+                .retryNow(),
+          );
+          async.flushMicrotasks();
+          async.elapse(const Duration(seconds: 31));
+          expect(calls, 2);
+          expect(
+            container.read(serverReachabilityControllerProvider).status,
+            ServerReachabilityStatus.online,
+          );
+          expect(async.pendingTimers, isEmpty);
+        });
+      },
+    );
+  });
 
   test('checks reachability on startup and becomes online', () async {
     final authStateProvider =
@@ -158,8 +422,12 @@ void main() {
     );
 
     await Future<void>.delayed(const Duration(milliseconds: 10));
+    expect(subscription.read().status, ServerReachabilityStatus.checking);
+    await container
+        .read(serverReachabilityControllerProvider.notifier)
+        .retryNow();
     expect(subscription.read().status, ServerReachabilityStatus.offline);
-    expect(pingCalls, 1);
+    expect(pingCalls, 2);
 
     serverUp = true;
     pingGate = Completer<void>();
@@ -176,7 +444,7 @@ void main() {
     await Future.wait(<Future<void>>[first, second]);
 
     expect(subscription.read().status, ServerReachabilityStatus.online);
-    expect(pingCalls, 2);
+    expect(pingCalls, 3);
     subscription.close();
     container.dispose();
     await connectivityController.close();
@@ -203,7 +471,7 @@ void main() {
         ),
         pingServerProvider.overrideWithValue(() async {
           pingCalls++;
-          if (pingCalls == 1) {
+          if (pingCalls <= 2) {
             throw const SubsonicConnectionException('offline');
           }
           return '1.16.1';
@@ -213,6 +481,9 @@ void main() {
 
     container.read(serverReachabilityControllerProvider);
     await Future<void>.delayed(const Duration(milliseconds: 10));
+    await container
+        .read(serverReachabilityControllerProvider.notifier)
+        .retryNow();
     expect(
       container.read(serverReachabilityControllerProvider).status,
       ServerReachabilityStatus.offline,
@@ -256,6 +527,10 @@ void main() {
     );
 
     container.read(serverReachabilityControllerProvider);
+    await Future<void>.delayed(Duration.zero);
+    await container
+        .read(serverReachabilityControllerProvider.notifier)
+        .retryNow();
     await Future<void>.delayed(const Duration(milliseconds: 45));
 
     final state = container.read(serverReachabilityControllerProvider);
@@ -346,6 +621,10 @@ void main() {
     );
 
     container.read(serverReachabilityControllerProvider);
+    await Future<void>.delayed(Duration.zero);
+    await container
+        .read(serverReachabilityControllerProvider.notifier)
+        .retryNow();
     await Future<void>.delayed(const Duration(milliseconds: 35));
     expect(
       container.read(serverReachabilityControllerProvider).status,

@@ -20,7 +20,7 @@ Located in `lib/src/providers/app_providers.dart`:
 
 - **Network & Connectivity**
   - `connectivityProvider` - Network connectivity state
-  - `networkTypeProvider` - Resolved network type (wifi/cellular/offline)
+  - `networkTypeProvider` - Resolved network type (wifi/cellular/other/offline)
   - `syncNetworkPolicyProvider` - Metering-aware sync policy (background vs
   interactive vs hard probe eligibility)
 
@@ -391,6 +391,35 @@ list (header, drag handle) move the sheet even when the list is not at the top.
 - `serverReachabilityControllerProvider` - Server reachability state;
   `retryNow()` backs the shell offline banner's Retry (see "Offline banner
   and the top inset")
+
+Reachability ignores failures from a replaced API client and immediately probes
+with the current client once. If that client is also replaced during the
+follow-up, its failure is discarded and a quick retry is scheduled instead of
+looping. `retryNow()` joins the whole check, including its replacement probe.
+The first current-client failure at startup or after being online keeps the
+state `checking`, without an offline notice, and schedules one retry after
+three seconds (`reachabilityQuickRetryIntervalProvider`). A second consecutive
+failure confirms `offline`; only then does `consecutiveFailureCount` start at
+one and the existing 30-second periodic retry begin. `showRetryBanner` remains
+true through counts one to three and becomes false at four. Connectivity
+notifications and manual retries preserve a confirmed outage and its retry
+count until a successful ping resets them. Pending results from a retired
+session or disposed controller are ignored.
+
+`networkTypeProvider` reads the retained connectivity value during loading or
+error, so a resume reconciliation with unchanged connectivity does not replace
+`subsonicApiProvider`'s client. Before any connectivity value exists it uses
+`NetworkType.other`: probes can run, while unknown transport cost remains
+conservatively metered. A real `none`/empty connectivity result still resolves
+to offline. A first resolved interface can still replace the initial client;
+the reachability replacement check handles that startup transition.
+
+Search supplements local results remotely during `checking` and switches to
+local-only mode on confirmed `offline`. Library startup/hydration retains its
+existing confirmed-offline guard. Dispatch listeners that require `online`
+(scrobbles, annotations, downloads and required rebuilds) still wait for a
+successful probe to trigger recovery work. Scrobble delivery itself retains
+its device-connectivity/reconciliation gate and durable retry queue.
 
 #### Retired Listen Together Feature
 
@@ -2208,7 +2237,7 @@ The banner's Retry action calls `ServerReachabilityController.retryNow()`. That 
 - checks the server at once, or joins a check that is already running;
 - leaves the status at `offline` until the check finishes, so the banner stays up while the check runs.
 
-The banner's message is one line, and its close button tucks it away: `shellOfflineBannerDismissedProvider` (`ShellOfflineBannerDismissed`) holds a dismissed flag that collapses the banner through the same animation (notices follow it) and shows `ShellOfflineChip`, a small floating "Offline" chip in the shell's body `Stack` that takes no layout space on phone, rail or desktop. Tapping the chip clears the flag and expands the banner. The flag also turns on by itself when `showRetryBanner` becomes false after repeated failures (the former "Offline mode" strip is gone), and is reset whenever the status leaves `offline`, so the next outage shows the banner again.
+The banner's message is one line, and its close button tucks it away: `shellOfflineBannerDismissedProvider` (`ShellOfflineBannerDismissed`) holds a dismissed flag that collapses the banner through the same animation (notices follow it) and shows `ShellOfflineChip`, a small floating "Offline" chip in the shell's body `Stack` that takes no layout space on phone, rail or desktop. Tapping the chip clears the flag and expands the banner. The flag also turns on by itself when `showRetryBanner` becomes false after repeated failures (the former "Offline mode" strip is gone), and is reset only when the server is confirmed `online`, so `checking` cannot undo a dismissal and the next outage starts undismissed.
 
 `ShellOfflineBannerScope` wraps the shell's `Scaffold` body and owns the one animation that reveals and hides the banner. The shell places `AppNoticeHost` through `ShellOfflineBannerExtentBuilder`, which follows that same animation, so a notice stays 12 px below the banner on every frame. Interrupted toggles and reduced motion are included, and a notice never moves over a banner that is still collapsing. The extent assumes the banner's one-line `contentHeight`. With very large text the message wraps and the banner grows taller.
 
