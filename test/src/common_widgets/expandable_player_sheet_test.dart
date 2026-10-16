@@ -52,11 +52,14 @@ class _SheetHarnessState extends State<_SheetHarness> {
                   isExpanded: _expanded,
                   bottomInset: widget.bottomInset,
                   onDragStart: widget.onDragStart,
+                  // Like the shell, mirror the reported state back in.
                   onExpand: () {
                     widget.expandCalls.value += 1;
+                    setState(() => _expanded = true);
                   },
                   onCollapse: () {
                     widget.collapseCalls.value += 1;
+                    setState(() => _expanded = false);
                   },
                   onProgressChanged: (value) {
                     widget.progress.value = value;
@@ -270,8 +273,8 @@ void main() {
       await tester.pumpAndSettle();
     });
 
-    testWidgets('onExpand and onCollapse fire when the animation completes, '
-        'not when the fling starts', (tester) async {
+    testWidgets('onExpand and onCollapse fire at drag release, before the '
+        'settle animation finishes', (tester) async {
       final rig = await pumpRig(tester);
 
       final up = await tester.startGesture(
@@ -280,13 +283,31 @@ void main() {
       await up.moveBy(const Offset(0, -150));
       await up.moveBy(const Offset(0, -150));
       await tester.pump(const Duration(milliseconds: 16));
+      expect(rig.expandCalls.value, 0, reason: 'not while dragging');
       await up.up();
       await tester.pump(const Duration(milliseconds: 16));
       expect(rig.progress.value, inExclusiveRange(0, 1));
-      expect(rig.expandCalls.value, 0);
+      expect(rig.expandCalls.value, 1, reason: 'reported at release');
 
       await tester.pumpAndSettle();
       expect(rig.progress.value, closeTo(1, 0.01));
+      expect(rig.expandCalls.value, 1);
+
+      final down = await tester.startGesture(
+        tester.getCenter(find.byKey(const Key('full-player'))),
+      );
+      await down.moveBy(const Offset(0, 150));
+      await down.moveBy(const Offset(0, 150));
+      await tester.pump(const Duration(milliseconds: 16));
+      expect(rig.collapseCalls.value, 0, reason: 'not while dragging');
+      await down.up();
+      await tester.pump(const Duration(milliseconds: 16));
+      expect(rig.progress.value, inExclusiveRange(0, 1));
+      expect(rig.collapseCalls.value, 1, reason: 'reported at release');
+
+      await tester.pumpAndSettle();
+      expect(rig.progress.value, closeTo(0, 0.01));
+      expect(rig.collapseCalls.value, 1);
       expect(rig.expandCalls.value, 1);
     });
 

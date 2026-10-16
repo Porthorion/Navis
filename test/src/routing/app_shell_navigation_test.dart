@@ -2429,74 +2429,138 @@ void main() {
     await tester.pump(const Duration(milliseconds: 201));
   });
 
+  // Pumps the phone shell and records every render object laid out while
+  // [body] runs; the page and the nav bar must never be among them.
+  Future<void> withLayoutProbe(
+    WidgetTester tester,
+    Future<void> Function(
+      ProviderContainer container,
+      List<String> layouts,
+      void Function() expectChromeUntouched,
+    )
+    body,
+  ) async {
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(390, 844);
+    addTearDown(() {
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+    });
+
+    final container = _createContainerWithDatabase(
+      overrides: _authenticatedShellOverrides(),
+    );
+
+    await tester.pumpWidget(
+      UncontrolledProviderScope(container: container, child: testNavisApp),
+    );
+    await tester.pumpAndSettle();
+
+    final pageId = describeIdentity(
+      tester.renderObject(find.byType(HomeScreen)),
+    );
+    final navBarId = describeIdentity(
+      tester.renderObject(find.byType(NavigationBar)),
+    );
+    final navBarHeight = tester.getSize(find.byType(NavigationBar)).height;
+    final bodyHeight = tester.getSize(find.byType(HomeScreen)).height;
+
+    final layouts = <String>[];
+    final originalDebugPrint = debugPrint;
+    debugPrint = (message, {wrapWidth}) {
+      if (message != null && message.contains('Laying out')) {
+        layouts.add(message);
+      }
+    };
+    debugPrintLayouts = true;
+
+    void expectChromeUntouched() {
+      // The nav bar keeps its layout size; it only moves and fades.
+      expect(tester.getSize(find.byType(NavigationBar)).height, navBarHeight);
+      expect(tester.getSize(find.byType(HomeScreen)).height, bodyHeight);
+      for (final id in [pageId, navBarId]) {
+        expect(
+          layouts.where((line) => line.contains(id)),
+          isEmpty,
+          reason: '$id re-laid out while the sheet moved',
+        );
+      }
+    }
+
+    try {
+      await body(container, layouts, expectChromeUntouched);
+    } finally {
+      debugPrintLayouts = false;
+      debugPrint = originalDebugPrint;
+    }
+  }
+
   testWidgets(
     'animating the player sheet never re-lays out the page behind it',
-    (tester) async {
-      tester.view.devicePixelRatio = 1;
-      tester.view.physicalSize = const Size(390, 844);
-      addTearDown(() {
-        tester.view.resetPhysicalSize();
-        tester.view.resetDevicePixelRatio();
-      });
-
-      final container = _createContainerWithDatabase(
-        overrides: _authenticatedShellOverrides(),
-      );
-
-      await tester.pumpWidget(
-        UncontrolledProviderScope(container: container, child: testNavisApp),
-      );
-      await tester.pumpAndSettle();
-
-      final page = tester.renderObject(find.byType(HomeScreen));
-      final pageId = describeIdentity(page);
-      final navBarHeight = tester.getSize(find.byType(NavigationBar)).height;
-      final bodyHeight = tester.getSize(find.byType(HomeScreen)).height;
-
-      final layouts = <String>[];
-      final originalDebugPrint = debugPrint;
-      debugPrint = (message, {wrapWidth}) {
-        if (message != null && message.contains('Laying out')) {
-          layouts.add(message);
-        }
-      };
-      debugPrintLayouts = true;
-
+    (tester) => withLayoutProbe(tester, (
+      container,
+      layouts,
+      expectChromeUntouched,
+    ) async {
       Future<void> animate(VoidCallback trigger) async {
         layouts.clear();
         trigger();
         var frames = 0;
         do {
           await tester.pump(const Duration(milliseconds: 16));
-          // The nav bar keeps its layout size; it only moves and fades.
-          expect(
-            tester.getSize(find.byType(NavigationBar)).height,
-            navBarHeight,
-          );
-          expect(tester.getSize(find.byType(HomeScreen)).height, bodyHeight);
+          expectChromeUntouched();
         } while (tester.binding.hasScheduledFrame && ++frames < 40);
         expect(frames, greaterThan(3), reason: 'the sheet should animate');
         // The sheet itself is laid out every tick, so the probe is live.
         expect(layouts, isNotEmpty);
-        expect(
-          layouts.where((line) => line.contains(pageId)),
-          isEmpty,
-          reason: 'the page re-laid out while the sheet animated',
-        );
       }
 
-      try {
-        await animate(
-          container.read(playerOverlayStackProvider.notifier).expand,
-        );
-        await animate(
-          container.read(playerOverlayStackProvider.notifier).collapse,
-        );
-      } finally {
-        debugPrintLayouts = false;
-        debugPrint = originalDebugPrint;
+      await animate(container.read(playerOverlayStackProvider.notifier).expand);
+      await animate(
+        container.read(playerOverlayStackProvider.notifier).collapse,
+      );
+    }),
+  );
+
+  testWidgets(
+    'dragging the player sheet with a finger never re-lays out the page or '
+    'the nav bar',
+    (tester) => withLayoutProbe(tester, (
+      container,
+      layouts,
+      expectChromeUntouched,
+    ) async {
+      bool nowPlayingOpen() => container
+          .read(playerOverlayStackProvider)
+          .contains(PlayerOverlayRoute.nowPlaying);
+      // The mini player sits right above the nav bar.
+      final miniPlayer = Offset(
+        195,
+        tester.getTopLeft(find.byType(NavigationBar)).dy - 32,
+      );
+
+      Future<void> drag(Offset from, double dy, {required bool opens}) async {
+        layouts.clear();
+        final gesture = await tester.startGesture(from);
+        for (var i = 0; i < 20; i++) {
+          await gesture.moveBy(Offset(0, dy / 20));
+          await tester.pump(const Duration(milliseconds: 16));
+          expectChromeUntouched();
+        }
+        // Mid-drag the sheet is following the finger and is laid out.
+        expect(layouts, isNotEmpty);
+        expect(nowPlayingOpen(), !opens, reason: 'not before release');
+        await gesture.up();
+        await tester.pump(const Duration(milliseconds: 16));
+        expect(nowPlayingOpen(), opens, reason: 'reported at release');
+        await tester.pumpAndSettle();
+        expectChromeUntouched();
       }
-    },
+
+      await drag(miniPlayer, -500, opens: true);
+      expect(find.byType(NowPlayingScreen), findsOneWidget);
+      await drag(const Offset(195, 300), 500, opens: false);
+    }),
   );
 
   testWidgets('expanded phone player covers the whole screen and the nav bar '

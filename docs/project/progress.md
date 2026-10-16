@@ -14,6 +14,13 @@ Last updated: 2026-10-16
 - ACP status values: `backlog`, `ready`, `in_progress`, `blocked`, `done`.
 
 ## Current Focus
+- [x] Issue #12 Now Playing drag, review follow-ups — 2026-10-16
+  (`perf/now-playing-drag`): `onExpand`/`onCollapse` fire at drag release again
+  (deduplicated against the lagging `isExpanded`, so reduced-motion completion
+  does not report twice) so back during the settle sees the player open or
+  closed; stale "30 %" comment fixed; mini-player `AnimatedBuilder`s merged; new
+  drag-driven layout probe test (page and nav bar never re-laid out under a
+  finger). Evidence: `flutter test` player + routing + sheet, 1589 passed.
 - [x] PR B1 UI: playlist sections, filter, gated edits and visible failures —
   2026-10-16 (`feat/playlists-sections`, on top of the B1 backend commit; Sonnet
   implementation). Library › Playlists shows Your playlists / Made for you /

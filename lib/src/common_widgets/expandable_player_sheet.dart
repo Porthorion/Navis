@@ -14,8 +14,9 @@ import 'package:navis/src/theme/motion_policy.dart';
 /// position (no page layout, no opacity layer); the mini player fades out over
 /// the first half of the gesture on top of it.
 ///
-/// [onExpand] and [onCollapse] report a user gesture once the animation has
-/// finished, so the state change never rebuilds the shell mid-animation.
+/// [onExpand] and [onCollapse] report a user gesture at drag release, while
+/// the settle animation is still running, so a back press during the settle
+/// already sees the player as open or closed.
 class ExpandablePlayerSheet extends StatefulWidget {
   const new({
     required this.miniPlayer,
@@ -66,6 +67,12 @@ class _ExpandablePlayerSheetState extends State<ExpandablePlayerSheet>
   final _geometry = _SheetGeometry();
   bool _dragStartedInQueueGuardZone = false;
 
+  /// Last state reported through [ExpandablePlayerSheet.onExpand] or
+  /// [ExpandablePlayerSheet.onCollapse], or received as `isExpanded`. The
+  /// widget's own `isExpanded` lags a frame behind a report, so completion of
+  /// an instant (reduced-motion) settle would otherwise report it twice.
+  late bool _reportedExpanded = widget.isExpanded;
+
   @override
   void initState() {
     super.initState();
@@ -100,9 +107,19 @@ class _ExpandablePlayerSheetState extends State<ExpandablePlayerSheet>
 
   void _onAnimationStatusChanged(AnimationStatus status) {
     if (!mounted) return;
-    if (status == AnimationStatus.completed && !widget.isExpanded) {
+    if (status == AnimationStatus.completed) {
+      _report(expanded: true);
+    } else if (status == AnimationStatus.dismissed) {
+      _report(expanded: false);
+    }
+  }
+
+  void _report({required bool expanded}) {
+    if (_reportedExpanded == expanded) return;
+    _reportedExpanded = expanded;
+    if (expanded) {
       widget.onExpand();
-    } else if (status == AnimationStatus.dismissed && widget.isExpanded) {
+    } else {
       widget.onCollapse();
     }
   }
@@ -111,6 +128,7 @@ class _ExpandablePlayerSheetState extends State<ExpandablePlayerSheet>
   void didUpdateWidget(ExpandablePlayerSheet oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (widget.isExpanded != oldWidget.isExpanded) {
+      _reportedExpanded = widget.isExpanded;
       _settleTo(widget.isExpanded ? 1 : 0, velocity: 2.5);
     }
   }
@@ -132,7 +150,7 @@ class _ExpandablePlayerSheetState extends State<ExpandablePlayerSheet>
   /// 0 = collapsed (mini player visible), 1 = expanded (full player visible).
   double get _progress => _controller.value;
 
-  /// Mini player fades out over the first 30 % of the expansion.
+  /// Mini player fades out over the first half of the expansion.
   double get _miniOpacity {
     final t = 1 - (_progress / 0.5).clamp(0.0, 1.0);
     return Curves.easeOutCubic.transform(t);
@@ -182,10 +200,12 @@ class _ExpandablePlayerSheetState extends State<ExpandablePlayerSheet>
           }
         } else {
           _settleTo(1, velocity: (absVelocity / _travel).clamp(1.0, 6.0));
+          _report(expanded: true);
         }
       } else {
         // Swipe down — collapse
         _settleTo(0, velocity: (absVelocity / _travel).clamp(1.0, 6.0));
+        _report(expanded: false);
       }
     } else {
       // Low velocity — snap to nearest edge.
@@ -205,7 +225,13 @@ class _ExpandablePlayerSheetState extends State<ExpandablePlayerSheet>
 
   /// Snap the sheet to the nearest edge (expanded or collapsed).
   void _snapToEdge() {
-    _settleTo(_controller.value > 0.4 ? 1 : 0, velocity: 2.5);
+    if (_controller.value > 0.4) {
+      _settleTo(1, velocity: 2.5);
+      _report(expanded: true);
+    } else {
+      _settleTo(0, velocity: 2.5);
+      _report(expanded: false);
+    }
   }
 
   void _settleTo(double target, {required double velocity}) {
@@ -292,12 +318,12 @@ class _ExpandablePlayerSheetState extends State<ExpandablePlayerSheet>
             id: _SheetSlot.mini,
             child: AnimatedBuilder(
               animation: _controller,
-              child: _dragSurface(
-                behavior: HitTestBehavior.translucent,
-                child: AnimatedBuilder(
-                  animation: _controller,
-                  child: RepaintBoundary(child: widget.miniPlayer),
-                  builder: (context, mini) => Opacity(
+              child: RepaintBoundary(child: widget.miniPlayer),
+              builder: (context, mini) => IgnorePointer(
+                ignoring: _progress >= 0.5,
+                child: _dragSurface(
+                  behavior: HitTestBehavior.translucent,
+                  child: Opacity(
                     opacity: _miniOpacity,
                     child: Transform.translate(
                       offset: Offset(0, _miniTranslateY),
@@ -306,8 +332,6 @@ class _ExpandablePlayerSheetState extends State<ExpandablePlayerSheet>
                   ),
                 ),
               ),
-              builder: (context, mini) =>
-                  IgnorePointer(ignoring: _progress >= 0.5, child: mini),
             ),
           ),
         ],
