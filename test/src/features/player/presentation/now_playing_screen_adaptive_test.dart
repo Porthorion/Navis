@@ -793,10 +793,11 @@ void main() {
     Future<ProviderContainer> openSheet(
       WidgetTester tester, {
       required bool eqSupported,
+      Size size = const Size(390, 844),
       ThemeData? theme,
       TextScaler? textScaler,
     }) async {
-      setAdaptiveTestViewport(tester, const Size(390, 844));
+      setAdaptiveTestViewport(tester, size);
       final container = _createContainer(
         overrides: [
           eqCapabilitiesProvider.overrideWithValue(
@@ -828,21 +829,52 @@ void main() {
       return container;
     }
 
-    testWidgets('shows the inline mini equalizer under Sound', (tester) async {
-      await openSheet(tester, eqSupported: true);
+    // Below 360 px the transport row drops its EQ and Speed buttons, so the
+    // sheet is their only entry point.
+    const narrow = Size(320, 844);
+
+    testWidgets('shows the inline mini equalizer under Sound when the '
+        'transport has no EQ or Speed button', (tester) async {
+      await openSheet(tester, eqSupported: true, size: narrow);
       expect(
         find.byKey(const ValueKey('nowPlayingSettingsSheet')),
         findsOneWidget,
       );
+      expect(find.byKey(const ValueKey('nowPlayingSpeedButton')), findsNothing);
       expect(find.text('Sound'), findsOneWidget);
       expect(find.byType(EqQuickCard), findsOneWidget);
       expect(find.byKey(const ValueKey('eq-quick-preset')), findsOneWidget);
       expect(tester.takeException(), isNull);
       await expectLater(
         find.byType(BottomSheet),
-        matchesGoldenFile('goldens/now_playing_settings_sound_390x844.png'),
+        matchesGoldenFile('goldens/now_playing_settings_sound_320x844.png'),
       );
     }, skip: !sqliteAvailable);
+
+    for (final eqSupported in [true, false]) {
+      testWidgets('portrait phone omits Sound while the transport shows EQ '
+          'and Speed (EQ supported: $eqSupported)', (tester) async {
+        await openSheet(tester, eqSupported: eqSupported);
+        expect(
+          find.byKey(const ValueKey('nowPlayingSettingsSheet')),
+          findsOneWidget,
+        );
+        expect(
+          find.byKey(const ValueKey('nowPlayingSpeedButton')),
+          findsOneWidget,
+        );
+        expect(find.text('Sound'), findsNothing);
+        expect(
+          find.byKey(const ValueKey('playbackAdjustmentEntryPoint')),
+          findsNothing,
+        );
+        expect(find.byType(EqQuickCard), findsNothing);
+        expect(find.byKey(const ValueKey('equalizerEntryPoint')), findsNothing);
+        // The rest of the sheet is untouched.
+        expect(find.text('100%'), findsOneWidget);
+        expect(tester.takeException(), isNull);
+      }, skip: !sqliteAvailable);
+    }
 
     for (final scale in <double>[1, 1.3, 2]) {
       testWidgets('the volume level stays on one line at ${scale}x text', (
@@ -877,7 +909,7 @@ void main() {
     testWidgets('Speed & Pitch opens after the settings sheet closes', (
       tester,
     ) async {
-      await openSheet(tester, eqSupported: true);
+      await openSheet(tester, eqSupported: true, size: narrow);
       await tester.tap(
         find.byKey(const ValueKey('playbackAdjustmentEntryPoint')),
       );
@@ -895,11 +927,72 @@ void main() {
     testWidgets('unsupported backends keep the explanatory Equalizer row', (
       tester,
     ) async {
-      await openSheet(tester, eqSupported: false);
+      await openSheet(tester, eqSupported: false, size: narrow);
       expect(find.byType(EqQuickCard), findsNothing);
       expect(find.byKey(const ValueKey('equalizerEntryPoint')), findsOneWidget);
     }, skip: !sqliteAvailable);
   });
+
+  // The embedded settings panels follow the same rule as the phone sheet. Both
+  // wide layouts that open a panel (compact-wide and split) have a transport
+  // row without EQ and Speed buttons, so Sound stays listed there.
+  for (final (name, size, compactWide) in <(String, Size, bool)>[
+    ('compact-wide panel', const Size(560, 360), true),
+    ('split panel', const Size(1400, 900), false),
+  ]) {
+    testWidgets('$name keeps Sound while the transport has no EQ or Speed', (
+      tester,
+    ) async {
+      setAdaptiveTestViewport(tester, size);
+      final container = _createContainer();
+      container.read(nowPlayingTestPlaybackProvider.notifier).state =
+          _songPlayback;
+      await _pumpNowPlaying(
+        tester,
+        container,
+        wideEmbeddedMode: true,
+        compactWideLandscapeMode: compactWide,
+      );
+      expect(find.byKey(const ValueKey('nowPlayingSpeedButton')), findsNothing);
+
+      await tester.tap(find.byTooltip('Settings').first);
+      await tester.pumpAndSettle();
+
+      expect(find.text('Sound'), findsOneWidget);
+      expect(
+        find.byKey(const ValueKey('playbackAdjustmentEntryPoint')),
+        findsOneWidget,
+      );
+      expect(tester.takeException(), isNull);
+    }, skip: !sqliteAvailable);
+  }
+
+  testWidgets(
+    'embedded non-split player hides Sound from its sheet while the transport '
+    'shows EQ and Speed',
+    (tester) async {
+      setAdaptiveTestViewport(tester, const Size(800, 900));
+      final container = _createContainer();
+      container.read(nowPlayingTestPlaybackProvider.notifier).state =
+          _songPlayback;
+      await _pumpNowPlaying(tester, container, wideEmbeddedMode: true);
+      expect(
+        find.byKey(const ValueKey('nowPlayingSpeedButton')),
+        findsOneWidget,
+      );
+
+      await tester.tap(find.byTooltip('Settings').first);
+      await tester.pumpAndSettle();
+
+      expect(
+        find.byKey(const ValueKey('nowPlayingSettingsSheet')),
+        findsOneWidget,
+      );
+      expect(find.text('Sound'), findsNothing);
+      expect(tester.takeException(), isNull);
+    },
+    skip: !sqliteAvailable,
+  );
 
   for (final eqSupported in [true, false]) {
     for (final width in [320.0, 360.0, 412.0]) {

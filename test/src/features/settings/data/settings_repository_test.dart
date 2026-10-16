@@ -165,10 +165,6 @@ void main() {
           darkEdited.colorTuning,
           const ColorTuning(vividness: 5, lightDepth: -5, darkDepth: -4),
         );
-        await repository.resetDefaults();
-        expect((await repository.getSettings()).colorVividness, 0);
-        expect((await repository.getSettings()).surfaceDepthLight, 0);
-        expect((await repository.getSettings()).surfaceDepthDark, 0);
       },
       skip: !sqliteAvailable,
     );
@@ -228,8 +224,6 @@ void main() {
             expect(row.albumArtColoredShade, colored);
           }
         }
-        await repository.resetDefaults();
-        expect((await repository.getSettings()).albumArtShade, isFalse);
       },
       skip: !sqliteAvailable,
     );
@@ -276,10 +270,6 @@ void main() {
         expect((await repository.watchSettings().first).flatAreas, areas);
         expect((await database.appSettingsDao.getSettings())!.flatAreas, bits);
       }
-      await repository.resetDefaults();
-      final reset = await repository.getSettings();
-      expect(reset.flatAreas.bits, 7);
-      expect(reset.albumArtColoredShade, isFalse);
     }, skip: !sqliteAvailable);
 
     test(
@@ -354,15 +344,9 @@ void main() {
         (await repository.getSettings()).cornerStyle,
         NavisCornerStyle.rounded,
       );
-      await database.appSettingsDao.updateCornerStyle('soft');
-      await repository.resetDefaults();
-      expect(
-        (await repository.getSettings()).cornerStyle,
-        NavisCornerStyle.rounded,
-      );
     }, skip: !sqliteAvailable);
 
-    test('background and density map, save, watch and reset', () async {
+    test('background and density map, save and watch', () async {
       final defaults = await repository.getSettings();
       expect(defaults.nowPlayingBackground, NowPlayingBackground.tinted);
       expect(defaults.density, NavisDensity.comfortable);
@@ -395,10 +379,6 @@ void main() {
       final unknown = await repository.getSettings();
       expect(unknown.nowPlayingBackground, NowPlayingBackground.tinted);
       expect(unknown.density, NavisDensity.comfortable);
-      await repository.resetDefaults();
-      final reset = await repository.getSettings();
-      expect(reset.nowPlayingBackground, NowPlayingBackground.tinted);
-      expect(reset.density, NavisDensity.comfortable);
     }, skip: !sqliteAvailable);
 
     test('stale onboarding drafts preserve setup release markers', () async {
@@ -488,25 +468,6 @@ void main() {
       expect(saved.listenBrainzScrobblingEnabled, isTrue);
     }, skip: !sqliteAvailable);
 
-    test(
-      'resetDefaults clears the key and the ListenBrainz connection',
-      () async {
-        await repository.updateLastFmApiKey('fixture-key');
-        await repository.updateListenBrainzConnection(
-          tokenValid: true,
-          userName: 'fixture',
-          scrobblingEnabled: true,
-        );
-        await repository.resetDefaults();
-        final saved = await repository.getSettings();
-        expect(saved.lastFmApiKey, isNull);
-        expect(saved.listenBrainzTokenValid, isFalse);
-        expect(saved.listenBrainzUserName, isNull);
-        expect(saved.listenBrainzScrobblingEnabled, isFalse);
-      },
-      skip: !sqliteAvailable,
-    );
-
     test('persists cached playback preference', () async {
       await repository.saveSettings(
         const AppSettingsModel.defaults().copyWith(cachedPlaybackFirst: true),
@@ -515,49 +476,51 @@ void main() {
       final saved = await repository.getSettings();
       expect(saved.cachedPlaybackFirst, isTrue);
 
-      await repository.resetDefaults();
+      await repository.resetPlaybackDefaults();
       final reset = await repository.getSettings();
       expect(reset.cachedPlaybackFirst, isFalse);
     }, skip: !sqliteAvailable);
 
-    test('round trips appearance settings and restores defaults', () async {
-      final defaults = await repository.getSettings();
-      expect(defaults.oledForAuto, isFalse);
-      expect(defaults.nightScheduleEnabled, isFalse);
-      expect(defaults.nightScheduleStartMinutes, 1320);
-      expect(defaults.nightScheduleEndMinutes, 420);
-      expect(defaults.flatSurfaces, isFalse);
-      await repository.saveSettings(
-        defaults.copyWith(
-          oledForAuto: true,
-          nightScheduleEnabled: true,
-          nightScheduleStartMinutes: 1200,
-          nightScheduleEndMinutes: 480,
-          flatSurfaces: true,
-        ),
-      );
-      final saved = await repository.getSettings();
-      expect(saved.oledForAuto, isTrue);
-      expect(saved.nightScheduleEnabled, isTrue);
-      expect(saved.nightScheduleStartMinutes, 1200);
-      expect(saved.nightScheduleEndMinutes, 480);
-      expect(saved.flatSurfaces, isTrue);
-      await repository.saveSettings(saved.copyWith(themeMode: 'system'));
-      final preserved = await repository.getSettings();
-      expect(preserved.oledForAuto, isTrue);
-      expect(preserved.nightScheduleEnabled, isTrue);
-      expect(preserved.nightScheduleStartMinutes, 1200);
-      expect(preserved.nightScheduleEndMinutes, 480);
-      expect(preserved.flatSurfaces, isTrue);
+    test(
+      'round trips appearance settings and keeps them through a playback reset',
+      () async {
+        final defaults = await repository.getSettings();
+        expect(defaults.oledForAuto, isFalse);
+        expect(defaults.nightScheduleEnabled, isFalse);
+        expect(defaults.nightScheduleStartMinutes, 1320);
+        expect(defaults.nightScheduleEndMinutes, 420);
+        expect(defaults.flatSurfaces, isFalse);
+        await repository.saveSettings(
+          defaults.copyWith(
+            oledForAuto: true,
+            nightScheduleEnabled: true,
+            nightScheduleStartMinutes: 1200,
+            nightScheduleEndMinutes: 480,
+            flatSurfaces: true,
+          ),
+        );
+        final saved = await repository.getSettings();
+        expect(saved.oledForAuto, isTrue);
+        expect(saved.nightScheduleEnabled, isTrue);
+        expect(saved.nightScheduleStartMinutes, 1200);
+        expect(saved.nightScheduleEndMinutes, 480);
+        expect(saved.flatSurfaces, isTrue);
+        await repository.saveSettings(saved.copyWith(themeMode: 'system'));
+        final preserved = await repository.getSettings();
+        expect(preserved.oledForAuto, isTrue);
+        expect(preserved.nightScheduleEnabled, isTrue);
+        expect(preserved.nightScheduleStartMinutes, 1200);
+        expect(preserved.nightScheduleEndMinutes, 480);
+        expect(preserved.flatSurfaces, isTrue);
 
-      await repository.resetDefaults();
-      final reset = await repository.getSettings();
-      expect(reset.oledForAuto, isFalse);
-      expect(reset.nightScheduleEnabled, isFalse);
-      expect(reset.nightScheduleStartMinutes, 1320);
-      expect(reset.nightScheduleEndMinutes, 420);
-      expect(reset.flatSurfaces, isFalse);
-    }, skip: !sqliteAvailable);
+        await repository.resetPlaybackDefaults();
+        final afterPlaybackReset = await repository.getSettings();
+        expect(afterPlaybackReset.oledForAuto, isTrue);
+        expect(afterPlaybackReset.nightScheduleEnabled, isTrue);
+        expect(afterPlaybackReset.flatSurfaces, isTrue);
+      },
+      skip: !sqliteAvailable,
+    );
 
     test('full-row saves clamp Night schedule minutes', () async {
       await repository.saveSettings(
@@ -583,9 +546,6 @@ void main() {
       expect(saved.themeMode, 'oled');
       await repository.saveSettings(saved.copyWith(themeMode: 'light'));
       expect((await repository.getSettings()).colorStyle, 'pastel');
-
-      await repository.resetDefaults();
-      expect((await repository.getSettings()).colorStyle, 'neutral');
     }, skip: !sqliteAvailable);
 
     test(
@@ -611,37 +571,6 @@ void main() {
         saved = await repository.getSettings();
         expect(saved.desktopPlaybackVolume, 0);
         expect(saved.desktopLastAudibleVolume, 1);
-
-        await repository.resetDefaults();
-        saved = await repository.getSettings();
-        expect(saved.desktopPlaybackVolume, 1);
-        expect(saved.desktopLastAudibleVolume, 1);
-      },
-      skip: !sqliteAvailable,
-    );
-
-    test(
-      'resetDefaults clears credentials saved by the retired AudioMuse client',
-      () async {
-        await database.appSettingsDao.getSettings();
-        await database.customStatement('''
-UPDATE app_settings
-SET audio_muse_server_url = 'https://audiomuse.example.com',
-    audio_muse_api_key = 'legacy-key',
-    audio_muse_enabled = 1
-WHERE id = 1;
-''');
-
-        await repository.resetDefaults();
-
-        final row = await database.customSelect('''
-SELECT audio_muse_server_url, audio_muse_api_key, audio_muse_enabled
-FROM app_settings
-WHERE id = 1;
-''').getSingle();
-        expect(row.readNullable<String>('audio_muse_server_url'), isNull);
-        expect(row.readNullable<String>('audio_muse_api_key'), isNull);
-        expect(row.read<int>('audio_muse_enabled'), 0);
       },
       skip: !sqliteAvailable,
     );

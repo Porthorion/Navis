@@ -14,8 +14,8 @@ import 'package:navis/src/theme/navis_tokens.dart';
 ///
 /// Set by the banner's close button, and automatically when the reachability
 /// state stops showing the retry banner (after repeated failures). Cleared
-/// when the server is no longer offline, so the next outage shows the banner
-/// again.
+/// only when the server is confirmed online, so the next outage shows the
+/// banner again.
 final shellOfflineBannerDismissedProvider =
     NotifierProvider<ShellOfflineBannerDismissed, bool>(
       ShellOfflineBannerDismissed.new,
@@ -28,9 +28,11 @@ class ShellOfflineBannerDismissed extends Notifier<bool> {
       previous,
       next,
     ) {
-      if (next.status != ServerReachabilityStatus.offline) {
+      if (next.status == ServerReachabilityStatus.online) {
         state = false;
-      } else if ((previous?.showRetryBanner ?? true) && !next.showRetryBanner) {
+      } else if (next.status == ServerReachabilityStatus.offline &&
+          (previous?.showRetryBanner ?? true) &&
+          !next.showRetryBanner) {
         state = true;
       }
     });

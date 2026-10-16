@@ -19,7 +19,6 @@ import 'package:navis/src/common_widgets/desktop/desktop_context_menu.dart';
 import 'package:navis/src/common_widgets/desktop/desktop_primitives.dart';
 import 'package:navis/src/common_widgets/empty_state.dart';
 import 'package:navis/src/common_widgets/list_filter_field.dart';
-import 'package:navis/src/common_widgets/navis_section_header.dart';
 import 'package:navis/src/common_widgets/error_state.dart';
 import 'package:navis/src/common_widgets/shimmer_placeholder.dart';
 import 'package:navis/src/common_widgets/song_context_menu.dart';

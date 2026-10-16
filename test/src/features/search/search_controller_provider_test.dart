@@ -177,6 +177,22 @@ ProviderSubscription<AsyncValue<SearchResultsState?>> _listenToSearch(
 }
 
 void main() {
+  test('checking keeps search online until an outage is confirmed', () {
+    final container = ProviderContainer(
+      overrides: [
+        serverReachabilityControllerProvider.overrideWith(
+          () => StaticReachabilityController(
+            const ServerReachabilityState(
+              status: ServerReachabilityStatus.checking,
+            ),
+          ),
+        ),
+      ],
+    );
+    addTearDown(container.dispose);
+    expect(container.read(searchIsOfflineProvider), isFalse);
+  });
+
   group('debouncedSearchProvider', () {
     test('emits local results before delayed API results', () async {
       if (!sqliteAvailable) return;

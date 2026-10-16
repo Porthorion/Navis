@@ -139,11 +139,7 @@ class _ActionRowState extends ConsumerState<_ActionRow>
             widget.onOpenSettingsPanel!.call();
             return;
           }
-          if (widget.onOpenSettingsSheet != null) {
-            widget.onOpenSettingsSheet!.call();
-            return;
-          }
-          _showNowPlayingSettingsSheet(context, ref, widget.song);
+          widget.onOpenSettingsSheet?.call();
         },
       ),
     ];

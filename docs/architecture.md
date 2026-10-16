@@ -20,7 +20,7 @@ Located in `lib/src/providers/app_providers.dart`:
 
 - **Network & Connectivity**
   - `connectivityProvider` - Network connectivity state
-  - `networkTypeProvider` - Resolved network type (wifi/cellular/offline)
+  - `networkTypeProvider` - Resolved network type (wifi/cellular/other/offline)
   - `syncNetworkPolicyProvider` - Metering-aware sync policy (background vs
   interactive vs hard probe eligibility)
 
@@ -391,6 +391,35 @@ list (header, drag handle) move the sheet even when the list is not at the top.
 - `serverReachabilityControllerProvider` - Server reachability state;
   `retryNow()` backs the shell offline banner's Retry (see "Offline banner
   and the top inset")
+
+Reachability ignores failures from a replaced API client and immediately probes
+with the current client once. If that client is also replaced during the
+follow-up, its failure is discarded and a quick retry is scheduled instead of
+looping. `retryNow()` joins the whole check, including its replacement probe.
+The first current-client failure at startup or after being online keeps the
+state `checking`, without an offline notice, and schedules one retry after
+three seconds (`reachabilityQuickRetryIntervalProvider`). A second consecutive
+failure confirms `offline`; only then does `consecutiveFailureCount` start at
+one and the existing 30-second periodic retry begin. `showRetryBanner` remains
+true through counts one to three and becomes false at four. Connectivity
+notifications and manual retries preserve a confirmed outage and its retry
+count until a successful ping resets them. Pending results from a retired
+session or disposed controller are ignored.
+
+`networkTypeProvider` reads the retained connectivity value during loading or
+error, so a resume reconciliation with unchanged connectivity does not replace
+`subsonicApiProvider`'s client. Before any connectivity value exists it uses
+`NetworkType.other`: probes can run, while unknown transport cost remains
+conservatively metered. A real `none`/empty connectivity result still resolves
+to offline. A first resolved interface can still replace the initial client;
+the reachability replacement check handles that startup transition.
+
+Search supplements local results remotely during `checking` and switches to
+local-only mode on confirmed `offline`. Library startup/hydration retains its
+existing confirmed-offline guard. Dispatch listeners that require `online`
+(scrobbles, annotations, downloads and required rebuilds) still wait for a
+successful probe to trigger recovery work. Scrobble delivery itself retains
+its device-connectivity/reconciliation gate and durable retry queue.
 
 #### Retired Listen Together Feature
 
@@ -2208,7 +2237,7 @@ The banner's Retry action calls `ServerReachabilityController.retryNow()`. That 
 - checks the server at once, or joins a check that is already running;
 - leaves the status at `offline` until the check finishes, so the banner stays up while the check runs.
 
-The banner's message is one line, and its close button tucks it away: `shellOfflineBannerDismissedProvider` (`ShellOfflineBannerDismissed`) holds a dismissed flag that collapses the banner through the same animation (notices follow it) and shows `ShellOfflineChip`, a small floating "Offline" chip in the shell's body `Stack` that takes no layout space on phone, rail or desktop. Tapping the chip clears the flag and expands the banner. The flag also turns on by itself when `showRetryBanner` becomes false after repeated failures (the former "Offline mode" strip is gone), and is reset whenever the status leaves `offline`, so the next outage shows the banner again.
+The banner's message is one line, and its close button tucks it away: `shellOfflineBannerDismissedProvider` (`ShellOfflineBannerDismissed`) holds a dismissed flag that collapses the banner through the same animation (notices follow it) and shows `ShellOfflineChip`, a small floating "Offline" chip in the shell's body `Stack` that takes no layout space on phone, rail or desktop. Tapping the chip clears the flag and expands the banner. The flag also turns on by itself when `showRetryBanner` becomes false after repeated failures (the former "Offline mode" strip is gone), and is reset only when the server is confirmed `online`, so `checking` cannot undo a dismissal and the next outage starts undismissed.
 
 `ShellOfflineBannerScope` wraps the shell's `Scaffold` body and owns the one animation that reveals and hides the banner. The shell places `AppNoticeHost` through `ShellOfflineBannerExtentBuilder`, which follows that same animation, so a notice stays 12 px below the banner on every frame. Interrupted toggles and reduced motion are included, and a notice never moves over a banner that is still collapsing. The extent assumes the banner's one-line `contentHeight`. With very large text the message wraps and the banner grows taller.
 
@@ -2489,8 +2518,7 @@ and Subsonic delivery continues independently.
   then on feedback follows only its own policy switches.
 - **Writers.** The three new columns are deliberately absent from the full-row
   `AppSettingsDao.saveSettings`, so a stale screen snapshot cannot overwrite
-  them (`resetDefaults` resets the master and the JSON set explicitly). They are
-  written only by `updateIntegrationPolicy`, `setExternalIntegrationsEnabled`,
+  them. They are written only by `updateIntegrationPolicy`, `setExternalIntegrationsEnabled`,
   `updateIntegrationsNoticeDismissed` and `setIntegrationEnabled(key, enabled:)`,
   the single path for any feature or service toggle: it writes the legacy column
   for a column-backed feature and otherwise read-modify-writes the JSON set in a
@@ -2500,8 +2528,8 @@ and Subsonic delivery continues independently.
   when given, and `SettingsRepository.saveSettings` never gives them: they
   change through `setIntegrationEnabled`, `updateLastFmApiKey` (the key
   alone) and `updateListenBrainzConnection`, so a stale screen snapshot cannot
-  revert a switch, a key or a token clear. `resetDefaults` resets them through
-  those writers.
+  revert a switch, a key or a token clear. No settings page resets them: the
+  Playback page's Reset Defaults is scoped to `resetPlaybackDefaults`.
 - **Provider.** `integrationPolicyProvider` selects only scalar settings and the
   raw JSON string, so unrelated settings saves do not rebuild it, and it is
   **fail-closed**: while settings load or have failed it is
@@ -3264,7 +3292,10 @@ update-ready element (`_UpdateTile` in `home_support_widgets.dart`, which
 replaced the `MaterialBanner`) is the same tile: title "Navis {version} is
 ready", a delivery-specific body, a "Release notes" text action, the tonal
 Install / Download / Open in Play Store action, and a close button that
-invalidates `updateProvider` as the old Dismiss did.
+persists the dismissed tag and build through `UpdateCheckStore`. Only Home
+hides that update; About still shows it, and a different tag or build shows
+the Home tile again. `dismissedUpdateProvider` reads that identity and is
+invalidated after a dismissal.
 
 **Notice roles.** `NoticeIconDisc` (`common_widgets/notice_icon_disc.dart`)
 is the circular icon mark shared by every notice surface and defaults to
@@ -3305,7 +3336,7 @@ Settings › Integrations › Updates holds the automatic check
 
 Home and Library pulls (including Library tabs and Liked see-all pages) call
 `checkForUpdatesFromPull`. This uses the same integrations policy and forced
-check request, bypassing the 24-hour throttle only when the master, Updates
+check request, bypassing the one-hour throttle only when the master, Updates
 service and `updates.automatic` switches are on. A temporary manual listener
 keeps the auto-disposed provider active until it resolves and closes on
 completion or widget disposal. Home uses its existing update tile; Library
@@ -3313,11 +3344,28 @@ shows an info notice, “Update available”, with a View action opening the
 existing update dialog, once per available version and build. `UpdateInfo`
 retains the verified manifest version and build in `notificationKey`, so a
 newer dev build sharing a version can show another notice. `UpdateCheckStore`
-reads and merges `lastCheckAt` and `notifiedVersion` in the same JSON file;
-both writers tolerate corrupt state and preserve the other key. Only Library
-notice calls record the key after showing; Home's banner is unchanged.
-Null and error results are silent. Neither refresh
-callback waits for the update check.
+reads and merges `lastCheckAt`, `notifiedVersion`, `verifiedManifest` and
+`dismissedUpdate` in the same JSON file; all writers tolerate corrupt state
+and preserve the other keys. Only Library notice calls record the notification
+key after showing;
+Home dismissal records its own tag and build identity. Null and error
+results are silent. Neither refresh callback waits for the update check.
+
+Automatic checks are throttled to one hour: coming back to the app after at
+least 30 seconds away invalidates `updateProvider` through the library sync
+controller's existing resume hook, and the store's throttle decides whether
+a manifest is fetched again. When the throttle skips the fetch,
+`UpdateRepository` re-verifies the last signed envelope (`payload` and
+`signature` base64 strings in `UpdateCheckStore`) through the same pipeline
+as a fresh fetch. Both paths check the current channel, installed version
+and build, install mode, Android installer and ABI, and signed asset
+metadata before deriving `UpdateInfo`; equal-version builds qualify only
+on dev/staging. Cached checks skip the HTTP request and fetch timestamp
+write, and diagnostics mark them with `fromCache`. A transport failure
+keeps the envelope; a completed fetch stores its envelope only if it yields
+an update, otherwise it clears the cache. Home can retain an undismissed
+update across cold starts inside the throttle window without trusting
+unsigned derived fields.
 
 - `data/update_repository.dart` — fetches the channel's signed manifest from
   `AppConstants.updateBaseUrl` (R2, see [release-r2.md](release/release-r2.md)), verifies it,
@@ -3395,7 +3443,7 @@ these hold; each failure is recorded as a reject reason and nothing is offered:
   are well formed (`invalid_asset_url`, `invalid_asset_sha256`, `invalid_asset_size`).
 
 A transport failure is not a reject: it surfaces through the provider's error state, and
-a successful fetch keeps the 24-hour check throttle. The release notes link comes from
+a successful fetch keeps the one-hour check throttle. The release notes link comes from
 the manifest's `notes_url` only when it is an HTTPS URL on `navis.porthorion.com`;
 otherwise "Download Manually" opens `AppConstants.updateManualDownloadUrl`.
 
@@ -3915,8 +3963,11 @@ compact. Choosing an entry selects it with
 `selectPreset(enable: true)`, so picking a sound also turns the EQ on; drafts are
 kept exactly as on the full page. The Now Playing settings sheet and the wide
 settings panel show the same controls inline as `EqQuickCard` in a "Sound"
-section; unsupported backends keep the disabled
-`EqualizerEntry` explanation. The settings sheet is a draggable
+section, but only while the transport row has no EQ and Speed buttons
+(`_TransportControls` reports this through `quickActionsShown`, so the sheet
+never repeats buttons that sit right above it); unsupported backends keep the
+disabled `EqualizerEntry` explanation in that section. Settings › Playback has
+no Equalizer entry; Settings › Equalizer is the only one. The settings sheet is a draggable
 `DraggableScrollableSheet` and returns a follow-up action, so Speed & Pitch or
 the Equalizer page opens only after it has closed.
 
@@ -4204,9 +4255,13 @@ stays deferred with the songs farther from the window: following songs in
 the tail or earlier songs in the head. Tail releases back off and retry; a
 backward jump can release the playable head suffix and leaves unavailable
 history queued for a later attempt. Shuffled queues defer like any other (see Shuffle below).
-Repeat-all stays off natively while anything is deferred on either side, so
-the player never wraps early; the reported repeat mode is the user's, and at
-the end of the last song Navis wraps to the first itself.
+Repeat-all stays off natively while the initial logical queue is filling,
+anything is deferred on either side, or shuffle is on for a multi-song queue.
+The player never wraps early; the reported repeat mode is the user's, and at
+the end of the last song Navis starts the next pass itself. If the selected
+song completes before the initial fill finishes, the shared completion path
+continues at the next logical occurrence once filling settles. Only Repeat One
+may loop the temporary one-song playlist.
 `GET /v1/playback/status` reports `materializedLength`, `deferredLength`,
 `deferredHeadLength` and release counters. The queue window model test
 (`queue window model` in
@@ -4229,7 +4284,8 @@ shuffles the rest; a queue started with shuffle on begins at the chosen song
 with the others shuffled. The unshuffled order is kept in `_originalOrder`
 (entity Shuffle callers pass the optional `originalOrder` of their unshuffled
 IDs alongside pre-shuffled rows, so the handler preserves the supplied order
-and never shuffles it twice). Android Auto’s Shuffle liked projection passes
+and never shuffles it twice). Supplying that order also enables shuffle mode,
+including its persisted toggle state. Android Auto’s Shuffle liked projection passes
 the same original order through the row-loading adapter. It is reconciled lazily with edits
 (`reconcileOriginalRanks`: songs matched by occurrence, a song played next
 lands after the current song, appended songs go last, removed songs drop).
@@ -4241,7 +4297,17 @@ Schema v88 saves each queue row's
 unshuffled position in `play_queue_items.original_order` next to its play
 position, so a shuffled queue restores in the order it was playing; a queue
 saved by an older build (shuffle on, no original order) keeps its history and
-current song and shuffles the rest. Remote rows keep
+current song and shuffles the rest. Repeat-all completion, forward Next at the
+end, and Play on a completed shuffled queue share one next-pass operation. It
+uses the existing shuffle helper and queue rearrangement, retains original
+ranks and every occurrence, and chooses a first song different from the one
+that just ended whenever another song exists. A random draw matching the old
+order is changed when an alternative is available (a two-song queue has only
+one order with a different starting song). Paused Next keeps playback paused.
+Normal crossfades can start the next shuffled pass when the whole queue fits
+the player; their outgoing occurrence stays last so a failed prewarm still
+stops at the correct boundary. Released-window and Smart-mode wraps continue
+through completion and navigation. Remote rows keep
 their own row whenever a materialised song returns to the tail (reorders,
 deferred ranges, far jumps, seek recovery, crossfade deck sync): the
 handler remembers the rows of materialised remote songs instead of re-reading
