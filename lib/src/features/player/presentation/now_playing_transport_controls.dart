@@ -8,6 +8,7 @@ class _TransportControls extends ConsumerWidget {
     this.compact = false,
     this.large = false,
     this.showVolumeControl = false,
+    this.quickActionsShown,
     this.onSkipPrevious,
     this.onSkipNext,
   });
@@ -21,8 +22,23 @@ class _TransportControls extends ConsumerWidget {
   /// portrait phone layout sets it, so other layouts keep their sizes.
   final bool large;
   final bool showVolumeControl;
+
+  /// Receives whether this row currently shows the EQ and Speed buttons. The
+  /// settings sheet and panel read it to list those controls only when the
+  /// row does not.
+  final ValueNotifier<bool>? quickActionsShown;
   final VoidCallback? onSkipPrevious;
   final VoidCallback? onSkipNext;
+
+  // The row's width is only known during layout, so the value is published
+  // after the frame.
+  void _reportQuickActionsShown(BuildContext context, bool shown) {
+    final notifier = quickActionsShown;
+    if (notifier == null || notifier.value == shown) return;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (context.mounted) notifier.value = shown;
+    });
+  }
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -45,6 +61,7 @@ class _TransportControls extends ConsumerWidget {
 
     if (isRadio) {
       // Simplified radio transport: just play/pause and stop.
+      _reportQuickActionsShown(context, false);
       return Row(
         mainAxisAlignment: MainAxisAlignment.center,
         children: <Widget>[
@@ -139,6 +156,7 @@ class _TransportControls extends ConsumerWidget {
             (!effectiveShowVolume ||
                 constraints.maxWidth >=
                     transportVolumeMinWidth + transportQuickActionsExtraWidth);
+        _reportQuickActionsShown(context, showQuickActions);
         final tight =
             showQuickActions &&
             compact &&

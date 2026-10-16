@@ -166,6 +166,29 @@ const List<ChangelogVersion> changelogs = [
     ],
     entries: [
       ChangelogEntry(
+        'Brief connection checks no longer falsely report offline at launch or resume, and dismissed offline notices stay dismissed until recovery',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
+        'The Now Playing settings sheet no longer repeats the Equalizer and Speed & Pitch buttons already in the player controls, and Settings › Playback no longer repeats the Equalizer entry',
+      ),
+      ChangelogEntry(
+        'Reset Defaults on the Playback settings page now resets only playback settings; appearance, Looks, downloads and service connections are left alone',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
+        'Shuffled queues get a fresh order on repeat or restart and avoid starting with the song that just finished',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
+        'Shuffle actions turn on the queue toggle and retain the original order when shuffle is turned off',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
+        'The first song no longer repeats or stalls when it ends while the rest of the queue is loading',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
         'Notification, Bluetooth and car controls keep working after Android restarts the media service',
         type: ChangelogEntryType.fix,
       ),
@@ -438,6 +461,15 @@ const List<ChangelogVersion> changelogs = [
       ),
       ChangelogEntry(
         'Pulling down to refresh Home or Library also checks for app updates',
+      ),
+      ChangelogEntry(
+        'Navis checks for app updates when you open it or come back to it, at most once an hour, and a found update stays on Home until you install or dismiss it',
+      ),
+      ChangelogEntry(
+        'Dismissing an update on Home keeps it hidden until a different update is available; you can still find it in About',
+      ),
+      ChangelogEntry(
+        'The Sync settings button that refreshes your library is now labelled "Sync library now" to distinguish it from app update checks',
       ),
       ChangelogEntry(
         'Appearance is grouped into Theme, Color, Shape & Layout and Now Playing; Color Scheme is now Accent Color, its swatches preview your style, and custom accent colors have more accurate names',

@@ -466,25 +466,32 @@ class DiagnosticsPresentationController {
     final root = _boundaryKey.currentContext;
     if (root is! Element) throw const DiagnosticsPresentationUnavailable();
     if (open) {
-      final settingsAction = _findElement(
-        root,
-        (element) =>
-            element.widget.key == const ValueKey('nowPlayingSettingsAction') &&
-            element.widget is IconButton,
-      );
-      (settingsAction?.widget as IconButton?)?.onPressed?.call();
-      await waitForFrame();
-      final entry = _findElement(
-        root,
-        (element) =>
-            element.widget.key ==
-                const ValueKey('playbackAdjustmentEntryPoint') &&
-            element.widget is ListTile,
-      );
-      final callback = (entry?.widget as ListTile?)?.onTap;
-      if (callback == null) throw const DiagnosticsPresentationUnavailable();
-      callback();
-      await waitForFrame();
+      // The transport's Speed button is the usual way in; the settings sheet
+      // lists Speed & Pitch only where that button is missing.
+      try {
+        await pressPlayerQuickButton(target: 'speed');
+      } on DiagnosticsPresentationUnavailable {
+        final settingsAction = _findElement(
+          root,
+          (element) =>
+              element.widget.key ==
+                  const ValueKey('nowPlayingSettingsAction') &&
+              element.widget is IconButton,
+        );
+        (settingsAction?.widget as IconButton?)?.onPressed?.call();
+        await waitForFrame();
+        final entry = _findElement(
+          root,
+          (element) =>
+              element.widget.key ==
+                  const ValueKey('playbackAdjustmentEntryPoint') &&
+              element.widget is ListTile,
+        );
+        final callback = (entry?.widget as ListTile?)?.onTap;
+        if (callback == null) throw const DiagnosticsPresentationUnavailable();
+        callback();
+        await waitForFrame();
+      }
     }
     final panel = _findElement(
       root,

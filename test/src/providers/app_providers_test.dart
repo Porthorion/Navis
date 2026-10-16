@@ -378,6 +378,148 @@ void main() {
     expect(notified.where((value) => value.hasValue), hasLength(2));
   });
 
+  group('network type retention', () {
+    test('unknown initial connectivity is conservative, not offline', () {
+      final container = ProviderContainer(
+        overrides: [
+          connectivityProvider.overrideWith((_) => const Stream.empty()),
+        ],
+      );
+      addTearDown(container.dispose);
+      expect(container.read(networkTypeProvider), NetworkType.other);
+    });
+
+    test(
+      'uses retained connectivity during a dependency-driven reload',
+      () async {
+        final reload = Provider((_) => Object());
+        final streams = <StreamController<List<ConnectivityResult>>>[];
+        final container = ProviderContainer(
+          overrides: [
+            connectivityProvider.overrideWith((ref) {
+              ref.watch(reload);
+              final stream = StreamController<List<ConnectivityResult>>();
+              streams.add(stream);
+              return stream.stream;
+            }),
+          ],
+        );
+        addTearDown(() async {
+          container.dispose();
+          for (final stream in streams) {
+            await stream.close();
+          }
+        });
+        container.listen(networkTypeProvider, (_, _) {});
+        streams.last.add([ConnectivityResult.wifi]);
+        await pumpEventQueue();
+        container.invalidate(reload);
+        expect(container.read(connectivityProvider).isLoading, isTrue);
+        expect(container.read(connectivityProvider).asData, isNull);
+        expect(container.read(networkTypeProvider), NetworkType.wifi);
+        streams.last.add([ConnectivityResult.mobile]);
+        await pumpEventQueue();
+        expect(container.read(networkTypeProvider), NetworkType.cellular);
+      },
+    );
+
+    for (final (result, expected) in [
+      (ConnectivityResult.wifi, NetworkType.wifi),
+      (ConnectivityResult.mobile, NetworkType.cellular),
+      (ConnectivityResult.none, NetworkType.offline),
+    ]) {
+      test(
+        'retains $expected during connectivity reload, then resolves changes',
+        () async {
+          final streams = <StreamController<List<ConnectivityResult>>>[];
+          final container = ProviderContainer(
+            overrides: [
+              connectivityProvider.overrideWith((_) {
+                final stream = StreamController<List<ConnectivityResult>>();
+                streams.add(stream);
+                return stream.stream;
+              }),
+            ],
+          );
+          addTearDown(() async {
+            container.dispose();
+            for (final stream in streams) {
+              await stream.close();
+            }
+          });
+          container.listen(networkTypeProvider, (_, _) {});
+          streams.last.add([result]);
+          await pumpEventQueue();
+          expect(container.read(networkTypeProvider), expected);
+          container.invalidate(connectivityProvider);
+          expect(container.read(connectivityProvider).isLoading, isTrue);
+          expect(container.read(networkTypeProvider), expected);
+          streams.last.add([ConnectivityResult.ethernet]);
+          await pumpEventQueue();
+          expect(container.read(networkTypeProvider), NetworkType.wifi);
+        },
+      );
+    }
+
+    test(
+      'resume reconciliation keeps the same API client on unchanged wifi',
+      () async {
+        final database = createTestDatabase();
+        final streams = <StreamController<List<ConnectivityResult>>>[];
+        final container = ProviderContainer(
+          overrides: withTestDatabase(
+            database,
+            overrides: [
+              serverConfigStateProvider.overrideWithValue(
+                const AsyncData(
+                  ServerConfigModel(
+                    url: 'https://fixture.invalid',
+                    username: 'fixture',
+                    password: 'synthetic',
+                    apiVersion: '1.16.1',
+                  ),
+                ),
+              ),
+              connectivityProvider.overrideWith((_) {
+                final stream = StreamController<List<ConnectivityResult>>();
+                streams.add(stream);
+                return stream.stream;
+              }),
+              nativeNetworkMeteredProvider.overrideWith((_) async => false),
+              pingServerProvider.overrideWithValue(() async => 'ready'),
+            ],
+          ),
+        );
+        addTearDown(() async {
+          container.dispose();
+          for (final stream in streams) {
+            await stream.close();
+          }
+          await database.close();
+        });
+        container.listen(subsonicApiProvider, (_, _) {});
+        streams.last.add([ConnectivityResult.wifi]);
+        await pumpEventQueue();
+        final client = container.read(subsonicApiProvider);
+        expect(client, isNotNull);
+        final replacements = <SubsonicApiClient?>[];
+        container.listen(
+          subsonicApiProvider,
+          (_, next) => replacements.add(next),
+        );
+        final reconcile = container.read(networkReconciliationProvider)();
+        expect(container.read(connectivityProvider).isLoading, isTrue);
+        expect(container.read(networkTypeProvider), NetworkType.wifi);
+        expect(container.read(subsonicApiProvider), same(client));
+        streams.last.add([ConnectivityResult.wifi]);
+        expect(await reconcile, (connected: true, serverReachable: true));
+        expect(container.read(subsonicApiProvider), same(client));
+        expect(replacements, isEmpty);
+      },
+      skip: !sqliteAvailable,
+    );
+  });
+
   group('network reconciliation gate', () {
     test(
       'a stuck reconciliation releases downloads and scrobbles after the bound',
@@ -3168,6 +3310,15 @@ class _RecordingUpdateCheckStore extends UpdateCheckStore {
 
   @override
   Future<void> recordCheck([DateTime? checkedAt]) async {}
+
+  @override
+  Future<Map<String, Object?>?> readVerifiedManifest() async => null;
+
+  @override
+  Future<void> recordVerifiedManifest(Map<String, Object?> value) async {}
+
+  @override
+  Future<void> clearVerifiedManifest() async {}
 }
 
 class _NoOpUpdateCheckStore extends UpdateCheckStore {
@@ -3176,6 +3327,15 @@ class _NoOpUpdateCheckStore extends UpdateCheckStore {
 
   @override
   Future<void> recordCheck([DateTime? checkedAt]) async {}
+
+  @override
+  Future<Map<String, Object?>?> readVerifiedManifest() async => null;
+
+  @override
+  Future<void> recordVerifiedManifest(Map<String, Object?> value) async {}
+
+  @override
+  Future<void> clearVerifiedManifest() async {}
 }
 
 class _RadioErrorHandler extends InertPlaybackHandler {

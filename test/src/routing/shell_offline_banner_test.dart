@@ -6,9 +6,21 @@ import 'package:navis/l10n/app_localizations.dart';
 import 'package:navis/l10n/navis_localizations.dart';
 import 'package:navis/src/common_widgets/marquee_text.dart';
 import 'package:navis/src/common_widgets/notice_icon_disc.dart';
+import 'package:navis/src/features/auth/domain/server_reachability.dart';
+import 'package:navis/src/features/auth/presentation/server_reachability_provider.dart';
 import 'package:navis/src/routing/shell_offline_banner.dart';
 import 'package:navis/src/theme/navis_theme.dart';
 import 'package:navis/src/theme/navis_tokens.dart';
+
+class _Reachability extends ServerReachabilityController {
+  @override
+  ServerReachabilityState build() =>
+      const ServerReachabilityState(status: ServerReachabilityStatus.offline);
+
+  void setStatus(ServerReachabilityStatus status) {
+    state = ServerReachabilityState(status: status);
+  }
+}
 
 class _Page extends StatefulWidget {
   const new();
@@ -26,6 +38,30 @@ const _noticeKey = ValueKey<String>('notice');
 const _statusBar = 24.0;
 
 void main() {
+  test(
+    'dismissal survives checking and resets only after confirmed online',
+    () {
+      final reachability = _Reachability();
+      final container = ProviderContainer(
+        overrides: [
+          serverReachabilityControllerProvider.overrideWith(() => reachability),
+        ],
+      );
+      addTearDown(container.dispose);
+      container.listen(shellOfflineBannerDismissedProvider, (_, _) {});
+      container.read(shellOfflineBannerDismissedProvider.notifier).dismiss();
+      expect(container.read(shellOfflineBannerDismissedProvider), isTrue);
+      reachability.setStatus(ServerReachabilityStatus.checking);
+      expect(container.read(shellOfflineBannerDismissedProvider), isTrue);
+      reachability.setStatus(ServerReachabilityStatus.offline);
+      expect(container.read(shellOfflineBannerDismissedProvider), isTrue);
+      reachability.setStatus(ServerReachabilityStatus.online);
+      expect(container.read(shellOfflineBannerDismissedProvider), isFalse);
+      reachability.setStatus(ServerReachabilityStatus.offline);
+      expect(container.read(shellOfflineBannerDismissedProvider), isFalse);
+    },
+  );
+
   Future<void> pump(
     WidgetTester tester, {
     required bool visible,

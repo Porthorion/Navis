@@ -21,6 +21,7 @@ import '../../../../helpers/test_theme.dart';
 const _playlistId = 'playlist-detail-test';
 
 const _playlist = PlaylistsTableData(
+  isLocal: false,
   id: _playlistId,
   name: 'A deliberately long desktop playlist title',
   owner: 'Navis',

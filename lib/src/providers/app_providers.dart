@@ -389,9 +389,9 @@ final networkTypeProvider = Provider<NetworkType>((ref) {
     }
   }
   final connectivity = ref.watch(connectivityProvider);
-  return resolveNetworkType(
-    connectivity.asData?.value ?? const <ConnectivityResult>[],
-  );
+  final results = connectivity.value;
+  // Unknown connectivity permits probes but retains conservative metering.
+  return results == null ? NetworkType.other : resolveNetworkType(results);
 });
 
 final networkCostBridgeProvider = Provider<NetworkCostBridge>((ref) {
@@ -3154,7 +3154,7 @@ final packageInfoProvider = FutureProvider<PackageInfo>((ref) async {
 });
 
 /// Carries a manual "Check now" request to the next [updateProvider] run,
-/// which then bypasses the 24-hour throttle.
+/// which then bypasses the one-hour throttle.
 ///
 /// The request is a plain field rather than provider state: [updateProvider]
 /// consumes it while building, and a provider must not modify another
@@ -3185,6 +3185,11 @@ final installSourceServiceProvider = Provider<InstallSourceService>((ref) {
 
 final updateCheckStoreProvider = Provider<UpdateCheckStore>((ref) {
   return UpdateCheckStore();
+});
+
+/// The tag and build identity of the update dismissed on Home.
+final dismissedUpdateProvider = FutureProvider.autoDispose<String?>((ref) {
+  return ref.watch(updateCheckStoreProvider).readDismissedUpdate();
 });
 
 final updateServiceProvider = Provider<UpdateService>((ref) {

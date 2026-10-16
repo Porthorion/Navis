@@ -769,7 +769,7 @@ void main() {
         (await db.libraryDao.getSongById('remote-favorite'))?.starred,
         isNotNull,
       );
-      expect((await db.playlistDao.getAllPlaylists()).single.id, 'p');
+      expect((await db.playlistDao.getServerPlaylists()).single.id, 'p');
       expect(
         (await db.librarySyncDao.getWork(
           serverId: id,
@@ -890,7 +890,7 @@ void main() {
         isNotNull,
       );
       expect(
-        (await db.playlistDao.getAllPlaylists()).single.id,
+        (await db.playlistDao.getServerPlaylists()).single.id,
         'scheduled-playlist',
       );
       expect(
@@ -1378,7 +1378,7 @@ void main() {
       'remote-favorite',
     );
     expect(await db.libraryDao.getAllSongs(), isEmpty);
-    expect((await db.playlistDao.getAllPlaylists()).single.id, 'p');
+    expect((await db.playlistDao.getServerPlaylists()).single.id, 'p');
     final state = await db.librarySyncDao.getOrCreateState(serverId);
     expect(state.lastAuxiliarySyncedAt, isNotNull);
     api.calls.clear();
@@ -1577,7 +1577,7 @@ void main() {
         serverConfigRepository: repo,
       );
       expect((await e.syncPlaylistHeaders()).status, LibrarySyncStatus.failed);
-      expect(await db.playlistDao.getAllPlaylists(), hasLength(1));
+      expect(await db.playlistDao.getServerPlaylists(), hasLength(1));
       client.close();
     },
   );

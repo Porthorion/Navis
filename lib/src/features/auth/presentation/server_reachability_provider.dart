@@ -14,6 +14,10 @@ final reachabilityRetryIntervalProvider = Provider<Duration>((ref) {
   return const Duration(seconds: 30);
 });
 
+final reachabilityQuickRetryIntervalProvider = Provider<Duration>((ref) {
+  return const Duration(seconds: 3);
+});
+
 final reachabilityVisibleRetryLimitProvider = Provider<int>((ref) {
   return 3;
 });
@@ -35,6 +39,7 @@ class ServerReachabilityController extends Notifier<ServerReachabilityState> {
   Timer? _retryTimer;
   bool _isChecking = false;
   bool _pendingCheck = false;
+  bool _hasUnconfirmedFailure = false;
   Future<void>? _inFlightCheck;
   String? _sessionFingerprint;
   bool _hasAuthenticatedSession = false;
@@ -78,14 +83,6 @@ class ServerReachabilityController extends Notifier<ServerReachabilityState> {
       if (!_hasAuthenticatedSession || next.isLoading) {
         return;
       }
-      if (state.status == ServerReachabilityStatus.offline) {
-        state = state.copyWith(
-          status: ServerReachabilityStatus.checking,
-          consecutiveFailureCount: 0,
-          showRetryBanner: true,
-          clearErrorMessage: true,
-        );
-      }
       unawaited(retryNow());
     });
 
@@ -102,6 +99,7 @@ class ServerReachabilityController extends Notifier<ServerReachabilityState> {
     final config = next.asData?.value;
     if (config == null) {
       _hasAuthenticatedSession = false;
+      _hasUnconfirmedFailure = false;
       _sessionFingerprint = null;
       _cancelRetryTimer();
       state = const ServerReachabilityState(
@@ -116,6 +114,7 @@ class ServerReachabilityController extends Notifier<ServerReachabilityState> {
     }
 
     _hasAuthenticatedSession = true;
+    _hasUnconfirmedFailure = false;
     _sessionFingerprint = fingerprint;
     _cancelRetryTimer();
     state = state.copyWith(
@@ -137,7 +136,7 @@ class ServerReachabilityController extends Notifier<ServerReachabilityState> {
   }
 
   Future<void> _checkReachability() async {
-    if (!_hasAuthenticatedSession) {
+    if (!ref.mounted || !_hasAuthenticatedSession) {
       return;
     }
     if (_isChecking) {
@@ -145,7 +144,7 @@ class ServerReachabilityController extends Notifier<ServerReachabilityState> {
       return;
     }
 
-    final ping = ref.read(pingServerProvider);
+    var ping = ref.read(pingServerProvider);
     if (!_hasAuthenticatedSession) {
       return;
     }
@@ -160,14 +159,29 @@ class ServerReachabilityController extends Notifier<ServerReachabilityState> {
       return;
     }
 
+    if (state.status != ServerReachabilityStatus.offline) {
+      _cancelRetryTimer();
+    }
+    final sessionFingerprint = _sessionFingerprint;
     _isChecking = true;
     final check = Completer<void>();
     _inFlightCheck = check.future;
     try {
-      await ping();
-      if (!_hasAuthenticatedSession) {
+      try {
+        await ping();
+      } on Object {
+        if (!ref.mounted || sessionFingerprint != _sessionFingerprint) return;
+        final currentPing = ref.read(pingServerProvider);
+        if (ping == currentPing) rethrow;
+        // A retired client's failure says nothing about the current connection.
+        if (currentPing == null) return;
+        ping = currentPing;
+        await ping();
+      }
+      if (!ref.mounted || sessionFingerprint != _sessionFingerprint) {
         return;
       }
+      _hasUnconfirmedFailure = false;
       final now = DateTime.now();
       state = state.copyWith(
         status: ServerReachabilityStatus.online,
@@ -179,10 +193,26 @@ class ServerReachabilityController extends Notifier<ServerReachabilityState> {
       );
       _cancelRetryTimer();
     } on Object catch (error) {
-      if (!_hasAuthenticatedSession) {
+      if (!ref.mounted || sessionFingerprint != _sessionFingerprint) {
+        return;
+      }
+      if (ping != ref.read(pingServerProvider)) {
+        // Bound immediate replacement recovery to one follow-up per check.
+        _scheduleQuickRetryTimer();
         return;
       }
       final now = DateTime.now();
+      if (state.status != ServerReachabilityStatus.offline &&
+          !_hasUnconfirmedFailure) {
+        _hasUnconfirmedFailure = true;
+        state = state.copyWith(
+          status: ServerReachabilityStatus.checking,
+          lastCheckedAt: now,
+          clearErrorMessage: true,
+        );
+        _scheduleQuickRetryTimer();
+        return;
+      }
       state = state.copyWith(
         status: ServerReachabilityStatus.offline,
         lastCheckedAt: now,
@@ -197,7 +227,7 @@ class ServerReachabilityController extends Notifier<ServerReachabilityState> {
       _isChecking = false;
       _inFlightCheck = null;
       check.complete();
-      if (_pendingCheck) {
+      if (_pendingCheck && ref.mounted) {
         _pendingCheck = false;
         unawaited(_checkReachability());
       }
@@ -206,6 +236,14 @@ class ServerReachabilityController extends Notifier<ServerReachabilityState> {
 
   String _toSessionFingerprint(ServerConfigModel config) {
     return '${config.url}|${config.username}|${config.apiVersion}|${config.useLegacyAuth}';
+  }
+
+  void _scheduleQuickRetryTimer() {
+    _cancelRetryTimer();
+    _retryTimer = Timer(ref.read(reachabilityQuickRetryIntervalProvider), () {
+      _retryTimer = null;
+      unawaited(_checkReachability());
+    });
   }
 
   void _scheduleRetryTimer() {
