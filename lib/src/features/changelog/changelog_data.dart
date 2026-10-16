@@ -181,6 +181,18 @@ const List<ChangelogVersion> changelogs = [
         type: ChangelogEntryType.fix,
       ),
       ChangelogEntry(
+        'Radio station save failures now appear inside the editor and preserve your input; filters stay usable while server stations load',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
+        'Add radio stations that stay on this device, and edit or delete stations if you are a server admin',
+        type: ChangelogEntryType.newFeature,
+      ),
+      ChangelogEntry(
+        'The clear-data sign-out confirmation now explicitly includes playlists and radio stations saved on this device',
+        type: ChangelogEntryType.improvement,
+      ),
+      ChangelogEntry(
         'Brief connection checks no longer falsely report offline at launch or resume, and dismissed offline notices stay dismissed until recovery',
         type: ChangelogEntryType.fix,
       ),

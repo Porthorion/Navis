@@ -34097,6 +34097,9 @@ abstract class _$NavisDatabase extends GeneratedDatabase {
   late final ServerDao serverDao = ServerDao(this as NavisDatabase);
   late final LibraryDao libraryDao = LibraryDao(this as NavisDatabase);
   late final PlaylistDao playlistDao = PlaylistDao(this as NavisDatabase);
+  late final LocalRadioStationDao localRadioStationDao = LocalRadioStationDao(
+    this as NavisDatabase,
+  );
   late final CacheDao cacheDao = CacheDao(this as NavisDatabase);
   late final CacheSystemStateDao cacheSystemStateDao = CacheSystemStateDao(
     this as NavisDatabase,

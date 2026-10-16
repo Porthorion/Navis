@@ -50,6 +50,7 @@ import 'package:navis/src/features/integrations/data/integration_json_cache.dart
 import 'package:navis/src/features/integrations/domain/integration_artwork.dart';
 import 'package:navis/src/features/integrations/domain/integration_feature.dart';
 import 'package:navis/src/features/library/data/annotation_sync_dispatcher.dart';
+import 'package:navis/src/features/library/data/radio_station_actions.dart';
 import 'package:navis/src/features/library/domain/library_sync_request.dart';
 import 'package:navis/src/features/library/presentation/artist_deezer_providers.dart';
 import 'package:navis/src/features/library/presentation/artist_top_tracks_provider.dart';
@@ -2106,6 +2107,50 @@ final radioStationsProvider = FutureProvider<List<InternetRadioStation>>((
     return const <InternetRadioStation>[];
   }
   return await api.getInternetRadioStations();
+});
+
+final localRadioStationsProvider = StreamProvider<List<InternetRadioStation>>((
+  ref,
+) {
+  return ref
+      .watch(navisDatabaseProvider)
+      .localRadioStationDao
+      .watchAll()
+      .map(
+        (rows) => rows
+            .map(
+              (row) => InternetRadioStation(
+                id: row.id,
+                name: row.name,
+                streamUrl: row.streamUrl,
+                homePageUrl: row.homePageUrl,
+              ),
+            )
+            .toList(growable: false),
+      );
+});
+
+final serverUserIsAdminProvider = FutureProvider<bool>((ref) async {
+  final api = ref.watch(subsonicApiProvider);
+  if (api == null) return false;
+  try {
+    return await api.getUserIsAdmin(api.authConfig.username);
+  } on Object {
+    AppLogger.info(
+      'Server admin status unavailable; station editing is disabled.',
+    );
+    return false;
+  }
+});
+
+final radioStationActionsProvider = Provider<RadioStationActions>((ref) {
+  return RadioStationActions(
+    localStations: ref.watch(navisDatabaseProvider).localRadioStationDao,
+    api: ref.watch(subsonicApiProvider),
+    onServerChanged: () {
+      if (ref.mounted) ref.invalidate(radioStationsProvider);
+    },
+  );
 });
 
 class AudioHandlerStateController extends Notifier<NavisPlaybackHandler?> {

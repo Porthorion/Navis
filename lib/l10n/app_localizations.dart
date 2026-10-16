@@ -2139,7 +2139,7 @@ abstract class AppLocalizations {
   /// No description provided for @radioEmptySubtitle.
   ///
   /// In en, this message translates to:
-  /// **'Add internet radio stations on your server to see them here.'**
+  /// **'Add a station to this device, or add internet radio stations on your server.'**
   String get radioEmptySubtitle;
 
   /// No description provided for @radioFilteredEmptyTitle.
@@ -2177,6 +2177,108 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Stop radio'**
   String get radioStopStation;
+
+  /// No description provided for @radioAddStation.
+  ///
+  /// In en, this message translates to:
+  /// **'Add station'**
+  String get radioAddStation;
+
+  /// No description provided for @radioEditStation.
+  ///
+  /// In en, this message translates to:
+  /// **'Edit station'**
+  String get radioEditStation;
+
+  /// No description provided for @radioDeleteStation.
+  ///
+  /// In en, this message translates to:
+  /// **'Delete station'**
+  String get radioDeleteStation;
+
+  /// No description provided for @radioSectionDevice.
+  ///
+  /// In en, this message translates to:
+  /// **'On this device'**
+  String get radioSectionDevice;
+
+  /// No description provided for @radioSectionServer.
+  ///
+  /// In en, this message translates to:
+  /// **'On your server'**
+  String get radioSectionServer;
+
+  /// No description provided for @radioEditorNameLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Name'**
+  String get radioEditorNameLabel;
+
+  /// No description provided for @radioEditorStreamUrlLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Stream URL'**
+  String get radioEditorStreamUrlLabel;
+
+  /// No description provided for @radioEditorHomepageLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Homepage (optional)'**
+  String get radioEditorHomepageLabel;
+
+  /// No description provided for @radioEditorNameError.
+  ///
+  /// In en, this message translates to:
+  /// **'Enter a name for this station.'**
+  String get radioEditorNameError;
+
+  /// No description provided for @radioEditorUrlError.
+  ///
+  /// In en, this message translates to:
+  /// **'Enter a full address starting with http:// or https://.'**
+  String get radioEditorUrlError;
+
+  /// No description provided for @radioEditorSaveToServer.
+  ///
+  /// In en, this message translates to:
+  /// **'Save to server'**
+  String get radioEditorSaveToServer;
+
+  /// No description provided for @radioEditorSaveToServerHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Visible to every user on this server. Off keeps the station on this device only.'**
+  String get radioEditorSaveToServerHint;
+
+  /// No description provided for @radioEditorSaveFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Could not save this station. Try again.'**
+  String get radioEditorSaveFailed;
+
+  /// No description provided for @radioDeleteTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Delete Station?'**
+  String get radioDeleteTitle;
+
+  /// No description provided for @radioDeleteScopeDevice.
+  ///
+  /// In en, this message translates to:
+  /// **'Saved on this device only.'**
+  String get radioDeleteScopeDevice;
+
+  /// No description provided for @radioDeleteScopeServer.
+  ///
+  /// In en, this message translates to:
+  /// **'This removes the station from the server for everyone.'**
+  String get radioDeleteScopeServer;
+
+  /// No description provided for @radioDeleteFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Could not delete this station. Try again.'**
+  String get radioDeleteFailed;
 
   /// No description provided for @radioPlaybackError.
   ///
@@ -3830,7 +3932,7 @@ abstract class AppLocalizations {
   /// No description provided for @playbackRecoveryWipeConfirmBody.
   ///
   /// In en, this message translates to:
-  /// **'This permanently deletes your sign-in, downloaded music, caches, library metadata, and history from this device.'**
+  /// **'This permanently deletes your sign-in, downloaded music, caches, library metadata, and history from this device, including playlists and radio stations saved on this device.'**
   String get playbackRecoveryWipeConfirmBody;
 
   /// No description provided for @playbackRecoveryWipeConfirmAction.
@@ -6932,7 +7034,7 @@ abstract class AppLocalizations {
   /// No description provided for @serverSettingsSignOutConfirmMessage.
   ///
   /// In en, this message translates to:
-  /// **'How would you like to handle your local library data?'**
+  /// **'How would you like to handle your local library data? Clearing local data permanently deletes your downloads, caches, library metadata, and history, including playlists and radio stations saved on this device.'**
   String get serverSettingsSignOutConfirmMessage;
 
   /// No description provided for @songStatusQueued.
