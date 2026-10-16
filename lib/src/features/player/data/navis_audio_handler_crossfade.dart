@@ -46,6 +46,7 @@ extension _NavisCrossfade on NavisAudioHandler {
   Future<void> _startCrossfade(
     int nextIndex, {
     required Duration delayBeforeFade,
+    bool startsNextPass = false,
   }) async {
     final cfPlayer = _crossfadePlayer;
     if (_isCrossfading || cfPlayer == null) {
@@ -107,7 +108,11 @@ extension _NavisCrossfade on NavisAudioHandler {
       // An edit during the delay can move the songs or the next one.
       if (!_incomingDeckMatchesQueue(cfPlayer, nextIndex) ||
           cfPlayer.currentIndex != (_crossfadeLocalOnlyDeck ? 0 : nextIndex) ||
-          _getNextEffectiveIndex() != nextIndex) {
+          (startsNextPass
+              ? !_shuffleEnabled ||
+                    _desiredLoopMode != LoopMode.all ||
+                    _logicalCurrentIndex != _logicalQueueIds.length - 1
+              : _getNextEffectiveIndex() != nextIndex)) {
         throw StateError('The queue changed before the cross-fade started.');
       }
       if (_isRepeatOneCrossfade) {

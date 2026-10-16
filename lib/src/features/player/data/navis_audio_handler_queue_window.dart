@@ -73,13 +73,15 @@ extension _NavisQueueWindow on NavisAudioHandler {
   bool _shouldDeferTail(int queueLength) =>
       queueLength > _queueWindow.deferThreshold;
 
-  /// Applies the user's repeat mode to the native player, except that "all"
-  /// waits until nothing is deferred: the player would otherwise wrap to the
-  /// first song before reaching the deferred ones.
+  /// Native Repeat All requires a complete, unshuffled queue. Navis owns
+  /// shuffled passes and wraps across deferred songs itself.
   Future<void> _syncNativeLoopMode() async {
     final native =
         _desiredLoopMode == LoopMode.all &&
-            (_deferredTail.isNotEmpty || _deferredHead.isNotEmpty)
+            ((_shuffleEnabled && _logicalQueueIds.length > 1) ||
+                _pendingLogicalQueueSongIds != null ||
+                _deferredTail.isNotEmpty ||
+                _deferredHead.isNotEmpty)
         ? LoopMode.off
         : _desiredLoopMode;
     if (_player.loopMode != native) {
@@ -106,26 +108,32 @@ extension _NavisQueueWindow on NavisAudioHandler {
     return _queueItems.length - 1 - current < _queueWindow.lowWater;
   }
 
-  /// The player reached the end of the materialised queue while songs are
-  /// still deferred (a release could not keep ahead, for example after a
-  /// failed release): continue with the first deferred song. With repeat-all
-  /// and played songs released to the head (native repeat is off then),
-  /// wrap to the first song.
+  /// Continues a completed native playlist after an initial fill or tail
+  /// release, or wraps a queue whose played head has been released.
   void _continueIntoDeferredTail() {
-    final wrap =
-        _deferredTail.isEmpty &&
-        _deferredHead.isNotEmpty &&
-        _desiredLoopMode == LoopMode.all;
     if (_continuingIntoDeferredTail ||
-        (_deferredTail.isEmpty && !wrap) ||
+        _nextShufflePass != null ||
+        _isCrossfading ||
         _radioStation != null ||
         _pendingLogicalQueueSongIds != null ||
-        _isLoading) {
+        _isLoading ||
+        _player.processingState != ProcessingState.completed ||
+        _latestExplicitTransportPlaying == false) {
       return;
     }
+    final current = _logicalCurrentIndex;
+    if (current == null) return;
+    final next = current + 1;
+    final wrap =
+        next >= _logicalQueueIds.length &&
+        (_deferredHead.isNotEmpty || _shuffleEnabled) &&
+        _desiredLoopMode == LoopMode.all;
+    if (next >= _logicalQueueIds.length && !wrap) return;
     _continuingIntoDeferredTail = true;
     unawaited(
-      playFromIndex(wrap ? 0 : _deferredHead.length + _queueItems.length)
+      (wrap && _shuffleEnabled && _logicalQueueIds.length > 1
+              ? _startNextShufflePass()
+              : playFromIndex(wrap ? 0 : next))
           .whenComplete(() => _continuingIntoDeferredTail = false),
     );
   }

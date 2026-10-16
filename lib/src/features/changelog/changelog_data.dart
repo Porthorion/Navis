@@ -170,6 +170,18 @@ const List<ChangelogVersion> changelogs = [
         type: ChangelogEntryType.fix,
       ),
       ChangelogEntry(
+        'Shuffled queues get a fresh order on repeat or restart and avoid starting with the song that just finished',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
+        'Shuffle actions turn on the queue toggle and retain the original order when shuffle is turned off',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
+        'The first song no longer repeats or stalls when it ends while the rest of the queue is loading',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
         'Notification, Bluetooth and car controls keep working after Android restarts the media service',
         type: ChangelogEntryType.fix,
       ),
