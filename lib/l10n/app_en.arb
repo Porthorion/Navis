@@ -1304,6 +1304,18 @@
       }
     }
   },
+  "playlistsDeleteLocalConfirmMessage": "This will permanently delete \"{name}\" from this device. It is not saved on your server.",
+  "@playlistsDeleteLocalConfirmMessage": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "playlistsOnDevice": "On this device",
+  "playlistsSaveToServerLabel": "Save to server",
+  "playlistsSaveToServerSubtitle": "Off keeps this playlist on this device only",
+  "playlistsSaveToServerOfflineSubtitle": "Unavailable offline. The playlist stays on this device",
   "playlistsRenameTitle": "Rename Playlist",
   "playlistsRenameFailed": "Failed to rename playlist",
   "playlistsDeleteFailed": "Failed to delete playlist",

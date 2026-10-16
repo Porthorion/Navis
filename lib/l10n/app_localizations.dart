@@ -4541,6 +4541,36 @@ abstract class AppLocalizations {
   /// **'This will permanently delete \"{name}\".'**
   String playlistsDeleteConfirmMessage(String name);
 
+  /// No description provided for @playlistsDeleteLocalConfirmMessage.
+  ///
+  /// In en, this message translates to:
+  /// **'This will permanently delete \"{name}\" from this device. It is not saved on your server.'**
+  String playlistsDeleteLocalConfirmMessage(String name);
+
+  /// No description provided for @playlistsOnDevice.
+  ///
+  /// In en, this message translates to:
+  /// **'On this device'**
+  String get playlistsOnDevice;
+
+  /// No description provided for @playlistsSaveToServerLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Save to server'**
+  String get playlistsSaveToServerLabel;
+
+  /// No description provided for @playlistsSaveToServerSubtitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Off keeps this playlist on this device only'**
+  String get playlistsSaveToServerSubtitle;
+
+  /// No description provided for @playlistsSaveToServerOfflineSubtitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Unavailable offline. The playlist stays on this device'**
+  String get playlistsSaveToServerOfflineSubtitle;
+
   /// No description provided for @playlistsRenameTitle.
   ///
   /// In en, this message translates to:

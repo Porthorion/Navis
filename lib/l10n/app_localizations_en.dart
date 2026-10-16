@@ -2871,6 +2871,25 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
+  String playlistsDeleteLocalConfirmMessage(String name) {
+    return 'This will permanently delete \"$name\" from this device. It is not saved on your server.';
+  }
+
+  @override
+  String get playlistsOnDevice => 'On this device';
+
+  @override
+  String get playlistsSaveToServerLabel => 'Save to server';
+
+  @override
+  String get playlistsSaveToServerSubtitle =>
+      'Off keeps this playlist on this device only';
+
+  @override
+  String get playlistsSaveToServerOfflineSubtitle =>
+      'Unavailable offline. The playlist stays on this device';
+
+  @override
   String get playlistsRenameTitle => 'Rename Playlist';
 
   @override

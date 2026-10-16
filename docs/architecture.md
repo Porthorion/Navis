@@ -3178,8 +3178,19 @@ works like the weekly playlists. `homeTrendingProvider`
   choice is off and writes are ignored; the saved preference is retained.
   Server creation requires the existing reachability controller to report online,
   so a failed server probe disables it even on a connected network.
-  Full settings saves cannot overwrite it. The create switch, local badges,
-  detail labels and action adoption remain the B1/B2 UI integration work.
+  Full settings saves cannot overwrite it.
+- `showCreatePlaylistDialog` is the one create dialog, used by the Library
+  Playlists FAB and the add-to-playlist sheet's "New playlist". Its "Save to
+  server" `SwitchListTile` reads `playlistCreateOnServerProvider` and writes a
+  tap through `setOnServer` straight away (a local `_tapped` value bridges the
+  settings round trip); while `playlistServerCreationAvailableProvider` is
+  false it is off and disabled with an offline subtitle, and nothing is saved.
+  Creation goes through `PlaylistActions.create` and a failure shows
+  `playlistsCreateFailed`. Device playlists sit in Your playlists with the
+  subtitle "On this device · N songs" (`playlistDetailMeta` with
+  `playlistsOnDevice`, also in the add sheet); the detail owner line reads "On
+  this device"; deleting one uses `playlistsDeleteLocalConfirmMessage`. The
+  queue's "Save as playlist" still creates a server playlist only.
 - Library › Playlists shows each section under a `NavisSectionHeader` only when
   more than one section has rows (the retired `listenBrainzPlaylistDivider`).
   Touch layouts put a `ListFilterField` (shared with Downloads) above the list;

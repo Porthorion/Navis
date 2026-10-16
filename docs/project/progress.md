@@ -14,6 +14,22 @@ Last updated: 2026-10-16
 - ACP status values: `backlog`, `ready`, `in_progress`, `blocked`, `done`.
 
 ## Current Focus
+- [x] PR B2 UI: create switch, device playlists in the Library, local detail and
+  add paths — 2026-10-16 (`feat/playlists-device`, rebased onto
+  `feat/playlists-sections`; Sonnet implementation). New shared
+  `showCreatePlaylistDialog` (name + sticky "Save to server" switch, disabled
+  and off while offline without saving) replaces the two copies in the
+  Playlists tab and the add sheet; device playlists show "On this device · N
+  songs", have their own delete confirmation and "On this device" owner line,
+  and the add sheet lists and adds to them through `PlaylistActions`. Widget
+  tests: `create_playlist_dialog_test.dart` (sticky default/off/next dialog,
+  offline unsaved, failure notice), `add_to_playlist_sheet_test.dart`,
+  `playlist_detail_screen_test.dart` (no server call, offline remove) and
+  `library_screen_test.dart` (subtitle, local delete text, created device
+  playlist under Your playlists). `dart run tool/dead_code_check.dart` exits 0
+  (the two B2 backend providers are now consumed). `./tool/check.sh`, the app
+  and emulators were not run (host limits); the dialog layout is unseen on a
+  device.
 - [x] PR B2 backend: device-only playlist storage, actions and create destination —
   2026-10-16 (`feat/playlists-device`, based on B1 backend cec268ee; Codex
   implementation). Added transactional local creation/replacement with UUID

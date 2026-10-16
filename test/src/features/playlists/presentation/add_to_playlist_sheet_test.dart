@@ -5,6 +5,7 @@ import 'package:mocktail/mocktail.dart';
 import 'package:navis/l10n/app_localizations.dart';
 import 'package:navis/l10n/navis_localizations.dart';
 import 'package:navis/src/common_widgets/app_notice.dart';
+import 'package:navis/src/api/subsonic_api_client.dart';
 import 'package:navis/src/database/navis_database.dart';
 import 'package:navis/src/features/playlists/data/playlist_actions.dart';
 import 'package:navis/src/features/playlists/presentation/add_to_playlist_sheet.dart';
@@ -29,6 +30,8 @@ class _PickerLauncher extends ConsumerWidget {
 }
 
 class _MockPlaylistActions extends Mock implements PlaylistActions;
+
+class _MockApi extends Mock implements SubsonicApiClient;
 
 const _mine = PlaylistsTableData(
   isLocal: false,
@@ -166,5 +169,67 @@ void main() {
     expect(find.text('Add to Playlist'), findsOneWidget);
     expect(find.byTooltip('Close'), findsOneWidget);
     expect(find.byType(BottomSheet), findsNothing);
+  });
+
+  testWidgets('adds to a device playlist without any server call', (
+    tester,
+  ) async {
+    final database = createTestDatabase();
+    addTearDown(database.close);
+    final api = _MockApi();
+    final notices = AppNoticeController();
+    addTearDown(notices.dispose);
+    final id = (await tester.runAsync(() async {
+      await database.libraryDao.upsertSongs([
+        SongsTableCompanion.insert(id: 'song-1', title: 'One'),
+      ]);
+      return database.playlistDao.createLocalPlaylist('Device', []);
+    }))!;
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: withTestDatabase(
+          database,
+          overrides: <Override>[
+            subsonicApiProvider.overrideWithValue(api),
+            playlistViewerProvider.overrideWithValue('me'),
+          ],
+        ),
+        child: MaterialApp(
+          theme: testTheme(),
+          localizationsDelegates: navisLocalizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
+          builder: (context, child) =>
+              AppNoticeScope(notifier: notices, child: child!),
+          home: const Scaffold(body: Center(child: _PickerLauncher())),
+        ),
+      ),
+    );
+    await tester.tap(find.text('Open picker'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('On this device · No songs'), findsOneWidget);
+    await tester.tap(find.text('Device'));
+    await tester.runAsync(
+      () => Future<void>.delayed(const Duration(milliseconds: 50)),
+    );
+    await tester.pumpAndSettle();
+
+    expect(notices.notice?.message, 'Added to "Device"');
+    final songs = await tester.runAsync(
+      () => database.playlistDao.watchPlaylistSongs(id).first,
+    );
+    expect(songs!.map((song) => song.id), ['song-1']);
+    verifyZeroInteractions(api);
+    notices.dismiss();
+  }, skip: !sqliteAvailable);
+
+  testWidgets('New playlist offers the Save to server switch', (tester) async {
+    await _openPicker(tester, _MockPlaylistActions());
+
+    await tester.tap(find.text('New playlist'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Create Playlist'), findsOneWidget);
+    expect(find.text('Save to server'), findsOneWidget);
   });
 }
