@@ -87,6 +87,11 @@ void main() {
                 "INSERT INTO local_radio_stations VALUES ('local:radio', 'Radio', 'https://example.test/live', NULL)",
               );
             }
+            // A key from the retired AudioMuse client must not outlive 104.
+            raw.execute(
+              "UPDATE app_settings SET audio_muse_server_url = 'https://am.test', "
+              "audio_muse_api_key = 'stale-key', audio_muse_enabled = 1",
+            );
             raw.execute('PRAGMA user_version = 103');
           } finally {
             raw.close();
@@ -103,6 +108,18 @@ void main() {
             'song',
           );
           expect(server.read<int>('is_local'), 0);
+          final audioMuse = await upgraded
+              .customSelect(
+                'SELECT audio_muse_server_url, audio_muse_api_key, '
+                'audio_muse_enabled FROM app_settings',
+              )
+              .getSingle();
+          expect(
+            audioMuse.readNullable<String>('audio_muse_server_url'),
+            isNull,
+          );
+          expect(audioMuse.readNullable<String>('audio_muse_api_key'), isNull);
+          expect(audioMuse.read<int>('audio_muse_enabled'), 0);
           expect(server.readNullable<bool>('read_only'), isNull);
           expect(
             (await upgraded

@@ -405,6 +405,14 @@ class NavisDatabase extends _$NavisDatabase {
     if (!await _tableExists('local_radio_stations')) {
       await migrator.createTable(localRadioStationsTable);
     }
+    // The AudioMuse client is retired and its settings reset is gone: clear
+    // its stored server and key once, so no stale credential stays behind.
+    if (await _columnExists('app_settings', 'audio_muse_api_key')) {
+      await customStatement(
+        'UPDATE app_settings SET audio_muse_server_url = NULL, '
+        'audio_muse_api_key = NULL, audio_muse_enabled = 0',
+      );
+    }
   }
 
   Future<void> from102To103(Migrator migrator) async {
