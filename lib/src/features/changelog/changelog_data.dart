@@ -166,6 +166,10 @@ const List<ChangelogVersion> changelogs = [
     ],
     entries: [
       ChangelogEntry(
+        'Brief connection checks no longer falsely report offline at launch or resume, and dismissed offline notices stay dismissed until recovery',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
         'Notification, Bluetooth and car controls keep working after Android restarts the media service',
         type: ChangelogEntryType.fix,
       ),

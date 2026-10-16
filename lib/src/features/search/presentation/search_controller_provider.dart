@@ -82,7 +82,7 @@ final quickSearchOverlayVisibleProvider =
 /// Whether the current search is running against the local DB (offline).
 final searchIsOfflineProvider = Provider.autoDispose<bool>((ref) {
   final reachability = ref.watch(serverReachabilityControllerProvider);
-  return reachability.status != ServerReachabilityStatus.online;
+  return reachability.status == ServerReachabilityStatus.offline;
 });
 
 @immutable
