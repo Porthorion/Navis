@@ -1431,7 +1431,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get radioEmptySubtitle =>
-      'Add internet radio stations on your server to see them here.';
+      'Add a station to this device, or add internet radio stations on your server.';
 
   @override
   String radioFilteredEmptyTitle(String query) {
@@ -1454,6 +1454,60 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get radioStopStation => 'Stop radio';
+
+  @override
+  String get radioAddStation => 'Add station';
+
+  @override
+  String get radioEditStation => 'Edit station';
+
+  @override
+  String get radioDeleteStation => 'Delete station';
+
+  @override
+  String get radioSectionDevice => 'On this device';
+
+  @override
+  String get radioSectionServer => 'On your server';
+
+  @override
+  String get radioEditorNameLabel => 'Name';
+
+  @override
+  String get radioEditorStreamUrlLabel => 'Stream URL';
+
+  @override
+  String get radioEditorHomepageLabel => 'Homepage (optional)';
+
+  @override
+  String get radioEditorNameError => 'Enter a name for this station.';
+
+  @override
+  String get radioEditorUrlError =>
+      'Enter a full address starting with http:// or https://.';
+
+  @override
+  String get radioEditorSaveToServer => 'Save to server';
+
+  @override
+  String get radioEditorSaveToServerHint =>
+      'Visible to every user on this server. Off keeps the station on this device only.';
+
+  @override
+  String get radioEditorSaveFailed => 'Could not save this station. Try again.';
+
+  @override
+  String get radioDeleteTitle => 'Delete Station?';
+
+  @override
+  String get radioDeleteScopeDevice => 'Saved on this device only.';
+
+  @override
+  String get radioDeleteScopeServer =>
+      'This removes the station from the server for everyone.';
+
+  @override
+  String get radioDeleteFailed => 'Could not delete this station. Try again.';
 
   @override
   String get radioPlaybackError => 'Could not play this radio station.';
@@ -2447,7 +2501,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get playbackRecoveryWipeConfirmBody =>
-      'This permanently deletes your sign-in, downloaded music, caches, library metadata, and history from this device.';
+      'This permanently deletes your sign-in, downloaded music, caches, library metadata, and history from this device, including playlists and radio stations saved on this device.';
 
   @override
   String get playbackRecoveryWipeConfirmAction => 'Clear Local Data';
@@ -4401,7 +4455,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get serverSettingsSignOutConfirmMessage =>
-      'How would you like to handle your local library data?';
+      'How would you like to handle your local library data? Clearing local data permanently deletes your downloads, caches, library metadata, and history, including playlists and radio stations saved on this device.';
 
   @override
   String get songStatusQueued => 'Queued for download';
