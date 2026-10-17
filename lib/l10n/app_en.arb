@@ -1682,8 +1682,8 @@
       "name": {"type": "String"}
     }
   },
-  "appearanceLooksCustomEdited": "Custom · edited from {name}",
-  "@appearanceLooksCustomEdited": {
+  "presetDiscardConfirm": "Discard your changes and go back to “{name}”?",
+  "@presetDiscardConfirm": {
     "placeholders": {
       "name": {"type": "String"}
     }

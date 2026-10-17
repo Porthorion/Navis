@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:material_ui/material_ui.dart';
+import 'package:navis/src/common_widgets/confirm_dialog.dart';
 
 /// One choice in a [PresetPicker].
 @immutable
@@ -42,6 +43,9 @@ class PresetPickerLabels {
     required this.cancel,
     required this.save,
     required this.deleteAction,
+    required this.discard,
+    required this.discardShort,
+    required this.discardConfirm,
   });
 
   /// The dropdown's floating label.
@@ -68,6 +72,16 @@ class PresetPickerLabels {
 
   /// The confirmation's destructive button.
   final String deleteAction;
+
+  /// The icon button's tooltip, the confirmation's title and its confirm
+  /// button: drop the edits made to a preset and re-apply it.
+  final String discard;
+
+  /// The same action as the visible button's text when there is room.
+  final String discardShort;
+
+  /// The discard confirmation's message.
+  final String Function(String name) discardConfirm;
 }
 
 /// A compact preset dropdown with a ⋮ menu to save, update, rename and delete
@@ -75,12 +89,16 @@ class PresetPickerLabels {
 ///
 /// The dropdown lists [entries] (a "Custom" entry first while [selectedId] is
 /// null). The menu acts on [updateId] (Update) and [manageId] (Rename and
-/// Delete); a null id hides its item. Name validation belongs to the callers:
+/// Delete); a null id hides its item. While [selectedId] is null and
+/// [updateId] names the preset being edited, the entry reads `<name>*`, like
+/// the equalizer's unsaved changes, and [onDiscard] (when given) adds a
+/// confirmed Discard item that re-applies that preset. Name validation belongs to the callers:
 /// [onSaveNew] and [onRename] return an error shown inline in the name dialog,
 /// or null once saved.
 ///
 /// [keyPrefix] names the widgets (`<prefix>Dropdown`, `Actions`, `SaveNew`,
-/// `Update`, `Rename`, `Delete`, `DeleteConfirm`, `NameInput`).
+/// `Update`, `Rename`, `Delete`, `DeleteConfirm`, `Discard`, `DiscardConfirm`,
+/// `NameInput`).
 class PresetPicker extends StatefulWidget {
   const new({
     required this.entries,
@@ -92,6 +110,7 @@ class PresetPicker extends StatefulWidget {
     required this.onRename,
     required this.onDelete,
     this.onUpdate,
+    this.onDiscard,
     this.updateId,
     this.manageId,
     this.enabled = true,
@@ -118,6 +137,9 @@ class PresetPicker extends StatefulWidget {
   final Future<void> Function(String id) onSelect;
   final Future<String?> Function(String name) onSaveNew;
   final Future<void> Function(String id)? onUpdate;
+
+  /// Re-applies the preset the values were edited from.
+  final Future<void> Function(String id)? onDiscard;
   final Future<String?> Function(String id, String name) onRename;
   final Future<void> Function(String id) onDelete;
 
@@ -138,11 +160,16 @@ class _PresetPickerState extends State<PresetPicker> {
   Widget build(BuildContext context) {
     final labels = widget.labels;
     final selected = widget.selectedId;
+    final update = _entry(widget.updateId);
+    final edited = selected == null ? update : null;
+    // An unavailable origin (say, unsupported here) cannot be re-applied.
+    final canDiscard =
+        edited != null && edited.enabled && widget.onDiscard != null;
     final entries = <DropdownMenuEntry<String>>[
       if (selected == null)
         DropdownMenuEntry(
           value: _customId,
-          label: labels.custom,
+          label: edited == null ? labels.custom : '${edited.label}*',
           leadingIcon: const Icon(Icons.tune, size: 20),
         ),
       for (final entry in widget.entries)
@@ -161,88 +188,158 @@ class _PresetPickerState extends State<PresetPicker> {
     ];
     final shown = selected ?? _customId;
     final shownEntry = entries.where((e) => e.value == shown).firstOrNull;
-    final update = _entry(widget.updateId);
     final manage = _entry(widget.manageId);
     Widget menuLabel(String text) => ConstrainedBox(
       constraints: const BoxConstraints(maxWidth: 260),
       child: Text(text, maxLines: 1, overflow: TextOverflow.ellipsis),
     );
-    return Row(
-      children: [
-        Expanded(
-          // Keyed by the shown selection so external changes (presets,
-          // edits, the pinned reset) refresh the field text.
-          child: KeyedSubtree(
-            key: ValueKey<String>(
-              '${widget.keyPrefix}-$shown-${shownEntry?.label}',
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final scale = MediaQuery.textScalerOf(context).scale(1).clamp(1, 2);
+        final labelled = constraints.maxWidth >= 420 * scale;
+        return Row(
+          children: [
+            Expanded(
+              // Keyed by the shown selection so external changes (presets,
+              // edits, the pinned reset) refresh the field text.
+              child: KeyedSubtree(
+                key: ValueKey<String>(
+                  '${widget.keyPrefix}-$shown-${shownEntry?.label}',
+                ),
+                // A long name wraps (up to three lines) instead of being cut off;
+                // the field only grows when the name needs it.
+                child: LayoutBuilder(
+                  builder: (context, constraints) {
+                    final lines = _lines(
+                      context,
+                      shownEntry?.label ?? '',
+                      constraints.maxWidth,
+                    );
+                    return DropdownMenu<String>(
+                      key: _key('Dropdown'),
+                      enabled: widget.enabled,
+                      expandedInsets: EdgeInsets.zero,
+                      requestFocusOnTap: false,
+                      maxLines: lines,
+                      menuHeight: 320,
+                      label: Text(labels.picker),
+                      leadingIcon: shownEntry?.leadingIcon,
+                      initialSelection: shown,
+                      dropdownMenuEntries: entries,
+                      onSelected: (id) {
+                        if (id == null || id == _customId || id == selected) {
+                          return;
+                        }
+                        unawaited(widget.onSelect(id));
+                      },
+                    );
+                  },
+                ),
+              ),
             ),
-            child: DropdownMenu<String>(
-              key: _key('Dropdown'),
-              enabled: widget.enabled,
-              expandedInsets: EdgeInsets.zero,
-              requestFocusOnTap: false,
-              menuHeight: 320,
-              label: Text(labels.picker),
-              leadingIcon: shownEntry?.leadingIcon,
-              initialSelection: shown,
-              dropdownMenuEntries: entries,
-              onSelected: (id) {
-                if (id == null || id == _customId || id == selected) return;
-                unawaited(widget.onSelect(id));
-              },
+            if (canDiscard)
+              // Like the equalizer: text when there is room, else an icon.
+              if (labelled)
+                TextButton(
+                  key: _key('Discard'),
+                  onPressed: () => unawaited(_confirmDiscard(edited)),
+                  child: Text(
+                    labels.discardShort,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                )
+              else
+                IconButton(
+                  key: _key('Discard'),
+                  tooltip: labels.discard,
+                  onPressed: () => unawaited(_confirmDiscard(edited)),
+                  icon: const Icon(Icons.restore),
+                ),
+            const SizedBox(width: 4),
+            MenuAnchor(
+              builder: (context, menu, _) => IconButton(
+                key: _key('Actions'),
+                tooltip: labels.actions,
+                onPressed: widget.enabled
+                    ? () => menu.isOpen ? menu.close() : menu.open()
+                    : null,
+                icon: const Icon(Icons.more_vert),
+              ),
+              menuChildren: [
+                MenuItemButton(
+                  key: _key('SaveNew'),
+                  leadingIcon: const Icon(Icons.add),
+                  onPressed: () => unawaited(_nameDialog()),
+                  child: Text(labels.saveNew),
+                ),
+                if (update != null && widget.onUpdate != null)
+                  MenuItemButton(
+                    key: _key('Update'),
+                    leadingIcon: const Icon(Icons.save_outlined),
+                    onPressed: () => unawaited(widget.onUpdate!(update.id)),
+                    child: menuLabel(labels.update(update.label)),
+                  ),
+                for (final entry in widget.entries.where(
+                  (e) => !e.enabled && e.id != manage?.id,
+                ))
+                  MenuItemButton(
+                    leadingIcon: const Icon(Icons.delete_outline),
+                    onPressed: () => unawaited(_confirmDelete(entry)),
+                    child: menuLabel(labels.delete(entry.label)),
+                  ),
+                if (manage != null) ...[
+                  MenuItemButton(
+                    key: _key('Rename'),
+                    leadingIcon: const Icon(Icons.edit_outlined),
+                    onPressed: () => unawaited(_nameDialog(rename: manage)),
+                    child: menuLabel(labels.rename(manage.label)),
+                  ),
+                  MenuItemButton(
+                    key: _key('Delete'),
+                    leadingIcon: const Icon(Icons.delete_outline),
+                    onPressed: () => unawaited(_confirmDelete(manage)),
+                    child: menuLabel(labels.delete(manage.label)),
+                  ),
+                ],
+              ],
             ),
-          ),
-        ),
-        const SizedBox(width: 4),
-        MenuAnchor(
-          builder: (context, menu, _) => IconButton(
-            key: _key('Actions'),
-            tooltip: labels.actions,
-            onPressed: widget.enabled
-                ? () => menu.isOpen ? menu.close() : menu.open()
-                : null,
-            icon: const Icon(Icons.more_vert),
-          ),
-          menuChildren: [
-            MenuItemButton(
-              key: _key('SaveNew'),
-              leadingIcon: const Icon(Icons.add),
-              onPressed: () => unawaited(_nameDialog()),
-              child: Text(labels.saveNew),
-            ),
-            if (update != null && widget.onUpdate != null)
-              MenuItemButton(
-                key: _key('Update'),
-                leadingIcon: const Icon(Icons.save_outlined),
-                onPressed: () => unawaited(widget.onUpdate!(update.id)),
-                child: menuLabel(labels.update(update.label)),
-              ),
-            for (final entry in widget.entries.where(
-              (e) => !e.enabled && e.id != manage?.id,
-            ))
-              MenuItemButton(
-                leadingIcon: const Icon(Icons.delete_outline),
-                onPressed: () => unawaited(_confirmDelete(entry)),
-                child: menuLabel(labels.delete(entry.label)),
-              ),
-            if (manage != null) ...[
-              MenuItemButton(
-                key: _key('Rename'),
-                leadingIcon: const Icon(Icons.edit_outlined),
-                onPressed: () => unawaited(_nameDialog(rename: manage)),
-                child: menuLabel(labels.rename(manage.label)),
-              ),
-              MenuItemButton(
-                key: _key('Delete'),
-                leadingIcon: const Icon(Icons.delete_outline),
-                onPressed: () => unawaited(_confirmDelete(manage)),
-                child: menuLabel(labels.delete(manage.label)),
-              ),
-            ],
           ],
-        ),
-      ],
+        );
+      },
     );
+  }
+
+  /// Lines (1 to 3) [text] needs in the field, measured against the width
+  /// left after the field's chrome.
+  ///
+  /// The chrome is material_ui's default DropdownMenu field: a 48 dp leading
+  /// icon box, a 48 dp trailing arrow button with 4 dp either side, and 16 dp
+  /// of text padding (48 + 56 + 16 = 120). It is not exposed by the widget, so
+  /// this mirrors it, so revisit it if the theme changes the field's padding or icons.
+  int _lines(BuildContext context, String text, double width) {
+    final painter = TextPainter(
+      text: TextSpan(text: text, style: Theme.of(context).textTheme.bodyLarge),
+      textDirection: Directionality.of(context),
+      textScaler: MediaQuery.textScalerOf(context),
+      maxLines: 3,
+    )..layout(maxWidth: (width - 120).clamp(1, double.infinity));
+    final lines = painter.computeLineMetrics().length;
+    painter.dispose();
+    return lines.clamp(1, 3);
+  }
+
+  Future<void> _confirmDiscard(PresetPickerEntry preset) async {
+    final labels = widget.labels;
+    final discard = await showConfirmDialog(
+      context,
+      title: labels.discard,
+      message: labels.discardConfirm(preset.label),
+      confirmLabel: labels.discard,
+      cancelLabel: labels.cancel,
+      confirmKey: _key('DiscardConfirm'),
+    );
+    if (discard && mounted) await widget.onDiscard!(preset.id);
   }
 
   Future<void> _confirmDelete(PresetPickerEntry preset) async {
