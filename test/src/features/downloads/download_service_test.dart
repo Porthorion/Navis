@@ -638,7 +638,7 @@ void main() {
         expect(cached!.source, LyricsSource.lrclibSynced.name);
         expect(cached.syncedLyrics, '[00:01.00]wake me up');
         expect(cached.ttlSeconds, 31536000);
-        expect(serverCalls, isEmpty);
+        expect(serverCalls, hasLength(2));
       },
       skip: sqliteAvailable ? null : 'sqlite3 not available',
     );

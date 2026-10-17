@@ -1895,12 +1895,17 @@ Features:
   cancelled without changing audio position; only a lyric tap calls `onSeek`.
 - Graceful fallback for unsynced/missing lyrics
 
-`LyricsResolver` looks lyrics up in this order: while `lrclib.lyrics` is
-allowed, synced lyrics from LRCLIB first (cached per song), then the server's
-lyrics as fallback; otherwise the server only. The switch lives in Settings ›
-Integrations › LRCLIB. An LRCLIB result passes on its `normalizeMetadata`
-title, artist, album and duration score; among passing results one with the
-same edition qualifiers ("(Japanese Version)") wins over another version,
+While `lrclib.lyrics` is allowed, `LyricsResolver` first returns cached synced
+lyrics from either source. It then asks the server: server synced lyrics win
+immediately; server plain or empty lyrics allow an LRCLIB synced upgrade.
+Without a synced result, server plain wins over LRCLIB plain, followed by
+stale cached lyrics. LRCLIB cooldown skips the external request, preserving
+server and cached lyrics. With LRCLIB disabled the existing cached-server →
+server → stale-cache path applies. Offline lookups retain the synced-cache
+shortcut and allowed LRCLIB lookup before falling back to stale cached lyrics.
+The switch lives in Settings › Integrations › LRCLIB. An LRCLIB result passes
+on its `normalizeMetadata` title, artist, album and duration score; among
+passing results one with the same edition qualifiers ("(Japanese Version)") wins over another version,
 whose lyrics may be in another language. Schema 92 deletes only legacy
 LRCLIB cache rows (camelCase and snake_case sources) once during upgrade;
 server lyrics and all newly fetched edition-aware lyrics survive reopen.
@@ -1914,19 +1919,22 @@ lookups are enabled. A pass blocked at startup (no server connection yet,
 network not allowed, or an LRCLIB cooldown) re-arms from the queue pump that
 already reacts to connectivity and policy changes, pauses while a song's
 stream load holds new work, and never runs twice at once; a completed pass
-does not repeat in the same session. Each item rechecks stop state and network
-eligibility after the playback hold and before its network work; teardown
-releases held passes without starting requests, and a mid-pass network
+does not repeat automatically in the same session. Each item rechecks stop
+state and network eligibility after the playback hold and before its network
+work; teardown releases held passes without starting requests, and a mid-pass network
 restriction leaves the pass pending for the existing pump. Promoting a
 rolling-cached track to a permanent download prefetches lyrics alongside its
 cover art. A server connection appearing also re-arms a blocked pass. When every
 attempted source answers successfully without lyrics for a downloaded song,
 the backfill records the miss (`failureCount`, `lastFailedAt`) and skips that
-song for a week, so repeated starts don't spend the LRCLIB budget on it; the
-empty row is never shown as lyrics.
-Transport and API failures do not create these negative entries. Successful
-on-demand server lookups for permanent downloads use the same durable lyrics
-cache and clear failure metadata; server lyrics for other songs remain uncached.
+song for a week. A successful LRCLIB attempt that returns only plain lyrics or
+no synced upgrade records the same seven-day backoff while retaining the
+selected plain lyrics. Failure metadata never hides stored lyrics. Rate limits
+and transport/API failures do not count as failed synced upgrades. Cache upserts
+atomically reject plain writes over a non-empty synced row, including concurrent
+on-demand and backfill lookups. Successful on-demand server lookups for permanent
+downloads use the same durable lyrics cache and clear failure metadata; server
+lyrics for other songs remain uncached.
 Lyrics rows of permanent downloads survive a library rebuild: the
 provisional-metadata cleanup spares them while their songs are being
 re-confirmed, like download covers. Lyrics may therefore be unavailable

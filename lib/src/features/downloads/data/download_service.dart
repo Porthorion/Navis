@@ -1307,7 +1307,9 @@ class DownloadService {
     final api = _readApiClient();
     if (song != null && api != null) {
       _trackBackgroundTask(_precacheCoverArt(song, api));
-      _trackBackgroundTask(_prefetchLyrics(songId, song, api));
+      _trackBackgroundTask(
+        _prefetchLyrics(songId, song, api).then<void>((_) {}),
+      );
     }
     return true;
   }
@@ -1812,7 +1814,9 @@ class DownloadService {
           );
 
           // Best-effort: pre-fetch lyrics so they're available offline.
-          _trackBackgroundTask(_prefetchLyrics(songId, song, api));
+          _trackBackgroundTask(
+            _prefetchLyrics(songId, song, api).then<void>((_) {}),
+          );
 
           AppLogger.info(
             'DownloadService: Completed download for $songId '
@@ -2617,12 +2621,13 @@ class DownloadService {
   /// Best-effort: fetch and persist lyrics for a downloaded song so they are
   /// available offline. Never throws — a failure here must not fail the
   /// download itself.
-  Future<void> _prefetchLyrics(
+  Future<bool> _prefetchLyrics(
     String songId,
     SongsTableData song,
     SubsonicApiClient api,
   ) async {
     try {
+      final previous = await _libraryDao.getExternalLyricsCache(songId);
       final metadata = song.artistName == null || song.title.trim().isEmpty
           ? null
           : (
@@ -2647,25 +2652,29 @@ class DownloadService {
         'DownloadService: Lyrics prefetch resolved ${resolution.source.name} '
         'for $songId',
       );
-      if (resolution.confirmedMiss && !_lrclibClient.isRateLimited) {
-        // Remember the miss so repeated starts stop re-querying a song the
-        // sources have no lyrics for; the backfill retries after a week.
+      if ((resolution.confirmedMiss || resolution.syncedUpgradeMiss) &&
+          !_lrclibClient.isRateLimited) {
+        // Back off empty lookups and unsuccessful synced upgrades for a week,
+        // preserving any selected plain lyrics for offline playback.
         final existing = await _libraryDao.getExternalLyricsCache(songId);
+        if (existing?.syncedLyrics?.trim().isNotEmpty == true) return true;
         await _libraryDao.upsertExternalLyricsCache(
           songId: songId,
           source: existing?.source ?? resolution.source.name,
           syncedLyrics: existing?.syncedLyrics,
           plainLyrics: existing?.plainLyrics,
           ttlSeconds: existing?.ttlSeconds ?? normalLyricsCacheTtlSeconds,
-          failureCount: (existing?.failureCount ?? 0) + 1,
+          failureCount: (previous?.failureCount ?? 0) + 1,
           lastFailedAt: DateTime.now(),
         );
       }
+      return hasAnyLyrics(resolution.lyrics);
     } on Object catch (e) {
       // Never let a lyrics error abort or surface through the download flow.
       AppLogger.warning(
         'DownloadService: Lyrics prefetch failed for $songId: $e',
       );
+      return false;
     }
   }
 

@@ -1,5 +1,11 @@
+import 'package:dio/dio.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:navis/src/api/lrclib_client.dart';
+import 'package:navis/src/api/models/models.dart';
+import 'package:navis/src/api/subsonic_api_client.dart';
+import 'package:navis/src/api/subsonic_auth_interceptor.dart';
+import 'package:navis/src/api/subsonic_error.dart';
+import 'package:navis/src/features/player/domain/lyrics_resolution.dart';
 import 'package:navis/src/database/navis_database.dart';
 import 'package:navis/src/features/player/data/lyrics_resolver.dart';
 
@@ -19,12 +25,16 @@ class _FakeLrclibClient extends LrclibClient {
   new(this.results);
 
   final List<LrclibLyrics> results;
+  int calls = 0;
 
   @override
   Future<List<LrclibLyrics>> searchLyrics({
     required String artist,
     required String title,
-  }) async => results;
+  }) async {
+    calls++;
+    return results;
+  }
 
   @override
   Future<LrclibLyrics?> getLyrics({
@@ -33,6 +43,38 @@ class _FakeLrclibClient extends LrclibClient {
     String? album,
     int? duration,
   }) async => null;
+}
+
+class _FakeServer extends SubsonicApiClient {
+  new(this.lyrics, {this.fail = false})
+    : super(
+        baseUrl: 'https://example.com',
+        authConfig: const SubsonicAuthConfig(
+          username: 'fixture',
+          password: 'fixture',
+          apiVersion: '1.16.1',
+        ),
+        enableLogging: false,
+      );
+  final LyricsList lyrics;
+  final bool fail;
+  int calls = 0;
+  @override
+  Future<LyricsList> getLyricsBySongId(
+    String songId, {
+    CancelToken? cancelToken,
+  }) async {
+    calls++;
+    if (fail) throw const SubsonicGenericException(code: 0, message: 'fixture');
+    return lyrics;
+  }
+
+  @override
+  Future<LyricsList> getLyrics({
+    String? artist,
+    String? title,
+    CancelToken? cancelToken,
+  }) async => const LyricsList();
 }
 
 void main() {
@@ -72,6 +114,183 @@ void main() {
         );
     return resolution.lyrics.value;
   }
+
+  group('server-first lyrics', () {
+    final synced = LyricsList(
+      structuredLyrics: [
+        StructuredLyrics(
+          synced: true,
+          line: [LyricLine(start: 1000, value: 'server synced')],
+        ),
+      ],
+    );
+    final plain = LyricsList(value: 'server plain');
+    const lrSynced = LrclibLyrics(
+      artistName: 'Artist',
+      trackName: 'Track',
+      syncedLyrics: '[00:01.00]upgrade',
+    );
+    const lrPlain = LrclibLyrics(
+      artistName: 'Artist',
+      trackName: 'Track',
+      plainLyrics: 'external plain',
+    );
+    for (final scenario in [
+      (
+        name: 'server synced skips LRCLIB',
+        server: synced,
+        external: [lrSynced],
+        expected: LyricsSource.serverSynced,
+        calls: 0,
+        fail: false,
+      ),
+      (
+        name: 'server plain upgrades to LRCLIB synced',
+        server: plain,
+        external: [lrSynced],
+        expected: LyricsSource.lrclibSynced,
+        calls: 1,
+        fail: false,
+      ),
+      (
+        name: 'server plain wins over LRCLIB plain',
+        server: plain,
+        external: [lrPlain],
+        expected: LyricsSource.serverPlain,
+        calls: 1,
+        fail: false,
+      ),
+      (
+        name: 'server plain survives LRCLIB miss',
+        server: plain,
+        external: <LrclibLyrics>[],
+        expected: LyricsSource.serverPlain,
+        calls: 1,
+        fail: false,
+      ),
+      (
+        name: 'server empty uses LRCLIB plain',
+        server: const LyricsList(),
+        external: [lrPlain],
+        expected: LyricsSource.lrclibPlain,
+        calls: 1,
+        fail: false,
+      ),
+      (
+        name: 'server error uses LRCLIB synced',
+        server: const LyricsList(),
+        external: [lrSynced],
+        expected: LyricsSource.lrclibSynced,
+        calls: 1,
+        fail: true,
+      ),
+    ]) {
+      test(scenario.name, () async {
+        final external = _FakeLrclibClient(scenario.external);
+        final server = _FakeServer(scenario.server, fail: scenario.fail);
+        final result =
+            await LyricsResolver(
+              libraryDao: database.libraryDao,
+              lrclibClient: external,
+              apiClient: server,
+            ).resolve(
+              songId: 'song',
+              metadata: (
+                artist: 'Artist',
+                title: 'Track',
+                album: null,
+                durationSeconds: null,
+              ),
+              useLrclib: true,
+              cacheServerLyrics: true,
+            );
+        expect(result.source, scenario.expected);
+        expect(external.calls, scenario.calls);
+        final cached = (await database.libraryDao.getExternalLyricsCache(
+          'song',
+        ))!;
+        expect(
+          lyricsResolutionFromExternalCache(cached)!.source,
+          scenario.expected,
+        );
+      });
+    }
+    test('both empty confirms miss', () async {
+      final result =
+          await LyricsResolver(
+            libraryDao: database.libraryDao,
+            lrclibClient: _FakeLrclibClient([]),
+            apiClient: _FakeServer(const LyricsList()),
+          ).resolve(
+            songId: 'song',
+            metadata: (
+              artist: 'Artist',
+              title: 'Track',
+              album: null,
+              durationSeconds: null,
+            ),
+            useLrclib: true,
+          );
+      expect(result.confirmedMiss, isTrue);
+    });
+    test('disabled LRCLIB never calls external source', () async {
+      final external = _FakeLrclibClient([lrSynced]);
+      await LyricsResolver(
+        libraryDao: database.libraryDao,
+        lrclibClient: external,
+        apiClient: _FakeServer(plain),
+      ).resolve(songId: 'song', metadata: null, useLrclib: false);
+      expect(external.calls, 0);
+    });
+    test('cached synced short circuits both sources', () async {
+      await database.libraryDao.upsertExternalLyricsCache(
+        songId: 'song',
+        source: 'serverSynced',
+        syncedLyrics: '[00:01.00]cached',
+      );
+      final server = _FakeServer(plain);
+      final external = _FakeLrclibClient([lrSynced]);
+      await LyricsResolver(
+        libraryDao: database.libraryDao,
+        lrclibClient: external,
+        apiClient: server,
+      ).resolve(songId: 'song', metadata: null, useLrclib: true);
+      expect(server.calls, 0);
+      expect(external.calls, 0);
+    });
+    test('late plain cache writes cannot downgrade synced lyrics', () async {
+      await database.libraryDao.upsertExternalLyricsCache(
+        songId: 'song',
+        source: 'lrclibSynced',
+        syncedLyrics: '[00:01.00]winner',
+      );
+      await database.libraryDao.upsertExternalLyricsCache(
+        songId: 'song',
+        source: 'serverPlain',
+        plainLyrics: 'late plain',
+      );
+      expect(
+        (await database.libraryDao.getExternalLyricsCache('song'))!
+            .syncedLyrics,
+        '[00:01.00]winner',
+      );
+    });
+    test('failed upgrade marker keeps plain lyrics readable', () async {
+      await database.libraryDao.upsertExternalLyricsCache(
+        songId: 'song',
+        source: 'serverPlain',
+        plainLyrics: 'retained',
+        failureCount: 2,
+        lastFailedAt: DateTime.now(),
+      );
+      expect(
+        lyricsResolutionFromExternalCache(
+          (await database.libraryDao.getExternalLyricsCache('song'))!,
+        )!.lyrics.value,
+        'retained',
+      );
+    });
+  });
 
   test(
     'rate limiting keeps cached lyrics available without surfacing an error',

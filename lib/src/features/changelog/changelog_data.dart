@@ -166,6 +166,10 @@ const List<ChangelogVersion> changelogs = [
     ],
     entries: [
       ChangelogEntry(
+        'Lyrics now prefer the server, with LRCLIB used for a synced upgrade',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
         'A radio station that fails to start restores your previous queue paused, including large queues, and shows one notice instead of leaving an empty player with a Pause button',
         type: ChangelogEntryType.fix,
       ),

@@ -52,28 +52,45 @@ class LyricsResolver {
         return cachedSyncedResolution;
       }
 
-      final lrclibResult = await _resolveWithLrclib(
-        songId: songId,
-        metadata: metadata,
-        lyricsCacheTtlSeconds: lyricsCacheTtlSeconds,
-      );
-      if (lrclibResult.resolution case final resolution?) {
-        return resolution;
-      }
-
       final server = await _resolveWithServer(
         songId: songId,
         metadata: metadata,
         cacheServerLyrics: cacheServerLyrics,
         lyricsCacheTtlSeconds: lyricsCacheTtlSeconds,
       );
-      if (server.resolution case final resolution?) {
-        return resolution;
+      if (server.resolution?.source.isSynced == true) {
+        return server.resolution!;
       }
 
-      if (cachedResolution != null) {
-        return cachedResolution;
+      final lrclibResult = await _resolveWithLrclib(
+        songId: songId,
+        metadata: metadata,
+        lyricsCacheTtlSeconds: lyricsCacheTtlSeconds,
+      );
+      if (lrclibResult.resolution?.source.isSynced == true) {
+        return lrclibResult.resolution!;
       }
+
+      final preferred =
+          server.resolution ?? lrclibResult.resolution ?? cachedResolution;
+      if (preferred != null) {
+        // LRCLIB may have cached plain lyrics while trying the synced upgrade.
+        // Keep the selected server plain result for downloaded songs instead.
+        if (cacheServerLyrics && server.resolution != null) {
+          await _cacheServerLyrics(
+            songId: songId,
+            source: preferred.source,
+            lyrics: preferred.lyrics,
+            ttlSeconds: lyricsCacheTtlSeconds,
+          );
+        }
+        return LyricsResolution(
+          lyrics: preferred.lyrics,
+          source: preferred.source,
+          syncedUpgradeMiss: metadata != null && !lrclibResult.failed,
+        );
+      }
+
       return LyricsResolution(
         lyrics: const LyricsList(),
         source: LyricsSource.lrclibPlain,
@@ -115,6 +132,9 @@ class LyricsResolver {
     required LyricsLookupMetadata? metadata,
     required int lyricsCacheTtlSeconds,
   }) async {
+    if (_lrclibClient.isRateLimited) {
+      return (resolution: null, failed: true);
+    }
     if (metadata == null) {
       return (resolution: null, failed: false);
     }
