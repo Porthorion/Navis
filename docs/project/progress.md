@@ -14,6 +14,16 @@ Last updated: 2026-10-17
 - ACP status values: `backlog`, `ready`, `in_progress`, `blocked`, `done`.
 
 ## Current Focus
+- [x] Issue #38, Search finds saved playlists and radio stations — 2026-10-17
+  (`feat/search-playlists-radio`): `SearchResultType` gains `playlists` and
+  `radio`; `searchCollectionMatchesProvider` matches `playlistListProvider` and
+  the device and server radio stations with `searchRelevanceTier`, outside
+  `SearchResult3`, so it works offline. Search shows Playlists and Radio chips
+  and sections only on a match; the two filters make no `search3` call. The
+  radio screen's station start moved unchanged into `toggleRadioStation`
+  (`radio_playback.dart`), shared with Search. Diagnostics
+  `POST /v1/presentation/search` accepts the new filters. Tests first failed
+  (missing provider and enum values), then passed.
 - [x] Issue #37, Radio search on touch layouts — 2026-10-17
   (`feat/radio-touch-search`): `RadioTabContent` is now stateful and shows a
   `ListFilterField` (`radioFilterHint`) on non-desktop layouts when stations

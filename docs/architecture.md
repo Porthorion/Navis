@@ -137,9 +137,15 @@ Located in `lib/src/providers/app_providers.dart`:
     or download context. `NavisAudioHandler` uses that context to build the
     expected collection queue while keeping raw Subsonic IDs in playback and
     persisted queues.
-  - Search merges server artists/albums/songs with local playlists, prioritizes
-    songs and playlists with exact matches first, times out server work after
-    eight seconds, and falls back to local results.
+  - Search merges server and local artists/albums/songs, prioritizes exact
+    matches first, times out server work after eight seconds, and falls back
+    to local results. Saved playlists (`playlistListProvider`, Drift) and
+    radio stations (device stations from `localRadioStationsProvider`, then
+    server stations from `radioStationsProvider`) are matched in memory by
+    `searchCollectionMatchesProvider` with `searchRelevanceTier`, outside
+    `SearchResult3`. They appear as Playlists and Radio sections and filters
+    only when the query matches them. The `playlists` and `radio` filters make
+    no `search3` call.
   - `AndroidAutoBrowseNotifier` owns non-null child-change streams for the
     root, recent, and system-recent parents. This replaces deprecated static
     `notifyChildrenChanged` calls whose null options are rejected by AndroidX.
@@ -369,7 +375,9 @@ list (header, drag handle) move the sheet even when the list is not at the top.
   Authenticated `POST /v1/presentation/search` drives the production Search
   providers, navigates to `/search`, waits for the final local/API merge, and
   returns only ordered IDs, relevance tiers, and source classifications for
-  runtime and screenshot validation.
+  runtime and screenshot validation. Its `filter` also accepts `playlists` and
+  `radio`, and the response lists the matching `playlists` and `radio` as
+  `{id, name}`.
 - API, playback, download, and artwork response accounting captures the
   long-lived network usage meter directly. It must not read through a disposed
   provider `Ref` when connectivity rebuilds the Subsonic client mid-request.
@@ -415,7 +423,9 @@ to offline. A first resolved interface can still replace the initial client;
 the reachability replacement check handles that startup transition.
 
 Search supplements local results remotely during `checking` and switches to
-local-only mode on confirmed `offline`. Library startup/hydration retains its
+local-only mode on confirmed `offline`. Device playlists and device radio
+stations stay searchable offline; the server station list is empty or failed
+then and is skipped without an error. Library startup/hydration retains its
 existing confirmed-offline guard. Dispatch listeners that require `online`
 (scrobbles, annotations, downloads and required rebuilds) still wait for a
 successful probe to trigger recovery work. Scrobble delivery itself retains

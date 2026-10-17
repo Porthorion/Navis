@@ -19,12 +19,33 @@ import 'package:navis/src/features/auth/presentation/server_reachability_provide
 import 'package:navis/src/features/search/presentation/search_controller_provider.dart';
 import 'package:navis/src/features/search/presentation/search_screen.dart';
 import 'package:navis/src/features/player/domain/playback_snapshot.dart';
+import 'package:navis/src/features/player/data/navis_audio_handler.dart';
+import 'package:drift/drift.dart' show Value;
 import 'package:navis/src/providers/app_providers.dart';
 import 'package:navis/src/routing/app_routes.dart';
 import 'package:flutter_riverpod/misc.dart' show Override;
 
 import '../../../helpers/test_database.dart';
 import '../../../helpers/reachability_fakes.dart';
+
+class _SearchRadioHandler implements NavisPlaybackHandler {
+  String? startedId;
+
+  @override
+  Future<void> playRadioStream({
+    required String stationId,
+    required String stationName,
+    required String streamUrl,
+    String? homePageUrl,
+  }) async => startedId = stationId;
+
+  @override
+  PlaybackSnapshot get snapshot => const PlaybackSnapshot.idle();
+  @override
+  Stream<PlaybackSnapshot> get snapshotStream => const Stream.empty();
+  @override
+  dynamic noSuchMethod(Invocation invocation) => null;
+}
 
 class _FakeSearchApiClient extends SubsonicApiClient {
   new(this._handler)
@@ -72,6 +93,10 @@ ProviderContainer _createContainerWithDatabase(
           ),
         ),
         subsonicApiProvider.overrideWithValue(api),
+        // Search also lists radio stations; the fake API has none.
+        radioStationsProvider.overrideWith(
+          (ref) async => const <InternetRadioStation>[],
+        ),
         ...overrides,
       ],
     ),
@@ -122,6 +147,7 @@ Future<void> _pumpSearchScreenWithPages(
           for (final segment in <String>[
             AppRoutes.artistSegment,
             AppRoutes.albumSegment,
+            AppRoutes.playlistSegment,
           ])
             GoRoute(
               path: segment,
@@ -568,6 +594,167 @@ void main() {
       expect(find.text('Remote Song'), findsOneWidget);
       expect(find.text('Remote Artist'), findsNothing);
       expect(find.text('Remote Album'), findsNothing);
+    });
+  });
+
+  group('SearchScreen playlists and radio', () {
+    const station = InternetRadioStation(
+      id: 'jazz-station',
+      name: 'Jazz Radio',
+      streamUrl: 'https://example.com/jazz',
+    );
+
+    ProviderContainer containerWith(
+      NavisDatabase database, {
+      NavisPlaybackHandler? handler,
+    }) {
+      return _createContainerWithDatabase(
+        database,
+        api: _FakeSearchApiClient((_) async => const SearchResult3()),
+        overrides: <Override>[
+          localRadioStationsProvider.overrideWith(
+            (ref) => Stream.value(const <InternetRadioStation>[station]),
+          ),
+          currentRadioStationIdProvider.overrideWithValue(null),
+          audioHandlerProvider.overrideWithValue(handler),
+        ],
+      );
+    }
+
+    Future<void> insertPlaylist(NavisDatabase database, String name) => database
+        .into(database.playlistsTable)
+        .insert(
+          PlaylistsTableCompanion.insert(
+            id: 'pl-1',
+            name: name,
+            songCount: const Value(3),
+          ),
+        );
+
+    testWidgets('a playlist-only match shows the section and chip', (
+      tester,
+    ) async {
+      if (!sqliteAvailable) return;
+      final database = createTestDatabase();
+      await insertPlaylist(database, 'Road Trip Mix');
+      final container = containerWith(database);
+      addTearDown(() async {
+        container.dispose();
+        await database.close();
+      });
+
+      await _pumpSearchScreen(tester, container);
+      await _enterSearchQuery(tester, 'road trip');
+      await _pumpUntilFound(tester, find.text('Road Trip Mix'));
+
+      expect(find.text('Road Trip Mix'), findsOneWidget);
+      expect(find.text('Playlists'), findsNWidgets(2)); // chip + header
+      expect(find.text('Radio'), findsNothing);
+      expect(find.textContaining('No results'), findsNothing);
+    });
+
+    testWidgets('no collection match shows neither chip', (tester) async {
+      if (!sqliteAvailable) return;
+      final database = createTestDatabase();
+      await insertPlaylist(database, 'Road Trip Mix');
+      final container = containerWith(database);
+      addTearDown(() async {
+        container.dispose();
+        await database.close();
+      });
+
+      await _pumpSearchScreen(tester, container);
+      await _enterSearchQuery(tester, 'zzzz');
+      await tester.pump(const Duration(milliseconds: 400));
+
+      expect(find.text('Playlists'), findsNothing);
+      expect(find.text('Radio'), findsNothing);
+      expect(find.text('Songs'), findsOneWidget);
+    });
+
+    testWidgets('Playlists selected still shows the matching Radio chip', (
+      tester,
+    ) async {
+      if (!sqliteAvailable) return;
+      final database = createTestDatabase();
+      final container = containerWith(database);
+      addTearDown(() async {
+        container.dispose();
+        await database.close();
+      });
+
+      container
+          .read(searchFilterProvider.notifier)
+          .select(SearchResultType.playlists);
+      await _pumpSearchScreen(tester, container);
+      await _enterSearchQuery(tester, 'jazz');
+      await tester.pump(const Duration(milliseconds: 400));
+
+      expect(find.widgetWithText(ChoiceChip, 'Radio'), findsOneWidget);
+      expect(find.text('Jazz Radio'), findsNothing);
+    });
+
+    testWidgets(
+      'a Songs filter hides matching playlists and shows no results',
+      (tester) async {
+        if (!sqliteAvailable) return;
+        final database = createTestDatabase();
+        await insertPlaylist(database, 'Road Trip Mix');
+        final container = containerWith(database);
+        addTearDown(() async {
+          container.dispose();
+          await database.close();
+        });
+
+        container
+            .read(searchFilterProvider.notifier)
+            .select(SearchResultType.songs);
+        await _pumpSearchScreen(tester, container);
+        await _enterSearchQuery(tester, 'road trip');
+        await tester.pump(const Duration(milliseconds: 400));
+
+        expect(find.text('Road Trip Mix'), findsNothing);
+        expect(find.textContaining('No results'), findsOneWidget);
+      },
+    );
+
+    testWidgets('tapping a playlist opens its page', (tester) async {
+      if (!sqliteAvailable) return;
+      final database = createTestDatabase();
+      await insertPlaylist(database, 'Road Trip Mix');
+      final container = containerWith(database);
+      addTearDown(() async {
+        container.dispose();
+        await database.close();
+      });
+
+      await _pumpSearchScreenWithPages(tester, container);
+      await _enterSearchQuery(tester, 'road trip');
+      await _pumpUntilFound(tester, find.text('Road Trip Mix'));
+      await tester.tap(find.text('Road Trip Mix'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('page pl-1 null null'), findsOneWidget);
+    });
+
+    testWidgets('tapping a station starts it', (tester) async {
+      if (!sqliteAvailable) return;
+      final database = createTestDatabase();
+      final handler = _SearchRadioHandler();
+      final container = containerWith(database, handler: handler);
+      addTearDown(() async {
+        container.dispose();
+        await database.close();
+      });
+
+      await _pumpSearchScreen(tester, container);
+      await _enterSearchQuery(tester, 'jazz');
+      await _pumpUntilFound(tester, find.text('Jazz Radio'));
+      expect(find.text('Radio'), findsNWidgets(2)); // chip + header
+      await tester.tap(find.text('Jazz Radio'));
+      await tester.pump();
+
+      expect(handler.startedId, 'jazz-station');
     });
   });
 }

@@ -3986,10 +3986,14 @@ void main() {
     });
 
     final container = _createContainerWithDatabase(
-      overrides: _authenticatedShellOverrides(
-        reachability: ServerReachabilityStatus.offline,
-        desktopRuntime: true,
-      ),
+      overrides: [
+        ..._authenticatedShellOverrides(
+          reachability: ServerReachabilityStatus.offline,
+          desktopRuntime: true,
+        ),
+        // Search also lists radio stations; give it an empty server list.
+        radioStationsProvider.overrideWith((ref) async => []),
+      ],
     );
 
     await tester.pumpWidget(
@@ -4027,10 +4031,13 @@ void main() {
       });
 
       final container = _createContainerWithDatabase(
-        overrides: _authenticatedShellOverrides(
-          reachability: ServerReachabilityStatus.offline,
-          desktopRuntime: true,
-        ),
+        overrides: [
+          ..._authenticatedShellOverrides(
+            reachability: ServerReachabilityStatus.offline,
+            desktopRuntime: true,
+          ),
+          radioStationsProvider.overrideWith((ref) async => []),
+        ],
       );
 
       await tester.pumpWidget(
@@ -4073,6 +4080,53 @@ void main() {
       expect(container.read(searchFilterProvider), SearchResultType.songs);
     },
   );
+
+  testWidgets('desktop quick-search cycles through Playlists and Radio', (
+    tester,
+  ) async {
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(1280, 1000);
+    addTearDown(() {
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+    });
+
+    final container = _createContainerWithDatabase(
+      overrides: [
+        ..._authenticatedShellOverrides(
+          reachability: ServerReachabilityStatus.offline,
+          desktopRuntime: true,
+        ),
+        radioStationsProvider.overrideWith((ref) async => []),
+      ],
+    );
+
+    await tester.pumpWidget(
+      UncontrolledProviderScope(container: container, child: testNavisApp),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.sendKeyDownEvent(LogicalKeyboardKey.controlLeft);
+    await tester.sendKeyEvent(LogicalKeyboardKey.keyF);
+    await tester.sendKeyUpEvent(LogicalKeyboardKey.controlLeft);
+    await tester.pumpAndSettle();
+
+    bool selected(String label) => tester
+        .widget<FilterChip>(find.widgetWithText(FilterChip, label))
+        .selected;
+
+    for (var i = 0; i < 4; i++) {
+      await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+      await tester.pumpAndSettle();
+    }
+    expect(selected('Playlists'), isTrue);
+    expect(selected('Songs'), isFalse);
+
+    await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+    await tester.pumpAndSettle();
+    expect(selected('Radio'), isTrue);
+    expect(selected('Playlists'), isFalse);
+  });
 
   testWidgets('queue dismissal restores focus to desktop queue toggle button', (
     tester,

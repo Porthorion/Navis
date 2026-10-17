@@ -1260,6 +1260,8 @@
   "searchArtistsSection": "Artists",
   "searchAlbumsSection": "Albums",
   "searchSongsSection": "Songs",
+  "searchPlaylistsSection": "Playlists",
+  "searchRadioSection": "Radio",
   "searchShowAll": "Show all",
   "searchShowLess": "Show less",
   "searchAlbumCount": "{count, plural, =1{1 album} other{{count} albums}}",

@@ -166,6 +166,10 @@ const List<ChangelogVersion> changelogs = [
     ],
     entries: [
       ChangelogEntry(
+        'Search now finds your saved playlists and radio stations, with Playlists and Radio filters that appear when your search matches them, including offline',
+        type: ChangelogEntryType.newFeature,
+      ),
+      ChangelogEntry(
         'A radio station that fails to start restores your previous queue paused, including large queues, and shows one notice instead of leaving an empty player with a Pause button',
         type: ChangelogEntryType.fix,
       ),
