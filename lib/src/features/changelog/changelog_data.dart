@@ -191,6 +191,9 @@ const List<ChangelogVersion> changelogs = [
       ),
       ChangelogEntry('Playlists can be filtered by name'),
       ChangelogEntry(
+        'The Radio page has a search field on phones and tablets that filters device and server stations by name',
+      ),
+      ChangelogEntry(
         'Playlists you cannot edit no longer offer rename, delete, reorder or remove, and no longer appear in Add to playlist',
         type: ChangelogEntryType.fix,
       ),
