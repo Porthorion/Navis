@@ -1577,7 +1577,12 @@
   },
   "downloadsBackfillOffline": "Offline. Connect to the server and try again.",
   "downloadsBackfillWifiOnly": "Waiting for Wi-Fi.",
-  "downloadsBackfillRateLimited": "The lyrics service is cooling down. Try again later.",
+  "downloadsBackfillLyricsPaused": "Lyrics paused, resuming in {remaining}",
+  "@downloadsBackfillLyricsPaused": {
+    "placeholders": {
+      "remaining": {"type": "String"}
+    }
+  },
   "downloadsBackfillResult": "Last run found {lyrics} lyrics and {artwork} covers.",
   "@downloadsBackfillResult": {
     "placeholders": {

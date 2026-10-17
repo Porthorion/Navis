@@ -67,6 +67,7 @@ class PermanentArtworkStore {
   Map<String, String>? _index;
   Future<Map<String, String>>? _indexLoad;
   final Map<String, Future<ArtworkEnsureResult>> _pending = {};
+  final _verifiedPresent = <String>{};
 
   /// The file-name key of [coverArtId]. Matches the system art cache keys.
   static String keyFor(String coverArtId) =>
@@ -101,6 +102,15 @@ class PermanentArtworkStore {
     }();
   }
 
+  /// Checks a cover once per store lifetime, until it is written or pruned.
+  Future<bool> verifyPresent(String coverArtId) async {
+    final key = keyFor(coverArtId.trim());
+    if (_verifiedPresent.contains(key)) return true;
+    if (await fileFor(coverArtId) == null) return false;
+    _verifiedPresent.add(key);
+    return true;
+  }
+
   /// The stored cover for [coverArtId], or null.
   Future<File?> fileFor(String? coverArtId) async {
     final id = coverArtId?.trim();
@@ -113,6 +123,7 @@ class PermanentArtworkStore {
       // ignore: avoid_slow_async_io
       if (await file.exists()) return file;
       _index?.remove(keyFor(id));
+      _verifiedPresent.remove(keyFor(id));
     } on Object catch (error) {
       AppLogger.warning(
         'PermanentArtworkStore: file check failed: ${error.runtimeType}',
@@ -237,6 +248,7 @@ class PermanentArtworkStore {
       final root = await _root();
       await root.create(recursive: true);
       final key = keyFor(id);
+      _verifiedPresent.remove(key);
       final target = File(p.join(root.path, '$key$extension'));
       part = File('${target.path}$_partSuffix');
       await part.writeAsBytes(bytes, flush: true);
@@ -264,6 +276,7 @@ class PermanentArtworkStore {
       }
       await tryDeleteFile(File(entry.value));
       index.remove(entry.key);
+      _verifiedPresent.remove(entry.key);
     }
   }
 
