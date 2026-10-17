@@ -2853,6 +2853,12 @@ class AppLocalizationsEn extends AppLocalizations {
   String get searchSongsSection => 'Songs';
 
   @override
+  String get searchPlaylistsSection => 'Playlists';
+
+  @override
+  String get searchRadioSection => 'Radio';
+
+  @override
   String get searchShowAll => 'Show all';
 
   @override

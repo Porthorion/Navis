@@ -4547,6 +4547,18 @@ abstract class AppLocalizations {
   /// **'Songs'**
   String get searchSongsSection;
 
+  /// No description provided for @searchPlaylistsSection.
+  ///
+  /// In en, this message translates to:
+  /// **'Playlists'**
+  String get searchPlaylistsSection;
+
+  /// No description provided for @searchRadioSection.
+  ///
+  /// In en, this message translates to:
+  /// **'Radio'**
+  String get searchRadioSection;
+
   /// No description provided for @searchShowAll.
   ///
   /// In en, this message translates to:

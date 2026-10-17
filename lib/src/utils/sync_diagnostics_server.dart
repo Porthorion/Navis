@@ -4214,17 +4214,14 @@ class SyncDiagnosticsServer {
         : rawFilter is String
         ? rawFilter.trim()
         : '';
-    final filter = switch (filterName) {
-      'all' => null,
-      'artists' => SearchResultType.artists,
-      'albums' => SearchResultType.albums,
-      'songs' => SearchResultType.songs,
-      _ => SearchResultType.values.firstOrNull,
-    };
-    if (filterName != 'all' &&
-        !SearchResultType.values.any((value) => value.name == filterName)) {
+    final filter = SearchResultType.values
+        .where((value) => value.name == filterName)
+        .firstOrNull;
+    if (filterName != 'all' && filter == null) {
       await _respond(request, HttpStatus.badRequest, <String, Object?>{
-        'error': 'filter must be all, artists, albums, or songs',
+        'error':
+            'filter must be all, '
+            '${SearchResultType.values.map((value) => value.name).join(', ')}',
       });
       return;
     }
@@ -4236,6 +4233,11 @@ class SyncDiagnosticsServer {
     _container.invalidate(debouncedSearchProvider);
 
     final completer = Completer<SearchResultsState>();
+    // Keeps the in-memory playlist and radio matches alive for the response.
+    final collectionsSubscription = _container.listen<SearchCollectionMatches>(
+      searchCollectionMatchesProvider,
+      (_, _) {},
+    );
     late final ProviderSubscription<AsyncValue<SearchResultsState?>>
     subscription;
     subscription = _container.listen<AsyncValue<SearchResultsState?>>(
@@ -4291,12 +4293,21 @@ class SyncDiagnosticsServer {
               query: query,
             ),
         ],
+        'playlists': <Map<String, Object?>>[
+          for (final playlist in collectionsSubscription.read().playlists)
+            <String, Object?>{'id': playlist.id, 'name': playlist.name},
+        ],
+        'radio': <Map<String, Object?>>[
+          for (final station in collectionsSubscription.read().stations)
+            <String, Object?>{'id': station.id, 'name': station.name},
+        ],
       });
     } on TimeoutException {
       await _respond(request, HttpStatus.gatewayTimeout, <String, Object?>{
         'error': 'search did not settle before the diagnostics timeout',
       });
     } finally {
+      collectionsSubscription.close();
       subscription.close();
     }
   }
