@@ -666,6 +666,9 @@ class DownloadService {
     _settingsSubscriptions.clear();
     _retryTimer?.cancel();
     _retryTimer = null;
+    _lyricsResumeTimer?.cancel();
+    _lyricsResumeTimer = null;
+    _lyricsCancelToken.cancel('Downloads stopped');
     _cancelTransfers(_CancelReason.requeue);
     await _startInFlight;
     await _recoveryInFlight;
@@ -990,6 +993,12 @@ class DownloadService {
   BackfillProgress _backfillProgress = const BackfillProgress();
   Future<void>? _automaticBackfillRun;
   Future<void>? _manualBackfillRun;
+  Timer? _lyricsResumeTimer;
+  CancelToken _lyricsCancelToken = CancelToken();
+  bool _lyricsResumePending = false;
+  bool _forceLyricsBackfill = false;
+  bool? _lastLyricsAllowed;
+  final _visitedLyrics = <String>{};
 
   /// The latest snapshot, including final counts while idle.
   BackfillProgress get currentBackfillProgress => _backfillProgress;
@@ -1016,6 +1025,11 @@ class DownloadService {
       done: done ?? _backfillProgress.done,
       total: total ?? _backfillProgress.total,
       blockedReason: blockedReason ?? _backfillProgress.blockedReason,
+      resumeAt:
+          (blockedReason ?? _backfillProgress.blockedReason) ==
+              BackfillBlockedReason.rateLimited
+          ? _lrclibClient.retryAt
+          : null,
       lastResult: lastResult ?? _backfillProgress.lastResult,
     );
     if (!_backfillChanges.isClosed) _backfillChanges.add(_backfillProgress);
@@ -1024,10 +1038,14 @@ class DownloadService {
   bool _backfillReady() {
     if (_stopped) return false;
     if (_readApiClient() == null || !_readIsOnline()) {
+      _lyricsResumeTimer?.cancel();
+      _lyricsResumeTimer = null;
       _emitBackfill(blockedReason: BackfillBlockedReason.offline);
       return false;
     }
     if (!_backfillNetworkAllowed()) {
+      _lyricsResumeTimer?.cancel();
+      _lyricsResumeTimer = null;
       _emitBackfill(blockedReason: BackfillBlockedReason.wifiOnly);
       return false;
     }
@@ -1042,6 +1060,8 @@ class DownloadService {
     final run = _manualBackfillRun =
         () async {
           await _automaticBackfillRun;
+          if (!_lyricsResumePending) _visitedLyrics.clear();
+          _forceLyricsBackfill = true;
           await _runBackfillPasses(force: true);
         }().whenComplete(() {
           _manualBackfillRun = null;
@@ -1052,8 +1072,24 @@ class DownloadService {
 
   /// A blocked automatic pass re-arms from the existing queue pump.
   void _pumpBackfills() {
-    if (_stopped ||
-        _manualBackfillRun != null ||
+    if (_stopped) return;
+    _refreshLyricsRequestPolicy();
+    final allowed = _readLyricsAllowed();
+    if (_lastLyricsAllowed != null && _lastLyricsAllowed != allowed) {
+      _lyricsBackfillGate.done = false;
+    }
+    _lastLyricsAllowed = allowed;
+    if (!allowed) {
+      _lyricsResumeTimer?.cancel();
+      _lyricsResumeTimer = null;
+      _lyricsResumePending = false;
+      if (_backfillProgress.blockedReason ==
+          BackfillBlockedReason.rateLimited) {
+        _emitBackfill(blockedReason: BackfillBlockedReason.none);
+      }
+    }
+    if (!_backfillReady()) return;
+    if (_manualBackfillRun != null ||
         _automaticBackfillRun != null ||
         (_lyricsBackfillGate.done && _artworkBackfillGate.done)) {
       return;
@@ -1066,16 +1102,19 @@ class DownloadService {
   }
 
   Future<void> _runBackfillPasses({required bool force}) async {
+    _refreshLyricsRequestPolicy();
     _emitBackfill(
       done: 0,
       total: 0,
       blockedReason: BackfillBlockedReason.none,
-      lastResult: (lyricsResolved: 0, artworkStored: 0),
+      lastResult: _lyricsResumePending
+          ? _backfillProgress.lastResult
+          : (lyricsResolved: 0, artworkStored: 0),
     );
     try {
       await _pumpBackfill(
         _lyricsBackfillGate,
-        () => _backfillLyricsForDownloadedSongs(force: force),
+        () => _backfillLyricsForDownloadedSongs(force: _forceLyricsBackfill),
         force: force,
       );
       if (!_stopped) {
@@ -1091,7 +1130,44 @@ class DownloadService {
       );
     } finally {
       _emitBackfill(phase: BackfillPhase.idle);
+      _armLyricsResume();
     }
+  }
+
+  void _refreshLyricsRequestPolicy() {
+    if (_stopped ||
+        !_readLyricsAllowed() ||
+        !_backfillNetworkAllowed() ||
+        _readApiClient() == null) {
+      _lyricsCancelToken.cancel('Background lyrics blocked');
+    } else if (_lyricsCancelToken.isCancelled) {
+      _lyricsCancelToken = CancelToken();
+    }
+  }
+
+  void _armLyricsResume() {
+    _lyricsResumeTimer?.cancel();
+    _lyricsResumeTimer = null;
+    if (!_lyricsResumePending ||
+        _stopped ||
+        !_readLyricsAllowed() ||
+        _lrclibClient.retryAt == null ||
+        !_backfillReady()) {
+      return;
+    }
+    // Arm after artwork finishes so a cooldown expiring during artwork is
+    // consumed by the same single-flight pump, including an immediate wake-up.
+    _lyricsResumeTimer = Timer(_lrclibClient.cooldownRemaining, () {
+      _lyricsResumeTimer = null;
+      _pumpBackfills();
+    });
+  }
+
+  bool _pauseLyricsForCooldown() {
+    if (!_readLyricsAllowed() || !_lrclibClient.isRateLimited) return false;
+    _lyricsResumePending = true;
+    _emitBackfill(blockedReason: BackfillBlockedReason.rateLimited);
+    return true;
   }
 
   Future<void> _pumpBackfill(
@@ -2615,8 +2691,8 @@ class DownloadService {
   ///
   /// Runs fire-and-forget from [start] and re-arms from
   /// [processQueuedDownloads] when an earlier pass was blocked by a missing
-  /// API client, the network policy, or an LRCLIB cooldown; a pass that
-  /// completes never runs again in this session. Uses the transfers' rule —
+  /// API client or the network policy, and from a timer after LRCLIB cooldown;
+  /// a completed pass never runs again in this session. Uses the transfers' rule —
   /// any connection unless the user restricted downloads to Wi-Fi — pauses
   /// while a song's stream load holds new work, skips songs that already
   /// have lyrics or whose empty lookup is less than a week old, and
@@ -2626,6 +2702,7 @@ class DownloadService {
     _emitBackfill(phase: BackfillPhase.lyrics, done: 0, total: 0);
     try {
       if (!_backfillReady()) return false;
+      _lyricsResumePending = false;
       final api = _readApiClient()!;
       final permanentIds = await _cacheDao.getPermanentlyCachedSongIds();
       final songs = await _libraryDao.getSongsByIds(permanentIds);
@@ -2634,6 +2711,7 @@ class DownloadService {
         await _waitForPlaybackHold();
         if (!_backfillReady()) return false;
         try {
+          if (_visitedLyrics.contains(song.id)) continue;
           if ((await _cacheDao.getCachedTrack(song.id))?.cacheType !=
               CacheType.permanent) {
             continue;
@@ -2644,12 +2722,17 @@ class DownloadService {
             continue;
           }
           if (!_backfillReady()) return false;
-          if (await _prefetchLyrics(
+          if (_pauseLyricsForCooldown()) return false;
+          final resolved = await _prefetchLyrics(
             song.id,
             song,
             api,
             forceSyncedUpgrade: force,
-          )) {
+          );
+          if (!_backfillReady()) return false;
+          if (_pauseLyricsForCooldown()) return false;
+          _visitedLyrics.add(song.id);
+          if (resolved) {
             _emitBackfill(
               lastResult: (
                 lyricsResolved: _backfillProgress.lastResult.lyricsResolved + 1,
@@ -2657,16 +2740,14 @@ class DownloadService {
               ),
             );
           }
-          if (_readLyricsAllowed() && _lrclibClient.isRateLimited) {
-            _emitBackfill(blockedReason: BackfillBlockedReason.rateLimited);
-            return false;
-          }
           if (!_backfillReady()) return false;
           await Future<void>.delayed(const Duration(milliseconds: 250));
         } finally {
           _emitBackfill(done: _backfillProgress.done + 1);
         }
       }
+      _visitedLyrics.clear();
+      _forceLyricsBackfill = false;
       return true;
     } on Object catch (error) {
       AppLogger.warning(
@@ -2848,6 +2929,8 @@ class DownloadService {
         libraryDao: _libraryDao,
         lrclibClient: _lrclibClient,
         apiClient: api,
+        background: true,
+        cancelToken: _lyricsCancelToken,
       );
       final resolution = await resolver.resolve(
         songId: songId,

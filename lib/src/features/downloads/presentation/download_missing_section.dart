@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:navis/l10n/app_localizations.dart';
@@ -6,11 +8,41 @@ import 'package:navis/src/providers/app_providers.dart';
 
 /// Downloads settings section listing downloaded songs and albums that still
 /// lack lyrics or artwork, with a manual Backfill now action.
-class DownloadMissingSection extends ConsumerWidget {
-  const new({super.key});
+class DownloadMissingSection extends ConsumerStatefulWidget {
+  const new({super.key, this.now = DateTime.now});
+
+  @visibleForTesting
+  final DateTime Function() now;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<DownloadMissingSection> createState() =>
+      _DownloadMissingSectionState();
+}
+
+class _DownloadMissingSectionState
+    extends ConsumerState<DownloadMissingSection> {
+  Timer? _countdownTimer;
+
+  void _syncCountdown(BackfillProgress progress) {
+    if (progress.blockedReason != BackfillBlockedReason.rateLimited ||
+        progress.resumeAt == null) {
+      _countdownTimer?.cancel();
+      _countdownTimer = null;
+      return;
+    }
+    _countdownTimer ??= Timer.periodic(const Duration(seconds: 1), (_) {
+      if (mounted) setState(() {});
+    });
+  }
+
+  @override
+  void dispose() {
+    _countdownTimer?.cancel();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context)!;
     final theme = Theme.of(context);
     final gapsState = ref.watch(downloadMetadataGapsProvider);
@@ -19,6 +51,7 @@ class DownloadMissingSection extends ConsumerWidget {
     final progress =
         ref.watch(downloadBackfillProgressProvider).value ??
         const BackfillProgress();
+    _syncCountdown(progress);
     // The counts come from disk, so refresh them whenever a pass ends.
     ref.listen(downloadBackfillProgressProvider, (previous, next) {
       final before = previous?.value?.phase;
@@ -29,11 +62,18 @@ class DownloadMissingSection extends ConsumerWidget {
       }
     });
     final running = progress.phase != BackfillPhase.idle;
+    final remaining =
+        progress.resumeAt?.difference(widget.now()).inMilliseconds ?? 0;
+    final seconds = remaining > 0 ? (remaining + 999) ~/ 1000 : 0;
+    final countdown =
+        '${seconds ~/ 60}:${(seconds % 60).toString().padLeft(2, '0')}';
     final blocked = switch (progress.blockedReason) {
       BackfillBlockedReason.none => null,
       BackfillBlockedReason.offline => l10n.downloadsBackfillOffline,
       BackfillBlockedReason.wifiOnly => l10n.downloadsBackfillWifiOnly,
-      BackfillBlockedReason.rateLimited => l10n.downloadsBackfillRateLimited,
+      BackfillBlockedReason.rateLimited => l10n.downloadsBackfillLyricsPaused(
+        countdown,
+      ),
     };
     final result = progress.lastResult;
 

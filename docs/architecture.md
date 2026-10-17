@@ -1933,10 +1933,15 @@ existing `DownloadService` lyrics backfill on startup; it follows the
 downloads network policy — any connection unless the user restricted
 downloads to Wi-Fi — and refetches through the lyrics resolver when LRCLIB
 lookups are enabled. A pass blocked at startup (no server connection yet,
-network not allowed, or an LRCLIB cooldown) re-arms from the queue pump that
-already reacts to connectivity and policy changes, pauses while a song's
-stream load holds new work, and never runs twice at once; a completed pass
-does not repeat automatically in the same session. Each item rechecks stop
+network not allowed) re-arms from the queue pump that already reacts to
+connectivity and policy changes. An LRCLIB 429/503 pauses only lyrics: artwork
+continues, progress includes `resumeAt`, and a service-owned timer re-arms the
+lyrics gate automatically after cooldown. The timer is cancelled on teardown,
+LRCLIB/lyrics integration disablement, or a network-policy block; connectivity
+and policy changes re-arm pending work. Completed songs are skipped on resume,
+and a manual run retains its forced-upgrade intent across cooldowns. Backfill
+pauses while a song's stream load holds new work and never runs twice at once;
+a completed pass does not repeat automatically in the same session. Each item rechecks stop
 state and network eligibility after the playback hold and before its network
 work; teardown releases held passes without starting requests, and a mid-pass network
 restriction leaves the pass pending for the existing pump. Promoting a
@@ -1963,12 +1968,25 @@ them.
 fresh lyrics pass followed by an artwork pass; concurrent manual calls share
 one future. Force bypasses the seven-day miss/upgrade backoff, while preserving
 stop state, connectivity, Wi-Fi-only rules, playback holds and LRCLIB cooldown.
+Pressing Backfill now during cooldown arms the pending lyrics run; Downloads
+shows “Lyrics paused, resuming in m:ss” with a live countdown. LRCLIB shares
+one `RequestLimiter` across exact and search requests: at most two starts per
+second, one background start per second and two in flight. Download prefetch
+and backfill use the background budget; Now Playing takes priority in the
+foreground queue. Teardown and policy blocks cancel queued and in-flight
+LRCLIB background requests through the limiter and Dio cancellation token.
+Cooldowns honor Retry-After up to ten minutes; without a
+valid header, consecutive cooldown episodes double from 60 seconds to the
+same cap. Non-future Retry-After values use a one-second cooldown so the
+interrupted lookup remains eligible for resumption. A successful response
+(including a definitive 404) resets backoff;
+a response started before a newer cooldown cannot reset that episode.
 Automatic passes use those same gates and run sequentially so progress has one
 active phase. The seeded broadcast `backfillProgress` stream and
 `currentBackfillProgress` expose `BackfillProgress`: `phase` (`idle`, `lyrics`,
 `artwork`), checked-item `done`/`total`, `blockedReason` (`none`, `offline`,
-`wifiOnly`, `rateLimited`), and `lastResult` counts (`lyricsResolved`,
-`artworkStored`) for the current/latest run. Already-present or backed-off items
+`wifiOnly`, `rateLimited`), the lyrics cooldown `resumeAt`, and `lastResult`
+counts (`lyricsResolved`, `artworkStored`) for the current/latest run. Already-present or backed-off items
 advance progress without incrementing result counts. Internal failures log
 silently; only a blocked reason is intended for UI display.
 
@@ -2912,7 +2930,7 @@ signed or whitespace-prefixed pairs are rejected.
 Deezer's public API (`api.deezer.com`) needs no key. `DeezerApiClient`
 (`lib/src/api/deezer_api_client.dart`) is built by `deezerApiClientProvider`
 through `externalDioFactoryProvider`, so the guard and the call recorder apply,
-with 8-second timeouts. One `DeezerRequestLimiter` per client keeps every Deezer
+with 8-second timeouts. One `RequestLimiter` per client keeps every Deezer
 feature together under 5 requests per second and 4 in flight, at most 2 of the 5
 for background requests. Deezer documents a quota of about 50 requests per 5
 seconds, but answered code 4 while Navis started at most 32 per 5 seconds from

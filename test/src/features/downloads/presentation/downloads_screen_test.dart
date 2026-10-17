@@ -27,6 +27,7 @@ import 'package:navis/src/features/downloads/domain/backfill_progress.dart';
 import 'package:navis/src/features/downloads/domain/download_metadata_gaps.dart';
 import 'package:navis/src/features/downloads/domain/download_preferences.dart';
 import 'package:navis/src/features/downloads/presentation/downloads_screen.dart';
+import 'package:navis/src/features/downloads/presentation/download_missing_section.dart';
 import 'package:navis/src/features/downloads/presentation/custom_download_folder_controller.dart';
 import 'package:navis/src/features/player/domain/playback_snapshot.dart';
 import 'package:navis/src/features/player/presentation/queue_provider.dart';
@@ -1351,10 +1352,49 @@ void main() {
       expect(find.byType(LinearProgressIndicator), findsNothing);
     });
 
+    testWidgets('lyrics cooldown shows a live resume countdown', (
+      tester,
+    ) async {
+      var now = DateTime.utc(2026, 10, 18);
+      final deadline = now.add(const Duration(seconds: 65));
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            downloadMetadataGapsProvider.overrideWith((ref) async => gaps),
+            subsonicApiProvider.overrideWithValue(_MockDownloadApi()),
+            downloadBackfillProgressProvider.overrideWith(
+              (ref) => Stream.value(
+                BackfillProgress(
+                  blockedReason: BackfillBlockedReason.rateLimited,
+                  resumeAt: deadline,
+                ),
+              ),
+            ),
+          ],
+          child: MaterialApp(
+            theme: testTheme(),
+            localizationsDelegates: navisLocalizationsDelegates,
+            supportedLocales: AppLocalizations.supportedLocales,
+            home: Scaffold(body: DownloadMissingSection(now: () => now)),
+          ),
+        ),
+      );
+      await tester.pump();
+      await tester.pump();
+      expect(find.text('Lyrics paused, resuming in 1:05'), findsOneWidget);
+      now = now.add(const Duration(seconds: 1));
+      await tester.pump(const Duration(seconds: 1));
+      expect(find.text('Lyrics paused, resuming in 1:04'), findsOneWidget);
+      now = deadline.add(const Duration(seconds: 1));
+      await tester.pump(const Duration(seconds: 1));
+      expect(find.text('Lyrics paused, resuming in 0:00'), findsOneWidget);
+      await tester.pumpWidget(const SizedBox.shrink());
+    });
+
     for (final (reason, text) in [
       (BackfillBlockedReason.offline, 'Offline'),
       (BackfillBlockedReason.wifiOnly, 'Waiting for Wi-Fi'),
-      (BackfillBlockedReason.rateLimited, 'cooling down'),
+      (BackfillBlockedReason.rateLimited, 'Lyrics paused, resuming in'),
     ]) {
       testWidgets('shows the $reason reason', (tester) async {
         await openSettings(

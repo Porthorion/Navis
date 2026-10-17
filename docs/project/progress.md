@@ -2,7 +2,7 @@
 
 Tracks completion of all phases and sub-tasks defined in [docs/project/development-plan.md](development-plan.md). Checkboxes are updated as work is completed.
 
-Last updated: 2026-10-17
+Last updated: 2026-10-18
 
 ---
 
@@ -14,6 +14,25 @@ Last updated: 2026-10-17
 - ACP status values: `backlog`, `ready`, `in_progress`, `blocked`, `done`.
 
 ## Current Focus
+- [x] Issue #48, paced lyrics backfill with automatic cooldown resume — 2026-10-18
+  (`feat/backfill-rate-limit-resume`): LRCLIB reuses the renamed
+  `RequestLimiter` with two starts/second, one background start/second and two
+  in flight. Retry-After is capped at ten minutes; headerless cooldowns double
+  from 60 seconds to that cap and reset after success. Non-future headers use
+  a one-second pause. Lyrics resume through the existing backfill gates while
+  artwork proceeds; progress carries `resumeAt` and Downloads shows a live
+  countdown. Stop and policy changes cancel the timer and queued/in-flight
+  LRCLIB work; manual forced upgrades survive cooldowns without repeating
+  completed songs or marking rate limits as misses.
+  Evidence: client/countdown regressions first failed
+  (`00:13 +41 -3: Some tests failed.`); background traffic and deadline
+  regressions then failed
+  (`00:06 +17 -6: Some tests failed.`). The final eleven-file focused run passed
+  (`00:17 +296: All tests passed!`, capped peak 2956M). Scoped
+  `flutter analyze --no-fatal-infos` exited 0 with nine infos, all in unchanged
+  files. Localization regenerated with `flutter gen-l10n`; changed Dart was
+  formatted. Runtime checks were not run by instruction; `./tool/check.sh`
+  remains the coordinator's gate.
 - [x] Issue #46, server plain lyrics on first fetch — 2026-10-17
   (`fix/server-plain-lyrics`): the batched runtime check of dev b5468cbd found
   that plain-only server lyrics (structured lines without `start`) showed "No

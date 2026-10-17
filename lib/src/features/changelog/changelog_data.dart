@@ -166,6 +166,10 @@ const List<ChangelogVersion> changelogs = [
     ],
     entries: [
       ChangelogEntry(
+        'Downloaded lyrics backfill now paces LRCLIB requests and automatically resumes after service cooldowns, while artwork keeps downloading and a live countdown shows when lyrics will resume',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
         'Settings > Integrations > Update checks lets you choose where stable builds look for updates, downloads.porthorion.com or GitHub; updates are verified the same way either way',
         type: ChangelogEntryType.newFeature,
       ),

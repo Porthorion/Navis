@@ -1,4 +1,5 @@
 import 'package:dio/dio.dart';
+import 'package:navis/src/api/request_limiter.dart';
 import 'package:navis/src/api/retry_after.dart';
 import 'package:navis/src/utils/constants.dart';
 
@@ -42,9 +43,17 @@ class LrclibRateLimitedException implements Exception {
 class LrclibClient {
   /// Production code passes a [dio] from `externalDioFactoryProvider`, built
   /// with [baseOptions], so the integration guard applies.
-  new({Dio? dio, DateTime Function()? now})
+  new({Dio? dio, DateTime Function()? now, RequestLimiter? limiter})
     : _dio = dio ?? Dio(baseOptions),
-      _now = now ?? DateTime.now;
+      _now = now ?? DateTime.now,
+      // Reserve one of two starts per second for interactive lyrics lookups.
+      _limiter =
+          limiter ??
+          RequestLimiter(
+            maxPerWindow: 2,
+            maxBackgroundPerWindow: 1,
+            maxInFlight: 2,
+          );
 
   static final baseOptions = BaseOptions(
     baseUrl: 'https://lrclib.net',
@@ -55,7 +64,20 @@ class LrclibClient {
 
   final Dio _dio;
   final DateTime Function() _now;
+  final RequestLimiter _limiter;
   DateTime? _blockedUntil;
+  int _consecutiveCooldowns = 0;
+  int _cooldownGeneration = 0;
+  static const _maxCooldown = Duration(minutes: 10);
+
+  /// Deadline of the last cooldown, including one that has just expired.
+  DateTime? get retryAt => _blockedUntil;
+
+  /// Remaining cooldown on the same clock used to interpret Retry-After.
+  Duration get cooldownRemaining {
+    final remaining = _blockedUntil?.difference(_now()) ?? Duration.zero;
+    return remaining.isNegative ? Duration.zero : remaining;
+  }
 
   bool get isRateLimited =>
       _blockedUntil != null && _now().isBefore(_blockedUntil!);
@@ -66,13 +88,63 @@ class LrclibClient {
 
   void _recordRateLimit(Response<dynamic>? response) {
     if (response?.statusCode != 429 && response?.statusCode != 503) return;
-    final deadline =
-        parseRetryAfter(response?.headers.value('retry-after'), now: _now) ??
-        _now().add(const Duration(seconds: 60));
+    final now = _now();
+    if (!isRateLimited) {
+      _consecutiveCooldowns++;
+      _cooldownGeneration++;
+    }
+    final fallback = Duration(
+      seconds: 60 * (1 << (_consecutiveCooldowns - 1).clamp(0, 4)),
+    );
+    final parsed = parseRetryAfter(
+      response?.headers.value('retry-after'),
+      now: _now,
+    );
+    final delay = parsed?.difference(now) ?? fallback;
+    final bounded = delay > _maxCooldown ? _maxCooldown : delay;
+    // An immediate retry must still leave the interrupted song eligible.
+    final deadline = now.add(
+      bounded <= Duration.zero ? const Duration(seconds: 1) : bounded,
+    );
     if (_blockedUntil == null || deadline.isAfter(_blockedUntil!)) {
       _blockedUntil = deadline;
     }
     throw const LrclibRateLimitedException();
+  }
+
+  Future<Response<T>> _get<T>(
+    String path,
+    Map<String, dynamic> parameters, {
+    required bool background,
+    CancelToken? cancelToken,
+  }) {
+    _checkRateLimit();
+    return _limiter.run(
+      () async {
+        // A queued request must observe a cooldown reported while it waited.
+        _checkRateLimit();
+        final generation = _cooldownGeneration;
+        try {
+          final response = await _dio.get<T>(
+            path,
+            queryParameters: parameters,
+            cancelToken: cancelToken,
+          );
+          _recordRateLimit(response);
+          if (generation == _cooldownGeneration) _consecutiveCooldowns = 0;
+          return response;
+        } on DioException catch (error) {
+          _recordRateLimit(error.response);
+          if (error.response?.statusCode == 404 &&
+              generation == _cooldownGeneration) {
+            _consecutiveCooldowns = 0;
+          }
+          rethrow;
+        }
+      },
+      background: background,
+      cancelToken: cancelToken,
+    );
   }
 
   Future<LrclibLyrics?> getLyrics({
@@ -80,27 +152,28 @@ class LrclibClient {
     required String title,
     String? album,
     int? duration,
+    bool background = false,
+    CancelToken? cancelToken,
   }) async {
-    _checkRateLimit();
     final Response<Map<String, dynamic>> response;
     try {
-      response = await _dio.get<Map<String, dynamic>>(
+      response = await _get<Map<String, dynamic>>(
         '/api/get',
-        queryParameters: {
+        {
           'artist_name': artist,
           'track_name': title,
           if (album != null && album.trim().isNotEmpty) 'album_name': album,
           if (duration != null && duration > 0) 'duration': duration,
         },
+        background: background,
+        cancelToken: cancelToken,
       );
     } on DioException catch (error) {
-      _recordRateLimit(error.response);
       if (error.response?.statusCode == 404) {
         return null;
       }
       rethrow;
     }
-    _recordRateLimit(response);
     final data = response.data;
     if (data == null || data.isEmpty) {
       return null;
@@ -111,20 +184,21 @@ class LrclibClient {
   Future<List<LrclibLyrics>> searchLyrics({
     required String artist,
     required String title,
+    bool background = false,
+    CancelToken? cancelToken,
   }) async {
-    _checkRateLimit();
     final Response<List<dynamic>> response;
     try {
-      response = await _dio.get<List<dynamic>>(
+      response = await _get<List<dynamic>>(
         '/api/search',
-        queryParameters: {'artist_name': artist, 'track_name': title},
+        {'artist_name': artist, 'track_name': title},
+        background: background,
+        cancelToken: cancelToken,
       );
     } on DioException catch (error) {
-      _recordRateLimit(error.response);
       if (error.response?.statusCode == 404) return const <LrclibLyrics>[];
       rethrow;
     }
-    _recordRateLimit(response);
     final data = response.data;
     if (data == null) {
       return const <LrclibLyrics>[];

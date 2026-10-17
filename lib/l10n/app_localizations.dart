@@ -5417,11 +5417,11 @@ abstract class AppLocalizations {
   /// **'Waiting for Wi-Fi.'**
   String get downloadsBackfillWifiOnly;
 
-  /// No description provided for @downloadsBackfillRateLimited.
+  /// No description provided for @downloadsBackfillLyricsPaused.
   ///
   /// In en, this message translates to:
-  /// **'The lyrics service is cooling down. Try again later.'**
-  String get downloadsBackfillRateLimited;
+  /// **'Lyrics paused, resuming in {remaining}'**
+  String downloadsBackfillLyricsPaused(String remaining);
 
   /// No description provided for @downloadsBackfillResult.
   ///

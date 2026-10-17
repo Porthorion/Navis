@@ -3,13 +3,13 @@ import 'dart:async';
 import 'package:dio/dio.dart';
 import 'package:fake_async/fake_async.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:navis/src/api/deezer_request_limiter.dart';
+import 'package:navis/src/api/request_limiter.dart';
 
 void main() {
   for (final background in [false, true]) {
     test('cancel after dispatch returns the start budget: $background', () {
       fakeAsync((async) {
-        final limiter = DeezerRequestLimiter(
+        final limiter = RequestLimiter(
           elapsed: () => async.elapsed,
           maxPerWindow: 1,
           maxBackgroundPerWindow: 1,
@@ -53,7 +53,7 @@ void main() {
 
   test('cancellation while paused settles without waiting for the pause', () {
     fakeAsync((async) {
-      final limiter = DeezerRequestLimiter(elapsed: () => async.elapsed);
+      final limiter = RequestLimiter(elapsed: () => async.elapsed);
       limiter.pauseStarts(const Duration(seconds: 80));
       final token = CancelToken();
       var cancelled = false;
@@ -78,7 +78,7 @@ void main() {
 
   test('starts at most 5 requests per second', () {
     fakeAsync((async) {
-      final limiter = DeezerRequestLimiter(elapsed: () => async.elapsed);
+      final limiter = RequestLimiter(elapsed: () => async.elapsed);
       final starts = <Duration>[];
       for (var i = 0; i < 12; i++) {
         unawaited(
@@ -113,7 +113,7 @@ void main() {
     // the time left in the window would fire early and reschedule in a loop.
     var now = Duration.zero;
     final waits = <Duration>[];
-    final limiter = DeezerRequestLimiter(
+    final limiter = RequestLimiter(
       maxPerWindow: 1,
       elapsed: () => now,
       delay: (wait) {
@@ -130,7 +130,7 @@ void main() {
 
   test('runs at most 4 requests at once', () {
     fakeAsync((async) {
-      final limiter = DeezerRequestLimiter(elapsed: () => async.elapsed);
+      final limiter = RequestLimiter(elapsed: () => async.elapsed);
       var running = 0;
       var maxRunning = 0;
       var finished = 0;
@@ -160,7 +160,7 @@ void main() {
 
   test('a pause holds every new start, not the running ones', () {
     fakeAsync((async) {
-      final limiter = DeezerRequestLimiter(elapsed: () => async.elapsed);
+      final limiter = RequestLimiter(elapsed: () => async.elapsed);
       final starts = <Duration>[];
       var running = 0;
       unawaited(
@@ -200,7 +200,7 @@ void main() {
 
   test('a later pause extends an earlier one, never shortens it', () {
     fakeAsync((async) {
-      final limiter = DeezerRequestLimiter(elapsed: () => async.elapsed);
+      final limiter = RequestLimiter(elapsed: () => async.elapsed);
       final starts = <Duration>[];
       limiter.pauseStarts(const Duration(seconds: 5));
       async.elapse(const Duration(seconds: 2));
@@ -223,7 +223,7 @@ void main() {
   group('priority', () {
     test('a waiting foreground request takes the next free slot', () {
       fakeAsync((async) {
-        final limiter = DeezerRequestLimiter(
+        final limiter = RequestLimiter(
           elapsed: () => async.elapsed,
           maxInFlight: 1,
         );
@@ -255,7 +255,7 @@ void main() {
     test('a waiting foreground request takes the next start of the window', () {
       fakeAsync((async) {
         // Background may fill the window here, to test the order alone.
-        final limiter = DeezerRequestLimiter(
+        final limiter = RequestLimiter(
           elapsed: () => async.elapsed,
           maxBackgroundPerWindow: 5,
         );
@@ -287,7 +287,7 @@ void main() {
 
     test('background requests run whenever no foreground one waits', () {
       fakeAsync((async) {
-        final limiter = DeezerRequestLimiter(
+        final limiter = RequestLimiter(
           elapsed: () => async.elapsed,
           maxInFlight: 1,
         );
@@ -326,7 +326,7 @@ void main() {
   group('background rate', () {
     test('background starts at most 2 requests per second', () {
       fakeAsync((async) {
-        final limiter = DeezerRequestLimiter(elapsed: () => async.elapsed);
+        final limiter = RequestLimiter(elapsed: () => async.elapsed);
         final starts = <Duration>[];
         for (var i = 0; i < 6; i++) {
           unawaited(
@@ -349,7 +349,7 @@ void main() {
 
     test('foreground still uses the whole window beside background', () {
       fakeAsync((async) {
-        final limiter = DeezerRequestLimiter(elapsed: () => async.elapsed);
+        final limiter = RequestLimiter(elapsed: () => async.elapsed);
         final started = <String>[];
         void queue(String name, {bool background = false}) => unawaited(
           limiter.run(() async {
@@ -383,7 +383,7 @@ void main() {
 
     test('a foreground request does not wait for the background rate', () {
       fakeAsync((async) {
-        final limiter = DeezerRequestLimiter(elapsed: () => async.elapsed);
+        final limiter = RequestLimiter(elapsed: () => async.elapsed);
         final starts = <String, Duration>{};
         void queue(String name, {bool background = false}) => unawaited(
           limiter.run(() async {
@@ -411,7 +411,7 @@ void main() {
   });
 
   test('a failing request frees its slot', () async {
-    final limiter = DeezerRequestLimiter(maxInFlight: 1);
+    final limiter = RequestLimiter(maxInFlight: 1);
 
     await expectLater(
       limiter.run<void>(() async => throw StateError('boom')),

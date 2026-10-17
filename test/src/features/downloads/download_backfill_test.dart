@@ -1,4 +1,8 @@
+import 'dart:async';
 import 'dart:io';
+
+import 'package:fake_async/fake_async.dart';
+import 'package:navis/src/api/request_limiter.dart';
 
 import 'package:dio/dio.dart';
 import 'package:drift/drift.dart' hide isNotNull, isNull;
@@ -29,6 +33,8 @@ class _Deezer extends Mock implements DeezerApiClient;
 
 class _External extends LrclibClient {
   int calls = 0;
+  final backgroundCalls = <bool>[];
+  final tokens = <CancelToken?>[];
   bool limited = false;
   @override
   bool get isRateLimited => limited;
@@ -36,8 +42,12 @@ class _External extends LrclibClient {
   Future<List<LrclibLyrics>> searchLyrics({
     required String artist,
     required String title,
+    bool background = false,
+    CancelToken? cancelToken,
   }) async {
     calls++;
+    backgroundCalls.add(background);
+    tokens.add(cancelToken);
     return [];
   }
 
@@ -47,6 +57,8 @@ class _External extends LrclibClient {
     required String title,
     String? album,
     int? duration,
+    bool background = false,
+    CancelToken? cancelToken,
   }) async => null;
 }
 
@@ -79,10 +91,33 @@ void main() {
   var online = true;
   var signedOut = false;
   var allowed = true;
+  var lyricsAllowed = true;
   final bytes = [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 1];
   var imageCalls = 0;
   var uriAllowed = true;
   final matches = <DeezerTrack>[];
+
+  DownloadService makeService({LrclibClient? client}) => DownloadService(
+    appSettingsDao: db.appSettingsDao,
+    cacheDao: db.cacheDao,
+    downloadQueueDao: db.downloadQueueDao,
+    libraryDao: db.libraryDao,
+    readApiClient: () => signedOut ? null : api,
+    readWifiOnly: () => wifiOnly,
+    readIsWifi: () => false,
+    readIsOnline: () => online,
+    readCustomDownloadFolderEnabled: () => false,
+    readCustomDownloadFolderPath: () => null,
+    lrclibClient: client ?? external,
+    readLyricsAllowed: () => lyricsAllowed,
+    readCoverArtCacheManager: _Cache.new,
+    artworkStore: artwork,
+    readApplicationSupportDirectory: () async => dir,
+    readDeezerArtworkAllowed: () => allowed,
+    deezerClient: deezer,
+    deezerDio: imageDio,
+    allowsArtworkUri: (_) => uriAllowed,
+  );
 
   setUp(() async {
     db = createTestDatabase();
@@ -119,26 +154,8 @@ void main() {
           },
         ),
       );
-    service = DownloadService(
-      appSettingsDao: db.appSettingsDao,
-      cacheDao: db.cacheDao,
-      downloadQueueDao: db.downloadQueueDao,
-      libraryDao: db.libraryDao,
-      readApiClient: () => signedOut ? null : api,
-      readWifiOnly: () => wifiOnly,
-      readIsWifi: () => false,
-      readIsOnline: () => online,
-      readCustomDownloadFolderEnabled: () => false,
-      readCustomDownloadFolderPath: () => null,
-      lrclibClient: external,
-      readCoverArtCacheManager: _Cache.new,
-      artworkStore: artwork,
-      readApplicationSupportDirectory: () async => dir,
-      readDeezerArtworkAllowed: () => allowed,
-      deezerClient: deezer,
-      deezerDio: imageDio,
-      allowsArtworkUri: (_) => uriAllowed,
-    );
+    lyricsAllowed = true;
+    service = makeService();
   });
   tearDown(() async {
     await service.dispose();
@@ -232,6 +249,8 @@ void main() {
       final first = service.runBackfillNow();
       await Future.wait([first, service.runBackfillNow()]);
       expect(external.calls, 1);
+      expect(external.backgroundCalls, [true]);
+      expect(external.tokens.single, isNotNull);
       expect(service.currentBackfillProgress.phase, BackfillPhase.idle);
       expect(service.currentBackfillProgress.lastResult.lyricsResolved, 1);
       expect(
@@ -249,6 +268,7 @@ void main() {
       await subscription.cancel();
       await service.processQueuedDownloads();
       await service.stopAndWait();
+      expect(external.tokens.single!.isCancelled, isTrue);
       expect(external.calls, 1);
     },
   );
@@ -350,6 +370,208 @@ void main() {
       expect(imageCalls, 0);
     },
   );
+
+  for (final stop in [
+    'resume',
+    'manual',
+    'dispose',
+    'integration',
+    'wifi',
+    'offline',
+  ]) {
+    test('429 pauses only lyrics and $stop handles the resume timer', () async {
+      await seed('one');
+      await seed('two');
+      await seed('three');
+      await service.dispose();
+      final clock = FakeAsync();
+      final now = clock.getClock(DateTime.utc(2026, 10, 18)).now;
+      var calls = 0;
+      final dio = Dio();
+      addTearDown(dio.close);
+      dio.interceptors.add(
+        InterceptorsWrapper(
+          onRequest: (o, h) {
+            calls++;
+            h.resolve(
+              Response<dynamic>(
+                requestOptions: o,
+                statusCode: calls == 2 ? 429 : 200,
+                headers: Headers.fromMap({
+                  'retry-after': ['2'],
+                }),
+                data: [
+                  <String, dynamic>{
+                    'artistName': 'Artist',
+                    'trackName': 'Track',
+                    'albumName': 'Album',
+                    'duration': 200,
+                    'syncedLyrics': '[00:01.00]words',
+                  },
+                ],
+              ),
+            );
+          },
+        ),
+      );
+      final client = LrclibClient(
+        dio: dio,
+        now: now,
+        limiter: RequestLimiter(
+          maxPerWindow: 2,
+          maxBackgroundPerWindow: 1,
+          maxInFlight: 2,
+          elapsed: () => clock.elapsed,
+        ),
+      );
+      service = makeService(client: client);
+      artwork.result = ArtworkEnsureResult.stored;
+      final snapshots = <BackfillProgress>[];
+      final subscription = service.backfillProgress.listen(snapshots.add);
+      addTearDown(subscription.cancel);
+      var finished = false;
+      clock.run((_) {
+        unawaited(
+          service.runBackfillNow().then((_) {
+            finished = true;
+          }),
+        );
+      });
+      Future<void> drain() async {
+        for (var i = 0; i < 30; i++) {
+          clock.flushMicrotasks();
+          await Future<void>.delayed(const Duration(milliseconds: 1));
+        }
+      }
+
+      for (var i = 0; i < 20 && !finished; i++) {
+        await drain();
+        clock.elapse(const Duration(milliseconds: 100));
+      }
+      await drain();
+      expect(finished, isTrue);
+      expect(calls, 2);
+      expect(artwork.calls, 1);
+      expect(service.currentBackfillProgress.lastResult.artworkStored, 1);
+      expect(
+        service.currentBackfillProgress.blockedReason,
+        BackfillBlockedReason.rateLimited,
+      );
+      // The rate-limited track is eligible again, including its server plain row.
+      final rows = await db.cacheDao.getPermanentDownloadMetadata();
+      for (final row in rows) {
+        expect(
+          (await db.libraryDao.getExternalLyricsCache(row.songId))
+                  ?.failureCount ??
+              0,
+          0,
+        );
+      }
+      expect(service.currentBackfillProgress.resumeAt, client.retryAt);
+      expect(
+        snapshots.any(
+          (p) =>
+              p.phase == BackfillPhase.lyrics &&
+              p.blockedReason == BackfillBlockedReason.rateLimited &&
+              p.resumeAt == client.retryAt,
+        ),
+        isTrue,
+      );
+      expect(clock.nonPeriodicTimerCount, 1);
+      if (stop == 'dispose') {
+        await service.dispose();
+      } else if (stop != 'resume' && stop != 'manual') {
+        if (stop == 'integration') lyricsAllowed = false;
+        if (stop == 'wifi') wifiOnly = true;
+        if (stop == 'offline') online = false;
+        unawaited(clock.run((_) => service.processQueuedDownloads()));
+        for (var i = 0; i < 10; i++) {
+          await drain();
+          clock.elapse(const Duration(milliseconds: 100));
+        }
+        await drain();
+      }
+      if (stop == 'resume' || stop == 'manual') {
+        // A pending recent miss must still receive the manual forced upgrade.
+        for (final row in rows) {
+          if (await db.libraryDao.getExternalLyricsCache(row.songId) == null) {
+            await db.libraryDao.upsertExternalLyricsCache(
+              songId: row.songId,
+              source: 'serverPlain',
+              plainLyrics: 'retained',
+              failureCount: 2,
+              lastFailedAt: DateTime.now(),
+            );
+          }
+        }
+        if (stop == 'manual') {
+          var manualFinished = false;
+          unawaited(
+            clock.run(
+              (_) => service.runBackfillNow().then((_) {
+                manualFinished = true;
+              }),
+            ),
+          );
+          for (var i = 0; i < 5; i++) {
+            await drain();
+            clock.elapse(const Duration(milliseconds: 100));
+          }
+          expect(manualFinished, isTrue);
+          expect(calls, 2);
+          expect(
+            service.currentBackfillProgress.blockedReason,
+            BackfillBlockedReason.rateLimited,
+          );
+          expect(service.currentBackfillProgress.resumeAt, client.retryAt);
+        }
+        clock.elapse(const Duration(seconds: 2));
+        for (var i = 0; i < 40; i++) {
+          await drain();
+          clock.elapse(const Duration(milliseconds: 100));
+        }
+        expect(calls, 4);
+        for (final row in rows) {
+          expect(
+            (await db.libraryDao.getExternalLyricsCache(row.songId))
+                ?.syncedLyrics,
+            isNotEmpty,
+          );
+        }
+        expect(
+          service.currentBackfillProgress.blockedReason,
+          BackfillBlockedReason.none,
+        );
+      } else {
+        expect(clock.nonPeriodicTimerCount, 0);
+        if (stop == 'wifi' || stop == 'offline') {
+          expect(
+            service.currentBackfillProgress.blockedReason,
+            stop == 'wifi'
+                ? BackfillBlockedReason.wifiOnly
+                : BackfillBlockedReason.offline,
+          );
+          expect(service.currentBackfillProgress.resumeAt, isNull);
+        }
+        final before = calls;
+        clock.elapse(const Duration(minutes: 20));
+        await drain();
+        expect(calls, before);
+      }
+    });
+  }
+
+  test('cooldown does not arm a run without eligible songs', () async {
+    external.limited = true;
+    await service.runBackfillNow();
+    expect(
+      service.currentBackfillProgress.blockedReason,
+      BackfillBlockedReason.none,
+    );
+    expect(service.currentBackfillProgress.resumeAt, isNull);
+    expect(external.calls, 0);
+    expect(artwork.calls, 0);
+  });
 
   test('cooldown remains visible after artwork phase', () async {
     await seed('song');
