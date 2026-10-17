@@ -1,8 +1,11 @@
+import 'package:flutter/gestures.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:navis/l10n/app_localizations.dart';
 import 'package:navis/l10n/navis_localizations.dart';
+import 'package:navis/src/api/models/models.dart';
 import 'package:navis/src/common_widgets/entity_action_bar.dart';
+import 'package:navis/src/common_widgets/lyrics_display_widget.dart';
 import 'package:navis/src/theme/color_adjustment.dart';
 import 'package:navis/src/theme/navis_corner_style.dart';
 import 'package:navis/src/theme/navis_shape_data.dart';
@@ -72,6 +75,56 @@ void main() {
 
     await _pump(tester, _theme('dark', NavisCornerStyle.square), button);
     expect(_shapeOf(tester, fab), NavisShapeData.square.lgShape);
+  });
+
+  testWidgets('the lyrics re-center FAB is a circle in Pill, kept otherwise', (
+    tester,
+  ) async {
+    final lyrics = LyricsList(
+      structuredLyrics: [
+        StructuredLyrics(
+          synced: true,
+          line: List.generate(
+            70,
+            (i) => LyricLine(start: i * 1000, value: 'Line $i'),
+          ),
+        ),
+      ],
+    );
+    final fab = find.byType(FloatingActionButton);
+    for (final corners in NavisCornerStyle.values) {
+      await _pump(
+        tester,
+        _theme('dark', corners),
+        SizedBox(
+          height: 400,
+          child: LyricsDisplayWidget(
+            lyrics: lyrics,
+            currentPosition: const Duration(seconds: 10),
+            onSeek: (_) {},
+          ),
+        ),
+      );
+      await tester.sendEventToBinding(
+        PointerScrollEvent(
+          position: tester.getCenter(find.byType(LyricsDisplayWidget)),
+          scrollDelta: const Offset(0, 200),
+        ),
+      );
+      await tester.pump();
+      final shape = _shapeOf(tester, fab);
+      if (corners == NavisCornerStyle.rounded) {
+        expect(_isCircle(shape, 40), isTrue);
+      } else {
+        expect(
+          (shape! as RoundedRectangleBorder).borderRadius,
+          NavisShapeData.forStyle(corners).scaledAll(12),
+        );
+      }
+      // Leave no re-engage timer pending.
+      await tester.pump(const Duration(seconds: 5));
+      await tester.pumpAndSettle();
+    }
   });
 
   for (final mode in <String>['light', 'dark', 'oled']) {

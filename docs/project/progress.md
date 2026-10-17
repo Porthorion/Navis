@@ -18,7 +18,8 @@ Last updated: 2026-10-18
   (`fix/pill-fab-circle`): `floatingActionButtonTheme.shape` is a stadium in
   Pill (a circle on the square Playlists and Radio FABs, still fitting the
   extended match-flow FAB); Soft and Square keep `lgShape`. Added
-  `test/src/theme/pill_circle_test.dart` (FAB shape per corner style; compact
+  `test/src/theme/pill_circle_test.dart` (FAB shape per corner style, including
+  the lyrics re-center small FAB, now a circle in Pill; compact
   header download button in Pill and Soft across light/dark/OLED and
   accent/white controls). The FAB test failed before the fix
   (`Expected: true  Actual: <false>`). The compact header download button
