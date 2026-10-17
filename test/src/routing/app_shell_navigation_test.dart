@@ -187,6 +187,66 @@ ProviderContainer _createContainerWithDatabase({
   return container;
 }
 
+/// Settles at 60 Hz. `pumpAndSettle` steps by 100 ms, which skips the tiny
+/// final steps of a spring settle that a real device renders.
+Future<void> _settleAtFrameRate(WidgetTester tester) async {
+  for (var i = 0; i < 120; i++) {
+    await tester.pump(const Duration(milliseconds: 16));
+  }
+  await tester.pumpAndSettle();
+}
+
+/// A point on the phone mini player, clear of its buttons.
+Offset _miniPlayerPoint(WidgetTester tester) =>
+    Offset(120, tester.getCenter(find.byType(NavigationBar)).dy - 80 / 2 - 32);
+
+double _navBarOpacity(WidgetTester tester) => tester
+    .widget<Opacity>(
+      find
+          .ancestor(
+            of: find.byType(NavigationBar),
+            matching: find.byType(Opacity),
+          )
+          .first,
+    )
+    .opacity;
+
+/// `find.bySemanticsLabel` reads stale nodes of hidden widgets, so look at the
+/// live semantics tree instead.
+bool _navBarInSemantics(WidgetTester tester) => tester
+    .binding
+    .renderViews
+    .first
+    .owner!
+    .semanticsOwner!
+    .rootSemanticsNode!
+    .toStringDeep()
+    .contains('Tab 4 of 4');
+
+/// The bar is fully visible, in place, takes taps and is in semantics.
+void _expectNavBarShown(WidgetTester tester) {
+  expect(_navBarOpacity(tester), 1, reason: 'visible');
+  expect(_navBarInSemantics(tester), isTrue, reason: 'in semantics');
+  final bar = find.byType(NavigationBar);
+  expect(
+    tester
+        .hitTestOnBinding(tester.getCenter(bar))
+        .path
+        .map((entry) => entry.target),
+    contains(tester.renderObject(bar)),
+    reason: 'hit-testable',
+  );
+  expect(
+    find.ancestor(
+      of: bar,
+      matching: find.byWidgetPredicate(
+        (widget) => widget is IgnorePointer && widget.ignoring,
+      ),
+    ),
+    findsNothing,
+  );
+}
+
 List<Override> _authenticatedShellOverrides({
   PlaybackSnapshot playback = _activePlayback,
   ValueNotifier<PlaybackSnapshot>? playing,
@@ -2582,28 +2642,9 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    double navBarOpacity() => tester
-        .widget<AnimatedOpacity>(
-          find
-              .ancestor(
-                of: find.byType(NavigationBar),
-                matching: find.byType(AnimatedOpacity),
-              )
-              .first,
-        )
-        .opacity;
+    double navBarOpacity() => _navBarOpacity(tester);
     final navBarSize = tester.getSize(find.byType(NavigationBar));
-    // `find.bySemanticsLabel` reads stale nodes of hidden widgets, so look at
-    // the live semantics tree instead.
-    bool navBarInSemantics() => tester
-        .binding
-        .renderViews
-        .first
-        .owner!
-        .semanticsOwner!
-        .rootSemanticsNode!
-        .toStringDeep()
-        .contains('Tab 4 of 4');
+    bool navBarInSemantics() => _navBarInSemantics(tester);
     expect(navBarOpacity(), 1);
     expect(navBarInSemantics(), isTrue);
 
@@ -2640,8 +2681,182 @@ void main() {
     semantics.dispose();
   });
 
+  group('every way of closing Now Playing brings the nav bar back', () {
+    // Every scenario opens Now Playing from the mini player and ends with the
+    // nav bar shown, hit-testable and in semantics. Frames run at 60 Hz: the
+    // 100 ms steps of `pumpAndSettle` skip the tiny last steps of a spring
+    // settle that a real device renders.
+    void scenario(
+      String name,
+      Future<void> Function(WidgetTester tester, ProviderContainer container)
+      body, {
+      bool reduceMotion = false,
+    }) {
+      testWidgets(name, (tester) async {
+        final semantics = tester.ensureSemantics();
+        tester.view.devicePixelRatio = 1;
+        tester.view.physicalSize = const Size(390, 844);
+        addTearDown(() {
+          tester.view.resetPhysicalSize();
+          tester.view.resetDevicePixelRatio();
+        });
+        if (reduceMotion) {
+          tester.platformDispatcher.accessibilityFeaturesTestValue =
+              const FakeAccessibilityFeatures(disableAnimations: true);
+          addTearDown(
+            tester.platformDispatcher.clearAccessibilityFeaturesTestValue,
+          );
+        }
+        final container = _createContainerWithDatabase(
+          overrides: _authenticatedShellOverrides(),
+        );
+        await tester.pumpWidget(
+          UncontrolledProviderScope(container: container, child: testNavisApp),
+        );
+        await tester.pumpAndSettle();
+        _expectNavBarShown(tester);
+
+        await tester.tapAt(_miniPlayerPoint(tester));
+        await _settleAtFrameRate(tester);
+        expect(container.read(playerSheetExpandedProvider), isTrue);
+        expect(_navBarOpacity(tester), 0);
+        expect(_navBarInSemantics(tester), isFalse);
+
+        await body(tester, container);
+        semantics.dispose();
+      });
+    }
+
+    scenario('Back', (tester, container) async {
+      await tester.binding.handlePopRoute();
+      await _settleAtFrameRate(tester);
+
+      expect(container.read(playerSheetExpandedProvider), isFalse);
+      _expectNavBarShown(tester);
+    });
+
+    scenario('system predictive back', (tester, container) async {
+      // Android sends start, progress and commit over this channel; with no
+      // route to pop under the shell, the binding turns the commit into a
+      // normal back.
+      Future<void> send(String method, [Object? arguments]) async {
+        await tester.binding.defaultBinaryMessenger.handlePlatformMessage(
+          'flutter/backgesture',
+          const StandardMethodCodec().encodeMethodCall(
+            MethodCall(method, arguments),
+          ),
+          (_) {},
+        );
+      }
+
+      const event = <String, Object?>{
+        'touchOffset': <double>[2, 400],
+        'progress': 0.0,
+        'swipeEdge': 0,
+      };
+      await send('startBackGesture', event);
+      await send('updateBackGestureProgress', {...event, 'progress': 0.5});
+      await send('commitBackGesture');
+      await _settleAtFrameRate(tester);
+
+      expect(container.read(playerSheetExpandedProvider), isFalse);
+      _expectNavBarShown(tester);
+    });
+
+    scenario('slow swipe down', (tester, container) async {
+      final gesture = await tester.startGesture(const Offset(195, 300));
+      for (var i = 0; i < 20; i++) {
+        await gesture.moveBy(const Offset(0, 25));
+        await tester.pump(const Duration(milliseconds: 100));
+      }
+      await gesture.up();
+      await _settleAtFrameRate(tester);
+
+      expect(container.read(playerSheetExpandedProvider), isFalse);
+      _expectNavBarShown(tester);
+    });
+
+    scenario('fling down', (tester, container) async {
+      await tester.flingFrom(
+        const Offset(195, 300),
+        const Offset(0, 500),
+        2500,
+      );
+      await _settleAtFrameRate(tester);
+
+      expect(container.read(playerSheetExpandedProvider), isFalse);
+      _expectNavBarShown(tester);
+    });
+
+    scenario('programmatic collapse from elsewhere', (tester, container) async {
+      container.read(playerOverlayStackProvider.notifier).collapse();
+      await _settleAtFrameRate(tester);
+
+      expect(container.read(playerSheetExpandedProvider), isFalse);
+      _expectNavBarShown(tester);
+    });
+
+    scenario('reduced motion', reduceMotion: true, (tester, container) async {
+      await tester.binding.handlePopRoute();
+      await _settleAtFrameRate(tester);
+
+      expect(container.read(playerSheetExpandedProvider), isFalse);
+      _expectNavBarShown(tester);
+    });
+
+    scenario('re-opening right after a close, then closing again', (
+      tester,
+      container,
+    ) async {
+      final overlay = container.read(playerOverlayStackProvider.notifier);
+
+      await tester.binding.handlePopRoute();
+      await tester.pump(const Duration(milliseconds: 16));
+      await tester.pump(const Duration(milliseconds: 100));
+      expect(container.read(playerSheetExpandedProvider), isFalse);
+      overlay.expand();
+      await _settleAtFrameRate(tester);
+      expect(container.read(playerSheetExpandedProvider), isTrue);
+      expect(_navBarOpacity(tester), 0, reason: 'covered again');
+      expect(_navBarInSemantics(tester), isFalse);
+
+      await tester.binding.handlePopRoute();
+      await _settleAtFrameRate(tester);
+
+      expect(container.read(playerSheetExpandedProvider), isFalse);
+      _expectNavBarShown(tester);
+    });
+
+    scenario('the bar slides up from below over the tail of a collapse', (
+      tester,
+      container,
+    ) async {
+      final bar = find.byType(NavigationBar);
+      const shownTop = 844.0 - 80;
+      expect(tester.getTopLeft(bar).dy, shownTop + 80, reason: 'slid away');
+
+      container.read(playerOverlayStackProvider.notifier).collapse();
+      final midSlide = <double>[];
+      for (var i = 0; i < 60; i++) {
+        await tester.pump(const Duration(milliseconds: 16));
+        final top = tester.getTopLeft(bar).dy;
+        if (top < shownTop + 80 && top > shownTop) {
+          midSlide.add(_navBarOpacity(tester));
+        }
+      }
+      expect(midSlide, isNotEmpty, reason: 'it is not a cut');
+      expect(
+        midSlide.every((o) => o > 0 && o < 1),
+        isTrue,
+        reason: '$midSlide',
+      );
+      _expectNavBarShown(tester);
+      expect(tester.getTopLeft(bar).dy, shownTop);
+    });
+  });
+
   testWidgets('mid-drag the player panel covers the nav bar: taps there reach '
-      'the panel and the bar is not painted over it', (tester) async {
+      'the panel and the bar fades away', (tester) async {
     tester.view.devicePixelRatio = 1;
     tester.view.physicalSize = const Size(390, 844);
     addTearDown(() {
@@ -2658,21 +2873,13 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    double navBarOpacity() => tester
-        .widget<AnimatedOpacity>(
-          find
-              .ancestor(
-                of: find.byType(NavigationBar),
-                matching: find.byType(AnimatedOpacity),
-              )
-              .first,
-        )
-        .opacity;
+    double navBarOpacity() => _navBarOpacity(tester);
     final navBar = tester.renderObject(find.byType(NavigationBar));
     final navBarCenter = tester.getCenter(find.byType(NavigationBar));
     final miniPlayer = Offset(195, navBarCenter.dy - 80 / 2 - 32);
 
     final gesture = await tester.startGesture(miniPlayer);
+    var previous = 1.0;
     for (final dy in [-40.0, -40.0, -40.0]) {
       await gesture.moveBy(Offset(0, dy));
       await tester.pump(const Duration(milliseconds: 16));
@@ -2687,10 +2894,12 @@ void main() {
         reason: 'the panel takes the tap',
       );
 
-      // The panel is above the bar for the whole drag, so the bar never shows
-      // over it, however little the panel has moved.
-      expect(navBarOpacity(), 0);
+      // The bar slides down and fades with the first 15% of the drag, and is
+      // gone once the panel has covered it for good.
+      expect(navBarOpacity(), lessThan(previous));
+      previous = navBarOpacity();
     }
+    expect(navBarOpacity(), 0);
     await gesture.up();
     await tester.pumpAndSettle();
   });

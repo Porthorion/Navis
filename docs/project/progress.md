@@ -14,6 +14,18 @@ Last updated: 2026-10-17
 - ACP status values: `backlog`, `ready`, `in_progress`, `blocked`, `done`.
 
 ## Current Focus
+- [x] Issue #12 nav bar stuck after Back, soft ends — 2026-10-17
+  (`perf/now-playing-drag`): after tap-open then Back the bottom nav bar stayed
+  hidden. Cause: the shell's progress dedupe (`app_shell.dart`,
+  `onProgressChanged`) dropped the last settle step (0.00085 to 0, under its
+  0.001 threshold), so the bar's reveal stayed above 0; only a fast swipe skipped
+  it. The dedupe now always takes 0 and 1. Owner design: the mini player rides
+  the panel's top edge and fades over the first 15% of the travel (and back in as
+  the panel lands), the nav bar slides down and fades over the same range;
+  `_miniTranslateY` was removed (the layout delegate positions the mini player).
+  Tests cover every dismiss path (Back, predictive back, slow swipe, fling,
+  programmatic collapse, reduced motion, quick re-open) and a mid-settle tap
+  above the panel edge.
 - [x] Issue #12 Now Playing on top of the nav bar, review fixes — 2026-10-17
   (`perf/now-playing-drag`): owner design change. The panel is painted above
   the mini player and, from its first pixel of travel, covers the bottom nav

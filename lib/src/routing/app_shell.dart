@@ -2015,10 +2015,17 @@ class _AppShellState extends ConsumerState<AppShell> {
                                             NavService.dismissKeyboard(context),
                                         onProgressChanged: (value) {
                                           final clamped = value.clamp(0.0, 1.0);
+                                          // Skip sub-pixel steps, but always
+                                          // take the end values: a settle ends
+                                          // within 0.001 of 0, and dropping
+                                          // that last step left the nav bar
+                                          // hidden after the sheet closed.
                                           if ((_playerSheetProgress.value -
-                                                      clamped)
-                                                  .abs() >
-                                              0.001) {
+                                                          clamped)
+                                                      .abs() >
+                                                  0.001 ||
+                                              clamped == 0 ||
+                                              clamped == 1) {
                                             _playerSheetProgress.value =
                                                 clamped;
                                           }

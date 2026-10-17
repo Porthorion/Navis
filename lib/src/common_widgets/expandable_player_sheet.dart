@@ -11,10 +11,13 @@ import 'package:navis/src/theme/motion_policy.dart';
 /// while collapsed. Dragging the [miniPlayer] up moves the panel from the mini
 /// player's top edge to the top of the sheet, one pixel per pixel of finger
 /// travel. The panel is an opaque, repaint-isolated layer that only changes
-/// position (no page layout, no opacity layer). It is painted above the mini
-/// player (which still fades out over the first half of the gesture) and
-/// above the page, so from its first pixel of travel it covers the mini player
-/// and whatever sits below its top edge, such as a bottom navigation bar.
+/// position (no page layout, no opacity layer). It is painted above the page,
+/// so from its first pixel of travel it covers whatever sits below its top
+/// edge, such as a bottom navigation bar.
+///
+/// The ends are soft: over the first [edgeFade] of the travel the mini player
+/// rides on top of the panel's top edge and fades out, and when collapsing it
+/// fades back in on the edge as the panel lands, so nothing pops in one frame.
 ///
 /// [onExpand] and [onCollapse] report a user gesture at drag release, while
 /// the settle animation is still running, so a back press during the settle
@@ -53,6 +56,10 @@ class ExpandablePlayerSheet extends StatefulWidget {
   final double bottomInset;
 
   static const miniPlayerHeight = 64.0;
+
+  /// Share of the travel over which the mini player rides the panel edge and
+  /// fades. The shell eases the bottom navigation bar over the same range.
+  static const double edgeFade = 0.15;
 
   /// Velocity threshold (px / s) for a fling gesture.
   static const double _flingThreshold = 300;
@@ -158,17 +165,10 @@ class _ExpandablePlayerSheetState extends State<ExpandablePlayerSheet>
   /// 0 = collapsed (mini player visible), 1 = expanded (full player visible).
   double get _progress => _controller.value;
 
-  /// Mini player fades out over the first half of the expansion.
-  double get _miniOpacity {
-    final t = 1 - (_progress / 0.5).clamp(0.0, 1.0);
-    return Curves.easeOutCubic.transform(t);
-  }
-
-  /// Mini player comes back with a subtle downward settle from above.
-  double get _miniTranslateY {
-    final t = (_progress / 0.45).clamp(0.0, 1.0);
-    return -10 * Curves.easeOut.transform(t);
-  }
+  /// Mini player fades out over the first [ExpandablePlayerSheet.edgeFade] of
+  /// the travel, riding the panel edge (see [_SheetLayout]).
+  double get _miniOpacity =>
+      1 - (_progress / ExpandablePlayerSheet.edgeFade).clamp(0.0, 1.0);
 
   // -- Gesture handling -----------------------------------------------------
 
@@ -298,34 +298,8 @@ class _ExpandablePlayerSheetState extends State<ExpandablePlayerSheet>
           geometry: _geometry,
         ),
         children: <Widget>[
-          // ── Mini player (fades out, anchored above the bottom inset) ──
-          // Below the panel, which covers it from its first pixel of travel.
-          // Only reachable while progress < 0.5 (collapsed or collapsing).
-          // It is scoped to the mini player strip so it cannot intercept
-          // scrolls on content pages above.
-          LayoutId(
-            id: _SheetSlot.mini,
-            child: AnimatedBuilder(
-              animation: _controller,
-              child: RepaintBoundary(child: widget.miniPlayer),
-              builder: (context, mini) => IgnorePointer(
-                ignoring: _progress >= 0.5,
-                child: _dragSurface(
-                  behavior: HitTestBehavior.translucent,
-                  child: Opacity(
-                    opacity: _miniOpacity,
-                    child: Transform.translate(
-                      offset: Offset(0, _miniTranslateY),
-                      child: mini,
-                    ),
-                  ),
-                ),
-              ),
-            ),
-          ),
           // ── Full player (rises from the mini player's top edge) ───────
-          // Painted above the mini player: it covers the mini player and the
-          // page below its top edge, and takes their hits. It stays mounted
+          // Covers the page below its top edge and takes its hits. It stays mounted
           // (so opening it is instant) but hidden while collapsed, and a
           // disabled TickerMode stops its animations and pauses its provider
           // listeners, such as the 5-10 Hz position stream.
@@ -346,6 +320,25 @@ class _ExpandablePlayerSheetState extends State<ExpandablePlayerSheet>
               },
             ),
           ),
+          // ── Mini player (rides the panel edge, fades out) ─────────────
+          // Painted above the panel, positioned on its top edge by
+          // [_SheetLayout]. Only reachable while it is visible, so it cannot
+          // intercept scrolls on content pages above, and the panel takes the
+          // touches once it has faded.
+          LayoutId(
+            id: _SheetSlot.mini,
+            child: AnimatedBuilder(
+              animation: _controller,
+              child: RepaintBoundary(child: widget.miniPlayer),
+              builder: (context, mini) => IgnorePointer(
+                ignoring: _progress >= ExpandablePlayerSheet.edgeFade,
+                child: _dragSurface(
+                  behavior: HitTestBehavior.translucent,
+                  child: Opacity(opacity: _miniOpacity, child: mini),
+                ),
+              ),
+            ),
+          ),
         ],
       ),
     );
@@ -362,7 +355,8 @@ class _SheetGeometry {
 }
 
 /// Places the mini player above [bottomInset] and slides the full player from
-/// the mini player's top edge to the sheet's top. Relayouts on every
+/// the mini player's top edge to the sheet's top, with the mini player riding
+/// on the panel's top edge. Relayouts on every
 /// animation tick, but only repositions the panel: its constraints never
 /// change, so nothing inside the panel or the page behind the sheet is laid
 /// out again.
@@ -391,11 +385,12 @@ class _SheetLayout extends MultiChildLayoutDelegate {
       0,
       size.height - bottomInset - mini.height,
     );
-    positionChild(_SheetSlot.mini, Offset(0, miniTop));
 
     layoutChild(_SheetSlot.panel, BoxConstraints.tight(size));
     geometry.collapsedTop = miniTop;
-    positionChild(_SheetSlot.panel, Offset(0, miniTop * (1 - progress.value)));
+    final edge = Offset(0, miniTop * (1 - progress.value));
+    positionChild(_SheetSlot.panel, edge);
+    positionChild(_SheetSlot.mini, edge);
   }
 
   @override

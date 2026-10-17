@@ -130,12 +130,16 @@ class _BatteryOptimizationSheet extends StatelessWidget {
 /// Hides the bottom navigation bar while the player panel is up.
 ///
 /// The scaffold paints the bar above the body, where the sheet lives, but the
-/// panel covers the bar's whole strip from the first pixel of its travel
-/// (it is as wide as the screen and reaches the bottom edge). So the bar is
-/// simply not painted and not hit-testable (the panel takes the taps) while
-/// the sheet is anywhere above collapsed, and fades back in once it is
-/// collapsed. Its semantics are excluded too, so screen readers cannot
-/// reach it under the panel.
+/// panel covers the bar's whole strip from the first pixel of its travel (it
+/// is as wide as the screen and reaches the bottom edge). So while the sheet
+/// is anywhere above collapsed the bar is not hit-testable (the panel takes
+/// the taps) and its semantics are excluded, so screen readers cannot reach
+/// it under the panel.
+///
+/// Visually the bar follows the sheet's soft ends: over the first
+/// [ExpandablePlayerSheet.edgeFade] of the travel it slides down out of sight
+/// and fades, and it slides back up the same way as the panel lands, instead
+/// of cutting in after the collapse.
 ///
 /// Only paint and composite change: the bar keeps its layout size, so the page
 /// behind it is not laid out again while the sheet animates.
@@ -161,18 +165,19 @@ class _BottomNavReveal extends StatelessWidget {
       child: RepaintBoundary(child: child),
       builder: (context, value, bar) {
         final covered = enabled && value > 0;
+        final hidden = enabled
+            ? (value / ExpandablePlayerSheet.edgeFade).clamp(0.0, 1.0)
+            : 0.0;
         return IgnorePointer(
           ignoring: covered,
           child: ExcludeSemantics(
             excluding: covered,
-            child: AnimatedOpacity(
-              opacity: covered ? 0 : 1,
-              // Vanish at once so the bar is never painted over the panel;
-              // ease back in when the sheet has finished collapsing.
-              duration: covered
-                  ? Duration.zero
-                  : const Duration(milliseconds: 150),
-              child: bar,
+            child: Opacity(
+              opacity: 1 - hidden,
+              child: FractionalTranslation(
+                translation: Offset(0, hidden),
+                child: bar,
+              ),
             ),
           ),
         );
