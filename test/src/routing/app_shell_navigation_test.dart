@@ -3986,10 +3986,14 @@ void main() {
     });
 
     final container = _createContainerWithDatabase(
-      overrides: _authenticatedShellOverrides(
-        reachability: ServerReachabilityStatus.offline,
-        desktopRuntime: true,
-      ),
+      overrides: [
+        ..._authenticatedShellOverrides(
+          reachability: ServerReachabilityStatus.offline,
+          desktopRuntime: true,
+        ),
+        // Search also lists radio stations; give it an empty server list.
+        radioStationsProvider.overrideWith((ref) async => []),
+      ],
     );
 
     await tester.pumpWidget(

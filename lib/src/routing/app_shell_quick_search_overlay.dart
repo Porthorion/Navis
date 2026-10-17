@@ -27,9 +27,7 @@ class _DesktopQuickSearchOverlayState
     extends State<_DesktopQuickSearchOverlay> {
   static const List<SearchResultType?> _filterValues = [
     null,
-    SearchResultType.artists,
-    SearchResultType.albums,
-    SearchResultType.songs,
+    ...SearchResultType.values,
   ];
 
   int _selectedIndex = 0;

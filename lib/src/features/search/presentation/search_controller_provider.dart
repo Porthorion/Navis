@@ -10,6 +10,7 @@ import 'package:navis/src/api/models/models.dart';
 import 'package:navis/src/database/navis_database.dart';
 import 'package:navis/src/features/auth/domain/server_reachability.dart';
 import 'package:navis/src/features/auth/presentation/server_reachability_provider.dart';
+import 'package:navis/src/features/playlists/presentation/playlist_providers.dart';
 import 'package:navis/src/features/search/domain/search_result_ranker.dart';
 import 'package:navis/src/providers/app_providers.dart';
 import 'package:navis/src/utils/sync_diagnostics_overrides.dart';
@@ -124,11 +125,13 @@ final debouncedSearchProvider = StreamProvider.autoDispose<SearchResultsState?>(
       filter,
     );
 
-    if (isOffline) {
+    if (isOffline || filter?.isCollection == true) {
+      // Playlists and radio are matched in memory by
+      // [searchCollectionMatchesProvider]; nothing to ask the server.
       yield SearchResultsState(
         result: localResult,
         isWaitingForApi: false,
-        isLocalOnly: true,
+        isLocalOnly: isOffline,
         remoteSearchFailed: false,
       );
       return;
@@ -221,6 +224,9 @@ SearchResult3 _filterResultByType(
       return SearchResult3(albums: result.albums);
     case SearchResultType.songs:
       return SearchResult3(songs: result.songs);
+    case SearchResultType.playlists:
+    case SearchResultType.radio:
+      return const SearchResult3();
   }
 }
 
@@ -291,4 +297,80 @@ Future<SearchResult3> _searchLocal(
   );
 }
 
-enum SearchResultType { artists, albums, songs }
+enum SearchResultType {
+  artists,
+  albums,
+  songs,
+  playlists,
+  radio;
+
+  /// Playlists and radio stations are matched in memory, not by `search3`.
+  bool get isCollection => this == playlists || this == radio;
+}
+
+/// Saved playlists and radio stations matching the current search query.
+@immutable
+class SearchCollectionMatches {
+  const new({
+    this.playlists = const <PlaylistsTableData>[],
+    this.stations = const <InternetRadioStation>[],
+  });
+
+  final List<PlaylistsTableData> playlists;
+  final List<InternetRadioStation> stations;
+
+  bool get isEmpty => playlists.isEmpty && stations.isEmpty;
+}
+
+/// Playlists (device and server, from the Drift cache) and radio stations
+/// (device first, then server) whose name matches the query, best match first.
+///
+/// Matching and ranking reuse [searchRelevanceTier]. Sources are read with
+/// `.asData?.value`, so a loading, failed or offline server list never throws:
+/// device playlists and device stations always stay searchable.
+final searchCollectionMatchesProvider =
+    Provider.autoDispose<SearchCollectionMatches>((ref) {
+      final query = ref.watch(searchQueryProvider).trim();
+      final filter = ref.watch(searchFilterProvider);
+      if (query.isEmpty) {
+        return const SearchCollectionMatches();
+      }
+      final wantPlaylists =
+          filter == null || filter == SearchResultType.playlists;
+      final wantStations = filter == null || filter == SearchResultType.radio;
+      return SearchCollectionMatches(
+        playlists: wantPlaylists
+            ? _matchByName(
+                ref.watch(playlistListProvider).asData?.value ??
+                    const <PlaylistsTableData>[],
+                (p) => p.name,
+                query,
+              )
+            : const <PlaylistsTableData>[],
+        stations: wantStations
+            ? _matchByName(
+                <InternetRadioStation>[
+                  ...?ref.watch(localRadioStationsProvider).asData?.value,
+                  ...?ref.watch(radioStationsProvider).asData?.value,
+                ],
+                (s) => s.name,
+                query,
+              )
+            : const <InternetRadioStation>[],
+      );
+    });
+
+List<T> _matchByName<T>(List<T> items, String Function(T) name, String query) {
+  final tiers = <SearchRelevanceTier>[
+    for (final item in items) searchRelevanceTier(name(item), query),
+  ];
+  final order =
+      <int>[
+        for (var i = 0; i < items.length; i++)
+          if (tiers[i] != SearchRelevanceTier.other) i,
+      ]..sort((a, b) {
+        final byTier = tiers[a].index.compareTo(tiers[b].index);
+        return byTier != 0 ? byTier : a.compareTo(b);
+      });
+  return <T>[for (final i in order) items[i]];
+}

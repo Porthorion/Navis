@@ -9,6 +9,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:navis/l10n/app_localizations.dart';
 import 'package:navis/src/api/models/models.dart';
 import 'package:navis/src/common_widgets/cover_art_image.dart';
+import 'package:navis/src/database/navis_database.dart' show PlaylistsTableData;
 import 'package:navis/src/common_widgets/desktop_song_actions.dart';
 import 'package:navis/src/common_widgets/hero_cover_art.dart';
 import 'package:navis/src/common_widgets/desktop/desktop_context_menu.dart';
@@ -20,6 +21,7 @@ import 'package:navis/src/common_widgets/remote_source_indicator.dart';
 import 'package:navis/src/common_widgets/shimmer_placeholder.dart';
 import 'package:navis/src/common_widgets/song_playback_indicator.dart';
 import 'package:navis/src/features/player/presentation/queue_provider.dart';
+import 'package:navis/src/features/player/presentation/radio_playback.dart';
 import 'package:navis/src/features/playlists/presentation/add_to_playlist_sheet.dart';
 import 'package:navis/src/features/player/presentation/player_sheet_provider.dart';
 import 'package:navis/src/features/player/presentation/smart_queue_sheet.dart';
@@ -396,6 +398,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
     final results = ref.watch(debouncedSearchProvider);
     final query = ref.watch(searchQueryProvider).trim();
     final filter = ref.watch(searchFilterProvider);
+    final collections = ref.watch(searchCollectionMatchesProvider);
     final l10n = AppLocalizations.of(context)!;
 
     // When a category filter is active, auto-expand that section.
@@ -411,7 +414,8 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
         final hasResults =
             data.artists.isNotEmpty ||
             data.albums.isNotEmpty ||
-            data.songs.isNotEmpty;
+            data.songs.isNotEmpty ||
+            !collections.isEmpty;
         if (!hasResults && state.isWaitingForApi) {
           return const ShimmerListPage(count: 8);
         }
@@ -482,6 +486,32 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
                               .select(SearchResultType.songs);
                         }
                       },
+                    ),
+                  if (collections.playlists.isNotEmpty)
+                    _PlaylistResultsSection(
+                      playlists: collections.playlists,
+                      desktopMode: desktopMode,
+                      expanded: isExpanded(SearchResultType.playlists),
+                      onToggleExpanded: () => ref
+                          .read(searchFilterProvider.notifier)
+                          .select(
+                            filter == SearchResultType.playlists
+                                ? null
+                                : SearchResultType.playlists,
+                          ),
+                    ),
+                  if (collections.stations.isNotEmpty)
+                    _RadioResultsSection(
+                      stations: collections.stations,
+                      desktopMode: desktopMode,
+                      expanded: isExpanded(SearchResultType.radio),
+                      onToggleExpanded: () => ref
+                          .read(searchFilterProvider.notifier)
+                          .select(
+                            filter == SearchResultType.radio
+                                ? null
+                                : SearchResultType.radio,
+                          ),
                     ),
                 ],
               ),
@@ -619,6 +649,18 @@ class _SearchFilterChips extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final l10n = AppLocalizations.of(context)!;
     final selected = ref.watch(searchFilterProvider);
+    final collections = ref.watch(searchCollectionMatchesProvider);
+
+    Widget chip(String label, SearchResultType? type) => Padding(
+      padding: const EdgeInsetsDirectional.only(end: 8),
+      child: ChoiceChip(
+        label: Text(label),
+        selected: selected == type,
+        onSelected: (_) => ref
+            .read(searchFilterProvider.notifier)
+            .select(selected == type ? null : type),
+      ),
+    );
 
     return Padding(
       padding: EdgeInsets.symmetric(
@@ -629,54 +671,17 @@ class _SearchFilterChips extends ConsumerWidget {
         scrollDirection: Axis.horizontal,
         child: Row(
           children: <Widget>[
-            Padding(
-              padding: const EdgeInsets.only(right: 8),
-              child: ChoiceChip(
-                label: Text(l10n.searchFilterAll),
-                selected: selected == null,
-                onSelected: (_) =>
-                    ref.read(searchFilterProvider.notifier).select(null),
-              ),
-            ),
-            Padding(
-              padding: const EdgeInsets.only(right: 8),
-              child: ChoiceChip(
-                label: Text(l10n.searchArtistsSection),
-                selected: selected == SearchResultType.artists,
-                onSelected: (_) => ref
-                    .read(searchFilterProvider.notifier)
-                    .select(
-                      selected == SearchResultType.artists
-                          ? null
-                          : SearchResultType.artists,
-                    ),
-              ),
-            ),
-            Padding(
-              padding: const EdgeInsets.only(right: 8),
-              child: ChoiceChip(
-                label: Text(l10n.searchAlbumsSection),
-                selected: selected == SearchResultType.albums,
-                onSelected: (_) => ref
-                    .read(searchFilterProvider.notifier)
-                    .select(
-                      selected == SearchResultType.albums
-                          ? null
-                          : SearchResultType.albums,
-                    ),
-              ),
-            ),
-            ChoiceChip(
-              label: Text(l10n.searchSongsSection),
-              selected: selected == SearchResultType.songs,
-              onSelected: (_) => ref
-                  .read(searchFilterProvider.notifier)
-                  .select(
-                    selected == SearchResultType.songs
-                        ? null
-                        : SearchResultType.songs,
-                  ),
-            ),
+            chip(l10n.searchFilterAll, null),
+            chip(l10n.searchArtistsSection, SearchResultType.artists),
+            chip(l10n.searchAlbumsSection, SearchResultType.albums),
+            chip(l10n.searchSongsSection, SearchResultType.songs),
+            // Playlists and radio appear only while the query matches them.
+            if (selected == SearchResultType.playlists ||
+                collections.playlists.isNotEmpty)
+              chip(l10n.searchPlaylistsSection, SearchResultType.playlists),
+            if (selected == SearchResultType.radio ||
+                collections.stations.isNotEmpty)
+              chip(l10n.searchRadioSection, SearchResultType.radio),
           ],
         ),
       ),
@@ -859,6 +864,158 @@ class _ArtistResultsSection extends ConsumerWidget {
                 },
               ),
             ),
+          );
+        }),
+      ],
+    );
+  }
+}
+
+/// A playlist or radio-station result row, styled like the other sections.
+Widget _collectionRow({
+  required bool desktopMode,
+  required Key key,
+  required Widget leading,
+  required String title,
+  required VoidCallback onTap,
+  String? subtitle,
+  Widget? trailing,
+}) => desktopMode
+    ? DesktopListRow(
+        key: key,
+        leading: leading,
+        title: title,
+        subtitle: subtitle,
+        trailing: trailing,
+        onTap: onTap,
+      )
+    : ListTile(
+        key: key,
+        leading: leading,
+        title: Text(title),
+        subtitle: subtitle == null ? null : Text(subtitle),
+        trailing: trailing,
+        onTap: onTap,
+      );
+
+class _PlaylistResultsSection extends ConsumerWidget {
+  const new({
+    required this.playlists,
+    required this.expanded,
+    required this.onToggleExpanded,
+    this.desktopMode = false,
+  });
+
+  final List<PlaylistsTableData> playlists;
+  final bool expanded;
+  final bool desktopMode;
+  final VoidCallback onToggleExpanded;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final l10n = AppLocalizations.of(context)!;
+    final visible = expanded ? playlists : playlists.take(5).toList();
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: <Widget>[
+        NavisSectionHeader(
+          title: l10n.searchPlaylistsSection,
+          compact: true,
+          padding: const EdgeInsetsDirectional.fromSTEB(16, 16, 8, 4),
+          onSeeAll: playlists.length > 5 ? onToggleExpanded : null,
+          seeAllLabel: expanded ? l10n.searchShowLess : l10n.searchShowAll,
+        ),
+        ...visible.map(
+          (playlist) => _collectionRow(
+            desktopMode: desktopMode,
+            key: ValueKey<String>('searchPlaylist-${playlist.id}'),
+            leading: SizedBox(
+              width: 40,
+              height: 40,
+              child: CoverArtImage(
+                coverArtId: playlist.coverArt,
+                size: 80,
+                width: 40,
+                height: 40,
+                shape: ArtworkShapeRole.cover,
+                semanticLabel: playlist.name,
+              ),
+            ),
+            title: playlist.name,
+            subtitle: playlist.isLocal
+                ? l10n.playlistDetailMeta(
+                    l10n.playlistsOnDevice,
+                    playlist.songCount ?? 0,
+                  )
+                : playlist.songCount == null
+                ? null
+                : l10n.playlistsSongCount(playlist.songCount!),
+            onTap: () =>
+                NavService.openPlaylistDetail(context, ref, playlist.id),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _RadioResultsSection extends ConsumerWidget {
+  const new({
+    required this.stations,
+    required this.expanded,
+    required this.onToggleExpanded,
+    this.desktopMode = false,
+  });
+
+  final List<InternetRadioStation> stations;
+  final bool expanded;
+  final bool desktopMode;
+  final VoidCallback onToggleExpanded;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final l10n = AppLocalizations.of(context)!;
+    final colors = Theme.of(context).colorScheme;
+    final activeStationId = ref.watch(currentRadioStationIdProvider);
+    final visible = expanded ? stations : stations.take(5).toList();
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: <Widget>[
+        NavisSectionHeader(
+          title: l10n.searchRadioSection,
+          compact: true,
+          padding: const EdgeInsetsDirectional.fromSTEB(16, 16, 8, 4),
+          onSeeAll: stations.length > 5 ? onToggleExpanded : null,
+          seeAllLabel: expanded ? l10n.searchShowLess : l10n.searchShowAll,
+        ),
+        ...visible.map((station) {
+          final playing = activeStationId == station.id;
+          void toggle() =>
+              toggleRadioStation(context, ref, station, isPlaying: playing);
+          final host = Uri.tryParse(station.streamUrl)?.host ?? '';
+          return _collectionRow(
+            desktopMode: desktopMode,
+            key: ValueKey<String>('searchRadioStation-${station.id}'),
+            leading: SizedBox(
+              width: 40,
+              height: 40,
+              child: Icon(
+                playing ? Icons.radio : Icons.radio_outlined,
+                color: playing ? colors.primary : colors.onSurfaceVariant,
+              ),
+            ),
+            title: station.name,
+            subtitle: playing ? l10n.nowPlayingTitle : host,
+            trailing: IconButton(
+              tooltip: playing ? l10n.radioStopStation : l10n.nowPlayingPlay,
+              onPressed: toggle,
+              icon: Icon(
+                playing ? Icons.stop_circle_outlined : Icons.play_arrow_rounded,
+              ),
+            ),
+            onTap: toggle,
           );
         }),
       ],

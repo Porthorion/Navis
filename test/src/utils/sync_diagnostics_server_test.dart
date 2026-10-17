@@ -3715,6 +3715,42 @@ void main() {
     },
   );
 
+  test('presentation search accepts the playlists and radio filters', () async {
+    var location = '/';
+    final navigationDriver = _MockDiagnosticsNavigationDriver();
+    when(() => navigationDriver.location).thenAnswer((_) => location);
+    when(() => navigationDriver.go(any())).thenAnswer((invocation) {
+      location = invocation.positionalArguments.single as String;
+    });
+    final presentation = _MockPresentationController();
+    when(presentation.waitForFrame).thenAnswer((_) async {});
+    final fixture = await _startFixture(
+      SyncDiagnosticsMode.clone,
+      api: _SourceAuditApiClient(),
+      navigationDriver: navigationDriver,
+      presentationController: presentation,
+    );
+    addTearDown(fixture.close);
+
+    for (final name in <String>['playlists', 'radio']) {
+      final response = await fixture.post(
+        '/v1/presentation/search',
+        <String, Object?>{'query': 'mix', 'filter': name},
+      );
+      expect(response.statusCode, HttpStatus.ok, reason: name);
+      expect(response.body['filter'], name);
+      expect(response.body['playlists'], isA<List<Object?>>());
+      expect(response.body['radio'], isA<List<Object?>>());
+    }
+
+    final bad = await fixture.post(
+      '/v1/presentation/search',
+      const <String, Object?>{'query': 'mix', 'filter': 'genres'},
+    );
+    expect(bad.statusCode, HttpStatus.badRequest);
+    expect(bad.body['error'], contains('playlists, radio'));
+  });
+
   test('current diagnostics playback source is resumed, not replaced', () {
     const active = PlaybackSnapshot(
       queueSongIds: <String>['song-1'],
