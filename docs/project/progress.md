@@ -14,7 +14,7 @@ Last updated: 2026-10-17
 - ACP status values: `backlog`, `ready`, `in_progress`, `blocked`, `done`.
 
 ## Current Focus
-- [ ] Issue #41, update source choice — partial: 2026-10-17
+- [ ] Issue #41, update source choice — partial: 2026-10-17 (Part C UI added below)
   (`feat/update-source-github`): Parts A/B backend and release tooling complete.
   Persisted integration-source metadata requires no migration; a notifier setter
   resets cache/throttle before saving, and providers expose effective source,
@@ -32,6 +32,16 @@ Last updated: 2026-10-17
   remain). Shellcheck is not installed. Per handoff constraints, no app/device,
   real publication or `tool/check.sh` was run; orchestrator owns full validation,
   and Part C owns the selector, widget tests and 1.5.0 changelog entry.
+- [x] Issue #41 Part C, update source choice UI — 2026-10-17
+  (`feat/update-source-github`): Settings > Integrations > Update checks shows a
+  "Source" radio choice (Porthorion downloads, GitHub) in the entry's existing
+  credential slot, with helper text; the host line follows the effective
+  source, dev builds show it disabled with a note, and store-managed,
+  unsupported and loading states hide it. Disabled like the entry's feature
+  switches when Update checks or the master switch is off. No notice on change.
+  Widget tests written first (4 of 7 failed), then passed (`00:06 +195: All tests
+  passed!` for the integrations and changelog tests). The Integrations goldens
+  show only the top of the page, so they are unchanged.
 - [x] Issue #37, Radio search on touch layouts — 2026-10-17
   (`feat/radio-touch-search`): `RadioTabContent` is now stateful and shows a
   `ListFilterField` (`radioFilterHint`) on non-desktop layouts when stations

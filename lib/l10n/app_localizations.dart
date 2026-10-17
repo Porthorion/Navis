@@ -2658,6 +2658,36 @@ abstract class AppLocalizations {
   /// **'Sends an app version check to {host}.'**
   String integrationsUpdatesSends(String host);
 
+  /// No description provided for @integrationsUpdateSourceTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Source'**
+  String get integrationsUpdateSourceTitle;
+
+  /// No description provided for @integrationsUpdateSourcePorthorion.
+  ///
+  /// In en, this message translates to:
+  /// **'Porthorion downloads (downloads.porthorion.com)'**
+  String get integrationsUpdateSourcePorthorion;
+
+  /// No description provided for @integrationsUpdateSourceGithub.
+  ///
+  /// In en, this message translates to:
+  /// **'GitHub (github.com)'**
+  String get integrationsUpdateSourceGithub;
+
+  /// No description provided for @integrationsUpdateSourceHelper.
+  ///
+  /// In en, this message translates to:
+  /// **'GitHub can lag behind slightly. Updates are verified the same way.'**
+  String get integrationsUpdateSourceHelper;
+
+  /// No description provided for @integrationsUpdateSourceDevNote.
+  ///
+  /// In en, this message translates to:
+  /// **'Dev builds always update from downloads.porthorion.com.'**
+  String get integrationsUpdateSourceDevNote;
+
   /// AutoEQ network hosts disclosed to the user.
   ///
   /// In en, this message translates to:

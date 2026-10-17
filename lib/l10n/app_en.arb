@@ -728,6 +728,11 @@
       "host": { "type": "String" }
     }
   },
+  "integrationsUpdateSourceTitle": "Source",
+  "integrationsUpdateSourcePorthorion": "Porthorion downloads (downloads.porthorion.com)",
+  "integrationsUpdateSourceGithub": "GitHub (github.com)",
+  "integrationsUpdateSourceHelper": "GitHub can lag behind slightly. Updates are verified the same way.",
+  "integrationsUpdateSourceDevNote": "Dev builds always update from downloads.porthorion.com.",
   "integrationsAutoEqSends": "Downloads headphone profiles from {host}, only when you ask.",
   "@integrationsAutoEqSends": {
     "description": "AutoEQ network hosts disclosed to the user.",

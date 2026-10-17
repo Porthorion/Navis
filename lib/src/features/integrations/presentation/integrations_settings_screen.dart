@@ -9,6 +9,7 @@ import 'package:navis/src/common_widgets/app_notice.dart';
 import 'package:navis/src/common_widgets/navis_section_header.dart';
 import 'package:navis/src/features/auth/data/secure_credential_store.dart';
 import 'package:navis/src/features/integrations/domain/integration_feature.dart';
+import 'package:navis/src/features/integrations/domain/update_source.dart';
 import 'package:navis/src/features/integrations/presentation/integration_copy.dart';
 import 'package:navis/src/features/settings/data/settings_repository.dart';
 import 'package:navis/src/features/settings/domain/app_settings.dart';
@@ -213,7 +214,9 @@ class _IntegrationsSettingsScreenState
             (repository) =>
                 repository.setIntegrationEnabled(feature.key, enabled: enabled),
           ),
+          updateSource: ref.watch(effectiveUpdateSourceProvider),
           credential: switch (service) {
+            IntegrationService.updates => _buildUpdateSource(context, policy),
             IntegrationService.lastFm => _buildLastFmCredential(
               context,
               masterOn: policy.masterEnabled,
@@ -227,6 +230,69 @@ class _IntegrationsSettingsScreenState
           },
         ),
     ];
+  }
+
+  /// The update host choice, or null where it cannot apply: store-managed and
+  /// unsupported installs, and while the install is still being identified.
+  Widget? _buildUpdateSource(BuildContext context, IntegrationPolicy policy) {
+    final availability = ref
+        .watch(updateSourceAvailabilityProvider)
+        .asData
+        ?.value;
+    if (availability == null ||
+        availability == UpdateSourceAvailability.storeManaged ||
+        availability == UpdateSourceAvailability.unsupportedPlatform) {
+      return null;
+    }
+    final l10n = AppLocalizations.of(context)!;
+    final theme = Theme.of(context);
+    final dev = availability == UpdateSourceAvailability.devChannel;
+    final enabled =
+        !dev && policy.lockReason(IntegrationFeature.updatesAutomatic) == null;
+    final selected = ref.watch(effectiveUpdateSourceProvider);
+    Widget option(UpdateSource source, String label) =>
+        RadioListTile<UpdateSource>(
+          key: ValueKey<String>('integrations-update-source-${source.name}'),
+          contentPadding: EdgeInsets.zero,
+          value: source,
+          enabled: enabled,
+          title: Text(label),
+        );
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: <Widget>[
+        Text(
+          l10n.integrationsUpdateSourceTitle,
+          style: theme.textTheme.titleSmall,
+        ),
+        RadioGroup<UpdateSource>(
+          groupValue: selected,
+          onChanged: (source) {
+            if (source == null || source == selected) return;
+            _write(
+              (_) => ref.read(updateSourceProvider.notifier).setSource(source),
+            );
+          },
+          child: Column(
+            children: <Widget>[
+              option(
+                UpdateSource.porthorion,
+                l10n.integrationsUpdateSourcePorthorion,
+              ),
+              option(UpdateSource.github, l10n.integrationsUpdateSourceGithub),
+            ],
+          ),
+        ),
+        Text(
+          dev
+              ? l10n.integrationsUpdateSourceDevNote
+              : l10n.integrationsUpdateSourceHelper,
+          style: theme.textTheme.bodySmall?.copyWith(
+            color: theme.colorScheme.onSurfaceVariant,
+          ),
+        ),
+      ],
+    );
   }
 
   Widget _buildLastFmCredential(
@@ -566,6 +632,7 @@ class _ServiceSection extends StatelessWidget {
     required this.onServiceChanged,
     required this.onFeatureChanged,
     required this.topPadding,
+    this.updateSource = UpdateSource.porthorion,
     this.credential,
   });
 
@@ -573,6 +640,9 @@ class _ServiceSection extends StatelessWidget {
 
   /// Space above the section heading.
   final double topPadding;
+
+  /// The host the Update checks description names.
+  final UpdateSource updateSource;
   final IntegrationPolicy policy;
   final ValueChanged<bool> onServiceChanged;
   final void Function(IntegrationFeature feature, {required bool enabled})
@@ -621,7 +691,11 @@ class _ServiceSection extends StatelessWidget {
             ],
           ),
           Text(
-            integrationServiceDescription(service, l10n),
+            integrationServiceDescription(
+              service,
+              l10n,
+              updateSource: updateSource,
+            ),
             style: theme.textTheme.bodyMedium?.copyWith(
               color: theme.colorScheme.onSurfaceVariant,
             ),

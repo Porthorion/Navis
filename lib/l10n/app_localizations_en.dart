@@ -1723,6 +1723,24 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
+  String get integrationsUpdateSourceTitle => 'Source';
+
+  @override
+  String get integrationsUpdateSourcePorthorion =>
+      'Porthorion downloads (downloads.porthorion.com)';
+
+  @override
+  String get integrationsUpdateSourceGithub => 'GitHub (github.com)';
+
+  @override
+  String get integrationsUpdateSourceHelper =>
+      'GitHub can lag behind slightly. Updates are verified the same way.';
+
+  @override
+  String get integrationsUpdateSourceDevNote =>
+      'Dev builds always update from downloads.porthorion.com.';
+
+  @override
   String integrationsAutoEqSends(String host) {
     return 'Downloads headphone profiles from $host, only when you ask.';
   }

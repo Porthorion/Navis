@@ -166,6 +166,10 @@ const List<ChangelogVersion> changelogs = [
     ],
     entries: [
       ChangelogEntry(
+        'Settings > Integrations > Update checks lets you choose where stable builds look for updates, downloads.porthorion.com or GitHub; updates are verified the same way either way',
+        type: ChangelogEntryType.newFeature,
+      ),
+      ChangelogEntry(
         'A radio station that fails to start restores your previous queue paused, including large queues, and shows one notice instead of leaving an empty player with a Pause button',
         type: ChangelogEntryType.fix,
       ),

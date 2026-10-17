@@ -37,4 +37,10 @@ resolved track metadata so ListenBrainz events can flush after reconnect even
 if the library row changes. A rejected ListenBrainz token disables it until the
 user validates a new one.
 
+Update checks also offer a **Source** choice (Porthorion downloads, the
+default, or GitHub). The host named on the entry follows the choice, and
+switching raises no notice. Updates are verified the same way from either
+host. The choice is disabled with a note on dev builds, which always use
+downloads.porthorion.com, and hidden on Play Store and iOS installs.
+
 See also the [external integrations policy](../decisions/2026-10-04-external-integrations-policy.md).
