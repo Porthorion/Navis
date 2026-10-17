@@ -50,9 +50,11 @@ class _RadioTabContentState extends ConsumerState<RadioTabContent> {
   final TextEditingController _filterController = TextEditingController();
 
   /// The active filter: the typed Library query on desktop, else the field.
-  String get _query => widget.typeFilterQuery.isNotEmpty
-      ? widget.typeFilterQuery
-      : _filterController.text;
+  String get _query =>
+      (widget.typeFilterQuery.isNotEmpty
+              ? widget.typeFilterQuery
+              : _filterController.text)
+          .trim();
 
   @override
   void dispose() {
@@ -167,7 +169,7 @@ class _RadioTabContentState extends ConsumerState<RadioTabContent> {
 
     final showFilterField =
         !resolveAdaptiveContextFor(context).useDesktopShell &&
-        (local.isNotEmpty || (stationsAsync.asData?.value.isNotEmpty ?? false));
+        (local.isNotEmpty || (stationsAsync.value?.isNotEmpty ?? false));
     // A hidden field must not keep filtering stations that appear later.
     if (!showFilterField && _filterController.text.isNotEmpty) {
       WidgetsBinding.instance.addPostFrameCallback((_) {

@@ -539,6 +539,57 @@ void main() {
       );
     });
 
+    testWidgets('a whitespace-only query shows every station', (tester) async {
+      await pump(tester);
+      await tester.enterText(find.byType(TextField), '   ');
+      await tester.pumpAndSettle();
+      expect(find.text('Ambient Radio'), findsOneWidget);
+      expect(find.text('Basement FM'), findsOneWidget);
+      expect(find.textContaining('No Stations Match'), findsNothing);
+    });
+
+    testWidgets('the field and query survive a server refresh', (tester) async {
+      var loads = 0;
+      final refresh = Completer<List<InternetRadioStation>>();
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            radioStationsProvider.overrideWith(
+              (ref) async => ++loads == 1 ? const [_station] : refresh.future,
+            ),
+            localRadioStationsProvider.overrideWith(
+              (ref) => Stream.value(const <InternetRadioStation>[]),
+            ),
+            serverUserIsAdminProvider.overrideWith((ref) async => false),
+            currentRadioStationIdProvider.overrideWithValue(null),
+          ],
+          child: MaterialApp(
+            theme: testTheme(),
+            localizationsDelegates: navisLocalizationsDelegates,
+            supportedLocales: AppLocalizations.supportedLocales,
+            home: const Scaffold(body: RadioTabContent()),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      await tester.enterText(find.byType(TextField), 'amb');
+      await tester.pumpAndSettle();
+
+      ProviderScope.containerOf(tester.element(find.byType(RadioTabContent)))
+          .invalidate(radioStationsProvider);
+      await tester.pump();
+      await tester.pump();
+      expect(find.byType(TextField), findsOneWidget);
+      expect(
+        tester.widget<TextField>(find.byType(TextField)).controller?.text,
+        'amb',
+      );
+
+      refresh.complete(const [_station]);
+      await tester.pumpAndSettle();
+      expect(find.text('Ambient Radio'), findsOneWidget);
+    });
+
     testWidgets('desktop keeps type-to-filter and has no field', (
       tester,
     ) async {
