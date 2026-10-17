@@ -411,11 +411,18 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
           return const SizedBox.shrink();
         }
         final data = state.result;
+        final showPlaylists =
+            collections.playlists.isNotEmpty &&
+            (filter == null || filter == SearchResultType.playlists);
+        final showRadio =
+            collections.stations.isNotEmpty &&
+            (filter == null || filter == SearchResultType.radio);
         final hasResults =
             data.artists.isNotEmpty ||
             data.albums.isNotEmpty ||
             data.songs.isNotEmpty ||
-            !collections.isEmpty;
+            showPlaylists ||
+            showRadio;
         if (!hasResults && state.isWaitingForApi) {
           return const ShimmerListPage(count: 8);
         }
@@ -487,7 +494,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
                         }
                       },
                     ),
-                  if (collections.playlists.isNotEmpty)
+                  if (showPlaylists)
                     _PlaylistResultsSection(
                       playlists: collections.playlists,
                       desktopMode: desktopMode,
@@ -500,7 +507,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
                                 : SearchResultType.playlists,
                           ),
                     ),
-                  if (collections.stations.isNotEmpty)
+                  if (showRadio)
                     _RadioResultsSection(
                       stations: collections.stations,
                       desktopMode: desktopMode,

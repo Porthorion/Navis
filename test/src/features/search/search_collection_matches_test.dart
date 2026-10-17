@@ -177,26 +177,7 @@ void main() {
       expect(m.stations.map((s) => s.id), <String>['dev-jazz', 'srv-jazz']);
     });
 
-    test('filter songs yields no collection matches', () async {
-      if (!sqliteAvailable) return;
-      final database = createTestDatabase();
-      await _insertPlaylist(database, 'p1', 'Chill');
-      final container = _container(database, device: const [_jazzDevice]);
-      addTearDown(() async {
-        container.dispose();
-        await database.close();
-      });
-
-      final m = await _matches(
-        container,
-        'chill',
-        filter: SearchResultType.songs,
-      );
-      expect(m.playlists, isEmpty);
-      expect(m.stations, isEmpty);
-    });
-
-    test('filter playlists yields only playlists', () async {
+    test('matches are independent of the selected filter', () async {
       if (!sqliteAvailable) return;
       final database = createTestDatabase();
       await _insertPlaylist(database, 'p1', 'Jazz Mix');
@@ -206,32 +187,18 @@ void main() {
         await database.close();
       });
 
-      final m = await _matches(
-        container,
-        'jazz',
-        filter: SearchResultType.playlists,
-      );
-      expect(m.playlists.map((p) => p.id), <String>['p1']);
-      expect(m.stations, isEmpty);
-    });
-
-    test('filter radio yields only stations', () async {
-      if (!sqliteAvailable) return;
-      final database = createTestDatabase();
-      await _insertPlaylist(database, 'p1', 'Jazz Mix');
-      final container = _container(database, device: const [_jazzDevice]);
-      addTearDown(() async {
-        container.dispose();
-        await database.close();
-      });
-
-      final m = await _matches(
-        container,
-        'jazz',
-        filter: SearchResultType.radio,
-      );
-      expect(m.playlists, isEmpty);
-      expect(m.stations.map((s) => s.id), <String>['dev-jazz']);
+      for (final filter in <SearchResultType?>[
+        null,
+        SearchResultType.songs,
+        SearchResultType.playlists,
+        SearchResultType.radio,
+      ]) {
+        final m = await _matches(container, 'jazz', filter: filter);
+        expect(m.playlists.map((p) => p.id), <String>['p1'], reason: '$filter');
+        expect(m.stations.map((s) => s.id), <String>[
+          'dev-jazz',
+        ], reason: '$filter');
+      }
     });
 
     test('offline keeps device playlists and stations', () async {

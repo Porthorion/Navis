@@ -318,8 +318,6 @@ class SearchCollectionMatches {
 
   final List<PlaylistsTableData> playlists;
   final List<InternetRadioStation> stations;
-
-  bool get isEmpty => playlists.isEmpty && stations.isEmpty;
 }
 
 /// Playlists (device and server, from the Drift cache) and radio stations
@@ -331,32 +329,24 @@ class SearchCollectionMatches {
 final searchCollectionMatchesProvider =
     Provider.autoDispose<SearchCollectionMatches>((ref) {
       final query = ref.watch(searchQueryProvider).trim();
-      final filter = ref.watch(searchFilterProvider);
       if (query.isEmpty) {
         return const SearchCollectionMatches();
       }
-      final wantPlaylists =
-          filter == null || filter == SearchResultType.playlists;
-      final wantStations = filter == null || filter == SearchResultType.radio;
       return SearchCollectionMatches(
-        playlists: wantPlaylists
-            ? _matchByName(
-                ref.watch(playlistListProvider).asData?.value ??
-                    const <PlaylistsTableData>[],
-                (p) => p.name,
-                query,
-              )
-            : const <PlaylistsTableData>[],
-        stations: wantStations
-            ? _matchByName(
-                <InternetRadioStation>[
-                  ...?ref.watch(localRadioStationsProvider).asData?.value,
-                  ...?ref.watch(radioStationsProvider).asData?.value,
-                ],
-                (s) => s.name,
-                query,
-              )
-            : const <InternetRadioStation>[],
+        playlists: _matchByName(
+          ref.watch(playlistListProvider).asData?.value ??
+              const <PlaylistsTableData>[],
+          (p) => p.name,
+          query,
+        ),
+        stations: _matchByName(
+          <InternetRadioStation>[
+            ...?ref.watch(localRadioStationsProvider).asData?.value,
+            ...?ref.watch(radioStationsProvider).asData?.value,
+          ],
+          (s) => s.name,
+          query,
+        ),
       );
     });
 

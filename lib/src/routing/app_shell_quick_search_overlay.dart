@@ -61,10 +61,15 @@ class _DesktopQuickSearchOverlayState
     final colorScheme = Theme.of(context).colorScheme;
     final l10n = AppLocalizations.of(context)!;
     final filterLabels = <String>[
-      l10n.quickSearchEverything,
-      l10n.searchArtistsSection,
-      l10n.searchAlbumsSection,
-      l10n.searchSongsSection,
+      for (final type in _filterValues)
+        switch (type) {
+          null => l10n.quickSearchEverything,
+          SearchResultType.artists => l10n.searchArtistsSection,
+          SearchResultType.albums => l10n.searchAlbumsSection,
+          SearchResultType.songs => l10n.searchSongsSection,
+          SearchResultType.playlists => l10n.searchPlaylistsSection,
+          SearchResultType.radio => l10n.searchRadioSection,
+        },
     ];
     return FocusScope(
       autofocus: true,

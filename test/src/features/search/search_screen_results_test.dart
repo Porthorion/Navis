@@ -672,6 +672,52 @@ void main() {
       expect(find.text('Songs'), findsOneWidget);
     });
 
+    testWidgets('Playlists selected still shows the matching Radio chip', (
+      tester,
+    ) async {
+      if (!sqliteAvailable) return;
+      final database = createTestDatabase();
+      final container = containerWith(database);
+      addTearDown(() async {
+        container.dispose();
+        await database.close();
+      });
+
+      container
+          .read(searchFilterProvider.notifier)
+          .select(SearchResultType.playlists);
+      await _pumpSearchScreen(tester, container);
+      await _enterSearchQuery(tester, 'jazz');
+      await tester.pump(const Duration(milliseconds: 400));
+
+      expect(find.widgetWithText(ChoiceChip, 'Radio'), findsOneWidget);
+      expect(find.text('Jazz Radio'), findsNothing);
+    });
+
+    testWidgets(
+      'a Songs filter hides matching playlists and shows no results',
+      (tester) async {
+        if (!sqliteAvailable) return;
+        final database = createTestDatabase();
+        await insertPlaylist(database, 'Road Trip Mix');
+        final container = containerWith(database);
+        addTearDown(() async {
+          container.dispose();
+          await database.close();
+        });
+
+        container
+            .read(searchFilterProvider.notifier)
+            .select(SearchResultType.songs);
+        await _pumpSearchScreen(tester, container);
+        await _enterSearchQuery(tester, 'road trip');
+        await tester.pump(const Duration(milliseconds: 400));
+
+        expect(find.text('Road Trip Mix'), findsNothing);
+        expect(find.textContaining('No results'), findsOneWidget);
+      },
+    );
+
     testWidgets('tapping a playlist opens its page', (tester) async {
       if (!sqliteAvailable) return;
       final database = createTestDatabase();
