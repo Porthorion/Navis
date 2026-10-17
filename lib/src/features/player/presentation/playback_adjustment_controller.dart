@@ -30,6 +30,13 @@ enum PlaybackAdjustmentFailure {
   presetMissing,
 }
 
+/// Values equal up to floating-point noise (the tolerance [isHundredth]
+/// uses), so 1.4500000000000002 still counts as a preset's 1.45.
+bool _sameValues(PlaybackAdjustments a, PlaybackAdjustments b) =>
+    a.lockPitchToSpeed == b.lockPitchToSpeed &&
+    (a.speed - b.speed).abs() < 1e-9 &&
+    (a.pitchSemitones - b.pitchSemitones).abs() < 1e-9;
+
 class PlaybackAdjustmentState {
   new({
     this.values = const PlaybackAdjustments(),
@@ -151,7 +158,7 @@ class PlaybackAdjustmentController
         ? null
         : settings.selectedPlaybackPresetId;
     final matching = settings.playbackPresets.where(
-      (p) => p.id == selected && p.values == values,
+      (p) => p.id == selected && _sameValues(p.values, values),
     );
     final resolved = matching.isNotEmpty
         ? selected
@@ -260,7 +267,7 @@ class PlaybackAdjustmentController
               (values.isNone
                   ? PlaybackPreset.noneId
                   : _current.presets.any(
-                      (p) => p.id == origin && p.values == values,
+                      (p) => p.id == origin && _sameValues(p.values, values),
                     )
                   ? origin
                   : null),

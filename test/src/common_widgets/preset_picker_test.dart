@@ -17,6 +17,7 @@ const _labels = PresetPickerLabels(
   save: 'Save',
   deleteAction: 'Delete',
   discard: 'Discard changes',
+  discardShort: 'Discard',
   discardConfirm: _discard,
 );
 
@@ -58,8 +59,14 @@ void main() {
     bool withDiscard = true,
     List<PresetPickerEntry> entries = _entries,
     double width = 800,
+    double textScale = 1,
   }) => tester.pumpWidget(
     MaterialApp(
+      builder: (context, child) => MediaQuery(
+        data: MediaQuery.of(context)
+            .copyWith(textScaler: TextScaler.linear(textScale)),
+        child: child!,
+      ),
       home: Scaffold(
         body: SizedBox(
           width: width,
@@ -124,29 +131,94 @@ void main() {
       expect(shown(tester), 'Alpha');
     });
 
-    testWidgets('Discard is offered only while edited and asks first', (
+    testWidgets('a visible Discard shows only while edited and asks first', (
       tester,
     ) async {
       await pump(tester, selectedId: 'a', updateId: 'a');
-      await openMenu(tester);
       expect(_key('Discard'), findsNothing);
       await pump(tester, updateId: 'a', withDiscard: false);
       await tester.pumpAndSettle();
-      await openMenu(tester);
+      expect(_key('Discard'), findsNothing);
+      // No origin: nothing to go back to.
+      await pump(tester);
+      await tester.pumpAndSettle();
       expect(_key('Discard'), findsNothing);
 
       await pump(tester, updateId: 'a');
       await tester.pumpAndSettle();
-      await menuAction(tester, 'Discard');
+      expect(find.widgetWithText(TextButton, 'Discard'), findsOneWidget);
+      await tester.tap(_key('Discard'));
+      await tester.pumpAndSettle();
       expect(find.text('Back to "Alpha"?'), findsOneWidget);
       await tester.tap(find.text('Cancel'));
       await tester.pumpAndSettle();
       expect(calls, isEmpty);
 
-      await menuAction(tester, 'Discard');
+      await tester.tap(_key('Discard'));
+      await tester.pumpAndSettle();
       await tester.tap(_key('DiscardConfirm'));
       await tester.pumpAndSettle();
       expect(calls, ['discard a']);
+    });
+
+    testWidgets('Discard becomes an icon button when space is tight', (
+      tester,
+    ) async {
+      await pump(tester, updateId: 'a', width: 320);
+      await tester.pumpAndSettle();
+      expect(find.widgetWithIcon(IconButton, Icons.restore), findsOneWidget);
+      expect(find.widgetWithText(TextButton, 'Discard'), findsNothing);
+      await tester.tap(_key('Discard'));
+      await tester.pumpAndSettle();
+      expect(find.text('Back to "Alpha"?'), findsOneWidget);
+    });
+
+    testWidgets('Discard is hidden when the origin is unavailable', (
+      tester,
+    ) async {
+      // Beta is disabled (unsupported here), so it cannot be re-applied.
+      await pump(tester, updateId: 'b');
+      await tester.pumpAndSettle();
+      expect(shown(tester), 'Beta*');
+      expect(_key('Discard'), findsNothing);
+    });
+
+    testWidgets('a long name still wraps at twice the text size', (
+      tester,
+    ) async {
+      const long = PresetPickerEntry(
+        id: 'long',
+        label: 'RP150 Green Teal Night Variant With A Long Name',
+      );
+      const short = PresetPickerEntry(id: 'short', label: 'Short');
+      double height(WidgetTester tester) => tester
+          .getSize(
+            find.descendant(
+              of: _key('Dropdown'),
+              matching: find.byType(TextField),
+            ),
+          )
+          .height;
+      await pump(
+        tester,
+        selectedId: 'short',
+        entries: [short],
+        width: 360,
+        textScale: 2,
+      );
+      await tester.pumpAndSettle();
+      final one = height(tester);
+      await pump(
+        tester,
+        selectedId: 'long',
+        entries: [long],
+        width: 360,
+        textScale: 2,
+      );
+      await tester.pumpAndSettle();
+      expect(shown(tester), long.label);
+      // Three lines at most, and taller than one: wrapped, not cut off.
+      expect(height(tester), greaterThan(one + 20));
     });
 
     testWidgets('a long name wraps instead of being cut off', (tester) async {

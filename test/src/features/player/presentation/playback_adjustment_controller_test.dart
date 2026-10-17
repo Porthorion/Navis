@@ -376,6 +376,27 @@ void main() {
     state = container.read(playbackAdjustmentsProvider).requireValue;
     expect((state.selectedPresetId, state.originPresetId), (id, id));
   });
+  test('origin matching tolerates floating-point noise', () async {
+    await controller.setValues(const PlaybackAdjustments(speed: 1.45));
+    await controller.savePreset('Fast');
+    final id = container
+        .read(playbackAdjustmentsProvider)
+        .requireValue
+        .selectedPresetId!;
+    String? selected() => container
+        .read(playbackAdjustmentsProvider)
+        .requireValue
+        .selectedPresetId;
+    await controller.setValues(const PlaybackAdjustments(speed: 1.6));
+    expect(selected(), isNull);
+    await controller.setValues(
+      const PlaybackAdjustments(speed: 1.4500000000000002),
+    );
+    expect(selected(), id);
+    // A real difference of a hundredth is still an edit.
+    await controller.setValues(const PlaybackAdjustments(speed: 1.46));
+    expect(selected(), isNull);
+  });
   test('rapid input keeps newest pair without an older late write', () async {
     final gate = Completer<void>();
     final entered = Completer<void>();

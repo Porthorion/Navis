@@ -331,6 +331,7 @@ class _PlaybackAdjustmentPanelState
         save: l10n.playbackAdjustmentSave,
         deleteAction: l10n.playbackPresetDelete,
         discard: l10n.eqDiscardChanges,
+        discardShort: l10n.eqDiscard,
         discardConfirm: l10n.presetDiscardConfirm,
       ),
       onSelect: (id) {

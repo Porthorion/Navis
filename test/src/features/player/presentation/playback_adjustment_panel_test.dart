@@ -478,7 +478,10 @@ void main() {
     );
     // Loaded edited from the stored origin.
     expect(presetText(tester), 'Fast*');
-    await presetAction(tester, 'playbackPresetDiscard');
+    final discard = find.byKey(const ValueKey('playbackPresetDiscard'));
+    expect(discard, findsOneWidget);
+    await tester.tap(discard);
+    await tester.pumpAndSettle();
     await tester.tap(
       find.byKey(const ValueKey('playbackPresetDiscardConfirm')),
     );
@@ -487,6 +490,14 @@ void main() {
     expect(state.values.speed, 1.5);
     expect(state.selectedPresetId, 'fast');
     expect(presetText(tester), 'Fast');
+    expect(discard, findsNothing);
+    // The origin goes back to storage with the re-applied values.
+    verify(
+      () => repository.savePlaybackAdjustments(
+        values: const PlaybackAdjustments(speed: 1.5),
+        selectedPresetId: 'fast',
+      ),
+    ).called(1);
   });
 
   testWidgets('preset dropdown shows Normal, Custom edits and reselects', (

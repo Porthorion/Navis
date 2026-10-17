@@ -486,31 +486,42 @@ void main() {
     testWidgets('Discard re-applies the Look it came from after confirming', (
       tester,
     ) async {
+      final discard = find.byKey(
+        const ValueKey<String>('appearanceLookDiscard'),
+      );
       await pump(tester);
       await saveLook(tester, 'Evening');
       final saved = container.read(appSettingsProvider).requireValue;
+      // Not edited: nothing to discard.
+      expect(discard, findsNothing);
       await change(tester, [
         () => database.appSettingsDao.updateCornerStyle('square'),
       ]);
       expect(pickerText(tester), edited('Evening'));
+      expect(discard, findsOneWidget);
 
       // Cancelling keeps the edits.
-      await menu(tester, 'Discard');
+      await tester.tap(discard);
+      await tester.pumpAndSettle();
       await tester.tap(find.text('Cancel'));
       await tester.pumpAndSettle();
       expect(pickerText(tester), edited('Evening'));
 
-      await menu(tester, 'Discard');
+      await tester.tap(discard);
+      await tester.pumpAndSettle();
       await tester.tap(
         find.byKey(const ValueKey<String>('appearanceLookDiscardConfirm')),
       );
       await settleWrites(tester);
       await tester.pumpAndSettle();
       expect(pickerText(tester), 'Evening');
-      expect(
-        container.read(appSettingsProvider).requireValue.cornerStyle,
-        saved.cornerStyle,
-      );
+      expect(discard, findsNothing);
+      final after = container.read(appSettingsProvider).requireValue;
+      expect(after.cornerStyle, saved.cornerStyle);
+      // Stored, not just shown: the selection survives a restart.
+      expect(after.selectedAppearanceLookId, looks().looks.single.id);
+      await restart(tester);
+      expect(pickerText(tester), 'Evening');
     });
 
     testWidgets('a long Look name is shown in full', (tester) async {

@@ -4070,10 +4070,11 @@ backend range) select values in one tap. The chips sit in equal-width slots, so
 (`common_widgets/preset_picker.dart`): a `DropdownMenu` over `PresetPickerEntry`
 values (Custom while `selectedId` is null and no `updateId` names an origin,
 else "{origin}*"; Normal, then saved presets; unsupported ones disabled with a
-tooltip) and a ⋮ menu to save as new, update, rename, delete or, while edited,
-discard (all with confirmation except update) the current or originating
-preset (`updateId` and `manageId`; Discard re-applies `updateId` through
-`onDiscard`). A long selected name wraps up to three lines instead of being
+tooltip) and a ⋮ menu to save as new, update, rename or delete (with
+confirmation) the current or originating preset (`updateId` and `manageId`).
+While edited and the origin is available, a Discard button beside the picker
+(text when wide, a restore icon with tooltip when tight, like the equalizer's)
+re-applies `updateId` through `onDiscard` after a confirmation. A long selected name wraps up to three lines instead of being
 truncated. Speed & Pitch persists the origin in the existing
 `selected_playback_preset_id` column even while the values are Custom (the
 Looks convention): on load it is the origin when its values differ, and

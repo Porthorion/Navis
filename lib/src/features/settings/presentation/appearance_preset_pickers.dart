@@ -46,6 +46,7 @@ PresetPickerLabels _labels(
   save: l10n.commonSave,
   deleteAction: l10n.commonDelete,
   discard: l10n.eqDiscardChanges,
+  discardShort: l10n.eqDiscard,
   discardConfirm: l10n.presetDiscardConfirm,
 );
 
