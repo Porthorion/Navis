@@ -62,8 +62,8 @@ class _RecoveryCancelled implements Exception {
   const new();
 }
 
-/// Re-arm state of a startup backfill: at most one pass runs at a time
-/// (tracked in [inFlight]); [done] prevents automatic repeats until a manual run.
+/// Backfill re-arm state: at most one pass runs at a time
+/// (tracked in [inFlight]); queue triggers reopen [done] only for local gaps.
 class _BackfillGate {
   bool done = false;
   Future<void>? inFlight;
@@ -970,12 +970,13 @@ class DownloadService {
   /// once no download is running: the queue is empty, held (paused, Wi-Fi
   /// only), or waiting out a retry backoff. Also re-arms a startup lyrics or
   /// artwork backfill pass that was blocked by a missing API client, the
-  /// network policy, or an LRCLIB cooldown.
+  /// network policy, or an LRCLIB cooldown. Completed gates reopen only when
+  /// a local metadata check finds missing synced lyrics or artwork.
   ///
   /// The internal processing and Wi-Fi guards remain authoritative, so callers
   /// can invoke this optimistically when settings or connectivity change.
   Future<void> processQueuedDownloads() async {
-    _pumpBackfills();
+    _pumpBackfills(rearm: true);
     if (await _checkDownloadFolder()) await _recoverStartup();
     await _processNext();
     await _waitForIdle();
@@ -1060,7 +1061,6 @@ class DownloadService {
     final run = _manualBackfillRun =
         () async {
           await _automaticBackfillRun;
-          if (!_lyricsResumePending) _visitedLyrics.clear();
           _forceLyricsBackfill = true;
           await _runBackfillPasses(force: true);
         }().whenComplete(() {
@@ -1071,7 +1071,7 @@ class DownloadService {
   }
 
   /// A blocked automatic pass re-arms from the existing queue pump.
-  void _pumpBackfills() {
+  void _pumpBackfills({bool rearm = false}) {
     if (_stopped) return;
     _refreshLyricsRequestPolicy();
     final allowed = _readLyricsAllowed();
@@ -1091,14 +1091,54 @@ class DownloadService {
     if (!_backfillReady()) return;
     if (_manualBackfillRun != null ||
         _automaticBackfillRun != null ||
-        (_lyricsBackfillGate.done && _artworkBackfillGate.done)) {
+        (!rearm && _lyricsBackfillGate.done && _artworkBackfillGate.done)) {
       return;
     }
-    final run = _automaticBackfillRun = _runBackfillPasses(force: false)
-        .whenComplete(() {
+    if (_lyricsResumePending && _lrclibClient.isRateLimited) {
+      _emitBackfill(blockedReason: BackfillBlockedReason.rateLimited);
+      _armLyricsResume();
+      return;
+    }
+    final run = _automaticBackfillRun =
+        _runAutomaticBackfillPasses(rearm: rearm).whenComplete(() {
           _automaticBackfillRun = null;
         });
     _trackBackgroundTask(run);
+  }
+
+  Future<void> _runAutomaticBackfillPasses({required bool rearm}) async {
+    // One local query and one disk check per cover avoid empty network passes.
+    final songs = await _cacheDao.getPermanentDownloadMetadata();
+    if (rearm) {
+      _lyricsBackfillGate.done = false;
+      _artworkBackfillGate.done = false;
+    }
+    if (songs.every((song) => song.hasSyncedLyrics)) {
+      _lyricsBackfillGate.done = true;
+      _lyricsResumePending = false;
+      _visitedLyrics.clear();
+      _forceLyricsBackfill = false;
+    }
+    if (!_artworkBackfillGate.done) {
+      final covers = songs
+          .map((song) => song.coverArt?.trim())
+          .whereType<String>()
+          .where((id) => id.isNotEmpty)
+          .toSet();
+      _artworkBackfillGate.done = true;
+      for (final id in covers) {
+        if (await _artworkStore.fileFor(id) == null) {
+          _artworkBackfillGate.done = false;
+          break;
+        }
+      }
+    }
+    if (!_backfillReady()) return;
+    if (_lyricsBackfillGate.done && _artworkBackfillGate.done) {
+      _emitBackfill(blockedReason: BackfillBlockedReason.none);
+      return;
+    }
+    await _runBackfillPasses(force: false);
   }
 
   Future<void> _runBackfillPasses({required bool force}) async {
@@ -1106,7 +1146,9 @@ class DownloadService {
     _emitBackfill(
       done: 0,
       total: 0,
-      blockedReason: BackfillBlockedReason.none,
+      blockedReason: _lrclibClient.isRateLimited || _lyricsResumePending
+          ? BackfillBlockedReason.rateLimited
+          : BackfillBlockedReason.none,
       lastResult: _lyricsResumePending
           ? _backfillProgress.lastResult
           : (lyricsResolved: 0, artworkStored: 0),
@@ -1129,6 +1171,11 @@ class DownloadService {
         'DownloadService: backfill failed: ${error.runtimeType}',
       );
     } finally {
+      if (!_lyricsResumePending &&
+          _backfillProgress.blockedReason ==
+              BackfillBlockedReason.rateLimited) {
+        _emitBackfill(blockedReason: BackfillBlockedReason.none);
+      }
       _emitBackfill(phase: BackfillPhase.idle);
       _armLyricsResume();
     }
@@ -2692,7 +2739,8 @@ class DownloadService {
   /// Runs fire-and-forget from [start] and re-arms from
   /// [processQueuedDownloads] when an earlier pass was blocked by a missing
   /// API client or the network policy, and from a timer after LRCLIB cooldown;
-  /// a completed pass never runs again in this session. Uses the transfers' rule —
+  /// completed gates reopen on queue triggers when local gaps remain. Uses the
+  /// transfers' rule —
   /// any connection unless the user restricted downloads to Wi-Fi — pauses
   /// while a song's stream load holds new work, skips songs that already
   /// have lyrics or whose empty lookup is less than a week old, and
@@ -2702,7 +2750,12 @@ class DownloadService {
     _emitBackfill(phase: BackfillPhase.lyrics, done: 0, total: 0);
     try {
       if (!_backfillReady()) return false;
+      final resuming = _lyricsResumePending;
       _lyricsResumePending = false;
+      if (!resuming) _visitedLyrics.clear();
+      if (!_lrclibClient.isRateLimited) {
+        _emitBackfill(blockedReason: BackfillBlockedReason.none);
+      }
       final api = _readApiClient()!;
       final permanentIds = await _cacheDao.getPermanentlyCachedSongIds();
       final songs = await _libraryDao.getSongsByIds(permanentIds);

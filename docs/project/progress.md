@@ -33,6 +33,26 @@ Last updated: 2026-10-18
   files. Localization regenerated with `flutter gen-l10n`; changed Dart was
   formatted. Runtime checks were not run by instruction; `./tool/check.sh`
   remains the coordinator's gate.
+  Round 2: lyrics preserve visited IDs only for rate-limit resumes, retain
+  cooldown progress at pass start, and own the countdown timer through an
+  `initState` progress subscription. The existing launch, network, client,
+  policy and reconciliation triggers now reopen completed gates through a
+  local metadata/disk preflight; completed synced lyrics and covers need no
+  pass or network request. Direct foreground-return and library-sync-completion
+  listeners cover short resumes, automatic sync, manual sync and pull-to-refresh.
+  Triggers coalesce during a pass and preserve a pending cooldown deadline.
+  Regression tests first failed (`00:19 +55 -8: Some tests failed.`), including
+  `Expected: <2>` / `Actual: <1>` after offline, Wi-Fi-only and stop interruptions;
+  the four download/UI suites then passed (`00:23 +204: All tests passed!`,
+  capped peak 2874M). Provider baseline tests also reproduced missing foreground
+  and sync-completion callbacks. The provider/sync suites passed
+  (`00:04 +66: All tests passed!`, capped peak 1934M); the final test-helper
+  cleanup passed all 11 provider tests again
+  (`00:03 +11: All tests passed!`, capped peak 1822M). All Flutter test runs
+  used the shared lock, 9G cap, concurrency 4 and 60-second timeout. Scoped
+  analysis of all seven changed Dart files reported `No issues found!`
+  (exit 0, peak 1150M); formatting and diff checks passed. Runtime, emulator
+  and full-gate validation remain excluded by the task instructions.
 - [x] Issue #46, server plain lyrics on first fetch — 2026-10-17
   (`fix/server-plain-lyrics`): the batched runtime check of dev b5468cbd found
   that plain-only server lyrics (structured lines without `start`) showed "No

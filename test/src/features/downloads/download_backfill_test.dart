@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:io';
 
 import 'package:fake_async/fake_async.dart';
+import 'package:path/path.dart' as p;
 import 'package:navis/src/api/request_limiter.dart';
 
 import 'package:dio/dio.dart';
@@ -272,6 +273,103 @@ void main() {
       expect(external.calls, 1);
     },
   );
+  for (final block in ['offline', 'wifi', 'stop']) {
+    test('automatic lyrics retry visited failures after $block', () async {
+      await seed('one');
+      await seed('two');
+      when(() => api.getLyricsBySongId(any())).thenThrow(StateError('offline'));
+      // Transport failures must remain eligible, unlike confirmed empty lookups.
+      final checked = service.backfillProgress.firstWhere(
+        (p) => p.phase == BackfillPhase.lyrics && p.done == 1,
+      );
+      await service.processQueuedDownloads();
+      await checked;
+      if (block == 'offline') online = false;
+      if (block == 'wifi') wifiOnly = true;
+      if (block == 'stop') {
+        await service.stopAndWait();
+      } else {
+        await service.backfillProgress.firstWhere(
+          (p) => p.phase == BackfillPhase.idle,
+        );
+      }
+      verify(() => api.getLyricsBySongId(any())).called(1);
+      online = true;
+      wifiOnly = false;
+      final idle = service.backfillProgress.firstWhere(
+        (p) => p.phase == BackfillPhase.idle && p.total == 1,
+      );
+      if (block == 'stop') {
+        // Keep recovery from treating the fixture's audio as a missing file.
+        for (final id in ['one', 'two']) {
+          final file = File(p.join(dir.path, '$id.mp3'));
+          await file.writeAsBytes([1]);
+          await db.cacheDao.upsertCachedTrack(
+            CachedTracksTableCompanion.insert(
+              songId: id,
+              filePath: file.path,
+              fileSize: 1,
+              format: 'mp3',
+              cacheType: CacheType.permanent,
+              downloadStatus: DownloadStatus.complete,
+              lastAccessedAt: DateTime.now(),
+            ),
+          );
+        }
+        await service.start();
+      } else {
+        await service.processQueuedDownloads();
+      }
+      await idle;
+      verify(() => api.getLyricsBySongId(any())).called(2);
+    });
+  }
+
+  test(
+    'automatic trigger reopens completed gates once when metadata is missing',
+    () async {
+      await seed('one');
+      await service.runBackfillNow();
+      await seed('two');
+      final started = service.backfillProgress.firstWhere(
+        (p) => p.phase == BackfillPhase.lyrics,
+      );
+      await Future.wait([
+        service.processQueuedDownloads(),
+        service.processQueuedDownloads(),
+      ]);
+      // Bound the wait so a missing trigger fails instead of hanging the suite.
+      await started.timeout(const Duration(seconds: 2));
+      await service.backfillProgress.firstWhere(
+        (p) => p.phase == BackfillPhase.idle,
+      );
+      expect(external.calls, 2);
+      expect(artwork.calls, 2);
+    },
+  );
+
+  test(
+    'automatic trigger does not start a pass when metadata is complete',
+    () async {
+      await seed('one');
+      await db.libraryDao.upsertExternalLyricsCache(
+        songId: 'one',
+        source: 'server',
+        syncedLyrics: '[00:01.00]words',
+      );
+      await artwork.storeBytes('cover', bytes);
+      final phases = <BackfillPhase>[];
+      final sub = service.backfillProgress.listen((p) => phases.add(p.phase));
+      await service.processQueuedDownloads();
+      await service.stopAndWait();
+      await sub.cancel();
+      expect(phases, everyElement(BackfillPhase.idle));
+      verifyNever(() => api.getLyricsBySongId(any()));
+      expect(external.calls, 0);
+      expect(artwork.calls, 0);
+    },
+  );
+
   test('automatic pass skips a recent plain failed upgrade', () async {
     await seed('song');
     await db.libraryDao.upsertExternalLyricsCache(
@@ -373,6 +471,7 @@ void main() {
 
   for (final stop in [
     'resume',
+    'trigger',
     'manual',
     'dispose',
     'integration',
@@ -480,7 +579,7 @@ void main() {
       expect(clock.nonPeriodicTimerCount, 1);
       if (stop == 'dispose') {
         await service.dispose();
-      } else if (stop != 'resume' && stop != 'manual') {
+      } else if (stop != 'resume' && stop != 'trigger' && stop != 'manual') {
         if (stop == 'integration') lyricsAllowed = false;
         if (stop == 'wifi') wifiOnly = true;
         if (stop == 'offline') online = false;
@@ -491,7 +590,7 @@ void main() {
         }
         await drain();
       }
-      if (stop == 'resume' || stop == 'manual') {
+      if (stop == 'resume' || stop == 'trigger' || stop == 'manual') {
         // A pending recent miss must still receive the manual forced upgrade.
         for (final row in rows) {
           if (await db.libraryDao.getExternalLyricsCache(row.songId) == null) {
@@ -503,6 +602,19 @@ void main() {
               lastFailedAt: DateTime.now(),
             );
           }
+        }
+        if (stop == 'trigger') {
+          final deadline = client.retryAt;
+          final before = snapshots.length;
+          unawaited(clock.run((_) => service.processQueuedDownloads()));
+          await drain();
+          expect(client.retryAt, deadline);
+          expect(calls, 2);
+          expect(
+            snapshots.skip(before).map((p) => p.phase),
+            everyElement(BackfillPhase.idle),
+          );
+          expect(clock.nonPeriodicTimerCount, 1);
         }
         if (stop == 'manual') {
           var manualFinished = false;
@@ -518,6 +630,16 @@ void main() {
             clock.elapse(const Duration(milliseconds: 100));
           }
           expect(manualFinished, isTrue);
+          expect(
+            snapshots.where(
+              (p) =>
+                  p.resumeAt == null &&
+                  p.blockedReason == BackfillBlockedReason.none &&
+                  p.lastResult.artworkStored == 1,
+            ),
+            isEmpty,
+            reason: 'cooldown must stay visible throughout the new pass',
+          );
           expect(calls, 2);
           expect(
             service.currentBackfillProgress.blockedReason,

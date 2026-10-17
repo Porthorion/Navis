@@ -1938,10 +1938,16 @@ connectivity and policy changes. An LRCLIB 429/503 pauses only lyrics: artwork
 continues, progress includes `resumeAt`, and a service-owned timer re-arms the
 lyrics gate automatically after cooldown. The timer is cancelled on teardown,
 LRCLIB/lyrics integration disablement, or a network-policy block; connectivity
-and policy changes re-arm pending work. Completed songs are skipped on resume,
-and a manual run retains its forced-upgrade intent across cooldowns. Backfill
-pauses while a song's stream load holds new work and never runs twice at once;
-a completed pass does not repeat automatically in the same session. Each item rechecks stop
+and policy changes re-arm pending work. Completed songs are skipped only
+across a rate-limit resume; any other interruption clears the pass-local
+visited set on the next pass. A manual run retains its forced-upgrade intent
+across cooldowns. Backfill pauses while a song's stream load holds new work
+and never runs twice at once. App launch, each foreground return, library-sync
+completion (automatic, manual or pull-to-refresh), reconnect and existing
+policy/client/reconciliation changes re-arm the same gates. A local joined metadata query and one disk check per
+unique cover skip automatic passes when synced lyrics and artwork are already
+present. Triggers during a running pass coalesce; triggers during a pending
+LRCLIB cooldown preserve its deadline and resume timer. Each item rechecks stop
 state and network eligibility after the playback hold and before its network
 work; teardown releases held passes without starting requests, and a mid-pass network
 restriction leaves the pass pending for the existing pump. Promoting a
@@ -1969,8 +1975,11 @@ fresh lyrics pass followed by an artwork pass; concurrent manual calls share
 one future. Force bypasses the seven-day miss/upgrade backoff, while preserving
 stop state, connectivity, Wi-Fi-only rules, playback holds and LRCLIB cooldown.
 Pressing Backfill now during cooldown arms the pending lyrics run; Downloads
-shows “Lyrics paused, resuming in m:ss” with a live countdown. LRCLIB shares
-one `RequestLimiter` across exact and search requests: at most two starts per
+shows “Lyrics paused, resuming in m:ss” with a live countdown. The pause remains
+visible throughout a cooldown, including pass-start progress. The widget owns
+its countdown timer through a progress subscription initialized in `initState`,
+and cancels it when cooldown progress ends or the widget is disposed. LRCLIB
+shares one `RequestLimiter` across exact and search requests: at most two starts per
 second, one background start per second and two in flight. Download prefetch
 and backfill use the background budget; Now Playing takes priority in the
 foreground queue. Teardown and policy blocks cancel queued and in-flight

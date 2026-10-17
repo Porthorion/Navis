@@ -2844,6 +2844,16 @@ final downloadServiceProvider = Provider<DownloadService>((ref) {
   ref.listen<bool>(networkReconcilingProvider, (previous, next) {
     if (previous != next) unawaited(service.processQueuedDownloads());
   });
+  ref.listen<bool>(librarySyncForegroundProvider, (previous, next) {
+    if (previous == false && next) {
+      unawaited(service.processQueuedDownloads());
+    }
+  });
+  ref.listen(librarySyncControllerProvider, (previous, next) {
+    if (previous?.isRunning == true && !next.isRunning) {
+      unawaited(service.processQueuedDownloads());
+    }
+  });
   // Service.start() is async but we fire-and-forget here — the subscription
   // inside start() processes the queue independently.
   // ignore: discarded_futures

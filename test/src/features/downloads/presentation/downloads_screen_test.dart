@@ -1352,6 +1352,14 @@ void main() {
       expect(find.byType(LinearProgressIndicator), findsNothing);
     });
 
+    test('countdown scheduling belongs to progress subscription, outside build', () {
+      final source = File(
+        'lib/src/features/downloads/presentation/download_missing_section.dart',
+      ).readAsStringSync();
+      final build = source.substring(source.indexOf('Widget build('));
+      expect(build, isNot(contains('_syncCountdown(')));
+    });
+
     testWidgets('lyrics cooldown shows a live resume countdown', (
       tester,
     ) async {

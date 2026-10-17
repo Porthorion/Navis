@@ -23,6 +23,21 @@ class _DownloadMissingSectionState
     extends ConsumerState<DownloadMissingSection> {
   Timer? _countdownTimer;
 
+  @override
+  void initState() {
+    super.initState();
+    ref.listenManual(downloadBackfillProgressProvider, (previous, next) {
+      _syncCountdown(next.value ?? const BackfillProgress());
+      // The counts come from disk, so refresh them whenever a pass ends.
+      final before = previous?.value?.phase;
+      if (before != null &&
+          before != BackfillPhase.idle &&
+          next.value?.phase == BackfillPhase.idle) {
+        ref.invalidate(downloadMetadataGapsProvider);
+      }
+    }, fireImmediately: true);
+  }
+
   void _syncCountdown(BackfillProgress progress) {
     if (progress.blockedReason != BackfillBlockedReason.rateLimited ||
         progress.resumeAt == null) {
@@ -51,16 +66,6 @@ class _DownloadMissingSectionState
     final progress =
         ref.watch(downloadBackfillProgressProvider).value ??
         const BackfillProgress();
-    _syncCountdown(progress);
-    // The counts come from disk, so refresh them whenever a pass ends.
-    ref.listen(downloadBackfillProgressProvider, (previous, next) {
-      final before = previous?.value?.phase;
-      if (before != null &&
-          before != BackfillPhase.idle &&
-          next.value?.phase == BackfillPhase.idle) {
-        ref.invalidate(downloadMetadataGapsProvider);
-      }
-    });
     final running = progress.phase != BackfillPhase.idle;
     final remaining =
         progress.resumeAt?.difference(widget.now()).inMilliseconds ?? 0;
