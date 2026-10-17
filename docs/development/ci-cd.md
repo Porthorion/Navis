@@ -629,13 +629,18 @@ publication isolation, source/checksum guards and exact dist-file uploads.
    Both calls load Authorization from a mode-600 header file in the private
    release secrets directory (`curl -H @file`, curl 7.55+), which the EXIT trap
    removes. The token stays out of curl's command-line arguments.
-10. With `--publish-from` and `--github`, after the existing publish succeeds,
-    pushes `main` and the tag to the `github` remote and creates a GitHub release
-    using staged notes/prerelease metadata. Uploads only the staged assets and
-    dist `SHA256SUMS`, then verifies every name and size. Requires authenticated
-    `gh`; defaults to `Porthorion/Navis` (`NAVIS_GITHUB_REPO` overrides it).
-    A missing remote or existing release fails before publication. See
-    [release-from-linux.md](../release/release-from-linux.md) for setup and retries.
+10. Stable non-prerelease releases require GitHub publication by default. The
+    preflight checks `gh` authentication and a matching `github` remote before
+    building or publishing. `--no-github` is an emergency escape hatch with a
+    warning that GitHub-source users will miss the release. After R2 verifies
+    all signed metadata and artifact hashes, the script uploads the same
+    envelope as `manifest.json`, the artifacts and complete `SHA256SUMS`.
+    It checks uploaded names/sizes and compares GitHub/R2 manifest bytes.
+    `--allow-existing-version` permits late additions using `--clobber`;
+    standalone `r2_publish.sh publish --github` mirrors additions too.
+    Run `r2_publish.sh verify --channel=stable --github` for cross-host checks.
+    `tool/github_release_test.sh` and `tool/dev_release_test.sh` test these paths
+    with stub executables, disposable signing keys and a local fake store.
 
 Before building anything (after the version checks), `release.sh` runs
 `tool/r2_publish.sh check`, which fails early if an R2 setting or the signing key is

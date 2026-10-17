@@ -49,7 +49,7 @@ print('build number: repeat, rollback, day boundary, concurrent allocation, Andr
 PY
 mkdir -p "${tmp}/repo/tool/lib" "${tmp}/repo/lib/src/utils" "${tmp}/bin" "${tmp}/store" "${tmp}/home"
 cp "${SCRIPT_DIR}/r2_publish.sh" "${SCRIPT_DIR}/dev_release.sh" "${SCRIPT_DIR}/dev_app.sh" "${SCRIPT_DIR}/dev_build_number.py" "${tmp}/repo/tool/"
-cp "${SCRIPT_DIR}/lib/"{r2_tags,lastfm_key_defines,scan_artifact_secret}.sh "${tmp}/repo/tool/lib/"
+cp "${SCRIPT_DIR}/lib/"{r2_tags,lastfm_key_defines,scan_artifact_secret,github_release}.sh "${tmp}/repo/tool/lib/"
 # A disposable key and pin, never the repository's real signing key.
 openssl genpkey -algorithm ed25519 -out "${tmp}/test.pem" 2>/dev/null
 pub="$(openssl pkey -in "${tmp}/test.pem" -pubout -outform DER | tail -c 32 | base64)"
@@ -216,10 +216,19 @@ refused "${r2}" check --channel=dev --tag=v1.5.0-dev.10502
 
 # Stable publication still omits build and permits an identical retry.
 seed
-"${r2}" publish --channel=stable --tag=v1.5.0 Navis-Dev-1.5.0-10502-arm64.apk > "${tmp}/stable"
+"${r2}" publish --channel=stable --tag=v1.5.0 --manifest-out="${tmp}/exported-manifest.json" --checksums-out="${tmp}/exported-sums" Navis-Dev-1.5.0-10502-arm64.apk > "${tmp}/stable"
+cmp "${tmp}/exported-manifest.json" "${FAKE_STORE}/navis/channels/stable/manifest.json" || fail 'export differs from verified envelope'
 jq -r .payload "${FAKE_STORE}/navis/channels/stable/manifest.json" | base64 -d | jq -e 'has("build") | not' >/dev/null || fail 'stable unexpectedly acquired build'
 "${r2}" publish --channel=stable --tag=v1.5.0 Navis-Dev-1.5.0-10502-arm64.apk > "${tmp}/retry"
 rg -Fq 'already uploaded, skipping' "${tmp}/retry" || fail 'identical retry replaced immutable bytes'
+# The verify entry point compares the exact R2/GitHub bytes, using fake curl.
+mkdir -p "${FAKE_STORE}/Porthorion/Navis/releases/download/v1.5.0"
+cp "${FAKE_STORE}/navis/channels/stable/manifest.json" "${FAKE_STORE}/Porthorion/Navis/releases/download/v1.5.0/manifest.json"
+"${r2}" verify --channel=stable --github > "${tmp}/mirror-verify"
+cmp "${tmp}/exported-sums" "${FAKE_STORE}/navis/releases/v1.5.0/SHA256SUMS" || fail 'exported sums differ'
+printf 'different envelope' > "${FAKE_STORE}/Porthorion/Navis/releases/download/v1.5.0/manifest.json"
+refused "${r2}" verify --channel=stable --github
+rg -q 'manifest bytes differ' "${tmp}/refused.log" || fail 'manifest mismatch was not detected'
 # An older manifest with no build retains the semver preflight behavior.
 seed
 jq 'del(.build)' "${tmp}/payload" > "${tmp}/legacy-payload"

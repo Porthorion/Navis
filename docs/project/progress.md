@@ -14,6 +14,22 @@ Last updated: 2026-10-17
 - ACP status values: `backlog`, `ready`, `in_progress`, `blocked`, `done`.
 
 ## Current Focus
+- [ ] Issue #41, update source choice — partial: 2026-10-17
+  (`feat/update-source-github`): Parts A/B backend and release tooling complete.
+  Persisted integration-source metadata requires no migration; a notifier setter
+  resets cache/throttle before saving, and providers expose effective source,
+  host and platform/channel availability for Part C. GitHub mapping uses only
+  verified signed tags/basenames, with explicit HTTPS redirect allowlists and
+  unchanged pinned-signature, SHA-256 and size verification. Stable publication
+  requires GitHub unless explicitly opted out, exports the verified R2 envelope,
+  mirrors late additions and compares manifest bytes. Tests were written first
+  and failed on missing APIs. Evidence: focused updater/integration tests
+  (`00:01 +193: All tests passed!`); affected provider, diagnostics and Home tests
+  (`00:07 +279: All tests passed!`); hermetic GitHub/R2 shell fixtures and `bash -n`
+  passed. `dart analyze lib test` reports zero errors and warnings (existing infos
+  remain). Shellcheck is not installed. Per handoff constraints, no app/device,
+  real publication or `tool/check.sh` was run; orchestrator owns full validation,
+  and Part C owns the selector, widget tests and 1.5.0 changelog entry.
 - [x] Issue #37, Radio search on touch layouts — 2026-10-17
   (`feat/radio-touch-search`): `RadioTabContent` is now stateful and shows a
   `ListFilterField` (`radioFilterHint`) on non-desktop layouts when stations
