@@ -16,12 +16,16 @@ const _labels = PresetPickerLabels(
   cancel: 'Cancel',
   save: 'Save',
   deleteAction: 'Delete',
+  discard: 'Discard changes',
+  discardShort: 'Discard',
+  discardConfirm: _discard,
 );
 
 String _update(String name) => 'Update "$name"';
 String _rename(String name) => 'Rename "$name"…';
 String _delete(String name) => 'Delete "$name"';
 String _confirm(String name) => 'Delete "$name"?';
+String _discard(String name) => 'Back to "$name"?';
 
 const _entries = [
   PresetPickerEntry(id: 'none', label: 'Normal', icon: Icons.restart_alt),
@@ -52,29 +56,44 @@ void main() {
     String? manageId,
     bool enabled = true,
     bool withUpdate = true,
+    bool withDiscard = true,
+    List<PresetPickerEntry> entries = _entries,
+    double width = 800,
+    double textScale = 1,
   }) => tester.pumpWidget(
     MaterialApp(
+      builder: (context, child) => MediaQuery(
+        data: MediaQuery.of(context)
+            .copyWith(textScaler: TextScaler.linear(textScale)),
+        child: child!,
+      ),
       home: Scaffold(
-        body: PresetPicker(
-          keyPrefix: 'test',
-          entries: _entries,
-          selectedId: selectedId,
-          updateId: updateId,
-          manageId: manageId,
-          enabled: enabled,
-          icon: Icons.speed,
-          labels: _labels,
-          onSelect: (id) async => calls.add('select $id'),
-          onSaveNew: (name) async {
-            calls.add('save $name');
-            return saveError;
-          },
-          onUpdate: withUpdate ? (id) async => calls.add('update $id') : null,
-          onRename: (id, name) async {
-            calls.add('rename $id $name');
-            return saveError;
-          },
-          onDelete: (id) async => calls.add('delete $id'),
+        body: SizedBox(
+          width: width,
+          child: PresetPicker(
+            keyPrefix: 'test',
+            entries: entries,
+            selectedId: selectedId,
+            updateId: updateId,
+            manageId: manageId,
+            enabled: enabled,
+            icon: Icons.speed,
+            labels: _labels,
+            onSelect: (id) async => calls.add('select $id'),
+            onSaveNew: (name) async {
+              calls.add('save $name');
+              return saveError;
+            },
+            onUpdate: withUpdate ? (id) async => calls.add('update $id') : null,
+            onDiscard: withDiscard
+                ? (id) async => calls.add('discard $id')
+                : null,
+            onRename: (id, name) async {
+              calls.add('rename $id $name');
+              return saveError;
+            },
+            onDelete: (id) async => calls.add('delete $id'),
+          ),
         ),
       ),
     ),
@@ -97,6 +116,133 @@ void main() {
       )
       .controller!
       .text;
+
+  group('edited preset', () {
+    testWidgets('reads <name>* while edited, plain Custom without an origin', (
+      tester,
+    ) async {
+      await pump(tester, updateId: 'a');
+      expect(shown(tester), 'Alpha*');
+      await pump(tester);
+      await tester.pumpAndSettle();
+      expect(shown(tester), 'Custom');
+      await pump(tester, selectedId: 'a', updateId: 'a');
+      await tester.pumpAndSettle();
+      expect(shown(tester), 'Alpha');
+    });
+
+    testWidgets('a visible Discard shows only while edited and asks first', (
+      tester,
+    ) async {
+      await pump(tester, selectedId: 'a', updateId: 'a');
+      expect(_key('Discard'), findsNothing);
+      await pump(tester, updateId: 'a', withDiscard: false);
+      await tester.pumpAndSettle();
+      expect(_key('Discard'), findsNothing);
+      // No origin: nothing to go back to.
+      await pump(tester);
+      await tester.pumpAndSettle();
+      expect(_key('Discard'), findsNothing);
+
+      await pump(tester, updateId: 'a');
+      await tester.pumpAndSettle();
+      expect(find.widgetWithText(TextButton, 'Discard'), findsOneWidget);
+      await tester.tap(_key('Discard'));
+      await tester.pumpAndSettle();
+      expect(find.text('Back to "Alpha"?'), findsOneWidget);
+      await tester.tap(find.text('Cancel'));
+      await tester.pumpAndSettle();
+      expect(calls, isEmpty);
+
+      await tester.tap(_key('Discard'));
+      await tester.pumpAndSettle();
+      await tester.tap(_key('DiscardConfirm'));
+      await tester.pumpAndSettle();
+      expect(calls, ['discard a']);
+    });
+
+    testWidgets('Discard becomes an icon button when space is tight', (
+      tester,
+    ) async {
+      await pump(tester, updateId: 'a', width: 320);
+      await tester.pumpAndSettle();
+      expect(find.widgetWithIcon(IconButton, Icons.restore), findsOneWidget);
+      expect(find.widgetWithText(TextButton, 'Discard'), findsNothing);
+      await tester.tap(_key('Discard'));
+      await tester.pumpAndSettle();
+      expect(find.text('Back to "Alpha"?'), findsOneWidget);
+    });
+
+    testWidgets('Discard is hidden when the origin is unavailable', (
+      tester,
+    ) async {
+      // Beta is disabled (unsupported here), so it cannot be re-applied.
+      await pump(tester, updateId: 'b');
+      await tester.pumpAndSettle();
+      expect(shown(tester), 'Beta*');
+      expect(_key('Discard'), findsNothing);
+    });
+
+    testWidgets('a long name still wraps at twice the text size', (
+      tester,
+    ) async {
+      const long = PresetPickerEntry(
+        id: 'long',
+        label: 'RP150 Green Teal Night Variant With A Long Name',
+      );
+      const short = PresetPickerEntry(id: 'short', label: 'Short');
+      double height(WidgetTester tester) => tester
+          .getSize(
+            find.descendant(
+              of: _key('Dropdown'),
+              matching: find.byType(TextField),
+            ),
+          )
+          .height;
+      await pump(
+        tester,
+        selectedId: 'short',
+        entries: [short],
+        width: 360,
+        textScale: 2,
+      );
+      await tester.pumpAndSettle();
+      final one = height(tester);
+      await pump(
+        tester,
+        selectedId: 'long',
+        entries: [long],
+        width: 360,
+        textScale: 2,
+      );
+      await tester.pumpAndSettle();
+      expect(shown(tester), long.label);
+      // Three lines at most, and taller than one: wrapped, not cut off.
+      expect(height(tester), greaterThan(one + 20));
+    });
+
+    testWidgets('a long name wraps instead of being cut off', (tester) async {
+      const long = PresetPickerEntry(
+        id: 'long',
+        label: 'RP150 Green Teal Night Variant With A Long Name',
+      );
+      await pump(tester, selectedId: 'long', entries: [long], width: 300);
+      await tester.pumpAndSettle();
+      expect(shown(tester), long.label);
+      // Taller than the 56 dp single-line field: wrapped, not cut off.
+      expect(
+        tester
+            .getSize(
+              find.descendant(
+                of: _key('Dropdown'),
+                matching: find.byType(TextField),
+              ),
+            )
+            .height,
+        greaterThan(60),
+      );
+    });
+  });
 
   group('dropdown', () {
     testWidgets('lists Custom only while nothing is selected', (tester) async {
