@@ -96,7 +96,8 @@ Run before every commit (automatically enforced if the pre-commit hook is enable
 
 Checks performed (in order, fail-fast):
 1. `/tmp` disk-space preflight
-2. Linux desktop-entry installer (`tool/linux_desktop_entry_test.sh`)
+2. Flutter test-log guard fixtures (`tool/check_test_log_test.sh`) and Linux
+   desktop-entry installer (`tool/linux_desktop_entry_test.sh`)
 3. Native equalizer response/PCM fixtures (`tool/equalizer_native_test.sh`)
    and the Last.fm key masking / artifact secret scan shell tests
    (`tool/lastfm_key_defines_test.sh`, `tool/scan_artifact_secret_test.sh`;
@@ -125,6 +126,11 @@ filter responses, measured PCM gain, headroom, channel isolation, and bypass;
 they do not replace Android build and actual device/runtime validation.
 
 The script also checks `/tmp` disk space before starting to prevent misleading test hangs.
+Every Flutter test step (including CI coverage) checks its captured log for a
+nonzero failure count in the last progress line, `Some tests failed`, or
+`One or more uncaught errors occurred shutting down`, even if Flutter exits 0.
+The guard strips ANSI sequences and handles carriage-return progress updates;
+it prints matching lines and fails the gate.
 Captured test logs also reject the repeated `node.built` and `!child.attached`
 semantics assertions. The focused runtime gate for these failures is
 `./tool/presentation_diagnostics.sh clone / tooltip-semantics`; it checks the

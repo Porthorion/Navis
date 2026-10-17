@@ -14,6 +14,16 @@ Last updated: 2026-10-17
 - ACP status values: `backlog`, `ready`, `in_progress`, `blocked`, `done`.
 
 ## Current Focus
+- [x] Issue #32, reject Flutter false passes — 2026-10-17
+  (`fix/check-sh-false-pass`): every captured test step, including CI coverage,
+  rejects a nonzero final progress failure count, `Some tests failed`, or a
+  runner shutdown crash even when Flutter exits 0. ANSI/CR fixture coverage
+  runs in the tooling gate. Evidence: `./tool/check_test_log_test.sh` printed
+  `check_test_log_test: ok`; the reported failure log was rejected with exit 1;
+  Bash syntax checks passed. After bootstrap resolved missing dependencies,
+  `flock /tmp/navis-heavy.lock ./tool/check.sh` passed (8,517 tests, one skip;
+  `[check] tests completed in 361s`, `[check] All checks passed.`).
+  ShellCheck was unavailable. The initial unbootstrapped gate stopped at format.
 - [x] Offline indicator strip, issue #6 UI — 2026-10-17
   (`feat/offline-indicator-strip`): the floating `ShellOfflineChip` is gone.
   `ShellOfflineBanner` now has a full 48 dp form and a 24 dp in-layout strip
