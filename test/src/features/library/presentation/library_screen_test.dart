@@ -75,7 +75,10 @@ class _FakeLibrarySyncController extends LibrarySyncController {
   }
 
   @override
-  Future<LibrarySyncState> requestTarget(LibrarySyncTarget target) async {
+  Future<LibrarySyncState> requestTarget(
+    LibrarySyncTarget target, {
+    bool requireFresh = false,
+  }) async {
     onTarget?.call(target);
     return _initialState;
   }
@@ -2390,8 +2393,10 @@ void main() {
         'edit dialog offers Save to server $label for device playlists only',
         (tester) async {
           final actions = _MockPlaylistActions();
-          when(() => actions.uploadToServer(any()))
-              .thenAnswer((_) async => 'srv1');
+          when(() => actions.uploadToServer(any())).thenAnswer(
+            (_) async =>
+                (serverId: 'srv1', deviceCopyKept: false, kept: 3, total: 3),
+          );
           await _pumpPlaylistsTab(
             tester,
             items: const <PlaylistLibraryItem>[
@@ -2434,6 +2439,50 @@ void main() {
           verifyNever(() => actions.rename(any(), any()));
         },
       );
+    }
+
+    for (final (keptDevice, kept, notice) in [
+      (true, 3, 'Playlist changed while saving; the device copy was kept'),
+      (false, 1, 'Saved on server: 1 of 3 songs'),
+      (
+        true,
+        1,
+        'Playlist changed while saving; the device copy was kept\nSaved on server: 1 of 3 songs',
+      ),
+    ]) {
+      _testWidgetsWithCleanup('upload result shows $notice', (tester) async {
+        final actions = _MockPlaylistActions();
+        final notices = AppNoticeController();
+        addTearDown(notices.dispose);
+        when(() => actions.uploadToServer(any())).thenAnswer(
+          (_) async => (
+            serverId: 'srv1',
+            deviceCopyKept: keptDevice,
+            kept: kept,
+            total: 3,
+          ),
+        );
+        await _pumpPlaylistsTab(
+          tester,
+          items: const [PlaylistLibraryItem.normal(_deviceMix)],
+          notices: notices,
+          overrides: [
+            playlistActionsProvider.overrideWithValue(actions),
+            playlistServerCreationAvailableProvider.overrideWithValue(true),
+          ],
+        );
+        await tester.longPress(find.text(_deviceMix.name));
+        await tester.pumpAndSettle();
+        await tester.tap(find.text('Edit Playlist'));
+        await tester.pumpAndSettle();
+        await tester.tap(find.byType(SwitchListTile));
+        await tester.pumpAndSettle();
+        await tester.tap(find.widgetWithText(FilledButton, 'Save'));
+        await tester.pumpAndSettle();
+        expect(notices.notice?.message, notice);
+        expect(notices.notice?.level, AppNoticeLevel.info);
+        notices.dismiss();
+      });
     }
 
     _testWidgetsWithCleanup(

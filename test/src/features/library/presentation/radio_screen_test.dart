@@ -555,7 +555,8 @@ void main() {
         ProviderScope(
           overrides: [
             radioStationsProvider.overrideWith(
-              (ref) async => ++loads == 1 ? const [_station] : refresh.future,
+              (ref) async =>
+                  ++loads == 1 ? const [_station] : await refresh.future,
             ),
             localRadioStationsProvider.overrideWith(
               (ref) => Stream.value(const <InternetRadioStation>[]),
@@ -840,6 +841,17 @@ void main() {
     testWidgets('an admin can move a device station to the server', (
       tester,
     ) async {
+      var reads = 0;
+      when(() => api.getInternetRadioStations()).thenAnswer(
+        (_) async => [
+          if (reads++ > 0)
+            InternetRadioStation(
+              id: 'new',
+              name: device.name,
+              streamUrl: device.streamUrl,
+            ),
+        ],
+      );
       await pump(tester, admin: true);
       await longPress(tester, device.id);
       await tester.tap(find.text('Edit station'));

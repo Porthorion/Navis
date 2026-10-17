@@ -663,10 +663,18 @@ class _LibraryPlaylistsTabState extends ConsumerState<_LibraryPlaylistsTab>
       return;
     }
     if (toServer) {
-      await _runPlaylistAction(
-        () => actions.uploadToServer(playlist.id),
-        l10n.playlistsSaveOnServerFailed,
-      );
+      await _runPlaylistAction(() async {
+        final result = await actions.uploadToServer(playlist.id);
+        if (!mounted) return;
+        final messages = [
+          if (result.deviceCopyKept) l10n.playlistsChangedWhileSaving,
+          if (result.kept < result.total)
+            l10n.playlistsSavedSongCount(result.kept, result.total),
+        ];
+        if (messages.isNotEmpty) {
+          showAppNotice(context, message: messages.join('\n'));
+        }
+      }, l10n.playlistsSaveOnServerFailed);
     }
   }
 

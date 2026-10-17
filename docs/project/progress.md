@@ -2,7 +2,7 @@
 
 Tracks completion of all phases and sub-tasks defined in [docs/project/development-plan.md](development-plan.md). Checkboxes are updated as work is completed.
 
-Last updated: 2026-10-17
+Last updated: 2026-10-18
 
 ---
 
@@ -14,6 +14,34 @@ Last updated: 2026-10-17
 - ACP status values: `backlog`, `ready`, `in_progress`, `blocked`, `done`.
 
 ## Current Focus
+- [x] Issue #49 review fixes, round 2 — 2026-10-18
+  (`feat/device-to-server-upload`): upload replacement compares the device name
+  and ordered entries with the original snapshot in the transaction; concurrent
+  edits preserve both copies and produce a notice. Readback validates and caches
+  the server's actual entries and reports partial acceptance. Playlist and radio
+  moves share pre-create id snapshots and new-id resolution for bodyless or
+  uncertain creates; ambiguous/failed lookups preserve the device copy, and
+  retries retain the original snapshot/resolved id in the actions instance.
+  This recovery state does not survive an app restart or actions replacement.
+  Header reconciliation uses the existing durable local-mutation journal's
+  increasing id to protect later writes, without a schema change, and deletes
+  hydration work only for rows actually removed. Header refresh queues through
+  the existing library target request path; the per-server sync lease is
+  unchanged. The stale-response race explains a newly uploaded server row
+  disappearing, but does not establish #51's cause: device rows remain excluded
+  from server deletion, and a regression pins their survival. Validation:
+  tests-first baseline `00:09 +239 -14: Some tests failed.`; all 14 failures
+  corresponded to the requested regressions. The final 12-file focused batch,
+  using the handoff's shared `flock`, 9G cap, concurrency 4 and 60s timeout,
+  passed: `00:10 +458: All tests passed!` and
+  `[capped] exit=0 peak=3905M swappeak=138M oom_kills=0`. Coverage includes
+  playlist uploads/actions, radio actions/screen, sync engine/controller,
+  playlist DAO, transaction streams, Library, playlist detail/device providers,
+  and remote detail pages. Focused analysis of 17 changed files reported
+  `No issues found! (ran in 4.7s)`. `make gen` and `flutter gen-l10n` succeeded;
+  no Drift-generated changes or migrations were needed. Changed Dart formatting
+  and `git diff --check` passed. App launches/runtime screenshots and
+  `tool/check.sh` were explicitly excluded by the implementation handoff.
 - [x] Issue #49, upload device playlists and radio stations to the server — 2026-10-18
   (`feat/device-to-server-upload`): Edit Playlist (the former rename dialog)
   has a Save on Server switch for device playlists, disabled while

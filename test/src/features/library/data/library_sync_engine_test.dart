@@ -34,6 +34,15 @@ String _testIndexesFingerprint(Iterable<String> artistIds) {
   return sha1.convert(utf8.encode(normalized.join('\n'))).toString();
 }
 
+class _PlaylistRaceApi extends FakeLibrarySyncApi {
+  Future<void> Function()? duringFetch;
+  @override
+  Future<List<Playlist>> getPlaylists() async {
+    await duringFetch?.call();
+    return playlists;
+  }
+}
+
 class _BatchTrackingLibrarySyncApi extends FakeLibrarySyncApi {
   final batchSizes = <int>[];
   int _active = 0;
@@ -1207,6 +1216,66 @@ void main() {
         }
       },
       skip: !sqliteAvailable,
+    );
+
+    test(
+      'stale playlist fetch preserves server rows written during fetch',
+      () async {
+        final raceApi = _PlaylistRaceApi()
+          ..playlists = const [Playlist(id: 'updated', name: 'Stale')];
+        await database.playlistDao.upsertPlaylists([
+          PlaylistsTableCompanion.insert(id: 'updated', name: 'Before'),
+          PlaylistsTableCompanion.insert(id: 'deleted', name: 'Old'),
+        ]);
+        await database.libraryDao.upsertSongs([
+          SongsTableCompanion.insert(id: 'song', title: 'Song'),
+        ]);
+        final device = await database.playlistDao.createLocalPlaylist(
+          'Device',
+          ['song'],
+        );
+        raceApi.duringFetch = () async {
+          await database.playlistDao.upsertPlaylists([
+            PlaylistsTableCompanion.insert(id: 'inserted', name: 'New'),
+            PlaylistsTableCompanion.insert(id: 'updated', name: 'After'),
+          ]);
+          await database.playlistDao.replacePlaylistSongs('inserted', [
+            PlaylistSongsTableCompanion.insert(
+              playlistId: 'inserted',
+              songId: 'song',
+              sortOrder: 0,
+            ),
+          ]);
+        };
+        final raceEngine = DriftLibrarySyncEngine(
+          api: raceApi,
+          database: database,
+          serverConfigRepository: serverConfigRepository,
+        );
+        await raceEngine.syncPlaylistHeaders();
+        expect(
+          await database.playlistDao.watchPlaylistById('inserted').first,
+          isNotNull,
+        );
+        expect(
+          (await database.playlistDao.watchPlaylistById('updated').first)?.name,
+          'After',
+        );
+        expect(
+          await database.playlistDao.watchPlaylistById('deleted').first,
+          isNull,
+        );
+        expect(
+          (await database.playlistDao.watchPlaylistSongs('inserted').first).map(
+            (s) => s.id,
+          ),
+          ['song'],
+        );
+        expect(
+          await database.playlistDao.watchPlaylistById(device).first,
+          isNotNull,
+        );
+      },
     );
 
     test('playlist headers preserve membership and queue unversioned or changed content', () async {

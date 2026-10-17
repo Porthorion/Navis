@@ -1,3 +1,6 @@
+import 'dart:async';
+
+import 'package:navis/src/api/subsonic_error.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
@@ -256,6 +259,161 @@ void main() {
           homePageUrl: 'https://radio.example',
         );
       }
+
+      setUp(() {
+        var reads = 0;
+        when(() => api.getInternetRadioStations()).thenAnswer(
+          (_) async => [
+            if (reads++ > 0)
+              const InternetRadioStation(
+                id: 'new',
+                name: 'Dev 2',
+                streamUrl: 'https://radio.example/dev',
+              ),
+          ],
+        );
+      });
+
+      test(
+        'radio commit then timeout resolves on retry without duplicate',
+        () async {
+          final device = await addDevice();
+          var committed = false;
+          var failRead = true;
+          when(() => api.getInternetRadioStations()).thenAnswer((_) async {
+            if (committed && failRead) {
+              failRead = false;
+              throw const SubsonicConnectionException('offline');
+            }
+            return [
+              if (committed)
+                const InternetRadioStation(
+                  id: 'new',
+                  name: 'Dev',
+                  streamUrl: 'https://radio.example/dev',
+                ),
+            ];
+          });
+          when(
+            () => api.createInternetRadioStation(
+              name: any(named: 'name'),
+              streamUrl: any(named: 'streamUrl'),
+              homepageUrl: any(named: 'homepageUrl'),
+            ),
+          ).thenAnswer((_) async {
+            committed = true;
+            throw const SubsonicConnectionException('timeout');
+          });
+          Future<void> save() => actions.save(
+            existing: device,
+            isLocal: true,
+            moveToServer: true,
+            name: 'Dev',
+            streamUrl: device.streamUrl,
+          );
+          await expectLater(
+            save(),
+            throwsA(isA<SubsonicConnectionException>()),
+          );
+          await save();
+          expect(await database.localRadioStationDao.watchAll().first, isEmpty);
+          verify(
+            () => api.createInternetRadioStation(
+              name: any(named: 'name'),
+              streamUrl: any(named: 'streamUrl'),
+              homepageUrl: any(named: 'homepageUrl'),
+            ),
+          ).called(1);
+        },
+      );
+
+      test('ambiguous radio create keeps device copy on retry', () async {
+        final device = await addDevice();
+        var reads = 0;
+        when(() => api.getInternetRadioStations()).thenAnswer(
+          (_) async => [
+            const InternetRadioStation(
+              id: 'old',
+              name: 'Dev',
+              streamUrl: 'https://radio.example/dev',
+            ),
+            if (reads++ > 0) ...const [
+              InternetRadioStation(
+                id: 'x',
+                name: 'Dev',
+                streamUrl: 'https://radio.example/dev',
+              ),
+              InternetRadioStation(
+                id: 'y',
+                name: 'Dev',
+                streamUrl: 'https://radio.example/dev',
+              ),
+            ],
+          ],
+        );
+        when(
+          () => api.createInternetRadioStation(
+            name: any(named: 'name'),
+            streamUrl: any(named: 'streamUrl'),
+            homepageUrl: any(named: 'homepageUrl'),
+          ),
+        ).thenAnswer((_) async {});
+        Future<void> save() => actions.save(
+          existing: device,
+          isLocal: true,
+          moveToServer: true,
+          name: 'Dev',
+          streamUrl: device.streamUrl,
+        );
+        await expectLater(save(), throwsStateError);
+        await expectLater(save(), throwsStateError);
+        expect(
+          (await database.localRadioStationDao.watchAll().first).single.id,
+          device.id,
+        );
+        verify(
+          () => api.createInternetRadioStation(
+            name: any(named: 'name'),
+            streamUrl: any(named: 'streamUrl'),
+            homepageUrl: any(named: 'homepageUrl'),
+          ),
+        ).called(1);
+      });
+
+      test('radio double submit makes one create', () async {
+        final device = await addDevice();
+        final started = Completer<void>();
+        final gate = Completer<void>();
+        when(
+          () => api.createInternetRadioStation(
+            name: any(named: 'name'),
+            streamUrl: any(named: 'streamUrl'),
+            homepageUrl: any(named: 'homepageUrl'),
+          ),
+        ).thenAnswer((_) {
+          if (!started.isCompleted) started.complete();
+          return gate.future;
+        });
+        Future<void> save() => actions.save(
+          existing: device,
+          isLocal: true,
+          moveToServer: true,
+          name: 'Dev 2',
+          streamUrl: device.streamUrl,
+        );
+        final first = save();
+        await started.future;
+        final second = save();
+        gate.complete();
+        await Future.wait([first, second]);
+        verify(
+          () => api.createInternetRadioStation(
+            name: any(named: 'name'),
+            streamUrl: any(named: 'streamUrl'),
+            homepageUrl: any(named: 'homepageUrl'),
+          ),
+        ).called(1);
+      });
 
       test('creates the server station, then deletes the device row', () async {
         final device = await addDevice();

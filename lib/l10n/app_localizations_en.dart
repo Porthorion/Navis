@@ -2982,6 +2982,15 @@ class AppLocalizationsEn extends AppLocalizations {
       'Connect to the server to save this playlist on it.';
 
   @override
+  String get playlistsChangedWhileSaving =>
+      'Playlist changed while saving; the device copy was kept';
+
+  @override
+  String playlistsSavedSongCount(int kept, int total) {
+    return 'Saved on server: $kept of $total songs';
+  }
+
+  @override
   String get playlistsSaveOnServerFailed => 'Failed to save playlist on server';
 
   @override

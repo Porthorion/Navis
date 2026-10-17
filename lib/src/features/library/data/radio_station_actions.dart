@@ -1,4 +1,5 @@
 import 'package:navis/src/api/models/internet_radio_station.dart';
+import 'package:navis/src/api/server_create_recovery.dart';
 import 'package:navis/src/api/subsonic_api_client.dart';
 import 'package:navis/src/database/daos/local_radio_station_dao.dart';
 
@@ -8,6 +9,8 @@ class RadioStationActions {
     required this._api,
     required this._onServerChanged,
   });
+
+  final _createRecovery = ServerCreateRecovery<InternetRadioStation>();
 
   final LocalRadioStationDao _localStations;
   final SubsonicApiClient? _api;
@@ -42,13 +45,32 @@ class RadioStationActions {
       return;
     }
     final api = _requireApi();
-    if (existing == null || moveToServer) {
+    if (moveToServer && existing != null) {
+      await _createRecovery.run(
+        existing.id,
+        snapshot: existing,
+        name: trimmedName,
+        list: () async => [
+          for (final row in await api.getInternetRadioStations())
+            (id: row.id, name: row.name),
+        ],
+        create: () async {
+          await api.createInternetRadioStation(
+            name: trimmedName,
+            streamUrl: stream,
+            homepageUrl: validatedHomepage,
+          );
+          return null;
+        },
+      );
+      await _localStations.deleteStation(existing.id);
+      _createRecovery.complete(existing.id);
+    } else if (existing == null) {
       await api.createInternetRadioStation(
         name: trimmedName,
         streamUrl: stream,
         homepageUrl: validatedHomepage,
       );
-      if (existing != null) await _localStations.deleteStation(existing.id);
     } else {
       await api.updateInternetRadioStation(
         id: existing.id,

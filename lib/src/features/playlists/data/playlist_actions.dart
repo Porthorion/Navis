@@ -1,9 +1,21 @@
+import 'dart:async';
+
 import 'package:drift/drift.dart' show Value;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:navis/src/api/server_create_recovery.dart';
 import 'package:navis/src/api/subsonic_api_client.dart';
 import 'package:navis/src/database/navis_database.dart';
+import 'package:navis/src/features/library/data/library_sync_response_validation.dart';
 import 'package:navis/src/features/playlists/presentation/playlist_providers.dart';
 import 'package:navis/src/providers/app_providers.dart';
+
+typedef PlaylistUploadResult = ({
+  String serverId,
+  bool deviceCopyKept,
+  int kept,
+  int total,
+});
+typedef _UploadSnapshot = ({String name, List<String> songIds});
 
 final playlistActionsProvider = Provider<PlaylistActions>(PlaylistActions.new);
 
@@ -13,7 +25,8 @@ class PlaylistActions {
 
   final Ref _ref;
 
-  final _uploads = <String, Future<String?>>{};
+  final _uploads = <String, Future<PlaylistUploadResult>>{};
+  final _createRecovery = ServerCreateRecovery<_UploadSnapshot>();
 
   SubsonicApiClient _serverApi() {
     final api = _ref.read(subsonicApiProvider);
@@ -49,57 +62,94 @@ class PlaylistActions {
     return playlist.id;
   }
 
-  /// Moves device playlist [localId] to the server and returns the new server
-  /// id (null when the server did not report one). The device playlist is
-  /// deleted only after the server create succeeded; a failure leaves it as
-  /// it was. Concurrent calls for one playlist share a single create.
-  Future<String?> uploadToServer(String localId) => _uploads.putIfAbsent(
-    localId,
-    () => _upload(localId).whenComplete(() {
-      // A block body: returning the removed future would make it await itself.
-      _uploads.remove(localId);
-    }),
-  );
-
-  Future<String?> _upload(String localId) async {
-    final api = _serverApi();
-    final dao = _ref.read(navisDatabaseProvider).playlistDao;
-    final local = await dao.watchPlaylistById(localId).first;
-    if (local == null || !local.isLocal) {
-      throw StateError('Only device playlists can be saved on the server.');
-    }
-    final songIds = [
-      for (final song in await dao.watchPlaylistSongs(localId).first) song.id,
-    ];
-    final created = await api.createPlaylist(local.name, songIds: songIds);
-    // The client's fallback id when the server returned no playlist body.
-    final reported = created.id != 'created';
-    if (reported) {
-      await dao.replaceLocalWithServer(
+  /// Uploads a device snapshot, preserving concurrent edits and reporting the
+  /// server's accepted song count. Concurrent calls share the entire move.
+  Future<PlaylistUploadResult> uploadToServer(String localId) =>
+      _uploads.putIfAbsent(
         localId,
-        PlaylistsTableCompanion.insert(
-          id: created.id,
-          name: created.name,
-          songCount: Value(created.songCount ?? local.songCount),
-          duration: Value(created.duration ?? local.duration),
-          owner: Value(created.owner),
-          isPublic: Value(created.isPublic),
-          readOnly: Value(created.readOnly),
-          coverArt: Value(created.coverArt ?? local.coverArt),
-          comment: Value(created.comment),
-        ),
+        () => _upload(localId).whenComplete(() {
+          unawaited(_uploads.remove(localId));
+        }),
       );
-    } else {
-      await dao.deletePlaylist(localId);
+
+  Future<PlaylistUploadResult> _upload(String localId) async {
+    final api = _serverApi();
+    final db = _ref.read(navisDatabaseProvider);
+    final dao = db.playlistDao;
+    final snapshot = await db.transaction(() async {
+      final local = await dao.watchPlaylistById(localId).first;
+      if (local == null || !local.isLocal) {
+        throw StateError('Only device playlists can be saved on the server.');
+      }
+      return (
+        name: local.name,
+        songIds: [
+          for (final song in await dao.watchPlaylistSongs(localId).first)
+            song.id,
+        ],
+      );
+    });
+    final resolved = await _createRecovery.run(
+      localId,
+      snapshot: snapshot,
+      name: snapshot.name,
+      list: () async => [
+        for (final row in await api.getPlaylists())
+          (id: row.id, name: row.name),
+      ],
+      create: () async {
+        final created = await api.createPlaylist(
+          snapshot.name,
+          songIds: snapshot.songIds,
+        );
+        return created.id == 'created' || created.id.isEmpty
+            ? null
+            : created.id;
+      },
+    );
+    final actual = await api.getPlaylist(resolved.id);
+    validatePlaylistSnapshot(actual, requestedId: resolved.id);
+    final keptDevice = await dao.replaceLocalWithServer(
+      localId,
+      PlaylistsTableCompanion.insert(
+        id: actual.id,
+        name: actual.name,
+        songCount: Value(actual.entries.length),
+        duration: Value(actual.duration),
+        owner: Value(actual.owner),
+        isPublic: Value(actual.isPublic),
+        readOnly: Value(actual.readOnly),
+        coverArt: Value(actual.coverArt),
+        comment: Value(actual.comment),
+      ),
+      uploadedName: resolved.snapshot.name,
+      uploadedSongIds: resolved.snapshot.songIds,
+      songs: [
+        for (final song in actual.entries)
+          SongsTableCompanion.insert(
+            id: song.id,
+            title: song.title,
+            duration: Value.absentIfNull(song.duration),
+            coverArt: Value.absentIfNull(song.coverArt),
+          ),
+      ],
+      serverSongIds: actual.entries.map((song) => song.id).toList(),
+    );
+    _createRecovery.complete(localId);
+    if (_ref.mounted) {
+      if (!keptDevice) {
+        _ref
+            .read(playlistMovedToServerProvider.notifier)
+            .moved(localId, actual.id);
+      }
+      _ref.invalidate(playlistSyncProvider);
     }
-    if (!_ref.mounted) return reported ? created.id : null;
-    if (reported) {
-      _ref
-          .read(playlistMovedToServerProvider.notifier)
-          .moved(localId, created.id);
-    }
-    _ref.invalidate(playlistSyncProvider);
-    return reported ? created.id : null;
+    return (
+      serverId: actual.id,
+      deviceCopyKept: keptDevice,
+      kept: actual.entries.length,
+      total: resolved.snapshot.songIds.length,
+    );
   }
 
   Future<void> rename(PlaylistsTableData playlist, String name) async {

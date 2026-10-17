@@ -4739,6 +4739,18 @@ abstract class AppLocalizations {
   /// **'Connect to the server to save this playlist on it.'**
   String get playlistsSaveOnServerOffline;
 
+  /// No description provided for @playlistsChangedWhileSaving.
+  ///
+  /// In en, this message translates to:
+  /// **'Playlist changed while saving; the device copy was kept'**
+  String get playlistsChangedWhileSaving;
+
+  /// No description provided for @playlistsSavedSongCount.
+  ///
+  /// In en, this message translates to:
+  /// **'Saved on server: {kept} of {total} songs'**
+  String playlistsSavedSongCount(int kept, int total);
+
   /// No description provided for @playlistsSaveOnServerFailed.
   ///
   /// In en, this message translates to:

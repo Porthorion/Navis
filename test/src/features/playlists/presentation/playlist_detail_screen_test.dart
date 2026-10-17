@@ -48,7 +48,10 @@ class _RecordingSync extends LibrarySyncController {
   LibrarySyncState build() => const LibrarySyncState.idle();
 
   @override
-  Future<LibrarySyncState> requestTarget(LibrarySyncTarget target) async {
+  Future<LibrarySyncState> requestTarget(
+    LibrarySyncTarget target, {
+    bool requireFresh = false,
+  }) async {
     targets.add(target);
     return const LibrarySyncState.idle();
   }
@@ -382,7 +385,10 @@ void main() {
             SongsTableCompanion.insert(id: 'a', title: 'First song'),
             SongsTableCompanion.insert(id: 'b', title: 'Second song'),
           ]);
-          return database.playlistDao.createLocalPlaylist('Device', ['a', 'b']);
+          return await database.playlistDao.createLocalPlaylist('Device', [
+            'a',
+            'b',
+          ]);
         }))!;
         await tester.pumpWidget(
           ProviderScope(

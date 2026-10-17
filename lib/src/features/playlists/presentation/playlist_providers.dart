@@ -222,7 +222,10 @@ class PlaylistCreateOnServerController extends Notifier<bool> {
 final playlistSyncProvider = FutureProvider.autoDispose<void>((ref) async {
   final result = await ref
       .read(librarySyncControllerProvider.notifier)
-      .requestTarget(const LibrarySyncTarget.playlistHeaders());
+      .requestTarget(
+        const LibrarySyncTarget.playlistHeaders(),
+        requireFresh: true,
+      );
   if (result.status == LibrarySyncStatus.failed) {
     throw StateError(result.errorMessage ?? 'Playlist refresh failed.');
   }

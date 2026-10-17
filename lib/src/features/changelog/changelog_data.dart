@@ -166,7 +166,7 @@ const List<ChangelogVersion> changelogs = [
     ],
     entries: [
       ChangelogEntry(
-        'A playlist that lives only on this device can now be moved to the server: Edit Playlist has a Save on Server switch that uploads it and replaces the device copy, and admins get the same switch when editing a device radio station',
+        'A playlist that lives only on this device can now be saved on the server: Edit Playlist has a Save on Server switch, preserves edits made during the upload, and reports how many songs the server accepted; admins get the same switch for device radio stations, and uncertain uploads keep the device copy until the server result is identified',
         type: ChangelogEntryType.newFeature,
       ),
       ChangelogEntry(

@@ -1344,6 +1344,14 @@
   "playlistsSaveOnServerTitle": "Save on Server",
   "playlistsSaveOnServerHint": "Moves this playlist to the server so every device you sign in on has it. This cannot be undone.",
   "playlistsSaveOnServerOffline": "Connect to the server to save this playlist on it.",
+  "playlistsChangedWhileSaving": "Playlist changed while saving; the device copy was kept",
+  "playlistsSavedSongCount": "Saved on server: {kept} of {total} songs",
+  "@playlistsSavedSongCount": {
+    "placeholders": {
+      "kept": {"type": "int"},
+      "total": {"type": "int"}
+    }
+  },
   "playlistsSaveOnServerFailed": "Failed to save playlist on server",
   "playlistsDeleteFailed": "Failed to delete playlist",
   "playlistsFilterHint": "Search playlists...",

@@ -3379,14 +3379,34 @@ works like the weekly playlists. `homeTrendingProvider`
   only when `canEditPlaylist` holds. Edit Playlist is the rename dialog plus,
   for device playlists only, a Save on Server switch (disabled with a note
   while `playlistServerCreationAvailableProvider` is false).
-  `PlaylistActions.uploadToServer` (one in-flight call per playlist) reads the
-  name and ordered song ids, calls `createPlaylist`, then
-  `PlaylistDao.replaceLocalWithServer` inserts the server row with the same
-  songs and deletes the device row in one transaction; a failed create leaves
-  the device playlist untouched and shows `playlistsSaveOnServerFailed`. The
-  old `local:<uuid>` id is recorded in `playlistMovedToServerProvider`, which an
-  open `PlaylistDetailScreen` follows via `NavService.replacePlaylistDetail`;
-  other references (queue context, Android Auto browse ids, download queue
+  `PlaylistActions.uploadToServer` shares one in-flight move per playlist and
+  snapshots the name and ordered song ids. Before creating, it snapshots server
+  playlist ids through `getPlaylists`. The shared `ServerCreateRecovery` also
+  handles radio moves: after a bodyless success or uncertain transport failure,
+  it resolves exactly one new id with the expected name. Existing same-name ids
+  never count. An ambiguous result or failed lookup preserves the device copy
+  and reports failure; retries in the same actions instance retain the original
+  ids and snapshot and resolve again without another create. A definite
+  Subsonic error propagates without recovery. Recovery state is session-local;
+  it does not survive replacement of the actions instance or app restart.
+  The created playlist is read back with `getPlaylist` and validated before
+  caching its actual ordered entries. `PlaylistDao.replaceLocalWithServer`
+  compares the device name and ordered entries to the uploaded snapshot inside
+  the replacement transaction. If changed, both copies remain and a notice says
+  "Playlist changed while saving; the device copy was kept". Otherwise the
+  device copy is deleted, and its old `local:<uuid>` id is recorded in
+  `playlistMovedToServerProvider`, which an open `PlaylistDetailScreen` follows
+  via `NavService.replacePlaylistDetail`. The result carries kept/total counts;
+  partial acceptance shows "Saved on server: N of M songs". A readback failure
+  retains the device copy and resolved id for retry. The post-upload header
+  refresh uses the existing library target request path with `requireFresh`,
+  queuing behind an older request instead of joining it. Sync execution retains
+  the existing per-server lease. Before fetching headers, sync captures the
+  existing local-mutation journal's increasing id; reconciliation preserves
+  playlist headers and joins written after that boundary, including local
+  uploads, and removes hydration work only for rows actually deleted. The
+  journal records one latest write per playlist without a schema change.
+  Other references (queue context, Android Auto browse ids, download queue
   `playlistId`) are looked up on demand or write-only and fall back to "not
   found". The upload is one-way. Rename, delete, add, remove and reorder all go
   through `PlaylistActions` and show `playlistsRenameFailed`,
@@ -6429,10 +6449,13 @@ Edit and Delete only for device stations or when `serverUserIsAdminProvider`
 is true; otherwise it does nothing. The editor shows inline errors from the
 actions' validation, and "Save on Server" appears only to admins while the
 server radio list loaded (default off): when adding it picks the destination,
-when editing a device station it moves it (`save(moveToServer: true)` creates
-the server station, then deletes the device row; a failed create keeps the
-device row). The move is one-way: server stations never come back to the
-device. Deleting shows the station's name, stream and homepage URLs
+when editing a device station it moves it (`save(moveToServer: true)` snapshots
+station ids, creates the server station, resolves exactly one new matching id
+through `getInternetRadioStations`, then deletes the device row). The shared
+create recovery prevents concurrent creates and resolves uncertain outcomes on
+retry; ambiguity, lookup failure, or a definite create failure keeps the device
+row and reports the failure. The move is one-way: server stations never come
+back to the device. Deleting shows the station's name, stream and homepage URLs
 and where it is stored. Save failures appear inline inside the editor, retain
 all entered values, and clear on the next attempt or edit. Delete failures show
 an error notice.
