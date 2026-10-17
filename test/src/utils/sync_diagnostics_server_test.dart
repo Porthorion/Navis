@@ -2854,6 +2854,41 @@ void main() {
     },
   );
 
+  test('rejected radio start returns a safe upstream error', () async {
+    final handler = _MockPlaybackHandler();
+    when(() => handler.loadFailureStream)
+        .thenAnswer((_) => const Stream.empty());
+    when(
+      () => handler.playRadioStream(
+        stationId: any(named: 'stationId'),
+        stationName: any(named: 'stationName'),
+        streamUrl: any(named: 'streamUrl'),
+        homePageUrl: any(named: 'homePageUrl'),
+      ),
+    ).thenThrow(const RadioPlaybackUnavailableException());
+    final api = _MockSubsonicApiClient();
+    when(api.getInternetRadioStations).thenAnswer(
+      (_) async => const [
+        InternetRadioStation(
+          id: 'dead',
+          name: 'Dead station',
+          streamUrl: 'http://127.0.0.1:9/dead.mp3',
+        ),
+      ],
+    );
+    final clone = await _startFixture(
+      SyncDiagnosticsMode.clone,
+      handler: handler,
+      api: api,
+    );
+    addTearDown(clone.close);
+    final response = await clone.post('/v1/playback/radio', {
+      'stationId': 'dead',
+    });
+    expect(response.statusCode, HttpStatus.badGateway);
+    expect(response.body, {'error': 'station unavailable'});
+  });
+
   test('playback recovery fixtures reject primary mutations', () async {
     final primary = await _startFixture(
       SyncDiagnosticsMode.primaryCertification,
@@ -3776,6 +3811,8 @@ Future<_DiagnosticsFixture> _startFixture(
     token: value['token'] as String,
   );
 }
+
+class _MockSubsonicApiClient extends Mock implements SubsonicApiClient;
 
 class _MockPlaybackHandler extends Mock implements NavisPlaybackHandler {
   // Playback status reads the UI snapshot, which subscribes up front.

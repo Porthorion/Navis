@@ -3531,6 +3531,10 @@ class SyncDiagnosticsServer {
       await _respond(request, HttpStatus.notFound, <String, Object?>{
         'error': 'not found',
       });
+    } on RadioPlaybackUnavailableException {
+      await _respond(request, HttpStatus.badGateway, <String, Object?>{
+        'error': 'station unavailable',
+      });
     } on FormatException catch (_) {
       await _respond(request, HttpStatus.badRequest, <String, Object?>{
         'error': 'invalid JSON body',

@@ -111,6 +111,34 @@ class _RadioHandler implements NavisPlaybackHandler {
 }
 
 void main() {
+  testWidgets('handler-owned radio failure does not show a second notice', (
+    tester,
+  ) async {
+    final notices = AppNoticeController();
+    addTearDown(notices.dispose);
+    final handler = _RadioHandler()
+      ..error = const RadioPlaybackUnavailableException();
+    await _pumpRadio(
+      tester,
+      stations: const [_station],
+      query: '',
+      onClearTypeFilter: null,
+      handler: handler,
+      notices: notices,
+    );
+    await tester.pumpAndSettle();
+    // The shell has already shown the handler's radioStreamErrorStream notice.
+    notices.show(message: 'Station unavailable', level: AppNoticeLevel.error);
+    final noticeId = notices.notice!.id;
+    var additionalNotices = 0;
+    notices.addListener(() => additionalNotices++);
+    await tester.tap(find.byTooltip('Play'));
+    await tester.pump();
+    expect(tester.takeException(), isNull);
+    expect(notices.notice!.id, noticeId);
+    expect(additionalNotices, 0);
+  });
+
   testWidgets('blocked radio explains the online services switch', (
     tester,
   ) async {

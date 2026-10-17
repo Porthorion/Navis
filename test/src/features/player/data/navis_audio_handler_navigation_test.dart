@@ -670,6 +670,7 @@ class _ControllableAudioPlayer extends Fake implements AudioPlayer {
         sources.isNotEmpty &&
         sources.first is IndexedAudioSource &&
         _sourceId(sources.first) == failing) {
+      state = ProcessingState.idle;
       throw StateError('load failed');
     }
     state = ProcessingState.loading;
@@ -1419,7 +1420,10 @@ void main() {
           stationName: 'Fixture',
           streamUrl: 'https://radio.example.invalid/live',
         );
-        final failed = expectLater(starting, throwsStateError);
+        final failed = expectLater(
+          starting,
+          throwsA(isA<RadioPlaybackUnavailableException>()),
+        );
         await entered.future;
         player._events.addError(PlayerException(0, 'Source error', 0));
         await pumpEventQueue();
@@ -1742,12 +1746,56 @@ void main() {
       },
     );
 
+    for (final count in [1, 80]) {
+      test(
+        'rejected station start restores $count playing songs paused with one notice',
+        () async {
+          final (handler, player, _) = await setup(count: count);
+          final songIds = List.generate(count, (index) => 'song-$index');
+          await handler.replaceQueue(songIds, expandMatchFlows: false);
+          await settleQueue(handler);
+          await handler.debugFlushQueuePersistence();
+          expect(player.playing, isTrue);
+          final notices = <void>[];
+          final subscription = handler.radioStreamErrorStream.listen(
+            notices.add,
+          );
+          addTearDown(subscription.cancel);
+          // The native load can fail without emitting a playback stream error,
+          // and just_audio retains its separate playing flag after that failure.
+          player.failLoadSongId = 'radio:dead';
+          await expectLater(
+            handler.playRadioStream(
+              stationId: 'dead',
+              stationName: 'Dead station',
+              streamUrl: 'http://127.0.0.1:9/dead.mp3',
+            ),
+            throwsA(isA<RadioPlaybackUnavailableException>()),
+          );
+          await pumpEventQueue(times: 100);
+          await settleQueue(handler);
+          expect(handler.snapshot.queueSongIds, songIds);
+          expect(handler.snapshot.isRadioMode, isFalse);
+          expect(handler.snapshot.isLoading, isFalse);
+          expect(player.playing, isFalse);
+          expect(handler.snapshot.playing, isFalse);
+          expect(handler.playbackState.value.playing, isFalse);
+          expect(notices, hasLength(1));
+        },
+      );
+    }
+
     test(
       'a dead station on first start does not leave the load stuck',
       () async {
         final (handler, player, _) = await setup(
           reconcile: () async => net(online: true),
         );
+        await handler.replaceQueue(['song-0'], expandMatchFlows: false);
+        await handler.debugFlushQueuePersistence();
+        final notices = <void>[];
+        final subscription = handler.radioStreamErrorStream.listen(notices.add);
+        addTearDown(subscription.cancel);
         final gate = Completer<void>();
         final entered = Completer<void>();
         player
@@ -1761,11 +1809,16 @@ void main() {
         await entered.future;
         player._events.add(nativeError(2005));
         await pumpEventQueue();
-        gate.complete();
+        gate.completeError(StateError('source load also rejected'));
         await starting;
         await pumpEventQueue(times: 100);
+        await settleQueue(handler);
         expect(handler.snapshot.isRadioMode, isFalse);
         expect(handler.snapshot.isLoading, isFalse);
+        expect(handler.snapshot.queueSongIds, ['song-0']);
+        expect(handler.snapshot.playing, isFalse);
+        expect(player.playing, isFalse);
+        expect(notices, hasLength(1));
       },
     );
 
@@ -5313,7 +5366,7 @@ void main() {
                   stationName: 'Fixture',
                   streamUrl: url,
                 ),
-                throwsStateError,
+                throwsA(isA<RadioPlaybackUnavailableException>()),
               );
             } else {
               await handler.playRadioStream(
@@ -5543,7 +5596,10 @@ void main() {
             streamUrl: 'https://stream.example.invalid/b',
           );
           if (failLoad) {
-            await expectLater(switching, throwsStateError);
+            await expectLater(
+              switching,
+              throwsA(isA<RadioPlaybackUnavailableException>()),
+            );
           } else {
             await entered.future;
           }

@@ -402,6 +402,7 @@ class RadioTabContent extends ConsumerWidget {
           })
           .catchError((Object error) {
             if (!context.mounted || !isCurrent()) return;
+            if (error is RadioPlaybackUnavailableException) return;
             final l10n = AppLocalizations.of(context)!;
             showAppNotice(
               context,
