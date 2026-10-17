@@ -46,9 +46,12 @@ void main() {
   Future<ProcessResult> run(
     List<String> args, {
     Map<String, String> environment = const {},
+    String? command,
   }) => Process.run(
     '/bin/bash',
-    [p.join(fixture.path, 'tool', 'release.sh'), ...args],
+    command == null
+        ? [p.join(fixture.path, 'tool', 'release.sh'), ...args]
+        : ['-c', command],
     workingDirectory: fixture.path,
     includeParentEnvironment: false,
     environment: {
@@ -94,12 +97,14 @@ void main() {
       'tool/lib/release_dist.sh',
       'tool/lib/lastfm_key_defines.sh',
       'tool/lib/r2_tags.sh',
+      'tool/lib/github_release.sh',
     ]) {
       await write(script, File(script).readAsStringSync());
     }
     final chmod = await Process.run('/bin/chmod', [
       '+x',
       p.join(fixture.path, 'tool', 'release_tag_guard.sh'),
+      p.join(fixture.path, 'tool', 'release.sh'),
     ]);
     expect(chmod.exitCode, 0);
     await write('pubspec.yaml', 'version: 1.5.0+10500\n');
@@ -123,7 +128,8 @@ case "$1" in
     elif [[ "$2" == *'^{commit}' ]]; then echo "${TAG_COMMIT:-$SOURCE_COMMIT}"
     else [[ "${LOCAL_TAG:-false}" == true ]]; fi ;;
   ls-remote) [[ "${REMOTE_FAIL:-false}" != true ]] ;;
-  remote) [[ "$*" == 'remote get-url github' && "${MISSING_GITHUB_REMOTE:-false}" != true ]] ;;
+  remote) [[ "${MISSING_GITHUB_REMOTE:-false}" != true ]] || exit 1; echo git@github.com:Porthorion/Navis.git ;;
+  push) [[ "$2" != github || "${GITHUB_PUSH_FAIL:-false}" != true ]] ;;
   diff) exit 0 ;;
   *) [[ "${ALLOW_PUBLISH_FLOW:-false}" == true ]] || exit 90 ;;
 esac
@@ -180,24 +186,43 @@ echo 'fixture installer' > "$FIXTURE/$prefix-v1.5.0-windows-installer.exe"
     await executable('bin/curl', r'''
 echo "curl:$*" >> "$FIXTURE/log"
 [[ "${ALLOW_PUBLISH_FLOW:-false}" == true ]] || exit 90
-echo '{"id":42}'
+if [[ "$*" == *github.com* ]]; then
+  [[ "${GITHUB_FETCH_FAIL:-false}" != true ]] || exit 92
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      -o) cp "$FIXTURE/github-manifest.json" "$2"; shift ;;
+    esac
+    shift
+  done
+  echo 200
+else
+  echo '{"id":42}'
+fi
 ''');
     await executable('bin/gh', r'''
 echo "gh:$*" >> "$FIXTURE/log"
 [[ "${ALLOW_PUBLISH_FLOW:-false}" == true ]] || exit 90
+if [[ "$1" == auth ]]; then exit 0; fi
 if [[ "$*" == *'--json tagName'* ]]; then
   [[ "${GITHUB_EXISTS:-false}" == true ]] || exit 1
   echo '{"tagName":"v1.5.0"}'
-elif [[ "$2" == create ]]; then
-  python3 - "$@" <<'PY'
+elif [[ "$2" == create || "$2" == upload ]]; then
+  [[ "${GITHUB_UPLOAD_FAIL:-false}" != true ]] || exit 93
+  python3 - "$@" <<'PYGH'
 import json, os, pathlib, shutil, sys
 root = pathlib.Path(os.environ['FIXTURE'])
-shutil.copy(sys.argv[sys.argv.index('--notes-file') + 1], root / 'github-notes.md')
-assets = [pathlib.Path(arg) for arg in sys.argv if arg.startswith(str(root / 'dist')) and pathlib.Path(arg).name != 'release-notes.md']
+if '--notes-file' in sys.argv:
+    shutil.copy(sys.argv[sys.argv.index('--notes-file') + 1], root / 'github-notes.md')
+assets = [pathlib.Path(arg) for arg in sys.argv if pathlib.Path(arg).is_file() and pathlib.Path(arg).name != 'release-notes.md']
 (root / 'github-assets.json').write_text(json.dumps({'assets': [{'name': p.name, 'size': p.stat().st_size} for p in assets]}))
-PY
+for asset in assets:
+    if asset.name == 'manifest.json':
+        shutil.copy(asset, root / 'github-manifest.json')
+if os.environ.get('GITHUB_MANIFEST_MISMATCH') == 'true':
+    (root / 'github-manifest.json').write_text('different bytes')
+PYGH
 else
-  python3 - <<'PY'
+  python3 - <<'PYGH'
 import json, os, pathlib
 data = json.loads((pathlib.Path(os.environ['FIXTURE']) / 'github-assets.json').read_text())
 if os.environ.get('GITHUB_BAD_ASSET') == 'missing':
@@ -207,7 +232,7 @@ elif os.environ.get('GITHUB_BAD_ASSET') == 'name':
 elif os.environ.get('GITHUB_BAD_ASSET') == 'size':
     data['assets'][0]['size'] += 1
 print(json.dumps(data))
-PY
+PYGH
 fi
 ''');
     await executable('tool/r2_publish.sh', r'''
@@ -218,6 +243,10 @@ if [[ "$1" == publish ]]; then
   for arg in "$@"; do
     case "$arg" in
       --notes-file=*) cp "${arg#*=}" "$FIXTURE/published-notes" ;;
+      --manifest-out=*)
+        jq -cn --arg payload "$(printf '%s' '{"assets":{}}' | base64 -w0)" '{payload:$payload,signature:"fixture"}' > "${arg#*=}"
+        cp "${arg#*=}" "$FIXTURE/r2-manifest.json" ;;
+      --checksums-out=*) echo 'fixture checksums' > "${arg#*=}" ;;
       "$FIXTURE"/dist/*) sha256sum "$arg" >> "$FIXTURE/published-sums" ;;
     esac
   done
@@ -228,6 +257,171 @@ fi
   });
 
   tearDown(() => fixture.delete(recursive: true));
+
+  for (final args in [
+    ['--channel=dev', '--github'],
+    ['--channel=stable', '--prerelease'],
+    ['--channel=stable', '--prerelease', '--github'],
+  ]) {
+    test(
+      'rejects unsafe GitHub channel flags $args before side effects',
+      () async {
+        final result = await run(['v1.5.0', '--targets=linux', ...args]);
+        expect(result.exitCode, 1);
+        expect('${result.stdout}${result.stderr}', contains('stable'));
+        expect(await log(), isEmpty);
+      },
+    );
+  }
+
+  test(
+    'stable prerelease requires explicit no-github even from a bundle',
+    () async {
+      await build(extra: ['--prerelease', '--no-github']);
+      await write('log', '');
+      final refused = await run([
+        'v1.5.0',
+        '--publish-from=dist/v1.5.0',
+        '--skip-checks',
+      ]);
+      expect(refused.exitCode, 1);
+      expect('${refused.stdout}${refused.stderr}', contains('--no-github'));
+      expectNoReleaseActions(await log());
+      final allowed = await run(
+        [
+          'v1.5.0',
+          '--publish-from=dist/v1.5.0',
+          '--skip-checks',
+          '--no-github',
+        ],
+        environment: {'ALLOW_PUBLISH_FLOW': 'true'},
+      );
+      expect(allowed.exitCode, 0, reason: '${allowed.stdout}${allowed.stderr}');
+      expect(allowed.stderr, contains('GITHUB-SOURCE USERS WILL NOT SEE'));
+    },
+  );
+
+  test('dev bundle cannot be published to GitHub', () async {
+    await build(extra: ['--channel=dev']);
+    await write('log', '');
+    final result = await run(
+      ['v1.5.0', '--publish-from=dist/v1.5.0', '--skip-checks', '--github'],
+      environment: {'ALLOW_PUBLISH_FLOW': 'true'},
+    );
+    expect(result.exitCode, 1);
+    expect('${result.stdout}${result.stderr}', contains('stable'));
+    expectNoReleaseActions(await log());
+  });
+
+  test('stable run fails if GitHub verification is skipped after R2', () async {
+    await build();
+    final script = File(p.join(fixture.path, 'tool', 'release.sh'));
+    final contents = await script.readAsString();
+    // Simulate an accidental early successful exit, only in the fixture copy.
+    expect(contents, contains('R2_PUBLISHED=true\n'));
+    await script.writeAsString(
+      contents.replaceFirst(
+        'R2_PUBLISHED=true\n',
+        'R2_PUBLISHED=true\nexit 0\n',
+      ),
+    );
+    final result = await run(
+      ['v1.5.0', '--publish-from=dist/v1.5.0', '--skip-checks'],
+      environment: {'ALLOW_PUBLISH_FLOW': 'true'},
+    );
+    expect(result.exitCode, 1);
+    expect(result.stderr, contains('R2 succeeded but GitHub is not verified'));
+    expect(result.stderr, contains('Resume: '));
+    expect(result.stdout, isNot(contains('==> Done!')));
+  });
+
+  for (final failure in [
+    'GITHUB_PUSH_FAIL',
+    'GITHUB_UPLOAD_FAIL',
+    'GITHUB_FETCH_FAIL',
+    'GITHUB_MANIFEST_MISMATCH',
+  ]) {
+    test('R2 success then $failure prints a working resume command', () async {
+      await build();
+      await Directory(p.join(fixture.path, 'dist', 'v1.5.0'))
+          .rename(p.join(fixture.path, 'dist', 'v1.5.0 recovery'));
+      final result = await run(
+        [
+          'v1.5.0',
+          '--publish-from=dist/v1.5.0 recovery',
+          '--skip-checks',
+          '--github',
+        ],
+        environment: {'ALLOW_PUBLISH_FLOW': 'true', failure: 'true'},
+      );
+      expect(result.exitCode, isNot(0));
+      final output = '${result.stdout}${result.stderr}';
+      expect(output, contains('R2 succeeded but GitHub is not verified'));
+      final resume = RegExp('Resume: (.+)').firstMatch(output)!.group(1)!;
+      expect(resume, contains('--publish-from='));
+      expect(resume, contains('--allow-existing-version'));
+      expect(resume, contains('--github'));
+      await write('log', '');
+      final retried = await run(
+        [],
+        command: resume,
+        environment: {
+          'ALLOW_PUBLISH_FLOW': 'true',
+          'LOCAL_TAG': 'true',
+          'GITHUB_EXISTS':
+              failure == 'GITHUB_PUSH_FAIL' || failure == 'GITHUB_UPLOAD_FAIL'
+              ? 'false'
+              : 'true',
+        },
+      );
+      expect(retried.exitCode, 0, reason: '${retried.stdout}${retried.stderr}');
+      expect(
+        retried.stdout,
+        contains('GitHub and verified R2 manifest bytes match.'),
+      );
+      expect(
+        await File(p.join(fixture.path, 'github-manifest.json')).readAsBytes(),
+        await File(p.join(fixture.path, 'r2-manifest.json')).readAsBytes(),
+      );
+      expect(
+        (await log()).where((line) => line.startsWith('flutter:')),
+        isEmpty,
+      );
+    });
+  }
+
+  test(
+    'direct release retains a verified bundle for GitHub recovery',
+    () async {
+      await build();
+      final result = await run(
+        buildArgs
+            .where((arg) => arg != '--build-only' && arg != '--forgejo')
+            .followedBy(['--allow-existing-version'])
+            .toList(),
+        environment: {'ALLOW_PUBLISH_FLOW': 'true', 'GITHUB_PUSH_FAIL': 'true'},
+      );
+      expect(result.exitCode, isNot(0));
+      expect('${result.stdout}${result.stderr}', contains('Resume: '));
+      expect(
+        File(p.join(fixture.path, 'dist/v1.5.0/release.json')).existsSync(),
+        isTrue,
+      );
+      final resume = RegExp('Resume: (.+)')
+          .firstMatch('${result.stdout}${result.stderr}')!
+          .group(1)!;
+      final retried = await run(
+        [],
+        command: resume,
+        environment: {'ALLOW_PUBLISH_FLOW': 'true', 'LOCAL_TAG': 'true'},
+      );
+      expect(retried.exitCode, 0, reason: '${retried.stdout}${retried.stderr}');
+      expect(
+        retried.stdout,
+        contains('GitHub and verified R2 manifest bytes match.'),
+      );
+    },
+  );
 
   test(
     'build-only stages eight assets and never invokes release actions',
@@ -306,7 +500,7 @@ fi
         (line) => line.startsWith('r2:publish'),
       );
       final uploads = calls.where((line) => line.startsWith('curl:'));
-      expect(uploads, hasLength(assets.length + 1));
+      expect(uploads, hasLength(assets.length + 2));
       final sums = await File(p.join(fixture.path, 'published-sums'))
           .readAsLines();
       expect(sums, hasLength(assets.length));
@@ -329,8 +523,6 @@ fi
   );
 
   for (final (args, message) in [
-    (['--github'], '--github requires --publish-from'),
-    (['--build-only', '--github'], '--github requires --publish-from'),
     (['--build-only', '--publish-from=dist/v1.5.0'], 'cannot be combined'),
     (['--publish-from='], 'requires a directory'),
     (['--publish-from=dist/v1.5.0', '--targets=linux'], 'build options'),
@@ -345,85 +537,70 @@ fi
     });
   }
 
-  for (final prerelease in [false, true]) {
-    test(
-      'GitHub publishes exactly staged assets, prerelease=$prerelease',
-      () async {
-        await build(extra: [if (prerelease) '--prerelease']);
-        await write('log', '');
-        await write('dist/v1.5.0/unlisted.txt', 'must not upload');
-        final repo = prerelease ? 'fixture/Navis' : 'Porthorion/Navis';
-        final result = await run(
-          ['v1.5.0', '--publish-from=dist/v1.5.0', '--skip-checks', '--github'],
-          environment: {
-            'ALLOW_PUBLISH_FLOW': 'true',
-            if (prerelease) 'NAVIS_GITHUB_REPO': repo,
-          },
-        );
-        expect(
-          result.exitCode,
-          0,
-          reason: '${result.stdout}\n${result.stderr}',
-        );
-        final calls = await log();
-        expect(calls, contains('git:push github main v1.5.0'));
-        final upload = calls.singleWhere(
-          (line) => line.startsWith('gh:release create'),
-        );
-        expect(upload, contains('--repo $repo --title Navis v1.5.0'));
-        final notes = await File(p.join(fixture.path, 'github-notes.md'))
-            .readAsString();
-        expect(notes, startsWith('## Download'));
-        expect(
-          notes,
-          contains(
-            'https://downloads.porthorion.com/navis/releases/v1.5.0/SHA256SUMS',
-          ),
-        );
-        expect(
-          notes,
-          endsWith(
-            await File(p.join(fixture.path, 'dist/v1.5.0/release-notes.md'))
-                .readAsString(),
-          ),
-        );
-        expect(upload.contains('--prerelease'), prerelease);
-        expect(
-          calls,
-          contains('gh:release view v1.5.0 --repo $repo --json assets'),
-        );
-        expect(
-          calls.indexOf(upload),
-          greaterThan(
-            calls.indexWhere((line) => line.startsWith('r2:publish')),
-          ),
-        );
-        final uploaded = jsonDecode(
-          await File(p.join(fixture.path, 'github-assets.json')).readAsString(),
-        ) as Map<String, dynamic>;
-        final uploadedAssets = uploaded['assets'] as List<dynamic>;
-        expect(
-          uploadedAssets.map(
-            (dynamic asset) => (asset as Map<String, dynamic>)['name'],
-          ),
-          [...assets, 'SHA256SUMS'],
-        );
-        for (final dynamic asset in uploadedAssets) {
-          final entry = asset as Map<String, dynamic>;
-          expect(
-            entry['size'],
-            await File(
-              p.join(fixture.path, 'dist/v1.5.0', entry['name'] as String),
-            ).length(),
-          );
-        }
-      },
+  test('GitHub publishes exactly staged stable assets', () async {
+    await build();
+    await write('log', '');
+    await write('dist/v1.5.0/unlisted.txt', 'must not upload');
+    const repo = 'Porthorion/Navis';
+    final result = await run(
+      ['v1.5.0', '--publish-from=dist/v1.5.0', '--skip-checks', '--github'],
+      environment: {'ALLOW_PUBLISH_FLOW': 'true'},
     );
-  }
+    expect(result.exitCode, 0, reason: '${result.stdout}\n${result.stderr}');
+    final calls = await log();
+    expect(calls, contains('git:push github main v1.5.0'));
+    final upload = calls.singleWhere(
+      (line) => line.startsWith('gh:release create'),
+    );
+    expect(upload, contains('--repo $repo --title Navis v1.5.0'));
+    final notes = await File(p.join(fixture.path, 'github-notes.md'))
+        .readAsString();
+    expect(notes, startsWith('## Download'));
+    expect(
+      notes,
+      contains(
+        'https://downloads.porthorion.com/navis/releases/v1.5.0/${assets.first}',
+      ),
+    );
+    expect(
+      notes,
+      endsWith(
+        await File(p.join(fixture.path, 'dist/v1.5.0/release-notes.md'))
+            .readAsString(),
+      ),
+    );
+    expect(upload.contains('--prerelease'), isFalse);
+    expect(
+      calls,
+      contains('gh:release view v1.5.0 --repo $repo --json assets'),
+    );
+    expect(
+      calls.indexOf(upload),
+      greaterThan(calls.indexWhere((line) => line.startsWith('r2:publish'))),
+    );
+    final uploaded = jsonDecode(
+      await File(p.join(fixture.path, 'github-assets.json')).readAsString(),
+    ) as Map<String, dynamic>;
+    final uploadedAssets = uploaded['assets'] as List<dynamic>;
+    expect(
+      uploadedAssets.map(
+        (dynamic asset) => (asset as Map<String, dynamic>)['name'],
+      ),
+      [...assets, 'SHA256SUMS', 'manifest.json'],
+    );
+    for (final dynamic asset in uploadedAssets.take(assets.length)) {
+      final entry = asset as Map<String, dynamic>;
+      expect(
+        entry['size'],
+        await File(p.join(fixture.path, 'dist/v1.5.0', entry['name'] as String))
+            .length(),
+      );
+    }
+  });
 
   for (final (environment, message) in [
     ({'GITHUB_EXISTS': 'true'}, 'already exists'),
-    ({'MISSING_GITHUB_REMOTE': 'true'}, 'remote named github'),
+    ({'MISSING_GITHUB_REMOTE': 'true'}, 'github remote is required'),
   ]) {
     test('GitHub preflight refuses $message', () async {
       await build();
@@ -433,7 +610,7 @@ fi
         environment: {'ALLOW_PUBLISH_FLOW': 'true', ...environment},
       );
       expect(result.exitCode, 1);
-      expect(result.stdout, contains(message));
+      expect('${result.stdout}${result.stderr}', contains(message));
       final calls = await log();
       expectNoReleaseActions(calls);
       expect(
@@ -454,7 +631,7 @@ fi
         },
       );
       expect(result.exitCode, 1);
-      expect(result.stdout, contains('Error: GitHub release asset'));
+      expect(result.stderr, contains('Error: GitHub asset'));
       expect(
         File(p.join(fixture.path, 'dist/v1.5.0/SHA256SUMS')).existsSync(),
         isTrue,
@@ -516,11 +693,10 @@ fi
     test('$message blocks publication', () async {
       await build();
       await write('log', '');
-      final result = await run([
-        'v1.5.0',
-        '--publish-from=dist/v1.5.0',
-        '--skip-checks',
-      ], environment: environment);
+      final result = await run(
+        ['v1.5.0', '--publish-from=dist/v1.5.0', '--skip-checks'],
+        environment: {'ALLOW_PUBLISH_FLOW': 'true', ...environment},
+      );
       expect(result.exitCode, 1);
       expect(result.stdout, contains(message));
       expectNoReleaseActions(await log());
@@ -660,6 +836,7 @@ fi
       ],
       environment: {
         'LOCAL_TAG': 'true',
+        'ALLOW_PUBLISH_FLOW': 'true',
         'TAG_COMMIT': '2222222222222222222222222222222222222222',
       },
     );

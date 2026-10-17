@@ -137,6 +137,7 @@ Future<_Harness> _pump(
   // Tall enough to build every row of the lazy list.
   Size size = const Size(600, 5000),
   bool desktop = false,
+  String? updateHost,
   double textScale = 1,
   ThemeData? theme,
   Future<UpdateSourceAvailability> Function()? updateAvailability,
@@ -156,6 +157,8 @@ Future<_Harness> _pump(
         externalScrobbleCredentialStoreProvider.overrideWithValue(
           credentialStore ?? _MemoryCredentialStore(),
         ),
+        if (updateHost != null)
+          updateHostProvider.overrideWithValue(updateHost),
         updateCheckStoreProvider.overrideWithValue(_NoopUpdateCheckStore()),
         updateSourceAvailabilityProvider.overrideWith(
           (ref) =>
@@ -831,6 +834,13 @@ void main() {
       // Switching raises no notice and leaves the feature switch alone.
       expect(notices.notice, isNull);
       expect(h.featureTile(IntegrationFeature.updatesAutomatic).value, isTrue);
+    });
+
+    testWidgets('host line reads the resolved update host provider', (
+      tester,
+    ) async {
+      await _pump(tester, updateHost: 'github.com');
+      expect(hostLine, findsOneWidget);
     });
 
     testWidgets('shows the stored GitHub choice', (tester) async {

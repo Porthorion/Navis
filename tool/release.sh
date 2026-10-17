@@ -136,6 +136,20 @@ if [[ "${UPDATE_CHANNEL}" != "stable" && "${UPDATE_CHANNEL}" != "dev" ]]; then
   exit 1
 fi
 
+# Run before loading secrets, then again after staged metadata is loaded.
+validate_github_channel() {
+  if [[ "${NO_GITHUB}" == true && "${PUBLISH_GITHUB}" == true ]]; then
+    echo 'Error: --github and --no-github cannot be combined.' >&2; exit 1
+  fi
+  if [[ "${PUBLISH_GITHUB}" == true && "${UPDATE_CHANNEL}" != stable ]]; then
+    echo 'Error: GitHub publication is stable-only; use R2 for dev releases.' >&2; exit 1
+  fi
+  if [[ "${UPDATE_CHANNEL}" == stable && "${FORCE_PRERELEASE}" == true && "${NO_GITHUB}" == false ]]; then
+    echo 'Error: --prerelease on stable requires explicit --no-github; use dev for prereleases.' >&2; exit 1
+  fi
+}
+validate_github_channel
+
 # Validate the namespace locally; build-only must not run R2's remote checks.
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck disable=SC1091
@@ -250,9 +264,7 @@ fi
 
 # shellcheck source=lib/github_release.sh
 source "${SCRIPT_DIR}/lib/github_release.sh"
-if [[ "${NO_GITHUB}" == true && "${PUBLISH_GITHUB}" == true ]]; then
-  echo 'Error: --github and --no-github cannot be combined.' >&2; exit 1
-fi
+validate_github_channel
 if [[ "${BUILD_ONLY}" == false && "${UPDATE_CHANNEL}" == stable && "${FORCE_PRERELEASE}" == false && "${NO_GITHUB}" == false ]]; then
   PUBLISH_GITHUB=true
 fi
@@ -405,13 +417,26 @@ DART_DEFINE_ARGS=("--dart-define=NAVIS_UPDATE_CHANNEL=${UPDATE_CHANNEL}")
 SECRET_TMP_DIR=""
 LASTFM_DEFINES_FILE=""
 DIST_TMP_DIR=""
+R2_PUBLISHED=false
+GITHUB_VERIFIED=false
 cleanup_release_secrets() {
+  local status=$?
+  if [[ "${R2_PUBLISHED}" == true && "${PUBLISH_GITHUB}" == true && "${GITHUB_VERIFIED}" != true ]]; then
+    echo 'ERROR: R2 succeeded but GitHub is not verified. Update sources may be out of sync.' >&2
+    printf 'Resume: ' >&2
+    printf '%q ' ./tool/release.sh "${VERSION}" "--publish-from=${PUBLISH_FROM}" --allow-existing-version --skip-checks --github >&2
+    printf '\n' >&2
+    [[ "${status}" != 0 ]] || status=1
+  fi
   if [[ -n "${DIST_TMP_DIR}" ]]; then rm -rf "${DIST_TMP_DIR}"; fi
   if [[ -n "${SECRET_TMP_DIR}" ]]; then
     rm -rf "${SECRET_TMP_DIR}"
   fi
+  exit "${status}"
 }
 trap cleanup_release_secrets EXIT
+trap 'exit 130' INT
+trap 'exit 143' TERM
 if [[ "${PUBLISH_FROM_SET}" == false && -n "${NAVIS_LASTFM_API_KEY:-}" ]]; then
   mkdir -p "${SCRIPT_DIR}/../build"
   SECRET_TMP_DIR="$(mktemp -d "$(cd "${SCRIPT_DIR}/../build" && pwd)/navis-secrets.XXXXXX")"
@@ -901,6 +926,13 @@ if [[ "${PUBLISH_FROM_SET}" == false ]]; then
   generate_release_notes
 fi
 
+# Retain a checksummed bundle before R2 changes so every GitHub failure can
+# resume without rebuilding, including direct build-and-publish runs.
+if [[ "${PUBLISH_GITHUB}" == true && "${PUBLISH_FROM_SET}" == false ]]; then
+  SOURCE_COMMIT="$(git rev-parse HEAD)"
+  stage_release_dist --recovery
+fi
+
 # ─── Publish to R2 ──────────────────────────────────────────────────────────
 NOTES_FILE="$(mktemp)"
 printf '%s\n' "${RELEASE_BODY}" > "${NOTES_FILE}"
@@ -910,6 +942,7 @@ VERIFIED_MANIFEST="${SECRET_TMP_DIR}/manifest.json"
 GITHUB_CHECKSUMS="${SECRET_TMP_DIR}/SHA256SUMS"
 "${SCRIPT_DIR}/r2_publish.sh" publish --tag="${VERSION}" --channel="${UPDATE_CHANNEL}" \
   --manifest-out="${VERIFIED_MANIFEST}" --checksums-out="${GITHUB_CHECKSUMS}" --notes-file="${NOTES_FILE}" "${ASSET_FILES[@]}"
+R2_PUBLISHED=true
 rm -f "${NOTES_FILE}"
 
 # ─── Create Forgejo release (1.5.0 bridge only) ─────────────────────────────
@@ -974,10 +1007,11 @@ if [[ "${PUBLISH_GITHUB}" == true ]]; then
   } > "${github_notes}"
   navis_github_publish "${VERSION}" "${RELEASE_PRERELEASE}" "${github_notes}" \
     "${VERIFIED_MANIFEST}" "${ASSET_FILES[@]}" "${GITHUB_CHECKSUMS}"
+  GITHUB_VERIFIED=true
 fi
 
 # Artifacts stay on disk until every publish step has succeeded, so a failed
-# upload can be retried with ./tool/r2_publish.sh publish.
+# upload can be retried from the retained release bundle.
 if [[ "${PUBLISH_FROM_SET}" == false ]]; then rm -f "${ASSET_FILES[@]}"; fi
 
 echo ""

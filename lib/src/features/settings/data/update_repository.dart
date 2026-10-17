@@ -294,6 +294,9 @@ class UpdateRepository {
       if (source == UpdateSource.github) {
         assetUrl = '${source.assetBaseUrl}$tag/${assetUri.pathSegments.last}';
       }
+      if (!isUpdateAssetUrl(assetUrl, source)) {
+        return reject('invalid_asset_url');
+      }
       final hash = asset['sha256'];
       if (hash is! String || !RegExp(r'^[a-fA-F0-9]{64}$').hasMatch(hash)) {
         return reject('invalid_asset_sha256');

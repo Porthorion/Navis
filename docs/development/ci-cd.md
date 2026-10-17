@@ -635,7 +635,12 @@ publication isolation, source/checksum guards and exact dist-file uploads.
     warning that GitHub-source users will miss the release. After R2 verifies
     all signed metadata and artifact hashes, the script uploads the same
     envelope as `manifest.json`, the artifacts and complete `SHA256SUMS`.
-    It checks uploaded names/sizes and compares GitHub/R2 manifest bytes.
+    It rejects non-stable GitHub publishing and stable `--prerelease` without
+    explicit `--no-github`, including staged metadata. It checks uploaded
+    names/sizes and requires matching GitHub/R2 manifest bytes before success.
+    Direct runs retain unique recovery bundles before R2 publication; a later
+    failure prints a non-zero result and an exact `--publish-from` retry command.
+    See [release recovery](../release/release-r2.md#recovering-when-r2-succeeds-and-github-fails).
     `--allow-existing-version` permits late additions using `--clobber`;
     standalone `r2_publish.sh publish --github` mirrors additions too.
     Run `r2_publish.sh verify --channel=stable --github` for cross-host checks.

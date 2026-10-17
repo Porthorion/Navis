@@ -12,6 +12,18 @@ import '../../../../helpers/test_database.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
+  for (final raw in ['{', '[1]', 'github', '"github"', '["deezer"]']) {
+    test(
+      'malformed or unrelated integration JSON defaults to Porthorion: $raw',
+      () {
+        expect(
+          UpdateSource.fromIntegrationSettings(raw),
+          UpdateSource.porthorion,
+        );
+      },
+    );
+  }
+
   test('source persists across database and provider restart beside integration switches', () async {
     final temp = await Directory.systemTemp.createTemp('update_source_test_');
     addTearDown(() => temp.delete(recursive: true));

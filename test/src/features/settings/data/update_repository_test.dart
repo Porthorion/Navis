@@ -277,6 +277,69 @@ void main() {
     },
   );
 
+  for (final suffix in [
+    '?download=1',
+    '#fragment',
+    '%2Fhidden.apk',
+    '%3Fdownload=1',
+    '%23fragment',
+  ]) {
+    test('GitHub rejects signed asset basename carrying $suffix', () async {
+      (payload['assets']! as Map)['linuxPortable'] = {
+        'url': '$_assetUrl$suffix',
+        'sha256': _hash,
+        'size': 123,
+      };
+      envelope = await sign(payload);
+      final repo = repository(source: UpdateSource.github);
+      expect(await repo.checkForUpdate(), isNull);
+      expect(repo.lastCheck!.rejectReason, 'invalid_asset_url');
+      expect(repo.lastCheck!.signatureValid, isTrue);
+    });
+  }
+
+  for (final tag in ['1.5.1', 'v1.5.2', 'v1.5.1-dev.1', 'latest']) {
+    test('GitHub rejects signed tag that is not v<version>: $tag', () async {
+      payload['tag'] = tag;
+      envelope = await sign(payload);
+      final repo = repository(source: UpdateSource.github);
+      expect(await repo.checkForUpdate(), isNull);
+      expect(repo.lastCheck!.rejectReason, 'malformed_payload');
+      expect(repo.lastCheck!.signatureValid, isTrue);
+    });
+  }
+
+  test(
+    'GitHub rejects HTTP Location in the middle of a redirect chain',
+    () async {
+      when(
+        () => dio.get<Object?>(any(), options: any(named: 'options')),
+      ).thenAnswer((invocation) async {
+        final url = invocation.positionalArguments.first as String;
+        urls.add(url);
+        return Response<Object?>(
+          requestOptions: RequestOptions(path: url),
+          statusCode: 302,
+          headers: Headers.fromMap({
+            'location': [
+              if (urls.length == 1)
+                'https://release-assets.githubusercontent.com/fixture/manifest.json'
+              else
+                'http://objects.githubusercontent.com/fixture/manifest.json',
+            ],
+          }),
+        );
+      });
+      final repo = repository(source: UpdateSource.github);
+      await expectLater(repo.checkForUpdate(), throwsA(isA<DioException>()));
+      expect(urls.map((url) => Uri.parse(url).host), [
+        'github.com',
+        'release-assets.githubusercontent.com',
+      ]);
+      expect(repo.lastCheck!.rejectReason, 'fetch_failed');
+    },
+  );
+
   test('GitHub rejects signed tag traversal', () async {
     payload['tag'] = '../evil';
     envelope = await sign(payload);

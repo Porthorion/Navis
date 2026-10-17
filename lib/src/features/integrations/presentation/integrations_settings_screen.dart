@@ -214,7 +214,7 @@ class _IntegrationsSettingsScreenState
             (repository) =>
                 repository.setIntegrationEnabled(feature.key, enabled: enabled),
           ),
-          updateSource: ref.watch(effectiveUpdateSourceProvider),
+          updateHost: ref.watch(updateHostProvider),
           credential: switch (service) {
             IntegrationService.updates => _buildUpdateSource(context, policy),
             IntegrationService.lastFm => _buildLastFmCredential(
@@ -632,7 +632,7 @@ class _ServiceSection extends StatelessWidget {
     required this.onServiceChanged,
     required this.onFeatureChanged,
     required this.topPadding,
-    this.updateSource = UpdateSource.porthorion,
+    required this.updateHost,
     this.credential,
   });
 
@@ -642,7 +642,7 @@ class _ServiceSection extends StatelessWidget {
   final double topPadding;
 
   /// The host the Update checks description names.
-  final UpdateSource updateSource;
+  final String updateHost;
   final IntegrationPolicy policy;
   final ValueChanged<bool> onServiceChanged;
   final void Function(IntegrationFeature feature, {required bool enabled})
@@ -691,11 +691,9 @@ class _ServiceSection extends StatelessWidget {
             ],
           ),
           Text(
-            integrationServiceDescription(
-              service,
-              l10n,
-              updateSource: updateSource,
-            ),
+            service == IntegrationService.updates
+                ? l10n.integrationsUpdatesSends(updateHost)
+                : integrationServiceDescription(service, l10n),
             style: theme.textTheme.bodyMedium?.copyWith(
               color: theme.colorScheme.onSurfaceVariant,
             ),

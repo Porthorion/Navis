@@ -14,6 +14,32 @@ Last updated: 2026-10-17
 - ACP status values: `backlog`, `ready`, `in_progress`, `blocked`, `done`.
 
 ## Current Focus
+- [x] Issue #41 review fixes, round 1 — 2026-10-17
+  (`feat/update-source-github`): `release.sh` rejects non-stable GitHub
+  publication and stable prereleases without explicit `--no-github`, including
+  staged metadata. Direct publication retains a unique checksummed recovery
+  bundle before R2 changes; any later unverified GitHub exit fails and prints
+  an executable resume command. Fixtures cover push/upload/fetch/equality
+  failures followed by successful resume, staged paths with spaces, a skipped
+  verification, and late direct publication with an existing bundle. GitHub
+  asset byte counts strip `wc` padding. The repository rechecks remapped URLs;
+  Integrations reads `updateHostProvider`, resolving its dead-code finding.
+  Added malformed/typed source JSON, HTTP mid-chain redirect, signed asset
+  query/fragment/encoded-separator and mismatched-tag tests. Release and host
+  regressions failed before fixes; the negative trust cases already passed
+  existing guards. Item 5 uses the requested `ponytail:` ceiling comment:
+  selected source/hop metadata would need factory and transport plumbing;
+  `followUpdateRedirects` already checks source and hop before contact.
+  Evidence: the six-file focused run passed (`00:09 +236: All tests passed!`),
+  `bash tool/github_release_test.sh` and `bash tool/dev_release_test.sh` passed,
+  changed scripts passed `bash -n`, and changed Dart passed formatting.
+  `dart analyze lib test` exited 0 with zero errors/warnings (186 existing infos).
+  The unchanged-baseline dead-code gate exited 0 with no NEW entries
+  (`declaration=4, l10n=0, asset=1, asset-missing=0, font=0, dependency=5;
+  test-only=2`). Full `tool/check.sh`, app/device launches and real publication
+  were excluded by this implementation handoff; runtime/full-gate evidence
+  remains with the orchestrator. The existing 1.5.0 source-choice changelog
+  entry remains accurate; no additional visible behavior was introduced.
 - [ ] Issue #41, update source choice — partial: 2026-10-17 (Part C UI added below)
   (`feat/update-source-github`): Parts A/B backend and release tooling complete.
   Persisted integration-source metadata requires no migration; a notifier setter

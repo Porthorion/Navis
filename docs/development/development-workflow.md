@@ -1478,6 +1478,13 @@ GitHub. Late additions use `--allow-existing-version`, or
 `r2_publish.sh verify --channel=stable --github`. Run
 `tool/github_release_test.sh` and `tool/dev_release_test.sh` for hermetic
 publication/manifest comparisons without real credentials or network writes.
+`release.sh` rejects GitHub publication outside stable and stable prereleases
+without explicit `--no-github`, including staged metadata. Direct runs retain a
+unique recovery bundle before R2 publication. If GitHub remains unverified after
+R2 succeeds, the command fails and prints the exact `--publish-from` resume
+command; see [release recovery](../release/release-r2.md#recovering-when-r2-succeeds-and-github-fails).
+The release-dist fixtures also exercise failed push/upload/fetch/comparison and
+successful resume, including bundle paths containing spaces.
 
 `tool/release.sh` fails when the requested version's release tag already
 exists, locally or on origin. A version that `dev` already names in

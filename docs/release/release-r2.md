@@ -150,7 +150,10 @@ build-and-publish runs. Before building or publishing, `release.sh` checks `gh`
 authentication and a `github` remote matching `Porthorion/Navis` (or the existing
 `NAVIS_GITHUB_REPO` override). `--build-only` stays local. An emergency
 `--no-github` escape hatch prints a warning: users who selected GitHub will not
-see this release. Dev builds continue to use R2 only.
+see this release. GitHub publishing is stable-only: `--github --channel=dev`
+is rejected. `--prerelease` on stable is also rejected unless `--no-github` is
+explicit, including when the prerelease flag comes from a staged bundle. Use
+dev (or standalone R2 staging publication) for prereleases.
 
 After R2 verifies the signature and every artifact's size and SHA-256,
 `release.sh` takes the exact fetched envelope and attaches it as `manifest.json`
@@ -158,6 +161,36 @@ alongside the same artifacts and `SHA256SUMS` on GitHub. It checks uploaded name
 and sizes, then downloads GitHub's manifest and compares its bytes with the
 verified R2 envelope. Signature verification remains pinned to the same key;
 there is no API token in the app and no GitHub API lookup.
+
+### Recovering when R2 succeeds and GitHub fails
+
+R2 publication completes first. A GitHub push, upload, asset check or manifest
+comparison failure exits non-zero and prints `R2 succeeded but GitHub is not
+verified` plus an exact, shell-quoted `Resume:` command. A run with GitHub
+enabled cannot succeed without the final manifest byte comparison. The explicit
+`--no-github` emergency opt-out remains the exception and prints its warning.
+
+Run the printed command from the same checkout, after resolving the reported
+failure. For example (replace the directory with the one printed):
+
+```sh
+./tool/release.sh v1.5.0 --publish-from=dist/v1.5.0-recovery.ABC123 --allow-existing-version --skip-checks --github
+```
+
+Direct build-and-publish runs retain a checksummed bundle under a unique
+`dist/<tag>-recovery.<suffix>/` before publishing to R2. Existing
+`--publish-from` runs reuse their original bundle. Keep the bundle and the
+checkout at its recorded source commit until recovery succeeds. Resume verifies
+its checksums and source/tag identity, republishes to R2 without rebuilding,
+then creates the missing GitHub release or retries uploads with `--clobber`.
+It finishes only after GitHub's downloaded manifest matches the freshly verified
+R2 envelope. Immutable artifacts are reused; retrying may refresh the signed
+manifest's publication timestamp on both hosts.
+
+The resume command omits `--forgejo` to avoid creating the bridge release twice.
+If the interruption was in that optional bridge step, complete any missing
+Forgejo publication separately. `--skip-checks` reuses the release's prior
+validation; it does not skip bundle, R2 or GitHub verification.
 
 For late additions such as the Windows installer, use `release.sh` with
 `--allow-existing-version`, or explicitly mirror the merged manifest and new

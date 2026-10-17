@@ -82,7 +82,7 @@ navis_github_publish() {
   release="$(gh release view "${tag}" --repo "${repo}" --json assets)" || return 1
   for asset in "${assets[@]}"; do
     name="$(basename "${asset}")"
-    size="$(wc -c < "${asset}")"
+    size="$(wc -c < "${asset}" | tr -d ' ')"
     jq -e --arg name "${name}" --argjson size "${size}" \
       '[.assets[] | select(.name == $name and .size == $size)] | length == 1' <<< "${release}" >/dev/null || {
       echo "Error: GitHub asset missing or size mismatch: ${name}" >&2; return 1;

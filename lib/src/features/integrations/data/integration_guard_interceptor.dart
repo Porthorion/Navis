@@ -95,6 +95,9 @@ class IntegrationGuardInterceptor extends Interceptor {
     handler.next(options);
   }
 
+  // ponytail: source and hop metadata do not reach this service-level guard;
+  // narrowing it needs factory and transport plumbing beyond a few-line fix.
+  // followUpdateRedirects enforces selected-source hosts and CDN hops first.
   bool _isUpdateDestination(Uri uri) =>
       isUpdateUrlUnder(uri.toString(), AppConstants.updateBaseUrl) ||
       isUpdateUrlUnder(uri.toString(), UpdateSource.github.assetBaseUrl) ||

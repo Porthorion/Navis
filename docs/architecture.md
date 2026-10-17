@@ -3428,7 +3428,8 @@ it, and stale full-row settings saves cannot overwrite it. No schema changes.
 GitHub checks use the fixed latest-release manifest URL. Envelope verification
 uses the unchanged pinned Ed25519 key before any tag, filename, hash or size is
 read as trusted. A strict signed stable tag matching the signed version and a
-safe signed basename form the GitHub release URL. Redirects are followed
+safe signed basename form the GitHub release URL, which is checked again
+against the selected source’s asset policy after remapping. Redirects are followed
 explicitly with automatic Dio redirects disabled: only the selected source's
 prefix and, for GitHub, its two exact asset CDN hosts are accepted. Integrity
 verification covers the final bytes. A failure records the actual manifest URL
