@@ -174,6 +174,10 @@ const List<ChangelogVersion> changelogs = [
         type: ChangelogEntryType.fix,
       ),
       ChangelogEntry(
+        'Turning shuffle on mid-queue now puts the current song first and shuffles every other song, including played songs, without restarting playback; turning it off restores the original order',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
         'Settings > Integrations > Update checks lets you choose where stable builds look for updates, downloads.porthorion.com or GitHub; updates are verified the same way either way',
         type: ChangelogEntryType.newFeature,
       ),

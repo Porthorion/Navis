@@ -7628,25 +7628,113 @@ void main() {
     });
 
     group('Navis-owned shuffle', () {
-      test('turning shuffle on shuffles only what follows the current song '
-          'and keeps deferring', () async {
-        final (handler, player, _) = await windowed(60);
-        await handler.replaceQueue(ids(60), expandMatchFlows: false);
-        player.moveTo(5);
-        await handler.setShuffleMode(AudioServiceShuffleMode.all);
+      for (final (count, current) in [(12, 5), (60, 5), (100, 50)]) {
+        test('turning shuffle on shuffles the whole queue without restarting '
+            '($count songs at $current)', () async {
+          final (handler, player, _) = await windowed(count);
+          await handler.replaceQueue(
+            ids(count),
+            startIndex: current,
+            expandMatchFlows: false,
+          );
+          await handler.play();
+          player.simulatedPosition = const Duration(seconds: 42);
+          final item = handler.mediaItem.value;
+          final loads = player.sourceLoads;
+          final seeks = player.seekCalls;
+          final stops = player.stopCalls;
+          final starts = player.playedFrom.length;
+          final check = watchAudioMetadata(handler, [player]);
+          if (current > window.behind) {
+            expect(
+              handler.collectPlaybackDiagnostics()['deferredHeadLength'],
+              isPositive,
+            );
+          }
 
-        final queue = handler.snapshot.queueSongIds;
-        expect(queue.take(6), ids(6));
-        expect(queue.skip(6).toSet(), ids(60, 6).toSet());
-        expect(queue.skip(6), isNot(ids(60, 6)));
-        expect(handler.snapshot.shuffleMode, AudioServiceShuffleMode.all);
-        expect(
-          handler.collectPlaybackDiagnostics()['deferredLength'],
-          isPositive,
-        );
-        expect(player.index, 5);
-        expectNativeMirrorsQueue(handler, player);
-      });
+          await handler.setShuffleMode(AudioServiceShuffleMode.all);
+
+          final queue = handler.snapshot.queueSongIds;
+          expect(queue, shuffledFromStart(ids(count), current, Random(7)));
+          expect(queue.first, 'song-$current');
+          expect(queue, hasLength(count));
+          expect(queue.toSet(), ids(count).toSet());
+          expect(handler.snapshot.currentIndex, 0);
+          expect(handler.snapshot.shuffleMode, AudioServiceShuffleMode.all);
+          expect(handler.mediaItem.value, same(item));
+          expect(player.index, 0);
+          expect(player.position, const Duration(seconds: 42));
+          expect(player.playing, isTrue);
+          expect(player.sourceLoads, loads);
+          expect(player.seekCalls, seeks);
+          expect(player.stopCalls, stops);
+          expect(player.playedFrom, hasLength(starts));
+          expect(handler.playbackState.value.queueIndex, 0);
+          expect(handler.queue.value.first, same(item));
+          if (count > window.deferThreshold) {
+            expect(
+              handler.collectPlaybackDiagnostics()['deferredLength'],
+              isPositive,
+            );
+            expect(player.sourceIds.length, lessThan(count));
+          }
+          expect(handler.collectPlaybackDiagnostics()['deferredHeadLength'], 0);
+          await check();
+
+          await handler.setShuffleMode(AudioServiceShuffleMode.none);
+
+          expect(handler.snapshot.queueSongIds, ids(count));
+          expect(handler.snapshot.currentIndex, current);
+          expect(handler.snapshot.currentSongId, 'song-$current');
+          expect(handler.mediaItem.value, same(item));
+          expect(player.position, const Duration(seconds: 42));
+          expect(player.playing, isTrue);
+          expect(player.sourceLoads, loads);
+          expect(player.seekCalls, seeks);
+          expect(player.stopCalls, stops);
+          expect(player.playedFrom, hasLength(starts));
+          expectNativeMirrorsQueue(handler, player);
+        });
+      }
+
+      for (final repeat in [
+        AudioServiceRepeatMode.none,
+        AudioServiceRepeatMode.all,
+        AudioServiceRepeatMode.one,
+      ]) {
+        test('previous after shuffle behaves like the start of a queue '
+            '($repeat)', () async {
+          final (handler, player, _) = await windowed(60);
+          await handler.replaceQueue(
+            ids(60),
+            startIndex: 5,
+            expandMatchFlows: false,
+          );
+          await handler.setRepeatMode(repeat);
+          player.simulatedPosition = const Duration(seconds: 42);
+          await handler.setShuffleMode(AudioServiceShuffleMode.all);
+          expect(handler.snapshot.currentIndex, 0);
+          final order = List<String>.of(handler.snapshot.queueSongIds);
+          expect(
+            player.appliedLoopMode,
+            repeat == AudioServiceRepeatMode.one ? LoopMode.one : LoopMode.off,
+          );
+
+          await handler.skipToPrevious();
+          await settleQueue(handler);
+          expect(handler.snapshot.currentIndex, 0);
+          expect(handler.snapshot.currentSongId, 'song-5');
+          expect(player.position, Duration.zero);
+
+          await handler.skipToPrevious();
+          await settleQueue(handler);
+          final expected = repeat == AudioServiceRepeatMode.all ? 59 : 0;
+          expect(handler.snapshot.currentIndex, expected);
+          expect(handler.snapshot.currentSongId, order[expected]);
+          expect(handler.snapshot.queueSongIds, order);
+          expectNativeMirrorsQueue(handler, player);
+        });
+      }
 
       test('turning shuffle off restores the order, with songs added while '
           'shuffled', () async {
@@ -7656,7 +7744,7 @@ void main() {
         await handler.setShuffleMode(AudioServiceShuffleMode.all);
         await handler.playNext(<String>['song-0'], expandMatchFlows: false);
         await handler.addToQueue(<String>['song-1'], expandMatchFlows: false);
-        // Two songs later, in shuffled order.
+        // Later in the shuffled play order.
         player.moveTo(7);
         final playing = handler.snapshot.queueSongIds[7];
 
@@ -7666,7 +7754,8 @@ void main() {
         expect(handler.snapshot.queueSongIds, expected);
         expect(handler.snapshot.shuffleMode, AudioServiceShuffleMode.none);
         expect(handler.snapshot.currentSongId, playing);
-        expect(player.index, expected.indexOf(playing));
+        expect(handler.snapshot.currentIndex, expected.indexOf(playing));
+        expect(player.sourceIds[player.index!], playing);
         expectNativeMirrorsQueue(handler, player);
       });
 
@@ -7760,7 +7849,24 @@ void main() {
       });
 
       test('the play order and the original order are both saved', () async {
-        final (handler, player, database) = await windowed(60);
+        final directory = await Directory.systemTemp.createTemp('navis-shuf-');
+        final (handler, player, database) = await createHandler(
+          directory,
+          60,
+          queueWindow: window,
+        );
+        var closed = false;
+        Future<void> close() async {
+          if (closed) return;
+          await handler.disposeHandler();
+          await database.close();
+          closed = true;
+        }
+
+        addTearDown(() async {
+          await close();
+          await directory.delete(recursive: true);
+        });
         await handler.replaceQueue(ids(60), expandMatchFlows: false);
         player.moveTo(3);
         await handler.setShuffleMode(AudioServiceShuffleMode.all);
@@ -7774,6 +7880,25 @@ void main() {
         final byOriginal = List.of(saved)
           ..sort((a, b) => a.originalOrder!.compareTo(b.originalOrder!));
         expect(byOriginal.map((entry) => entry.song.id), ids(60));
+        final state = (await database.playQueueDao.getQueueState())!;
+        expect(state.currentIndex, 0);
+        expect(state.shuffleMode, ShuffleMode.all);
+        final playOrder = List.of(handler.snapshot.queueSongIds);
+        await close();
+        final (restored, restoredPlayer) = await restoring(
+          playOrder: saved.map((entry) => entry.song.id).toList(),
+          currentIndex: state.currentIndex!,
+          originalOrder: saved.map((entry) => entry.originalOrder!).toList(),
+        );
+        expect(restored.snapshot.queueSongIds, playOrder);
+        expect(restored.snapshot.currentSongId, 'song-3');
+        expect(restored.snapshot.currentIndex, 0);
+        expect(restored.snapshot.shuffleMode, AudioServiceShuffleMode.all);
+        await restored.setShuffleMode(AudioServiceShuffleMode.none);
+        expect(restored.snapshot.queueSongIds, ids(60));
+        expect(restored.snapshot.currentSongId, 'song-3');
+        expect(restored.snapshot.currentIndex, 3);
+        expectNativeMirrorsQueue(restored, restoredPlayer);
       });
     });
 
@@ -10325,8 +10450,13 @@ void main() {
                 );
                 if (on) {
                   expect(
-                    reordered.take(current + 1),
-                    model.take(current + 1),
+                    handler.snapshot.currentIndex,
+                    0,
+                    reason: 'seed $seed: ${log.join(', ')}',
+                  );
+                  expect(
+                    reordered.first,
+                    playing,
                     reason: 'seed $seed: ${log.join(', ')}',
                   );
                 }

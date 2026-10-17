@@ -1755,12 +1755,22 @@ class NavisAudioHandler extends BaseAudioHandler
       final insertAt = (currentIndex + 1).clamp(0, _queueItems.length);
       final queueWasCompletedBeforeInsertion =
           _player.processingState == ProcessingState.completed;
+      final originalRanks = _originalRanksFor(_logicalQueueIds);
+      final originalOrder = _originalOrder;
       final inserted = await _applyMaterialisedInsert(
         prepared,
         at: insertAt,
         operation: 'play next insert',
       );
       if (inserted.isEmpty) return;
+      if (originalRanks != null && originalOrder != null) {
+        // Record duplicates before occurrence matching can confuse new and old.
+        _originalOrder = List<String>.of(originalOrder)
+          ..insertAll(
+            originalRanks[_deferredHead.length + currentIndex] + 1,
+            inserted.map((item) => item.song.id),
+          );
+      }
 
       await _resumeInsertedItemIfCompleted(
         wasPlayingBeforeMutation: wasPlayingBeforeMutation,
@@ -2564,13 +2574,13 @@ class NavisAudioHandler extends BaseAudioHandler
       final previousOriginalOrder = _originalOrder;
       bool rearranged;
       if (enabled) {
-        // History and the current song stay; the rest is shuffled.
+        // Keep the current source playing first; shuffle every other occurrence.
         _originalOrder = ids;
         _shuffleEnabled = true;
         rearranged = await _rearrangeQueue(
-          shuffledAfter(entries, current, _shuffleRandom),
+          shuffledFromStart(entries, current, _shuffleRandom),
           current: current,
-          newCurrent: current,
+          newCurrent: 0,
           token: token,
         );
       } else {
