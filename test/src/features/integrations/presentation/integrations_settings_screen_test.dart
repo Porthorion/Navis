@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:dio/dio.dart';
 import 'package:navis/src/common_widgets/app_notice.dart';
 import 'package:flutter/foundation.dart';
@@ -12,8 +14,10 @@ import 'package:navis/src/api/models/listenbrainz_playlist.dart';
 import 'package:navis/src/database/daos/app_settings_dao.dart';
 import 'package:navis/src/database/navis_database.dart';
 import 'package:navis/src/features/integrations/domain/integration_feature.dart';
+import 'package:navis/src/features/integrations/domain/update_source.dart';
 import 'package:navis/src/features/integrations/presentation/integrations_settings_screen.dart';
 import 'package:navis/src/features/settings/data/external_scrobble_credentials.dart';
+import 'package:navis/src/features/settings/data/update_check_store.dart';
 import 'package:navis/src/providers/app_providers.dart';
 import 'package:navis/src/routing/desktop_layout.dart';
 import 'package:navis/src/theme/navis_theme.dart';
@@ -76,6 +80,11 @@ class _MemoryCredentialStore implements ExternalScrobbleCredentialStore {
   }
 }
 
+class _NoopUpdateCheckStore extends UpdateCheckStore {
+  @override
+  Future<bool> selectSource(String identity) async => false;
+}
+
 class _Harness {
   const new(this.tester, this.database, this.container);
 
@@ -128,8 +137,10 @@ Future<_Harness> _pump(
   // Tall enough to build every row of the lazy list.
   Size size = const Size(600, 5000),
   bool desktop = false,
+  String? updateHost,
   double textScale = 1,
   ThemeData? theme,
+  Future<UpdateSourceAvailability> Function()? updateAvailability,
 }) async {
   setAdaptiveTestViewport(tester, size);
   final database = createTestDatabase();
@@ -145,6 +156,14 @@ Future<_Harness> _pump(
         lastFmApiKeyProvider.overrideWithValue(lastFmApiKey),
         externalScrobbleCredentialStoreProvider.overrideWithValue(
           credentialStore ?? _MemoryCredentialStore(),
+        ),
+        if (updateHost != null)
+          updateHostProvider.overrideWithValue(updateHost),
+        updateCheckStoreProvider.overrideWithValue(_NoopUpdateCheckStore()),
+        updateSourceAvailabilityProvider.overrideWith(
+          (ref) =>
+              (updateAvailability ??
+              () async => UpdateSourceAvailability.available)(),
         ),
         if (listenBrainzClient != null)
           listenBrainzApiClientProvider.overrideWithValue(listenBrainzClient),
@@ -766,6 +785,118 @@ void main() {
     } finally {
       debugDefaultTargetPlatformOverride = null;
     }
+  });
+
+  group('update source', () {
+    Finder option(UpdateSource source) => find.byKey(
+      ValueKey<String>('integrations-update-source-${source.name}'),
+    );
+    final note = find.text(
+      'Dev builds always update from downloads.porthorion.com.',
+    );
+    UpdateSource? selected(WidgetTester tester) => tester
+        .widget<RadioGroup<UpdateSource>>(find.byType(RadioGroup<UpdateSource>))
+        .groupValue;
+    final hostLine = find.text('Sends an app version check to github.com.');
+
+    testWidgets('offers both hosts, persists the choice and follows it', (
+      tester,
+    ) async {
+      final notices = AppNoticeController();
+      addTearDown(notices.dispose);
+      final h = await _pump(tester, notices: notices);
+      expect(
+        find.text('Porthorion downloads (downloads.porthorion.com)'),
+        findsOneWidget,
+      );
+      expect(find.text('GitHub (github.com)'), findsOneWidget);
+      expect(
+        find.text(
+          'GitHub can lag behind slightly. Updates are verified the same way.',
+        ),
+        findsOneWidget,
+      );
+      expect(selected(tester), UpdateSource.porthorion);
+      expect(
+        find.text('Sends an app version check to downloads.porthorion.com.'),
+        findsOneWidget,
+      );
+
+      await h.tap(option(UpdateSource.github));
+
+      expect(h.container.read(updateSourceProvider), UpdateSource.github);
+      expect(
+        (await h.row()).disabledIntegrations,
+        contains(UpdateSource.githubSettingsKey),
+      );
+      expect(selected(tester), UpdateSource.github);
+      expect(hostLine, findsOneWidget);
+      // Switching raises no notice and leaves the feature switch alone.
+      expect(notices.notice, isNull);
+      expect(h.featureTile(IntegrationFeature.updatesAutomatic).value, isTrue);
+    });
+
+    testWidgets('host line reads the resolved update host provider', (
+      tester,
+    ) async {
+      await _pump(tester, updateHost: 'github.com');
+      expect(hostLine, findsOneWidget);
+    });
+
+    testWidgets('shows the stored GitHub choice', (tester) async {
+      await _pump(
+        tester,
+        seed: (dao) => dao.updateIntegrationPolicy(
+          disabledJson: '["${UpdateSource.githubSettingsKey}"]',
+        ),
+      );
+      expect(hostLine, findsOneWidget);
+      expect(selected(tester), UpdateSource.github);
+    });
+
+    testWidgets('is disabled with a note on dev builds', (tester) async {
+      await _pump(
+        tester,
+        updateAvailability: () async => UpdateSourceAvailability.devChannel,
+      );
+      expect(note, findsOneWidget);
+      expect(
+        tester
+            .widget<RadioListTile<UpdateSource>>(option(UpdateSource.github))
+            .enabled,
+        isFalse,
+      );
+    });
+
+    testWidgets('is disabled while Update checks is off', (tester) async {
+      final h = await _pump(tester);
+      await h.tap(h.service(IntegrationService.updates));
+      expect(
+        tester
+            .widget<RadioListTile<UpdateSource>>(option(UpdateSource.github))
+            .enabled,
+        isFalse,
+      );
+      expect(note, findsNothing);
+    });
+
+    for (final hidden in <UpdateSourceAvailability>[
+      UpdateSourceAvailability.storeManaged,
+      UpdateSourceAvailability.unsupportedPlatform,
+    ]) {
+      testWidgets('is hidden for $hidden', (tester) async {
+        await _pump(tester, updateAvailability: () async => hidden);
+        expect(option(UpdateSource.github), findsNothing);
+        expect(find.text('GitHub (github.com)'), findsNothing);
+        expect(note, findsNothing);
+      });
+    }
+
+    testWidgets('is hidden while availability loads', (tester) async {
+      final never = Completer<UpdateSourceAvailability>();
+      await _pump(tester, updateAvailability: () => never.future);
+      expect(option(UpdateSource.github), findsNothing);
+    });
   });
 
   group('golden', () {

@@ -11,6 +11,7 @@ import 'package:navis/src/features/settings/data/update_check_store.dart';
 import 'package:navis/src/features/settings/data/update_install_mode.dart';
 import 'package:navis/src/features/settings/data/update_repository.dart';
 import 'package:navis/src/features/settings/domain/update_delivery.dart';
+import 'package:navis/src/features/integrations/domain/update_source.dart';
 import 'package:navis/src/utils/constants.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 
@@ -35,24 +36,40 @@ class _MemoryUpdateCheckStore extends UpdateCheckStore {
 
   bool allowCheck;
   int recordCount = 0;
+  String identity = 'stable/porthorion';
+
+  @override
+  Future<bool> selectSource(String value) async {
+    final changed = value != identity;
+    identity = value;
+    if (changed) verifiedManifest = null;
+    return changed;
+  }
+
   Map<String, Object?>? verifiedManifest;
 
   @override
   Future<bool> shouldCheck({bool force = false}) async => force || allowCheck;
 
   @override
-  Future<void> recordCheck([DateTime? checkedAt]) async => recordCount++;
+  Future<void> recordCheck([
+    DateTime? checkedAt,
+    String? sourceIdentity,
+  ]) async => recordCount++;
 
   @override
   Future<Map<String, Object?>?> readVerifiedManifest() async =>
       verifiedManifest;
 
   @override
-  Future<void> recordVerifiedManifest(Map<String, Object?> value) async =>
-      verifiedManifest = value;
+  Future<void> recordVerifiedManifest(
+    Map<String, Object?> value, {
+    String? sourceIdentity,
+  }) async => verifiedManifest = value;
 
   @override
-  Future<void> clearVerifiedManifest() async => verifiedManifest = null;
+  Future<void> clearVerifiedManifest({String? sourceIdentity}) async =>
+      verifiedManifest = null;
 }
 
 const _hash =
@@ -89,6 +106,7 @@ void main() {
   }
 
   UpdateRepository repository({
+    UpdateSource source = UpdateSource.porthorion,
     bool isIOS = false,
     bool isAndroid = false,
     String? installer,
@@ -98,6 +116,7 @@ void main() {
     String arch = 'amd64',
   }) => UpdateRepository(
     dio: dio,
+    source: source,
     signingPublicKey: signingKey ?? publicKey,
     updateCheckStore: store,
     isIOS: isIOS,
@@ -145,6 +164,188 @@ void main() {
             statusCode: 200,
           );
         });
+  });
+
+  test('GitHub verifies the envelope and maps only signed tag and filename', () async {
+    final repo = repository(source: UpdateSource.github);
+    final result = await repo.checkForUpdate();
+    expect(
+      urls.single,
+      'https://github.com/Porthorion/Navis/releases/latest/download/manifest.json',
+    );
+    expect(
+      result!.downloadUrl,
+      'https://github.com/Porthorion/Navis/releases/download/v1.5.1/navis.apk',
+    );
+    expect(result.sha256, _hash);
+    expect(result.size, 123);
+    expect(repo.lastCheck!.url, urls.single);
+    expect(repo.lastCheck!.signatureValid, isTrue);
+  });
+
+  test('GitHub manifest follows only checked release/CDN redirects', () async {
+    when(() => dio.get<Object?>(any(), options: any(named: 'options')))
+        .thenAnswer((invocation) async {
+          final url = invocation.positionalArguments.first as String;
+          urls.add(url);
+          final options = invocation.namedArguments[#options] as Options;
+          expect(options.followRedirects, isFalse);
+          return Response<Object?>(
+            requestOptions: RequestOptions(path: url),
+            statusCode: urls.length == 1 ? 302 : 200,
+            headers: Headers.fromMap(
+              urls.length == 1
+                  ? {
+                      'location': [
+                        'https://release-assets.githubusercontent.com/fixture/manifest.json',
+                      ],
+                    }
+                  : {},
+            ),
+            data: urls.length == 1 ? null : envelope,
+          );
+        });
+    final repo = repository(source: UpdateSource.github);
+    expect((await repo.checkForUpdate())!.sha256, _hash);
+    expect(urls.map((url) => Uri.parse(url).host), [
+      'github.com',
+      'release-assets.githubusercontent.com',
+    ]);
+    expect(repo.lastCheck!.url, urls.first);
+  });
+
+  test('GitHub rejects a tampered envelope', () async {
+    final signed = envelope! as Map<String, String>;
+    signed['payload'] = base64Encode(
+      utf8.encode(jsonEncode({...payload, 'tag': 'v9.9.9'})),
+    );
+    final repo = repository(source: UpdateSource.github);
+    expect(await repo.checkForUpdate(), isNull);
+    expect(repo.lastCheck!.rejectReason, 'invalid_signature');
+  });
+
+  for (final source in UpdateSource.values) {
+    test('$source rejects off-prefix signed assets', () async {
+      (payload['assets']! as Map)['linuxPortable'] = {
+        'url':
+            'https://github.com/evil/Navis/releases/download/v1.5.1/navis.apk',
+        'sha256': _hash,
+        'size': 123,
+      };
+      envelope = await sign(payload);
+      final repo = repository(source: source);
+      expect(await repo.checkForUpdate(), isNull);
+      expect(repo.lastCheck!.rejectReason, 'invalid_asset_url');
+    });
+
+    test('$source transport failure never falls back', () async {
+      when(() => dio.get<Object?>(any(), options: any(named: 'options')))
+          .thenAnswer((invocation) async {
+            urls.add(invocation.positionalArguments.first as String);
+            throw DioException(requestOptions: RequestOptions(path: urls.last));
+          });
+      final repo = repository(source: source);
+      await expectLater(repo.checkForUpdate(), throwsA(isA<DioException>()));
+      expect(urls, [UpdateRepository.manifestUrlFor('stable', source)]);
+      expect(repo.lastCheck!.rejectReason, 'fetch_failed');
+    });
+  }
+
+  test('dev ignores a stored GitHub preference', () async {
+    payload['channel'] = 'dev';
+    envelope = await sign(payload);
+    final result = await repository(source: UpdateSource.github)
+        .checkForUpdate(updateChannel: 'dev');
+    expect(urls.single, UpdateRepository.manifestUrlFor('dev'));
+    expect(result!.downloadUrl, _assetUrl);
+  });
+
+  test(
+    'source switch bypasses throttle and discards old cached offer',
+    () async {
+      await repository().checkForUpdate();
+      store.allowCheck = false;
+      final switched = repository(source: UpdateSource.github);
+      final result = await switched.checkForUpdate();
+      expect(urls, hasLength(2));
+      expect(
+        urls.last,
+        UpdateRepository.manifestUrlFor('stable', UpdateSource.github),
+      );
+      expect(switched.lastCheck!.fromCache, isFalse);
+      expect(result!.downloadUrl, contains('/releases/download/v1.5.1/'));
+    },
+  );
+
+  for (final suffix in [
+    '?download=1',
+    '#fragment',
+    '%2Fhidden.apk',
+    '%3Fdownload=1',
+    '%23fragment',
+  ]) {
+    test('GitHub rejects signed asset basename carrying $suffix', () async {
+      (payload['assets']! as Map)['linuxPortable'] = {
+        'url': '$_assetUrl$suffix',
+        'sha256': _hash,
+        'size': 123,
+      };
+      envelope = await sign(payload);
+      final repo = repository(source: UpdateSource.github);
+      expect(await repo.checkForUpdate(), isNull);
+      expect(repo.lastCheck!.rejectReason, 'invalid_asset_url');
+      expect(repo.lastCheck!.signatureValid, isTrue);
+    });
+  }
+
+  for (final tag in ['1.5.1', 'v1.5.2', 'v1.5.1-dev.1', 'latest']) {
+    test('GitHub rejects signed tag that is not v<version>: $tag', () async {
+      payload['tag'] = tag;
+      envelope = await sign(payload);
+      final repo = repository(source: UpdateSource.github);
+      expect(await repo.checkForUpdate(), isNull);
+      expect(repo.lastCheck!.rejectReason, 'malformed_payload');
+      expect(repo.lastCheck!.signatureValid, isTrue);
+    });
+  }
+
+  test(
+    'GitHub rejects HTTP Location in the middle of a redirect chain',
+    () async {
+      when(
+        () => dio.get<Object?>(any(), options: any(named: 'options')),
+      ).thenAnswer((invocation) async {
+        final url = invocation.positionalArguments.first as String;
+        urls.add(url);
+        return Response<Object?>(
+          requestOptions: RequestOptions(path: url),
+          statusCode: 302,
+          headers: Headers.fromMap({
+            'location': [
+              if (urls.length == 1)
+                'https://release-assets.githubusercontent.com/fixture/manifest.json'
+              else
+                'http://objects.githubusercontent.com/fixture/manifest.json',
+            ],
+          }),
+        );
+      });
+      final repo = repository(source: UpdateSource.github);
+      await expectLater(repo.checkForUpdate(), throwsA(isA<DioException>()));
+      expect(urls.map((url) => Uri.parse(url).host), [
+        'github.com',
+        'release-assets.githubusercontent.com',
+      ]);
+      expect(repo.lastCheck!.rejectReason, 'fetch_failed');
+    },
+  );
+
+  test('GitHub rejects signed tag traversal', () async {
+    payload['tag'] = '../evil';
+    envelope = await sign(payload);
+    final repo = repository(source: UpdateSource.github);
+    expect(await repo.checkForUpdate(), isNull);
+    expect(repo.lastCheck!.rejectReason, 'malformed_payload');
   });
 
   test(
@@ -406,7 +607,9 @@ void main() {
     await repo.checkForUpdate();
     store.allowCheck = false;
     expect(await repo.checkForUpdate(updateChannel: 'dev'), isNull);
-    expect(requests, hasLength(1));
+    expect(requests, hasLength(2));
+    expect(repo.lastCheck!.rejectReason, 'wrong_channel');
+    expect(repo.lastCheck!.fromCache, isFalse);
   });
 
   for (final mode in [

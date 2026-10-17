@@ -7,6 +7,8 @@ import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
 import 'package:url_launcher/url_launcher.dart';
 
+import 'package:navis/src/features/integrations/domain/update_source.dart';
+import 'package:navis/src/features/settings/data/update_transport.dart';
 import 'package:navis/src/features/integrations/data/integration_guard_interceptor.dart';
 import 'package:navis/src/features/settings/data/archive_utils.dart';
 import 'package:navis/src/features/settings/data/update_install_mode.dart';
@@ -27,9 +29,14 @@ class UpdateIntegrityException implements Exception {
 
 /// Handles downloading a verified release artifact and applying it.
 class UpdateService {
-  new({Dio? dio, this._networkUsageReporter}) : _dio = dio ?? Dio();
+  new({
+    Dio? dio,
+    this._networkUsageReporter,
+    this.source = UpdateSource.porthorion,
+  }) : _dio = dio ?? Dio();
 
   final Dio _dio;
+  final UpdateSource source;
   final NetworkUsageReporter? _networkUsageReporter;
 
   static const _channel = MethodChannel('com.navis.app/updater');
@@ -52,7 +59,10 @@ class UpdateService {
       throw StateError('No download URL available for ${info.tagName}');
     }
 
-    if (!url.startsWith(AppConstants.updateBaseUrl)) {
+    if (!isUpdateAssetUrl(
+      url,
+      source.effectiveFor(AppConstants.updateChannel),
+    )) {
       throw StateError('Update download URL is outside the update host');
     }
     if (info.sha256 == null || info.size == null) {
@@ -94,19 +104,25 @@ class UpdateService {
     AppLogger.info('Downloading update artifact from $url → $filePath');
 
     var downloadedBytes = 0;
-    await _dio.download(
+    await followUpdateRedirects<dynamic>(
       url,
-      filePath,
-      cancelToken: cancelToken,
-      onReceiveProgress: (received, total) {
-        downloadedBytes = received;
-        if (total > 0) onProgress?.call(received / total);
-      },
-      // The user chose to install this update.
-      options: userInitiatedOptions(
-        Options(
-          receiveTimeout: const Duration(minutes: 10),
-          sendTimeout: const Duration(seconds: 15),
+      source: source.effectiveFor(AppConstants.updateChannel),
+      request: (url) => _dio.download(
+        url,
+        filePath,
+        cancelToken: cancelToken,
+        onReceiveProgress: (received, total) {
+          downloadedBytes = received;
+          if (total > 0) onProgress?.call(received / total);
+        },
+        // The user chose to install this update.
+        options: userInitiatedOptions(
+          Options(
+            followRedirects: false,
+            validateStatus: updateResponseStatus,
+            receiveTimeout: const Duration(minutes: 10),
+            sendTimeout: const Duration(seconds: 15),
+          ),
         ),
       ),
     );

@@ -3481,6 +3481,32 @@ Settings › Integrations › Updates holds the automatic check
 (`updates.automatic`); About keeps "Check now", which only the master and
 `updates` service switches block.
 
+The backend exposes `updateSourceProvider` (stored `UpdateSource`),
+`effectiveUpdateSourceProvider` (forced to Porthorion outside stable), and
+`updateHostProvider` for disclosure copy. The UI setter is
+`ref.read(updateSourceProvider.notifier).setSource(UpdateSource.github)`; it
+resets the effective-source cache and throttle before persisting through
+`SettingsRepository.setUpdateSource`. The repository updates only a reserved `updates.source.github` entry alongside the integration
+switches in `disabled_integrations`; absence means Porthorion. This metadata is
+not an integration key or toggle. Existing transactional toggle writers preserve
+it, and stale full-row settings saves cannot overwrite it. No schema changes.
+`updateSourceAvailabilityProvider` reports `available`, `devChannel`,
+`storeManaged`, or `unsupportedPlatform` for the separate UI implementation.
+
+GitHub checks use the fixed latest-release manifest URL. Envelope verification
+uses the unchanged pinned Ed25519 key before any tag, filename, hash or size is
+read as trusted. A strict signed stable tag matching the signed version and a
+safe signed basename form the GitHub release URL, which is checked again
+against the selected source’s asset policy after remapping. Redirects are followed
+explicitly with automatic Dio redirects disabled: only the selected source's
+prefix and, for GitHub, its two exact asset CDN hosts are accepted. Integrity
+verification covers the final bytes. A failure records the actual manifest URL
+and never contacts the other source. Diagnostics show the selected manifest URL
+even before a check; blocked redirects use the existing Dio fetch-failure path.
+The check store records a channel/source
+identity and resets cached envelopes and throttle on a change; old in-flight
+checks cannot write a cache for a newly selected source.
+
 Home and Library pulls (including Library tabs and Liked see-all pages) call
 `checkForUpdatesFromPull`. This uses the same integrations policy and forced
 check request, bypassing the one-hour throttle only when the master, Updates
@@ -3515,7 +3541,7 @@ update across cold starts inside the throttle window without trusting
 unsigned derived fields.
 
 - `data/update_repository.dart` — fetches the channel's signed manifest from
-  `AppConstants.updateBaseUrl` (R2, see [release-r2.md](release/release-r2.md)), verifies it,
+  the selected R2 or GitHub source (see [release-r2.md](release/release-r2.md)), verifies it,
   and selects the platform asset by manifest key using `detectInstallMode()`. Returns
   `UpdateInfo` (with `downloadUrl`, `assetFileName`, `sha256` and `size`) when a newer
   version is available. A manifest that fails any check is dropped (the reason is kept

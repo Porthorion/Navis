@@ -1,11 +1,11 @@
-# Update channel on R2
+# Signed updates from Porthorion or GitHub
 
 From 1.5.0 on, Navis checks for updates at
 `https://downloads.porthorion.com/navis/channels/<channel>/manifest.json` and
 downloads release files from the same host. Versions before 1.5.0 read the
 Forgejo releases API instead. 1.5.0 is the bridge release: it goes out through
-Forgejo *and* R2. Every later update goes through R2; GitHub releases can also
-publish the staged assets for manual downloads.
+Forgejo, R2 and GitHub. Stable users may choose R2 or GitHub; dev and staging
+always use R2. Both stable sources publish the same signed envelope and artifacts.
 
 ## Bucket layout
 
@@ -71,10 +71,26 @@ build values are rejected. The schema stays at 1, so older manifests work.
 
 The app accepts an update only when the signature verifies against
 `AppConstants.updateSigningPublicKey`, the payload's `channel` matches its own
-channel, the version/build is newer under those rules, and the asset URL is
-under `AppConstants.updateBaseUrl`. After downloading, it checks the file's
+channel, the version/build is newer under those rules, and the signed asset URL is
+under the selected source’s allowed prefix (R2 by default). After downloading, it checks the file's
 size and SHA-256 before installing anything. Anyone who can write to the
 bucket can therefore break updates, but cannot ship a different build.
+
+### Choosing the source
+
+Stable builds persist `porthorion` (default) or `github` beside integration
+settings. R2 uses `channels/stable/manifest.json`; GitHub uses
+`https://github.com/Porthorion/Navis/releases/latest/download/manifest.json`.
+Both serve identical signed envelopes. GitHub downloads are derived only after
+verification from the signed stable `tag` and signed artifact basename; the
+signed size and SHA-256 remain unchanged. Dev and staging always use R2.
+The UI source control is hidden for iOS and store-delivered Android installs.
+
+Only HTTPS on the exact R2 base or selected GitHub repository's release-download
+prefix is allowed. GitHub redirects may also reach `objects.githubusercontent.com`
+and `release-assets.githubusercontent.com`; every hop is checked before contact.
+No failure contacts the other source. A source change resets the verified cache
+and throttle, including across restarts.
 
 ### Android APKs
 
@@ -123,24 +139,74 @@ verifies the staged files and source commit, repeats the normal remote
 preconditions, and runs the same Git and R2 publication flow without rebuilding.
 The channel, prerelease state and notes come from the bundle; `--forgejo` is
 still required on release day for the 1.5.0 bridge. The dist files are retained.
-Add `--github` next to `--forgejo` to also create a GitHub release, for example:
+GitHub publication is automatic for stable releases; `--github` remains accepted explicitly:
 
 ```bash
 ./tool/release.sh v1.5.0 --publish-from=dist/v1.5.0 --skip-checks --forgejo --github
 ```
 
-`--github` is valid only with `--publish-from`. It requires authenticated `gh`
-and a Git remote named `github`; a missing remote or an existing release for
-the tag fails before publication. After the existing publish steps succeed,
-it pushes `main` and the version tag to that remote, creates a release in
-`Porthorion/Navis` (override with `NAVIS_GITHUB_REPO` and a matching remote),
-with notes that start with a Download section linking every file on
-`downloads.porthorion.com` (R2 is the official source; GitHub's attached files are
-identical mirrors) followed by `release-notes.md`, uses the staged prerelease state, and attaches exactly
-the staged asset files plus dist `SHA256SUMS`. It verifies each asset name and
-byte size, failing on missing or mismatched assets. Existing releases are never
-overwritten; resolve any partial GitHub release before retrying. R2 still
-provides the signed manifest and updater downloads.
+Stable, non-prerelease publication requires GitHub by default, including direct
+build-and-publish runs. Before building or publishing, `release.sh` checks `gh`
+authentication and a `github` remote matching `Porthorion/Navis` (or the existing
+`NAVIS_GITHUB_REPO` override). `--build-only` stays local. An emergency
+`--no-github` escape hatch prints a warning: users who selected GitHub will not
+see this release. GitHub publishing is stable-only: `--github --channel=dev`
+is rejected. `--prerelease` on stable is also rejected unless `--no-github` is
+explicit, including when the prerelease flag comes from a staged bundle. Use
+dev (or standalone R2 staging publication) for prereleases.
+
+After R2 verifies the signature and every artifact's size and SHA-256,
+`release.sh` takes the exact fetched envelope and attaches it as `manifest.json`
+alongside the same artifacts and `SHA256SUMS` on GitHub. It checks uploaded names
+and sizes, then downloads GitHub's manifest and compares its bytes with the
+verified R2 envelope. Signature verification remains pinned to the same key;
+there is no API token in the app and no GitHub API lookup.
+
+### Recovering when R2 succeeds and GitHub fails
+
+R2 publication completes first. A GitHub push, upload, asset check or manifest
+comparison failure exits non-zero and prints `R2 succeeded but GitHub is not
+verified` plus an exact, shell-quoted `Resume:` command. A run with GitHub
+enabled cannot succeed without the final manifest byte comparison. The explicit
+`--no-github` emergency opt-out remains the exception and prints its warning.
+
+Run the printed command from the same checkout, after resolving the reported
+failure. For example (replace the directory with the one printed):
+
+```sh
+./tool/release.sh v1.5.0 --publish-from=dist/v1.5.0-recovery.ABC123 --allow-existing-version --skip-checks --github
+```
+
+Direct build-and-publish runs retain a checksummed bundle under a unique
+`dist/<tag>-recovery.<suffix>/` before publishing to R2. Existing
+`--publish-from` runs reuse their original bundle. Keep the bundle and the
+checkout at its recorded source commit until recovery succeeds. Resume verifies
+its checksums and source/tag identity, republishes to R2 without rebuilding,
+then creates the missing GitHub release or retries uploads with `--clobber`.
+It finishes only after GitHub's downloaded manifest matches the freshly verified
+R2 envelope. Immutable artifacts are reused; retrying may refresh the signed
+manifest's publication timestamp on both hosts.
+
+The resume command omits `--forgejo` to avoid creating the bridge release twice.
+If the interruption was in that optional bridge step, complete any missing
+Forgejo publication separately. `--skip-checks` reuses the release's prior
+validation; it does not skip bundle, R2 or GitHub verification.
+
+For late additions such as the Windows installer, use `release.sh` with
+`--allow-existing-version`, or explicitly mirror the merged manifest and new
+asset with:
+
+```sh
+./tool/r2_publish.sh publish --channel=stable --tag=v1.5.0 --github <installer.exe>
+./tool/r2_publish.sh verify --channel=stable --github
+```
+
+Standalone `publish --github` requires an existing GitHub release; initial
+creation belongs to `release.sh`. The existing GitHub release keeps its earlier assets; `gh release upload
+--clobber` replaces `manifest.json` and `SHA256SUMS` and uploads the added assets.
+A failed GitHub step leaves R2 ahead until the operator retries; the app never
+falls back between sources. The manifest comparison also detects this gap.
+Standalone R2 publication without `--github` does not update GitHub.
 
 See [release-from-linux.md](release-from-linux.md#build-and-verify-150-now-publish-those-files-later)
 for the exact 1.5.0 build, verify and publish commands.
@@ -150,14 +216,14 @@ for the exact 1.5.0 build, verify and publish commands.
 - Later releases: `./tool/release.sh v1.5.1 …`.
 - More files for the same version (the other Linux or Windows package, or the
   macOS zip built on a Mac): run `release.sh` again with `--allow-existing-version`,
-  or `tool/r2_publish.sh publish` with just those files. When the channel already
+  or `tool/r2_publish.sh publish --github` with just those files. When the channel already
   points at that tag, the new assets are added to its manifest (after checking the
   current manifest's signature) and `SHA256SUMS` is rewritten.
 - Retry a failed upload: the artifacts stay in `build/` until every publish
   step succeeds, so run
   `./tool/r2_publish.sh publish --tag=v1.5.1 --channel=stable --notes-file=<md> <files…>`
   again. Files that were already uploaded are skipped.
-- Check what clients see: `./tool/r2_publish.sh verify --channel=stable`. It
+- Check what clients see: `./tool/r2_publish.sh verify --channel=stable --github`. It
   checks the signature against the pinned key and downloads every asset from
   origin (bypassing the edge cache) to compare its size and SHA-256.
 

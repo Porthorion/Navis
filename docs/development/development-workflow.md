@@ -1468,13 +1468,23 @@ use `--split-debug-info` without Dart obfuscation, keeping symbols in separate
 without Flutter's ABI offsets. The updater selects the primary ABI's split
 when present and otherwise uses the universal; see [release-r2.md](../release/release-r2.md).
 
-For a staged publish, `--github` can accompany `--forgejo` to push `main` and
-the tag to the `github` remote and create a GitHub release after the existing
-publish succeeds. It uses authenticated `gh`, staged notes/prerelease metadata,
-and only staged assets plus dist `SHA256SUMS`, checking every asset name and
-size. Missing remotes and existing releases are refused; see
-[release-from-linux.md](../release/release-from-linux.md) for the repository override and
-retry procedure. The signed R2 update channel is unchanged.
+Stable non-prerelease publication requires authenticated `gh` and a matching
+`github` remote, checked before build/publication. `--build-only` remains local;
+`--no-github` prints an emergency warning that GitHub-source users will miss the
+release. The signed envelope is exported only after R2 verifies it and all
+artifact hashes, attached as `manifest.json`, and compared byte-for-byte with
+GitHub. Late additions use `--allow-existing-version`, or
+`r2_publish.sh publish --github`; verify both sources with
+`r2_publish.sh verify --channel=stable --github`. Run
+`tool/github_release_test.sh` and `tool/dev_release_test.sh` for hermetic
+publication/manifest comparisons without real credentials or network writes.
+`release.sh` rejects GitHub publication outside stable and stable prereleases
+without explicit `--no-github`, including staged metadata. Direct runs retain a
+unique recovery bundle before R2 publication. If GitHub remains unverified after
+R2 succeeds, the command fails and prints the exact `--publish-from` resume
+command; see [release recovery](../release/release-r2.md#recovering-when-r2-succeeds-and-github-fails).
+The release-dist fixtures also exercise failed push/upload/fetch/comparison and
+successful resume, including bundle paths containing spaces.
 
 `tool/release.sh` fails when the requested version's release tag already
 exists, locally or on origin. A version that `dev` already names in

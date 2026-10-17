@@ -47,6 +47,9 @@ NOTES_FILE=""
 BUILD=""
 DRY_RUN=false
 PRUNE_PREVIOUS=false
+PUBLISH_GITHUB=false
+MANIFEST_OUT=""
+CHECKSUMS_OUT=""
 FILES=()
 for arg in "$@"; do
   case "${arg}" in
@@ -54,6 +57,9 @@ for arg in "$@"; do
     --channel=*) CHANNEL="${arg#--channel=}" ;;
     --build=*) BUILD="${arg#--build=}" ;;
     --dry-run) DRY_RUN=true ;;
+    --github) PUBLISH_GITHUB=true ;;
+    --manifest-out=*) MANIFEST_OUT="${arg#--manifest-out=}" ;;
+    --checksums-out=*) CHECKSUMS_OUT="${arg#--checksums-out=}" ;;
     --prune-previous) PRUNE_PREVIOUS=true ;;
     --notes-file=*) NOTES_FILE="${arg#--notes-file=}" ;;
     --*) echo "Unknown option: ${arg}" >&2; usage ;;
@@ -236,9 +242,31 @@ verify() {
   echo "==> Verified."
 }
 
+# shellcheck source=lib/github_release.sh
+source "${SCRIPT_DIR}/lib/github_release.sh"
+if [[ "${PUBLISH_GITHUB}" == true && "${CHANNEL}" != stable ]]; then
+  echo 'Error: --github requires the stable channel.' >&2; exit 1
+fi
+export_verified_metadata() {
+  if [[ -n "${MANIFEST_OUT}" ]]; then cp "${WORK_DIR}/envelope.json" "${MANIFEST_OUT}"; fi
+  if [[ -n "${CHECKSUMS_OUT}" ]]; then
+    jq -r '.assets | to_entries[] | "\(.value.sha256)  \(.value.url | split("/") | last)"' \
+      "${WORK_DIR}/verify-payload.json" | sort -k2 > "${CHECKSUMS_OUT}"
+  fi
+}
 if [[ "${MODE}" == "verify" ]]; then
   verify
+  if [[ "${PUBLISH_GITHUB}" == true ]]; then
+    navis_github_verify_manifest "$(jq -r '.tag' "${WORK_DIR}/verify-payload.json")" "${WORK_DIR}/envelope.json"
+  fi
+  export_verified_metadata
   exit 0
+fi
+if [[ "${PUBLISH_GITHUB}" == true ]]; then
+  navis_github_preflight "${TAG}" true
+  gh release view "${TAG}" --repo "${NAVIS_GITHUB_REPO:-Porthorion/Navis}" --json tagName >/dev/null 2>&1 || {
+    echo 'Error: create the initial GitHub release with release.sh before mirroring additions.' >&2; exit 1;
+  }
 fi
 
 # ─── Publish ────────────────────────────────────────────────────────────────
@@ -447,4 +475,17 @@ else
 fi
 if [[ "${PRUNE_PREVIOUS}" == true ]]; then
   prune_previous
+fi
+
+# Export only the fetched, authenticated envelope after every R2 asset verified.
+if [[ "${DRY_RUN}" == false ]]; then
+  export_verified_metadata
+  if [[ "${PUBLISH_GITHUB}" == true ]]; then
+    cp "${WORK_DIR}/envelope.json" "${WORK_DIR}/manifest.json"
+    printf '%s\n' 'See the signed release notes in the Navis updater.' > "${WORK_DIR}/github-notes.md"
+    navis_github_publish "${TAG}" false "${WORK_DIR}/github-notes.md" "${WORK_DIR}/manifest.json" \
+      "${FILES[@]}" "${WORK_DIR}/SHA256SUMS"
+  fi
+elif [[ "${PUBLISH_GITHUB}" == true ]]; then
+  echo "DRY-RUN GitHub upload ${TAG}: assets and verified manifest.json; compare manifest bytes"
 fi

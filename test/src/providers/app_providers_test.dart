@@ -3304,6 +3304,9 @@ void main() {
 }
 
 class _RecordingUpdateCheckStore extends UpdateCheckStore {
+  @override
+  Future<bool> selectSource(String identity) async => false;
+
   final List<bool> forceArguments = <bool>[];
 
   /// Declines the check, so nothing reaches the network.
@@ -3314,33 +3317,48 @@ class _RecordingUpdateCheckStore extends UpdateCheckStore {
   }
 
   @override
-  Future<void> recordCheck([DateTime? checkedAt]) async {}
+  Future<void> recordCheck([
+    DateTime? checkedAt,
+    String? sourceIdentity,
+  ]) async {}
 
   @override
   Future<Map<String, Object?>?> readVerifiedManifest() async => null;
 
   @override
-  Future<void> recordVerifiedManifest(Map<String, Object?> value) async {}
+  Future<void> recordVerifiedManifest(
+    Map<String, Object?> value, {
+    String? sourceIdentity,
+  }) async {}
 
   @override
-  Future<void> clearVerifiedManifest() async {}
+  Future<void> clearVerifiedManifest({String? sourceIdentity}) async {}
 }
 
 class _NoOpUpdateCheckStore extends UpdateCheckStore {
   @override
+  Future<bool> selectSource(String identity) async => false;
+
+  @override
   Future<bool> shouldCheck({bool force = false}) async => true;
 
   @override
-  Future<void> recordCheck([DateTime? checkedAt]) async {}
+  Future<void> recordCheck([
+    DateTime? checkedAt,
+    String? sourceIdentity,
+  ]) async {}
 
   @override
   Future<Map<String, Object?>?> readVerifiedManifest() async => null;
 
   @override
-  Future<void> recordVerifiedManifest(Map<String, Object?> value) async {}
+  Future<void> recordVerifiedManifest(
+    Map<String, Object?> value, {
+    String? sourceIdentity,
+  }) async {}
 
   @override
-  Future<void> clearVerifiedManifest() async {}
+  Future<void> clearVerifiedManifest({String? sourceIdentity}) async {}
 }
 
 class _RadioErrorHandler extends InertPlaybackHandler {

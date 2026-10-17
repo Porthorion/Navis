@@ -2547,7 +2547,7 @@ abstract class AppLocalizations {
   /// No description provided for @privacyOnlineServicesBody.
   ///
   /// In en, this message translates to:
-  /// **'Besides your server, Navis can contact Deezer (artist, album and track names, plus images from Deezer\'s image servers), Last.fm (track and artist names, using the API key included with Navis or your own), ListenBrainz (your listens and likes), LRCLIB (track details, to find lyrics), downloads.porthorion.com (update checks), GitHub (raw.githubusercontent.com and api.github.com for AutoEQ headphone profiles, only when you ask), internet radio stations (streams and now-playing info) and the sites your server links images from. You can turn each one off in Settings › Integrations. With Online services off, Navis only talks to your server.'**
+  /// **'Besides your server, Navis can contact Deezer (artist, album and track names, plus images from Deezer\'s image servers), Last.fm (track and artist names, using the API key included with Navis or your own), ListenBrainz (your listens and likes), LRCLIB (track details, to find lyrics), downloads.porthorion.com or GitHub (github.com, objects.githubusercontent.com and release-assets.githubusercontent.com for update checks and downloads, using your chosen source), GitHub (raw.githubusercontent.com and api.github.com for AutoEQ headphone profiles, only when you ask), internet radio stations (streams and now-playing info) and the sites your server links images from. You can turn each one off in Settings › Integrations. With Online services off, Navis only talks to your server.'**
   String get privacyOnlineServicesBody;
 
   /// No description provided for @privacyOpenIntegrations.
@@ -2657,6 +2657,36 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Sends an app version check to {host}.'**
   String integrationsUpdatesSends(String host);
+
+  /// No description provided for @integrationsUpdateSourceTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Source'**
+  String get integrationsUpdateSourceTitle;
+
+  /// No description provided for @integrationsUpdateSourcePorthorion.
+  ///
+  /// In en, this message translates to:
+  /// **'Porthorion downloads (downloads.porthorion.com)'**
+  String get integrationsUpdateSourcePorthorion;
+
+  /// No description provided for @integrationsUpdateSourceGithub.
+  ///
+  /// In en, this message translates to:
+  /// **'GitHub (github.com)'**
+  String get integrationsUpdateSourceGithub;
+
+  /// No description provided for @integrationsUpdateSourceHelper.
+  ///
+  /// In en, this message translates to:
+  /// **'GitHub can lag behind slightly. Updates are verified the same way.'**
+  String get integrationsUpdateSourceHelper;
+
+  /// No description provided for @integrationsUpdateSourceDevNote.
+  ///
+  /// In en, this message translates to:
+  /// **'Dev builds always update from downloads.porthorion.com.'**
+  String get integrationsUpdateSourceDevNote;
 
   /// AutoEQ network hosts disclosed to the user.
   ///

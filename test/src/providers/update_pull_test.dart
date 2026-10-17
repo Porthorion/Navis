@@ -35,6 +35,9 @@ class _Sync extends LibrarySyncController {
 class _Store extends UpdateCheckStore {
   new({this.allowAutomatic = false});
 
+  @override
+  Future<bool> selectSource(String identity) async => false;
+
   /// Whether an unforced (automatic) check passes the throttle, so tests can
   /// observe the provider re-running without a manual request.
   final bool allowAutomatic;

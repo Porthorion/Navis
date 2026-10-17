@@ -26,7 +26,8 @@
 #   --channel=<stable|dev>     Release/update channel (default: stable)
 #   --prerelease               Force prerelease=true in release metadata
 #   --forgejo                  Also publish a Forgejo release (only for the 1.5.0 bridge)
-#   --github                   Also publish a GitHub release (requires --publish-from)
+#   --github                   Publish GitHub (automatic for stable releases)
+#   --no-github                Emergency opt-out: GitHub-source users miss this release
 #   --allow-existing-version   Rebuild or retry a version whose release tag already exists
 #
 # Examples:
@@ -63,6 +64,7 @@ FORCE_PRERELEASE=false
 ALLOW_EXISTING_VERSION=false
 PUBLISH_FORGEJO=false
 PUBLISH_GITHUB=false
+NO_GITHUB=false
 BUILD_ONLY=false
 PUBLISH_FROM=""
 PUBLISH_FROM_SET=false
@@ -92,22 +94,18 @@ for arg in "$@"; do
     --allow-existing-version) ALLOW_EXISTING_VERSION=true ;;
     --forgejo) PUBLISH_FORGEJO=true ;;
     --github) PUBLISH_GITHUB=true ;;
+    --no-github) NO_GITHUB=true ;;
     v*.*) VERSION="${arg}" ;;
     *)
       echo "Unknown argument: ${arg}"
-      echo "Usage: ./tool/release.sh <version> [--build-only | --publish-from=<dist/tag>] [--skip-checks] [--ipa] [--targets=<csv>] [--all-platforms] [--linux-package=<bundle|deb|rpm|all>] [--windows-package=<zip|exe>] [--linux-ssh=<user@host>] [--windows-ssh=<user@host>] [--linux-remote-dir=<path>] [--windows-remote-dir=<path>] [--macos-notarize] [--channel=<stable|dev>] [--prerelease] [--allow-existing-version] [--forgejo] [--github]"
+      echo "Usage: ./tool/release.sh <version> [--build-only | --publish-from=<dist/tag>] [--skip-checks] [--ipa] [--targets=<csv>] [--all-platforms] [--linux-package=<bundle|deb|rpm|all>] [--windows-package=<zip|exe>] [--linux-ssh=<user@host>] [--windows-ssh=<user@host>] [--linux-remote-dir=<path>] [--windows-remote-dir=<path>] [--macos-notarize] [--channel=<stable|dev>] [--prerelease] [--allow-existing-version] [--forgejo] [--github | --no-github]"
       exit 1
       ;;
   esac
 done
 
-if [[ "${PUBLISH_GITHUB}" == true && "${PUBLISH_FROM_SET}" == false ]]; then
-  echo "Error: --github requires --publish-from=<dist/tag>."
-  exit 1
-fi
-
 if [[ -z "${VERSION}" ]]; then
-  echo "Usage: ./tool/release.sh <version> [--build-only | --publish-from=<dist/tag>] [--skip-checks] [--ipa] [--targets=<csv>] [--all-platforms] [--linux-package=<bundle|deb|rpm|all>] [--windows-package=<zip|exe>] [--linux-ssh=<user@host>] [--windows-ssh=<user@host>] [--linux-remote-dir=<path>] [--windows-remote-dir=<path>] [--macos-notarize] [--channel=<stable|dev>] [--prerelease] [--allow-existing-version] [--forgejo] [--github]"
+  echo "Usage: ./tool/release.sh <version> [--build-only | --publish-from=<dist/tag>] [--skip-checks] [--ipa] [--targets=<csv>] [--all-platforms] [--linux-package=<bundle|deb|rpm|all>] [--windows-package=<zip|exe>] [--linux-ssh=<user@host>] [--windows-ssh=<user@host>] [--linux-remote-dir=<path>] [--windows-remote-dir=<path>] [--macos-notarize] [--channel=<stable|dev>] [--prerelease] [--allow-existing-version] [--forgejo] [--github | --no-github]"
   echo "  e.g. ./tool/release.sh v0.3.0 --targets=android,macos"
   exit 1
 fi
@@ -137,6 +135,20 @@ if [[ "${UPDATE_CHANNEL}" != "stable" && "${UPDATE_CHANNEL}" != "dev" ]]; then
   echo "Error: --channel must be 'stable' or 'dev'"
   exit 1
 fi
+
+# Run before loading secrets, then again after staged metadata is loaded.
+validate_github_channel() {
+  if [[ "${NO_GITHUB}" == true && "${PUBLISH_GITHUB}" == true ]]; then
+    echo 'Error: --github and --no-github cannot be combined.' >&2; exit 1
+  fi
+  if [[ "${PUBLISH_GITHUB}" == true && "${UPDATE_CHANNEL}" != stable ]]; then
+    echo 'Error: GitHub publication is stable-only; use R2 for dev releases.' >&2; exit 1
+  fi
+  if [[ "${UPDATE_CHANNEL}" == stable && "${FORCE_PRERELEASE}" == true && "${NO_GITHUB}" == false ]]; then
+    echo 'Error: --prerelease on stable requires explicit --no-github; use dev for prereleases.' >&2; exit 1
+  fi
+}
+validate_github_channel
 
 # Validate the namespace locally; build-only must not run R2's remote checks.
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -223,7 +235,7 @@ fi
 REQUIRED_TOOLS=(jq git sha256sum)
 if [[ "${PUBLISH_FROM_SET}" == false ]]; then REQUIRED_TOOLS+=(flutter openssl); fi
 if [[ "${BUILD_ONLY}" == false ]]; then REQUIRED_TOOLS+=(curl openssl); fi
-if [[ "${PUBLISH_GITHUB}" == true ]]; then REQUIRED_TOOLS+=(gh); fi
+
 for tool in "${REQUIRED_TOOLS[@]}"; do
   if ! command -v "${tool}" &>/dev/null; then
     echo "Error: '${tool}' is required but not found on PATH."
@@ -250,16 +262,17 @@ if [[ "${PUBLISH_FROM_SET}" == true ]]; then
   load_release_dist
 fi
 
-if [[ "${PUBLISH_GITHUB}" == true ]]; then
-  GITHUB_REPO="${NAVIS_GITHUB_REPO:-Porthorion/Navis}"
-  if ! git remote get-url github >/dev/null 2>&1; then
-    echo "Error: --github requires a git remote named github."
-    exit 1
-  fi
-  if gh release view "${VERSION}" --repo "${GITHUB_REPO}" --json tagName >/dev/null 2>&1; then
-    echo "Error: GitHub release ${VERSION} already exists in ${GITHUB_REPO}; refusing to overwrite."
-    exit 1
-  fi
+# shellcheck source=lib/github_release.sh
+source "${SCRIPT_DIR}/lib/github_release.sh"
+validate_github_channel
+if [[ "${BUILD_ONLY}" == false && "${UPDATE_CHANNEL}" == stable && "${FORCE_PRERELEASE}" == false && "${NO_GITHUB}" == false ]]; then
+  PUBLISH_GITHUB=true
+fi
+if [[ "${NO_GITHUB}" == true && "${BUILD_ONLY}" == false ]]; then
+  echo 'WARNING: --no-github: GITHUB-SOURCE USERS WILL NOT SEE THIS RELEASE.' >&2
+fi
+if [[ "${PUBLISH_GITHUB}" == true && "${BUILD_ONLY}" == false ]]; then
+  navis_github_preflight "${VERSION}" "${ALLOW_EXISTING_VERSION}"
 fi
 
 UNAME="$(uname)"
@@ -404,13 +417,26 @@ DART_DEFINE_ARGS=("--dart-define=NAVIS_UPDATE_CHANNEL=${UPDATE_CHANNEL}")
 SECRET_TMP_DIR=""
 LASTFM_DEFINES_FILE=""
 DIST_TMP_DIR=""
+R2_PUBLISHED=false
+GITHUB_VERIFIED=false
 cleanup_release_secrets() {
+  local status=$?
+  if [[ "${R2_PUBLISHED}" == true && "${PUBLISH_GITHUB}" == true && "${GITHUB_VERIFIED}" != true ]]; then
+    echo 'ERROR: R2 succeeded but GitHub is not verified. Update sources may be out of sync.' >&2
+    printf 'Resume: ' >&2
+    printf '%q ' ./tool/release.sh "${VERSION}" "--publish-from=${PUBLISH_FROM}" --allow-existing-version --skip-checks --github >&2
+    printf '\n' >&2
+    [[ "${status}" != 0 ]] || status=1
+  fi
   if [[ -n "${DIST_TMP_DIR}" ]]; then rm -rf "${DIST_TMP_DIR}"; fi
   if [[ -n "${SECRET_TMP_DIR}" ]]; then
     rm -rf "${SECRET_TMP_DIR}"
   fi
+  exit "${status}"
 }
 trap cleanup_release_secrets EXIT
+trap 'exit 130' INT
+trap 'exit 143' TERM
 if [[ "${PUBLISH_FROM_SET}" == false && -n "${NAVIS_LASTFM_API_KEY:-}" ]]; then
   mkdir -p "${SCRIPT_DIR}/../build"
   SECRET_TMP_DIR="$(mktemp -d "$(cd "${SCRIPT_DIR}/../build" && pwd)/navis-secrets.XXXXXX")"
@@ -900,12 +926,23 @@ if [[ "${PUBLISH_FROM_SET}" == false ]]; then
   generate_release_notes
 fi
 
+# Retain a checksummed bundle before R2 changes so every GitHub failure can
+# resume without rebuilding, including direct build-and-publish runs.
+if [[ "${PUBLISH_GITHUB}" == true && "${PUBLISH_FROM_SET}" == false ]]; then
+  SOURCE_COMMIT="$(git rev-parse HEAD)"
+  stage_release_dist --recovery
+fi
+
 # ─── Publish to R2 ──────────────────────────────────────────────────────────
 NOTES_FILE="$(mktemp)"
 printf '%s\n' "${RELEASE_BODY}" > "${NOTES_FILE}"
 echo "==> Publishing ${VERSION} to R2 (channel=${UPDATE_CHANNEL})..."
+if [[ -z "${SECRET_TMP_DIR}" ]]; then SECRET_TMP_DIR="$(mktemp -d)"; fi
+VERIFIED_MANIFEST="${SECRET_TMP_DIR}/manifest.json"
+GITHUB_CHECKSUMS="${SECRET_TMP_DIR}/SHA256SUMS"
 "${SCRIPT_DIR}/r2_publish.sh" publish --tag="${VERSION}" --channel="${UPDATE_CHANNEL}" \
-  --notes-file="${NOTES_FILE}" "${ASSET_FILES[@]}"
+  --manifest-out="${VERIFIED_MANIFEST}" --checksums-out="${GITHUB_CHECKSUMS}" --notes-file="${NOTES_FILE}" "${ASSET_FILES[@]}"
+R2_PUBLISHED=true
 rm -f "${NOTES_FILE}"
 
 # ─── Create Forgejo release (1.5.0 bridge only) ─────────────────────────────
@@ -951,53 +988,30 @@ if [[ "${PUBLISH_FORGEJO}" == "true" ]]; then
   done
 fi
 
-# ─── Publish staged assets to GitHub ──────────────────────────────────────
+# ─── Publish the verified R2 envelope and identical artifacts to GitHub ─────
 if [[ "${PUBLISH_GITHUB}" == true ]]; then
-  echo "==> Pushing main and ${VERSION} to github..."
   git push github main "${VERSION}"
-  github_assets=("${ASSET_FILES[@]}" "${PUBLISH_FROM}/SHA256SUMS")
-  # Downloads are served from Cloudflare R2; the attached files are a mirror.
-  github_notes="$(mktemp)"
+  github_notes="${SECRET_TMP_DIR}/release-notes.md"
   {
-    echo "## Download"
+    echo '## Download'
     echo
-    echo "Official downloads are served from Porthorion's Cloudflare R2 storage at"
-    echo "https://downloads.porthorion.com, not from GitHub. The files attached below"
-    echo "are identical copies (check them against SHA256SUMS)."
+    echo 'Choose Porthorion downloads or the identical GitHub attachments below.'
+    echo 'Both updater sources use the same signed manifest and artifact checks.'
     echo
-    for asset in "${github_assets[@]}"; do
+    for asset in "${ASSET_FILES[@]}"; do
       name="$(basename "${asset}")"
       echo "- [${name}](https://downloads.porthorion.com/navis/releases/${VERSION}/${name})"
     done
     echo
-    cat "${PUBLISH_FROM}/release-notes.md"
+    printf '%s\n' "${RELEASE_BODY}"
   } > "${github_notes}"
-  github_args=(release create "${VERSION}" --repo "${GITHUB_REPO}"
-    --title "Navis ${VERSION}" --notes-file "${github_notes}")
-  if [[ "$(jq -r '.prerelease' "${PUBLISH_FROM}/release.json")" == true ]]; then
-    github_args+=(--prerelease)
-  fi
-  gh "${github_args[@]}" "${github_assets[@]}"
-  rm -f "${github_notes}"
-  github_release="$(gh release view "${VERSION}" --repo "${GITHUB_REPO}" --json assets)"
-  jq -e --argjson count "${#github_assets[@]}" '.assets | length == $count' \
-    <<< "${github_release}" >/dev/null || {
-    echo "Error: GitHub release asset count differs from the staged bundle."; exit 1;
-  }
-  for asset in "${github_assets[@]}"; do
-    name="$(basename "${asset}")"
-    size="$(wc -c < "${asset}")"
-    jq -e --arg name "${name}" --argjson size "${size}" \
-      '[.assets[] | select(.name == $name and .size == $size)] | length == 1' \
-      <<< "${github_release}" >/dev/null || {
-      echo "Error: GitHub release asset missing or size mismatch: ${name}"; exit 1;
-    }
-  done
-  echo "    GitHub release assets verified."
+  navis_github_publish "${VERSION}" "${RELEASE_PRERELEASE}" "${github_notes}" \
+    "${VERIFIED_MANIFEST}" "${ASSET_FILES[@]}" "${GITHUB_CHECKSUMS}"
+  GITHUB_VERIFIED=true
 fi
 
 # Artifacts stay on disk until every publish step has succeeded, so a failed
-# upload can be retried with ./tool/r2_publish.sh publish.
+# upload can be retried from the retained release bundle.
 if [[ "${PUBLISH_FROM_SET}" == false ]]; then rm -f "${ASSET_FILES[@]}"; fi
 
 echo ""

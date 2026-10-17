@@ -14,6 +14,60 @@ Last updated: 2026-10-17
 - ACP status values: `backlog`, `ready`, `in_progress`, `blocked`, `done`.
 
 ## Current Focus
+- [x] Issue #41 review fixes, round 1 — 2026-10-17
+  (`feat/update-source-github`): `release.sh` rejects non-stable GitHub
+  publication and stable prereleases without explicit `--no-github`, including
+  staged metadata. Direct publication retains a unique checksummed recovery
+  bundle before R2 changes; any later unverified GitHub exit fails and prints
+  an executable resume command. Fixtures cover push/upload/fetch/equality
+  failures followed by successful resume, staged paths with spaces, a skipped
+  verification, and late direct publication with an existing bundle. GitHub
+  asset byte counts strip `wc` padding. The repository rechecks remapped URLs;
+  Integrations reads `updateHostProvider`, resolving its dead-code finding.
+  Added malformed/typed source JSON, HTTP mid-chain redirect, signed asset
+  query/fragment/encoded-separator and mismatched-tag tests. Release and host
+  regressions failed before fixes; the negative trust cases already passed
+  existing guards. Item 5 uses the requested `ponytail:` ceiling comment:
+  selected source/hop metadata would need factory and transport plumbing;
+  `followUpdateRedirects` already checks source and hop before contact.
+  Evidence: the six-file focused run passed (`00:09 +236: All tests passed!`),
+  `bash tool/github_release_test.sh` and `bash tool/dev_release_test.sh` passed,
+  changed scripts passed `bash -n`, and changed Dart passed formatting.
+  `dart analyze lib test` exited 0 with zero errors/warnings (186 existing infos).
+  The unchanged-baseline dead-code gate exited 0 with no NEW entries
+  (`declaration=4, l10n=0, asset=1, asset-missing=0, font=0, dependency=5;
+  test-only=2`). Full `tool/check.sh`, app/device launches and real publication
+  were excluded by this implementation handoff; runtime/full-gate evidence
+  remains with the orchestrator. The existing 1.5.0 source-choice changelog
+  entry remains accurate; no additional visible behavior was introduced.
+- [ ] Issue #41, update source choice — partial: 2026-10-17 (Part C UI added below)
+  (`feat/update-source-github`): Parts A/B backend and release tooling complete.
+  Persisted integration-source metadata requires no migration; a notifier setter
+  resets cache/throttle before saving, and providers expose effective source,
+  host and platform/channel availability for Part C. GitHub mapping uses only
+  verified signed tags/basenames, with explicit HTTPS redirect allowlists and
+  unchanged pinned-signature, SHA-256 and size verification. Stable publication
+  requires GitHub unless explicitly opted out, exports the verified R2 envelope,
+  mirrors late additions and compares manifest bytes. Tests were written first
+  and failed on missing APIs. Evidence: the combined updater, integrations,
+  provider, diagnostics and Home selection passed (`00:08 +474: All tests passed!`);
+  the final transport/diagnostics rerun passed (`00:05 +198: All tests passed!`).
+  Diagnostics also show the selected source before checking and retain blocked
+  redirects as fetch failures. Hermetic GitHub/R2 shell fixtures and `bash -n`
+  passed. `dart analyze lib test` reports zero errors and warnings (existing infos
+  remain). Shellcheck is not installed. Per handoff constraints, no app/device,
+  real publication or `tool/check.sh` was run; orchestrator owns full validation,
+  and Part C owns the selector, widget tests and 1.5.0 changelog entry.
+- [x] Issue #41 Part C, update source choice UI — 2026-10-17
+  (`feat/update-source-github`): Settings > Integrations > Update checks shows a
+  "Source" radio choice (Porthorion downloads, GitHub) in the entry's existing
+  credential slot, with helper text; the host line follows the effective
+  source, dev builds show it disabled with a note, and store-managed,
+  unsupported and loading states hide it. Disabled like the entry's feature
+  switches when Update checks or the master switch is off. No notice on change.
+  Widget tests written first (4 of 7 failed), then passed (`00:06 +195: All tests
+  passed!` for the integrations and changelog tests). The Integrations goldens
+  show only the top of the page, so they are unchanged.
 - [x] Issue #39, review fixes round 1 — 2026-10-17
   (`feat/downloads-backfill-now`): corrected the token-authenticated cover probe
   with the app User-Agent. Cover-less album: HTTP 200, `image/webp`, 69,228

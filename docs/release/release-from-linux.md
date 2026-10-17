@@ -21,6 +21,12 @@ supported platforms when your primary development machine is Linux.
 
 ## Release checklist
 
+- Authenticate `gh` and configure the matching `github` remote before stable publication.
+- Publish identical artifacts and the verified `manifest.json` to both sources;
+  `release.sh` requires GitHub unless the emergency `--no-github` opt-out is explicit.
+- After late Windows additions, mirror the merged manifest with `--github` and
+  run `tool/r2_publish.sh verify --channel=stable --github` to check byte equality.
+
 - A minor (or major) version bump resets every existing committed library on first launch; patch releases do not (legacy cache markers still renew once).
 
 ## Prerequisites

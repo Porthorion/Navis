@@ -166,6 +166,10 @@ const List<ChangelogVersion> changelogs = [
     ],
     entries: [
       ChangelogEntry(
+        'Settings > Integrations > Update checks lets you choose where stable builds look for updates, downloads.porthorion.com or GitHub; updates are verified the same way either way',
+        type: ChangelogEntryType.newFeature,
+      ),
+      ChangelogEntry(
         'Downloads settings lists missing lyrics and artwork with live backfill progress, shows quiet loading and error states, and enables Backfill now when a server connection is configured',
       ),
       ChangelogEntry(

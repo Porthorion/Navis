@@ -1,5 +1,8 @@
 import 'dart:convert';
 
+import 'package:navis/src/features/integrations/domain/integration_feature.dart';
+import 'package:navis/src/features/integrations/domain/update_source.dart';
+
 import 'package:drift/drift.dart' show Value;
 
 import 'package:navis/src/database/daos/app_settings_dao.dart';
@@ -272,6 +275,23 @@ class SettingsRepository {
   /// [AppSettingsDao.setIntegrationEnabled].
   Future<void> setIntegrationEnabled(String key, {required bool enabled}) =>
       _dao.setIntegrationEnabled(key, enabled: enabled);
+
+  /// Persists the source atomically beside the integration switches.
+  Future<void> setUpdateSource(UpdateSource source) =>
+      _dao.transaction(() async {
+        final row = await _dao.getSettings();
+        final entries = {
+          ...parseDisabledIntegrationKeys(row?.disabledIntegrations),
+        };
+        if (source == UpdateSource.github) {
+          entries.add(UpdateSource.githubSettingsKey);
+        } else {
+          entries.remove(UpdateSource.githubSettingsKey);
+        }
+        await _dao.updateIntegrationPolicy(
+          disabledJson: encodeDisabledIntegrationKeys(entries),
+        );
+      });
 
   /// Writes the "Online services" master switch.
   Future<void> setExternalIntegrationsEnabled({required bool enabled}) =>

@@ -6,9 +6,12 @@ release_dist_checksums() {
 }
 
 stage_release_dist() {
-  local dist_root="${SCRIPT_DIR}/../dist" i
+  local dist_root="${SCRIPT_DIR}/../dist" dist_name="${VERSION}" i
   mkdir -p "${dist_root}"
   DIST_TMP_DIR="$(mktemp -d "${dist_root}/.${VERSION}.XXXXXX")"
+  if [[ "${1:-}" == --recovery ]]; then
+    dist_name="${VERSION}-recovery.${DIST_TMP_DIR##*.}"
+  fi
   for i in "${!ASSET_FILES[@]}"; do
     cp "${ASSET_FILES[$i]}" "${DIST_TMP_DIR}/${ASSET_NAMES[$i]}"
   done
@@ -20,14 +23,15 @@ stage_release_dist() {
     > "${DIST_TMP_DIR}/release.json"
   release_dist_checksums "${DIST_TMP_DIR}" > "${DIST_TMP_DIR}/SHA256SUMS"
   # Never replace a bundle the owner may already have verified.
-  [[ ! -e "${dist_root}/${VERSION}" && ! -L "${dist_root}/${VERSION}" ]] || {
-    echo "Error: dist/${VERSION} already exists."; exit 1;
+  [[ ! -e "${dist_root}/${dist_name}" && ! -L "${dist_root}/${dist_name}" ]] || {
+    echo "Error: dist/${dist_name} already exists."; exit 1;
   }
-  mv "${DIST_TMP_DIR}" "${dist_root}/${VERSION}"
+  mv "${DIST_TMP_DIR}" "${dist_root}/${dist_name}"
   DIST_TMP_DIR=""
-  echo "==> Validated release bundle: $(cd "${dist_root}/${VERSION}" && pwd)"
-  echo "    Verify: (cd dist/${VERSION} && sha256sum -c SHA256SUMS)"
-  local publish_args=("./tool/release.sh" "${VERSION}" "--publish-from=dist/${VERSION}" "--skip-checks")
+  PUBLISH_FROM="$(cd "${dist_root}/${dist_name}" && pwd)"
+  echo "==> Validated release bundle: $(cd "${dist_root}/${dist_name}" && pwd)"
+  echo "    Verify: (cd dist/${dist_name} && sha256sum -c SHA256SUMS)"
+  local publish_args=("./tool/release.sh" "${VERSION}" "--publish-from=dist/${dist_name}" "--skip-checks")
   if [[ "${PUBLISH_FORGEJO}" == true || ( "${VERSION}" == v1.5.0 && "${UPDATE_CHANNEL}" == stable ) ]]; then
     publish_args+=(--forgejo)
   fi

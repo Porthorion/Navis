@@ -7,6 +7,7 @@ abstract final class AppConstants {
   static const String websiteUrl = 'https://navis.porthorion.com';
   static const String privacyPolicyUrl = '$websiteUrl/privacy/app';
   static const String sourceCodeUrl = 'https://github.com/Porthorion/Navis';
+  static const String githubReleasesBaseUrl = '$sourceCodeUrl/releases';
   static const String issuesUrl = '$sourceCodeUrl/issues';
   static const String licenseUrl = '$sourceCodeUrl/blob/main/LICENSE';
   static const String supportEmail = 'support@porthorion.com';
