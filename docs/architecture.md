@@ -1756,24 +1756,53 @@ locked version; this introduces no new renderer or package version.
 
 ### Expandable Player Sheet
 
-The `ExpandablePlayerSheet` widget handles the mini player ↔ now playing transition:
+The `ExpandablePlayerSheet` widget (`common_widgets/expandable_player_sheet.dart`)
+handles the phone mini player ↔ Now Playing transition. Desktop, rail and wide
+layouts do not use it.
 
-```dart
-ExpandablePlayerSheet(
-  miniPlayer: MiniPlayerWidget(),
-  fullPlayer: NowPlayingWidget(),
-  isExpanded: isNowPlayingExpanded,
-  onToggleExpanded: () => setState(() {
-    isNowPlayingExpanded = !isNowPlayingExpanded;
-  }),
-)
-```
-
-Features:
-- Smooth height animation
-- Drag gesture support
-- Velocity-based snap
-- Fade transition for content
+- **Panel.** The full player stays mounted but hidden (`Offstage`, tickers off)
+  while collapsed, so opening is instant. A layout delegate places it: its top
+  edge starts at the mini player's top edge and moves to the top of the sheet.
+  The drag maps finger delta to progress over that measured travel, with
+  `DragStartBehavior.down`, so the edge stays under the finger. The panel is an
+  opaque `RepaintBoundary` with no opacity layer and takes hits wherever it is
+  visible.
+- **Soft ends.** The mini player is painted above the panel and the layout
+  delegate puts it on the panel's top edge, so it rides the edge. Over the first
+  15% of the travel (`ExpandablePlayerSheet.edgeFade`) `_miniOpacity` fades it
+  out (a small `Opacity` on the mini player only), and when collapsing it fades
+  back in on the edge as the panel lands, so nothing pops in one frame. It stops
+  taking hits once faded.
+- **No page layout, nav bar under the panel.** The shell extends the body
+  behind the bottom navigation bar (`Scaffold.extendBody`) and keeps the page
+  area clear of it with `_BottomNavInsetPadding`, so the page never resizes
+  while the sheet moves. Now Playing is on top of everything: the panel is as
+  wide as the screen and reaches its bottom edge, so from its first pixel of
+  travel it covers the bar's whole strip. The scaffold paints the bar above the
+  body, so `_BottomNavReveal` eases it with the same 15%: it slides down out of
+  sight and fades (a `FractionalTranslation` and an `Opacity` on the bar's own
+  layer, driven by the sheet progress) and slides back up as the panel lands. It
+  is non-hit-testable (`IgnorePointer`) and out of semantics
+  (`ExcludeSemantics`) whenever the sheet is above collapsed, so taps and screen
+  readers reach the panel. The shell passes progress on with a 0.001 dedupe that
+  always lets 0 and 1 through: dropping the last sub-0.001 step of a settle left
+  the bar hidden after Back. The bar keeps its layout size.
+  Expanded, Now Playing is fullscreen and keeps its own bottom system inset
+  (it reads the raw view padding, since the shell scope removes it from
+  `MediaQuery`). `test/src/routing/app_shell_navigation_test.dart` counts page
+  layouts during an expand, a collapse and finger drags, and checks hit
+  testing and semantics of the bar, and that Back, predictive back, swipe,
+  fling, a programmatic collapse, reduced motion and a quick re-open all end
+  with the bar shown.
+- **Callbacks.** `onExpand` and `onCollapse` report a user gesture at drag
+  release, while the settle runs (the settle is not restarted when the parent
+  mirrors the state back in). `onDragStart` lets the shell
+  dismiss the keyboard before the sheet moves. Reduced motion jumps straight to
+  the target.
+- **Queue swipe.** A fast upward swipe on the fully expanded sheet calls
+  `onSwipeUp`, except when it started in the bottom guard zone (120 dp plus the
+  system inset read from the view, which the shell scope removes from
+  `MediaQuery`, plus the system gesture inset).
 
 ### Now Playing phone layout
 

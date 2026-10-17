@@ -166,6 +166,10 @@ const List<ChangelogVersion> changelogs = [
     ],
     entries: [
       ChangelogEntry(
+        'Dragging Now Playing open or closed is smoother: its top edge follows your finger from the mini player and covers the navigation bar as it rises, and it is fullscreen when open',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
         'Device-only playlists can be created and edited offline, with '
         'their songs available to the queue, downloads and Android Auto.',
         type: ChangelogEntryType.newFeature,

@@ -127,34 +127,117 @@ class _BatteryOptimizationSheet extends StatelessWidget {
   }
 }
 
+/// Hides the bottom navigation bar while the player panel is up.
+///
+/// The scaffold paints the bar above the body, where the sheet lives, but the
+/// panel covers the bar's whole strip from the first pixel of its travel (it
+/// is as wide as the screen and reaches the bottom edge). So while the sheet
+/// is anywhere above collapsed the bar is not hit-testable (the panel takes
+/// the taps) and its semantics are excluded, so screen readers cannot reach
+/// it under the panel.
+///
+/// Visually the bar follows the sheet's soft ends: over the first
+/// [ExpandablePlayerSheet.edgeFade] of the travel it slides down out of sight
+/// and fades, and it slides back up the same way as the panel lands, instead
+/// of cutting in after the collapse.
+///
+/// Only paint and composite change: the bar keeps its layout size, so the page
+/// behind it is not laid out again while the sheet animates.
 class _BottomNavReveal extends StatelessWidget {
-  const new({required this.reveal, required this.child});
+  const new({
+    required this.progress,
+    required this.enabled,
+    required this.child,
+  });
 
-  final double reveal;
+  /// Player sheet progress, 0 collapsed to 1 expanded.
+  final ValueNotifier<double> progress;
+
+  /// False when there is no player, so the bar always stays visible.
+  final bool enabled;
   final Widget child;
 
   @override
   Widget build(BuildContext context) {
-    final clamped = reveal.clamp(0.0, 1.0);
-    if (clamped <= 0.001) {
-      return const SizedBox.shrink();
-    }
-
-    final opacity = Curves.easeOut.transform(clamped);
-    final slideOffset = (1 - clamped) * 24;
-
-    return IgnorePointer(
-      ignoring: clamped < 0.98,
-      child: ClipRect(
-        child: Align(
-          alignment: Alignment.bottomCenter,
-          heightFactor: clamped,
-          child: Transform.translate(
-            offset: Offset(0, slideOffset),
-            child: Opacity(opacity: opacity, child: child),
+    return ValueListenableBuilder<double>(
+      valueListenable: progress,
+      // The bar keeps its own layer, so its pixels are reused every frame.
+      child: RepaintBoundary(child: child),
+      builder: (context, value, bar) {
+        final covered = enabled && value > 0;
+        final hidden = enabled
+            ? (value / ExpandablePlayerSheet.edgeFade).clamp(0.0, 1.0)
+            : 0.0;
+        return IgnorePointer(
+          ignoring: covered,
+          child: ExcludeSemantics(
+            excluding: covered,
+            child: Opacity(
+              opacity: 1 - hidden,
+              child: FractionalTranslation(
+                translation: Offset(0, hidden),
+                child: bar,
+              ),
+            ),
           ),
-        ),
+        );
+      },
+    );
+  }
+}
+
+/// Lets the body run behind the bottom navigation bar (`Scaffold.extendBody`)
+/// while pages see the same insets as when the body ended above the bar.
+///
+/// The scaffold reports the bar's height as bottom padding. This scope lifts
+/// it out of [MediaQuery] and offers it as [_BottomNavInset] instead, for the
+/// page area to keep clear of the bar and for the player sheet to stop above
+/// it.
+class _BottomNavInsetScope extends StatelessWidget {
+  const new({required this.enabled, required this.child});
+
+  /// False when the shell has no bottom navigation bar.
+  final bool enabled;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    return _BottomNavInset(
+      inset: enabled ? MediaQuery.paddingOf(context).bottom : 0,
+      child: MediaQuery.removePadding(
+        context: context,
+        removeBottom: enabled,
+        child: child,
       ),
+    );
+  }
+}
+
+/// Height of the bottom navigation bar the body extends behind.
+class _BottomNavInset extends InheritedWidget {
+  const new({required this.inset, required super.child});
+
+  final double inset;
+
+  static double of(BuildContext context) =>
+      context.dependOnInheritedWidgetOfExactType<_BottomNavInset>()?.inset ?? 0;
+
+  @override
+  bool updateShouldNotify(_BottomNavInset oldWidget) =>
+      inset != oldWidget.inset;
+}
+
+/// Keeps [child] clear of the bottom navigation bar the body extends behind.
+class _BottomNavInsetPadding extends StatelessWidget {
+  const new({required this.child});
+
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: EdgeInsets.only(bottom: _BottomNavInset.of(context)),
+      child: child,
     );
   }
 }

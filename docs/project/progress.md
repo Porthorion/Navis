@@ -2,7 +2,7 @@
 
 Tracks completion of all phases and sub-tasks defined in [docs/project/development-plan.md](development-plan.md). Checkboxes are updated as work is completed.
 
-Last updated: 2026-10-16
+Last updated: 2026-10-17
 
 ---
 
@@ -14,6 +14,38 @@ Last updated: 2026-10-16
 - ACP status values: `backlog`, `ready`, `in_progress`, `blocked`, `done`.
 
 ## Current Focus
+- [x] Issue #12 nav bar stuck after Back, soft ends — 2026-10-17
+  (`perf/now-playing-drag`): after tap-open then Back the bottom nav bar stayed
+  hidden. Cause: the shell's progress dedupe (`app_shell.dart`,
+  `onProgressChanged`) dropped the last settle step (0.00085 to 0, under its
+  0.001 threshold), so the bar's reveal stayed above 0; only a fast swipe skipped
+  it. The dedupe now always takes 0 and 1. Owner design: the mini player rides
+  the panel's top edge and fades over the first 15% of the travel (and back in as
+  the panel lands), the nav bar slides down and fades over the same range;
+  `_miniTranslateY` was removed (the layout delegate positions the mini player).
+  Tests cover every dismiss path (Back, predictive back, slow swipe, fling,
+  programmatic collapse, reduced motion, quick re-open) and a mid-settle tap
+  above the panel edge.
+- [x] Issue #12 Now Playing on top of the nav bar, review fixes — 2026-10-17
+  (`perf/now-playing-drag`): owner design change. The panel is painted above
+  the mini player and, from its first pixel of travel, covers the bottom nav
+  bar (hit-tested first, so taps reach the panel); `_BottomNavReveal` now hides
+  the bar (opacity 0, `IgnorePointer`, `ExcludeSemantics`) while the sheet is
+  above collapsed and fades it in over 150 ms after collapse. No page or nav
+  bar re-layout (both layout probe tests green). Review fixes: queue-swipe
+  guard reads the real system inset from the view (the shell scope zeroes
+  `MediaQuery` padding and view padding, so GLM's `viewPaddingOf` suggestion
+  would still be 0); a state-changing release no longer restarts its fling when
+  the parent flips `isExpanded`; reduced-motion collapse test asserts the
+  report; `_travel` ceiling commented. Tests: `expandable_player_sheet_test.dart`,
+  `app_shell_navigation_test.dart`.
+- [x] Issue #12 Now Playing drag, review follow-ups — 2026-10-16
+  (`perf/now-playing-drag`): `onExpand`/`onCollapse` fire at drag release again
+  (deduplicated against the lagging `isExpanded`, so reduced-motion completion
+  does not report twice) so back during the settle sees the player open or
+  closed; stale "30 %" comment fixed; mini-player `AnimatedBuilder`s merged; new
+  drag-driven layout probe test (page and nav bar never re-laid out under a
+  finger). Evidence: `flutter test` player + routing + sheet, 1589 passed.
 - [x] Device playlists review fixes — 2026-10-16 (`feat/playlists-device`):
   queue "Save as playlist" now uses `showCreatePlaylistDialog` (device fallback,
   failure notice); the Save to server switch stays available while server
@@ -2423,6 +2455,7 @@ Latest activity (2026-03-07): published `v0.8.0` APK via `tool/release.sh` and s
 - 2026-10-10 — Phone-test UI fixes: Pill corner style with explicit component shapes, Night Schedule under Color, centered fullscreen lyrics title, pull to refresh that retracts while the sync keeps running, dismissible offline banner with an Offline chip, and Album Queue applied to every song list. Task 6 validation: the six-file focused suite passed (153 tests, one skipped), touched-file `dart analyze` reported no errors or warnings (eight existing infos), and `flutter gen-l10n` completed. No app launches or full gate, per machine rules.
 - 2026-10-10 — Fine-Tune Colors UI: Color and Brightness rulers (the Speed and Pitch ruler in whole-step mode with a live stepped-swatch band) under Color Style in Appearance and in setup's More appearance options; live preview per step, saved on release, Reset. Focused ruler, Appearance, setup and theme tests recorded in the handoff; runtime loop and full gate reserved for coordinator.
 - 2026-10-11 — Now Playing phone layout: height classes, bottom-pinned controls, artwork as the flexible element with shared gap interpolation and exact-square covers (`NowPlayingPhoneLayout`); the 700 dp scroll cliff is gone. Focused player and routing suites recorded in the handoff; runtime loop and full gate reserved for coordinator.
+- 2026-10-16 — Now Playing drag (#12): the panel rises from the mini player's top edge and tracks the finger 1:1 as an opaque repaint-isolated layer (no opacity layer, no per-tick rebuild); the bottom navigation bar keeps its layout size and fades away, so the page is no longer laid out on every frame; `onExpand`/`onCollapse` fire at completion. Focused sheet and shell tests, including a page-layout probe, recorded in the handoff; on-device frame timing reserved for the coordinator.
 - 2026-10-16 — Download backfill fix (issue #9 part 1): lyrics and artwork backfill now follow the Wi-Fi-only download policy instead of unconditionally requiring Wi-Fi, a pass gated by a missing API client, network policy or an LRCLIB cooldown re-arms from `processQueuedDownloads`, both backfill loops pause during the playback hold, and `promoteToPermanent` prefetches lyrics next to cover art. Tests written first and confirmed failing (five behavioural tests), then fixed: both download service suites green (248 tests), `dart analyze` clean and `dart format` applied on changed files. No app launch or full gate, per machine rules.
 - 2026-10-16 — Appearance Looks (issue #7, branch `fix/appearance-looks-update`): Update/Rename/Delete follow the persisted last-chosen Look while the appearance is Custom ("Custom · edited from <Look>"), surviving page re-entry and restart; table-driven audit `appearance_controls_audit_test.dart` drives every Appearance control through the real screen (columns written, provider effect, Look → Custom with origin, Update restores it) with a source guard for new writers; found and fixed un-hiding the last hidden Home section restoring the default hidden sections. Focused tests only (looks, audit, repository, changelog); no app launch, `./tool/check.sh` and the runtime screenshot pass reserved for the coordinator.
 
