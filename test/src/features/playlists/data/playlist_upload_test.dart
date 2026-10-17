@@ -109,6 +109,57 @@ void main() {
     });
   }
 
+  test('saving a kept device copy updates the same server playlist', () async {
+    var server = const Playlist(
+      id: 'srv1',
+      name: 'Mix',
+      entries: [
+        Song(id: 'b', title: 'B'),
+        Song(id: 'a', title: 'A'),
+        Song(id: 'b', title: 'B'),
+      ],
+    );
+    when(() => api.createPlaylist(any(), songIds: any(named: 'songIds')))
+        .thenAnswer((_) async {
+          await database.playlistDao.renamePlaylist(localId, 'Edited');
+          await database.playlistDao.setLocalPlaylistSongs(localId, [
+            'a',
+            'b',
+            'a',
+          ]);
+          return server;
+        });
+    when(() => api.getPlaylist('srv1')).thenAnswer((_) async => server);
+    when(
+      () => api.updatePlaylist(
+        id: 'srv1',
+        name: 'Edited',
+        songIdsToAdd: ['a', 'b', 'a'],
+        songIndexesToRemove: [0, 1, 2],
+      ),
+    ).thenAnswer((_) async {
+      return server = const Playlist(
+        id: 'srv1',
+        name: 'Edited',
+        entries: [
+          Song(id: 'a', title: 'A'),
+          Song(id: 'b', title: 'B'),
+          Song(id: 'a', title: 'A'),
+        ],
+      );
+    });
+    expect((await actions.uploadToServer(localId)).deviceCopyKept, isTrue);
+    final result = await actions.uploadToServer(localId);
+    verify(() => api.createPlaylist(any(), songIds: any(named: 'songIds')))
+        .called(1);
+    expect(result.deviceCopyKept, isFalse);
+    expect(server.name, 'Edited');
+    expect(server.entries.map((song) => song.id), ['a', 'b', 'a']);
+    expect(await row(localId), isNull);
+    expect((await row('srv1'))?.name, 'Edited');
+    expect(await songIds('srv1'), ['a', 'b', 'a']);
+  });
+
   test('bodyless success resolves only a new matching id', () async {
     var reads = 0;
     when(() => api.getPlaylists()).thenAnswer(

@@ -3388,13 +3388,19 @@ works like the weekly playlists. `homeTrendingProvider`
   and reports failure; retries in the same actions instance retain the original
   ids and snapshot and resolve again without another create. A definite
   Subsonic error propagates without recovery. Recovery state is session-local;
-  it does not survive replacement of the actions instance or app restart.
+  it does not survive replacement of the actions instance or app restart. An app
+  kill after the server commits a create but before the local swap can therefore
+  duplicate on retry; closing that ceiling requires persisting the pending create
+  metadata (original server ids, snapshot and resolved id).
   The created playlist is read back with `getPlaylist` and validated before
   caching its actual ordered entries. `PlaylistDao.replaceLocalWithServer`
   compares the device name and ordered entries to the uploaded snapshot inside
   the replacement transaction. If changed, both copies remain and a notice says
-  "Playlist changed while saving; the device copy was kept". Otherwise the
-  device copy is deleted, and its old `local:<uuid>` id is recorded in
+  "Playlist changed while saving; the device copy was kept". The resolved server
+  id remains pending for that device id. Saving again updates that same server
+  playlist with the current device name and ordered entries through
+  `updatePlaylist`, then repeats the snapshot-checked replacement; recovery is
+  completed only after the device row is replaced. After replacement, its old `local:<uuid>` id is recorded in
   `playlistMovedToServerProvider`, which an open `PlaylistDetailScreen` follows
   via `NavService.replacePlaylistDetail`. The result carries kept/total counts;
   partial acceptance shows "Saved on server: N of M songs". A readback failure
@@ -3406,6 +3412,8 @@ works like the weekly playlists. `homeTrendingProvider`
   playlist headers and joins written after that boundary, including local
   uploads, and removes hydration work only for rows actually deleted. The
   journal records one latest write per playlist without a schema change.
+  Journal-protected ids skip header upserts during stale reconciliation, so
+  their cached headers can lag until the next sync.
   Other references (queue context, Android Auto browse ids, download queue
   `playlistId`) are looked up on demand or write-only and fall back to "not
   found". The upload is one-way. Rename, delete, add, remove and reorder all go
@@ -6451,8 +6459,10 @@ actions' validation, and "Save on Server" appears only to admins while the
 server radio list loaded (default off): when adding it picks the destination,
 when editing a device station it moves it (`save(moveToServer: true)` snapshots
 station ids, creates the server station, resolves exactly one new matching id
-through `getInternetRadioStations`, then deletes the device row). The shared
-create recovery prevents concurrent creates and resolves uncertain outcomes on
+through `getInternetRadioStations`, then compares the original device name,
+stream URL and homepage in the deletion transaction). Concurrent edits preserve
+the device row and show "Station changed while saving; the device copy was kept";
+otherwise the row is deleted. The shared create recovery prevents concurrent creates and resolves uncertain outcomes on
 retry; ambiguity, lookup failure, or a definite create failure keeps the device
 row and reports the failure. The move is one-way: server stations never come
 back to the device. Deleting shows the station's name, stream and homepage URLs

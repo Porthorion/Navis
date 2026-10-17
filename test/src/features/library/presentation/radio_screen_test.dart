@@ -13,6 +13,7 @@ import 'package:navis/src/api/subsonic_api_client.dart';
 import 'package:navis/src/common_widgets/app_notice.dart';
 import 'package:navis/src/common_widgets/shimmer_placeholder.dart';
 import 'package:navis/src/database/daos/local_radio_station_dao.dart';
+import 'package:navis/src/database/navis_database.dart';
 import 'package:navis/src/features/library/data/radio_station_actions.dart';
 import 'package:navis/src/features/library/presentation/radio_screen.dart';
 import 'package:navis/src/providers/app_providers.dart';
@@ -617,6 +618,21 @@ void main() {
     setUp(() {
       api = _MockApi();
       dao = _MockLocalStations();
+      registerFallbackValue(() async => false);
+      when(() => dao.transaction<bool>(any())).thenAnswer(
+        (call) =>
+            (call.positionalArguments.single as Future<bool> Function())(),
+      );
+      when(() => dao.watchAll()).thenAnswer(
+        (_) => Stream.value([
+          LocalRadioStationsTableData(
+            id: device.id,
+            name: device.name,
+            streamUrl: device.streamUrl,
+            homePageUrl: device.homePageUrl,
+          ),
+        ]),
+      );
       serverChanges = 0;
       actions = RadioStationActions(
         localStations: dao,
@@ -836,6 +852,47 @@ void main() {
       ).called(1);
       expect(find.byKey(const ValueKey('radioEditorSave')), findsNothing);
       verifyZeroInteractions(api);
+    });
+
+    testWidgets('a changed device station shows the kept notice', (
+      tester,
+    ) async {
+      final notices = AppNoticeController();
+      addTearDown(notices.dispose);
+      var reads = 0;
+      when(() => api.getInternetRadioStations()).thenAnswer(
+        (_) async => [
+          if (reads++ > 0)
+            InternetRadioStation(
+              id: 'new',
+              name: device.name,
+              streamUrl: device.streamUrl,
+            ),
+        ],
+      );
+      when(() => dao.watchAll()).thenAnswer(
+        (_) => Stream.value([
+          LocalRadioStationsTableData(
+            id: device.id,
+            name: 'Edited',
+            streamUrl: device.streamUrl,
+            homePageUrl: device.homePageUrl,
+          ),
+        ]),
+      );
+      await pump(tester, admin: true, notices: notices);
+      await longPress(tester, device.id);
+      await tester.tap(find.text('Edit station'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const ValueKey('radioEditorSaveToServer')));
+      await save(tester);
+      expect(
+        notices.notice?.message,
+        'Station changed while saving; the device copy was kept',
+      );
+      verifyNever(() => dao.deleteStation(any()));
+      notices.dismiss();
+      await tester.pumpAndSettle();
     });
 
     testWidgets('an admin can move a device station to the server', (

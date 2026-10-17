@@ -14,18 +14,24 @@ Future<void> showRadioStationEditor(
   WidgetRef ref, {
   InternetRadioStation? existing,
   bool isLocal = true,
-}) {
+}) async {
   final canChooseServer =
       (existing == null || isLocal) &&
       ref.read(serverUserIsAdminProvider).asData?.value == true &&
       ref.read(radioStationsProvider).hasValue;
-  return showDialog<void>(
+  final deviceCopyKept = await showDialog<bool>(
     context: context,
     builder: (_) => _RadioStationEditor(
       existing: existing,
       isLocal: isLocal,
       canChooseServer: canChooseServer,
     ),
+  );
+  if (deviceCopyKept != true || !context.mounted) return;
+  showAppNotice(
+    context,
+    message: AppLocalizations.of(context)!.radioChangedWhileSaving,
+    level: AppNoticeLevel.info,
   );
 }
 
@@ -140,7 +146,7 @@ class _RadioStationEditorState extends ConsumerState<_RadioStationEditor> {
       _nameError = _streamUrlError = _homepageError = null;
     });
     try {
-      await ref
+      final result = await ref
           .read(radioStationActionsProvider)
           .save(
             existing: widget.existing,
@@ -151,7 +157,7 @@ class _RadioStationEditorState extends ConsumerState<_RadioStationEditor> {
             streamUrl: _streamUrl.text,
             homePageUrl: _homepage.text,
           );
-      if (mounted) Navigator.of(context).pop();
+      if (mounted) Navigator.of(context).pop(result.deviceCopyKept);
     } on Object catch (error) {
       if (!mounted) return;
       // Validation failures come back as ArgumentErrors naming the field.

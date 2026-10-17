@@ -631,6 +631,7 @@
   "radioEditorUrlError": "Enter a full address starting with http:// or https://.",
   "radioEditorSaveToServer": "Save on Server",
   "radioEditorSaveToServerHint": "Visible to every user on this server. Off keeps the station on this device only.",
+  "radioChangedWhileSaving": "Station changed while saving; the device copy was kept",
   "radioEditorSaveFailed": "Could not save this station. Try again.",
   "radioDeleteTitle": "Delete Station?",
   "radioDeleteScopeDevice": "Saved on this device only.",

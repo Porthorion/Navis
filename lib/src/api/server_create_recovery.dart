@@ -8,6 +8,8 @@ typedef ServerCreateIdentity = ({String id, String name});
 /// Resolves bodyless or uncertain creates using new ids, retaining the original
 /// snapshot until the caller has committed its local replacement.
 class ServerCreateRecovery<T> {
+  // ponytail: App kills after create but before the local swap can duplicate on
+  // retry; persist pending create metadata when restart-safe recovery is needed.
   final _pending = <String, _PendingCreate<T>>{};
   final _active = <String, Future<({String id, T snapshot})>>{};
 

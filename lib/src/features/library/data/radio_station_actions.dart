@@ -17,8 +17,8 @@ class RadioStationActions {
   final void Function() _onServerChanged;
 
   /// Saves a station. [moveToServer] uploads the device station [existing]:
-  /// the device row is deleted only after the server create succeeded.
-  Future<void> save({
+  /// the device row is deleted only after a successful create if unchanged.
+  Future<({bool deviceCopyKept})> save({
     InternetRadioStation? existing,
     required bool isLocal,
     bool moveToServer = false,
@@ -42,11 +42,12 @@ class RadioStationActions {
         streamUrl: stream,
         homePageUrl: validatedHomepage,
       );
-      return;
+      return (deviceCopyKept: false);
     }
+    var deviceCopyKept = false;
     final api = _requireApi();
     if (moveToServer && existing != null) {
-      await _createRecovery.run(
+      final resolved = await _createRecovery.run(
         existing.id,
         snapshot: existing,
         name: trimmedName,
@@ -63,8 +64,20 @@ class RadioStationActions {
           return null;
         },
       );
-      await _localStations.deleteStation(existing.id);
-      _createRecovery.complete(existing.id);
+      deviceCopyKept = await _localStations.transaction(() async {
+        final rows = await _localStations.watchAll().first;
+        final current = rows.where((row) => row.id == existing.id).firstOrNull;
+        final snapshot = resolved.snapshot;
+        if (current != null &&
+            (current.name != snapshot.name ||
+                current.streamUrl != snapshot.streamUrl ||
+                current.homePageUrl != snapshot.homePageUrl)) {
+          return true;
+        }
+        await _localStations.deleteStation(existing.id);
+        return false;
+      });
+      if (!deviceCopyKept) _createRecovery.complete(existing.id);
     } else if (existing == null) {
       await api.createInternetRadioStation(
         name: trimmedName,
@@ -80,6 +93,7 @@ class RadioStationActions {
       );
     }
     _onServerChanged();
+    return (deviceCopyKept: deviceCopyKept);
   }
 
   Future<void> delete(

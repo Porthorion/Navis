@@ -1497,6 +1497,10 @@ class AppLocalizationsEn extends AppLocalizations {
       'Visible to every user on this server. Off keeps the station on this device only.';
 
   @override
+  String get radioChangedWhileSaving =>
+      'Station changed while saving; the device copy was kept';
+
+  @override
   String get radioEditorSaveFailed => 'Could not save this station. Try again.';
 
   @override

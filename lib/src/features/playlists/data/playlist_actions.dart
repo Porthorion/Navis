@@ -27,6 +27,7 @@ class PlaylistActions {
 
   final _uploads = <String, Future<PlaylistUploadResult>>{};
   final _createRecovery = ServerCreateRecovery<_UploadSnapshot>();
+  final _keptUploads = <String>{};
 
   SubsonicApiClient _serverApi() {
     final api = _ref.read(subsonicApiProvider);
@@ -107,6 +108,18 @@ class PlaylistActions {
             : created.id;
       },
     );
+    var uploadedSnapshot = resolved.snapshot;
+    if (_keptUploads.contains(localId)) {
+      final current = await api.getPlaylist(resolved.id);
+      validatePlaylistSnapshot(current, requestedId: resolved.id);
+      await api.updatePlaylist(
+        id: resolved.id,
+        name: snapshot.name,
+        songIndexesToRemove: List.generate(current.entries.length, (i) => i),
+        songIdsToAdd: snapshot.songIds,
+      );
+      uploadedSnapshot = snapshot;
+    }
     final actual = await api.getPlaylist(resolved.id);
     validatePlaylistSnapshot(actual, requestedId: resolved.id);
     final keptDevice = await dao.replaceLocalWithServer(
@@ -122,8 +135,8 @@ class PlaylistActions {
         coverArt: Value(actual.coverArt),
         comment: Value(actual.comment),
       ),
-      uploadedName: resolved.snapshot.name,
-      uploadedSongIds: resolved.snapshot.songIds,
+      uploadedName: uploadedSnapshot.name,
+      uploadedSongIds: uploadedSnapshot.songIds,
       songs: [
         for (final song in actual.entries)
           SongsTableCompanion.insert(
@@ -135,7 +148,12 @@ class PlaylistActions {
       ],
       serverSongIds: actual.entries.map((song) => song.id).toList(),
     );
-    _createRecovery.complete(localId);
+    if (keptDevice) {
+      _keptUploads.add(localId);
+    } else {
+      _keptUploads.remove(localId);
+      _createRecovery.complete(localId);
+    }
     if (_ref.mounted) {
       if (!keptDevice) {
         _ref
@@ -148,7 +166,7 @@ class PlaylistActions {
       serverId: actual.id,
       deviceCopyKept: keptDevice,
       kept: actual.entries.length,
-      total: resolved.snapshot.songIds.length,
+      total: uploadedSnapshot.songIds.length,
     );
   }
 

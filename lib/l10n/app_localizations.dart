@@ -2256,6 +2256,12 @@ abstract class AppLocalizations {
   /// **'Visible to every user on this server. Off keeps the station on this device only.'**
   String get radioEditorSaveToServerHint;
 
+  /// No description provided for @radioChangedWhileSaving.
+  ///
+  /// In en, this message translates to:
+  /// **'Station changed while saving; the device copy was kept'**
+  String get radioChangedWhileSaving;
+
   /// No description provided for @radioEditorSaveFailed.
   ///
   /// In en, this message translates to:

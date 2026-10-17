@@ -14,6 +14,26 @@ Last updated: 2026-10-18
 - ACP status values: `backlog`, `ready`, `in_progress`, `blocked`, `done`.
 
 ## Current Focus
+- [x] Issue #49 review fixes, round 3 — 2026-10-18
+  (`feat/device-to-server-upload`): a kept device playlist retains its resolved
+  server id; saving again sets the current name and replaces ordered songs via
+  `updatePlaylist`, then repeats the snapshot-checked swap. Create recovery is
+  completed only after replacement. Radio moves compare the original device
+  name, stream URL and homepage inside the deletion transaction, preserve
+  concurrent edits, and return/show the kept-copy result and notice. The
+  recovery comment and architecture document the accepted app-kill duplication
+  ceiling and pending-metadata persistence upgrade; architecture also records
+  header lag until the next sync for journal-protected ids skipped by stale
+  reconciliation. Tests-first baseline: `00:00 +51 -4: Some tests failed.`
+  (one duplicate playlist create and three lost radio-field edits). The final
+  four-file focused batch used the shared `flock`, 9G cap, concurrency 4 and
+  60s timeout: `00:03 +123: All tests passed!`;
+  `[capped] exit=0 peak=2666M swappeak=0M oom_kills=0`. Coverage includes playlist
+  uploads/actions, radio actions, and the radio editor's kept-copy notice.
+  Eight-file scoped analysis reported `No issues found! (ran in 2.6s)`.
+  `flutter gen-l10n`, changed Dart formatting and `git diff --check` passed.
+  Runtime validation was not performed;
+  `tool/check.sh` was excluded by the implementation handoff.
 - [x] Issue #49 review fixes, round 2 — 2026-10-18
   (`feat/device-to-server-upload`): upload replacement compares the device name
   and ordered entries with the original snapshot in the transaction; concurrent

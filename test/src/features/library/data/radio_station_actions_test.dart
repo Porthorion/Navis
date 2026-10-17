@@ -327,6 +327,44 @@ void main() {
         },
       );
 
+      for (final field in ['name', 'stream', 'homepage']) {
+        test(
+          'radio move preserves device $field edited during create',
+          () async {
+            final device = await addDevice();
+            when(
+              () => api.createInternetRadioStation(
+                name: any(named: 'name'),
+                streamUrl: any(named: 'streamUrl'),
+                homepageUrl: any(named: 'homepageUrl'),
+              ),
+            ).thenAnswer((_) async {
+              await database.localRadioStationDao.upsert(
+                id: device.id,
+                name: field == 'name' ? 'Edited' : device.name,
+                streamUrl: field == 'stream'
+                    ? 'https://radio.example/new'
+                    : device.streamUrl,
+                homePageUrl: field == 'homepage' ? null : device.homePageUrl,
+              );
+            });
+            final result = await actions.save(
+              existing: device,
+              isLocal: true,
+              moveToServer: true,
+              name: 'Dev 2',
+              streamUrl: device.streamUrl,
+              homePageUrl: device.homePageUrl,
+            );
+            expect(result.deviceCopyKept, isTrue);
+            expect(
+              await database.localRadioStationDao.watchAll().first,
+              hasLength(1),
+            );
+          },
+        );
+      }
+
       test('ambiguous radio create keeps device copy on retry', () async {
         final device = await addDevice();
         var reads = 0;
