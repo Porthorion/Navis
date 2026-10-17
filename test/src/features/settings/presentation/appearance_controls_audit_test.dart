@@ -978,7 +978,7 @@ void main() {
         // 3. A captured change makes the Look Custom and remembers the
         // origin, also after leaving the page and coming back.
         final captured = control.fields.isNotEmpty;
-        final label = captured ? 'Custom · edited from Base' : 'Base';
+        final label = captured ? 'Base*' : 'Base';
         expect(pickerText(tester), label);
         await reenter(tester, desktop: control.desktop);
         expect(pickerText(tester), label);

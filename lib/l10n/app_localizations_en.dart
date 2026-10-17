@@ -3651,8 +3651,8 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
-  String appearanceLooksCustomEdited(String name) {
-    return 'Custom · edited from $name';
+  String presetDiscardConfirm(String name) {
+    return 'Discard your changes and go back to “$name”?';
   }
 
   @override

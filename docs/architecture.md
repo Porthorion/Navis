@@ -1334,9 +1334,10 @@ target-selection rules.
     appearance keeps the Look it came from: `selected_appearance_look_id`
     stays set while the values are Custom (`storedAppearanceLookId`; Save,
     Update, Rename, Apply and Undo write it, Delete clears it), the picker
-    reads "Custom · edited from {name}" and Update, Rename and Delete act on
-    that origin (`AppearanceLooksState.originLookId`), so they survive leaving
-    the page and restarts. Choosing a Look
+    reads "{name}*" (the equalizer's convention) and Update, Rename, Delete and
+    Discard (re-applies the Look after a confirmation) act on that origin
+    (`AppearanceLooksState.originLookId`), so they survive leaving the page and
+    restarts. Choosing a Look
     applies it and raises an "Applied {name}" notice with Undo (six seconds,
     `showAppNotice`) that calls `restore` with the snapshot `apply` returned;
     a failed restore shows the existing failure notice. The clone-only apply
@@ -4077,10 +4078,17 @@ release. Speed quick-pick chips (0.5×, 0.75×, 1×, 1.25× and 1.5×, filtered 
 backend range) select values in one tap. The chips sit in equal-width slots, so
 1× stays centred. Large text falls back to a centred wrap. Presets use the shared, data-driven `PresetPicker`
 (`common_widgets/preset_picker.dart`): a `DropdownMenu` over `PresetPickerEntry`
-values (Custom while `selectedId` is null, Normal, then saved presets;
-unsupported ones disabled with a tooltip) and a ⋮ menu to save as new, update,
-rename or delete (with confirmation) the current or originating preset
-(`updateId` and `manageId`). `PresetPickerLabels` carries every string, and the
+values (Custom while `selectedId` is null and no `updateId` names an origin,
+else "{origin}*"; Normal, then saved presets; unsupported ones disabled with a
+tooltip) and a ⋮ menu to save as new, update, rename or delete (with
+confirmation) the current or originating preset (`updateId` and `manageId`).
+While edited and the origin is available, a Discard button beside the picker
+(text when wide, a restore icon with tooltip when tight, like the equalizer's)
+re-applies `updateId` through `onDiscard` after a confirmation. A long selected name wraps up to three lines instead of being
+truncated. Speed & Pitch persists the origin in the existing
+`selected_playback_preset_id` column even while the values are Custom (the
+Looks convention): on load it is the origin when its values differ, and
+editing back to its values selects it again. `PresetPickerLabels` carries every string, and the
 async callbacks (`onSelect`, `onSaveNew`, `onUpdate`, `onRename`, `onDelete`)
 own persistence; `onSaveNew` and `onRename` return the error shown inline in
 the name dialog. The panel supplies the Speed and Pitch wording and

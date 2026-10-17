@@ -279,7 +279,7 @@ void main() {
     expect(presetText(tester), 'Nightcore');
     await tester.tap(find.byKey(const ValueKey('adjustment-speed-plus')));
     await tester.pumpAndSettle();
-    expect(presetText(tester), 'Custom');
+    expect(presetText(tester), 'Nightcore*');
     expect(
       container
           .read(playbackAdjustmentsProvider)
@@ -453,6 +453,49 @@ void main() {
       () => repository.savePlaybackAdjustments(
         values: const PlaybackAdjustments(speed: 1.5),
         selectedPresetId: null,
+      ),
+    ).called(1);
+  });
+
+  testWidgets('Discard re-applies the preset an edit came from', (
+    tester,
+  ) async {
+    final container = await mount(
+      tester,
+      settings: AsyncData(
+        const AppSettingsModel.defaults().copyWith(
+          playbackSpeed: 1.25,
+          playbackPresets: const [
+            PlaybackPreset(
+              id: 'fast',
+              name: 'Fast',
+              values: PlaybackAdjustments(speed: 1.5),
+            ),
+          ],
+          selectedPlaybackPresetId: 'fast',
+        ),
+      ),
+    );
+    // Loaded edited from the stored origin.
+    expect(presetText(tester), 'Fast*');
+    final discard = find.byKey(const ValueKey('playbackPresetDiscard'));
+    expect(discard, findsOneWidget);
+    await tester.tap(discard);
+    await tester.pumpAndSettle();
+    await tester.tap(
+      find.byKey(const ValueKey('playbackPresetDiscardConfirm')),
+    );
+    await tester.pumpAndSettle();
+    final state = container.read(playbackAdjustmentsProvider).requireValue;
+    expect(state.values.speed, 1.5);
+    expect(state.selectedPresetId, 'fast');
+    expect(presetText(tester), 'Fast');
+    expect(discard, findsNothing);
+    // The origin goes back to storage with the re-applied values.
+    verify(
+      () => repository.savePlaybackAdjustments(
+        values: const PlaybackAdjustments(speed: 1.5),
+        selectedPresetId: 'fast',
       ),
     ).called(1);
   });
