@@ -14,6 +14,16 @@ Last updated: 2026-10-17
 - ACP status values: `backlog`, `ready`, `in_progress`, `blocked`, `done`.
 
 ## Current Focus
+- [x] Issue #37, Radio search on touch layouts — 2026-10-17
+  (`feat/radio-touch-search`): `RadioTabContent` is now stateful and shows a
+  `ListFilterField` (`radioFilterHint`) on non-desktop layouts when stations
+  exist, reusing the existing name filter for both the device and server
+  sections and the "no matches" state; the field clears itself when the station
+  list empties. Desktop keeps type-to-filter with no field. Tests first failed
+  for the four touch cases, then passed; the two Radio goldens were
+  regenerated for the new field. Evidence: `flutter test
+  test/src/features/library test/src/features/changelog` passed
+  (`00:30 +1408 ~1: All tests passed!`).
 - [x] Issue #34, restore the queue after a rejected station start — 2026-10-17
   (`fix/dead-station-queue`): source-load exceptions bypassed terminal radio
   recovery, leaving the in-session queue empty and native play intent true.

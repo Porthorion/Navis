@@ -43,6 +43,8 @@ Future<void> _pumpRadio(
   NavisPlaybackHandler? handler,
   double scale = 1,
   AppNoticeController? notices,
+  Size size = Size.zero,
+  Stream<List<InternetRadioStation>>? localStream,
 }) {
   return tester.pumpWidget(
     ProviderScope(
@@ -52,7 +54,9 @@ Future<void> _pumpRadio(
           if (serverFails) throw StateError('offline');
           return stations;
         }),
-        localRadioStationsProvider.overrideWith((ref) => Stream.value(local)),
+        localRadioStationsProvider.overrideWith(
+          (ref) => localStream ?? Stream.value(local),
+        ),
         serverUserIsAdminProvider.overrideWith((ref) async => admin),
         if (actions != null)
           radioStationActionsProvider.overrideWithValue(actions),
@@ -64,7 +68,10 @@ Future<void> _pumpRadio(
         localizationsDelegates: navisLocalizationsDelegates,
         supportedLocales: AppLocalizations.supportedLocales,
         home: MediaQuery(
-          data: MediaQueryData(textScaler: TextScaler.linear(scale)),
+          data: MediaQueryData(
+            size: size,
+            textScaler: TextScaler.linear(scale),
+          ),
           child: AppNoticeScope(
             notifier: notices,
             child: Scaffold(
@@ -422,6 +429,176 @@ void main() {
       find.byType(Scaffold),
       matchesGoldenFile('goldens/radio_filtered_empty_after.png'),
     );
+  });
+
+  group('search field', () {
+    const device = InternetRadioStation(
+      id: 'local:1',
+      name: 'Basement FM',
+      streamUrl: 'https://basement.example/live',
+    );
+    const jazz = InternetRadioStation(
+      id: 'jazz',
+      name: 'Basement Jazz',
+      streamUrl: 'https://jazz.example/live',
+    );
+
+    Future<void> pump(
+      WidgetTester tester, {
+      List<InternetRadioStation> server = const [_station, jazz],
+      List<InternetRadioStation> local = const [device],
+      Size size = Size.zero,
+      String query = '',
+      Stream<List<InternetRadioStation>>? localStream,
+    }) async {
+      await _pumpRadio(
+        tester,
+        stations: server,
+        local: local,
+        query: query,
+        onClearTypeFilter: null,
+        size: size,
+        localStream: localStream,
+      );
+      await tester.pumpAndSettle();
+    }
+
+    testWidgets('touch layouts show the field when stations exist', (
+      tester,
+    ) async {
+      await pump(tester);
+      expect(find.text('Search stations...'), findsOneWidget);
+    });
+
+    testWidgets('touch layouts hide the field when there are no stations', (
+      tester,
+    ) async {
+      await pump(tester, server: const [], local: const []);
+      expect(find.text('No Radio Stations Found'), findsOneWidget);
+      expect(find.byType(TextField), findsNothing);
+    });
+
+    testWidgets('typing filters device and server sections', (tester) async {
+      await pump(tester);
+      await tester.enterText(find.byType(TextField), 'BASE');
+      await tester.pumpAndSettle();
+      expect(find.text('Basement FM'), findsOneWidget);
+      expect(find.text('Basement Jazz'), findsOneWidget);
+      expect(find.text('Ambient Radio'), findsNothing);
+      expect(find.text('On this device'), findsOneWidget);
+      expect(find.text('On your server'), findsOneWidget);
+
+      await tester.enterText(find.byType(TextField), 'jazz');
+      await tester.pumpAndSettle();
+      expect(find.text('Basement Jazz'), findsOneWidget);
+      expect(find.text('Basement FM'), findsNothing);
+      expect(find.text('On this device'), findsNothing);
+    });
+
+    testWidgets('no matches shows the empty state and Show All clears it', (
+      tester,
+    ) async {
+      await pump(tester);
+      await tester.enterText(find.byType(TextField), 'zzz');
+      await tester.pumpAndSettle();
+      expect(find.text('No Stations Match \u201czzz\u201d'), findsOneWidget);
+
+      await tester.tap(
+        find.byKey(const ValueKey<String>('radioClearTypeFilterAction')),
+      );
+      await tester.pumpAndSettle();
+      expect(
+        tester.widget<TextField>(find.byType(TextField)).controller?.text,
+        isEmpty,
+      );
+      expect(find.text('Ambient Radio'), findsOneWidget);
+      expect(find.text('Basement FM'), findsOneWidget);
+    });
+
+    testWidgets('a stale filter is cleared when the stations disappear', (
+      tester,
+    ) async {
+      final stations = StreamController<List<InternetRadioStation>>();
+      addTearDown(stations.close);
+      await pump(tester, server: const [], localStream: stations.stream);
+      stations.add(const [device]);
+      await tester.pumpAndSettle();
+      await tester.enterText(find.byType(TextField), 'zzz');
+      await tester.pumpAndSettle();
+
+      stations.add(const []);
+      await tester.pumpAndSettle();
+      expect(find.byType(TextField), findsNothing);
+
+      stations.add(const [device]);
+      await tester.pumpAndSettle();
+      expect(find.text('Basement FM'), findsOneWidget);
+      expect(
+        tester.widget<TextField>(find.byType(TextField)).controller?.text,
+        isEmpty,
+      );
+    });
+
+    testWidgets('a whitespace-only query shows every station', (tester) async {
+      await pump(tester);
+      await tester.enterText(find.byType(TextField), '   ');
+      await tester.pumpAndSettle();
+      expect(find.text('Ambient Radio'), findsOneWidget);
+      expect(find.text('Basement FM'), findsOneWidget);
+      expect(find.textContaining('No Stations Match'), findsNothing);
+    });
+
+    testWidgets('the field and query survive a server refresh', (tester) async {
+      var loads = 0;
+      final refresh = Completer<List<InternetRadioStation>>();
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            radioStationsProvider.overrideWith(
+              (ref) async => ++loads == 1 ? const [_station] : refresh.future,
+            ),
+            localRadioStationsProvider.overrideWith(
+              (ref) => Stream.value(const <InternetRadioStation>[]),
+            ),
+            serverUserIsAdminProvider.overrideWith((ref) async => false),
+            currentRadioStationIdProvider.overrideWithValue(null),
+          ],
+          child: MaterialApp(
+            theme: testTheme(),
+            localizationsDelegates: navisLocalizationsDelegates,
+            supportedLocales: AppLocalizations.supportedLocales,
+            home: const Scaffold(body: RadioTabContent()),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      await tester.enterText(find.byType(TextField), 'amb');
+      await tester.pumpAndSettle();
+
+      ProviderScope.containerOf(tester.element(find.byType(RadioTabContent)))
+          .invalidate(radioStationsProvider);
+      await tester.pump();
+      await tester.pump();
+      expect(find.byType(TextField), findsOneWidget);
+      expect(
+        tester.widget<TextField>(find.byType(TextField)).controller?.text,
+        'amb',
+      );
+
+      refresh.complete(const [_station]);
+      await tester.pumpAndSettle();
+      expect(find.text('Ambient Radio'), findsOneWidget);
+    });
+
+    testWidgets('desktop keeps type-to-filter and has no field', (
+      tester,
+    ) async {
+      await pump(tester, size: const Size(1366, 900), query: 'jazz');
+      expect(find.byType(TextField), findsNothing);
+      expect(find.text('Basement Jazz'), findsOneWidget);
+      expect(find.text('Basement FM'), findsNothing);
+      expect(find.text('Ambient Radio'), findsNothing);
+    });
   });
 
   group('device stations and admin editing', () {

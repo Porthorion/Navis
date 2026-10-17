@@ -13,6 +13,7 @@ import 'package:navis/src/features/library/presentation/radio_station_dialogs.da
 import 'package:navis/src/routing/content_layout.dart';
 import 'package:navis/src/routing/desktop_layout.dart';
 import 'package:navis/src/common_widgets/empty_state.dart';
+import 'package:navis/src/common_widgets/list_filter_field.dart';
 import 'package:navis/src/common_widgets/shimmer_placeholder.dart';
 import 'package:navis/src/common_widgets/error_state.dart';
 import 'package:navis/src/providers/app_providers.dart';
@@ -20,7 +21,7 @@ import 'package:navis/src/features/player/presentation/queue_provider.dart';
 import 'package:navis/src/theme/navis_color_style_data.dart';
 
 /// The Library Radio section.
-class RadioTabContent extends ConsumerWidget {
+class RadioTabContent extends ConsumerStatefulWidget {
   const new({
     super.key,
     this.scrollController,
@@ -32,17 +33,43 @@ class RadioTabContent extends ConsumerWidget {
   /// `LibraryScreen`) can programmatically scroll this tab to the top.
   final ScrollController? scrollController;
 
-  /// When non-empty, only stations whose name contains this query
-  /// (case-insensitive) are shown.
+  /// The Library type-to-filter query (desktop): only stations whose name
+  /// contains it (case-insensitive) are shown. Touch layouts filter with
+  /// their own search field instead.
   final String typeFilterQuery;
 
-  /// Clears the enclosing Library type-to-filter query when a filtered Radio
-  /// result has no matches. Standalone Radio has no type filter, so it leaves
-  /// this unset and retains the ordinary empty-library state.
+  /// Clears the enclosing Library type-to-filter query. Standalone Radio has
+  /// no type filter and leaves this unset; the search field still clears.
   final VoidCallback? onClearTypeFilter;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<RadioTabContent> createState() => _RadioTabContentState();
+}
+
+class _RadioTabContentState extends ConsumerState<RadioTabContent> {
+  final TextEditingController _filterController = TextEditingController();
+
+  /// The active filter: the typed Library query on desktop, else the field.
+  String get _query =>
+      (widget.typeFilterQuery.isNotEmpty
+              ? widget.typeFilterQuery
+              : _filterController.text)
+          .trim();
+
+  @override
+  void dispose() {
+    _filterController.dispose();
+    super.dispose();
+  }
+
+  void _clearFilter() {
+    _filterController.clear();
+    widget.onClearTypeFilter?.call();
+    setState(() {});
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context)!;
     final stationsAsync = ref.watch(radioStationsProvider);
     final local =
@@ -50,6 +77,7 @@ class RadioTabContent extends ConsumerWidget {
         const <InternetRadioStation>[];
     final isAdmin = ref.watch(serverUserIsAdminProvider).asData?.value ?? false;
 
+    final typeFilterQuery = _query;
     List<InternetRadioStation> filtered(List<InternetRadioStation> list) {
       if (typeFilterQuery.isEmpty) return list;
       final query = typeFilterQuery.toLowerCase();
@@ -83,17 +111,13 @@ class RadioTabContent extends ConsumerWidget {
                   ? Icons.search_off_outlined
                   : Icons.radio_outlined,
               action: isFilteredEmpty
-                  ? onClearTypeFilter == null
-                        ? null
-                        : FilledButton.tonalIcon(
-                            style: NavisColorStyleData.tonalStyleOf(context),
-                            key: const ValueKey<String>(
-                              'radioClearTypeFilterAction',
-                            ),
-                            onPressed: onClearTypeFilter,
-                            icon: const Icon(Icons.filter_alt_off_outlined),
-                            label: Text(l10n.radioFilteredEmptyAction),
-                          )
+                  ? FilledButton.tonalIcon(
+                      style: NavisColorStyleData.tonalStyleOf(context),
+                      key: const ValueKey<String>('radioClearTypeFilterAction'),
+                      onPressed: _clearFilter,
+                      icon: const Icon(Icons.filter_alt_off_outlined),
+                      label: Text(l10n.radioFilteredEmptyAction),
+                    )
                   : FilledButton.tonalIcon(
                       style: NavisColorStyleData.tonalStyleOf(context),
                       key: const ValueKey<String>('radioEmptyAddAction'),
@@ -106,7 +130,7 @@ class RadioTabContent extends ConsumerWidget {
         );
       }
       return CustomScrollView(
-        controller: scrollController,
+        controller: widget.scrollController,
         physics: const AlwaysScrollableScrollPhysics(),
         slivers: [
           if (visibleLocal.isNotEmpty)
@@ -143,7 +167,19 @@ class RadioTabContent extends ConsumerWidget {
       );
     }
 
-    return Stack(
+    final showFilterField =
+        !resolveAdaptiveContextFor(context).useDesktopShell &&
+        (local.isNotEmpty || (stationsAsync.value?.isNotEmpty ?? false));
+    // A hidden field must not keep filtering stations that appear later.
+    if (!showFilterField && _filterController.text.isNotEmpty) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        _filterController.clear();
+        setState(() {});
+      });
+    }
+
+    final content = Stack(
       children: [
         Positioned.fill(
           child: RefreshIndicator(
@@ -188,6 +224,18 @@ class RadioTabContent extends ConsumerWidget {
             child: const Icon(Icons.add),
           ),
         ),
+      ],
+    );
+    if (!showFilterField) return content;
+    return Column(
+      children: [
+        ListFilterField(
+          controller: _filterController,
+          hint: l10n.radioFilterHint,
+          onChanged: (_) => setState(() {}),
+          onClear: _clearFilter,
+        ),
+        Expanded(child: content),
       ],
     );
   }
