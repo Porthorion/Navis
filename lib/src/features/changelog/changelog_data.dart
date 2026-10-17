@@ -166,6 +166,10 @@ const List<ChangelogVersion> changelogs = [
     ],
     entries: [
       ChangelogEntry(
+        'Filter and choice chips such as the artwork size selector are readable again when Controls is set to White: their labels showed as white on a near-white fill',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
         'Turning shuffle on mid-queue now puts the current song first and shuffles every other song, including played songs, without restarting playback; turning it off restores the original order',
         type: ChangelogEntryType.fix,
       ),

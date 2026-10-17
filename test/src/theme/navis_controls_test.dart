@@ -131,9 +131,10 @@ void main() {
                   data.tonalControlFill(scheme),
                 );
                 expect(
-                  WidgetStateProperty.resolveAs(theme.chipTheme.labelStyle!, {
-                    WidgetState.selected,
-                  }).color,
+                  WidgetStateProperty.resolveAs<Color?>(
+                    theme.chipTheme.labelStyle!.color,
+                    {WidgetState.selected},
+                  ),
                   data.onTonalControlFill(scheme),
                 );
                 expect(

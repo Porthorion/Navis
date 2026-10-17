@@ -14,6 +14,14 @@ Last updated: 2026-10-18
 - ACP status values: `backlog`, `ready`, `in_progress`, `blocked`, `done`.
 
 ## Current Focus
+- [x] Issue #53, chip labels unreadable under Controls: White — 2026-10-18
+  (`fix/chip-label-white-controls`): the chip theme's
+  `WidgetStateTextStyle` label style is never resolved by the chip, so the
+  colour was null and painted white. It is now a plain labelLarge style with a
+  `WidgetStateColor` (tonal ink when selected, else on-surface). Added
+  `test/src/theme/chip_label_color_test.dart` (light/dark, selected/unselected);
+  it failed before the fix (`Actual: <null>`) and passes after. No goldens
+  changed.
 - [x] Issue #55, persisted shuffle test database lifetime — 2026-10-18:
   the round-trip test captures its expected play order and disposes the first
   handler and database before creating the restored handler. Its guarded
