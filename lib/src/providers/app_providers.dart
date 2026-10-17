@@ -2849,9 +2849,9 @@ final downloadServiceProvider = Provider<DownloadService>((ref) {
   ref.listen(customDownloadFolderPathProvider, (previous, next) {
     if (previous != next) unawaited(service.refreshDownloadFolder());
   });
-  ref.onDispose(() async {
-    await service.dispose();
-    deezerDio.close();
+  ref.onDispose(() {
+    deezerDio.close(force: true);
+    unawaited(service.dispose());
   });
   return service;
 });

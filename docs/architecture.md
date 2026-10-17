@@ -1900,7 +1900,11 @@ lyrics from either source. It then asks the server: server synced lyrics win
 immediately; server plain or empty lyrics allow an LRCLIB synced upgrade.
 Without a synced result, server plain wins over LRCLIB plain, followed by
 stale cached lyrics. LRCLIB cooldown skips the external request, preserving
-server and cached lyrics. With LRCLIB disabled the existing cached-server →
+server and cached lyrics. Now Playing also skips an LRCLIB synced upgrade
+when the server returns plain lyrics and the cache records a failed upgrade
+within seven days, including when `cacheServerLyrics` is false. This retains
+the failure marker and stored plain lyrics; server synced lyrics still win
+immediately. With LRCLIB disabled the existing cached-server →
 server → stale-cache path applies. Offline lookups retain the synced-cache
 shortcut and allowed LRCLIB lookup before falling back to stale cached lyrics.
 The switch lives in Settings › Integrations › LRCLIB. An LRCLIB result passes
@@ -1932,9 +1936,10 @@ no synced upgrade records the same seven-day backoff while retaining the
 selected plain lyrics. Failure metadata never hides stored lyrics. Rate limits
 and transport/API failures do not count as failed synced upgrades. Cache upserts
 atomically reject plain writes over a non-empty synced row, including concurrent
-on-demand and backfill lookups. Successful on-demand server lookups for permanent
-downloads use the same durable lyrics cache and clear failure metadata; server
-lyrics for other songs remain uncached.
+on-demand and backfill lookups. On-demand server lookups for permanent downloads
+use the same durable lyrics cache: plain results retain recent upgrade-failure
+metadata, while synced results clear it. Server lyrics for other songs remain
+uncached.
 Lyrics rows of permanent downloads survive a library rebuild: the
 provisional-metadata cleanup spares them while their songs are being
 re-confirmed, like download covers. Lyrics may therefore be unavailable
@@ -1956,17 +1961,32 @@ silently; only a blocked reason is intended for UI display.
 
 Artwork backfill first uses `PermanentArtworkStore.ensureWithResult` to
 distinguish a stored/existing cover from server absence or a retryable failure.
-Empty responses, HTTP 404/410 and Subsonic missing-cover error documents allow
-fallback; transport errors, other HTTP failures and non-image payloads do not.
-Real-server placeholder bytes remain unverified: the read-only probe received
-HTTP 403, so no placeholder hashes are assumed. When the server has no cover,
-backfill searches tracks through the shared guarded `DeezerApiClient`, checks
+HTTP 404/410, Subsonic error 70 JSON/XML documents, and the probed Navidrome
+placeholder allow fallback; empty bodies, authentication/forbidden/proxy errors
+(including Cloudflare 403), 5xx, transport errors and other non-image payloads
+remain retryable failures. The 2026-10-17 token-authenticated, read-only probe
+used the exact app `AppConstants.userAgent` (the earlier curl-signature 403
+was Cloudflare error 1010, not a server response):
+
+| Case | HTTP | Content-Type | Bytes | SHA-256 |
+|---|---|---|---|---|
+| Album without `coverArt` in list and detail | 200 | `image/webp` | 69228 | `273a4dbd61dfbb0a12d5d8ffe780eb7a3d4d000bc9771c5411cc70ae4dfa8a1f` |
+| Nonexistent cover ID (Subsonic error 70) | 200 | `application/json` | 185 | `376b9f8540e5d65f1bc622c88ffbdcb3317f0a90e58381af460759ef1ae87041` |
+
+The cover-less album returned Navidrome's stock blue-record image with the
+same hash on repeat. Only that exact placeholder hash is recognised; this is
+a server-specific ceiling, not general placeholder detection. When the server
+has no cover, backfill searches tracks through the shared guarded `DeezerApiClient`, checks
 `pickBestTrackMatch`'s existing score/ambiguity rules, and additionally requires
 an album-field score of at least `kLocalTrackMatcherMinimumFieldScore` (0.75).
-The Deezer artwork feature and `integrationAllowsArtworkUri` must allow the
-request; bytes load through a guarded Deezer Dio and count as `coverArt` network
-usage. `storeBytes` shares the store's signature validation, part-file/rename
-and index path with server covers. Fallback files use the server cover ID, so
+The existing `deezerArtistImages` feature gate and
+`integrationAllowsArtworkUri` must allow the request. This intentionally keeps
+the existing gate for every dzcdn image rather than adding an album-only
+switch; bytes load through a guarded Deezer Dio and count as `coverArt` network
+usage. Provider disposal closes that transport synchronously before waiting for
+service teardown, so a stuck pass cannot retain it. `storeBytes` shares the
+store's signature validation, the existing `kMaxArtworkResponseBytes` limit
+(20 MiB), part-file/rename and index path with server covers. Fallback files use the server cover ID, so
 all display paths find them and pruning retains them. Empty cover IDs remain
 missing; there is no synthetic display key or cover provenance. A Deezer cover
 therefore persists even if server art is added later.
@@ -5702,14 +5722,16 @@ download naming throws when all 100 collision candidates are occupied.
    lyrics** section (`DownloadMissingSection`) above Clear: "N songs without
    lyrics" and "N albums without artwork" rows each push a plain list page
    (title plus artist; touch and desktop alike), and "Nothing missing"
-   replaces them when both lists are empty. Loading and error states render
-   nothing extra. **Backfill now** calls `DownloadService.runBackfillNow` and is
-   disabled only while a pass runs; it shows the phase, done of total and a
+   replaces them when both lists are empty. Loading shows a quiet "Loading…"
+   row; errors show "Couldn't check missing artwork and lyrics" without a
+   notice. **Backfill now** calls `DownloadService.runBackfillNow` and is
+   disabled while a pass runs or the API client is absent (including sign-out);
+   it shows the phase, done of total and a
    `LinearProgressIndicator`, plus the blocked reason (offline, waiting for
    Wi-Fi, lyrics service cooling down) and the last run's counts. The blocked
-   reason is sticky from the last attempt, so it informs but never disables
-   the button. A running-to-idle progress transition invalidates
-   `downloadMetadataGapsProvider`.
+   reason is sticky from the last attempt, so it informs without disabling
+   a retry when the API client is available. A running-to-idle progress
+   transition invalidates `downloadMetadataGapsProvider`.
    The Downloads settings page retains the latest in-process scan's unresolved
    paths behind a disabled-or-enabled **Manual Matching** entry beneath Rescan.
    Its count badge and description expose how many files still need an explicit

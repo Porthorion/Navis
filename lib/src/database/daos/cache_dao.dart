@@ -157,6 +157,7 @@ class CacheDao extends DatabaseAccessor<NavisDatabase>
 
   /// Reads download metadata and non-empty lyrics presence in one query.
   Future<List<DownloadMetadataGap>> getPermanentDownloadMetadata() async {
+    // The inner song join intentionally skips orphans with no lookup metadata.
     final rows = await customSelect(
       '''
          SELECT s.id AS song_id, s.title, s.artist_name, s.album_name,

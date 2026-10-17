@@ -215,6 +215,156 @@ void main() {
         );
       });
     }
+    for (final days in [0, 6, 8]) {
+      for (final cacheServer in [false, true]) {
+        test(
+          'Now Playing plain upgrade backoff: $days days, cache=$cacheServer',
+          () async {
+            final failedAt = DateTime.now().subtract(Duration(days: days));
+            await database.libraryDao.upsertExternalLyricsCache(
+              songId: 'song',
+              source: 'serverPlain',
+              plainLyrics: 'retained',
+              failureCount: 2,
+              lastFailedAt: failedAt,
+            );
+            final external = _FakeLrclibClient([lrSynced]);
+            final server = _FakeServer(plain);
+            final result =
+                await LyricsResolver(
+                  libraryDao: database.libraryDao,
+                  lrclibClient: external,
+                  apiClient: server,
+                ).resolve(
+                  songId: 'song',
+                  metadata: (
+                    artist: 'Artist',
+                    title: 'Track',
+                    album: null,
+                    durationSeconds: null,
+                  ),
+                  useLrclib: true,
+                  cacheServerLyrics: cacheServer,
+                );
+            expect(server.calls, 1);
+            expect(external.calls, days < 7 ? 0 : 1);
+            expect(
+              result.source,
+              days < 7 ? LyricsSource.serverPlain : LyricsSource.lrclibSynced,
+            );
+            expect(result.syncedUpgradeMiss, isFalse);
+            final row = (await database.libraryDao.getExternalLyricsCache(
+              'song',
+            ))!;
+            expect(row.failureCount, days < 7 ? 2 : 0);
+          },
+        );
+      }
+    }
+
+    test('Now Playing without a failed upgrade still tries LRCLIB', () async {
+      await database.libraryDao.upsertExternalLyricsCache(
+        songId: 'song',
+        source: 'serverPlain',
+        plainLyrics: 'retained',
+      );
+      final external = _FakeLrclibClient([lrSynced]);
+      final result =
+          await LyricsResolver(
+            libraryDao: database.libraryDao,
+            lrclibClient: external,
+            apiClient: _FakeServer(plain),
+          ).resolve(
+            songId: 'song',
+            metadata: (
+              artist: 'Artist',
+              title: 'Track',
+              album: null,
+              durationSeconds: null,
+            ),
+            useLrclib: true,
+            cacheServerLyrics: false,
+          );
+      expect(result.source, LyricsSource.lrclibSynced);
+      expect(external.calls, 1);
+    });
+
+    test(
+      'Now Playing server synced wins even during failed-upgrade backoff',
+      () async {
+        await database.libraryDao.upsertExternalLyricsCache(
+          songId: 'song',
+          source: 'serverPlain',
+          plainLyrics: 'retained',
+          failureCount: 1,
+          lastFailedAt: DateTime.now(),
+        );
+        final external = _FakeLrclibClient([lrSynced]);
+        final result =
+            await LyricsResolver(
+              libraryDao: database.libraryDao,
+              lrclibClient: external,
+              apiClient: _FakeServer(synced),
+            ).resolve(
+              songId: 'song',
+              metadata: (
+                artist: 'Artist',
+                title: 'Track',
+                album: null,
+                durationSeconds: null,
+              ),
+              useLrclib: true,
+              cacheServerLyrics: false,
+            );
+        expect(result.source, LyricsSource.serverSynced);
+        expect(external.calls, 0);
+      },
+    );
+
+    for (final cachedSynced in [true, false]) {
+      for (final externalSynced in [true, false]) {
+        test('offline cache → LRCLIB → stale: synced cache=$cachedSynced, '
+            'external=$externalSynced', () async {
+          await database.libraryDao.upsertExternalLyricsCache(
+            songId: 'song',
+            source: cachedSynced ? 'serverSynced' : 'serverPlain',
+            syncedLyrics: cachedSynced ? '[00:01.00]cached' : null,
+            plainLyrics: cachedSynced ? null : 'stale words',
+            ttlSeconds: -1,
+          );
+          final external = _FakeLrclibClient(externalSynced ? [lrSynced] : []);
+          final result =
+              await LyricsResolver(
+                libraryDao: database.libraryDao,
+                lrclibClient: external,
+                apiClient: null,
+              ).resolve(
+                songId: 'song',
+                metadata: (
+                  artist: 'Artist',
+                  title: 'Track',
+                  album: null,
+                  durationSeconds: null,
+                ),
+                useLrclib: true,
+              );
+          expect(external.calls, cachedSynced ? 0 : 1);
+          expect(
+            result.source,
+            cachedSynced
+                ? LyricsSource.serverSynced
+                : externalSynced
+                ? LyricsSource.lrclibSynced
+                : LyricsSource.serverPlain,
+          );
+          if (!cachedSynced && !externalSynced) {
+            expect(result.lyrics.value, 'stale words');
+          }
+          expect(result.confirmedMiss, isFalse);
+        });
+      }
+    }
+
     test('both empty confirms miss', () async {
       final result =
           await LyricsResolver(

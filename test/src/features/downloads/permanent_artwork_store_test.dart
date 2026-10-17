@@ -1,11 +1,14 @@
 import 'dart:io';
+import 'dart:typed_data';
 
 import 'package:dio/dio.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:navis/src/api/subsonic_api_client.dart';
 import 'package:navis/src/api/subsonic_auth_interceptor.dart';
+import 'package:navis/src/common_widgets/cover_art_cache_manager.dart';
 import 'package:navis/src/features/downloads/data/permanent_artwork_store.dart';
+import 'package:navis/src/utils/constants.dart';
 import 'package:path/path.dart' as p;
 
 class _MockDio extends Mock implements Dio;
@@ -69,7 +72,7 @@ void main() {
     body = [];
     expect(
       await artwork.ensureWithResult('empty', api),
-      ArtworkEnsureResult.serverMissing,
+      ArtworkEnsureResult.failed,
     );
     when(() => dio.getUri<List<int>>(any(), options: any(named: 'options')))
         .thenThrow(
@@ -117,6 +120,101 @@ void main() {
         await artwork.ensureWithResult('auth-envelope', api),
         ArtworkEnsureResult.failed,
       );
+    },
+  );
+
+  test(
+    'probed Navidrome placeholder permits fallback without storing it',
+    () async {
+      body = await File('test/fixtures/navidrome_missing_cover.webp')
+          .readAsBytes();
+      final artwork = store();
+      expect(
+        await artwork.ensureWithResult('placeholder', api),
+        ArtworkEnsureResult.serverMissing,
+      );
+      expect(await artwork.fileFor('placeholder'), isNull);
+    },
+  );
+
+  for (final status in [401, 403, 404, 410, 500, 503]) {
+    test(
+      'HTTP $status classifies absence separately from access failures',
+      () async {
+        when(() => dio.getUri<List<int>>(any(), options: any(named: 'options')))
+            .thenThrow(
+              DioException(
+                requestOptions: RequestOptions(),
+                response: Response<List<int>>(
+                  requestOptions: RequestOptions(),
+                  statusCode: status,
+                  data: 'error code: 1010'.codeUnits,
+                ),
+              ),
+            );
+        expect(
+          await store().ensureWithResult('cover', api),
+          status == 404 || status == 410
+              ? ArtworkEnsureResult.serverMissing
+              : ArtworkEnsureResult.failed,
+        );
+      },
+    );
+  }
+
+  for (final document in [
+    '<subsonic-response status="failed"><error code="70"/></subsonic-response>',
+    '{"subsonic-response":{"status":"failed","error":{"code":70}}}',
+  ]) {
+    test(
+      'missing-cover protocol document is a definitive miss: $document',
+      () async {
+        body = document.codeUnits;
+        expect(
+          await store().ensureWithResult('missing', api),
+          ArtworkEnsureResult.serverMissing,
+        );
+      },
+    );
+  }
+
+  test(
+    'rejects oversized external bytes even for an already stored key',
+    () async {
+      final artwork = store();
+      expect(await artwork.storeBytes('existing', body), isTrue);
+      final oversized = Uint8List(kMaxArtworkResponseBytes + 1)
+        ..setAll(0, body);
+      expect(await artwork.storeBytes('oversized', oversized), isFalse);
+      expect(await artwork.storeBytes('existing', oversized), isFalse);
+      expect(await artwork.fileFor('oversized'), isNull);
+      expect(await (await artwork.fileFor('existing'))!.readAsBytes(), body);
+    },
+  );
+
+  test('server writes enforce the shared artwork byte cap', () async {
+    body = Uint8List(kMaxArtworkResponseBytes + 1)..setAll(0, body);
+    final artwork = store();
+    expect(
+      await artwork.ensureWithResult('oversized', api),
+      ArtworkEnsureResult.failed,
+    );
+    expect(await artwork.fileFor('oversized'), isNull);
+  });
+
+  test(
+    'server artwork requests use the app identity from the live probe',
+    () async {
+      await store().ensureWithResult('cover', api);
+      final options =
+          verify(
+                () => dio.getUri<List<int>>(
+                  any(),
+                  options: captureAny(named: 'options'),
+                ),
+              ).captured.single
+              as Options;
+      expect(options.headers?['User-Agent'], AppConstants.userAgent);
     },
   );
 

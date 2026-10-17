@@ -1540,6 +1540,7 @@
     }
   },
   "downloadsManualMatchingNone": "No songs need manual matching from the most recent scan.",
+  "downloadsMissingCheckError": "Couldn't check missing artwork and lyrics",
   "downloadsMissingTitle": "Missing artwork and lyrics",
   "downloadsMissingNone": "Nothing missing",
   "downloadsMissingLyricsCount": "{count, plural, =1{1 song without lyrics} other{{count} songs without lyrics}}",

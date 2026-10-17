@@ -1000,7 +1000,7 @@ class DownloadService {
       sink.add,
       onDone: sink.close,
     );
-    sink.add(_backfillProgress);
+    sink.add(currentBackfillProgress);
     sink.onCancel = subscription.cancel;
   }, isBroadcast: true);
 
@@ -2640,16 +2640,16 @@ class DownloadService {
           }
           final existing = await _libraryDao.getExternalLyricsCache(song.id);
           if (existing?.syncedLyrics?.trim().isNotEmpty == true) continue;
-          if (!force &&
-              existing != null &&
-              existing.failureCount > 0 &&
-              existing.lastFailedAt != null &&
-              DateTime.now().difference(existing.lastFailedAt!) <
-                  const Duration(days: 7)) {
+          if (!force && hasRecentLyricsFailure(existing)) {
             continue;
           }
           if (!_backfillReady()) return false;
-          if (await _prefetchLyrics(song.id, song, api)) {
+          if (await _prefetchLyrics(
+            song.id,
+            song,
+            api,
+            forceSyncedUpgrade: force,
+          )) {
             _emitBackfill(
               lastResult: (
                 lyricsResolved: _backfillProgress.lastResult.lyricsResolved + 1,
@@ -2831,8 +2831,9 @@ class DownloadService {
   Future<bool> _prefetchLyrics(
     String songId,
     SongsTableData song,
-    SubsonicApiClient api,
-  ) async {
+    SubsonicApiClient api, {
+    bool forceSyncedUpgrade = false,
+  }) async {
     try {
       final previous = await _libraryDao.getExternalLyricsCache(songId);
       final metadata = song.artistName == null || song.title.trim().isEmpty
@@ -2854,6 +2855,7 @@ class DownloadService {
         useLrclib: _readLyricsAllowed(),
         lyricsCacheTtlSeconds: permanentLyricsCacheTtlSeconds,
         cacheServerLyrics: true,
+        forceSyncedUpgrade: forceSyncedUpgrade,
       );
       AppLogger.info(
         'DownloadService: Lyrics prefetch resolved ${resolution.source.name} '

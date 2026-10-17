@@ -12,6 +12,12 @@ import 'package:navis/src/utils/app_logger.dart';
 const int normalLyricsCacheTtlSeconds = 86400;
 const int permanentLyricsCacheTtlSeconds = 31536000;
 
+bool hasRecentLyricsFailure(ExternalLyricsCacheTableData? cache) =>
+    cache != null &&
+    cache.failureCount > 0 &&
+    cache.lastFailedAt != null &&
+    DateTime.now().difference(cache.lastFailedAt!) < const Duration(days: 7);
+
 typedef LyricsLookupMetadata = ({
   String artist,
   String title,
@@ -38,6 +44,7 @@ class LyricsResolver {
     required bool useLrclib,
     int lyricsCacheTtlSeconds = normalLyricsCacheTtlSeconds,
     bool cacheServerLyrics = false,
+    bool forceSyncedUpgrade = false,
   }) async {
     final cached = await _libraryDao.getExternalLyricsCache(songId);
     final cachedResolution = cached == null
@@ -52,14 +59,33 @@ class LyricsResolver {
         return cachedSyncedResolution;
       }
 
+      final upgradeBackoff =
+          !forceSyncedUpgrade && hasRecentLyricsFailure(cached);
       final server = await _resolveWithServer(
         songId: songId,
         metadata: metadata,
-        cacheServerLyrics: cacheServerLyrics,
+        cacheServerLyrics: cacheServerLyrics && !upgradeBackoff,
         lyricsCacheTtlSeconds: lyricsCacheTtlSeconds,
       );
-      if (server.resolution?.source.isSynced == true) {
-        return server.resolution!;
+      if (server.resolution case final resolution?) {
+        if (resolution.source.isSynced || upgradeBackoff) {
+          if (cacheServerLyrics && upgradeBackoff) {
+            // Keep plain lyrics durable without clearing the upgrade backoff.
+            await _cacheServerLyrics(
+              songId: songId,
+              source: resolution.source,
+              lyrics: resolution.lyrics,
+              ttlSeconds: lyricsCacheTtlSeconds,
+              failureCount: resolution.source.isSynced
+                  ? 0
+                  : cached!.failureCount,
+              lastFailedAt: resolution.source.isSynced
+                  ? null
+                  : cached!.lastFailedAt,
+            );
+          }
+          return resolution;
+        }
       }
 
       final lrclibResult = await _resolveWithLrclib(
@@ -318,6 +344,8 @@ class LyricsResolver {
     required LyricsSource source,
     required LyricsList lyrics,
     required int ttlSeconds,
+    int failureCount = 0,
+    DateTime? lastFailedAt,
   }) async {
     if (source == LyricsSource.serverSynced) {
       final synced = lyrics.structuredLyrics
@@ -349,6 +377,8 @@ class LyricsResolver {
       source: LyricsSource.serverPlain.name,
       plainLyrics: plain,
       ttlSeconds: ttlSeconds,
+      failureCount: failureCount,
+      lastFailedAt: lastFailedAt,
     );
   }
 }

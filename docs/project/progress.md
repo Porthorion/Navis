@@ -14,6 +14,30 @@ Last updated: 2026-10-17
 - ACP status values: `backlog`, `ready`, `in_progress`, `blocked`, `done`.
 
 ## Current Focus
+- [x] Issue #39, review fixes round 1 — 2026-10-17
+  (`feat/downloads-backfill-now`): corrected the token-authenticated cover probe
+  with the app User-Agent. Cover-less album: HTTP 200, `image/webp`, 69,228
+  bytes, verified stock Navidrome placeholder; nonexistent ID: HTTP 200,
+  `application/json`, 185 bytes, Subsonic error 70. Exact hashes and miss/failure
+  mapping are recorded in `docs/architecture.md`; the earlier curl 403 was
+  Cloudflare error 1010. The store recognises only that verified placeholder,
+  sends the same User-Agent and reuses the existing 20 MiB artwork cap. Test
+  fakes default to failure, guarded Deezer Dio closes synchronously on disposal,
+  and the seeded progress stream consumes `currentBackfillProgress`. Now Playing
+  shares the seven-day failed-upgrade check, preserves plain lyrics/failure
+  metadata and still permits server synced lyrics; manual backfill explicitly
+  forces an upgrade. Missing metadata shows quiet loading/error rows, and the
+  button requires an API client while retaining offline retry. The DAO documents
+  its intentional orphan exclusion. Tests first reproduced 13 failures; six
+  focused files then passed under the shared 9G cap and lock
+  (`00:09 +155: All tests passed!`). `dart analyze lib test` exited 0 with
+  zero errors/warnings and 183 pre-existing infos, none on changed lines.
+  `dart run tool/dead_code_check.dart` exited 0 with no NEW/stale entries
+  (baseline: declaration=4, l10n=0, asset=1, asset-missing=0, font=0,
+  dependency=5, test-only=2). Changed Dart formatting and `git diff --check`
+  passed. No app/emulator/VM launch, runtime screenshot or `tool/check.sh` run:
+  explicitly excluded by the round-1 task; runtime/full-gate acceptance remains
+  with the coordinator.
 - [x] Issue #39 backend, Parts A/B — 2026-10-17
   (`feat/downloads-backfill-now`): lyrics resolve server first, keep server
   plain lyrics unless LRCLIB provides synced lyrics, protect synced cache rows

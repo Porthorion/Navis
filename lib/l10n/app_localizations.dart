@@ -5291,6 +5291,12 @@ abstract class AppLocalizations {
   /// **'No songs need manual matching from the most recent scan.'**
   String get downloadsManualMatchingNone;
 
+  /// No description provided for @downloadsMissingCheckError.
+  ///
+  /// In en, this message translates to:
+  /// **'Couldn\'t check missing artwork and lyrics'**
+  String get downloadsMissingCheckError;
+
   /// No description provided for @downloadsMissingTitle.
   ///
   /// In en, this message translates to:

@@ -3356,6 +3356,10 @@ class AppLocalizationsEn extends AppLocalizations {
       'No songs need manual matching from the most recent scan.';
 
   @override
+  String get downloadsMissingCheckError =>
+      'Couldn\'t check missing artwork and lyrics';
+
+  @override
   String get downloadsMissingTitle => 'Missing artwork and lyrics';
 
   @override

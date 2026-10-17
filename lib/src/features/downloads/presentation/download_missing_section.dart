@@ -13,7 +13,9 @@ class DownloadMissingSection extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final l10n = AppLocalizations.of(context)!;
     final theme = Theme.of(context);
-    final gaps = ref.watch(downloadMetadataGapsProvider).value;
+    final gapsState = ref.watch(downloadMetadataGapsProvider);
+    final gaps = gapsState.value;
+    final hasApiClient = ref.watch(subsonicApiProvider) != null;
     final progress =
         ref.watch(downloadBackfillProgressProvider).value ??
         const BackfillProgress();
@@ -45,6 +47,10 @@ class DownloadMissingSection extends ConsumerWidget {
             style: theme.textTheme.titleSmall,
           ),
         ),
+        if (gapsState.isLoading)
+          ListTile(title: Text(l10n.commonLoading))
+        else if (gapsState.hasError)
+          ListTile(title: Text(l10n.downloadsMissingCheckError)),
         if (gaps != null &&
             gaps.songsMissingLyrics.isEmpty &&
             gaps.albumsMissingArtwork.isEmpty)
@@ -86,7 +92,7 @@ class DownloadMissingSection extends ConsumerWidget {
               Align(
                 alignment: AlignmentDirectional.centerStart,
                 child: FilledButton(
-                  onPressed: running
+                  onPressed: running || !hasApiClient
                       ? null
                       : () =>
                             ref.read(downloadServiceProvider).runBackfillNow(),

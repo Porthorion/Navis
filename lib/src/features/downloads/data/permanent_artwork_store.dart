@@ -1,12 +1,16 @@
 import 'dart:async';
 import 'dart:io';
 
+import 'package:crypto/crypto.dart';
 import 'package:dio/dio.dart';
 import 'package:navis/src/api/subsonic_api_client.dart';
 import 'package:navis/src/api/subsonic_error.dart';
+import 'package:navis/src/common_widgets/cover_art_cache_manager.dart'
+    show kMaxArtworkResponseBytes;
 import 'package:navis/src/features/player/data/system_media_art.dart'
     show imageExtensionForBytes;
 import 'package:navis/src/utils/app_logger.dart';
+import 'package:navis/src/utils/constants.dart';
 import 'package:navis/src/utils/file_utils.dart';
 import 'package:navis/src/utils/network_usage_meter.dart';
 import 'package:path/path.dart' as p;
@@ -49,6 +53,11 @@ class PermanentArtworkStore {
   static const int artworkSize = 768;
 
   static const String _partSuffix = '.navis-part';
+
+  // ponytail: placeholder hashes cover only this probed Navidrome image;
+  // verify additional server placeholders before extending detection.
+  static const String _navidromeMissingCoverSha256 =
+      '273a4dbd61dfbb0a12d5d8ffe780eb7a3d4d000bc9771c5411cc70ae4dfa8a1f';
 
   final Future<Directory> Function() _readApplicationSupportDirectory;
   final Dio _dio;
@@ -149,16 +158,25 @@ class PermanentArtworkStore {
       if (await fileFor(id) != null) return ArtworkEnsureResult.alreadyPresent;
       final response = await _dio.getUri<List<int>>(
         api.getCoverArtUrl(id: id, size: artworkSize),
-        options: Options(responseType: ResponseType.bytes),
+        options: Options(
+          responseType: ResponseType.bytes,
+          headers: {'User-Agent': AppConstants.userAgent},
+        ),
       );
       final bytes = response.data;
       if (bytes == null || bytes.isEmpty) {
-        return ArtworkEnsureResult.serverMissing;
+        return ArtworkEnsureResult.failed;
       }
       _reportNetworkUsage?.call(
         category: NetworkUsageCategory.coverArt,
         bytes: bytes.length,
       );
+      if (bytes.length > kMaxArtworkResponseBytes) {
+        return ArtworkEnsureResult.failed;
+      }
+      if (sha256.convert(bytes).toString() == _navidromeMissingCoverSha256) {
+        return ArtworkEnsureResult.serverMissing;
+      }
       if (looksLikeSubsonicErrorDocument(bytes)) {
         // A successful HTTP response may still carry Subsonic's missing-cover error.
         final document = String.fromCharCodes(bytes);
@@ -191,7 +209,7 @@ class PermanentArtworkStore {
   /// Never throws.
   Future<bool> storeBytes(String coverArtId, List<int> bytes) async {
     final id = coverArtId.trim();
-    if (id.isEmpty) return false;
+    if (id.isEmpty || bytes.length > kMaxArtworkResponseBytes) return false;
     final key = keyFor(id);
     final pending = _pending[key];
     if (pending != null) await pending;
@@ -210,6 +228,7 @@ class PermanentArtworkStore {
   }
 
   Future<bool> _writeBytes(String id, List<int> bytes) async {
+    if (bytes.length > kMaxArtworkResponseBytes) return false;
     File? part;
     try {
       final extension = imageExtensionForBytes(bytes);

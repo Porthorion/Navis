@@ -1187,6 +1187,7 @@ void main() {
       WidgetTester tester,
       Future<DownloadMetadataGaps> Function() load, {
       BackfillProgress initial = const BackfillProgress(),
+      bool hasApiClient = true,
     }) async {
       tester.view.devicePixelRatio = 1;
       tester.view.physicalSize = const Size(800, 2400);
@@ -1198,6 +1199,9 @@ void main() {
       await tester.pumpWidget(
         mobileDownloads([
           downloadServiceProvider.overrideWithValue(service),
+          subsonicApiProvider.overrideWithValue(
+            hasApiClient ? _MockDownloadApi() : null,
+          ),
           downloadMetadataGapsProvider.overrideWith((ref) {
             gapBuilds++;
             return load();
@@ -1253,10 +1257,55 @@ void main() {
       expect(find.textContaining('without artwork'), findsNothing);
     });
 
+    testWidgets('a pending gaps load shows a quiet loading row', (
+      tester,
+    ) async {
+      final load = Completer<DownloadMetadataGaps>();
+      await openSettings(tester, () => load.future);
+      expect(find.text('Loading…'), findsOneWidget);
+      expect(find.text('Nothing missing'), findsNothing);
+      expect(find.byType(SnackBar), findsNothing);
+      load.complete(none);
+      await settle(tester);
+      expect(find.text('Nothing missing'), findsOneWidget);
+      expect(find.text('Loading…'), findsNothing);
+    });
+
+    testWidgets('signed out or no API client disables Backfill now', (
+      tester,
+    ) async {
+      await openSettings(tester, () async => gaps, hasApiClient: false);
+      expect(tester.widget<FilledButton>(backfillButton()).onPressed, isNull);
+      verifyNever(() => service.runBackfillNow());
+    });
+
+    testWidgets('an offline block keeps Backfill now available for retry', (
+      tester,
+    ) async {
+      when(() => service.runBackfillNow()).thenAnswer((_) async {});
+      await openSettings(
+        tester,
+        () async => gaps,
+        initial: const BackfillProgress(
+          blockedReason: BackfillBlockedReason.offline,
+        ),
+      );
+      expect(
+        tester.widget<FilledButton>(backfillButton()).onPressed,
+        isNotNull,
+      );
+      await tester.tap(backfillButton());
+      verify(() => service.runBackfillNow()).called(1);
+    });
+
     testWidgets('a failed gaps load stays quiet', (tester) async {
       await openSettings(tester, () async => throw StateError('disk'));
 
       expect(find.text('Missing artwork and lyrics'), findsOneWidget);
+      expect(
+        find.text("Couldn't check missing artwork and lyrics"),
+        findsOneWidget,
+      );
       expect(find.textContaining('without lyrics'), findsNothing);
       expect(find.text('Nothing missing'), findsNothing);
       expect(find.byType(SnackBar), findsNothing);

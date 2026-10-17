@@ -50,7 +50,7 @@ class _OfflineArtworkStore extends PermanentArtworkStore {
     SubsonicApiClient api,
   ) async => await ensure(coverArtId, api)
       ? ArtworkEnsureResult.stored
-      : ArtworkEnsureResult.serverMissing;
+      : ArtworkEnsureResult.failed;
 }
 
 /// Counts [PermanentArtworkStore.ensure] calls to observe artwork backfill.
@@ -76,7 +76,7 @@ class _CountingArtworkStore extends PermanentArtworkStore {
     SubsonicApiClient api,
   ) async => await ensure(coverArtId, api)
       ? ArtworkEnsureResult.stored
-      : ArtworkEnsureResult.serverMissing;
+      : ArtworkEnsureResult.failed;
 }
 
 /// A client whose every request fails like an unreachable server; lyrics
