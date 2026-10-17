@@ -5,6 +5,8 @@ import 'package:cryptography/cryptography.dart';
 import 'package:dio/dio.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 
+import 'package:navis/src/features/integrations/domain/update_source.dart';
+import 'package:navis/src/features/settings/data/update_transport.dart';
 import 'package:navis/src/utils/semver.dart';
 import 'package:navis/src/features/integrations/data/integration_guard_interceptor.dart';
 import 'package:navis/src/features/settings/data/install_source_service.dart';
@@ -54,6 +56,7 @@ class UpdateCheckRecord {
 class UpdateRepository {
   new({
     Dio? dio,
+    this.source = UpdateSource.porthorion,
     InstallSourceService? installSourceService,
     UpdateCheckStore? updateCheckStore,
     this.signingPublicKey = AppConstants.updateSigningPublicKey,
@@ -70,6 +73,7 @@ class UpdateRepository {
        _debArch = linuxDebArch ?? _linuxDebArch;
 
   final Dio _dio;
+  final UpdateSource source;
   final InstallSourceService _installSourceService;
   final UpdateCheckStore _updateCheckStore;
   final String signingPublicKey;
@@ -88,9 +92,13 @@ class UpdateRepository {
     return normalized.isEmpty ? 'stable' : normalized;
   }
 
-  static String manifestUrlFor([String? channel]) =>
-      '${AppConstants.updateBaseUrl}channels/'
-      '${Uri.encodeComponent(channelFor(channel))}/manifest.json';
+  static String manifestUrlFor([
+    String? channel,
+    UpdateSource source = UpdateSource.porthorion,
+  ]) => source.effectiveFor(channelFor(channel)) == UpdateSource.github
+      ? '${AppConstants.githubReleasesBaseUrl}/latest/download/manifest.json'
+      : '${AppConstants.updateBaseUrl}channels/'
+            '${Uri.encodeComponent(channelFor(channel))}/manifest.json';
 
   /// Verifies and selects an update from a fresh or throttled cached manifest.
   ///
@@ -102,35 +110,49 @@ class UpdateRepository {
   }) async {
     if (_isIOS) return null;
     final channel = channelFor(updateChannel);
-    if (!await _updateCheckStore.shouldCheck(force: forceCheck)) {
+    final effectiveSource = source.effectiveFor(channel);
+    final identity = '$channel/${effectiveSource.name}';
+    final changed = await _updateCheckStore.selectSource(identity);
+    if (!changed && !await _updateCheckStore.shouldCheck(force: forceCheck)) {
       final envelope = await _updateCheckStore.readVerifiedManifest();
       if (envelope == null) return null;
       return await _updateFromEnvelope(
         envelope,
         channel: channel,
+        source: effectiveSource,
         fromCache: true,
       );
     }
 
-    final url = manifestUrlFor(channel);
+    final url = manifestUrlFor(channel, effectiveSource);
     final timestamp = DateTime.now().toUtc();
     _lastCheck = UpdateCheckRecord(url: url, timestamp: timestamp);
     try {
-      final response = await _dio.get<Object?>(
+      final response = await followUpdateRedirects<Object?>(
         url,
-        options: Options(
-          responseType: ResponseType.json,
-          receiveTimeout: const Duration(seconds: 10),
-          sendTimeout: const Duration(seconds: 10),
-          extra: <String, dynamic>{
-            if (forceCheck) navisUserInitiatedExtraKey: true,
-          },
+        source: effectiveSource,
+        request: (url) => _dio.get<Object?>(
+          url,
+          options: Options(
+            followRedirects: false,
+            validateStatus: updateResponseStatus,
+            responseType: ResponseType.json,
+            receiveTimeout: const Duration(seconds: 10),
+            sendTimeout: const Duration(seconds: 10),
+            extra: <String, dynamic>{
+              if (forceCheck) navisUserInitiatedExtraKey: true,
+            },
+          ),
         ),
       );
-      await _updateCheckStore.recordCheck();
-      await _updateCheckStore.clearVerifiedManifest();
-      return await _updateFromEnvelope(response.data, channel: channel);
-    } on DioException {
+      await _updateCheckStore.recordCheck(null, identity);
+      await _updateCheckStore.clearVerifiedManifest(sourceIdentity: identity);
+      return await _updateFromEnvelope(
+        response.data,
+        channel: channel,
+        source: effectiveSource,
+      );
+    } on Object {
       _lastCheck = UpdateCheckRecord(
         url: url,
         timestamp: timestamp,
@@ -143,6 +165,7 @@ class UpdateRepository {
   Future<UpdateInfo?> _updateFromEnvelope(
     Object? data, {
     required String channel,
+    required UpdateSource source,
     bool fromCache = false,
   }) async {
     final packageInfo = await PackageInfo.fromPlatform();
@@ -150,7 +173,7 @@ class UpdateRepository {
       packageInfo.version,
       allowExtraParts: true,
     );
-    final url = manifestUrlFor(channel);
+    final url = manifestUrlFor(channel, source);
     final timestamp = DateTime.now().toUtc();
     bool? signatureValid;
     String? payloadVersion;
@@ -235,6 +258,9 @@ class UpdateRepository {
       final tag = payload['tag'];
       if (tag is! String ||
           tag.isEmpty ||
+          (source == UpdateSource.github &&
+              (!RegExp(r'^v[0-9]+\.[0-9]+\.[0-9]+$').hasMatch(tag) ||
+                  tag != 'v$version')) ||
           (payload['notes'] != null && payload['notes'] is! String)) {
         return reject('malformed_payload');
       }
@@ -256,14 +282,17 @@ class UpdateRepository {
       }
       final asset = assets is Map ? assets[assetKey] : null;
       if (asset is! Map) return reject('missing_asset');
-      final assetUrl = asset['url'];
+      var assetUrl = asset['url'];
       final assetUri = assetUrl is String ? Uri.tryParse(assetUrl) : null;
       if (assetUrl is! String ||
-          !assetUrl.startsWith(AppConstants.updateBaseUrl) ||
-          assetUri?.scheme != 'https' ||
-          assetUri!.pathSegments.isEmpty ||
-          assetUri.pathSegments.last.isEmpty) {
+          !(isUpdateAssetUrl(assetUrl, UpdateSource.porthorion) ||
+              (source == UpdateSource.github &&
+                  isUpdateAssetUrl(assetUrl, source))) ||
+          assetUri == null) {
         return reject('invalid_asset_url');
+      }
+      if (source == UpdateSource.github) {
+        assetUrl = '${source.assetBaseUrl}$tag/${assetUri.pathSegments.last}';
       }
       final hash = asset['sha256'];
       if (hash is! String || !RegExp(r'^[a-fA-F0-9]{64}$').hasMatch(hash)) {
@@ -303,7 +332,7 @@ class UpdateRepository {
         await _updateCheckStore.recordVerifiedManifest({
           'payload': envelope['payload'] as String,
           'signature': envelope['signature'] as String,
-        });
+        }, sourceIdentity: '$channel/${source.name}');
       }
       return info;
     } on FormatException {

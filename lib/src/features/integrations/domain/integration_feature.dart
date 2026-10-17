@@ -1,5 +1,7 @@
 import 'dart:convert';
 
+import 'package:navis/src/features/integrations/domain/update_source.dart';
+
 import 'package:flutter/foundation.dart';
 
 /// What must hold before a service can be used, beyond the user's switches.
@@ -83,6 +85,9 @@ enum IntegrationService {
   final String? host;
 
   /// Network destinations shown in disclosure copy, separate from host identity.
+  String? displayHostFor(UpdateSource source) =>
+      this == updates ? source.host : displayHost;
+
   String? get displayHost =>
       this == autoEq ? 'raw.githubusercontent.com and api.github.com' : host;
 
@@ -194,6 +199,7 @@ bool isIntegrationKey(String key) =>
 
 /// Parses the `disabled_integrations` JSON into the set of known keys that
 /// the JSON may hold: service keys and features without a legacy column.
+/// The reserved update-source metadata entry is retained by toggle writers.
 /// Unknown keys, non-string entries and malformed JSON are ignored, so a
 /// damaged value never disables or enables more than it names.
 Set<String> parseDisabledIntegrationKeys(String? raw) {
@@ -203,7 +209,10 @@ Set<String> parseDisabledIntegrationKeys(String? raw) {
     if (decoded is! List) return const <String>{};
     return <String>{
       for (final entry in decoded)
-        if (entry is String && _isJsonStoredKey(entry)) entry,
+        if (entry is String &&
+            (_isJsonStoredKey(entry) ||
+                entry == UpdateSource.githubSettingsKey))
+          entry,
     };
   } on FormatException {
     return const <String>{};
@@ -263,7 +272,8 @@ class IntegrationPolicy {
           listenBrainzScrobblingEnabled,
       IntegrationLegacyColumn.legacyInstantMixEnabled: legacyInstantMixEnabled,
     };
-    final disabled = <String>{...parseDisabledIntegrationKeys(disabledJson)};
+    final disabled = <String>{...parseDisabledIntegrationKeys(disabledJson)}
+      ..remove(UpdateSource.githubSettingsKey);
     for (final feature in IntegrationFeature.values) {
       final column = feature.legacyColumn;
       if (column != null &&

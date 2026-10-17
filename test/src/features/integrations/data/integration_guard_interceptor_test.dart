@@ -59,6 +59,28 @@ void main() {
     recorder = IntegrationCallRecorder(logCalls: false);
   });
 
+  test('updates guard allows only its exact manifest and download destinations', () async {
+    final dio = build(IntegrationService.updates);
+    for (final url in [
+      'https://downloads.porthorion.com/navis/channels/stable/manifest.json',
+      'https://github.com/Porthorion/Navis/releases/latest/download/manifest.json',
+      'https://github.com/Porthorion/Navis/releases/download/v1.5.0/navis.zip',
+      'https://objects.githubusercontent.com/fixture',
+      'https://release-assets.githubusercontent.com/fixture',
+    ]) {
+      await dio.get<Object?>(url);
+    }
+    expect(adapter.requested, hasLength(5));
+    for (final url in [
+      'https://evil.com/file',
+      'https://github.com/evil/Navis/releases/download/v1.5.0/file',
+      'http://objects.githubusercontent.com/file',
+    ]) {
+      await expectLater(dio.get<Object?>(url), throwsA(isA<DioException>()));
+    }
+    expect(adapter.requested, hasLength(5));
+  });
+
   test('allows a request for an enabled service and records it', () async {
     final dio = build(IntegrationService.lrclib);
     final response = await dio.get<Object?>('/get');
@@ -131,12 +153,15 @@ void main() {
 
   test('reads the policy on every request', () async {
     final dio = build(IntegrationService.updates);
-    await dio.get<Object?>('/a');
+    await dio.get<Object?>('https://downloads.porthorion.com/navis/a');
     policy = const IntegrationPolicy(disabledKeys: {'updates'});
-    await expectLater(dio.get<Object?>('/b'), throwsA(isA<DioException>()));
+    await expectLater(
+      dio.get<Object?>('https://downloads.porthorion.com/navis/b'),
+      throwsA(isA<DioException>()),
+    );
     policy = const IntegrationPolicy();
-    await dio.get<Object?>('/c');
-    expect(adapter.requested.map((u) => u.path), ['/api/a', '/api/c']);
+    await dio.get<Object?>('https://downloads.porthorion.com/navis/c');
+    expect(adapter.requested.map((u) => u.path), ['/navis/a', '/navis/c']);
   });
 
   group('user-initiated requests', () {

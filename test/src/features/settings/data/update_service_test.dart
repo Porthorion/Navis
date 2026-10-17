@@ -10,12 +10,14 @@ import 'package:navis/src/features/settings/data/update_service.dart';
 import 'package:navis/src/features/settings/domain/update_delivery.dart';
 import 'package:navis/src/features/settings/domain/update_info.dart';
 import 'package:navis/src/utils/constants.dart';
+import 'package:navis/src/features/integrations/domain/update_source.dart';
 import 'package:path/path.dart' as p;
 
 class _ArtifactAdapter implements HttpClientAdapter {
   new(this.bytes);
   final List<int> bytes;
   final List<RequestOptions> requests = [];
+  String? redirect;
 
   @override
   Future<ResponseBody> fetch(
@@ -24,6 +26,15 @@ class _ArtifactAdapter implements HttpClientAdapter {
     Future<void>? cancelFuture,
   ) async {
     requests.add(options);
+    if (requests.length == 1 && redirect != null) {
+      return ResponseBody.fromBytes(
+        [],
+        302,
+        headers: {
+          'location': [redirect!],
+        },
+      );
+    }
     return ResponseBody.fromBytes(
       bytes,
       200,
@@ -71,6 +82,49 @@ void main() {
     TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
         .setMockMethodCallHandler(channel, null);
     await temp.delete(recursive: true);
+  });
+
+  for (final host in [
+    'objects.githubusercontent.com',
+    'release-assets.githubusercontent.com',
+  ]) {
+    test('GitHub redirect to $host still rejects SHA-256 mismatch', () async {
+      adapter.redirect = 'https://$host/artifact?token=fixture';
+      service = UpdateService(dio: dio, source: UpdateSource.github);
+      await expectLater(
+        service.downloadArtifact(
+          info(
+            downloadUrl: 'https://github.com/Porthorion/Navis/releases/download/v1.5.1/navis.zip',
+            hash: '0' * 64,
+          ),
+        ),
+        throwsA(isA<UpdateIntegrityException>()),
+      );
+      expect(adapter.requests.map((r) => r.uri.host), ['github.com', host]);
+      expect(adapter.requests.every((r) => !r.followRedirects), isTrue);
+      expect(temp.listSync(recursive: true).whereType<File>(), isEmpty);
+    });
+  }
+
+  test('redirect to an untrusted host is rejected before contact', () async {
+    adapter.redirect = 'https://evil.com/artifact';
+    await expectLater(
+      service.downloadArtifact(info()),
+      throwsA(isA<StateError>()),
+    );
+    expect(adapter.requests, hasLength(1));
+  });
+
+  test('GitHub prefix is rejected by the Porthorion source', () async {
+    await expectLater(
+      service.downloadArtifact(
+        info(
+          downloadUrl: 'https://github.com/Porthorion/Navis/releases/download/v1.5.1/navis.zip',
+        ),
+      ),
+      throwsA(isA<StateError>()),
+    );
+    expect(adapter.requests, isEmpty);
   });
 
   test('desktop downloads use distinct private dirs instead of shared navis_updates', () async {

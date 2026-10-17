@@ -1,4 +1,5 @@
 import 'package:navis/l10n/app_localizations.dart';
+import 'package:navis/src/features/integrations/domain/update_source.dart';
 import 'package:navis/src/features/integrations/domain/integration_feature.dart';
 
 // Copy shared by Settings › Integrations and the onboarding Integrations
@@ -22,9 +23,10 @@ String integrationServiceName(
 /// The one line saying what [service] receives and from or to where.
 String integrationServiceDescription(
   IntegrationService service,
-  AppLocalizations l10n,
-) {
-  final host = service.displayHost ?? '';
+  AppLocalizations l10n, {
+  UpdateSource updateSource = UpdateSource.porthorion,
+}) {
+  final host = service.displayHostFor(updateSource) ?? '';
   return switch (service) {
     IntegrationService.deezer => l10n.integrationsDeezerSends(host),
     IntegrationService.lastFm => l10n.integrationsLastFmSends(host),

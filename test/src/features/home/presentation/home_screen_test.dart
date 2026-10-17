@@ -4838,6 +4838,9 @@ const ChangelogVersion _majorRelease = ChangelogVersion(
 );
 
 class _PullUpdateStore extends UpdateCheckStore {
+  @override
+  Future<bool> selectSource(String identity) async => false;
+
   final forces = <bool>[];
   @override
   Future<bool> shouldCheck({bool force = false}) async {
@@ -4847,6 +4850,9 @@ class _PullUpdateStore extends UpdateCheckStore {
 }
 
 class _DismissUpdateStore extends UpdateCheckStore {
+  @override
+  Future<bool> selectSource(String identity) async => false;
+
   String? dismissed;
   @override
   Future<String?> readDismissedUpdate() async => dismissed;

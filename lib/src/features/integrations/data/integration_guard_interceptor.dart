@@ -1,4 +1,7 @@
 import 'package:dio/dio.dart';
+import 'package:navis/src/features/integrations/domain/update_source.dart';
+import 'package:navis/src/features/settings/data/update_transport.dart';
+import 'package:navis/src/utils/constants.dart';
 import 'package:navis/src/api/deezer_api_client.dart';
 import 'package:navis/src/features/integrations/data/integration_call_recorder.dart';
 import 'package:navis/src/features/integrations/domain/integration_feature.dart';
@@ -78,9 +81,33 @@ class IntegrationGuardInterceptor extends Interceptor {
       );
       return;
     }
+    if (service == IntegrationService.updates &&
+        !_isUpdateDestination(options.uri)) {
+      handler.reject(
+        DioException(
+          requestOptions: options,
+          error: StateError('Update request is outside the update hosts'),
+        ),
+      );
+      return;
+    }
     options.extra[_startedExtraKey] = DateTime.now().microsecondsSinceEpoch;
     handler.next(options);
   }
+
+  bool _isUpdateDestination(Uri uri) =>
+      isUpdateUrlUnder(uri.toString(), AppConstants.updateBaseUrl) ||
+      isUpdateUrlUnder(uri.toString(), UpdateSource.github.assetBaseUrl) ||
+      uri.toString() ==
+          '${AppConstants.githubReleasesBaseUrl}/latest/download/manifest.json' ||
+      (uri.scheme == 'https' &&
+          uri.userInfo.isEmpty &&
+          uri.port == 443 &&
+          !uri.hasFragment &&
+          const {
+            'objects.githubusercontent.com',
+            'release-assets.githubusercontent.com',
+          }.contains(uri.host));
 
   @override
   void onResponse(

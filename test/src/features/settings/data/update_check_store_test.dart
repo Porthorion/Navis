@@ -101,6 +101,49 @@ void main() {
     });
   });
 
+  test(
+    'source identity survives restart and clears only cache and throttle',
+    () async {
+      await store.selectSource('stable/porthorion');
+      await store.recordCheck();
+      await store.recordVerifiedManifest({
+        'payload': 'old',
+        'signature': 'old',
+      });
+      await store.recordNotifiedVersion('1.5.1+1');
+      await store.recordDismissedUpdate('v1.5.1+1');
+      final reopened = UpdateCheckStore();
+      expect(await reopened.selectSource('stable/github'), isTrue);
+      expect(await reopened.readVerifiedManifest(), isNull);
+      expect(await reopened.shouldCheck(), isTrue);
+      expect(await reopened.readNotifiedVersion(), '1.5.1+1');
+      expect(await reopened.readDismissedUpdate(), 'v1.5.1+1');
+      await reopened.recordCheck(null, 'stable/github');
+      expect(await UpdateCheckStore().selectSource('stable/github'), isFalse);
+      expect(await reopened.shouldCheck(), isFalse);
+    },
+  );
+
+  test('old in-flight source cannot overwrite the new source cache', () async {
+    await store.selectSource('stable/porthorion');
+    await store.selectSource('stable/github');
+    await store.recordVerifiedManifest({
+      'payload': 'new',
+      'signature': 'new',
+    }, sourceIdentity: 'stable/github');
+    await store.recordVerifiedManifest({
+      'payload': 'old',
+      'signature': 'old',
+    }, sourceIdentity: 'stable/porthorion');
+    await store.recordCheck(null, 'stable/porthorion');
+    await store.clearVerifiedManifest(sourceIdentity: 'stable/porthorion');
+    expect(await store.readVerifiedManifest(), {
+      'payload': 'new',
+      'signature': 'new',
+    });
+    expect(await store.readLastCheckAt(), isNull);
+  });
+
   for (final corrupt in [
     'not json',
     '[]',

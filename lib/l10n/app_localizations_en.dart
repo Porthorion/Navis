@@ -1652,7 +1652,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get privacyOnlineServicesBody =>
-      'Besides your server, Navis can contact Deezer (artist, album and track names, plus images from Deezer\'s image servers), Last.fm (track and artist names, using the API key included with Navis or your own), ListenBrainz (your listens and likes), LRCLIB (track details, to find lyrics), downloads.porthorion.com (update checks), GitHub (raw.githubusercontent.com and api.github.com for AutoEQ headphone profiles, only when you ask), internet radio stations (streams and now-playing info) and the sites your server links images from. You can turn each one off in Settings › Integrations. With Online services off, Navis only talks to your server.';
+      'Besides your server, Navis can contact Deezer (artist, album and track names, plus images from Deezer\'s image servers), Last.fm (track and artist names, using the API key included with Navis or your own), ListenBrainz (your listens and likes), LRCLIB (track details, to find lyrics), downloads.porthorion.com or GitHub (github.com, objects.githubusercontent.com and release-assets.githubusercontent.com for update checks and downloads, using your chosen source), GitHub (raw.githubusercontent.com and api.github.com for AutoEQ headphone profiles, only when you ask), internet radio stations (streams and now-playing info) and the sites your server links images from. You can turn each one off in Settings › Integrations. With Online services off, Navis only talks to your server.';
 
   @override
   String get privacyOpenIntegrations => 'Open Integrations';

@@ -12,6 +12,9 @@ import 'package:flutter/foundation.dart'
     show mapEquals, setEquals, visibleForTesting;
 import 'package:flutter_cache_manager/flutter_cache_manager.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:navis/src/features/integrations/domain/update_source.dart';
+import 'package:navis/src/features/settings/domain/update_delivery.dart';
+import 'package:navis/src/features/settings/domain/update_delivery_resolver.dart';
 import 'package:navis/src/api/deezer_api_client.dart';
 import 'package:navis/src/api/lastfm_api_client.dart';
 import 'package:navis/src/api/listenbrainz_api_client.dart';
@@ -3237,9 +3240,71 @@ final dismissedUpdateProvider = FutureProvider.autoDispose<String?>((ref) {
   return ref.watch(updateCheckStoreProvider).readDismissedUpdate();
 });
 
+/// The persisted choice, including on builds that cannot use GitHub.
+class UpdateSourceNotifier extends Notifier<UpdateSource> {
+  @override
+  UpdateSource build() {
+    final raw = ref.watch(
+      appSettingsProvider.select(
+        (value) => value.asData?.value.disabledIntegrations,
+      ),
+    );
+    return UpdateSource.fromIntegrationSettings(raw);
+  }
+
+  /// Clears the previous source's cache before publishing the stored choice.
+  Future<void> setSource(UpdateSource source) async {
+    final repository = ref.read(settingsRepositoryProvider);
+    final store = ref.read(updateCheckStoreProvider);
+    final channel = UpdateRepository.channelFor();
+    await store.selectSource('$channel/${source.effectiveFor(channel).name}');
+    await repository.setUpdateSource(source);
+  }
+}
+
+final updateSourceProvider =
+    NotifierProvider<UpdateSourceNotifier, UpdateSource>(
+      UpdateSourceNotifier.new,
+    );
+
+final effectiveUpdateSourceProvider = Provider<UpdateSource>(
+  (ref) => ref
+      .watch(updateSourceProvider)
+      .effectiveFor(UpdateRepository.channelFor()),
+);
+
+final updateHostProvider = Provider<String>(
+  (ref) => IntegrationService.updates.displayHostFor(
+    ref.watch(effectiveUpdateSourceProvider),
+  )!,
+);
+
+/// The UI hides unsupported/store-managed choices and disables dev choices.
+final updateSourceAvailabilityProvider =
+    FutureProvider<UpdateSourceAvailability>((ref) async {
+      if (Platform.isIOS) return UpdateSourceAvailability.unsupportedPlatform;
+      if (Platform.isAndroid) {
+        final install = await ref
+            .watch(installSourceServiceProvider)
+            .getInstallSource();
+        if (resolveUpdateDelivery(
+              isAndroid: true,
+              selfUpdateBuildEnabled: selfUpdateBuildEnabled,
+              installerPackage: install?.installerPackage,
+            ) ==
+            UpdateDelivery.storeRedirect) {
+          return UpdateSourceAvailability.storeManaged;
+        }
+      }
+      return UpdateRepository.channelFor() == 'stable'
+          ? UpdateSourceAvailability.available
+          : UpdateSourceAvailability.devChannel;
+    });
+
 final updateServiceProvider = Provider<UpdateService>((ref) {
   final meter = ref.watch(networkUsageMeterProvider);
   return UpdateService(
+    source: ref.watch(effectiveUpdateSourceProvider),
     dio: ref.watch(externalDioFactoryProvider)(
       IntegrationService.updates,
       options: BaseOptions(headers: {'User-Agent': AppConstants.userAgent}),
@@ -3251,6 +3316,7 @@ final updateServiceProvider = Provider<UpdateService>((ref) {
 /// Retains the updater's last manifest check for diagnostics.
 final updateRepositoryProvider = Provider<UpdateRepository>((ref) {
   return UpdateRepository(
+    source: ref.watch(effectiveUpdateSourceProvider),
     dio: ref.watch(externalDioFactoryProvider)(
       IntegrationService.updates,
       options: BaseOptions(headers: {'User-Agent': AppConstants.userAgent}),
@@ -3263,6 +3329,7 @@ final updateRepositoryProvider = Provider<UpdateRepository>((ref) {
 /// Checks whether a newer signed Navis release is available.
 /// Auto-disposed so it re-runs each time a screen watches it freshly.
 final updateProvider = FutureProvider.autoDispose<UpdateInfo?>((ref) async {
+  ref.watch(effectiveUpdateSourceProvider);
   final isLoading = ref.watch(
     appSettingsProvider.select((settings) => settings.isLoading),
   );

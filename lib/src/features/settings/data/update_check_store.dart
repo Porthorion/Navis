@@ -15,6 +15,22 @@ class UpdateCheckStore {
   final DateTime Function() _now;
   Future<void> _writes = Future<void>.value();
 
+  /// Changes the cache identity before checking the throttle. Legacy state
+  /// belongs to stable/Porthorion. Preserve notice and dismissal identities.
+  Future<bool> selectSource(String identity) async {
+    var changed = false;
+    await _updateState((state) {
+      final previous = state['sourceIdentity'] ?? 'stable/porthorion';
+      changed = previous != identity;
+      if (changed) {
+        state.remove('lastCheckAt');
+        state.remove('verifiedManifest');
+      }
+      state['sourceIdentity'] = identity;
+    });
+    return changed;
+  }
+
   Future<bool> shouldCheck({bool force = false}) async {
     if (force) {
       return true;
@@ -43,18 +59,25 @@ class UpdateCheckStore {
     return raw is Map<String, Object?> ? raw : null;
   }
 
-  Future<void> recordCheck([DateTime? checkedAt]) =>
-      _mergeState('lastCheckAt', (checkedAt ?? _now()).toIso8601String());
+  Future<void> recordCheck([DateTime? checkedAt, String? sourceIdentity]) =>
+      _mergeState(
+        'lastCheckAt',
+        (checkedAt ?? _now()).toIso8601String(),
+        sourceIdentity: sourceIdentity,
+      );
 
   /// Records a notice without changing the last manifest-fetch timestamp.
   Future<void> recordNotifiedVersion(String version) =>
       _mergeState('notifiedVersion', version);
 
   /// Stores the signed envelope of an update a completed fetch verified.
-  Future<void> recordVerifiedManifest(Map<String, Object?> value) =>
-      _mergeState('verifiedManifest', value);
+  Future<void> recordVerifiedManifest(
+    Map<String, Object?> value, {
+    String? sourceIdentity,
+  }) => _mergeState('verifiedManifest', value, sourceIdentity: sourceIdentity);
 
-  Future<void> clearVerifiedManifest() => _mergeState('verifiedManifest', null);
+  Future<void> clearVerifiedManifest({String? sourceIdentity}) =>
+      _mergeState('verifiedManifest', null, sourceIdentity: sourceIdentity);
 
   /// Reads the tag and build identity dismissed on Home.
   Future<String?> readDismissedUpdate() async {
@@ -65,14 +88,25 @@ class UpdateCheckStore {
   Future<void> recordDismissedUpdate(String identity) =>
       _mergeState('dismissedUpdate', identity);
 
-  Future<void> _mergeState(String key, Object? value) {
+  Future<void> _mergeState(
+    String key,
+    Object? value, {
+    String? sourceIdentity,
+  }) => _updateState((state) {
+    if (sourceIdentity != null && state['sourceIdentity'] != sourceIdentity) {
+      return;
+    }
+    if (value == null) {
+      state.remove(key);
+    } else {
+      state[key] = value;
+    }
+  });
+
+  Future<void> _updateState(void Function(Map<String, dynamic>) update) {
     final write = _writes.then((_) async {
       final state = await _readState();
-      if (value == null) {
-        state.remove(key);
-      } else {
-        state[key] = value;
-      }
+      update(state);
       final file = await _stateFile();
       await file.parent.create(recursive: true);
       await file.writeAsString(jsonEncode(state));
