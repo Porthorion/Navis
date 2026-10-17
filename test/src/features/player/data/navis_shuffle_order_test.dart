@@ -18,7 +18,16 @@ void main() {
     expect(shuffled, isNot(items));
   });
 
-  test('shuffling after the current song keeps history and current', () {
+  test('shuffling mid-queue puts history and upcoming songs after current', () {
+    final items = List<String>.generate(12, (i) => 's$i');
+    final shuffled = shuffledFromStart(items, 5, math.Random(2));
+    expect(shuffled.first, 's5');
+    expect(shuffled.skip(1).toSet(), {...items.take(5), ...items.skip(6)});
+    expect(shuffled, hasLength(12));
+    expect(unshuffle(shuffled, items), items);
+  });
+
+  test('legacy restore keeps history and current and shuffles upcoming', () {
     final items = List<String>.generate(20, (i) => 's$i');
     final shuffled = shuffledAfter(items, 4, math.Random(2));
     expect(shuffled.take(5), items.take(5));
