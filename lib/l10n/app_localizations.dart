@@ -2859,7 +2859,7 @@ abstract class AppLocalizations {
   /// No description provided for @integrationsFeatureLrclibLyricsSubtitle.
   ///
   /// In en, this message translates to:
-  /// **'Synced lyrics from LRCLIB first, server lyrics as fallback.'**
+  /// **'Server lyrics first; LRCLIB adds synced lyrics when the server has none or only plain text.'**
   String get integrationsFeatureLrclibLyricsSubtitle;
 
   /// No description provided for @integrationsFeatureUpdatesAutomaticTitle.

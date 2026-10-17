@@ -1843,7 +1843,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get integrationsFeatureLrclibLyricsSubtitle =>
-      'Synced lyrics from LRCLIB first, server lyrics as fallback.';
+      'Server lyrics first; LRCLIB adds synced lyrics when the server has none or only plain text.';
 
   @override
   String get integrationsFeatureUpdatesAutomaticTitle => 'Check automatically';

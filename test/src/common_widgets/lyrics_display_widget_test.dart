@@ -1,6 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter/gestures.dart';
 import 'package:material_ui/material_ui.dart';
+import 'package:navis/l10n/app_localizations.dart';
 import 'package:navis/src/api/models/models.dart';
 import 'package:navis/src/common_widgets/lyrics_display_widget.dart';
 
@@ -153,5 +154,36 @@ void main() {
       ),
       const Duration(milliseconds: -1),
     );
+  });
+
+  testWidgets('server plain lyrics (structured lines without start) show', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        localizationsDelegates: AppLocalizations.localizationsDelegates,
+        supportedLocales: AppLocalizations.supportedLocales,
+        home: Scaffold(
+          body: LyricsDisplayWidget(
+            lyrics: LyricsList(
+              structuredLyrics: [
+                StructuredLyrics(
+                  synced: false,
+                  line: [
+                    LyricLine(value: 'First plain'),
+                    LyricLine(value: ''),
+                  ],
+                ),
+              ],
+            ),
+            currentPosition: Duration.zero,
+            onSeek: (_) {},
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(find.textContaining('First plain'), findsOneWidget);
+    expect(find.text('No Lyrics Available'), findsNothing);
   });
 }

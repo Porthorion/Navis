@@ -362,13 +362,7 @@ class LyricsResolver {
       }
     }
 
-    final plain = lyrics.value?.trim().isNotEmpty == true
-        ? lyrics.value!
-        : lyrics.structuredLyrics
-              .expand((entry) => entry.line)
-              .map((line) => line.value ?? '')
-              .where((line) => line.trim().isNotEmpty)
-              .join('\n');
+    final plain = plainLyricsText(lyrics);
     if (plain.trim().isEmpty) {
       return;
     }
@@ -413,6 +407,17 @@ LyricsSource? resolveServerLyricsSource(LyricsList lyrics) {
     return LyricsSource.serverPlain;
   }
   return null;
+}
+
+/// Plain text of [lyrics]: `value`, else the non-empty structured lines. The
+/// server sends unsynced lyrics as structured lines without a start time.
+String plainLyricsText(LyricsList lyrics) {
+  if (lyrics.value?.trim().isNotEmpty == true) return lyrics.value!;
+  return lyrics.structuredLyrics
+      .expand((entry) => entry.line)
+      .map((line) => line.value ?? '')
+      .where((line) => line.trim().isNotEmpty)
+      .join('\n');
 }
 
 bool hasAnyLyrics(LyricsList lyrics) {

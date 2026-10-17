@@ -765,7 +765,7 @@
   "integrationsFeatureListenBrainzWeeklyPlaylistsTitle": "Weekly playlists",
   "integrationsFeatureListenBrainzWeeklyPlaylistsSubtitle": "Your weekly ListenBrainz playlists on Home and in Library.",
   "integrationsFeatureLrclibLyricsTitle": "Synced lyrics",
-  "integrationsFeatureLrclibLyricsSubtitle": "Synced lyrics from LRCLIB first, server lyrics as fallback.",
+  "integrationsFeatureLrclibLyricsSubtitle": "Server lyrics first; LRCLIB adds synced lyrics when the server has none or only plain text.",
   "integrationsFeatureUpdatesAutomaticTitle": "Check automatically",
   "integrationsFeatureUpdatesAutomaticSubtitle": "Looks for a new version when Navis starts. Check now is in About.",
   "integrationsFeatureAutoEqCatalogueTitle": "Headphone profiles",
