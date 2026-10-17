@@ -2303,9 +2303,9 @@ The banner's Retry action calls `ServerReachabilityController.retryNow()`. That 
 - checks the server at once, or joins a check that is already running;
 - leaves the status at `offline` until the check finishes, so the banner stays up while the check runs.
 
-The banner's message is one line, and its close button tucks it away: `shellOfflineBannerDismissedProvider` (`ShellOfflineBannerDismissed`) holds a dismissed flag that collapses the banner through the same animation (notices follow it) and shows `ShellOfflineChip`, a small floating "Offline" chip in the shell's body `Stack` that takes no layout space on phone, rail or desktop. Tapping the chip clears the flag and expands the banner. The flag also turns on by itself when `showRetryBanner` becomes false after repeated failures (the former "Offline mode" strip is gone), and is reset only when the server is confirmed `online`, so `checking` cannot undo a dismissal and the next outage starts undismissed.
+The banner's message is one line, and its close button tucks it away: `shellOfflineBannerDismissedProvider` (`ShellOfflineBannerDismissed`) holds a dismissed flag that shrinks the banner into a compact strip. The strip is the same `ShellOfflineBanner` at `compactHeight` (24 px, below the status bar): a full-width quiet-warning bar with a cloud-off icon and "Offline". It stays in layout, so content and notices sit below it and nothing floats on phone, rail or desktop. Tapping anywhere on it (a labelled button) clears the flag and grows the full banner back. The strip stays for the whole outage and goes away quietly when the server is confirmed online. The flag also turns on by itself when `showRetryBanner` becomes false after repeated failures (the former "Offline mode" strip is gone), and is reset only when the server is confirmed `online`, so `checking` cannot undo a dismissal and the next outage starts undismissed.
 
-`ShellOfflineBannerScope` wraps the shell's `Scaffold` body and owns the one animation that reveals and hides the banner. The shell places `AppNoticeHost` through `ShellOfflineBannerExtentBuilder`, which follows that same animation, so a notice stays 12 px below the banner on every frame. Interrupted toggles and reduced motion are included, and a notice never moves over a banner that is still collapsing. The extent assumes the banner's one-line `contentHeight`. With very large text the message wraps and the banner grows taller.
+`ShellOfflineBannerScope` wraps the shell's `Scaffold` body and owns two animations: reveal and hide (`visible`), and the 48 px to 24 px size change (`compact`, the dismissed flag). Both jump under reduced motion. The banner cross-fades the full row and the strip while its height follows the size animation. The shell places `AppNoticeHost` through `ShellOfflineBannerExtentBuilder`, whose extent is the current height times the reveal, so a notice stays 12 px below the banner or strip on every frame. Interrupted toggles and reduced motion are included, and a notice never moves over a banner that is still collapsing. The extent assumes the banner's one-line `contentHeight` (or the strip's `compactHeight`). With very large text the message wraps and the banner grows taller.
 
 The frame decides whether the banner is present from the animation's value, not from a `dismissed` status. A zero-length (reduced motion) animation updates its value before its status. A controller created already showing the banner never reports a jump straight to `dismissed`.
 
@@ -3372,8 +3372,8 @@ colour. Transient notices (`_NoticePill` in `app_notice.dart`) are one neutral
 raised pill (elevation 3, Corner Style control radius) for every kind, and
 only the 30 px disc carries the kind: info is tonal, success is
 `NavisTokens.success` over the pill, error is `errorContainer` /
-`onErrorContainer` (no full error fill or border). The offline banner and
-`ShellOfflineChip` use `NavisTokens.quietWarningContainer` /
+`onErrorContainer` (no full error fill or border). The offline banner and its
+compact strip use `NavisTokens.quietWarningContainer` /
 `onQuietWarningContainer`. `EmptyState` shows a 64 px tonal disc over its
 title and a secondary-coloured subtitle.
 

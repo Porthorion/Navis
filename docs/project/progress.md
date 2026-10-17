@@ -14,6 +14,15 @@ Last updated: 2026-10-17
 - ACP status values: `backlog`, `ready`, `in_progress`, `blocked`, `done`.
 
 ## Current Focus
+- [x] Offline indicator strip, issue #6 UI — 2026-10-17
+  (`feat/offline-indicator-strip`): the floating `ShellOfflineChip` is gone.
+  `ShellOfflineBanner` now has a full 48 dp form and a 24 dp in-layout strip
+  (cloud-off icon and "Offline"); the close button or three failed retries
+  shrink it, tapping the strip grows it back, and back online removes it. The
+  scope animates the size (`compact`), and `ShellOfflineBannerExtentBuilder`
+  follows it so notices stay below. Tests first (`shell_offline_banner_test`,
+  `app_router_test`, new `offline_status_strip.png` golden); the full banner
+  golden is unchanged.
 - [x] Issue #12 nav bar stuck after Back, soft ends — 2026-10-17
   (`perf/now-playing-drag`): after tap-open then Back the bottom nav bar stayed
   hidden. Cause: the shell's progress dedupe (`app_shell.dart`,

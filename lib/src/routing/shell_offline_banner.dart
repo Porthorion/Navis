@@ -10,7 +10,7 @@ import 'package:navis/src/theme/navis_color_style_data.dart';
 import 'package:navis/src/theme/navis_shape_data.dart';
 import 'package:navis/src/theme/navis_tokens.dart';
 
-/// Whether the offline banner is tucked away into [ShellOfflineChip].
+/// Whether the offline banner is shrunk into its compact strip.
 ///
 /// Set by the banner's close button, and automatically when the reachability
 /// state stops showing the retry banner (after repeated failures). Cleared
@@ -48,19 +48,25 @@ class ShellOfflineBannerDismissed extends Notifier<bool> {
 
 /// Drives the shell's offline banner for everything below it.
 ///
-/// One animation reveals and hides the banner, and the shell also positions
-/// its app notices from it (through [ShellOfflineBannerExtentBuilder]), so a
-/// notice follows the banner frame by frame instead of jumping over it while
-/// it collapses. The last message is kept while the banner animates away.
+/// One animation reveals and hides the banner and a second one shrinks it
+/// between its full size and the compact strip ([compact]). The shell also
+/// positions its app notices from them (through
+/// [ShellOfflineBannerExtentBuilder]), so a notice follows the banner frame by
+/// frame instead of jumping over it while it collapses. The last message is
+/// kept while the banner animates away.
 class ShellOfflineBannerScope extends StatefulWidget {
   const new({
     super.key,
     required this.visible,
+    this.compact = false,
     required this.message,
     required this.child,
   });
 
   final bool visible;
+
+  /// Whether the banner is shrunk to the compact strip.
+  final bool compact;
   final String message;
   final Widget child;
 
@@ -77,13 +83,21 @@ class ShellOfflineBannerScope extends StatefulWidget {
 }
 
 class _ShellOfflineBannerScopeState extends State<ShellOfflineBannerScope>
-    with SingleTickerProviderStateMixin {
+    with TickerProviderStateMixin {
   late final AnimationController _reveal = AnimationController(
     vsync: this,
     value: widget.visible ? 1 : 0,
   );
   late final CurvedAnimation _curvedReveal = CurvedAnimation(
     parent: _reveal,
+    curve: Curves.easeOutCubic,
+  );
+  late final AnimationController _compact = AnimationController(
+    vsync: this,
+    value: widget.compact ? 1 : 0,
+  );
+  late final CurvedAnimation _curvedCompact = CurvedAnimation(
+    parent: _compact,
     curve: Curves.easeOutCubic,
   );
   late String _message = widget.message;
@@ -93,6 +107,9 @@ class _ShellOfflineBannerScopeState extends State<ShellOfflineBannerScope>
     super.didChangeDependencies();
     final duration = MotionPolicy.of(context).surface;
     _reveal
+      ..duration = duration
+      ..reverseDuration = duration;
+    _compact
       ..duration = duration
       ..reverseDuration = duration;
   }
@@ -110,10 +127,19 @@ class _ShellOfflineBannerScopeState extends State<ShellOfflineBannerScope>
         _reveal.reverse();
       }
     }
+    if (widget.compact != oldWidget.compact) {
+      if (widget.compact) {
+        _compact.forward();
+      } else {
+        _compact.reverse();
+      }
+    }
   }
 
   @override
   void dispose() {
+    _curvedCompact.dispose();
+    _compact.dispose();
     _curvedReveal.dispose();
     _reveal.dispose();
     super.dispose();
@@ -123,6 +149,7 @@ class _ShellOfflineBannerScopeState extends State<ShellOfflineBannerScope>
   Widget build(BuildContext context) {
     return _ShellOfflineBannerInherited(
       reveal: _curvedReveal,
+      compact: _curvedCompact,
       message: _message,
       child: widget.child,
     );
@@ -132,20 +159,25 @@ class _ShellOfflineBannerScopeState extends State<ShellOfflineBannerScope>
 class _ShellOfflineBannerInherited extends InheritedWidget {
   const new({
     required this.reveal,
+    required this.compact,
     required this.message,
     required super.child,
   });
 
   final Animation<double> reveal;
+  final Animation<double> compact;
   final String message;
 
   @override
   bool updateShouldNotify(_ShellOfflineBannerInherited oldWidget) =>
-      reveal != oldWidget.reveal || message != oldWidget.message;
+      reveal != oldWidget.reveal ||
+      compact != oldWidget.compact ||
+      message != oldWidget.message;
 }
 
 /// Rebuilds with the banner's current content height, from 0 when hidden to
-/// [ShellOfflineBanner.contentHeight] when shown, following its animation.
+/// [ShellOfflineBanner.contentHeight] when shown (or
+/// [ShellOfflineBanner.compactHeight] as the strip), following its animations.
 ///
 /// The extent assumes a one-line banner; a message wrapped by a very large
 /// text scale makes the banner taller than this.
@@ -156,11 +188,13 @@ class ShellOfflineBannerExtentBuilder extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final reveal = ShellOfflineBannerScope._of(context).reveal;
+    final scope = ShellOfflineBannerScope._of(context);
     return AnimatedBuilder(
-      animation: reveal,
-      builder: (context, _) =>
-          builder(context, ShellOfflineBanner.contentHeight * reveal.value),
+      animation: Listenable.merge(<Listenable>[scope.reveal, scope.compact]),
+      builder: (context, _) => builder(
+        context,
+        ShellOfflineBanner.heightFor(scope.compact.value) * scope.reveal.value,
+      ),
     );
   }
 }
@@ -236,7 +270,11 @@ class _ShellOfflineBannerFrameState extends State<ShellOfflineBannerFrame> {
     return Column(
       children: <Widget>[
         if (_present)
-          ShellOfflineBanner(message: scope.message, reveal: scope.reveal),
+          ShellOfflineBanner(
+            message: scope.message,
+            reveal: scope.reveal,
+            compact: scope.compact,
+          ),
         Expanded(
           // Always wrapped in the same widget type, so toggling the banner
           // never rebuilds the pages below it.
@@ -253,20 +291,31 @@ class _ShellOfflineBannerFrameState extends State<ShellOfflineBannerFrame> {
 
 /// The shell's offline banner: a status line with a Retry action.
 class ShellOfflineBanner extends ConsumerStatefulWidget {
-  const new({super.key, required this.message, this.reveal});
+  const new({super.key, required this.message, this.reveal, this.compact});
 
   final String message;
 
   /// Animates the content height; the status bar strip is never animated.
   final Animation<double>? reveal;
 
+  /// Morphs the banner into the compact strip, from 0 (full) to 1 (strip).
+  final Animation<double>? compact;
+
   /// Height of the banner below the status bar: one row with a full-size
   /// Retry target. App notices are placed below it while it is visible.
   static const double contentHeight = 48;
 
+  /// Height of the compact strip below the status bar.
+  static const double compactHeight = 24;
+
+  /// The content height at [compact] progress, 0 (full) to 1 (strip).
+  static double heightFor(double compact) =>
+      contentHeight + (compactHeight - contentHeight) * compact;
+
   static const Key bannerKey = ValueKey<String>('shell-offline-banner');
   static const Key retryKey = ValueKey<String>('shell-offline-retry');
   static const Key dismissKey = ValueKey<String>('shell-offline-dismiss');
+  static const Key stripKey = ValueKey<String>('shell-offline-strip');
 
   @override
   ConsumerState<ShellOfflineBanner> createState() => _ShellOfflineBannerState();
@@ -387,6 +436,50 @@ class _ShellOfflineBannerState extends ConsumerState<ShellOfflineBanner> {
       ),
     );
     final reveal = widget.reveal;
+    final compact = widget.compact;
+    // The full row alone while it is full size, so a wrapped message can
+    // still grow it; otherwise the row and the strip cross-fade in a box
+    // that shrinks between their heights.
+    final body = compact == null
+        ? content
+        : AnimatedBuilder(
+            animation: compact,
+            builder: (context, _) {
+              final progress = compact.value;
+              if (progress == 0) {
+                return content;
+              }
+              return SizedBox(
+                height: ShellOfflineBanner.heightFor(progress),
+                child: ClipRect(
+                  child: Stack(
+                    children: <Widget>[
+                      if (progress < 1)
+                        Positioned.fill(
+                          child: IgnorePointer(
+                            child: Opacity(
+                              opacity: 1 - progress,
+                              child: OverflowBox(
+                                alignment: Alignment.topCenter,
+                                minHeight: ShellOfflineBanner.contentHeight,
+                                maxHeight: ShellOfflineBanner.contentHeight,
+                                child: ExcludeSemantics(child: content),
+                              ),
+                            ),
+                          ),
+                        ),
+                      Positioned.fill(
+                        child: Opacity(
+                          opacity: progress,
+                          child: const _OfflineStrip(),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              );
+            },
+          );
     return Material(
       key: ShellOfflineBanner.bannerKey,
       color: Colors.transparent,
@@ -395,60 +488,47 @@ class _ShellOfflineBannerState extends ConsumerState<ShellOfflineBanner> {
         left: false,
         right: false,
         child: reveal == null
-            ? content
+            ? body
             : SizeTransition(
                 sizeFactor: reveal,
                 alignment: AlignmentDirectional.bottomStart,
-                child: content,
+                child: body,
               ),
       ),
     );
   }
 }
 
-/// The small "Offline" chip shown while the offline banner is dismissed.
-///
-/// It floats over the content (place it in a [Stack]) and takes no layout
-/// space; tapping it expands the banner again.
-class ShellOfflineChip extends ConsumerWidget {
-  const new({super.key});
-
-  static const Key chipKey = ValueKey<String>('shell-offline-chip');
+/// The compact form of the offline banner: a full-width strip with the cloud
+/// icon and "Offline". Tapping anywhere on it expands the banner again.
+class _OfflineStrip extends ConsumerWidget {
+  const new();
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final l10n = AppLocalizations.of(context)!;
-    final theme = Theme.of(context);
     final tokens = NavisTokens.of(context);
+    final ink = tokens.onQuietWarningContainer;
     return Semantics(
       button: true,
       label: l10n.serverOfflineBanner,
       excludeSemantics: true,
       child: Material(
-        key: chipKey,
+        key: ShellOfflineBanner.stripKey,
         color: tokens.quietWarningContainer,
-        elevation: 2,
-        shape: const StadiumBorder(),
         child: InkWell(
-          customBorder: const StadiumBorder(),
           onTap: () =>
               ref.read(shellOfflineBannerDismissedProvider.notifier).expand(),
-          child: Padding(
-            padding: const EdgeInsetsDirectional.fromSTEB(8, 2, 10, 2),
+          child: Center(
             child: Row(
               mainAxisSize: MainAxisSize.min,
               children: <Widget>[
-                Icon(
-                  Icons.cloud_off_outlined,
-                  size: 14,
-                  color: tokens.onQuietWarningContainer,
-                ),
+                Icon(Icons.cloud_off_outlined, size: 14, color: ink),
                 const SizedBox(width: NavisSpace.xxs),
                 Text(
                   l10n.serverOfflineChip,
-                  style: theme.textTheme.labelSmall?.copyWith(
-                    color: tokens.onQuietWarningContainer,
-                  ),
+                  style: Theme.of(context).textTheme.labelSmall
+                      ?.copyWith(color: ink),
                 ),
               ],
             ),

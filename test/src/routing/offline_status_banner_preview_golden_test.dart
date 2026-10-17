@@ -6,7 +6,11 @@ import 'package:navis/src/routing/shell_offline_banner.dart';
 import 'package:navis/src/theme/navis_theme.dart';
 
 void main() {
-  Future<void> pump(WidgetTester tester, {required String message}) {
+  Future<void> pump(
+    WidgetTester tester, {
+    required String message,
+    bool compact = false,
+  }) {
     return tester.pumpWidget(
       ProviderScope(
         child: MaterialApp(
@@ -21,6 +25,7 @@ void main() {
             child: Scaffold(
               body: ShellOfflineBannerScope(
                 visible: true,
+                compact: compact,
                 message: message,
                 child: const ShellOfflineBannerFrame(child: SizedBox.expand()),
               ),
@@ -38,6 +43,16 @@ void main() {
     await expectLater(
       find.byType(Scaffold),
       matchesGoldenFile('goldens/offline_status_retrying.png'),
+    );
+  });
+
+  testWidgets('offline strip below a status bar', (tester) async {
+    await tester.binding.setSurfaceSize(const Size(400, 160));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    await pump(tester, message: 'Offline. Retrying…', compact: true);
+    await expectLater(
+      find.byType(Scaffold),
+      matchesGoldenFile('goldens/offline_status_strip.png'),
     );
   });
 }
