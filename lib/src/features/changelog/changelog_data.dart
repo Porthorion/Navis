@@ -166,6 +166,10 @@ const List<ChangelogVersion> changelogs = [
     ],
     entries: [
       ChangelogEntry(
+        'With the Pill corner style, the add buttons on Playlists and Radio are now circles instead of rounded squares; Soft and Square are unchanged',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
         'Turning shuffle on mid-queue now puts the current song first and shuffles every other song, including played songs, without restarting playback; turning it off restores the original order',
         type: ChangelogEntryType.fix,
       ),

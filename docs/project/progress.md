@@ -14,6 +14,17 @@ Last updated: 2026-10-18
 - ACP status values: `backlog`, `ready`, `in_progress`, `blocked`, `done`.
 
 ## Current Focus
+- [x] Issue #52, Pill buttons should be circles — 2026-10-18
+  (`fix/pill-fab-circle`): `floatingActionButtonTheme.shape` is a stadium in
+  Pill (a circle on the square Playlists and Radio FABs, still fitting the
+  extended match-flow FAB); Soft and Square keep `lgShape`. Added
+  `test/src/theme/pill_circle_test.dart` (FAB shape per corner style; compact
+  header download button in Pill and Soft across light/dark/OLED and
+  accent/white controls). The FAB test failed before the fix
+  (`Expected: true  Actual: <false>`). The compact header download button
+  already renders as a circle in Pill (widget render inspected), so no change
+  was needed there; the owner's rounded square was not reproduced. No goldens
+  changed.
 - [x] Issue #55, persisted shuffle test database lifetime — 2026-10-18:
   the round-trip test captures its expected play order and disposes the first
   handler and database before creating the restored handler. Its guarded

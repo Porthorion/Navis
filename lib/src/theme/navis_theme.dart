@@ -514,7 +514,9 @@ ThemeData _buildNavisTheme(
       // The FAB is the solid action too: Material's default is a container.
       backgroundColor: controlFill,
       foregroundColor: controlInk,
-      shape: shape.lgShape,
+      // Pill: a stadium is a circle on a square FAB and still fits an
+      // extended one. Soft and Square keep the large corner.
+      shape: roundedCorners ? const StadiumBorder() : shape.lgShape,
     ),
     // Fixed snackbars render no shape and floating ones Material's 4 px, so
     // Rounded stays unset; Soft and Square theme both.
