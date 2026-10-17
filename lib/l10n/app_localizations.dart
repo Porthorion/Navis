@@ -5339,6 +5339,96 @@ abstract class AppLocalizations {
   /// **'No songs need manual matching from the most recent scan.'**
   String get downloadsManualMatchingNone;
 
+  /// No description provided for @downloadsMissingCheckError.
+  ///
+  /// In en, this message translates to:
+  /// **'Couldn\'t check missing artwork and lyrics'**
+  String get downloadsMissingCheckError;
+
+  /// No description provided for @downloadsMissingTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Missing artwork and lyrics'**
+  String get downloadsMissingTitle;
+
+  /// No description provided for @downloadsMissingNone.
+  ///
+  /// In en, this message translates to:
+  /// **'Nothing missing'**
+  String get downloadsMissingNone;
+
+  /// No description provided for @downloadsMissingLyricsCount.
+  ///
+  /// In en, this message translates to:
+  /// **'{count, plural, =1{1 song without lyrics} other{{count} songs without lyrics}}'**
+  String downloadsMissingLyricsCount(int count);
+
+  /// No description provided for @downloadsMissingArtworkCount.
+  ///
+  /// In en, this message translates to:
+  /// **'{count, plural, =1{1 album without artwork} other{{count} albums without artwork}}'**
+  String downloadsMissingArtworkCount(int count);
+
+  /// No description provided for @downloadsMissingSongsTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Songs without lyrics'**
+  String get downloadsMissingSongsTitle;
+
+  /// No description provided for @downloadsMissingAlbumsTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Albums without artwork'**
+  String get downloadsMissingAlbumsTitle;
+
+  /// No description provided for @downloadsBackfillNow.
+  ///
+  /// In en, this message translates to:
+  /// **'Backfill now'**
+  String get downloadsBackfillNow;
+
+  /// No description provided for @downloadsBackfillLyrics.
+  ///
+  /// In en, this message translates to:
+  /// **'Finding lyrics'**
+  String get downloadsBackfillLyrics;
+
+  /// No description provided for @downloadsBackfillArtwork.
+  ///
+  /// In en, this message translates to:
+  /// **'Finding artwork'**
+  String get downloadsBackfillArtwork;
+
+  /// No description provided for @downloadsBackfillProgress.
+  ///
+  /// In en, this message translates to:
+  /// **'{done} of {total}'**
+  String downloadsBackfillProgress(int done, int total);
+
+  /// No description provided for @downloadsBackfillOffline.
+  ///
+  /// In en, this message translates to:
+  /// **'Offline. Connect to the server and try again.'**
+  String get downloadsBackfillOffline;
+
+  /// No description provided for @downloadsBackfillWifiOnly.
+  ///
+  /// In en, this message translates to:
+  /// **'Waiting for Wi-Fi.'**
+  String get downloadsBackfillWifiOnly;
+
+  /// No description provided for @downloadsBackfillRateLimited.
+  ///
+  /// In en, this message translates to:
+  /// **'The lyrics service is cooling down. Try again later.'**
+  String get downloadsBackfillRateLimited;
+
+  /// No description provided for @downloadsBackfillResult.
+  ///
+  /// In en, this message translates to:
+  /// **'Last run found {lyrics} lyrics and {artwork} covers.'**
+  String downloadsBackfillResult(int lyrics, int artwork);
+
   /// No description provided for @downloadsCustomFolderSelected.
   ///
   /// In en, this message translates to:

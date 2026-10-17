@@ -35,6 +35,8 @@ import 'package:navis/src/features/auth/presentation/server_config_provider.dart
 import 'package:navis/src/features/cache/data/rolling_cache_manager.dart';
 import 'package:navis/src/features/downloads/data/android_saf_storage.dart';
 import 'package:navis/src/features/downloads/data/download_service.dart';
+import 'package:navis/src/features/downloads/domain/backfill_progress.dart';
+import 'package:navis/src/features/downloads/domain/download_metadata_gaps.dart';
 import 'package:navis/src/features/downloads/data/permanent_download_path_resolver.dart';
 import 'package:navis/src/features/downloads/data/permanent_artwork_store.dart';
 import 'package:navis/src/features/downloads/domain/download_preferences.dart';
@@ -2766,6 +2768,10 @@ final permanentArtworkStoreProvider = Provider<PermanentArtworkStore>((ref) {
 final downloadServiceProvider = Provider<DownloadService>((ref) {
   final db = ref.watch(navisDatabaseProvider);
   final networkUsageMeter = ref.read(networkUsageMeterProvider);
+  final deezerDio = ref.read(externalDioFactoryProvider)(
+    IntegrationService.deezer,
+    options: DeezerApiClient.baseOptions,
+  );
   final service = DownloadService(
     appSettingsDao: db.appSettingsDao,
     cacheDao: db.cacheDao,
@@ -2783,6 +2789,16 @@ final downloadServiceProvider = Provider<DownloadService>((ref) {
         ref.read(customDownloadFolderPathProvider),
     lrclibClient: ref.read(lrclibClientProvider),
     readLyricsAllowed: () => ref.read(useLrclibProvider),
+    readDeezerArtworkAllowed: () => ref
+        .read(integrationPolicyProvider)
+        .allows(IntegrationFeature.deezerArtistImages),
+    deezerClient: ref.read(deezerApiClientProvider),
+    deezerDio: deezerDio,
+    allowsArtworkUri: (uri) => integrationAllowsArtworkUri(
+      ref.read(integrationPolicyProvider),
+      uri,
+      serverHost: ref.read(serverHostProvider),
+    ),
     readCoverArtCacheManager: () => ref.read(coverArtCacheManagerProvider),
     readProfileIdentity: () {
       final config = ref.read(serverConfigProvider).asData?.value;
@@ -2836,9 +2852,26 @@ final downloadServiceProvider = Provider<DownloadService>((ref) {
   ref.listen(customDownloadFolderPathProvider, (previous, next) {
     if (previous != next) unawaited(service.refreshDownloadFolder());
   });
-  ref.onDispose(service.dispose);
+  ref.onDispose(() {
+    deezerDio.close(force: true);
+    unawaited(service.dispose());
+  });
   return service;
 });
+
+/// File-backed metadata gaps; the Downloads UI refreshes this after a pass.
+final downloadMetadataGapsProvider =
+    FutureProvider.autoDispose<DownloadMetadataGaps>((ref) {
+      return DownloadMetadataGaps.load(
+        ref.watch(navisDatabaseProvider).cacheDao,
+        ref.watch(permanentArtworkStoreProvider),
+      );
+    });
+
+/// Current backfill phase and counts, including the service's initial snapshot.
+final downloadBackfillProgressProvider = StreamProvider<BackfillProgress>(
+  (ref) => ref.watch(downloadServiceProvider).backfillProgress,
+);
 
 /// Persistent configuration hold reported by the existing download queue owner.
 final downloadFolderProblemProvider = StreamProvider<DownloadFolderProblem?>(

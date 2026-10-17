@@ -3383,6 +3383,74 @@ class AppLocalizationsEn extends AppLocalizations {
       'No songs need manual matching from the most recent scan.';
 
   @override
+  String get downloadsMissingCheckError =>
+      'Couldn\'t check missing artwork and lyrics';
+
+  @override
+  String get downloadsMissingTitle => 'Missing artwork and lyrics';
+
+  @override
+  String get downloadsMissingNone => 'Nothing missing';
+
+  @override
+  String downloadsMissingLyricsCount(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count songs without lyrics',
+      one: '1 song without lyrics',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String downloadsMissingArtworkCount(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count albums without artwork',
+      one: '1 album without artwork',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get downloadsMissingSongsTitle => 'Songs without lyrics';
+
+  @override
+  String get downloadsMissingAlbumsTitle => 'Albums without artwork';
+
+  @override
+  String get downloadsBackfillNow => 'Backfill now';
+
+  @override
+  String get downloadsBackfillLyrics => 'Finding lyrics';
+
+  @override
+  String get downloadsBackfillArtwork => 'Finding artwork';
+
+  @override
+  String downloadsBackfillProgress(int done, int total) {
+    return '$done of $total';
+  }
+
+  @override
+  String get downloadsBackfillOffline =>
+      'Offline. Connect to the server and try again.';
+
+  @override
+  String get downloadsBackfillWifiOnly => 'Waiting for Wi-Fi.';
+
+  @override
+  String get downloadsBackfillRateLimited =>
+      'The lyrics service is cooling down. Try again later.';
+
+  @override
+  String downloadsBackfillResult(int lyrics, int artwork) {
+    return 'Last run found $lyrics lyrics and $artwork covers.';
+  }
+
+  @override
   String get downloadsCustomFolderSelected => 'Selected folder';
 
   @override

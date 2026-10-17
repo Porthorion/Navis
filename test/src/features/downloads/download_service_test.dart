@@ -44,6 +44,13 @@ class _OfflineArtworkStore extends PermanentArtworkStore {
 
   @override
   Future<bool> ensure(String? coverArtId, SubsonicApiClient api) async => false;
+  @override
+  Future<ArtworkEnsureResult> ensureWithResult(
+    String? coverArtId,
+    SubsonicApiClient api,
+  ) async => await ensure(coverArtId, api)
+      ? ArtworkEnsureResult.stored
+      : ArtworkEnsureResult.failed;
 }
 
 /// Counts [PermanentArtworkStore.ensure] calls to observe artwork backfill.
@@ -62,6 +69,14 @@ class _CountingArtworkStore extends PermanentArtworkStore {
     onEnsure?.call();
     return false;
   }
+
+  @override
+  Future<ArtworkEnsureResult> ensureWithResult(
+    String? coverArtId,
+    SubsonicApiClient api,
+  ) async => await ensure(coverArtId, api)
+      ? ArtworkEnsureResult.stored
+      : ArtworkEnsureResult.failed;
 }
 
 /// A client whose every request fails like an unreachable server; lyrics
@@ -638,7 +653,7 @@ void main() {
         expect(cached!.source, LyricsSource.lrclibSynced.name);
         expect(cached.syncedLyrics, '[00:01.00]wake me up');
         expect(cached.ttlSeconds, 31536000);
-        expect(serverCalls, isEmpty);
+        expect(serverCalls, hasLength(2));
       },
       skip: sqliteAvailable ? null : 'sqlite3 not available',
     );

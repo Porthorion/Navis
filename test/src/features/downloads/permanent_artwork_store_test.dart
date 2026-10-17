@@ -1,11 +1,14 @@
 import 'dart:io';
+import 'dart:typed_data';
 
 import 'package:dio/dio.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:navis/src/api/subsonic_api_client.dart';
 import 'package:navis/src/api/subsonic_auth_interceptor.dart';
+import 'package:navis/src/common_widgets/cover_art_cache_manager.dart';
 import 'package:navis/src/features/downloads/data/permanent_artwork_store.dart';
+import 'package:navis/src/utils/constants.dart';
 import 'package:path/path.dart' as p;
 
 class _MockDio extends Mock implements Dio;
@@ -48,6 +51,171 @@ void main() {
   PermanentArtworkStore store() => PermanentArtworkStore(
     readApplicationSupportDirectory: () async => support,
     dio: dio,
+  );
+
+  test(
+    'stores validated external bytes under server key and prunes by that key',
+    () async {
+      final artwork = store();
+      expect(await artwork.storeBytes('album', [1, 2, 3]), isFalse);
+      expect(await artwork.storeBytes('album', body), isTrue);
+      await artwork.prune(['album']);
+      expect(await store().fileFor('album'), isNotNull);
+      verifyNever(
+        () => dio.getUri<List<int>>(any(), options: any(named: 'options')),
+      );
+    },
+  );
+
+  test('only a missing response permits external fallback', () async {
+    final artwork = store();
+    body = [];
+    expect(
+      await artwork.ensureWithResult('empty', api),
+      ArtworkEnsureResult.failed,
+    );
+    when(() => dio.getUri<List<int>>(any(), options: any(named: 'options')))
+        .thenThrow(
+          DioException(
+            requestOptions: RequestOptions(),
+            response: Response<void>(
+              requestOptions: RequestOptions(),
+              statusCode: 503,
+            ),
+          ),
+        );
+    expect(
+      await artwork.ensureWithResult('transient', api),
+      ArtworkEnsureResult.failed,
+    );
+    when(() => dio.getUri<List<int>>(any(), options: any(named: 'options')))
+        .thenThrow(
+          DioException(
+            requestOptions: RequestOptions(),
+            response: Response<void>(
+              requestOptions: RequestOptions(),
+              statusCode: 404,
+            ),
+          ),
+        );
+    expect(
+      await artwork.ensureWithResult('absent', api),
+      ArtworkEnsureResult.serverMissing,
+    );
+  });
+
+  test(
+    'Subsonic missing-cover envelopes allow fallback but auth errors do not',
+    () async {
+      final artwork = store();
+      body = '{"subsonic-response":{"status":"failed","error":{"code":70}}}'
+          .codeUnits;
+      expect(
+        await artwork.ensureWithResult('missing-envelope', api),
+        ArtworkEnsureResult.serverMissing,
+      );
+      body = '<subsonic-response status="failed"><error code="40"/></subsonic-response>'
+          .codeUnits;
+      expect(
+        await artwork.ensureWithResult('auth-envelope', api),
+        ArtworkEnsureResult.failed,
+      );
+    },
+  );
+
+  test(
+    'probed Navidrome placeholder permits fallback without storing it',
+    () async {
+      body = await File('test/fixtures/navidrome_missing_cover.webp')
+          .readAsBytes();
+      final artwork = store();
+      expect(
+        await artwork.ensureWithResult('placeholder', api),
+        ArtworkEnsureResult.serverMissing,
+      );
+      expect(await artwork.fileFor('placeholder'), isNull);
+    },
+  );
+
+  for (final status in [401, 403, 404, 410, 500, 503]) {
+    test(
+      'HTTP $status classifies absence separately from access failures',
+      () async {
+        when(() => dio.getUri<List<int>>(any(), options: any(named: 'options')))
+            .thenThrow(
+              DioException(
+                requestOptions: RequestOptions(),
+                response: Response<List<int>>(
+                  requestOptions: RequestOptions(),
+                  statusCode: status,
+                  data: 'error code: 1010'.codeUnits,
+                ),
+              ),
+            );
+        expect(
+          await store().ensureWithResult('cover', api),
+          status == 404 || status == 410
+              ? ArtworkEnsureResult.serverMissing
+              : ArtworkEnsureResult.failed,
+        );
+      },
+    );
+  }
+
+  for (final document in [
+    '<subsonic-response status="failed"><error code="70"/></subsonic-response>',
+    '{"subsonic-response":{"status":"failed","error":{"code":70}}}',
+  ]) {
+    test(
+      'missing-cover protocol document is a definitive miss: $document',
+      () async {
+        body = document.codeUnits;
+        expect(
+          await store().ensureWithResult('missing', api),
+          ArtworkEnsureResult.serverMissing,
+        );
+      },
+    );
+  }
+
+  test(
+    'rejects oversized external bytes even for an already stored key',
+    () async {
+      final artwork = store();
+      expect(await artwork.storeBytes('existing', body), isTrue);
+      final oversized = Uint8List(kMaxArtworkResponseBytes + 1)
+        ..setAll(0, body);
+      expect(await artwork.storeBytes('oversized', oversized), isFalse);
+      expect(await artwork.storeBytes('existing', oversized), isFalse);
+      expect(await artwork.fileFor('oversized'), isNull);
+      expect(await (await artwork.fileFor('existing'))!.readAsBytes(), body);
+    },
+  );
+
+  test('server writes enforce the shared artwork byte cap', () async {
+    body = Uint8List(kMaxArtworkResponseBytes + 1)..setAll(0, body);
+    final artwork = store();
+    expect(
+      await artwork.ensureWithResult('oversized', api),
+      ArtworkEnsureResult.failed,
+    );
+    expect(await artwork.fileFor('oversized'), isNull);
+  });
+
+  test(
+    'server artwork requests use the app identity from the live probe',
+    () async {
+      await store().ensureWithResult('cover', api);
+      final options =
+          verify(
+                () => dio.getUri<List<int>>(
+                  any(),
+                  options: captureAny(named: 'options'),
+                ),
+              ).captured.single
+              as Options;
+      expect(options.headers?['User-Agent'], AppConstants.userAgent);
+    },
   );
 
   test('stores a cover once, named for its image type', () async {
