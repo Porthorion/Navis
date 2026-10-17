@@ -170,6 +170,18 @@ const List<ChangelogVersion> changelogs = [
         type: ChangelogEntryType.fix,
       ),
       ChangelogEntry(
+        'A playlist that lives only on this device can now be saved on the server: Edit Playlist has a Save on Server switch, preserves edits made during the upload, and reports how many songs the server accepted; admins get the same switch for device radio stations, uncertain uploads keep the device copy until the server result is identified, saving a kept playlist again updates the same server copy, and station edits made during upload stay on the device',
+        type: ChangelogEntryType.newFeature,
+      ),
+      ChangelogEntry(
+        'Downloaded lyrics backfill paces LRCLIB requests and resumes after '
+        'cooldowns with a live countdown while artwork keeps downloading. '
+        'Missing metadata retries automatically at startup, on app resume, '
+        'after library sync and on reconnect; repeat checks reuse verified '
+        'covers and skip recent lyrics misses',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
         'Turning shuffle on mid-queue now puts the current song first and shuffles every other song, including played songs, without restarting playback; turning it off restores the original order',
         type: ChangelogEntryType.fix,
       ),

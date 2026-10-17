@@ -116,6 +116,8 @@ _MockLrclibClient _answeringLrclib() {
     () => lrclib.searchLyrics(
       artist: any(named: 'artist'),
       title: any(named: 'title'),
+      background: any(named: 'background'),
+      cancelToken: any(named: 'cancelToken'),
     ),
   ).thenAnswer(
     (invocation) async => <LrclibLyrics>[
@@ -133,6 +135,8 @@ _MockLrclibClient _answeringLrclib() {
       title: any(named: 'title'),
       album: any(named: 'album'),
       duration: any(named: 'duration'),
+      background: any(named: 'background'),
+      cancelToken: any(named: 'cancelToken'),
     ),
   ).thenAnswer((_) async => null);
   return lrclib;
@@ -547,6 +551,8 @@ void main() {
           () => lrclib.searchLyrics(
             artist: any(named: 'artist'),
             title: any(named: 'title'),
+            background: any(named: 'background'),
+            cancelToken: any(named: 'cancelToken'),
           ),
         ).thenAnswer(
           (_) async => const <LrclibLyrics>[
@@ -564,6 +570,8 @@ void main() {
             title: any(named: 'title'),
             album: any(named: 'album'),
             duration: any(named: 'duration'),
+            background: any(named: 'background'),
+            cancelToken: any(named: 'cancelToken'),
           ),
         ).thenAnswer((_) async => null);
         final dio = Dio(BaseOptions(baseUrl: 'https://example.com'));
@@ -852,6 +860,8 @@ void main() {
         () => lrclib.searchLyrics(
           artist: any(named: 'artist'),
           title: any(named: 'title'),
+          background: any(named: 'background'),
+          cancelToken: any(named: 'cancelToken'),
         ),
       );
       verifyNever(
@@ -860,6 +870,8 @@ void main() {
           title: any(named: 'title'),
           album: any(named: 'album'),
           duration: any(named: 'duration'),
+          background: any(named: 'background'),
+          cancelToken: any(named: 'cancelToken'),
         ),
       );
     }, skip: sqliteAvailable ? null : 'sqlite3 not available');
@@ -902,6 +914,8 @@ void main() {
           () => lrclib.searchLyrics(
             artist: any(named: 'artist'),
             title: any(named: 'title'),
+            background: any(named: 'background'),
+            cancelToken: any(named: 'cancelToken'),
           ),
         );
       },
@@ -1013,6 +1027,8 @@ void main() {
         () => lrclib.searchLyrics(
           artist: any(named: 'artist'),
           title: any(named: 'title'),
+          background: any(named: 'background'),
+          cancelToken: any(named: 'cancelToken'),
         ),
       ).called(1);
     }, skip: sqliteAvailable ? null : 'sqlite3 not available');
@@ -1030,6 +1046,8 @@ void main() {
           () => lrclib.searchLyrics(
             artist: any(named: 'artist'),
             title: any(named: 'title'),
+            background: any(named: 'background'),
+            cancelToken: any(named: 'cancelToken'),
           ),
         ).thenAnswer((_) async {
           if (failure == 'LRCLIB transport') {
@@ -1046,6 +1064,8 @@ void main() {
             title: any(named: 'title'),
             album: any(named: 'album'),
             duration: any(named: 'duration'),
+            background: any(named: 'background'),
+            cancelToken: any(named: 'cancelToken'),
           ),
         ).thenAnswer((_) async => null);
         final api = _MockSubsonicApiClient();
@@ -1187,6 +1207,8 @@ void main() {
           () => lrclib.searchLyrics(
             artist: any(named: 'artist'),
             title: any(named: 'title'),
+            background: any(named: 'background'),
+            cancelToken: any(named: 'cancelToken'),
           ),
         ).thenAnswer((invocation) async {
           if (invocation.namedArguments[#title] == 'No Lyrics') searches++;
@@ -1198,6 +1220,8 @@ void main() {
             title: any(named: 'title'),
             album: any(named: 'album'),
             duration: any(named: 'duration'),
+            background: any(named: 'background'),
+            cancelToken: any(named: 'cancelToken'),
           ),
         ).thenAnswer((_) async => null);
         final api = _lyriclessApiClient();
@@ -1283,6 +1307,8 @@ void main() {
           () => lrclib.searchLyrics(
             artist: any(named: 'artist'),
             title: any(named: 'title'),
+            background: any(named: 'background'),
+            cancelToken: any(named: 'cancelToken'),
           ),
         ).thenAnswer((invocation) async {
           searches++;
@@ -1302,6 +1328,8 @@ void main() {
             title: any(named: 'title'),
             album: any(named: 'album'),
             duration: any(named: 'duration'),
+            background: any(named: 'background'),
+            cancelToken: any(named: 'cancelToken'),
           ),
         ).thenAnswer((_) async => null);
         final service = DownloadService(
@@ -1394,6 +1422,8 @@ void main() {
               () => lrclib.searchLyrics(
                 artist: any(named: 'artist'),
                 title: any(named: 'title'),
+                background: any(named: 'background'),
+                cancelToken: any(named: 'cancelToken'),
               ),
             );
           }
@@ -1431,6 +1461,8 @@ void main() {
               () => lrclib.searchLyrics(
                 artist: any(named: 'artist'),
                 title: any(named: 'title'),
+                background: any(named: 'background'),
+                cancelToken: any(named: 'cancelToken'),
               ),
             ).thenAnswer((invocation) async {
               requested();
@@ -1543,6 +1575,8 @@ void main() {
         () => lrclib.searchLyrics(
           artist: any(named: 'artist'),
           title: any(named: 'title'),
+          background: any(named: 'background'),
+          cancelToken: any(named: 'cancelToken'),
         ),
       );
       expect(

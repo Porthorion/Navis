@@ -1,4 +1,5 @@
 import 'package:navis/src/api/models/internet_radio_station.dart';
+import 'package:navis/src/api/server_create_recovery.dart';
 import 'package:navis/src/api/subsonic_api_client.dart';
 import 'package:navis/src/database/daos/local_radio_station_dao.dart';
 
@@ -9,13 +10,18 @@ class RadioStationActions {
     required this._onServerChanged,
   });
 
+  final _createRecovery = ServerCreateRecovery<InternetRadioStation>();
+
   final LocalRadioStationDao _localStations;
   final SubsonicApiClient? _api;
   final void Function() _onServerChanged;
 
-  Future<void> save({
+  /// Saves a station. [moveToServer] uploads the device station [existing]:
+  /// the device row is deleted only after a successful create if unchanged.
+  Future<({bool deviceCopyKept})> save({
     InternetRadioStation? existing,
     required bool isLocal,
+    bool moveToServer = false,
     required String name,
     required String streamUrl,
     String? homePageUrl,
@@ -29,17 +35,50 @@ class RadioStationActions {
     final validatedHomepage = homepage == null || homepage.isEmpty
         ? null
         : _validateUrl(homepage, 'homePageUrl');
-    if (isLocal) {
+    if (isLocal && !moveToServer) {
       await _localStations.upsert(
         id: existing?.id,
         name: trimmedName,
         streamUrl: stream,
         homePageUrl: validatedHomepage,
       );
-      return;
+      return (deviceCopyKept: false);
     }
+    var deviceCopyKept = false;
     final api = _requireApi();
-    if (existing == null) {
+    if (moveToServer && existing != null) {
+      final resolved = await _createRecovery.run(
+        existing.id,
+        snapshot: existing,
+        name: trimmedName,
+        list: () async => [
+          for (final row in await api.getInternetRadioStations())
+            (id: row.id, name: row.name),
+        ],
+        create: () async {
+          await api.createInternetRadioStation(
+            name: trimmedName,
+            streamUrl: stream,
+            homepageUrl: validatedHomepage,
+          );
+          return null;
+        },
+      );
+      deviceCopyKept = await _localStations.transaction(() async {
+        final rows = await _localStations.watchAll().first;
+        final current = rows.where((row) => row.id == existing.id).firstOrNull;
+        final snapshot = resolved.snapshot;
+        if (current != null &&
+            (current.name != snapshot.name ||
+                current.streamUrl != snapshot.streamUrl ||
+                current.homePageUrl != snapshot.homePageUrl)) {
+          return true;
+        }
+        await _localStations.deleteStation(existing.id);
+        return false;
+      });
+      if (!deviceCopyKept) _createRecovery.complete(existing.id);
+    } else if (existing == null) {
       await api.createInternetRadioStation(
         name: trimmedName,
         streamUrl: stream,
@@ -54,6 +93,7 @@ class RadioStationActions {
       );
     }
     _onServerChanged();
+    return (deviceCopyKept: deviceCopyKept);
   }
 
   Future<void> delete(

@@ -1,7 +1,7 @@
 import 'package:dio/dio.dart';
 import 'package:navis/src/utils/constants.dart';
 
-import 'package:navis/src/api/deezer_request_limiter.dart';
+import 'package:navis/src/api/request_limiter.dart';
 import 'package:navis/src/api/models/deezer_models.dart';
 
 export 'package:navis/src/api/models/deezer_models.dart';
@@ -30,7 +30,7 @@ class DeezerApiException implements Exception {
 ///
 /// Production code passes a `dio` from `externalDioFactoryProvider`, built
 /// with [baseOptions], so the integration guard and call recorder apply.
-/// Every request goes through one [DeezerRequestLimiter] (5 per second, 4 in
+/// Every request goes through one [RequestLimiter] (5 per second, 4 in
 /// flight); a `background` request (Home's warm-up) waits while any foreground
 /// one is waiting and starts at most 2 per second. Errors arrive in the body
 /// of an HTTP 200 response: code 4 (quota) pauses the shared limiter starting
@@ -44,8 +44,8 @@ class DeezerApiException implements Exception {
 /// failures, including a request the integration guard refused, throw
 /// [DioException].
 class DeezerApiClient {
-  new({required this._dio, DeezerRequestLimiter? limiter})
-    : _limiter = limiter ?? DeezerRequestLimiter();
+  new({required this._dio, RequestLimiter? limiter})
+    : _limiter = limiter ?? RequestLimiter();
 
   static final baseOptions = BaseOptions(
     baseUrl: 'https://api.deezer.com/',
@@ -65,7 +65,7 @@ class DeezerApiClient {
   static const int backgroundQuotaRetries = 1;
 
   final Dio _dio;
-  final DeezerRequestLimiter _limiter;
+  final RequestLimiter _limiter;
   int _consecutiveQuotaHits = 0;
   Duration _quotaPausedUntil = Duration.zero;
 
