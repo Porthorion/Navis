@@ -166,7 +166,7 @@ const List<ChangelogVersion> changelogs = [
     ],
     entries: [
       ChangelogEntry(
-        'Lyrics now prefer the server, with LRCLIB used for a synced upgrade',
+        'Lyrics now prefer the server, with LRCLIB used for a synced upgrade; downloaded albums can recover missing server covers from a confident Deezer match when its artwork integration is enabled',
         type: ChangelogEntryType.fix,
       ),
       ChangelogEntry(

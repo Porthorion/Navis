@@ -50,6 +50,76 @@ void main() {
     dio: dio,
   );
 
+  test(
+    'stores validated external bytes under server key and prunes by that key',
+    () async {
+      final artwork = store();
+      expect(await artwork.storeBytes('album', [1, 2, 3]), isFalse);
+      expect(await artwork.storeBytes('album', body), isTrue);
+      await artwork.prune(['album']);
+      expect(await store().fileFor('album'), isNotNull);
+      verifyNever(
+        () => dio.getUri<List<int>>(any(), options: any(named: 'options')),
+      );
+    },
+  );
+
+  test('only a missing response permits external fallback', () async {
+    final artwork = store();
+    body = [];
+    expect(
+      await artwork.ensureWithResult('empty', api),
+      ArtworkEnsureResult.serverMissing,
+    );
+    when(() => dio.getUri<List<int>>(any(), options: any(named: 'options')))
+        .thenThrow(
+          DioException(
+            requestOptions: RequestOptions(),
+            response: Response<void>(
+              requestOptions: RequestOptions(),
+              statusCode: 503,
+            ),
+          ),
+        );
+    expect(
+      await artwork.ensureWithResult('transient', api),
+      ArtworkEnsureResult.failed,
+    );
+    when(() => dio.getUri<List<int>>(any(), options: any(named: 'options')))
+        .thenThrow(
+          DioException(
+            requestOptions: RequestOptions(),
+            response: Response<void>(
+              requestOptions: RequestOptions(),
+              statusCode: 404,
+            ),
+          ),
+        );
+    expect(
+      await artwork.ensureWithResult('absent', api),
+      ArtworkEnsureResult.serverMissing,
+    );
+  });
+
+  test(
+    'Subsonic missing-cover envelopes allow fallback but auth errors do not',
+    () async {
+      final artwork = store();
+      body = '{"subsonic-response":{"status":"failed","error":{"code":70}}}'
+          .codeUnits;
+      expect(
+        await artwork.ensureWithResult('missing-envelope', api),
+        ArtworkEnsureResult.serverMissing,
+      );
+      body = '<subsonic-response status="failed"><error code="40"/></subsonic-response>'
+          .codeUnits;
+      expect(
+        await artwork.ensureWithResult('auth-envelope', api),
+        ArtworkEnsureResult.failed,
+      );
+    },
+  );
+
   test('stores a cover once, named for its image type', () async {
     final artwork = store();
     expect(await artwork.ensure('al-1/x', api), isTrue);

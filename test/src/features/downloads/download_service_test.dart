@@ -44,6 +44,13 @@ class _OfflineArtworkStore extends PermanentArtworkStore {
 
   @override
   Future<bool> ensure(String? coverArtId, SubsonicApiClient api) async => false;
+  @override
+  Future<ArtworkEnsureResult> ensureWithResult(
+    String? coverArtId,
+    SubsonicApiClient api,
+  ) async => await ensure(coverArtId, api)
+      ? ArtworkEnsureResult.stored
+      : ArtworkEnsureResult.serverMissing;
 }
 
 /// Counts [PermanentArtworkStore.ensure] calls to observe artwork backfill.
@@ -62,6 +69,14 @@ class _CountingArtworkStore extends PermanentArtworkStore {
     onEnsure?.call();
     return false;
   }
+
+  @override
+  Future<ArtworkEnsureResult> ensureWithResult(
+    String? coverArtId,
+    SubsonicApiClient api,
+  ) async => await ensure(coverArtId, api)
+      ? ArtworkEnsureResult.stored
+      : ArtworkEnsureResult.serverMissing;
 }
 
 /// A client whose every request fails like an unreachable server; lyrics

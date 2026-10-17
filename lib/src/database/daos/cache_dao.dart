@@ -7,6 +7,18 @@ import 'package:path/path.dart' as p;
 
 part 'cache_dao.g.dart';
 
+/// Metadata for one permanent download whose library row still exists.
+typedef DownloadMetadataGap = ({
+  String songId,
+  String title,
+  String? artist,
+  String? album,
+  String? albumId,
+  String? coverArt,
+  bool hasSyncedLyrics,
+  bool hasPlainLyrics,
+});
+
 @DriftAccessor(tables: [CachedTracksTable, ListenBrainzWeeklyCacheTable])
 class CacheDao extends DatabaseAccessor<NavisDatabase>
     with NavisDaoTransactions, _$CacheDaoMixin {
@@ -141,6 +153,44 @@ class CacheDao extends DatabaseAccessor<NavisDatabase>
       ..addColumns([cachedTracksTable.songId]);
     final rows = await query.get();
     return rows.map((r) => r.read(cachedTracksTable.songId)!).toSet();
+  }
+
+  /// Reads download metadata and non-empty lyrics presence in one query.
+  Future<List<DownloadMetadataGap>> getPermanentDownloadMetadata() async {
+    final rows = await customSelect(
+      '''
+         SELECT s.id AS song_id, s.title, s.artist_name, s.album_name,
+                s.album_id, s.cover_art,
+                l.synced_lyrics, l.plain_lyrics
+         FROM cached_tracks c
+         JOIN songs s ON s.id = c.song_id
+         LEFT JOIN external_lyrics_cache l ON l.song_id = s.id
+         WHERE c.cache_type = ?''',
+      variables: [Variable.withString(CacheType.permanent.name)],
+      readsFrom: {
+        cachedTracksTable,
+        attachedDatabase.songsTable,
+        attachedDatabase.externalLyricsCacheTable,
+      },
+    ).get();
+    return rows
+        .map(
+          (row) => (
+            songId: row.read<String>('song_id'),
+            title: row.read<String>('title'),
+            artist: row.readNullable<String>('artist_name'),
+            album: row.readNullable<String>('album_name'),
+            albumId: row.readNullable<String>('album_id'),
+            coverArt: row.readNullable<String>('cover_art'),
+            hasSyncedLyrics:
+                row.readNullable<String>('synced_lyrics')?.trim().isNotEmpty ??
+                false,
+            hasPlainLyrics:
+                row.readNullable<String>('plain_lyrics')?.trim().isNotEmpty ??
+                false,
+          ),
+        )
+        .toList(growable: false);
   }
 
   /// Get all permanent cache entries (for stale-file pruning).

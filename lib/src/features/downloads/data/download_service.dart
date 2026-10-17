@@ -9,6 +9,11 @@ import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart' show visibleForTesting;
 import 'package:drift/drift.dart';
 import 'package:navis/src/api/lrclib_client.dart';
+import 'package:navis/src/api/deezer_api_client.dart';
+import 'package:navis/src/api/models/models.dart';
+import 'package:navis/src/features/library/data/local_track_matcher.dart';
+import 'package:navis/src/features/downloads/domain/backfill_progress.dart';
+import 'package:navis/src/utils/metadata_normalization.dart';
 import 'package:navis/src/api/subsonic_api_client.dart';
 import 'package:navis/src/common_widgets/cover_art_cache_manager.dart';
 import 'package:navis/src/database/daos/app_settings_dao.dart';
@@ -58,8 +63,7 @@ class _RecoveryCancelled implements Exception {
 }
 
 /// Re-arm state of a startup backfill: at most one pass runs at a time
-/// (tracked in [inFlight]) and a completed pass never runs again in this
-/// service's lifetime ([done]).
+/// (tracked in [inFlight]); [done] prevents automatic repeats until a manual run.
 class _BackfillGate {
   bool done = false;
   Future<void>? inFlight;
@@ -101,6 +105,10 @@ class DownloadService {
     required this._lrclibClient,
     required this._readCoverArtCacheManager,
     bool Function()? readLyricsAllowed,
+    bool Function()? readDeezerArtworkAllowed,
+    this._deezerClient,
+    this._deezerDio,
+    bool Function(Uri)? allowsArtworkUri,
     String? Function()? readProfileIdentity,
     AppLocalizations Function()? readLocalizations,
     this._reportNetworkUsage,
@@ -119,6 +127,8 @@ class DownloadService {
        _readCustomDownloadFolderEnabled = readCustomDownloadFolderEnabled,
        _readCustomDownloadFolderPath = readCustomDownloadFolderPath,
        _readLyricsAllowed = readLyricsAllowed ?? (() => true),
+       _readDeezerArtworkAllowed = readDeezerArtworkAllowed ?? (() => false),
+       _allowsArtworkUri = allowsArtworkUri ?? ((_) => false),
        _readLocalizations =
            readLocalizations ?? (() => resolveNotificationLocalizations(null)),
        _dio = dio ?? Dio(),
@@ -163,6 +173,10 @@ class DownloadService {
 
   /// Whether lyrics prefetch may use LRCLIB, per the integration policy.
   final bool Function() _readLyricsAllowed;
+  final bool Function() _readDeezerArtworkAllowed;
+  final bool Function(Uri) _allowsArtworkUri;
+  final DeezerApiClient? _deezerClient;
+  final Dio? _deezerDio;
   final BaseCacheManager Function() _readCoverArtCacheManager;
   final NetworkUsageReporter? _reportNetworkUsage;
   final Dio _dio;
@@ -453,6 +467,7 @@ class DownloadService {
     await stopAndWait();
     await _folderChanges.close();
     await _folderNotices.close();
+    await _backfillChanges.close();
   }
 
   StreamSubscription<List<DownloadQueueTableData>>? _queueSubscription;
@@ -971,22 +986,129 @@ class DownloadService {
   final _BackfillGate _lyricsBackfillGate = _BackfillGate();
   final _BackfillGate _artworkBackfillGate = _BackfillGate();
 
-  /// Starts each backfill that has not completed and is not running. A pass
-  /// that returns false (gated or stopped) is retried on the next call.
-  void _pumpBackfills() {
-    if (_stopped) return;
-    _pumpBackfill(_lyricsBackfillGate, _backfillLyricsForDownloadedSongs);
-    _pumpBackfill(_artworkBackfillGate, _backfillArtworkForDownloadedSongs);
+  final _backfillChanges = StreamController<BackfillProgress>.broadcast();
+  BackfillProgress _backfillProgress = const BackfillProgress();
+  Future<void>? _automaticBackfillRun;
+  Future<void>? _manualBackfillRun;
+
+  /// The latest snapshot, including final counts while idle.
+  BackfillProgress get currentBackfillProgress => _backfillProgress;
+
+  /// Broadcast snapshots, with the current value seeded after subscribing.
+  Stream<BackfillProgress> get backfillProgress => Stream.multi((sink) {
+    final subscription = _backfillChanges.stream.listen(
+      sink.add,
+      onDone: sink.close,
+    );
+    sink.add(_backfillProgress);
+    sink.onCancel = subscription.cancel;
+  }, isBroadcast: true);
+
+  void _emitBackfill({
+    BackfillPhase? phase,
+    int? done,
+    int? total,
+    BackfillBlockedReason? blockedReason,
+    BackfillResult? lastResult,
+  }) {
+    _backfillProgress = BackfillProgress(
+      phase: phase ?? _backfillProgress.phase,
+      done: done ?? _backfillProgress.done,
+      total: total ?? _backfillProgress.total,
+      blockedReason: blockedReason ?? _backfillProgress.blockedReason,
+      lastResult: lastResult ?? _backfillProgress.lastResult,
+    );
+    if (!_backfillChanges.isClosed) _backfillChanges.add(_backfillProgress);
   }
 
-  void _pumpBackfill(_BackfillGate gate, Future<bool> Function() pass) {
-    if (gate.done || gate.inFlight != null) return;
+  bool _backfillReady() {
+    if (_stopped) return false;
+    if (_readApiClient() == null || !_readIsOnline()) {
+      _emitBackfill(blockedReason: BackfillBlockedReason.offline);
+      return false;
+    }
+    if (!_backfillNetworkAllowed()) {
+      _emitBackfill(blockedReason: BackfillBlockedReason.wifiOnly);
+      return false;
+    }
+    return true;
+  }
+
+  /// Runs a fresh lyrics and artwork pass, sharing concurrent manual calls.
+  ///
+  /// Automatic work drains first; force bypasses only the lyrics miss backoff.
+  Future<void> runBackfillNow() {
+    if (_manualBackfillRun case final run?) return run;
+    final run = _manualBackfillRun =
+        () async {
+          await _automaticBackfillRun;
+          await _runBackfillPasses(force: true);
+        }().whenComplete(() {
+          _manualBackfillRun = null;
+        });
+    _trackBackgroundTask(run);
+    return run;
+  }
+
+  /// A blocked automatic pass re-arms from the existing queue pump.
+  void _pumpBackfills() {
+    if (_stopped ||
+        _manualBackfillRun != null ||
+        _automaticBackfillRun != null ||
+        (_lyricsBackfillGate.done && _artworkBackfillGate.done)) {
+      return;
+    }
+    final run = _automaticBackfillRun = _runBackfillPasses(force: false)
+        .whenComplete(() {
+          _automaticBackfillRun = null;
+        });
+    _trackBackgroundTask(run);
+  }
+
+  Future<void> _runBackfillPasses({required bool force}) async {
+    _emitBackfill(
+      done: 0,
+      total: 0,
+      blockedReason: BackfillBlockedReason.none,
+      lastResult: (lyricsResolved: 0, artworkStored: 0),
+    );
+    try {
+      await _pumpBackfill(
+        _lyricsBackfillGate,
+        () => _backfillLyricsForDownloadedSongs(force: force),
+        force: force,
+      );
+      if (!_stopped) {
+        await _pumpBackfill(
+          _artworkBackfillGate,
+          _backfillArtworkForDownloadedSongs,
+          force: force,
+        );
+      }
+    } on Object catch (error) {
+      AppLogger.warning(
+        'DownloadService: backfill failed: ${error.runtimeType}',
+      );
+    } finally {
+      _emitBackfill(phase: BackfillPhase.idle);
+    }
+  }
+
+  Future<void> _pumpBackfill(
+    _BackfillGate gate,
+    Future<bool> Function() pass, {
+    required bool force,
+  }) async {
+    await gate.inFlight;
+    if (gate.done && !force) return;
     gate.inFlight = pass()
         .then((completed) {
           gate.done = completed;
         })
-        .whenComplete(() => gate.inFlight = null);
-    _trackBackgroundTask(gate.inFlight!);
+        .whenComplete(() {
+          gate.inFlight = null;
+        });
+    await gate.inFlight;
   }
 
   Future<void> _waitForIdle() async {
@@ -2500,116 +2622,201 @@ class DownloadService {
   /// have lyrics or whose empty lookup is less than a week old, and
   /// throttles requests to avoid hammering the server or LrcLib. Never
   /// throws. Returns whether the pass completed.
-  Future<bool> _backfillLyricsForDownloadedSongs() async {
+  Future<bool> _backfillLyricsForDownloadedSongs({required bool force}) async {
+    _emitBackfill(phase: BackfillPhase.lyrics, done: 0, total: 0);
     try {
-      if (_stopped) {
-        return false;
-      }
-
-      final api = _readApiClient();
-      if (api == null || !_backfillNetworkAllowed()) {
-        AppLogger.debug(
-          'DownloadService: Lyrics backfill deferred — no server connection '
-          'or network not allowed.',
-        );
-        return false;
-      }
-
+      if (!_backfillReady()) return false;
+      final api = _readApiClient()!;
       final permanentIds = await _cacheDao.getPermanentlyCachedSongIds();
-      if (permanentIds.isEmpty) return true;
-
       final songs = await _libraryDao.getSongsByIds(permanentIds);
-      if (songs.isEmpty) return true;
-
-      AppLogger.info(
-        'DownloadService: Lyrics backfill — checking ${songs.length} downloaded songs.',
-      );
-
+      _emitBackfill(total: songs.length);
       for (final song in songs) {
-        if (_stopped) {
-          return false;
-        }
         await _waitForPlaybackHold();
-        if (!_backfillNetworkAllowed()) return false;
-        final existing = await _libraryDao.getExternalLyricsCache(song.id);
-        if (existing != null && existing.syncedLyrics != null) {
-          // Already have synced lyrics — best possible quality, nothing to do.
-          continue;
+        if (!_backfillReady()) return false;
+        try {
+          if ((await _cacheDao.getCachedTrack(song.id))?.cacheType !=
+              CacheType.permanent) {
+            continue;
+          }
+          final existing = await _libraryDao.getExternalLyricsCache(song.id);
+          if (existing?.syncedLyrics?.trim().isNotEmpty == true) continue;
+          if (!force &&
+              existing != null &&
+              existing.failureCount > 0 &&
+              existing.lastFailedAt != null &&
+              DateTime.now().difference(existing.lastFailedAt!) <
+                  const Duration(days: 7)) {
+            continue;
+          }
+          if (!_backfillReady()) return false;
+          if (await _prefetchLyrics(song.id, song, api)) {
+            _emitBackfill(
+              lastResult: (
+                lyricsResolved: _backfillProgress.lastResult.lyricsResolved + 1,
+                artworkStored: _backfillProgress.lastResult.artworkStored,
+              ),
+            );
+          }
+          if (_readLyricsAllowed() && _lrclibClient.isRateLimited) {
+            _emitBackfill(blockedReason: BackfillBlockedReason.rateLimited);
+            return false;
+          }
+          if (!_backfillReady()) return false;
+          await Future<void>.delayed(const Duration(milliseconds: 250));
+        } finally {
+          _emitBackfill(done: _backfillProgress.done + 1);
         }
-        if (existing != null &&
-            existing.failureCount > 0 &&
-            existing.lastFailedAt != null &&
-            DateTime.now().difference(existing.lastFailedAt!) <
-                const Duration(days: 7)) {
-          // A recent empty lookup is backed off so repeated starts do not
-          // re-query songs the sources have no lyrics for.
-          continue;
-        }
-        // Songs with only plain lyrics are still processed to try to upgrade
-        // to synced lyrics.
-
-        if (!_backfillNetworkAllowed()) return false;
-        await _prefetchLyrics(song.id, song, api);
-        if (_lrclibClient.isRateLimited) {
-          AppLogger.info(
-            'DownloadService: Lyrics backfill paused for LRCLIB cooldown.',
-          );
-          return false;
-        }
-
-        if (_stopped) {
-          return false;
-        }
-
-        // Throttle to avoid hammering the server or LrcLib.
-        await Future<void>.delayed(const Duration(milliseconds: 250));
       }
-
-      AppLogger.info('DownloadService: Lyrics backfill complete.');
       return true;
-    } on Object catch (e) {
-      AppLogger.warning('DownloadService: Lyrics backfill error: $e');
+    } on Object catch (error) {
+      AppLogger.warning(
+        'DownloadService: Lyrics backfill error: ${error.runtimeType}',
+      );
       return false;
     }
   }
 
-  /// Stores the cover art of permanent downloads that have none yet
-  /// (downloads from before the artwork store, and adopted files), then
-  /// deletes stored covers no download uses. Gated, paused and re-armed like
-  /// the lyrics backfill: any connection unless the user restricted
-  /// downloads to Wi-Fi, never during a stream load's playback hold, and
-  /// retried from [processQueuedDownloads] when a pass was blocked.
-  /// Never throws. Returns whether the pass completed.
+  /// Keeps server-keyed artwork for downloaded albums, with a policy-gated
+  /// Deezer fallback only after a definitive server miss.
   Future<bool> _backfillArtworkForDownloadedSongs() async {
+    _emitBackfill(phase: BackfillPhase.artwork, done: 0, total: 0);
     try {
       final referenced = await _downloadCoverArtIds();
       if (referenced != null) await _artworkStore.prune(referenced);
+      if (!_backfillReady()) return false;
+      final api = _readApiClient()!;
       final permanentIds = await _cacheDao.getPermanentlyCachedSongIds();
-      final coverArtIds = <String>{
-        for (final song in await _libraryDao.getSongsByIds(permanentIds))
-          if (song.coverArt?.trim() case final id? when id.isNotEmpty) id,
-      };
-      final api = _readApiClient();
-      if (api == null || !_backfillNetworkAllowed()) return false;
-      var stored = 0;
-      for (final id in coverArtIds) {
-        if (_stopped) return false;
+      final covers = <String, SongsTableData>{};
+      for (final song in await _libraryDao.getSongsByIds(permanentIds)) {
+        if (song.coverArt?.trim() case final id? when id.isNotEmpty) {
+          covers.putIfAbsent(id, () => song);
+        }
+        // ponytail: servers without cover IDs need a synthetic key and display lookup before fallback can help them.
+      }
+      _emitBackfill(total: covers.length);
+      for (final MapEntry(key: id, value: song) in covers.entries) {
         await _waitForPlaybackHold();
-        if (!_backfillNetworkAllowed()) return false;
-        if (await _artworkStore.fileFor(id) != null) continue;
-        if (!_backfillNetworkAllowed()) return false;
-        if (await _artworkStore.ensure(id, api)) stored++;
-        // Throttle to avoid hammering the server.
-        await Future<void>.delayed(const Duration(milliseconds: 100));
+        if (!_backfillReady()) return false;
+        try {
+          if (await _artworkStore.fileFor(id) != null) continue;
+          if ((await _cacheDao.getCachedTrack(song.id))?.cacheType !=
+              CacheType.permanent) {
+            continue;
+          }
+          if (!_backfillReady()) return false;
+          final result = await _artworkStore.ensureWithResult(id, api);
+          final stored =
+              result == ArtworkEnsureResult.stored ||
+              (result == ArtworkEnsureResult.serverMissing &&
+                  await _backfillDeezerArtwork(id, song));
+          if (!_backfillReady()) return false;
+          if (stored) {
+            _emitBackfill(
+              lastResult: (
+                lyricsResolved: _backfillProgress.lastResult.lyricsResolved,
+                artworkStored: _backfillProgress.lastResult.artworkStored + 1,
+              ),
+            );
+          }
+          await Future<void>.delayed(const Duration(milliseconds: 100));
+        } finally {
+          _emitBackfill(done: _backfillProgress.done + 1);
+        }
       }
-      if (stored > 0) {
-        AppLogger.info(
-          'DownloadService: Artwork backfill stored $stored covers.',
-        );
-      }
+      final remaining = await _downloadCoverArtIds();
+      if (remaining != null) await _artworkStore.prune(remaining);
       return true;
-    } on Object catch (e) {
-      AppLogger.warning('DownloadService: Artwork backfill error: $e');
+    } on Object catch (error) {
+      AppLogger.warning(
+        'DownloadService: Artwork backfill error: ${error.runtimeType}',
+      );
+      return false;
+    }
+  }
+
+  Future<bool> _backfillDeezerArtwork(String id, SongsTableData song) async {
+    final client = _deezerClient;
+    final dio = _deezerDio;
+    final album = normalizeMetadata(song.albumName ?? '');
+    if (client == null ||
+        dio == null ||
+        !_readDeezerArtworkAllowed() ||
+        album.isEmpty) {
+      return false;
+    }
+    try {
+      await _waitForPlaybackHold();
+      if (!_backfillReady() || !_readDeezerArtworkAllowed()) return false;
+      final tracks = await client.searchTracks(
+        '${song.artistName ?? ''} ${song.albumName ?? song.title}',
+      );
+      final match = pickBestTrackMatch(
+        track: TrackMatchQuery(
+          title: song.title,
+          artist: song.artistName ?? '',
+          album: song.albumName,
+          durationSeconds: song.duration,
+        ),
+        candidates: tracks
+            .map(
+              (track) => TrackMatchCandidate.fromSong(
+                Song(
+                  id: track.id.toString(),
+                  title: track.title,
+                  artist: track.artist.name,
+                  album: track.album?.title,
+                  duration: track.durationSeconds,
+                ),
+              ),
+            )
+            .toList(growable: false),
+      );
+      if (!match.isMatched) return false;
+      final selected = tracks.firstWhere(
+        (track) => track.id.toString() == match.song!.id,
+      );
+      final matchedAlbum = normalizeMetadata(selected.album?.title ?? '');
+      if (matchedAlbum.isEmpty ||
+          trackMatchFieldScore(album, matchedAlbum) <
+              kLocalTrackMatcherMinimumFieldScore) {
+        return false;
+      }
+      final url = selected.album?.coverXl ?? selected.album?.coverBig;
+      final uri = url == null ? null : Uri.tryParse(url);
+      if (uri == null ||
+          (uri.scheme != 'https' && uri.scheme != 'http') ||
+          uri.host.isEmpty) {
+        return false;
+      }
+      await _waitForPlaybackHold();
+      if (!_backfillReady() ||
+          !_readDeezerArtworkAllowed() ||
+          !_allowsArtworkUri(uri)) {
+        return false;
+      }
+      final response = await dio.getUri<List<int>>(
+        uri,
+        options: Options(responseType: ResponseType.bytes),
+      );
+      final bytes = response.data;
+      if (bytes == null || bytes.isEmpty) return false;
+      _reportNetworkUsage?.call(
+        category: NetworkUsageCategory.coverArt,
+        bytes: bytes.length,
+      );
+      if (!_backfillReady() ||
+          !_readDeezerArtworkAllowed() ||
+          !_allowsArtworkUri(uri) ||
+          (await _cacheDao.getCachedTrack(song.id))?.cacheType !=
+              CacheType.permanent) {
+        return false;
+      }
+      // ponytail: no cover provenance is stored; replace Deezer art with newer server art only after adding provenance.
+      return await _artworkStore.storeBytes(id, bytes);
+    } on Object catch (error) {
+      AppLogger.warning(
+        'DownloadService: Deezer cover fallback failed: ${error.runtimeType}',
+      );
       return false;
     }
   }

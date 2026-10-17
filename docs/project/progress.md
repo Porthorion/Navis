@@ -14,6 +14,24 @@ Last updated: 2026-10-17
 - ACP status values: `backlog`, `ready`, `in_progress`, `blocked`, `done`.
 
 ## Current Focus
+- [x] Issue #39 backend, Parts A/B — 2026-10-17
+  (`feat/downloads-backfill-now`): lyrics resolve server first, keep server
+  plain lyrics unless LRCLIB provides synced lyrics, protect synced cache rows
+  from late plain writes, and retain plain lyrics during seven-day upgrade
+  backoff. Permanent download metadata uses one joined query and checks artwork
+  on disk per unique cover ID. Manual backfill shares concurrent calls, honours
+  network/playback/cooldown gates, and exposes seeded phase/count/blocked-reason
+  progress. Confirmed missing server covers can use a confident, policy-gated
+  Deezer match under the existing server cover key. Schema remains 104.
+  Tests first reproduced three lyrics regressions and the missing backend APIs.
+  Evidence: five focused test files passed under the shared 9G cap and lock
+  (`00:09 +200: All tests passed!`); `make gen` passed without tracked generated
+  changes; `dart analyze lib test` exited 0 with no errors or warnings (183
+  existing infos, none on changed lines); changed Dart formatting and
+  `git diff --check` passed. The real-server cover probe received HTTP 403
+  (`text/plain; charset=UTF-8`, 17 bytes), so placeholder image detection is
+  unverified. Part C UI, its l10n/widget checks, independent review, app runtime
+  validation and `tool/check.sh` remain with the coordinator per task scope.
 - [x] Issue #34, restore the queue after a rejected station start — 2026-10-17
   (`fix/dead-station-queue`): source-load exceptions bypassed terminal radio
   recovery, leaving the in-session queue empty and native play intent true.

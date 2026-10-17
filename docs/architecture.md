@@ -1941,6 +1941,36 @@ re-confirmed, like download covers. Lyrics may therefore be unavailable
 offline only until a backfill pass or an allowed on-demand lookup fetches
 them.
 
+`DownloadService.runBackfillNow()` waits for an automatic pass, then forces a
+fresh lyrics pass followed by an artwork pass; concurrent manual calls share
+one future. Force bypasses the seven-day miss/upgrade backoff, while preserving
+stop state, connectivity, Wi-Fi-only rules, playback holds and LRCLIB cooldown.
+Automatic passes use those same gates and run sequentially so progress has one
+active phase. The seeded broadcast `backfillProgress` stream and
+`currentBackfillProgress` expose `BackfillProgress`: `phase` (`idle`, `lyrics`,
+`artwork`), checked-item `done`/`total`, `blockedReason` (`none`, `offline`,
+`wifiOnly`, `rateLimited`), and `lastResult` counts (`lyricsResolved`,
+`artworkStored`) for the current/latest run. Already-present or backed-off items
+advance progress without incrementing result counts. Internal failures log
+silently; only a blocked reason is intended for UI display.
+
+Artwork backfill first uses `PermanentArtworkStore.ensureWithResult` to
+distinguish a stored/existing cover from server absence or a retryable failure.
+Empty responses, HTTP 404/410 and Subsonic missing-cover error documents allow
+fallback; transport errors, other HTTP failures and non-image payloads do not.
+Real-server placeholder bytes remain unverified: the read-only probe received
+HTTP 403, so no placeholder hashes are assumed. When the server has no cover,
+backfill searches tracks through the shared guarded `DeezerApiClient`, checks
+`pickBestTrackMatch`'s existing score/ambiguity rules, and additionally requires
+an album-field score of at least `kLocalTrackMatcherMinimumFieldScore` (0.75).
+The Deezer artwork feature and `integrationAllowsArtworkUri` must allow the
+request; bytes load through a guarded Deezer Dio and count as `coverArt` network
+usage. `storeBytes` shares the store's signature validation, part-file/rename
+and index path with server covers. Fallback files use the server cover ID, so
+all display paths find them and pruning retains them. Empty cover IDs remain
+missing; there is no synthetic display key or cover provenance. A Deezer cover
+therefore persists even if server art is added later.
+
 Apple runners remain unreleased scaffolds. Their native configuration floors
 are iOS 16 and macOS 12; Linux validation does not certify either runner. This
 upgrade reconciles Podfile/project settings without adding Apple media features.
@@ -5655,6 +5685,19 @@ download naming throws when all 100 collision candidates are occupied.
    runs on a background task queue (the platform thread is also Flutter's UI
    thread), lists a tree with one provider query per folder, and resolves the
    sidecar by path instead of listing the tree.
+   Downloads metadata inspection uses `downloadMetadataGapsProvider`
+   (`FutureProvider.autoDispose<DownloadMetadataGaps>`). Its single
+   `CacheDao.getPermanentDownloadMetadata` query joins permanent cached tracks
+   to songs and left-joins lyrics; rolling entries and orphan download IDs do
+   not appear. Any non-empty synced or plain lyrics count as present, including
+   rows carrying upgrade-failure metadata. The provider checks disk presence
+   once per unique cover ID and groups missing artwork by album identity/cover
+   ID (album/artist metadata when there is no album ID). Empty cover IDs are
+   missing too. It exposes `songsMissingLyrics`, `albumsMissingArtwork`,
+   `totalSongs` and `totalAlbums`, without requiring a server connection or a
+   schema change (schema 104). `downloadBackfillProgressProvider` exposes the
+   service's seeded progress stream. The settings UI owns invalidating the
+   gaps provider after a run completes.
    The Downloads settings page retains the latest in-process scan's unresolved
    paths behind a disabled-or-enabled **Manual Matching** entry beneath Rescan.
    Its count badge and description expose how many files still need an explicit
