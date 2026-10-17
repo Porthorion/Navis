@@ -1931,18 +1931,29 @@ class LibraryDao extends DatabaseAccessor<NavisDatabase>
     int failureCount = 0,
     DateTime? lastFailedAt,
   }) {
-    return into(externalLyricsCacheTable).insertOnConflictUpdate(
-      ExternalLyricsCacheTableCompanion.insert(
-        songId: songId,
-        source: source,
-        syncedLyrics: Value(syncedLyrics),
-        plainLyrics: Value(plainLyrics),
-        fetchedAt: DateTime.now(),
-        ttlSeconds: Value(ttlSeconds),
-        failureCount: Value(failureCount),
-        lastFailedAt: Value(lastFailedAt),
-      ),
+    final entry = ExternalLyricsCacheTableCompanion.insert(
+      songId: songId,
+      source: source,
+      syncedLyrics: Value(syncedLyrics),
+      plainLyrics: Value(plainLyrics),
+      fetchedAt: DateTime.now(),
+      ttlSeconds: Value(ttlSeconds),
+      failureCount: Value(failureCount),
+      lastFailedAt: Value(lastFailedAt),
     );
+    return into(externalLyricsCacheTable)
+        .insert(
+          entry,
+          onConflict: DoUpdate(
+            (_) => entry,
+            // A slower plain lookup must never replace a concurrent synced result.
+            where: (old) => (syncedLyrics?.trim().isNotEmpty ?? false)
+                ? const Constant(true)
+                : old.syncedLyrics.isNull() |
+                      old.syncedLyrics.trim().equals(''),
+          ),
+        )
+        .then((_) {});
   }
 
   /// One-shot fetch of the current `starred` value for a single song.

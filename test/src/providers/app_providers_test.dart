@@ -51,7 +51,10 @@ class _MockAnnotationSyncDispatcher extends Mock
 class _MockServerConfigRepository extends Mock
     implements ServerConfigRepository;
 
-class _MockLrclibClient extends Mock implements LrclibClient;
+class _MockLrclibClient extends Mock implements LrclibClient {
+  @override
+  bool get isRateLimited => false;
+}
 
 class _MockSubsonicApiClient extends Mock implements SubsonicApiClient;
 
@@ -2518,7 +2521,7 @@ void main() {
     });
   });
 
-  group('lyricsProvider LRCLIB-first resolution', () {
+  group('lyricsProvider server-first resolution', () {
     Future<NavisDatabase> createLyricsDatabase() async {
       final database = createTestDatabase();
       await database.libraryDao.upsertAlbums(<AlbumsTableCompanion>[
@@ -2631,7 +2634,7 @@ void main() {
       }
     }
 
-    test('searches LRCLIB before server when enabled', () async {
+    test('upgrades server plain lyrics with LRCLIB when enabled', () async {
       final database = await createLyricsDatabase();
       final lrclib = _MockLrclibClient();
       final api = _MockSubsonicApiClient();
@@ -2659,6 +2662,8 @@ void main() {
           duration: any(named: 'duration'),
         ),
       ).thenAnswer((_) async => null);
+      when(() => api.getLyricsBySongId('song-1'))
+          .thenAnswer((_) async => const LyricsList(value: 'server lyric'));
       final container = ProviderContainer(
         overrides: [
           navisDatabaseProvider.overrideWithValue(database),
@@ -2678,7 +2683,7 @@ void main() {
       final resolution = await container.read(lyricsProvider('song-1').future);
 
       expect(resolution.source, LyricsSource.lrclibSynced);
-      verifyNever(() => api.getLyricsBySongId(any()));
+      verify(() => api.getLyricsBySongId('song-1')).called(1);
       verify(
         () => lrclib.searchLyrics(
           artist: 'Evanescence',

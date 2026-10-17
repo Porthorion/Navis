@@ -166,6 +166,13 @@ const List<ChangelogVersion> changelogs = [
     ],
     entries: [
       ChangelogEntry(
+        'Downloads settings lists missing lyrics and artwork with live backfill progress, shows quiet loading and error states, and enables Backfill now when a server connection is configured',
+      ),
+      ChangelogEntry(
+        'Lyrics now prefer the server, with LRCLIB used for a synced upgrade and Now Playing respecting the seven-day failed-upgrade backoff; downloaded albums can recover missing server covers from a confident Deezer match when its artwork integration is enabled',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
         'Search now finds your saved playlists and radio stations, with Playlists and Radio filters that appear when your search matches them, including offline',
         type: ChangelogEntryType.newFeature,
       ),

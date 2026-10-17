@@ -14,6 +14,48 @@ Last updated: 2026-10-17
 - ACP status values: `backlog`, `ready`, `in_progress`, `blocked`, `done`.
 
 ## Current Focus
+- [x] Issue #39, review fixes round 1 — 2026-10-17
+  (`feat/downloads-backfill-now`): corrected the token-authenticated cover probe
+  with the app User-Agent. Cover-less album: HTTP 200, `image/webp`, 69,228
+  bytes, verified stock Navidrome placeholder; nonexistent ID: HTTP 200,
+  `application/json`, 185 bytes, Subsonic error 70. Exact hashes and miss/failure
+  mapping are recorded in `docs/architecture.md`; the earlier curl 403 was
+  Cloudflare error 1010. The store recognises only that verified placeholder,
+  sends the same User-Agent and reuses the existing 20 MiB artwork cap. Test
+  fakes default to failure, guarded Deezer Dio closes synchronously on disposal,
+  and the seeded progress stream consumes `currentBackfillProgress`. Now Playing
+  shares the seven-day failed-upgrade check, preserves plain lyrics/failure
+  metadata and still permits server synced lyrics; manual backfill explicitly
+  forces an upgrade. Missing metadata shows quiet loading/error rows, and the
+  button requires an API client while retaining offline retry. The DAO documents
+  its intentional orphan exclusion. Tests first reproduced 13 failures; six
+  focused files then passed under the shared 9G cap and lock
+  (`00:09 +155: All tests passed!`). `dart analyze lib test` exited 0 with
+  zero errors/warnings and 183 pre-existing infos, none on changed lines.
+  `dart run tool/dead_code_check.dart` exited 0 with no NEW/stale entries
+  (baseline: declaration=4, l10n=0, asset=1, asset-missing=0, font=0,
+  dependency=5, test-only=2). Changed Dart formatting and `git diff --check`
+  passed. No app/emulator/VM launch, runtime screenshot or `tool/check.sh` run:
+  explicitly excluded by the round-1 task; runtime/full-gate acceptance remains
+  with the coordinator.
+- [x] Issue #39 backend, Parts A/B — 2026-10-17
+  (`feat/downloads-backfill-now`): lyrics resolve server first, keep server
+  plain lyrics unless LRCLIB provides synced lyrics, protect synced cache rows
+  from late plain writes, and retain plain lyrics during seven-day upgrade
+  backoff. Permanent download metadata uses one joined query and checks artwork
+  on disk per unique cover ID. Manual backfill shares concurrent calls, honours
+  network/playback/cooldown gates, and exposes seeded phase/count/blocked-reason
+  progress. Confirmed missing server covers can use a confident, policy-gated
+  Deezer match under the existing server cover key. Schema remains 104.
+  Tests first reproduced three lyrics regressions and the missing backend APIs.
+  Evidence: five focused test files passed under the shared 9G cap and lock
+  (`00:09 +200: All tests passed!`); `make gen` passed without tracked generated
+  changes; `dart analyze lib test` exited 0 with no errors or warnings (183
+  existing infos, none on changed lines); changed Dart formatting and
+  `git diff --check` passed. The real-server cover probe received HTTP 403
+  (`text/plain; charset=UTF-8`, 17 bytes), so placeholder image detection is
+  unverified. Part C UI, its l10n/widget checks, independent review, app runtime
+  validation and `tool/check.sh` remain with the coordinator per task scope.
 - [x] Issue #38, Search finds saved playlists and radio stations — 2026-10-17
   (`feat/search-playlists-radio`): `SearchResultType` gains `playlists` and
   `radio`; `searchCollectionMatchesProvider` matches `playlistListProvider` and
