@@ -2148,6 +2148,12 @@ abstract class AppLocalizations {
   /// **'No Stations Match “{query}”'**
   String radioFilteredEmptyTitle(String query);
 
+  /// No description provided for @radioFilterHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Search stations...'**
+  String get radioFilterHint;
+
   /// No description provided for @radioFilteredEmptySubtitle.
   ///
   /// In en, this message translates to:

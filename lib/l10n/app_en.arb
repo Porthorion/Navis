@@ -613,6 +613,7 @@
       }
     }
   },
+  "radioFilterHint": "Search stations...",
   "radioFilteredEmptySubtitle": "Try a different filter, or show all stations.",
   "radioFilteredEmptyAction": "Show All Stations",
   "radioLoadErrorTitle": "Could Not Load Radio Stations",
