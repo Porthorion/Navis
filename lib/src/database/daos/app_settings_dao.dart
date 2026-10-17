@@ -730,6 +730,29 @@ class AppSettingsDao extends DatabaseAccessor<NavisDatabase>
             cornerStyle: snapshot.cornerStyle == null
                 ? const Value.absent()
                 : Value(snapshot.cornerStyle!),
+            coverArtShape: snapshot.coverArtShape == null
+                ? const Value.absent()
+                : Value(snapshot.coverArtShape!),
+            nowPlayingArtShape: snapshot.nowPlayingArtShape == null
+                ? const Value.absent()
+                : Value(snapshot.nowPlayingArtShape!),
+            artistCardShape: snapshot.artistCardShape == null
+                ? const Value.absent()
+                : Value(snapshot.artistCardShape!),
+            gridArtworkSize: snapshot.gridArtworkSize == null
+                ? const Value.absent()
+                : Value(snapshot.gridArtworkSize!),
+            albumGridDensity: snapshot.clearAlbumGridDensity
+                ? const Value(null)
+                : snapshot.albumGridDensity == null
+                ? const Value.absent()
+                : Value(snapshot.albumGridDensity),
+            homeDensity: snapshot.density == null
+                ? const Value.absent()
+                : Value(snapshot.density!),
+            artistViewMode: snapshot.artistViewMode == null
+                ? const Value.absent()
+                : Value(snapshot.artistViewMode!),
             nowPlayingBackground: snapshot.nowPlayingBackground == null
                 ? const Value.absent()
                 : Value(snapshot.nowPlayingBackground!),

@@ -412,3 +412,17 @@ Looks capture colours and style only. Density, artist list/grid view, artwork
 size, all three artwork shapes and the legacy grid-column override stay outside
 capture, comparison and application. Older version-1 JSON keys are ignored;
 no migration is required. See [the current contract](../architecture.md).
+
+### Looks capture Appearance layout again (2026-10-17)
+
+Owner decision for issue #30 supersedes **Looks leave layout preferences
+independent (2026-10-16)** above. A Look captures every Appearance setting above
+Home sections and page visibility, including all three artwork shapes, artwork
+size, density, the nullable legacy grid-column override and artist list/grid
+view. Language and custom colour swatches stay outside the snapshot, as do the
+existing content/navigation and recommendation-behaviour exclusions. Changing
+any captured field makes the Look Custom while keeping the persisted Update
+target. Version-1 JSON reads layout keys again; missing keys preserve current
+settings and act as wildcards when matching, without changing strict snapshot
+equality or migrating saved JSON. There are no built-in Looks to change. See
+[the current contract](../architecture.md).

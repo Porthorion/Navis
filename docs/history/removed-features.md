@@ -203,3 +203,8 @@ Snapshots no longer capture, compare or apply those settings, including the
 retired `albumGridDensity` override. Older version-1 Look JSON remains readable;
 layout keys are ignored without a data migration. The layout controls and their
 targeted settings writers remain available.
+
+The layout-scope removal above was reversed on 2026-10-17 for issue #30.
+Looks capture and apply layout again; saved Looks without layout keys leave
+those settings unchanged. See the superseding
+[decision](../decisions/2026-10-07-colour-styles.md#looks-capture-appearance-layout-again-2026-10-17).

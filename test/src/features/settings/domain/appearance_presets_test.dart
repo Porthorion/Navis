@@ -116,6 +116,7 @@ void main() {
               'flatAreas': -1,
               'colorSchemeSeed': -1,
               'cornerStyle': null,
+              'artistViewMode': 'list',
               'colorVividness': -2,
               'futureField': true,
             },
@@ -124,43 +125,111 @@ void main() {
       );
       expect(decoded.map((p) => p.id), ['a', 'e']);
       expect(decoded.first.snapshot, look.snapshot);
-      expect(decoded.last.snapshot.toJson(), {'colorVividness': -2});
+      expect(decoded.last.snapshot.toJson(), {
+        'artistViewMode': 'list',
+        'colorVividness': -2,
+      });
       for (final raw in ['bad', '{}', 'null']) {
         expect(decodeAppearanceLooks(raw), isEmpty);
       }
     },
   );
 
-  test('layout edits keep the Look selected and are absent from snapshots', () {
-    const initial = AppSettingsModel.defaults();
-    final captured = AppearanceSnapshot.capture(initial);
-    final look = AppearanceLook(id: 'base', name: 'Base', snapshot: captured);
-    final edited = initial.copyWith(
-      density: NavisDensity.compact,
-      artistViewMode: 'list',
-      gridArtworkSize: GridArtworkSize.large,
+  final layoutEdits = <String, AppSettingsModel>{
+    'coverArtShape': const AppSettingsModel.defaults().copyWith(
       coverArtShape: 'circle',
+    ),
+    'nowPlayingArtShape': const AppSettingsModel.defaults().copyWith(
       nowPlayingArtShape: 'square',
+    ),
+    'artistCardShape': const AppSettingsModel.defaults().copyWith(
       artistCardShape: 'rounded',
+    ),
+    'gridArtworkSize': const AppSettingsModel.defaults().copyWith(
+      gridArtworkSize: GridArtworkSize.large,
+    ),
+    'density': const AppSettingsModel.defaults().copyWith(
+      density: NavisDensity.compact,
+    ),
+    'artistViewMode': const AppSettingsModel.defaults().copyWith(
+      artistViewMode: 'list',
+    ),
+    'albumGridDensity': const AppSettingsModel.defaults().copyWith(
       albumGridDensity: 6,
-      appearanceLooks: [look],
-      selectedAppearanceLookId: look.id,
+    ),
+  };
+  final layoutJson = <String, Object?>{
+    'coverArtShape': 'circle',
+    'nowPlayingArtShape': 'square',
+    'artistCardShape': 'rounded',
+    'gridArtworkSize': 'large',
+    'density': 'compact',
+    'artistViewMode': 'list',
+    'albumGridDensity': 6,
+  };
+  for (final entry in layoutEdits.entries) {
+    test('${entry.key} is captured, round-trips and makes the Look Custom', () {
+      final captured = AppearanceSnapshot.capture(
+        const AppSettingsModel.defaults(),
+      );
+      final look = AppearanceLook(id: 'base', name: 'Base', snapshot: captured);
+      final edited = entry.value.copyWith(
+        appearanceLooks: [look],
+        selectedAppearanceLookId: look.id,
+      );
+      final snapshot = AppearanceSnapshot.capture(edited);
+      expect(snapshot.toJson()[entry.key], layoutJson[entry.key]);
+      expect(AppearanceSnapshot.fromJson(snapshot.toJson()), snapshot);
+      expect(snapshot, isNot(captured));
+      expect(matchingAppearanceLookId(edited), isNull);
+      expect(storedAppearanceLookId(edited), look.id);
+    });
+
+    test(
+      'missing ${entry.key} matches without weakening snapshot equality',
+      () {
+        final full = AppearanceSnapshot.capture(
+          const AppSettingsModel.defaults(),
+        );
+        final json = full.toJson()..remove(entry.key);
+        final partial = AppearanceSnapshot.fromJson(json);
+        final look = AppearanceLook(
+          id: 'partial',
+          name: 'Partial',
+          snapshot: partial,
+        );
+        expect(partial, isNot(full));
+        expect(
+          matchingAppearanceLookId(
+            entry.value.copyWith(
+              appearanceLooks: [look],
+              selectedAppearanceLookId: look.id,
+            ),
+          ),
+          look.id,
+        );
+      },
     );
-    expect(AppearanceSnapshot.capture(edited), captured);
-    expect(matchingAppearanceLookId(edited), look.id);
-    expect(captured.toJson(), hasLength(20));
-    final legacy = {
-      ...captured.toJson(),
-      'density': 'compact',
-      'artistViewMode': 'list',
-      'gridArtworkSize': 'large',
-      'coverArtShape': 'circle',
-      'nowPlayingArtShape': 'square',
-      'artistCardShape': 'rounded',
-      'albumGridDensity': 6,
-    };
-    expect(AppearanceSnapshot.fromJson(legacy), captured);
-    expect(AppearanceSnapshot.fromJson(legacy).hashCode, captured.hashCode);
+  }
+
+  test('version-1 Looks read layout keys again', () {
+    final look = AppearanceLook.fromJson({
+      'id': 'old',
+      'name': 'Old',
+      'version': 1,
+      'snapshot': layoutJson,
+    })!;
+    expect(look.snapshot.toJson(), layoutJson);
+    expect(
+      AppearanceSnapshot.fromJson(const {'albumGridDensity': null}).toJson(),
+      {'albumGridDensity': null},
+    );
+    for (final invalid in [0, 101, '6']) {
+      expect(
+        AppearanceSnapshot.fromJson({'albumGridDensity': invalid}).toJson(),
+        isEmpty,
+      );
+    }
   });
 
   test('snapshot ignores retired tuning reference and includes every captured value', () {

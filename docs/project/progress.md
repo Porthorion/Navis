@@ -2519,3 +2519,25 @@ Latest activity (2026-03-07): published `v0.8.0` APK via `tool/release.sh` and s
   zero OOM kills. `dart run tool/dead_code_check.dart` exited 0 against the
   existing baseline; formatting and diff checks passed. No app launch or
   `./tool/check.sh`, as explicitly prohibited for this merge task.
+
+- 2026-10-17 — Issue #30 restores Looks' full Appearance scope above Home
+  sections/page visibility, including artwork shapes/size, density, nullable
+  legacy grid density and artist view. Partial version-1 Looks preserve omitted
+  fields and match on supplied keys; snapshot equality stays exact. The persisted
+  Update target, targeted Library writer and stale general-save protections are
+  retained. Restored whole-appearance help text, audit rows and decision history.
+  Test-first domain/storage regressions failed in 19 cases; the Compact density
+  control audit also failed before implementation. `dart analyze lib test`
+  reports zero errors/warnings and 184 pre-existing infos, with no new diagnostic
+  lines. The five focused domain/storage/controller/audit/repository files pass:
+  `00:46 +128: All tests passed!` `make gen` passed with no additional tracked
+  generated changes (it warned about the existing missing `json_annotation`
+  dependency lower bound); formatting passed for all 11 changed Dart files.
+  Only `appearance_looks_empty.png` and `appearance_looks_selected.png` were
+  regenerated and visually inspected; both are byte-identical to before
+  `6bdee198`. The two golden tests pass (`00:00 +2: All tests passed!`);
+  the complete Looks widget file also passes (`00:04 +27: All tests passed!`),
+  including normal golden comparisons. All test runs used
+  `flock /tmp/navis-heavy.lock flutter test --concurrency=4` with targeted files.
+  No app launch or `./tool/check.sh`: runtime screenshots and the full gate are
+  reserved for the coordinator as instructed.

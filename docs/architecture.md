@@ -1075,36 +1075,42 @@ target-selection rules.
     uses `updateArtistViewMode`. Playback reset uses targeted playback writers
     and preserves appearance, layout, the Look library and its selection.
   - Looks (`AppearanceLook`, version 1, `AppearanceSnapshot`,
-    `AppearanceLooksController`) capture colour and style choices: theme mode,
-    OLED-for-Auto, saved colour style, nullable accent seed, dynamic album
-    colour, Night Schedule enable/start/end, both album-title shade flags,
-    intensity, both brightness values, both tint values and Controls directly,
-    Flat switch and area mask, corner style, and Now Playing background.
-    Layout preferences stay independent: density, artist list/grid view,
-    artwork size, all three artwork shapes and the legacy grid-column override
-    are excluded. Editing them keeps the Look selected, and applying an older
-    stored Look ignores those keys without migrating its JSON. Also excluded:
+    `AppearanceLooksController`) capture all Appearance settings above Home
+    sections and page visibility: theme mode, OLED-for-Auto, saved colour style,
+    nullable accent seed, dynamic album colour, Night Schedule enable/start/end,
+    both album-title shade flags, intensity, both brightness values, both tint
+    values and Controls directly, Flat switch and area mask, corner style,
+    library/carousel/Now Playing/artist artwork shapes, artwork size, legacy
+    grid-column override, density, artist list/grid view and Now Playing
+    background. Editing any captured setting makes the picker read Custom;
+    the persisted last-chosen Look remains the Update target. Excluded:
     Home section order/visibility,
     page visibility/order and Desktop Navbar (they organize content and
     navigation), and language, saved accent swatches and Home recommendation
     auto-advance (a Look changes how Navis looks, never its language, your
     saved colours or behaviour).
-    `capture` records a clear flag so a saved automatic accent seed can be
-    restored. JSON decoding is per field: missing,
-    unknown or invalid values preserve current settings; explicit null clears
-    the nullable accent seed. Unsupported Look versions are discarded.
+    `capture` records clear flags so a saved automatic accent seed or null
+    legacy grid-column override can be restored. JSON decoding is per field:
+    missing, unknown or invalid values preserve current settings; explicit null
+    clears those two nullable settings. Older version-1 layout keys are read
+    again; Looks saved without them leave layout untouched. Matching compares
+    only supplied fields, so a partial Look stays selected after application;
+    snapshot equality and hashing still compare the exact captured keys/values.
+    No JSON migration is required. Unsupported Look versions are discarded.
     `applyAppearanceSnapshot` writes supplied appearance columns in one DAO
     transaction. Decoding silently ignores the retired `tuningPresetId` key;
     captured tuning values always apply. The controller offers `apply`,
-    `restore`, `saveAsNew`, `update`, `rename` and `delete`; its selected id is
-    the first Look exactly matching a fresh capture by value.
+    `restore`, `saveAsNew`, `update`, `rename` and `delete`; selection prefers
+    the explicitly chosen or persisted Look while its supplied fields match,
+    then the first matching Look.
     `apply(id)` returns the complete appearance captured **before** applying
     the Look, or null for an unknown id or failure. The UI can keep that
     snapshot for Undo and pass it to `restore(previous)`. Apply and restore
     update appearance and the derived selected marker in one DAO transaction.
-    Restoration includes theme mode, automatic (null) accent seed, and every
-    tuning value and Controls. Undo restores
-    Custom when no Look matches, or re-selects a previously matching Look by value.
+    Restoration includes theme mode, automatic (null) accent seed, null legacy
+    grid-column override, every layout setting, tuning value and Controls.
+    Undo restores Custom when no Look matches, or re-selects a previously
+    matching Look by value.
     Reset restores appearance defaults and retains the Look library.
     Controllers serialize writes and acknowledge the committed row through
     the existing settings watch before publishing results; there is no second
