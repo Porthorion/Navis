@@ -14,6 +14,14 @@ Last updated: 2026-10-17
 - ACP status values: `backlog`, `ready`, `in_progress`, `blocked`, `done`.
 
 ## Current Focus
+- [x] Issue #46, server plain lyrics on first fetch — 2026-10-17
+  (`fix/server-plain-lyrics`): the batched runtime check of dev b5468cbd found
+  that plain-only server lyrics (structured lines without `start`) showed "No
+  Lyrics Available" on the first fetch; cached reads worked. A shared
+  `plainLyricsText` helper in `lyrics_resolver.dart` now feeds the lyrics
+  widget and the cache write. The Integrations lyrics subtitle describes the
+  server-first order. A widget test failed before the fix and passes after it;
+  `./tool/check.sh` passed (+8693 ~1). GLM-5.3 review: approved.
 - [x] Issue #41 review fixes, round 1 — 2026-10-17
   (`feat/update-source-github`): `release.sh` rejects non-stable GitHub
   publication and stable prereleases without explicit `--no-github`, including
