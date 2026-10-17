@@ -166,6 +166,10 @@ const List<ChangelogVersion> changelogs = [
     ],
     entries: [
       ChangelogEntry(
+        'The offline notice no longer floats over your music: dismissing it, or three failed retries, shrinks the banner into a slim Offline strip that stays in the layout until the server is back, and tapping the strip brings the full banner back',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
         'Dragging Now Playing open or closed is smoother: its top edge follows your finger from the mini player and covers the navigation bar as it rises, and it is fullscreen when open',
         type: ChangelogEntryType.fix,
       ),

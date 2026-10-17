@@ -819,39 +819,69 @@ void main() {
       await tester.pumpAndSettle();
       expect(reachability.retryCalls, 1);
 
-      // Dismissing tucks the banner into a chip that takes no layout space.
-      final chip = find.byKey(ShellOfflineChip.chipKey);
-      expect(chip, findsNothing);
+      // Dismissing shrinks the banner into an in-layout 24dp strip.
+      final strip = find.byKey(ShellOfflineBanner.stripKey);
+      expect(strip, findsNothing);
       await tester.tap(find.byKey(ShellOfflineBanner.dismissKey));
-      await tester.pumpAndSettle();
-      expect(banner, findsNothing);
-      expect(chip, findsOneWidget);
-      expect(find.text('Offline'), findsOneWidget);
-      expect(
-        MediaQuery.paddingOf(tester.element(page)).top,
-        topInset,
-        reason: 'the chip floats and gives the inset back',
-      );
-
-      // Tapping the chip expands the banner again.
-      await tester.tap(chip);
+      for (var frame = 0; frame < 6; frame++) {
+        await tester.pump(const Duration(milliseconds: 16));
+      }
       await tester.pumpAndSettle();
       expect(banner, findsOneWidget);
-      expect(chip, findsNothing);
+      expect(strip, findsOneWidget);
+      expect(find.byKey(ShellOfflineBanner.retryKey), findsNothing);
+      expect(find.text('Offline'), findsOneWidget);
+      expect(
+        tester.getSize(banner).height,
+        topInset + ShellOfflineBanner.compactHeight,
+      );
+      expect(
+        MediaQuery.paddingOf(tester.element(page)).top,
+        0,
+        reason: 'the strip still owns the status bar inset',
+      );
+      expect(
+        tester.getTopLeft(page).dy,
+        desktopRuntime
+            ? greaterThanOrEqualTo(tester.getBottomLeft(banner).dy)
+            : tester.getBottomLeft(banner).dy,
+        reason: 'content starts right under the strip',
+      );
 
-      // Dismissed, then back online: the next outage shows the banner.
+      // Tapping the strip grows the full banner back.
+      await tester.tap(strip);
+      for (var frame = 0; frame < 6; frame++) {
+        await tester.pump(const Duration(milliseconds: 16));
+      }
+      await tester.pumpAndSettle();
+      expect(strip, findsNothing);
+      expect(
+        tester.getSize(banner).height,
+        topInset + ShellOfflineBanner.contentHeight,
+      );
+      expect(find.byKey(ShellOfflineBanner.retryKey), findsOneWidget);
+
+      // Dismissed, then back online: the strip goes, and the next outage
+      // shows the full banner.
       await tester.tap(find.byKey(ShellOfflineBanner.dismissKey));
       await tester.pumpAndSettle();
+      expect(strip, findsOneWidget);
       reachability.set(
         const ServerReachabilityState(status: ServerReachabilityStatus.online),
       );
       await tester.pumpAndSettle();
-      expect(chip, findsNothing);
+      expect(banner, findsNothing);
+      expect(strip, findsNothing);
       reachability.set(
         const ServerReachabilityState(status: ServerReachabilityStatus.offline),
       );
       await tester.pumpAndSettle();
       expect(banner, findsOneWidget);
+      expect(strip, findsNothing);
+      expect(
+        tester.getSize(banner).height,
+        topInset + ShellOfflineBanner.contentHeight,
+      );
 
       // Once the retry banner stops being offered it compacts by itself.
       reachability.set(
@@ -862,8 +892,11 @@ void main() {
         ),
       );
       await tester.pumpAndSettle();
-      expect(banner, findsNothing);
-      expect(chip, findsOneWidget);
+      expect(strip, findsOneWidget);
+      expect(
+        tester.getSize(banner).height,
+        topInset + ShellOfflineBanner.compactHeight,
+      );
     });
   }
 
@@ -947,6 +980,68 @@ void main() {
     // Back in its usual place below the status bar.
     expect(tester.getTopLeft(notice).dy, greaterThan(24 + 12));
     expect(tester.getTopLeft(notice).dy, lessThan(24 + 12 + 24));
+  });
+
+  testWidgets('app notices sit below the offline strip', (tester) async {
+    tester.view
+      ..devicePixelRatio = 2
+      ..physicalSize = const Size(400, 800) * 2
+      ..padding = const FakeViewPadding(top: 48)
+      ..viewPadding = const FakeViewPadding(top: 48);
+    addTearDown(tester.view.reset);
+    final reachability = _StaticReachabilityController(
+      const ServerReachabilityState(
+        status: ServerReachabilityStatus.offline,
+        consecutiveFailureCount: 4,
+        showRetryBanner: false,
+      ),
+    );
+    final container = await _createContainerWithDatabase(
+      overrides: [
+        desktopPresentationRuntimeProvider.overrideWithValue(false),
+        serverConfigStateProvider.overrideWithValue(
+          const AsyncData(
+            ServerConfigModel(
+              url: 'https://example.com',
+              username: 'alice',
+              password: 'secret',
+              apiVersion: '1.16.1',
+            ),
+          ),
+        ),
+        serverReachabilityControllerProvider.overrideWith(() => reachability),
+        librarySyncControllerProvider.overrideWith(
+          _StaticLibrarySyncController.new,
+        ),
+        homeRecentlyPlayedProvider.overrideWithValue(
+          const AsyncData(<SongsTableData>[]),
+        ),
+        homeRecentlyAddedProvider.overrideWithValue(const AsyncData(<Album>[])),
+        homeFrequentAlbumsProvider.overrideWithValue(
+          const AsyncData(<Album>[]),
+        ),
+        homeRandomAlbumsProvider.overrideWithValue(const AsyncData(<Album>[])),
+        artistInfoProvider.overrideWith((ref, artistId) async => null),
+      ],
+    );
+    await tester.pumpWidget(
+      UncontrolledProviderScope(container: container, child: _testApp),
+    );
+    await tester.pumpAndSettle();
+
+    final strip = find.byKey(ShellOfflineBanner.stripKey);
+    expect(strip, findsOneWidget);
+    container
+        .read(appNoticeDiagnosticsProvider.notifier)
+        .show(message: 'Notice under the strip', level: AppNoticeLevel.info);
+    await tester.pumpAndSettle();
+    final notice = find.text('Notice under the strip');
+    expect(notice, findsOneWidget);
+    expect(
+      tester.getTopLeft(notice).dy,
+      greaterThanOrEqualTo(tester.getBottomLeft(strip).dy + 12),
+    );
+    expect(tester.getTopLeft(notice).dy, lessThan(48 + 24 + 12 + 24));
   });
 
   testWidgets('supports route params for detail pages', (tester) async {

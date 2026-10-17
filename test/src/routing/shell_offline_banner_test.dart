@@ -65,6 +65,7 @@ void main() {
   Future<void> pump(
     WidgetTester tester, {
     required bool visible,
+    bool compact = false,
     bool disableAnimations = false,
     String message = 'Offline mode',
     double width = 400,
@@ -72,6 +73,9 @@ void main() {
   }) {
     return tester.pumpWidget(
       ProviderScope(
+        overrides: [
+          serverReachabilityControllerProvider.overrideWith(_Reachability.new),
+        ],
         child: MaterialApp(
           theme: ThemeData(fontFamily: fontFamily),
           localizationsDelegates: navisLocalizationsDelegates,
@@ -84,6 +88,7 @@ void main() {
             ),
             child: ShellOfflineBannerScope(
               visible: visible,
+              compact: compact,
               message: message,
               child: Stack(
                 children: <Widget>[
@@ -305,32 +310,154 @@ void main() {
     expect(tester.getSize(banner).height, _statusBar + 48);
   });
 
-  testWidgets('the chip uses the quiet warning roles as a pill', (
+  final strip = find.byKey(ShellOfflineBanner.stripKey);
+  const stripHeight = 24.0;
+
+  testWidgets('compact shows a 24dp strip with the icon and Offline', (
     tester,
   ) async {
-    await tester.pumpWidget(
-      const ProviderScope(
-        child: MaterialApp(
-          localizationsDelegates: navisLocalizationsDelegates,
-          home: Scaffold(body: Center(child: ShellOfflineChip())),
-        ),
-      ),
+    await pump(tester, visible: true, compact: true);
+    await tester.pumpAndSettle();
+
+    expect(banner, findsOneWidget);
+    expect(strip, findsOneWidget);
+    expect(find.byKey(ShellOfflineBanner.retryKey), findsNothing);
+    expect(find.byKey(ShellOfflineBanner.dismissKey), findsNothing);
+    expect(find.byType(MarqueeText), findsNothing);
+    expect(
+      find.descendant(of: strip, matching: find.text('Offline')),
+      findsOneWidget,
     );
-    final chip = find.byKey(ShellOfflineChip.chipKey);
-    final tokens = NavisTokens.of(tester.element(chip));
-    final material = tester.widget<Material>(chip);
+    expect(
+      find.descendant(
+        of: strip,
+        matching: find.byIcon(Icons.cloud_off_outlined),
+      ),
+      findsOneWidget,
+    );
+    expect(tester.getSize(banner).height, _statusBar + stripHeight);
+    expect(tester.getSize(strip).height, stripHeight);
+    // The strip spans the full width, so the whole width is the hit target.
+    expect(tester.getSize(strip).width, tester.getSize(banner).width);
+    expect(pageTopPadding(tester), 0);
+    expect(tester.getTopLeft(find.byType(_Page)).dy, _statusBar + stripHeight);
+    expect(
+      tester.getTopLeft(find.byKey(_noticeKey)).dy,
+      _statusBar + stripHeight + 12,
+    );
+  });
+
+  testWidgets('the strip is a labelled button in the quiet warning roles', (
+    tester,
+  ) async {
+    await pump(tester, visible: true, compact: true);
+    await tester.pumpAndSettle();
+
+    final tokens = NavisTokens.of(tester.element(strip));
+    final material = tester.widget<Material>(strip);
     expect(material.color, tokens.quietWarningContainer);
-    expect(material.shape, const StadiumBorder());
     expect(
       tester.widget<Icon>(find.byIcon(Icons.cloud_off_outlined)).color,
       tokens.onQuietWarningContainer,
     );
     expect(
       tester
-          .widget<Text>(find.descendant(of: chip, matching: find.byType(Text)))
+          .widget<Text>(
+            find.descendant(of: strip, matching: find.text('Offline')),
+          )
           .style
           ?.color,
       tokens.onQuietWarningContainer,
     );
+    final handle = tester.ensureSemantics();
+    final semantics = tester.getSemantics(strip);
+    expect(semantics.label, 'Offline. Retrying…');
+    expect(semantics.flagsCollection.isButton, isTrue);
+    handle.dispose();
+  });
+
+  testWidgets('tapping anywhere on the strip expands the banner again', (
+    tester,
+  ) async {
+    await pump(tester, visible: true, compact: true);
+    await tester.pumpAndSettle();
+    final container = ProviderScope.containerOf(tester.element(strip));
+    container.read(shellOfflineBannerDismissedProvider.notifier).dismiss();
+
+    // Far from the icon and text, still the strip.
+    await tester.tapAt(tester.getTopLeft(strip) + const Offset(4, 12));
+    await tester.pump(const Duration(seconds: 1));
+    expect(container.read(shellOfflineBannerDismissedProvider), isFalse);
+    container.read(shellOfflineBannerDismissedProvider.notifier).dismiss();
+    await tester.tapAt(tester.getTopRight(strip) + const Offset(-4, 12));
+    await tester.pump(const Duration(seconds: 1));
+    expect(container.read(shellOfflineBannerDismissedProvider), isFalse);
+  });
+
+  testWidgets('the banner collapses into the strip and grows back', (
+    tester,
+  ) async {
+    await pump(tester, visible: true);
+    await tester.pumpAndSettle();
+    expect(tester.getSize(banner).height, _statusBar + 48);
+    expect(strip, findsNothing);
+
+    await pump(tester, visible: true, compact: true);
+    var previous = tester.getSize(banner).height;
+    for (var frame = 0; frame < 16; frame++) {
+      await tester.pump(const Duration(milliseconds: 16));
+      final height = tester.getSize(banner).height;
+      expect(height, lessThanOrEqualTo(previous + 0.001));
+      expect(height, greaterThanOrEqualTo(_statusBar + stripHeight));
+      previous = height;
+      expectNoticeFollowsBanner(tester);
+    }
+    await tester.pumpAndSettle();
+    expect(tester.getSize(banner).height, _statusBar + stripHeight);
+    expect(strip, findsOneWidget);
+    expect(find.byKey(ShellOfflineBanner.retryKey), findsNothing);
+    expectNoticeFollowsBanner(tester);
+
+    await pump(tester, visible: true);
+    previous = tester.getSize(banner).height;
+    for (var frame = 0; frame < 16; frame++) {
+      await tester.pump(const Duration(milliseconds: 16));
+      final height = tester.getSize(banner).height;
+      expect(height, greaterThanOrEqualTo(previous - 0.001));
+      expect(height, lessThanOrEqualTo(_statusBar + 48));
+      previous = height;
+      expectNoticeFollowsBanner(tester);
+    }
+    await tester.pumpAndSettle();
+    expect(tester.getSize(banner).height, _statusBar + 48);
+    expect(strip, findsNothing);
+    expect(find.byKey(ShellOfflineBanner.retryKey), findsOneWidget);
+  });
+
+  testWidgets('the strip goes away quietly when back online', (tester) async {
+    await pump(tester, visible: true, compact: true);
+    await tester.pumpAndSettle();
+    await pump(tester, visible: false, compact: true);
+    for (var frame = 0; frame < 16; frame++) {
+      await tester.pump(const Duration(milliseconds: 16));
+      expectNoticeFollowsBanner(tester);
+    }
+    await tester.pumpAndSettle();
+    expect(banner, findsNothing);
+    expect(strip, findsNothing);
+    expect(pageTopPadding(tester), _statusBar);
+    expect(tester.getTopLeft(find.byType(_Page)).dy, 0);
+  });
+
+  testWidgets('with reduced motion the strip replaces the banner at once', (
+    tester,
+  ) async {
+    await pump(tester, visible: true, disableAnimations: true);
+    await pump(tester, visible: true, compact: true, disableAnimations: true);
+    await tester.pump();
+    expect(strip, findsOneWidget);
+    expect(find.byKey(ShellOfflineBanner.retryKey), findsNothing);
+    expect(tester.getSize(banner).height, _statusBar + stripHeight);
+    expectNoticeFollowsBanner(tester);
   });
 }
