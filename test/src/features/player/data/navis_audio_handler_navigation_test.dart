@@ -7849,7 +7849,24 @@ void main() {
       });
 
       test('the play order and the original order are both saved', () async {
-        final (handler, player, database) = await windowed(60);
+        final directory = await Directory.systemTemp.createTemp('navis-shuf-');
+        final (handler, player, database) = await createHandler(
+          directory,
+          60,
+          queueWindow: window,
+        );
+        var closed = false;
+        Future<void> close() async {
+          if (closed) return;
+          await handler.disposeHandler();
+          await database.close();
+          closed = true;
+        }
+
+        addTearDown(() async {
+          await close();
+          await directory.delete(recursive: true);
+        });
         await handler.replaceQueue(ids(60), expandMatchFlows: false);
         player.moveTo(3);
         await handler.setShuffleMode(AudioServiceShuffleMode.all);
@@ -7866,12 +7883,14 @@ void main() {
         final state = (await database.playQueueDao.getQueueState())!;
         expect(state.currentIndex, 0);
         expect(state.shuffleMode, ShuffleMode.all);
+        final playOrder = List.of(handler.snapshot.queueSongIds);
+        await close();
         final (restored, restoredPlayer) = await restoring(
           playOrder: saved.map((entry) => entry.song.id).toList(),
           currentIndex: state.currentIndex!,
           originalOrder: saved.map((entry) => entry.originalOrder!).toList(),
         );
-        expect(restored.snapshot.queueSongIds, handler.snapshot.queueSongIds);
+        expect(restored.snapshot.queueSongIds, playOrder);
         expect(restored.snapshot.currentSongId, 'song-3');
         expect(restored.snapshot.currentIndex, 0);
         expect(restored.snapshot.shuffleMode, AudioServiceShuffleMode.all);

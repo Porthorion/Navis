@@ -14,6 +14,15 @@ Last updated: 2026-10-18
 - ACP status values: `backlog`, `ready`, `in_progress`, `blocked`, `done`.
 
 ## Current Focus
+- [x] Issue #55, persisted shuffle test database lifetime — 2026-10-18:
+  the round-trip test captures its expected play order and disposes the first
+  handler and database before creating the restored handler. Its guarded
+  teardown avoids closing the database twice; all assertions remain. Evidence:
+  the navigation test file passed under the shared lock and 9 GiB cap
+  (`04:48 +528: All tests passed!`); the Drift multiple-database warning count
+  was 0 and no `flutter_tester` process remained. Formatting passed; focused
+  analysis exited 0 with seven infos on unchanged lines. `./tool/check.sh` was
+  not rerun, as requested for this test-only follow-up.
 - [x] Issue #55, shuffle the whole queue mid-playback — 2026-10-18
   (`feat/shuffle-whole-queue`): toggle-on reuses `shuffledFromStart` over the
   deferred head, materialised window and deferred tail. The current occurrence
