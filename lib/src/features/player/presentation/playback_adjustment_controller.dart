@@ -167,7 +167,13 @@ class PlaybackAdjustmentController
           ? PlaybackAdjustmentFailure.unsupported
           : null,
       selectedPresetId: resolved,
-      originPresetId: resolved == PlaybackPreset.noneId ? null : resolved,
+      // The stored id is also the origin while the values are Custom, as for
+      // Looks, so "<name>*" and Discard survive a restart.
+      originPresetId:
+          resolved == PlaybackPreset.noneId ||
+              !settings.playbackPresets.any((p) => p.id == selected)
+          ? null
+          : selected,
     );
     _confirmed = loaded;
     if (handler != null) _watchEngine(handler);
@@ -250,7 +256,14 @@ class PlaybackAdjustmentController
         _confirmed = _current.copyWith(
           values: values,
           selectedPresetId:
-              presetId ?? (values.isNone ? PlaybackPreset.noneId : null),
+              presetId ??
+              (values.isNone
+                  ? PlaybackPreset.noneId
+                  : _current.presets.any(
+                      (p) => p.id == origin && p.values == values,
+                    )
+                  ? origin
+                  : null),
           originPresetId: origin,
           pending: false,
         );
@@ -486,7 +499,8 @@ class PlaybackAdjustmentController
             .read(settingsRepositoryProvider)
             .savePlaybackAdjustments(
               values: snapshot.values,
-              selectedPresetId: snapshot.selectedPresetId,
+              selectedPresetId:
+                  snapshot.selectedPresetId ?? snapshot.originPresetId,
               presets: writePresets ? snapshot.presets : null,
             );
         saved = true;

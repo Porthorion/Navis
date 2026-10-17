@@ -309,6 +309,73 @@ void main() {
       expect(state.originPresetId, 'neutral');
     },
   );
+  test('an edited preset keeps its origin through a restart', () async {
+    const fast = PlaybackAdjustments(speed: 1.5);
+    await controller.setValues(fast);
+    await controller.savePreset('Fast');
+    final id = container
+        .read(playbackAdjustmentsProvider)
+        .requireValue
+        .selectedPresetId!;
+    String? stored;
+    const edited = PlaybackAdjustments(speed: 1.75);
+    when(
+      () => repository.savePlaybackAdjustments(
+        values: any(named: 'values'),
+        selectedPresetId: any(named: 'selectedPresetId'),
+        presets: any(named: 'presets'),
+      ),
+    ).thenAnswer((i) async {
+      stored = i.namedArguments[#selectedPresetId] as String?;
+    });
+    await controller.setValues(edited);
+    await controller.flush();
+    expect(stored, id);
+
+    ProviderContainer restart(String? selected) => ProviderContainer(
+      overrides: [
+        appSettingsProvider.overrideWithValue(
+          AsyncData(
+            const AppSettingsModel.defaults().copyWith(
+              playbackSpeed: edited.speed,
+              playbackPresets: const [
+                PlaybackPreset(id: 'fast', name: 'Fast', values: fast),
+              ],
+              selectedPlaybackPresetId: selected,
+            ),
+          ),
+        ),
+        audioHandlerProvider.overrideWithValue(handler),
+        settingsRepositoryProvider.overrideWithValue(repository),
+      ],
+    );
+    final restored = restart('fast');
+    addTearDown(restored.dispose);
+    final state = await restored.read(playbackAdjustmentsProvider.future);
+    expect(state.selectedPresetId, isNull);
+    expect(state.originPresetId, 'fast');
+    // A stored id that no longer exists leaves no origin.
+    final gone = restart('deleted');
+    addTearDown(gone.dispose);
+    expect(
+      (await gone.read(playbackAdjustmentsProvider.future)).originPresetId,
+      isNull,
+    );
+  });
+  test('editing back to the origin values selects it again', () async {
+    await controller.setValues(const PlaybackAdjustments(speed: 1.5));
+    await controller.savePreset('Fast');
+    final id = container
+        .read(playbackAdjustmentsProvider)
+        .requireValue
+        .selectedPresetId!;
+    await controller.setValues(const PlaybackAdjustments(speed: 1.75));
+    var state = container.read(playbackAdjustmentsProvider).requireValue;
+    expect((state.selectedPresetId, state.originPresetId), (null, id));
+    await controller.setValues(const PlaybackAdjustments(speed: 1.5));
+    state = container.read(playbackAdjustmentsProvider).requireValue;
+    expect((state.selectedPresetId, state.originPresetId), (id, id));
+  });
   test('rapid input keeps newest pair without an older late write', () async {
     final gate = Completer<void>();
     final entered = Completer<void>();

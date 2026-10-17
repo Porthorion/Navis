@@ -5759,11 +5759,11 @@ abstract class AppLocalizations {
   /// **'Applied {name}'**
   String appearanceLooksApplied(String name);
 
-  /// No description provided for @appearanceLooksCustomEdited.
+  /// No description provided for @presetDiscardConfirm.
   ///
   /// In en, this message translates to:
-  /// **'Custom · edited from {name}'**
-  String appearanceLooksCustomEdited(String name);
+  /// **'Discard your changes and go back to “{name}”?'**
+  String presetDiscardConfirm(String name);
 
   /// No description provided for @appearancePresetCustom.
   ///

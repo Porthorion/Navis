@@ -45,6 +45,8 @@ PresetPickerLabels _labels(
   cancel: l10n.commonCancel,
   save: l10n.commonSave,
   deleteAction: l10n.commonDelete,
+  discard: l10n.eqDiscardChanges,
+  discardConfirm: l10n.presetDiscardConfirm,
 );
 
 /// Saved Looks at the top of Appearance settings.
@@ -54,8 +56,9 @@ PresetPickerLabels _labels(
 ///
 /// With no Looks the picker reads Custom (the current appearance) and its menu
 /// offers the first save, which the subtitle points to. A changed appearance
-/// reads "Custom · edited from `Look`" and Update saves over that Look, which
-/// is the stored selection, so it survives leaving the page and restarts.
+/// reads "`Look`*" and Update saves over that Look, which is the stored
+/// selection, so it survives leaving the page and restarts; Discard re-applies
+/// that Look.
 class AppearanceLooksOption extends ConsumerStatefulWidget {
   const new({super.key});
 
@@ -85,9 +88,6 @@ class _AppearanceLooksOptionState extends ConsumerState<AppearanceLooksOption> {
     final controller = ref.read(appearanceLooksControllerProvider.notifier);
     final selected = state.selectedLookId;
     final origin = state.originLookId;
-    final originName = selected == null
-        ? state.looks.where((look) => look.id == origin).firstOrNull?.name
-        : null;
     return HighlightedAppearanceOption(
       highlight: SetupHighlight.appearanceLooks,
       builder: (context, adornment) => AppearanceChoiceSection(
@@ -108,9 +108,7 @@ class _AppearanceLooksOptionState extends ConsumerState<AppearanceLooksOption> {
           manageId: selected ?? origin,
           labels: _labels(
             l10n,
-            custom: originName == null
-                ? l10n.appearancePresetCustom
-                : l10n.appearanceLooksCustomEdited(originName),
+            custom: l10n.appearancePresetCustom,
             picker: l10n.appearanceLooksPicker,
             actions: l10n.appearanceLooksActions,
             saveNew: l10n.appearanceLooksSaveNew,
@@ -139,6 +137,11 @@ class _AppearanceLooksOptionState extends ConsumerState<AppearanceLooksOption> {
                 : presetFailureMessage(l10n, failure, look: true);
           },
           onUpdate: (id) async => _notice(await controller.update(id)),
+          onDiscard: (id) async {
+            if (await controller.apply(id) == null) {
+              _notice(PresetFailure.persistence);
+            }
+          },
           onRename: (id, name) async {
             final failure = await controller.rename(id, name);
             return failure == null

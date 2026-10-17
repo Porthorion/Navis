@@ -330,6 +330,8 @@ class _PlaybackAdjustmentPanelState
         cancel: l10n.playbackAdjustmentCancel,
         save: l10n.playbackAdjustmentSave,
         deleteAction: l10n.playbackPresetDelete,
+        discard: l10n.eqDiscardChanges,
+        discardConfirm: l10n.presetDiscardConfirm,
       ),
       onSelect: (id) {
         _cancelRulers();
@@ -341,6 +343,10 @@ class _PlaybackAdjustmentPanelState
         data.presets.firstWhere((p) => p.id == id).name,
         updateId: id,
       ),
+      onDiscard: (id) {
+        _cancelRulers();
+        return _controller.selectPreset(id);
+      },
       onRename: (id, name) async =>
           await _controller.renamePreset(id, name) ? null : _nameError(),
       onDelete: (id) async {

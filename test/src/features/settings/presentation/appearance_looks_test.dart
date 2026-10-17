@@ -214,7 +214,7 @@ void main() {
   final input = find.byKey(const ValueKey<String>('appearanceLookNameInput'));
 
   /// The picker's text for values changed away from the Look [name].
-  String edited(String name) => 'Custom · edited from $name';
+  String edited(String name) => '$name*';
 
   String pickerText(WidgetTester tester) => tester
       .widget<TextField>(
@@ -483,6 +483,55 @@ void main() {
       expect(pickerText(tester), edited('Evening'));
     });
 
+    testWidgets('Discard re-applies the Look it came from after confirming', (
+      tester,
+    ) async {
+      await pump(tester);
+      await saveLook(tester, 'Evening');
+      final saved = container.read(appSettingsProvider).requireValue;
+      await change(tester, [
+        () => database.appSettingsDao.updateCornerStyle('square'),
+      ]);
+      expect(pickerText(tester), edited('Evening'));
+
+      // Cancelling keeps the edits.
+      await menu(tester, 'Discard');
+      await tester.tap(find.text('Cancel'));
+      await tester.pumpAndSettle();
+      expect(pickerText(tester), edited('Evening'));
+
+      await menu(tester, 'Discard');
+      await tester.tap(
+        find.byKey(const ValueKey<String>('appearanceLookDiscardConfirm')),
+      );
+      await settleWrites(tester);
+      await tester.pumpAndSettle();
+      expect(pickerText(tester), 'Evening');
+      expect(
+        container.read(appSettingsProvider).requireValue.cornerStyle,
+        saved.cornerStyle,
+      );
+    });
+
+    testWidgets('a long Look name is shown in full', (tester) async {
+      const name = 'RP150 Green Teal Night Variant With A Long Name';
+      await pump(tester);
+      await saveLook(tester, name);
+      await change(tester, [
+        () => database.appSettingsDao.updateCornerStyle('square'),
+      ]);
+      expect(pickerText(tester), edited(name));
+      // Taller than the 56 dp single-line field: wrapped, not cut off.
+      expect(
+        tester
+            .getSize(
+              find.descendant(of: dropdown, matching: find.byType(TextField)),
+            )
+            .height,
+        greaterThan(60),
+      );
+    });
+
     testWidgets('Update saves the current appearance over the Look it came '
         'from', (tester) async {
       await pump(tester);
@@ -500,7 +549,7 @@ void main() {
     });
 
     group('Custom keeps the Look it came from', () {
-      /// Evening saved, then the corners changed: Custom, edited from Evening.
+      /// Evening saved, then the corners changed: Evening*.
       Future<void> editedFromEvening(WidgetTester tester) async {
         await pump(tester);
         await saveLook(tester, 'Evening');

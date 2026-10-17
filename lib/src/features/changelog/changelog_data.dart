@@ -207,8 +207,8 @@ const List<ChangelogVersion> changelogs = [
         type: ChangelogEntryType.fix,
       ),
       ChangelogEntry(
-        'Looks: after you change an appearance setting the picker reads “Custom · edited from” the Look it came from, and Update keeps working after you leave Appearance or restart',
-        type: ChangelogEntryType.fix,
+        'Looks and Speed & Pitch presets: after you change a saved preset its picker reads the preset’s name with a * (like the equalizer), a new Discard action in the ⋮ menu puts the preset back, long names wrap instead of being cut off, and Update keeps working after you leave the page or restart',
+        type: ChangelogEntryType.improvement,
       ),
       ChangelogEntry(
         'Showing the last hidden Home section no longer brings the default hidden sections back',

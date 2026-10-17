@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:material_ui/material_ui.dart';
+import 'package:navis/src/common_widgets/confirm_dialog.dart';
 
 /// One choice in a [PresetPicker].
 @immutable
@@ -42,6 +43,8 @@ class PresetPickerLabels {
     required this.cancel,
     required this.save,
     required this.deleteAction,
+    required this.discard,
+    required this.discardConfirm,
   });
 
   /// The dropdown's floating label.
@@ -68,6 +71,13 @@ class PresetPickerLabels {
 
   /// The confirmation's destructive button.
   final String deleteAction;
+
+  /// The menu item, and the confirm button, that drop the edits made to a
+  /// preset and re-apply it.
+  final String discard;
+
+  /// The discard confirmation's message.
+  final String Function(String name) discardConfirm;
 }
 
 /// A compact preset dropdown with a ⋮ menu to save, update, rename and delete
@@ -75,12 +85,16 @@ class PresetPickerLabels {
 ///
 /// The dropdown lists [entries] (a "Custom" entry first while [selectedId] is
 /// null). The menu acts on [updateId] (Update) and [manageId] (Rename and
-/// Delete); a null id hides its item. Name validation belongs to the callers:
+/// Delete); a null id hides its item. While [selectedId] is null and
+/// [updateId] names the preset being edited, the entry reads `<name>*`, like
+/// the equalizer's unsaved changes, and [onDiscard] (when given) adds a
+/// confirmed Discard item that re-applies that preset. Name validation belongs to the callers:
 /// [onSaveNew] and [onRename] return an error shown inline in the name dialog,
 /// or null once saved.
 ///
 /// [keyPrefix] names the widgets (`<prefix>Dropdown`, `Actions`, `SaveNew`,
-/// `Update`, `Rename`, `Delete`, `DeleteConfirm`, `NameInput`).
+/// `Update`, `Rename`, `Delete`, `DeleteConfirm`, `Discard`, `DiscardConfirm`,
+/// `NameInput`).
 class PresetPicker extends StatefulWidget {
   const new({
     required this.entries,
@@ -92,6 +106,7 @@ class PresetPicker extends StatefulWidget {
     required this.onRename,
     required this.onDelete,
     this.onUpdate,
+    this.onDiscard,
     this.updateId,
     this.manageId,
     this.enabled = true,
@@ -118,6 +133,9 @@ class PresetPicker extends StatefulWidget {
   final Future<void> Function(String id) onSelect;
   final Future<String?> Function(String name) onSaveNew;
   final Future<void> Function(String id)? onUpdate;
+
+  /// Re-applies the preset the values were edited from.
+  final Future<void> Function(String id)? onDiscard;
   final Future<String?> Function(String id, String name) onRename;
   final Future<void> Function(String id) onDelete;
 
@@ -138,11 +156,13 @@ class _PresetPickerState extends State<PresetPicker> {
   Widget build(BuildContext context) {
     final labels = widget.labels;
     final selected = widget.selectedId;
+    final update = _entry(widget.updateId);
+    final edited = selected == null ? update : null;
     final entries = <DropdownMenuEntry<String>>[
       if (selected == null)
         DropdownMenuEntry(
           value: _customId,
-          label: labels.custom,
+          label: edited == null ? labels.custom : '${edited.label}*',
           leadingIcon: const Icon(Icons.tune, size: 20),
         ),
       for (final entry in widget.entries)
@@ -161,7 +181,6 @@ class _PresetPickerState extends State<PresetPicker> {
     ];
     final shown = selected ?? _customId;
     final shownEntry = entries.where((e) => e.value == shown).firstOrNull;
-    final update = _entry(widget.updateId);
     final manage = _entry(widget.manageId);
     Widget menuLabel(String text) => ConstrainedBox(
       constraints: const BoxConstraints(maxWidth: 260),
@@ -176,19 +195,31 @@ class _PresetPickerState extends State<PresetPicker> {
             key: ValueKey<String>(
               '${widget.keyPrefix}-$shown-${shownEntry?.label}',
             ),
-            child: DropdownMenu<String>(
-              key: _key('Dropdown'),
-              enabled: widget.enabled,
-              expandedInsets: EdgeInsets.zero,
-              requestFocusOnTap: false,
-              menuHeight: 320,
-              label: Text(labels.picker),
-              leadingIcon: shownEntry?.leadingIcon,
-              initialSelection: shown,
-              dropdownMenuEntries: entries,
-              onSelected: (id) {
-                if (id == null || id == _customId || id == selected) return;
-                unawaited(widget.onSelect(id));
+            // A long name wraps (up to three lines) instead of being cut off;
+            // the field only grows when the name needs it.
+            child: LayoutBuilder(
+              builder: (context, constraints) {
+                final lines = _lines(
+                  context,
+                  shownEntry?.label ?? '',
+                  constraints.maxWidth,
+                );
+                return DropdownMenu<String>(
+                  key: _key('Dropdown'),
+                  enabled: widget.enabled,
+                  expandedInsets: EdgeInsets.zero,
+                  requestFocusOnTap: false,
+                  maxLines: lines,
+                  menuHeight: 320,
+                  label: Text(labels.picker),
+                  leadingIcon: shownEntry?.leadingIcon,
+                  initialSelection: shown,
+                  dropdownMenuEntries: entries,
+                  onSelected: (id) {
+                    if (id == null || id == _customId || id == selected) return;
+                    unawaited(widget.onSelect(id));
+                  },
+                );
               },
             ),
           ),
@@ -217,6 +248,13 @@ class _PresetPickerState extends State<PresetPicker> {
                 onPressed: () => unawaited(widget.onUpdate!(update.id)),
                 child: menuLabel(labels.update(update.label)),
               ),
+            if (edited != null && widget.onDiscard != null)
+              MenuItemButton(
+                key: _key('Discard'),
+                leadingIcon: const Icon(Icons.restore),
+                onPressed: () => unawaited(_confirmDiscard(edited)),
+                child: Text(labels.discard),
+              ),
             for (final entry in widget.entries.where(
               (e) => !e.enabled && e.id != manage?.id,
             ))
@@ -243,6 +281,34 @@ class _PresetPickerState extends State<PresetPicker> {
         ),
       ],
     );
+  }
+
+  /// Lines (1 to 3) [text] needs in the field, measured against the width
+  /// left after its padding and icons. Leaving a little more room than they
+  /// take only makes the field taller early, never cuts the text.
+  int _lines(BuildContext context, String text, double width) {
+    final painter = TextPainter(
+      text: TextSpan(text: text, style: Theme.of(context).textTheme.bodyLarge),
+      textDirection: Directionality.of(context),
+      textScaler: MediaQuery.textScalerOf(context),
+      maxLines: 3,
+    )..layout(maxWidth: (width - 120).clamp(1, double.infinity));
+    final lines = painter.computeLineMetrics().length;
+    painter.dispose();
+    return lines.clamp(1, 3);
+  }
+
+  Future<void> _confirmDiscard(PresetPickerEntry preset) async {
+    final labels = widget.labels;
+    final discard = await showConfirmDialog(
+      context,
+      title: labels.discard,
+      message: labels.discardConfirm(preset.label),
+      confirmLabel: labels.discard,
+      cancelLabel: labels.cancel,
+      confirmKey: _key('DiscardConfirm'),
+    );
+    if (discard && mounted) await widget.onDiscard!(preset.id);
   }
 
   Future<void> _confirmDelete(PresetPickerEntry preset) async {
