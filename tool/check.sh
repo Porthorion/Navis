@@ -1,6 +1,9 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+# shellcheck source=tool/lib/check_test_log.sh
+source "$(dirname "${BASH_SOURCE[0]}")/lib/check_test_log.sh"
+
 min_tmp_kb=262144
 if df --output=avail /tmp >/dev/null 2>&1; then
   tmp_available_kb="$(df --output=avail /tmp | tail -n1 | tr -d ' ')"
@@ -44,6 +47,7 @@ run_step_capture() {
 
 assert_no_blocking_warnings() {
   local log_file="$1"
+  assert_no_test_failures "${log_file}"
   local patterns=(
     "It looks like you've created the database class NavisDatabase multiple times"
     "Tried to modify a provider while the widget tree was building"
@@ -60,6 +64,7 @@ assert_no_blocking_warnings() {
   done
 }
 
+run_step "test log guard" ./tool/check_test_log_test.sh
 run_step "linux desktop entry" ./tool/linux_desktop_entry_test.sh
 run_step "release tag guard" ./tool/release_tag_guard_test.sh
 run_step "dev release and R2 publishing" ./tool/dev_release_test.sh
@@ -103,7 +108,8 @@ run_step_capture \
 assert_no_blocking_warnings "${tmp_log_dir}/all-tests.log"
 
 if [[ "${CI:-false}" == "true" ]]; then
-  run_step "coverage (CI)" flutter test --coverage
+  run_step_capture "coverage (CI)" "${tmp_log_dir}/coverage.log" flutter test --coverage
+  assert_no_blocking_warnings "${tmp_log_dir}/coverage.log"
 fi
 
 echo "[check] All checks passed."

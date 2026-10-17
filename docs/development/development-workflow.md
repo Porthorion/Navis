@@ -171,6 +171,8 @@ Checks performed:
 - Last.fm key masking (`tool/lastfm_key_defines_test.sh`) and the release
   artifact secret scan (`tool/scan_artifact_secret_test.sh`), with a fake key
   and synthetic artifacts
+- Flutter test-log guard fixtures (`tool/check_test_log_test.sh`): reject
+  reported failures and runner shutdown crashes even when Flutter exits 0
 - Windows SQLite asset verification (`tool/sqlite3_windows_asset_test.py`)
 - Diagnostics profile preparation (`tool/diagnostics_profile_test.py`): an
   isolated clone, including one from a profile older than schema 91, starts
@@ -184,7 +186,12 @@ Checks performed:
 - static analysis (`flutter analyze --no-fatal-infos`)
 - dead-code ratchet (`dart run tool/dead_code_check.dart`)
 - migration and critical regression suites
-- full tests (`flutter test`)
+- full tests (`flutter test`), plus coverage when `CI=true`
+
+Every Flutter test capture rejects a nonzero failure count in the last progress
+line, `Some tests failed`, or `One or more uncaught errors occurred shutting down`.
+The guard handles ANSI colors and carriage-return progress updates and prints
+the matching lines before failing.
 
 The dead-code CLI self-tests invoke its shared library entry point against
 temporary fixtures in-process, avoiding a Dart subprocess compilation per check.

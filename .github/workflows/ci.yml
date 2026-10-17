@@ -71,7 +71,13 @@ jobs:
       - run: ./tool/bootstrap.sh
       # No secrets: the Last.fm key comes from optional --dart-define values,
       # and builds without one fall back to a user-supplied key.
-      - run: flutter test --total-shards 4 --shard-index ${{ matrix.shard }}
+      # flutter test can exit 0 after a runner shutdown crash (#32); the
+      # shared guard fails the shard on a failure count or crash text.
+      - shell: bash
+        run: |
+          source tool/lib/check_test_log.sh
+          flutter test --total-shards 4 --shard-index ${{ matrix.shard }} 2>&1 | tee "$RUNNER_TEMP/test.log"
+          assert_no_test_failures "$RUNNER_TEMP/test.log"
 
   # One stable name to require in branch protection.
   ci:
