@@ -14,6 +14,66 @@ Last updated: 2026-10-18
 - ACP status values: `backlog`, `ready`, `in_progress`, `blocked`, `done`.
 
 ## Current Focus
+- [x] Issue #49 review fixes, round 3 — 2026-10-18
+  (`feat/device-to-server-upload`): a kept device playlist retains its resolved
+  server id; saving again sets the current name and replaces ordered songs via
+  `updatePlaylist`, then repeats the snapshot-checked swap. Create recovery is
+  completed only after replacement. Radio moves compare the original device
+  name, stream URL and homepage inside the deletion transaction, preserve
+  concurrent edits, and return/show the kept-copy result and notice. The
+  recovery comment and architecture document the accepted app-kill duplication
+  ceiling and pending-metadata persistence upgrade; architecture also records
+  header lag until the next sync for journal-protected ids skipped by stale
+  reconciliation. Tests-first baseline: `00:00 +51 -4: Some tests failed.`
+  (one duplicate playlist create and three lost radio-field edits). The final
+  four-file focused batch used the shared `flock`, 9G cap, concurrency 4 and
+  60s timeout: `00:03 +123: All tests passed!`;
+  `[capped] exit=0 peak=2666M swappeak=0M oom_kills=0`. Coverage includes playlist
+  uploads/actions, radio actions, and the radio editor's kept-copy notice.
+  Eight-file scoped analysis reported `No issues found! (ran in 2.6s)`.
+  `flutter gen-l10n`, changed Dart formatting and `git diff --check` passed.
+  Runtime validation was not performed;
+  `tool/check.sh` was excluded by the implementation handoff.
+- [x] Issue #49 review fixes, round 2 — 2026-10-18
+  (`feat/device-to-server-upload`): upload replacement compares the device name
+  and ordered entries with the original snapshot in the transaction; concurrent
+  edits preserve both copies and produce a notice. Readback validates and caches
+  the server's actual entries and reports partial acceptance. Playlist and radio
+  moves share pre-create id snapshots and new-id resolution for bodyless or
+  uncertain creates; ambiguous/failed lookups preserve the device copy, and
+  retries retain the original snapshot/resolved id in the actions instance.
+  This recovery state does not survive an app restart or actions replacement.
+  Header reconciliation uses the existing durable local-mutation journal's
+  increasing id to protect later writes, without a schema change, and deletes
+  hydration work only for rows actually removed. Header refresh queues through
+  the existing library target request path; the per-server sync lease is
+  unchanged. The stale-response race explains a newly uploaded server row
+  disappearing, but does not establish #51's cause: device rows remain excluded
+  from server deletion, and a regression pins their survival. Validation:
+  tests-first baseline `00:09 +239 -14: Some tests failed.`; all 14 failures
+  corresponded to the requested regressions. The final 12-file focused batch,
+  using the handoff's shared `flock`, 9G cap, concurrency 4 and 60s timeout,
+  passed: `00:10 +458: All tests passed!` and
+  `[capped] exit=0 peak=3905M swappeak=138M oom_kills=0`. Coverage includes
+  playlist uploads/actions, radio actions/screen, sync engine/controller,
+  playlist DAO, transaction streams, Library, playlist detail/device providers,
+  and remote detail pages. Focused analysis of 17 changed files reported
+  `No issues found! (ran in 4.7s)`. `make gen` and `flutter gen-l10n` succeeded;
+  no Drift-generated changes or migrations were needed. Changed Dart formatting
+  and `git diff --check` passed. App launches/runtime screenshots and
+  `tool/check.sh` were explicitly excluded by the implementation handoff.
+- [x] Issue #49, upload device playlists and radio stations to the server — 2026-10-18
+  (`feat/device-to-server-upload`): Edit Playlist (the former rename dialog)
+  has a Save on Server switch for device playlists, disabled while
+  `playlistServerCreationAvailableProvider` is false. `PlaylistActions.uploadToServer`
+  creates the server playlist from the ordered song ids, then
+  `PlaylistDao.replaceLocalWithServer` swaps the rows in one transaction; a
+  failed create keeps the device playlist, and concurrent calls share one
+  create. An open detail screen follows the move through
+  `playlistMovedToServerProvider`. Admins get the same switch when editing a
+  device radio station (`RadioStationActions.save(moveToServer: true)`). Tests:
+  the new `playlist_upload_test.dart` (5 cases), radio actions/screen,
+  library screen and playlist detail tests; all passed on the focused run.
 - [x] Issue #48, paced lyrics backfill with automatic cooldown resume — 2026-10-18
   (`feat/backfill-rate-limit-resume`): LRCLIB reuses the renamed
   `RequestLimiter` with two starts/second, one background start/second and two

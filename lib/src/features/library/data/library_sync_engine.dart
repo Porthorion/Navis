@@ -4463,6 +4463,7 @@ class DriftLibrarySyncEngine implements SyncPlanExecutor {
   }
 
   Future<void> _syncPlaylistHeadersStrict(_SyncRunMetrics metrics) async {
+    final mutationVersion = await _database.playlistDao.getMutationVersion();
     final playlists = await _request(
       _api.getPlaylists,
       metrics: metrics,
@@ -4527,16 +4528,14 @@ class DriftLibrarySyncEngine implements SyncPlanExecutor {
         }
       }
     }
-    await _database.playlistDao.reconcileServerPlaylists(
+    final removedIds = await _database.playlistDao.reconcileServerPlaylists(
       _toPlaylistCompanions(playlists),
       serverIds.toList(growable: false),
+      mutationVersion: mutationVersion,
     );
     metrics.addDbWriteBatch();
 
     if (serverId != null) {
-      final removedIds = existing.keys
-          .where((id) => !serverIds.contains(id))
-          .toList(growable: false);
       await _database.librarySyncDao.deleteEntityWork(
         serverId: serverId,
         kind: LibrarySyncPlanKind.targetedHydration.name,

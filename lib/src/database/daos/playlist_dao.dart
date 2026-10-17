@@ -1,3 +1,4 @@
+import 'package:collection/collection.dart';
 import 'package:drift/drift.dart';
 import 'package:navis/src/database/database_utils.dart';
 import 'package:navis/src/database/navis_database.dart';
@@ -119,40 +120,95 @@ class PlaylistDao extends DatabaseAccessor<NavisDatabase>
     );
   }
 
-  Future<void> upsertPlaylists(List<PlaylistsTableCompanion> playlists) async {
-    await batch((batch) {
-      for (final playlist in playlists) {
-        batch.insert(
-          playlistsTable,
-          playlist,
-          onConflict: DoUpdate((old) => playlist, target: [playlistsTable.id]),
+  /// Monotonic journal boundary captured before fetching server headers.
+  Future<int> getMutationVersion() async {
+    final table = attachedDatabase.librarySyncLocalMutationsTable;
+    final latest = table.id.max();
+    final row = await (attachedDatabase.selectOnly(
+      table,
+    )..addColumns([latest])).getSingle();
+    final version = row.read(latest) ?? 0;
+    return version;
+  }
+
+  Future<void> _recordWrite(String id) async {
+    final table = attachedDatabase.librarySyncLocalMutationsTable;
+    await (attachedDatabase.delete(table)..where(
+          (row) => row.entityType.equals('playlist') & row.entityId.equals(id),
+        ))
+        .go();
+    await attachedDatabase
+        .into(table)
+        .insert(
+          LibrarySyncLocalMutationsTableCompanion.insert(
+            entityType: 'playlist',
+            entityId: id,
+            operation: 'upsert',
+            createdAt: DateTime.now(),
+          ),
         );
+  }
+
+  Future<void> upsertPlaylists(List<PlaylistsTableCompanion> playlists) async {
+    await transaction(() async {
+      await batch((batch) {
+        for (final playlist in playlists) {
+          batch.insert(
+            playlistsTable,
+            playlist,
+            onConflict: DoUpdate(
+              (old) => playlist,
+              target: [playlistsTable.id],
+            ),
+          );
+        }
+      });
+      for (final playlist in playlists) {
+        await _recordWrite(playlist.id.value);
       }
     });
   }
 
-  Future<void> reconcileServerPlaylists(
+  Future<List<String>> reconcileServerPlaylists(
     List<PlaylistsTableCompanion> playlists,
-    List<String> serverIds,
-  ) async {
-    await transaction(() async {
-      await upsertPlaylists(playlists);
-      final removedPlaylists = selectOnly(playlistsTable)
-        ..addColumns([playlistsTable.id])
-        ..where(playlistsTable.isLocal.equals(false));
-      if (serverIds.isNotEmpty) {
-        removedPlaylists.where(playlistsTable.id.isNotIn(serverIds));
-      }
-      await (delete(
-        playlistSongsTable,
-      )..where((table) => table.playlistId.isInQuery(removedPlaylists))).go();
-      await (delete(playlistsTable)..where(
-            (table) =>
-                table.isLocal.equals(false) & table.id.isNotIn(serverIds),
-          ))
-          .go();
-    });
-  }
+    List<String> serverIds, {
+    int? mutationVersion,
+  }) => transaction(() async {
+    final table = attachedDatabase.librarySyncLocalMutationsTable;
+    final mutations = mutationVersion == null
+        ? <LibrarySyncLocalMutationsTableData>[]
+        : await (attachedDatabase.select(table)..where(
+                (row) =>
+                    row.entityType.equals('playlist') &
+                    row.id.isBiggerThanValue(mutationVersion),
+              ))
+              .get();
+    final protected = mutations.map((row) => row.entityId).toSet();
+    await upsertPlaylists([
+      for (final playlist in playlists)
+        if (!protected.contains(playlist.id.value)) playlist,
+    ]);
+    final removed =
+        await (select(playlistsTable)..where(
+              (row) =>
+                  row.isLocal.equals(false) &
+                  row.id.isNotIn([...serverIds, ...protected]),
+            ))
+            .get();
+    final removedIds = removed.map((row) => row.id).toList();
+    await (delete(
+      playlistSongsTable,
+    )..where((row) => row.playlistId.isIn(removedIds))).go();
+    await (delete(
+      playlistsTable,
+    )..where((row) => row.id.isIn(removedIds))).go();
+    await (attachedDatabase.delete(table)..where(
+          (row) =>
+              row.entityType.equals('playlist') & row.entityId.isIn(removedIds),
+        ))
+        .go();
+    return removedIds;
+  });
 
   Future<void> replacePlaylistSongs(
     String playlistId,
@@ -181,6 +237,7 @@ class PlaylistDao extends DatabaseAccessor<NavisDatabase>
         playlist,
         onConflict: DoUpdate((old) => playlist, target: [playlistsTable.id]),
       );
+      await _recordWrite(playlist.id.value);
       await attachedDatabase.libraryDao.upsertSongs(
         songs,
         snapshotStartedAt: snapshotStartedAt,
@@ -194,6 +251,46 @@ class PlaylistDao extends DatabaseAccessor<NavisDatabase>
     });
   }
 
+  /// Stores the server's actual contents and removes the device copy only
+  /// when its name and ordered entries still match the uploaded snapshot.
+  Future<bool> replaceLocalWithServer(
+    String localId,
+    PlaylistsTableCompanion server, {
+    required String uploadedName,
+    required List<String> uploadedSongIds,
+    required List<SongsTableCompanion> songs,
+    required List<String> serverSongIds,
+  }) {
+    return transaction(() async {
+      final local = await (select(
+        playlistsTable,
+      )..where((row) => row.id.equals(localId))).getSingleOrNull();
+      final joins =
+          await (select(playlistSongsTable)
+                ..where((row) => row.playlistId.equals(localId))
+                ..orderBy([(row) => OrderingTerm.asc(row.sortOrder)]))
+              .get();
+      final unchanged =
+          local != null &&
+          local.isLocal &&
+          local.name == uploadedName &&
+          const ListEquality<String>().equals(
+            joins.map((row) => row.songId).toList(),
+            uploadedSongIds,
+          );
+      await replaceHydratedPlaylist(server, songs, [
+        for (var index = 0; index < serverSongIds.length; index++)
+          PlaylistSongsTableCompanion.insert(
+            playlistId: server.id.value,
+            songId: serverSongIds[index],
+            sortOrder: index,
+          ),
+      ]);
+      if (unchanged) await deletePlaylist(localId);
+      return !unchanged;
+    });
+  }
+
   /// Delete a single playlist and its song associations.
   Future<void> deletePlaylist(String playlistId) async {
     await transaction(() async {
@@ -203,6 +300,13 @@ class PlaylistDao extends DatabaseAccessor<NavisDatabase>
       await (delete(
         playlistsTable,
       )..where((table) => table.id.equals(playlistId))).go();
+      final mutations = attachedDatabase.librarySyncLocalMutationsTable;
+      await (attachedDatabase.delete(mutations)..where(
+            (row) =>
+                row.entityType.equals('playlist') &
+                row.entityId.equals(playlistId),
+          ))
+          .go();
     });
   }
 

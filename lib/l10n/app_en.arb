@@ -629,8 +629,9 @@
   "radioEditorHomepageLabel": "Homepage (optional)",
   "radioEditorNameError": "Enter a name for this station.",
   "radioEditorUrlError": "Enter a full address starting with http:// or https://.",
-  "radioEditorSaveToServer": "Save to server",
+  "radioEditorSaveToServer": "Save on Server",
   "radioEditorSaveToServerHint": "Visible to every user on this server. Off keeps the station on this device only.",
+  "radioChangedWhileSaving": "Station changed while saving; the device copy was kept",
   "radioEditorSaveFailed": "Could not save this station. Try again.",
   "radioDeleteTitle": "Delete Station?",
   "radioDeleteScopeDevice": "Saved on this device only.",
@@ -1339,8 +1340,20 @@
   "playlistsSaveToServerLabel": "Save to server",
   "playlistsSaveToServerSubtitle": "Off keeps this playlist on this device only",
   "playlistsSaveToServerOfflineSubtitle": "Unavailable offline. The playlist stays on this device",
-  "playlistsRenameTitle": "Rename Playlist",
+  "playlistsEditTitle": "Edit Playlist",
   "playlistsRenameFailed": "Failed to rename playlist",
+  "playlistsSaveOnServerTitle": "Save on Server",
+  "playlistsSaveOnServerHint": "Moves this playlist to the server so every device you sign in on has it. This cannot be undone.",
+  "playlistsSaveOnServerOffline": "Connect to the server to save this playlist on it.",
+  "playlistsChangedWhileSaving": "Playlist changed while saving; the device copy was kept",
+  "playlistsSavedSongCount": "Saved on server: {kept} of {total} songs",
+  "@playlistsSavedSongCount": {
+    "placeholders": {
+      "kept": {"type": "int"},
+      "total": {"type": "int"}
+    }
+  },
+  "playlistsSaveOnServerFailed": "Failed to save playlist on server",
   "playlistsDeleteFailed": "Failed to delete playlist",
   "playlistsFilterHint": "Search playlists...",
   "playlistsSectionYours": "Your playlists",
