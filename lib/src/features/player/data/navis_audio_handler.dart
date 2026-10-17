@@ -3055,15 +3055,12 @@ class NavisAudioHandler extends BaseAudioHandler
             error.runtimeType,
             stackTrace,
           );
-          _radioMetadataService.stop();
-          _radioStation = null;
-          _pendingRadioRecovery = null;
-          _networkRetryTimer?.cancel();
           _completeQueueLoad(
             generation,
             failed: error is PlaybackLoadTimeoutException,
           );
-          rethrow;
+          await _stopUnavailableRadio(token: token);
+          throw const RadioPlaybackUnavailableException();
         }
 
         _checkQueueWorkCurrent(token, generation);
@@ -3080,6 +3077,9 @@ class NavisAudioHandler extends BaseAudioHandler
         unawaited(_playWithFocusRecovery());
         _broadcastPlaybackState();
         _completeQueueLoad(generation);
+      } on RadioPlaybackUnavailableException {
+        // Restoring the queue advances load ownership, but keeps this result.
+        rethrow;
       } on OperationCancelledException {
         AppLogger.debug(
           'playRadioStream cancelled — superseded by newer command.',

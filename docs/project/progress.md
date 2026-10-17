@@ -14,6 +14,22 @@ Last updated: 2026-10-17
 - ACP status values: `backlog`, `ready`, `in_progress`, `blocked`, `done`.
 
 ## Current Focus
+- [x] Issue #34, restore the queue after a rejected station start — 2026-10-17
+  (`fix/dead-station-queue`): source-load exceptions bypassed terminal radio
+  recovery, leaving the in-session queue empty and native play intent true.
+  Both the station card and diagnostics used that path; #21 did not change it
+  (the rethrowing catch predates it in `8f49a126`). Startup now reuses
+  `_stopUnavailableRadio` with its lane token; stream failures schedule cleanup
+  and restore as one job. The shell owns the single failure notice, and the
+  diagnostics route returns sanitized HTTP 502. Tests first reproduced empty
+  queues for 1/80 songs and HTTP 500. Evidence: the three affected test files
+  passed under `flock /tmp/navis-heavy.lock flutter test --concurrency=4`
+  (`04:55 +629: All tests passed!`); the strengthened native-event/load-rejection
+  race passed separately (`00:00 +1: All tests passed!`). `dart analyze lib test`
+  exited 0 with no errors or warnings (184 existing infos; none on added or
+  changed lines). Changed Dart files passed formatting; `git diff --check`
+  passed. App launch/runtime validation, independent review and `tool/check.sh`
+  remain with the coordinator, per the implementation task's constraints.
 - [x] Issue #32, reject Flutter false passes — 2026-10-17
   (`fix/check-sh-false-pass`): every captured test step, including CI coverage,
   rejects a nonzero final progress failure count, `Some tests failed`, or a

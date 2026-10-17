@@ -66,8 +66,10 @@ abstract class NavisPlaybackHandler {
   /// they could not be prepared when the player needed them.
   Stream<QueueSongsDropped> get droppedSongsStream => const Stream.empty();
 
-  /// Emits when a radio stream encounters a mid-playback error (e.g. HTTP 503,
-  /// connection reset). The UI should show a dismissible error notification.
+  /// Terminal radio startup or recovery failures.
+  ///
+  /// Each failure emits once. The handler restores the previous queue paused;
+  /// the UI shows one error notification.
   Stream<void> get radioStreamErrorStream;
 
   Future<void> waitUntilReady();
@@ -151,10 +153,13 @@ abstract class NavisPlaybackHandler {
   /// menu) so the now-playing UI reflects the change immediately.
   Future<void> syncSongLikedState(String songId, {required bool liked});
 
-  /// Start playing a radio stream from the given URL.
+  /// Starts playing a radio stream from the given URL.
   ///
   /// Radio playback is independent from the song queue: the existing queue
   /// is preserved and can be resumed by calling [stopRadio].
+  ///
+  /// A rejected source restores that queue paused, emits one notice through
+  /// [radioStreamErrorStream], and throws [RadioPlaybackUnavailableException].
   Future<void> playRadioStream({
     required String stationId,
     required String stationName,

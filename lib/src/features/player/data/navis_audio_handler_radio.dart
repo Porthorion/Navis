@@ -14,7 +14,7 @@ extension _NavisRadio on NavisAudioHandler {
 
   /// The station is gone or stayed unreachable: stop it, restore the previous
   /// queue paused, and tell the user once, since only they can pick another.
-  void _stopUnavailableRadio() {
+  Future<void> _stopUnavailableRadio({OperationToken? token}) {
     // The restored queue must stay paused whatever its size, as in stopRadio().
     _supersedeTransportIntent(shouldPlay: false);
     AppLogger.startup(
@@ -32,25 +32,24 @@ extension _NavisRadio on NavisAudioHandler {
     _broadcastPlaybackState();
     _emitSnapshot();
     _radioStreamErrorController.add(null);
-    // Schedule player cleanup and queue restore on the lane.
-    unawaited(
-      _queueLane.run((_) async {
-        await _player.stop();
-        await _player.setAudioSources(const <AudioSource>[]);
-        queue.add(const <MediaItem>[]);
-        _setCurrentMediaItem(null);
-        _broadcastPlaybackState();
-        _emitSnapshot();
-      }),
-    );
-    unawaited(
-      _queueLane.run((token) async {
-        await _restorePreviousQueueAfterRadio(
-          token,
-          context: 'radio stream error',
-        );
-      }),
-    );
+    Future<void> restore(OperationToken token) async {
+      await _player.stop();
+      token.checkCancelled();
+      await _player.setAudioSources(const <AudioSource>[]);
+      token.checkCancelled();
+      queue.add(const <MediaItem>[]);
+      _setCurrentMediaItem(null);
+      _broadcastPlaybackState();
+      _emitSnapshot();
+      await _restorePreviousQueueAfterRadio(
+        token,
+        context: 'radio stream error',
+      );
+    }
+
+    // Startup already owns the lane. Stream failures acquire it once, so
+    // restoring cannot cancel a separate, still-pending cleanup job.
+    return token == null ? _queueLane.run(restore) : restore(token);
   }
 
   /// Start of the recovery budget for a station that just failed. Only time
@@ -100,7 +99,7 @@ extension _NavisRadio on NavisAudioHandler {
         return;
       }
       if (DateTime.now().difference(pending.since) >= _timeouts.radioRecovery) {
-        _stopUnavailableRadio();
+        unawaited(_stopUnavailableRadio());
         return;
       }
       await _queueLane.run((token) async {
@@ -165,7 +164,7 @@ extension _NavisRadio on NavisAudioHandler {
           identical(_radioStation, latest.station)) {
         if (DateTime.now().difference(latest.since) >=
             _timeouts.radioRecovery) {
-          _stopUnavailableRadio();
+          unawaited(_stopUnavailableRadio());
         } else {
           _scheduleNetworkPlaybackRetry();
         }

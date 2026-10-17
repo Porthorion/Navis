@@ -2676,6 +2676,11 @@ and Subsonic delivery continues independently.
   Switching stations stops metadata listeners before replacing the station or
   awaiting its source load; a current failed source load also stops them.
   Superseded radio failures cannot clear station state or report failure. Radio
+  source-load failures use the same terminal recovery as stream failures:
+  stop the player, restore the saved queue paused, and emit one global notice.
+  `RadioPlaybackUnavailableException` reports that handled startup failure to
+  callers; radio cards leave its notice to the shell, and diagnostics returns
+  HTTP 502 with `station unavailable` rather than an internal error. Radio
   card callbacks use the queue selection epoch to discard stale errors; a
   successful retry dismisses its earlier radio error notice by notice identity.
   Policy-driven artwork refreshes retain the current song title and artist in
@@ -4559,7 +4564,8 @@ every source. A startup, deferred-retry or post-radio restore timeout keeps the
 saved queue instead of deleting it. Radio Stop returns after stopping the stream; its
 background restore and the restore after a terminal radio failure share this
 preservation policy. Stopping radio, or a terminal radio failure, restores the
-previous queue paused, exactly like startup restore: it never resumes playback
+previous queue paused, including when the initial station source load fails and
+for queues larger than 64 songs, exactly like startup restore: it never resumes playback
 on its own.
 This is intended (owner decision 2026-10-09), not a gap to close. Before releasing the lane it cancels the restore token,
 retires its load generation, and replaces the native player, so a late native

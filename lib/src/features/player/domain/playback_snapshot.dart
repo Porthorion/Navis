@@ -72,6 +72,11 @@ class RadioPlaybackBlockedException implements Exception {
   const new();
 }
 
+/// Radio startup failed; the handler owns queue recovery and the error notice.
+class RadioPlaybackUnavailableException implements Exception {
+  const new();
+}
+
 /// Metadata for the currently playing radio station.
 @immutable
 class RadioStationMetadata {

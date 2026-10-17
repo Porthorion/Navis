@@ -195,7 +195,7 @@ extension _NavisMediaSession on NavisAudioHandler {
         _scheduleNetworkPlaybackRetry();
         unawaited(_recoverRadioAfterNetworkFailure());
       } else if (_radioStation != null) {
-        _stopUnavailableRadio();
+        unawaited(_stopUnavailableRadio());
       } else {
         _loadedSourceFailed = true;
         unawaited(

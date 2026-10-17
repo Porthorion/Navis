@@ -166,6 +166,10 @@ const List<ChangelogVersion> changelogs = [
     ],
     entries: [
       ChangelogEntry(
+        'A radio station that fails to start restores your previous queue paused, including large queues, and shows one notice instead of leaving an empty player with a Pause button',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
         'Looks again save artwork shapes, artwork size, density and artist view alongside colours and style; editing these settings shows Custom and keeps Update available',
         type: ChangelogEntryType.fix,
       ),

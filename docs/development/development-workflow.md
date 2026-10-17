@@ -1920,8 +1920,11 @@ plugin registration and does not kill the app process. Follow with `cmd media_se
 and inspect real playback through `/v1/playback/status`.
 
 Clone-only `POST /v1/playback/radio` accepts `stationId`, resolves the station
-through the active server and starts it through the production handler. As a
-transport fixture, `songId` instead runs a finite Subsonic MP3 stream in the same
+through the active server and starts it through the production handler. A
+station-start failure (`RadioPlaybackUnavailableException`) maps to HTTP 502
+with `{"error":"station unavailable"}` after the shared handler recovery stops
+the player and restores the previous queue paused; the shell shows one notice.
+As a transport fixture, `songId` instead runs a finite Subsonic MP3 stream in the same
 radio mode, with a fixed fixture label and no server station mutation. It verifies
 reconnect transport, not live-provider metadata or an infinite broadcast. Neither
 fixture accepts credentials or stream URLs. Primary certification rejects these
