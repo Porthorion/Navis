@@ -53,6 +53,15 @@ Last updated: 2026-10-18
   analysis of all seven changed Dart files reported `No issues found!`
   (exit 0, peak 1150M); formatting and diff checks passed. Runtime, emulator
   and full-gate validation remain excluded by the task instructions.
+  Round 3: verified covers reuse store write/prune/removal invalidation; the
+  joined local lyrics query shares the pass's seven-day eligibility predicate.
+  Reconciliation kicks only at completion. Added offline LRCLIB two-song retry
+  coverage. Red: `00:24 +41 -5: Some tests failed.`; the corrected reconciliation
+  assertion also failed on the old listener (`00:02 +9 -2: Some tests failed.`).
+  Four focused suites passed (`00:24 +97: All tests passed!`, peak 2850M) with
+  the required locked/capped command. `make gen` changed no generated source;
+  scoped analysis: `No issues found!` (exit 0, peak 2181M). Formatting and diff
+  checks passed. Runtime and `check.sh` were not run.
 - [x] Issue #46, server plain lyrics on first fetch — 2026-10-17
   (`fix/server-plain-lyrics`): the batched runtime check of dev b5468cbd found
   that plain-only server lyrics (structured lines without `start`) showed "No

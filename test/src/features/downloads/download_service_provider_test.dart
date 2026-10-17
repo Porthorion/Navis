@@ -185,6 +185,7 @@ void main() {
           }
           final phases = <BackfillPhase>[];
           final sub = service.backfillProgress
+              .skip(1)
               .map((p) => p.phase)
               .distinct()
               .listen(phases.add);
@@ -217,6 +218,14 @@ void main() {
             network.value = connected;
           } else if (trigger == 'reconciliation') {
             container.read(networkReconcilingProvider.notifier).begin();
+            await container.pump();
+            await Future<void>.delayed(const Duration(milliseconds: 100));
+            expect(
+              phases,
+              isEmpty,
+              reason: 'reconciliation start must not kick',
+            );
+            expect(artwork.calls, 0);
             container.read(networkReconcilingProvider.notifier).end();
             container.read(networkReconcilingProvider.notifier).end();
           }

@@ -1107,13 +1107,16 @@ class DownloadService {
   }
 
   Future<void> _runAutomaticBackfillPasses({required bool rearm}) async {
-    // One local query and one disk check per cover avoid empty network passes.
+    // Reuse verified covers; the store invalidates presence on writes/pruning.
     final songs = await _cacheDao.getPermanentDownloadMetadata();
     if (rearm) {
       _lyricsBackfillGate.done = false;
       _artworkBackfillGate.done = false;
     }
-    if (songs.every((song) => song.hasSyncedLyrics)) {
+    if (!songs.any(
+      (song) =>
+          _shouldBackfillLyrics(song.lyricsCache, force: _forceLyricsBackfill),
+    )) {
       _lyricsBackfillGate.done = true;
       _lyricsResumePending = false;
       _visitedLyrics.clear();
@@ -1127,7 +1130,7 @@ class DownloadService {
           .toSet();
       _artworkBackfillGate.done = true;
       for (final id in covers) {
-        if (await _artworkStore.fileFor(id) == null) {
+        if (!await _artworkStore.verifyPresent(id)) {
           _artworkBackfillGate.done = false;
           break;
         }
@@ -2733,6 +2736,13 @@ class DownloadService {
   // Lyrics backfill
   // ---------------------------------------------------------------------------
 
+  bool _shouldBackfillLyrics(
+    ExternalLyricsCacheTableData? cache, {
+    bool force = false,
+  }) =>
+      cache?.syncedLyrics?.trim().isNotEmpty != true &&
+      (force || !hasRecentLyricsFailure(cache));
+
   /// Scan all permanently-downloaded tracks and fetch lyrics for any that do
   /// not yet have a cached entry.
   ///
@@ -2770,10 +2780,7 @@ class DownloadService {
             continue;
           }
           final existing = await _libraryDao.getExternalLyricsCache(song.id);
-          if (existing?.syncedLyrics?.trim().isNotEmpty == true) continue;
-          if (!force && hasRecentLyricsFailure(existing)) {
-            continue;
-          }
+          if (!_shouldBackfillLyrics(existing, force: force)) continue;
           if (!_backfillReady()) return false;
           if (_pauseLyricsForCooldown()) return false;
           final resolved = await _prefetchLyrics(

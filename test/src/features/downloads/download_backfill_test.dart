@@ -35,8 +35,10 @@ class _Deezer extends Mock implements DeezerApiClient;
 class _External extends LrclibClient {
   int calls = 0;
   final backgroundCalls = <bool>[];
+  final titles = <String>[];
   final tokens = <CancelToken?>[];
   bool limited = false;
+  bool failSearch = false;
   @override
   bool get isRateLimited => limited;
   @override
@@ -47,8 +49,10 @@ class _External extends LrclibClient {
     CancelToken? cancelToken,
   }) async {
     calls++;
+    titles.add(title);
     backgroundCalls.add(background);
     tokens.add(cancelToken);
+    if (failSearch) throw StateError('transport failure');
     return [];
   }
 
@@ -67,6 +71,13 @@ class _Artwork extends PermanentArtworkStore {
   new(Future<Directory> Function() read)
     : super(readApplicationSupportDirectory: read);
   int calls = 0;
+  final fileChecks = <String?>[];
+  @override
+  Future<File?> fileFor(String? id) {
+    fileChecks.add(id);
+    return super.fileFor(id);
+  }
+
   ArtworkEnsureResult result = ArtworkEnsureResult.serverMissing;
   @override
   Future<ArtworkEnsureResult> ensureWithResult(
@@ -169,11 +180,12 @@ void main() {
     String id, {
     CacheType type = CacheType.permanent,
     String? cover = 'cover',
+    String title = 'Track',
   }) async {
     await db.libraryDao.upsertSongs([
       SongsTableCompanion.insert(
         id: id,
-        title: 'Track',
+        title: title,
         artistName: const Value('Artist'),
         albumName: const Value('Album'),
         albumId: const Value('album'),
@@ -184,7 +196,7 @@ void main() {
     await db.cacheDao.upsertCachedTrack(
       CachedTracksTableCompanion.insert(
         songId: id,
-        filePath: '/fixture/$id.mp3',
+        filePath: p.join(dir.path, '$id.mp3'),
         fileSize: 1,
         format: 'mp3',
         cacheType: type,
@@ -367,6 +379,93 @@ void main() {
       verifyNever(() => api.getLyricsBySongId(any()));
       expect(external.calls, 0);
       expect(artwork.calls, 0);
+    },
+  );
+
+  test(
+    'repeat complete triggers reuse verified covers and prune invalidates them',
+    () async {
+      await seed('one');
+      await db.libraryDao.upsertExternalLyricsCache(
+        songId: 'one',
+        source: 'server',
+        syncedLyrics: '[00:01.00]words',
+      );
+      await artwork.storeBytes('cover', bytes);
+      artwork.fileChecks.clear();
+      Future<void> trigger() async {
+        final idle = service.backfillProgress
+            .skip(1)
+            .firstWhere((p) => p.phase == BackfillPhase.idle);
+        await service.processQueuedDownloads();
+        await idle.timeout(const Duration(seconds: 2));
+        await Future<void>.delayed(Duration.zero);
+      }
+
+      await trigger();
+      expect(artwork.fileChecks, ['cover']);
+      artwork.fileChecks.clear();
+      await trigger();
+      expect(artwork.fileChecks, isEmpty);
+      await service.removeDownloadedTrack('one');
+      await seed('one');
+      await trigger();
+      await service.stopAndWait();
+      expect(artwork.fileChecks, contains('cover'));
+      expect(artwork.calls, 1);
+    },
+  );
+
+  for (final plain in [true, false]) {
+    test(
+      'automatic trigger starts no pass for recent lyrics misses: plain=$plain',
+      () async {
+        await seed('one', cover: null);
+        await db.libraryDao.upsertExternalLyricsCache(
+          songId: 'one',
+          source: plain ? 'serverPlain' : 'miss',
+          plainLyrics: plain ? 'words' : null,
+          failureCount: 1,
+          lastFailedAt: DateTime.now(),
+        );
+        final phases = <BackfillPhase>[];
+        final sub = service.backfillProgress.listen((p) => phases.add(p.phase));
+        await service.processQueuedDownloads();
+        await service.stopAndWait();
+        await sub.cancel();
+        expect(phases, everyElement(BackfillPhase.idle));
+        expect(external.calls, 0);
+      },
+    );
+  }
+
+  test(
+    'offline interrupted two-song pass retries LRCLIB for both songs',
+    () async {
+      await seed('one', cover: null, title: 'One');
+      await seed('two', cover: null, title: 'Two');
+      external.failSearch = true;
+      final checked = service.backfillProgress.firstWhere(
+        (p) => p.phase == BackfillPhase.lyrics && p.done == 1,
+      );
+      await service.processQueuedDownloads();
+      await checked.timeout(const Duration(seconds: 2));
+      online = false;
+      await service.backfillProgress.firstWhere(
+        (p) => p.phase == BackfillPhase.idle,
+      );
+      expect(external.calls, 1);
+      online = true;
+      final finished = service.backfillProgress.firstWhere(
+        (p) => p.phase == BackfillPhase.lyrics && p.done == 2,
+      );
+      await service.processQueuedDownloads();
+      await finished.timeout(const Duration(seconds: 2));
+      await service.stopAndWait();
+      expect(external.calls, 3);
+      expect(external.titles, ['One', 'One', 'Two']);
+      verify(() => api.getLyricsBySongId('one')).called(2);
+      verify(() => api.getLyricsBySongId('two')).called(1);
     },
   );
 

@@ -1146,6 +1146,7 @@ void main() {
           coverArt: 'c1',
           hasSyncedLyrics: false,
           hasPlainLyrics: false,
+          lyricsCache: null,
         ),
         (
           songId: 's2',
@@ -1156,6 +1157,7 @@ void main() {
           coverArt: null,
           hasSyncedLyrics: false,
           hasPlainLyrics: false,
+          lyricsCache: null,
         ),
       ],
       albumsMissingArtwork: [

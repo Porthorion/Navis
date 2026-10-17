@@ -2842,7 +2842,9 @@ final downloadServiceProvider = Provider<DownloadService>((ref) {
     );
   }, fireImmediately: true);
   ref.listen<bool>(networkReconcilingProvider, (previous, next) {
-    if (previous != next) unawaited(service.processQueuedDownloads());
+    if (previous == true && !next) {
+      unawaited(service.processQueuedDownloads());
+    }
   });
   ref.listen<bool>(librarySyncForegroundProvider, (previous, next) {
     if (previous == false && next) {

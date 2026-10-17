@@ -1944,9 +1944,14 @@ visited set on the next pass. A manual run retains its forced-upgrade intent
 across cooldowns. Backfill pauses while a song's stream load holds new work
 and never runs twice at once. App launch, each foreground return, library-sync
 completion (automatic, manual or pull-to-refresh), reconnect and existing
-policy/client/reconciliation changes re-arm the same gates. A local joined metadata query and one disk check per
-unique cover skip automatic passes when synced lyrics and artwork are already
-present. Triggers during a running pass coalesce; triggers during a pending
+policy/client changes and reconciliation completion re-arm the same gates.
+A local joined metadata query shares the pass's synced-upgrade predicate,
+including the seven-day miss/failure backoff, so only currently actionable
+lyrics gaps reopen the gate. Artwork presence is verified once per cover in
+memory; store writes, missing-file detection and pruning invalidate that cover.
+Download removal uses the same pruning hook. Repeat triggers with complete
+metadata or only recent lyrics misses skip automatic passes and repeated disk
+checks. Triggers during a running pass coalesce; triggers during a pending
 LRCLIB cooldown preserve its deadline and resume timer. Each item rechecks stop
 state and network eligibility after the playback hold and before its network
 work; teardown releases held passes without starting requests, and a mid-pass network

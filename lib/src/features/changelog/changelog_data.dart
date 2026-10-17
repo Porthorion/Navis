@@ -169,7 +169,8 @@ const List<ChangelogVersion> changelogs = [
         'Downloaded lyrics backfill paces LRCLIB requests and resumes after '
         'cooldowns with a live countdown while artwork keeps downloading. '
         'Missing metadata retries automatically at startup, on app resume, '
-        'after library sync and on reconnect',
+        'after library sync and on reconnect; repeat checks reuse verified '
+        'covers and skip recent lyrics misses',
         type: ChangelogEntryType.fix,
       ),
       ChangelogEntry(
