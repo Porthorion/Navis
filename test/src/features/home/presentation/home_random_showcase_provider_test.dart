@@ -96,6 +96,10 @@ class _FakeDiscoveryApiClient extends SubsonicApiClient {
   final Completer<void>? similarGate;
   int activeSearchCalls = 0;
   int maxActiveSearchCalls = 0;
+  final Completer<void> _twoSearchesActive = Completer<void>();
+
+  /// Completes once two searches are in flight at the same time.
+  Future<void> get twoSearchesActive => _twoSearchesActive.future;
   int totalSearchCalls = 0;
   int totalSimilarSongCalls = 0;
 
@@ -128,6 +132,9 @@ class _FakeDiscoveryApiClient extends SubsonicApiClient {
     activeSearchCalls++;
     if (activeSearchCalls > maxActiveSearchCalls) {
       maxActiveSearchCalls = activeSearchCalls;
+    }
+    if (activeSearchCalls >= 2 && !_twoSearchesActive.isCompleted) {
+      _twoSearchesActive.complete();
     }
     try {
       final gate = searchGate;
@@ -166,6 +173,10 @@ class _FakeListenBrainzApiClient extends ListenBrainzApiClient {
   final Map<String, Completer<ListenBrainzPlaylist>> detailCompleters;
   final Completer<List<ListenBrainzPlaylist>>? recommendationCompleter;
   final List<String> detailStarts = <String>[];
+  final Completer<void> _twoDetailsStarted = Completer<void>();
+
+  /// Completes once two playlist detail fetches have started.
+  Future<void> get twoDetailsStarted => _twoDetailsStarted.future;
   int recommendationPlaylistCalls = 0;
   int validationCalls = 0;
 
@@ -200,6 +211,9 @@ class _FakeListenBrainzApiClient extends ListenBrainzApiClient {
     CancelToken? cancelToken,
   }) async {
     detailStarts.add(playlistMbid);
+    if (detailStarts.length >= 2 && !_twoDetailsStarted.isCompleted) {
+      _twoDetailsStarted.complete();
+    }
     final detailCompleter = detailCompleters[playlistMbid];
     if (detailCompleter != null) {
       return await detailCompleter.future;
@@ -1204,13 +1218,7 @@ void main() {
     });
 
     final future = container.read(listenBrainzDiscoverProvider.future);
-    for (
-      var attempt = 0;
-      attempt < 50 && fakeListenBrainz.detailStarts.length < 2;
-      attempt++
-    ) {
-      await Future<void>.delayed(Duration.zero);
-    }
+    await fakeListenBrainz.twoDetailsStarted;
 
     expect(
       fakeListenBrainz.detailStarts,
@@ -1315,13 +1323,7 @@ void main() {
     });
 
     final future = container.read(listenBrainzDiscoverProvider.future);
-    for (
-      var attempt = 0;
-      attempt < 50 && fakeApi.activeSearchCalls < 2;
-      attempt++
-    ) {
-      await Future<void>.delayed(Duration.zero);
-    }
+    await fakeApi.twoSearchesActive;
     expect(fakeApi.maxActiveSearchCalls, 2);
     searchGate.complete();
     await future;
