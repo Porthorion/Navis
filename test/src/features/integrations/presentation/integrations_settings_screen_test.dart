@@ -380,7 +380,9 @@ void main() {
       findsOneWidget,
     );
     expect(
-      find.text('Synced lyrics from LRCLIB first, server lyrics as fallback.'),
+      find.text(
+        'Server lyrics first; LRCLIB adds synced lyrics when the server has none or only plain text.',
+      ),
       findsOneWidget,
     );
   });

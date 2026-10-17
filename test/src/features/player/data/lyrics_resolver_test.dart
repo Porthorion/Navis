@@ -544,4 +544,23 @@ void main() {
       expect(healed.lastFailedAt, isNull);
     },
   );
+
+  test('plainLyricsText prefers value, falls back to structured lines', () {
+    final lines = [
+      StructuredLyrics(
+        synced: false,
+        line: [
+          LyricLine(value: 'a'),
+          LyricLine(value: ' '),
+          LyricLine(value: 'b'),
+        ],
+      ),
+    ];
+    expect(
+      plainLyricsText(LyricsList(structuredLyrics: lines, value: 'v')),
+      'v',
+    );
+    expect(plainLyricsText(LyricsList(structuredLyrics: lines)), 'a\nb');
+    expect(plainLyricsText(const LyricsList()), '');
+  });
 }

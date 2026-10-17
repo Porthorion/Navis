@@ -1904,7 +1904,9 @@ Features:
   existing 2.5-second grace period starts after the final interaction. A
   re-center button resumes immediately. Obsolete follow animations are
   cancelled without changing audio position; only a lyric tap calls `onSeek`.
-- Graceful fallback for unsynced/missing lyrics
+- Graceful fallback for unsynced/missing lyrics; unsynced text comes from
+  `plainLyricsText` (`value`, else the server's structured lines without a
+  start time), the same helper the lyrics cache write uses
 
 While `lrclib.lyrics` is allowed, `LyricsResolver` first returns cached synced
 lyrics from either source. It then asks the server: server synced lyrics win

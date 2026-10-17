@@ -4,6 +4,7 @@ import 'package:flutter/gestures.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:navis/l10n/app_localizations.dart';
 import 'package:navis/src/api/models/models.dart';
+import 'package:navis/src/features/player/data/lyrics_resolver.dart';
 import 'package:scrollable_positioned_list/scrollable_positioned_list.dart';
 import 'package:navis/src/theme/navis_shape_data.dart';
 
@@ -210,8 +211,7 @@ class _LyricsDisplayWidgetState extends State<LyricsDisplayWidget> {
   }
 
   bool get _hasUnsyncedLyrics {
-    final unsynced = widget.lyrics.value;
-    return unsynced != null && unsynced.trim().isNotEmpty;
+    return plainLyricsText(widget.lyrics).trim().isNotEmpty;
   }
 
   LyricsDisplayMode get _displayMode {
@@ -350,7 +350,7 @@ class _LyricsDisplayWidgetState extends State<LyricsDisplayWidget> {
   }
 
   Widget _buildUnsyncedLyrics(BuildContext context) {
-    final unsyncedLyrics = widget.lyrics.value ?? '';
+    final unsyncedLyrics = plainLyricsText(widget.lyrics);
     final hasFooter = _hasFooter;
 
     return LayoutBuilder(
