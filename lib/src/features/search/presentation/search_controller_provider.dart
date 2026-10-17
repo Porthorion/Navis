@@ -324,8 +324,9 @@ class SearchCollectionMatches {
 /// (device first, then server) whose name matches the query, best match first.
 ///
 /// Matching and ranking reuse [searchRelevanceTier]. Sources are read with
-/// `.asData?.value`, so a loading, failed or offline server list never throws:
-/// device playlists and device stations always stay searchable.
+/// `.value`, so a loading, reloading, failed or offline list never throws or
+/// drops the rows it last had; device playlists and device stations always
+/// stay searchable.
 final searchCollectionMatchesProvider =
     Provider.autoDispose<SearchCollectionMatches>((ref) {
       final query = ref.watch(searchQueryProvider).trim();
@@ -334,15 +335,14 @@ final searchCollectionMatchesProvider =
       }
       return SearchCollectionMatches(
         playlists: _matchByName(
-          ref.watch(playlistListProvider).asData?.value ??
-              const <PlaylistsTableData>[],
+          ref.watch(playlistListProvider).value ?? const <PlaylistsTableData>[],
           (p) => p.name,
           query,
         ),
         stations: _matchByName(
           <InternetRadioStation>[
-            ...?ref.watch(localRadioStationsProvider).asData?.value,
-            ...?ref.watch(radioStationsProvider).asData?.value,
+            ...?ref.watch(localRadioStationsProvider).value,
+            ...?ref.watch(radioStationsProvider).value,
           ],
           (s) => s.name,
           query,

@@ -4,6 +4,7 @@ import 'package:navis/src/features/player/domain/playback_snapshot.dart';
 
 import 'package:material_ui/material_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_riverpod/legacy.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:navis/l10n/app_localizations.dart';
 import 'package:navis/l10n/navis_localizations.dart';
@@ -590,6 +591,45 @@ void main() {
       refresh.complete(const [_station]);
       await tester.pumpAndSettle();
       expect(find.text('Ambient Radio'), findsOneWidget);
+    });
+
+    testWidgets('the device station stays while the device stations reload', (
+      tester,
+    ) async {
+      final reload = StateProvider<int>((ref) => 0);
+      final gate = Completer<List<InternetRadioStation>>();
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            radioStationsProvider.overrideWith((ref) async => const []),
+            localRadioStationsProvider.overrideWith((ref) {
+              // A dependency change reloads with the previous value kept.
+              return ref.watch(reload) == 0
+                  ? Stream.value(const [device])
+                  : gate.future.asStream();
+            }),
+            serverUserIsAdminProvider.overrideWith((ref) async => false),
+            currentRadioStationIdProvider.overrideWithValue(null),
+            audioHandlerProvider.overrideWithValue(null),
+          ],
+          child: MaterialApp(
+            theme: testTheme(),
+            localizationsDelegates: navisLocalizationsDelegates,
+            supportedLocales: AppLocalizations.supportedLocales,
+            home: const Scaffold(body: RadioTabContent()),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(find.text('Basement FM'), findsOneWidget);
+
+      final container = ProviderScope.containerOf(
+        tester.element(find.byType(RadioTabContent)),
+      );
+      container.read(reload.notifier).state = 1;
+      await tester.pump();
+      expect(container.read(localRadioStationsProvider).isLoading, isTrue);
+      expect(find.text('Basement FM'), findsOneWidget);
     });
 
     testWidgets('desktop keeps type-to-filter and has no field', (

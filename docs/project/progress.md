@@ -14,6 +14,14 @@ Last updated: 2026-10-18
 - ACP status values: `backlog`, `ready`, `in_progress`, `blocked`, `done`.
 
 ## Current Focus
+- [x] Issue #51: device rows vanish while lists reload — 2026-10-18
+  (`fix/device-rows-while-loading`): `playlistLibraryItemsProvider` lists the
+  last device and server rows from `playlistListProvider.value` during a reload
+  or failed read, so the Library tab cache is never overwritten by a
+  virtual-only list; the radio screen and `searchCollectionMatchesProvider`
+  read playlists and stations with `.value` instead of `.asData?.value`. Three
+  tests written first failed (`+34 -3` in the radio, playlist and search
+  files), then passed. Runtime validation was not performed.
 - [x] Issue #49 review fixes, round 3 — 2026-10-18
   (`feat/device-to-server-upload`): a kept device playlist retains its resolved
   server id; saving again sets the current name and replaces ordered songs via

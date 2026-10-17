@@ -166,6 +166,10 @@ const List<ChangelogVersion> changelogs = [
     ],
     entries: [
       ChangelogEntry(
+        'Device playlists and radio stations no longer briefly disappear from Library and Search while the lists reload',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
         'A playlist that lives only on this device can now be saved on the server: Edit Playlist has a Save on Server switch, preserves edits made during the upload, and reports how many songs the server accepted; admins get the same switch for device radio stations, uncertain uploads keep the device copy until the server result is identified, saving a kept playlist again updates the same server copy, and station edits made during upload stay on the device',
         type: ChangelogEntryType.newFeature,
       ),

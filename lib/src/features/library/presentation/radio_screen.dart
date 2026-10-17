@@ -67,7 +67,7 @@ class _RadioTabContentState extends ConsumerState<RadioTabContent> {
     final l10n = AppLocalizations.of(context)!;
     final stationsAsync = ref.watch(radioStationsProvider);
     final local =
-        ref.watch(localRadioStationsProvider).asData?.value ??
+        ref.watch(localRadioStationsProvider).value ??
         const <InternetRadioStation>[];
     final isAdmin = ref.watch(serverUserIsAdminProvider).asData?.value ?? false;
 
