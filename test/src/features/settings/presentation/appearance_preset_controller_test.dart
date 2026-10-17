@@ -1,9 +1,12 @@
+import 'dart:convert';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:navis/src/features/settings/data/settings_repository.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:navis/src/common/preset_names.dart';
 import 'package:navis/src/features/settings/domain/appearance_presets.dart';
+import 'package:navis/src/features/settings/domain/navis_density.dart';
 import 'package:navis/src/features/settings/presentation/appearance_preset_controller.dart';
 import 'package:navis/src/providers/app_providers.dart';
 import 'package:navis/src/features/player/presentation/playback_adjustment_controller.dart';
@@ -408,6 +411,78 @@ void main() {
     );
   }, skip: !sqliteAvailable);
 
+  test(
+    'partial stored Look stays selected after apply and Update captures layout',
+    () async {
+      final database = createTestDatabase();
+      addTearDown(database.close);
+      final dao = database.appSettingsDao;
+      final repository = SettingsRepository(dao);
+      final json = AppearanceSnapshot.capture(await repository.getSettings())
+          .toJson();
+      <String>[
+        'coverArtShape',
+        'nowPlayingArtShape',
+        'artistCardShape',
+        'gridArtworkSize',
+        'albumGridDensity',
+        'density',
+        'artistViewMode',
+      ].forEach(json.remove);
+      await dao.updateAppearanceLooks(
+        selectedLookId: null,
+        looksJson: jsonEncode([
+          {'id': 'partial', 'name': 'Partial', 'version': 1, 'snapshot': json},
+        ]),
+      );
+      await dao.updateDensity(NavisDensity.compact);
+      final container = ProviderContainer(
+        overrides: withTestDatabase(database),
+      );
+      addTearDown(container.dispose);
+      container.listen(appearanceLooksControllerProvider, (_, _) {});
+      final controller = container.read(
+        appearanceLooksControllerProvider.notifier,
+      );
+      expect(await controller.apply('partial'), isNotNull);
+      expect(
+        container.read(appearanceLooksControllerProvider).selectedLookId,
+        'partial',
+      );
+      expect((await repository.getSettings()).density, NavisDensity.compact);
+      expect(await controller.update('partial'), isNull);
+      final saved =
+          (await repository.getSettings()).appearanceLooks.single.snapshot;
+      expect(saved.toJson(), hasLength(27));
+      await dao.updateDensity(NavisDensity.comfortable);
+      final restarted = ProviderContainer(
+        overrides: withTestDatabase(database),
+      );
+      addTearDown(restarted.dispose);
+      restarted.listen(appearanceLooksControllerProvider, (_, _) {});
+      await restarted.read(appSettingsProvider.future);
+      expect(
+        restarted.read(appearanceLooksControllerProvider).selectedLookId,
+        isNull,
+      );
+      expect(
+        restarted.read(appearanceLooksControllerProvider).originLookId,
+        'partial',
+      );
+      expect(
+        await restarted
+            .read(appearanceLooksControllerProvider.notifier)
+            .update('partial'),
+        isNull,
+      );
+      expect(
+        restarted.read(appearanceLooksControllerProvider).selectedLookId,
+        'partial',
+      );
+    },
+    skip: !sqliteAvailable,
+  );
+
   for (final matchedLook in [false, true]) {
     test(
       'apply and restore round-trip every snapshot field, matched Look=$matchedLook',
@@ -424,7 +499,7 @@ void main() {
         );
         final repository = container.read(settingsRepositoryProvider);
         final target = (await controller.saveAsNew('Target')).value!;
-        // Exercise all appearance fields, including the explicit null seed.
+        // Exercise all appearance fields, including both explicit nulls.
         final before = AppearanceSnapshot.fromJson(const {
           'themeMode': 'system',
           'oledForAuto': true,
@@ -445,9 +520,16 @@ void main() {
           'flatSurfaces': true,
           'flatAreas': 2,
           'cornerStyle': 'square',
+          'coverArtShape': 'rounded',
+          'nowPlayingArtShape': 'circle',
+          'artistCardShape': 'square',
+          'gridArtworkSize': 'large',
+          'albumGridDensity': null,
+          'density': 'compact',
+          'artistViewMode': 'list',
           'nowPlayingBackground': 'artwork',
         });
-        expect(before.toJson(), hasLength(20));
+        expect(before.toJson(), hasLength(27));
         await database.appSettingsDao.applyAppearanceSnapshot(before);
         String? previousLookId;
         if (matchedLook) {
@@ -455,7 +537,7 @@ void main() {
         }
         await database.appSettingsDao.applyAppearanceSnapshot(target.snapshot);
         await database.appSettingsDao.applyAppearanceSnapshot(
-          const AppearanceSnapshot(colorSchemeSeed: 1),
+          const AppearanceSnapshot(colorSchemeSeed: 1, albumGridDensity: 6),
         );
         await controller.update(target.id);
         final updatedTarget = AppearanceSnapshot.capture(
@@ -473,6 +555,7 @@ void main() {
         expect(AppearanceSnapshot.capture(restored).toJson(), before.toJson());
         expect(restored.themeMode, 'system');
         expect(restored.colorSchemeSeed, isNull);
+        expect(restored.albumGridDensity, isNull);
         expect(
           restored.colorTuning,
           const ColorTuning(

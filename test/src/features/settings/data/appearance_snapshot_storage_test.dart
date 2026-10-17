@@ -8,6 +8,8 @@ import 'package:navis/src/features/settings/data/settings_repository.dart';
 import 'package:navis/src/features/settings/domain/app_settings.dart';
 import 'package:navis/src/features/settings/domain/appearance_presets.dart';
 import 'package:navis/src/features/settings/domain/flat_areas.dart';
+import 'package:navis/src/features/settings/domain/navis_density.dart';
+import 'package:navis/src/routing/content_layout.dart';
 import 'package:navis/src/features/settings/domain/now_playing_background.dart';
 import 'package:navis/src/providers/app_providers.dart';
 import 'package:navis/src/theme/color_adjustment.dart';
@@ -41,6 +43,13 @@ void main() {
       flatSurfaces: true,
       flatAreas: FlatAreas.fromBits(2),
       cornerStyle: NavisCornerStyle.square,
+      coverArtShape: 'circle',
+      nowPlayingArtShape: 'square',
+      artistCardShape: 'rounded',
+      gridArtworkSize: GridArtworkSize.large,
+      albumGridDensity: 6,
+      density: NavisDensity.compact,
+      artistViewMode: 'list',
       nowPlayingBackground: NowPlayingBackground.artwork,
       appLocale: 'en',
       homeRecommendationsAutoAdvance: true,
@@ -53,7 +62,7 @@ void main() {
     final original = AppearanceSnapshot.capture(await repository.getSettings());
     expect(
       original.toJson().length,
-      20,
+      27,
     ); // Every Look setting; tuning is Custom.
     await dao.applyAppearanceSnapshot(
       AppearanceSnapshot.capture(const AppSettingsModel.defaults()),
@@ -85,7 +94,7 @@ void main() {
   }, skip: !sqliteAvailable);
 
   for (final legacyDensity in <int?>[null, 6]) {
-    test('old stored Look ignores layout keys ($legacyDensity)', () async {
+    test('old stored Look restores layout keys ($legacyDensity)', () async {
       final database = createTestDatabase();
       addTearDown(database.close);
       final dao = database.appSettingsDao;
@@ -119,18 +128,65 @@ void main() {
       await dao.applyAppearanceSnapshot(look.snapshot);
       final after = await repository.getSettings();
       expect(after.themeMode, 'light');
-      expect(after.density, before.density);
-      expect(after.artistViewMode, before.artistViewMode);
-      expect(after.gridArtworkSize, before.gridArtworkSize);
-      expect(after.coverArtShape, before.coverArtShape);
-      expect(after.nowPlayingArtShape, before.nowPlayingArtShape);
-      expect(after.artistCardShape, before.artistCardShape);
-      expect(after.albumGridDensity, before.albumGridDensity);
+      expect(after.density, NavisDensity.compact);
+      expect(after.artistViewMode, 'list');
+      expect(after.gridArtworkSize, GridArtworkSize.large);
+      expect(after.coverArtShape, 'circle');
+      expect(after.nowPlayingArtShape, 'square');
+      expect(after.artistCardShape, 'rounded');
+      expect(after.albumGridDensity, legacyDensity);
       expect(matchingAppearanceLookId(after), 'old');
     }, skip: !sqliteAvailable);
   }
 
-  test('captured null clears seed and preserves legacy artwork size', () async {
+  test(
+    'stored Look without layout keys leaves layout unchanged and still matches',
+    () async {
+      final database = createTestDatabase();
+      addTearDown(database.close);
+      final dao = database.appSettingsDao;
+      final repository = SettingsRepository(dao);
+      await dao.updateDensity(NavisDensity.compact);
+      await dao.updateArtistViewMode('list');
+      await dao.updateGridArtworkSize('large');
+      await dao.updateCoverArtShape('circle');
+      await dao.updateNowPlayingArtShape('square');
+      await dao.updateArtistCardShape('rounded');
+      await database
+          .update(database.appSettingsTable)
+          .write(const AppSettingsTableCompanion(albumGridDensity: Value(6)));
+      final before = await repository.getSettings();
+      final json = AppearanceSnapshot.capture(before).toJson();
+      <String>[
+        'coverArtShape',
+        'nowPlayingArtShape',
+        'artistCardShape',
+        'gridArtworkSize',
+        'albumGridDensity',
+        'density',
+        'artistViewMode',
+      ].forEach(json.remove);
+      json['themeMode'] = 'light';
+      await dao.updateAppearanceLooks(
+        selectedLookId: 'partial',
+        looksJson: jsonEncode([
+          {'id': 'partial', 'name': 'Partial', 'version': 1, 'snapshot': json},
+        ]),
+      );
+      final look = (await repository.getSettings()).appearanceLooks.single;
+      await dao.applyAppearanceSnapshot(look.snapshot);
+      final after = await repository.getSettings();
+      expect(
+        AppearanceSnapshot.capture(after),
+        AppearanceSnapshot.capture(before.copyWith(themeMode: 'light')),
+      );
+      expect(matchingAppearanceLookId(after), 'partial');
+      expect(after.appearanceLooks.single.snapshot.toJson(), json);
+    },
+    skip: !sqliteAvailable,
+  );
+
+  test('captured null clears seed and legacy artwork size', () async {
     final database = createTestDatabase();
     addTearDown(database.close);
     final repository = SettingsRepository(database.appSettingsDao);
@@ -144,7 +200,7 @@ void main() {
     );
     final restored = await repository.getSettings();
     expect(restored.colorSchemeSeed, isNull);
-    expect(restored.albumGridDensity, 4);
+    expect(restored.albumGridDensity, isNull);
   }, skip: !sqliteAvailable);
 
   test(
@@ -174,13 +230,19 @@ void main() {
           'surfaceTintDark': -1,
           'controlColor': 'unknown',
           'nightScheduleStartMinutes': 1440,
-          'colorStyle': 'pastel',
+          'coverArtShape': 'bad',
+          'nowPlayingArtShape': false,
+          'artistCardShape': 2,
+          'gridArtworkSize': 'huge',
+          'albumGridDensity': 0,
+          'density': 'dense',
+          'artistViewMode': 'list',
         }),
       );
       final after = await repository.getSettings();
       expect(
         AppearanceSnapshot.capture(after),
-        AppearanceSnapshot.capture(before.copyWith(colorStyle: 'pastel')),
+        AppearanceSnapshot.capture(before.copyWith(artistViewMode: 'list')),
       );
     },
     skip: !sqliteAvailable,

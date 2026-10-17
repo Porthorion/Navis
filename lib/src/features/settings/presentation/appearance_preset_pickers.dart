@@ -47,9 +47,10 @@ PresetPickerLabels _labels(
   deleteAction: l10n.commonDelete,
 );
 
-/// Looks: saved snapshots of colours and style, at the top of Appearance
-/// settings, acting through [AppearanceLooksController]. Choosing a Look
-/// applies it.
+/// Saved Looks at the top of Appearance settings.
+///
+/// Choosing a Look applies its whole appearance through
+/// [AppearanceLooksController].
 ///
 /// With no Looks the picker reads Custom (the current appearance) and its menu
 /// offers the first save, which the subtitle points to. A changed appearance

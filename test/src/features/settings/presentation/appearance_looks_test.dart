@@ -25,7 +25,7 @@ import 'package:visibility_detector/visibility_detector.dart';
 import '../../../../helpers/adaptive_test_harness.dart';
 import '../../../../helpers/test_database.dart';
 
-/// Looks at the top of Appearance: saved snapshots of colours and style in
+/// Looks at the top of Appearance: saved snapshots of the whole appearance in
 /// a picker, acting through the Looks controller against a real settings
 /// stream.
 void main() {
@@ -270,7 +270,8 @@ void main() {
       expect(pickerText(tester), 'Custom');
       expect(
         find.text(
-          'Save your colours and style from the menu, then switch back any time.',
+          'Save your whole appearance from the menu, then switch back to it '
+          'any time.',
         ),
         findsOneWidget,
       );
@@ -299,7 +300,7 @@ void main() {
   });
 
   group('saving', () {
-    testWidgets('Save Current as New Look captures colours and style and '
+    testWidgets('Save Current as New Look captures the whole appearance and '
         'selects it', (tester) async {
       await pump(tester);
       await menu(tester, 'SaveNew');
@@ -313,7 +314,7 @@ void main() {
       expect(saved.looks.single.snapshot, AppearanceSnapshot.capture(settings));
       expect(pickerText(tester), 'Evening');
       expect(
-        find.text('Save and switch your colours and style.'),
+        find.text('Save and switch your whole appearance.'),
         findsOneWidget,
       );
     });
@@ -418,7 +419,7 @@ void main() {
         expect(find.text('Undo'), findsNothing);
       });
 
-      testWidgets('Undo restores every Look setting and Custom comes '
+      testWidgets('Undo restores every visible setting and Custom comes '
           'back', (tester) async {
         final before = await customThenLook(tester);
         await chooseLook(tester, 'Crisp', keepNotice: true);
@@ -570,7 +571,7 @@ void main() {
         await saveLook(tester, 'Crisp');
         expect(pickerText(tester), 'Crisp');
         await change(tester, [
-          () => database.appSettingsDao.updateCornerStyle('soft'),
+          () => database.appSettingsDao.updateDensity(NavisDensity.compact),
         ]);
         expect(pickerText(tester), edited('Crisp'));
         await expectUpdateOffered(tester, 'Crisp');
@@ -582,7 +583,7 @@ void main() {
         await chooseLook(tester, 'Evening', keepNotice: true);
         expect(pickerText(tester), 'Evening');
         await change(tester, [
-          () => database.appSettingsDao.updateCornerStyle('soft'),
+          () => database.appSettingsDao.updateDensity(NavisDensity.compact),
         ]);
         await chooseLook(tester, 'Crisp', keepNotice: true);
         await tester.tap(find.text('Undo'));
@@ -651,7 +652,8 @@ void main() {
       expect(pickerText(tester), 'Custom');
       expect(
         find.text(
-          'Save your colours and style from the menu, then switch back any time.',
+          'Save your whole appearance from the menu, then switch back to it '
+          'any time.',
         ),
         findsOneWidget,
       );

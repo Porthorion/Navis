@@ -166,6 +166,10 @@ const List<ChangelogVersion> changelogs = [
     ],
     entries: [
       ChangelogEntry(
+        'Looks again save artwork shapes, artwork size, density and artist view alongside colours and style; editing these settings shows Custom and keeps Update available',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
         'The offline notice no longer floats over your music: dismissing it, or three failed retries, shrinks the banner into a slim Offline strip that stays in the layout until the server is back, and tapping the strip brings the full banner back',
         type: ChangelogEntryType.fix,
       ),
@@ -199,10 +203,7 @@ const List<ChangelogVersion> changelogs = [
         type: ChangelogEntryType.fix,
       ),
       ChangelogEntry(
-        'Looks keep layout preferences independent: density, artist view, artwork size and art shapes stay as you set them when switching Looks',
-      ),
-      ChangelogEntry(
-        'Looks: after you change a colour or style setting the picker reads “Custom · edited from” the Look it came from, and Update keeps working after you leave Appearance or restart',
+        'Looks: after you change an appearance setting the picker reads “Custom · edited from” the Look it came from, and Update keeps working after you leave Appearance or restart',
         type: ChangelogEntryType.fix,
       ),
       ChangelogEntry(
@@ -417,7 +418,7 @@ const List<ChangelogVersion> changelogs = [
         type: ChangelogEntryType.newFeature,
       ),
       ChangelogEntry(
-        'Looks save your colours and style under a name, so you can switch between them in one tap from Settings › Appearance, with Undo right after',
+        'Looks save your whole appearance under a name, so you can switch between them in one tap from Settings › Appearance, with Undo right after',
         type: ChangelogEntryType.newFeature,
       ),
       ChangelogEntry(

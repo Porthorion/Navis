@@ -3615,11 +3615,11 @@ class AppLocalizationsEn extends AppLocalizations {
   String get appearanceLooksLabel => 'Looks';
 
   @override
-  String get appearanceLooksSub => 'Save and switch your colours and style.';
+  String get appearanceLooksSub => 'Save and switch your whole appearance.';
 
   @override
   String get appearanceLooksSubEmpty =>
-      'Save your colours and style from the menu, then switch back any time.';
+      'Save your whole appearance from the menu, then switch back to it any time.';
 
   @override
   String get appearanceLooksPicker => 'Look';
