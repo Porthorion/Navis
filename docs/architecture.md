@@ -5698,6 +5698,18 @@ download naming throws when all 100 collision candidates are occupied.
    schema change (schema 104). `downloadBackfillProgressProvider` exposes the
    service's seeded progress stream. The settings UI owns invalidating the
    gaps provider after a run completes.
+   The Downloads settings page shows these in a **Missing artwork and
+   lyrics** section (`DownloadMissingSection`) above Clear: "N songs without
+   lyrics" and "N albums without artwork" rows each push a plain list page
+   (title plus artist; touch and desktop alike), and "Nothing missing"
+   replaces them when both lists are empty. Loading and error states render
+   nothing extra. **Backfill now** calls `DownloadService.runBackfillNow` and is
+   disabled only while a pass runs; it shows the phase, done of total and a
+   `LinearProgressIndicator`, plus the blocked reason (offline, waiting for
+   Wi-Fi, lyrics service cooling down) and the last run's counts. The blocked
+   reason is sticky from the last attempt, so it informs but never disables
+   the button. A running-to-idle progress transition invalidates
+   `downloadMetadataGapsProvider`.
    The Downloads settings page retains the latest in-process scan's unresolved
    paths behind a disabled-or-enabled **Manual Matching** entry beneath Rescan.
    Its count badge and description expose how many files still need an explicit

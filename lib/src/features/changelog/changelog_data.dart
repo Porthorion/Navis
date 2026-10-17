@@ -166,6 +166,9 @@ const List<ChangelogVersion> changelogs = [
     ],
     entries: [
       ChangelogEntry(
+        'Downloads settings lists the downloaded songs and albums still missing lyrics or artwork, and Backfill now fills them in on demand with live progress',
+      ),
+      ChangelogEntry(
         'Lyrics now prefer the server, with LRCLIB used for a synced upgrade; downloaded albums can recover missing server covers from a confident Deezer match when its artwork integration is enabled',
         type: ChangelogEntryType.fix,
       ),

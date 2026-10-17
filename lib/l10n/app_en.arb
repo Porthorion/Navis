@@ -1540,6 +1540,42 @@
     }
   },
   "downloadsManualMatchingNone": "No songs need manual matching from the most recent scan.",
+  "downloadsMissingTitle": "Missing artwork and lyrics",
+  "downloadsMissingNone": "Nothing missing",
+  "downloadsMissingLyricsCount": "{count, plural, =1{1 song without lyrics} other{{count} songs without lyrics}}",
+  "@downloadsMissingLyricsCount": {
+    "placeholders": {
+      "count": {"type": "int"}
+    }
+  },
+  "downloadsMissingArtworkCount": "{count, plural, =1{1 album without artwork} other{{count} albums without artwork}}",
+  "@downloadsMissingArtworkCount": {
+    "placeholders": {
+      "count": {"type": "int"}
+    }
+  },
+  "downloadsMissingSongsTitle": "Songs without lyrics",
+  "downloadsMissingAlbumsTitle": "Albums without artwork",
+  "downloadsBackfillNow": "Backfill now",
+  "downloadsBackfillLyrics": "Finding lyrics",
+  "downloadsBackfillArtwork": "Finding artwork",
+  "downloadsBackfillProgress": "{done} of {total}",
+  "@downloadsBackfillProgress": {
+    "placeholders": {
+      "done": {"type": "int"},
+      "total": {"type": "int"}
+    }
+  },
+  "downloadsBackfillOffline": "Offline. Connect to the server and try again.",
+  "downloadsBackfillWifiOnly": "Waiting for Wi-Fi.",
+  "downloadsBackfillRateLimited": "The lyrics service is cooling down. Try again later.",
+  "downloadsBackfillResult": "Last run found {lyrics} lyrics and {artwork} covers.",
+  "@downloadsBackfillResult": {
+    "placeholders": {
+      "lyrics": {"type": "int"},
+      "artwork": {"type": "int"}
+    }
+  },
   "downloadsCustomFolderSelected": "Selected folder",
   "downloadsRescanImported": "{count, plural, =0{No existing downloads imported.} =1{1 existing download imported.} other{{count} existing downloads imported.}}",
   "@downloadsRescanImported": {

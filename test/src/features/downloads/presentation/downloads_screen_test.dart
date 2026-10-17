@@ -23,6 +23,8 @@ import 'package:navis/src/database/tables/schema_enums.dart';
 import 'package:navis/src/features/downloads/data/download_service.dart';
 import 'package:navis/src/features/downloads/data/permanent_download_path_resolver.dart';
 import 'package:navis/src/features/downloads/data/permanent_download_import_service.dart';
+import 'package:navis/src/features/downloads/domain/backfill_progress.dart';
+import 'package:navis/src/features/downloads/domain/download_metadata_gaps.dart';
 import 'package:navis/src/features/downloads/domain/download_preferences.dart';
 import 'package:navis/src/features/downloads/presentation/downloads_screen.dart';
 import 'package:navis/src/features/downloads/presentation/custom_download_folder_controller.dart';
@@ -1129,6 +1131,192 @@ void main() {
     await tester.drag(slider, const Offset(400, 0));
     await settle(tester);
     verify(() => service.setMaxConcurrentDownloads(4)).called(1);
+  });
+
+  group('Missing artwork and lyrics', () {
+    const gaps = DownloadMetadataGaps(
+      songsMissingLyrics: [
+        (
+          songId: 's1',
+          title: 'Silent Song',
+          artist: 'Quiet Artist',
+          album: 'Hush',
+          albumId: 'al1',
+          coverArt: 'c1',
+          hasSyncedLyrics: false,
+          hasPlainLyrics: false,
+        ),
+        (
+          songId: 's2',
+          title: 'Wordless',
+          artist: null,
+          album: null,
+          albumId: null,
+          coverArt: null,
+          hasSyncedLyrics: false,
+          hasPlainLyrics: false,
+        ),
+      ],
+      albumsMissingArtwork: [
+        (albumId: 'al1', coverArt: 'c1', name: 'Hush', artist: 'Quiet Artist'),
+      ],
+      totalSongs: 5,
+      totalAlbums: 3,
+    );
+    const none = DownloadMetadataGaps(
+      songsMissingLyrics: [],
+      albumsMissingArtwork: [],
+      totalSongs: 5,
+      totalAlbums: 3,
+    );
+
+    late StreamController<BackfillProgress> progress;
+    late _MockDownloadService service;
+    var gapBuilds = 0;
+
+    setUp(() {
+      progress = StreamController<BackfillProgress>();
+      service = _MockDownloadService();
+      gapBuilds = 0;
+    });
+    tearDown(() {
+      unawaited(progress.close());
+    });
+
+    Future<void> openSettings(
+      WidgetTester tester,
+      Future<DownloadMetadataGaps> Function() load, {
+      BackfillProgress initial = const BackfillProgress(),
+    }) async {
+      tester.view.devicePixelRatio = 1;
+      tester.view.physicalSize = const Size(800, 2400);
+      addTearDown(() {
+        tester.view.resetDevicePixelRatio();
+        tester.view.resetPhysicalSize();
+      });
+      progress.add(initial);
+      await tester.pumpWidget(
+        mobileDownloads([
+          downloadServiceProvider.overrideWithValue(service),
+          downloadMetadataGapsProvider.overrideWith((ref) {
+            gapBuilds++;
+            return load();
+          }),
+          downloadBackfillProgressProvider.overrideWith(
+            (ref) => progress.stream,
+          ),
+          downloadQueueProvider.overrideWithValue(
+            const AsyncData(<DownloadQueueTableData>[]),
+          ),
+          permanentCachedTracksProvider.overrideWithValue(
+            const AsyncData(<CachedTracksTableData>[]),
+          ),
+        ]),
+      );
+      await tester.tap(find.text('Settings'));
+      await settle(tester);
+    }
+
+    Finder backfillButton() =>
+        find.widgetWithText(FilledButton, 'Backfill now');
+
+    testWidgets('shows counts and opens the song and album lists', (
+      tester,
+    ) async {
+      await openSettings(tester, () async => gaps);
+
+      expect(find.text('Missing artwork and lyrics'), findsOneWidget);
+      expect(find.text('2 songs without lyrics'), findsOneWidget);
+      expect(find.text('1 album without artwork'), findsOneWidget);
+
+      await tester.tap(find.text('2 songs without lyrics'));
+      await settle(tester);
+      expect(find.text('Silent Song'), findsOneWidget);
+      expect(find.text('Quiet Artist'), findsOneWidget);
+      expect(find.text('Wordless'), findsOneWidget);
+      await tester.pageBack();
+      await settle(tester);
+
+      await tester.tap(find.text('1 album without artwork'));
+      await settle(tester);
+      expect(find.text('Hush'), findsOneWidget);
+      expect(find.text('Quiet Artist'), findsOneWidget);
+    });
+
+    testWidgets('says nothing is missing when both counts are zero', (
+      tester,
+    ) async {
+      await openSettings(tester, () async => none);
+
+      expect(find.text('Nothing missing'), findsOneWidget);
+      expect(find.textContaining('without lyrics'), findsNothing);
+      expect(find.textContaining('without artwork'), findsNothing);
+    });
+
+    testWidgets('a failed gaps load stays quiet', (tester) async {
+      await openSettings(tester, () async => throw StateError('disk'));
+
+      expect(find.text('Missing artwork and lyrics'), findsOneWidget);
+      expect(find.textContaining('without lyrics'), findsNothing);
+      expect(find.text('Nothing missing'), findsNothing);
+      expect(find.byType(SnackBar), findsNothing);
+    });
+
+    testWidgets('Backfill now runs once, shows progress and refreshes', (
+      tester,
+    ) async {
+      final run = Completer<void>();
+      when(() => service.runBackfillNow()).thenAnswer((_) => run.future);
+      await openSettings(tester, () async => gaps);
+      expect(gapBuilds, 1);
+      expect(
+        tester.widget<FilledButton>(backfillButton()).onPressed,
+        isNotNull,
+      );
+
+      await tester.tap(backfillButton());
+      progress.add(
+        const BackfillProgress(phase: BackfillPhase.lyrics, done: 3, total: 7),
+      );
+      await settle(tester);
+
+      verify(() => service.runBackfillNow()).called(1);
+      expect(tester.widget<FilledButton>(backfillButton()).onPressed, isNull);
+      expect(find.text('Finding lyrics'), findsOneWidget);
+      expect(find.text('3 of 7'), findsOneWidget);
+      expect(find.byType(LinearProgressIndicator), findsOneWidget);
+
+      run.complete();
+      progress.add(
+        const BackfillProgress(
+          lastResult: (lyricsResolved: 2, artworkStored: 1),
+        ),
+      );
+      await settle(tester);
+
+      expect(gapBuilds, 2);
+      expect(
+        tester.widget<FilledButton>(backfillButton()).onPressed,
+        isNotNull,
+      );
+      expect(find.byType(LinearProgressIndicator), findsNothing);
+    });
+
+    for (final (reason, text) in [
+      (BackfillBlockedReason.offline, 'Offline'),
+      (BackfillBlockedReason.wifiOnly, 'Waiting for Wi-Fi'),
+      (BackfillBlockedReason.rateLimited, 'cooling down'),
+    ]) {
+      testWidgets('shows the $reason reason', (tester) async {
+        await openSettings(
+          tester,
+          () async => gaps,
+          initial: BackfillProgress(blockedReason: reason),
+        );
+
+        expect(find.textContaining(text), findsOneWidget);
+      });
+    }
   });
 
   testWidgets('the queue pauses, resumes and cancels through the service', (
