@@ -829,14 +829,15 @@ target-selection rules.
   (adaptive: the smallest alpha keeping both `onSurface` and the accent-coloured
   title at 5.0:1 against the shared cover field's usable-cell average (from
   `coverColourFieldProvider((id, revision))`), within dark 0.30-0.80, OLED
-  0.72-0.92 so it still reads as OLED, and light 0.58-0.88; fixed
-  0.68/0.8/0.68 until the average is known) and adds a 0.15 veil over the
+  0.72-0.92 so it still reads as OLED, and light 0.30-0.70 so a light cover
+  stays visible; fixed 0.68/0.8/0.55 until the average is known) and adds a 0.15 veil over the
   bottom fifth. The previous cover stays until the next one
   decodes, then crossfades over `MotionPolicy.surface`. Cover-id art uses
   the worker's field for its veil; radio/URL art uses the cached average
   computed from the same decoded thumbnail.
   Veil colour changes animate over `MotionPolicy.tint` (zero with reduced
-  motion); desktop lyrics retains its higher text-across-cover floor.
+  motion); desktop lyrics retains its higher text-across-cover floor (dark 0.6, OLED
+  0.8, light 0.5).
   The decode listener disposes every received image handle, including stale
   callbacks, and detaches once on success or failure. Failed source keys are
   remembered by the layer and reported after async preparation,

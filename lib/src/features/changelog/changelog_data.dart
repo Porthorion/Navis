@@ -166,6 +166,10 @@ const List<ChangelogVersion> changelogs = [
     ],
     entries: [
       ChangelogEntry(
+        'The Artwork Now Playing background in Light mode shows much more of the cover instead of a near-white wash; text stays readable',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
         'Turning shuffle on mid-queue now puts the current song first and shuffles every other song, including played songs, without restarting playback; turning it off restores the original order',
         type: ChangelogEntryType.fix,
       ),

@@ -14,6 +14,15 @@ Last updated: 2026-10-18
 - ACP status values: `backlog`, `ready`, `in_progress`, `blocked`, `done`.
 
 ## Current Focus
+- [x] Issue #54, Light Now Playing artwork background washed out — 2026-10-18
+  (`fix/light-artwork-veil`): the Light veil range is 0.30-0.70 (was
+  0.58-0.88), the fixed veil 0.55 (was 0.68) and the lyrics floor 0.5 (was
+  0.72), so the contrast loop rather than the cap picks the alpha and 30-70%
+  of the cover shows. Dark and OLED are unchanged. Primary text stays at the
+  loop's 5.0:1 target; the accent title and secondary lines are best-effort
+  within the cap. New Light mid-tone cover test failed before the fix
+  (`Actual: <0.8700000000000002>`) and passes after; the range, lyrics-floor
+  and accent-title tests were updated. No goldens changed.
 - [x] Issue #55, persisted shuffle test database lifetime — 2026-10-18:
   the round-trip test captures its expected play order and disposes the first
   handler and database before creating the restored handler. Its guarded

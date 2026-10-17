@@ -437,9 +437,9 @@ class _NowPlayingBackdropState extends ConsumerState<NowPlayingBackdrop> {
 }
 
 /// Veil floor for views with text across the whole cover: dark 0.6, OLED
-/// 0.8, light 0.72.
+/// 0.8, light 0.5.
 double nowPlayingTextAcrossCoverVeilFloor(NavisColorStyleData style) =>
-    !style.dark ? 0.72 : (style.oled ? 0.8 : 0.6);
+    !style.dark ? 0.5 : (style.oled ? 0.8 : 0.6);
 
 /// Matches prewarming and visible layers, including durable-source/revision changes.
 String nowPlayingArtworkImageKey({

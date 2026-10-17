@@ -186,7 +186,7 @@ class NavisColorStyleData extends ThemeExtension<NavisColorStyleData> {
   /// [nowPlayingArtworkVeilRange] bounds the adaptive one.
   Color nowPlayingArtworkVeil(Color surface) =>
       nowPlayingArtworkVeilBase(surface)
-          .withValues(alpha: dark ? (oled ? 0.8 : 0.68) : 0.68);
+          .withValues(alpha: dark ? (oled ? 0.8 : 0.68) : 0.55);
 
   /// Solid primary action shared by every Play button.
   Color playButtonFill(ColorScheme scheme) =>
@@ -318,7 +318,7 @@ class NavisColorStyleData extends ThemeExtension<NavisColorStyleData> {
 
   /// Smallest and largest veil alpha the adaptive Artwork veil may use.
   (double, double) get nowPlayingArtworkVeilRange =>
-      dark ? (oled ? (0.72, 0.92) : (0.30, 0.80)) : (0.58, 0.88);
+      dark ? (oled ? (0.72, 0.92) : (0.30, 0.80)) : (0.30, 0.70);
 
   /// Colour for confirmed, positive states (a completed download, a
   /// successful connection test). Neutral keeps the original greens; the
