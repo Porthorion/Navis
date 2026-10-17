@@ -4461,16 +4461,22 @@ only what the player holds, and media_kit's `playlist-shuffle` physically
 reorders mpv's playlist while just_audio keeps the old order, so the song
 reported as playing was not the song heard. Instead the logical queue is
 always the play order, so the Queue shows the real order and next/previous
-step by one. Turning shuffle on keeps the history and the current song and
-shuffles the rest; a queue started with shuffle on begins at the chosen song
-with the others shuffled. The unshuffled order is kept in `_originalOrder`
+step by one. Turning shuffle on moves the current occurrence to index 0
+without restarting it or resetting its playback position, then shuffles every
+other occurrence, including played songs and deferred head/tail entries, with
+`shuffledFromStart`. `_rearrangeQueue` retains the current native source and
+materialises only the usual window; the remaining shuffled entries stay
+deferred. A queue started with shuffle on follows the same order. The
+unshuffled order is kept in `_originalOrder`
 (entity Shuffle callers pass the optional `originalOrder` of their unshuffled
 IDs alongside pre-shuffled rows, so the handler preserves the supplied order
 and never shuffles it twice). Supplying that order also enables shuffle mode,
 including its persisted toggle state. Android Auto’s Shuffle liked projection passes
-the same original order through the row-loading adapter. It is reconciled lazily with edits
+the same original order through the row-loading adapter. It is reconciled with edits
 (`reconcileOriginalRanks`: songs matched by occurrence, a song played next
 lands after the current song, appended songs go last, removed songs drop).
+Play Next records successful insertions at the current song's unshuffled
+position before repeated song IDs can be mistaken for earlier occurrences.
 Turning shuffle off restores that order around the current song without
 interrupting it (`_rearrangeQueue`). If a native rearrangement times out, the
 handler restores the captured queue/current occurrence and rolls back shuffle

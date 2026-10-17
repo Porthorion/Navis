@@ -2,7 +2,7 @@
 
 Tracks completion of all phases and sub-tasks defined in [docs/project/development-plan.md](development-plan.md). Checkboxes are updated as work is completed.
 
-Last updated: 2026-10-17
+Last updated: 2026-10-18
 
 ---
 
@@ -14,6 +14,34 @@ Last updated: 2026-10-17
 - ACP status values: `backlog`, `ready`, `in_progress`, `blocked`, `done`.
 
 ## Current Focus
+- [x] Issue #55, persisted shuffle test database lifetime — 2026-10-18:
+  the round-trip test captures its expected play order and disposes the first
+  handler and database before creating the restored handler. Its guarded
+  teardown avoids closing the database twice; all assertions remain. Evidence:
+  the navigation test file passed under the shared lock and 9 GiB cap
+  (`04:48 +528: All tests passed!`); the Drift multiple-database warning count
+  was 0 and no `flutter_tester` process remained. Formatting passed; focused
+  analysis exited 0 with seven infos on unchanged lines. `./tool/check.sh` was
+  not rerun, as requested for this test-only follow-up.
+- [x] Issue #55, shuffle the whole queue mid-playback — 2026-10-18
+  (`feat/shuffle-whole-queue`): toggle-on reuses `shuffledFromStart` over the
+  deferred head, materialised window and deferred tail. The current occurrence
+  moves to index 0 without a source reload, seek, stop or playback restart;
+  large queues remain windowed. Shuffle-off keeps the existing original-rank
+  reconciliation. Play Next records successful insertions in the original
+  order so repeated song IDs still unshuffle correctly. Legacy saved queues
+  retain `shuffledAfter` compatibility. Added 12/60/100-song regressions at
+  42 seconds, Previous under all repeat modes, and a persisted-rank restore
+  round trip; updated the queue model's old history-prefix assertion and the
+  added-songs test's native/logical index assumption. Evidence: bootstrap
+  passed; the shuffle-order and navigation files ran with
+  `flutter test --concurrency=4 --timeout 60s` under the required shared lock
+  and 9 GiB cap. Tests failed first (`04:57 +529 -7: Some tests failed.`),
+  then passed (`04:49 +536: All tests passed!`), including all 500 queue-model
+  seeds. Changed Dart files pass formatting and the diff passes whitespace
+  checks. No app/device launch or `./tool/check.sh` was run under this
+  implementation handoff; full-gate, independent review and runtime evidence
+  remain with the coordinator.
 - [x] Issue #46, server plain lyrics on first fetch — 2026-10-17
   (`fix/server-plain-lyrics`): the batched runtime check of dev b5468cbd found
   that plain-only server lyrics (structured lines without `start`) showed "No
