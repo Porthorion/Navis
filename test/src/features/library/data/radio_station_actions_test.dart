@@ -242,6 +242,82 @@ void main() {
       expect(serverReads, 1);
     });
 
+    group('moving a device station to the server', () {
+      Future<InternetRadioStation> addDevice() async {
+        final id = await database.localRadioStationDao.upsert(
+          name: 'Dev',
+          streamUrl: 'https://radio.example/dev',
+          homePageUrl: 'https://radio.example',
+        );
+        return InternetRadioStation(
+          id: id,
+          name: 'Dev',
+          streamUrl: 'https://radio.example/dev',
+          homePageUrl: 'https://radio.example',
+        );
+      }
+
+      test('creates the server station, then deletes the device row', () async {
+        final device = await addDevice();
+        when(
+          () => api.createInternetRadioStation(
+            name: 'Dev 2',
+            streamUrl: device.streamUrl,
+            homepageUrl: 'https://radio.example',
+          ),
+        ).thenAnswer((_) async {});
+        await container.read(radioStationsProvider.future);
+
+        await actions.save(
+          existing: device,
+          isLocal: true,
+          moveToServer: true,
+          name: 'Dev 2',
+          streamUrl: device.streamUrl,
+          homePageUrl: device.homePageUrl,
+        );
+
+        expect(await database.localRadioStationDao.watchAll().first, isEmpty);
+        verify(
+          () => api.createInternetRadioStation(
+            name: 'Dev 2',
+            streamUrl: device.streamUrl,
+            homepageUrl: 'https://radio.example',
+          ),
+        ).called(1);
+        await container.read(radioStationsProvider.future);
+        expect(serverReads, 2);
+      });
+
+      test('keeps the device station when the server create fails', () async {
+        final device = await addDevice();
+        final failure = StateError('Permission denied');
+        when(
+          () => api.createInternetRadioStation(
+            name: any(named: 'name'),
+            streamUrl: any(named: 'streamUrl'),
+            homepageUrl: any(named: 'homepageUrl'),
+          ),
+        ).thenThrow(failure);
+
+        await expectLater(
+          actions.save(
+            existing: device,
+            isLocal: true,
+            moveToServer: true,
+            name: 'Dev',
+            streamUrl: device.streamUrl,
+          ),
+          throwsA(same(failure)),
+        );
+
+        expect(
+          (await database.localRadioStationDao.watchAll().first).single.id,
+          device.id,
+        );
+      });
+    });
+
     test('local storage failures propagate', () async {
       final dao = _MockLocalStations();
       final failure = StateError('Storage unavailable');

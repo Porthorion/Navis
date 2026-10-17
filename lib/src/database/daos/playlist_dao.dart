@@ -194,6 +194,34 @@ class PlaylistDao extends DatabaseAccessor<NavisDatabase>
     });
   }
 
+  /// Replaces device playlist [localId] with [server] in one transaction: the
+  /// server row takes over the ordered songs and the device row is deleted.
+  Future<void> replaceLocalWithServer(
+    String localId,
+    PlaylistsTableCompanion server,
+  ) {
+    return transaction(() async {
+      final joins =
+          await (select(playlistSongsTable)
+                ..where((table) => table.playlistId.equals(localId))
+                ..orderBy([(table) => OrderingTerm.asc(table.sortOrder)]))
+              .get();
+      await into(playlistsTable).insert(
+        server,
+        onConflict: DoUpdate((old) => server, target: [playlistsTable.id]),
+      );
+      await replacePlaylistSongs(server.id.value, [
+        for (final join in joins)
+          PlaylistSongsTableCompanion.insert(
+            playlistId: server.id.value,
+            songId: join.songId,
+            sortOrder: join.sortOrder,
+          ),
+      ]);
+      await deletePlaylist(localId);
+    });
+  }
+
   /// Delete a single playlist and its song associations.
   Future<void> deletePlaylist(String playlistId) async {
     await transaction(() async {

@@ -14,6 +14,18 @@ Last updated: 2026-10-17
 - ACP status values: `backlog`, `ready`, `in_progress`, `blocked`, `done`.
 
 ## Current Focus
+- [x] Issue #49, upload device playlists and radio stations to the server — 2026-10-18
+  (`feat/device-to-server-upload`): Edit Playlist (the former rename dialog)
+  has a Save on Server switch for device playlists, disabled while
+  `playlistServerCreationAvailableProvider` is false. `PlaylistActions.uploadToServer`
+  creates the server playlist from the ordered song ids, then
+  `PlaylistDao.replaceLocalWithServer` swaps the rows in one transaction; a
+  failed create keeps the device playlist, and concurrent calls share one
+  create. An open detail screen follows the move through
+  `playlistMovedToServerProvider`. Admins get the same switch when editing a
+  device radio station (`RadioStationActions.save(moveToServer: true)`). Tests:
+  the new `playlist_upload_test.dart` (5 cases), radio actions/screen,
+  library screen and playlist detail tests; all passed on the focused run.
 - [x] Issue #46, server plain lyrics on first fetch — 2026-10-17
   (`fix/server-plain-lyrics`): the batched runtime check of dev b5468cbd found
   that plain-only server lyrics (structured lines without `start`) showed "No

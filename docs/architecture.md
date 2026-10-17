@@ -3375,8 +3375,20 @@ works like the weekly playlists. `homeTrendingProvider`
   displayed title case-insensitively, including the localized Trending Now
   title, and a filtered-empty list offers the clear action. Desktop versus touch
   follows `resolveAdaptiveContextFor(...).useDesktopShell`, not the host OS.
-  Long-press, the desktop ⋮ button and right-click open rename/delete only when
-  `canEditPlaylist` holds. Rename, delete, add, remove and reorder all go
+  Long-press, the desktop ⋮ button and right-click open Edit Playlist/delete
+  only when `canEditPlaylist` holds. Edit Playlist is the rename dialog plus,
+  for device playlists only, a Save on Server switch (disabled with a note
+  while `playlistServerCreationAvailableProvider` is false).
+  `PlaylistActions.uploadToServer` (one in-flight call per playlist) reads the
+  name and ordered song ids, calls `createPlaylist`, then
+  `PlaylistDao.replaceLocalWithServer` inserts the server row with the same
+  songs and deletes the device row in one transaction; a failed create leaves
+  the device playlist untouched and shows `playlistsSaveOnServerFailed`. The
+  old `local:<uuid>` id is recorded in `playlistMovedToServerProvider`, which an
+  open `PlaylistDetailScreen` follows via `NavService.replacePlaylistDetail`;
+  other references (queue context, Android Auto browse ids, download queue
+  `playlistId`) are looked up on demand or write-only and fall back to "not
+  found". The upload is one-way. Rename, delete, add, remove and reorder all go
   through `PlaylistActions` and show `playlistsRenameFailed`,
   `playlistsDeleteFailed`, `addToPlaylistFailed`,
   `playlistDetailTrackRemoveFailed` or `playlistDetailReorderFailed` instead of
@@ -6415,9 +6427,12 @@ keeps the device section and adds an inline retry row. A floating button and the
 (`radio_station_dialogs.dart`). Long-press or secondary-click on a card offers
 Edit and Delete only for device stations or when `serverUserIsAdminProvider`
 is true; otherwise it does nothing. The editor shows inline errors from the
-actions' validation, and "Save to server" appears only when adding as an admin
-while the server radio list loaded (default off; stations never move between
-device and server). Deleting shows the station's name, stream and homepage URLs
+actions' validation, and "Save on Server" appears only to admins while the
+server radio list loaded (default off): when adding it picks the destination,
+when editing a device station it moves it (`save(moveToServer: true)` creates
+the server station, then deletes the device row; a failed create keeps the
+device row). The move is one-way: server stations never come back to the
+device. Deleting shows the station's name, stream and homepage URLs
 and where it is stored. Save failures appear inline inside the editor, retain
 all entered values, and clear on the next attempt or edit. Delete failures show
 an error notice.

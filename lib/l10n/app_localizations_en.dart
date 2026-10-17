@@ -1490,7 +1490,7 @@ class AppLocalizationsEn extends AppLocalizations {
       'Enter a full address starting with http:// or https://.';
 
   @override
-  String get radioEditorSaveToServer => 'Save to server';
+  String get radioEditorSaveToServer => 'Save on Server';
 
   @override
   String get radioEditorSaveToServerHint =>
@@ -2965,10 +2965,24 @@ class AppLocalizationsEn extends AppLocalizations {
       'Unavailable offline. The playlist stays on this device';
 
   @override
-  String get playlistsRenameTitle => 'Rename Playlist';
+  String get playlistsEditTitle => 'Edit Playlist';
 
   @override
   String get playlistsRenameFailed => 'Failed to rename playlist';
+
+  @override
+  String get playlistsSaveOnServerTitle => 'Save on Server';
+
+  @override
+  String get playlistsSaveOnServerHint =>
+      'Moves this playlist to the server so every device you sign in on has it. This cannot be undone.';
+
+  @override
+  String get playlistsSaveOnServerOffline =>
+      'Connect to the server to save this playlist on it.';
+
+  @override
+  String get playlistsSaveOnServerFailed => 'Failed to save playlist on server';
 
   @override
   String get playlistsDeleteFailed => 'Failed to delete playlist';

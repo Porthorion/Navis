@@ -166,6 +166,10 @@ const List<ChangelogVersion> changelogs = [
     ],
     entries: [
       ChangelogEntry(
+        'A playlist that lives only on this device can now be moved to the server: Edit Playlist has a Save on Server switch that uploads it and replaces the device copy, and admins get the same switch when editing a device radio station',
+        type: ChangelogEntryType.newFeature,
+      ),
+      ChangelogEntry(
         'Settings > Integrations > Update checks lets you choose where stable builds look for updates, downloads.porthorion.com or GitHub; updates are verified the same way either way',
         type: ChangelogEntryType.newFeature,
       ),

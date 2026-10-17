@@ -6,9 +6,9 @@ import 'package:navis/src/common_widgets/app_notice.dart';
 import 'package:navis/src/providers/app_providers.dart';
 
 /// Opens the add/edit dialog. New stations stay on this device unless an
-/// admin switches "Save to server" on (only offered while the server's radio
-/// list is available). [isLocal] says where an [existing] station lives;
-/// stations never move between device and server.
+/// admin switches "Save on Server" on (only offered while the server's radio
+/// list is available). The same switch moves an [existing] device station to
+/// the server; [isLocal] says where it lives. Server stations never move back.
 Future<void> showRadioStationEditor(
   BuildContext context,
   WidgetRef ref, {
@@ -16,7 +16,7 @@ Future<void> showRadioStationEditor(
   bool isLocal = true,
 }) {
   final canChooseServer =
-      existing == null &&
+      (existing == null || isLocal) &&
       ref.read(serverUserIsAdminProvider).asData?.value == true &&
       ref.read(radioStationsProvider).hasValue;
   return showDialog<void>(
@@ -145,6 +145,8 @@ class _RadioStationEditorState extends ConsumerState<_RadioStationEditor> {
           .save(
             existing: widget.existing,
             isLocal: widget.existing == null ? !_toServer : widget.isLocal,
+            moveToServer:
+                widget.existing != null && widget.isLocal && _toServer,
             name: _name.text,
             streamUrl: _streamUrl.text,
             homePageUrl: _homepage.text,

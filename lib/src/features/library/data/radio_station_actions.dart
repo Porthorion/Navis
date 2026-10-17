@@ -13,9 +13,12 @@ class RadioStationActions {
   final SubsonicApiClient? _api;
   final void Function() _onServerChanged;
 
+  /// Saves a station. [moveToServer] uploads the device station [existing]:
+  /// the device row is deleted only after the server create succeeded.
   Future<void> save({
     InternetRadioStation? existing,
     required bool isLocal,
+    bool moveToServer = false,
     required String name,
     required String streamUrl,
     String? homePageUrl,
@@ -29,7 +32,7 @@ class RadioStationActions {
     final validatedHomepage = homepage == null || homepage.isEmpty
         ? null
         : _validateUrl(homepage, 'homePageUrl');
-    if (isLocal) {
+    if (isLocal && !moveToServer) {
       await _localStations.upsert(
         id: existing?.id,
         name: trimmedName,
@@ -39,12 +42,13 @@ class RadioStationActions {
       return;
     }
     final api = _requireApi();
-    if (existing == null) {
+    if (existing == null || moveToServer) {
       await api.createInternetRadioStation(
         name: trimmedName,
         streamUrl: stream,
         homepageUrl: validatedHomepage,
       );
+      if (existing != null) await _localStations.deleteStation(existing.id);
     } else {
       await api.updateInternetRadioStation(
         id: existing.id,

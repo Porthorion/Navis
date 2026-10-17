@@ -516,10 +516,10 @@ class _LibraryPlaylistsTabState extends ConsumerState<_LibraryPlaylistsTab>
           children: [
             ListTile(
               leading: const Icon(Icons.edit_outlined),
-              title: Text(l10n.playlistsRenameTitle),
+              title: Text(l10n.playlistsEditTitle),
               onTap: () {
                 Navigator.of(sheetContext).pop();
-                _showRenameDialog(context, playlist);
+                _showEditDialog(context, playlist);
               },
             ),
             ListTile(
@@ -554,8 +554,8 @@ class _LibraryPlaylistsTabState extends ConsumerState<_LibraryPlaylistsTab>
       anchor: anchor,
       items: <PopupMenuEntry<_PlaylistContextAction>>[
         PopupMenuItem<_PlaylistContextAction>(
-          value: _PlaylistContextAction.rename,
-          child: Text(l10n.playlistsRenameTitle),
+          value: _PlaylistContextAction.edit,
+          child: Text(l10n.playlistsEditTitle),
         ),
         const PopupMenuDivider(),
         PopupMenuItem<_PlaylistContextAction>(
@@ -567,8 +567,8 @@ class _LibraryPlaylistsTabState extends ConsumerState<_LibraryPlaylistsTab>
     );
     if (!context.mounted || action == null) return;
     switch (action) {
-      case _PlaylistContextAction.rename:
-        _showRenameDialog(context, playlist);
+      case _PlaylistContextAction.edit:
+        _showEditDialog(context, playlist);
         return;
       case _PlaylistContextAction.delete:
         _confirmDelete(context, playlist);
@@ -576,68 +576,119 @@ class _LibraryPlaylistsTabState extends ConsumerState<_LibraryPlaylistsTab>
     }
   }
 
-  void _showRenameDialog(BuildContext context, PlaylistsTableData playlist) {
+  void _showEditDialog(BuildContext context, PlaylistsTableData playlist) {
     final l10n = AppLocalizations.of(context)!;
     final controller = TextEditingController(text: playlist.name);
+    final canUpload =
+        playlist.isLocal && ref.read(playlistServerCreationAvailableProvider);
+    var toServer = false;
     showDialog<void>(
       context: context,
-      builder: (dialogContext) => AlertDialog(
-        title: Text(l10n.playlistsRenameTitle),
-        content: TextField(
-          controller: controller,
-          autofocus: true,
-          decoration: InputDecoration(labelText: l10n.playlistsCreateNameLabel),
-          onSubmitted: (_) =>
-              _renamePlaylist(dialogContext, playlist, controller.text.trim()),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(dialogContext).pop(),
-            child: Text(l10n.cancelAction),
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (_, setDialogState) => AlertDialog(
+          title: Text(l10n.playlistsEditTitle),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextField(
+                controller: controller,
+                autofocus: true,
+                decoration: InputDecoration(
+                  labelText: l10n.playlistsCreateNameLabel,
+                ),
+                onSubmitted: (_) => unawaited(
+                  _editPlaylist(
+                    dialogContext,
+                    playlist,
+                    controller.text.trim(),
+                    toServer: toServer,
+                  ),
+                ),
+              ),
+              if (playlist.isLocal)
+                SwitchListTile(
+                  contentPadding: EdgeInsets.zero,
+                  title: Text(l10n.playlistsSaveOnServerTitle),
+                  subtitle: Text(
+                    canUpload
+                        ? l10n.playlistsSaveOnServerHint
+                        : l10n.playlistsSaveOnServerOffline,
+                  ),
+                  value: toServer,
+                  onChanged: canUpload
+                      ? (value) => setDialogState(() => toServer = value)
+                      : null,
+                ),
+            ],
           ),
-          FilledButton(
-            onPressed: () => _renamePlaylist(
-              dialogContext,
-              playlist,
-              controller.text.trim(),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(),
+              child: Text(l10n.cancelAction),
             ),
-            child: Text(l10n.playlistsRenameTitle),
-          ),
-        ],
+            FilledButton(
+              onPressed: () => unawaited(
+                _editPlaylist(
+                  dialogContext,
+                  playlist,
+                  controller.text.trim(),
+                  toServer: toServer,
+                ),
+              ),
+              child: Text(l10n.commonSave),
+            ),
+          ],
+        ),
       ),
     );
   }
 
-  void _renamePlaylist(
+  /// Renames when the name changed, then (device playlists) moves it to the
+  /// server. The rename lands first, so an upload failure keeps the new name.
+  Future<void> _editPlaylist(
     BuildContext dialogContext,
     PlaylistsTableData playlist,
-    String newName,
-  ) {
+    String newName, {
+    required bool toServer,
+  }) async {
     if (newName.isEmpty) return;
     Navigator.of(dialogContext).pop();
-    unawaited(
-      _runPlaylistAction(
-        () => ref.read(playlistActionsProvider).rename(playlist, newName),
-        AppLocalizations.of(context)!.playlistsRenameFailed,
-      ),
-    );
+    final l10n = AppLocalizations.of(context)!;
+    final actions = ref.read(playlistActionsProvider);
+    if (newName != playlist.name &&
+        !await _runPlaylistAction(
+          () => actions.rename(playlist, newName),
+          l10n.playlistsRenameFailed,
+        )) {
+      return;
+    }
+    if (toServer) {
+      await _runPlaylistAction(
+        () => actions.uploadToServer(playlist.id),
+        l10n.playlistsSaveOnServerFailed,
+      );
+    }
   }
 
-  /// Runs a server playlist change; a failure is shown, never swallowed.
-  Future<void> _runPlaylistAction(
+  /// Runs a playlist change and returns whether it succeeded; a failure is
+  /// shown, never swallowed.
+  Future<bool> _runPlaylistAction(
     Future<void> Function() action,
     String failureMessage,
   ) async {
     try {
       await action();
+      return true;
     } on Object catch (error) {
       AppLogger.warning('Playlist action failed: $error');
-      if (!mounted) return;
-      showAppNotice(
-        context,
-        message: failureMessage,
-        level: AppNoticeLevel.error,
-      );
+      if (mounted) {
+        showAppNotice(
+          context,
+          message: failureMessage,
+          level: AppNoticeLevel.error,
+        );
+      }
+      return false;
     }
   }
 
@@ -683,7 +734,7 @@ class _LibraryPlaylistsTabState extends ConsumerState<_LibraryPlaylistsTab>
   }
 }
 
-enum _PlaylistContextAction { rename, delete }
+enum _PlaylistContextAction { edit, delete }
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Liked Albums — full-screen list (navigated to from the "See all" button)

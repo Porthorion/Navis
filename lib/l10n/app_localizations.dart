@@ -2247,7 +2247,7 @@ abstract class AppLocalizations {
   /// No description provided for @radioEditorSaveToServer.
   ///
   /// In en, this message translates to:
-  /// **'Save to server'**
+  /// **'Save on Server'**
   String get radioEditorSaveToServer;
 
   /// No description provided for @radioEditorSaveToServerHint.
@@ -4709,17 +4709,41 @@ abstract class AppLocalizations {
   /// **'Unavailable offline. The playlist stays on this device'**
   String get playlistsSaveToServerOfflineSubtitle;
 
-  /// No description provided for @playlistsRenameTitle.
+  /// No description provided for @playlistsEditTitle.
   ///
   /// In en, this message translates to:
-  /// **'Rename Playlist'**
-  String get playlistsRenameTitle;
+  /// **'Edit Playlist'**
+  String get playlistsEditTitle;
 
   /// No description provided for @playlistsRenameFailed.
   ///
   /// In en, this message translates to:
   /// **'Failed to rename playlist'**
   String get playlistsRenameFailed;
+
+  /// No description provided for @playlistsSaveOnServerTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Save on Server'**
+  String get playlistsSaveOnServerTitle;
+
+  /// No description provided for @playlistsSaveOnServerHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Moves this playlist to the server so every device you sign in on has it. This cannot be undone.'**
+  String get playlistsSaveOnServerHint;
+
+  /// No description provided for @playlistsSaveOnServerOffline.
+  ///
+  /// In en, this message translates to:
+  /// **'Connect to the server to save this playlist on it.'**
+  String get playlistsSaveOnServerOffline;
+
+  /// No description provided for @playlistsSaveOnServerFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Failed to save playlist on server'**
+  String get playlistsSaveOnServerFailed;
 
   /// No description provided for @playlistsDeleteFailed.
   ///

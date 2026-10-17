@@ -812,10 +812,9 @@ void main() {
       );
     }
 
-    testWidgets('editing never offers the switch and prefills the fields', (
-      tester,
-    ) async {
-      await pump(tester, admin: true);
+    testWidgets('editing a device station prefills the fields and, without '
+        'admin rights, offers no switch', (tester) async {
+      await pump(tester);
       await longPress(tester, device.id);
       await tester.tap(find.text('Edit station'));
       await tester.pumpAndSettle();
@@ -835,6 +834,74 @@ void main() {
         ),
       ).called(1);
       expect(find.byKey(const ValueKey('radioEditorSave')), findsNothing);
+      verifyZeroInteractions(api);
+    });
+
+    testWidgets('an admin can move a device station to the server', (
+      tester,
+    ) async {
+      await pump(tester, admin: true);
+      await longPress(tester, device.id);
+      await tester.tap(find.text('Edit station'));
+      await tester.pumpAndSettle();
+      expect(
+        tester
+            .widget<SwitchListTile>(
+              find.byKey(const ValueKey('radioEditorSaveToServer')),
+            )
+            .value,
+        isFalse,
+      );
+      await tester.tap(find.byKey(const ValueKey('radioEditorSaveToServer')));
+      await tester.pump();
+      await save(tester);
+      verify(
+        () => api.createInternetRadioStation(
+          name: device.name,
+          streamUrl: device.streamUrl,
+          homepageUrl: device.homePageUrl,
+        ),
+      ).called(1);
+      verify(() => dao.deleteStation(device.id)).called(1);
+      verifyNever(
+        () => dao.upsert(
+          id: any(named: 'id'),
+          name: any(named: 'name'),
+          streamUrl: any(named: 'streamUrl'),
+          homePageUrl: any(named: 'homePageUrl'),
+        ),
+      );
+      expect(serverChanges, 1);
+    });
+
+    testWidgets('a failed move keeps the device station', (tester) async {
+      when(
+        () => api.createInternetRadioStation(
+          name: any(named: 'name'),
+          streamUrl: any(named: 'streamUrl'),
+          homepageUrl: any(named: 'homepageUrl'),
+        ),
+      ).thenThrow(StateError('denied'));
+      await pump(tester, admin: true);
+      await longPress(tester, device.id);
+      await tester.tap(find.text('Edit station'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const ValueKey('radioEditorSaveToServer')));
+      await tester.pump();
+      await save(tester);
+      verifyNever(() => dao.deleteStation(any()));
+      expect(find.byKey(const ValueKey('radioEditorSave')), findsOneWidget);
+    });
+
+    testWidgets('server stations never offer the switch', (tester) async {
+      await pump(tester, admin: true);
+      await longPress(tester, _station.id);
+      await tester.tap(find.text('Edit station'));
+      await tester.pumpAndSettle();
+      expect(
+        find.byKey(const ValueKey('radioEditorSaveToServer')),
+        findsNothing,
+      );
     });
 
     for (final url in ['ftp://radio.example/stream', 'file:///tmp/audio']) {
