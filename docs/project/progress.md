@@ -74,6 +74,54 @@ Last updated: 2026-10-18
   device radio station (`RadioStationActions.save(moveToServer: true)`). Tests:
   the new `playlist_upload_test.dart` (5 cases), radio actions/screen,
   library screen and playlist detail tests; all passed on the focused run.
+- [x] Issue #48, paced lyrics backfill with automatic cooldown resume — 2026-10-18
+  (`feat/backfill-rate-limit-resume`): LRCLIB reuses the renamed
+  `RequestLimiter` with two starts/second, one background start/second and two
+  in flight. Retry-After is capped at ten minutes; headerless cooldowns double
+  from 60 seconds to that cap and reset after success. Non-future headers use
+  a one-second pause. Lyrics resume through the existing backfill gates while
+  artwork proceeds; progress carries `resumeAt` and Downloads shows a live
+  countdown. Stop and policy changes cancel the timer and queued/in-flight
+  LRCLIB work; manual forced upgrades survive cooldowns without repeating
+  completed songs or marking rate limits as misses.
+  Evidence: client/countdown regressions first failed
+  (`00:13 +41 -3: Some tests failed.`); background traffic and deadline
+  regressions then failed
+  (`00:06 +17 -6: Some tests failed.`). The final eleven-file focused run passed
+  (`00:17 +296: All tests passed!`, capped peak 2956M). Scoped
+  `flutter analyze --no-fatal-infos` exited 0 with nine infos, all in unchanged
+  files. Localization regenerated with `flutter gen-l10n`; changed Dart was
+  formatted. Runtime checks were not run by instruction; `./tool/check.sh`
+  remains the coordinator's gate.
+  Round 2: lyrics preserve visited IDs only for rate-limit resumes, retain
+  cooldown progress at pass start, and own the countdown timer through an
+  `initState` progress subscription. The existing launch, network, client,
+  policy and reconciliation triggers now reopen completed gates through a
+  local metadata/disk preflight; completed synced lyrics and covers need no
+  pass or network request. Direct foreground-return and library-sync-completion
+  listeners cover short resumes, automatic sync, manual sync and pull-to-refresh.
+  Triggers coalesce during a pass and preserve a pending cooldown deadline.
+  Regression tests first failed (`00:19 +55 -8: Some tests failed.`), including
+  `Expected: <2>` / `Actual: <1>` after offline, Wi-Fi-only and stop interruptions;
+  the four download/UI suites then passed (`00:23 +204: All tests passed!`,
+  capped peak 2874M). Provider baseline tests also reproduced missing foreground
+  and sync-completion callbacks. The provider/sync suites passed
+  (`00:04 +66: All tests passed!`, capped peak 1934M); the final test-helper
+  cleanup passed all 11 provider tests again
+  (`00:03 +11: All tests passed!`, capped peak 1822M). All Flutter test runs
+  used the shared lock, 9G cap, concurrency 4 and 60-second timeout. Scoped
+  analysis of all seven changed Dart files reported `No issues found!`
+  (exit 0, peak 1150M); formatting and diff checks passed. Runtime, emulator
+  and full-gate validation remain excluded by the task instructions.
+  Round 3: verified covers reuse store write/prune/removal invalidation; the
+  joined local lyrics query shares the pass's seven-day eligibility predicate.
+  Reconciliation kicks only at completion. Added offline LRCLIB two-song retry
+  coverage. Red: `00:24 +41 -5: Some tests failed.`; the corrected reconciliation
+  assertion also failed on the old listener (`00:02 +9 -2: Some tests failed.`).
+  Four focused suites passed (`00:24 +97: All tests passed!`, peak 2850M) with
+  the required locked/capped command. `make gen` changed no generated source;
+  scoped analysis: `No issues found!` (exit 0, peak 2181M). Formatting and diff
+  checks passed. Runtime and `check.sh` were not run.
 - [x] Issue #55, persisted shuffle test database lifetime — 2026-10-18:
   the round-trip test captures its expected play order and disposes the first
   handler and database before creating the restored handler. Its guarded

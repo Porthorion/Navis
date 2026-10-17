@@ -3469,8 +3469,9 @@ class AppLocalizationsEn extends AppLocalizations {
   String get downloadsBackfillWifiOnly => 'Waiting for Wi-Fi.';
 
   @override
-  String get downloadsBackfillRateLimited =>
-      'The lyrics service is cooling down. Try again later.';
+  String downloadsBackfillLyricsPaused(String remaining) {
+    return 'Lyrics paused, resuming in $remaining';
+  }
 
   @override
   String downloadsBackfillResult(int lyrics, int artwork) {

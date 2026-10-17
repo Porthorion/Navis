@@ -16,6 +16,8 @@ class _RateLimitedLrclibClient extends LrclibClient {
   Future<List<LrclibLyrics>> searchLyrics({
     required String artist,
     required String title,
+    bool background = false,
+    CancelToken? cancelToken,
   }) async {
     throw const LrclibRateLimitedException();
   }
@@ -31,6 +33,8 @@ class _FakeLrclibClient extends LrclibClient {
   Future<List<LrclibLyrics>> searchLyrics({
     required String artist,
     required String title,
+    bool background = false,
+    CancelToken? cancelToken,
   }) async {
     calls++;
     return results;
@@ -42,6 +46,8 @@ class _FakeLrclibClient extends LrclibClient {
     required String title,
     String? album,
     int? duration,
+    bool background = false,
+    CancelToken? cancelToken,
   }) async => null;
 }
 

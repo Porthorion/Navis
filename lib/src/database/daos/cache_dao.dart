@@ -17,6 +17,7 @@ typedef DownloadMetadataGap = ({
   String? coverArt,
   bool hasSyncedLyrics,
   bool hasPlainLyrics,
+  ExternalLyricsCacheTableData? lyricsCache,
 });
 
 @DriftAccessor(tables: [CachedTracksTable, ListenBrainzWeeklyCacheTable])
@@ -158,39 +159,45 @@ class CacheDao extends DatabaseAccessor<NavisDatabase>
   /// Reads download metadata and non-empty lyrics presence in one query.
   Future<List<DownloadMetadataGap>> getPermanentDownloadMetadata() async {
     // The inner song join intentionally skips orphans with no lookup metadata.
-    final rows = await customSelect(
-      '''
-         SELECT s.id AS song_id, s.title, s.artist_name, s.album_name,
-                s.album_id, s.cover_art,
-                l.synced_lyrics, l.plain_lyrics
-         FROM cached_tracks c
-         JOIN songs s ON s.id = c.song_id
-         LEFT JOIN external_lyrics_cache l ON l.song_id = s.id
-         WHERE c.cache_type = ?''',
-      variables: [Variable.withString(CacheType.permanent.name)],
-      readsFrom: {
-        cachedTracksTable,
-        attachedDatabase.songsTable,
-        attachedDatabase.externalLyricsCacheTable,
-      },
-    ).get();
-    return rows
-        .map(
-          (row) => (
-            songId: row.read<String>('song_id'),
-            title: row.read<String>('title'),
-            artist: row.readNullable<String>('artist_name'),
-            album: row.readNullable<String>('album_name'),
-            albumId: row.readNullable<String>('album_id'),
-            coverArt: row.readNullable<String>('cover_art'),
-            hasSyncedLyrics:
-                row.readNullable<String>('synced_lyrics')?.trim().isNotEmpty ??
-                false,
-            hasPlainLyrics:
-                row.readNullable<String>('plain_lyrics')?.trim().isNotEmpty ??
-                false,
-          ),
-        )
+    final songs = attachedDatabase.songsTable;
+    final lyrics = attachedDatabase.externalLyricsCacheTable;
+    final query = selectOnly(cachedTracksTable)
+      ..join([
+        innerJoin(
+          songs,
+          songs.id.equalsExp(cachedTracksTable.songId),
+          useColumns: false,
+        ),
+        leftOuterJoin(
+          lyrics,
+          lyrics.songId.equalsExp(songs.id),
+          useColumns: true,
+        ),
+      ])
+      ..addColumns([
+        songs.id,
+        songs.title,
+        songs.artistName,
+        songs.albumName,
+        songs.albumId,
+        songs.coverArt,
+      ])
+      ..where(cachedTracksTable.cacheType.equalsValue(CacheType.permanent));
+    return (await query.get())
+        .map((row) {
+          final cache = row.readTableOrNull(lyrics);
+          return (
+            songId: row.read(songs.id)!,
+            title: row.read(songs.title)!,
+            artist: row.read(songs.artistName),
+            album: row.read(songs.albumName),
+            albumId: row.read(songs.albumId),
+            coverArt: row.read(songs.coverArt),
+            hasSyncedLyrics: cache?.syncedLyrics?.trim().isNotEmpty ?? false,
+            hasPlainLyrics: cache?.plainLyrics?.trim().isNotEmpty ?? false,
+            lyricsCache: cache,
+          );
+        })
         .toList(growable: false);
   }
 
