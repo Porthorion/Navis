@@ -63,7 +63,10 @@ Future<Response<T>> followUpdateRedirects<T>(
         ? isUpdateUrlUnder(current, AppConstants.updateBaseUrl)
         : githubRelease || (hop > 0 && githubAssetHost);
     if (!allowed) {
-      throw StateError('Update redirect is outside the selected source');
+      throw _redirectError(
+        current,
+        'Update redirect is outside the selected source',
+      );
     }
     final response = await request(current);
     if (!const {301, 302, 303, 307, 308}.contains(response.statusCode)) {
@@ -71,14 +74,19 @@ Future<Response<T>> followUpdateRedirects<T>(
     }
     final location = response.headers.value('location');
     if (location == null || hop == 5) {
-      throw StateError('Invalid or excessive update redirects');
+      throw _redirectError(current, 'Invalid or excessive update redirects');
     }
     current = Uri.parse(current).resolve(location).toString();
   }
-  throw StateError('Excessive update redirects');
+  throw _redirectError(current, 'Excessive update redirects');
 }
 
 bool updateResponseStatus(int? status) =>
     status != null &&
     ((status >= 200 && status < 300) ||
         const {301, 302, 303, 307, 308}.contains(status));
+
+DioException _redirectError(String url, String message) => DioException(
+  requestOptions: RequestOptions(path: url),
+  message: message,
+);

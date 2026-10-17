@@ -3574,7 +3574,10 @@ class SyncDiagnosticsServer {
   Map<String, Object?> _updateDiagnosticsJson() {
     final record = _container.read(updateRepositoryProvider).lastCheck;
     return {
-      'manifestUrl': UpdateRepository.manifestUrlFor(),
+      'manifestUrl': UpdateRepository.manifestUrlFor(
+        null,
+        _container.read(effectiveUpdateSourceProvider),
+      ),
       'channel': UpdateRepository.channelFor(),
       ...record?.toJson() ??
           {

@@ -3431,7 +3431,9 @@ safe signed basename form the GitHub release URL. Redirects are followed
 explicitly with automatic Dio redirects disabled: only the selected source's
 prefix and, for GitHub, its two exact asset CDN hosts are accepted. Integrity
 verification covers the final bytes. A failure records the actual manifest URL
-and never contacts the other source. The check store records a channel/source
+and never contacts the other source. Diagnostics show the selected manifest URL
+even before a check; blocked redirects use the existing Dio fetch-failure path.
+The check store records a channel/source
 identity and resets cached envelopes and throttle on a change; old in-flight
 checks cannot write a cache for a newly selected source.
 

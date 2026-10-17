@@ -29,6 +29,7 @@ import 'package:navis/src/features/auth/presentation/session_route_provider.dart
 import 'package:navis/src/features/integrations/data/integration_call_recorder.dart';
 import 'package:navis/src/features/integrations/data/integration_guard_interceptor.dart';
 import 'package:navis/src/features/integrations/domain/integration_feature.dart';
+import 'package:navis/src/features/integrations/domain/update_source.dart';
 import 'package:navis/src/features/downloads/data/download_service.dart';
 import 'package:navis/src/features/downloads/data/permanent_artwork_store.dart';
 import 'package:navis/src/features/library/data/library_sync_engine.dart';
@@ -990,6 +991,69 @@ void main() {
       expect(encoded, isNot(contains('limit=50')));
     });
   }
+
+  test(
+    'update diagnostics report the selected source before checking',
+    () async {
+      final fixture = await _startFixture(
+        SyncDiagnosticsMode.clone,
+        overrides: [
+          effectiveUpdateSourceProvider.overrideWithValue(UpdateSource.github),
+        ],
+      );
+      addTearDown(fixture.close);
+      final response = await fixture.get('/v1/diagnostics/update');
+      expect(
+        response.body['manifestUrl'],
+        UpdateRepository.manifestUrlFor(null, UpdateSource.github),
+      );
+      expect(response.body['url'], isNull);
+    },
+  );
+
+  test('update diagnostics retain blocked redirect failures', () async {
+    final dio = _MockUpdateDio();
+    when(() => dio.get<Object?>(any(), options: any(named: 'options')))
+        .thenAnswer(
+          (invocation) async => Response<Object?>(
+            requestOptions: RequestOptions(
+              path: invocation.positionalArguments.first as String,
+            ),
+            statusCode: 302,
+            headers: Headers.fromMap({
+              'location': ['https://evil.invalid/manifest.json'],
+            }),
+          ),
+        );
+    final repository = UpdateRepository(
+      dio: dio,
+      source: UpdateSource.github,
+      updateCheckStore: _DiagnosticsUpdateCheckStore(),
+    );
+    final fixture = await _startFixture(
+      SyncDiagnosticsMode.clone,
+      overrides: [
+        appSettingsProvider.overrideWith(
+          (ref) => Stream.value(const AppSettingsModel.defaults()),
+        ),
+        effectiveUpdateSourceProvider.overrideWithValue(UpdateSource.github),
+        updateRepositoryProvider.overrideWithValue(repository),
+      ],
+    );
+    addTearDown(fixture.close);
+    final response = await _request(
+      fixture.port,
+      '/v1/diagnostics/update/check',
+      method: 'POST',
+      token: fixture.token,
+    );
+    expect(response.statusCode, HttpStatus.ok);
+    expect(response.body['rejectReason'], 'fetch_failed');
+    expect(
+      response.body['url'],
+      UpdateRepository.manifestUrlFor(null, UpdateSource.github),
+    );
+  });
 
   for (final mode in SyncDiagnosticsMode.values) {
     test(

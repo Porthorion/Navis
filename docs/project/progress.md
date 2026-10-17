@@ -23,9 +23,11 @@ Last updated: 2026-10-17
   unchanged pinned-signature, SHA-256 and size verification. Stable publication
   requires GitHub unless explicitly opted out, exports the verified R2 envelope,
   mirrors late additions and compares manifest bytes. Tests were written first
-  and failed on missing APIs. Evidence: focused updater/integration tests
-  (`00:01 +193: All tests passed!`); affected provider, diagnostics and Home tests
-  (`00:07 +279: All tests passed!`); hermetic GitHub/R2 shell fixtures and `bash -n`
+  and failed on missing APIs. Evidence: the combined updater, integrations,
+  provider, diagnostics and Home selection passed (`00:08 +474: All tests passed!`);
+  the final transport/diagnostics rerun passed (`00:05 +198: All tests passed!`).
+  Diagnostics also show the selected source before checking and retain blocked
+  redirects as fetch failures. Hermetic GitHub/R2 shell fixtures and `bash -n`
   passed. `dart analyze lib test` reports zero errors and warnings (existing infos
   remain). Shellcheck is not installed. Per handoff constraints, no app/device,
   real publication or `tool/check.sh` was run; orchestrator owns full validation,

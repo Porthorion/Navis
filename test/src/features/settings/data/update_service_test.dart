@@ -110,7 +110,7 @@ void main() {
     adapter.redirect = 'https://evil.com/artifact';
     await expectLater(
       service.downloadArtifact(info()),
-      throwsA(isA<StateError>()),
+      throwsA(isA<DioException>()),
     );
     expect(adapter.requests, hasLength(1));
   });
