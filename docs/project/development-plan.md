@@ -819,6 +819,7 @@ Rationale: Albums is the most frequently used browse surface for large libraries
 - Populated from server radio stations (`getInternetRadioStations` compatible behavior).
 - Must remain compatible with ICY metadata updates and AzuraCast stations.
 - Settings toggle under Playback settings can hide/show the Radio tab.
+- Touch layouts show a search field (`ListFilterField`, as on Playlists) above the stations when any exist; it filters the device and server sections by name. Desktop filters with the Library type-to-filter instead and has no field.
 - Library songs browsing is intentionally removed from the top-level Library tabs in favor of Artists/Albums-first navigation.
 
 #### Artist Detail Screen (`/library/artists/:id`)

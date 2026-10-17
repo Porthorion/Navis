@@ -1439,6 +1439,9 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
+  String get radioFilterHint => 'Search stations...';
+
+  @override
   String get radioFilteredEmptySubtitle =>
       'Try a different filter, or show all stations.';
 
