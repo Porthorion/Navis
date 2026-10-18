@@ -105,9 +105,10 @@ final playlistViewerProvider = Provider<String?>(
 /// Library › Playlists: yours by name, weekly and Trending mixes, then others.
 /// Trending keeps its existing integration and account gates.
 ///
-/// While the server playlists load, or if reading them fails, the virtual
-/// playlists (weekly or Trending) are still listed on their own; the loading
-/// or error state shows only when there are none.
+/// A reload or a failed read keeps the last device and server rows (`.value`
+/// keeps previous data); only before the first read do the virtual playlists
+/// (weekly or Trending) list on their own, and the loading or error state
+/// shows only when there are none.
 final playlistLibraryItemsProvider =
     Provider<AsyncValue<List<PlaylistLibraryItem>>>((ref) {
       final playlistsAsync = ref.watch(playlistListProvider);
@@ -125,44 +126,39 @@ final playlistLibraryItemsProvider =
           : null;
       final virtualItems = <PlaylistLibraryItem>[
         for (final playlist
-            in virtualAsync.asData?.value ??
-                const <ListenBrainzDiscoverPlaylist>[])
+            in virtualAsync.value ?? const <ListenBrainzDiscoverPlaylist>[])
           PlaylistLibraryItem.virtual(playlist),
         ?trending,
       ];
 
-      return playlistsAsync.when(
-        data: (playlists) {
-          final yours = <PlaylistsTableData>[];
-          final other = <PlaylistsTableData>[];
-          for (final playlist in playlists) {
-            (isOwnPlaylist(playlist, me) ? yours : other).add(playlist);
-          }
-          int byName(PlaylistsTableData a, PlaylistsTableData b) =>
-              a.name.toLowerCase().compareTo(b.name.toLowerCase());
-          yours.sort(byName);
-          other.sort(byName);
-          return AsyncData(<PlaylistLibraryItem>[
-            for (final playlist in yours) PlaylistLibraryItem.normal(playlist),
-            ...virtualItems,
-            for (final playlist in other)
-              PlaylistLibraryItem.normal(
-                playlist,
-                section: PlaylistLibrarySection.other,
-              ),
-          ]);
-        },
-        loading: () => virtualItems.isEmpty
-            ? const AsyncLoading()
-            : AsyncData(virtualItems),
-        error: (error, stackTrace) {
-          if (virtualItems.isEmpty) return AsyncError(error, stackTrace);
-          AppLogger.warning(
-            'Playlists unreadable; showing virtual ones: $error',
-          );
-          return AsyncData(virtualItems);
-        },
-      );
+      final playlists = playlistsAsync.value;
+      if (playlists != null) {
+        final yours = <PlaylistsTableData>[];
+        final other = <PlaylistsTableData>[];
+        for (final playlist in playlists) {
+          (isOwnPlaylist(playlist, me) ? yours : other).add(playlist);
+        }
+        int byName(PlaylistsTableData a, PlaylistsTableData b) =>
+            a.name.toLowerCase().compareTo(b.name.toLowerCase());
+        yours.sort(byName);
+        other.sort(byName);
+        return AsyncData(<PlaylistLibraryItem>[
+          for (final playlist in yours) PlaylistLibraryItem.normal(playlist),
+          ...virtualItems,
+          for (final playlist in other)
+            PlaylistLibraryItem.normal(
+              playlist,
+              section: PlaylistLibrarySection.other,
+            ),
+        ]);
+      }
+      if (virtualItems.isEmpty) return playlistsAsync.whenData((_) => const []);
+      if (playlistsAsync.hasError) {
+        AppLogger.warning(
+          'Playlists unreadable; showing virtual ones: ${playlistsAsync.error}',
+        );
+      }
+      return AsyncData(virtualItems);
     });
 
 /// Whether the create dialog can offer server storage.
