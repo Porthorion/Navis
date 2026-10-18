@@ -1936,8 +1936,7 @@ class LibraryDao extends DatabaseAccessor<NavisDatabase>
               failureCount: Value(0),
               lastFailedAt: Value(null),
             ),
-          )
-          .then((_) {});
+          );
 
   Future<void> upsertExternalLyricsCache({
     required String songId,

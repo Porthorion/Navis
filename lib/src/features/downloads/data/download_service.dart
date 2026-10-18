@@ -3011,10 +3011,11 @@ class DownloadService {
         background: true,
         cancelToken: _lyricsCancelToken,
       );
+      final useLrclib = _readLyricsAllowed();
       final resolution = await resolver.resolve(
         songId: songId,
         metadata: metadata,
-        useLrclib: _readLyricsAllowed(),
+        useLrclib: useLrclib,
         lyricsCacheTtlSeconds: permanentLyricsCacheTtlSeconds,
         cacheServerLyrics: true,
         forceSyncedUpgrade: forceSyncedUpgrade,
@@ -3025,7 +3026,10 @@ class DownloadService {
       );
       if (!resolution.instrumental &&
           (resolution.confirmedMiss || resolution.syncedUpgradeMiss) &&
-          !_lrclibClient.isRateLimited) {
+          !_lrclibClient.isRateLimited &&
+          // A miss resolved under a permission that flipped mid-request must
+          // not re-arm the backoff the re-enable reset just cleared (#76).
+          useLrclib == _readLyricsAllowed()) {
         // Back off empty lookups and unsuccessful synced upgrades for a week,
         // preserving any selected plain lyrics for offline playback.
         final existing = await _libraryDao.getExternalLyricsCache(songId);
