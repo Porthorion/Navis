@@ -1463,6 +1463,46 @@ void main() {
       );
       expect(recoveredIds, isEmpty);
     });
+
+    // Issue #70: Navidrome serves a placeholder for a few seconds after a
+    // playlist is created, so header-less playlist covers must revalidate soon.
+    Future<Duration> expiryIn(String id, {String? cacheControl}) async {
+      server.listen((request) {
+        request.response.headers.contentType = ContentType('image', 'jpeg');
+        if (cacheControl != null) {
+          request.response.headers.set(
+            HttpHeaders.cacheControlHeader,
+            cacheControl,
+          );
+        }
+        request.response.add(_tinyJpeg);
+        unawaited(request.response.close());
+      });
+      final response = await service
+          .get(_coverArtUrl(server, id: id))
+          .timeout(const Duration(seconds: 1));
+      await response.content.drain<void>();
+      return response.validTill.difference(DateTime.now());
+    }
+
+    test(
+      'a playlist cover without cache headers expires in two minutes',
+      () async {
+        final ttl = await expiryIn('pl-abc_123');
+        expect(ttl, lessThanOrEqualTo(const Duration(minutes: 2)));
+        expect(ttl, greaterThan(const Duration(minutes: 1)));
+      },
+    );
+
+    test('a non-playlist cover without cache headers keeps 30 days', () async {
+      final ttl = await expiryIn('al-abc_123');
+      expect(ttl, greaterThan(const Duration(days: 29)));
+    });
+
+    test('a playlist cover with max-age honours it', () async {
+      final ttl = await expiryIn('pl-abc_123', cacheControl: 'max-age=86400');
+      expect(ttl, greaterThan(const Duration(hours: 23)));
+    });
   });
 
   group('NieR shared-title artwork identity (plan F9)', () {

@@ -14,6 +14,14 @@ Last updated: 2026-10-18
 - ACP status values: `backlog`, `ready`, `in_progress`, `blocked`, `done`.
 
 ## Current Focus
+- [x] Issue #70, saved playlist kept the Navidrome placeholder cover — 2026-10-18
+  (`fix/playlist-cover-placeholder-ttl`): Navidrome serves a placeholder
+  (HTTP 200, no cache headers) for about 5-8 s after a playlist is created and
+  the cover cache kept it for 30 days. `validTill` now expires a `pl-` cover
+  without cache headers after 2 minutes, so it revalidates and updates on the
+  next view; other covers keep 30 days. Three tests in
+  `cover_art_cache_manager_test.dart`; the playlist TTL test failed before the
+  fix (`Actual: Duration:<719:59:59.999988>`).
 - [x] Issue #71 follow-up: malformed instrumental LRC and plain-only upgrades —
   2026-10-18 (`feat/instrumental-lyrics`): instrumental classification now follows
   parsing; the DAO can mark plain-only rows without overwriting their lyrics or
