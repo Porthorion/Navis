@@ -170,6 +170,10 @@ const List<ChangelogVersion> changelogs = [
         type: ChangelogEntryType.fix,
       ),
       ChangelogEntry(
+        'Playlist and weekly recommendation rows show album artwork instead of the track number from the song\'s album; album pages keep their track numbers',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
         'Filter and choice chips such as the artwork size selector are readable again when Controls is set to White: their labels showed as white on a near-white fill',
         type: ChangelogEntryType.fix,
       ),

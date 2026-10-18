@@ -1413,6 +1413,15 @@ void main() {
         tester.getRect(row).center.dy,
       );
       expect(find.text('#'), findsNothing);
+      expect(
+        find.descendant(of: row, matching: find.text('1')),
+        findsOneWidget,
+        reason: 'album rows keep the track number',
+      );
+      expect(
+        find.descendant(of: row, matching: find.byType(CoverArtImage)),
+        findsNothing,
+      );
       expect(tester.takeException(), isNull);
       await _disposeApp(tester);
     });
