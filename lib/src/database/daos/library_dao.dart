@@ -1922,6 +1922,23 @@ class LibraryDao extends DatabaseAccessor<NavisDatabase>
     )..where((t) => t.songId.equals(songId))).getSingleOrNull();
   }
 
+  /// Clears empty lookup backoff when LRCLIB becomes available again.
+  Future<void> clearEmptyLyricsFailureBackoff() =>
+      (update(externalLyricsCacheTable)..where(
+            (row) =>
+                (row.syncedLyrics.isNull() |
+                    row.syncedLyrics.trim().equals('')) &
+                (row.plainLyrics.isNull() | row.plainLyrics.trim().equals('')) &
+                row.instrumental.equals(false),
+          ))
+          .write(
+            const ExternalLyricsCacheTableCompanion(
+              failureCount: Value(0),
+              lastFailedAt: Value(null),
+            ),
+          )
+          .then((_) {});
+
   Future<void> upsertExternalLyricsCache({
     required String songId,
     required String source,

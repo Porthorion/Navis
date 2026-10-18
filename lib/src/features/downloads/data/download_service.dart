@@ -999,6 +999,7 @@ class DownloadService {
   bool _lyricsResumePending = false;
   bool _forceLyricsBackfill = false;
   bool? _lastLyricsAllowed;
+  bool _lyricsBackoffResetPending = false;
   final _visitedLyrics = <String>{};
 
   /// The latest snapshot, including final counts while idle.
@@ -1065,6 +1066,7 @@ class DownloadService {
           await _runBackfillPasses(force: true);
         }().whenComplete(() {
           _manualBackfillRun = null;
+          if (_lyricsBackoffResetPending) _pumpBackfills();
         });
     _trackBackgroundTask(run);
     return run;
@@ -1078,6 +1080,9 @@ class DownloadService {
     if (_lastLyricsAllowed != null && _lastLyricsAllowed != allowed) {
       _lyricsBackfillGate.done = false;
     }
+    if (_lastLyricsAllowed == false && allowed) {
+      _lyricsBackoffResetPending = true;
+    }
     _lastLyricsAllowed = allowed;
     if (!allowed) {
       _lyricsResumeTimer?.cancel();
@@ -1088,13 +1093,18 @@ class DownloadService {
         _emitBackfill(blockedReason: BackfillBlockedReason.none);
       }
     }
-    if (!_backfillReady()) return;
+    if (!_backfillReady() && !_lyricsBackoffResetPending) return;
     if (_manualBackfillRun != null ||
         _automaticBackfillRun != null ||
-        (!rearm && _lyricsBackfillGate.done && _artworkBackfillGate.done)) {
+        (!rearm &&
+            !_lyricsBackoffResetPending &&
+            _lyricsBackfillGate.done &&
+            _artworkBackfillGate.done)) {
       return;
     }
-    if (_lyricsResumePending && _lrclibClient.isRateLimited) {
+    if (!_lyricsBackoffResetPending &&
+        _lyricsResumePending &&
+        _lrclibClient.isRateLimited) {
       _emitBackfill(blockedReason: BackfillBlockedReason.rateLimited);
       _armLyricsResume();
       return;
@@ -1102,11 +1112,19 @@ class DownloadService {
     final run = _automaticBackfillRun =
         _runAutomaticBackfillPasses(rearm: rearm).whenComplete(() {
           _automaticBackfillRun = null;
+          if (_lyricsBackoffResetPending) _pumpBackfills();
         });
     _trackBackgroundTask(run);
   }
 
   Future<void> _runAutomaticBackfillPasses({required bool rearm}) async {
+    if (_lyricsBackoffResetPending) {
+      _lyricsBackoffResetPending = false;
+      // Drain any active pass first, then persist the reset even while offline.
+      await _libraryDao.clearEmptyLyricsFailureBackoff();
+      _lyricsBackfillGate.done = false;
+    }
+    if (!_backfillReady()) return;
     // Reuse verified covers; the store invalidates presence on writes/pruning.
     final songs = await _cacheDao.getPermanentDownloadMetadata();
     if (rearm) {

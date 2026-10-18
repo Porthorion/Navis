@@ -530,6 +530,139 @@ void main() {
     );
   }
 
+  Future<void> triggerAutomaticBackfill() async {
+    final idle = service.backfillProgress
+        .skip(1)
+        .firstWhere((p) => p.phase == BackfillPhase.idle);
+    await service.processQueuedDownloads();
+    await idle.timeout(const Duration(seconds: 2));
+    await Future<void>.delayed(Duration.zero);
+  }
+
+  test('LRCLIB re-enable retries server-only misses without force', () async {
+    await seed('song', cover: null);
+    lyricsAllowed = false;
+    when(() => api.getLyricsBySongId(any()))
+        .thenAnswer((_) async => const LyricsList());
+
+    when(
+      () => api.getLyrics(
+        artist: any(named: 'artist'),
+        title: any(named: 'title'),
+      ),
+    ).thenAnswer((_) async => const LyricsList());
+
+    await triggerAutomaticBackfill();
+    final miss = (await db.libraryDao.getExternalLyricsCache('song'))!;
+    expect(miss.failureCount, 1);
+    expect(miss.lastFailedAt, isNotNull);
+    expect(external.calls, 0);
+    verify(() => api.getLyricsBySongId('song')).called(1);
+    final gaps = await DownloadMetadataGaps.load(db.cacheDao, artwork);
+    expect(gaps.songsMissingLyrics.map((song) => song.songId), ['song']);
+
+    await triggerAutomaticBackfill();
+    expect(await db.libraryDao.getExternalLyricsCache('song'), miss);
+    verifyNever(() => api.getLyricsBySongId(any()));
+
+    lyricsAllowed = true;
+    await triggerAutomaticBackfill();
+    expect(external.calls, 1);
+    verify(() => api.getLyricsBySongId('song')).called(1);
+    final retried = (await db.libraryDao.getExternalLyricsCache('song'))!;
+    expect(retried.failureCount, 1);
+    expect(retried.lastFailedAt, isNotNull);
+
+    await triggerAutomaticBackfill();
+    expect(external.calls, 1);
+    expect(await db.libraryDao.getExternalLyricsCache('song'), retried);
+    verifyNever(() => api.getLyricsBySongId(any()));
+  });
+
+  for (final manual in [false, true]) {
+    test('LRCLIB re-enable drains an active pass: manual=$manual', () async {
+      await seed('song', cover: null);
+      lyricsAllowed = false;
+      if (manual) {
+        await db.libraryDao.upsertExternalLyricsCache(
+          songId: 'song',
+          source: 'miss',
+          failureCount: 1,
+          lastFailedAt: DateTime.now(),
+        );
+        await triggerAutomaticBackfill();
+      }
+      final requested = Completer<void>();
+      final response = Completer<LyricsList>();
+      when(() => api.getLyricsBySongId(any())).thenAnswer((_) {
+        if (!requested.isCompleted) {
+          requested.complete();
+          return response.future;
+        }
+        return Future.value(const LyricsList());
+      });
+      when(
+        () => api.getLyrics(
+          artist: any(named: 'artist'),
+          title: any(named: 'title'),
+        ),
+      ).thenAnswer((_) async => const LyricsList());
+      final active = manual
+          ? service.runBackfillNow()
+          : service.processQueuedDownloads();
+      await requested.future.timeout(const Duration(seconds: 2));
+      lyricsAllowed = true;
+      await service.processQueuedDownloads();
+      final retried = service.backfillProgress.firstWhere(
+        (p) => p.phase == BackfillPhase.idle && external.calls == 1,
+      );
+      response.complete(const LyricsList());
+      await active;
+      await retried.timeout(const Duration(seconds: 2));
+      await service.stopAndWait();
+      expect(external.calls, 1);
+      verify(() => api.getLyricsBySongId('song')).called(2);
+    });
+  }
+
+  test('initial enabled permission preserves recent miss backoff', () async {
+    await seed('song', cover: null);
+    await File(p.join(dir.path, 'song.mp3')).writeAsBytes([1]);
+    await db.libraryDao.upsertExternalLyricsCache(
+      songId: 'song',
+      source: 'miss',
+      failureCount: 3,
+      lastFailedAt: DateTime.now(),
+    );
+    final miss = await db.libraryDao.getExternalLyricsCache('song');
+    await service.start();
+    await service.stopAndWait();
+    expect(await db.libraryDao.getExternalLyricsCache('song'), miss);
+    expect(external.calls, 0);
+    verifyNever(() => api.getLyricsBySongId(any()));
+  });
+
+  test('LRCLIB re-enable clears misses even while offline', () async {
+    await seed('song', cover: null);
+    lyricsAllowed = false;
+    await db.libraryDao.upsertExternalLyricsCache(
+      songId: 'song',
+      source: 'miss',
+      failureCount: 2,
+      lastFailedAt: DateTime.now(),
+    );
+    await triggerAutomaticBackfill();
+    online = false;
+    lyricsAllowed = true;
+    await service.processQueuedDownloads();
+    await service.stopAndWait();
+    final cache = (await db.libraryDao.getExternalLyricsCache('song'))!;
+    expect(cache.failureCount, 0);
+    expect(cache.lastFailedAt, isNull);
+    expect(external.calls, 0);
+    verifyNever(() => api.getLyricsBySongId(any()));
+  });
+
   test(
     'offline interrupted two-song pass retries LRCLIB for both songs',
     () async {

@@ -1967,9 +1967,17 @@ rolling-cached track to a permanent download prefetches lyrics alongside its
 cover art. A server connection appearing also re-arms a blocked pass. When every
 attempted source answers successfully without lyrics for a downloaded song,
 the backfill records the miss (`failureCount`, `lastFailedAt`) and skips that
-song for a week. A successful LRCLIB attempt that returns only plain lyrics or
-no synced upgrade records the same seven-day backoff while retaining the
-selected plain lyrics. Failure metadata never hides stored lyrics. Rate limits
+song for a week, including server-only misses while LRCLIB is disabled. When
+its effective permission (Online services, LRCLIB and lyrics switches) changes
+from off to on, the existing single-flight backfill pump clears that backoff in
+one DAO update for rows with neither synced nor plain lyrics and no instrumental
+marker, then reopens the automatic lyrics gate. The reset waits for an active
+pass and persists even while offline. The first observed permission at startup
+and repeated enabled values do not reset backoff; rows with real lyrics and
+instrumental rows are untouched. Missing lyrics counts still include server-only
+misses while LRCLIB is off. A successful LRCLIB attempt that returns only plain
+lyrics or no synced upgrade records the same seven-day backoff while retaining
+the selected plain lyrics. Failure metadata never hides stored lyrics. Rate limits
 and transport/API failures do not count as failed synced upgrades. Cache upserts
 atomically reject plain writes over a non-empty synced row, including concurrent
 on-demand and backfill lookups. On-demand server lookups for permanent downloads
