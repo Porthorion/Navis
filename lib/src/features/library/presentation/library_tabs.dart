@@ -428,6 +428,13 @@ class _LibraryPlaylistsTabState extends ConsumerState<_LibraryPlaylistsTab>
     final l10n = AppLocalizations.of(context)!;
     final density = NavisDensityScope.of(context);
     final cover = density.listCover;
+    // A device playlist tiles its songs' covers; a server one keeps the
+    // server's own (Navidrome renders its mosaic).
+    final deviceCovers =
+        (playlist.isLocal
+            ? ref.watch(devicePlaylistCoverArtIdsProvider).value
+            : null)?[playlist.id] ??
+        const <String>[];
     final tile = ListTile(
       dense: density.compact,
       visualDensity: density.compact ? VisualDensity.compact : null,
@@ -436,14 +443,16 @@ class _LibraryPlaylistsTabState extends ConsumerState<_LibraryPlaylistsTab>
       leading: SizedBox(
         width: cover,
         height: cover,
-        child: CoverArtImage(
-          coverArtId: playlist.coverArt,
-          size: 48,
-          width: cover,
-          height: cover,
-          shape: ArtworkShapeRole.cover,
-          semanticLabel: playlist.name,
-        ),
+        child: deviceCovers.isNotEmpty
+            ? PlaylistCoverMosaic(coverArtIds: deviceCovers, size: cover)
+            : CoverArtImage(
+                coverArtId: playlist.coverArt,
+                size: 48,
+                width: cover,
+                height: cover,
+                shape: ArtworkShapeRole.cover,
+                semanticLabel: playlist.name,
+              ),
       ),
       title: Text(playlist.name),
       subtitle: playlist.isLocal

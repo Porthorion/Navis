@@ -104,6 +104,53 @@ class PlaylistDao extends DatabaseAccessor<NavisDatabase>
     };
   }
 
+  /// Each device playlist's first four distinct song covers, in playlist
+  /// order, for its mosaic. One grouped query for all device playlists;
+  /// playlists without a song cover are absent.
+  Stream<Map<String, List<String>>> watchLocalPlaylistCoverArtIds() {
+    final firstAt = playlistSongsTable.sortOrder.min();
+    final query =
+        selectOnly(playlistSongsTable).join([
+            innerJoin(
+              songsTable,
+              songsTable.id.equalsExp(playlistSongsTable.songId),
+            ),
+            innerJoin(
+              playlistsTable,
+              playlistsTable.id.equalsExp(playlistSongsTable.playlistId),
+            ),
+          ])
+          ..addColumns([playlistSongsTable.playlistId, songsTable.coverArt])
+          ..where(
+            playlistsTable.isLocal.equals(true) &
+                songsTable.coverArt.isNotNull(),
+          )
+          ..groupBy([playlistSongsTable.playlistId, songsTable.coverArt])
+          ..orderBy([
+            OrderingTerm.asc(playlistSongsTable.playlistId),
+            OrderingTerm.asc(firstAt),
+          ]);
+    query.addColumns([firstAt]);
+    return query
+        .watch()
+        .map((rows) {
+          final covers = <String, List<String>>{};
+          for (final row in rows) {
+            final ids = covers.putIfAbsent(
+              row.read(playlistSongsTable.playlistId)!,
+              () => [],
+            );
+            if (ids.length < 4) ids.add(row.read(songsTable.coverArt)!);
+          }
+          return covers;
+        })
+        .distinct(
+          const MapEquality<String, List<String>>(
+            values: ListEquality<String>(),
+          ).equals,
+        );
+  }
+
   Stream<List<SongsTableData>> watchPlaylistSongs(String playlistId) {
     final query =
         select(songsTable).join([

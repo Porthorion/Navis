@@ -166,6 +166,12 @@ const List<ChangelogVersion> changelogs = [
     ],
     entries: [
       ChangelogEntry(
+        'Playlists on this device now show a 2x2 mosaic of their songs\' covers in the Library and on the playlist page, not just the first song\'s cover',
+      ),
+      ChangelogEntry(
+        'Titles, headings, buttons and menu items now use Title Case consistently across the app',
+      ),
+      ChangelogEntry(
         'Titles, headings, buttons, menu items, Android notification titles and channel names now use Title Case consistently across the app; notification bodies stay sentence case',
       ),
       ChangelogEntry(
