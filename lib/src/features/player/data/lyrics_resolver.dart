@@ -32,8 +32,12 @@ class LyricsResolver {
     required this._libraryDao,
     required this._lrclibClient,
     required this._apiClient,
+    this.background = false,
+    this.cancelToken,
   });
 
+  final bool background;
+  final CancelToken? cancelToken;
   final LibraryDao _libraryDao;
   final LrclibClient _lrclibClient;
   final SubsonicApiClient? _apiClient;
@@ -225,6 +229,8 @@ class LyricsResolver {
     final candidates = await _lrclibClient.searchLyrics(
       artist: metadata.artist,
       title: metadata.title,
+      background: background,
+      cancelToken: cancelToken,
     );
     for (final candidate in candidates) {
       final score = _scoreLrclibResult(expected, candidate);
@@ -250,6 +256,8 @@ class LyricsResolver {
       title: metadata.title,
       album: metadata.album,
       duration: metadata.durationSeconds,
+      background: background,
+      cancelToken: cancelToken,
     );
     if (direct == null) {
       return null;

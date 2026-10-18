@@ -52,7 +52,10 @@ class _SyncController extends LibrarySyncController {
   LibrarySyncState build() => const LibrarySyncState.idle();
 
   @override
-  Future<LibrarySyncState> requestTarget(LibrarySyncTarget target) async {
+  Future<LibrarySyncState> requestTarget(
+    LibrarySyncTarget target, {
+    bool requireFresh = false,
+  }) async {
     targets.add(target);
     return const LibrarySyncState.idle();
   }

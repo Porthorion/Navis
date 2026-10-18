@@ -3,9 +3,12 @@ import 'dart:collection';
 
 import 'package:dio/dio.dart';
 
-/// Keeps Navis under Deezer's public quota: at most [maxPerWindow] requests
+/// Shared pacing for external APIs: at most [maxPerWindow] requests
 /// start in any [window], at most [maxBackgroundPerWindow] of them
 /// background ones, and at most [maxInFlight] run at once.
+///
+/// The defaults target Deezer. LRCLIB uses a separate instance with a lower
+/// background budget so backfill cannot starve Now Playing.
 ///
 /// Deezer documents about 50 requests per 5 seconds, but from one IP it
 /// answered "Quota limit exceeded" (code 4) while Navis started at most 32
@@ -26,7 +29,7 @@ import 'package:dio/dio.dart';
 /// the user is looking at) always takes the next free slot before any
 /// `background` one (Home's warm-up work). Background requests start
 /// whenever no foreground request is waiting and their own rate allows.
-class DeezerRequestLimiter {
+class RequestLimiter {
   new({
     this.maxPerWindow = 5,
     this.window = const Duration(seconds: 1),

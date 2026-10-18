@@ -396,14 +396,20 @@ ThemeData _buildNavisTheme(
       selectedColor: whiteControls ? tonalFill : null,
       secondarySelectedColor: whiteControls ? tonalFill : null,
       checkmarkColor: whiteControls ? tonalInk : null,
+      // The chip resolves only the colour of a plain style: a
+      // WidgetStateTextStyle leaves the colour null (painted white) and drops
+      // the size and weight.
       labelStyle: whiteControls
-          ? WidgetStateTextStyle.resolveWith(
-              (states) => TextStyle(
-                color: states.contains(WidgetState.selected)
-                    ? tonalInk
-                    : colorScheme.onSurface,
-              ),
-            )
+          ? Typography.englishLike2021.labelLarge!
+                .merge(_navisTextTheme.labelLarge)
+                .copyWith(
+                  fontFamily: navisFontFamily,
+                  color: WidgetStateColor.resolveWith(
+                    (states) => states.contains(WidgetState.selected)
+                        ? tonalInk
+                        : colorScheme.onSurface,
+                  ),
+                )
           : null,
       side: WidgetStateBorderSide.resolveWith((states) {
         if (states.contains(WidgetState.selected)) {

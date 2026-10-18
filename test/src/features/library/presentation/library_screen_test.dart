@@ -75,7 +75,10 @@ class _FakeLibrarySyncController extends LibrarySyncController {
   }
 
   @override
-  Future<LibrarySyncState> requestTarget(LibrarySyncTarget target) async {
+  Future<LibrarySyncState> requestTarget(
+    LibrarySyncTarget target, {
+    bool requireFresh = false,
+  }) async {
     onTarget?.call(target);
     return _initialState;
   }
@@ -2300,7 +2303,7 @@ void main() {
         await tester.tap(find.byIcon(Icons.more_vert));
         await tester.pumpAndSettle();
 
-        expect(find.text('Rename Playlist'), findsOneWidget);
+        expect(find.text('Edit Playlist'), findsOneWidget);
         expect(find.byType(BottomSheet), findsNothing);
       },
     );
@@ -2382,6 +2385,139 @@ void main() {
       },
     );
 
+    for (final (available, label) in <(bool, String)>[
+      (true, 'enabled'),
+      (false, 'disabled offline'),
+    ]) {
+      _testWidgetsWithCleanup(
+        'edit dialog offers Save to server $label for device playlists only',
+        (tester) async {
+          final actions = _MockPlaylistActions();
+          when(() => actions.uploadToServer(any())).thenAnswer(
+            (_) async =>
+                (serverId: 'srv1', deviceCopyKept: false, kept: 3, total: 3),
+          );
+          await _pumpPlaylistsTab(
+            tester,
+            items: const <PlaylistLibraryItem>[
+              PlaylistLibraryItem.normal(_deviceMix),
+              PlaylistLibraryItem.normal(_roadTrip),
+            ],
+            overrides: [
+              playlistActionsProvider.overrideWithValue(actions),
+              playlistServerCreationAvailableProvider.overrideWithValue(
+                available,
+              ),
+            ],
+          );
+
+          await tester.longPress(find.text('Road Trip'));
+          await tester.pumpAndSettle();
+          await tester.tap(find.text('Edit Playlist'));
+          await tester.pumpAndSettle();
+          expect(find.byType(SwitchListTile), findsNothing);
+          await tester.tap(find.widgetWithText(TextButton, 'Cancel'));
+          await tester.pumpAndSettle();
+
+          await tester.longPress(find.text(_deviceMix.name));
+          await tester.pumpAndSettle();
+          await tester.tap(find.text('Edit Playlist'));
+          await tester.pumpAndSettle();
+          final switchTile = find.byType(SwitchListTile);
+          expect(switchTile, findsOneWidget);
+          expect(
+            tester.widget<SwitchListTile>(switchTile).onChanged,
+            available ? isNotNull : isNull,
+          );
+          if (!available) return;
+          await tester.tap(switchTile);
+          await tester.pumpAndSettle();
+          await tester.tap(find.widgetWithText(FilledButton, 'Save'));
+          await tester.pumpAndSettle();
+
+          verify(() => actions.uploadToServer(_deviceMix.id)).called(1);
+          verifyNever(() => actions.rename(any(), any()));
+        },
+      );
+    }
+
+    for (final (keptDevice, kept, notice) in [
+      (true, 3, 'Playlist changed while saving; the device copy was kept'),
+      (false, 1, 'Saved on server: 1 of 3 songs'),
+      (
+        true,
+        1,
+        'Playlist changed while saving; the device copy was kept\nSaved on server: 1 of 3 songs',
+      ),
+    ]) {
+      _testWidgetsWithCleanup('upload result shows $notice', (tester) async {
+        final actions = _MockPlaylistActions();
+        final notices = AppNoticeController();
+        addTearDown(notices.dispose);
+        when(() => actions.uploadToServer(any())).thenAnswer(
+          (_) async => (
+            serverId: 'srv1',
+            deviceCopyKept: keptDevice,
+            kept: kept,
+            total: 3,
+          ),
+        );
+        await _pumpPlaylistsTab(
+          tester,
+          items: const [PlaylistLibraryItem.normal(_deviceMix)],
+          notices: notices,
+          overrides: [
+            playlistActionsProvider.overrideWithValue(actions),
+            playlistServerCreationAvailableProvider.overrideWithValue(true),
+          ],
+        );
+        await tester.longPress(find.text(_deviceMix.name));
+        await tester.pumpAndSettle();
+        await tester.tap(find.text('Edit Playlist'));
+        await tester.pumpAndSettle();
+        await tester.tap(find.byType(SwitchListTile));
+        await tester.pumpAndSettle();
+        await tester.tap(find.widgetWithText(FilledButton, 'Save'));
+        await tester.pumpAndSettle();
+        expect(notices.notice?.message, notice);
+        expect(notices.notice?.level, AppNoticeLevel.info);
+        notices.dismiss();
+      });
+    }
+
+    _testWidgetsWithCleanup(
+      'edit dialog shows a notice when the upload fails',
+      (tester) async {
+        final actions = _MockPlaylistActions();
+        when(() => actions.uploadToServer(any())).thenThrow(StateError('boom'));
+        final notices = AppNoticeController();
+        addTearDown(notices.dispose);
+        await _pumpPlaylistsTab(
+          tester,
+          items: const <PlaylistLibraryItem>[
+            PlaylistLibraryItem.normal(_deviceMix),
+          ],
+          overrides: [
+            playlistActionsProvider.overrideWithValue(actions),
+            playlistServerCreationAvailableProvider.overrideWithValue(true),
+          ],
+          notices: notices,
+        );
+
+        await tester.longPress(find.text(_deviceMix.name));
+        await tester.pumpAndSettle();
+        await tester.tap(find.text('Edit Playlist'));
+        await tester.pumpAndSettle();
+        await tester.tap(find.byType(SwitchListTile));
+        await tester.pumpAndSettle();
+        await tester.tap(find.widgetWithText(FilledButton, 'Save'));
+        await tester.pumpAndSettle();
+
+        expect(notices.notice?.message, 'Failed to save playlist on server');
+        expect(notices.notice?.level, AppNoticeLevel.error);
+      },
+    );
+
     _testWidgetsWithCleanup(
       'playlists tab shows a notice when renaming or deleting fails',
       (tester) async {
@@ -2401,7 +2537,7 @@ void main() {
 
         await tester.longPress(find.text('Road Trip'));
         await tester.pumpAndSettle();
-        await tester.tap(find.text('Rename Playlist'));
+        await tester.tap(find.text('Edit Playlist'));
         await tester.pumpAndSettle();
         await tester.enterText(
           find.descendant(
@@ -2410,7 +2546,7 @@ void main() {
           ),
           'Renamed',
         );
-        await tester.tap(find.widgetWithText(FilledButton, 'Rename Playlist'));
+        await tester.tap(find.widgetWithText(FilledButton, 'Save'));
         await tester.pumpAndSettle();
 
         verify(() => actions.rename(_roadTrip, 'Renamed')).called(1);
@@ -2592,7 +2728,7 @@ void main() {
           await tester.longPress(find.text(name));
           await tester.pumpAndSettle();
           expect(
-            find.text('Rename Playlist'),
+            find.text('Edit Playlist'),
             editable ? findsOneWidget : findsNothing,
             reason: name,
           );
@@ -2630,7 +2766,7 @@ void main() {
           buttons: kSecondaryMouseButton,
         );
         await tester.pumpAndSettle();
-        expect(find.text('Rename Playlist'), findsNothing);
+        expect(find.text('Edit Playlist'), findsNothing);
       },
     );
 

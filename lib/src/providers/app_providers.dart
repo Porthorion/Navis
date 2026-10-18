@@ -2810,6 +2810,9 @@ final downloadServiceProvider = Provider<DownloadService>((ref) {
         resolveNotificationLocalizations(ref.read(appLocaleProvider)),
     reportNetworkUsage: _networkUsageReporter(networkUsageMeter),
   );
+  ref.listen<bool>(useLrclibProvider, (previous, next) {
+    if (previous != next) unawaited(service.processQueuedDownloads());
+  });
   ref.listen<bool>(wifiOnlyDownloadsProvider, (previous, next) {
     if (previous != next) {
       unawaited(service.processQueuedDownloads());
@@ -2838,10 +2841,21 @@ final downloadServiceProvider = Provider<DownloadService>((ref) {
       songId: snapshot.currentSongId,
     );
   }, fireImmediately: true);
-  kickAfterReconciliation(
-    ref,
-    () => unawaited(service.processQueuedDownloads()),
-  );
+  ref.listen<bool>(networkReconcilingProvider, (previous, next) {
+    if (previous == true && !next) {
+      unawaited(service.processQueuedDownloads());
+    }
+  });
+  ref.listen<bool>(librarySyncForegroundProvider, (previous, next) {
+    if (previous == false && next) {
+      unawaited(service.processQueuedDownloads());
+    }
+  });
+  ref.listen(librarySyncControllerProvider, (previous, next) {
+    if (previous?.isRunning == true && !next.isRunning) {
+      unawaited(service.processQueuedDownloads());
+    }
+  });
   // Service.start() is async but we fire-and-forget here — the subscription
   // inside start() processes the queue independently.
   // ignore: discarded_futures

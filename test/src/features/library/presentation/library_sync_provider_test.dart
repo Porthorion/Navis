@@ -20,6 +20,7 @@ import 'package:navis/src/features/library/domain/library_sync_request.dart';
 import 'package:navis/src/features/library/domain/library_sync_state.dart';
 import 'package:navis/src/features/library/presentation/library_sync_provider.dart';
 import 'package:navis/src/providers/app_providers.dart';
+import 'package:navis/src/features/playlists/presentation/playlist_providers.dart';
 import 'package:navis/src/utils/connectivity.dart';
 import 'package:flutter_riverpod/misc.dart' show Override;
 
@@ -1747,6 +1748,44 @@ void main() {
           container.read(librarySyncControllerProvider).planKind,
           LibrarySyncPlanKind.deltaReconcile,
         );
+      },
+    );
+
+    test(
+      'playlist refresh queues a fresh fetch after an in-flight request',
+      () async {
+        final gate = Completer<LibrarySyncState>();
+        var reads = 0;
+        final engine = StubLibrarySyncEngine((request, {onProgress}) async {
+          if (request.target.kind == LibrarySyncTargetKind.playlistHeaders) {
+            reads++;
+            if (reads == 1) return await gate.future;
+          }
+          return const LibrarySyncState(
+            status: LibrarySyncStatus.succeeded,
+            stage: LibrarySyncStage.completed,
+          );
+        });
+        final container = _container(
+          engine,
+          reachability: ServerReachabilityStatus.checking,
+        );
+        addTearDown(container.dispose);
+        final subscription = container.listen(playlistSyncProvider, (_, _) {});
+        addTearDown(subscription.close);
+        final first = container.read(playlistSyncProvider.future);
+        await Future<void>.delayed(Duration.zero);
+        container.invalidate(playlistSyncProvider);
+        final refreshed = container.read(playlistSyncProvider.future);
+        expect(reads, 1);
+        gate.complete(
+          const LibrarySyncState(
+            status: LibrarySyncStatus.succeeded,
+            stage: LibrarySyncStage.completed,
+          ),
+        );
+        await Future.wait([first, refreshed]);
+        expect(reads, 2);
       },
     );
 

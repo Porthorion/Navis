@@ -6,26 +6,32 @@ import 'package:navis/src/common_widgets/app_notice.dart';
 import 'package:navis/src/providers/app_providers.dart';
 
 /// Opens the add/edit dialog. New stations stay on this device unless an
-/// admin switches "Save to server" on (only offered while the server's radio
-/// list is available). [isLocal] says where an [existing] station lives;
-/// stations never move between device and server.
+/// admin switches "Save on Server" on (only offered while the server's radio
+/// list is available). The same switch moves an [existing] device station to
+/// the server; [isLocal] says where it lives. Server stations never move back.
 Future<void> showRadioStationEditor(
   BuildContext context,
   WidgetRef ref, {
   InternetRadioStation? existing,
   bool isLocal = true,
-}) {
+}) async {
   final canChooseServer =
-      existing == null &&
+      (existing == null || isLocal) &&
       ref.read(serverUserIsAdminProvider).asData?.value == true &&
       ref.read(radioStationsProvider).hasValue;
-  return showDialog<void>(
+  final deviceCopyKept = await showDialog<bool>(
     context: context,
     builder: (_) => _RadioStationEditor(
       existing: existing,
       isLocal: isLocal,
       canChooseServer: canChooseServer,
     ),
+  );
+  if (deviceCopyKept != true || !context.mounted) return;
+  showAppNotice(
+    context,
+    message: AppLocalizations.of(context)!.radioChangedWhileSaving,
+    level: AppNoticeLevel.info,
   );
 }
 
@@ -140,16 +146,18 @@ class _RadioStationEditorState extends ConsumerState<_RadioStationEditor> {
       _nameError = _streamUrlError = _homepageError = null;
     });
     try {
-      await ref
+      final result = await ref
           .read(radioStationActionsProvider)
           .save(
             existing: widget.existing,
             isLocal: widget.existing == null ? !_toServer : widget.isLocal,
+            moveToServer:
+                widget.existing != null && widget.isLocal && _toServer,
             name: _name.text,
             streamUrl: _streamUrl.text,
             homePageUrl: _homepage.text,
           );
-      if (mounted) Navigator.of(context).pop();
+      if (mounted) Navigator.of(context).pop(result.deviceCopyKept);
     } on Object catch (error) {
       if (!mounted) return;
       // Validation failures come back as ArgumentErrors naming the field.

@@ -1,8 +1,21 @@
+import 'dart:async';
+
+import 'package:drift/drift.dart' show Value;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:navis/src/api/server_create_recovery.dart';
 import 'package:navis/src/api/subsonic_api_client.dart';
 import 'package:navis/src/database/navis_database.dart';
+import 'package:navis/src/features/library/data/library_sync_response_validation.dart';
 import 'package:navis/src/features/playlists/presentation/playlist_providers.dart';
 import 'package:navis/src/providers/app_providers.dart';
+
+typedef PlaylistUploadResult = ({
+  String serverId,
+  bool deviceCopyKept,
+  int kept,
+  int total,
+});
+typedef _UploadSnapshot = ({String name, List<String> songIds});
 
 final playlistActionsProvider = Provider<PlaylistActions>(PlaylistActions.new);
 
@@ -11,6 +24,10 @@ class PlaylistActions {
   new(this._ref);
 
   final Ref _ref;
+
+  final _uploads = <String, Future<PlaylistUploadResult>>{};
+  final _createRecovery = ServerCreateRecovery<_UploadSnapshot>();
+  final _keptUploads = <String>{};
 
   SubsonicApiClient _serverApi() {
     final api = _ref.read(subsonicApiProvider);
@@ -44,6 +61,113 @@ class PlaylistActions {
     );
     if (_ref.mounted) _ref.invalidate(playlistSyncProvider);
     return playlist.id;
+  }
+
+  /// Uploads a device snapshot, preserving concurrent edits and reporting the
+  /// server's accepted song count. Concurrent calls share the entire move.
+  Future<PlaylistUploadResult> uploadToServer(String localId) =>
+      _uploads.putIfAbsent(
+        localId,
+        () => _upload(localId).whenComplete(() {
+          unawaited(_uploads.remove(localId));
+        }),
+      );
+
+  Future<PlaylistUploadResult> _upload(String localId) async {
+    final api = _serverApi();
+    final db = _ref.read(navisDatabaseProvider);
+    final dao = db.playlistDao;
+    final snapshot = await db.transaction(() async {
+      final local = await dao.watchPlaylistById(localId).first;
+      if (local == null || !local.isLocal) {
+        throw StateError('Only device playlists can be saved on the server.');
+      }
+      return (
+        name: local.name,
+        songIds: [
+          for (final song in await dao.watchPlaylistSongs(localId).first)
+            song.id,
+        ],
+      );
+    });
+    final resolved = await _createRecovery.run(
+      localId,
+      snapshot: snapshot,
+      name: snapshot.name,
+      list: () async => [
+        for (final row in await api.getPlaylists())
+          (id: row.id, name: row.name),
+      ],
+      create: () async {
+        final created = await api.createPlaylist(
+          snapshot.name,
+          songIds: snapshot.songIds,
+        );
+        return created.id == 'created' || created.id.isEmpty
+            ? null
+            : created.id;
+      },
+    );
+    var uploadedSnapshot = resolved.snapshot;
+    if (_keptUploads.contains(localId)) {
+      final current = await api.getPlaylist(resolved.id);
+      validatePlaylistSnapshot(current, requestedId: resolved.id);
+      await api.updatePlaylist(
+        id: resolved.id,
+        name: snapshot.name,
+        songIndexesToRemove: List.generate(current.entries.length, (i) => i),
+        songIdsToAdd: snapshot.songIds,
+      );
+      uploadedSnapshot = snapshot;
+    }
+    final actual = await api.getPlaylist(resolved.id);
+    validatePlaylistSnapshot(actual, requestedId: resolved.id);
+    final keptDevice = await dao.replaceLocalWithServer(
+      localId,
+      PlaylistsTableCompanion.insert(
+        id: actual.id,
+        name: actual.name,
+        songCount: Value(actual.entries.length),
+        duration: Value(actual.duration),
+        owner: Value(actual.owner),
+        isPublic: Value(actual.isPublic),
+        readOnly: Value(actual.readOnly),
+        coverArt: Value(actual.coverArt),
+        comment: Value(actual.comment),
+      ),
+      uploadedName: uploadedSnapshot.name,
+      uploadedSongIds: uploadedSnapshot.songIds,
+      songs: [
+        for (final song in actual.entries)
+          SongsTableCompanion.insert(
+            id: song.id,
+            title: song.title,
+            duration: Value.absentIfNull(song.duration),
+            coverArt: Value.absentIfNull(song.coverArt),
+          ),
+      ],
+      serverSongIds: actual.entries.map((song) => song.id).toList(),
+    );
+    if (keptDevice) {
+      _keptUploads.add(localId);
+    } else {
+      _keptUploads.remove(localId);
+      _createRecovery.complete(localId);
+    }
+    if (_ref.mounted) {
+      if (!keptDevice) {
+        _ref
+            .read(playlistMovedToServerProvider.notifier)
+            .moved(localId, actual.id);
+      }
+      _ref.invalidate(playlistSyncProvider);
+    }
+    return (
+      serverId: actual.id,
+      deviceCopyKept: keptDevice,
+      kept: actual.entries.length,
+      total: uploadedSnapshot.songIds.length,
+    );
   }
 
   Future<void> rename(PlaylistsTableData playlist, String name) async {
