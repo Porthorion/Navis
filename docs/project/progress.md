@@ -14,6 +14,15 @@ Last updated: 2026-10-18
 - ACP status values: `backlog`, `ready`, `in_progress`, `blocked`, `done`.
 
 ## Current Focus
+- [x] Issue #57: playlist rows show artwork — 2026-10-18
+  (`fix/playlist-row-artwork`): `TrackListTile.showAlbumArt` now defaults to
+  true; only the album detail list passes `false`, and the redundant `true`
+  arguments were removed. The playlist and weekly detail headers drop their
+  number column, and unmatched weekly rows follow the artwork-sized slot (the
+  Home desktop hero list keeps its 32 px numbers). The new playlist-row test
+  failed first (`Found 0 widgets with type "CoverArtImage"`), then passed. No
+  golden changed. Runtime and desktop/compact-density screenshots were not
+  inspected.
 - [x] Issue #49 review fixes, round 3 — 2026-10-18
   (`feat/device-to-server-upload`): a kept device playlist retains its resolved
   server id; saving again sets the current name and replaces ordered songs via

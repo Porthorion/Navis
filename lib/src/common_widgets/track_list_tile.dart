@@ -20,7 +20,7 @@ class TrackListTile extends ConsumerWidget {
     this.onSecondaryTapDown,
     this.trailing,
     this.badge,
-    this.showAlbumArt = false,
+    this.showAlbumArt = true,
     this.showAlbumColumn = true,
     this.horizontalTitleGap,
     this.contentPadding,
@@ -43,9 +43,8 @@ class TrackListTile extends ConsumerWidget {
   /// Defaults to the Material [ListTile] padding when null.
   final EdgeInsetsGeometry? contentPadding;
 
-  /// When true, show the album art as the leading widget instead of a track
-  /// number. Useful in contexts where the track number is meaningless (e.g.,
-  /// the Liked songs list which spans many albums).
+  /// Shows the album art as the leading widget; false shows the track number
+  /// instead, which only means something inside one album.
   final bool showAlbumArt;
 
   /// See [AdaptiveTrackRow.showAlbumColumn].
