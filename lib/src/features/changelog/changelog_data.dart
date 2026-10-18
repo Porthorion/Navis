@@ -166,6 +166,10 @@ const List<ChangelogVersion> changelogs = [
     ],
     entries: [
       ChangelogEntry(
+        'With the Pill corner style, the add buttons on Playlists and Radio are now circles instead of rounded squares; Soft and Square are unchanged',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
         'Device playlists and radio stations no longer briefly disappear from Library and Search while the lists reload',
         type: ChangelogEntryType.fix,
       ),

@@ -6,6 +6,7 @@ import 'package:navis/l10n/app_localizations.dart';
 import 'package:navis/src/api/models/models.dart';
 import 'package:navis/src/features/player/data/lyrics_resolver.dart';
 import 'package:scrollable_positioned_list/scrollable_positioned_list.dart';
+import 'package:navis/src/theme/navis_corner_style.dart';
 import 'package:navis/src/theme/navis_shape_data.dart';
 
 enum LyricsDisplayMode { synced, unsynced, none }
@@ -326,11 +327,17 @@ class _LyricsDisplayWidgetState extends State<LyricsDisplayWidget> {
                     bottom: 16,
                     right: 16,
                     child: FloatingActionButton.small(
-                      // Material's small FAB corner (12 px) in Pill; the
-                      // themed FAB shape is the regular 16 px one.
-                      shape: RoundedRectangleBorder(
-                        borderRadius: NavisShapeData.of(context).scaledAll(12),
-                      ),
+                      // A circle in Pill like every FAB; Soft and Square scale
+                      // Material's small FAB corner (12 px), as the themed FAB
+                      // shape is the regular, larger one.
+                      shape:
+                          NavisShapeData.of(context).style ==
+                              NavisCornerStyle.rounded
+                          ? const StadiumBorder()
+                          : RoundedRectangleBorder(
+                              borderRadius: NavisShapeData.of(context)
+                                  .scaledAll(12),
+                            ),
                       onPressed: () {
                         _autoScrollReengageTimer?.cancel();
                         setState(() => _autoScroll = true);
