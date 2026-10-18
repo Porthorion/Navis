@@ -329,7 +329,7 @@ const List<ChangelogVersion> changelogs = [
         'ListenBrainz scrobbling, likes and weekly playlists each have their own switch, and Settings › Configuration is now Server Information',
       ),
       ChangelogEntry(
-        'After updating, Navis rebuilds its library cache once from your server; downloads, sign-in, settings, your queue and playlists on this device are kept, and very old test installations start fresh',
+        'After updating, Navis rebuilds its library cache once from your server; downloads, sign-in, settings, listening history, your queue and playlists on this device are kept',
       ),
       ChangelogEntry(
         'Windows uses a Navis-built playback engine with complete corresponding source provided alongside the download, and Linux playback and the equalizer work without installing a separate audio library',
@@ -483,7 +483,7 @@ const List<ChangelogVersion> changelogs = [
         type: ChangelogEntryType.fix,
       ),
       ChangelogEntry(
-        'Server credentials stay out of cover caches and the library database, and every sign-out clears the caches and disconnects ListenBrainz',
+        'Server credentials stay out of cover caches and the library on this device, and every sign-out clears the caches and disconnects ListenBrainz',
         type: ChangelogEntryType.fix,
       ),
       ChangelogEntry(
