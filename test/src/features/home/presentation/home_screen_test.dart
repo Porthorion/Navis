@@ -1274,7 +1274,7 @@ void main() {
       find.byKey(const ValueKey<String>('changelogDiscoveryOpen')),
       findsOneWidget,
     );
-    expect(find.text('Check Out 9.9 “Aurora”'), findsOneWidget);
+    expect(find.text('Meet Navis 9.9 “Aurora”'), findsOneWidget);
     // One plain line names the highlights instead of a row of chips.
     expect(
       find.text('Equalizer, Speed and pitch, AutoEQ and 1 more'),

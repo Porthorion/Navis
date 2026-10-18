@@ -6512,13 +6512,13 @@ abstract class AppLocalizations {
   /// No description provided for @changelogDiscoveryCheckOut.
   ///
   /// In en, this message translates to:
-  /// **'Check Out {version}'**
+  /// **'Meet Navis {version}'**
   String changelogDiscoveryCheckOut(String version);
 
   /// No description provided for @changelogDiscoveryCheckOutNamed.
   ///
   /// In en, this message translates to:
-  /// **'Check Out {version} “{codename}”'**
+  /// **'Meet Navis {version} “{codename}”'**
   String changelogDiscoveryCheckOutNamed(String version, String codename);
 
   /// No description provided for @changelogDiscoveryUpdatedTo.

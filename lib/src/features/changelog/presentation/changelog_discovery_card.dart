@@ -12,7 +12,7 @@ import 'package:navis/src/routing/navigation_service.dart';
 import 'package:navis/src/theme/navis_tokens.dart';
 
 /// A quiet, in-context "What's New" row on Home after an update, styled like
-/// a library row: the release's cover, "Check out 1.4 “Navi”" and one plain
+/// a library row: the release's cover, "Meet Navis 1.4 “Navi”" and one plain
 /// line naming its highlights. A patch reads "Updated to Navis 1.4.1".
 ///
 /// It never blocks Home. Opening or dismissing it records the running

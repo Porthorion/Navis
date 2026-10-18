@@ -3097,7 +3097,7 @@ These rules govern how the AI agent writes code in this project. The human revie
     2. If a `ChangelogVersion` for the current development version does not exist yet, create one at the top
     3. Before releasing, ensure a `ChangelogVersion` entry exists for the version being released and set its `released: 'YYYY-MM-DD'` date — the release script will fail gracefully with a warning if it is missing
 
-    **Major releases (every `x.y.0`)** get an album-style page with a cover and the Home "Check out 1.4 “Navi”" card:
+    **Major releases (every `x.y.0`)** get an album-style page with a cover and the Home "Meet Navis 1.4 “Navi”" card:
     - Add 3–5 `highlights` (`ChangelogHighlight` with an icon, a two-to-three-word title and a one-line body); `changelog_data_test.dart` enforces this from 1.2.0 on
     - Optionally add a `codename`, a one-or-two-sentence `summary` (changelog page only) and an `iconAsset` cover (SVG or PNG under `assets/changelog/`; without one, the release gets a typographic cover of its version)
 
