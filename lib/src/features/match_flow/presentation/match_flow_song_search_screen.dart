@@ -75,7 +75,6 @@ class _MatchFlowSongSearchScreenState
                     final song = songs[index];
                     return TrackListTile(
                       song: song,
-                      showAlbumArt: true,
                       onTap: () => _addSong(song),
                     );
                   },

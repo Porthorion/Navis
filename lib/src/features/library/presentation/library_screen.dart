@@ -1986,7 +1986,6 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
                       final song = filteredSongs[index];
                       return TrackListTile(
                         song: song,
-                        showAlbumArt: true,
                         actionExtent: desktopMode ? null : 96,
                         trailing: desktopMode
                             ? DesktopSongActions(

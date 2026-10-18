@@ -428,6 +428,7 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen> {
                             ),
                           _SongItem(:final song) => TrackListTile(
                             song: song,
+                            showAlbumArt: false,
                             showAlbumColumn: false,
                             actionExtent: desktopMode ? null : 96,
                             contentPadding: compactWideMode
