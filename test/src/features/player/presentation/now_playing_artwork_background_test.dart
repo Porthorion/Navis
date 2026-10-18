@@ -166,6 +166,61 @@ void main() {
       }
     });
 
+    test(
+      'light: a tone-40 accent title reaches 3:1 over a near-black cover',
+      () {
+        final theme = buildLightTheme(const Color(0xFF3F7F6F));
+        final scheme = theme.colorScheme;
+        final data = theme.extension<NavisColorStyleData>()!;
+        const cover = Color(0xFF101010);
+        for (final hue in <double>[25, 180]) {
+          final accent = Color(Hct.from(hue, 60, 46).toInt());
+          final veil = nowPlayingAdaptiveVeil(
+            colorStyle: data,
+            surface: scheme.surface,
+            onSurface: scheme.onSurface,
+            accent: accent,
+            average: cover,
+          );
+          final veiled = Color.alphaBlend(veil, cover);
+          // The cap is hit and the accent alone is below WCAG large text.
+          expect(
+            captionContrast(accent, veiled),
+            lessThan(3.0),
+            reason: '$hue',
+          );
+          final title = nowPlayingArtworkAccent(
+            colorStyle: data,
+            surface: scheme.surface,
+            onSurface: scheme.onSurface,
+            accent: accent,
+            average: cover,
+          );
+          expect(
+            captionContrast(title, veiled),
+            greaterThanOrEqualTo(3.0),
+            reason: '$hue',
+          );
+        }
+      },
+    );
+
+    test('light: the fixed veil keeps primary text at 5:1 over black', () {
+      final theme = buildLightTheme(const Color(0xFF3F7F6F));
+      final scheme = theme.colorScheme;
+      final data = theme.extension<NavisColorStyleData>()!;
+      final veil = nowPlayingAdaptiveVeil(
+        colorStyle: data,
+        surface: scheme.surface,
+        onSurface: scheme.onSurface,
+        average: null,
+      );
+      expect(
+        captionContrast(scheme.onSurface, Color.alphaBlend(veil, Colors.black)),
+        greaterThanOrEqualTo(kNowPlayingArtworkTargetContrast),
+      );
+    });
+
     test('the accent-coloured title raises the veil, within the cap', () {
       const data = NavisColorStyleData(
         style: NavisColorStyle.pastel,
@@ -334,7 +389,7 @@ void main() {
       expect(plain.a, lessThan(0.6));
     });
 
-    test('the desktop lyrics floor is higher in light and OLED', () {
+    test('the desktop lyrics floor: dark 0.6, OLED 0.8, light 0.6', () {
       expect(
         nowPlayingTextAcrossCoverVeilFloor(
           const NavisColorStyleData(style: NavisColorStyle.neutral, dark: true),
@@ -358,7 +413,7 @@ void main() {
             dark: false,
           ),
         ),
-        0.5,
+        0.6,
       );
     });
   });

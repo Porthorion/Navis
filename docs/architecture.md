@@ -837,7 +837,7 @@ target-selection rules.
   computed from the same decoded thumbnail.
   Veil colour changes animate over `MotionPolicy.tint` (zero with reduced
   motion); desktop lyrics retains its higher text-across-cover floor (dark 0.6, OLED
-  0.8, light 0.5).
+  0.8, light 0.6).
   The decode listener disposes every received image handle, including stale
   callbacks, and detaches once on success or failure. Failed source keys are
   remembered by the layer and reported after async preparation,
@@ -860,7 +860,11 @@ target-selection rules.
   `NowPlayingArtworkBackground` beneath its own active artwork scope. A queue
   opened from Home with Now Playing collapsed, or under Flat, stays opaque.
   The adaptive veil keeps `onSurface`,
-  `onSurfaceVariant` and the accent title at 5.0:1. In OLED the Art-Tinted
+  `onSurfaceVariant` and the accent title at 5.0:1 within its range. When the
+  cap is hit and the title is under 3.0:1, `nowPlayingArtworkAccent` shifts the
+  title colour from the accent toward `onSurface` until it reaches 3.0:1
+  (delivered through `NowPlayingArtworkLayerScope.accent`) instead of raising
+  the veil. In OLED the Art-Tinted
   gradient's top colour is capped at HCT tone 10, and with OLED + Flat the
   Now Playing Background selector notes that Now Playing stays black.
 - Density is provided by `NavisDensityScope` (`navis_density_scope.dart`,

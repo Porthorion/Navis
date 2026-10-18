@@ -186,7 +186,7 @@ class NavisColorStyleData extends ThemeExtension<NavisColorStyleData> {
   /// [nowPlayingArtworkVeilRange] bounds the adaptive one.
   Color nowPlayingArtworkVeil(Color surface) =>
       nowPlayingArtworkVeilBase(surface)
-          .withValues(alpha: dark ? (oled ? 0.8 : 0.68) : 0.55);
+          .withValues(alpha: dark ? (oled ? 0.8 : 0.68) : 0.6);
 
   /// Solid primary action shared by every Play button.
   Color playButtonFill(ColorScheme scheme) =>
