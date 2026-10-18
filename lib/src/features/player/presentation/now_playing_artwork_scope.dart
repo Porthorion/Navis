@@ -12,10 +12,19 @@ const double kNowPlayingArtworkPanelAlpha = 0.45;
 /// [nowPlayingArtworkPanelFill] and switch to a translucent veil. Without a
 /// scope, or under Flat (which draws no Artwork layer), panels stay opaque.
 class NowPlayingArtworkLayerScope extends InheritedWidget {
-  const new({required this.active, required super.child, super.key});
+  const new({
+    required this.active,
+    required super.child,
+    this.accent,
+    super.key,
+  });
 
   /// Whether the blurred cover is drawn behind this subtree.
   final bool active;
+
+  /// The accent-coloured title's colour over the veiled cover (see
+  /// `nowPlayingArtworkAccent`), or null to keep the theme's primary.
+  final Color? accent;
 
   static bool of(BuildContext context) {
     return context
@@ -24,9 +33,18 @@ class NowPlayingArtworkLayerScope extends InheritedWidget {
         false;
   }
 
+  /// The title accent to use here: the scope's adapted colour, else the
+  /// theme's primary.
+  static Color accentOf(BuildContext context) {
+    return context
+            .dependOnInheritedWidgetOfExactType<NowPlayingArtworkLayerScope>()
+            ?.accent ??
+        Theme.of(context).colorScheme.primary;
+  }
+
   @override
   bool updateShouldNotify(NowPlayingArtworkLayerScope oldWidget) =>
-      active != oldWidget.active;
+      active != oldWidget.active || accent != oldWidget.accent;
 }
 
 /// The translucent fill for a Now Playing panel while the Artwork layer is

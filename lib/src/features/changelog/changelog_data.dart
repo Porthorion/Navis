@@ -169,6 +169,10 @@ const List<ChangelogVersion> changelogs = [
         'Titles, headings, buttons and menu items now use Title Case consistently across the app',
       ),
       ChangelogEntry(
+        'The Artwork Now Playing background in Light mode shows much more of the cover instead of a near-white wash; text stays readable',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
         'Playlist and weekly recommendation rows show album artwork instead of the track number from the song\'s album; album pages keep their track numbers',
         type: ChangelogEntryType.fix,
       ),
