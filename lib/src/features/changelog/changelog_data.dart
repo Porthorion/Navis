@@ -170,6 +170,10 @@ const List<ChangelogVersion> changelogs = [
         type: ChangelogEntryType.fix,
       ),
       ChangelogEntry(
+        'Filter and choice chips such as the artwork size selector are readable again when Controls is set to White: their labels showed as white on a near-white fill',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
         'A playlist that lives only on this device can now be saved on the server: Edit Playlist has a Save on Server switch, preserves edits made during the upload, and reports how many songs the server accepted; admins get the same switch for device radio stations, uncertain uploads keep the device copy until the server result is identified, saving a kept playlist again updates the same server copy, and station edits made during upload stay on the device',
         type: ChangelogEntryType.newFeature,
       ),

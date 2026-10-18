@@ -23,6 +23,14 @@ Last updated: 2026-10-18
   failed first (`Found 0 widgets with type "CoverArtImage"`), then passed. No
   golden changed. Runtime and desktop/compact-density screenshots were not
   inspected.
+- [x] Issue #53, chip labels unreadable under Controls: White — 2026-10-18
+  (`fix/chip-label-white-controls`): the chip theme's
+  `WidgetStateTextStyle` label style is never resolved by the chip, so the
+  colour was null and painted white. It is now a plain labelLarge style with a
+  `WidgetStateColor` (tonal ink when selected, else on-surface). Added
+  `test/src/theme/chip_label_color_test.dart` (light/dark, selected/unselected);
+  it failed before the fix (`Actual: <null>`) and passes after. No goldens
+  changed.
 - [x] Issue #49 review fixes, round 3 — 2026-10-18
   (`feat/device-to-server-upload`): a kept device playlist retains its resolved
   server id; saving again sets the current name and replaces ordered songs via
