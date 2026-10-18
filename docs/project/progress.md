@@ -14,6 +14,25 @@ Last updated: 2026-10-18
 - ACP status values: `backlog`, `ready`, `in_progress`, `blocked`, `done`.
 
 ## Current Focus
+- [x] Issue #78, library reset preserves listening history and pending submissions —
+  2026-10-18 (`fix/reset-keeps-history`): the existing set-based retention delete
+  now protects `play_history`, `scrobble_queue`, and
+  `listenbrainz_feedback_queue` song references and their parent metadata.
+  Audited all Drift catalog foreign keys and documented the reset policy in
+  `docs/architecture.md`; no schema migration or changelog edit (reserved for
+  the parallel changelog branch). All four new regressions failed first;
+  40 focused reset/upgrade/queue tests pass, including real rescan reconfirmation,
+  missing-song retention, repeat reset/GC, and deletion of unreferenced songs.
+  `make gen` produced no tracked changes; analysis exited 0 with no errors or
+  warnings. Isolated muted Linux API checks passed the 1004 → 1005 upgrade,
+  manual Reset Caches, and clean-restart history/feedback persistence, retained
+  missing songs, reconfirmation, and unreferenced deletion
+  (`build/issue78-runtime/report.json`), repeated after the full gate. Scrobbles
+  are covered by the database/service regressions: diagnostics intentionally
+  disables scrobbling and clears its queue at startup. The locked 10 GB-capped
+  `./tool/check.sh` ran once and passed: 8,828 tests, one skipped; exact final
+  line `[check] All checks passed.` Final runtime logs had no errors or
+  exceptions. Native mobile/Apple/Windows runtime checks were not repeated.
 - [x] Issue #70, saved playlist kept the Navidrome placeholder cover — 2026-10-18
   (`fix/playlist-cover-placeholder-ttl`): Navidrome serves a placeholder
   (HTTP 200, no cache headers) for about 5-8 s after a playlist is created and
