@@ -26,6 +26,16 @@ Last updated: 2026-10-18
   already renders as a circle in Pill (widget render inspected), so no change
   was needed there; the owner's rounded square was not reproduced. No goldens
   changed.
+- [x] Issue #54, Light Now Playing artwork background washed out — 2026-10-18
+  (`fix/light-artwork-veil`): the Light veil range is 0.30-0.70 (was
+  0.58-0.88), the fixed veil 0.6 (was 0.68) and the lyrics floor 0.6 (was
+  0.72), so the contrast loop rather than the cap picks the alpha and 30-70%
+  of the cover shows. Dark and OLED are unchanged. Primary text stays at the
+  loop's 5.0:1 target; the accent title falls back to 3.0:1 by shifting its colour toward
+  `onSurface` (`nowPlayingArtworkAccent`); secondary lines are best-effort
+  within the cap. New Light mid-tone cover test failed before the fix
+  (`Actual: <0.8700000000000002>`) and passes after; the range, lyrics-floor
+  and accent-title tests were updated. No goldens changed.
 - [x] Issue #57: playlist rows show artwork — 2026-10-18
   (`fix/playlist-row-artwork`): `TrackListTile.showAlbumArt` now defaults to
   true; only the album detail list passes `false`, and the redundant `true`
