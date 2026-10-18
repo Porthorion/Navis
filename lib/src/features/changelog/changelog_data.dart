@@ -166,6 +166,10 @@ const List<ChangelogVersion> changelogs = [
     ],
     entries: [
       ChangelogEntry(
+        'A playlist saved to the server no longer keeps showing the Navidrome placeholder cover',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
         'Titles, headings, buttons, menu items, Android notification titles and channel names now use Title Case consistently across the app; notification bodies stay sentence case',
       ),
       ChangelogEntry(

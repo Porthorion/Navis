@@ -1060,6 +1060,12 @@ class _CoverArtHttpFileServiceResponse implements FileServiceResponse {
     }
     final expires = _response.headers.expires;
     if (expires != null) return expires;
+    // Navidrome serves a placeholder (HTTP 200, no cache headers) for a few
+    // seconds after a playlist is created (issue #70). Revalidate playlist
+    // covers soon so the real cover replaces it; stale entries show meanwhile.
+    if (coverArtId?.startsWith('pl-') ?? false) {
+      return DateTime.now().add(const Duration(minutes: 2));
+    }
     // Fall back to the same 30-day stale period used by the cache config.
     return DateTime.now().add(const Duration(days: 30));
   }
