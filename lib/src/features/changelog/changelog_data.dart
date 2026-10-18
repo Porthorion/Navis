@@ -169,6 +169,10 @@ const List<ChangelogVersion> changelogs = [
         'Titles, headings, buttons and menu items now use Title Case consistently across the app',
       ),
       ChangelogEntry(
+        'Device playlists and radio stations no longer briefly disappear from Library and Search while the lists reload',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
         'The Artwork Now Playing background in Light mode shows much more of the cover instead of a near-white wash; text stays readable',
         type: ChangelogEntryType.fix,
       ),

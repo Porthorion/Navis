@@ -67,7 +67,7 @@ class _RadioTabContentState extends ConsumerState<RadioTabContent> {
     final l10n = AppLocalizations.of(context)!;
     final stationsAsync = ref.watch(radioStationsProvider);
     final local =
-        ref.watch(localRadioStationsProvider).asData?.value ??
+        ref.watch(localRadioStationsProvider).value ??
         const <InternetRadioStation>[];
     final isAdmin = ref.watch(serverUserIsAdminProvider).asData?.value ?? false;
 
@@ -188,9 +188,10 @@ class _RadioTabContentState extends ConsumerState<RadioTabContent> {
             },
             child: stationsAsync.when(
               data: sections,
-              loading: () => local.isEmpty
+              // A reload keeps the last server stations (`.value`).
+              loading: () => local.isEmpty && stationsAsync.value == null
                   ? const ShimmerListPage(count: 8)
-                  : sections(null),
+                  : sections(stationsAsync.value),
               error: (error, _) => local.isEmpty
                   ? ListView(
                       physics: const AlwaysScrollableScrollPhysics(),
@@ -203,7 +204,7 @@ class _RadioTabContentState extends ConsumerState<RadioTabContent> {
                         ),
                       ],
                     )
-                  : sections(null, error: error),
+                  : sections(stationsAsync.value, error: error),
             ),
           ),
         ),

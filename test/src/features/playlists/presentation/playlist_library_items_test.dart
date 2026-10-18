@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_riverpod/misc.dart' show Override;
 import 'package:flutter_test/flutter_test.dart';
@@ -282,5 +284,50 @@ void main() {
       expect(value.hasValue, isFalse);
       expect(value.hasError, isError);
     }
+  });
+
+  test('device and server rows stay listed while the playlist stream reloads '
+      'or fails after it loaded', () async {
+    final stream = StreamController<List<PlaylistsTableData>>.broadcast();
+    addTearDown(stream.close);
+    final c = ProviderContainer(
+      overrides: <Override>[
+        subsonicApiProvider.overrideWithValue(null),
+        integrationPolicyProvider.overrideWithValue(
+          const IntegrationPolicy(masterEnabled: false),
+        ),
+        integrationAccountScopeProvider.overrideWithValue(null),
+        playlistListProvider.overrideWith((ref) => stream.stream),
+        listenBrainzDiscoverStreamProvider.overrideWithValue(_weekly),
+      ],
+    );
+    addTearDown(c.dispose);
+    addTearDown(c.listen(playlistLibraryItemsProvider, (_, _) {}).close);
+    const rows = [
+      PlaylistsTableData(isLocal: true, id: 'local:a', name: 'Device Mix'),
+      PlaylistsTableData(isLocal: false, id: 'srv', name: 'Server Mix'),
+    ];
+    Future<void> tick() => Future<void>.delayed(Duration.zero);
+    void expectAllRows() => expect(
+      c.read(playlistLibraryItemsProvider).requireValue.map((i) => i.id),
+      <String>['local:a', 'srv', listenBrainzWeeklyJamsVirtualPlaylistId],
+    );
+
+    await tick();
+    stream.add(rows);
+    await tick();
+    expectAllRows();
+
+    c.invalidate(playlistListProvider);
+    await tick();
+    expect(c.read(playlistListProvider).isLoading, isTrue);
+    expectAllRows();
+
+    stream.add(rows);
+    await tick();
+    stream.addError(StateError('db'));
+    await tick();
+    expect(c.read(playlistListProvider).hasError, isTrue);
+    expectAllRows();
   });
 }

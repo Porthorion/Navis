@@ -1,5 +1,8 @@
+import 'dart:async';
+
 import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_riverpod/legacy.dart';
 import 'package:flutter_riverpod/misc.dart' show Override;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:navis/src/api/models/models.dart';
@@ -74,6 +77,7 @@ ProviderContainer _container(
   Exception? serverStationsError,
   List<InternetRadioStation> device = const [],
   List<InternetRadioStation> server = const [],
+  Stream<List<InternetRadioStation>> Function(Ref ref)? deviceStream,
   List<Override> overrides = const [],
 }) {
   return ProviderContainer(
@@ -92,7 +96,9 @@ ProviderContainer _container(
           ),
         ),
         subsonicApiProvider.overrideWithValue(api),
-        localRadioStationsProvider.overrideWith((ref) => Stream.value(device)),
+        localRadioStationsProvider.overrideWith(
+          deviceStream ?? (ref) => Stream.value(device),
+        ),
         radioStationsProvider.overrideWith((ref) async {
           if (serverStationsError != null) throw serverStationsError;
           return server;
@@ -175,6 +181,36 @@ void main() {
 
       final m = await _matches(container, 'jazz');
       expect(m.stations.map((s) => s.id), <String>['dev-jazz', 'srv-jazz']);
+    });
+
+    test('device rows stay matched while their sources reload', () async {
+      if (!sqliteAvailable) return;
+      final database = createTestDatabase();
+      await _insertPlaylist(database, 'p1', 'Jazz Mix');
+      final reload = StateProvider<int>((ref) => 0);
+      final gate = Completer<List<InternetRadioStation>>();
+      final container = _container(
+        database,
+        server: const [_jazzServer],
+        // A dependency change reloads with the previous value kept.
+        deviceStream: (ref) => ref.watch(reload) == 0
+            ? Stream.value(const [_jazzDevice])
+            : gate.future.asStream(),
+      );
+      addTearDown(() async {
+        container.dispose();
+        await database.close();
+      });
+      expect((await _matches(container, 'jazz')).stations, hasLength(2));
+
+      container.read(reload.notifier).state = 1;
+      container.invalidate(radioStationsProvider);
+      container.invalidate(playlistListProvider);
+      await Future<void>.delayed(Duration.zero);
+      expect(container.read(localRadioStationsProvider).isLoading, isTrue);
+      final m = container.read(searchCollectionMatchesProvider);
+      expect(m.stations.map((s) => s.id), <String>['dev-jazz', 'srv-jazz']);
+      expect(m.playlists.map((p) => p.id), <String>['p1']);
     });
 
     test('matches are independent of the selected filter', () async {
