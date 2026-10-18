@@ -11,6 +11,7 @@ class LrclibLyrics {
     this.duration,
     this.syncedLyrics,
     this.plainLyrics,
+    this.instrumental = false,
   });
 
   factory fromJson(Map<String, dynamic> json) {
@@ -21,6 +22,7 @@ class LrclibLyrics {
       duration: (json['duration'] as num?)?.toInt(),
       syncedLyrics: (json['syncedLyrics'] as String?)?.trim(),
       plainLyrics: (json['plainLyrics'] as String?)?.trim(),
+      instrumental: json['instrumental'] as bool? ?? false,
     );
   }
 
@@ -30,6 +32,7 @@ class LrclibLyrics {
   final int? duration;
   final String? syncedLyrics;
   final String? plainLyrics;
+  final bool instrumental;
 
   bool get hasSynced => syncedLyrics != null && syncedLyrics!.trim().isNotEmpty;
   bool get hasPlain => plainLyrics != null && plainLyrics!.trim().isNotEmpty;

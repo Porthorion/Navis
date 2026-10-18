@@ -36,6 +36,7 @@ class PlaybackLyricsContent extends ConsumerWidget {
     Widget buildContent(LyricsResolution resolution) {
       return LyricsDisplayWidget(
         lyrics: resolution.lyrics,
+        instrumental: resolution.instrumental,
         currentPosition: position,
         sourceLabel: _showExternalLyricsMeta(resolution)
             ? _lyricsSourceLabel(context, resolution.source)

@@ -1927,6 +1927,7 @@ class LibraryDao extends DatabaseAccessor<NavisDatabase>
     required String source,
     String? syncedLyrics,
     String? plainLyrics,
+    bool instrumental = false,
     int ttlSeconds = 86400,
     int failureCount = 0,
     DateTime? lastFailedAt,
@@ -1936,6 +1937,7 @@ class LibraryDao extends DatabaseAccessor<NavisDatabase>
       source: source,
       syncedLyrics: Value(syncedLyrics),
       plainLyrics: Value(plainLyrics),
+      instrumental: Value(instrumental),
       fetchedAt: DateTime.now(),
       ttlSeconds: Value(ttlSeconds),
       failureCount: Value(failureCount),
@@ -1946,11 +1948,15 @@ class LibraryDao extends DatabaseAccessor<NavisDatabase>
           entry,
           onConflict: DoUpdate(
             (_) => entry,
-            // A slower plain lookup must never replace a concurrent synced result.
+            // Slower lookups must preserve real lyrics already resolved.
             where: (old) => (syncedLyrics?.trim().isNotEmpty ?? false)
                 ? const Constant(true)
-                : old.syncedLyrics.isNull() |
-                      old.syncedLyrics.trim().equals(''),
+                : (old.syncedLyrics.isNull() |
+                          old.syncedLyrics.trim().equals('')) &
+                      (instrumental
+                          ? old.plainLyrics.isNull() |
+                                old.plainLyrics.trim().equals('')
+                          : const Constant(true)),
           ),
         )
         .then((_) {});

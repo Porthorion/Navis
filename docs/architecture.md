@@ -2643,6 +2643,20 @@ or server alternatives without warning spam; backfill stops the current pass
 after a rate limit and retries on the next queue pump. Subsonic shares the
 HTTP Retry-After parser.
 
+LRCLIB's `instrumental` result is a successful lookup. Schema 105 adds a
+non-null, default-false `instrumental` column to `external_lyrics_cache` in its
+own 104 → 105 migration. Both search and exact lookups retain the marker;
+equally matching search records with real lyrics take precedence. The shared
+lyrics resolver persists instrumental results without lyrics or failure
+metadata, exposes the status to every lyrics surface, and suppresses further
+external requests regardless of cache age or a forced synced upgrade. The
+existing empty-state layout displays the localized “Instrumental” status.
+Server/embedded lyrics still win when later available; caching real lyrics
+clears the marker. Instrumental rows use the existing cache reset lifecycle.
+Backfill skips marked tracks even for **Backfill Now**, and its automatic
+remaining-work check excludes them. Ordinary unknown-track misses retain the
+seven-day backoff; rate-limited responses never mark a track instrumental.
+
 Last.fm `track.getsimilar` responses are cached for 24 hours in
 `IntegrationJsonCache` under `lastfm.similar-tracks`, keyed by normalized artist
 and track (case and whitespace). The client is the shared layer for Same Vibes
@@ -5841,12 +5855,13 @@ download naming throws when all 100 collision candidates are occupied.
    `CacheDao.getPermanentDownloadMetadata` query joins permanent cached tracks
    to songs and left-joins lyrics; rolling entries and orphan download IDs do
    not appear. Any non-empty synced or plain lyrics count as present, including
-   rows carrying upgrade-failure metadata. The provider checks disk presence
+   rows carrying upgrade-failure metadata. Instrumental cache rows are also
+   excluded from missing lyrics. The provider checks disk presence
    once per unique cover ID and groups missing artwork by album identity/cover
    ID (album/artist metadata when there is no album ID). Empty cover IDs are
    missing too. It exposes `songsMissingLyrics`, `albumsMissingArtwork`,
    `totalSongs` and `totalAlbums`, without requiring a server connection or a
-   schema change (schema 104). `downloadBackfillProgressProvider` exposes the
+   separate metadata table. `downloadBackfillProgressProvider` exposes the
    service's seeded progress stream. The settings UI owns invalidating the
    gaps provider after a run completes.
    The Downloads settings page shows these in a **Missing artwork and

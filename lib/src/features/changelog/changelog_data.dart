@@ -166,6 +166,10 @@ const List<ChangelogVersion> changelogs = [
     ],
     entries: [
       ChangelogEntry(
+        'Instrumental tracks are recognized in lyrics lookups, show “Instrumental” instead of missing lyrics, and are never retried by lyrics backfill',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
         'Titles, headings, buttons and menu items now use Title Case consistently across the app',
       ),
       ChangelogEntry(

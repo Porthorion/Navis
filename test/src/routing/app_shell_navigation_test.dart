@@ -252,6 +252,7 @@ List<Override> _authenticatedShellOverrides({
   ValueNotifier<PlaybackSnapshot>? playing,
   ServerReachabilityStatus reachability = ServerReachabilityStatus.online,
   bool desktopRuntime = false,
+  bool instrumental = false,
 }) {
   return <Override>[
     changelogToShowProvider.overrideWith((ref) async => null),
@@ -302,9 +303,10 @@ List<Override> _authenticatedShellOverrides({
       return Stream.value(playing.value);
     }),
     lyricsProvider.overrideWith(
-      (ref, songId) async => const LyricsResolution(
-        lyrics: LyricsList(),
+      (ref, songId) async => LyricsResolution(
+        lyrics: const LyricsList(),
         source: LyricsSource.serverPlain,
+        instrumental: instrumental,
       ),
     ),
     packageInfoProvider.overrideWithValue(
@@ -1649,6 +1651,32 @@ void main() {
     await tester.tap(find.byKey(const ValueKey<String>('desktopQueueButton')));
     await tester.pumpAndSettle();
     expect(container.read(queueOverlayVisibleProvider), isTrue);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('desktop Lyrics shows instrumental status', (tester) async {
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(800, 600);
+    addTearDown(() {
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+    });
+    final container = _createContainerWithDatabase(
+      overrides: _authenticatedShellOverrides(
+        desktopRuntime: true,
+        instrumental: true,
+      ),
+    );
+    await tester.pumpWidget(
+      UncontrolledProviderScope(container: container, child: testNavisApp),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(
+      find.byKey(const ValueKey<String>('desktopPlayerLyricsButton')),
+    );
+    await tester.pumpAndSettle();
+    expect(find.text('Instrumental'), findsOneWidget);
+    expect(find.text('No Lyrics Available'), findsNothing);
     expect(tester.takeException(), isNull);
   });
 

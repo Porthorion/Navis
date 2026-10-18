@@ -13022,6 +13022,21 @@ class $ExternalLyricsCacheTableTable extends ExternalLyricsCacheTable
     type: DriftSqlType.string,
     requiredDuringInsert: false,
   );
+  static const VerificationMeta _instrumentalMeta = const VerificationMeta(
+    'instrumental',
+  );
+  @override
+  late final GeneratedColumn<bool> instrumental = GeneratedColumn<bool>(
+    'instrumental',
+    aliasedName,
+    false,
+    type: DriftSqlType.bool,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'CHECK ("instrumental" IN (0, 1))',
+    ),
+    defaultValue: const Constant(false),
+  );
   static const VerificationMeta _fetchedAtMeta = const VerificationMeta(
     'fetchedAt',
   );
@@ -13074,6 +13089,7 @@ class $ExternalLyricsCacheTableTable extends ExternalLyricsCacheTable
     source,
     syncedLyrics,
     plainLyrics,
+    instrumental,
     fetchedAt,
     ttlSeconds,
     failureCount,
@@ -13122,6 +13138,15 @@ class $ExternalLyricsCacheTableTable extends ExternalLyricsCacheTable
         plainLyrics.isAcceptableOrUnknown(
           data['plain_lyrics']!,
           _plainLyricsMeta,
+        ),
+      );
+    }
+    if (data.containsKey('instrumental')) {
+      context.handle(
+        _instrumentalMeta,
+        instrumental.isAcceptableOrUnknown(
+          data['instrumental']!,
+          _instrumentalMeta,
         ),
       );
     }
@@ -13185,6 +13210,10 @@ class $ExternalLyricsCacheTableTable extends ExternalLyricsCacheTable
         DriftSqlType.string,
         data['${effectivePrefix}plain_lyrics'],
       ),
+      instrumental: attachedDatabase.typeMapping.read(
+        DriftSqlType.bool,
+        data['${effectivePrefix}instrumental'],
+      )!,
       fetchedAt: attachedDatabase.typeMapping.read(
         DriftSqlType.dateTime,
         data['${effectivePrefix}fetched_at'],
@@ -13216,6 +13245,7 @@ class ExternalLyricsCacheTableData extends DataClass
   final String source;
   final String? syncedLyrics;
   final String? plainLyrics;
+  final bool instrumental;
   final DateTime fetchedAt;
   final int ttlSeconds;
   final int failureCount;
@@ -13225,6 +13255,7 @@ class ExternalLyricsCacheTableData extends DataClass
     required this.source,
     this.syncedLyrics,
     this.plainLyrics,
+    required this.instrumental,
     required this.fetchedAt,
     required this.ttlSeconds,
     required this.failureCount,
@@ -13241,6 +13272,7 @@ class ExternalLyricsCacheTableData extends DataClass
     if (!nullToAbsent || plainLyrics != null) {
       map['plain_lyrics'] = Variable<String>(plainLyrics);
     }
+    map['instrumental'] = Variable<bool>(instrumental);
     map['fetched_at'] = Variable<DateTime>(fetchedAt);
     map['ttl_seconds'] = Variable<int>(ttlSeconds);
     map['failure_count'] = Variable<int>(failureCount);
@@ -13260,6 +13292,7 @@ class ExternalLyricsCacheTableData extends DataClass
       plainLyrics: plainLyrics == null && nullToAbsent
           ? const Value.absent()
           : Value(plainLyrics),
+      instrumental: Value(instrumental),
       fetchedAt: Value(fetchedAt),
       ttlSeconds: Value(ttlSeconds),
       failureCount: Value(failureCount),
@@ -13279,6 +13312,7 @@ class ExternalLyricsCacheTableData extends DataClass
       source: serializer.fromJson<String>(json['source']),
       syncedLyrics: serializer.fromJson<String?>(json['syncedLyrics']),
       plainLyrics: serializer.fromJson<String?>(json['plainLyrics']),
+      instrumental: serializer.fromJson<bool>(json['instrumental']),
       fetchedAt: serializer.fromJson<DateTime>(json['fetchedAt']),
       ttlSeconds: serializer.fromJson<int>(json['ttlSeconds']),
       failureCount: serializer.fromJson<int>(json['failureCount']),
@@ -13293,6 +13327,7 @@ class ExternalLyricsCacheTableData extends DataClass
       'source': serializer.toJson<String>(source),
       'syncedLyrics': serializer.toJson<String?>(syncedLyrics),
       'plainLyrics': serializer.toJson<String?>(plainLyrics),
+      'instrumental': serializer.toJson<bool>(instrumental),
       'fetchedAt': serializer.toJson<DateTime>(fetchedAt),
       'ttlSeconds': serializer.toJson<int>(ttlSeconds),
       'failureCount': serializer.toJson<int>(failureCount),
@@ -13305,6 +13340,7 @@ class ExternalLyricsCacheTableData extends DataClass
     String? source,
     Value<String?> syncedLyrics = const Value.absent(),
     Value<String?> plainLyrics = const Value.absent(),
+    bool? instrumental,
     DateTime? fetchedAt,
     int? ttlSeconds,
     int? failureCount,
@@ -13314,6 +13350,7 @@ class ExternalLyricsCacheTableData extends DataClass
     source: source ?? this.source,
     syncedLyrics: syncedLyrics.present ? syncedLyrics.value : this.syncedLyrics,
     plainLyrics: plainLyrics.present ? plainLyrics.value : this.plainLyrics,
+    instrumental: instrumental ?? this.instrumental,
     fetchedAt: fetchedAt ?? this.fetchedAt,
     ttlSeconds: ttlSeconds ?? this.ttlSeconds,
     failureCount: failureCount ?? this.failureCount,
@@ -13331,6 +13368,9 @@ class ExternalLyricsCacheTableData extends DataClass
       plainLyrics: data.plainLyrics.present
           ? data.plainLyrics.value
           : this.plainLyrics,
+      instrumental: data.instrumental.present
+          ? data.instrumental.value
+          : this.instrumental,
       fetchedAt: data.fetchedAt.present ? data.fetchedAt.value : this.fetchedAt,
       ttlSeconds: data.ttlSeconds.present
           ? data.ttlSeconds.value
@@ -13351,6 +13391,7 @@ class ExternalLyricsCacheTableData extends DataClass
           ..write('source: $source, ')
           ..write('syncedLyrics: $syncedLyrics, ')
           ..write('plainLyrics: $plainLyrics, ')
+          ..write('instrumental: $instrumental, ')
           ..write('fetchedAt: $fetchedAt, ')
           ..write('ttlSeconds: $ttlSeconds, ')
           ..write('failureCount: $failureCount, ')
@@ -13365,6 +13406,7 @@ class ExternalLyricsCacheTableData extends DataClass
     source,
     syncedLyrics,
     plainLyrics,
+    instrumental,
     fetchedAt,
     ttlSeconds,
     failureCount,
@@ -13378,6 +13420,7 @@ class ExternalLyricsCacheTableData extends DataClass
           other.source == this.source &&
           other.syncedLyrics == this.syncedLyrics &&
           other.plainLyrics == this.plainLyrics &&
+          other.instrumental == this.instrumental &&
           other.fetchedAt == this.fetchedAt &&
           other.ttlSeconds == this.ttlSeconds &&
           other.failureCount == this.failureCount &&
@@ -13390,6 +13433,7 @@ class ExternalLyricsCacheTableCompanion
   final Value<String> source;
   final Value<String?> syncedLyrics;
   final Value<String?> plainLyrics;
+  final Value<bool> instrumental;
   final Value<DateTime> fetchedAt;
   final Value<int> ttlSeconds;
   final Value<int> failureCount;
@@ -13400,6 +13444,7 @@ class ExternalLyricsCacheTableCompanion
     this.source = const Value.absent(),
     this.syncedLyrics = const Value.absent(),
     this.plainLyrics = const Value.absent(),
+    this.instrumental = const Value.absent(),
     this.fetchedAt = const Value.absent(),
     this.ttlSeconds = const Value.absent(),
     this.failureCount = const Value.absent(),
@@ -13411,6 +13456,7 @@ class ExternalLyricsCacheTableCompanion
     required String source,
     this.syncedLyrics = const Value.absent(),
     this.plainLyrics = const Value.absent(),
+    this.instrumental = const Value.absent(),
     required DateTime fetchedAt,
     this.ttlSeconds = const Value.absent(),
     this.failureCount = const Value.absent(),
@@ -13424,6 +13470,7 @@ class ExternalLyricsCacheTableCompanion
     Expression<String>? source,
     Expression<String>? syncedLyrics,
     Expression<String>? plainLyrics,
+    Expression<bool>? instrumental,
     Expression<DateTime>? fetchedAt,
     Expression<int>? ttlSeconds,
     Expression<int>? failureCount,
@@ -13435,6 +13482,7 @@ class ExternalLyricsCacheTableCompanion
       if (source != null) 'source': source,
       if (syncedLyrics != null) 'synced_lyrics': syncedLyrics,
       if (plainLyrics != null) 'plain_lyrics': plainLyrics,
+      if (instrumental != null) 'instrumental': instrumental,
       if (fetchedAt != null) 'fetched_at': fetchedAt,
       if (ttlSeconds != null) 'ttl_seconds': ttlSeconds,
       if (failureCount != null) 'failure_count': failureCount,
@@ -13448,6 +13496,7 @@ class ExternalLyricsCacheTableCompanion
     Value<String>? source,
     Value<String?>? syncedLyrics,
     Value<String?>? plainLyrics,
+    Value<bool>? instrumental,
     Value<DateTime>? fetchedAt,
     Value<int>? ttlSeconds,
     Value<int>? failureCount,
@@ -13459,6 +13508,7 @@ class ExternalLyricsCacheTableCompanion
       source: source ?? this.source,
       syncedLyrics: syncedLyrics ?? this.syncedLyrics,
       plainLyrics: plainLyrics ?? this.plainLyrics,
+      instrumental: instrumental ?? this.instrumental,
       fetchedAt: fetchedAt ?? this.fetchedAt,
       ttlSeconds: ttlSeconds ?? this.ttlSeconds,
       failureCount: failureCount ?? this.failureCount,
@@ -13481,6 +13531,9 @@ class ExternalLyricsCacheTableCompanion
     }
     if (plainLyrics.present) {
       map['plain_lyrics'] = Variable<String>(plainLyrics.value);
+    }
+    if (instrumental.present) {
+      map['instrumental'] = Variable<bool>(instrumental.value);
     }
     if (fetchedAt.present) {
       map['fetched_at'] = Variable<DateTime>(fetchedAt.value);
@@ -13507,6 +13560,7 @@ class ExternalLyricsCacheTableCompanion
           ..write('source: $source, ')
           ..write('syncedLyrics: $syncedLyrics, ')
           ..write('plainLyrics: $plainLyrics, ')
+          ..write('instrumental: $instrumental, ')
           ..write('fetchedAt: $fetchedAt, ')
           ..write('ttlSeconds: $ttlSeconds, ')
           ..write('failureCount: $failureCount, ')
@@ -41981,6 +42035,7 @@ typedef $$ExternalLyricsCacheTableTableCreateCompanionBuilder =
       required String source,
       Value<String?> syncedLyrics,
       Value<String?> plainLyrics,
+      Value<bool> instrumental,
       required DateTime fetchedAt,
       Value<int> ttlSeconds,
       Value<int> failureCount,
@@ -41993,6 +42048,7 @@ typedef $$ExternalLyricsCacheTableTableUpdateCompanionBuilder =
       Value<String> source,
       Value<String?> syncedLyrics,
       Value<String?> plainLyrics,
+      Value<bool> instrumental,
       Value<DateTime> fetchedAt,
       Value<int> ttlSeconds,
       Value<int> failureCount,
@@ -42026,6 +42082,11 @@ class $$ExternalLyricsCacheTableTableFilterComposer
 
   ColumnFilters<String> get plainLyrics => $composableBuilder(
     column: $table.plainLyrics,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<bool> get instrumental => $composableBuilder(
+    column: $table.instrumental,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -42079,6 +42140,11 @@ class $$ExternalLyricsCacheTableTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<bool> get instrumental => $composableBuilder(
+    column: $table.instrumental,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<DateTime> get fetchedAt => $composableBuilder(
     column: $table.fetchedAt,
     builder: (column) => ColumnOrderings(column),
@@ -42122,6 +42188,11 @@ class $$ExternalLyricsCacheTableTableAnnotationComposer
 
   GeneratedColumn<String> get plainLyrics => $composableBuilder(
     column: $table.plainLyrics,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<bool> get instrumental => $composableBuilder(
+    column: $table.instrumental,
     builder: (column) => column,
   );
 
@@ -42194,6 +42265,7 @@ class $$ExternalLyricsCacheTableTableTableManager
                 Value<String> source = const Value.absent(),
                 Value<String?> syncedLyrics = const Value.absent(),
                 Value<String?> plainLyrics = const Value.absent(),
+                Value<bool> instrumental = const Value.absent(),
                 Value<DateTime> fetchedAt = const Value.absent(),
                 Value<int> ttlSeconds = const Value.absent(),
                 Value<int> failureCount = const Value.absent(),
@@ -42204,6 +42276,7 @@ class $$ExternalLyricsCacheTableTableTableManager
                 source: source,
                 syncedLyrics: syncedLyrics,
                 plainLyrics: plainLyrics,
+                instrumental: instrumental,
                 fetchedAt: fetchedAt,
                 ttlSeconds: ttlSeconds,
                 failureCount: failureCount,
@@ -42216,6 +42289,7 @@ class $$ExternalLyricsCacheTableTableTableManager
                 required String source,
                 Value<String?> syncedLyrics = const Value.absent(),
                 Value<String?> plainLyrics = const Value.absent(),
+                Value<bool> instrumental = const Value.absent(),
                 required DateTime fetchedAt,
                 Value<int> ttlSeconds = const Value.absent(),
                 Value<int> failureCount = const Value.absent(),
@@ -42226,6 +42300,7 @@ class $$ExternalLyricsCacheTableTableTableManager
                 source: source,
                 syncedLyrics: syncedLyrics,
                 plainLyrics: plainLyrics,
+                instrumental: instrumental,
                 fetchedAt: fetchedAt,
                 ttlSeconds: ttlSeconds,
                 failureCount: failureCount,

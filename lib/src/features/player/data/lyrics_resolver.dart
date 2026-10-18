@@ -72,7 +72,9 @@ class LyricsResolver {
         lyricsCacheTtlSeconds: lyricsCacheTtlSeconds,
       );
       if (server.resolution case final resolution?) {
-        if (resolution.source.isSynced || upgradeBackoff) {
+        if (resolution.source.isSynced ||
+            upgradeBackoff ||
+            cached?.instrumental == true) {
           if (cacheServerLyrics && upgradeBackoff) {
             // Keep plain lyrics durable without clearing the upgrade backoff.
             await _cacheServerLyrics(
@@ -92,6 +94,10 @@ class LyricsResolver {
         }
       }
 
+      if (cached?.instrumental == true) {
+        return cachedResolution!;
+      }
+
       final lrclibResult = await _resolveWithLrclib(
         songId: songId,
         metadata: metadata,
@@ -102,7 +108,12 @@ class LyricsResolver {
       }
 
       final preferred =
-          server.resolution ?? lrclibResult.resolution ?? cachedResolution;
+          server.resolution ??
+          (lrclibResult.resolution?.instrumental == false
+              ? lrclibResult.resolution
+              : null) ??
+          cachedResolution ??
+          lrclibResult.resolution;
       if (preferred != null) {
         // LRCLIB may have cached plain lyrics while trying the synced upgrade.
         // Keep the selected server plain result for downloaded songs instead.
@@ -117,7 +128,12 @@ class LyricsResolver {
         return LyricsResolution(
           lyrics: preferred.lyrics,
           source: preferred.source,
-          syncedUpgradeMiss: metadata != null && !lrclibResult.failed,
+          instrumental: preferred.instrumental,
+          syncedUpgradeMiss:
+              metadata != null &&
+              !lrclibResult.failed &&
+              lrclibResult.resolution?.instrumental != true &&
+              !preferred.instrumental,
         );
       }
 
@@ -175,6 +191,22 @@ class LyricsResolver {
         return (resolution: null, failed: false);
       }
 
+      if (best.instrumental && !best.hasSynced && !best.hasPlain) {
+        await _libraryDao.upsertExternalLyricsCache(
+          songId: songId,
+          source: LyricsSource.lrclibPlain.name,
+          instrumental: true,
+          ttlSeconds: lyricsCacheTtlSeconds,
+        );
+        return (
+          resolution: const LyricsResolution(
+            lyrics: LyricsList(),
+            source: LyricsSource.lrclibPlain,
+            instrumental: true,
+          ),
+          failed: false,
+        );
+      }
       final parsedSynced = tryParseLrc(best.syncedLyrics);
       if (parsedSynced == null && !best.hasPlain) {
         return (resolution: null, failed: false);
@@ -239,7 +271,10 @@ class LyricsResolver {
       // has other lyrics, so it is only used when no same-version result
       // passes.
       final better = score.sameEdition == bestSameEdition
-          ? score.value > bestScore
+          ? score.value > bestScore ||
+                (score.value == bestScore &&
+                    best?.instrumental == true &&
+                    (candidate.hasSynced || candidate.hasPlain))
           : score.sameEdition;
       if (better) {
         best = candidate;
@@ -475,6 +510,13 @@ LyricsResolution? lyricsResolutionFromExternalCache(
               source == LyricsSource.serverPlain
           ? LyricsSource.serverPlain
           : LyricsSource.lrclibPlain,
+    );
+  }
+  if (cache.instrumental) {
+    return LyricsResolution(
+      lyrics: const LyricsList(),
+      source: source,
+      instrumental: true,
     );
   }
   return null;

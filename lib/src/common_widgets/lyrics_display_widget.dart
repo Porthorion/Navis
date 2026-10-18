@@ -47,6 +47,7 @@ class LyricsDisplayWidget extends StatefulWidget {
     this.onSeek,
     this.sourceLabel,
     this.attribution,
+    this.instrumental = false,
     super.key,
   });
 
@@ -55,6 +56,7 @@ class LyricsDisplayWidget extends StatefulWidget {
   final void Function(Duration position)? onSeek;
   final String? sourceLabel;
   final String? attribution;
+  final bool instrumental;
 
   @override
   State<LyricsDisplayWidget> createState() => _LyricsDisplayWidgetState();
@@ -457,7 +459,9 @@ class _LyricsDisplayWidgetState extends State<LyricsDisplayWidget> {
           ),
           const SizedBox(height: 16),
           Text(
-            AppLocalizations.of(context)!.lyricsNoneAvailable,
+            widget.instrumental
+                ? AppLocalizations.of(context)!.lyricsInstrumental
+                : AppLocalizations.of(context)!.lyricsNoneAvailable,
             style: Theme.of(context).textTheme.titleMedium?.copyWith(
               color: Theme.of(context).colorScheme.onSurface
                   .withValues(alpha: 0.6),

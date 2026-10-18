@@ -6,6 +6,36 @@ import 'package:navis/src/api/models/models.dart';
 import 'package:navis/src/common_widgets/lyrics_display_widget.dart';
 
 void main() {
+  for (final realLyrics in [false, true]) {
+    testWidgets(
+      'instrumental empty state yields to real lyrics: real=$realLyrics',
+      (tester) async {
+        await tester.pumpWidget(
+          MaterialApp(
+            localizationsDelegates: AppLocalizations.localizationsDelegates,
+            supportedLocales: AppLocalizations.supportedLocales,
+            home: Scaffold(
+              body: LyricsDisplayWidget(
+                lyrics: LyricsList(value: realLyrics ? 'real words' : null),
+                instrumental: true,
+                currentPosition: Duration.zero,
+              ),
+            ),
+          ),
+        );
+        await tester.pumpAndSettle();
+        expect(
+          find.text('Instrumental'),
+          realLyrics ? findsNothing : findsOneWidget,
+        );
+        if (realLyrics) {
+          expect(find.textContaining('real words'), findsOneWidget);
+        }
+        expect(find.text('No Lyrics Available'), findsNothing);
+      },
+    );
+  }
+
   LyricsList longLyrics() => LyricsList(
     structuredLyrics: [
       StructuredLyrics(

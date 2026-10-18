@@ -17,6 +17,64 @@ import 'package:sqlite3/sqlite3.dart';
 import '../../../helpers/test_database.dart';
 
 void main() {
+  test(
+    '104 to 105 preserves lyrics and misses and defaults instrumental false',
+    () async {
+      final directory = await Directory.systemTemp.createTemp('navis_v105_');
+      addTearDown(() => directory.delete(recursive: true));
+      final file = File(p.join(directory.path, 'fixture.sqlite'));
+      final seed = createTestDatabase(file: file);
+      await seed.libraryDao.upsertExternalLyricsCache(
+        songId: 'plain',
+        source: 'serverPlain',
+        plainLyrics: 'kept',
+        ttlSeconds: 123,
+      );
+      final failedAt = DateTime.utc(2026, 10, 18);
+      await seed.libraryDao.upsertExternalLyricsCache(
+        songId: 'miss',
+        source: 'lrclibPlain',
+        failureCount: 3,
+        lastFailedAt: failedAt,
+      );
+      await seed.close();
+      final raw = sqlite3.open(file.path);
+      try {
+        final columns = raw.select('PRAGMA table_info(external_lyrics_cache)');
+        if (columns.any((row) => row['name'] == 'instrumental')) {
+          raw.execute(
+            'ALTER TABLE external_lyrics_cache DROP COLUMN instrumental',
+          );
+        }
+        raw.execute('PRAGMA user_version = 104');
+      } finally {
+        raw.close();
+      }
+      final upgraded = createTestDatabase(file: file);
+      addTearDown(upgraded.close);
+      final plain = (await upgraded.libraryDao.getExternalLyricsCache(
+        'plain',
+      ))!;
+      expect(plain.plainLyrics, 'kept');
+      expect(plain.ttlSeconds, 123);
+      final miss = (await upgraded.libraryDao.getExternalLyricsCache('miss'))!;
+      expect(miss.failureCount, 3);
+      expect(miss.lastFailedAt?.toUtc(), failedAt);
+      final rows = await upgraded
+          .customSelect('SELECT instrumental FROM external_lyrics_cache')
+          .get();
+      expect(
+        rows.map((row) => row.read<bool>('instrumental')),
+        everyElement(isFalse),
+      );
+      expect(
+        (await upgraded.customSelect('PRAGMA user_version').getSingle())
+            .read<int>('user_version'),
+        105,
+      );
+    },
+  );
+
   for (final partialColumns in [false, true]) {
     for (final existingTable in [false, true]) {
       test(

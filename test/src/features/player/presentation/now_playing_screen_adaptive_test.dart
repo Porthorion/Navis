@@ -289,6 +289,29 @@ void main() {
     expect(tester.takeException(), isNull);
   }, skip: !sqliteAvailable);
 
+  testWidgets('fullscreen lyrics shows instrumental status', (tester) async {
+    setAdaptiveTestViewport(tester, const Size(1000, 900));
+    final container = _createContainer(
+      overrides: [
+        lyricsProvider.overrideWith(
+          (ref, songId) async => const LyricsResolution(
+            lyrics: LyricsList(),
+            source: LyricsSource.lrclibPlain,
+            instrumental: true,
+          ),
+        ),
+      ],
+    );
+    container.read(nowPlayingTestPlaybackProvider.notifier).state =
+        _songPlayback;
+    await _pumpNowPlaying(tester, container);
+    await tester.tap(find.byTooltip('Lyrics').first);
+    await tester.pumpAndSettle();
+    expect(find.text('Instrumental'), findsOneWidget);
+    expect(find.text('No Lyrics Available'), findsNothing);
+    expect(tester.takeException(), isNull);
+  }, skip: !sqliteAvailable);
+
   testWidgets('fullscreen lyrics follow the song that is playing', (
     tester,
   ) async {

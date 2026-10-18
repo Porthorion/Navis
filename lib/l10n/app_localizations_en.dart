@@ -2736,6 +2736,9 @@ class AppLocalizationsEn extends AppLocalizations {
   String get lyricsTitle => 'Lyrics';
 
   @override
+  String get lyricsInstrumental => 'Instrumental';
+
+  @override
   String get lyricsNoneAvailable => 'No Lyrics Available';
 
   @override
