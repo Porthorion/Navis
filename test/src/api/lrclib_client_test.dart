@@ -10,6 +10,46 @@ import 'package:navis/src/api/lrclib_client.dart';
 
 void main() {
   group('LrclibClient', () {
+    test('parses instrumental status, defaulting to false', () {
+      expect(
+        LrclibLyrics.fromJson({'instrumental': true}).instrumental,
+        isTrue,
+      );
+      expect(LrclibLyrics.fromJson({}).instrumental, isFalse);
+    });
+    for (final search in [false, true]) {
+      test('preserves instrumental response: search=$search', () async {
+        final dio = Dio();
+        addTearDown(dio.close);
+        dio.interceptors.add(
+          InterceptorsWrapper(
+            onRequest: (o, h) {
+              final record = <String, dynamic>{
+                'artistName': 'Artist',
+                'trackName': 'Track',
+                'instrumental': true,
+              };
+              h.resolve(
+                Response<dynamic>(
+                  requestOptions: o,
+                  statusCode: 200,
+                  data: search ? [record] : record,
+                ),
+              );
+            },
+          ),
+        );
+        final client = LrclibClient(dio: dio);
+        final result = search
+            ? (await client.searchLyrics(
+                artist: 'Artist',
+                title: 'Track',
+              )).single
+            : (await client.getLyrics(artist: 'Artist', title: 'Track'))!;
+        expect(result.instrumental, isTrue);
+      });
+    }
+
     for (final status in [429, 503]) {
       for (final header in ['30', 'date', null, 'malformed']) {
         test(

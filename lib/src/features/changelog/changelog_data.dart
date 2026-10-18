@@ -166,6 +166,10 @@ const List<ChangelogVersion> changelogs = [
     ],
     entries: [
       ChangelogEntry(
+        'Instrumental tracks are recognized in lyrics lookups, show “Instrumental” instead of missing lyrics, and are never retried by lyrics backfill, including malformed synced responses and tracks with cached plain lyrics',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
         'Playlists on this device now show a 2x2 mosaic of their songs\' covers in the Library and on the playlist page, not just the first song\'s cover',
       ),
       ChangelogEntry(

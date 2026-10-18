@@ -12,6 +12,8 @@ class ExternalLyricsCacheTable extends Table {
 
   TextColumn get plainLyrics => text().nullable()();
 
+  BoolColumn get instrumental => boolean().withDefault(const Constant(false))();
+
   DateTimeColumn get fetchedAt => dateTime()();
 
   IntColumn get ttlSeconds => integer().withDefault(const Constant(86400))();

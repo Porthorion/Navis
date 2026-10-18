@@ -56,7 +56,12 @@ class DownloadMetadataGaps {
     }
     return DownloadMetadataGaps(
       songsMissingLyrics: List.unmodifiable(
-        songs.where((song) => !song.hasSyncedLyrics && !song.hasPlainLyrics),
+        songs.where(
+          (song) =>
+              !song.hasSyncedLyrics &&
+              !song.hasPlainLyrics &&
+              song.lyricsCache?.instrumental != true,
+        ),
       ),
       albumsMissingArtwork: List.unmodifiable(
         albums.values.where(

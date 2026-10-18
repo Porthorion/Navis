@@ -14,6 +14,45 @@ Last updated: 2026-10-18
 - ACP status values: `backlog`, `ready`, `in_progress`, `blocked`, `done`.
 
 ## Current Focus
+- [x] Issue #71 follow-up: malformed instrumental LRC and plain-only upgrades —
+  2026-10-18 (`feat/instrumental-lyrics`): instrumental classification now follows
+  parsing; the DAO can mark plain-only rows without overwriting their lyrics or
+  source and still protects synced rows. Server plain refreshes retain a known
+  upgrade marker, so forced backfill never retries it. Added parsing, resolver,
+  repeated forced-backfill and double-run 104 → 105 migration coverage. Four
+  behavioural regressions failed before implementation; the migration rerun
+  test already passed. The four targeted resolver/DAO/backfill/migration suites
+  passed 204 tests. `flutter analyze --no-fatal-infos` exited 0 with no errors
+  or warnings (198 info findings). The required locked, 10 GB-capped full gate
+  ran once and passed: 8,813 tests, one skipped; exact final line
+  `[check] All checks passed.` Code generation produced no source changes.
+  Fresh muted Linux diagnostics fixtures before and after the gate passed
+  authenticated health, plain-lyrics display alongside the marker, clean-restart
+  persistence and fresh server-lyrics precedence; all six app-owned screenshots
+  were inspected (`build/issue71-followup-runtime/report.json`). Malformed LRCLIB
+  responses are covered by deterministic resolver tests, not runtime injection.
+  Native mobile/Apple/Windows runtime validation was not repeated.
+- [x] Issue #71, instrumental lyrics — 2026-10-18
+  (`feat/instrumental-lyrics`): LRCLIB exact/search responses persist the
+  instrumental status in the existing external lyrics cache via schema 105's
+  104 → 105 migration. Forced and automatic backfill skip marked tracks,
+  the missing-lyrics list excludes them, and shared/fullscreen/desktop lyrics
+  reuse the localized empty-state layout. Real lyrics take precedence and
+  cannot be overwritten by a slower instrumental lookup. Tests were added
+  before implementation (missing API compilation failures and a missing-column
+  migration failure); the five targeted suites pass 203 tests and the two
+  consumer widget regressions pass. `make gen` and `flutter gen-l10n` ran.
+  Isolated muted Linux profile passed authenticated health, expired-marker
+  display, clean-restart persistence, and real-server-lyrics precedence;
+  inspected all three app-owned screenshots (`build/issue71-runtime/report.json`).
+  Runtime logs contain the media-kit `osc` property warning, with no lyrics
+  errors. The required locked, 10 GB-capped `./tool/check.sh` passed once:
+  8,808 tests passed, one skipped; final line `[check] All checks passed.`
+  Repeated all three runtime cycles and inspected their screenshots after the
+  gate. Reusing the disposable profile first returned HTTP 500 from the session
+  reconnect endpoint; resetting only that task-owned fixture database allowed
+  the fresh-profile run and its clean restarts to pass. Runtime coverage is
+  Linux; native mobile/Apple/Windows builds were not run.
 - [x] Issue #69: device playlists show a 2x2 cover mosaic — 2026-10-18
   (`fix/device-playlist-mosaic`): Library rows and the playlist detail header
   reuse `PlaylistCoverMosaic` for device playlists only (server playlists keep

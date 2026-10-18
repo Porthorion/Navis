@@ -39,6 +39,7 @@ class _External extends LrclibClient {
   final tokens = <CancelToken?>[];
   bool limited = false;
   bool failSearch = false;
+  List<LrclibLyrics> results = [];
   @override
   bool get isRateLimited => limited;
   @override
@@ -53,7 +54,7 @@ class _External extends LrclibClient {
     backgroundCalls.add(background);
     tokens.add(cancelToken);
     if (failSearch) throw StateError('transport failure');
-    return [];
+    return results;
   }
 
   @override
@@ -337,6 +338,96 @@ void main() {
     });
   }
 
+  for (final force in [false, true]) {
+    test(
+      'instrumental skips backfill and automatic remaining count: force=$force',
+      () async {
+        await seed('instrumental');
+        await db.libraryDao.upsertExternalLyricsCache(
+          songId: 'instrumental',
+          source: 'lrclibPlain',
+          instrumental: true,
+        );
+        await artwork.storeBytes('cover', bytes);
+        final phases = <BackfillPhase>[];
+        final sub = service.backfillProgress.listen((p) => phases.add(p.phase));
+        if (force) {
+          await service.runBackfillNow();
+        } else {
+          await service.processQueuedDownloads();
+        }
+        await service.stopAndWait();
+        await sub.cancel();
+        if (!force) {
+          expect(phases, everyElement(BackfillPhase.idle));
+        }
+        expect(external.calls, 0);
+        verifyNever(() => api.getLyricsBySongId(any()));
+        final gaps = await DownloadMetadataGaps.load(db.cacheDao, artwork);
+        expect(gaps.songsMissingLyrics, isEmpty);
+        expect(gaps.totalSongs, 1);
+      },
+    );
+  }
+  test(
+    'backfill caches instrumental success without recording a miss',
+    () async {
+      await seed('instrumental');
+      when(() => api.getLyricsBySongId(any()))
+          .thenAnswer((_) async => const LyricsList());
+      when(
+        () => api.getLyrics(
+          artist: any(named: 'artist'),
+          title: any(named: 'title'),
+        ),
+      ).thenAnswer((_) async => const LyricsList());
+      external.results = [
+        const LrclibLyrics(
+          artistName: 'Artist',
+          trackName: 'Track',
+          albumName: 'Album',
+          duration: 200,
+          instrumental: true,
+        ),
+      ];
+      await service.runBackfillNow();
+      final cache = (await db.libraryDao.getExternalLyricsCache(
+        'instrumental',
+      ))!;
+      expect(cache.instrumental, isTrue);
+      expect(cache.failureCount, 0);
+      expect(cache.lastFailedAt, isNull);
+      await service.runBackfillNow();
+      expect(external.calls, 1);
+    },
+  );
+
+  test('plain-only instrumental is never retried by forced backfill', () async {
+    await seed('instrumental');
+    await db.libraryDao.upsertExternalLyricsCache(
+      songId: 'instrumental',
+      source: 'serverPlain',
+      plainLyrics: 'plain words',
+    );
+    external.results = [
+      const LrclibLyrics(
+        artistName: 'Artist',
+        trackName: 'Track',
+        albumName: 'Album',
+        duration: 200,
+        instrumental: true,
+      ),
+    ];
+    await service.runBackfillNow();
+    final cache = (await db.libraryDao.getExternalLyricsCache('instrumental'))!;
+    expect(cache.instrumental, isTrue);
+    expect(cache.plainLyrics, isNotEmpty);
+    clearInteractions(api);
+    await service.runBackfillNow();
+    expect(external.calls, 1);
+    verifyNever(() => api.getLyricsBySongId(any()));
+  });
+
   test(
     'automatic trigger reopens completed gates once when metadata is missing',
     () async {
@@ -604,7 +695,8 @@ void main() {
                     'trackName': 'Track',
                     'albumName': 'Album',
                     'duration': 200,
-                    'syncedLyrics': '[00:01.00]words',
+                    'syncedLyrics': calls == 2 ? null : '[00:01.00]words',
+                    'instrumental': calls == 2,
                   },
                 ],
               ),
@@ -658,12 +750,9 @@ void main() {
       // The rate-limited track is eligible again, including its server plain row.
       final rows = await db.cacheDao.getPermanentDownloadMetadata();
       for (final row in rows) {
-        expect(
-          (await db.libraryDao.getExternalLyricsCache(row.songId))
-                  ?.failureCount ??
-              0,
-          0,
-        );
+        final cache = await db.libraryDao.getExternalLyricsCache(row.songId);
+        expect(cache?.failureCount ?? 0, 0);
+        expect(cache?.instrumental ?? false, isFalse);
       }
       expect(service.currentBackfillProgress.resumeAt, client.retryAt);
       expect(
