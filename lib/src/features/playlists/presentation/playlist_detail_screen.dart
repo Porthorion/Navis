@@ -18,6 +18,7 @@ import 'package:navis/src/common_widgets/song_download_status_icon.dart';
 import 'package:navis/src/common_widgets/track_list_tile.dart';
 import 'package:navis/src/database/navis_database.dart';
 import 'package:navis/src/features/downloads/presentation/download_quality_sheet.dart';
+import 'package:navis/src/features/home/presentation/listenbrainz_playlist_artwork.dart';
 import 'package:navis/src/features/player/presentation/play_song_in_collection.dart';
 import 'package:navis/src/features/player/presentation/queue_provider.dart';
 import 'package:navis/src/features/playlists/data/playlist_actions.dart';
@@ -155,6 +156,27 @@ class _PlaylistDetailScreenState extends ConsumerState<PlaylistDetailScreen> {
     );
   }
 
+  /// The header cover: a device playlist tiles its songs' covers, a server
+  /// one keeps the server's own (Navidrome renders its mosaic).
+  Widget _headerCover(
+    PlaylistsTableData playlist,
+    List<SongsTableData> songs,
+    double size,
+  ) {
+    final covers = playlist.isLocal
+        ? [for (final song in songs) ?song.coverArt]
+        : const <String>[];
+    return covers.isNotEmpty
+        ? PlaylistCoverMosaic(coverArtIds: covers, size: size)
+        : CoverArtImage(
+            coverArtId: playlist.coverArt,
+            size: kCoverArtStandardSize,
+            height: size,
+            shape: ArtworkShapeRole.cover,
+            placeholderIcon: Icons.queue_music,
+          );
+  }
+
   Widget _buildContent(
     BuildContext context,
     PlaylistsTableData playlist,
@@ -198,13 +220,7 @@ class _PlaylistDetailScreenState extends ConsumerState<PlaylistDetailScreen> {
                       child: Row(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: <Widget>[
-                          CoverArtImage(
-                            coverArtId: playlist.coverArt,
-                            size: kCoverArtStandardSize,
-                            height: 220,
-                            shape: ArtworkShapeRole.cover,
-                            placeholderIcon: Icons.queue_music,
-                          ),
+                          _headerCover(playlist, songs, 220),
                           const SizedBox(width: 24),
                           Expanded(
                             child: Column(
@@ -256,13 +272,7 @@ class _PlaylistDetailScreenState extends ConsumerState<PlaylistDetailScreen> {
                       Center(
                         child: Padding(
                           padding: const EdgeInsets.fromLTRB(16, 16, 16, 10),
-                          child: CoverArtImage(
-                            coverArtId: playlist.coverArt,
-                            size: kCoverArtStandardSize,
-                            height: 180,
-                            shape: ArtworkShapeRole.cover,
-                            placeholderIcon: Icons.queue_music,
-                          ),
+                          child: _headerCover(playlist, songs, 180),
                         ),
                       ),
                       Padding(

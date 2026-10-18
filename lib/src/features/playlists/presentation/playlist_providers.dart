@@ -253,6 +253,13 @@ final playlistSongsProvider = StreamProvider.autoDispose
       return db.playlistDao.watchPlaylistSongs(playlistId);
     });
 
+/// Device playlist id to its first four distinct song covers (the mosaic).
+final devicePlaylistCoverArtIdsProvider =
+    StreamProvider<Map<String, List<String>>>((ref) {
+      final db = ref.watch(navisDatabaseProvider);
+      return db.playlistDao.watchLocalPlaylistCoverArtIds();
+    });
+
 /// Watches a single playlist's metadata.
 final playlistByIdProvider = StreamProvider.autoDispose
     .family<PlaylistsTableData?, String>((ref, playlistId) {

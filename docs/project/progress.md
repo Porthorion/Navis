@@ -22,6 +22,16 @@ Last updated: 2026-10-18
   next view; other covers keep 30 days. Three tests in
   `cover_art_cache_manager_test.dart`; the playlist TTL test failed before the
   fix (`Actual: Duration:<719:59:59.999988>`).
+- [x] Issue #69: device playlists show a 2x2 cover mosaic — 2026-10-18
+  (`fix/device-playlist-mosaic`): Library rows and the playlist detail header
+  reuse `PlaylistCoverMosaic` for device playlists only (server playlists keep
+  the server's `pl-<id>` cover; empty ones keep the placeholder; one album
+  shows a single cover). The header derives ids from the songs it already
+  loads; rows use `devicePlaylistCoverArtIdsProvider`, one grouped
+  `PlaylistDao.watchLocalPlaylistCoverArtIds` query for all device playlists
+  (no per-row query). Tests: `playlist_dao_test.dart`,
+  `playlist_detail_cover_test.dart`, `library_screen_test.dart`. No goldens
+  changed.
 - [x] Issue #52, Pill buttons should be circles — 2026-10-18
   (`fix/pill-fab-circle`): `floatingActionButtonTheme.shape` is a stadium in
   Pill (a circle on the square Playlists and Radio FABs, still fitting the
