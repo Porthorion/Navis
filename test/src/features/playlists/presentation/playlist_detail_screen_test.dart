@@ -6,7 +6,9 @@ import 'package:go_router/go_router.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:navis/l10n/app_localizations.dart';
 import 'package:navis/l10n/navis_localizations.dart';
+import 'package:navis/src/common_widgets/adaptive_track_row.dart';
 import 'package:navis/src/common_widgets/app_notice.dart';
+import 'package:navis/src/common_widgets/cover_art_image.dart';
 import 'package:navis/src/common_widgets/desktop/desktop_primitives.dart';
 import 'package:navis/src/common_widgets/song_download_status_icon.dart';
 import 'package:navis/src/api/subsonic_api_client.dart';
@@ -61,12 +63,14 @@ const _twoSongs = <SongsTableData>[
   SongsTableData(
     id: 'playlist-1',
     title: 'First song',
+    track: 7,
     isProvisional: false,
     isExternal: false,
   ),
   SongsTableData(
     id: 'playlist-2',
     title: 'Second song',
+    track: 8,
     isProvisional: false,
     isExternal: false,
   ),
@@ -226,6 +230,26 @@ void main() {
       );
     }
   }
+
+  testWidgets('playlist rows show artwork, not album track numbers', (
+    tester,
+  ) async {
+    await _pumpEditableDetail(
+      tester,
+      _playlist,
+      actions: _MockPlaylistActions(),
+    );
+    expect(
+      find.descendant(
+        of: find.byType(AdaptiveTrackRow),
+        matching: find.byType(CoverArtImage),
+      ),
+      findsNWidgets(2),
+    );
+    expect(find.text('7'), findsNothing);
+    expect(find.text('8'), findsNothing);
+    expect(find.text('#'), findsNothing);
+  });
 
   testWidgets('desktop playlist detail uses a continuous tonal header', (
     tester,

@@ -273,6 +273,7 @@ class _ListenBrainzRecommendationTile extends ConsumerWidget {
     this.contentPadding,
     this.horizontalTitleGap = 6,
     this.minHeight = 64,
+    this.leadingExtent,
     super.key,
   });
 
@@ -283,6 +284,10 @@ class _ListenBrainzRecommendationTile extends ConsumerWidget {
   final EdgeInsetsGeometry? contentPadding;
   final double horizontalTitleGap;
   final double minHeight;
+
+  /// Width of the number slot; null follows the Density cover size so titles
+  /// line up with the matched rows' artwork.
+  final double? leadingExtent;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -328,29 +333,22 @@ class _ListenBrainzRecommendationTile extends ConsumerWidget {
           padding:
               contentPadding ??
               const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-          leadingExtent: 32,
+          leadingExtent: leadingExtent,
           leadingGap: horizontalTitleGap,
           actionExtent: 96,
           minHeight: minHeight,
           titleBadge: statusKind == null
               ? null
               : TrackMatchStatusLabel(kind: statusKind),
-          leading: SizedBox(
-            width: 32,
-            child: Center(
-              child: isSelected
-                  ? SongPlaybackMarker(state: playbackState)
-                  : pending
-                  ? const SizedBox.square(
-                      dimension: 18,
-                      child: CircularProgressIndicator(strokeWidth: 2),
-                    )
-                  : Text(
-                      '$index',
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-            ),
+          leading: Center(
+            child: isSelected
+                ? SongPlaybackMarker(state: playbackState)
+                : pending
+                ? const SizedBox.square(
+                    dimension: 18,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
+                : Text('$index', maxLines: 1, overflow: TextOverflow.ellipsis),
           ),
           actions: playableSong == null
               ? IconButton(

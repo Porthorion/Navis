@@ -24,6 +24,15 @@ Last updated: 2026-10-18
   within the cap. New Light mid-tone cover test failed before the fix
   (`Actual: <0.8700000000000002>`) and passes after; the range, lyrics-floor
   and accent-title tests were updated. No goldens changed.
+- [x] Issue #57: playlist rows show artwork — 2026-10-18
+  (`fix/playlist-row-artwork`): `TrackListTile.showAlbumArt` now defaults to
+  true; only the album detail list passes `false`, and the redundant `true`
+  arguments were removed. The playlist and weekly detail headers drop their
+  number column, and unmatched weekly rows follow the artwork-sized slot (the
+  Home desktop hero list keeps its 32 px numbers). The new playlist-row test
+  failed first (`Found 0 widgets with type "CoverArtImage"`), then passed. No
+  golden changed. Runtime and desktop/compact-density screenshots were not
+  inspected.
 - [x] Issue #53, chip labels unreadable under Controls: White — 2026-10-18
   (`fix/chip-label-white-controls`): the chip theme's
   `WidgetStateTextStyle` label style is never resolved by the chip, so the
