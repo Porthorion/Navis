@@ -14,6 +14,20 @@ Last updated: 2026-10-18
 - ACP status values: `backlog`, `ready`, `in_progress`, `blocked`, `done`.
 
 ## Current Focus
+- [x] Issue #81, rebuild reachability checks stay in preparing progress —
+  2026-10-18 (`fix/rebuild-checking-not-offline`): `checkingNetwork` keeps
+  Retry hidden until the existing reachability controller confirms an outage
+  (`offline`) or device policy is offline. Existing listeners resume on success
+  and handle policy changes while checking; cancellation and session changes
+  publish no late progress. Four regressions failed before implementation:
+  pending-ping initial login and cache upgrade (provider test line 283),
+  confirmed-failure waiting (line 335), and hidden Retry (screen test line 132).
+  The two rebuild test files plus `server_reachability_provider_test.dart`
+  pass all 55 tests with `flutter test --concurrency=4`; scoped analysis exits
+  0 with no errors or warnings and one pre-existing changelog quote-style info.
+  Bootstrap, changed-file formatting and diff whitespace checks completed.
+  Runtime, builds and emulators were not run under this task's memory
+  constraints; `./tool/check.sh` remains the orchestrator's validation step.
 - [x] Issue #78, library reset preserves listening history and pending submissions —
   2026-10-18 (`fix/reset-keeps-history`): the existing set-based retention delete
   now protects `play_history`, `scrobble_queue`, and

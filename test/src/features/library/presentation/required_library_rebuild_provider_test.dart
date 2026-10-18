@@ -202,6 +202,7 @@ ProviderContainer _setupContainer({
   required ServerConfigModel server,
   required _ControlledSync sync,
   SyncNetworkPolicy policy = _wifi,
+  Override? policyOverride,
   List<Override> extra = const <Override>[],
   LibraryCacheResetService? cacheReset,
   Override? session,
@@ -216,7 +217,7 @@ ProviderContainer _setupContainer({
         serverReachabilityControllerProvider.overrideWith(
           OnlineReachability.new,
         ),
-    syncNetworkPolicyProvider.overrideWithValue(policy),
+    policyOverride ?? syncNetworkPolicyProvider.overrideWithValue(policy),
     librarySyncControllerProvider.overrideWith(() => sync),
     libraryCacheResetServiceProvider.overrideWithValue(
       cacheReset ??
@@ -251,6 +252,251 @@ ProviderSubscription<RequiredLibraryRebuildState> _mount(
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
+  for (final reason in [
+    RequiredLibraryRebuildReason.initialLogin,
+    RequiredLibraryRebuildReason.cacheUpgrade,
+  ]) {
+    test('$reason pending ping resumes without reporting offline', () async {
+      final (database, server) = await _committedCatalog();
+      final ping = Completer<String>();
+      final sync = _ControlledSync(
+        _publishedIncompleteAlbum,
+        beforeResult: () => _insertIncompleteAlbum(database),
+      );
+      final container = _setupContainer(
+        database: database,
+        server: server,
+        sync: sync,
+        reachability: serverReachabilityControllerProvider.overrideWith(
+          ServerReachabilityController.new,
+        ),
+        extra: [
+          pingServerProvider.overrideWithValue(() => ping.future),
+          connectivityProvider.overrideWith((_) => const Stream.empty()),
+        ],
+      );
+      addTearDown(container.dispose);
+      final provider = requiredLibraryRebuildControllerProvider(reason);
+      final statuses = <RequiredLibraryRebuildStatus>[];
+      container.listen(provider, (_, next) => statuses.add(next.status));
+      await drainMicrotasks(turns: 8);
+      expect(sync.calls, 0);
+      expect(
+        container.read(provider).status,
+        isNot(RequiredLibraryRebuildStatus.waitingForNetwork),
+      );
+
+      ping.complete('ready');
+      await drainMicrotasks(turns: 20);
+      expect(sync.calls, 1);
+      expect(
+        container.read(provider).status,
+        RequiredLibraryRebuildStatus.complete,
+      );
+      expect(
+        statuses,
+        isNot(contains(RequiredLibraryRebuildStatus.waitingForNetwork)),
+      );
+    }, skip: !sqliteAvailable);
+  }
+
+  test(
+    'checking waits for confirmed failure before reporting offline',
+    () async {
+      final (database, server) = await _committedCatalog();
+      final firstPing = Completer<String>();
+      final secondPing = Completer<String>();
+      var probes = 0;
+      final sync = _ControlledSync(const LibrarySyncState.idle());
+      final container = _setupContainer(
+        database: database,
+        server: server,
+        sync: sync,
+        reachability: serverReachabilityControllerProvider.overrideWith(
+          ServerReachabilityController.new,
+        ),
+        extra: [
+          pingServerProvider.overrideWithValue(
+            () => ++probes == 1 ? firstPing.future : secondPing.future,
+          ),
+          connectivityProvider.overrideWith((_) => const Stream.empty()),
+          reachabilityQuickRetryIntervalProvider.overrideWithValue(
+            Duration.zero,
+          ),
+        ],
+      );
+      addTearDown(container.dispose);
+      const reason = RequiredLibraryRebuildReason.initialLogin;
+      final provider = requiredLibraryRebuildControllerProvider(reason);
+      _mount(container, reason);
+      await drainMicrotasks();
+      firstPing.completeError(Exception('First probe failed'));
+      await drainMicrotasks();
+      expect(probes, 2);
+      expect(
+        container.read(provider).status,
+        isNot(RequiredLibraryRebuildStatus.waitingForNetwork),
+      );
+
+      secondPing.completeError(Exception('Confirmed failure'));
+      await drainMicrotasks();
+      expect(
+        container.read(provider).status,
+        RequiredLibraryRebuildStatus.waitingForNetwork,
+      );
+      expect(sync.calls, 0);
+    },
+    skip: !sqliteAvailable,
+  );
+
+  test('offline policy waits immediately despite a pending ping', () async {
+    final (database, server) = await _committedCatalog();
+    final sync = _ControlledSync(const LibrarySyncState.idle());
+    final container = _setupContainer(
+      database: database,
+      server: server,
+      sync: sync,
+      policy: resolveSyncNetworkPolicy(
+        networkType: NetworkType.offline,
+        nativeMetered: false,
+        backgroundSyncUnmeteredOnly: true,
+      ),
+      reachability: serverReachabilityControllerProvider.overrideWith(
+        () => StaticReachabilityController(
+          const ServerReachabilityState(
+            status: ServerReachabilityStatus.checking,
+          ),
+        ),
+      ),
+    );
+    addTearDown(container.dispose);
+    const reason = RequiredLibraryRebuildReason.initialLogin;
+    _mount(container, reason);
+    await drainMicrotasks();
+    expect(
+      container.read(requiredLibraryRebuildControllerProvider(reason)).status,
+      RequiredLibraryRebuildStatus.waitingForNetwork,
+    );
+    expect(sync.calls, 0);
+  }, skip: !sqliteAvailable);
+
+  test(
+    'policy changes during checking wait and resume automatically',
+    () async {
+      final (database, server) = await _committedCatalog();
+      final ping = Completer<String>();
+      var policy = _wifi;
+      final sync = _ControlledSync(
+        _publishedIncompleteAlbum,
+        beforeResult: () => _insertIncompleteAlbum(database),
+      );
+      final container = _setupContainer(
+        database: database,
+        server: server,
+        sync: sync,
+        policyOverride: syncNetworkPolicyProvider.overrideWith((_) => policy),
+        reachability: serverReachabilityControllerProvider.overrideWith(
+          ServerReachabilityController.new,
+        ),
+        extra: [
+          pingServerProvider.overrideWithValue(() => ping.future),
+          connectivityProvider.overrideWith((_) => const Stream.empty()),
+        ],
+      );
+      addTearDown(container.dispose);
+      const reason = RequiredLibraryRebuildReason.initialLogin;
+      final provider = requiredLibraryRebuildControllerProvider(reason);
+      _mount(container, reason);
+      await drainMicrotasks();
+      expect(
+        container.read(provider).status,
+        RequiredLibraryRebuildStatus.checkingNetwork,
+      );
+
+      policy = resolveSyncNetworkPolicy(
+        networkType: NetworkType.offline,
+        nativeMetered: false,
+        backgroundSyncUnmeteredOnly: true,
+      );
+      container.invalidate(syncNetworkPolicyProvider);
+      await drainMicrotasks();
+      expect(
+        container.read(provider).status,
+        RequiredLibraryRebuildStatus.waitingForNetwork,
+      );
+      expect(sync.calls, 0);
+
+      policy = _wifi;
+      container.invalidate(syncNetworkPolicyProvider);
+      await drainMicrotasks();
+      expect(
+        container.read(provider).status,
+        RequiredLibraryRebuildStatus.checkingNetwork,
+      );
+      ping.complete('ready');
+      await drainMicrotasks(turns: 20);
+      expect(sync.calls, 1);
+      expect(
+        container.read(provider).status,
+        RequiredLibraryRebuildStatus.complete,
+      );
+    },
+    skip: !sqliteAvailable,
+  );
+
+  for (final cancel in [false, true]) {
+    test(
+      'pending ping publishes nothing after ${cancel ? 'cancellation' : 'session change'}',
+      () async {
+        final (database, server) = await _committedCatalog();
+        final ping = Completer<String>();
+        final signOut = _GatedSignOut();
+        final sync = _ControlledSync(const LibrarySyncState.idle());
+        final container = _setupContainer(
+          database: database,
+          server: server,
+          sync: sync,
+          session: serverConfigStateProvider.overrideWith(
+            (ref) => ref.watch(_sessionProvider),
+          ),
+          reachability: serverReachabilityControllerProvider.overrideWith(
+            ServerReachabilityController.new,
+          ),
+          extra: [
+            _sessionProvider.overrideWith(() => _Session(server)),
+            pingServerProvider.overrideWithValue(() => ping.future),
+            connectivityProvider.overrideWith((_) => const Stream.empty()),
+            signOutServiceProvider.overrideWithValue(signOut),
+            serverConfigProvider.overrideWith(_SignedOutServerConfig.new),
+          ],
+        );
+        addTearDown(container.dispose);
+        const reason = RequiredLibraryRebuildReason.initialLogin;
+        final provider = requiredLibraryRebuildControllerProvider(reason);
+        final statuses = <RequiredLibraryRebuildStatus>[];
+        container.listen(provider, (_, next) => statuses.add(next.status));
+        await drainMicrotasks();
+        final cancelling = cancel
+            ? container.read(provider.notifier).cancelAndSignOut()
+            : null;
+        if (!cancel) container.read(_sessionProvider.notifier).set(null);
+        await drainMicrotasks();
+        statuses.clear();
+
+        ping.complete('ready');
+        await drainMicrotasks(turns: 8);
+        expect(statuses, isEmpty);
+        expect(sync.calls, 0);
+        if (cancel) {
+          container.read(_sessionProvider.notifier).set(null);
+          signOut.gate.complete();
+          await cancelling;
+        }
+      },
+      skip: !sqliteAvailable,
+    );
+  }
+
   test('offline setup waits without starting catalog sync', () async {
     final (database, server) = await _committedCatalog();
     final sync = _ControlledSync(const LibrarySyncState.idle());

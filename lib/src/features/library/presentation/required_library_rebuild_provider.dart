@@ -17,6 +17,7 @@ import 'package:navis/src/utils/connectivity.dart';
 
 enum RequiredLibraryRebuildStatus {
   idle,
+  checkingNetwork,
   waitingForNetwork,
   waitingForMobileConsent,
   clearingCache,
@@ -90,14 +91,17 @@ class RequiredLibraryRebuildController
       _,
       next,
     ) {
-      if (state.status == RequiredLibraryRebuildStatus.waitingForNetwork &&
-          next.status == ServerReachabilityStatus.online) {
+      if ((state.status == RequiredLibraryRebuildStatus.waitingForNetwork &&
+              next.status == ServerReachabilityStatus.online) ||
+          (state.status == RequiredLibraryRebuildStatus.checkingNetwork &&
+              next.status != ServerReachabilityStatus.checking)) {
         unawaited(start());
       }
     });
     ref.listen<SyncNetworkPolicy>(syncNetworkPolicyProvider, (_, next) {
-      if (state.status == RequiredLibraryRebuildStatus.waitingForNetwork &&
-          !next.isOffline) {
+      if ((state.status == RequiredLibraryRebuildStatus.waitingForNetwork &&
+              !next.isOffline) ||
+          state.status == RequiredLibraryRebuildStatus.checkingNetwork) {
         unawaited(start());
       }
       if (state.status ==
@@ -165,10 +169,16 @@ class RequiredLibraryRebuildController
     }
     final reachability = ref.read(serverReachabilityControllerProvider);
     final policy = ref.read(syncNetworkPolicyProvider);
-    if (reachability.status != ServerReachabilityStatus.online ||
+    if (reachability.status == ServerReachabilityStatus.offline ||
         policy.isOffline) {
       state = const RequiredLibraryRebuildState(
         status: RequiredLibraryRebuildStatus.waitingForNetwork,
+      );
+      return;
+    }
+    if (reachability.status == ServerReachabilityStatus.checking) {
+      state = const RequiredLibraryRebuildState(
+        status: RequiredLibraryRebuildStatus.checkingNetwork,
       );
       return;
     }
