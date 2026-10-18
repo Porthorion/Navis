@@ -1665,7 +1665,7 @@ recorded in `changelog_seen_version.txt` (Application Support), otherwise the
 running release plus the newest *major* in the unseen range (last seen,
 current]. So a jump from 1.3.1 to 1.4.1 still features 1.4.
 - It is a flat row styled like a library row.
-- With a featured major: a 48 px cover, "Check out 1.4 “Navi”", and one plain
+- With a featured major: a 48 px cover, "Meet Navis 1.4 “Navi”", and one plain
   line naming up to three highlights ("…and 2 more").
 - Patch only: "Updated to Navis 1.4.1" and its number of changes.
 - Tapping opens `/settings/about/changelog?version=<featured or current>`.

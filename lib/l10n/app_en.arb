@@ -1933,13 +1933,13 @@
       "version": { "type": "String" }
     }
   },
-  "changelogDiscoveryCheckOut": "Check Out {version}",
+  "changelogDiscoveryCheckOut": "Meet Navis {version}",
   "@changelogDiscoveryCheckOut": {
     "placeholders": {
       "version": { "type": "String" }
     }
   },
-  "changelogDiscoveryCheckOutNamed": "Check Out {version} “{codename}”",
+  "changelogDiscoveryCheckOutNamed": "Meet Navis {version} “{codename}”",
   "@changelogDiscoveryCheckOutNamed": {
     "placeholders": {
       "version": { "type": "String" },

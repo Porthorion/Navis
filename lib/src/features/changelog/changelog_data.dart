@@ -31,7 +31,7 @@ class ChangelogVersion {
   /// Release date as `YYYY-MM-DD`, or null when unknown or not yet released.
   final String? released;
 
-  /// Optional name for a major release, shown as "Check out 1.4 “Navi”".
+  /// Optional name for a major release, shown as "Meet Navis 1.4 “Navi”".
   final String? codename;
 
   /// Optional bundled SVG or PNG under `assets/changelog/`, shown as the

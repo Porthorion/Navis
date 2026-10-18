@@ -4117,12 +4117,12 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String changelogDiscoveryCheckOut(String version) {
-    return 'Check Out $version';
+    return 'Meet Navis $version';
   }
 
   @override
   String changelogDiscoveryCheckOutNamed(String version, String codename) {
-    return 'Check Out $version “$codename”';
+    return 'Meet Navis $version “$codename”';
   }
 
   @override
