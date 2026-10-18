@@ -211,6 +211,7 @@ void main() {
           home: Scaffold(
             body: TrackListTile(
               song: _song,
+              showAlbumArt: false,
               onSecondaryTapDown: (_) => secondaryTapReceived = true,
             ),
           ),
@@ -244,8 +245,8 @@ void main() {
           home: const Scaffold(
             body: Column(
               children: <Widget>[
-                TrackListTile(song: _song),
-                TrackListTile(song: _secondSong),
+                TrackListTile(song: _song, showAlbumArt: false),
+                TrackListTile(song: _secondSong, showAlbumArt: false),
               ],
             ),
           ),

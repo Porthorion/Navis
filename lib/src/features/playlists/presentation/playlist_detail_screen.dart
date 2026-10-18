@@ -311,8 +311,6 @@ class _PlaylistDetailScreenState extends ConsumerState<PlaylistDetailScreen> {
               child: Padding(
                 padding: desktopMode ? desktopTrackPadding : EdgeInsets.zero,
                 child: AdaptiveTrackHeader(
-                  numberColumnExtent: 32,
-                  leadingExtent: 32,
                   actionExtent: desktopMode
                       ? null
                       : (downloadedOnly || !_canEdit ? 96 : 144),

@@ -3,7 +3,6 @@ import 'dart:math' as math;
 
 import 'package:flutter/foundation.dart' show listEquals;
 import 'package:intl/intl.dart' show DateFormat;
-import 'package:drift/drift.dart' show Value;
 import 'package:material_ui/material_ui.dart';
 import 'package:navis/src/common_widgets/adaptive_track_row.dart';
 import 'package:navis/src/common_widgets/content_shelf.dart';
@@ -644,8 +643,6 @@ class _ListenBrainzWeeklyDetailContentState
       itemBuilder: (context, index) {
         if (index == 0) {
           return AdaptiveTrackHeader(
-            numberColumnExtent: 32,
-            leadingExtent: 32,
             leadingGap: 6,
             actionExtent: 96,
             padding: compact
@@ -660,7 +657,7 @@ class _ListenBrainzWeeklyDetailContentState
         if (recommendation.hasServerSong && tableSong != null) {
           return TrackListTile(
             key: rowKey,
-            song: tableSong.copyWith(track: Value(index)),
+            song: tableSong,
             contentPadding: compact
                 ? const EdgeInsetsDirectional.only(start: 8, end: 4)
                 : null,
@@ -2941,6 +2938,7 @@ class _DesktopListenBrainzSongListState
           index: index + 1,
           // Numbered hero list without artwork: denser rows.
           minHeight: 48,
+          leadingExtent: 32,
           onPlay: (_) => _playWeeklyRecommendation(ref, recommendations, index),
           onSearch: (track) {
             NavService.openSearch(
@@ -4321,7 +4319,6 @@ class _SongListSection extends ConsumerWidget {
     Widget songTile(SongsTableData song) => TrackListTile(
       key: ValueKey(song.id),
       song: song,
-      showAlbumArt: true,
       actionExtent: desktopMode ? null : 0,
       contentPadding: EdgeInsets.symmetric(
         horizontal: tabletMode ? 12 : 8,
