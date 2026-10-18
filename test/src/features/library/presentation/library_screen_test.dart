@@ -2261,6 +2261,92 @@ void main() {
     );
 
     _testWidgetsWithCleanup(
+      'device playlist rows tile their covers; server and empty ones do not',
+      (tester) async {
+        await tester.pumpWidget(
+          _buildLibraryScreenRouter(
+            showPlaylistsPage: true,
+            overrides: [
+              librarySyncControllerProvider.overrideWith(
+                () => _FakeLibrarySyncController(const LibrarySyncState.idle()),
+              ),
+              albumCountProvider.overrideWithValue(const AsyncData(0)),
+              pagedAlbumsProvider.overrideWith(
+                (ref, request) => Stream.value(const <AlbumsTableData>[]),
+              ),
+              artistsProvider.overrideWithValue(
+                const AsyncData(<ArtistsTableData>[]),
+              ),
+              playlistSyncProvider.overrideWith((ref) async {}),
+              playlistLibraryItemsProvider.overrideWithValue(
+                const AsyncData<List<PlaylistLibraryItem>>(
+                  <PlaylistLibraryItem>[
+                    PlaylistLibraryItem.normal(_deviceMix),
+                    PlaylistLibraryItem.normal(
+                      PlaylistsTableData(
+                        isLocal: true,
+                        id: 'local:empty',
+                        name: 'Empty Mix',
+                      ),
+                    ),
+                    PlaylistLibraryItem.normal(
+                      PlaylistsTableData(
+                        isLocal: false,
+                        id: 'srv',
+                        name: 'Server Mix',
+                        coverArt: 'pl-srv',
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              devicePlaylistCoverArtIdsProvider.overrideWith(
+                (ref) => Stream.value(const <String, List<String>>{
+                  'local:device-mix': ['art-a', 'art-b'],
+                }),
+              ),
+            ],
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        await tester.tap(find.text('Playlists'));
+        await tester.pumpAndSettle();
+
+        final mosaic = tester.widget<PlaylistCoverMosaic>(
+          find.byType(PlaylistCoverMosaic),
+        );
+        expect(mosaic.coverArtIds, ['art-a', 'art-b']);
+        expect(
+          find.descendant(
+            of: find.widgetWithText(ListTile, 'Server Mix'),
+            matching: find.byType(PlaylistCoverMosaic),
+          ),
+          findsNothing,
+        );
+        expect(
+          tester
+              .widgetList<CoverArtImage>(
+                find.descendant(
+                  of: find.widgetWithText(ListTile, 'Server Mix'),
+                  matching: find.byType(CoverArtImage),
+                ),
+              )
+              .single
+              .coverArtId,
+          'pl-srv',
+        );
+        expect(
+          find.descendant(
+            of: find.widgetWithText(ListTile, 'Empty Mix'),
+            matching: find.byType(PlaylistCoverMosaic),
+          ),
+          findsNothing,
+        );
+      },
+    );
+
+    _testWidgetsWithCleanup(
       'desktop playlist More opens the anchored owner-action menu',
       (tester) async {
         setAdaptiveTestViewport(tester, const Size(1366, 900));

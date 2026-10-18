@@ -76,6 +76,35 @@ void main() {
       },
     );
 
+    test(
+      'watchLocalPlaylistCoverArtIds lists up to four distinct covers',
+      () async {
+        final dao = database.playlistDao;
+        await database.libraryDao.upsertSongs([
+          for (final n in ['c', 'd', 'e', 'f'])
+            SongsTableCompanion.insert(
+              id: n,
+              title: n,
+              coverArt: Value('art-$n'),
+            ),
+        ]);
+        final mix = await dao.createLocalPlaylist('Mix', [
+          'a',
+          'c',
+          'a',
+          'd',
+          'e',
+          'f',
+        ]);
+        final bare = await dao.createLocalPlaylist('Bare', ['b']);
+        await dao.createLocalPlaylist('Empty', []);
+        expect(await dao.watchLocalPlaylistCoverArtIds().first, {
+          mix: ['art-a', 'art-c', 'art-d', 'art-e'],
+        });
+        expect(bare, isNot(mix));
+      },
+    );
+
     test('renaming only touches device playlists', () async {
       final dao = database.playlistDao;
       await dao.upsertPlaylists([
