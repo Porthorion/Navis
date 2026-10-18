@@ -560,7 +560,11 @@ Successful completion remains current; the partial exception admits onboarding
 or Home across restarts without claiming full freshness. All full-screen rebuild
 reasons share the incomplete-detail completion predicate. Other failed, deferred,
 or partial runs keep retry and sign-out actions; offline and metered conditions
-retain their retry/consent behavior. Pending albums continue through eligible incremental
+retain their retry/consent behavior. While server reachability is `checking`
+and device policy permits a connection, rebuilds show preparing progress without
+Retry. Existing reachability and policy listeners resume the run automatically
+when online, or show the network wait after a confirmed outage or offline policy.
+Pending albums continue through eligible incremental
 checks. First setup owns catalog sync until readiness: startup, automatic
 checks, and Android workers defer without arming or persisting a new automatic
 deadline. Android reports this as `deferredSetup`. Setup waits for any active

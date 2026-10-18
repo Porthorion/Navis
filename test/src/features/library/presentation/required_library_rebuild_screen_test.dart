@@ -1,15 +1,22 @@
+import 'dart:async';
+
 import 'package:material_ui/material_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:navis/l10n/app_localizations.dart';
 import 'package:navis/l10n/navis_localizations.dart';
 import 'package:navis/src/common_widgets/navis_icon.dart';
+import 'package:navis/src/features/auth/domain/server_config.dart';
+import 'package:navis/src/features/auth/presentation/server_config_provider.dart';
+import 'package:navis/src/features/auth/presentation/server_reachability_provider.dart';
 import 'package:navis/src/features/library/domain/library_sync_state.dart';
 import 'package:navis/src/features/library/presentation/library_sync_provider.dart';
 import 'package:navis/src/features/library/presentation/required_library_rebuild.dart';
 import 'package:navis/src/features/library/presentation/required_library_rebuild_provider.dart';
 import 'package:navis/src/features/library/presentation/required_library_rebuild_screen.dart';
 import 'package:navis/src/features/onboarding/presentation/onboarding_provider.dart';
+import 'package:navis/src/providers/app_providers.dart';
+import 'package:navis/src/utils/connectivity.dart';
 import 'package:flutter_riverpod/misc.dart' show Override;
 
 class _StaticRequiredRebuildController
@@ -44,14 +51,17 @@ class _StaticLibrarySyncController extends LibrarySyncController {
 }
 
 Widget _testApp({
-  required _StaticRequiredRebuildController setup,
+  _StaticRequiredRebuildController? setup,
   LibrarySyncState sync = const LibrarySyncState.idle(),
+  List<Override> overrides = const [],
 }) {
   return ProviderScope(
     overrides: <Override>[
-      requiredLibraryRebuildControllerProvider(
-        RequiredLibraryRebuildReason.initialLogin,
-      ).overrideWith(() => setup),
+      ...overrides,
+      if (setup != null)
+        requiredLibraryRebuildControllerProvider(
+          RequiredLibraryRebuildReason.initialLogin,
+        ).overrideWith(() => setup),
       librarySyncControllerProvider.overrideWith(
         () => _StaticLibrarySyncController(sync),
       ),
@@ -71,6 +81,75 @@ Widget _testApp({
 }
 
 void main() {
+  for (final offline in [false, true]) {
+    testWidgets(
+      offline
+          ? 'offline policy shows Retry while ping is pending'
+          : 'pending ping hides Retry until confirmed unreachable',
+      (tester) async {
+        final firstPing = Completer<String>();
+        final secondPing = Completer<String>();
+        var probes = 0;
+        await tester.pumpWidget(
+          _testApp(
+            overrides: [
+              serverConfigStateProvider.overrideWithValue(
+                const AsyncData(
+                  ServerConfigModel(
+                    id: 1,
+                    url: 'https://example.test',
+                    username: 'fixture',
+                    password: 'fixture',
+                    apiVersion: '1.16.1',
+                  ),
+                ),
+              ),
+              pingServerProvider.overrideWithValue(
+                () => ++probes == 1 ? firstPing.future : secondPing.future,
+              ),
+              connectivityProvider.overrideWith((_) => const Stream.empty()),
+              reachabilityQuickRetryIntervalProvider.overrideWithValue(
+                const Duration(milliseconds: 1),
+              ),
+              syncNetworkPolicyProvider.overrideWithValue(
+                resolveSyncNetworkPolicy(
+                  networkType: offline ? NetworkType.offline : NetworkType.wifi,
+                  nativeMetered: false,
+                  backgroundSyncUnmeteredOnly: true,
+                ),
+              ),
+            ],
+          ),
+        );
+        await tester.pump();
+        final retry = find.byKey(const ValueKey('requiredSyncRetry'));
+        const offlineText =
+            'Connect to a network, then retry to continue setup.';
+        if (offline) {
+          expect(retry, findsOneWidget);
+          expect(find.text(offlineText), findsOneWidget);
+        } else {
+          expect(retry, findsNothing);
+          expect(find.text(offlineText), findsNothing);
+          expect(find.text('Preparing library'), findsOneWidget);
+          expect(find.byType(CircularProgressIndicator), findsOneWidget);
+
+          firstPing.completeError(Exception('First probe failed'));
+          await tester.pump();
+          await tester.pump(const Duration(milliseconds: 1));
+          expect(probes, 2);
+          expect(retry, findsNothing);
+          secondPing.completeError(Exception('Confirmed failure'));
+          await tester.pump();
+          await tester.pump();
+          expect(retry, findsOneWidget);
+          expect(find.text(offlineText), findsOneWidget);
+        }
+        await tester.pumpWidget(const SizedBox.shrink());
+      },
+    );
+  }
+
   testWidgets('offline required setup offers retry and cancel-and-sign-out', (
     tester,
   ) async {

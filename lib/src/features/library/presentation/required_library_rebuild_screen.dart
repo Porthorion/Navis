@@ -245,7 +245,9 @@ class _RequiredLibraryRebuildScreenState
             : l10n.requiredSyncRebuildFailed,
       RequiredLibraryRebuildStatus.cancelling => l10n.initialSyncCancelling,
       RequiredLibraryRebuildStatus.complete => l10n.initialSyncComplete,
-      RequiredLibraryRebuildStatus.idle => l10n.requiredSyncStagePreparing,
+      RequiredLibraryRebuildStatus.idle ||
+      RequiredLibraryRebuildStatus.checkingNetwork =>
+        l10n.requiredSyncStagePreparing,
       RequiredLibraryRebuildStatus.syncing => switch (sync.stage) {
         LibrarySyncStage.fetchingArtists => l10n.requiredSyncStageArtistIndex,
         LibrarySyncStage.fetchingSongs => l10n.requiredSyncStageSongIndex,

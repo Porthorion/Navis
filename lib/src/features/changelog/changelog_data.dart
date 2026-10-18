@@ -423,6 +423,10 @@ const List<ChangelogVersion> changelogs = [
 
       // Fixed: library, playlists and sync
       ChangelogEntry(
+        'Library setup and rebuilds keep preparing while checking the server connection, instead of briefly showing an offline message and Retry',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
         'First setup no longer stops on albums with incomplete server details or runs a second full sync, and those albums no longer hold up later syncs; Sync settings show how many albums are still waiting for their track lists and when the library was last checked',
         type: ChangelogEntryType.fix,
       ),
