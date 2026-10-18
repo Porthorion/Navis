@@ -17,7 +17,7 @@ void main() {
 
       expect(
         librarySyncNotificationFailureTitle(l10n, state),
-        'Library scan failed',
+        'Library Scan Failed',
       );
       expect(
         librarySyncNotificationFailureBody(l10n, state),
@@ -39,7 +39,7 @@ void main() {
 
     expect(
       librarySyncNotificationFailureTitle(l10n, state),
-      'Library scan cancelled',
+      'Library Scan Cancelled',
     );
     expect(
       librarySyncNotificationFailureBody(l10n, state),
