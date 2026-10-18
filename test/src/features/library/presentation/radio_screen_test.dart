@@ -632,6 +632,53 @@ void main() {
       expect(find.text('Basement FM'), findsOneWidget);
     });
 
+    testWidgets('server stations stay while the server list reloads', (
+      tester,
+    ) async {
+      final reload = StateProvider<int>((ref) => 0);
+      final refresh = Completer<List<InternetRadioStation>>();
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            // A dependency change reloads with the previous value kept.
+            radioStationsProvider.overrideWith(
+              (ref) async => ref.watch(reload) == 0
+                  ? const [_station]
+                  : await refresh.future,
+            ),
+            localRadioStationsProvider.overrideWith(
+              (ref) => Stream.value(const [device]),
+            ),
+            serverUserIsAdminProvider.overrideWith((ref) async => false),
+            currentRadioStationIdProvider.overrideWithValue(null),
+            audioHandlerProvider.overrideWithValue(null),
+          ],
+          child: MaterialApp(
+            theme: testTheme(),
+            localizationsDelegates: navisLocalizationsDelegates,
+            supportedLocales: AppLocalizations.supportedLocales,
+            home: const Scaffold(body: RadioTabContent()),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(find.text('Ambient Radio'), findsOneWidget);
+
+      final container = ProviderScope.containerOf(
+        tester.element(find.byType(RadioTabContent)),
+      );
+      container.read(reload.notifier).state = 1;
+      await tester.pump();
+      await tester.pump();
+      expect(container.read(radioStationsProvider).isLoading, isTrue);
+      expect(find.text('Ambient Radio'), findsOneWidget);
+      expect(find.text('Basement FM'), findsOneWidget);
+
+      refresh.complete(const [_station]);
+      await tester.pumpAndSettle();
+      expect(find.text('Ambient Radio'), findsOneWidget);
+    });
+
     testWidgets('desktop keeps type-to-filter and has no field', (
       tester,
     ) async {
