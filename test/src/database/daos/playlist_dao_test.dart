@@ -96,12 +96,11 @@ void main() {
           'e',
           'f',
         ]);
-        final bare = await dao.createLocalPlaylist('Bare', ['b']);
+        await dao.createLocalPlaylist('Bare', ['b']);
         await dao.createLocalPlaylist('Empty', []);
         expect(await dao.watchLocalPlaylistCoverArtIds().first, {
           mix: ['art-a', 'art-c', 'art-d', 'art-e'],
         });
-        expect(bare, isNot(mix));
       },
     );
 

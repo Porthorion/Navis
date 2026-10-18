@@ -131,17 +131,24 @@ class PlaylistDao extends DatabaseAccessor<NavisDatabase>
             OrderingTerm.asc(firstAt),
           ]);
     query.addColumns([firstAt]);
-    return query.watch().map((rows) {
-      final covers = <String, List<String>>{};
-      for (final row in rows) {
-        final ids = covers.putIfAbsent(
-          row.read(playlistSongsTable.playlistId)!,
-          () => [],
+    return query
+        .watch()
+        .map((rows) {
+          final covers = <String, List<String>>{};
+          for (final row in rows) {
+            final ids = covers.putIfAbsent(
+              row.read(playlistSongsTable.playlistId)!,
+              () => [],
+            );
+            if (ids.length < 4) ids.add(row.read(songsTable.coverArt)!);
+          }
+          return covers;
+        })
+        .distinct(
+          const MapEquality<String, List<String>>(
+            values: ListEquality<String>(),
+          ).equals,
         );
-        if (ids.length < 4) ids.add(row.read(songsTable.coverArt)!);
-      }
-      return covers;
-    });
   }
 
   Stream<List<SongsTableData>> watchPlaylistSongs(String playlistId) {
