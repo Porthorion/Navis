@@ -14,6 +14,24 @@ Last updated: 2026-10-18
 - ACP status values: `backlog`, `ready`, `in_progress`, `blocked`, `done`.
 
 ## Current Focus
+- [x] Issue #71 follow-up: malformed instrumental LRC and plain-only upgrades —
+  2026-10-18 (`feat/instrumental-lyrics`): instrumental classification now follows
+  parsing; the DAO can mark plain-only rows without overwriting their lyrics or
+  source and still protects synced rows. Server plain refreshes retain a known
+  upgrade marker, so forced backfill never retries it. Added parsing, resolver,
+  repeated forced-backfill and double-run 104 → 105 migration coverage. Four
+  behavioural regressions failed before implementation; the migration rerun
+  test already passed. The four targeted resolver/DAO/backfill/migration suites
+  passed 204 tests. `flutter analyze --no-fatal-infos` exited 0 with no errors
+  or warnings (198 info findings). The required locked, 10 GB-capped full gate
+  ran once and passed: 8,813 tests, one skipped; exact final line
+  `[check] All checks passed.` Code generation produced no source changes.
+  Fresh muted Linux diagnostics fixtures before and after the gate passed
+  authenticated health, plain-lyrics display alongside the marker, clean-restart
+  persistence and fresh server-lyrics precedence; all six app-owned screenshots
+  were inspected (`build/issue71-followup-runtime/report.json`). Malformed LRCLIB
+  responses are covered by deterministic resolver tests, not runtime injection.
+  Native mobile/Apple/Windows runtime validation was not repeated.
 - [x] Issue #71, instrumental lyrics — 2026-10-18
   (`feat/instrumental-lyrics`): LRCLIB exact/search responses persist the
   instrumental status in the existing external lyrics cache via schema 105's

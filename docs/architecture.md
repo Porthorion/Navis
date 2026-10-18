@@ -2647,12 +2647,18 @@ LRCLIB's `instrumental` result is a successful lookup. Schema 105 adds a
 non-null, default-false `instrumental` column to `external_lyrics_cache` in its
 own 104 → 105 migration. Both search and exact lookups retain the marker;
 equally matching search records with real lyrics take precedence. The shared
-lyrics resolver persists instrumental results without lyrics or failure
-metadata, exposes the status to every lyrics surface, and suppresses further
+lyrics resolver decides instrumental status after parsing synced lyrics, so
+malformed LRC without usable plain lyrics still records a successful instrumental
+result. It persists the marker without failure metadata, preserving any existing
+plain lyrics and their source while refusing to mark rows with synced lyrics.
+It exposes the status to every lyrics surface, and suppresses further
 external requests regardless of cache age or a forced synced upgrade. The
 existing empty-state layout displays the localized “Instrumental” status.
 Server/embedded lyrics still win when later available; caching real lyrics
-clears the marker. Instrumental rows use the existing cache reset lifecycle.
+clears the marker when it adds lyrics to an empty instrumental row or supplies
+synced lyrics. Refreshing an already marked plain-only row preserves its marker
+so subsequent forced backfill cannot reopen the synced upgrade. Instrumental
+rows use the existing cache reset lifecycle.
 Backfill skips marked tracks even for **Backfill Now**, and its automatic
 remaining-work check excludes them. Ordinary unknown-track misses retain the
 seven-day backoff; rate-limited responses never mark a track instrumental.

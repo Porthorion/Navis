@@ -402,6 +402,32 @@ void main() {
     },
   );
 
+  test('plain-only instrumental is never retried by forced backfill', () async {
+    await seed('instrumental');
+    await db.libraryDao.upsertExternalLyricsCache(
+      songId: 'instrumental',
+      source: 'serverPlain',
+      plainLyrics: 'plain words',
+    );
+    external.results = [
+      const LrclibLyrics(
+        artistName: 'Artist',
+        trackName: 'Track',
+        albumName: 'Album',
+        duration: 200,
+        instrumental: true,
+      ),
+    ];
+    await service.runBackfillNow();
+    final cache = (await db.libraryDao.getExternalLyricsCache('instrumental'))!;
+    expect(cache.instrumental, isTrue);
+    expect(cache.plainLyrics, isNotEmpty);
+    clearInteractions(api);
+    await service.runBackfillNow();
+    expect(external.calls, 1);
+    verifyNever(() => api.getLyricsBySongId(any()));
+  });
+
   test(
     'automatic trigger reopens completed gates once when metadata is missing',
     () async {

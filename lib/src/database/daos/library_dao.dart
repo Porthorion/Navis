@@ -1947,16 +1947,20 @@ class LibraryDao extends DatabaseAccessor<NavisDatabase>
         .insert(
           entry,
           onConflict: DoUpdate(
-            (_) => entry,
+            (_) => instrumental
+                ? ExternalLyricsCacheTableCompanion(
+                    instrumental: const Value(true),
+                    fetchedAt: entry.fetchedAt,
+                    ttlSeconds: entry.ttlSeconds,
+                    failureCount: const Value(0),
+                    lastFailedAt: const Value(null),
+                  )
+                : entry,
             // Slower lookups must preserve real lyrics already resolved.
             where: (old) => (syncedLyrics?.trim().isNotEmpty ?? false)
                 ? const Constant(true)
                 : (old.syncedLyrics.isNull() |
-                          old.syncedLyrics.trim().equals('')) &
-                      (instrumental
-                          ? old.plainLyrics.isNull() |
-                                old.plainLyrics.trim().equals('')
-                          : const Constant(true)),
+                      old.syncedLyrics.trim().equals('')),
           ),
         )
         .then((_) {});

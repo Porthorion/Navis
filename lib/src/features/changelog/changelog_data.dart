@@ -166,7 +166,7 @@ const List<ChangelogVersion> changelogs = [
     ],
     entries: [
       ChangelogEntry(
-        'Instrumental tracks are recognized in lyrics lookups, show “Instrumental” instead of missing lyrics, and are never retried by lyrics backfill',
+        'Instrumental tracks are recognized in lyrics lookups, show “Instrumental” instead of missing lyrics, and are never retried by lyrics backfill, including malformed synced responses and tracks with cached plain lyrics',
         type: ChangelogEntryType.fix,
       ),
       ChangelogEntry(

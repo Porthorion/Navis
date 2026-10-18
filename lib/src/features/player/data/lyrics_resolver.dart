@@ -117,7 +117,9 @@ class LyricsResolver {
       if (preferred != null) {
         // LRCLIB may have cached plain lyrics while trying the synced upgrade.
         // Keep the selected server plain result for downloaded songs instead.
-        if (cacheServerLyrics && server.resolution != null) {
+        if (cacheServerLyrics &&
+            server.resolution != null &&
+            lrclibResult.resolution?.instrumental != true) {
           await _cacheServerLyrics(
             songId: songId,
             source: preferred.source,
@@ -191,7 +193,8 @@ class LyricsResolver {
         return (resolution: null, failed: false);
       }
 
-      if (best.instrumental && !best.hasSynced && !best.hasPlain) {
+      final parsedSynced = tryParseLrc(best.syncedLyrics);
+      if (best.instrumental && parsedSynced == null && !best.hasPlain) {
         await _libraryDao.upsertExternalLyricsCache(
           songId: songId,
           source: LyricsSource.lrclibPlain.name,
@@ -207,7 +210,6 @@ class LyricsResolver {
           failed: false,
         );
       }
-      final parsedSynced = tryParseLrc(best.syncedLyrics);
       if (parsedSynced == null && !best.hasPlain) {
         return (resolution: null, failed: false);
       }
@@ -360,10 +362,10 @@ class LyricsResolver {
       );
       if (hasAnyLyrics(legacy)) {
         if (cacheServerLyrics) {
-          await _libraryDao.upsertExternalLyricsCache(
+          await _cacheServerLyrics(
             songId: songId,
-            source: LyricsSource.serverPlain.name,
-            plainLyrics: legacy.value,
+            source: LyricsSource.serverPlain,
+            lyrics: legacy,
             ttlSeconds: lyricsCacheTtlSeconds,
           );
         }
@@ -407,6 +409,12 @@ class LyricsResolver {
 
     final plain = plainLyricsText(lyrics);
     if (plain.trim().isEmpty) {
+      return;
+    }
+    final cached = await _libraryDao.getExternalLyricsCache(songId);
+    // Refreshing known plain lyrics must not reopen an instrumental upgrade.
+    if (cached?.instrumental == true &&
+        cached?.plainLyrics?.trim().isNotEmpty == true) {
       return;
     }
     await _libraryDao.upsertExternalLyricsCache(

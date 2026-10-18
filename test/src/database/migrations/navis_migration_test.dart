@@ -75,6 +75,39 @@ void main() {
     },
   );
 
+  test(
+    'v105 migration can be rerun without changing lyrics or markers',
+    () async {
+      final database = createTestDatabase();
+      addTearDown(database.close);
+      await database.libraryDao.upsertExternalLyricsCache(
+        songId: 'instrumental',
+        source: 'lrclibPlain',
+        instrumental: true,
+      );
+      await database.libraryDao.upsertExternalLyricsCache(
+        songId: 'plain',
+        source: 'serverPlain',
+        plainLyrics: 'kept',
+        failureCount: 2,
+        lastFailedAt: DateTime.utc(2026, 10, 18),
+      );
+      final before = await database
+          .customSelect('SELECT * FROM external_lyrics_cache ORDER BY song_id')
+          .get();
+      for (var run = 0; run < 2; run++) {
+        await database.from104To105(Migrator(database));
+        final after = await database
+            .customSelect(
+              'SELECT * FROM external_lyrics_cache ORDER BY song_id',
+            )
+            .get();
+        expect(after.map((row) => row.data), before.map((row) => row.data));
+      }
+    },
+    skip: !sqliteAvailable,
+  );
+
   for (final partialColumns in [false, true]) {
     for (final existingTable in [false, true]) {
       test(

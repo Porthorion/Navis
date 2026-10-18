@@ -171,6 +171,66 @@ void main() {
         expect(external.calls, 1);
       },
     );
+    for (final synced in ['not valid LRC', '[00:01.00]real words']) {
+      test('instrumental is decided after parsing: $synced', () async {
+        final result = await LyricsResolver(
+          libraryDao: database.libraryDao,
+          lrclibClient: _FakeLrclibClient([
+            LrclibLyrics(
+              artistName: 'Artist',
+              trackName: 'Track',
+              instrumental: true,
+              syncedLyrics: synced,
+            ),
+          ]),
+          apiClient: null,
+        ).resolve(songId: 'song', metadata: metadata, useLrclib: true);
+        final usable = synced.startsWith('[');
+        expect(result.instrumental, !usable);
+        expect(hasAnyLyrics(result.lyrics), usable);
+        expect(result.confirmedMiss, isFalse);
+        expect(
+          (await database.libraryDao.getExternalLyricsCache('song'))!
+              .instrumental,
+          !usable,
+        );
+      });
+    }
+    test(
+      'plain lyrics display while instrumental suppresses upgrades',
+      () async {
+        await database.libraryDao.upsertExternalLyricsCache(
+          songId: 'song',
+          source: 'serverPlain',
+          plainLyrics: 'real words',
+        );
+        final external = _FakeLrclibClient([instrumental]);
+        final resolver = LyricsResolver(
+          libraryDao: database.libraryDao,
+          lrclibClient: external,
+          apiClient: _FakeServer(const LyricsList(value: 'real words')),
+        );
+        for (var run = 0; run < 2; run++) {
+          final result = await resolver.resolve(
+            songId: 'song',
+            metadata: metadata,
+            useLrclib: true,
+            cacheServerLyrics: true,
+            forceSyncedUpgrade: true,
+          );
+          expect(result.lyrics.value, 'real words');
+          expect(result.instrumental, isFalse);
+          expect(result.syncedUpgradeMiss, isFalse);
+          final cache = (await database.libraryDao.getExternalLyricsCache(
+            'song',
+          ))!;
+          expect(cache.instrumental, isTrue);
+          expect(cache.source, 'serverPlain');
+          expect(cache.plainLyrics, 'real words');
+        }
+        expect(external.calls, 1);
+      },
+    );
     test('exact fallback caches an instrumental result', () async {
       final result = await LyricsResolver(
         libraryDao: database.libraryDao,
@@ -205,8 +265,23 @@ void main() {
         final cache = (await database.libraryDao.getExternalLyricsCache(
           'song',
         ))!;
-        expect(cache.instrumental, isFalse);
+        expect(cache.instrumental, isTrue);
         expect(cache.plainLyrics, 'real words');
+        await database.libraryDao.upsertExternalLyricsCache(
+          songId: 'song',
+          source: 'serverSynced',
+          syncedLyrics: '[00:01.00]real words',
+        );
+        await database.libraryDao.upsertExternalLyricsCache(
+          songId: 'song',
+          source: 'lrclibPlain',
+          instrumental: true,
+        );
+        final syncedCache = (await database.libraryDao.getExternalLyricsCache(
+          'song',
+        ))!;
+        expect(syncedCache.instrumental, isFalse);
+        expect(syncedCache.syncedLyrics, '[00:01.00]real words');
       },
     );
     for (final synced in [false, true]) {
