@@ -150,7 +150,9 @@ class _TrackInfo extends StatelessWidget {
     final titleStyle = textTheme.titleLarge?.copyWith(
       fontWeight: FontWeight.bold,
       fontSize: titleSize,
-      color: onTitleTap != null ? colorScheme.primary : null,
+      color: onTitleTap != null
+          ? NowPlayingArtworkLayerScope.accentOf(context)
+          : null,
     );
     final artistStyle = textTheme.bodyLarge?.copyWith(
       fontSize: artistSize,

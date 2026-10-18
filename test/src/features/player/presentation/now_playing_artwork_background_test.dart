@@ -99,7 +99,7 @@ void main() {
       }
     }
 
-    test('ranges: dark 0.30-0.80, OLED 0.72-0.92, light 0.58-0.88', () {
+    test('ranges: dark 0.30-0.80, OLED 0.72-0.92, light 0.30-0.70', () {
       const style = NavisColorStyle.neutral;
       expect(
         const NavisColorStyleData(
@@ -121,7 +121,7 @@ void main() {
           style: style,
           dark: false,
         ).nowPlayingArtworkVeilRange,
-        (0.58, 0.88),
+        (0.30, 0.70),
       );
     });
 
@@ -139,25 +139,126 @@ void main() {
       expect(alpha(const Color(0xFF301000)), lessThan(alpha(Colors.white)));
     });
 
-    test('the accent-coloured title also stays readable', () {
+    test('light shows at least 30% of a mid-tone cover, text still passes', () {
+      final theme = buildLightTheme(const Color(0xFF3F7F6F));
+      final scheme = theme.colorScheme;
+      final data = theme.extension<NavisColorStyleData>()!;
+      for (final cover in const <Color>[
+        Color(0xFF6B4F47),
+        Color(0xFF9D6142),
+        Color(0xFF808080),
+      ]) {
+        final veil = nowPlayingAdaptiveVeil(
+          colorStyle: data,
+          surface: scheme.surface,
+          onSurface: scheme.onSurface,
+          accent: scheme.primary,
+          onSurfaceVariant: scheme.onSurfaceVariant,
+          average: cover,
+        );
+        // The old cap (0.88) left 12% of the cover; the loop now decides.
+        expect(veil.a, lessThanOrEqualTo(0.70), reason: '$cover');
+        expect(
+          captionContrast(scheme.onSurface, Color.alphaBlend(veil, cover)),
+          greaterThanOrEqualTo(kNowPlayingArtworkTargetContrast),
+          reason: '$cover',
+        );
+      }
+    });
+
+    test(
+      'light: a tone-40 accent title reaches 3:1 over a near-black cover',
+      () {
+        final theme = buildLightTheme(const Color(0xFF3F7F6F));
+        final scheme = theme.colorScheme;
+        final data = theme.extension<NavisColorStyleData>()!;
+        const cover = Color(0xFF101010);
+        for (final hue in <double>[25, 180]) {
+          final accent = Color(Hct.from(hue, 60, 46).toInt());
+          final veil = nowPlayingAdaptiveVeil(
+            colorStyle: data,
+            surface: scheme.surface,
+            onSurface: scheme.onSurface,
+            accent: accent,
+            average: cover,
+          );
+          final veiled = Color.alphaBlend(veil, cover);
+          // The cap is hit and the accent alone is below WCAG large text.
+          expect(
+            captionContrast(accent, veiled),
+            lessThan(3.0),
+            reason: '$hue',
+          );
+          final title = nowPlayingArtworkAccent(
+            colorStyle: data,
+            surface: scheme.surface,
+            onSurface: scheme.onSurface,
+            accent: accent,
+            average: cover,
+          );
+          expect(
+            captionContrast(title, veiled),
+            greaterThanOrEqualTo(3.0),
+            reason: '$hue',
+          );
+        }
+      },
+    );
+
+    test('light: the fixed veil keeps primary text at 5:1 over black', () {
+      final theme = buildLightTheme(const Color(0xFF3F7F6F));
+      final scheme = theme.colorScheme;
+      final data = theme.extension<NavisColorStyleData>()!;
+      final veil = nowPlayingAdaptiveVeil(
+        colorStyle: data,
+        surface: scheme.surface,
+        onSurface: scheme.onSurface,
+        average: null,
+      );
+      expect(
+        captionContrast(scheme.onSurface, Color.alphaBlend(veil, Colors.black)),
+        greaterThanOrEqualTo(kNowPlayingArtworkTargetContrast),
+      );
+    });
+
+    test('the accent-coloured title raises the veil, within the cap', () {
       const data = NavisColorStyleData(
         style: NavisColorStyle.pastel,
         dark: false,
       );
       const surface = Color(0xFFFFF4F0);
       const accent = Color(0xFFB0453A);
-      const salmon = Color(0xFFE08A70);
-      final veil = nowPlayingAdaptiveVeil(
-        colorStyle: data,
-        surface: surface,
-        onSurface: const Color(0xFF2A1F1D),
-        accent: accent,
-        average: salmon,
-      );
-      expect(
-        captionContrast(accent, Color.alphaBlend(veil, salmon)),
-        greaterThanOrEqualTo(kCaptionMinContrast),
-      );
+      const onSurface = Color(0xFF2A1F1D);
+      // Light's cap (0.70) keeps the cover visible, so a deep accent over a
+      // mid-tone cover may stay below the target; only the primary text is
+      // guaranteed (see the Light cover test above).
+      for (final cover in const <Color>[
+        Color(0xFFE08A70),
+        Color(0xFFF0C8B8),
+        Color(0xFFFFE8E0),
+      ]) {
+        final without = nowPlayingAdaptiveVeil(
+          colorStyle: data,
+          surface: surface,
+          onSurface: onSurface,
+          average: cover,
+        );
+        final withAccent = nowPlayingAdaptiveVeil(
+          colorStyle: data,
+          surface: surface,
+          onSurface: onSurface,
+          accent: accent,
+          average: cover,
+        );
+        expect(withAccent.a, greaterThanOrEqualTo(without.a), reason: '$cover');
+        if (withAccent.a < data.nowPlayingArtworkVeilRange.$2 - 0.001) {
+          expect(
+            captionContrast(accent, Color.alphaBlend(withAccent, cover)),
+            greaterThanOrEqualTo(kNowPlayingArtworkTargetContrast),
+            reason: '$cover',
+          );
+        }
+      }
     });
   });
 
@@ -288,7 +389,7 @@ void main() {
       expect(plain.a, lessThan(0.6));
     });
 
-    test('the desktop lyrics floor is higher in light and OLED', () {
+    test('the desktop lyrics floor: dark 0.6, OLED 0.8, light 0.6', () {
       expect(
         nowPlayingTextAcrossCoverVeilFloor(
           const NavisColorStyleData(style: NavisColorStyle.neutral, dark: true),
@@ -312,7 +413,7 @@ void main() {
             dark: false,
           ),
         ),
-        0.72,
+        0.6,
       );
     });
   });
