@@ -63,6 +63,43 @@ Color nowPlayingAdaptiveVeil({
   return base.withValues(alpha: max);
 }
 
+/// Contrast the accent title falls back to when the veil cap is reached:
+/// WCAG AA for large text.
+const double kNowPlayingArtworkTitleMinContrast = 3.0;
+
+/// The colour for the accent-coloured title over a cover averaging
+/// [average]. The veil cap keeps the cover visible, so when [accent] is under
+/// [kNowPlayingArtworkTitleMinContrast] on the capped veil, the title shifts
+/// from [accent] toward [onSurface] until it reaches it, instead of the veil
+/// getting heavier.
+Color nowPlayingArtworkAccent({
+  required NavisColorStyleData colorStyle,
+  required Color surface,
+  required Color onSurface,
+  required Color accent,
+  required Color average,
+  double? minAlpha,
+}) {
+  final veiled = Color.alphaBlend(
+    nowPlayingAdaptiveVeil(
+      colorStyle: colorStyle,
+      surface: surface,
+      onSurface: onSurface,
+      accent: accent,
+      average: average,
+      minAlpha: minAlpha,
+    ),
+    average,
+  );
+  for (var t = 0.0; t < 1; t += 0.05) {
+    final title = Color.lerp(accent, onSurface, t)!;
+    if (captionContrast(title, veiled) >= kNowPlayingArtworkTitleMinContrast) {
+      return title;
+    }
+  }
+  return onSurface;
+}
+
 /// Average colour of [image], read from its (thumbnail-sized) pixels.
 Future<Color?> averageImageColor(ui.Image image) async {
   final data = await image.toByteData();
