@@ -2136,9 +2136,11 @@ catalog readiness stamps the epoch in its readiness transaction. Package-info
 errors or a five-second metadata timeout are logged and skip renewal without
 changing the stored marker; unreadable stored markers keep it pending.
 The rebuild clears only recoverable library and rolling-cache data, preserves
-permanent downloads, performs a full catalog scan, and records the new marker
-only after that scan promotes successfully. A failed or cancelled rebuild, or
-an unreadable marker, keeps the renewal pending until it can be resolved.
+permanent downloads, listening history, queued scrobbles/feedback, and saved
+queue/device-playlist references (see the library-reset policy below), performs
+a full catalog scan, and records the new marker only after that scan promotes
+successfully. A failed or cancelled rebuild, or an unreadable marker, keeps
+the renewal pending until it can be resolved.
 Completion goes directly
 to versioned onboarding when it is required; otherwise it opens Home. Ordinary
 settings updates must not refresh the router.
@@ -5930,10 +5932,13 @@ download naming throws when all 100 collision candidates are occupied.
    metered-data, and sign-out recovery options on failure, and only then opens
    Home. `LibraryCacheResetService` deliberately preserves permanent downloads
    and their files; the upgrade marker is written only after that full scan.
-   The reset keeps song rows referenced by `play_queue_items` or device-only
-   playlists (`playlists.is_local = 1`), their albums, and artists referenced
-   by those songs or albums. Queue and playlist entries cascade on song deletion;
-   retained songs and parents become provisional.
+   The reset keeps song rows referenced by `play_queue_items`, device-only
+   `playlist_songs` entries (`playlists.is_local = 1`), `play_history`,
+   `scrobble_queue`, or `listenbrainz_feedback_queue`, their albums, and artists
+   referenced by those songs or albums. These five referencing tables cascade on
+   song deletion; retaining the songs preserves listening history and pending
+   submissions,
+   including retry metadata. Retained songs and parents become provisional.
    On-server songs awaiting reconfirmation also receive `pendingRebuild`
    catalog availability, excluding them from normal search even with queue or
    download references. This is distinct from isolated-404 suspicion, which
@@ -5949,8 +5954,27 @@ download naming throws when all 100 collision candidates are occupied.
    as confirmed-missing with `serverDeletedAt` regardless of parent IDs, and
    excluded from normal library selection. Existing playback source resolution
    prunes an unavailable retained song and its saved queue occurrences when no
-   permanent download remains. With neither queue nor device-playlist references,
-   the reset clears the whole library.
+   permanent download remains. With no queue, device-playlist, history, scrobble, or
+   feedback references, the reset clears the whole library. The delete remains
+   one set-based SQL statement.
+
+   Reset cascade audit (Drift table definitions): the five tables above are the
+   only tables with `ON DELETE CASCADE` to songs; none cascade from albums or
+   artists. `songs.album_id`, `songs.artist_id`, and `albums.artist_id` use
+   `SET NULL`; retaining the parent chain preserves history's album/artist joins
+   until rescan. Server playlist contents are recoverable and re-fetched;
+   device playlist contents and saved queue state stay intact. Stars on
+   song/album/artist rows and ratings on song/album rows are server-derived
+   metadata refreshed on rescan; unacknowledged star/rating edits in
+   `star_sync_queue` and mutation fences in `library_sync_local_mutations` have
+   no catalog foreign keys and survive.
+   `cached_tracks` and `download_queue` deliberately have no catalog foreign
+   keys: permanent downloads and queued download work survive, while the reset
+   explicitly removes rolling cache records/files. `external_lyrics_cache`,
+   `album_info_cache`, and `match_flow_songs.song_id` also have no catalog foreign
+   keys and cannot cascade on catalog reset (Match Flow entries cascade only
+   when their own `match_flows` parent is deleted). Lyrics retain their existing
+   cache/garbage-collection policy; this reset adds no cleanup.
 
 ### Download quality, concurrency and artwork
 
