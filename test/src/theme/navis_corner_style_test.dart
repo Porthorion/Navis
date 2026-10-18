@@ -85,10 +85,8 @@ void main() {
         rrect(theme.bottomSheetTheme.shape)!.borderRadius,
         const BorderRadius.vertical(top: Radius.circular(28)),
       );
-      expect(
-        radiusOf(theme.floatingActionButtonTheme.shape),
-        BorderRadius.circular(16),
-      );
+      // A circle on a square FAB (the Material default is 16 px).
+      expect(theme.floatingActionButtonTheme.shape, isA<StadiumBorder>());
       expect(theme.snackBarTheme.shape, isNull);
       expect(theme.navigationBarTheme.indicatorShape, isA<StadiumBorder>());
       expect(theme.navigationRailTheme.indicatorShape, isA<StadiumBorder>());
