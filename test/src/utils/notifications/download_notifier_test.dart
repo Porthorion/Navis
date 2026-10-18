@@ -6,10 +6,10 @@ import 'package:navis/src/utils/notifications/notification_localizations.dart';
 void main() {
   test('download failure notifications use safe generic copy', () {
     final l10n = resolveNotificationLocalizations('en');
-    expect(l10n.notificationDownloadFailedTitle, 'Download failed');
+    expect(l10n.notificationDownloadFailedTitle, 'Download Failed');
     expect(
       l10n.notificationDownloadHeldTitle,
-      'Downloads waiting for storage or access',
+      'Downloads Waiting for Storage or Access',
     );
     expect(l10n.notificationDownloadFailedTitle, isNot(contains(':')));
   });
@@ -17,7 +17,7 @@ void main() {
   test('download notification text comes from localizations', () {
     final l10n = resolveNotificationLocalizations('en');
     expect(l10n.notificationDownloadCompleteTitle('Song'), 'Downloaded: Song');
-    expect(l10n.notificationDownloadProgressMultiple(3), 'Downloading 3 songs');
+    expect(l10n.notificationDownloadProgressMultiple(3), 'Downloading 3 Songs');
     expect(l10n.notificationDownloadProgressPercent(42), '42%');
   });
 
