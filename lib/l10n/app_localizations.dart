@@ -9680,7 +9680,7 @@ abstract class AppLocalizations {
   /// System notification: title of the ongoing library scan progress notification.
   ///
   /// In en, this message translates to:
-  /// **'Scanning library'**
+  /// **'Scanning Library'**
   String get notificationLibraryScanProgressTitle;
 
   /// System notification: progress body: stage label then processed and total counts.
@@ -9696,7 +9696,7 @@ abstract class AppLocalizations {
   /// System notification: title when a library scan finishes.
   ///
   /// In en, this message translates to:
-  /// **'Library scan complete'**
+  /// **'Library Scan Complete'**
   String get notificationLibraryScanCompleteTitle;
 
   /// System notification: body when a scan finished and hydrated albums.
@@ -9720,7 +9720,7 @@ abstract class AppLocalizations {
   /// System notification: title when a library scan fails.
   ///
   /// In en, this message translates to:
-  /// **'Library scan failed'**
+  /// **'Library Scan Failed'**
   String get notificationLibraryScanFailedTitle;
 
   /// System notification: safe recovery body for a failed scan; never includes server detail.
@@ -9732,7 +9732,7 @@ abstract class AppLocalizations {
   /// System notification: title when a library scan is cancelled.
   ///
   /// In en, this message translates to:
-  /// **'Library scan cancelled'**
+  /// **'Library Scan Cancelled'**
   String get notificationLibraryScanCancelledTitle;
 
   /// System notification: recovery body for a cancelled scan.
@@ -9840,7 +9840,7 @@ abstract class AppLocalizations {
   /// System notification: title when a download fails; must not include song IDs or backend detail.
   ///
   /// In en, this message translates to:
-  /// **'Download failed'**
+  /// **'Download Failed'**
   String get notificationDownloadFailedTitle;
 
   /// System notification: title when a song finishes downloading.
@@ -9852,7 +9852,7 @@ abstract class AppLocalizations {
   /// System notification: progress title while several songs download at once.
   ///
   /// In en, this message translates to:
-  /// **'Downloading {count} songs'**
+  /// **'Downloading {count} Songs'**
   String notificationDownloadProgressMultiple(int count);
 
   /// System notification: download progress body, a whole percentage.
@@ -10026,7 +10026,7 @@ abstract class AppLocalizations {
   /// No description provided for @notificationDownloadHeldTitle.
   ///
   /// In en, this message translates to:
-  /// **'Downloads waiting for storage or access'**
+  /// **'Downloads Waiting for Storage or Access'**
   String get notificationDownloadHeldTitle;
 }
 

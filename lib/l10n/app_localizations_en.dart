@@ -6029,7 +6029,7 @@ class AppLocalizationsEn extends AppLocalizations {
       'Library scan progress and completion updates';
 
   @override
-  String get notificationLibraryScanProgressTitle => 'Scanning library';
+  String get notificationLibraryScanProgressTitle => 'Scanning Library';
 
   @override
   String notificationLibraryScanProgressBody(
@@ -6041,7 +6041,7 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
-  String get notificationLibraryScanCompleteTitle => 'Library scan complete';
+  String get notificationLibraryScanCompleteTitle => 'Library Scan Complete';
 
   @override
   String notificationLibraryScanCompleteHydrated(int count) {
@@ -6063,14 +6063,14 @@ class AppLocalizationsEn extends AppLocalizations {
       'Library is already up to date.';
 
   @override
-  String get notificationLibraryScanFailedTitle => 'Library scan failed';
+  String get notificationLibraryScanFailedTitle => 'Library Scan Failed';
 
   @override
   String get notificationLibraryScanFailedBody =>
       'The scan could not finish. Open Navis to try again.';
 
   @override
-  String get notificationLibraryScanCancelledTitle => 'Library scan cancelled';
+  String get notificationLibraryScanCancelledTitle => 'Library Scan Cancelled';
 
   @override
   String get notificationLibraryScanCancelledBody =>
@@ -6134,7 +6134,7 @@ class AppLocalizationsEn extends AppLocalizations {
       'Download queue and progress updates';
 
   @override
-  String get notificationDownloadFailedTitle => 'Download failed';
+  String get notificationDownloadFailedTitle => 'Download Failed';
 
   @override
   String notificationDownloadCompleteTitle(Object title) {
@@ -6143,7 +6143,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String notificationDownloadProgressMultiple(int count) {
-    return 'Downloading $count songs';
+    return 'Downloading $count Songs';
   }
 
   @override
@@ -6257,5 +6257,5 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get notificationDownloadHeldTitle =>
-      'Downloads waiting for storage or access';
+      'Downloads Waiting for Storage or Access';
 }

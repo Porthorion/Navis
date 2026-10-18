@@ -53,6 +53,16 @@ Last updated: 2026-10-18
   reconnect endpoint; resetting only that task-owned fixture database allowed
   the fresh-profile run and its clean restarts to pass. Runtime coverage is
   Linux; native mobile/Apple/Windows builds were not run.
+- [x] Issue #69: device playlists show a 2x2 cover mosaic — 2026-10-18
+  (`fix/device-playlist-mosaic`): Library rows and the playlist detail header
+  reuse `PlaylistCoverMosaic` for device playlists only (server playlists keep
+  the server's `pl-<id>` cover; empty ones keep the placeholder; one album
+  shows a single cover). The header derives ids from the songs it already
+  loads; rows use `devicePlaylistCoverArtIdsProvider`, one grouped
+  `PlaylistDao.watchLocalPlaylistCoverArtIds` query for all device playlists
+  (no per-row query). Tests: `playlist_dao_test.dart`,
+  `playlist_detail_cover_test.dart`, `library_screen_test.dart`. No goldens
+  changed.
 - [x] Issue #52, Pill buttons should be circles — 2026-10-18
   (`fix/pill-fab-circle`): `floatingActionButtonTheme.shape` is a stadium in
   Pill (a circle on the square Playlists and Radio FABs, still fitting the
@@ -2916,3 +2926,4 @@ Latest activity (2026-03-07): published `v0.8.0` APK via `tool/release.sh` and s
   reserved for the coordinator as instructed.
 - 2026-10-17 — Preset edited state (issue #36, branch `feat/preset-dirty-name`): the shared `PresetPicker` reads `<origin>*` for an edited Look or Speed & Pitch preset (plain Custom only without an origin) and offers a visible, confirmed Discard button (text or restore icon, hidden when the origin is unsupported) that re-applies the origin, matching the equalizer; origin values match with floating-point tolerance; long names wrap up to three lines (the field grows only when needed); Speed & Pitch now persists its origin in `selected_playback_preset_id` and reselects the preset when edited back to its values; removed `appearanceLooksCustomEdited`, added `presetDiscardConfirm`. New picker, Looks, Speed & Pitch controller and panel tests; focused picker, controller, panel and Looks/audit files pass (`00:55 +662: All tests passed!` (picker, player presentation, Looks, audit, playback settings)), both Looks goldens unchanged. `./tool/check.sh` and the runtime pass left to the coordinator.
 - 2026-10-18 — Title Case sweep (issue #50, branch `fix/title-case-sweep`): 227 owner-approved `app_en.arb` titles, headings, buttons, menu items and option labels moved to Title Case (status and body text stays sentence case), plus 3 more found in the re-sweep; localizations regenerated, test assertions and the affected goldens updated, and a "UI text casing" rule added to `docs/development/agentic-engineering.md`.
+- 2026-10-18 — Notification Title Case (issue #68, branch `fix/notification-title-case`): seven `app_en.arb` notification titles moved to Title Case ("Scanning Library", "Library Scan Complete", "Library Scan Failed", "Library Scan Cancelled", "Download Failed", "Downloading {count} Songs", "Downloads Waiting for Storage or Access"); bodies, channel descriptions and channel IDs unchanged, and the already-correct hardcoded channel names ("Playback", "Downloads", "Library Scan") left alone. Localizations regenerated with `flutter gen-l10n`; assertions in `test/src/utils/notifications/download_notifier_test.dart` and `library_sync_notifier_test.dart` updated; "UI text casing" rule in `docs/development/agentic-engineering.md` extended and the 1.5.0 Title Case changelog entry folded to cover notifications. `flutter analyze --no-fatal-infos` reports no errors/warnings; both touched test files pass in one run (`00:02 +7: All tests passed!`). `./tool/check.sh` left to the coordinator.

@@ -2781,7 +2781,7 @@
   "@notificationLibraryScanChannelDescription": {
     "description": "System notification: description of the library scan channel in system settings."
   },
-  "notificationLibraryScanProgressTitle": "Scanning library",
+  "notificationLibraryScanProgressTitle": "Scanning Library",
   "@notificationLibraryScanProgressTitle": {
     "description": "System notification: title of the ongoing library scan progress notification."
   },
@@ -2798,7 +2798,7 @@
       }
     }
   },
-  "notificationLibraryScanCompleteTitle": "Library scan complete",
+  "notificationLibraryScanCompleteTitle": "Library Scan Complete",
   "@notificationLibraryScanCompleteTitle": {
     "description": "System notification: title when a library scan finishes."
   },
@@ -2819,7 +2819,7 @@
   "@notificationLibraryScanCompleteUpToDate": {
     "description": "System notification: body when a scan found nothing to change."
   },
-  "notificationLibraryScanFailedTitle": "Library scan failed",
+  "notificationLibraryScanFailedTitle": "Library Scan Failed",
   "@notificationLibraryScanFailedTitle": {
     "description": "System notification: title when a library scan fails."
   },
@@ -2827,7 +2827,7 @@
   "@notificationLibraryScanFailedBody": {
     "description": "System notification: safe recovery body for a failed scan; never includes server detail."
   },
-  "notificationLibraryScanCancelledTitle": "Library scan cancelled",
+  "notificationLibraryScanCancelledTitle": "Library Scan Cancelled",
   "@notificationLibraryScanCancelledTitle": {
     "description": "System notification: title when a library scan is cancelled."
   },
@@ -2899,7 +2899,7 @@
   "@notificationDownloadsChannelDescription": {
     "description": "System notification: description of the downloads channel in system settings."
   },
-  "notificationDownloadFailedTitle": "Download failed",
+  "notificationDownloadFailedTitle": "Download Failed",
   "@notificationDownloadFailedTitle": {
     "description": "System notification: title when a download fails; must not include song IDs or backend detail."
   },
@@ -2910,7 +2910,7 @@
       "title": {}
     }
   },
-  "notificationDownloadProgressMultiple": "Downloading {count} songs",
+  "notificationDownloadProgressMultiple": "Downloading {count} Songs",
   "@notificationDownloadProgressMultiple": {
     "description": "System notification: progress title while several songs download at once.",
     "placeholders": {
@@ -2956,5 +2956,5 @@
   "downloadsFailurePermission": "Navis does not have permission to save this download.",
   "downloadsFailureUnknown": "The download could not be completed. Try again.",
   "downloadsFolderHoldNoSpace": "Downloads are queued because storage is full. Free some space or choose another folder to continue.",
-  "notificationDownloadHeldTitle": "Downloads waiting for storage or access"
+  "notificationDownloadHeldTitle": "Downloads Waiting for Storage or Access"
 }
