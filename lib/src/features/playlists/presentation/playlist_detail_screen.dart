@@ -81,6 +81,15 @@ class _PlaylistDetailScreenState extends ConsumerState<PlaylistDetailScreen> {
         : const <String>{};
     // Keep sync alive
     ref.watch(playlistDetailSyncProvider(widget.playlistId));
+    // A device playlist uploaded to the server: continue on the server copy.
+    ref.listen(
+      playlistMovedToServerProvider.select((moved) => moved[widget.playlistId]),
+      (_, serverId) {
+        if (serverId != null && (ModalRoute.of(context)?.isCurrent ?? false)) {
+          NavService.replacePlaylistDetail(context, serverId);
+        }
+      },
+    );
 
     final desktopMode = resolveAdaptiveContextFor(context).useDesktopShell;
     final playlistBody = playlistAsync.when(

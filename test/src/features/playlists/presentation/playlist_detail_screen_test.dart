@@ -2,6 +2,7 @@ import 'package:material_ui/material_ui.dart';
 import 'package:drift/drift.dart' show Value;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:go_router/go_router.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:navis/l10n/app_localizations.dart';
 import 'package:navis/l10n/navis_localizations.dart';
@@ -19,6 +20,7 @@ import 'package:navis/src/features/playlists/presentation/playlist_detail_screen
 import 'package:navis/src/features/playlists/presentation/playlist_providers.dart';
 import 'package:navis/src/features/settings/domain/app_settings.dart';
 import 'package:navis/src/providers/app_providers.dart';
+import 'package:navis/src/routing/app_routes.dart';
 import 'package:navis/src/routing/desktop_layout.dart';
 
 import '../../../../helpers/adaptive_test_harness.dart';
@@ -46,7 +48,10 @@ class _RecordingSync extends LibrarySyncController {
   LibrarySyncState build() => const LibrarySyncState.idle();
 
   @override
-  Future<LibrarySyncState> requestTarget(LibrarySyncTarget target) async {
+  Future<LibrarySyncState> requestTarget(
+    LibrarySyncTarget target, {
+    bool requireFresh = false,
+  }) async {
     targets.add(target);
     return const LibrarySyncState.idle();
   }
@@ -380,7 +385,10 @@ void main() {
             SongsTableCompanion.insert(id: 'a', title: 'First song'),
             SongsTableCompanion.insert(id: 'b', title: 'Second song'),
           ]);
-          return database.playlistDao.createLocalPlaylist('Device', ['a', 'b']);
+          return await database.playlistDao.createLocalPlaylist('Device', [
+            'a',
+            'b',
+          ]);
         }))!;
         await tester.pumpWidget(
           ProviderScope(
@@ -441,5 +449,68 @@ void main() {
       },
       skip: !sqliteAvailable,
     );
+  });
+
+  testWidgets('an open device playlist moves to its server copy after upload', (
+    tester,
+  ) async {
+    setAdaptiveTestViewport(tester, const Size(390, 844));
+    final database = createTestDatabase();
+    addTearDown(database.close);
+    final router = GoRouter(
+      initialLocation: AppRoutes.playlist('local:1'),
+      routes: [
+        GoRoute(
+          path: '${AppRoutes.library}/playlists/:id',
+          builder: (context, state) => AdaptiveContextScope(
+            adaptiveContext: resolveAdaptiveContext(
+              desktopRuntime: false,
+              viewportSize: const Size(390, 844),
+              safePadding: EdgeInsets.zero,
+            ),
+            child: PlaylistDetailScreen(
+              key: ValueKey(state.pathParameters['id']),
+              playlistId: state.pathParameters['id']!,
+            ),
+          ),
+        ),
+      ],
+    );
+    addTearDown(router.dispose);
+    final container = ProviderContainer(
+      overrides: withTestDatabase(
+        database,
+        overrides: [
+          playlistDetailSyncProvider.overrideWith((ref, id) async {}),
+          appSettingsProvider.overrideWithValue(
+            const AsyncData(AppSettingsModel.defaults()),
+          ),
+          songDownloadStateProvider.overrideWith(
+            (ref, songId) => SongDownloadState.none,
+          ),
+        ],
+      ),
+    );
+    addTearDown(container.dispose);
+    await tester.pumpWidget(
+      UncontrolledProviderScope(
+        container: container,
+        child: MaterialApp.router(
+          theme: testTheme(),
+          localizationsDelegates: navisLocalizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
+          routerConfig: router,
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(router.state.pathParameters['id'], 'local:1');
+
+    container
+        .read(playlistMovedToServerProvider.notifier)
+        .moved('local:1', 'srv1');
+    await tester.pumpAndSettle();
+
+    expect(router.state.pathParameters['id'], 'srv1');
   });
 }

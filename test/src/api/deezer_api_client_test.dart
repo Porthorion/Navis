@@ -6,10 +6,10 @@ import 'package:dio/dio.dart';
 import 'package:fake_async/fake_async.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:navis/src/api/deezer_api_client.dart';
-import 'package:navis/src/api/deezer_request_limiter.dart';
+import 'package:navis/src/api/request_limiter.dart';
 
 /// Records the priority of every request it runs.
-class _RecordingLimiter extends DeezerRequestLimiter {
+class _RecordingLimiter extends RequestLimiter {
   final List<bool> background = <bool>[];
 
   @override
@@ -97,14 +97,14 @@ void main() {
 
   /// What the limiter waited for; its clock moves on by each wait.
   late List<Duration> waits;
-  late DeezerRequestLimiter limiter;
+  late RequestLimiter limiter;
   late DeezerApiClient client;
 
   setUp(() {
     adapter = _DeezerAdapter();
     waits = <Duration>[];
     var clock = Duration.zero;
-    limiter = DeezerRequestLimiter(
+    limiter = RequestLimiter(
       elapsed: () => clock,
       delay: (duration) async {
         waits.add(duration);
@@ -117,7 +117,7 @@ void main() {
 
   test('cancelled waiters spend neither foreground nor background budget', () {
     fakeAsync((async) {
-      final shared = DeezerRequestLimiter(elapsed: () => async.elapsed);
+      final shared = RequestLimiter(elapsed: () => async.elapsed);
       shared.pauseStarts(const Duration(seconds: 1));
       final limited = DeezerApiClient(
         dio: Dio(DeezerApiClient.baseOptions)..httpClientAdapter = adapter,
@@ -150,7 +150,7 @@ void main() {
 
   test('concurrent quota responses share one five second episode', () {
     fakeAsync((async) {
-      final shared = DeezerRequestLimiter(elapsed: () => async.elapsed);
+      final shared = RequestLimiter(elapsed: () => async.elapsed);
       final limited = DeezerApiClient(
         dio: Dio(DeezerApiClient.baseOptions)..httpClientAdapter = adapter,
         limiter: shared,
@@ -178,7 +178,7 @@ void main() {
 
   test('success from before a pause does not reset the next episode', () {
     fakeAsync((async) {
-      final shared = DeezerRequestLimiter(elapsed: () => async.elapsed);
+      final shared = RequestLimiter(elapsed: () => async.elapsed);
       final limited = DeezerApiClient(
         dio: Dio(DeezerApiClient.baseOptions)..httpClientAdapter = adapter,
         limiter: shared,
@@ -407,7 +407,7 @@ void main() {
 
   test('code 4 holds the other requests for the pause too', () {
     fakeAsync((async) {
-      final shared = DeezerRequestLimiter(elapsed: () => async.elapsed);
+      final shared = RequestLimiter(elapsed: () => async.elapsed);
       final limited = DeezerApiClient(
         dio: Dio(DeezerApiClient.baseOptions)..httpClientAdapter = adapter,
         limiter: shared,
@@ -443,7 +443,7 @@ void main() {
 
   test('code 4 pauses before its slot goes to a waiting request', () {
     fakeAsync((async) {
-      final shared = DeezerRequestLimiter(
+      final shared = RequestLimiter(
         elapsed: () => async.elapsed,
         maxInFlight: 1,
       );
@@ -585,7 +585,7 @@ void main() {
   });
 
   test('every request goes through the shared limiter', () async {
-    final limiter = DeezerRequestLimiter(maxInFlight: 1);
+    final limiter = RequestLimiter(maxInFlight: 1);
     final limited = DeezerApiClient(
       dio: Dio(DeezerApiClient.baseOptions)..httpClientAdapter = adapter,
       limiter: limiter,

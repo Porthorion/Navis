@@ -13,6 +13,7 @@ import 'package:navis/src/api/subsonic_api_client.dart';
 import 'package:navis/src/common_widgets/app_notice.dart';
 import 'package:navis/src/common_widgets/shimmer_placeholder.dart';
 import 'package:navis/src/database/daos/local_radio_station_dao.dart';
+import 'package:navis/src/database/navis_database.dart';
 import 'package:navis/src/features/library/data/radio_station_actions.dart';
 import 'package:navis/src/features/library/presentation/radio_screen.dart';
 import 'package:navis/src/providers/app_providers.dart';
@@ -555,7 +556,8 @@ void main() {
         ProviderScope(
           overrides: [
             radioStationsProvider.overrideWith(
-              (ref) async => ++loads == 1 ? const [_station] : refresh.future,
+              (ref) async =>
+                  ++loads == 1 ? const [_station] : await refresh.future,
             ),
             localRadioStationsProvider.overrideWith(
               (ref) => Stream.value(const <InternetRadioStation>[]),
@@ -616,6 +618,21 @@ void main() {
     setUp(() {
       api = _MockApi();
       dao = _MockLocalStations();
+      registerFallbackValue(() async => false);
+      when(() => dao.transaction<bool>(any())).thenAnswer(
+        (call) =>
+            (call.positionalArguments.single as Future<bool> Function())(),
+      );
+      when(() => dao.watchAll()).thenAnswer(
+        (_) => Stream.value([
+          LocalRadioStationsTableData(
+            id: device.id,
+            name: device.name,
+            streamUrl: device.streamUrl,
+            homePageUrl: device.homePageUrl,
+          ),
+        ]),
+      );
       serverChanges = 0;
       actions = RadioStationActions(
         localStations: dao,
@@ -812,10 +829,9 @@ void main() {
       );
     }
 
-    testWidgets('editing never offers the switch and prefills the fields', (
-      tester,
-    ) async {
-      await pump(tester, admin: true);
+    testWidgets('editing a device station prefills the fields and, without '
+        'admin rights, offers no switch', (tester) async {
+      await pump(tester);
       await longPress(tester, device.id);
       await tester.tap(find.text('Edit station'));
       await tester.pumpAndSettle();
@@ -835,6 +851,126 @@ void main() {
         ),
       ).called(1);
       expect(find.byKey(const ValueKey('radioEditorSave')), findsNothing);
+      verifyZeroInteractions(api);
+    });
+
+    testWidgets('a changed device station shows the kept notice', (
+      tester,
+    ) async {
+      final notices = AppNoticeController();
+      addTearDown(notices.dispose);
+      var reads = 0;
+      when(() => api.getInternetRadioStations()).thenAnswer(
+        (_) async => [
+          if (reads++ > 0)
+            InternetRadioStation(
+              id: 'new',
+              name: device.name,
+              streamUrl: device.streamUrl,
+            ),
+        ],
+      );
+      when(() => dao.watchAll()).thenAnswer(
+        (_) => Stream.value([
+          LocalRadioStationsTableData(
+            id: device.id,
+            name: 'Edited',
+            streamUrl: device.streamUrl,
+            homePageUrl: device.homePageUrl,
+          ),
+        ]),
+      );
+      await pump(tester, admin: true, notices: notices);
+      await longPress(tester, device.id);
+      await tester.tap(find.text('Edit station'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const ValueKey('radioEditorSaveToServer')));
+      await save(tester);
+      expect(
+        notices.notice?.message,
+        'Station changed while saving; the device copy was kept',
+      );
+      verifyNever(() => dao.deleteStation(any()));
+      notices.dismiss();
+      await tester.pumpAndSettle();
+    });
+
+    testWidgets('an admin can move a device station to the server', (
+      tester,
+    ) async {
+      var reads = 0;
+      when(() => api.getInternetRadioStations()).thenAnswer(
+        (_) async => [
+          if (reads++ > 0)
+            InternetRadioStation(
+              id: 'new',
+              name: device.name,
+              streamUrl: device.streamUrl,
+            ),
+        ],
+      );
+      await pump(tester, admin: true);
+      await longPress(tester, device.id);
+      await tester.tap(find.text('Edit station'));
+      await tester.pumpAndSettle();
+      expect(
+        tester
+            .widget<SwitchListTile>(
+              find.byKey(const ValueKey('radioEditorSaveToServer')),
+            )
+            .value,
+        isFalse,
+      );
+      await tester.tap(find.byKey(const ValueKey('radioEditorSaveToServer')));
+      await tester.pump();
+      await save(tester);
+      verify(
+        () => api.createInternetRadioStation(
+          name: device.name,
+          streamUrl: device.streamUrl,
+          homepageUrl: device.homePageUrl,
+        ),
+      ).called(1);
+      verify(() => dao.deleteStation(device.id)).called(1);
+      verifyNever(
+        () => dao.upsert(
+          id: any(named: 'id'),
+          name: any(named: 'name'),
+          streamUrl: any(named: 'streamUrl'),
+          homePageUrl: any(named: 'homePageUrl'),
+        ),
+      );
+      expect(serverChanges, 1);
+    });
+
+    testWidgets('a failed move keeps the device station', (tester) async {
+      when(
+        () => api.createInternetRadioStation(
+          name: any(named: 'name'),
+          streamUrl: any(named: 'streamUrl'),
+          homepageUrl: any(named: 'homepageUrl'),
+        ),
+      ).thenThrow(StateError('denied'));
+      await pump(tester, admin: true);
+      await longPress(tester, device.id);
+      await tester.tap(find.text('Edit station'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const ValueKey('radioEditorSaveToServer')));
+      await tester.pump();
+      await save(tester);
+      verifyNever(() => dao.deleteStation(any()));
+      expect(find.byKey(const ValueKey('radioEditorSave')), findsOneWidget);
+    });
+
+    testWidgets('server stations never offer the switch', (tester) async {
+      await pump(tester, admin: true);
+      await longPress(tester, _station.id);
+      await tester.tap(find.text('Edit station'));
+      await tester.pumpAndSettle();
+      expect(
+        find.byKey(const ValueKey('radioEditorSaveToServer')),
+        findsNothing,
+      );
     });
 
     for (final url in ['ftp://radio.example/stream', 'file:///tmp/audio']) {

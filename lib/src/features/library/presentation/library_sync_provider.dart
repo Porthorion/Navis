@@ -632,7 +632,10 @@ class LibrarySyncController extends Notifier<LibrarySyncState> {
     }
   }
 
-  Future<LibrarySyncState> requestTarget(LibrarySyncTarget target) async {
+  Future<LibrarySyncState> requestTarget(
+    LibrarySyncTarget target, {
+    bool requireFresh = false,
+  }) async {
     final engine = ref.read(librarySyncEngineProvider);
     if (engine == null) {
       return state;
@@ -650,6 +653,7 @@ class LibrarySyncController extends Notifier<LibrarySyncState> {
         // the persistent catalog status while requesting one entity.
         onProgress: null,
       ),
+      requireFresh: requireFresh,
     );
   }
 
@@ -1393,14 +1397,32 @@ class LibrarySyncController extends Notifier<LibrarySyncState> {
   /// request. Dedupe only the same durable target key.
   Future<LibrarySyncState> _joinOrStartTargetSync(
     LibrarySyncTarget target,
-    Future<LibrarySyncState> Function() start,
-  ) {
+    Future<LibrarySyncState> Function() start, {
+    bool requireFresh = false,
+  }) {
     final key = librarySyncTargetWorkKey(target);
     final active = _activeTargetSyncs[key];
-    if (active != null) {
+    if (active != null && !requireFresh) {
       return active;
     }
-    final task = start();
+    final generation = _cancellationGeneration;
+    Future<LibrarySyncState> startUnlessCancelled() async {
+      if (!ref.mounted || generation != _cancellationGeneration) {
+        return LibrarySyncState(
+          status: LibrarySyncStatus.cancelled,
+          stage: LibrarySyncStage.completed,
+          completedAt: DateTime.now(),
+        );
+      }
+      return await start();
+    }
+
+    final task = active == null
+        ? startUnlessCancelled()
+        : active.then(
+            (_) => startUnlessCancelled(),
+            onError: (Object error, StackTrace stack) => startUnlessCancelled(),
+          );
     _activeTargetSyncs[key] = task;
     return task.whenComplete(() {
       if (identical(_activeTargetSyncs[key], task)) {

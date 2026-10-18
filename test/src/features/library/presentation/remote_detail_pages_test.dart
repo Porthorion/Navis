@@ -9,7 +9,6 @@ import 'package:go_router/go_router.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:navis/l10n/app_localizations.dart';
 import 'package:navis/l10n/navis_localizations.dart';
-import 'package:navis/src/api/models/artist_ref.dart';
 import 'package:navis/src/api/models/models.dart';
 import 'package:navis/src/common_widgets/app_notice.dart';
 import 'package:navis/src/common_widgets/remote_source_indicator.dart';
@@ -96,7 +95,10 @@ class _ScriptedSync extends LibrarySyncController {
       (await script.next('refresh-artist:$artistId'))!;
 
   @override
-  Future<LibrarySyncState> requestTarget(LibrarySyncTarget target) async =>
+  Future<LibrarySyncState> requestTarget(
+    LibrarySyncTarget target, {
+    bool requireFresh = false,
+  }) async =>
       (await script.next('refresh-${target.kind.name}:${target.entityId}'))!;
 }
 
@@ -129,7 +131,7 @@ void main() {
     database = createTestDatabase();
     script = _HydrationScript();
   });
-  tearDown(() async => database.close());
+  tearDown(() => database.close());
 
   GoRouter router() => GoRouter(
     initialLocation: AppRoutes.library,

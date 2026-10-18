@@ -130,6 +130,15 @@ abstract final class NavService {
     _drillIn(context, ref, AppRoutes.playlist(playlistId));
   }
 
+  /// Swaps the open playlist detail for [playlistId] (a device playlist that
+  /// moved to the server), keeping the back stack.
+  static void replacePlaylistDetail(BuildContext context, String playlistId) {
+    unawaited(
+      GoRouter.of(context)
+          .pushReplacement<void>(AppRoutes.playlist(playlistId)),
+    );
+  }
+
   /// Open a virtual ListenBrainz weekly playlist detail from Home.
   static void openListenBrainzWeeklyDetail(
     BuildContext context,

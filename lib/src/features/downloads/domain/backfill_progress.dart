@@ -12,6 +12,7 @@ class BackfillProgress {
     this.done = 0,
     this.total = 0,
     this.blockedReason = BackfillBlockedReason.none,
+    this.resumeAt,
     this.lastResult = (lyricsResolved: 0, artworkStored: 0),
   });
 
@@ -19,5 +20,6 @@ class BackfillProgress {
   final int done;
   final int total;
   final BackfillBlockedReason blockedReason;
+  final DateTime? resumeAt;
   final BackfillResult lastResult;
 }

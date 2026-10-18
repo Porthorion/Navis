@@ -177,6 +177,21 @@ final playlistServerCreationAvailableProvider = Provider<bool>((ref) {
           ServerReachabilityStatus.offline;
 });
 
+/// Device playlist ids that were uploaded, mapped to their server ids, so an
+/// open detail screen can follow its playlist to the server copy.
+final playlistMovedToServerProvider =
+    NotifierProvider<PlaylistMovedToServerController, Map<String, String>>(
+      PlaylistMovedToServerController.new,
+    );
+
+class PlaylistMovedToServerController extends Notifier<Map<String, String>> {
+  @override
+  Map<String, String> build() => const <String, String>{};
+
+  void moved(String localId, String serverId) =>
+      state = {...state, localId: serverId};
+}
+
 final playlistCreateOnServerProvider =
     NotifierProvider<PlaylistCreateOnServerController, bool>(
       PlaylistCreateOnServerController.new,
@@ -207,7 +222,10 @@ class PlaylistCreateOnServerController extends Notifier<bool> {
 final playlistSyncProvider = FutureProvider.autoDispose<void>((ref) async {
   final result = await ref
       .read(librarySyncControllerProvider.notifier)
-      .requestTarget(const LibrarySyncTarget.playlistHeaders());
+      .requestTarget(
+        const LibrarySyncTarget.playlistHeaders(),
+        requireFresh: true,
+      );
   if (result.status == LibrarySyncStatus.failed) {
     throw StateError(result.errorMessage ?? 'Playlist refresh failed.');
   }
