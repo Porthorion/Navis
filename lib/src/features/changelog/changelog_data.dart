@@ -165,324 +165,6 @@ const List<ChangelogVersion> changelogs = [
       ),
     ],
     entries: [
-      ChangelogEntry(
-        'A playlist saved to the server no longer keeps showing the Navidrome placeholder cover',
-        type: ChangelogEntryType.fix,
-      ),
-      ChangelogEntry(
-        'Instrumental tracks are recognized in lyrics lookups, show “Instrumental” instead of missing lyrics, and are never retried by lyrics backfill, including malformed synced responses and tracks with cached plain lyrics',
-        type: ChangelogEntryType.fix,
-      ),
-      ChangelogEntry(
-        'Playlists on this device now show a 2x2 mosaic of their songs\' covers in the Library and on the playlist page, not just the first song\'s cover',
-      ),
-      ChangelogEntry(
-        'Titles, headings, buttons and menu items now use Title Case consistently across the app',
-      ),
-      ChangelogEntry(
-        'Titles, headings, buttons, menu items, Android notification titles and channel names now use Title Case consistently across the app; notification bodies stay sentence case',
-      ),
-      ChangelogEntry(
-        'With the Pill corner style, the add buttons on Playlists and Radio are now circles instead of rounded squares; Soft and Square are unchanged',
-        type: ChangelogEntryType.fix,
-      ),
-      ChangelogEntry(
-        'Device playlists and radio stations no longer briefly disappear from Library and Search while the lists reload',
-        type: ChangelogEntryType.fix,
-      ),
-      ChangelogEntry(
-        'The Artwork Now Playing background in Light mode shows much more of the cover instead of a near-white wash; text stays readable',
-        type: ChangelogEntryType.fix,
-      ),
-      ChangelogEntry(
-        'Playlist and weekly recommendation rows show album artwork instead of the track number from the song\'s album; album pages keep their track numbers',
-        type: ChangelogEntryType.fix,
-      ),
-      ChangelogEntry(
-        'Filter and choice chips such as the artwork size selector are readable again when Controls is set to White: their labels showed as white on a near-white fill',
-        type: ChangelogEntryType.fix,
-      ),
-      ChangelogEntry(
-        'A playlist that lives only on this device can now be saved on the server: Edit Playlist has a Save on Server switch, preserves edits made during the upload, and reports how many songs the server accepted; admins get the same switch for device radio stations, uncertain uploads keep the device copy until the server result is identified, saving a kept playlist again updates the same server copy, and station edits made during upload stay on the device',
-        type: ChangelogEntryType.newFeature,
-      ),
-      ChangelogEntry(
-        'Downloaded lyrics backfill paces LRCLIB requests and resumes after '
-        'cooldowns with a live countdown while artwork keeps downloading. '
-        'Missing metadata retries automatically at startup, on app resume, '
-        'after library sync and on reconnect; repeat checks reuse verified '
-        'covers and skip recent lyrics misses',
-        type: ChangelogEntryType.fix,
-      ),
-      ChangelogEntry(
-        'Turning shuffle on mid-queue now puts the current song first and shuffles every other song, including played songs, without restarting playback; turning it off restores the original order',
-        type: ChangelogEntryType.fix,
-      ),
-      ChangelogEntry(
-        'Settings > Integrations > Update checks lets you choose where stable builds look for updates, downloads.porthorion.com or GitHub; updates are verified the same way either way',
-        type: ChangelogEntryType.newFeature,
-      ),
-      ChangelogEntry(
-        'Downloads settings lists missing lyrics and artwork with live backfill progress, shows quiet loading and error states, and enables Backfill now when a server connection is configured',
-      ),
-      ChangelogEntry(
-        'Lyrics now prefer the server, with LRCLIB used for a synced upgrade and Now Playing respecting the seven-day failed-upgrade backoff; downloaded albums can recover missing server covers from a confident Deezer match when its artwork integration is enabled',
-        type: ChangelogEntryType.fix,
-      ),
-      ChangelogEntry(
-        'Search now finds your saved playlists and radio stations, with Playlists and Radio filters that appear when your search matches them, including offline',
-        type: ChangelogEntryType.newFeature,
-      ),
-      ChangelogEntry(
-        'A radio station that fails to start restores your previous queue paused, including large queues, and shows one notice instead of leaving an empty player with a Pause button',
-        type: ChangelogEntryType.fix,
-      ),
-      ChangelogEntry(
-        'Looks again save artwork shapes, artwork size, density and artist view alongside colours and style; editing these settings shows Custom and keeps Update available',
-        type: ChangelogEntryType.fix,
-      ),
-      ChangelogEntry(
-        'The offline notice no longer floats over your music: dismissing it, or three failed retries, shrinks the banner into a slim Offline strip that stays in the layout until the server is back, and tapping the strip brings the full banner back',
-        type: ChangelogEntryType.fix,
-      ),
-      ChangelogEntry(
-        'Dragging Now Playing open or closed is smoother: its top edge follows your finger from the mini player and covers the navigation bar as it rises, and it is fullscreen when open',
-        type: ChangelogEntryType.fix,
-      ),
-      ChangelogEntry(
-        'Device-only playlists can be created and edited offline, with '
-        'their songs available to the queue, downloads and Android Auto.',
-        type: ChangelogEntryType.newFeature,
-      ),
-      ChangelogEntry(
-        'Your playlists appear before weekly mixes and other server playlists, under section headings',
-      ),
-      ChangelogEntry('Playlists can be filtered by name'),
-      ChangelogEntry(
-        'The Radio page has a search field on phones and tablets that filters device and server stations by name',
-      ),
-      ChangelogEntry(
-        'Playlists you cannot edit no longer offer rename, delete, reorder or remove, and no longer appear in Add to playlist',
-        type: ChangelogEntryType.fix,
-      ),
-      ChangelogEntry(
-        'Renaming, deleting, reordering or adding to a playlist now tells you when it fails',
-        type: ChangelogEntryType.fix,
-      ),
-      ChangelogEntry(
-        'Saving the queue as a playlist now offers the Save to server choice, falls back to this device when offline, and tells you when it fails',
-        type: ChangelogEntryType.fix,
-      ),
-      ChangelogEntry(
-        'Saving Playback settings keeps newer appearance, Look and Home section choices',
-        type: ChangelogEntryType.fix,
-      ),
-      ChangelogEntry(
-        'Looks and Speed & Pitch presets: after you change a saved preset its picker reads the preset’s name with a * (like the equalizer), a Discard button beside the picker puts the preset back, long names wrap instead of being cut off, and Update keeps working after you leave the page or restart',
-        type: ChangelogEntryType.improvement,
-      ),
-      ChangelogEntry(
-        'Showing the last hidden Home section no longer brings the default hidden sections back',
-        type: ChangelogEntryType.fix,
-      ),
-      ChangelogEntry(
-        'Radio station save failures now appear inside the editor and preserve your input; filters stay usable while server stations load',
-        type: ChangelogEntryType.fix,
-      ),
-      ChangelogEntry(
-        'Add radio stations that stay on this device, and edit or delete stations if you are a server admin',
-        type: ChangelogEntryType.newFeature,
-      ),
-      ChangelogEntry(
-        'The clear-data sign-out confirmation now explicitly includes playlists and radio stations saved on this device',
-        type: ChangelogEntryType.improvement,
-      ),
-      ChangelogEntry(
-        'Brief connection checks no longer falsely report offline at launch or resume, and dismissed offline notices stay dismissed until recovery',
-        type: ChangelogEntryType.fix,
-      ),
-      ChangelogEntry(
-        'The Now Playing settings sheet no longer repeats the Equalizer and Speed & Pitch buttons already in the player controls, and Settings › Playback no longer repeats the Equalizer entry',
-      ),
-      ChangelogEntry(
-        'Reset Defaults on the Playback settings page now resets only playback settings; appearance, Looks, downloads and service connections are left alone',
-        type: ChangelogEntryType.fix,
-      ),
-      ChangelogEntry(
-        'Shuffled queues get a fresh order on repeat or restart and avoid starting with the song that just finished',
-        type: ChangelogEntryType.fix,
-      ),
-      ChangelogEntry(
-        'Shuffle actions turn on the queue toggle and retain the original order when shuffle is turned off',
-        type: ChangelogEntryType.fix,
-      ),
-      ChangelogEntry(
-        'The first song no longer repeats or stalls when it ends while the rest of the queue is loading',
-        type: ChangelogEntryType.fix,
-      ),
-      ChangelogEntry(
-        'Notification, Bluetooth and car controls keep working after Android restarts the media service',
-        type: ChangelogEntryType.fix,
-      ),
-      ChangelogEntry(
-        'A stuck or briefly unavailable credential store no longer shows the login screen for a signed-in profile',
-        type: ChangelogEntryType.fix,
-      ),
-      ChangelogEntry(
-        'Queued ListenBrainz listens are kept when secure storage is briefly unavailable',
-        type: ChangelogEntryType.fix,
-      ),
-      ChangelogEntry(
-        'Playback and radio recover by themselves when the network returns',
-        type: ChangelogEntryType.fix,
-      ),
-      ChangelogEntry(
-        'Play starts automatically when audio becomes available again',
-        type: ChangelogEntryType.fix,
-      ),
-      ChangelogEntry(
-        'Pause and Stop stay in effect when repeated Play requests are still preparing personal radio',
-        type: ChangelogEntryType.fix,
-      ),
-      ChangelogEntry(
-        'Play recovers when a large saved queue is unavailable, repeated Play requests start music reliably, and background sync stays visible after quick pause and resume',
-        type: ChangelogEntryType.fix,
-      ),
-      ChangelogEntry(
-        'Restored queues now honour Previous and newer selections, radio keeps its system metadata, and background sync updates appear when you return',
-        type: ChangelogEntryType.fix,
-      ),
-      ChangelogEntry(
-        'Navis no longer gets stuck on Preparing Playback after being idle; if starting takes too long, you can restart it from the same screen',
-        type: ChangelogEntryType.fix,
-      ),
-      ChangelogEntry(
-        'Navis refreshes its connection and library when you return to it',
-        type: ChangelogEntryType.improvement,
-      ),
-      ChangelogEntry(
-        'Opening Navis during a background library sync takes it over at once and continues from where it stopped, instead of waiting for it to finish',
-        type: ChangelogEntryType.improvement,
-      ),
-      ChangelogEntry(
-        'A library check that meets a busy database waits and retries shortly after instead of reporting a failure',
-        type: ChangelogEntryType.fix,
-      ),
-      ChangelogEntry(
-        'The app and a background sync never run the same library check twice, and an interrupted large library sync rebuilds its progress instead of repeating the same error',
-        type: ChangelogEntryType.fix,
-      ),
-      ChangelogEntry(
-        'Large selections of downloads start more smoothly',
-        type: ChangelogEntryType.fix,
-      ),
-      ChangelogEntry(
-        'Downloaded songs get their lyrics and artwork back reliably: the backfill follows your download network setting instead of always requiring Wi-Fi, retries once the server connection or network appears, and promoted cache downloads fetch lyrics too',
-        type: ChangelogEntryType.fix,
-      ),
-      ChangelogEntry(
-        'Temporary lyrics lookup failures no longer delay retries for a week, and opening server lyrics saves them for downloaded songs',
-        type: ChangelogEntryType.fix,
-      ),
-      ChangelogEntry(
-        'Windows now uses a Navis-built playback engine with complete corresponding source provided alongside the download',
-      ),
-      ChangelogEntry(
-        'The storage-full download notice now clears when the last queued download is cancelled',
-        type: ChangelogEntryType.fix,
-      ),
-      ChangelogEntry(
-        'You Might Like now prefers albums with at least three songs, while keeping shorter releases as a fallback',
-        type: ChangelogEntryType.improvement,
-      ),
-      ChangelogEntry(
-        'The offline banner wording is shorter so it no longer cuts off on phones',
-        type: ChangelogEntryType.fix,
-      ),
-      ChangelogEntry(
-        'The background sync battery tip no longer reappears every time you open Navis after you choose Later',
-        type: ChangelogEntryType.fix,
-      ),
-      ChangelogEntry(
-        'Android downloads are now available per device architecture, and updates choose the matching APK automatically',
-        type: ChangelogEntryType.improvement,
-      ),
-      ChangelogEntry(
-        'Linux downloads now come as .deb, .rpm and a portable archive, and work on older distributions such as Ubuntu 22.04',
-        type: ChangelogEntryType.newFeature,
-      ),
-      ChangelogEntry(
-        'Fixed sign-in and playback getting stuck when secure storage is temporarily unavailable',
-        type: ChangelogEntryType.fix,
-      ),
-      ChangelogEntry(
-        'Android download folders are checked for usability even when their access cannot be made permanent',
-        type: ChangelogEntryType.fix,
-      ),
-      ChangelogEntry(
-        'Fixed Navis sometimes signing you out after sitting in the background for a long time',
-        type: ChangelogEntryType.fix,
-      ),
-      ChangelogEntry(
-        'Fixed the custom download folder on Android being forgotten after an update or restart. If yours shows as unavailable, choose it once more',
-        type: ChangelogEntryType.fix,
-      ),
-      ChangelogEntry(
-        'You Might Like now scrolls both ways right after opening the app',
-        type: ChangelogEntryType.fix,
-      ),
-      ChangelogEntry(
-        'Renamed "Prefer Downloaded or Cached Audio" to "Play cached copies at any quality" to explain what it does',
-        type: ChangelogEntryType.improvement,
-      ),
-      ChangelogEntry(
-        'Tap the cached icon on a song to download it',
-        type: ChangelogEntryType.newFeature,
-      ),
-      ChangelogEntry(
-        'Tap the album art on an album page to view it full size',
-        type: ChangelogEntryType.newFeature,
-      ),
-      ChangelogEntry(
-        'Long-press an album title to copy it',
-        type: ChangelogEntryType.newFeature,
-      ),
-      ChangelogEntry(
-        'Skipping quickly through Personal Radio no longer runs out of songs while more are loading',
-        type: ChangelogEntryType.fix,
-      ),
-      ChangelogEntry(
-        'Fixed a brief freeze when starting Personal Radio and high memory use after listening to it',
-        type: ChangelogEntryType.fix,
-      ),
-      ChangelogEntry(
-        'Fixed brief freezes on Home after syncing a large library and when starting or skipping tracks',
-        type: ChangelogEntryType.fix,
-      ),
-      ChangelogEntry(
-        'Fixed memory use growing during long Instant Radio and Server Mix sessions',
-        type: ChangelogEntryType.fix,
-      ),
-      ChangelogEntry(
-        'Fixed high memory use and possible crashes while syncing large libraries on phones with less memory',
-        type: ChangelogEntryType.fix,
-      ),
-      ChangelogEntry(
-        'Use app storage recovers downloads when the custom folder is unset, missing or inaccessible, preserves unreachable files and records across restart, and switches directly when no folder is configured',
-        type: ChangelogEntryType.fix,
-      ),
-      ChangelogEntry(
-        'Delete all saved Looks and Speed & Pitch presets from Cache & Storage without changing your current values; unsupported playback presets can also be deleted individually',
-        type: ChangelogEntryType.newFeature,
-      ),
-      ChangelogEntry(
-        'ListenBrainz connection errors now explain whether a token was rejected, online services are off, requests are limited, or ListenBrainz is temporarily unavailable; outages keep your token and queued listens',
-        type: ChangelogEntryType.fix,
-      ),
-      ChangelogEntry(
-        'Downloads wait in the queue when a custom folder is missing or inaccessible, with clear actions to choose a folder or use app storage; cancelling folder selection keeps your previous location',
-        type: ChangelogEntryType.fix,
-      ),
       // New
       ChangelogEntry(
         'Color Styles: Pastel, Immersive and Night restyle Light, Dark and OLED, and Neutral keeps the classic look',
@@ -493,7 +175,7 @@ const List<ChangelogVersion> changelogs = [
         type: ChangelogEntryType.newFeature,
       ),
       ChangelogEntry(
-        'Looks save your whole appearance under a name, so you can switch between them in one tap from Settings › Appearance, with Undo right after',
+        'Looks save your whole appearance under a name (colors, style, corners, artwork shapes and size, density and artist view), so you can switch between them in one tap from Settings › Appearance, with Undo right after',
         type: ChangelogEntryType.newFeature,
       ),
       ChangelogEntry(
@@ -537,71 +219,51 @@ const List<ChangelogVersion> changelogs = [
         type: ChangelogEntryType.newFeature,
       ),
       ChangelogEntry(
-        'Updates now come from downloads.porthorion.com and are checked against a signed release list before they install',
+        'Updates now come from downloads.porthorion.com and are checked against a signed release list before they install; Settings › Integrations › Update checks lets you choose downloads.porthorion.com or GitHub instead, and updates are verified the same way either way',
+        type: ChangelogEntryType.newFeature,
+      ),
+      ChangelogEntry(
+        'Search finds your saved playlists and radio stations, with Playlists and Radio filters that appear when your search matches them, including offline',
+        type: ChangelogEntryType.newFeature,
+      ),
+      ChangelogEntry(
+        'Playlists that live only on this device can be created and edited offline, show a 2x2 mosaic of their songs\' covers, and work in the queue, downloads and Android Auto',
+        type: ChangelogEntryType.newFeature,
+      ),
+      ChangelogEntry(
+        'Edit Playlist has a Save on Server switch to move a device playlist to your server; edits made during the upload are kept, Navis tells you how many songs the server accepted, and the device copy stays if the result is unclear. Saving the queue as a playlist offers the same choice and falls back to this device when offline',
+        type: ChangelogEntryType.newFeature,
+      ),
+      ChangelogEntry(
+        'Add radio stations that stay on this device; server admins can also save them on the server and edit or delete server stations. The Radio page has a search field on phones and tablets that filters stations by name',
+        type: ChangelogEntryType.newFeature,
+      ),
+      ChangelogEntry(
+        'Downloads settings lists missing lyrics and artwork with live progress, and Backfill Now fetches them whenever a server connection is set up',
+        type: ChangelogEntryType.newFeature,
+      ),
+      ChangelogEntry(
+        'Delete all saved Looks and Speed & Pitch presets from Cache & Storage without changing your current values; unsupported playback presets can also be deleted individually',
+        type: ChangelogEntryType.newFeature,
+      ),
+      ChangelogEntry(
+        'Shortcuts: tap the cached icon on a song to download it, tap the album art on an album page to view it full size, and long-press an album title to copy it',
+        type: ChangelogEntryType.newFeature,
+      ),
+      ChangelogEntry(
+        'Linux downloads now come as .deb, .rpm and a portable archive, and work on older distributions such as Ubuntu 22.04',
         type: ChangelogEntryType.newFeature,
       ),
 
       // Improved
       ChangelogEntry(
-        'Update, offline and other notices share a calmer new look that follows your colour style',
-      ),
-      ChangelogEntry('Failed downloads say why they failed'),
-      ChangelogEntry(
-        'Downloads check free space first and pause instead of failing when storage runs out',
-      ),
-      ChangelogEntry(
-        'Downloads wait for a connection before retrying, and stop retrying songs the server cannot provide',
-      ),
-      ChangelogEntry(
-        'A download cut short is detected and retried instead of saved incomplete',
-        type: ChangelogEntryType.fix,
-      ),
-      ChangelogEntry(
-        'Finished downloads survive an interrupted save, and only temporary files recorded by Navis are cleaned up in custom folders; recovery preserves files replaced outside Navis',
-        type: ChangelogEntryType.fix,
-      ),
-      ChangelogEntry(
-        'Signing out waits for download recovery and prevents old downloads from being registered after teardown',
-        type: ChangelogEntryType.fix,
-      ),
-      ChangelogEntry(
-        'Downloads in temporarily inaccessible subfolders keep their offline records until access returns',
-        type: ChangelogEntryType.fix,
-      ),
-      ChangelogEntry(
-        'A full Android download folder stays paused instead of repeatedly downloading the same song',
-        type: ChangelogEntryType.fix,
-      ),
-      ChangelogEntry(
-        'Complete gzip-compressed original downloads are saved instead of incorrectly retried as truncated',
-        type: ChangelogEntryType.fix,
-      ),
-      ChangelogEntry(
-        'Opening the queue centres it on the song that is playing',
-      ),
-      ChangelogEntry(
-        'With flat surfaces, You might like sits on the plain page background on phones and desktop',
-      ),
-      ChangelogEntry(
-        'Normal crossfade blends a repeating song into its fresh start with Repeat One; Smart keeps the native loop',
-      ),
-      ChangelogEntry(
-        'Now Playing on phones fits every screen: controls stay within thumb reach, short phones shrink the cover instead of cutting off controls, and tall phones get a larger cover and title',
+        'Now Playing on phones fits every screen: controls stay within thumb reach, short phones shrink the cover instead of cutting off controls, and tall phones get a larger cover and title. Dragging it open or closed is smoother and it covers the navigation bar as it rises',
       ),
       ChangelogEntry(
         'Buttons use one consistent accent: Play is the same solid color everywhere, secondary buttons and selected tabs share one softer shade, and toggles that are off are outlined',
       ),
       ChangelogEntry(
-        'Pulling down to refresh Home or Library also checks for app updates',
-      ),
-      ChangelogEntry(
-        'Navis checks for app updates when you open it or come back to it, at most once an hour, and a found update stays on Home until you install or dismiss it',
-      ),
-      ChangelogEntry(
-        'Dismissing an update on Home keeps it hidden until a different update is available; you can still find it in About',
-      ),
-      ChangelogEntry(
-        'The Sync settings button that refreshes your library is now labelled "Sync library now" to distinguish it from app update checks',
+        'Titles, headings, buttons and menu items, including Android notification titles and channel names, now use Title Case across the app; notification text stays sentence case',
       ),
       ChangelogEntry(
         'Appearance is grouped into Theme, Color, Shape & Layout and Now Playing; Color Scheme is now Accent Color, its swatches preview your style, and custom accent colors have more accurate names',
@@ -610,22 +272,55 @@ const List<ChangelogVersion> changelogs = [
         'Setup shows the new appearance options and Integrations, new options are marked New after an update until you have seen them, and Home invites you to try them',
       ),
       ChangelogEntry(
+        'After you change a Look or a Speed & Pitch preset, its picker shows the preset’s name with a * (like the equalizer), Discard puts the preset back, long names wrap instead of being cut off, and Update keeps working after you leave the page or restart',
+      ),
+      ChangelogEntry(
+        'Home on phones has a slimmer header, so more of You Might Like fits on screen; You Might Like now prefers albums with at least three songs, keeps the same height whatever language the titles are in, and scrolls both ways right after opening the app',
+      ),
+      ChangelogEntry(
+        'Update, offline and other notices share a calmer new look that follows your color style',
+      ),
+      ChangelogEntry(
+        'The offline banner has a Retry button, no longer covers the status bar, and uses shorter wording; dismissing it, or three failed retries, shrinks it into a slim Offline strip that stays until the server is back, and tapping the strip brings the banner back',
+      ),
+      ChangelogEntry(
+        'Navis checks for app updates when you open it or come back to it, at most once an hour, and pulling down to refresh Home or Library checks too; a found update stays on Home until you install or dismiss it, and a dismissed update stays hidden until a different one is available (you can still find it in About)',
+      ),
+      ChangelogEntry(
+        'Navis refreshes its connection and library when you return to it, and opening it during a background library sync takes the sync over at once and continues from where it stopped',
+      ),
+      ChangelogEntry(
+        'Your playlists appear before weekly mixes and other server playlists, under section headings, and playlists can be filtered by name',
+      ),
+      ChangelogEntry(
+        'Clearing data when you sign out now says that playlists and radio stations saved on this device are removed too',
+      ),
+      ChangelogEntry(
         'Album Queue applies to every song list, including Trending Now, playlists, downloads and Home lists; with it off, tapping a song plays just that song',
       ),
       ChangelogEntry(
-        'The offline banner has a Retry button and can be tucked into a small Offline chip, and it no longer covers the status bar',
+        'Opening the queue centers it on the song that is playing, and the Now Playing menu and Settings › Playback no longer repeat the Equalizer and Speed & Pitch entries already in the player controls',
       ),
       ChangelogEntry(
-        'Home on phones has a slimmer header, so more of You Might Like fits on screen',
+        'Normal crossfade blends a repeating song into its fresh start with Repeat One; Smart keeps the native loop',
       ),
       ChangelogEntry(
-        "Artist pages show every release your server offers, the artist's Deezer photo when your server has none, and the Deezer fan count",
+        'Renamed “Prefer Downloaded or Cached Audio” to “Play Cached Copies at Any Quality” to explain what it does',
       ),
       ChangelogEntry(
-        'Top Tracks come from Deezer, topped up from Last.fm, appear sooner and prefer copies in your library; songs your server lacks are marked Not on server',
+        'Downloads are more dependable: they check free space first and pause instead of failing when storage runs out, wait for a connection before retrying, stop retrying songs the server cannot provide, detect a download cut short and retry it, and say why a download failed. Large selections start more smoothly',
       ),
       ChangelogEntry(
-        'Remote artists and albums open on a loading page and fill in as details arrive, instead of showing Not Found',
+        'Downloaded songs get their lyrics and artwork back reliably: the backfill follows your download network setting instead of always requiring Wi-Fi, paces LRCLIB requests and resumes after cooldowns with a live countdown while artwork keeps downloading, retries at startup, on resume, after library sync and when the connection returns, and skips recent misses; downloaded albums can recover missing server covers from a confident Deezer match when its artwork integration is on',
+      ),
+      ChangelogEntry(
+        'Lyrics prefer your server, with LRCLIB used to upgrade to synced lyrics and failed upgrades retried after a week; opening server lyrics saves them for downloaded songs, and a temporary lookup failure no longer delays retries for a week',
+      ),
+      ChangelogEntry(
+        'Artist pages show every release your server offers, the artist’s Deezer photo when your server has none, and the Deezer fan count; remote artists and albums open on a loading page and fill in as details arrive, instead of showing Not Found',
+      ),
+      ChangelogEntry(
+        'Top Tracks come from Deezer, topped up from Last.fm, appear sooner and prefer copies in your library; songs your server lacks are marked Not on Server',
       ),
       ChangelogEntry(
         'Same Vibes starts from the song you chose, Server Mix works from remote songs with a library copy, and recommendations are remembered for a day to reduce online requests',
@@ -634,10 +329,13 @@ const List<ChangelogVersion> changelogs = [
         'ListenBrainz scrobbling, likes and weekly playlists each have their own switch, and Settings › Configuration is now Server Information',
       ),
       ChangelogEntry(
-        'The library cache renews automatically on major and minor upgrades, and very old test installations start fresh',
+        'After updating, Navis rebuilds its library cache once from your server; downloads, sign-in, settings, your queue and playlists on this device are kept, and very old test installations start fresh',
       ),
       ChangelogEntry(
-        'Linux playback and the equalizer work without installing a separate audio library',
+        'Windows uses a Navis-built playback engine with complete corresponding source provided alongside the download, and Linux playback and the equalizer work without installing a separate audio library',
+      ),
+      ChangelogEntry(
+        'Android downloads are now available per device architecture, and updates choose the matching APK automatically',
       ),
       ChangelogEntry(
         "Desktop library data moves out of Documents into Navis's app data folder, and Android keeps Navis data out of system backups",
@@ -649,53 +347,41 @@ const List<ChangelogVersion> changelogs = [
         'Navis is open source under the GNU GPL v3.0 or later; the source code and bug reports live on GitHub',
       ),
 
-      // Fixed: playback
+      // Fixed: playback and queue
       ChangelogEntry(
-        'Radio artist links stay on one ellipsized line on phone Now Playing, keeping the Live label visible at larger text sizes',
+        'Turning shuffle on mid-queue puts the current song first and shuffles every other song, including played songs, without restarting playback; turning it off restores the original order. Shuffled queues get a fresh order on repeat or restart and avoid starting with the song that just finished, and the song shown always matches the song playing',
         type: ChangelogEntryType.fix,
       ),
       ChangelogEntry(
-        'Crossfade restores playback if queue preparation stalls, keeps player updates connected after a cancelled handoff, and preserves mute and ducking during volume changes',
+        'Reset Defaults on the Playback settings page now resets only playback settings; appearance, Looks, downloads and service connections are left alone, and saving Playback settings keeps newer appearance, Look and Home section choices',
         type: ChangelogEntryType.fix,
       ),
       ChangelogEntry(
-        'A failed song selection keeps the playing radio station and its live metadata',
+        'Brief connection checks no longer falsely report offline at launch or resume, and dismissed offline notices stay dismissed until recovery',
         type: ChangelogEntryType.fix,
       ),
       ChangelogEntry(
-        'Crossfade blends locally available songs on mobile data too, respects ReplayGain and volume changes, and keeps the current song playing if the next song cannot fade in',
+        'Dozens of queue fixes: Previous and Next at the ends of the queue, selections with missing library entries, cancelled or slow queue restores, restored queues honoring Previous and newer selections, and the Queue page while a new queue loads. The first song no longer repeats or stalls when it ends while the rest of the queue is loading',
         type: ChangelogEntryType.fix,
       ),
       ChangelogEntry(
-        'Now Playing, the mini player and the notification switch to the song you picked straight away instead of showing the previous song while it loads',
+        'Play starts reliably: repeated Play requests start music, Pause and Stop stay in effect while personal radio is still preparing, Play recovers when a large saved queue is unavailable, and playback and radio resume by themselves when the network or audio returns',
         type: ChangelogEntryType.fix,
       ),
       ChangelogEntry(
-        'Now Playing on phones keeps its progress moving after a seek or a skip, including with Repeat One on',
+        'Navis no longer gets stuck on Preparing Playback after being idle; if starting takes too long, you can restart it from the same screen',
         type: ChangelogEntryType.fix,
       ),
       ChangelogEntry(
-        'Now Playing on phones never turns into a scrolling page, so swiping down always closes it, including with Arabic or Japanese titles',
+        'Now Playing, the mini player and the notification switch to the song you picked straight away instead of showing the previous song while it loads, and Now Playing on phones keeps its progress moving after a seek or a skip, including with Repeat One on',
         type: ChangelogEntryType.fix,
       ),
       ChangelogEntry(
-        'Skipping to a remote song that your server is still fetching plays it instead of jumping past it, and remote songs start promptly on first play',
+        'Seeking in a song that is still streaming no longer restarts it, sticks or stops playback, and the song keeps caching afterwards; skipping to a remote song that your server is still fetching plays it instead of jumping past it',
         type: ChangelogEntryType.fix,
       ),
       ChangelogEntry(
-        'Shuffle keeps the song shown in sync with the song playing, and turning shuffle off restores the original order',
-        type: ChangelogEntryType.fix,
-      ),
-      ChangelogEntry(
-        'Seeking in a song that is still streaming no longer restarts it, sticks or stops playback, and the song keeps caching afterwards',
-        type: ChangelogEntryType.fix,
-      ),
-      ChangelogEntry(
-        'Dozens of queue fixes: Previous and Next at the ends of the queue, selections with missing library entries, cancelled or slow queue restores, and the Queue page while a new queue loads',
-        type: ChangelogEntryType.fix,
-      ),
-      ChangelogEntry(
-        'Playback stays paused after a phone call or audio interruption, and the player shows Play once the queue has finished',
+        'Crossfade blends locally available songs on mobile data too, respects ReplayGain and volume changes, keeps mute and ducking, keeps the current song playing if the next one cannot fade in, and falls back to normal playback if it stalls',
         type: ChangelogEntryType.fix,
       ),
       ChangelogEntry(
@@ -703,61 +389,57 @@ const List<ChangelogVersion> changelogs = [
         type: ChangelogEntryType.fix,
       ),
       ChangelogEntry(
-        'Playback works after signing out and back in without restarting Navis, and a stalled crossfade falls back to normal playback',
+        'Playback stays paused after a phone call or audio interruption, the player shows Play once the queue has finished, and playback works after signing out and back in without restarting Navis',
         type: ChangelogEntryType.fix,
       ),
       ChangelogEntry(
-        'Instant Radio, Same Vibes and Server Mix restart cleanly and stop refilling after repeated failures',
+        'Notification, Bluetooth and car controls keep working after Android restarts the media service, and system media controls keep the right position, queue edits and Next state; Linux media controls send one update per seek',
         type: ChangelogEntryType.fix,
       ),
       ChangelogEntry(
-        'System media controls keep the right position, queue edits and Next state, and Linux media controls send one update per seek',
+        'Instant Radio, Same Vibes and Server Mix restart cleanly and stop refilling after repeated failures; skipping quickly through Personal Radio no longer runs out of songs, and starting it no longer freezes briefly or leaves memory use high',
         type: ChangelogEntryType.fix,
       ),
       ChangelogEntry(
-        'Fullscreen lyrics follow the song that is playing and have a centered title',
+        "Internet radio keeps the station name until a song title arrives, shows live titles on desktop, never shows the previous station's song, keeps its metadata when a song selection fails, and no longer freezes Windows with station artwork. A station that fails to start restores your previous queue paused, including large queues, and shows one notice. Radio artist links stay on one line on phone Now Playing",
         type: ChangelogEntryType.fix,
       ),
       ChangelogEntry(
-        'Album art on screen loads first, switching to the Artwork background no longer stutters, and pull to refresh no longer leaves a spinner on screen',
+        'Now Playing on phones never turns into a scrolling page, so swiping down always closes it, including with Arabic or Japanese titles; fullscreen lyrics follow the song that is playing and have a centered title',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
+        'Instrumental tracks show “Instrumental” instead of missing lyrics and are never retried by the lyrics backfill',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
+        'Brief freezes are gone: on Home after syncing a large library, when starting or skipping tracks, and during long Instant Radio and Server Mix sessions, where memory use also no longer grows. Album art on screen loads first, switching to the Artwork background no longer stutters, and pull to refresh no longer leaves a spinner on screen',
         type: ChangelogEntryType.fix,
       ),
       ChangelogEntry(
         'On Android, skipping songs on a slow connection no longer leaves earlier songs downloading in the background',
         type: ChangelogEntryType.fix,
       ),
-      ChangelogEntry(
-        "Internet radio keeps the station name until a song title arrives, shows live titles on desktop, never shows the previous station's song, and no longer freezes Windows with station artwork",
-        type: ChangelogEntryType.fix,
-      ),
-      ChangelogEntry(
-        'You might like keeps the same height whatever language the titles are in',
-        type: ChangelogEntryType.fix,
-      ),
 
-      // Fixed: library and sync
+      // Fixed: library, playlists and sync
       ChangelogEntry(
-        'First setup no longer stops on albums with incomplete server details or runs a second full sync, and those albums no longer hold up later syncs',
+        'First setup no longer stops on albums with incomplete server details or runs a second full sync, and those albums no longer hold up later syncs; Sync settings show how many albums are still waiting for their track lists and when the library was last checked',
         type: ChangelogEntryType.fix,
       ),
       ChangelogEntry(
-        'Sync settings show how many albums are still waiting for their track lists and when the library was last checked',
+        'Library checks are more reliable: they look further back after big additions, continue while playback is paused, wait for network limits or a busy database without reporting a failure, never run twice at once, rebuild their progress after an interrupted large sync, and recover cleanly after a server change',
         type: ChangelogEntryType.fix,
       ),
       ChangelogEntry(
-        'Library checks are more reliable: they look further back after big additions, continue while playback is paused, wait for network limits without reporting a failure, and recover cleanly after a server change',
+        'Android background sync follows the same freshness rules as foreground sync, waits while music is playing, stays visible after a quick pause and resume, and no longer repeats its battery tip every time you open Navis after you choose Later',
         type: ChangelogEntryType.fix,
       ),
       ChangelogEntry(
-        'Android background sync follows the same freshness rules as foreground sync and waits while music is playing',
+        'Library repairs keep downloads, cached audio and queue entries intact, and missing album and artist artwork refreshes once. High memory use and possible crashes while syncing large libraries on phones with less memory are fixed',
         type: ChangelogEntryType.fix,
       ),
       ChangelogEntry(
-        'Library repairs keep downloads, cached audio and queue entries intact, and missing album and artist artwork refreshes once',
-        type: ChangelogEntryType.fix,
-      ),
-      ChangelogEntry(
-        'Likes, ratings and playlists refresh right after saving, and Home sections added in an update appear even if you reordered yours',
+        'Likes, ratings and playlists refresh right after saving, and Home sections added in an update appear even if you reordered yours; showing the last hidden Home section no longer brings the default hidden sections back',
         type: ChangelogEntryType.fix,
       ),
       ChangelogEntry(
@@ -765,11 +447,37 @@ const List<ChangelogVersion> changelogs = [
         type: ChangelogEntryType.fix,
       ),
       ChangelogEntry(
-        'A cover that timed out while loading is tried again instead of staying blank',
+        'A cover that timed out while loading is tried again instead of staying blank, a playlist saved to the server no longer keeps the Navidrome placeholder cover, and playlist and weekly recommendation rows show album artwork instead of the track number',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
+        'Device playlists and radio stations no longer briefly disappear from Library and Search while the lists reload',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
+        'Playlists you cannot edit no longer offer rename, delete, reorder or remove, and no longer appear in Add to Playlist; renaming, deleting, reordering, or adding to a playlist now tells you when it fails, and a radio station that fails to save shows the error inside the editor and keeps your input',
         type: ChangelogEntryType.fix,
       ),
 
-      // Fixed: updates, privacy and security
+      // Fixed: downloads
+      ChangelogEntry(
+        'Custom download folders are handled safely: downloads wait in the queue when the folder is missing or inaccessible, with clear actions to choose a folder or use app storage, and cancelling folder selection keeps your previous location. On Android the folder is no longer forgotten after an update or restart (if yours shows as unavailable, choose it once more) and is checked for usability even when its access cannot be made permanent. A full folder stays paused instead of repeatedly downloading the same song, and Use App Storage recovers your downloads when the folder is unset, missing or inaccessible',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
+        'Finished downloads survive an interrupted save, complete gzip-compressed downloads are no longer retried as truncated, downloads in temporarily inaccessible subfolders keep their offline records until access returns, and only temporary files Navis recorded are cleaned up in custom folders. Signing out waits for download recovery, and the storage-full notice clears when the last queued download is cancelled',
+        type: ChangelogEntryType.fix,
+      ),
+
+      // Fixed: accounts, updates, privacy and security
+      ChangelogEntry(
+        'Sign-in and playback no longer get stuck, and Navis no longer shows the login screen for a signed-in profile, when secure storage is briefly unavailable; Navis also no longer signs you out after sitting in the background for a long time, and queued ListenBrainz listens are kept',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
+        'ListenBrainz connection errors now explain whether a token was rejected, online services are off, requests are limited, or ListenBrainz is temporarily unavailable; outages keep your token and queued listens. Typing your ListenBrainz token during setup works on phones',
+        type: ChangelogEntryType.fix,
+      ),
       ChangelogEntry(
         'A damaged update download is discarded with a clear message, Windows updates roll back if copying fails, and desktop updates use private temporary folders',
         type: ChangelogEntryType.fix,
@@ -791,11 +499,7 @@ const List<ChangelogVersion> changelogs = [
         type: ChangelogEntryType.fix,
       ),
       ChangelogEntry(
-        'ListenBrainz, Deezer and lyrics requests wait and retry politely when a service is busy',
-        type: ChangelogEntryType.fix,
-      ),
-      ChangelogEntry(
-        'Typing your ListenBrainz token during setup works on phones, and Contact Support opens your email app on Android',
+        'ListenBrainz, Deezer and lyrics requests wait and retry politely when a service is busy, and Contact Support opens your email app on Android',
         type: ChangelogEntryType.fix,
       ),
     ],
