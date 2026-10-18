@@ -210,8 +210,8 @@ void main() {
       ),
     );
     await tester.pumpAndSettle();
-    expect(find.byTooltip('Next items'), findsOneWidget);
-    await tester.tap(find.byTooltip('Next items'));
+    expect(find.byTooltip('Next Items'), findsOneWidget);
+    await tester.tap(find.byTooltip('Next Items'));
     await tester.pumpAndSettle();
     final scrollable = tester.state<ScrollableState>(find.byType(Scrollable));
     final offset = scrollable.position.pixels;
@@ -219,11 +219,11 @@ void main() {
     tester.view.physicalSize = const Size(1000, 800);
     await tester.pumpAndSettle();
     expect(scrollable.position.pixels, offset);
-    expect(find.byTooltip('Previous items'), findsOneWidget);
+    expect(find.byTooltip('Previous Items'), findsOneWidget);
     tester.view.physicalSize = const Size(2200, 800);
     await tester.pumpAndSettle();
-    expect(find.byTooltip('Next items'), findsNothing);
-    expect(find.byTooltip('Previous items'), findsNothing);
+    expect(find.byTooltip('Next Items'), findsNothing);
+    expect(find.byTooltip('Previous Items'), findsNothing);
     expect(tester.takeException(), isNull);
   });
 }

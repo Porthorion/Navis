@@ -147,12 +147,12 @@ class HarnessPage extends ConsumerWidget {
               albumId,
               heroTag: heroTag,
             ),
-            child: const Text('Open album'),
+            child: const Text('Open Album'),
           ),
           TextButton(
             onPressed: () =>
                 NavService.openArtistDetail(context, ref, artistId),
-            child: const Text('Open artist'),
+            child: const Text('Open Artist'),
           ),
           TextButton(
             onPressed: () => NavService.returnToLibrary(context, ref),

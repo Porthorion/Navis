@@ -2194,7 +2194,7 @@ void main() {
       findsNothing,
     );
     expect(find.byTooltip('Previous'), findsNothing);
-    expect(find.byTooltip('Stop radio'), findsOneWidget);
+    expect(find.byTooltip('Stop Radio'), findsOneWidget);
     expect(
       find.byKey(const ValueKey<String>('desktopMiniPlayerVolumeSlider')),
       findsOneWidget,

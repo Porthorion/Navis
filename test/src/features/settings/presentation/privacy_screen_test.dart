@@ -47,7 +47,7 @@ void main() {
     await tester.scrollUntilVisible(link, 200);
     await tester.drag(find.byType(ListView), const Offset(0, -200));
     await tester.pumpAndSettle();
-    expect(find.text('Read the full privacy policy'), findsOneWidget);
+    expect(find.text('Read the Full Privacy Policy'), findsOneWidget);
     await tester.tap(link);
     await tester.pumpAndSettle();
 

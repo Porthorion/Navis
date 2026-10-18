@@ -230,20 +230,20 @@ void main() {
 
     for (final line in <String>[
       'Integrations',
-      'Online services',
+      'Online Services',
       'Off: Navis only talks to your server.',
       "Sends artist, album and track names to api.deezer.com and loads images from Deezer's image servers.",
       'Sends track and artist names to ws.audioscrobbler.com, using the API key included with Navis or your own.',
       'Sends your listens and likes to api.listenbrainz.org.',
       'Sends track title, artist, album and duration to lrclib.net.',
       'Sends an app version check to downloads.porthorion.com.',
-      'Internet radio',
+      'Internet Radio',
       'Fine-tune per feature in Settings › Integrations.',
     ]) {
       expect(find.text(line), findsOneWidget, reason: line);
     }
     // Feature-level switches stay in Settings › Integrations.
-    expect(find.text('Same Vibes mixes'), findsNothing);
+    expect(find.text('Same Vibes Mixes'), findsNothing);
 
     expect(tester.widget<SwitchListTile>(h.master).value, isTrue);
     for (final service in IntegrationService.values) {
@@ -318,7 +318,7 @@ void main() {
     expect(find.text('Needs a verified Last.fm API key.'), findsOneWidget);
 
     await tester.enterText(h.lastFmKey, 'bad-key');
-    await h.tap(find.text('Validate key'));
+    await h.tap(find.text('Validate Key'));
     expect(
       tester.widget<TextField>(h.lastFmKey).decoration!.errorText,
       'Invalid Last.fm API key.',
@@ -327,7 +327,7 @@ void main() {
 
     result = const LastFmApiKeyValidationResult(valid: true);
     await tester.enterText(h.lastFmKey, 'good-key');
-    await h.tap(find.text('Validate key'));
+    await h.tap(find.text('Validate Key'));
     expect(tester.widget<TextField>(h.lastFmKey).decoration!.errorText, isNull);
     final unlocked = h.serviceTile(IntegrationService.lastFm);
     expect(unlocked.value, isTrue);
@@ -347,7 +347,7 @@ void main() {
       expect(h.lastFmKey, findsOneWidget);
 
       await tester.enterText(h.lastFmKey, 'good-key');
-      await h.tap(find.text('Validate key'));
+      await h.tap(find.text('Validate Key'));
       expect(h.serviceTile(IntegrationService.lastFm).value, isTrue);
       expect(h.lastFmKey, findsOneWidget);
 
@@ -389,7 +389,7 @@ void main() {
     expect(tester.widget<TextField>(h.token).obscureText, isFalse);
 
     await tester.enterText(h.token, 'good-token');
-    await h.tap(find.text('Validate and connect'));
+    await h.tap(find.text('Validate and Connect'));
 
     expect(client.userInitiatedCalls, [true]);
     expect(h.credentials.listenBrainzToken, 'good-token');
@@ -430,7 +430,7 @@ void main() {
     expect(
       tester
           .widget<FilledButton>(
-            find.widgetWithText(FilledButton, 'Validate and connect'),
+            find.widgetWithText(FilledButton, 'Validate and Connect'),
           )
           .onPressed,
       isNull,
@@ -438,7 +438,7 @@ void main() {
     expect(
       tester
           .widget<FilledButton>(
-            find.widgetWithText(FilledButton, 'Validate key'),
+            find.widgetWithText(FilledButton, 'Validate Key'),
           )
           .onPressed,
       isNull,
@@ -495,7 +495,7 @@ void main() {
   ) async {
     final h = await _pump(tester, openIntegrationsStep: false);
 
-    await h.tap(find.text('Skip setup'));
+    await h.tap(find.text('Skip Setup'));
     expect(
       find.text(
         'Your current settings will be kept. Before you start, choose which '
@@ -504,7 +504,7 @@ void main() {
       ),
       findsOneWidget,
     );
-    await h.tap(find.widgetWithText(FilledButton, 'Skip setup'));
+    await h.tap(find.widgetWithText(FilledButton, 'Skip Setup'));
 
     expect(find.text('Step 4 of 4'), findsOneWidget);
     expect(find.widgetWithText(TextButton, 'Back'), findsNothing);
@@ -529,8 +529,8 @@ void main() {
 
     await h.tap(h.service(IntegrationService.deezer));
     await h.tap(h.master);
-    await h.tap(find.text('Skip setup'));
-    await h.tap(find.widgetWithText(FilledButton, 'Skip setup'));
+    await h.tap(find.text('Skip Setup'));
+    await h.tap(find.widgetWithText(FilledButton, 'Skip Setup'));
     await tester.runAsync(() => Future<void>.delayed(Duration.zero));
     await tester.pump(const Duration(milliseconds: 300));
     await h.settle();
@@ -574,8 +574,8 @@ void main() {
         reviewMode: reviewMode,
         seed: (dao) => dao.completeOnboarding(currentOnboardingVersion),
       );
-      await h.tap(find.text('Skip setup'));
-      await h.tap(find.widgetWithText(FilledButton, 'Skip setup'));
+      await h.tap(find.text('Skip Setup'));
+      await h.tap(find.widgetWithText(FilledButton, 'Skip Setup'));
       await tester.pump(const Duration(milliseconds: 300));
       await h.settle();
       expect((await h.row()).setupHighlightsSeenRelease, isNull);
@@ -593,8 +593,8 @@ void main() {
       ),
     );
     await h.settle();
-    await h.tap(find.text('Skip setup'));
-    await h.tap(find.widgetWithText(FilledButton, 'Skip setup'));
+    await h.tap(find.text('Skip Setup'));
+    await h.tap(find.widgetWithText(FilledButton, 'Skip Setup'));
     await tester.pump(const Duration(milliseconds: 300));
     await h.settle();
     expect((await h.row()).setupHighlightsSeenRelease, '1.5.0');

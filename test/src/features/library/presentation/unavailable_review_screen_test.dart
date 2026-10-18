@@ -67,11 +67,11 @@ void main() {
 
     expect(find.text('Missing Favorite'), findsOneWidget);
     expect(find.text('An Artist'), findsOneWidget);
-    expect(find.text('Find match'), findsOneWidget);
-    expect(find.text('Keep for later'), findsOneWidget);
+    expect(find.text('Find Match'), findsOneWidget);
+    expect(find.text('Keep for Later'), findsOneWidget);
     expect(find.text('Remove from Liked'), findsOneWidget);
 
-    await tester.tap(find.text('Keep for later'));
+    await tester.tap(find.text('Keep for Later'));
     await tester.pumpAndSettle();
 
     final rows = await pendingRecoveryReviews(database, serverId);
@@ -122,7 +122,7 @@ void main() {
 
     await _pumpScreen(tester, database, serverId);
 
-    await tester.tap(find.text('Find match'));
+    await tester.tap(find.text('Find Match'));
     await tester.pumpAndSettle();
     // The candidate sheet lists the matching canonical song.
     await tester.tap(find.text('Missing Favorite').last);
@@ -130,7 +130,7 @@ void main() {
 
     // The preview shows old and new metadata plus the playlist reference.
     expect(find.text('Relink Item'), findsOneWidget);
-    expect(find.text('Selected replacement'), findsOneWidget);
+    expect(find.text('Selected Replacement'), findsOneWidget);
     expect(find.textContaining('Playlist entries: 1'), findsOneWidget);
 
     await tester.tap(find.text('Relink'));
@@ -180,7 +180,7 @@ void main() {
 
     await _pumpScreen(tester, database, serverId);
 
-    await tester.tap(find.text('Find match'));
+    await tester.tap(find.text('Find Match'));
     await tester.pumpAndSettle();
     await tester.tap(find.text('Missing Favorite').last);
     await tester.pumpAndSettle();

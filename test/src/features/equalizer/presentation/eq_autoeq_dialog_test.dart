@@ -58,7 +58,7 @@ void main() {
   }
 
   Finder refreshButton() =>
-      find.widgetWithText(TextButton, 'Refresh catalogue');
+      find.widgetWithText(TextButton, 'Refresh Catalogue');
 
   testWidgets('refresh is available while AutoEQ is allowed', (tester) async {
     await open(tester, const IntegrationPolicy());

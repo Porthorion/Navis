@@ -208,7 +208,7 @@ void main() {
           if (fromMenu) {
             await tester.longPress(find.text('Second song'));
             await tester.pumpAndSettle();
-            await tester.tap(find.text('Play now'));
+            await tester.tap(find.text('Play Now'));
           } else {
             await tester.tap(find.text('Second song'));
           }
@@ -320,8 +320,8 @@ void main() {
           expect(find.byIcon(Icons.drag_handle), findsNothing);
           await tester.longPress(find.text('Second song'));
           await tester.pumpAndSettle();
-          expect(find.text('Play now'), findsOneWidget);
-          expect(find.text('Remove from playlist'), findsNothing);
+          expect(find.text('Play Now'), findsOneWidget);
+          expect(find.text('Remove from Playlist'), findsNothing);
         },
       );
     }
@@ -342,7 +342,7 @@ void main() {
 
       await tester.longPress(find.text('Second song'));
       await tester.pumpAndSettle();
-      await tester.tap(find.text('Remove from playlist'));
+      await tester.tap(find.text('Remove from Playlist'));
       await tester.pumpAndSettle();
       verify(
         () => actions.removeAt(any(), <String>['playlist-1', 'playlist-2'], 1),
@@ -353,7 +353,7 @@ void main() {
           .thenThrow(StateError('boom'));
       await tester.longPress(find.text('First song'));
       await tester.pumpAndSettle();
-      await tester.tap(find.text('Remove from playlist'));
+      await tester.tap(find.text('Remove from Playlist'));
       await tester.pumpAndSettle();
       expect(notices.notice?.message, 'Failed to remove track');
     });
@@ -449,20 +449,20 @@ void main() {
         );
         await tester.pumpAndSettle();
 
-        expect(find.text('On this device · 2 songs'), findsOneWidget);
+        expect(find.text('On This Device · 2 songs'), findsOneWidget);
         expect(find.byIcon(Icons.drag_handle), findsNWidgets(2));
         expect(sync.targets, isEmpty);
         verifyZeroInteractions(api);
 
         await tester.longPress(find.text('Second song'));
         await tester.pumpAndSettle();
-        await tester.tap(find.text('Remove from playlist'));
+        await tester.tap(find.text('Remove from Playlist'));
         await tester.runAsync(
           () => Future<void>.delayed(const Duration(milliseconds: 50)),
         );
         await tester.pumpAndSettle();
 
-        expect(find.text('On this device · 1 song'), findsOneWidget);
+        expect(find.text('On This Device · 1 song'), findsOneWidget);
         final remaining = await tester.runAsync(
           () => database.playlistDao.watchPlaylistSongs(id).first,
         );

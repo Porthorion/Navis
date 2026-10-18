@@ -121,7 +121,7 @@ void main() {
               AsyncData(<Album>[
                 const Album(
                   id: 'not-liked',
-                  name: 'Not liked',
+                  name: 'Not Liked',
                   coverArt: 'not-liked-cover',
                 ),
                 Album(

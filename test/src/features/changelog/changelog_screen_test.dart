@@ -51,7 +51,7 @@ final List<ChangelogVersion> _versions = <ChangelogVersion>[
       ChangelogHighlight(
         icon: ChangelogHighlightIcon.headphones,
         title: 'AutoEQ',
-        body: 'Headphone profiles',
+        body: 'Headphone Profiles',
       ),
     ],
     specialThanks: const <String>['To a tester.'],
@@ -144,7 +144,7 @@ void main() {
 
     expect(find.text('Navis 9.9.1'), findsOneWidget);
     expect(find.text('Part of Navis 9.9 “Aurora”'), findsOneWidget);
-    expect(find.text('Earlier releases'), findsOneWidget);
+    expect(find.text('Earlier Releases'), findsOneWidget);
     await expectLater(
       find.byType(ChangelogScreen),
       matchesGoldenFile('goldens/changelog_patch_phone_dark.png'),
@@ -177,7 +177,7 @@ void main() {
     );
     await tester.pumpAndSettle();
     expect(find.text('Fixed thing 8'), findsOneWidget);
-    expect(find.text('Show fewer fixes'), findsOneWidget);
+    expect(find.text('Show Fewer Fixes'), findsOneWidget);
   });
 
   testWidgets('type tabs show one kind of change at a time', (tester) async {

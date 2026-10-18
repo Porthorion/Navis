@@ -231,7 +231,7 @@ void main() {
     await tester.tap(find.text('Open picker'));
     await tester.pumpAndSettle();
 
-    expect(find.text('On this device · No songs'), findsOneWidget);
+    expect(find.text('On This Device · No songs'), findsOneWidget);
     await tester.tap(find.text('Device'));
     await tester.runAsync(
       () => Future<void>.delayed(const Duration(milliseconds: 50)),
@@ -250,10 +250,10 @@ void main() {
   testWidgets('New playlist offers the Save to server switch', (tester) async {
     await _openPicker(tester, _MockPlaylistActions());
 
-    await tester.tap(find.text('New playlist'));
+    await tester.tap(find.text('New Playlist'));
     await tester.pumpAndSettle();
 
     expect(find.text('Create Playlist'), findsOneWidget);
-    expect(find.text('Save to server'), findsOneWidget);
+    expect(find.text('Save to Server'), findsOneWidget);
   });
 }

@@ -135,7 +135,7 @@ void main() {
       await _pump(tester, database, api, notices);
 
       await _create(tester, 'One');
-      expect(find.text('Save to server'), findsOneWidget);
+      expect(find.text('Save to Server'), findsOneWidget);
       expect(_switch(tester).value, isTrue);
       await _submit(tester);
       verify(() => api.createPlaylist('One', songIds: const ['a'])).called(1);

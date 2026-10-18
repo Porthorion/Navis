@@ -47,19 +47,19 @@ class _PlaylistTrackMenuPreview extends StatelessWidget {
   Widget build(BuildContext context) {
     final colors = Theme.of(context).colorScheme;
     const transportActions = <Widget>[
-      _ActionTile(icon: Icons.play_arrow_outlined, label: 'Play now'),
+      _ActionTile(icon: Icons.play_arrow_outlined, label: 'Play Now'),
       _ActionTile(icon: Icons.queue_music_outlined, label: 'Add to Queue'),
-      _ActionTile(icon: Icons.playlist_add_outlined, label: 'Play next'),
+      _ActionTile(icon: Icons.playlist_add_outlined, label: 'Play Next'),
     ];
     const utilityActions = <Widget>[
-      _ActionTile(icon: Icons.person_outline, label: 'Go to artist'),
-      _ActionTile(icon: Icons.album_outlined, label: 'Go to album'),
-      _ActionTile(icon: Icons.playlist_add, label: 'Add to playlist'),
+      _ActionTile(icon: Icons.person_outline, label: 'Go to Artist'),
+      _ActionTile(icon: Icons.album_outlined, label: 'Go to Album'),
+      _ActionTile(icon: Icons.playlist_add, label: 'Add to Playlist'),
       _ActionTile(icon: Icons.download_outlined, label: 'Download'),
     ];
     final removeTrack = _ActionTile(
       icon: Icons.remove_circle_outline,
-      label: 'Remove from playlist',
+      label: 'Remove from Playlist',
       color: colors.error,
     );
 

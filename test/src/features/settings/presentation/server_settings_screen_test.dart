@@ -144,7 +144,7 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    expect(find.text('Current connection'), findsOneWidget);
+    expect(find.text('Current Connection'), findsOneWidget);
     expect(find.textContaining('example.com'), findsWidgets);
     expect(find.text('https://example.com'), findsOneWidget);
     expect(find.text('alice'), findsOneWidget);
@@ -192,7 +192,7 @@ void main() {
     expect(find.text('Configuration'), findsNothing);
     // Integrations is its own Settings entry, not repeated here.
     expect(find.text('Integrations'), findsNothing);
-    expect(find.text('Online services'), findsNothing);
+    expect(find.text('Online Services'), findsNothing);
     expect(find.text('External Services'), findsNothing);
     expect(find.byType(TextField), findsNothing);
     expect(find.text('Last.fm'), findsNothing);
@@ -229,7 +229,7 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    await tester.tap(find.text('Test connection'));
+    await tester.tap(find.text('Test Connection'));
     await tester.pump();
 
     expect(fakeConnection.callCount, 1);
@@ -250,7 +250,7 @@ void main() {
 
     // Server details are displayed as static text, not editable form fields.
     expect(find.byType(TextFormField), findsNothing);
-    expect(find.text('Current connection'), findsOneWidget);
+    expect(find.text('Current Connection'), findsOneWidget);
     expect(find.text('https://example.com'), findsOneWidget);
   });
 
@@ -267,12 +267,12 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    await tester.ensureVisible(find.text('Sign out'));
-    await tester.tap(find.text('Sign out'));
+    await tester.ensureVisible(find.text('Sign Out'));
+    await tester.tap(find.text('Sign Out'));
     await tester.pumpAndSettle();
 
-    expect(find.text('Sign out (keep local data)'), findsOneWidget);
-    expect(find.text('Sign out and clear local data'), findsOneWidget);
+    expect(find.text('Sign Out (Keep Local Data)'), findsOneWidget);
+    expect(find.text('Sign Out and Clear Local Data'), findsOneWidget);
   });
 }
 

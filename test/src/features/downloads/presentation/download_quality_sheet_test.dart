@@ -155,13 +155,13 @@ void main() {
       expect(results.last?.automatic, isTrue);
     });
 
-    testWidgets('"Ask every time" keeps asking and never prompts again', (
+    testWidgets('"Ask Every Time" keeps asking and never prompts again', (
       tester,
     ) async {
       final results = await pumpRequester(tester);
 
       await tapAndSettle(tester, find.text('Download'));
-      await tapAndSettle(tester, find.text('Original quality'));
+      await tapAndSettle(tester, find.text('Original Quality'));
       await tapAndSettle(
         tester,
         find.byKey(const ValueKey<String>('downloadQualityAlwaysAsk')),
@@ -233,7 +233,7 @@ void main() {
         'Download queued.',
         const DownloadQualityChoice(automatic: true),
       ),
-      'Download queued · Original quality',
+      'Download queued · Original Quality',
     );
   });
 }

@@ -330,7 +330,7 @@ void main() {
       );
       await tester.pumpAndSettle();
       expect(find.text('Now Playing'), findsOneWidget);
-      await tester.tap(find.byTooltip('Stop radio'));
+      await tester.tap(find.byTooltip('Stop Radio'));
       await tester.pump();
       expect(handler.stops, 1);
       expect(tester.takeException(), isNull);
@@ -487,14 +487,14 @@ void main() {
       expect(find.text('Basement FM'), findsOneWidget);
       expect(find.text('Basement Jazz'), findsOneWidget);
       expect(find.text('Ambient Radio'), findsNothing);
-      expect(find.text('On this device'), findsOneWidget);
-      expect(find.text('On your server'), findsOneWidget);
+      expect(find.text('On This Device'), findsOneWidget);
+      expect(find.text('On Your Server'), findsOneWidget);
 
       await tester.enterText(find.byType(TextField), 'jazz');
       await tester.pumpAndSettle();
       expect(find.text('Basement Jazz'), findsOneWidget);
       expect(find.text('Basement FM'), findsNothing);
-      expect(find.text('On this device'), findsNothing);
+      expect(find.text('On This Device'), findsNothing);
     });
 
     testWidgets('no matches shows the empty state and Show All clears it', (
@@ -785,17 +785,17 @@ void main() {
 
     testWidgets('device stations get their own headed section', (tester) async {
       await pump(tester);
-      expect(find.text('On this device'), findsOneWidget);
-      expect(find.text('On your server'), findsOneWidget);
+      expect(find.text('On This Device'), findsOneWidget);
+      expect(find.text('On Your Server'), findsOneWidget);
       expect(find.text('Basement FM'), findsOneWidget);
       expect(find.text('Ambient Radio'), findsOneWidget);
       expect(
-        tester.getTopLeft(find.text('On this device')).dy,
+        tester.getTopLeft(find.text('On This Device')).dy,
         lessThan(tester.getTopLeft(find.text('Basement FM')).dy),
       );
       expect(
         tester.getTopLeft(find.text('Basement FM')).dy,
-        lessThan(tester.getTopLeft(find.text('On your server')).dy),
+        lessThan(tester.getTopLeft(find.text('On Your Server')).dy),
       );
     });
 
@@ -804,15 +804,15 @@ void main() {
     ) async {
       await pump(tester, local: const []);
       expect(find.text('Ambient Radio'), findsOneWidget);
-      expect(find.text('On this device'), findsNothing);
-      expect(find.text('On your server'), findsNothing);
+      expect(find.text('On This Device'), findsNothing);
+      expect(find.text('On Your Server'), findsNothing);
     });
 
     testWidgets('the type filter applies to both sections', (tester) async {
       await pump(tester, query: 'base');
       expect(find.text('Basement FM'), findsOneWidget);
       expect(find.text('Ambient Radio'), findsNothing);
-      expect(find.text('On your server'), findsNothing);
+      expect(find.text('On Your Server'), findsNothing);
     });
 
     testWidgets('filtered device stations stay empty while server loads', (
@@ -865,8 +865,8 @@ void main() {
     ) async {
       await pump(tester);
       await longPress(tester, device.id);
-      expect(find.text('Edit station'), findsOneWidget);
-      expect(find.text('Delete station'), findsOneWidget);
+      expect(find.text('Edit Station'), findsOneWidget);
+      expect(find.text('Delete Station'), findsOneWidget);
     });
 
     testWidgets('long-press on a server station needs admin rights', (
@@ -874,15 +874,15 @@ void main() {
     ) async {
       await pump(tester);
       await longPress(tester, _station.id);
-      expect(find.text('Edit station'), findsNothing);
-      expect(find.text('Delete station'), findsNothing);
+      expect(find.text('Edit Station'), findsNothing);
+      expect(find.text('Delete Station'), findsNothing);
     });
 
     testWidgets('admins can edit and delete server stations', (tester) async {
       await pump(tester, admin: true);
       await longPress(tester, _station.id);
-      expect(find.text('Edit station'), findsOneWidget);
-      expect(find.text('Delete station'), findsOneWidget);
+      expect(find.text('Edit Station'), findsOneWidget);
+      expect(find.text('Delete Station'), findsOneWidget);
     });
 
     testWidgets('the Save to server switch appears for admins when adding', (
@@ -920,7 +920,7 @@ void main() {
         'admin rights, offers no switch', (tester) async {
       await pump(tester);
       await longPress(tester, device.id);
-      await tester.tap(find.text('Edit station'));
+      await tester.tap(find.text('Edit Station'));
       await tester.pumpAndSettle();
       expect(
         find.byKey(const ValueKey('radioEditorSaveToServer')),
@@ -969,7 +969,7 @@ void main() {
       );
       await pump(tester, admin: true, notices: notices);
       await longPress(tester, device.id);
-      await tester.tap(find.text('Edit station'));
+      await tester.tap(find.text('Edit Station'));
       await tester.pumpAndSettle();
       await tester.tap(find.byKey(const ValueKey('radioEditorSaveToServer')));
       await save(tester);
@@ -998,7 +998,7 @@ void main() {
       );
       await pump(tester, admin: true);
       await longPress(tester, device.id);
-      await tester.tap(find.text('Edit station'));
+      await tester.tap(find.text('Edit Station'));
       await tester.pumpAndSettle();
       expect(
         tester
@@ -1040,7 +1040,7 @@ void main() {
       ).thenThrow(StateError('denied'));
       await pump(tester, admin: true);
       await longPress(tester, device.id);
-      await tester.tap(find.text('Edit station'));
+      await tester.tap(find.text('Edit Station'));
       await tester.pumpAndSettle();
       await tester.tap(find.byKey(const ValueKey('radioEditorSaveToServer')));
       await tester.pump();
@@ -1052,7 +1052,7 @@ void main() {
     testWidgets('server stations never offer the switch', (tester) async {
       await pump(tester, admin: true);
       await longPress(tester, _station.id);
-      await tester.tap(find.text('Edit station'));
+      await tester.tap(find.text('Edit Station'));
       await tester.pumpAndSettle();
       expect(
         find.byKey(const ValueKey('radioEditorSaveToServer')),
@@ -1200,7 +1200,7 @@ void main() {
     testWidgets('the delete dialog describes a device station', (tester) async {
       await pump(tester);
       await longPress(tester, device.id);
-      await tester.tap(find.text('Delete station'));
+      await tester.tap(find.text('Delete Station'));
       await tester.pumpAndSettle();
       expect(find.text('Delete Station?'), findsOneWidget);
       expect(find.text('Basement FM'), findsWidgets);
@@ -1218,7 +1218,7 @@ void main() {
     ) async {
       await pump(tester, admin: true);
       await longPress(tester, _station.id);
-      await tester.tap(find.text('Delete station'));
+      await tester.tap(find.text('Delete Station'));
       await tester.pumpAndSettle();
       expect(
         find.text('This removes the station from the server for everyone.'),
@@ -1234,7 +1234,7 @@ void main() {
     testWidgets('cancelling the delete dialog changes nothing', (tester) async {
       await pump(tester);
       await longPress(tester, device.id);
-      await tester.tap(find.text('Delete station'));
+      await tester.tap(find.text('Delete Station'));
       await tester.pumpAndSettle();
       await tester.tap(find.text('Cancel'));
       await tester.pumpAndSettle();
@@ -1247,7 +1247,7 @@ void main() {
       when(() => dao.deleteStation(any())).thenThrow(StateError('disk'));
       await pump(tester, notices: notices);
       await longPress(tester, device.id);
-      await tester.tap(find.text('Delete station'));
+      await tester.tap(find.text('Delete Station'));
       await tester.pumpAndSettle();
       await tester.tap(find.widgetWithText(FilledButton, 'Delete'));
       await tester.pumpAndSettle();

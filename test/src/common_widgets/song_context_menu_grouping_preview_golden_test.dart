@@ -46,18 +46,18 @@ class _SongMenuPreview extends StatelessWidget {
   Widget build(BuildContext context) {
     final colors = Theme.of(context).colorScheme;
     final actions = <Widget>[
-      const _ActionTile(icon: Icons.play_arrow_outlined, label: 'Play now'),
+      const _ActionTile(icon: Icons.play_arrow_outlined, label: 'Play Now'),
       const _ActionTile(
         icon: Icons.queue_music_outlined,
         label: 'Add to Queue',
       ),
-      const _ActionTile(icon: Icons.playlist_add_outlined, label: 'Play next'),
+      const _ActionTile(icon: Icons.playlist_add_outlined, label: 'Play Next'),
       if (grouped) const Divider(height: 1),
       const _ActionTile(icon: Icons.favorite_border, label: 'Like'),
       const _ActionTile(icon: Icons.star_outline, label: 'Rating'),
-      const _ActionTile(icon: Icons.person_outline, label: 'Go to artist'),
-      const _ActionTile(icon: Icons.album_outlined, label: 'Go to album'),
-      const _ActionTile(icon: Icons.playlist_add, label: 'Add to playlist'),
+      const _ActionTile(icon: Icons.person_outline, label: 'Go to Artist'),
+      const _ActionTile(icon: Icons.album_outlined, label: 'Go to Album'),
+      const _ActionTile(icon: Icons.playlist_add, label: 'Add to Playlist'),
       if (grouped) const Divider(height: 1),
       _ActionTile(
         icon: Icons.delete_outline,

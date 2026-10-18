@@ -69,7 +69,7 @@ void main() {
     await mouse.moveTo(tester.getCenter(find.byIcon(Icons.chevron_right)));
     await tester.pump(const Duration(seconds: 1));
     await tester.pumpAndSettle();
-    expect(find.text('Next items'), findsOneWidget);
+    expect(find.text('Next Items'), findsOneWidget);
   });
 
   testWidgets(
@@ -85,13 +85,13 @@ void main() {
         await mouse.moveTo(tester.getCenter(button));
         await tester.pump(const Duration(seconds: 1));
         await tester.pumpAndSettle();
-        expect(find.text('Next items'), findsNothing);
-        expect(find.byTooltip('Next items'), findsNothing);
-        expect(find.bySemanticsLabel('Next items'), findsOneWidget);
+        expect(find.text('Next Items'), findsNothing);
+        expect(find.byTooltip('Next Items'), findsNothing);
+        expect(find.bySemanticsLabel('Next Items'), findsOneWidget);
         expect(
-          tester.getSemantics(find.bySemanticsLabel('Next items')),
+          tester.getSemantics(find.bySemanticsLabel('Next Items')),
           matchesSemantics(
-            label: 'Next items',
+            label: 'Next Items',
             isButton: true,
             hasEnabledState: true,
             isEnabled: true,
@@ -115,13 +115,13 @@ void main() {
         await tester.pumpAndSettle();
         final afterClick = scrollable.position.pixels;
         expect(afterClick, greaterThan(0));
-        expect(find.byTooltip('Previous items'), findsOneWidget);
+        expect(find.byTooltip('Previous Items'), findsOneWidget);
         Focus.of(tester.element(button)).requestFocus();
         await tester.pump();
         await tester.sendKeyEvent(LogicalKeyboardKey.enter);
         await tester.pumpAndSettle();
         expect(scrollable.position.pixels, greaterThan(afterClick));
-        expect(find.bySemanticsLabel('Next items'), findsOneWidget);
+        expect(find.bySemanticsLabel('Next Items'), findsOneWidget);
         expect(tester.takeException(), isNull);
       } finally {
         semantics.dispose();

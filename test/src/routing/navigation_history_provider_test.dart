@@ -18,7 +18,7 @@ void main() {
     final harness = await _pumpHistoryHarness(tester);
 
     expect(harness.history.stack, <String>[AppRoutes.home]);
-    await harness.tap('Open album');
+    await harness.tap('Open Album');
     expect(harness.history.stack, <String>[
       AppRoutes.home,
       AppRoutes.album('album-1'),
@@ -30,7 +30,7 @@ void main() {
     'back and forward across tabs keep each tab stack and route extras',
     (tester) async {
       final harness = await _pumpHistoryHarness(tester);
-      await harness.tap('Open album');
+      await harness.tap('Open Album');
       await harness.tap('go:search');
       expect(find.text('SearchScreen'), findsOneWidget);
 
@@ -64,7 +64,7 @@ void main() {
     tester,
   ) async {
     final harness = await _pumpHistoryHarness(tester);
-    await harness.tap('Open album');
+    await harness.tap('Open Album');
 
     await tester.binding.handlePopRoute();
     await tester.pumpAndSettle();

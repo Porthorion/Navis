@@ -41,7 +41,7 @@ void main() {
             ),
           ),
         );
-        await tester.tap(find.text('Open album'));
+        await tester.tap(find.text('Open Album'));
         await tester.pumpAndSettle();
         final request = router.state.extra! as AlbumDetailRouteRequest;
         expect(request.fadeOnly, scenario.fade);
@@ -84,7 +84,7 @@ void main() {
         '${origin.tab.name} tab and back returns there', (tester) async {
       final router = await _pumpHarness(tester, origin.location);
 
-      await tester.tap(find.text('Open album').first);
+      await tester.tap(find.text('Open Album').first);
       await tester.pumpAndSettle();
       expect(find.text('Album album-1'), findsOneWidget);
       expect(find.text('tab:${origin.tab.name}'), findsOneWidget);
@@ -101,7 +101,7 @@ void main() {
   ) async {
     await _pumpHarness(tester, AppRoutes.album('album-1'));
 
-    await tester.tap(find.text('Open artist'));
+    await tester.tap(find.text('Open Artist'));
     await tester.pumpAndSettle();
     expect(find.text('Artist artist-1'), findsOneWidget);
 
@@ -114,7 +114,7 @@ void main() {
     tester,
   ) async {
     await _pumpHarness(tester, AppRoutes.home);
-    await tester.tap(find.text('Open album'));
+    await tester.tap(find.text('Open Album'));
     await tester.pumpAndSettle();
 
     await tester.tap(find.text('go:settings'));
@@ -132,7 +132,7 @@ void main() {
     'leave the page on Home',
     (tester) async {
       await _pumpHarness(tester, AppRoutes.home);
-      await tester.tap(find.text('Open album'));
+      await tester.tap(find.text('Open Album'));
       await tester.pumpAndSettle();
 
       final albumPage = find.ancestor(

@@ -168,7 +168,7 @@ void main() {
     expect(find.text('Server URL'), findsOneWidget);
     expect(find.text('Username'), findsOneWidget);
     expect(find.text('Password'), findsOneWidget);
-    expect(find.text('Test connection'), findsNothing);
+    expect(find.text('Test Connection'), findsNothing);
     expect(find.text('Connect'), findsOneWidget);
     await _disposeApp(tester);
   });
@@ -574,12 +574,12 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    expect(find.byTooltip('Show password'), findsOneWidget);
+    expect(find.byTooltip('Show Password'), findsOneWidget);
 
     await tester.tap(find.byIcon(Icons.visibility_outlined));
     await tester.pump();
 
-    expect(find.byTooltip('Hide password'), findsOneWidget);
+    expect(find.byTooltip('Hide Password'), findsOneWidget);
     await _disposeApp(tester);
   });
 }

@@ -115,7 +115,7 @@ void main() {
         tester
             .widget<IconButton>(find.widgetWithIcon(IconButton, Icons.close))
             .tooltip,
-        'Clear search',
+        'Clear Search',
       );
 
       await tester.tap(find.widgetWithIcon(IconButton, Icons.close));

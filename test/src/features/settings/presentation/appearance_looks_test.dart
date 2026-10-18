@@ -304,7 +304,7 @@ void main() {
         'selects it', (tester) async {
       await pump(tester);
       await menu(tester, 'SaveNew');
-      expect(find.text('Look name'), findsOneWidget);
+      expect(find.text('Look Name'), findsOneWidget);
       expect(await submitName(tester, '  Evening  '), isNull);
 
       final saved = looks();

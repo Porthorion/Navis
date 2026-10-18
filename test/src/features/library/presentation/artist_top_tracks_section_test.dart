@@ -295,7 +295,7 @@ void main() {
     await tester.tap(find.byIcon(Icons.more_horiz_rounded));
     await tester.pump(const Duration(milliseconds: 300));
     expect(find.byType(BottomSheet), findsNothing);
-    expect(find.text('Play now'), findsOneWidget);
+    expect(find.text('Play Now'), findsOneWidget);
     await tester.tapAt(const Offset(8, 8));
     await tester.pump(const Duration(milliseconds: 300));
     await tester.pumpWidget(const SizedBox.shrink());

@@ -136,7 +136,7 @@ void main() {
     );
     screen.editNumber('preamp');
     await tester.pumpAndSettle();
-    expect(find.textContaining('Output response:'), findsOneWidget);
+    expect(find.textContaining('Output Response:'), findsOneWidget);
     expect(
       tester.getSize(find.byKey(const ValueKey('eq-graph-plot'))).height,
       greaterThanOrEqualTo(80),
@@ -312,7 +312,7 @@ void main() {
       await tester.pumpAndSettle();
       await tester.tap(find.text('Edit in Advanced'));
       await tester.pumpAndSettle();
-      await tester.tap(find.text('Create a new preset from this curve'));
+      await tester.tap(find.text('Create a New Preset from This Curve'));
       await tester.pumpAndSettle();
       await tester.enterText(find.byType(TextField), 'Current fixed curve');
       await tester.tap(find.text('Save').last);

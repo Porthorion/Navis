@@ -83,7 +83,7 @@ void main() {
     );
     await tester.tap(find.byKey(const ValueKey('deleteAllPresets')));
     await tester.pumpAndSettle();
-    final confirm = find.widgetWithText(FilledButton, 'Delete all presets');
+    final confirm = find.widgetWithText(FilledButton, 'Delete All Presets');
     expect(
       tester.widget<FilledButton>(confirm).style!.backgroundColor!.resolve({}),
       Theme.of(tester.element(confirm)).colorScheme.error,

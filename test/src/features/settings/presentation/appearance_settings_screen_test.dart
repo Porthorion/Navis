@@ -472,7 +472,7 @@ void main() {
       await tester.pump(const Duration(milliseconds: 300));
       final control = find.widgetWithText(
         SwitchListTile,
-        'Automatically advance recommendations',
+        'Automatically Advance Recommendations',
       );
       await tester.scrollUntilVisible(
         control,

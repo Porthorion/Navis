@@ -163,7 +163,7 @@ void main() {
     expect(tester.widget<IconButton>(play).tooltip, isNull);
     expect(find.byType(Tooltip), findsNothing);
     final handle = tester.ensureSemantics();
-    expect(find.bySemanticsLabel('Play album'), findsOneWidget);
+    expect(find.bySemanticsLabel('Play Album'), findsOneWidget);
     handle.dispose();
 
     await mouse.moveTo(Offset.zero);

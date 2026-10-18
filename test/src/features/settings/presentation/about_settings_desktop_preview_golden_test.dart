@@ -70,8 +70,8 @@ class _AboutPreview extends StatelessWidget {
         Text('Data Usage', style: text.titleSmall),
         const SizedBox(height: 8),
         const _UsageRow(label: 'Today', value: '56.6 MB'),
-        const _UsageRow(label: 'Last 7 days', value: '3.65 GB'),
-        const _UsageRow(label: 'Last 30 days', value: '5.79 GB'),
+        const _UsageRow(label: 'Last 7 Days', value: '3.65 GB'),
+        const _UsageRow(label: 'Last 30 Days', value: '5.79 GB'),
         const Divider(height: 36),
         const ListTile(
           contentPadding: EdgeInsets.zero,

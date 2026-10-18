@@ -12,11 +12,11 @@ const _labels = PresetPickerLabels(
   delete: _delete,
   deleteConfirm: _confirm,
   renameTitle: 'Rename preset',
-  nameField: 'Preset name',
+  nameField: 'Preset Name',
   cancel: 'Cancel',
   save: 'Save',
   deleteAction: 'Delete',
-  discard: 'Discard changes',
+  discard: 'Discard Changes',
   discardShort: 'Discard',
   discardConfirm: _discard,
 );

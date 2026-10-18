@@ -64,7 +64,7 @@ void main() {
       find.byType(TextField),
       'Preamp: -3 dB\nFilter 1: ON PK Fc 1000 Hz Gain 99 dB Q 1',
     );
-    await tester.tap(find.text('Preview preset'));
+    await tester.tap(find.text('Preview Preset'));
     await tester.pumpAndSettle();
 
     expect(

@@ -73,7 +73,7 @@ void main() {
     await tester.tap(find.text('Open desktop artist actions'));
     await tester.pumpAndSettle();
 
-    expect(find.text('Open artist'), findsOneWidget);
+    expect(find.text('Open Artist'), findsOneWidget);
     expect(find.text('Play'), findsOneWidget);
   });
 
@@ -166,7 +166,7 @@ void main() {
       await tester.pump(const Duration(milliseconds: 25));
     }
 
-    expect(find.text('Open artist'), findsOneWidget);
+    expect(find.text('Open Artist'), findsOneWidget);
     expect(find.text('Play'), findsOneWidget);
     expect(find.text('Shuffle'), findsOneWidget);
     expect(find.text('Add to Queue'), findsOneWidget);
@@ -196,6 +196,6 @@ void main() {
     await tester.tap(find.text('Desktop artist actions'));
     await tester.pumpAndSettle();
     expect(find.byType(BottomSheet), findsNothing);
-    expect(find.text('Open artist'), findsOneWidget);
+    expect(find.text('Open Artist'), findsOneWidget);
   });
 }

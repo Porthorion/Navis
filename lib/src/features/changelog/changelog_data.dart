@@ -166,6 +166,9 @@ const List<ChangelogVersion> changelogs = [
     ],
     entries: [
       ChangelogEntry(
+        'Titles, headings, buttons and menu items now use Title Case consistently across the app',
+      ),
+      ChangelogEntry(
         'With the Pill corner style, the add buttons on Playlists and Radio are now circles instead of rounded squares; Soft and Square are unchanged',
         type: ChangelogEntryType.fix,
       ),

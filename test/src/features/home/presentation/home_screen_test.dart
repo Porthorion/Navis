@@ -1064,14 +1064,14 @@ void main() {
 
     expect(find.text('Matching'), findsOneWidget);
     // Short labels on the title line; full wording in their tooltips.
-    expect(find.text('Unclear match'), findsOneWidget);
-    expect(find.text('Not on server'), findsOneWidget);
+    expect(find.text('Unclear Match'), findsOneWidget);
+    expect(find.text('Not on Server'), findsOneWidget);
     // These tooltips exclude themselves from semantics, and find.byTooltip
     // reads such messages only from package:flutter's Tooltip type.
     Finder statusTooltip(String message) => find.byWidgetPredicate(
       (widget) => widget is Tooltip && widget.message == message,
     );
-    expect(statusTooltip('Ambiguous match'), findsOneWidget);
+    expect(statusTooltip('Ambiguous Match'), findsOneWidget);
     expect(statusTooltip('Not available on your server'), findsOneWidget);
     expect(find.byTooltip('Matching'), findsOneWidget);
     expect(find.byTooltip('Search'), findsNWidgets(2));
@@ -1115,7 +1115,7 @@ void main() {
       await pumpWith(tester, const AppSettingsModel.defaults());
       expect(tile, findsOneWidget);
       expect(find.byType(MaterialBanner), findsNothing);
-      expect(find.text('Navis v9.9.9 is ready'), findsOneWidget);
+      expect(find.text('Navis v9.9.9 Is Ready'), findsOneWidget);
       expect(find.text('Update on Google Play'), findsOneWidget);
       expect(find.byIcon(Icons.system_update_outlined), findsOneWidget);
       expect(
@@ -1123,7 +1123,7 @@ void main() {
         findsOneWidget,
       );
       expect(find.text('Open in Play Store'), findsOneWidget);
-      expect(find.text('Release notes'), findsOneWidget);
+      expect(find.text('Release Notes'), findsOneWidget);
       expect(
         find.descendant(of: tile, matching: find.byType(FilledButton)),
         findsOneWidget,
@@ -1171,7 +1171,7 @@ void main() {
       testWidgets(entry.key, (tester) async {
         final (info, action, body) = entry.value;
         await pumpWith(tester, const AppSettingsModel.defaults(), info: info);
-        expect(find.text('Navis ${info.tagName} is ready'), findsOneWidget);
+        expect(find.text('Navis ${info.tagName} Is Ready'), findsOneWidget);
         expect(find.text(body), findsOneWidget);
         expect(
           find.descendant(
@@ -1274,7 +1274,7 @@ void main() {
       find.byKey(const ValueKey<String>('changelogDiscoveryOpen')),
       findsOneWidget,
     );
-    expect(find.text('Check out 9.9 “Aurora”'), findsOneWidget);
+    expect(find.text('Check Out 9.9 “Aurora”'), findsOneWidget);
     // One plain line names the highlights instead of a row of chips.
     expect(
       find.text('Equalizer, Speed and pitch, AutoEQ and 1 more'),
@@ -1431,7 +1431,7 @@ void main() {
       expect(integrations, findsNothing);
       expect(setup, findsOneWidget);
       expect(whatsNew, findsNothing);
-      expect(find.text('New appearance options'), findsOneWidget);
+      expect(find.text('New Appearance Options'), findsOneWidget);
 
       // Setup invitation dismissed or acknowledged: What's New returns.
       for (final settings in <AppSettingsModel>[
@@ -1560,7 +1560,7 @@ void main() {
       find.byKey(const ValueKey<String>('changelogDiscoveryOpen')),
       findsOneWidget,
     );
-    expect(find.byTooltip('Dismiss update notes'), findsOneWidget);
+    expect(find.byTooltip('Dismiss Update Notes'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
 
@@ -3806,7 +3806,7 @@ void main() {
     await tester.tap(moreButton);
     await tester.pumpAndSettle();
 
-    expect(find.text('Play now'), findsOneWidget);
+    expect(find.text('Play Now'), findsOneWidget);
     expect(find.byType(BottomSheet), findsNothing);
 
     await tester.tapAt(const Offset(12, 880));
@@ -4047,7 +4047,7 @@ void main() {
         ),
       );
       await tester.pumpAndSettle();
-      expect(find.text('Play now'), findsOneWidget);
+      expect(find.text('Play Now'), findsOneWidget);
 
       await tester.pumpWidget(const SizedBox.shrink());
       await tester.pumpAndSettle();
@@ -4173,7 +4173,7 @@ void main() {
       findsOneWidget,
     );
     expect(
-      find.descendant(of: missingRow, matching: find.text('Not on server')),
+      find.descendant(of: missingRow, matching: find.text('Not on Server')),
       findsOneWidget,
     );
     // Rows are numbered by chart position.
@@ -4246,7 +4246,7 @@ void main() {
         const ValueKey<String>('trending-desktop-row-rank-2'),
       );
       expect(
-        find.descendant(of: missing, matching: find.text('Not on server')),
+        find.descendant(of: missing, matching: find.text('Not on Server')),
         findsOneWidget,
       );
       expect(
@@ -4827,7 +4827,7 @@ const ChangelogVersion _majorRelease = ChangelogVersion(
     ChangelogHighlight(
       icon: ChangelogHighlightIcon.headphones,
       title: 'AutoEQ',
-      body: 'Headphone profiles',
+      body: 'Headphone Profiles',
     ),
     ChangelogHighlight(
       icon: ChangelogHighlightIcon.performance,

@@ -94,7 +94,7 @@ void main() {
     await pump(tester);
 
     expect(open, findsOneWidget);
-    expect(find.text('New appearance options'), findsOneWidget);
+    expect(find.text('New Appearance Options'), findsOneWidget);
     expect(find.text('New in 1.5.0'), findsNothing);
     expect(
       find.text(

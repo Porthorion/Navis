@@ -179,7 +179,9 @@ void main() {
         .getTopLeft(find.text('Server Information'))
         .dy;
     final integrations = tester.getTopLeft(find.text('Integrations')).dy;
-    final nextGroup = tester.getTopLeft(find.text('Device storage & cache')).dy;
+    final nextGroup = tester
+        .getTopLeft(find.text('Device Storage & Cache').first)
+        .dy;
     expect(connection, lessThan(serverInformation));
     expect(serverInformation, lessThan(integrations));
     expect(integrations, lessThan(nextGroup));

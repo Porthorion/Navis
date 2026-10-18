@@ -13,8 +13,8 @@ void main() {
           body: DesktopVolumeSlider(
             volume: 0.37,
             semanticLabel: 'Playback volume',
-            muteTooltip: 'Mute playback',
-            unmuteTooltip: 'Unmute playback',
+            muteTooltip: 'Mute Playback',
+            unmuteTooltip: 'Unmute Playback',
             onChanged: (_) {},
             onChangeEnd: (_) {},
             onMuteToggle: () => muted = true,
@@ -24,8 +24,8 @@ void main() {
     );
 
     expect(find.bySemanticsLabel('Playback volume'), findsOneWidget);
-    expect(find.byTooltip('Mute playback'), findsOneWidget);
-    await tester.tap(find.byTooltip('Mute playback'));
+    expect(find.byTooltip('Mute Playback'), findsOneWidget);
+    await tester.tap(find.byTooltip('Mute Playback'));
     expect(muted, isTrue);
   });
 
@@ -39,8 +39,8 @@ void main() {
           body: DesktopVolumeSlider(
             volume: 0.5,
             semanticLabel: 'Playback volume',
-            muteTooltip: 'Mute playback',
-            unmuteTooltip: 'Unmute playback',
+            muteTooltip: 'Mute Playback',
+            unmuteTooltip: 'Unmute Playback',
             onChanged: (_) {},
             onChangeEnd: (value) => completedValue = value,
             onMuteToggle: () {},
@@ -73,8 +73,8 @@ void main() {
                 volume: 0.5,
                 expanded: true,
                 semanticLabel: 'Playback volume',
-                muteTooltip: 'Mute playback',
-                unmuteTooltip: 'Unmute playback',
+                muteTooltip: 'Mute Playback',
+                unmuteTooltip: 'Unmute Playback',
                 onChanged: (_) {},
                 onChangeEnd: (_) {},
                 onMuteToggle: () {},

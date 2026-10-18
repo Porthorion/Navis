@@ -61,7 +61,7 @@ void main() {
   ) async {
     await pump(tester, shuffleMode: AudioServiceShuffleMode.none);
     expect(toggle(tester).isSelected, isFalse);
-    expect(toggle(tester).tooltip, 'Shuffle off');
+    expect(toggle(tester).tooltip, 'Shuffle Off');
     expect(badge(tester).isLabelVisible, isFalse);
 
     await pump(tester, shuffleMode: AudioServiceShuffleMode.all);
