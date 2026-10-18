@@ -200,7 +200,7 @@ void main() {
     ) async {
       await openIntegrationsStep(tester, const Size(412, 1360));
       expect(hint, findsOneWidget);
-      final row = find.text('Online services');
+      final row = find.text('Online Services');
       final element = tester.element(row);
 
       position(tester).jumpTo(position(tester).maxScrollExtent);

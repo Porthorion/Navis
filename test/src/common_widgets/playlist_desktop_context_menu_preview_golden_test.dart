@@ -128,7 +128,7 @@ class _ActionMenu extends StatelessWidget {
     final entries = <Widget>[
       _ActionRow(
         icon: Icons.play_arrow_outlined,
-        label: 'Play now',
+        label: 'Play Now',
         showIcon: !desktopMenu,
       ),
       _ActionRow(
@@ -138,23 +138,23 @@ class _ActionMenu extends StatelessWidget {
       ),
       _ActionRow(
         icon: Icons.playlist_add_outlined,
-        label: 'Play next',
+        label: 'Play Next',
         showIcon: !desktopMenu,
       ),
       const Divider(height: 1),
       _ActionRow(
         icon: Icons.person_outline,
-        label: 'Go to artist',
+        label: 'Go to Artist',
         showIcon: !desktopMenu,
       ),
       _ActionRow(
         icon: Icons.album_outlined,
-        label: 'Go to album',
+        label: 'Go to Album',
         showIcon: !desktopMenu,
       ),
       _ActionRow(
         icon: Icons.playlist_add,
-        label: 'Add to playlist',
+        label: 'Add to Playlist',
         showIcon: !desktopMenu,
       ),
       _ActionRow(
@@ -165,7 +165,7 @@ class _ActionMenu extends StatelessWidget {
       const Divider(height: 1),
       _ActionRow(
         icon: Icons.remove_circle_outline,
-        label: 'Remove from playlist',
+        label: 'Remove from Playlist',
         color: colors.error,
         showIcon: !desktopMenu,
       ),

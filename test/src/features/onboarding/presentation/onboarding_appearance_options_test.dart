@@ -72,11 +72,11 @@ class _Harness {
   }
 
   Future<void> skip() async {
-    await tap(find.text('Skip setup'));
+    await tap(find.text('Skip Setup'));
     await tap(
       find.descendant(
         of: find.byType(AlertDialog),
-        matching: find.text('Skip setup'),
+        matching: find.text('Skip Setup'),
       ),
     );
     await tester.runAsync(() => Future<void>.delayed(Duration.zero));
@@ -225,7 +225,7 @@ void main() {
 
     expect(find.byType(NewFeatureTag), findsNothing);
     expect(find.text('Night Schedule'), findsOneWidget);
-    await h.tap(find.text('More appearance options'));
+    await h.tap(find.text('More Appearance Options'));
     expect(find.text('Flat Surfaces'), findsOneWidget);
     expect(find.byType(NewFeatureTag), findsNothing);
   });
@@ -697,7 +697,7 @@ void main() {
     });
   });
 
-  group('More appearance options', () {
+  group('More Appearance Options', () {
     const expanderKey = ValueKey<String>('onboarding-more-appearance-options');
 
     testWidgets('keeps Theme Mode, Color Style and Accent Color visible', (
@@ -709,7 +709,7 @@ void main() {
       expect(find.text('Color Style'), findsOneWidget);
       expect(find.text('Night Schedule'), findsOneWidget);
       expect(find.text('Accent Color'), findsOneWidget);
-      expect(find.text('More appearance options'), findsOneWidget);
+      expect(find.text('More Appearance Options'), findsOneWidget);
       for (final hidden in <String>[
         'Flat Surfaces',
         'Corner Style',

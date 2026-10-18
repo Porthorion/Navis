@@ -167,7 +167,7 @@ void main() {
         find.byKey(const ValueKey('playlist-song-menu-duplicate')).last,
       );
       await tester.pumpAndSettle();
-      await tester.tap(find.text('Remove from playlist'));
+      await tester.tap(find.text('Remove from Playlist'));
       await tester.pumpAndSettle();
       verify(
         () => api.updatePlaylist(id: 'occurrences', songIndexesToRemove: [2]),

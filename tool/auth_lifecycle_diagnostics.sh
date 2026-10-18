@@ -442,7 +442,7 @@ PY
     "$OUTPUT_ROOT/existing-interrupted-failed-screenshot.json" \
     > "$OUTPUT_ROOT/existing-interrupted-failed-screenshot-path.txt"
   rm -f "$ALBUM_ERROR_FLAG"
-  # The screen's own "Cancel and sign out" keeps local data. Signing back in
+  # The screen's own "Cancel and Sign Out" keeps local data. Signing back in
   # must start a new setup run automatically rather than showing the
   # cancelled controller.
   baseline_request_id="$(latest_request_id)"

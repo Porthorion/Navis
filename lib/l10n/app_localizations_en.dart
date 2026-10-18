@@ -46,10 +46,10 @@ class AppLocalizationsEn extends AppLocalizations {
   String get loginPasswordLabel => 'Password';
 
   @override
-  String get loginShowPassword => 'Show password';
+  String get loginShowPassword => 'Show Password';
 
   @override
-  String get loginHidePassword => 'Hide password';
+  String get loginHidePassword => 'Hide Password';
 
   @override
   String get loginConnect => 'Connect';
@@ -127,7 +127,7 @@ class AppLocalizationsEn extends AppLocalizations {
       'Initial setup requires a full library download. Confirm to use this metered connection.';
 
   @override
-  String get initialSyncUseMobileData => 'Sync using mobile data';
+  String get initialSyncUseMobileData => 'Sync Using Mobile Data';
 
   @override
   String get initialSyncFailed => 'Your library could not be set up.';
@@ -168,10 +168,10 @@ class AppLocalizationsEn extends AppLocalizations {
       'Signing out did not finish. Try again.';
 
   @override
-  String get requiredSyncSignOut => 'Sign out';
+  String get requiredSyncSignOut => 'Sign Out';
 
   @override
-  String get requiredSyncCancelAndSignOut => 'Cancel and sign out';
+  String get requiredSyncCancelAndSignOut => 'Cancel and Sign Out';
 
   @override
   String get requiredSyncStagePreparing => 'Preparing library';
@@ -268,13 +268,13 @@ class AppLocalizationsEn extends AppLocalizations {
   String get settingsGroupStorage => 'Storage';
 
   @override
-  String get settingsGroupDeviceStorageCache => 'Device storage & cache';
+  String get settingsGroupDeviceStorageCache => 'Device Storage & Cache';
 
   @override
   String get settingsGroupPlayback => 'Playback';
 
   @override
-  String get settingsGroupLibrarySynchronization => 'Library synchronization';
+  String get settingsGroupLibrarySynchronization => 'Library Synchronization';
 
   @override
   String get settingsGroupOther => 'Other';
@@ -297,13 +297,13 @@ class AppLocalizationsEn extends AppLocalizations {
       'Customize desktop key bindings';
 
   @override
-  String get desktopShortcutsReset => 'Reset to defaults';
+  String get desktopShortcutsReset => 'Reset to Defaults';
 
   @override
   String get desktopShortcutsCustomizable => 'Customizable';
 
   @override
-  String get desktopShortcutsBuiltIn => 'Built-in';
+  String get desktopShortcutsBuiltIn => 'Built-In';
 
   @override
   String get desktopShortcutsCaptureSaved =>
@@ -317,7 +317,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get desktopShortcutsWaiting => 'Waiting for new input…';
 
   @override
-  String get desktopShortcutsNotSet => 'Not set';
+  String get desktopShortcutsNotSet => 'Not Set';
 
   @override
   String get desktopShortcutsQuickSearchTitle => 'Quick Search';
@@ -365,7 +365,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get desktopShortcutsGoSettingsDescription => 'Open settings';
 
   @override
-  String get desktopShortcutsToggleNowPlayingTitle => 'Close overlay';
+  String get desktopShortcutsToggleNowPlayingTitle => 'Close Overlay';
 
   @override
   String get desktopShortcutsToggleNowPlayingDescription =>
@@ -486,7 +486,7 @@ class AppLocalizationsEn extends AppLocalizations {
       'Navis does not operate a central account service for your music library. Data is exchanged with your servers and with the online services you leave on in Settings › Integrations.';
 
   @override
-  String get privacyReadFullPolicy => 'Read the full privacy policy';
+  String get privacyReadFullPolicy => 'Read the Full Privacy Policy';
 
   @override
   String get syncSettingsTitle => 'Sync Settings';
@@ -605,7 +605,7 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
-  String get syncSettingsAndroidBackgroundLastAttempt => 'Last Android attempt';
+  String get syncSettingsAndroidBackgroundLastAttempt => 'Last Android Attempt';
 
   @override
   String get syncSettingsAndroidBackgroundNoAttempt =>
@@ -796,16 +796,16 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
-  String get syncSettingsSyncLibraryNow => 'Sync library now';
+  String get syncSettingsSyncLibraryNow => 'Sync Library Now';
 
   @override
   String get syncSettingsFreshnessCurrent => 'Current';
 
   @override
-  String get syncSettingsFreshnessPending => 'Verification pending';
+  String get syncSettingsFreshnessPending => 'Verification Pending';
 
   @override
-  String get syncSettingsFreshnessRepair => 'Repair recommended';
+  String get syncSettingsFreshnessRepair => 'Repair Recommended';
 
   @override
   String syncSettingsRemainingVerification(int count) {
@@ -852,7 +852,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get syncSettingsIntervalLabel => 'Auto-Sync Interval';
 
   @override
-  String get syncSettingsIntervalManual => 'Manual only';
+  String get syncSettingsIntervalManual => 'Manual Only';
 
   @override
   String syncSettingsIntervalMinutes(int minutes) {
@@ -905,7 +905,7 @@ class AppLocalizationsEn extends AppLocalizations {
       'Library updates are available. Use mobile data now or wait for unmetered Wi-Fi.';
 
   @override
-  String get syncSettingsSyncUsingMobileData => 'Sync using mobile data';
+  String get syncSettingsSyncUsingMobileData => 'Sync Using Mobile Data';
 
   @override
   String get syncSettingsRepairLibraryMetadata => 'Repair Library';
@@ -1033,7 +1033,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get playbackSettingsCachedFirstTitle =>
-      'Play cached copies at any quality';
+      'Play Cached Copies at Any Quality';
 
   @override
   String get playbackSettingsCachedFirstSubtitle =>
@@ -1057,7 +1057,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get playbackSettingsResetAction => 'Reset Defaults';
 
   @override
-  String get playbackSettingsQualityOriginal => 'Original quality';
+  String get playbackSettingsQualityOriginal => 'Original Quality';
 
   @override
   String playbackSettingsQualityKbps(int kbps) {
@@ -1065,7 +1065,7 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
-  String get playbackSettingsFormatOriginal => 'Server default';
+  String get playbackSettingsFormatOriginal => 'Server Default';
 
   @override
   String get playbackSettingsSaveFailure =>
@@ -1116,10 +1116,10 @@ class AppLocalizationsEn extends AppLocalizations {
   String get playbackVolumeSemanticLabel => 'Playback volume';
 
   @override
-  String get playbackMuteTooltip => 'Mute playback';
+  String get playbackMuteTooltip => 'Mute Playback';
 
   @override
-  String get playbackUnmuteTooltip => 'Unmute playback';
+  String get playbackUnmuteTooltip => 'Unmute Playback';
 
   @override
   String get playbackSettingsReplayGainModeLabel => 'ReplayGain Mode';
@@ -1146,7 +1146,7 @@ class AppLocalizationsEn extends AppLocalizations {
       'Normalize volume on a per-album basis, preserving relative loudness.';
 
   @override
-  String get playbackSettingsReplayGainPreampLabel => 'Pre-amp (dB)';
+  String get playbackSettingsReplayGainPreampLabel => 'Pre-Amp (dB)';
 
   @override
   String get playbackSettingsReplayGainPreampSubtitle =>
@@ -1265,7 +1265,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get weeklyPlaylistLoading => 'Loading playlist...';
 
   @override
-  String get weeklyPlaylistNoTracksYet => 'No tracks yet';
+  String get weeklyPlaylistNoTracksYet => 'No Tracks Yet';
 
   @override
   String get weeklyPlaylistReady => 'Ready';
@@ -1277,16 +1277,16 @@ class AppLocalizationsEn extends AppLocalizations {
   String get weeklyPlaylistSearchAction => 'Search';
 
   @override
-  String get weeklyPlaylistAmbiguousMatch => 'Ambiguous match';
+  String get weeklyPlaylistAmbiguousMatch => 'Ambiguous Match';
 
   @override
   String get weeklyPlaylistTrackUnavailable => 'Not available on your server';
 
   @override
-  String get weeklyPlaylistTrackUnavailableShort => 'Not on server';
+  String get weeklyPlaylistTrackUnavailableShort => 'Not on Server';
 
   @override
-  String get weeklyPlaylistAmbiguousMatchShort => 'Unclear match';
+  String get weeklyPlaylistAmbiguousMatchShort => 'Unclear Match';
 
   @override
   String get homeShowcaseReasonLikedDiscovery => 'Similar to your likes';
@@ -1456,22 +1456,22 @@ class AppLocalizationsEn extends AppLocalizations {
       'This server does not expose internet radio station endpoints.';
 
   @override
-  String get radioStopStation => 'Stop radio';
+  String get radioStopStation => 'Stop Radio';
 
   @override
-  String get radioAddStation => 'Add station';
+  String get radioAddStation => 'Add Station';
 
   @override
-  String get radioEditStation => 'Edit station';
+  String get radioEditStation => 'Edit Station';
 
   @override
-  String get radioDeleteStation => 'Delete station';
+  String get radioDeleteStation => 'Delete Station';
 
   @override
-  String get radioSectionDevice => 'On this device';
+  String get radioSectionDevice => 'On This Device';
 
   @override
-  String get radioSectionServer => 'On your server';
+  String get radioSectionServer => 'On Your Server';
 
   @override
   String get radioEditorNameLabel => 'Name';
@@ -1480,7 +1480,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get radioEditorStreamUrlLabel => 'Stream URL';
 
   @override
-  String get radioEditorHomepageLabel => 'Homepage (optional)';
+  String get radioEditorHomepageLabel => 'Homepage (Optional)';
 
   @override
   String get radioEditorNameError => 'Enter a name for this station.';
@@ -1542,7 +1542,7 @@ class AppLocalizationsEn extends AppLocalizations {
       'No active server session. Sign in to manage server settings.';
 
   @override
-  String get serverSettingsCurrentConnection => 'Current connection';
+  String get serverSettingsCurrentConnection => 'Current Connection';
 
   @override
   String get serverSettingsNameLabel => 'Name';
@@ -1563,22 +1563,22 @@ class AppLocalizationsEn extends AppLocalizations {
   String get serverSettingsAuthModeToken => 'Token';
 
   @override
-  String get serverSettingsAuthModeLegacy => 'Legacy password';
+  String get serverSettingsAuthModeLegacy => 'Legacy Password';
 
   @override
-  String get serverSettingsTestConnection => 'Test connection';
+  String get serverSettingsTestConnection => 'Test Connection';
 
   @override
   String get serverSettingsSave => 'Save';
 
   @override
-  String get serverSettingsSignOut => 'Sign out';
+  String get serverSettingsSignOut => 'Sign Out';
 
   @override
-  String get serverSettingsSignOutKeepData => 'Sign out (keep local data)';
+  String get serverSettingsSignOutKeepData => 'Sign Out (Keep Local Data)';
 
   @override
-  String get serverSettingsSignOutWipeData => 'Sign out and clear local data';
+  String get serverSettingsSignOutWipeData => 'Sign Out and Clear Local Data';
 
   @override
   String get serverSettingsSignOutSuccess =>
@@ -1646,7 +1646,7 @@ class AppLocalizationsEn extends AppLocalizations {
       'ListenBrainz is unavailable right now. Your token was not rejected. Check your connection or try again later.';
 
   @override
-  String get configurationListenBrainzValidateAndSave => 'Validate and save';
+  String get configurationListenBrainzValidateAndSave => 'Validate and Save';
 
   @override
   String get configurationListenBrainzGetToken => 'Get Token';
@@ -1669,7 +1669,7 @@ class AppLocalizationsEn extends AppLocalizations {
       'Deezer, Last.fm, ListenBrainz and other online services.';
 
   @override
-  String get integrationsMasterTitle => 'Online services';
+  String get integrationsMasterTitle => 'Online Services';
 
   @override
   String get integrationsMasterSubtitle =>
@@ -1679,7 +1679,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get integrationsGroupDiscovery => 'Discovery';
 
   @override
-  String get integrationsGroupListeningHistory => 'Listening history';
+  String get integrationsGroupListeningHistory => 'Listening History';
 
   @override
   String get integrationsGroupNowPlaying => 'Now Playing';
@@ -1691,7 +1691,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get integrationsServiceUpdates => 'Updates';
 
   @override
-  String get integrationsServiceRadio => 'Internet radio';
+  String get integrationsServiceRadio => 'Internet Radio';
 
   @override
   String get integrationsServiceArtwork => 'Artwork';
@@ -1731,7 +1731,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get integrationsUpdateSourcePorthorion =>
-      'Porthorion downloads (downloads.porthorion.com)';
+      'Porthorion Downloads (downloads.porthorion.com)';
 
   @override
   String get integrationsUpdateSourceGithub => 'GitHub (github.com)';
@@ -1758,35 +1758,35 @@ class AppLocalizationsEn extends AppLocalizations {
       'Loads images your server links from other sites, such as artist photos.';
 
   @override
-  String get integrationsFeatureDeezerTopSongsTitle => 'Top songs';
+  String get integrationsFeatureDeezerTopSongsTitle => 'Top Songs';
 
   @override
   String get integrationsFeatureDeezerTopSongsSubtitle =>
       'Popular songs on artist pages.';
 
   @override
-  String get integrationsFeatureDeezerArtistImagesTitle => 'Artist photos';
+  String get integrationsFeatureDeezerArtistImagesTitle => 'Artist Photos';
 
   @override
   String get integrationsFeatureDeezerArtistImagesSubtitle =>
       'Header photo and fan count on artist pages.';
 
   @override
-  String get integrationsFeatureDeezerSimilarArtistsTitle => 'Fans also like';
+  String get integrationsFeatureDeezerSimilarArtistsTitle => 'Fans Also Like';
 
   @override
   String get integrationsFeatureDeezerSimilarArtistsSubtitle =>
       'Related artists on artist pages.';
 
   @override
-  String get integrationsFeatureDeezerMissingAlbumsTitle => 'Missing albums';
+  String get integrationsFeatureDeezerMissingAlbumsTitle => 'Missing Albums';
 
   @override
   String get integrationsFeatureDeezerMissingAlbumsSubtitle =>
       'An artist\'s albums that aren\'t on your server.';
 
   @override
-  String get integrationsFeatureDeezerNewReleasesTitle => 'New releases';
+  String get integrationsFeatureDeezerNewReleasesTitle => 'New Releases';
 
   @override
   String get integrationsFeatureDeezerNewReleasesSubtitle =>
@@ -1800,7 +1800,7 @@ class AppLocalizationsEn extends AppLocalizations {
       'Deezer\'s chart in You Might Like and your playlists.';
 
   @override
-  String get integrationsFeatureLastFmSameVibesTitle => 'Same Vibes mixes';
+  String get integrationsFeatureLastFmSameVibesTitle => 'Same Vibes Mixes';
 
   @override
   String get integrationsFeatureLastFmSameVibesSubtitle =>
@@ -1814,7 +1814,7 @@ class AppLocalizationsEn extends AppLocalizations {
       'Adds similar songs from Last.fm when your server\'s suggestions run short.';
 
   @override
-  String get integrationsFeatureLastFmTopSongsTitle => 'Top songs';
+  String get integrationsFeatureLastFmTopSongsTitle => 'Top Songs';
 
   @override
   String get integrationsFeatureLastFmTopSongsSubtitle =>
@@ -1836,42 +1836,42 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get integrationsFeatureListenBrainzWeeklyPlaylistsTitle =>
-      'Weekly playlists';
+      'Weekly Playlists';
 
   @override
   String get integrationsFeatureListenBrainzWeeklyPlaylistsSubtitle =>
       'Your weekly ListenBrainz playlists on Home and in Library.';
 
   @override
-  String get integrationsFeatureLrclibLyricsTitle => 'Synced lyrics';
+  String get integrationsFeatureLrclibLyricsTitle => 'Synced Lyrics';
 
   @override
   String get integrationsFeatureLrclibLyricsSubtitle =>
       'Server lyrics first; LRCLIB adds synced lyrics when the server has none or only plain text.';
 
   @override
-  String get integrationsFeatureUpdatesAutomaticTitle => 'Check automatically';
+  String get integrationsFeatureUpdatesAutomaticTitle => 'Check Automatically';
 
   @override
   String get integrationsFeatureUpdatesAutomaticSubtitle =>
       'Looks for a new version when Navis starts. Check now is in About.';
 
   @override
-  String get integrationsFeatureAutoEqCatalogueTitle => 'Headphone profiles';
+  String get integrationsFeatureAutoEqCatalogueTitle => 'Headphone Profiles';
 
   @override
   String get integrationsFeatureAutoEqCatalogueSubtitle =>
       'Refresh the catalogue and download profiles in the equalizer.';
 
   @override
-  String get integrationsFeatureRadioNowPlayingTitle => 'Now playing';
+  String get integrationsFeatureRadioNowPlayingTitle => 'Now Playing';
 
   @override
   String get integrationsFeatureRadioNowPlayingSubtitle =>
       'Song and artwork from the station while you listen.';
 
   @override
-  String get integrationsFeatureArtworkServerLinkedTitle => 'Linked images';
+  String get integrationsFeatureArtworkServerLinkedTitle => 'Linked Images';
 
   @override
   String get integrationsFeatureArtworkServerLinkedSubtitle =>
@@ -1912,7 +1912,7 @@ class AppLocalizationsEn extends AppLocalizations {
       'Navis can now use Deezer for top songs, artist photos and new releases. Review integrations.';
 
   @override
-  String get setupHighlightsCardTitle => 'New appearance options';
+  String get setupHighlightsCardTitle => 'New Appearance Options';
 
   @override
   String get setupHighlightsCardBody =>
@@ -1943,7 +1943,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get integrationsNoticeDismiss => 'Dismiss';
 
   @override
-  String get listenBrainzConnectedTitle => 'ListenBrainz connected';
+  String get listenBrainzConnectedTitle => 'ListenBrainz Connected';
 
   @override
   String listenBrainzConnectedAs(String account) {
@@ -1998,10 +1998,10 @@ class AppLocalizationsEn extends AppLocalizations {
   String get libraryTabArtists => 'Artists';
 
   @override
-  String get librarySwitchToArtistGrid => 'Switch to artist grid view';
+  String get librarySwitchToArtistGrid => 'Switch to Artist Grid View';
 
   @override
-  String get librarySwitchToArtistList => 'Switch to artist list view';
+  String get librarySwitchToArtistList => 'Switch to Artist List View';
 
   @override
   String get libraryTabAlbums => 'Albums';
@@ -2100,7 +2100,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get libraryLikedAlbumsSectionTitle => 'Liked Albums';
 
   @override
-  String get libraryLikedAlbumsSeeAll => 'See all';
+  String get libraryLikedAlbumsSeeAll => 'See All';
 
   @override
   String get libraryLikedAlbumsAllTitle => 'Liked Albums';
@@ -2189,25 +2189,25 @@ class AppLocalizationsEn extends AppLocalizations {
   String get librarySortArtist => 'Artist';
 
   @override
-  String get libraryArtistMenuOpen => 'Open artist';
+  String get libraryArtistMenuOpen => 'Open Artist';
 
   @override
-  String get libraryAlbumMenuOpen => 'Open album';
+  String get libraryAlbumMenuOpen => 'Open Album';
 
   @override
-  String get librarySongMenuPlayNow => 'Play now';
+  String get librarySongMenuPlayNow => 'Play Now';
 
   @override
   String get librarySongMenuAddToQueue => 'Add to Queue';
 
   @override
-  String get librarySongMenuPlayNext => 'Play next';
+  String get librarySongMenuPlayNext => 'Play Next';
 
   @override
-  String get librarySongMenuOpenAlbum => 'Open album';
+  String get librarySongMenuOpenAlbum => 'Open Album';
 
   @override
-  String get librarySongMenuOpenArtist => 'Open artist';
+  String get librarySongMenuOpenArtist => 'Open Artist';
 
   @override
   String librarySongAddedToQueue(Object title) {
@@ -2355,10 +2355,10 @@ class AppLocalizationsEn extends AppLocalizations {
   String get artistTopTracksSection => 'Top Tracks';
 
   @override
-  String get artistTopTracksShowMore => 'Show more';
+  String get artistTopTracksShowMore => 'Show More';
 
   @override
-  String get artistTopTracksShowLess => 'Show less';
+  String get artistTopTracksShowLess => 'Show Less';
 
   @override
   String artistTopTracksListeners(String count) {
@@ -2446,7 +2446,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get albumDetailAboutSection => 'About This Album';
 
   @override
-  String get albumDetailMenuShowAlbumArt => 'Show album art';
+  String get albumDetailMenuShowAlbumArt => 'Show Album Art';
 
   @override
   String get albumDetailTitleCopied => 'Copied to clipboard';
@@ -2475,7 +2475,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get miniPlayerPause => 'Pause';
 
   @override
-  String get miniPlayerSkipNext => 'Skip to next';
+  String get miniPlayerSkipNext => 'Skip to Next';
 
   @override
   String get playbackBootstrapLoadingTitle => 'Preparing Playback';
@@ -2493,22 +2493,22 @@ class AppLocalizationsEn extends AppLocalizations {
       'You can restart Navis, recover local playback data, or continue without playback.';
 
   @override
-  String get playbackBootstrapContinueToSignIn => 'Continue to sign in';
+  String get playbackBootstrapContinueToSignIn => 'Continue to Sign In';
 
   @override
   String get playbackRecoveryRestart => 'Restart Navis';
 
   @override
-  String get startupCopyDetails => 'Copy details';
+  String get startupCopyDetails => 'Copy Details';
 
   @override
   String get startupDetailsCopied => 'Startup details copied';
 
   @override
-  String get playbackRecoveryRetry => 'Retry playback';
+  String get playbackRecoveryRetry => 'Retry Playback';
 
   @override
-  String get playbackRecoveryResetCache => 'Reset library cache and retry';
+  String get playbackRecoveryResetCache => 'Reset Library Cache and Retry';
 
   @override
   String get playbackRecoveryResetConfirmTitle => 'Reset Library Cache?';
@@ -2619,7 +2619,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get nowPlayingShuffle => 'Shuffle';
 
   @override
-  String get nowPlayingShuffleOff => 'Shuffle off';
+  String get nowPlayingShuffleOff => 'Shuffle Off';
 
   @override
   String queueShuffleOnStatus(String queue) {
@@ -2645,13 +2645,13 @@ class AppLocalizationsEn extends AppLocalizations {
   String get nowPlayingNoNextTrack => 'No next track';
 
   @override
-  String get nowPlayingRepeatOff => 'Repeat off';
+  String get nowPlayingRepeatOff => 'Repeat Off';
 
   @override
-  String get nowPlayingRepeatAll => 'Repeat all';
+  String get nowPlayingRepeatAll => 'Repeat All';
 
   @override
-  String get nowPlayingRepeatOne => 'Repeat one';
+  String get nowPlayingRepeatOne => 'Repeat One';
 
   @override
   String get nowPlayingLyrics => 'Lyrics';
@@ -2715,22 +2715,22 @@ class AppLocalizationsEn extends AppLocalizations {
   String get nowPlayingSameVibesStopped => 'Same Vibes stopped.';
 
   @override
-  String get nowPlayingMore => 'More options';
+  String get nowPlayingMore => 'More Options';
 
   @override
-  String get nowPlayingGoToAlbum => 'Go to album';
+  String get nowPlayingGoToAlbum => 'Go to Album';
 
   @override
-  String get nowPlayingGoToArtist => 'Go to artist';
+  String get nowPlayingGoToArtist => 'Go to Artist';
 
   @override
-  String get nowPlayingAudioQuality => 'Audio quality';
+  String get nowPlayingAudioQuality => 'Audio Quality';
 
   @override
-  String get nowPlayingTranscodedPlayback => 'Transcoded playback';
+  String get nowPlayingTranscodedPlayback => 'Transcoded Playback';
 
   @override
-  String get nowPlayingReleaseDate => 'Release date';
+  String get nowPlayingReleaseDate => 'Release Date';
 
   @override
   String get lyricsTitle => 'Lyrics';
@@ -2769,7 +2769,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get ratingNoValue => 'No Rating';
 
   @override
-  String get ratingNotLiked => 'Not liked';
+  String get ratingNotLiked => 'Not Liked';
 
   @override
   String get ratingActionLabel => 'Rate';
@@ -2783,7 +2783,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get ratingUpdateFailed => 'Could not update rating.';
 
   @override
-  String get queueSaveAsPlaylist => 'Save as playlist';
+  String get queueSaveAsPlaylist => 'Save as Playlist';
 
   @override
   String get searchHint => 'Search artists, albums, songs...';
@@ -2804,7 +2804,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get instantRadioLoading => 'Starting radio…';
 
   @override
-  String get instantRadioStop => 'Stop radio';
+  String get instantRadioStop => 'Stop Radio';
 
   @override
   String get instantRadioEmpty => 'No playable songs match these filters.';
@@ -2817,7 +2817,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get instantRadioFallback => 'Radio is using music from your library.';
 
   @override
-  String get instantRadioRetry => 'Retry radio';
+  String get instantRadioRetry => 'Retry Radio';
 
   @override
   String get sameVibesInvalidKey =>
@@ -2834,7 +2834,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get searchClearRecent => 'Clear';
 
   @override
-  String get searchClearQuery => 'Clear search';
+  String get searchClearQuery => 'Clear Search';
 
   @override
   String searchNoResultsForQuery(String query) {
@@ -2863,10 +2863,10 @@ class AppLocalizationsEn extends AppLocalizations {
   String get searchRadioSection => 'Radio';
 
   @override
-  String get searchShowAll => 'Show all';
+  String get searchShowAll => 'Show All';
 
   @override
-  String get searchShowLess => 'Show less';
+  String get searchShowLess => 'Show Less';
 
   @override
   String searchAlbumCount(int count) {
@@ -2884,7 +2884,7 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
-  String get searchPlayNext => 'Play next';
+  String get searchPlayNext => 'Play Next';
 
   @override
   String get searchAddToQueue => 'Add to Queue';
@@ -2955,10 +2955,10 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
-  String get playlistsOnDevice => 'On this device';
+  String get playlistsOnDevice => 'On This Device';
 
   @override
-  String get playlistsSaveToServerLabel => 'Save to server';
+  String get playlistsSaveToServerLabel => 'Save to Server';
 
   @override
   String get playlistsSaveToServerSubtitle =>
@@ -3004,13 +3004,13 @@ class AppLocalizationsEn extends AppLocalizations {
   String get playlistsFilterHint => 'Search playlists...';
 
   @override
-  String get playlistsSectionYours => 'Your playlists';
+  String get playlistsSectionYours => 'Your Playlists';
 
   @override
-  String get playlistsSectionMadeForYou => 'Made for you';
+  String get playlistsSectionMadeForYou => 'Made for You';
 
   @override
-  String get playlistsSectionOther => 'Other playlists';
+  String get playlistsSectionOther => 'Other Playlists';
 
   @override
   String get playlistDetailTitle => 'Playlist';
@@ -3028,7 +3028,7 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
-  String get playlistDetailNotFound => 'Playlist not found';
+  String get playlistDetailNotFound => 'Playlist Not Found';
 
   @override
   String get playlistDetailNotFoundSubtitle => 'It may have been deleted.';
@@ -3043,7 +3043,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get playlistDetailEmptySubtitle => 'Add songs from the library.';
 
   @override
-  String get playlistDetailRemoveTrack => 'Remove from playlist';
+  String get playlistDetailRemoveTrack => 'Remove from Playlist';
 
   @override
   String get playlistDetailTrackRemoved => 'Track removed';
@@ -3074,13 +3074,13 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
-  String get addToPlaylistNewPlaylist => 'New playlist';
+  String get addToPlaylistNewPlaylist => 'New Playlist';
 
   @override
   String get addToPlaylistFailed => 'Failed to add to playlist';
 
   @override
-  String get librarySongMenuAddToPlaylist => 'Add to playlist';
+  String get librarySongMenuAddToPlaylist => 'Add to Playlist';
 
   @override
   String get cacheSettingsTitle => 'Cache & Storage';
@@ -3121,7 +3121,7 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
-  String get cacheSettingsClearRolling => 'Clear streaming cache';
+  String get cacheSettingsClearRolling => 'Clear Streaming Cache';
 
   @override
   String get cacheSettingsClearRollingConfirm =>
@@ -3140,14 +3140,14 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
-  String get cacheSettingsClearPermanent => 'Remove all downloads';
+  String get cacheSettingsClearPermanent => 'Remove All Downloads';
 
   @override
   String get cacheSettingsClearPermanentConfirm =>
       'Remove all downloaded tracks? This cannot be undone.';
 
   @override
-  String get cacheSettingsClearCoverArt => 'Clear cover art cache';
+  String get cacheSettingsClearCoverArt => 'Clear Cover Art Cache';
 
   @override
   String get cacheSettingsClearCoverArtConfirm =>
@@ -3168,7 +3168,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get downloadQualityTitle => 'Download Quality';
 
   @override
-  String get downloadQualityOriginal => 'Original quality';
+  String get downloadQualityOriginal => 'Original Quality';
 
   @override
   String get downloadQualityOriginalSub => 'Lossless / as stored on server';
@@ -3188,10 +3188,10 @@ class AppLocalizationsEn extends AppLocalizations {
       'Navis will stop asking and download everything in this quality. You can change this anytime in Downloads settings.';
 
   @override
-  String get downloadQualityAlwaysAsk => 'Ask every time';
+  String get downloadQualityAlwaysAsk => 'Ask Every Time';
 
   @override
-  String get downloadQualityAlwaysUse => 'Always use';
+  String get downloadQualityAlwaysUse => 'Always Use';
 
   @override
   String downloadQueuedWithQuality(String message, String quality) {
@@ -3202,20 +3202,20 @@ class AppLocalizationsEn extends AppLocalizations {
   String get downloadsSettingsQualitySection => 'Quality';
 
   @override
-  String get downloadsSettingsQualityLabel => 'Download quality';
+  String get downloadsSettingsQualityLabel => 'Download Quality';
 
   @override
-  String get downloadsSettingsQualityAsk => 'Ask every time';
+  String get downloadsSettingsQualityAsk => 'Ask Every Time';
 
   @override
-  String get downloadsSettingsFormatLabel => 'Transcode format';
+  String get downloadsSettingsFormatLabel => 'Transcode Format';
 
   @override
   String get downloadsSettingsFormatHelper =>
       'Used for downloads below original quality';
 
   @override
-  String get downloadsSettingsConcurrentTitle => 'Concurrent downloads';
+  String get downloadsSettingsConcurrentTitle => 'Concurrent Downloads';
 
   @override
   String downloadsSettingsConcurrentValue(int count) {
@@ -3324,13 +3324,13 @@ class AppLocalizationsEn extends AppLocalizations {
   String get downloadsCancelAction => 'Cancel Download';
 
   @override
-  String get downloadsRetryFailed => 'Retry failed';
+  String get downloadsRetryFailed => 'Retry Failed';
 
   @override
   String get downloadsStatusFailed => 'Failed';
 
   @override
-  String get downloadsRetryAllFailed => 'Retry all failed';
+  String get downloadsRetryAllFailed => 'Retry All Failed';
 
   @override
   String get downloadsErrorLoadingQueue => 'Could Not Load Download Queue.';
@@ -3414,10 +3414,10 @@ class AppLocalizationsEn extends AppLocalizations {
       'Couldn\'t check missing artwork and lyrics';
 
   @override
-  String get downloadsMissingTitle => 'Missing artwork and lyrics';
+  String get downloadsMissingTitle => 'Missing Artwork and Lyrics';
 
   @override
-  String get downloadsMissingNone => 'Nothing missing';
+  String get downloadsMissingNone => 'Nothing Missing';
 
   @override
   String downloadsMissingLyricsCount(int count) {
@@ -3442,13 +3442,13 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
-  String get downloadsMissingSongsTitle => 'Songs without lyrics';
+  String get downloadsMissingSongsTitle => 'Songs Without Lyrics';
 
   @override
-  String get downloadsMissingAlbumsTitle => 'Albums without artwork';
+  String get downloadsMissingAlbumsTitle => 'Albums Without Artwork';
 
   @override
-  String get downloadsBackfillNow => 'Backfill now';
+  String get downloadsBackfillNow => 'Backfill Now';
 
   @override
   String get downloadsBackfillLyrics => 'Finding lyrics';
@@ -3479,7 +3479,7 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
-  String get downloadsCustomFolderSelected => 'Selected folder';
+  String get downloadsCustomFolderSelected => 'Selected Folder';
 
   @override
   String downloadsRescanImported(int count) {
@@ -3532,14 +3532,14 @@ class AppLocalizationsEn extends AppLocalizations {
   String get libraryUnknownYear => 'Unknown year';
 
   @override
-  String get cacheSettingsWifiOnlyDownloads => 'Download on Wi-Fi only';
+  String get cacheSettingsWifiOnlyDownloads => 'Download on Wi-Fi Only';
 
   @override
   String get cacheSettingsWifiOnlyDownloadsSub =>
       'Pause downloads when not connected to Wi-Fi.';
 
   @override
-  String get cacheSettingsAutoDownloadStarred => 'Auto-download liked';
+  String get cacheSettingsAutoDownloadStarred => 'Auto-Download Liked';
 
   @override
   String get cacheSettingsAutoDownloadStarredSub =>
@@ -3748,13 +3748,13 @@ class AppLocalizationsEn extends AppLocalizations {
   String get appearanceLooksPicker => 'Look';
 
   @override
-  String get appearanceLooksActions => 'Look actions';
+  String get appearanceLooksActions => 'Look Actions';
 
   @override
   String get appearanceLooksSaveNew => 'Save Current as New Look';
 
   @override
-  String get appearanceLooksName => 'Look name';
+  String get appearanceLooksName => 'Look Name';
 
   @override
   String get appearanceLooksMissing => 'That Look no longer exists.';
@@ -3813,7 +3813,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get appearanceLanguageLabel => 'Language';
 
   @override
-  String get appearanceLanguageSystemDefault => 'System default';
+  String get appearanceLanguageSystemDefault => 'System Default';
 
   @override
   String get appearanceLanguageUnavailable =>
@@ -3851,7 +3851,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get appearanceColorPickerHexLabel => 'Hex';
 
   @override
-  String get appearanceColorPickerSave => 'Save as preset';
+  String get appearanceColorPickerSave => 'Save as Preset';
 
   @override
   String get appearanceColorPickerApply => 'Apply';
@@ -3863,7 +3863,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get appearanceColorPresetDeleted => 'Custom preset deleted';
 
   @override
-  String get appearanceColorDeletePreset => 'Delete preset';
+  String get appearanceColorDeletePreset => 'Delete Preset';
 
   @override
   String get appearanceColorDeletePresetConfirm =>
@@ -4076,7 +4076,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get aboutWebsite => 'Website';
 
   @override
-  String get aboutPrivacyPolicy => 'Privacy policy';
+  String get aboutPrivacyPolicy => 'Privacy Policy';
 
   @override
   String get aboutPrivacyPolicySub => 'The full policy on the Navis website.';
@@ -4088,13 +4088,13 @@ class AppLocalizationsEn extends AppLocalizations {
   String get aboutLicenseSub => 'GNU GPL v3.0 or later';
 
   @override
-  String get aboutSourceCode => 'Source code';
+  String get aboutSourceCode => 'Source Code';
 
   @override
-  String get aboutReportBug => 'Report a bug';
+  String get aboutReportBug => 'Report a Bug';
 
   @override
-  String get aboutContact => 'Contact support';
+  String get aboutContact => 'Contact Support';
 
   @override
   String aboutLinkOpenFailed(String target) {
@@ -4105,7 +4105,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get changelogSpecialThanks => 'Special Thanks';
 
   @override
-  String get changelogDiscoveryDismiss => 'Dismiss update notes';
+  String get changelogDiscoveryDismiss => 'Dismiss Update Notes';
 
   @override
   String changelogDiscoverySemanticLabel(String version) {
@@ -4114,12 +4114,12 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String changelogDiscoveryCheckOut(String version) {
-    return 'Check out $version';
+    return 'Check Out $version';
   }
 
   @override
   String changelogDiscoveryCheckOutNamed(String version, String codename) {
-    return 'Check out $version “$codename”';
+    return 'Check Out $version “$codename”';
   }
 
   @override
@@ -4165,10 +4165,10 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
-  String get changelogShowFewerFixes => 'Show fewer fixes';
+  String get changelogShowFewerFixes => 'Show Fewer Fixes';
 
   @override
-  String get changelogEarlierReleases => 'Earlier releases';
+  String get changelogEarlierReleases => 'Earlier Releases';
 
   @override
   String get changelogReleases => 'Releases';
@@ -4187,7 +4187,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get changelogHighlights => 'Highlights';
 
   @override
-  String get changelogAllChanges => 'All changes';
+  String get changelogAllChanges => 'All Changes';
 
   @override
   String changelogDiscoveryAndMore(String list, int count) {
@@ -4195,7 +4195,7 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
-  String get aboutLicenses => 'Open-source licenses';
+  String get aboutLicenses => 'Open-Source Licenses';
 
   @override
   String get aboutLicensesSub => 'View third-party software licenses.';
@@ -4218,13 +4218,13 @@ class AppLocalizationsEn extends AppLocalizations {
   String get aboutDataUsageToday => 'Today';
 
   @override
-  String get aboutDataUsageSevenDays => 'Last 7 days';
+  String get aboutDataUsageSevenDays => 'Last 7 Days';
 
   @override
-  String get aboutDataUsageThirtyDays => 'Last 30 days';
+  String get aboutDataUsageThirtyDays => 'Last 30 Days';
 
   @override
-  String get aboutDataUsageBreakdown => 'Last 7 days by feature';
+  String get aboutDataUsageBreakdown => 'Last 7 Days by Feature';
 
   @override
   String get aboutDataUsageEmpty => 'No Usage Recorded Yet.';
@@ -4248,7 +4248,7 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
-  String get aboutDataUsageReset => 'Reset usage stats';
+  String get aboutDataUsageReset => 'Reset Usage Stats';
 
   @override
   String get aboutDataUsageResetConfirmTitle => 'Reset Usage Stats?';
@@ -4279,19 +4279,19 @@ class AppLocalizationsEn extends AppLocalizations {
   String get aboutDataUsageNetworkOffline => 'Offline';
 
   @override
-  String get aboutDataUsageNetworkOther => 'Other network';
+  String get aboutDataUsageNetworkOther => 'Other Network';
 
   @override
-  String get aboutDataUsageCategoryAudioStreaming => 'Audio streaming';
+  String get aboutDataUsageCategoryAudioStreaming => 'Audio Streaming';
 
   @override
   String get aboutDataUsageCategoryDownloads => 'Downloads';
 
   @override
-  String get aboutDataUsageCategoryCoverArt => 'Cover art';
+  String get aboutDataUsageCategoryCoverArt => 'Cover Art';
 
   @override
-  String get aboutDataUsageCategoryLibrarySync => 'Library sync';
+  String get aboutDataUsageCategoryLibrarySync => 'Library Sync';
 
   @override
   String get aboutDataUsageCategoryLyrics => 'Lyrics';
@@ -4326,7 +4326,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String updateReadyTitle(String version) {
-    return 'Navis $version is ready';
+    return 'Navis $version Is Ready';
   }
 
   @override
@@ -4357,7 +4357,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get updateRetry => 'Retry';
 
   @override
-  String get updateReleaseNotes => 'Release notes';
+  String get updateReleaseNotes => 'Release Notes';
 
   @override
   String updateDownloading(String version) {
@@ -4605,13 +4605,13 @@ class AppLocalizationsEn extends AppLocalizations {
   String get deleteDownloadAction => 'Delete Download';
 
   @override
-  String get libraryAlbumMenuPlay => 'Play album';
+  String get libraryAlbumMenuPlay => 'Play Album';
 
   @override
   String get libraryAlbumMenuAddToQueue => 'Add to Queue';
 
   @override
-  String get libraryAlbumMenuDownload => 'Download album';
+  String get libraryAlbumMenuDownload => 'Download Album';
 
   @override
   String get libraryAlbumAddedToQueue => 'Album added to queue';
@@ -4739,7 +4739,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String matchFlowUnresolvedSong(String songId) {
-    return 'Unresolved song $songId';
+    return 'Unresolved Song $songId';
   }
 
   @override
@@ -4775,10 +4775,10 @@ class AppLocalizationsEn extends AppLocalizations {
   String get desktopReturnToView => 'Return to Desktop View';
 
   @override
-  String get desktopMiniPlayerKeepOnTop => 'Keep Mini Player on top';
+  String get desktopMiniPlayerKeepOnTop => 'Keep Mini Player on Top';
 
   @override
-  String get desktopMiniPlayerStopOnTop => 'Stop keeping Mini Player on top';
+  String get desktopMiniPlayerStopOnTop => 'Stop Keeping Mini Player on Top';
 
   @override
   String get desktopMiniPlayerKeepOnTopDescription =>
@@ -4884,10 +4884,10 @@ class AppLocalizationsEn extends AppLocalizations {
   String get unavailableReviewTypeArtist => 'Artist';
 
   @override
-  String get unavailableReviewFindMatch => 'Find match';
+  String get unavailableReviewFindMatch => 'Find Match';
 
   @override
-  String get unavailableReviewKeepForLater => 'Keep for later';
+  String get unavailableReviewKeepForLater => 'Keep for Later';
 
   @override
   String get unavailableReviewRemoveFromLiked => 'Remove from Liked';
@@ -4900,13 +4900,13 @@ class AppLocalizationsEn extends AppLocalizations {
   String get unavailableReviewRelinkTitle => 'Relink Item';
 
   @override
-  String get unavailableReviewRelinkOld => 'Unavailable item';
+  String get unavailableReviewRelinkOld => 'Unavailable Item';
 
   @override
-  String get unavailableReviewRelinkNew => 'Selected replacement';
+  String get unavailableReviewRelinkNew => 'Selected Replacement';
 
   @override
-  String get unavailableReviewReferences => 'References carried over';
+  String get unavailableReviewReferences => 'References Carried Over';
 
   @override
   String get unavailableReviewRelinkApply => 'Relink';
@@ -4915,7 +4915,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get unavailableReviewRelinkDismiss => 'Cancel';
 
   @override
-  String get unavailableReviewPossibleReplacements => 'Possible replacements';
+  String get unavailableReviewPossibleReplacements => 'Possible Replacements';
 
   @override
   String get unavailableReviewStaleSelection =>
@@ -4959,11 +4959,11 @@ class AppLocalizationsEn extends AppLocalizations {
   String get unavailableReviewRefNone => 'No local references to carry over.';
 
   @override
-  String get unavailableReviewEntry => 'Unavailable items';
+  String get unavailableReviewEntry => 'Unavailable Items';
 
   @override
   String unavailableReviewEntryWithCount(Object count) {
-    return 'Unavailable items ($count)';
+    return 'Unavailable Items ($count)';
   }
 
   @override
@@ -4984,17 +4984,17 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get appearanceRecommendationsAutoAdvance =>
-      'Automatically advance recommendations';
+      'Automatically Advance Recommendations';
 
   @override
   String get appearanceRecommendationsAutoAdvanceSub =>
       'Move through You Might Like automatically. You can always swipe manually.';
 
   @override
-  String get contentShelfPrevious => 'Previous items';
+  String get contentShelfPrevious => 'Previous Items';
 
   @override
-  String get contentShelfNext => 'Next items';
+  String get contentShelfNext => 'Next Items';
 
   @override
   String get trackColumnTitle => 'Title';
@@ -5033,7 +5033,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get playbackPresetSaveNew => 'Save as New';
 
   @override
-  String get playbackPresetName => 'Preset name';
+  String get playbackPresetName => 'Preset Name';
 
   @override
   String get playbackPresetRename => 'Rename';
@@ -5221,31 +5221,31 @@ class AppLocalizationsEn extends AppLocalizations {
       'Equalizer is unavailable with this audio engine.';
 
   @override
-  String get eqEnable => 'Enable equalizer';
+  String get eqEnable => 'Enable Equalizer';
 
   @override
   String get eqCustom => 'Custom';
 
   @override
-  String get eqSimple => 'Simple · 5 bands';
+  String get eqSimple => 'Simple · 5 Bands';
 
   @override
-  String get eqTenBand => '10 bands';
+  String get eqTenBand => '10 Bands';
 
   @override
   String get eqAdvanced => 'Advanced';
 
   @override
-  String get eqImportedFixed => 'Imported fixed bands';
+  String get eqImportedFixed => 'Imported Fixed Bands';
 
   @override
-  String get eqMode => 'Editing mode';
+  String get eqMode => 'Editing Mode';
 
   @override
   String get eqPresets => 'Presets';
 
   @override
-  String get eqBuiltIn => 'Built in';
+  String get eqBuiltIn => 'Built In';
 
   @override
   String get eqSaveAs => 'Save as New';
@@ -5266,22 +5266,22 @@ class AppLocalizationsEn extends AppLocalizations {
   String get eqImport => 'Import';
 
   @override
-  String get eqImportFile => 'From file';
+  String get eqImportFile => 'From File';
 
   @override
-  String get eqImportPaste => 'Paste settings';
+  String get eqImportPaste => 'Paste Settings';
 
   @override
-  String get eqAutoEq => 'Find headphones in AutoEQ';
+  String get eqAutoEq => 'Find Headphones in AutoEQ';
 
   @override
-  String get eqName => 'Preset name';
+  String get eqName => 'Preset Name';
 
   @override
   String get eqSave => 'Save';
 
   @override
-  String get eqSaveEnable => 'Save and enable';
+  String get eqSaveEnable => 'Save and Enable';
 
   @override
   String get eqCancel => 'Cancel';
@@ -5293,13 +5293,13 @@ class AppLocalizationsEn extends AppLocalizations {
   String get eqRedo => 'Redo';
 
   @override
-  String get eqReset => 'Reset to flat';
+  String get eqReset => 'Reset to Flat';
 
   @override
   String get eqPreamp => 'Preamp';
 
   @override
-  String get eqAutoHeadroom => 'Automatic headroom';
+  String get eqAutoHeadroom => 'Automatic Headroom';
 
   @override
   String get eqAutoHeadroomDescription =>
@@ -5341,22 +5341,22 @@ class AppLocalizationsEn extends AppLocalizations {
   String get eqQ => 'Q';
 
   @override
-  String get eqType => 'Filter type';
+  String get eqType => 'Filter Type';
 
   @override
   String get eqPeaking => 'Peaking';
 
   @override
-  String get eqLowShelf => 'Low shelf';
+  String get eqLowShelf => 'Low Shelf';
 
   @override
-  String get eqHighShelf => 'High shelf';
+  String get eqHighShelf => 'High Shelf';
 
   @override
-  String get eqLowPass => 'Low pass';
+  String get eqLowPass => 'Low Pass';
 
   @override
-  String get eqHighPass => 'High pass';
+  String get eqHighPass => 'High Pass';
 
   @override
   String get eqNotch => 'Notch';
@@ -5369,7 +5369,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get eqFixedImport => 'This is a FixedBandEQ profile';
 
   @override
-  String get eqImportPreview => 'Preview preset';
+  String get eqImportPreview => 'Preview Preset';
 
   @override
   String get eqPreviewDescription =>
@@ -5386,13 +5386,13 @@ class AppLocalizationsEn extends AppLocalizations {
       'Original source settings are retained with this preset. Your edits do not change its source attribution.';
 
   @override
-  String get eqSearch => 'Search headphones';
+  String get eqSearch => 'Search Headphones';
 
   @override
-  String get eqRecommendedOnly => 'Recommended results only';
+  String get eqRecommendedOnly => 'Recommended Results Only';
 
   @override
-  String get eqRefreshCatalogue => 'Refresh catalogue';
+  String get eqRefreshCatalogue => 'Refresh Catalogue';
 
   @override
   String get eqCatalogueOffline =>
@@ -5576,10 +5576,10 @@ class AppLocalizationsEn extends AppLocalizations {
   String get eqDraftSaving => 'Saving draft…';
 
   @override
-  String get eqSaveChanges => 'Save changes';
+  String get eqSaveChanges => 'Save Changes';
 
   @override
-  String get eqDiscardChanges => 'Discard changes';
+  String get eqDiscardChanges => 'Discard Changes';
 
   @override
   String get eqDiscardDescription =>
@@ -5628,16 +5628,16 @@ class AppLocalizationsEn extends AppLocalizations {
   String get queueTrackUnavailable => 'Unavailable · skipped automatically';
 
   @override
-  String get eqChooseBand => 'Select band';
+  String get eqChooseBand => 'Select Band';
 
   @override
-  String get eqFilterResponse => 'Filter response';
+  String get eqFilterResponse => 'Filter Response';
 
   @override
-  String get eqFitResponse => 'Fit response';
+  String get eqFitResponse => 'Fit Response';
 
   @override
-  String get eqOutputResponse => 'Output response';
+  String get eqOutputResponse => 'Output Response';
 
   @override
   String get eqWider => 'Wider';
@@ -5649,35 +5649,35 @@ class AppLocalizationsEn extends AppLocalizations {
   String get eqCalculatingOutput => 'Calculating output response…';
 
   @override
-  String get eqAttenuation => 'Automatic attenuation';
+  String get eqAttenuation => 'Automatic Attenuation';
 
   @override
-  String get eqEffectiveOutput => 'Effective output gain';
+  String get eqEffectiveOutput => 'Effective Output Gain';
 
   @override
-  String get eqOutputSettings => 'Output settings';
+  String get eqOutputSettings => 'Output Settings';
 
   @override
   String get eqNumericPreview =>
       'Live preview. Choose Done to keep this value or Cancel to restore it.';
 
   @override
-  String get eqNotApplicable => 'Not applicable';
+  String get eqNotApplicable => 'Not Applicable';
 
   @override
   String get eqFixed => 'Fixed';
 
   @override
-  String get eqBandEnabled => 'Band enabled';
+  String get eqBandEnabled => 'Band Enabled';
 
   @override
   String get eqNoBands => 'Add a band to start shaping your sound.';
 
   @override
-  String get eqAddBand => 'Add band';
+  String get eqAddBand => 'Add Band';
 
   @override
-  String get eqDeleteBand => 'Delete band';
+  String get eqDeleteBand => 'Delete Band';
 
   @override
   String get eqGraphDescription =>
@@ -5691,29 +5691,29 @@ class AppLocalizationsEn extends AppLocalizations {
       'This preset already has an Advanced draft. Resume it or create a new preset from the current curve to keep both.';
 
   @override
-  String get eqResumeAdvanced => 'Resume Advanced draft';
+  String get eqResumeAdvanced => 'Resume Advanced Draft';
 
   @override
-  String get eqCreateCurvePreset => 'Create a new preset from this curve';
+  String get eqCreateCurvePreset => 'Create a New Preset from This Curve';
 
   @override
   String get eqPreampDrag =>
       'Drag up or down to adjust preamp, or tap to enter a value';
 
   @override
-  String get eqIncrease => 'Increase value';
+  String get eqIncrease => 'Increase Value';
 
   @override
-  String get eqDecrease => 'Decrease value';
+  String get eqDecrease => 'Decrease Value';
 
   @override
-  String get eqBandOff => 'Band off';
+  String get eqBandOff => 'Band Off';
 
   @override
   String get eqSimpleShort => 'Simple';
 
   @override
-  String get eqTenBandShort => '10-band';
+  String get eqTenBandShort => '10-Band';
 
   @override
   String get eqImportedShort => 'Imported';
@@ -5735,13 +5735,13 @@ class AppLocalizationsEn extends AppLocalizations {
   String get eqDiscard => 'Discard';
 
   @override
-  String get eqYourPresets => 'Your presets';
+  String get eqYourPresets => 'Your Presets';
 
   @override
-  String get eqBuiltInPresets => 'Built in';
+  String get eqBuiltInPresets => 'Built In';
 
   @override
-  String get eqUnsavedWork => 'Unsaved work';
+  String get eqUnsavedWork => 'Unsaved Work';
 
   @override
   String get eqAutoEqHint =>
@@ -5762,7 +5762,7 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
-  String get eqAuthoredPreamp => 'Preamp you set';
+  String get eqAuthoredPreamp => 'Preamp You Set';
 
   @override
   String get eqOutputExplanation =>
@@ -5780,7 +5780,7 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
-  String get eqCloseLibrary => 'Close presets';
+  String get eqCloseLibrary => 'Close Presets';
 
   @override
   String get onboardingSaveFailed => 'Could not save setup. Try again.';
@@ -5797,10 +5797,10 @@ class AppLocalizationsEn extends AppLocalizations {
       'Your current settings will be kept. Before you start, choose which online services Navis may use. You can reopen setup from Settings at any time.';
 
   @override
-  String get onboardingKeepCustomizing => 'Keep customizing';
+  String get onboardingKeepCustomizing => 'Keep Customizing';
 
   @override
-  String get onboardingSkipSetup => 'Skip setup';
+  String get onboardingSkipSetup => 'Skip Setup';
 
   @override
   String get onboardingTitle => 'Make Navis Yours';
@@ -5838,7 +5838,7 @@ class AppLocalizationsEn extends AppLocalizations {
       'Choose your theme, style, accent and layout. You can change them later in Appearance settings.';
 
   @override
-  String get onboardingMoreAppearanceOptions => 'More appearance options';
+  String get onboardingMoreAppearanceOptions => 'More Appearance Options';
 
   @override
   String get onboardingAccentColor => 'Accent Color';
@@ -5855,19 +5855,19 @@ class AppLocalizationsEn extends AppLocalizations {
       'Choose stream quality, formats, local playback priority, and track transitions.';
 
   @override
-  String get onboardingWifiQuality => 'Wi-Fi quality';
+  String get onboardingWifiQuality => 'Wi-Fi Quality';
 
   @override
-  String get onboardingWifiFormat => 'Wi-Fi format';
+  String get onboardingWifiFormat => 'Wi-Fi Format';
 
   @override
-  String get onboardingMobileQuality => 'Mobile quality';
+  String get onboardingMobileQuality => 'Mobile Quality';
 
   @override
-  String get onboardingMobileFormat => 'Mobile format';
+  String get onboardingMobileFormat => 'Mobile Format';
 
   @override
-  String get onboardingPreferLocalTitle => 'Play cached copies at any quality';
+  String get onboardingPreferLocalTitle => 'Play Cached Copies at Any Quality';
 
   @override
   String get onboardingPreferLocalSubtitle =>
@@ -5911,7 +5911,7 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
-  String get onboardingCrossfadeType => 'Crossfade type';
+  String get onboardingCrossfadeType => 'Crossfade Type';
 
   @override
   String get onboardingCrossfadeTypeSmart =>
@@ -5976,13 +5976,13 @@ class AppLocalizationsEn extends AppLocalizations {
   String get onboardingValidating => 'Validating…';
 
   @override
-  String get onboardingListenBrainzValidate => 'Validate and connect';
+  String get onboardingListenBrainzValidate => 'Validate and Connect';
 
   @override
-  String get onboardingLastFmValidateKey => 'Validate key';
+  String get onboardingLastFmValidateKey => 'Validate Key';
 
   @override
-  String get routeNotFoundTitle => 'Page not found';
+  String get routeNotFoundTitle => 'Page Not Found';
 
   @override
   String get routeNotFoundMessage => 'This page is no longer available.';
@@ -5997,14 +5997,14 @@ class AppLocalizationsEn extends AppLocalizations {
   String get navigationForwardTooltip => 'Forward';
 
   @override
-  String get desktopShortcutsNavigateBackTitle => 'Go back';
+  String get desktopShortcutsNavigateBackTitle => 'Go Back';
 
   @override
   String get desktopShortcutsNavigateBackDescription =>
       'Return to the previous page; the mouse Back button does the same';
 
   @override
-  String get desktopShortcutsNavigateForwardTitle => 'Go forward';
+  String get desktopShortcutsNavigateForwardTitle => 'Go Forward';
 
   @override
   String get desktopShortcutsNavigateForwardDescription =>
@@ -6152,7 +6152,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get cacheSettingsResetSection => 'Reset';
 
   @override
-  String get cacheSettingsDeleteAllPresets => 'Delete all presets';
+  String get cacheSettingsDeleteAllPresets => 'Delete All Presets';
 
   @override
   String get cacheSettingsDeleteAllPresetsDescription =>
@@ -6206,7 +6206,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get downloadsFolderHoldChoose => 'Choose folder';
 
   @override
-  String get downloadsFolderHoldUseAppStorage => 'Use app storage';
+  String get downloadsFolderHoldUseAppStorage => 'Use App Storage';
 
   @override
   String get downloadsFailureNotFound =>

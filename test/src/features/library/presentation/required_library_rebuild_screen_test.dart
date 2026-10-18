@@ -158,7 +158,7 @@ void main() {
     await tester.pumpWidget(_testApp(setup: setup));
     await tester.pump();
 
-    expect(find.text('Sync using mobile data'), findsOneWidget);
+    expect(find.text('Sync Using Mobile Data'), findsOneWidget);
     expect(find.byKey(const ValueKey('requiredSyncRetry')), findsNothing);
     await tester.tap(find.byKey(const ValueKey('requiredSyncUseMobileData')));
     await tester.pump();

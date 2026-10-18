@@ -48,9 +48,9 @@ class _PlaybackSettingsPreview extends StatelessWidget {
     final settings = <Widget>[
       Text('Wi-Fi Streaming', style: text.titleMedium),
       const SizedBox(height: 12),
-      const _Field(label: 'Max bitrate', value: 'Original quality'),
+      const _Field(label: 'Max bitrate', value: 'Original Quality'),
       const SizedBox(height: 12),
-      const _Field(label: 'Preferred format', value: 'Server default'),
+      const _Field(label: 'Preferred format', value: 'Server Default'),
       const SizedBox(height: 28),
       Text('Cellular streaming', style: text.titleMedium),
       const SizedBox(height: 12),

@@ -142,7 +142,7 @@ void main() {
           if (fromMenu) {
             await tester.longPress(find.text('Second download'));
             await tester.pumpAndSettle();
-            await tester.tap(find.text('Play now'));
+            await tester.tap(find.text('Play Now'));
           } else {
             await tester.tap(find.text('Second download'));
           }
@@ -230,7 +230,7 @@ void main() {
         find.byKey(const ValueKey('downloadsFolderHoldBanner')),
         findsOneWidget,
       );
-      await tester.tap(find.text('Use app storage'));
+      await tester.tap(find.text('Use App Storage'));
       await tester.pumpAndSettle();
       expect(find.byType(AlertDialog), findsNothing);
       verify(() => service.configureCustomDownloadFolder(enabled: false))
@@ -362,7 +362,7 @@ void main() {
         ),
       );
       await tester.pumpAndSettle();
-      await tester.tap(find.text('Use app storage'));
+      await tester.tap(find.text('Use App Storage'));
       await tester.pump();
       expect(find.byType(AlertDialog), findsNothing);
       var queueDrained = false;
@@ -949,9 +949,9 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.textContaining('No results for "missing"'), findsOneWidget);
-    expect(find.text('Show all'), findsOneWidget);
+    expect(find.text('Show All'), findsOneWidget);
 
-    await tester.tap(find.text('Show all'));
+    await tester.tap(find.text('Show All'));
     await tester.pumpAndSettle();
 
     expect(find.text(song.title), findsOneWidget);
@@ -1085,10 +1085,10 @@ void main() {
     await settle(tester);
 
     expect(find.text('Quality'), findsOneWidget);
-    expect(find.text('Ask every time'), findsOneWidget);
+    expect(find.text('Ask Every Time'), findsOneWidget);
     expect(find.textContaining('2 downloads at a time'), findsOneWidget);
 
-    await tester.tap(find.text('Ask every time'));
+    await tester.tap(find.text('Ask Every Time'));
     await settle(tester);
     await tester.tap(find.text('192 kbps MP3').last);
     await settle(tester);
@@ -1112,7 +1112,7 @@ void main() {
 
     await tester.tap(find.text('192 kbps OPUS'));
     await settle(tester);
-    await tester.tap(find.text('Original quality').last);
+    await tester.tap(find.text('Original Quality').last);
     await settle(tester);
     preference = (await tester.runAsync(
       () => database.appSettingsDao.getDownloadQualityPreference(),
@@ -1134,7 +1134,7 @@ void main() {
     verify(() => service.setMaxConcurrentDownloads(4)).called(1);
   });
 
-  group('Missing artwork and lyrics', () {
+  group('Missing Artwork and Lyrics', () {
     const gaps = DownloadMetadataGaps(
       songsMissingLyrics: [
         (
@@ -1225,14 +1225,14 @@ void main() {
     }
 
     Finder backfillButton() =>
-        find.widgetWithText(FilledButton, 'Backfill now');
+        find.widgetWithText(FilledButton, 'Backfill Now');
 
     testWidgets('shows counts and opens the song and album lists', (
       tester,
     ) async {
       await openSettings(tester, () async => gaps);
 
-      expect(find.text('Missing artwork and lyrics'), findsOneWidget);
+      expect(find.text('Missing Artwork and Lyrics'), findsOneWidget);
       expect(find.text('2 songs without lyrics'), findsOneWidget);
       expect(find.text('1 album without artwork'), findsOneWidget);
 
@@ -1255,7 +1255,7 @@ void main() {
     ) async {
       await openSettings(tester, () async => none);
 
-      expect(find.text('Nothing missing'), findsOneWidget);
+      expect(find.text('Nothing Missing'), findsOneWidget);
       expect(find.textContaining('without lyrics'), findsNothing);
       expect(find.textContaining('without artwork'), findsNothing);
     });
@@ -1266,11 +1266,11 @@ void main() {
       final load = Completer<DownloadMetadataGaps>();
       await openSettings(tester, () => load.future);
       expect(find.text('Loading…'), findsOneWidget);
-      expect(find.text('Nothing missing'), findsNothing);
+      expect(find.text('Nothing Missing'), findsNothing);
       expect(find.byType(SnackBar), findsNothing);
       load.complete(none);
       await settle(tester);
-      expect(find.text('Nothing missing'), findsOneWidget);
+      expect(find.text('Nothing Missing'), findsOneWidget);
       expect(find.text('Loading…'), findsNothing);
     });
 
@@ -1304,13 +1304,13 @@ void main() {
     testWidgets('a failed gaps load stays quiet', (tester) async {
       await openSettings(tester, () async => throw StateError('disk'));
 
-      expect(find.text('Missing artwork and lyrics'), findsOneWidget);
+      expect(find.text('Missing Artwork and Lyrics'), findsOneWidget);
       expect(
         find.text("Couldn't check missing artwork and lyrics"),
         findsOneWidget,
       );
       expect(find.textContaining('without lyrics'), findsNothing);
-      expect(find.text('Nothing missing'), findsNothing);
+      expect(find.text('Nothing Missing'), findsNothing);
       expect(find.byType(SnackBar), findsNothing);
     });
 

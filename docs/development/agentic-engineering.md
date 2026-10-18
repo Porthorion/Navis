@@ -116,6 +116,14 @@ modify unrelated dirty work. Report actual validation and any uncertainty.
   `@visibleForTesting` as a deliberate test seam. The dead-code gate excludes
   annotated declarations and accepts other exceptions only with factual
   baseline reasons; release/dev tooling callers count as real use.
+- UI text casing: user-visible strings live in `lib/l10n/app_en.arb` (run
+  `flutter gen-l10n`; generated output is tracked). Titles, headings, section
+  headers, buttons, tab and menu items and option labels use Title Case:
+  capitalize major words, keep a, an, the, and, or, but, for, nor, of, on, in,
+  to, at, by, as, via (and from, with) lowercase unless first or last, and keep
+  brand names (Navis, Navidrome, Last.fm, ListenBrainz) and `{placeholders}` as
+  written. Status text, descriptions, subtitles, hints, tooltips, errors and
+  snackbars stay sentence case.
 - Runtime control comes from the authenticated Navis diagnostics API. Do not
   use AT-SPI, OCR, xdotool, window scraping, or desktop accessibility traversal
   as a substitute; see `docs/development/development-workflow.md` for the narrow exception.

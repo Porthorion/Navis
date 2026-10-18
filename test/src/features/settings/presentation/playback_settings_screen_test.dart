@@ -118,7 +118,7 @@ void main() {
 
       expect(find.text('Wi-Fi Streaming'), findsOneWidget);
       expect(find.text('Cellular Streaming'), findsOneWidget);
-      expect(find.text('Play cached copies at any quality'), findsOneWidget);
+      expect(find.text('Play Cached Copies at Any Quality'), findsOneWidget);
       expect(find.text('Enable Scrobbling'), findsOneWidget);
       expect(find.text('Enable Gapless Playback'), findsOneWidget);
       expect(find.text('Experimental'), findsOneWidget);
@@ -186,7 +186,7 @@ void main() {
       );
       final cachedFirstToggle = find.widgetWithText(
         SwitchListTile,
-        'Play cached copies at any quality',
+        'Play Cached Copies at Any Quality',
       );
       final gaplessToggle = find.widgetWithText(
         SwitchListTile,
@@ -494,11 +494,11 @@ void main() {
 
       await tester.tap(find.byType(DropdownButtonFormField<int?>).first);
       await tester.pumpAndSettle();
-      await tester.tap(find.text('Original quality').last);
+      await tester.tap(find.text('Original Quality').last);
       await tester.pumpAndSettle();
       await tester.tap(find.byType(DropdownButtonFormField<String?>).first);
       await tester.pumpAndSettle();
-      await tester.tap(find.text('Server default').last);
+      await tester.tap(find.text('Server Default').last);
       await tester.pumpAndSettle();
       await tester.pump(const Duration(milliseconds: 700));
       await tester.pumpAndSettle();

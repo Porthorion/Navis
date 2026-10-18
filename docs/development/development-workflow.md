@@ -897,7 +897,7 @@ again in the same process. The setup screen's own controller must record a
 new catalog run and reach Home. Next it restarts, makes the fixture's second
 album detail fail with HTTP 500 during a fresh setup so a catalog is promoted
 without readiness evidence, and restores an incomplete response. It then
-presses the screen's "Cancel and sign out" through
+presses the screen's "Cancel and Sign Out" through
 `POST /v1/presentation/library-rebuild` and signs in again. The new visit
 must start automatically, record a `repairLibrary` catalog run (never
 `manualCatalogDiscovery`), store the usable marker, open Home with the album

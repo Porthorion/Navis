@@ -216,10 +216,10 @@ void main() {
 
         for (final title in <String>[
           'Website',
-          'Source code',
-          'Report a bug',
-          'Contact support',
-          'Privacy policy',
+          'Source Code',
+          'Report a Bug',
+          'Contact Support',
+          'Privacy Policy',
           'License',
         ]) {
           final tile = find.widgetWithText(ListTile, title);

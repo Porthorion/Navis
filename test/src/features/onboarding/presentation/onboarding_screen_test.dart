@@ -180,11 +180,11 @@ void main() {
     );
     expect(find.textContaining('Crossfade duration:'), findsOneWidget);
     await tester.scrollUntilVisible(
-      find.text('Crossfade type'),
+      find.text('Crossfade Type'),
       160,
       scrollable: find.byType(Scrollable).first,
     );
-    expect(find.text('Crossfade type'), findsOneWidget);
+    expect(find.text('Crossfade Type'), findsOneWidget);
   });
 
   testWidgets('step text follows the theme chosen in the first step', (
@@ -279,11 +279,11 @@ void main() {
     }
 
     await tester.scrollUntilVisible(
-      find.text('ListenBrainz connected'),
+      find.text('ListenBrainz Connected'),
       240,
       scrollable: find.byType(Scrollable).first,
     );
-    expect(find.text('ListenBrainz connected'), findsOneWidget);
+    expect(find.text('ListenBrainz Connected'), findsOneWidget);
     expect(find.text('Connected as navis-user.'), findsOneWidget);
     expect(find.text('Update'), findsOneWidget);
   });
@@ -330,7 +330,7 @@ void main() {
       scrollable: find.byType(Scrollable).first,
     );
     await tester.enterText(token, 'token');
-    final validate = find.widgetWithText(FilledButton, 'Validate and connect');
+    final validate = find.widgetWithText(FilledButton, 'Validate and Connect');
     await tester.scrollUntilVisible(
       validate,
       120,

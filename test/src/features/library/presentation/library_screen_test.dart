@@ -513,7 +513,7 @@ void main() {
       );
       await _switchToArtistsTab(tester);
 
-      expect(find.byTooltip('Switch to artist grid view'), findsOneWidget);
+      expect(find.byTooltip('Switch to Artist Grid View'), findsOneWidget);
 
       await _pumpLibraryScreen(
         tester,
@@ -528,7 +528,7 @@ void main() {
       );
       await _switchToArtistsTab(tester);
 
-      expect(find.byTooltip('Switch to artist list view'), findsOneWidget);
+      expect(find.byTooltip('Switch to Artist List View'), findsOneWidget);
     },
   );
 
@@ -559,7 +559,7 @@ void main() {
         ],
       );
       await _switchToArtistsTab(tester);
-      await tester.tap(find.byTooltip('Switch to artist grid view'));
+      await tester.tap(find.byTooltip('Switch to Artist Grid View'));
       await tester.runAsync(() async {
         final row = await _testDatabase.appSettingsDao.getSettings();
         expect(row!.artistViewMode, 'grid');
@@ -667,7 +667,7 @@ void main() {
         await tester.pumpAndSettle();
         await tester.tap(find.text('Liked'));
         await tester.pumpAndSettle();
-        await tester.tap(find.text('See all'));
+        await tester.tap(find.text('See All'));
         await tester.pumpAndSettle();
         expect(find.byType(LikedArtistsAllScreen), findsOneWidget);
         expect(find.text('Hidden page artist'), findsOneWidget);
@@ -726,7 +726,7 @@ void main() {
           find.byKey(const ValueKey('liked-albums-shelf')),
         );
         expect(shelf.itemCount, 1);
-        expect(find.text('See all'), findsOneWidget);
+        expect(find.text('See All'), findsOneWidget);
       },
     );
     _testWidgetsWithCleanup(
@@ -846,7 +846,7 @@ void main() {
         );
         expect(tester.getRect(more).center.dy, tester.getRect(row).center.dy);
         expect(firstSongTop - start, lessThanOrEqualTo(440));
-        expect(find.text('See all'), findsNWidgets(2));
+        expect(find.text('See All'), findsNWidgets(2));
         expect(tester.takeException(), isNull);
       },
     );
@@ -2054,8 +2054,8 @@ void main() {
         expect(find.text('Weekly Jams'), findsOneWidget);
         expect(find.text('0 of 1 available • ListenBrainz'), findsOneWidget);
         expect(find.text('Server Mix'), findsOneWidget);
-        expect(find.text('Made for you'), findsOneWidget);
-        expect(find.text('Other playlists'), findsOneWidget);
+        expect(find.text('Made for You'), findsOneWidget);
+        expect(find.text('Other Playlists'), findsOneWidget);
         expect(
           tester.getTopLeft(find.text('Weekly Jams')).dy,
           lessThan(tester.getTopLeft(find.text('Server Mix')).dy),
@@ -2125,7 +2125,7 @@ void main() {
         expect(weekly, lessThan(trending));
         expect(
           trending,
-          lessThan(tester.getTopLeft(find.text('Other playlists')).dy),
+          lessThan(tester.getTopLeft(find.text('Other Playlists')).dy),
         );
 
         await tester.tap(find.text('Trending Now'));
@@ -2256,7 +2256,7 @@ void main() {
         expect(find.text('Weekly Exploration'), findsOneWidget);
         expect(find.byType(ListenBrainzPlaylistArtwork), findsOneWidget);
         expect(find.byType(CoverArtImage), findsNWidgets(4));
-        expect(find.text('Made for you'), findsNothing);
+        expect(find.text('Made for You'), findsNothing);
       },
     );
 
@@ -2579,7 +2579,7 @@ void main() {
           overrides: [playlistActionsProvider.overrideWithValue(actions)],
         );
 
-        expect(find.text('On this device · 3 songs'), findsOneWidget);
+        expect(find.text('On This Device · 3 songs'), findsOneWidget);
         expect(find.text('4 songs'), findsOneWidget);
 
         await tester.longPress(find.text('Device Mix'));
@@ -2649,11 +2649,11 @@ void main() {
         await tester.ensureVisible(find.text('Playlists'));
         await tester.tap(find.text('Playlists'));
         await tester.pumpAndSettle();
-        expect(find.text('Your playlists'), findsNothing);
+        expect(find.text('Your Playlists'), findsNothing);
 
         await tester.tap(find.byTooltip('New Playlist'));
         await tester.pumpAndSettle();
-        expect(find.text('Save to server'), findsOneWidget);
+        expect(find.text('Save to Server'), findsOneWidget);
         expect(tester.widget<Switch>(find.byType(Switch)).onChanged, isNull);
         await tester.enterText(
           find.descendant(
@@ -2672,10 +2672,10 @@ void main() {
           () => _testDatabase.playlistDao.watchPlaylists().first,
         ))!.singleWhere((playlist) => playlist.isLocal);
         addTearDown(() => _testDatabase.playlistDao.deletePlaylist(created.id));
-        expect(find.text('Your playlists'), findsOneWidget);
-        expect(find.text('Other playlists'), findsOneWidget);
+        expect(find.text('Your Playlists'), findsOneWidget);
+        expect(find.text('Other Playlists'), findsOneWidget);
         expect(find.text('Commute'), findsOneWidget);
-        expect(find.text('On this device · No songs'), findsOneWidget);
+        expect(find.text('On This Device · No songs'), findsOneWidget);
         expect(
           tester.getTopLeft(find.text('Commute')).dy,
           lessThan(tester.getTopLeft(find.text('Their Mix')).dy),
@@ -2787,11 +2787,11 @@ void main() {
 
       final tops = <double>[
         for (final label in <String>[
-          'Your playlists',
+          'Your Playlists',
           'Road Trip',
-          'Made for you',
+          'Made for You',
           'Trending Now',
-          'Other playlists',
+          'Other Playlists',
           'Their Mix',
         ])
           tester.getTopLeft(find.text(label)).dy,
@@ -2821,7 +2821,7 @@ void main() {
         expect(find.text('Road Trip'), findsNothing);
         expect(find.text('Trending Now'), findsNothing);
         // One section left: no header.
-        expect(find.text('Your playlists'), findsNothing);
+        expect(find.text('Your Playlists'), findsNothing);
 
         await tester.enterText(field, 'trend');
         await tester.pumpAndSettle();
@@ -3062,7 +3062,7 @@ void main() {
         expect(tester.widget<IconButton>(desktopMoreButton).tooltip, 'More');
         await tester.tap(desktopMoreButton);
         await tester.pump(const Duration(milliseconds: 300));
-        expect(find.text('Play now'), findsOneWidget);
+        expect(find.text('Play Now'), findsOneWidget);
         expect(find.byType(BottomSheet), findsNothing);
         await tester.tapAt(const Offset(8, 8));
         await tester.pump(const Duration(milliseconds: 300));

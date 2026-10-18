@@ -81,7 +81,7 @@ void main() {
     await tester.pumpAndSettle();
     await tester.tap(find.byKey(const ValueKey('eq-preset-picker')));
     await tester.pumpAndSettle();
-    await tester.tap(find.text('Find headphones in AutoEQ'));
+    await tester.tap(find.text('Find Headphones in AutoEQ'));
 
     await tester.pumpAndSettle();
     verify(catalogue.load).called(1);

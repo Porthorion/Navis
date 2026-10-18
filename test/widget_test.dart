@@ -264,17 +264,17 @@ void main() {
         ),
       );
       await tester.pump();
-      expect(find.text('Continue to sign in'), findsNothing);
+      expect(find.text('Continue to Sign In'), findsNothing);
 
       await tester.pump(const Duration(milliseconds: 4999));
       expect(find.text('Restart Navis'), findsNothing);
-      expect(find.text('Copy details'), findsNothing);
+      expect(find.text('Copy Details'), findsNothing);
       await tester.pump(const Duration(milliseconds: 1));
       expect(find.text('Restart Navis'), findsOneWidget);
-      expect(find.text('Copy details'), findsOneWidget);
-      expect(find.text('Continue to sign in'), findsOneWidget);
+      expect(find.text('Copy Details'), findsOneWidget);
+      expect(find.text('Continue to Sign In'), findsOneWidget);
 
-      await tester.tap(find.text('Continue to sign in'));
+      await tester.tap(find.text('Continue to Sign In'));
       await tester.pump();
       expect(
         find.text('Connect to your Subsonic or Navidrome server.'),
@@ -314,7 +314,7 @@ void main() {
       await tester.tap(find.text('Restart Navis'));
       await tester.pump();
       expect(recovery.restartCalls, 1);
-      await tester.tap(find.text('Copy details'));
+      await tester.tap(find.text('Copy Details'));
       await tester.pump();
       expect(recovery.copyCalls, 1);
       expect(find.text('Startup details copied'), findsOneWidget);
@@ -356,10 +356,10 @@ void main() {
         );
         await tester.pump(const Duration(seconds: 10));
 
-        expect(find.text('Continue to sign in'), findsNothing);
-        expect(find.text('Reset library cache and retry'), findsOneWidget);
-        expect(find.text('Sign out (keep local data)'), findsOneWidget);
-        expect(find.text('Sign out and clear local data'), findsOneWidget);
+        expect(find.text('Continue to Sign In'), findsNothing);
+        expect(find.text('Reset Library Cache and Retry'), findsOneWidget);
+        expect(find.text('Sign Out (Keep Local Data)'), findsOneWidget);
+        expect(find.text('Sign Out and Clear Local Data'), findsOneWidget);
       },
     );
   }
@@ -406,9 +406,9 @@ void main() {
       );
       await tester.pump(const Duration(seconds: 10));
 
-      expect(find.text('Reset library cache and retry'), findsOneWidget);
-      expect(find.text('Sign out (keep local data)'), findsOneWidget);
-      expect(find.text('Sign out and clear local data'), findsOneWidget);
+      expect(find.text('Reset Library Cache and Retry'), findsOneWidget);
+      expect(find.text('Sign Out (Keep Local Data)'), findsOneWidget);
+      expect(find.text('Sign Out and Clear Local Data'), findsOneWidget);
     },
   );
 }

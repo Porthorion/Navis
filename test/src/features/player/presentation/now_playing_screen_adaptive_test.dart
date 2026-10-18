@@ -412,7 +412,7 @@ void main() {
         find.byWidgetPredicate(
           (widget) =>
               widget is Semantics &&
-              widget.properties.label == 'Transcoded playback',
+              widget.properties.label == 'Transcoded Playback',
         ),
         findsOneWidget,
       );
@@ -451,7 +451,7 @@ void main() {
 
     expect(find.byIcon(Icons.transform), findsNothing);
     expect(find.text('FLAC • 900 Kb/s'), findsOneWidget);
-    expect(find.bySemanticsLabel('Transcoded playback'), findsNothing);
+    expect(find.bySemanticsLabel('Transcoded Playback'), findsNothing);
     expect(tester.takeException(), isNull);
   }, skip: !sqliteAvailable);
 

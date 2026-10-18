@@ -126,7 +126,7 @@ void main() {
         );
     await tester.pumpAndSettle();
     expect(tile('gain').onPressed, isNull);
-    expect(find.text('Not applicable'), findsOneWidget);
+    expect(find.text('Not Applicable'), findsOneWidget);
     expect(tile('frequency').onPressed, isNotNull);
     expect(find.byKey(const ValueKey('eq-graph-q')), findsOneWidget);
   }, skip: !sqliteAvailable);
@@ -328,8 +328,8 @@ void main() {
     await tester.tap(find.byKey(const ValueKey('eq-number-done')));
     await tester.pumpAndSettle();
     expect(find.text('Studio monitors*'), findsOneWidget);
-    expect(find.text('Save changes'), findsOneWidget);
-    await tester.tap(find.text('Save changes'));
+    expect(find.text('Save Changes'), findsOneWidget);
+    await tester.tap(find.text('Save Changes'));
     await tester.pumpAndSettle();
     expect(find.byKey(const ValueKey('eq-save')), findsNothing);
     expect(

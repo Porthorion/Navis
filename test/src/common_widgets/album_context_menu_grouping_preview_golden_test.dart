@@ -60,11 +60,11 @@ class _AlbumMenuPreview extends StatelessWidget {
               children: <Widget>[
                 const _ActionTile(
                   icon: Icons.open_in_new_outlined,
-                  label: 'Open album',
+                  label: 'Open Album',
                 ),
                 const _ActionTile(
                   icon: Icons.play_arrow_outlined,
-                  label: 'Play album',
+                  label: 'Play Album',
                 ),
                 const _ActionTile(
                   icon: Icons.queue_music_outlined,

@@ -83,7 +83,7 @@ class _Preview extends StatelessWidget {
         children: <Widget>[
           const SizedBox(height: 12),
           section('Recently added', const Color(0xFFE16734)),
-          section('Made for you', const Color(0xFF6F62B8)),
+          section('Made for You', const Color(0xFF6F62B8)),
           section('Recently played', const Color(0xFF27818C)),
         ],
       ),

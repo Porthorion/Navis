@@ -1237,7 +1237,7 @@ void main() {
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 200));
     expect(router.state.matchedLocation, '/settings/integrations');
-    expect(find.text('Online services'), findsOneWidget);
+    expect(find.text('Online Services'), findsOneWidget);
 
     router.go('/settings/group-listening');
     await tester.pump();
@@ -1657,10 +1657,10 @@ void main() {
     router.go('/settings/server');
     await tester.pumpAndSettle();
 
-    await tester.ensureVisible(find.text('Sign out'));
-    await tester.tap(find.text('Sign out'));
+    await tester.ensureVisible(find.text('Sign Out'));
+    await tester.tap(find.text('Sign Out'));
     await tester.pumpAndSettle();
-    await tester.tap(find.text('Sign out (keep local data)'));
+    await tester.tap(find.text('Sign Out (Keep Local Data)'));
     await tester.pumpAndSettle();
 
     expect(

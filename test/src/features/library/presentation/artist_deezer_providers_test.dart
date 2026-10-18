@@ -213,7 +213,7 @@ void main() {
     });
   });
 
-  group('Fans also like', () {
+  group('Fans Also Like', () {
     test('library artists come first and keep their library id', () async {
       final db = createTestDatabase();
       addTearDown(db.close);
@@ -278,7 +278,7 @@ void main() {
     });
   });
 
-  group('Missing albums', () {
+  group('Missing Albums', () {
     const deezerAlbums = [
       DeezerAlbum(
         id: 1,

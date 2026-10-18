@@ -131,7 +131,7 @@ class _DetailRoutePreview extends StatelessWidget {
                           vertical: 10,
                         ),
                         child: Text(
-                          'Play album',
+                          'Play Album',
                           style: TextStyle(
                             color: Colors.white,
                             fontWeight: FontWeight.w700,

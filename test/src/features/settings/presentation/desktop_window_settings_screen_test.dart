@@ -78,7 +78,7 @@ void main() {
 
     expect(find.byTooltip('Back'), findsOneWidget);
     expect(find.text('Mini Player'), findsOneWidget);
-    expect(find.text('Keep Mini Player on top'), findsOneWidget);
+    expect(find.text('Keep Mini Player on Top'), findsOneWidget);
     expect(controller.isMiniPlayerMode, isFalse);
     expect(tester.getSize(find.byType(ListView)).width, 1040);
     await expectLater(

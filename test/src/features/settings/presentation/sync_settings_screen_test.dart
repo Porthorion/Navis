@@ -188,7 +188,7 @@ void main() {
       server: (await repository.getActiveServer())!,
     );
     expect(find.textContaining(' • Current'), findsOneWidget);
-    expect(find.textContaining('Verification pending'), findsNothing);
+    expect(find.textContaining('Verification Pending'), findsNothing);
     expect(
       find.textContaining('A server rescan usually fixes this.'),
       findsOneWidget,
@@ -495,7 +495,7 @@ void main() {
       find.text('Background Sync Only on Unmetered Networks'),
       findsOneWidget,
     );
-    expect(find.text('Sync library now'), findsOneWidget);
+    expect(find.text('Sync Library Now'), findsOneWidget);
     expect(find.text('Repair Library'), findsOneWidget);
     expect(
       find.text(
@@ -672,9 +672,9 @@ void main() {
     );
     await tester.drag(find.byType(ListView), const Offset(0, -600));
     await tester.pumpAndSettle();
-    expect(find.text('Sync using mobile data'), findsOneWidget);
+    expect(find.text('Sync Using Mobile Data'), findsOneWidget);
 
-    await tester.tap(find.text('Sync using mobile data'));
+    await tester.tap(find.text('Sync Using Mobile Data'));
     await tester.pumpAndSettle();
 
     expect(mobileSyncTriggered, isTrue);

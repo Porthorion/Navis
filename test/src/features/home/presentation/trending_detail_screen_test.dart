@@ -166,12 +166,12 @@ void main() {
       );
     }
     // Playable songs have no status; the missing one looks like a weekly
-    // playlist's: faded, "Not on server" and a Search action.
+    // playlist's: faded, "Not on Server" and a Search action.
     expect(find.byType(TrackMatchStatusLabel), findsOneWidget);
     expect(
       find.descendant(
         of: row('Missing Song'),
-        matching: find.text('Not on server'),
+        matching: find.text('Not on Server'),
       ),
       findsOneWidget,
     );
@@ -230,8 +230,8 @@ void main() {
       await tester.longPress(find.text('Remote Song'));
       await tester.pumpAndSettle();
 
-      expect(find.text('Open album'), findsOneWidget);
-      expect(find.text('Open artist'), findsOneWidget);
+      expect(find.text('Open Album'), findsOneWidget);
+      expect(find.text('Open Artist'), findsOneWidget);
       final stored = await tester.runAsync(
         () => database.libraryDao.getSongById(remote.id),
       );

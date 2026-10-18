@@ -56,17 +56,17 @@ void main() {
       await tester.tap(find.text('Open'));
       await tester.pumpAndSettle();
       expect(find.text('Playback Unavailable'), findsOneWidget);
-      expect(find.text('Reset library cache and retry'), findsOneWidget);
-      expect(find.text('Sign out (keep local data)'), findsOneWidget);
+      expect(find.text('Reset Library Cache and Retry'), findsOneWidget);
+      expect(find.text('Sign Out (Keep Local Data)'), findsOneWidget);
 
-      await tester.tap(find.text('Retry playback'));
+      await tester.tap(find.text('Retry Playback'));
       await tester.pumpAndSettle();
       expect(recovery.retryCalls, 1);
       expect(find.text('Playback Unavailable'), findsNothing);
 
       await tester.tap(find.text('Open'));
       await tester.pumpAndSettle();
-      await tester.tap(find.text('Reset library cache and retry'));
+      await tester.tap(find.text('Reset Library Cache and Retry'));
       await tester.pumpAndSettle();
       await tester.tap(find.text('Reset Cache'));
       await tester.pumpAndSettle();

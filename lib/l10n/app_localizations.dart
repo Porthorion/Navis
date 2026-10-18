@@ -169,13 +169,13 @@ abstract class AppLocalizations {
   /// No description provided for @loginShowPassword.
   ///
   /// In en, this message translates to:
-  /// **'Show password'**
+  /// **'Show Password'**
   String get loginShowPassword;
 
   /// No description provided for @loginHidePassword.
   ///
   /// In en, this message translates to:
-  /// **'Hide password'**
+  /// **'Hide Password'**
   String get loginHidePassword;
 
   /// No description provided for @loginConnect.
@@ -307,7 +307,7 @@ abstract class AppLocalizations {
   /// No description provided for @initialSyncUseMobileData.
   ///
   /// In en, this message translates to:
-  /// **'Sync using mobile data'**
+  /// **'Sync Using Mobile Data'**
   String get initialSyncUseMobileData;
 
   /// No description provided for @initialSyncFailed.
@@ -379,13 +379,13 @@ abstract class AppLocalizations {
   /// No description provided for @requiredSyncSignOut.
   ///
   /// In en, this message translates to:
-  /// **'Sign out'**
+  /// **'Sign Out'**
   String get requiredSyncSignOut;
 
   /// No description provided for @requiredSyncCancelAndSignOut.
   ///
   /// In en, this message translates to:
-  /// **'Cancel and sign out'**
+  /// **'Cancel and Sign Out'**
   String get requiredSyncCancelAndSignOut;
 
   /// No description provided for @requiredSyncStagePreparing.
@@ -565,7 +565,7 @@ abstract class AppLocalizations {
   /// No description provided for @settingsGroupDeviceStorageCache.
   ///
   /// In en, this message translates to:
-  /// **'Device storage & cache'**
+  /// **'Device Storage & Cache'**
   String get settingsGroupDeviceStorageCache;
 
   /// No description provided for @settingsGroupPlayback.
@@ -577,7 +577,7 @@ abstract class AppLocalizations {
   /// No description provided for @settingsGroupLibrarySynchronization.
   ///
   /// In en, this message translates to:
-  /// **'Library synchronization'**
+  /// **'Library Synchronization'**
   String get settingsGroupLibrarySynchronization;
 
   /// No description provided for @settingsGroupOther.
@@ -619,7 +619,7 @@ abstract class AppLocalizations {
   /// No description provided for @desktopShortcutsReset.
   ///
   /// In en, this message translates to:
-  /// **'Reset to defaults'**
+  /// **'Reset to Defaults'**
   String get desktopShortcutsReset;
 
   /// No description provided for @desktopShortcutsCustomizable.
@@ -631,7 +631,7 @@ abstract class AppLocalizations {
   /// No description provided for @desktopShortcutsBuiltIn.
   ///
   /// In en, this message translates to:
-  /// **'Built-in'**
+  /// **'Built-In'**
   String get desktopShortcutsBuiltIn;
 
   /// No description provided for @desktopShortcutsCaptureSaved.
@@ -655,7 +655,7 @@ abstract class AppLocalizations {
   /// No description provided for @desktopShortcutsNotSet.
   ///
   /// In en, this message translates to:
-  /// **'Not set'**
+  /// **'Not Set'**
   String get desktopShortcutsNotSet;
 
   /// No description provided for @desktopShortcutsQuickSearchTitle.
@@ -745,7 +745,7 @@ abstract class AppLocalizations {
   /// No description provided for @desktopShortcutsToggleNowPlayingTitle.
   ///
   /// In en, this message translates to:
-  /// **'Close overlay'**
+  /// **'Close Overlay'**
   String get desktopShortcutsToggleNowPlayingTitle;
 
   /// No description provided for @desktopShortcutsToggleNowPlayingDescription.
@@ -961,7 +961,7 @@ abstract class AppLocalizations {
   /// Link at the end of the in-app Privacy page that opens the full policy on the Navis website.
   ///
   /// In en, this message translates to:
-  /// **'Read the full privacy policy'**
+  /// **'Read the Full Privacy Policy'**
   String get privacyReadFullPolicy;
 
   /// No description provided for @syncSettingsTitle.
@@ -1135,7 +1135,7 @@ abstract class AppLocalizations {
   /// No description provided for @syncSettingsAndroidBackgroundLastAttempt.
   ///
   /// In en, this message translates to:
-  /// **'Last Android attempt'**
+  /// **'Last Android Attempt'**
   String get syncSettingsAndroidBackgroundLastAttempt;
 
   /// No description provided for @syncSettingsAndroidBackgroundNoAttempt.
@@ -1239,7 +1239,7 @@ abstract class AppLocalizations {
   /// No description provided for @syncSettingsSyncLibraryNow.
   ///
   /// In en, this message translates to:
-  /// **'Sync library now'**
+  /// **'Sync Library Now'**
   String get syncSettingsSyncLibraryNow;
 
   /// No description provided for @syncSettingsFreshnessCurrent.
@@ -1251,13 +1251,13 @@ abstract class AppLocalizations {
   /// No description provided for @syncSettingsFreshnessPending.
   ///
   /// In en, this message translates to:
-  /// **'Verification pending'**
+  /// **'Verification Pending'**
   String get syncSettingsFreshnessPending;
 
   /// No description provided for @syncSettingsFreshnessRepair.
   ///
   /// In en, this message translates to:
-  /// **'Repair recommended'**
+  /// **'Repair Recommended'**
   String get syncSettingsFreshnessRepair;
 
   /// No description provided for @syncSettingsRemainingVerification.
@@ -1281,7 +1281,7 @@ abstract class AppLocalizations {
   /// No description provided for @syncSettingsIntervalManual.
   ///
   /// In en, this message translates to:
-  /// **'Manual only'**
+  /// **'Manual Only'**
   String get syncSettingsIntervalManual;
 
   /// No description provided for @syncSettingsIntervalMinutes.
@@ -1329,7 +1329,7 @@ abstract class AppLocalizations {
   /// No description provided for @syncSettingsSyncUsingMobileData.
   ///
   /// In en, this message translates to:
-  /// **'Sync using mobile data'**
+  /// **'Sync Using Mobile Data'**
   String get syncSettingsSyncUsingMobileData;
 
   /// No description provided for @syncSettingsRepairLibraryMetadata.
@@ -1503,7 +1503,7 @@ abstract class AppLocalizations {
   /// No description provided for @playbackSettingsCachedFirstTitle.
   ///
   /// In en, this message translates to:
-  /// **'Play cached copies at any quality'**
+  /// **'Play Cached Copies at Any Quality'**
   String get playbackSettingsCachedFirstTitle;
 
   /// No description provided for @playbackSettingsCachedFirstSubtitle.
@@ -1545,7 +1545,7 @@ abstract class AppLocalizations {
   /// No description provided for @playbackSettingsQualityOriginal.
   ///
   /// In en, this message translates to:
-  /// **'Original quality'**
+  /// **'Original Quality'**
   String get playbackSettingsQualityOriginal;
 
   /// No description provided for @playbackSettingsQualityKbps.
@@ -1557,7 +1557,7 @@ abstract class AppLocalizations {
   /// No description provided for @playbackSettingsFormatOriginal.
   ///
   /// In en, this message translates to:
-  /// **'Server default'**
+  /// **'Server Default'**
   String get playbackSettingsFormatOriginal;
 
   /// No description provided for @playbackSettingsSaveFailure.
@@ -1641,13 +1641,13 @@ abstract class AppLocalizations {
   /// No description provided for @playbackMuteTooltip.
   ///
   /// In en, this message translates to:
-  /// **'Mute playback'**
+  /// **'Mute Playback'**
   String get playbackMuteTooltip;
 
   /// No description provided for @playbackUnmuteTooltip.
   ///
   /// In en, this message translates to:
-  /// **'Unmute playback'**
+  /// **'Unmute Playback'**
   String get playbackUnmuteTooltip;
 
   /// No description provided for @playbackSettingsReplayGainModeLabel.
@@ -1695,7 +1695,7 @@ abstract class AppLocalizations {
   /// No description provided for @playbackSettingsReplayGainPreampLabel.
   ///
   /// In en, this message translates to:
-  /// **'Pre-amp (dB)'**
+  /// **'Pre-Amp (dB)'**
   String get playbackSettingsReplayGainPreampLabel;
 
   /// No description provided for @playbackSettingsReplayGainPreampSubtitle.
@@ -1851,7 +1851,7 @@ abstract class AppLocalizations {
   /// No description provided for @weeklyPlaylistNoTracksYet.
   ///
   /// In en, this message translates to:
-  /// **'No tracks yet'**
+  /// **'No Tracks Yet'**
   String get weeklyPlaylistNoTracksYet;
 
   /// No description provided for @weeklyPlaylistReady.
@@ -1875,7 +1875,7 @@ abstract class AppLocalizations {
   /// No description provided for @weeklyPlaylistAmbiguousMatch.
   ///
   /// In en, this message translates to:
-  /// **'Ambiguous match'**
+  /// **'Ambiguous Match'**
   String get weeklyPlaylistAmbiguousMatch;
 
   /// No description provided for @weeklyPlaylistTrackUnavailable.
@@ -1887,13 +1887,13 @@ abstract class AppLocalizations {
   /// No description provided for @weeklyPlaylistTrackUnavailableShort.
   ///
   /// In en, this message translates to:
-  /// **'Not on server'**
+  /// **'Not on Server'**
   String get weeklyPlaylistTrackUnavailableShort;
 
   /// No description provided for @weeklyPlaylistAmbiguousMatchShort.
   ///
   /// In en, this message translates to:
-  /// **'Unclear match'**
+  /// **'Unclear Match'**
   String get weeklyPlaylistAmbiguousMatchShort;
 
   /// No description provided for @homeShowcaseReasonLikedDiscovery.
@@ -2181,37 +2181,37 @@ abstract class AppLocalizations {
   /// No description provided for @radioStopStation.
   ///
   /// In en, this message translates to:
-  /// **'Stop radio'**
+  /// **'Stop Radio'**
   String get radioStopStation;
 
   /// No description provided for @radioAddStation.
   ///
   /// In en, this message translates to:
-  /// **'Add station'**
+  /// **'Add Station'**
   String get radioAddStation;
 
   /// No description provided for @radioEditStation.
   ///
   /// In en, this message translates to:
-  /// **'Edit station'**
+  /// **'Edit Station'**
   String get radioEditStation;
 
   /// No description provided for @radioDeleteStation.
   ///
   /// In en, this message translates to:
-  /// **'Delete station'**
+  /// **'Delete Station'**
   String get radioDeleteStation;
 
   /// No description provided for @radioSectionDevice.
   ///
   /// In en, this message translates to:
-  /// **'On this device'**
+  /// **'On This Device'**
   String get radioSectionDevice;
 
   /// No description provided for @radioSectionServer.
   ///
   /// In en, this message translates to:
-  /// **'On your server'**
+  /// **'On Your Server'**
   String get radioSectionServer;
 
   /// No description provided for @radioEditorNameLabel.
@@ -2229,7 +2229,7 @@ abstract class AppLocalizations {
   /// No description provided for @radioEditorHomepageLabel.
   ///
   /// In en, this message translates to:
-  /// **'Homepage (optional)'**
+  /// **'Homepage (Optional)'**
   String get radioEditorHomepageLabel;
 
   /// No description provided for @radioEditorNameError.
@@ -2343,7 +2343,7 @@ abstract class AppLocalizations {
   /// No description provided for @serverSettingsCurrentConnection.
   ///
   /// In en, this message translates to:
-  /// **'Current connection'**
+  /// **'Current Connection'**
   String get serverSettingsCurrentConnection;
 
   /// No description provided for @serverSettingsNameLabel.
@@ -2385,13 +2385,13 @@ abstract class AppLocalizations {
   /// No description provided for @serverSettingsAuthModeLegacy.
   ///
   /// In en, this message translates to:
-  /// **'Legacy password'**
+  /// **'Legacy Password'**
   String get serverSettingsAuthModeLegacy;
 
   /// No description provided for @serverSettingsTestConnection.
   ///
   /// In en, this message translates to:
-  /// **'Test connection'**
+  /// **'Test Connection'**
   String get serverSettingsTestConnection;
 
   /// No description provided for @serverSettingsSave.
@@ -2403,19 +2403,19 @@ abstract class AppLocalizations {
   /// No description provided for @serverSettingsSignOut.
   ///
   /// In en, this message translates to:
-  /// **'Sign out'**
+  /// **'Sign Out'**
   String get serverSettingsSignOut;
 
   /// No description provided for @serverSettingsSignOutKeepData.
   ///
   /// In en, this message translates to:
-  /// **'Sign out (keep local data)'**
+  /// **'Sign Out (Keep Local Data)'**
   String get serverSettingsSignOutKeepData;
 
   /// No description provided for @serverSettingsSignOutWipeData.
   ///
   /// In en, this message translates to:
-  /// **'Sign out and clear local data'**
+  /// **'Sign Out and Clear Local Data'**
   String get serverSettingsSignOutWipeData;
 
   /// No description provided for @serverSettingsSignOutSuccess.
@@ -2535,7 +2535,7 @@ abstract class AppLocalizations {
   /// No description provided for @configurationListenBrainzValidateAndSave.
   ///
   /// In en, this message translates to:
-  /// **'Validate and save'**
+  /// **'Validate and Save'**
   String get configurationListenBrainzValidateAndSave;
 
   /// No description provided for @configurationListenBrainzGetToken.
@@ -2577,7 +2577,7 @@ abstract class AppLocalizations {
   /// No description provided for @integrationsMasterTitle.
   ///
   /// In en, this message translates to:
-  /// **'Online services'**
+  /// **'Online Services'**
   String get integrationsMasterTitle;
 
   /// No description provided for @integrationsMasterSubtitle.
@@ -2595,7 +2595,7 @@ abstract class AppLocalizations {
   /// No description provided for @integrationsGroupListeningHistory.
   ///
   /// In en, this message translates to:
-  /// **'Listening history'**
+  /// **'Listening History'**
   String get integrationsGroupListeningHistory;
 
   /// No description provided for @integrationsGroupNowPlaying.
@@ -2619,7 +2619,7 @@ abstract class AppLocalizations {
   /// No description provided for @integrationsServiceRadio.
   ///
   /// In en, this message translates to:
-  /// **'Internet radio'**
+  /// **'Internet Radio'**
   String get integrationsServiceRadio;
 
   /// No description provided for @integrationsServiceArtwork.
@@ -2673,7 +2673,7 @@ abstract class AppLocalizations {
   /// No description provided for @integrationsUpdateSourcePorthorion.
   ///
   /// In en, this message translates to:
-  /// **'Porthorion downloads (downloads.porthorion.com)'**
+  /// **'Porthorion Downloads (downloads.porthorion.com)'**
   String get integrationsUpdateSourcePorthorion;
 
   /// No description provided for @integrationsUpdateSourceGithub.
@@ -2715,7 +2715,7 @@ abstract class AppLocalizations {
   /// No description provided for @integrationsFeatureDeezerTopSongsTitle.
   ///
   /// In en, this message translates to:
-  /// **'Top songs'**
+  /// **'Top Songs'**
   String get integrationsFeatureDeezerTopSongsTitle;
 
   /// No description provided for @integrationsFeatureDeezerTopSongsSubtitle.
@@ -2727,7 +2727,7 @@ abstract class AppLocalizations {
   /// No description provided for @integrationsFeatureDeezerArtistImagesTitle.
   ///
   /// In en, this message translates to:
-  /// **'Artist photos'**
+  /// **'Artist Photos'**
   String get integrationsFeatureDeezerArtistImagesTitle;
 
   /// No description provided for @integrationsFeatureDeezerArtistImagesSubtitle.
@@ -2739,7 +2739,7 @@ abstract class AppLocalizations {
   /// No description provided for @integrationsFeatureDeezerSimilarArtistsTitle.
   ///
   /// In en, this message translates to:
-  /// **'Fans also like'**
+  /// **'Fans Also Like'**
   String get integrationsFeatureDeezerSimilarArtistsTitle;
 
   /// No description provided for @integrationsFeatureDeezerSimilarArtistsSubtitle.
@@ -2751,7 +2751,7 @@ abstract class AppLocalizations {
   /// No description provided for @integrationsFeatureDeezerMissingAlbumsTitle.
   ///
   /// In en, this message translates to:
-  /// **'Missing albums'**
+  /// **'Missing Albums'**
   String get integrationsFeatureDeezerMissingAlbumsTitle;
 
   /// No description provided for @integrationsFeatureDeezerMissingAlbumsSubtitle.
@@ -2763,7 +2763,7 @@ abstract class AppLocalizations {
   /// No description provided for @integrationsFeatureDeezerNewReleasesTitle.
   ///
   /// In en, this message translates to:
-  /// **'New releases'**
+  /// **'New Releases'**
   String get integrationsFeatureDeezerNewReleasesTitle;
 
   /// No description provided for @integrationsFeatureDeezerNewReleasesSubtitle.
@@ -2787,7 +2787,7 @@ abstract class AppLocalizations {
   /// No description provided for @integrationsFeatureLastFmSameVibesTitle.
   ///
   /// In en, this message translates to:
-  /// **'Same Vibes mixes'**
+  /// **'Same Vibes Mixes'**
   String get integrationsFeatureLastFmSameVibesTitle;
 
   /// No description provided for @integrationsFeatureLastFmSameVibesSubtitle.
@@ -2811,7 +2811,7 @@ abstract class AppLocalizations {
   /// No description provided for @integrationsFeatureLastFmTopSongsTitle.
   ///
   /// In en, this message translates to:
-  /// **'Top songs'**
+  /// **'Top Songs'**
   String get integrationsFeatureLastFmTopSongsTitle;
 
   /// No description provided for @integrationsFeatureLastFmTopSongsSubtitle.
@@ -2847,7 +2847,7 @@ abstract class AppLocalizations {
   /// No description provided for @integrationsFeatureListenBrainzWeeklyPlaylistsTitle.
   ///
   /// In en, this message translates to:
-  /// **'Weekly playlists'**
+  /// **'Weekly Playlists'**
   String get integrationsFeatureListenBrainzWeeklyPlaylistsTitle;
 
   /// No description provided for @integrationsFeatureListenBrainzWeeklyPlaylistsSubtitle.
@@ -2859,7 +2859,7 @@ abstract class AppLocalizations {
   /// No description provided for @integrationsFeatureLrclibLyricsTitle.
   ///
   /// In en, this message translates to:
-  /// **'Synced lyrics'**
+  /// **'Synced Lyrics'**
   String get integrationsFeatureLrclibLyricsTitle;
 
   /// No description provided for @integrationsFeatureLrclibLyricsSubtitle.
@@ -2871,7 +2871,7 @@ abstract class AppLocalizations {
   /// No description provided for @integrationsFeatureUpdatesAutomaticTitle.
   ///
   /// In en, this message translates to:
-  /// **'Check automatically'**
+  /// **'Check Automatically'**
   String get integrationsFeatureUpdatesAutomaticTitle;
 
   /// No description provided for @integrationsFeatureUpdatesAutomaticSubtitle.
@@ -2883,7 +2883,7 @@ abstract class AppLocalizations {
   /// No description provided for @integrationsFeatureAutoEqCatalogueTitle.
   ///
   /// In en, this message translates to:
-  /// **'Headphone profiles'**
+  /// **'Headphone Profiles'**
   String get integrationsFeatureAutoEqCatalogueTitle;
 
   /// No description provided for @integrationsFeatureAutoEqCatalogueSubtitle.
@@ -2895,7 +2895,7 @@ abstract class AppLocalizations {
   /// No description provided for @integrationsFeatureRadioNowPlayingTitle.
   ///
   /// In en, this message translates to:
-  /// **'Now playing'**
+  /// **'Now Playing'**
   String get integrationsFeatureRadioNowPlayingTitle;
 
   /// No description provided for @integrationsFeatureRadioNowPlayingSubtitle.
@@ -2907,7 +2907,7 @@ abstract class AppLocalizations {
   /// No description provided for @integrationsFeatureArtworkServerLinkedTitle.
   ///
   /// In en, this message translates to:
-  /// **'Linked images'**
+  /// **'Linked Images'**
   String get integrationsFeatureArtworkServerLinkedTitle;
 
   /// No description provided for @integrationsFeatureArtworkServerLinkedSubtitle.
@@ -2973,7 +2973,7 @@ abstract class AppLocalizations {
   /// No description provided for @setupHighlightsCardTitle.
   ///
   /// In en, this message translates to:
-  /// **'New appearance options'**
+  /// **'New Appearance Options'**
   String get setupHighlightsCardTitle;
 
   /// No description provided for @setupHighlightsCardBody.
@@ -3033,7 +3033,7 @@ abstract class AppLocalizations {
   /// No description provided for @listenBrainzConnectedTitle.
   ///
   /// In en, this message translates to:
-  /// **'ListenBrainz connected'**
+  /// **'ListenBrainz Connected'**
   String get listenBrainzConnectedTitle;
 
   /// No description provided for @listenBrainzConnectedAs.
@@ -3129,13 +3129,13 @@ abstract class AppLocalizations {
   /// No description provided for @librarySwitchToArtistGrid.
   ///
   /// In en, this message translates to:
-  /// **'Switch to artist grid view'**
+  /// **'Switch to Artist Grid View'**
   String get librarySwitchToArtistGrid;
 
   /// No description provided for @librarySwitchToArtistList.
   ///
   /// In en, this message translates to:
-  /// **'Switch to artist list view'**
+  /// **'Switch to Artist List View'**
   String get librarySwitchToArtistList;
 
   /// No description provided for @libraryTabAlbums.
@@ -3284,7 +3284,7 @@ abstract class AppLocalizations {
   /// No description provided for @libraryLikedAlbumsSeeAll.
   ///
   /// In en, this message translates to:
-  /// **'See all'**
+  /// **'See All'**
   String get libraryLikedAlbumsSeeAll;
 
   /// No description provided for @libraryLikedAlbumsAllTitle.
@@ -3422,19 +3422,19 @@ abstract class AppLocalizations {
   /// No description provided for @libraryArtistMenuOpen.
   ///
   /// In en, this message translates to:
-  /// **'Open artist'**
+  /// **'Open Artist'**
   String get libraryArtistMenuOpen;
 
   /// No description provided for @libraryAlbumMenuOpen.
   ///
   /// In en, this message translates to:
-  /// **'Open album'**
+  /// **'Open Album'**
   String get libraryAlbumMenuOpen;
 
   /// No description provided for @librarySongMenuPlayNow.
   ///
   /// In en, this message translates to:
-  /// **'Play now'**
+  /// **'Play Now'**
   String get librarySongMenuPlayNow;
 
   /// No description provided for @librarySongMenuAddToQueue.
@@ -3446,19 +3446,19 @@ abstract class AppLocalizations {
   /// No description provided for @librarySongMenuPlayNext.
   ///
   /// In en, this message translates to:
-  /// **'Play next'**
+  /// **'Play Next'**
   String get librarySongMenuPlayNext;
 
   /// No description provided for @librarySongMenuOpenAlbum.
   ///
   /// In en, this message translates to:
-  /// **'Open album'**
+  /// **'Open Album'**
   String get librarySongMenuOpenAlbum;
 
   /// No description provided for @librarySongMenuOpenArtist.
   ///
   /// In en, this message translates to:
-  /// **'Open artist'**
+  /// **'Open Artist'**
   String get librarySongMenuOpenArtist;
 
   /// No description provided for @librarySongAddedToQueue.
@@ -3668,13 +3668,13 @@ abstract class AppLocalizations {
   /// No description provided for @artistTopTracksShowMore.
   ///
   /// In en, this message translates to:
-  /// **'Show more'**
+  /// **'Show More'**
   String get artistTopTracksShowMore;
 
   /// No description provided for @artistTopTracksShowLess.
   ///
   /// In en, this message translates to:
-  /// **'Show less'**
+  /// **'Show Less'**
   String get artistTopTracksShowLess;
 
   /// Formatted listener count for a Last.fm top track, e.g. '1.2M listeners'.
@@ -3830,7 +3830,7 @@ abstract class AppLocalizations {
   /// No description provided for @albumDetailMenuShowAlbumArt.
   ///
   /// In en, this message translates to:
-  /// **'Show album art'**
+  /// **'Show Album Art'**
   String get albumDetailMenuShowAlbumArt;
 
   /// No description provided for @albumDetailTitleCopied.
@@ -3884,7 +3884,7 @@ abstract class AppLocalizations {
   /// No description provided for @miniPlayerSkipNext.
   ///
   /// In en, this message translates to:
-  /// **'Skip to next'**
+  /// **'Skip to Next'**
   String get miniPlayerSkipNext;
 
   /// No description provided for @playbackBootstrapLoadingTitle.
@@ -3914,7 +3914,7 @@ abstract class AppLocalizations {
   /// No description provided for @playbackBootstrapContinueToSignIn.
   ///
   /// In en, this message translates to:
-  /// **'Continue to sign in'**
+  /// **'Continue to Sign In'**
   String get playbackBootstrapContinueToSignIn;
 
   /// No description provided for @playbackRecoveryRestart.
@@ -3926,7 +3926,7 @@ abstract class AppLocalizations {
   /// No description provided for @startupCopyDetails.
   ///
   /// In en, this message translates to:
-  /// **'Copy details'**
+  /// **'Copy Details'**
   String get startupCopyDetails;
 
   /// No description provided for @startupDetailsCopied.
@@ -3938,13 +3938,13 @@ abstract class AppLocalizations {
   /// No description provided for @playbackRecoveryRetry.
   ///
   /// In en, this message translates to:
-  /// **'Retry playback'**
+  /// **'Retry Playback'**
   String get playbackRecoveryRetry;
 
   /// No description provided for @playbackRecoveryResetCache.
   ///
   /// In en, this message translates to:
-  /// **'Reset library cache and retry'**
+  /// **'Reset Library Cache and Retry'**
   String get playbackRecoveryResetCache;
 
   /// No description provided for @playbackRecoveryResetConfirmTitle.
@@ -4142,7 +4142,7 @@ abstract class AppLocalizations {
   /// No description provided for @nowPlayingShuffleOff.
   ///
   /// In en, this message translates to:
-  /// **'Shuffle off'**
+  /// **'Shuffle Off'**
   String get nowPlayingShuffleOff;
 
   /// No description provided for @queueShuffleOnStatus.
@@ -4190,19 +4190,19 @@ abstract class AppLocalizations {
   /// No description provided for @nowPlayingRepeatOff.
   ///
   /// In en, this message translates to:
-  /// **'Repeat off'**
+  /// **'Repeat Off'**
   String get nowPlayingRepeatOff;
 
   /// No description provided for @nowPlayingRepeatAll.
   ///
   /// In en, this message translates to:
-  /// **'Repeat all'**
+  /// **'Repeat All'**
   String get nowPlayingRepeatAll;
 
   /// No description provided for @nowPlayingRepeatOne.
   ///
   /// In en, this message translates to:
-  /// **'Repeat one'**
+  /// **'Repeat One'**
   String get nowPlayingRepeatOne;
 
   /// No description provided for @nowPlayingLyrics.
@@ -4286,37 +4286,37 @@ abstract class AppLocalizations {
   /// No description provided for @nowPlayingMore.
   ///
   /// In en, this message translates to:
-  /// **'More options'**
+  /// **'More Options'**
   String get nowPlayingMore;
 
   /// No description provided for @nowPlayingGoToAlbum.
   ///
   /// In en, this message translates to:
-  /// **'Go to album'**
+  /// **'Go to Album'**
   String get nowPlayingGoToAlbum;
 
   /// No description provided for @nowPlayingGoToArtist.
   ///
   /// In en, this message translates to:
-  /// **'Go to artist'**
+  /// **'Go to Artist'**
   String get nowPlayingGoToArtist;
 
   /// No description provided for @nowPlayingAudioQuality.
   ///
   /// In en, this message translates to:
-  /// **'Audio quality'**
+  /// **'Audio Quality'**
   String get nowPlayingAudioQuality;
 
   /// No description provided for @nowPlayingTranscodedPlayback.
   ///
   /// In en, this message translates to:
-  /// **'Transcoded playback'**
+  /// **'Transcoded Playback'**
   String get nowPlayingTranscodedPlayback;
 
   /// No description provided for @nowPlayingReleaseDate.
   ///
   /// In en, this message translates to:
-  /// **'Release date'**
+  /// **'Release Date'**
   String get nowPlayingReleaseDate;
 
   /// No description provided for @lyricsTitle.
@@ -4394,7 +4394,7 @@ abstract class AppLocalizations {
   /// No description provided for @ratingNotLiked.
   ///
   /// In en, this message translates to:
-  /// **'Not liked'**
+  /// **'Not Liked'**
   String get ratingNotLiked;
 
   /// No description provided for @ratingActionLabel.
@@ -4418,7 +4418,7 @@ abstract class AppLocalizations {
   /// No description provided for @queueSaveAsPlaylist.
   ///
   /// In en, this message translates to:
-  /// **'Save as playlist'**
+  /// **'Save as Playlist'**
   String get queueSaveAsPlaylist;
 
   /// No description provided for @searchHint.
@@ -4460,7 +4460,7 @@ abstract class AppLocalizations {
   /// No description provided for @instantRadioStop.
   ///
   /// In en, this message translates to:
-  /// **'Stop radio'**
+  /// **'Stop Radio'**
   String get instantRadioStop;
 
   /// No description provided for @instantRadioEmpty.
@@ -4484,7 +4484,7 @@ abstract class AppLocalizations {
   /// No description provided for @instantRadioRetry.
   ///
   /// In en, this message translates to:
-  /// **'Retry radio'**
+  /// **'Retry Radio'**
   String get instantRadioRetry;
 
   /// No description provided for @sameVibesInvalidKey.
@@ -4514,7 +4514,7 @@ abstract class AppLocalizations {
   /// No description provided for @searchClearQuery.
   ///
   /// In en, this message translates to:
-  /// **'Clear search'**
+  /// **'Clear Search'**
   String get searchClearQuery;
 
   /// No description provided for @searchNoResultsForQuery.
@@ -4568,13 +4568,13 @@ abstract class AppLocalizations {
   /// No description provided for @searchShowAll.
   ///
   /// In en, this message translates to:
-  /// **'Show all'**
+  /// **'Show All'**
   String get searchShowAll;
 
   /// No description provided for @searchShowLess.
   ///
   /// In en, this message translates to:
-  /// **'Show less'**
+  /// **'Show Less'**
   String get searchShowLess;
 
   /// No description provided for @searchAlbumCount.
@@ -4586,7 +4586,7 @@ abstract class AppLocalizations {
   /// No description provided for @searchPlayNext.
   ///
   /// In en, this message translates to:
-  /// **'Play next'**
+  /// **'Play Next'**
   String get searchPlayNext;
 
   /// No description provided for @searchAddToQueue.
@@ -4694,13 +4694,13 @@ abstract class AppLocalizations {
   /// No description provided for @playlistsOnDevice.
   ///
   /// In en, this message translates to:
-  /// **'On this device'**
+  /// **'On This Device'**
   String get playlistsOnDevice;
 
   /// No description provided for @playlistsSaveToServerLabel.
   ///
   /// In en, this message translates to:
-  /// **'Save to server'**
+  /// **'Save to Server'**
   String get playlistsSaveToServerLabel;
 
   /// No description provided for @playlistsSaveToServerSubtitle.
@@ -4778,19 +4778,19 @@ abstract class AppLocalizations {
   /// No description provided for @playlistsSectionYours.
   ///
   /// In en, this message translates to:
-  /// **'Your playlists'**
+  /// **'Your Playlists'**
   String get playlistsSectionYours;
 
   /// No description provided for @playlistsSectionMadeForYou.
   ///
   /// In en, this message translates to:
-  /// **'Made for you'**
+  /// **'Made for You'**
   String get playlistsSectionMadeForYou;
 
   /// No description provided for @playlistsSectionOther.
   ///
   /// In en, this message translates to:
-  /// **'Other playlists'**
+  /// **'Other Playlists'**
   String get playlistsSectionOther;
 
   /// No description provided for @playlistDetailTitle.
@@ -4808,7 +4808,7 @@ abstract class AppLocalizations {
   /// No description provided for @playlistDetailNotFound.
   ///
   /// In en, this message translates to:
-  /// **'Playlist not found'**
+  /// **'Playlist Not Found'**
   String get playlistDetailNotFound;
 
   /// No description provided for @playlistDetailNotFoundSubtitle.
@@ -4838,7 +4838,7 @@ abstract class AppLocalizations {
   /// No description provided for @playlistDetailRemoveTrack.
   ///
   /// In en, this message translates to:
-  /// **'Remove from playlist'**
+  /// **'Remove from Playlist'**
   String get playlistDetailRemoveTrack;
 
   /// No description provided for @playlistDetailTrackRemoved.
@@ -4880,7 +4880,7 @@ abstract class AppLocalizations {
   /// No description provided for @addToPlaylistNewPlaylist.
   ///
   /// In en, this message translates to:
-  /// **'New playlist'**
+  /// **'New Playlist'**
   String get addToPlaylistNewPlaylist;
 
   /// No description provided for @addToPlaylistFailed.
@@ -4892,7 +4892,7 @@ abstract class AppLocalizations {
   /// No description provided for @librarySongMenuAddToPlaylist.
   ///
   /// In en, this message translates to:
-  /// **'Add to playlist'**
+  /// **'Add to Playlist'**
   String get librarySongMenuAddToPlaylist;
 
   /// No description provided for @cacheSettingsTitle.
@@ -4946,7 +4946,7 @@ abstract class AppLocalizations {
   /// No description provided for @cacheSettingsClearRolling.
   ///
   /// In en, this message translates to:
-  /// **'Clear streaming cache'**
+  /// **'Clear Streaming Cache'**
   String get cacheSettingsClearRolling;
 
   /// No description provided for @cacheSettingsClearRollingConfirm.
@@ -4964,7 +4964,7 @@ abstract class AppLocalizations {
   /// No description provided for @cacheSettingsClearPermanent.
   ///
   /// In en, this message translates to:
-  /// **'Remove all downloads'**
+  /// **'Remove All Downloads'**
   String get cacheSettingsClearPermanent;
 
   /// No description provided for @cacheSettingsClearPermanentConfirm.
@@ -4976,7 +4976,7 @@ abstract class AppLocalizations {
   /// No description provided for @cacheSettingsClearCoverArt.
   ///
   /// In en, this message translates to:
-  /// **'Clear cover art cache'**
+  /// **'Clear Cover Art Cache'**
   String get cacheSettingsClearCoverArt;
 
   /// No description provided for @cacheSettingsClearCoverArtConfirm.
@@ -5012,7 +5012,7 @@ abstract class AppLocalizations {
   /// No description provided for @downloadQualityOriginal.
   ///
   /// In en, this message translates to:
-  /// **'Original quality'**
+  /// **'Original Quality'**
   String get downloadQualityOriginal;
 
   /// No description provided for @downloadQualityOriginalSub.
@@ -5042,13 +5042,13 @@ abstract class AppLocalizations {
   /// No description provided for @downloadQualityAlwaysAsk.
   ///
   /// In en, this message translates to:
-  /// **'Ask every time'**
+  /// **'Ask Every Time'**
   String get downloadQualityAlwaysAsk;
 
   /// No description provided for @downloadQualityAlwaysUse.
   ///
   /// In en, this message translates to:
-  /// **'Always use'**
+  /// **'Always Use'**
   String get downloadQualityAlwaysUse;
 
   /// No description provided for @downloadQueuedWithQuality.
@@ -5066,19 +5066,19 @@ abstract class AppLocalizations {
   /// No description provided for @downloadsSettingsQualityLabel.
   ///
   /// In en, this message translates to:
-  /// **'Download quality'**
+  /// **'Download Quality'**
   String get downloadsSettingsQualityLabel;
 
   /// No description provided for @downloadsSettingsQualityAsk.
   ///
   /// In en, this message translates to:
-  /// **'Ask every time'**
+  /// **'Ask Every Time'**
   String get downloadsSettingsQualityAsk;
 
   /// No description provided for @downloadsSettingsFormatLabel.
   ///
   /// In en, this message translates to:
-  /// **'Transcode format'**
+  /// **'Transcode Format'**
   String get downloadsSettingsFormatLabel;
 
   /// No description provided for @downloadsSettingsFormatHelper.
@@ -5090,7 +5090,7 @@ abstract class AppLocalizations {
   /// No description provided for @downloadsSettingsConcurrentTitle.
   ///
   /// In en, this message translates to:
-  /// **'Concurrent downloads'**
+  /// **'Concurrent Downloads'**
   String get downloadsSettingsConcurrentTitle;
 
   /// No description provided for @downloadsSettingsConcurrentValue.
@@ -5240,7 +5240,7 @@ abstract class AppLocalizations {
   /// No description provided for @downloadsRetryFailed.
   ///
   /// In en, this message translates to:
-  /// **'Retry failed'**
+  /// **'Retry Failed'**
   String get downloadsRetryFailed;
 
   /// No description provided for @downloadsStatusFailed.
@@ -5252,7 +5252,7 @@ abstract class AppLocalizations {
   /// No description provided for @downloadsRetryAllFailed.
   ///
   /// In en, this message translates to:
-  /// **'Retry all failed'**
+  /// **'Retry All Failed'**
   String get downloadsRetryAllFailed;
 
   /// No description provided for @downloadsErrorLoadingQueue.
@@ -5390,13 +5390,13 @@ abstract class AppLocalizations {
   /// No description provided for @downloadsMissingTitle.
   ///
   /// In en, this message translates to:
-  /// **'Missing artwork and lyrics'**
+  /// **'Missing Artwork and Lyrics'**
   String get downloadsMissingTitle;
 
   /// No description provided for @downloadsMissingNone.
   ///
   /// In en, this message translates to:
-  /// **'Nothing missing'**
+  /// **'Nothing Missing'**
   String get downloadsMissingNone;
 
   /// No description provided for @downloadsMissingLyricsCount.
@@ -5414,19 +5414,19 @@ abstract class AppLocalizations {
   /// No description provided for @downloadsMissingSongsTitle.
   ///
   /// In en, this message translates to:
-  /// **'Songs without lyrics'**
+  /// **'Songs Without Lyrics'**
   String get downloadsMissingSongsTitle;
 
   /// No description provided for @downloadsMissingAlbumsTitle.
   ///
   /// In en, this message translates to:
-  /// **'Albums without artwork'**
+  /// **'Albums Without Artwork'**
   String get downloadsMissingAlbumsTitle;
 
   /// No description provided for @downloadsBackfillNow.
   ///
   /// In en, this message translates to:
-  /// **'Backfill now'**
+  /// **'Backfill Now'**
   String get downloadsBackfillNow;
 
   /// No description provided for @downloadsBackfillLyrics.
@@ -5474,7 +5474,7 @@ abstract class AppLocalizations {
   /// No description provided for @downloadsCustomFolderSelected.
   ///
   /// In en, this message translates to:
-  /// **'Selected folder'**
+  /// **'Selected Folder'**
   String get downloadsCustomFolderSelected;
 
   /// No description provided for @downloadsRescanImported.
@@ -5534,7 +5534,7 @@ abstract class AppLocalizations {
   /// No description provided for @cacheSettingsWifiOnlyDownloads.
   ///
   /// In en, this message translates to:
-  /// **'Download on Wi-Fi only'**
+  /// **'Download on Wi-Fi Only'**
   String get cacheSettingsWifiOnlyDownloads;
 
   /// No description provided for @cacheSettingsWifiOnlyDownloadsSub.
@@ -5546,7 +5546,7 @@ abstract class AppLocalizations {
   /// No description provided for @cacheSettingsAutoDownloadStarred.
   ///
   /// In en, this message translates to:
-  /// **'Auto-download liked'**
+  /// **'Auto-Download Liked'**
   String get cacheSettingsAutoDownloadStarred;
 
   /// No description provided for @cacheSettingsAutoDownloadStarredSub.
@@ -5912,7 +5912,7 @@ abstract class AppLocalizations {
   /// No description provided for @appearanceLooksActions.
   ///
   /// In en, this message translates to:
-  /// **'Look actions'**
+  /// **'Look Actions'**
   String get appearanceLooksActions;
 
   /// No description provided for @appearanceLooksSaveNew.
@@ -5924,7 +5924,7 @@ abstract class AppLocalizations {
   /// No description provided for @appearanceLooksName.
   ///
   /// In en, this message translates to:
-  /// **'Look name'**
+  /// **'Look Name'**
   String get appearanceLooksName;
 
   /// No description provided for @appearanceLooksMissing.
@@ -6014,7 +6014,7 @@ abstract class AppLocalizations {
   /// No description provided for @appearanceLanguageSystemDefault.
   ///
   /// In en, this message translates to:
-  /// **'System default'**
+  /// **'System Default'**
   String get appearanceLanguageSystemDefault;
 
   /// No description provided for @appearanceLanguageUnavailable.
@@ -6080,7 +6080,7 @@ abstract class AppLocalizations {
   /// No description provided for @appearanceColorPickerSave.
   ///
   /// In en, this message translates to:
-  /// **'Save as preset'**
+  /// **'Save as Preset'**
   String get appearanceColorPickerSave;
 
   /// No description provided for @appearanceColorPickerApply.
@@ -6104,7 +6104,7 @@ abstract class AppLocalizations {
   /// No description provided for @appearanceColorDeletePreset.
   ///
   /// In en, this message translates to:
-  /// **'Delete preset'**
+  /// **'Delete Preset'**
   String get appearanceColorDeletePreset;
 
   /// No description provided for @appearanceColorDeletePresetConfirm.
@@ -6440,7 +6440,7 @@ abstract class AppLocalizations {
   /// About tile that opens the full Navis app privacy policy on the website.
   ///
   /// In en, this message translates to:
-  /// **'Privacy policy'**
+  /// **'Privacy Policy'**
   String get aboutPrivacyPolicy;
 
   /// No description provided for @aboutPrivacyPolicySub.
@@ -6464,19 +6464,19 @@ abstract class AppLocalizations {
   /// About tile that opens the Navis source repository on GitHub.
   ///
   /// In en, this message translates to:
-  /// **'Source code'**
+  /// **'Source Code'**
   String get aboutSourceCode;
 
   /// About tile that opens the Navis issue tracker on GitHub.
   ///
   /// In en, this message translates to:
-  /// **'Report a bug'**
+  /// **'Report a Bug'**
   String get aboutReportBug;
 
   /// About tile that starts an email to Navis support.
   ///
   /// In en, this message translates to:
-  /// **'Contact support'**
+  /// **'Contact Support'**
   String get aboutContact;
 
   /// Notice shown when the system can't open a link or start an email from About or Privacy.
@@ -6494,7 +6494,7 @@ abstract class AppLocalizations {
   /// No description provided for @changelogDiscoveryDismiss.
   ///
   /// In en, this message translates to:
-  /// **'Dismiss update notes'**
+  /// **'Dismiss Update Notes'**
   String get changelogDiscoveryDismiss;
 
   /// No description provided for @changelogDiscoverySemanticLabel.
@@ -6506,13 +6506,13 @@ abstract class AppLocalizations {
   /// No description provided for @changelogDiscoveryCheckOut.
   ///
   /// In en, this message translates to:
-  /// **'Check out {version}'**
+  /// **'Check Out {version}'**
   String changelogDiscoveryCheckOut(String version);
 
   /// No description provided for @changelogDiscoveryCheckOutNamed.
   ///
   /// In en, this message translates to:
-  /// **'Check out {version} “{codename}”'**
+  /// **'Check Out {version} “{codename}”'**
   String changelogDiscoveryCheckOutNamed(String version, String codename);
 
   /// No description provided for @changelogDiscoveryUpdatedTo.
@@ -6566,13 +6566,13 @@ abstract class AppLocalizations {
   /// No description provided for @changelogShowFewerFixes.
   ///
   /// In en, this message translates to:
-  /// **'Show fewer fixes'**
+  /// **'Show Fewer Fixes'**
   String get changelogShowFewerFixes;
 
   /// No description provided for @changelogEarlierReleases.
   ///
   /// In en, this message translates to:
-  /// **'Earlier releases'**
+  /// **'Earlier Releases'**
   String get changelogEarlierReleases;
 
   /// No description provided for @changelogReleases.
@@ -6602,7 +6602,7 @@ abstract class AppLocalizations {
   /// No description provided for @changelogAllChanges.
   ///
   /// In en, this message translates to:
-  /// **'All changes'**
+  /// **'All Changes'**
   String get changelogAllChanges;
 
   /// No description provided for @changelogDiscoveryAndMore.
@@ -6614,7 +6614,7 @@ abstract class AppLocalizations {
   /// No description provided for @aboutLicenses.
   ///
   /// In en, this message translates to:
-  /// **'Open-source licenses'**
+  /// **'Open-Source Licenses'**
   String get aboutLicenses;
 
   /// No description provided for @aboutLicensesSub.
@@ -6656,19 +6656,19 @@ abstract class AppLocalizations {
   /// No description provided for @aboutDataUsageSevenDays.
   ///
   /// In en, this message translates to:
-  /// **'Last 7 days'**
+  /// **'Last 7 Days'**
   String get aboutDataUsageSevenDays;
 
   /// No description provided for @aboutDataUsageThirtyDays.
   ///
   /// In en, this message translates to:
-  /// **'Last 30 days'**
+  /// **'Last 30 Days'**
   String get aboutDataUsageThirtyDays;
 
   /// No description provided for @aboutDataUsageBreakdown.
   ///
   /// In en, this message translates to:
-  /// **'Last 7 days by feature'**
+  /// **'Last 7 Days by Feature'**
   String get aboutDataUsageBreakdown;
 
   /// No description provided for @aboutDataUsageEmpty.
@@ -6698,7 +6698,7 @@ abstract class AppLocalizations {
   /// No description provided for @aboutDataUsageReset.
   ///
   /// In en, this message translates to:
-  /// **'Reset usage stats'**
+  /// **'Reset Usage Stats'**
   String get aboutDataUsageReset;
 
   /// No description provided for @aboutDataUsageResetConfirmTitle.
@@ -6758,13 +6758,13 @@ abstract class AppLocalizations {
   /// No description provided for @aboutDataUsageNetworkOther.
   ///
   /// In en, this message translates to:
-  /// **'Other network'**
+  /// **'Other Network'**
   String get aboutDataUsageNetworkOther;
 
   /// No description provided for @aboutDataUsageCategoryAudioStreaming.
   ///
   /// In en, this message translates to:
-  /// **'Audio streaming'**
+  /// **'Audio Streaming'**
   String get aboutDataUsageCategoryAudioStreaming;
 
   /// No description provided for @aboutDataUsageCategoryDownloads.
@@ -6776,13 +6776,13 @@ abstract class AppLocalizations {
   /// No description provided for @aboutDataUsageCategoryCoverArt.
   ///
   /// In en, this message translates to:
-  /// **'Cover art'**
+  /// **'Cover Art'**
   String get aboutDataUsageCategoryCoverArt;
 
   /// No description provided for @aboutDataUsageCategoryLibrarySync.
   ///
   /// In en, this message translates to:
-  /// **'Library sync'**
+  /// **'Library Sync'**
   String get aboutDataUsageCategoryLibrarySync;
 
   /// No description provided for @aboutDataUsageCategoryLyrics.
@@ -6842,7 +6842,7 @@ abstract class AppLocalizations {
   /// No description provided for @updateReadyTitle.
   ///
   /// In en, this message translates to:
-  /// **'Navis {version} is ready'**
+  /// **'Navis {version} Is Ready'**
   String updateReadyTitle(String version);
 
   /// No description provided for @updateReadyBodyInstall.
@@ -6902,7 +6902,7 @@ abstract class AppLocalizations {
   /// No description provided for @updateReleaseNotes.
   ///
   /// In en, this message translates to:
-  /// **'Release notes'**
+  /// **'Release Notes'**
   String get updateReleaseNotes;
 
   /// No description provided for @updateDownloading.
@@ -7328,7 +7328,7 @@ abstract class AppLocalizations {
   /// No description provided for @libraryAlbumMenuPlay.
   ///
   /// In en, this message translates to:
-  /// **'Play album'**
+  /// **'Play Album'**
   String get libraryAlbumMenuPlay;
 
   /// No description provided for @libraryAlbumMenuAddToQueue.
@@ -7340,7 +7340,7 @@ abstract class AppLocalizations {
   /// No description provided for @libraryAlbumMenuDownload.
   ///
   /// In en, this message translates to:
-  /// **'Download album'**
+  /// **'Download Album'**
   String get libraryAlbumMenuDownload;
 
   /// No description provided for @libraryAlbumAddedToQueue.
@@ -7562,7 +7562,7 @@ abstract class AppLocalizations {
   /// No description provided for @matchFlowUnresolvedSong.
   ///
   /// In en, this message translates to:
-  /// **'Unresolved song {songId}'**
+  /// **'Unresolved Song {songId}'**
   String matchFlowUnresolvedSong(String songId);
 
   /// No description provided for @matchFlowSongAdded.
@@ -7622,13 +7622,13 @@ abstract class AppLocalizations {
   /// No description provided for @desktopMiniPlayerKeepOnTop.
   ///
   /// In en, this message translates to:
-  /// **'Keep Mini Player on top'**
+  /// **'Keep Mini Player on Top'**
   String get desktopMiniPlayerKeepOnTop;
 
   /// No description provided for @desktopMiniPlayerStopOnTop.
   ///
   /// In en, this message translates to:
-  /// **'Stop keeping Mini Player on top'**
+  /// **'Stop Keeping Mini Player on Top'**
   String get desktopMiniPlayerStopOnTop;
 
   /// No description provided for @desktopMiniPlayerKeepOnTopDescription.
@@ -7808,13 +7808,13 @@ abstract class AppLocalizations {
   /// No description provided for @unavailableReviewFindMatch.
   ///
   /// In en, this message translates to:
-  /// **'Find match'**
+  /// **'Find Match'**
   String get unavailableReviewFindMatch;
 
   /// No description provided for @unavailableReviewKeepForLater.
   ///
   /// In en, this message translates to:
-  /// **'Keep for later'**
+  /// **'Keep for Later'**
   String get unavailableReviewKeepForLater;
 
   /// No description provided for @unavailableReviewRemoveFromLiked.
@@ -7838,19 +7838,19 @@ abstract class AppLocalizations {
   /// No description provided for @unavailableReviewRelinkOld.
   ///
   /// In en, this message translates to:
-  /// **'Unavailable item'**
+  /// **'Unavailable Item'**
   String get unavailableReviewRelinkOld;
 
   /// No description provided for @unavailableReviewRelinkNew.
   ///
   /// In en, this message translates to:
-  /// **'Selected replacement'**
+  /// **'Selected Replacement'**
   String get unavailableReviewRelinkNew;
 
   /// No description provided for @unavailableReviewReferences.
   ///
   /// In en, this message translates to:
-  /// **'References carried over'**
+  /// **'References Carried Over'**
   String get unavailableReviewReferences;
 
   /// No description provided for @unavailableReviewRelinkApply.
@@ -7868,7 +7868,7 @@ abstract class AppLocalizations {
   /// No description provided for @unavailableReviewPossibleReplacements.
   ///
   /// In en, this message translates to:
-  /// **'Possible replacements'**
+  /// **'Possible Replacements'**
   String get unavailableReviewPossibleReplacements;
 
   /// No description provided for @unavailableReviewStaleSelection.
@@ -7928,13 +7928,13 @@ abstract class AppLocalizations {
   /// No description provided for @unavailableReviewEntry.
   ///
   /// In en, this message translates to:
-  /// **'Unavailable items'**
+  /// **'Unavailable Items'**
   String get unavailableReviewEntry;
 
   /// No description provided for @unavailableReviewEntryWithCount.
   ///
   /// In en, this message translates to:
-  /// **'Unavailable items ({count})'**
+  /// **'Unavailable Items ({count})'**
   String unavailableReviewEntryWithCount(Object count);
 
   /// No description provided for @appearanceArtworkSizeLabel.
@@ -7970,7 +7970,7 @@ abstract class AppLocalizations {
   /// No description provided for @appearanceRecommendationsAutoAdvance.
   ///
   /// In en, this message translates to:
-  /// **'Automatically advance recommendations'**
+  /// **'Automatically Advance Recommendations'**
   String get appearanceRecommendationsAutoAdvance;
 
   /// No description provided for @appearanceRecommendationsAutoAdvanceSub.
@@ -7982,13 +7982,13 @@ abstract class AppLocalizations {
   /// No description provided for @contentShelfPrevious.
   ///
   /// In en, this message translates to:
-  /// **'Previous items'**
+  /// **'Previous Items'**
   String get contentShelfPrevious;
 
   /// No description provided for @contentShelfNext.
   ///
   /// In en, this message translates to:
-  /// **'Next items'**
+  /// **'Next Items'**
   String get contentShelfNext;
 
   /// No description provided for @trackColumnTitle.
@@ -8066,7 +8066,7 @@ abstract class AppLocalizations {
   /// No description provided for @playbackPresetName.
   ///
   /// In en, this message translates to:
-  /// **'Preset name'**
+  /// **'Preset Name'**
   String get playbackPresetName;
 
   /// No description provided for @playbackPresetRename.
@@ -8366,7 +8366,7 @@ abstract class AppLocalizations {
   /// No description provided for @eqEnable.
   ///
   /// In en, this message translates to:
-  /// **'Enable equalizer'**
+  /// **'Enable Equalizer'**
   String get eqEnable;
 
   /// No description provided for @eqCustom.
@@ -8378,13 +8378,13 @@ abstract class AppLocalizations {
   /// No description provided for @eqSimple.
   ///
   /// In en, this message translates to:
-  /// **'Simple · 5 bands'**
+  /// **'Simple · 5 Bands'**
   String get eqSimple;
 
   /// No description provided for @eqTenBand.
   ///
   /// In en, this message translates to:
-  /// **'10 bands'**
+  /// **'10 Bands'**
   String get eqTenBand;
 
   /// No description provided for @eqAdvanced.
@@ -8396,13 +8396,13 @@ abstract class AppLocalizations {
   /// No description provided for @eqImportedFixed.
   ///
   /// In en, this message translates to:
-  /// **'Imported fixed bands'**
+  /// **'Imported Fixed Bands'**
   String get eqImportedFixed;
 
   /// No description provided for @eqMode.
   ///
   /// In en, this message translates to:
-  /// **'Editing mode'**
+  /// **'Editing Mode'**
   String get eqMode;
 
   /// No description provided for @eqPresets.
@@ -8414,7 +8414,7 @@ abstract class AppLocalizations {
   /// No description provided for @eqBuiltIn.
   ///
   /// In en, this message translates to:
-  /// **'Built in'**
+  /// **'Built In'**
   String get eqBuiltIn;
 
   /// No description provided for @eqSaveAs.
@@ -8456,25 +8456,25 @@ abstract class AppLocalizations {
   /// No description provided for @eqImportFile.
   ///
   /// In en, this message translates to:
-  /// **'From file'**
+  /// **'From File'**
   String get eqImportFile;
 
   /// No description provided for @eqImportPaste.
   ///
   /// In en, this message translates to:
-  /// **'Paste settings'**
+  /// **'Paste Settings'**
   String get eqImportPaste;
 
   /// No description provided for @eqAutoEq.
   ///
   /// In en, this message translates to:
-  /// **'Find headphones in AutoEQ'**
+  /// **'Find Headphones in AutoEQ'**
   String get eqAutoEq;
 
   /// No description provided for @eqName.
   ///
   /// In en, this message translates to:
-  /// **'Preset name'**
+  /// **'Preset Name'**
   String get eqName;
 
   /// No description provided for @eqSave.
@@ -8486,7 +8486,7 @@ abstract class AppLocalizations {
   /// No description provided for @eqSaveEnable.
   ///
   /// In en, this message translates to:
-  /// **'Save and enable'**
+  /// **'Save and Enable'**
   String get eqSaveEnable;
 
   /// No description provided for @eqCancel.
@@ -8510,7 +8510,7 @@ abstract class AppLocalizations {
   /// No description provided for @eqReset.
   ///
   /// In en, this message translates to:
-  /// **'Reset to flat'**
+  /// **'Reset to Flat'**
   String get eqReset;
 
   /// No description provided for @eqPreamp.
@@ -8522,7 +8522,7 @@ abstract class AppLocalizations {
   /// No description provided for @eqAutoHeadroom.
   ///
   /// In en, this message translates to:
-  /// **'Automatic headroom'**
+  /// **'Automatic Headroom'**
   String get eqAutoHeadroom;
 
   /// No description provided for @eqAutoHeadroomDescription.
@@ -8600,7 +8600,7 @@ abstract class AppLocalizations {
   /// No description provided for @eqType.
   ///
   /// In en, this message translates to:
-  /// **'Filter type'**
+  /// **'Filter Type'**
   String get eqType;
 
   /// No description provided for @eqPeaking.
@@ -8612,25 +8612,25 @@ abstract class AppLocalizations {
   /// No description provided for @eqLowShelf.
   ///
   /// In en, this message translates to:
-  /// **'Low shelf'**
+  /// **'Low Shelf'**
   String get eqLowShelf;
 
   /// No description provided for @eqHighShelf.
   ///
   /// In en, this message translates to:
-  /// **'High shelf'**
+  /// **'High Shelf'**
   String get eqHighShelf;
 
   /// No description provided for @eqLowPass.
   ///
   /// In en, this message translates to:
-  /// **'Low pass'**
+  /// **'Low Pass'**
   String get eqLowPass;
 
   /// No description provided for @eqHighPass.
   ///
   /// In en, this message translates to:
-  /// **'High pass'**
+  /// **'High Pass'**
   String get eqHighPass;
 
   /// No description provided for @eqNotch.
@@ -8654,7 +8654,7 @@ abstract class AppLocalizations {
   /// No description provided for @eqImportPreview.
   ///
   /// In en, this message translates to:
-  /// **'Preview preset'**
+  /// **'Preview Preset'**
   String get eqImportPreview;
 
   /// No description provided for @eqPreviewDescription.
@@ -8684,19 +8684,19 @@ abstract class AppLocalizations {
   /// No description provided for @eqSearch.
   ///
   /// In en, this message translates to:
-  /// **'Search headphones'**
+  /// **'Search Headphones'**
   String get eqSearch;
 
   /// No description provided for @eqRecommendedOnly.
   ///
   /// In en, this message translates to:
-  /// **'Recommended results only'**
+  /// **'Recommended Results Only'**
   String get eqRecommendedOnly;
 
   /// No description provided for @eqRefreshCatalogue.
   ///
   /// In en, this message translates to:
-  /// **'Refresh catalogue'**
+  /// **'Refresh Catalogue'**
   String get eqRefreshCatalogue;
 
   /// No description provided for @eqCatalogueOffline.
@@ -8924,13 +8924,13 @@ abstract class AppLocalizations {
   /// No description provided for @eqSaveChanges.
   ///
   /// In en, this message translates to:
-  /// **'Save changes'**
+  /// **'Save Changes'**
   String get eqSaveChanges;
 
   /// No description provided for @eqDiscardChanges.
   ///
   /// In en, this message translates to:
-  /// **'Discard changes'**
+  /// **'Discard Changes'**
   String get eqDiscardChanges;
 
   /// No description provided for @eqDiscardDescription.
@@ -8990,25 +8990,25 @@ abstract class AppLocalizations {
   /// No description provided for @eqChooseBand.
   ///
   /// In en, this message translates to:
-  /// **'Select band'**
+  /// **'Select Band'**
   String get eqChooseBand;
 
   /// No description provided for @eqFilterResponse.
   ///
   /// In en, this message translates to:
-  /// **'Filter response'**
+  /// **'Filter Response'**
   String get eqFilterResponse;
 
   /// No description provided for @eqFitResponse.
   ///
   /// In en, this message translates to:
-  /// **'Fit response'**
+  /// **'Fit Response'**
   String get eqFitResponse;
 
   /// No description provided for @eqOutputResponse.
   ///
   /// In en, this message translates to:
-  /// **'Output response'**
+  /// **'Output Response'**
   String get eqOutputResponse;
 
   /// No description provided for @eqWider.
@@ -9032,19 +9032,19 @@ abstract class AppLocalizations {
   /// No description provided for @eqAttenuation.
   ///
   /// In en, this message translates to:
-  /// **'Automatic attenuation'**
+  /// **'Automatic Attenuation'**
   String get eqAttenuation;
 
   /// No description provided for @eqEffectiveOutput.
   ///
   /// In en, this message translates to:
-  /// **'Effective output gain'**
+  /// **'Effective Output Gain'**
   String get eqEffectiveOutput;
 
   /// No description provided for @eqOutputSettings.
   ///
   /// In en, this message translates to:
-  /// **'Output settings'**
+  /// **'Output Settings'**
   String get eqOutputSettings;
 
   /// No description provided for @eqNumericPreview.
@@ -9056,7 +9056,7 @@ abstract class AppLocalizations {
   /// No description provided for @eqNotApplicable.
   ///
   /// In en, this message translates to:
-  /// **'Not applicable'**
+  /// **'Not Applicable'**
   String get eqNotApplicable;
 
   /// No description provided for @eqFixed.
@@ -9068,7 +9068,7 @@ abstract class AppLocalizations {
   /// No description provided for @eqBandEnabled.
   ///
   /// In en, this message translates to:
-  /// **'Band enabled'**
+  /// **'Band Enabled'**
   String get eqBandEnabled;
 
   /// No description provided for @eqNoBands.
@@ -9080,13 +9080,13 @@ abstract class AppLocalizations {
   /// No description provided for @eqAddBand.
   ///
   /// In en, this message translates to:
-  /// **'Add band'**
+  /// **'Add Band'**
   String get eqAddBand;
 
   /// No description provided for @eqDeleteBand.
   ///
   /// In en, this message translates to:
-  /// **'Delete band'**
+  /// **'Delete Band'**
   String get eqDeleteBand;
 
   /// No description provided for @eqGraphDescription.
@@ -9110,13 +9110,13 @@ abstract class AppLocalizations {
   /// No description provided for @eqResumeAdvanced.
   ///
   /// In en, this message translates to:
-  /// **'Resume Advanced draft'**
+  /// **'Resume Advanced Draft'**
   String get eqResumeAdvanced;
 
   /// No description provided for @eqCreateCurvePreset.
   ///
   /// In en, this message translates to:
-  /// **'Create a new preset from this curve'**
+  /// **'Create a New Preset from This Curve'**
   String get eqCreateCurvePreset;
 
   /// No description provided for @eqPreampDrag.
@@ -9128,19 +9128,19 @@ abstract class AppLocalizations {
   /// No description provided for @eqIncrease.
   ///
   /// In en, this message translates to:
-  /// **'Increase value'**
+  /// **'Increase Value'**
   String get eqIncrease;
 
   /// No description provided for @eqDecrease.
   ///
   /// In en, this message translates to:
-  /// **'Decrease value'**
+  /// **'Decrease Value'**
   String get eqDecrease;
 
   /// No description provided for @eqBandOff.
   ///
   /// In en, this message translates to:
-  /// **'Band off'**
+  /// **'Band Off'**
   String get eqBandOff;
 
   /// No description provided for @eqSimpleShort.
@@ -9152,7 +9152,7 @@ abstract class AppLocalizations {
   /// No description provided for @eqTenBandShort.
   ///
   /// In en, this message translates to:
-  /// **'10-band'**
+  /// **'10-Band'**
   String get eqTenBandShort;
 
   /// No description provided for @eqImportedShort.
@@ -9194,19 +9194,19 @@ abstract class AppLocalizations {
   /// No description provided for @eqYourPresets.
   ///
   /// In en, this message translates to:
-  /// **'Your presets'**
+  /// **'Your Presets'**
   String get eqYourPresets;
 
   /// No description provided for @eqBuiltInPresets.
   ///
   /// In en, this message translates to:
-  /// **'Built in'**
+  /// **'Built In'**
   String get eqBuiltInPresets;
 
   /// No description provided for @eqUnsavedWork.
   ///
   /// In en, this message translates to:
-  /// **'Unsaved work'**
+  /// **'Unsaved Work'**
   String get eqUnsavedWork;
 
   /// No description provided for @eqAutoEqHint.
@@ -9230,7 +9230,7 @@ abstract class AppLocalizations {
   /// No description provided for @eqAuthoredPreamp.
   ///
   /// In en, this message translates to:
-  /// **'Preamp you set'**
+  /// **'Preamp You Set'**
   String get eqAuthoredPreamp;
 
   /// No description provided for @eqOutputExplanation.
@@ -9260,7 +9260,7 @@ abstract class AppLocalizations {
   /// No description provided for @eqCloseLibrary.
   ///
   /// In en, this message translates to:
-  /// **'Close presets'**
+  /// **'Close Presets'**
   String get eqCloseLibrary;
 
   /// No description provided for @onboardingSaveFailed.
@@ -9290,13 +9290,13 @@ abstract class AppLocalizations {
   /// No description provided for @onboardingKeepCustomizing.
   ///
   /// In en, this message translates to:
-  /// **'Keep customizing'**
+  /// **'Keep Customizing'**
   String get onboardingKeepCustomizing;
 
   /// No description provided for @onboardingSkipSetup.
   ///
   /// In en, this message translates to:
-  /// **'Skip setup'**
+  /// **'Skip Setup'**
   String get onboardingSkipSetup;
 
   /// No description provided for @onboardingTitle.
@@ -9362,7 +9362,7 @@ abstract class AppLocalizations {
   /// No description provided for @onboardingMoreAppearanceOptions.
   ///
   /// In en, this message translates to:
-  /// **'More appearance options'**
+  /// **'More Appearance Options'**
   String get onboardingMoreAppearanceOptions;
 
   /// No description provided for @onboardingAccentColor.
@@ -9392,31 +9392,31 @@ abstract class AppLocalizations {
   /// No description provided for @onboardingWifiQuality.
   ///
   /// In en, this message translates to:
-  /// **'Wi-Fi quality'**
+  /// **'Wi-Fi Quality'**
   String get onboardingWifiQuality;
 
   /// No description provided for @onboardingWifiFormat.
   ///
   /// In en, this message translates to:
-  /// **'Wi-Fi format'**
+  /// **'Wi-Fi Format'**
   String get onboardingWifiFormat;
 
   /// No description provided for @onboardingMobileQuality.
   ///
   /// In en, this message translates to:
-  /// **'Mobile quality'**
+  /// **'Mobile Quality'**
   String get onboardingMobileQuality;
 
   /// No description provided for @onboardingMobileFormat.
   ///
   /// In en, this message translates to:
-  /// **'Mobile format'**
+  /// **'Mobile Format'**
   String get onboardingMobileFormat;
 
   /// No description provided for @onboardingPreferLocalTitle.
   ///
   /// In en, this message translates to:
-  /// **'Play cached copies at any quality'**
+  /// **'Play Cached Copies at Any Quality'**
   String get onboardingPreferLocalTitle;
 
   /// No description provided for @onboardingPreferLocalSubtitle.
@@ -9476,7 +9476,7 @@ abstract class AppLocalizations {
   /// No description provided for @onboardingCrossfadeType.
   ///
   /// In en, this message translates to:
-  /// **'Crossfade type'**
+  /// **'Crossfade Type'**
   String get onboardingCrossfadeType;
 
   /// No description provided for @onboardingCrossfadeTypeSmart.
@@ -9584,19 +9584,19 @@ abstract class AppLocalizations {
   /// No description provided for @onboardingListenBrainzValidate.
   ///
   /// In en, this message translates to:
-  /// **'Validate and connect'**
+  /// **'Validate and Connect'**
   String get onboardingListenBrainzValidate;
 
   /// No description provided for @onboardingLastFmValidateKey.
   ///
   /// In en, this message translates to:
-  /// **'Validate key'**
+  /// **'Validate Key'**
   String get onboardingLastFmValidateKey;
 
   /// No description provided for @routeNotFoundTitle.
   ///
   /// In en, this message translates to:
-  /// **'Page not found'**
+  /// **'Page Not Found'**
   String get routeNotFoundTitle;
 
   /// No description provided for @routeNotFoundMessage.
@@ -9626,7 +9626,7 @@ abstract class AppLocalizations {
   /// No description provided for @desktopShortcutsNavigateBackTitle.
   ///
   /// In en, this message translates to:
-  /// **'Go back'**
+  /// **'Go Back'**
   String get desktopShortcutsNavigateBackTitle;
 
   /// No description provided for @desktopShortcutsNavigateBackDescription.
@@ -9638,7 +9638,7 @@ abstract class AppLocalizations {
   /// No description provided for @desktopShortcutsNavigateForwardTitle.
   ///
   /// In en, this message translates to:
-  /// **'Go forward'**
+  /// **'Go Forward'**
   String get desktopShortcutsNavigateForwardTitle;
 
   /// No description provided for @desktopShortcutsNavigateForwardDescription.
@@ -9864,7 +9864,7 @@ abstract class AppLocalizations {
   /// No description provided for @cacheSettingsDeleteAllPresets.
   ///
   /// In en, this message translates to:
-  /// **'Delete all presets'**
+  /// **'Delete All Presets'**
   String get cacheSettingsDeleteAllPresets;
 
   /// No description provided for @cacheSettingsDeleteAllPresetsDescription.
@@ -9948,7 +9948,7 @@ abstract class AppLocalizations {
   /// No description provided for @downloadsFolderHoldUseAppStorage.
   ///
   /// In en, this message translates to:
-  /// **'Use app storage'**
+  /// **'Use App Storage'**
   String get downloadsFolderHoldUseAppStorage;
 
   /// No description provided for @downloadsFailureNotFound.

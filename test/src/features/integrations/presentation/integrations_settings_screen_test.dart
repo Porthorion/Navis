@@ -254,7 +254,7 @@ void main() {
     final h = await _pump(tester);
 
     for (final line in <String>[
-      'Online services',
+      'Online Services',
       'Off: Navis only talks to your server.',
       "Sends artist, album and track names to api.deezer.com and loads images from Deezer's image servers.",
       'Sends track and artist names to ws.audioscrobbler.com, using the API key included with Navis or your own.',
@@ -296,7 +296,7 @@ void main() {
         'Discovery',
         [IntegrationService.deezer, IntegrationService.lastFm],
       ),
-      ('history', 'Listening history', [IntegrationService.listenBrainz]),
+      ('history', 'Listening History', [IntegrationService.listenBrainz]),
       (
         'now-playing',
         'Now Playing',
@@ -308,7 +308,7 @@ void main() {
       ),
       ('app', 'App', [IntegrationService.updates, IntegrationService.autoEq]),
     ];
-    final master = tester.getTopLeft(find.text('Online services')).dy;
+    final master = tester.getTopLeft(find.text('Online Services')).dy;
     var previous = master;
     for (final (id, title, services) in groups) {
       final heading = find.byKey(ValueKey<String>('integrations-group-$id'));
@@ -371,7 +371,7 @@ void main() {
       200,
       scrollable: find.byType(Scrollable).first,
     );
-    expect(find.text('Same Vibes mixes'), findsOneWidget);
+    expect(find.text('Same Vibes Mixes'), findsOneWidget);
     expect(
       find.text(
         'On: Instant Mix finds similar songs through Last.fm. Off: Instant '
@@ -656,7 +656,7 @@ void main() {
       scrollable: find.byType(Scrollable).first,
     );
     await tester.enterText(_textFieldWithLabel('User Token'), 'token-1');
-    await h.tap(find.widgetWithText(FilledButton, 'Validate and save'));
+    await h.tap(find.widgetWithText(FilledButton, 'Validate and Save'));
 
     expect(client.userInitiatedCalls, <bool>[true]);
     expect(store.listenBrainzToken, 'token-1');
@@ -768,7 +768,7 @@ void main() {
       scrollable: find.byType(Scrollable).first,
     );
     await tester.enterText(_textFieldWithLabel('User Token'), 'bad');
-    await h.tap(find.widgetWithText(FilledButton, 'Validate and save'));
+    await h.tap(find.widgetWithText(FilledButton, 'Validate and Save'));
 
     expect(find.text('Invalid ListenBrainz token.'), findsOneWidget);
     expect(store.listenBrainzToken, isNull);
@@ -808,7 +808,7 @@ void main() {
       addTearDown(notices.dispose);
       final h = await _pump(tester, notices: notices);
       expect(
-        find.text('Porthorion downloads (downloads.porthorion.com)'),
+        find.text('Porthorion Downloads (downloads.porthorion.com)'),
         findsOneWidget,
       );
       expect(find.text('GitHub (github.com)'), findsOneWidget);
