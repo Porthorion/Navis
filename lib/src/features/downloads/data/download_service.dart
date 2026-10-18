@@ -2740,6 +2740,7 @@ class DownloadService {
     ExternalLyricsCacheTableData? cache, {
     bool force = false,
   }) =>
+      cache?.instrumental != true &&
       cache?.syncedLyrics?.trim().isNotEmpty != true &&
       (force || !hasRecentLyricsFailure(cache));
 
@@ -3004,7 +3005,8 @@ class DownloadService {
         'DownloadService: Lyrics prefetch resolved ${resolution.source.name} '
         'for $songId',
       );
-      if ((resolution.confirmedMiss || resolution.syncedUpgradeMiss) &&
+      if (!resolution.instrumental &&
+          (resolution.confirmedMiss || resolution.syncedUpgradeMiss) &&
           !_lrclibClient.isRateLimited) {
         // Back off empty lookups and unsuccessful synced upgrades for a week,
         // preserving any selected plain lyrics for offline playback.

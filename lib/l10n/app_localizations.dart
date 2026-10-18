@@ -4325,6 +4325,12 @@ abstract class AppLocalizations {
   /// **'Lyrics'**
   String get lyricsTitle;
 
+  /// No description provided for @lyricsInstrumental.
+  ///
+  /// In en, this message translates to:
+  /// **'Instrumental'**
+  String get lyricsInstrumental;
+
   /// No description provided for @lyricsNoneAvailable.
   ///
   /// In en, this message translates to:

@@ -162,6 +162,7 @@ class _DesktopLyricsContent extends ConsumerWidget {
     return lyricsAsync.when(
       data: (resolution) => LyricsDisplayWidget(
         lyrics: resolution.lyrics,
+        instrumental: resolution.instrumental,
         currentPosition: position,
         onSeek: (seekPosition) {
           unawaited(ref.read(audioHandlerProvider)?.seek(seekPosition));

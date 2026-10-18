@@ -6,12 +6,14 @@ class LyricsResolution {
   const new({
     required this.lyrics,
     required this.source,
+    this.instrumental = false,
     this.confirmedMiss = false,
     this.syncedUpgradeMiss = false,
   });
 
   final LyricsList lyrics;
   final LyricsSource source;
+  final bool instrumental;
 
   /// Whether every attempted source answered without lyrics or lookup failure.
   final bool confirmedMiss;

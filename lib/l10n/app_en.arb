@@ -1212,6 +1212,7 @@
   "nowPlayingTranscodedPlayback": "Transcoded Playback",
   "nowPlayingReleaseDate": "Release Date",
   "lyricsTitle": "Lyrics",
+  "lyricsInstrumental": "Instrumental",
   "lyricsNoneAvailable": "No Lyrics Available",
   "lyricsError": "Could not load lyrics. Check your connection.",
   "lyricsUnsupported": "Lyrics not supported by this server.",
