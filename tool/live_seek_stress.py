@@ -1884,6 +1884,17 @@ def run_matrix(args, credentials, app, run_dir: Path) -> int:
                 'qualities': profile['qualities'], 'throttles': profile['throttles'], 'reps': reps}
         print(json.dumps(info), flush=True)
         results, serial, events = [], 0, []
+        if args.resume_from:
+            previous = json.loads(args.resume_from.read_text())
+            results = previous['results']
+            events = previous.get('events', [])
+            serial = max([r['id'] for r in results] or [0])
+            for row in results:  # keep the earlier traces beside the new ones
+                source = args.resume_from.parent / 'traces'
+                for trace in source.glob(f"{row['id']:04d}-*.json") if source.exists() else []:
+                    (run_dir / 'traces').mkdir(exist_ok=True)
+                    shutil.copy(trace, run_dir / 'traces' / trace.name)
+        finished = {(r['case'], r['quality'], r['throttle'], r['rep']) for r in results}
         info['events'] = events
         for throttle in profile['throttles']:
             proxy.set_profile(*THROTTLES[throttle])
@@ -1891,6 +1902,8 @@ def run_matrix(args, credentials, app, run_dir: Path) -> int:
                 set_quality(app, quality)
                 for case in profile['cases']:
                     for rep in range(args.shuffle_reps if case in REPEATED_CASES and args.shuffle_reps else reps):
+                        if (case, quality, throttle, rep) in finished:
+                            continue
                         serial += 1
                         row = run_one(app, backend, proxy, env, case, quality, throttle, rep, run_dir, serial, events)
                         results.append(row)
@@ -1946,6 +1959,9 @@ def main() -> int:
     parser.add_argument('--reps', type=int, help='repetitions per matrix cell')
     parser.add_argument('--shuffle-reps', type=int, default=0,
                         help='repetitions for the shuffle cases (default: --reps)')
+    parser.add_argument('--resume-from', type=Path,
+                        help='a matrix report.json whose finished cells are kept '
+                             'and skipped (after an interrupted run)')
     parser.add_argument('--fixture-artists', type=int, default=240)
     parser.add_argument('--transcode-speed', type=float, default=30.0,
                         help='fixture transcode speed in multiples of the bitrate')
