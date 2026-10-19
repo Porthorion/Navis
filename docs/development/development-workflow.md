@@ -1345,6 +1345,58 @@ restart). Traces, including failed starts, go to
 seek's `unsettled` diagnostics name the rule that ended each probe that did not
 confirm it. Remote cases make the server fetch those songs.
 
+#### Playback matrix (seek, skip, shuffle, queue)
+
+`tool/live_seek_stress.py --profile smoke|full` runs the same cases against the
+live server or a local Navidrome-like transcoding fixture
+(`--server fixture`, from `tool/seek_reliability_diagnostics.py`; needs
+`ffmpeg`). The fixture's `stream.view` behaves like the Navidrome 0.64 probe:
+original quality is a Range-capable file, any `format`/`maxBitRate` is an ffmpeg
+transcode answered HTTP 200, chunked, `Accept-Ranges: none`, `Range` ignored,
+with `timeOffset` honoured while `transcodeOffset` is advertised
+(`--no-transcode-offset` removes it). Its library has 3-8 s first tracks and a
+recording under two song ids for artist shuffle. Every request goes through the
+throttling proxy, whose profile changes per matrix cell.
+
+```bash
+NAVIS_LIVE_SEEK_CREDENTIALS=/path/creds.json \
+  python3 tool/live_seek_stress.py --profile smoke --server fixture   # ~10 min
+python3 tool/live_seek_stress.py --profile full --server live \
+  --qualities original,opus128,mp3_320 --throttles none,wan6000,slow1500
+```
+
+Cases: `seek_early|pastdl|far|mid|back|burst|paused`,
+`skip_next|prev|rapid10|during_load|seek_next|last_batch`,
+`shuffle_album|artist|toggle` (`--shuffle-reps` repeats the first two),
+`queue_playnext_add|reorder`. Qualities: `original`, `opus64|96|128|192`,
+`mp3_128|320`, `aac_128|256`. Throttles: `none`, `wan6000` (6 Mbps/150 ms),
+`slow1500` (1.5 Mbps/300 ms). `--cases`, `--qualities`, `--throttles` and
+`--reps` narrow a profile. A headless desktop is enough: start
+`kwin_wayland --virtual --xwayland --socket <name>` and run with the Xwayland
+`DISPLAY` and `GDK_BACKEND=x11`.
+
+Oracles run over the 100 ms status samples and the native transport trace and
+record each violation with a time and trace excerpt: seek lands within 1.5 s of
+the target within a deadline and keeps advancing (a return to the pre-seek
+position is a snap-back); a skip moves the index by exactly one and becomes
+audible in time; no song becomes current twice in a row or repeats within a
+shuffle pass; no unrequested change of song or position reset; no stall over the
+limit; queue edits made during the fill land in the right place. A passive
+oracle flags a seek-bar buffered line that lags the real cache by over 10 s or
+freezes while cache bytes grow. Results: `report.json`, `summary.txt` (case x
+quality x throttle pass/fail counts and median/p95 latency) and, for runs with
+violations, `traces/`.
+
+`GET /v1/playback/status` carries the support data: `transportTrace` (a
+200-entry ring of player index and state changes, source loads, seek requests
+and stages, recovery decisions, queue-fill phases and user actions; recorded
+only in diagnostics builds), `seekBar` (what the seek bar's buffered line reads)
+and `cacheProgress`. Clone-only `POST /v1/playback/queue` accepts `shuffle`
+(the album Shuffle button path), `POST /v1/playback/queue-edit` takes
+`{"op":"add"|"playNext","songIds":[...]}` or `{"op":"move","from","to"}`, and
+`POST /v1/playback/quality` sets the Wi-Fi and cellular streaming quality
+(`{"wifi":{"format","maxBitRate"},"cellular":{...}}`).
+
 After `./tool/check.sh` passes, set `NAVIS_QUALITY_GATE_RESULT=passed` on the
 final invocation so the sanitized runtime-validation record captures the gate.
 
