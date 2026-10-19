@@ -471,7 +471,7 @@ def build(credentials: dict):
 
 def reset_profile():
     for entry in ROOT.iterdir():
-        if entry.name in ('bundle', 'password'):
+        if entry.name in ('bundle', 'password', 'profile-server'):
             continue
         if entry.is_dir():
             shutil.rmtree(entry)
@@ -1186,7 +1186,9 @@ def oracle_sequence(run: Run, expected_pass: list[str] | None, minimum=3) -> lis
                                  f"(sequence {ids[:n + 1]})", run))
         elif n and run.backend.canonical(ids[n - 1]) == run.backend.canonical(song):
             out.append(violation('sameRecordingAdjacent', t, f"{ids[n - 1]} then {song}: same recording", run))
-        if expected_pass is not None and song not in expected_pass:
+        if song.startswith('ext-'):
+            run.metrics['remoteSongInQueue'] = song  # the artist queue adds remote songs; not judged
+        elif expected_pass is not None and song not in expected_pass:
             out.append(violation('songNotInSelection', t, f"{song} is not part of the album/artist", run))
         seen.add(song)
     if len(order) < minimum:
@@ -1298,36 +1300,33 @@ class LiveBackend:
             mark_used(song['id'])
         return picked
 
+    def _groups(self, key, low, high, extra=''):
+        """Unused lossless groups (album or artist) from the synced catalog."""
+        with sqlite3.connect(f'file:{ROOT / "navis.sqlite"}?mode=ro', uri=True) as db:
+            groups = db.execute(
+                f'SELECT {key} FROM songs WHERE server_deleted_at IS NULL AND {key} IS NOT NULL '
+                f'GROUP BY {key} HAVING COUNT(*) BETWEEN ? AND ? AND MIN(COALESCE(bit_rate, 0)) >= 700 {extra} '
+                f'ORDER BY RANDOM() LIMIT 40', (low, high)).fetchall()
+            for (group,) in groups:
+                rows = db.execute(
+                    f'SELECT id FROM songs WHERE {key} = ? ORDER BY disc_number, track, id', (group,)).fetchall()
+                ids = [r[0] for r in rows]
+                if not self.used.intersection(ids):
+                    return group, ids
+        raise Failure(f'no suitable live {key}')
+
+    def _take_ids(self, ids):
+        self.used.update(ids)
+        for i in ids:
+            mark_used(i)
+        return ids
+
     def fresh_album(self):
-        for _ in range(40):
-            for album in self.server.call('getAlbumList2', type='random', size=20)['albumList2'].get('album', []):
-                if not 6 <= album.get('songCount', 0) <= 14:
-                    continue
-                songs = self.server.call('getAlbum', id=album['id'])['album'].get('song', [])
-                ids = [s['id'] for s in sorted(songs, key=lambda s: (s.get('discNumber', 1), s.get('track', 0)))]
-                if (songs and not self.used.intersection(ids) and self._catalog_has(ids) == set(ids)
-                        and songs[0].get('bitRate', 0) >= 700):
-                    self.used.update(ids)
-                    for i in ids:
-                        mark_used(i)
-                    return ids
-        raise Failure('no suitable live album')
+        return self._take_ids(self._groups('album_id', 6, 14)[1])
 
     def fresh_artist(self):
-        for _ in range(60):
-            for album in self.server.call('getAlbumList2', type='random', size=20)['albumList2'].get('album', []):
-                artist = self.server.call('getArtist', id=album['artistId'])['artist']
-                albums = artist.get('album', [])
-                if not (2 <= len(albums) <= 4 and 15 <= sum(a.get('songCount', 0) for a in albums) <= 45):
-                    continue
-                ids = [s['id'] for a in albums for s in
-                       self.server.call('getAlbum', id=a['id'])['album'].get('song', [])]
-                if not self.used.intersection(ids) and self._catalog_has(ids) == set(ids):
-                    self.used.update(ids)
-                    for i in ids:
-                        mark_used(i)
-                    return artist['id'], ids
-        raise Failure('no suitable live artist')
+        artist, ids = self._groups('artist_id', 15, 45, 'AND COUNT(DISTINCT album_id) BETWEEN 2 AND 4')
+        return artist, self._take_ids(ids)
 
     def filler(self, n, exclude=()):
         return [s['id'] for s in queue_filler(self.server, n + len(exclude)) if s['id'] not in exclude][:n]
@@ -1836,8 +1835,12 @@ def run_matrix(args, credentials, app, run_dir: Path) -> int:
     try:
         (ROOT / 'password').write_text(backend.credentials['password'] + '\n')
         os.chmod(ROOT / 'password', 0o600)
-        if args.server == 'fixture' or not args.keep_profile:
+        marker = ROOT / 'profile-server'
+        # A kept profile is only valid for the server it was synced from.
+        if (args.server == 'fixture' or not args.keep_profile
+                or not marker.exists() or marker.read_text() != args.server):
             reset_profile()
+        marker.write_text(args.server)
         point_profile_at(proxy.url)
         if args.android:
             raise Failure('the matrix runs on Linux; Android support is a later step')
