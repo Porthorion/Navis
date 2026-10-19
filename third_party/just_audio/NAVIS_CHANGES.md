@@ -32,6 +32,8 @@ length with HTTP 500 instead of dereferencing null while constructing
 `Content-Range`. Navis can then recover the remote source; completed cache reads
 still provide sized ranges.
 
+The stream proxy restores chunked framing for unknown-length bodies and explicitly sends `Content-Length: 0` for empty HTTP 500 responses after clearing headers (#86).
+
 Keep upgrades narrow and re-run the native response/lifecycle fixtures and
 Navis playback tests when updating either vendored package.
 
