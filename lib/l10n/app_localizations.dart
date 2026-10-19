@@ -9825,6 +9825,18 @@ abstract class AppLocalizations {
   /// **'Waiting to scan'**
   String get notificationLibraryScanStageIdle;
 
+  /// System notification: name of the Android channel for the media playback notification.
+  ///
+  /// In en, this message translates to:
+  /// **'Playback'**
+  String get notificationPlaybackChannelName;
+
+  /// System notification: description of the playback channel in system settings.
+  ///
+  /// In en, this message translates to:
+  /// **'Media playback controls and status'**
+  String get notificationPlaybackChannelDescription;
+
   /// System notification: name of the Android channel for download notifications.
   ///
   /// In en, this message translates to:
