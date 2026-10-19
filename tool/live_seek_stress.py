@@ -394,12 +394,22 @@ class AndroidApp(App):
         wait(lambda: self.api('/v1/playback/bootstrap/status').get('handlerReady'),
              120, 'android handler')
 
+    def start_relay(self, port: int):
+        self.relay = subprocess.Popen(
+            self.adb + ['shell', f'nc -s 127.0.0.1 -p {port} -L nc 10.0.2.2 {port}'],
+            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        time.sleep(1.0)
+
     def stop(self):
+        relay = getattr(self, 'relay', None)
+        if relay is not None:
+            relay.terminate()
+            self.shell('pkill', 'nc', check=False)
         try:
             with (self.run / 'app.log').open('w') as log:
                 subprocess.run(self.adb + ['logcat', '-d', '-s', 'flutter:*',
                                            'ExoPlayerImplInternal:*',
-                                           'AudioPlayer:*', '*:W'],
+                                           'AudioPlayer:*', '*:E'],
                                stdout=log, stderr=subprocess.STDOUT)
         except Exception:
             pass
@@ -1987,12 +1997,15 @@ def run_matrix(args, credentials, app, run_dir: Path) -> int:
             # so that profile must come from this server (run Linux first).
             if not marker.exists() or marker.read_text() != args.server or not (ROOT / 'navis.sqlite').exists():
                 raise Failure(f'sync the Linux profile against the {args.server} server first; Android seeds from it')
-            # 10.0.2.2 is the host's loopback: far faster than adb reverse
-            # (about 100 KB/s), which --android-reverse brings back.
-            app_url = proxy.url if args.android_reverse else f'http://10.0.2.2:{proxy.PORT}'
+            # The app must see the proxy at 127.0.0.1: ExoPlayer refuses cleartext to any
+            # other host (error 2007), which breaks every direct-stream fallback. adb reverse
+            # gives that address but caps near 100 KB/s, so a toybox nc relay on the
+            # emulator forwards its loopback to the host alias 10.0.2.2 (about 10 MB/s).
             if args.android_reverse:
                 subprocess.run(app.adb + ['reverse', f'tcp:{proxy.PORT}', f'tcp:{proxy.PORT}'],
                                check=True, capture_output=True)
+            else:
+                app.start_relay(proxy.PORT)
             app.prepare(backend.credentials, app_url)
         else:
             # A kept profile is only valid for the server it was synced from.
@@ -2096,7 +2109,7 @@ def main() -> int:
                              'and skipped (after an interrupted run)')
     parser.add_argument('--android-reverse', action='store_true',
                         help='matrix on Android: reach the proxy through adb reverse '
-                             '(about 100 KB/s) instead of the emulator host alias 10.0.2.2')
+                             '(about 100 KB/s) instead of the emulator-side nc relay')
     parser.add_argument('--fixture-artists', type=int, default=240)
     parser.add_argument('--fixture-short-artists', type=int, default=60,
                         help='of those, artists whose songs are all 1-8 s (natural-end shuffle cases)')
