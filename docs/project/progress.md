@@ -2,7 +2,7 @@
 
 Tracks completion of all phases and sub-tasks defined in [docs/project/development-plan.md](development-plan.md). Checkboxes are updated as work is completed.
 
-Last updated: 2026-10-18
+Last updated: 2026-10-19
 
 ---
 
@@ -14,6 +14,13 @@ Last updated: 2026-10-18
 - ACP status values: `backlog`, `ready`, `in_progress`, `blocked`, `done`.
 
 ## Current Focus
+- [x] Notification channel l10n and server URL tests — 2026-10-19
+  (`fix/notification-l10n-url-tests`): the `playback`, `downloads` and
+  `library_sync_silent` Android channels (bootstrap and audio_service) take
+  their names and descriptions from l10n, honoring the in-app language
+  override; IDs, importance and silence flags are pinned by test. Added
+  `server_url_validation_test.dart`, pinning loopback and remote http handling.
+  Targeted `flutter test` runs only; `./tool/check.sh` remains pending.
 - [x] Issue #81, rebuild reachability checks stay in preparing progress —
   2026-10-18 (`fix/rebuild-checking-not-offline`): `checkingNetwork` keeps
   Retry hidden until the existing reachability controller confirms an outage

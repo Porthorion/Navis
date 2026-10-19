@@ -56,6 +56,15 @@ void main() {
     expect(created['downloads']!['description'], 'Telechargements desc');
     expect(created['library_sync_silent']!['name'], 'Analyse');
     expect(created['library_sync_silent']!['description'], 'Analyse desc');
+    expect(created['playback']!['importance'], Importance.low.value);
+    expect(
+      created['downloads']!['importance'],
+      Importance.defaultImportance.value,
+    );
+    final silent = created['library_sync_silent']!;
+    expect(silent['importance'], Importance.low.value);
+    expect(silent['playSound'], isFalse);
+    expect(silent['enableVibration'], isFalse);
   });
 
   test('locale is not read off Android', () async {
