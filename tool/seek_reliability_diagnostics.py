@@ -123,8 +123,11 @@ class TranscodeLibrary:
 
 
 def make_transcoding_handler(library: TranscodeLibrary, speed: float = 30.0, advertise_offset: bool = True,
-                             first_byte_delay: float = 1.5):
-    """A request handler class; the log of stream requests is on `.requests`."""
+                             first_byte_delay: float = 1.5, static: bool = False):
+    """A request handler class; the log of stream requests is on `.requests`.
+    `static` answers a transcode like a server that has it cached: complete
+    in memory, Content-Length and byte ranges (Navidrome does this for a
+    transcode it has already produced)."""
     requests: list[dict] = []
 
     class TranscodingHandler(fixture.Handler):
@@ -222,6 +225,16 @@ def make_transcoding_handler(library: TranscodeLibrary, speed: float = 30.0, adv
             if offset > 0:
                 command += ['-ss', f'{offset}']
             command += ['-i', str(data_path), '-vn', '-c:a', codec, '-b:a', f'{kbps}k', '-f', container, '-']
+            if static:
+                entry['mode'] = 'transcodeStatic'
+                data = subprocess.run(command, capture_output=True).stdout
+                time.sleep(first_byte_delay)
+                try:
+                    self._bytes(data, content_type)
+                    entry['bytes'] = len(data)
+                except (BrokenPipeError, ConnectionResetError):
+                    entry['aborted'] = True
+                return
             proc = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL)
             # Navidrome 0.64 answers a transcode after 1-3.5 s (measured).
             time.sleep(first_byte_delay)
