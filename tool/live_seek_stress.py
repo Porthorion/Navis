@@ -1111,12 +1111,21 @@ def oracle_replay(run: Run) -> list[dict]:
     with no seek, navigation or repeat mode: the same song heard twice."""
     out = []
     samples = run.samples
+    began = 0  # first sample of the current (index, song) run
     for i in range(1, len(samples)):
         a, b = samples[i - 1], samples[i]
-        if (a['songId'] and a['songId'] == b['songId'] and a['idx'] == b['idx'] and a['dur']
-                and a['pos'] is not None and b['pos'] is not None
-                and a['pos'] >= a['dur'] - 2500 and b['pos'] < 3000
-                and a['pos'] - b['pos'] > a['dur'] / 2 and not _requested_at(run, b['t'], ('seek', 'prev', 'jump', 'next'))):
+        if (a['idx'], a['songId']) != (b['idx'], b['songId']):
+            began = i
+            continue
+        # The first samples after a switch can still carry the previous
+        # song's position: only a run that has played for a while counts, and
+        # its position must be at the song's own end.
+        carried = began > 0 and samples[began - 1]['pos'] is not None and a['pos'] is not None \
+            and abs(samples[began - 1]['pos'] - a['pos']) <= 200  # still the previous song's position
+        if (a['songId'] and a['dur'] and not carried and i - began >= 3 and a['pos'] is not None and b['pos'] is not None
+                and a['dur'] - 2500 <= a['pos'] <= a['dur'] + 2000 and b['pos'] < 3000
+                and a['pos'] - b['pos'] > a['dur'] / 2
+                and not _requested_at(run, b['t'], ('seek', 'prev', 'jump', 'next'))):
             out.append(violation('songReplayedAtEnd', b['t'], f"{b['songId']} reached {a['pos']}/{a['dur']} ms and "
                                  f"started again at {b['pos']} ms on idx {b['idx']} (proc {a['proc']}->{b['proc']})", run))
     return out
@@ -1650,6 +1659,9 @@ def case_shuffle_artist(run: Run, env):
     run.checks.append(lambda: oracle_sequence(run, ids))
 
 
+NATURAL_SONGS = 1  # --natural-songs: songs that end by themselves (a long one after the first is seeked to its end)
+
+
 def natural_shuffle(kind: str):
     """Shuffle an album or artist and let song 1 play to its natural end with
     no skip, while the rest of the queue is still being filled; then follow
@@ -1670,7 +1682,7 @@ def natural_shuffle(kind: str):
             run.app.api('/v1/artists/playback', {'command': 'prepare', 'artistId': artist, 'action': 'shuffle'}, timeout=60)
         first = await_audio(run, rec)
         run.metrics.update(firstSong=first['songId'], firstDurMs=first['dur'], shortGroups=backend.short_groups)
-        wait_s = (first['dur'] or 400000) / 1000 + run.deadlines['advance']
+        wait_s = 2 * (first['dur'] or 400000) / 1000 + run.deadlines['advance']  # room for one replay
         moved = run.until(lambda s: s['idx'] != first['idx'] or s['songId'] != first['songId'], wait_s)
         run.metrics['firstEndedNaturally'] = moved is not None
         if moved is None:
@@ -1690,10 +1702,18 @@ def natural_shuffle(kind: str):
         run.observe(3.0)
         run.metrics['firstTransition'] = excerpt(run, moved['t'], 4.0, 3.0, limit=60)
         with concurrent.futures.ThreadPoolExecutor(max_workers=4) as pool:
-            for _ in range(min(4, len(ids) - 2)):
+            for n in range(min(4, len(ids) - 2)):
                 cur = run.last()
                 if cur['dur'] and cur['dur'] <= 12000:
-                    run.until(lambda s, c=cur: s['idx'] != c['idx'], cur['dur'] / 1000 + run.deadlines['advance'])
+                    run.until(lambda s, c=cur: s['idx'] != c['idx'], 2 * cur['dur'] / 1000 + run.deadlines['advance'])
+                elif cur['dur'] and n + 1 < NATURAL_SONGS:
+                    # A long song: seek to its last seconds (the download has long finished)
+                    # and let it end by itself.
+                    run.observe(6.0)
+                    target = cur['dur'] - 4000
+                    run.act('seek', target=target, pos0=run.last()['pos'], idx0=cur['idx'], song=cur['songId'], playing0=True)
+                    run.app.api('/v1/playback/seek', {'positionMs': target}, timeout=90)
+                    run.until(lambda s, c=cur: s['idx'] != c['idx'], 12 + run.deadlines['advance'])
                 else:
                     run.observe(3.0)
                     wait_advanced(run, nav(run, pool, 'next', expect=cur['idx'] + 1))
@@ -2082,12 +2102,16 @@ def main() -> int:
                         help='of those, artists whose songs are all 1-8 s (natural-end shuffle cases)')
     parser.add_argument('--transcode-speed', type=float, default=30.0,
                         help='fixture transcode speed in multiples of the bitrate')
+    parser.add_argument('--natural-songs', type=int, default=1,
+                        help='natural-end shuffle cases: songs let play to their end (default 1)')
     parser.add_argument('--fixture-static-transcode', action='store_true',
                         help='fixture answers transcodes like a cached Navidrome: whole body, '
                              'Content-Length and byte ranges')
     parser.add_argument('--no-transcode-offset', action='store_true',
                         help='fixture does not advertise/honour transcodeOffset')
     args = parser.parse_args()
+    global NATURAL_SONGS
+    NATURAL_SONGS = args.natural_songs
     if args.profile and args.server == 'fixture':
         credentials = {'url': 'http://127.0.0.1', 'username': 'diagnostics',
                        'password': 'synthetic-seek-fixture'}
