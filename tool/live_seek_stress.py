@@ -145,8 +145,13 @@ class ThrottledProxy:
             def do_POST(self):
                 proxy.forward(self, body=True)
 
-        self.server = ThreadingHTTPServer(('127.0.0.1', self.PORT), Handler)
-        self.server.daemon_threads = True
+        class QuietServer(ThreadingHTTPServer):
+            daemon_threads = True
+
+            def handle_error(self, request, client_address):
+                pass
+
+        self.server = QuietServer(('127.0.0.1', self.PORT), Handler)
         threading.Thread(target=self.server.serve_forever, daemon=True).start()
 
     def set_profile(self, kbps: int, latency_ms: int):
@@ -957,8 +962,10 @@ def oracle_seek(run: Run, rec: dict) -> list[dict]:
     out, d = [], run.deadlines
     target, t0 = rec['target'], rec['t']
     after = [s for s in run.samples if s['t'] >= t0 and s['pos'] is not None]
+    # The player reports the target as its position while still buffering, so
+    # a landing also needs the player to be ready.
     landed = next((s for s in after if abs(s['pos'] - target) <= LAND_TOLERANCE_MS
-                   and s['songId'] == rec['song']), None)
+                   and s['songId'] == rec['song'] and s['proc'] == 'ready'), None)
     if rec.get('error') or rec.get('outcome') not in (None, 'completed'):
         out.append(violation('seekOutcome', t0, f"error={rec.get('error')} outcome={rec.get('outcome')} "
                              f"respMs={rec.get('respMs')}", run))
@@ -977,7 +984,7 @@ def oracle_seek(run: Run, rec: dict) -> list[dict]:
         check_from = rec.get('ret', t0 + d['land'])
         run_hits = 0
         for s in after:
-            if s['t'] < check_from + 0.2 or s['t'] < t0:
+            if s['t'] < check_from + 0.2 or s['t'] < t0 or s['t'] > check_from + 12:
                 continue
             expected_old = pos0 + (s['t'] - t0) * 1000 if rec.get('playing0') else pos0
             if abs(s['pos'] - expected_old) <= 3000:
@@ -1050,7 +1057,14 @@ def oracle_unexpected_change(run: Run) -> list[dict]:
     """Song or index changes nobody asked for (and that are not a song ending)."""
     out, licenses = [], license_pool(run)
     used = 0
-    seeks = [a['t'] for a in run.actions if a['kind'] in ('seek', 'prev', 'jump', 'start', 'next')]
+    def requested(t):
+        # A seek or navigation is in flight (or returned a moment ago).
+        for a in run.actions:
+            if a['kind'] in ('seek', 'prev', 'jump', 'start', 'next'):
+                end = a['ret'] + 1.5 if 'ret' in a else a['t'] + (90 if a['kind'] == 'seek' else 15)
+                if a['t'] - 0.2 <= t <= end:
+                    return True
+        return False
     samples = run.samples
     for i in range(1, len(samples)):
         a, b = samples[i - 1], samples[i]
@@ -1070,8 +1084,12 @@ def oracle_unexpected_change(run: Run) -> list[dict]:
             out.append(violation(kind, b['t'], f"idx {a['idx']}->{b['idx']} song {a['songId']}->{b['songId']} "
                                  f"pos {a['pos']}->{b['pos']} with no user action", run))
         elif (a['pos'] is not None and b['pos'] is not None and a['pos'] - b['pos'] > 5000 and b['pos'] < 3000
-              and not any(b['t'] - 4 <= t <= b['t'] + 0.2 for t in seeks) and not song_end_near(samples, i)):
+              and not requested(b['t']) and not song_end_near(samples, i)):
             out.append(violation('unrequestedReset', b['t'], f"position {a['pos']}->{b['pos']} on {b['songId']} "
+                                 f"with no seek or navigation", run))
+        elif (a['pos'] is not None and b['pos'] is not None and b['pos'] - a['pos'] > 8000 and b['t'] - a['t'] < 2
+              and not requested(b['t'])):
+            out.append(violation('unrequestedJump', b['t'], f"position jumped {a['pos']}->{b['pos']} on {b['songId']} "
                                  f"with no seek or navigation", run))
     return out
 
@@ -1378,7 +1396,7 @@ def issue_seek(run: Run, pool, target: int) -> dict:
 
 
 def landed(run: Run, rec: dict):
-    return run.until(lambda s: s['songId'] == rec['song'] and s['pos'] is not None
+    return run.until(lambda s: s['songId'] == rec['song'] and s['pos'] is not None and s['proc'] == 'ready'
                      and abs(s['pos'] - rec['target']) <= LAND_TOLERANCE_MS and s['t'] >= rec['t'],
                      run.deadlines['land'])
 
@@ -1685,9 +1703,16 @@ def set_quality(app, quality: str):
     time.sleep(0.5)
 
 
+def reset_modes(app):
+    # Shuffle and repeat are sticky across queues: every case starts plain.
+    app.api('/v1/playback/shuffle', {'enabled': False})
+    app.api('/v1/playback/repeat', {'mode': 'none'})
+
+
 def settle_between_runs(app):
     try:
         app.api('/v1/playback/queue/clear', {})
+        reset_modes(app)
     except Exception:
         pass
     time.sleep(1.5)
@@ -1699,6 +1724,7 @@ def run_one(app, backend, proxy, env, case: str, quality: str, throttle: str, re
     run.env = env
     proxy_mark = len(proxy.log)
     sampler = Sampler(run)
+    reset_modes(app)
     # Baseline the trace so earlier runs' events are not re-read.
     baseline = app.api('/v1/playback/status')
     run._trace_seq = max([e['seq'] for e in baseline.get('transportTrace') or []] or [0])

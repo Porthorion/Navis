@@ -250,9 +250,18 @@ def make_transcoding_handler(library: TranscodeLibrary, speed: float = 30.0, adv
     return TranscodingHandler
 
 
+class QuietServer(ThreadingHTTPServer):
+    """A player that cancels a transfer resets the connection; not an error."""
+
+    daemon_threads = True
+
+    def handle_error(self, request, client_address):
+        pass
+
+
 def start_transcoding_server(library: TranscodeLibrary, **options):
     handler = make_transcoding_handler(library, **options)
-    server = ThreadingHTTPServer(('127.0.0.1', 0), handler)
+    server = QuietServer(('127.0.0.1', 0), handler)
     server.daemon_threads = True
     threading.Thread(target=server.serve_forever, daemon=True).start()
     return server, handler
