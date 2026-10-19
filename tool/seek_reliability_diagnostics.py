@@ -44,9 +44,12 @@ TRANSCODES = {
 class TranscodeLibrary:
     """Artists x albums x tracks with mixed lengths: every album's first track
     is 3-8 s on half of the albums, and every fourth artist has one recording
-    under two song ids (same title and MusicBrainz id, different albums)."""
+    under two song ids (same title and MusicBrainz id, different albums). The
+    last `short_artists` artists have only 1-8 s tracks (`self.short`), so a
+    shuffle of one reaches natural song ends within seconds."""
 
-    def __init__(self, cache_dir: Path, artists: int = 40, albums: int = 3, tracks: int = 5):
+    def __init__(self, cache_dir: Path, artists: int = 40, albums: int = 3, tracks: int = 5,
+                 short_artists: int = 0):
         self.cache_dir = cache_dir
         cache_dir.mkdir(parents=True, exist_ok=True)
         self.artists: dict[str, dict] = {}
@@ -55,6 +58,7 @@ class TranscodeLibrary:
         self.media_seconds: dict[str, int] = {}
         self.album_songs: dict[str, list[str]] = {}
         self.duplicates: dict[str, str] = {}
+        self.short = {f'ar{a}' for a in range(artists - short_artists, artists)}
         for a in range(artists):
             artist_id = f'ar{a}'
             self.artists[artist_id] = {'id': artist_id, 'name': f'Stress Artist {a:02d}', 'coverArt': 'fixture-cover'}
@@ -62,7 +66,9 @@ class TranscodeLibrary:
                 album_id = f'al{a}-{b}'
                 ids = []
                 for t in range(1, tracks + 1):
-                    if t == 1:
+                    if artist_id in self.short:
+                        seconds = (1, 2, 3, 5, 8)[(t + a + b) % 5]
+                    elif t == 1:
                         seconds = (3, 4, 5, 6, 7, 8)[((a + b) // 2) % 6] if (a + b) % 2 == 0 else 120
                     else:
                         seconds = (90, 120, 150, 180, 120)[(t + a + b) % 5]
