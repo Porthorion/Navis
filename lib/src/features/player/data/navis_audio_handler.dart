@@ -41,6 +41,7 @@ import 'package:navis/src/features/player/data/android_system_art.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:navis/src/features/player/data/playback_navigation_intent.dart';
 import 'package:navis/src/features/player/data/playback_startup_trace.dart';
+import 'package:navis/src/features/player/data/playback_transport_trace.dart';
 import 'package:navis/src/features/player/data/listenbrainz_feedback_service.dart';
 import 'package:navis/src/features/player/data/playback_source_resolver.dart';
 import 'package:navis/src/features/player/data/radio_metadata_service.dart';
@@ -284,6 +285,10 @@ class NavisAudioHandler extends BaseAudioHandler
   /// Stage timings (ms since phase 2 start) of the latest background queue
   /// fill, exposed through diagnostics. Counts only; no song identities.
   Map<String, Object?>? _lastQueueFill;
+
+  /// Diagnostics-only ring buffer of native transport events.
+  final PlaybackTransportTrace _transportTrace = PlaybackTransportTrace();
+  ({ProcessingState state, bool playing, int? index})? _tracedPlayerState;
   int _queueFillResolveMs = 0;
   int _queueFillNativeMs = 0;
   int _queueFillBatches = 0;
@@ -1316,6 +1321,15 @@ class NavisAudioHandler extends BaseAudioHandler
     final fillWatch = Stopwatch()..start();
     final fillTimings = <String, Object?>{'requested': songs.length};
     _lastQueueFill = fillTimings;
+    _transportTrace.record(
+      'queueFill',
+      () => <String, Object?>{
+        'phase': 'phase2Start',
+        'requested': songs.length,
+        'startIndex': clampedIndex,
+        'songId': startItem.song.id,
+      },
+    );
     _queueFillResolveMs = 0;
     _queueFillNativeMs = 0;
     _queueFillBatches = 0;
@@ -1440,6 +1454,15 @@ class NavisAudioHandler extends BaseAudioHandler
     fillTimings['prepared'] = allPrepared.length;
     fillTimings['skipped'] = skippedSongIds.length;
     fillTimings['deferred'] = deferredSongs.length;
+    _transportTrace.record(
+      'queueFill',
+      () => <String, Object?>{
+        'phase': 'phase2Complete',
+        'prepared': allPrepared.length,
+        'skipped': skippedSongIds.length,
+        'deferred': deferredSongs.length,
+      },
+    );
     await _syncNativeLoopMode();
 
     AppLogger.debug(
@@ -1501,6 +1524,10 @@ class NavisAudioHandler extends BaseAudioHandler
     List<String> songIds, {
     bool expandMatchFlows = true,
   }) {
+    _transportTrace.record(
+      'userAction',
+      () => <String, Object?>{'action': 'addToQueue', 'count': songIds.length},
+    );
     return _enqueueQueueEdit((token) async {
       songIds = (await _expandMatchFlowIds(
         songIds,
@@ -1710,6 +1737,10 @@ class NavisAudioHandler extends BaseAudioHandler
 
   @override
   Future<void> playNext(List<String> songIds, {bool expandMatchFlows = true}) {
+    _transportTrace.record(
+      'userAction',
+      () => <String, Object?>{'action': 'playNext', 'count': songIds.length},
+    );
     return _enqueueQueueEdit((token) async {
       final expanded = (await _expandMatchFlowIds(
         songIds,
@@ -1884,6 +1915,10 @@ class NavisAudioHandler extends BaseAudioHandler
   Future<void> playFromIndex(int index) {
     final logicalIds = _logicalQueueIds;
     if (index < 0 || index >= logicalIds.length) return Future<void>.value();
+    _transportTrace.record(
+      'userAction',
+      () => <String, Object?>{'action': 'playFromIndex', 'index': index},
+    );
     _invalidatePendingStartupSelection();
     return _applyNavigationDecision(
       _navigationIntent.select(index),
@@ -1911,6 +1946,14 @@ class NavisAudioHandler extends BaseAudioHandler
 
   @override
   Future<void> reorderQueue(int oldIndex, int newIndex) {
+    _transportTrace.record(
+      'userAction',
+      () => <String, Object?>{
+        'action': 'reorderQueue',
+        'from': oldIndex,
+        'to': newIndex,
+      },
+    );
     return _enqueueQueueEdit((token) async {
       final head = _deferredHead.length;
       final total = head + _queueItems.length + _deferredTail.length;
@@ -2022,6 +2065,10 @@ class NavisAudioHandler extends BaseAudioHandler
 
   @override
   Future<void> play() async {
+    _transportTrace.record(
+      'userAction',
+      () => <String, Object?>{'action': 'play'},
+    );
     _queueFinished = false;
     // Play keeps a pending focus retry's budget and a held seek target.
     final focusDeniedSince = _focusDeniedGeneration == _transportGeneration
@@ -2153,6 +2200,10 @@ class NavisAudioHandler extends BaseAudioHandler
 
   @override
   Future<void> pause() async {
+    _transportTrace.record(
+      'userAction',
+      () => <String, Object?>{'action': 'pause'},
+    );
     _invalidatePendingStartupSelection();
     final transportGeneration = _supersedeTransportIntent(
       shouldPlay: false,
@@ -2265,9 +2316,27 @@ class NavisAudioHandler extends BaseAudioHandler
       songId: songId,
       queueIndex: _navigationIntent.desiredIndex ?? _logicalCurrentIndex,
       position: navisSanitizeSeekPosition(position),
+      onStage: (stage) => _transportTrace.record(
+        'seekStage',
+        () => <String, Object?>{
+          'generation': _lastSeek?.generation,
+          'stage': stage,
+        },
+      ),
     );
     _seekFailureBlocksRecovery = false;
     _pendingSeek = _lastSeek = request;
+    _transportTrace.record(
+      'seekRequest',
+      () => <String, Object?>{
+        'songId': songId,
+        'generation': request.generation,
+        'requestedPositionMs': request.position.inMilliseconds,
+        'positionMs': _player.position.inMilliseconds,
+        'bufferedMs': _player.bufferedPosition.inMilliseconds,
+        'sourceKind': _currentSourceKind,
+      },
+    );
     _broadcastPlaybackState();
     _emitSnapshot();
     return _seekLane.run((token) async {
@@ -2497,6 +2566,20 @@ class NavisAudioHandler extends BaseAudioHandler
           ? _crossfadePlayer?.pitch
           : null,
       'seekEvents': List<Map<String, Object?>>.from(_seekDiagnosticsEvents),
+      'transportTrace': _transportTrace.entries,
+      // What the seek bar's secondary line is drawn from (the handler's
+      // buffer state, i.e. the player's buffered position for this song).
+      'seekBar': <String, Object?>{
+        'songId': _bufferState.songId,
+        'bufferedMs': _bufferState.bufferedPosition.inMilliseconds,
+      },
+      // How much of the current song a local cache or download holds.
+      'cacheProgress': <String, Object?>{
+        'receivedBytes': partialCacheBytes,
+        'totalBytes': _sidecarDownloader.activeSongId == songId
+            ? _sidecarDownloader.activeTotalBytes
+            : null,
+      },
       'positionStreamLastEmitAgoMs': _lastPositionEmitAt == null
           ? null
           : DateTime.now().difference(_lastPositionEmitAt!).inMilliseconds,
@@ -2537,6 +2620,7 @@ class NavisAudioHandler extends BaseAudioHandler
   }
 
   void _recordSeekDiagnosticsEvent(Map<String, Object?> event) {
+    _transportTrace.record('seekEvent', () => event);
     _seekDiagnosticsEvents.add(event);
     if (_seekDiagnosticsEvents.length > _maxSeekDiagnosticsEvents) {
       _seekDiagnosticsEvents.removeRange(
@@ -2556,6 +2640,10 @@ class NavisAudioHandler extends BaseAudioHandler
   Future<void> setShuffleMode(AudioServiceShuffleMode shuffleMode) async {
     await _ready;
     final enabled = shuffleMode == AudioServiceShuffleMode.all;
+    _transportTrace.record(
+      'userAction',
+      () => <String, Object?>{'action': 'shuffle', 'enabled': enabled},
+    );
     await _enqueueQueueEdit((token) async {
       if (enabled == _shuffleEnabled) return;
       _cancelCrossfade();
