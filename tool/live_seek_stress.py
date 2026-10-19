@@ -940,18 +940,20 @@ def song_end_near(samples, i) -> bool:
 
 def advance_after(run: Run, t: float, index, song_id=None):
     """(reached, advanced): the first sample at [index] after [t] and the first
-    later one playing at least 1 s further on."""
-    reached = None
+    later one playing at least 1 s past the lowest position seen there (the
+    first samples after a switch can still carry the previous song's)."""
+    reached, floor = None, None
     for s in run.samples:
         if s['t'] < t or s['pos'] is None:
             continue
         if reached is None:
             if s['idx'] == index and (song_id is None or s['songId'] == song_id):
-                reached = s
+                reached, floor = s, s['pos']
             continue
         if s['idx'] != index:
             continue
-        if s['playing'] and s['pos'] - reached['pos'] >= 1000:
+        floor = min(floor, s['pos'])
+        if s['playing'] and s['proc'] == 'ready' and s['pos'] - floor >= 1000:
             return reached, s
     return reached, None
 
