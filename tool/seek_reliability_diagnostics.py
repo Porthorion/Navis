@@ -116,7 +116,8 @@ class TranscodeLibrary:
         return sorted(self.songs.values(), key=lambda s: s['id'])
 
 
-def make_transcoding_handler(library: TranscodeLibrary, speed: float = 30.0, advertise_offset: bool = True):
+def make_transcoding_handler(library: TranscodeLibrary, speed: float = 30.0, advertise_offset: bool = True,
+                             first_byte_delay: float = 1.5):
     """A request handler class; the log of stream requests is on `.requests`."""
     requests: list[dict] = []
 
@@ -216,6 +217,8 @@ def make_transcoding_handler(library: TranscodeLibrary, speed: float = 30.0, adv
                 command += ['-ss', f'{offset}']
             command += ['-i', str(data_path), '-vn', '-c:a', codec, '-b:a', f'{kbps}k', '-f', container, '-']
             proc = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL)
+            # Navidrome 0.64 answers a transcode after 1-3.5 s (measured).
+            time.sleep(first_byte_delay)
             self.send_response(200)
             self.send_header('Content-Type', content_type)
             self.send_header('Transfer-Encoding', 'chunked')
