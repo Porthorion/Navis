@@ -25,6 +25,21 @@ Last updated: 2026-10-19
   bootstrap completed once. Neither old helper name occurs in `docs/`.
   Full gate, app runtime and emulators were explicitly excluded by the task's
   host-memory constraints. No user-visible behavior or persisted-key change.
+- [x] Issue #86, frame unknown-length lock-cache proxy responses — 2026-10-19
+  (`fix/proxy-response-framing`): restore chunked transfer encoding after the
+  proxy clears response headers, and explicitly size empty HTTP 500 bodies at
+  zero bytes. Sized HTTP 206 responses retain their content length; the URI
+  proxy copies origin framing headers. The raw HTTP/1.1 keep-alive regression
+  first failed with `TimeoutException after 0:00:02.000000: Future not completed`
+  and passes after the fix, requiring a terminating chunk or a complete sized
+  body. The whole lock-caching file passes all 12 tests. Started unreleased
+  1.5.1 and documented the fork patch. After one bootstrap, the 8 GB-capped
+  gate first failed only in the playlist-library stream-reload test; all nine
+  tests in that file passed on an unchanged isolated rerun. The repeated full
+  gate passed: `06:10 +8844 ~1: All tests passed!` and
+  `[check] All checks passed.` (peak 5545 MB, no OOM kills). Native playback
+  and the isolated app runtime loop have not been repeated; the regression
+  exercises the real Dart HTTP proxy with the existing fake native player.
 - [x] Issue #81, rebuild reachability checks stay in preparing progress —
   2026-10-18 (`fix/rebuild-checking-not-offline`): `checkingNetwork` keeps
   Retry hidden until the existing reachability controller confirms an outage
