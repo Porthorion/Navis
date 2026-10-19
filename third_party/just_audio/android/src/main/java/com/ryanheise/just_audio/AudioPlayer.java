@@ -866,6 +866,9 @@ public class AudioPlayer implements MethodCallHandler, Player.Listener, Metadata
             );
             setAudioSessionId(player.getAudioSessionId());
             player.addListener(this);
+            if (NavisLoadDiagnostics.ENABLED) { // diagnostics
+                player.addAnalyticsListener(new NavisLoadDiagnostics());
+            }
         }
     }
 

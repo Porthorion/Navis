@@ -3449,6 +3449,10 @@ class LockCachingAudioSource extends StreamAudioSource {
     _downloadProgressSubject.add((await cacheFile.exists()) ? 1.0 : 0.0);
   }
 
+  // Navis diagnostics: the download state for the proxy request log.
+  String _diagState() => 'dl[downloading=$_downloading progress=$_progress '
+      'pending=${_requests.length} origin=$_originSupportsRangeRequests]';
+
   /// Returns a [UriAudioSource] resolving directly to the cache file if it
   /// exists, otherwise returns `this`. This can be
   Future<IndexedAudioSource> resolve() async {
@@ -3720,6 +3724,8 @@ class LockCachingAudioSource extends StreamAudioSource {
         });
       }
     }, onDone: () async {
+      _proxyDiag('fetch origin body done bytes=$_progress '
+          'sourceLength=$sourceLength inProgressResponses=${inProgressResponses.length}');
       _abortDownload = null;
       for (var cacheResponse in inProgressResponses) {
         if (!cacheResponse.controller.isClosed) {
@@ -3729,11 +3735,13 @@ class LockCachingAudioSource extends StreamAudioSource {
       await sink.flush();
       await sink.close();
       (await _partialCacheFile).renameSync(cacheFile.path);
+      _proxyDiag('fetch cache published (renamed) bytes=$_progress');
       updateProgress(100);
       await subscription.cancel();
       httpClient.close();
       _downloading = false;
     }, onError: (Object e, StackTrace stackTrace) async {
+      _proxyDiag('fetch origin ERROR $e bytes=$_progress');
       _abortDownload = null;
       httpClient.close(force: true);
       for (final client in rangeClients) client.close(force: true);
@@ -3879,11 +3887,26 @@ class _StreamingByteRangeRequest {
 typedef _ProxyHandler = void Function(
     _ProxyHttpServer server, HttpRequest request);
 
+// Navis diagnostics: set false to silence the proxy request log.
+const _navisProxyDiag = true;
+final _navisProxyDiagClock = Stopwatch()..start();
+var _navisProxyDiagSeq = 0;
+void _proxyDiag(String message) {
+  // ignore: avoid_print
+  if (_navisProxyDiag) print('[proxydiag +${_navisProxyDiagClock.elapsedMilliseconds}ms] $message');
+}
+
 /// A proxy handler for serving audio from a [StreamAudioSource].
 _ProxyHandler _proxyHandlerForSource(StreamAudioSource source) {
   Future<void> handler(_ProxyHttpServer server, HttpRequest request) async {
     final rangeRequest =
         _HttpRangeRequest.parse(request.headers[HttpHeaders.rangeHeader]);
+    final diagId = ++_navisProxyDiagSeq; // diagnostics
+    final diagState = source is LockCachingAudioSource
+        ? () => (source as LockCachingAudioSource)._diagState()
+        : () => '';
+    _proxyDiag('req#$diagId ${request.method} ${request.uri.path} '
+        'range=${request.headers[HttpHeaders.rangeHeader]} ${diagState()}');
 
     request.response.headers.clear();
 
@@ -3932,16 +3955,42 @@ _ProxyHandler _proxyHandlerForSource(StreamAudioSource source) {
     }
 
     final completer = Completer<void>();
-    final subscription = stream.listen(request.response.add,
-        onError: (e, st) {}, onDone: completer.complete);
+    var diagBytes = 0; // diagnostics
+    var diagEnd = 'pending';
+    _proxyDiag('req#$diagId respond status=${request.response.statusCode} '
+        'contentLength=${request.response.contentLength} '
+        'chunkedHeader=${request.response.headers.chunkedTransferEncoding} '
+        'persistent=${request.response.persistentConnection} '
+        'headers=${request.response.headers.toString().replaceAll('\n', '|')} '
+        '${diagState()}');
+    final subscription = stream.listen((data) {
+      diagBytes += data.length;
+      request.response.add(data);
+    }, onError: (e, st) {
+      diagEnd = 'sourceError($e)';
+      _proxyDiag('req#$diagId source stream error: $e');
+    }, onDone: () {
+      if (diagEnd == 'pending') diagEnd = 'sourceDone';
+      completer.complete();
+    });
 
     request.response.done.then((dynamic value) {
+      _proxyDiag('req#$diagId response.done ok bytes=$diagBytes end=$diagEnd '
+          '${diagState()}');
+      subscription.cancel();
+    }, onError: (Object e) {
+      _proxyDiag('req#$diagId response.done ERROR $e bytes=$diagBytes '
+          'end=$diagEnd ${diagState()}');
       subscription.cancel();
     });
 
     await completer.future;
+    _proxyDiag('req#$diagId source drained bytes=$diagBytes end=$diagEnd '
+        '${diagState()}');
 
     await request.response.close();
+    _proxyDiag('req#$diagId response.close returned bytes=$diagBytes '
+        '${diagState()}');
   }
 
   return handler;

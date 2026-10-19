@@ -419,7 +419,7 @@ class AndroidApp(App):
             with (self.run / 'app.log').open('w') as log:
                 subprocess.run(self.adb + ['logcat', '-d', '-s', 'flutter:*',
                                            'ExoPlayerImplInternal:*',
-                                           'AudioPlayer:*', '*:E'],
+                                           'AudioPlayer:*', 'NavisExoDiag:*', '*:E'],
                                stdout=log, stderr=subprocess.STDOUT)
         except Exception:
             pass
