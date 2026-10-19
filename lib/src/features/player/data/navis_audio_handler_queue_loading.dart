@@ -767,6 +767,7 @@ extension _NavisQueueLoading on NavisAudioHandler {
       );
     }
     final item = _mediaItemForSong(song, source: source);
+    _traceSourceResolved(song, source);
     if (startupTrace?.songId == song.id) {
       startupTrace?.sourceKind = source.kind.name;
       startupTrace?.markOnce('sourceResolutionComplete');
@@ -851,6 +852,14 @@ extension _NavisQueueLoading on NavisAudioHandler {
     // Leave the song paused; the caller resumes it once it has landed.
     bool holdPlayback = false,
   }) async {
+    _transportTrace.record(
+      'queueFill',
+      () => <String, Object?>{
+        'phase': 'phase1Start',
+        'requested': songs.length,
+        'startIndex': startIndex,
+      },
+    );
     if (songs.isEmpty) {
       await _clearQueueInternal(persist: persist);
       return null;
@@ -1139,6 +1148,16 @@ extension _NavisQueueLoading on NavisAudioHandler {
       return 0;
     }
     _queueFillNativeMs += applyWatch.elapsedMilliseconds;
+    _transportTrace.record(
+      'queueFill',
+      () => <String, Object?>{
+        'phase': 'append',
+        'operation': operation,
+        'count': prepared.length,
+        'firstSongId': prepared.first.song.id,
+        'applyMs': applyWatch.elapsedMilliseconds,
+      },
+    );
     for (var j = 0; j < prepared.length; j++) {
       preparedByIndex[preparedIndexes[j]] = prepared[j];
     }
@@ -1240,6 +1259,16 @@ extension _NavisQueueLoading on NavisAudioHandler {
       initialPosition: initialPosition,
     );
     token?.checkCancelled();
+    _transportTrace.record(
+      'setAudioSources',
+      () => <String, Object?>{
+        'count': audioSources.length,
+        'initialIndex': initialIndex,
+        'initialPositionMs': initialPosition.inMilliseconds,
+        'songId': songId,
+        'preload': preload,
+      },
+    );
     for (var attempt = 0; attempt < operations.length; attempt++) {
       try {
         if (generation > 0) {

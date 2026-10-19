@@ -18,11 +18,15 @@ class RollingCacheSidecarDownloader {
   String? _activeSongId;
   String? _activeCacheFilePath;
   int? _activeReceivedBytes;
+  int? _activeTotalBytes;
   void Function()? _activeOnTerminated;
 
   String? get activeSongId => _activeSongId;
 
   int? get activeReceivedBytes => _activeReceivedBytes;
+
+  /// The response's Content-Length; null for a linear (transcoded) response.
+  int? get activeTotalBytes => _activeTotalBytes;
 
   Future<void> start({
     required String songId,
@@ -87,6 +91,7 @@ class RollingCacheSidecarDownloader {
       }
 
       final contentLength = response.contentLength;
+      _activeTotalBytes = contentLength > 0 ? contentLength : null;
       final sink = partFile.openWrite();
       var received = 0;
       try {
@@ -187,6 +192,7 @@ class RollingCacheSidecarDownloader {
     _activeSongId = null;
     _activeCacheFilePath = null;
     _activeReceivedBytes = null;
+    _activeTotalBytes = null;
     final onTerminated = _activeOnTerminated;
     _activeOnTerminated = null;
     onTerminated?.call();
