@@ -80,6 +80,25 @@ void main() {
     skip: !sqliteAvailable,
   );
 
+  test('profile keys preserve persisted identity hashes', () {
+    const cases = <String, String>{
+      ' HTTPS://Music.Example.test:443/rest/// ':
+          'd26c093c3699248c93884709de39bdb8',
+      'http://Music.Example.test:80/': '4edb8e94d76f6084750ae4521942bc8a',
+      'https://music.example.test:8443/subsonic/?ignored=yes#fragment':
+          'd3700c778595a56b576c27d758c69632',
+    };
+    for (final entry in cases.entries) {
+      final config = ServerConfigModel(
+        url: entry.key,
+        username: ' listener ',
+        password: 'unused',
+        apiVersion: '1.16.1',
+      );
+      expect(AndroidBackgroundSyncScheduler.profileKeyFor(config), entry.value);
+    }
+  });
+
   test('profile key is stable across harmless server URL normalization', () {
     final left = ServerConfigModel(
       url: 'HTTPS://Music.Example.test:443/rest/',

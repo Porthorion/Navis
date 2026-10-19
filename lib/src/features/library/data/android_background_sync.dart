@@ -6,6 +6,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:navis/src/database/navis_database.dart';
 import 'package:navis/src/features/auth/domain/server_config.dart';
+import 'package:navis/src/features/auth/domain/server_identity_url.dart';
 
 /// Narrow Flutter contract for Android's WorkManager scheduler.
 ///
@@ -23,7 +24,8 @@ class AndroidBackgroundSyncScheduler {
   static bool get isSupported => !kIsWeb && Platform.isAndroid;
 
   static String profileKeyFor(ServerConfigModel config) {
-    final identity = '${_normalizeUrl(config.url)}|${config.username.trim()}';
+    final identity =
+        '${canonicalServerIdentityUrl(config.url)}|${config.username.trim()}';
     return sha256.convert(utf8.encode(identity)).toString().substring(0, 32);
   }
 
@@ -85,24 +87,6 @@ class AndroidBackgroundSyncScheduler {
     } on PlatformException {
       return const AndroidBackgroundScheduleObservation.platformFailure();
     }
-  }
-
-  static String _normalizeUrl(String value) {
-    final parsed = Uri.tryParse(value.trim());
-    if (parsed == null || !parsed.hasScheme || parsed.host.isEmpty) {
-      return value.trim().replaceFirst(RegExp(r'/+$'), '');
-    }
-    final defaultPort =
-        (parsed.scheme.toLowerCase() == 'https' && parsed.port == 443) ||
-        (parsed.scheme.toLowerCase() == 'http' && parsed.port == 80);
-    return Uri(
-      scheme: parsed.scheme.toLowerCase(),
-      host: parsed.host.toLowerCase(),
-      port: defaultPort ? null : (parsed.hasPort ? parsed.port : null),
-      path: parsed.path == '/'
-          ? ''
-          : parsed.path.replaceFirst(RegExp(r'/+$'), ''),
-    ).toString();
   }
 }
 

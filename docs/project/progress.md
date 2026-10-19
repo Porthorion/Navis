@@ -14,6 +14,17 @@ Last updated: 2026-10-19
 - ACP status values: `backlog`, `ready`, `in_progress`, `blocked`, `done`.
 
 ## Current Focus
+- [x] Shared server identity URL canonicalisation — 2026-10-19
+  (`refactor/server-identity-url`): retained-profile comparison and Android
+  WorkManager profile keys now use `canonicalServerIdentityUrl`. Recorded three
+  existing profile hashes and passed their pinned assertions before extraction;
+  the new helper suite failed first because the helper did not exist. After
+  extraction, all 65 tests across the helper, background scheduler, background
+  entrypoint and server repository suites pass with `flutter test --concurrency=4`.
+  Scoped `flutter analyze` reports no issues across all five touched Dart files;
+  bootstrap completed once. Neither old helper name occurs in `docs/`.
+  Full gate, app runtime and emulators were explicitly excluded by the task's
+  host-memory constraints. No user-visible behavior or persisted-key change.
 - [x] Notification channel l10n and server URL tests — 2026-10-19
   (`fix/notification-l10n-url-tests`): the `playback`, `downloads` and
   `library_sync_silent` Android channels (bootstrap and audio_service) take
