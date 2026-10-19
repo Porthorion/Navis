@@ -2,7 +2,7 @@
 
 Tracks completion of all phases and sub-tasks defined in [docs/project/development-plan.md](development-plan.md). Checkboxes are updated as work is completed.
 
-Last updated: 2026-10-18
+Last updated: 2026-10-19
 
 ---
 
@@ -14,6 +14,17 @@ Last updated: 2026-10-18
 - ACP status values: `backlog`, `ready`, `in_progress`, `blocked`, `done`.
 
 ## Current Focus
+- [x] Shared server identity URL canonicalisation — 2026-10-19
+  (`refactor/server-identity-url`): retained-profile comparison and Android
+  WorkManager profile keys now use `canonicalServerIdentityUrl`. Recorded three
+  existing profile hashes and passed their pinned assertions before extraction;
+  the new helper suite failed first because the helper did not exist. After
+  extraction, all 65 tests across the helper, background scheduler, background
+  entrypoint and server repository suites pass with `flutter test --concurrency=4`.
+  Scoped `flutter analyze` reports no issues across all five touched Dart files;
+  bootstrap completed once. Neither old helper name occurs in `docs/`.
+  Full gate, app runtime and emulators were explicitly excluded by the task's
+  host-memory constraints. No user-visible behavior or persisted-key change.
 - [x] Issue #81, rebuild reachability checks stay in preparing progress —
   2026-10-18 (`fix/rebuild-checking-not-offline`): `checkingNetwork` keeps
   Retry hidden until the existing reachability controller confirms an outage
