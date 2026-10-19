@@ -929,7 +929,7 @@ def excerpt(run: Run, t: float, before: float, after: float, limit=16) -> list[s
 
 def song_end_near(samples, i) -> bool:
     """Whether the sample before [i] was at (or past) the end of its song."""
-    for previous in reversed(samples[max(0, i - 15):i]):
+    for previous in reversed(samples[max(0, i - 40):i]):
         dur, pos = previous.get('dur'), previous.get('pos')
         if previous.get('proc') == 'completed':
             return True
@@ -1112,8 +1112,11 @@ def oracle_stall(run: Run) -> list[dict]:
     first_audio = next((s['t'] for s in run.samples if s['pos'] and s['playing']), None)
     anchor = None
     for s in run.samples:
+        # The last song of a queue that has played out is finished, not stalled.
+        finished = (s['proc'] == 'completed' and s['idx'] is not None and s['qlen']
+                    and s['idx'] >= s['qlen'] - 1 and not s['deferred'])
         if first_audio is None or s['t'] < first_audio or s['pos'] is None \
-                or not wanted_at(run, s['t']):
+                or finished or not wanted_at(run, s['t']):
             anchor = None
             continue
         if anchor is None or abs(s['pos'] - anchor['pos']) > 200 or s['songId'] != anchor['songId']:
@@ -1227,6 +1230,7 @@ def oracle_queue_edit(run: Run, expect: dict) -> list[dict]:
 
 class FixtureBackend:
     name = 'fixture'
+    short_groups = True  # has albums/artists whose songs all end within seconds
     credentials = {'username': 'diagnostics', 'password': 'synthetic-seek-fixture'}
 
     def __init__(self, upstream_url, library, handler):
@@ -1239,19 +1243,23 @@ class FixtureBackend:
         self.used.update(s['id'] for s in songs)
         return songs
 
+    def _is_short(self, artist_id):
+        return artist_id in self.library.short
+
     def fresh_songs(self, n, min_s=100):
         pool = [s for s in self.library.sorted_songs() if s['id'] not in self.used
                 and s['duration'] >= min_s and s['track'] > 1 and s['id'] not in self.library.duplicates]
         return self._take(self.rng.sample(pool, n))
 
-    def fresh_album(self):
-        albums = [a for a in self.library.albums if not any(i in self.used for i in self.library.album_songs[a])]
+    def fresh_album(self, short=False):
+        albums = [a for a, d in self.library.albums.items() if self._is_short(d['artistId']) == short
+                  and not any(i in self.used for i in self.library.album_songs[a])]
         ids = list(self.library.album_songs[self.rng.choice(albums)])
         self.used.update(ids)
         return ids
 
-    def fresh_artist(self):
-        artists = [a for a in self.library.artists if not any(
+    def fresh_artist(self, short=False):
+        artists = [a for a in self.library.artists if self._is_short(a) == short and not any(
             i in self.used for al, d in self.library.albums.items() if d['artistId'] == a
             for i in self.library.album_songs[al])]
         artist = self.rng.choice(artists)
@@ -1275,6 +1283,7 @@ class FixtureBackend:
 
 class LiveBackend:
     name = 'live'
+    short_groups = False  # real songs are long: natural-end cases wait out a whole song
 
     def __init__(self, credentials, server: Server):
         self.credentials, self.server = credentials, server
@@ -1332,10 +1341,10 @@ class LiveBackend:
             mark_used(i)
         return ids
 
-    def fresh_album(self):
+    def fresh_album(self, short=False):
         return self._take_ids(self._groups('album_id', 6, 14)[1])
 
-    def fresh_artist(self):
+    def fresh_artist(self, short=False):
         artist, ids = self._groups('artist_id', 15, 45, 'AND COUNT(DISTINCT s.album_id) BETWEEN 2 AND 4')
         return artist, self._take_ids(ids)
 
@@ -1618,6 +1627,55 @@ def case_shuffle_artist(run: Run, env):
     run.checks.append(lambda: oracle_sequence(run, ids))
 
 
+def natural_shuffle(kind: str):
+    """Shuffle an album or artist and let song 1 play to its natural end with
+    no skip, while the rest of the queue is still being filled; then follow
+    up to four more transitions (letting short songs end, skipping long ones).
+    Fixture songs of the short artists end within seconds; a live song is
+    played for its full length (minutes). The sequence oracle must see no repeat."""
+    def case(run: Run, env):
+        backend = env.backend
+        if kind == 'album':
+            ids = backend.fresh_album(short=True)
+            run.songs = [{'id': i} for i in ids]
+            rec = start_queue(run, ids, shuffle=True)
+        else:
+            artist, ids = backend.fresh_artist(short=True)
+            run.songs = [{'id': i} for i in ids]
+            run.shuffled = True
+            rec = run.act('start', artist=artist, shuffle=True)
+            run.app.api('/v1/artists/playback', {'command': 'prepare', 'artistId': artist, 'action': 'shuffle'}, timeout=60)
+        first = await_audio(run, rec)
+        run.metrics.update(firstSong=first['songId'], firstDurMs=first['dur'], shortGroups=backend.short_groups)
+        wait_s = (first['dur'] or 400000) / 1000 + run.deadlines['advance']
+        moved = run.until(lambda s: s['idx'] != first['idx'] or s['songId'] != first['songId'], wait_s)
+        run.metrics['firstEndedNaturally'] = moved is not None
+        if moved is None:
+            run.violations.append(violation('naturalEndNoContinuation', run.now(),
+                                            f"song 1 {first['songId']} did not hand over within {wait_s:.0f}s; last="
+                                            f"{ {k: run.last()[k] for k in ('idx', 'songId', 'pos', 'proc', 'playing', 'loading', 'qlen', 'mat')} }",
+                                            run, span=(wait_s, 2)))
+            raise CaseAbort('no natural end')
+        run.metrics['firstTransitionAt'] = moved['t']
+        appends = [e['rel'] for e in run.trace if e['kind'] == 'queueFill' and e.get('phase') == 'append']
+        # Positive: the rest of the queue was appended this long before song 1 ended.
+        run.metrics['appendMarginS'] = round(moved['t'] - appends[0], 2) if appends else None
+        run.metrics['firstTransitionSample'] = {k: moved[k] for k in ('idx', 'songId', 'pos', 'proc', 'qlen', 'mat', 'deferred')}
+        run.observe(3.0)
+        run.metrics['firstTransition'] = excerpt(run, moved['t'], 4.0, 3.0, limit=60)
+        with concurrent.futures.ThreadPoolExecutor(max_workers=4) as pool:
+            for _ in range(min(4, len(ids) - 2)):
+                cur = run.last()
+                if cur['dur'] and cur['dur'] <= 12000:
+                    run.until(lambda s, c=cur: s['idx'] != c['idx'], cur['dur'] / 1000 + run.deadlines['advance'])
+                else:
+                    run.observe(3.0)
+                    wait_advanced(run, nav(run, pool, 'next', expect=cur['idx'] + 1))
+            run.observe(3.0)
+        run.checks.append(lambda: oracle_sequence(run, ids))
+    return case
+
+
 def case_shuffle_toggle(run: Run, env):
     ids, rec = skip_queue(run, env)
     first = await_audio(run, rec, ids[0])
@@ -1694,16 +1752,19 @@ CASE_FUNCS = {
     'skip_last_batch': case_skip_last_batch,
     'shuffle_album': case_shuffle_album,
     'shuffle_artist': case_shuffle_artist,
+    'shuffle_album_natural': natural_shuffle('album'),
+    'shuffle_artist_natural': natural_shuffle('artist'),
     'shuffle_toggle': case_shuffle_toggle,
     'queue_playnext_add': queue_case(edit_play_next_add),
     'queue_reorder': queue_case(edit_reorder),
 }
 PROFILES = {
-    'smoke': {'cases': ['seek_far', 'seek_back', 'skip_next', 'skip_rapid10', 'shuffle_album', 'shuffle_artist'],
+    'smoke': {'cases': ['seek_far', 'seek_back', 'skip_next', 'skip_rapid10', 'shuffle_album', 'shuffle_artist',
+                        'shuffle_album_natural', 'shuffle_artist_natural'],
               'qualities': ['original', 'opus128'], 'throttles': ['none', 'slow1500'], 'reps': 1},
     'full': {'cases': list(CASE_FUNCS), 'qualities': list(QUALITIES), 'throttles': list(THROTTLES), 'reps': 1},
 }
-REPEATED_CASES = {'shuffle_album', 'shuffle_artist'}  # --shuffle-reps times each
+REPEATED_CASES = {'shuffle_album', 'shuffle_artist', 'shuffle_album_natural', 'shuffle_artist_natural'}  # --shuffle-reps times each
 
 
 def set_quality(app, quality: str):
@@ -1860,7 +1921,8 @@ def run_matrix(args, credentials, app, run_dir: Path) -> int:
     fixture_server = None
     if args.server == 'fixture':
         import seek_reliability_diagnostics as fixture_tool
-        library = fixture_tool.TranscodeLibrary(BASE / 'fixture-media', artists=args.fixture_artists)
+        library = fixture_tool.TranscodeLibrary(BASE / 'fixture-media', artists=args.fixture_artists,
+                                                short_artists=args.fixture_short_artists)
         fixture_server, handler = fixture_tool.start_transcoding_server(
             library, speed=args.transcode_speed, advertise_offset=not args.no_transcode_offset)
         backend = FixtureBackend(f'http://127.0.0.1:{fixture_server.server_port}', library, handler)
@@ -1871,16 +1933,29 @@ def run_matrix(args, credentials, app, run_dir: Path) -> int:
         (ROOT / 'password').write_text(backend.credentials['password'] + '\n')
         os.chmod(ROOT / 'password', 0o600)
         marker = ROOT / 'profile-server'
-        # A kept profile is only valid for the server it was synced from.
-        if (args.server == 'fixture' or not args.keep_profile
-                or not marker.exists() or marker.read_text() != args.server):
-            reset_profile()
-        marker.write_text(args.server)
-        point_profile_at(proxy.url)
-        if args.android:
-            raise Failure('the matrix runs on Linux; Android support is a later step')
+        android = isinstance(app, AndroidApp)
+        app_url = proxy.url
+        if android:
+            # The emulator is seeded with the Linux profile's synced catalog,
+            # so that profile must come from this server (run Linux first).
+            if not marker.exists() or marker.read_text() != args.server or not (ROOT / 'navis.sqlite').exists():
+                raise Failure(f'sync the Linux profile against the {args.server} server first; Android seeds from it')
+            # 10.0.2.2 is the host's loopback: far faster than adb reverse
+            # (about 100 KB/s), which --android-reverse brings back.
+            app_url = proxy.url if args.android_reverse else f'http://10.0.2.2:{proxy.PORT}'
+            if args.android_reverse:
+                subprocess.run(app.adb + ['reverse', f'tcp:{proxy.PORT}', f'tcp:{proxy.PORT}'],
+                               check=True, capture_output=True)
+            app.prepare(backend.credentials, app_url)
+        else:
+            # A kept profile is only valid for the server it was synced from.
+            if (args.server == 'fixture' or not args.keep_profile
+                    or not marker.exists() or marker.read_text() != args.server):
+                reset_profile()
+            marker.write_text(args.server)
+            point_profile_at(proxy.url)
         app.launch()
-        sign_in(app, backend.credentials, 'wifi', proxy.url)
+        sign_in(app, backend.credentials, 'wifi', app_url)
         env = type('Env', (), {'backend': backend, 'profile': args.profile})()
         # Fail fast if the app is not using the proxy.
         before = proxy.requests
@@ -1972,7 +2047,12 @@ def main() -> int:
     parser.add_argument('--resume-from', type=Path,
                         help='a matrix report.json whose finished cells are kept '
                              'and skipped (after an interrupted run)')
+    parser.add_argument('--android-reverse', action='store_true',
+                        help='matrix on Android: reach the proxy through adb reverse '
+                             '(about 100 KB/s) instead of the emulator host alias 10.0.2.2')
     parser.add_argument('--fixture-artists', type=int, default=240)
+    parser.add_argument('--fixture-short-artists', type=int, default=60,
+                        help='of those, artists whose songs are all 1-8 s (natural-end shuffle cases)')
     parser.add_argument('--transcode-speed', type=float, default=30.0,
                         help='fixture transcode speed in multiples of the bitrate')
     parser.add_argument('--no-transcode-offset', action='store_true',
@@ -1992,12 +2072,15 @@ def main() -> int:
     run = BASE / 'runs' / f'{stamp}-{args.label}'
     run.mkdir(parents=True)
     if args.profile:
-        if not args.skip_build and not args.android:
+        if args.android:
+            if not args.skip_build or not ANDROID_APK.exists():
+                build_android()
+        elif not args.skip_build:
             build(load_credentials(args.credentials) if args.server == 'live' else credentials)
         elif not (ROOT / 'bundle' / 'navis').exists():
             raise Failure('no bundle: run without --skip-build once')
         ROOT.mkdir(parents=True, exist_ok=True)
-        return run_matrix(args, credentials, App(run, 'linux'), run)
+        return run_matrix(args, credentials, AndroidApp(run, args.android) if args.android else App(run, 'linux'), run)
     server = Server(credentials)
     server.call('ping')
     if args.android:
