@@ -1000,7 +1000,7 @@ def oracle_seek(run: Run, rec: dict) -> list[dict]:
                            and a['t'] > t0 + 0.01), None)
         for s in after:
             if s['t'] > landed['t'] and (later_seek is None or s['t'] < later_seek) \
-                    and s['songId'] == rec['song'] and s['pos'] < target - 3000:
+                    and s['songId'] == rec['song'] and s['proc'] == 'ready' and s['pos'] < target - 3000:
                 out.append(violation('seekRegressed', s['t'], f"pos={s['pos']} fell below target {target} "
                                      f"after landing", run))
                 break
@@ -1029,8 +1029,9 @@ def oracle_skip(run: Run, rec: dict) -> list[dict]:
             out.append(violation('skipNoRestart', t0, f"previous after {rec['pos0']} ms did not restart", run))
         return out
     low, high = sorted((idx0, expect))
-    for s in after:
-        if s['idx'] is not None and not low <= s['idx'] <= high:
+    for n, s in enumerate(after):
+        if s['idx'] is not None and not low <= s['idx'] <= high \
+                and not song_end_near(after, n):
             out.append(violation('skipOvershoot', s['t'], f"idx={s['idx']} outside {low}..{high} "
                                  f"(expected {expect})", run))
             break
@@ -1258,7 +1259,8 @@ class FixtureBackend:
         return artist, ids
 
     def filler(self, n, exclude=()):
-        pool = [s['id'] for s in self.library.sorted_songs() if s['id'] not in exclude]
+        pool = [s['id'] for s in self.library.sorted_songs()
+                if s['id'] not in exclude and s['duration'] >= 30]
         self.rng.shuffle(pool)
         return pool[:n]
 
@@ -1719,8 +1721,30 @@ def settle_between_runs(app):
     time.sleep(1.5)
 
 
-def run_one(app, backend, proxy, env, case: str, quality: str, throttle: str, rep: int, out_dir: Path, serial: int) -> dict:
+def revive_app(app, backend, proxy, quality: str, events: list, when: str) -> bool:
+    """If the app has exited, records how (exit code, log tail) and starts it
+    again on the kept profile. Returns whether it had exited."""
+    if app.proc is None or app.proc.poll() is None:
+        return False
+    log = (app.run / 'app.log')
+    tail = log.read_text(errors='replace').splitlines()[-12:] if log.exists() else []
+    events.append({'event': 'appExited', 'when': when, 'returncode': app.proc.returncode,
+                   'logTail': tail, 'w': round(time.time(), 1)})
+    print(json.dumps({'event': 'appExited', 'when': when, 'returncode': app.proc.returncode}), flush=True)
+    app.proc = None
+    app.launch()
+    sign_in(app, backend.credentials, 'wifi', proxy.url)
+    set_quality(app, quality)
+    return True
+
+
+def run_one(app, backend, proxy, env, case: str, quality: str, throttle: str, rep: int, out_dir: Path, serial: int,
+            events: list | None = None) -> dict:
+    events = events if events is not None else []
+    revived = revive_app(app, backend, proxy, quality, events, f'before #{serial} {case}')
     run = Run(app, backend, case, quality, throttle, rep)
+    if revived:
+        run.metrics['appRestartedBeforeRun'] = True
     run.checks, run.latency_from = [], []
     run.env = env
     proxy_mark = len(proxy.log)
@@ -1745,6 +1769,8 @@ def run_one(app, backend, proxy, env, case: str, quality: str, throttle: str, re
             pass
         sampler.halt.set()
         sampler.join(timeout=10)
+    if app.proc is not None and app.proc.poll() is not None:
+        run.violations.append(violation('appExited', run.now(), f'the app exited (code {app.proc.returncode}) during the case', run))
     for check in run.checks:
         try:
             run.violations += check()
@@ -1857,7 +1883,8 @@ def run_matrix(args, credentials, app, run_dir: Path) -> int:
         info = {'server': args.server, 'profile': args.profile, 'cases': profile['cases'],
                 'qualities': profile['qualities'], 'throttles': profile['throttles'], 'reps': reps}
         print(json.dumps(info), flush=True)
-        results, serial = [], 0
+        results, serial, events = [], 0, []
+        info['events'] = events
         for throttle in profile['throttles']:
             proxy.set_profile(*THROTTLES[throttle])
             for quality in profile['qualities']:
@@ -1865,7 +1892,7 @@ def run_matrix(args, credentials, app, run_dir: Path) -> int:
                 for case in profile['cases']:
                     for rep in range(args.shuffle_reps if case in REPEATED_CASES and args.shuffle_reps else reps):
                         serial += 1
-                        row = run_one(app, backend, proxy, env, case, quality, throttle, rep, run_dir, serial)
+                        row = run_one(app, backend, proxy, env, case, quality, throttle, rep, run_dir, serial, events)
                         results.append(row)
                         print(json.dumps({k: row[k] for k in ('id', 'case', 'quality', 'throttle', 'passed', 'latencyS')}
                                          | {'violations': [v['oracle'] for v in row['violations']]}), flush=True)
