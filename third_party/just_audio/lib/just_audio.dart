@@ -3906,6 +3906,8 @@ _ProxyHandler _proxyHandlerForSource(StreamAudioSource source) {
 
       request.response.headers.clear();
       request.response.statusCode = HttpStatus.internalServerError;
+      // Navis: frame the empty error body after clearing the default headers.
+      request.response.contentLength = 0;
       await request.response.close();
       return;
     }
@@ -3928,6 +3930,10 @@ _ProxyHandler _proxyHandlerForSource(StreamAudioSource source) {
       request.response.statusCode = 206;
     } else {
       request.response.contentLength = sourceResponse.contentLength ?? -1;
+      // Navis: clearing headers removes chunking for unknown-length streams.
+      if (sourceResponse.contentLength == null) {
+        request.response.headers.chunkedTransferEncoding = true;
+      }
       request.response.statusCode = 200;
     }
 
