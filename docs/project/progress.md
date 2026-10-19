@@ -14,6 +14,13 @@ Last updated: 2026-10-19
 - ACP status values: `backlog`, `ready`, `in_progress`, `blocked`, `done`.
 
 ## Current Focus
+- [x] Notification channel l10n and server URL tests — 2026-10-19
+  (`fix/notification-l10n-url-tests`): the `playback`, `downloads` and
+  `library_sync_silent` Android channels (bootstrap and audio_service) take
+  their names and descriptions from l10n, honoring the in-app language
+  override; IDs, importance and silence flags are pinned by test. Added
+  `server_url_validation_test.dart`, pinning loopback and remote http handling.
+  Targeted `flutter test` runs only; `./tool/check.sh` remains pending.
 - [x] Issue #86, frame unknown-length lock-cache proxy responses — 2026-10-19
   (`fix/proxy-response-framing`): restore chunked transfer encoding after the
   proxy clears response headers, and explicitly size empty HTTP 500 bodies at

@@ -2891,6 +2891,14 @@
   "@notificationLibraryScanStageIdle": {
     "description": "System notification: library scan stage label shown in the progress notification."
   },
+  "notificationPlaybackChannelName": "Playback",
+  "@notificationPlaybackChannelName": {
+    "description": "System notification: name of the Android channel for the media playback notification."
+  },
+  "notificationPlaybackChannelDescription": "Media playback controls and status",
+  "@notificationPlaybackChannelDescription": {
+    "description": "System notification: description of the playback channel in system settings."
+  },
   "notificationDownloadsChannelName": "Downloads",
   "@notificationDownloadsChannelName": {
     "description": "System notification: name of the Android channel for download notifications."

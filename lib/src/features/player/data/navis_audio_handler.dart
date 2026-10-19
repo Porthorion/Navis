@@ -15,6 +15,8 @@ import 'package:flutter/services.dart';
 import 'package:just_audio/just_audio.dart';
 import 'package:just_audio_media_kit/just_audio_media_kit.dart';
 import 'package:just_audio_media_kit/mediakit_player.dart' show MediaKitPlayer;
+import 'package:navis/l10n/app_localizations.dart';
+import 'package:navis/src/utils/notifications/notification_localizations.dart';
 import 'package:navis/src/features/equalizer/domain/eq_configuration.dart';
 import 'package:navis/src/features/player/domain/playback_adjustments.dart';
 import 'package:navis/src/api/subsonic_api_client.dart';
