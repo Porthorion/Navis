@@ -347,8 +347,10 @@ class AndroidApp(App):
             # file that is never pushed.
             copy.execute('PRAGMA journal_mode=DELETE')
             copy.execute('UPDATE server_config SET url = ?', (server_url,))
-            # Keep streamed FLAC from filling the emulator's data partition.
-            copy.execute('UPDATE app_settings SET rolling_cache_budget_mb=512')
+            # Keep streamed FLAC from filling the emulator's data partition
+            # (the phone AVD has only ~500 MB free; a full disk cascades
+            # into player and API failures).
+            copy.execute('UPDATE app_settings SET rolling_cache_budget_mb=160')
             copy.execute('DELETE FROM play_queue_items')
             copy.execute('DELETE FROM play_queue')
             copy.commit()
@@ -372,6 +374,7 @@ class AndroidApp(App):
         self.shell('rm', '-rf', staging)
 
     def launch(self):
+        subprocess.run(self.adb + ['logcat', '-c'], capture_output=True)
         self.shell('rm', '-f', ANDROID_HANDSHAKE, check=False)
         self.shell('am', 'start', '-n',
                    f'{ANDROID_PACKAGE}/com.navis.app.navis.MainActivity')
@@ -396,7 +399,7 @@ class AndroidApp(App):
             with (self.run / 'app.log').open('w') as log:
                 subprocess.run(self.adb + ['logcat', '-d', '-s', 'flutter:*',
                                            'ExoPlayerImplInternal:*',
-                                           'AudioPlayer:*'],
+                                           'AudioPlayer:*', '*:W'],
                                stdout=log, stderr=subprocess.STDOUT)
         except Exception:
             pass
@@ -1056,18 +1059,22 @@ def license_pool(run: Run):
     return [a for a in run.actions if a['kind'] in ('start', 'next', 'prev', 'jump', 'shuffle', 'queueEdit')]
 
 
+def _requested_at(run: Run, t: float, kinds=('seek', 'prev', 'jump', 'start', 'next')) -> bool:
+    """A seek or navigation is in flight (or returned a moment ago)."""
+    for a in run.actions:
+        if a['kind'] in kinds:
+            end = a['ret'] + 1.5 if 'ret' in a else a['t'] + (90 if a['kind'] == 'seek' else 15)
+            if a['t'] - 0.2 <= t <= end:
+                return True
+    return False
+
+
 def oracle_unexpected_change(run: Run) -> list[dict]:
     """Song or index changes nobody asked for (and that are not a song ending)."""
     out, licenses = [], license_pool(run)
     used = 0
     def requested(t):
-        # A seek or navigation is in flight (or returned a moment ago).
-        for a in run.actions:
-            if a['kind'] in ('seek', 'prev', 'jump', 'start', 'next'):
-                end = a['ret'] + 1.5 if 'ret' in a else a['t'] + (90 if a['kind'] == 'seek' else 15)
-                if a['t'] - 0.2 <= t <= end:
-                    return True
-        return False
+        return _requested_at(run, t)
     samples = run.samples
     for i in range(1, len(samples)):
         a, b = samples[i - 1], samples[i]
@@ -1096,6 +1103,22 @@ def oracle_unexpected_change(run: Run) -> list[dict]:
               and not requested(b['t'])):
             out.append(violation('unrequestedJump', b['t'], f"position jumped {a['pos']}->{b['pos']} on {b['songId']} "
                                  f"with no seek or navigation", run))
+    return out
+
+
+def oracle_replay(run: Run) -> list[dict]:
+    """A song that reaches its end and starts over on the same queue index,
+    with no seek, navigation or repeat mode: the same song heard twice."""
+    out = []
+    samples = run.samples
+    for i in range(1, len(samples)):
+        a, b = samples[i - 1], samples[i]
+        if (a['songId'] and a['songId'] == b['songId'] and a['idx'] == b['idx'] and a['dur']
+                and a['pos'] is not None and b['pos'] is not None
+                and a['pos'] >= a['dur'] - 2500 and b['pos'] < 3000
+                and a['pos'] - b['pos'] > a['dur'] / 2 and not _requested_at(run, b['t'], ('seek', 'prev', 'jump', 'next'))):
+            out.append(violation('songReplayedAtEnd', b['t'], f"{b['songId']} reached {a['pos']}/{a['dur']} ms and "
+                                 f"started again at {b['pos']} ms on idx {b['idx']} (proc {a['proc']}->{b['proc']})", run))
     return out
 
 
@@ -1658,8 +1681,11 @@ def natural_shuffle(kind: str):
             raise CaseAbort('no natural end')
         run.metrics['firstTransitionAt'] = moved['t']
         appends = [e['rel'] for e in run.trace if e['kind'] == 'queueFill' and e.get('phase') == 'append']
+        starts = [e['rel'] for e in run.trace if e['kind'] == 'queueFill' and e.get('phase') == 'phase1Start']
         # Positive: the rest of the queue was appended this long before song 1 ended.
-        run.metrics['appendMarginS'] = round(moved['t'] - appends[0], 2) if appends else None
+        # The device clock may differ from the host's: measure from phase 1's start.
+        skew = (starts[0] - rec['t']) if starts else 0
+        run.metrics['appendMarginS'] = round(moved['t'] - (appends[0] - skew), 2) if appends else None
         run.metrics['firstTransitionSample'] = {k: moved[k] for k in ('idx', 'songId', 'pos', 'proc', 'qlen', 'mat', 'deferred')}
         run.observe(3.0)
         run.metrics['firstTransition'] = excerpt(run, moved['t'], 4.0, 3.0, limit=60)
@@ -1844,7 +1870,7 @@ def run_one(app, backend, proxy, env, case: str, quality: str, throttle: str, re
             run.violations += check()
         except Exception as exc:
             run.violations.append(violation('oracleError', run.now(), f'{type(exc).__name__}: {exc}', run))
-    run.violations += oracle_unexpected_change(run) + oracle_stall(run)
+    run.violations += oracle_unexpected_change(run) + oracle_stall(run) + oracle_replay(run)
     song = run.songs[0] if run.songs else None
     if song and song.get('duration'):
         # Bytes per second of audio: what the server actually sent for a
@@ -1924,7 +1950,8 @@ def run_matrix(args, credentials, app, run_dir: Path) -> int:
         library = fixture_tool.TranscodeLibrary(BASE / 'fixture-media', artists=args.fixture_artists,
                                                 short_artists=args.fixture_short_artists)
         fixture_server, handler = fixture_tool.start_transcoding_server(
-            library, speed=args.transcode_speed, advertise_offset=not args.no_transcode_offset)
+            library, speed=args.transcode_speed, advertise_offset=not args.no_transcode_offset,
+            static=args.fixture_static_transcode)
         backend = FixtureBackend(f'http://127.0.0.1:{fixture_server.server_port}', library, handler)
     else:
         backend = LiveBackend(credentials, Server(credentials))
@@ -2055,6 +2082,9 @@ def main() -> int:
                         help='of those, artists whose songs are all 1-8 s (natural-end shuffle cases)')
     parser.add_argument('--transcode-speed', type=float, default=30.0,
                         help='fixture transcode speed in multiples of the bitrate')
+    parser.add_argument('--fixture-static-transcode', action='store_true',
+                        help='fixture answers transcodes like a cached Navidrome: whole body, '
+                             'Content-Length and byte ranges')
     parser.add_argument('--no-transcode-offset', action='store_true',
                         help='fixture does not advertise/honour transcodeOffset')
     args = parser.parse_args()
