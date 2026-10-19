@@ -1888,7 +1888,10 @@ def run_matrix(args, credentials, app, run_dir: Path) -> int:
         results, serial, events = [], 0, []
         if args.resume_from:
             previous = json.loads(args.resume_from.read_text())
-            results = previous['results']
+            # Harness errors (for example a fixture that ran out of fresh
+            # songs) are rerun; real verdicts are kept.
+            results = [r for r in previous['results']
+                       if not any(v['oracle'] == 'caseError' for v in r['violations'])]
             events = previous.get('events', [])
             serial = max([r['id'] for r in results] or [0])
             for row in results:  # keep the earlier traces beside the new ones
