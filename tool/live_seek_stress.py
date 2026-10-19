@@ -394,6 +394,16 @@ class AndroidApp(App):
         wait(lambda: self.api('/v1/playback/bootstrap/status').get('handlerReady'),
              120, 'android handler')
 
+    def trim_cache(self, limit_mb=100):
+        """The phone AVD has ~500 MB free and the rolling cache can outgrow
+        its budget (a full disk cascades into API 500s): empty it between
+        cases, which only use never-played songs anyway."""
+        out = self.shell('run-as', ANDROID_PACKAGE, 'sh', '-c',
+                         f"'du -sm {ANDROID_ROOT}/cache/audio 2>/dev/null | cut -f1'", check=False)
+        if out.strip().isdigit() and int(out.strip()) > limit_mb:
+            self.shell('run-as', ANDROID_PACKAGE, 'sh', '-c',
+                       f"'rm -rf {ANDROID_ROOT}/cache/audio/rolling/*'", check=False)
+
     def start_relay(self, port: int):
         self.relay = subprocess.Popen(
             self.adb + ['shell', f'nc -s 127.0.0.1 -p {port} -L nc 10.0.2.2 {port}'],
@@ -1840,6 +1850,8 @@ def settle_between_runs(app):
     try:
         app.api('/v1/playback/queue/clear', {})
         reset_modes(app)
+        if isinstance(app, AndroidApp):
+            app.trim_cache()
     except Exception:
         pass
     time.sleep(1.5)
