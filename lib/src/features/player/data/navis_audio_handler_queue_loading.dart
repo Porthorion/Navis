@@ -376,6 +376,16 @@ extension _NavisQueueLoading on NavisAudioHandler {
       startupTrace?.mark('player:$operation:timeout');
       timedOut = true;
       final isCurrent = _isActiveLoadGeneration(generation);
+      _transportTrace.record(
+        'recovery',
+        () => <String, Object?>{
+          'decision': 'playerOperationTimedOut',
+          'operation': operation,
+          'songId': songId,
+          'timeoutMs': timeout!.inMilliseconds,
+          'current': isCurrent,
+        },
+      );
       if (isCurrent) _lastFailedSongId = songId;
       if (isCurrent && songId != null) {
         _markSongLockCachingBypassed(

@@ -918,7 +918,7 @@ def excerpt(run: Run, t: float, before: float, after: float, limit=16) -> list[s
     keys = ('processingState', 'playing', 'index', 'songId', 'decision', 'stage', 'phase',
             'action', 'sourceKind', 'format', 'maxBitRate', 'positionMs', 'requestedPositionMs',
             'outcome', 'path', 'reason', 'context', 'requestedIndex', 'fromIndex', 'count',
-            'errorCode', 'timeOffset')
+            'errorCode', 'timeOffset', 'operation', 'timeoutMs')
     lines = []
     for entry in run.trace:
         if t - before <= entry['rel'] <= t + after:
@@ -1072,6 +1072,8 @@ def oracle_unexpected_change(run: Run) -> list[dict]:
             continue
         if a['idx'] != b['idx'] or a['songId'] != b['songId']:
             if a['idx'] is None or b['idx'] is None:
+                if a['idx'] is None and b['idx'] is not None:
+                    used += 1  # the start that selected the first song
                 continue
             step = max(1, abs(b['idx'] - a['idx']))
             available = sum(1 for x in licenses if x['t'] <= b['t'] + 0.2)
