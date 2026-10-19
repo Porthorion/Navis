@@ -1140,6 +1140,8 @@ extension _NavisQueueLoading on NavisAudioHandler {
       initialPosition: initialPosition,
     );
     token?.checkCancelled();
+    _tracedNativeIndex = null;
+    _tracedCurrentSong = null;
     _transportTrace.record(
       'setAudioSources',
       () => <String, Object?>{

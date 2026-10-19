@@ -304,17 +304,23 @@ extension _NavisMediaSession on NavisAudioHandler {
           index != wiredPlayer.currentIndex) {
         return;
       }
-      _transportTrace.record(
-        'nativeIndex',
-        () => <String, Object?>{
-          'index': index,
-          'songId': index == null || index >= _player.sequence.length
-              ? null
-              : navisNativeSourceSongId(_player.sequence[index]),
-          'loading': _isLoading,
-          'positionMs': _player.position.inMilliseconds,
-        },
-      );
+      if (_transportTrace.enabled) {
+        final nativeSongId = index == null || index >= _player.sequence.length
+            ? null
+            : navisNativeSourceSongId(_player.sequence[index]);
+        if (_tracedNativeIndex != (index, nativeSongId)) {
+          _tracedNativeIndex = (index, nativeSongId);
+          _transportTrace.record(
+            'nativeIndex',
+            () => <String, Object?>{
+              'index': index,
+              'songId': nativeSongId,
+              'loading': _isLoading,
+              'positionMs': _player.position.inMilliseconds,
+            },
+          );
+        }
+      }
       // Stop may deliver old playlist indices during remote warm-up. Native
       // edits also emit indices before their materialised mirror commits.
       final pendingAnchor = _queueReplacementMetadataAnchor;
@@ -356,14 +362,18 @@ extension _NavisMediaSession on NavisAudioHandler {
         _loadingSongId = item?.id;
       }
       if (item != null) {
-        _transportTrace.record(
-          'songCurrent',
-          () => <String, Object?>{
-            'songId': item.id,
-            'index': resolved.currentIndex,
-            'positionMs': _player.position.inMilliseconds,
-          },
-        );
+        if (_transportTrace.enabled &&
+            _tracedCurrentSong != (item.id, resolved.currentIndex)) {
+          _tracedCurrentSong = (item.id, resolved.currentIndex);
+          _transportTrace.record(
+            'songCurrent',
+            () => <String, Object?>{
+              'songId': item.id,
+              'index': resolved.currentIndex,
+              'positionMs': _player.position.inMilliseconds,
+            },
+          );
+        }
         _setCurrentMediaItem(item);
       } else if (_queueItems.isEmpty ||
           _player.processingState == ProcessingState.idle) {
