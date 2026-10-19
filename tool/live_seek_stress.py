@@ -1307,15 +1307,20 @@ class LiveBackend:
         return picked
 
     def _groups(self, key, low, high, extra=''):
-        """Unused lossless groups (album or artist) from the synced catalog."""
+        """Unused lossless groups (album or artist) from the synced catalog.
+        Artists are grouped by their albums' artist: many songs carry no
+        artist id of their own."""
+        column = 'a.artist_id' if key == 'artist_id' else 's.album_id'
         with sqlite3.connect(f'file:{ROOT / "navis.sqlite"}?mode=ro', uri=True) as db:
             groups = db.execute(
-                f'SELECT {key} FROM songs WHERE server_deleted_at IS NULL AND {key} IS NOT NULL '
-                f'GROUP BY {key} HAVING COUNT(*) BETWEEN ? AND ? AND MIN(COALESCE(bit_rate, 0)) >= 700 {extra} '
-                f'ORDER BY RANDOM() LIMIT 40', (low, high)).fetchall()
+                f'SELECT {column} FROM songs s JOIN albums a ON a.id = s.album_id '
+                f'WHERE s.server_deleted_at IS NULL AND {column} IS NOT NULL '
+                f'GROUP BY {column} HAVING COUNT(*) BETWEEN ? AND ? AND MIN(COALESCE(s.bit_rate, 0)) >= 700 '
+                f'{extra} ORDER BY RANDOM() LIMIT 40', (low, high)).fetchall()
             for (group,) in groups:
                 rows = db.execute(
-                    f'SELECT id FROM songs WHERE {key} = ? ORDER BY disc_number, track, id', (group,)).fetchall()
+                    f'SELECT s.id FROM songs s JOIN albums a ON a.id = s.album_id WHERE {column} = ? '
+                    f'ORDER BY s.disc_number, s.track, s.id', (group,)).fetchall()
                 ids = [r[0] for r in rows]
                 if not self.used.intersection(ids):
                     return group, ids
@@ -1331,7 +1336,7 @@ class LiveBackend:
         return self._take_ids(self._groups('album_id', 6, 14)[1])
 
     def fresh_artist(self):
-        artist, ids = self._groups('artist_id', 15, 45, 'AND COUNT(DISTINCT album_id) BETWEEN 2 AND 4')
+        artist, ids = self._groups('artist_id', 15, 45, 'AND COUNT(DISTINCT s.album_id) BETWEEN 2 AND 4')
         return artist, self._take_ids(ids)
 
     def filler(self, n, exclude=()):
