@@ -4454,6 +4454,9 @@ length with HTTP 500 and closes it. It cannot construct a valid `Content-Range`
 without the end byte; returning an error lets ordinary remote-source recovery
 retry with direct streaming instead of leaving the native request unanswered.
 Sized ranges and reads from the completed cache file keep their normal responses.
+Unknown-length non-range responses use HTTP chunked framing, including the
+terminal zero-length chunk, so a keep-alive connection cannot hide end-of-stream.
+Empty HTTP 500 responses explicitly send `Content-Length: 0`.
 
 Album-style queue replacement is lazy: the active transport queue prepares the
 tapped song first, then fills the remaining sources in phase 2. Phase 1 pauses
