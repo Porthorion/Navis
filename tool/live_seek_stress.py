@@ -2180,7 +2180,7 @@ def case_offset_repeat_one(run: Run, env):
     """Repeat-one with an offset seek: the loop restarts at 0:00, never at the sought position."""
     offset_case_prologue(run)
     run.metrics['repeatOne'] = True
-    song = env.backend.fresh_songs(1)[0]
+    song = min(env.backend.fresh_songs(6), key=lambda x: x['duration'])  # shortest: the second loop costs one song length
     duration_ms = int(song['duration']) * 1000
     run.app.api('/v1/playback/repeat', {'mode': 'one'})
     start_single(run, song)
@@ -2197,13 +2197,25 @@ def case_offset_repeat_one(run: Run, env):
         run.violations.append(violation('repeatOneNoLoop', run.now(), 'position never wrapped to the start', run))
         raise CaseAbort('no loop')
     run.observe(8.0)
+    wrapped2 = run.until(lambda s: s['t'] > wrapped['t'] + 30 and s['songId'] == song['id'] and s['pos'] is not None
+                         and s['pos'] < 4000 and s['proc'] == 'ready', duration_ms / 1000 + 2 * run.deadlines['advance'])
+    run.metrics['loop2WrappedAt'] = wrapped2 and wrapped2['t']
+    if wrapped2 is None:
+        run.violations.append(violation('repeatOneNoSecondLoop', run.now(), 'position never wrapped a second time', run))
+    run.observe(6.0)
     after = [s for s in run.samples if s['t'] >= wrapped['t'] and s['pos'] is not None and s['songId'] == song['id']]
 
     def check():
         # The loop is expected to return the position below the target: only count regressions before it.
         out = [v for v in oracle_seek(run, seek) if not (v['oracle'] == 'seekRegressed' and v['t'] >= wrapped['t'] - 1)]
         out += oracle_offset(run, [seek], run.quality != 'original')
-        jumped = next((s for s in after if s['pos'] > 12000 + (s['t'] - wrapped['t']) * 1000), None)
+        repeats = [r for r in run.env.proxy.log[run.proxy_mark:] if r['id'] == song['id'] and r.get('timeOffset')]
+        run.metrics['timeOffsetRequestCount'] = len(repeats)
+        if len(repeats) > 1:
+            out.append(violation('repeatedTimeOffsetRequest', wrapped['t'], f"{len(repeats)} timeOffset requests: "
+                                 f"{[r['timeOffset'] for r in repeats]}", run))
+        jumped = next((s for s in after if s['pos'] > 12000 + (s['t'] - wrapped['t']) * 1000
+                       and not (wrapped2 and s['t'] >= wrapped2['t'] - 1)), None)
         if jumped:
             out.append(violation('repeatOneJumpedToSeek', jumped['t'], f"after the loop pos={jumped['pos']} (offset "
                                  f"{jumped['off']}), wrap sample pos={wrapped['pos']}", run))
