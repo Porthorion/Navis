@@ -198,6 +198,54 @@ void main() {
     );
   }
 
+  for (final offset in [Duration.zero, _offset]) {
+    for (final index in [1, 2]) {
+      for (final knownDuration in [false, true]) {
+        test('owned HTTP restart keeps one same-index loop event: '
+            'offset=$offset, index=$index, known=$knownDuration', () async {
+          final player = newPlayer();
+          await player.setAudioSources([
+            plainSource(),
+            offsetSource(offset),
+            offsetSource(offset),
+          ], initialIndex: index);
+          await player.setLoopMode(LoopMode.one);
+          unawaited(player.play());
+          await pumpEventQueue();
+          final discontinuities = <PositionDiscontinuity>[];
+          final subscription = player.positionDiscontinuityStream.listen(
+            discontinuities.add,
+          );
+          addTearDown(subscription.cancel);
+          final duration = knownDuration ? const Duration(seconds: 60) : null;
+          // Android publishes the tail before its owned seek, without completed.
+          native.player.emit(
+            position: const Duration(seconds: 60),
+            duration: duration,
+            index: index,
+          );
+          await pumpEventQueue();
+          native.player.emit(
+            duration: duration,
+            state: platform.ProcessingStateMessage.buffering,
+          );
+          await pumpEventQueue();
+          native.player.emit(duration: duration);
+          await pumpEventQueue();
+          expect(player.loopMode, LoopMode.one);
+          expect(player.currentIndex, index);
+          expect(player.processingState, ProcessingState.ready);
+          expect(discontinuities, hasLength(1));
+          final event = discontinuities.single;
+          expect(event.reason, PositionDiscontinuityReason.autoAdvance);
+          expect(event.previousEvent.currentIndex, index);
+          expect(event.event.currentIndex, index);
+          expect(event.event.updatePosition, offset);
+        });
+      }
+    }
+  }
+
   test(
     'a position jump back on an offset stream mid-song is no loop',
     () async {
