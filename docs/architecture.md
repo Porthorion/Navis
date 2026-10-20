@@ -4416,12 +4416,35 @@ publish a late title. Observers are removed before native player disposal.
 Android/iOS keep the native just_audio ICY path.
 
 Remote stream recovery is generation- and song-scoped. A failed remote source
-receives one retry at its current (or user-requested seek) position: a
-lock-cached source rebuilds as a direct stream, while a direct stream reloads
-at that position. A second failure marks the song failed and advances to the
-next playable queue item when available, retaining the latest Play/Pause
+receives one retry at its current (or user-requested seek) song-time position.
+Recovery uses the seek lane and its cancellation token, distinguishes its
+automatic request from a user seek so Play can rearm a failed source while
+queue edits hold the reload, and prefers a completed
+local cache file, then reuses `_shouldSeekViaTranscodeOffset` and
+`_seekViaTranscodeOffset` for a linear transcode on a capable server. This also
+reopens an offset stream at the current song time, rather than its previous
+`timeOffset`. Otherwise a lock-cached source rebuilds as a direct stream and a
+direct stream reloads at that position. Recovery retains Play/Pause intent and
+runs silently. An error at the known song end advances without reloading.
+A second failure marks the song failed and advances to the next playable
+queue item when available, retaining the latest Play/Pause
 intent. A failed retry yields to a newer transport command or selection before
-advancing. Seek recovery also detects a remote
+advancing.
+
+On Android, the vendored progressive source uses a
+`DefaultLoadErrorHandlingPolicy` override: an HTTP response with no sized
+request, valid `Content-Length`, or sized `Content-Range` returns
+`C.TIME_UNSET` from `getRetryDelayMsFor`. Media3 1.4.1 otherwise treats a
+progressive stream with unknown length and duration as live, retries from byte
+zero and replays the song (or the previous `timeOffset`). A fatal error reaches
+the existing handler recovery instead. Response headers come from
+`LoadErrorInfo.loadEventInfo.responseHeaders`; empty headers (connection
+failures), sized/ranged loads, and non-HTTP sources keep the default policy.
+Radio initial loads and reconnects explicitly set
+`ProgressiveAudioSourceOptions.androidUseDefaultLoadErrorHandling`, preserving
+Media3's live-stream retry behavior.
+
+Seek recovery also detects a remote
 seek that landed correctly but remains buffering. Background phase-2 queue
 fill failures never reload or clear the active start item. Loading an uncached
 remote (external) song has `NavisPlaybackTimeouts.remoteLoad` (45 s) rather

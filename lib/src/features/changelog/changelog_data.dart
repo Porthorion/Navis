@@ -130,6 +130,11 @@ const List<ChangelogVersion> changelogs = [
     version: '1.5.1',
     entries: [
       ChangelogEntry(
+        'Resume transcoded songs at the current position after a network stall '
+        'instead of replaying them from the start',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
         'Fix transcoded songs replaying after the stream finishes on Android',
         type: ChangelogEntryType.fix,
       ),
