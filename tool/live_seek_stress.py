@@ -2186,7 +2186,7 @@ def case_offset_repeat_one(run: Run, env):
     start_single(run, song)
     run.observe(5.0)
     with concurrent.futures.ThreadPoolExecutor(max_workers=4) as pool:
-        seek = issue_seek(run, pool, int(duration_ms * 0.8))
+        seek = issue_seek(run, pool, int(duration_ms * 0.88))
         landed(run, seek)
         finish_futures(run)
     t_seek = seek['t']
