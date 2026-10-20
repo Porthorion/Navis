@@ -1,8 +1,18 @@
 package com.ryanheise.just_audio;
 
+import java.io.BufferedReader;
+import java.io.IOException;
+import java.io.InputStreamReader;
+import java.net.HttpURLConnection;
+import java.net.InetAddress;
+import java.net.ServerSocket;
+import java.net.Socket;
+import java.net.URI;
+import java.nio.charset.StandardCharsets;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.FutureTask;
 
 /** Executable JVM fixtures using the same harness pattern as EqualizerDspTest. */
 public final class ProgressiveLoadRetryTest {
@@ -13,7 +23,43 @@ public final class ProgressiveLoadRetryTest {
         }
     }
 
-    public static void main(String[] args) {
+    private static void incompleteChunkedBody() throws Exception {
+        try (ServerSocket server = new ServerSocket(0, 1, InetAddress.getByName("127.0.0.1"))) {
+            server.setSoTimeout(2000);
+            FutureTask<Void> origin = new FutureTask<>(() -> {
+                try (Socket socket = server.accept()) {
+                    socket.setSoTimeout(2000);
+                    var request = new BufferedReader(new InputStreamReader(
+                            socket.getInputStream(), StandardCharsets.US_ASCII));
+                    while (!request.readLine().isEmpty()) { }
+                    socket.getOutputStream().write(("HTTP/1.1 200 OK\r\n"
+                            + "Transfer-Encoding: chunked\r\n\r\n4\r\nsong\r\n")
+                            .getBytes(StandardCharsets.US_ASCII));
+                    // Close without the final zero-length chunk, as the proxy does on error.
+                }
+                return null;
+            });
+            new Thread(origin).start();
+            HttpURLConnection connection = (HttpURLConnection) URI.create(
+                    "http://127.0.0.1:" + server.getLocalPort() + "/song").toURL().openConnection();
+            connection.setConnectTimeout(2000);
+            connection.setReadTimeout(2000);
+            int received = 0;
+            try (var body = connection.getInputStream()) {
+                while (body.read() != -1) received++;
+                throw new AssertionError("incomplete chunked body must throw IOException");
+            } catch (IOException expected) {
+                if (received != 4) throw new AssertionError("must receive the partial song first");
+                check(true, connection.getURL().getProtocol(), -1, connection.getHeaderFields(),
+                        "incomplete chunked IOException must select the fatal policy");
+            } finally {
+                connection.disconnect();
+                origin.get();
+            }
+        }
+    }
+
+    public static void main(String[] args) throws Exception {
         Map<String, List<String>> chunked = Map.of("transfer-encoding", List.of("chunked"));
         check(true, "http", -1, chunked, "chunked proxy must reach Dart recovery");
         check(true, "https", -1, Map.of("Content-Type", List.of("audio/ogg")),
@@ -35,6 +81,7 @@ public final class ProgressiveLoadRetryTest {
                 "negative length is unknown");
         check(true, "https", -1, Map.of("Content-Length", List.of("invalid")),
                 "invalid length is unknown");
-        System.out.println("ProgressiveLoadRetryTest: 12 fixtures passed");
+        incompleteChunkedBody();
+        System.out.println("ProgressiveLoadRetryTest: 13 fixtures passed");
     }
 }

@@ -4078,17 +4078,15 @@ _ProxyHandler _proxyHandlerForSource(StreamAudioSource source) {
       request.response.statusCode = 200;
     }
 
-    final completer = Completer<void>();
-    final subscription = stream.listen(request.response.add,
-        onError: (e, st) {}, onDone: completer.complete);
-
-    request.response.done.then((dynamic value) {
-      subscription.cancel();
-    });
-
-    await completer.future;
-
-    await request.response.close();
+    request.response.bufferOutput = false;
+    request.response.done.ignore();
+    try {
+      await request.response.addStream(stream);
+      await request.response.close();
+    } catch (_) {
+      // Navis: a terminating chunk would turn a failed download into song EOF.
+      request.response.deadline = Duration.zero;
+    }
   }
 
   return handler;
@@ -4106,6 +4104,8 @@ _ProxyHandler _proxyHandlerForUri(
     final client = _createHttpClient(userAgent: userAgent);
     // Try to make normal request
     String? host;
+    var receivedResponse = false;
+    request.response.done.ignore();
     try {
       final requestHeaders = <String, String>{};
       request.headers
@@ -4116,6 +4116,7 @@ _ProxyHandler _proxyHandlerForUri(
           await _getUrl(client, redirectedUri ?? uri, headers: requestHeaders);
       host = originRequest.headers.value(HttpHeaders.hostHeader);
       final originResponse = await originRequest.close();
+      receivedResponse = true;
       if (originResponse.redirects.isNotEmpty) {
         redirectedUri = originResponse.redirects.last.location;
       }
@@ -4163,17 +4164,15 @@ _ProxyHandler _proxyHandlerForUri(
         request.response.add(utf8.encode(m3u8));
       } else {
         request.response.bufferOutput = false;
-        var done = false;
-        request.response.done.then((dynamic _) => done = true);
-        await for (var chunk in originResponse) {
-          if (done) break;
-          request.response.add(chunk);
-          await request.response.flush();
-        }
+        await request.response.addStream(originResponse);
       }
       await request.response.flush();
       await request.response.close();
     } on HttpException {
+      if (receivedResponse) {
+        request.response.deadline = Duration.zero;
+        return;
+      }
       // We likely are dealing with a streaming protocol
       if (uri.scheme == 'http') {
         // Try parsing HTTP 0.9 response
@@ -4190,6 +4189,12 @@ _ProxyHandler _proxyHandlerForUri(
             clientSocket.close();
             done.complete();
           },
+          onError: (Object _, StackTrace __) {
+            socket.destroy();
+            clientSocket.destroy();
+            done.complete();
+          },
+          cancelOnError: true,
         );
         // Rewrite headers
         final headers = <String, String?>{};
@@ -4212,6 +4217,10 @@ _ProxyHandler _proxyHandlerForUri(
         await socket.flush();
         await done.future;
       }
+    } catch (_) {
+      request.response.deadline = Duration.zero;
+    } finally {
+      client.close(force: true);
     }
   }
 
