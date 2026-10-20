@@ -22,26 +22,38 @@ public final class ProgressiveRepeatTest {
         check(ProgressiveRepeat.nativeMode(0, true) == 0, "OFF is unchanged");
         check(ProgressiveRepeat.nativeMode(2, true) == 2,
                 "ALL, including a single-song queue, is unchanged");
+        Object boundaryUid = new Object();
+        Object otherUid = new Object();
+        check(ProgressiveRepeat.restartIndex(true, true, boundaryUid, boundaryUid, 2, 7, 7) == 2,
+                "inserting before the boundary item restarts at its shifted index");
         for (int index : new int[] {1, 2}) {
-            check(ProgressiveRepeat.restartIndex(true, true, index, index, 7, 7) == index,
+            check(ProgressiveRepeat.restartIndex(true, true, boundaryUid, boundaryUid, index, 7, 7) == index,
                     "middle and last items restart themselves, never the next item");
-            check(ProgressiveRepeat.restartIndex(true, true, index, index + 1, 7, 7) == -1,
+            check(ProgressiveRepeat.restartIndex(true, true, boundaryUid, otherUid, index + 1, 7, 7) == -1,
                     "selecting another song cancels the restart");
         }
-        check(ProgressiveRepeat.restartIndex(true, false, 1, 1, 7, 7) == -1,
+        check(ProgressiveRepeat.restartIndex(true, false, boundaryUid, boundaryUid, 1, 7, 7) == -1,
                 "Pause or Stop cancels playback intent even if native is already paused");
-        check(ProgressiveRepeat.restartIndex(true, true, 1, 1, 7, 8) == -1,
+        check(ProgressiveRepeat.restartIndex(true, true, boundaryUid, boundaryUid, 1, 7, 8) == -1,
                 "a consumed boundary cannot restart twice");
-        check(ProgressiveRepeat.restartIndex(true, true, 1, 1, 7, 9) == -1,
+        check(ProgressiveRepeat.restartIndex(true, true, boundaryUid, boundaryUid, 1, 7, 9) == -1,
                 "Pause then Play or replacing sources invalidates the old boundary");
-        check(ProgressiveRepeat.restartIndex(false, true, 1, 1, 7, 7) == -1,
+        check(ProgressiveRepeat.restartIndex(false, true, boundaryUid, boundaryUid, 1, 7, 7) == -1,
                 "toggling out of repeat one cancels the boundary");
-        check(ProgressiveRepeat.restartIndex(true, true, 1, 1, 7, 8) == -1,
+        check(ProgressiveRepeat.restartIndex(true, true, boundaryUid, boundaryUid, 1, 7, 8) == -1,
                 "toggling off then on cannot revive the old boundary");
-        check(ProgressiveRepeat.restartIndex(true, true, 1, 1, 8, 8) == 1,
+        check(ProgressiveRepeat.restartIndex(true, true, boundaryUid, boundaryUid, 1, 8, 8) == 1,
                 "explicit Play after Pause can create a fresh same-item boundary");
-        check(ProgressiveRepeat.restartIndex(true, true, -1, -1, 7, 7) == -1,
+        check(ProgressiveRepeat.restartIndex(true, true, boundaryUid, null, -1, 7, 7) == -1,
                 "empty playlists cannot repeat");
+        check(ProgressiveRepeat.restartIndex(true, true, boundaryUid, boundaryUid, 1, 7, 7) == 1,
+                "appending preserves the boundary item and its restart");
+        check(ProgressiveRepeat.restartIndex(true, true, boundaryUid, otherUid, 1, 7, 7) == -1,
+                "removing the boundary item cannot restart its replacement at the same index");
+        check(ProgressiveRepeat.restartIndex(true, true, boundaryUid, new Object(), 1, 7, 7) == -1,
+                "replacing the boundary occurrence cannot restart even at the same index");
+        check(ProgressiveRepeat.restartIndex(true, true, null, boundaryUid, 1, 7, 7) == -1,
+                "a missing boundary cannot restart the current item");
         System.out.println("ProgressiveRepeatTest: " + fixtures + " fixtures passed");
     }
 }

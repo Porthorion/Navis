@@ -12,10 +12,10 @@ final class ProgressiveRepeat {
         return requestedMode == 1 && eligible ? 0 : requestedMode;
     }
 
-    static int restartIndex(boolean owned, boolean playRequested, int boundaryIndex,
-            int currentIndex, long boundaryRevision, long currentRevision) {
-        return owned && playRequested && boundaryIndex >= 0
-                && boundaryIndex == currentIndex && boundaryRevision == currentRevision
-                ? boundaryIndex : -1;
+    static int restartIndex(boolean owned, boolean playRequested, Object boundaryUid,
+            Object currentUid, int currentIndex, long boundaryRevision, long currentRevision) {
+        return owned && playRequested && currentIndex >= 0 && boundaryUid != null
+                && boundaryUid.equals(currentUid) && boundaryRevision == currentRevision
+                ? currentIndex : -1;
     }
 }
