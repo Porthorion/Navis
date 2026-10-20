@@ -68,3 +68,10 @@ native loop that restarts the stream at its own start is reported as an
 `autoAdvance` discontinuity even when the platform emits only sparse events
 (ExoPlayer). For an unknown duration an offset item needs the position to drop
 by a second; an item without an offset behaves as before.
+
+While a playlist edit (insert, add, remove, move, clear) is in flight, a
+platform event that carries the previous event's index is translated with the
+previous event's item, not the item the Dart sequence now holds at that index:
+the platform only reports the shifted index once it has applied the edit. Its
+duration is stored on that item too. Without offsets the only change is that
+the stored duration lands on the right item during such a window.

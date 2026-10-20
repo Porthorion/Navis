@@ -379,6 +379,13 @@ class AudioPlayer {
   _PluginLoadRequest? _pluginLoadRequest;
   final AudioPipeline _audioPipeline;
 
+  /// Navis: playlist edits whose platform call has not completed. While one
+  /// is in flight an event with the previous event's index still describes
+  /// the previous event's item, not whatever now sits at that index.
+  int _sequenceEditsInFlight = 0;
+  IndexedAudioSource? _lastEventSource;
+  int? _lastEventIndex;
+
   Future<Duration?>? _loadFuture;
   final _shuffleIndicesInv = <int>[];
 
@@ -1028,6 +1035,8 @@ class AudioPlayer {
       source._shuffle(initialIndex: initialSeekValues?.index ?? 0);
       await _broadcastSequence();
       checkInterruption();
+      _lastEventSource = null;
+      _lastEventIndex = null;
       final loadOffset = _positionOffsetAt(initialSeekValues?.index ?? 0);
       _loadFuture = platform
           .load(LoadRequest(
@@ -1635,14 +1644,28 @@ class AudioPlayer {
           platform.playbackEventMessageStream.listen((message) {
         var duration = message.duration;
         final index = message.currentIndex ?? currentIndex;
-        final positionOffset = _positionOffsetAt(index);
-        if (index != null && index < sequence.length) {
+        final IndexedAudioSource? source;
+        if (_sequenceEditsInFlight > 0 &&
+            index != null &&
+            index == _lastEventIndex &&
+            _lastEventSource != null) {
+          source = _lastEventSource;
+        } else {
+          source = index != null && index >= 0 && index < sequence.length
+              ? sequence[index]
+              : null;
+        }
+        _lastEventSource = source;
+        _lastEventIndex = index;
+        final positionOffset =
+            source is UriAudioSource ? source.positionOffset : Duration.zero;
+        if (source != null) {
           if (duration == null) {
-            duration = sequence[index].duration;
+            duration = source.duration;
           } else {
             // Stored in song time, like every position the app sees.
             duration += positionOffset;
-            sequence[index].duration = duration;
+            source.duration = duration;
           }
         }
         if (_platformLoading &&
@@ -3087,17 +3110,24 @@ class ConcatenatingAudioSource extends AudioSource {
       _shuffleOrder.insert(index, 1);
       final player = _player;
       if (player != null) {
-        audioSource._onAttach(player);
-        await player._broadcastSequence();
-        if (player._active) {
-          await audioSource._onLoad();
+        // Navis: until the platform has applied the edit its events still
+        // carry the old indices.
+        player._sequenceEditsInFlight++;
+        try {
+          audioSource._onAttach(player);
+          await player._broadcastSequence();
+          if (player._active) {
+            await audioSource._onLoad();
+          }
+          await (await player._platform).concatenatingInsertAll(
+              ConcatenatingInsertAllRequest(
+                  id: _id,
+                  index: index,
+                  children: [audioSource._toMessage()],
+                  shuffleOrder: List.of(_shuffleOrder.indices)));
+        } finally {
+          player._sequenceEditsInFlight--;
         }
-        await (await player._platform).concatenatingInsertAll(
-            ConcatenatingInsertAllRequest(
-                id: _id,
-                index: index,
-                children: [audioSource._toMessage()],
-                shuffleOrder: List.of(_shuffleOrder.indices)));
       }
     });
   }
@@ -3109,17 +3139,24 @@ class ConcatenatingAudioSource extends AudioSource {
       _shuffleOrder.insert(index, 1);
       final player = _player;
       if (player != null) {
-        audioSource._onAttach(player);
-        await player._broadcastSequence();
-        if (player._active) {
-          await audioSource._onLoad();
+        // Navis: until the platform has applied the edit its events still
+        // carry the old indices.
+        player._sequenceEditsInFlight++;
+        try {
+          audioSource._onAttach(player);
+          await player._broadcastSequence();
+          if (player._active) {
+            await audioSource._onLoad();
+          }
+          await (await player._platform).concatenatingInsertAll(
+              ConcatenatingInsertAllRequest(
+                  id: _id,
+                  index: index,
+                  children: [audioSource._toMessage()],
+                  shuffleOrder: List.of(_shuffleOrder.indices)));
+        } finally {
+          player._sequenceEditsInFlight--;
         }
-        await (await player._platform).concatenatingInsertAll(
-            ConcatenatingInsertAllRequest(
-                id: _id,
-                index: index,
-                children: [audioSource._toMessage()],
-                shuffleOrder: List.of(_shuffleOrder.indices)));
       }
     });
   }
@@ -3132,21 +3169,29 @@ class ConcatenatingAudioSource extends AudioSource {
       _shuffleOrder.insert(index, children.length);
       final player = _player;
       if (player != null) {
-        for (var child in children) {
-          child._onAttach(player);
-        }
-        await player._broadcastSequence();
-        if (player._active) {
+        // Navis: until the platform has applied the edit its events still
+        // carry the old indices.
+        player._sequenceEditsInFlight++;
+        try {
           for (var child in children) {
-            await child._onLoad();
+            child._onAttach(player);
           }
+          await player._broadcastSequence();
+          if (player._active) {
+            for (var child in children) {
+              await child._onLoad();
+            }
+          }
+          await (await player._platform).concatenatingInsertAll(
+              ConcatenatingInsertAllRequest(
+                  id: _id,
+                  index: index,
+                  children:
+                      children.map((child) => child._toMessage()).toList(),
+                  shuffleOrder: List.of(_shuffleOrder.indices)));
+        } finally {
+          player._sequenceEditsInFlight--;
         }
-        await (await player._platform).concatenatingInsertAll(
-            ConcatenatingInsertAllRequest(
-                id: _id,
-                index: index,
-                children: children.map((child) => child._toMessage()).toList(),
-                shuffleOrder: List.of(_shuffleOrder.indices)));
       }
     });
   }
@@ -3158,21 +3203,29 @@ class ConcatenatingAudioSource extends AudioSource {
       _shuffleOrder.insert(index, children.length);
       final player = _player;
       if (player != null) {
-        for (var child in children) {
-          child._onAttach(player);
-        }
-        await player._broadcastSequence();
-        if (player._active) {
+        // Navis: until the platform has applied the edit its events still
+        // carry the old indices.
+        player._sequenceEditsInFlight++;
+        try {
           for (var child in children) {
-            await child._onLoad();
+            child._onAttach(player);
           }
+          await player._broadcastSequence();
+          if (player._active) {
+            for (var child in children) {
+              await child._onLoad();
+            }
+          }
+          await (await player._platform).concatenatingInsertAll(
+              ConcatenatingInsertAllRequest(
+                  id: _id,
+                  index: index,
+                  children:
+                      children.map((child) => child._toMessage()).toList(),
+                  shuffleOrder: List.of(_shuffleOrder.indices)));
+        } finally {
+          player._sequenceEditsInFlight--;
         }
-        await (await player._platform).concatenatingInsertAll(
-            ConcatenatingInsertAllRequest(
-                id: _id,
-                index: index,
-                children: children.map((child) => child._toMessage()).toList(),
-                shuffleOrder: List.of(_shuffleOrder.indices)));
       }
     });
   }
@@ -3185,13 +3238,20 @@ class ConcatenatingAudioSource extends AudioSource {
       _shuffleOrder.removeRange(index, index + 1);
       final player = _player;
       if (player != null) {
-        await player._broadcastSequence();
-        await (await player._platform).concatenatingRemoveRange(
-            ConcatenatingRemoveRangeRequest(
-                id: _id,
-                startIndex: index,
-                endIndex: index + 1,
-                shuffleOrder: List.of(_shuffleOrder.indices)));
+        // Navis: until the platform has applied the edit its events still
+        // carry the old indices.
+        player._sequenceEditsInFlight++;
+        try {
+          await player._broadcastSequence();
+          await (await player._platform).concatenatingRemoveRange(
+              ConcatenatingRemoveRangeRequest(
+                  id: _id,
+                  startIndex: index,
+                  endIndex: index + 1,
+                  shuffleOrder: List.of(_shuffleOrder.indices)));
+        } finally {
+          player._sequenceEditsInFlight--;
+        }
       }
     });
   }
@@ -3204,13 +3264,20 @@ class ConcatenatingAudioSource extends AudioSource {
       _shuffleOrder.removeRange(start, end);
       final player = _player;
       if (player != null) {
-        await player._broadcastSequence();
-        await (await player._platform).concatenatingRemoveRange(
-            ConcatenatingRemoveRangeRequest(
-                id: _id,
-                startIndex: start,
-                endIndex: end,
-                shuffleOrder: List.of(_shuffleOrder.indices)));
+        // Navis: until the platform has applied the edit its events still
+        // carry the old indices.
+        player._sequenceEditsInFlight++;
+        try {
+          await player._broadcastSequence();
+          await (await player._platform).concatenatingRemoveRange(
+              ConcatenatingRemoveRangeRequest(
+                  id: _id,
+                  startIndex: start,
+                  endIndex: end,
+                  shuffleOrder: List.of(_shuffleOrder.indices)));
+        } finally {
+          player._sequenceEditsInFlight--;
+        }
       }
     });
   }
@@ -3223,13 +3290,20 @@ class ConcatenatingAudioSource extends AudioSource {
       _shuffleOrder.insert(newIndex, 1);
       final player = _player;
       if (player != null) {
-        await player._broadcastSequence();
-        await (await player._platform).concatenatingMove(
-            ConcatenatingMoveRequest(
-                id: _id,
-                currentIndex: currentIndex,
-                newIndex: newIndex,
-                shuffleOrder: List.of(_shuffleOrder.indices)));
+        // Navis: until the platform has applied the edit its events still
+        // carry the old indices.
+        player._sequenceEditsInFlight++;
+        try {
+          await player._broadcastSequence();
+          await (await player._platform).concatenatingMove(
+              ConcatenatingMoveRequest(
+                  id: _id,
+                  currentIndex: currentIndex,
+                  newIndex: newIndex,
+                  shuffleOrder: List.of(_shuffleOrder.indices)));
+        } finally {
+          player._sequenceEditsInFlight--;
+        }
       }
     });
   }
@@ -3242,13 +3316,20 @@ class ConcatenatingAudioSource extends AudioSource {
       _shuffleOrder.clear();
       final player = _player;
       if (player != null) {
-        await player._broadcastSequence();
-        await (await player._platform).concatenatingRemoveRange(
-            ConcatenatingRemoveRangeRequest(
-                id: _id,
-                startIndex: 0,
-                endIndex: end,
-                shuffleOrder: List.of(_shuffleOrder.indices)));
+        // Navis: until the platform has applied the edit its events still
+        // carry the old indices.
+        player._sequenceEditsInFlight++;
+        try {
+          await player._broadcastSequence();
+          await (await player._platform).concatenatingRemoveRange(
+              ConcatenatingRemoveRangeRequest(
+                  id: _id,
+                  startIndex: 0,
+                  endIndex: end,
+                  shuffleOrder: List.of(_shuffleOrder.indices)));
+        } finally {
+          player._sequenceEditsInFlight--;
+        }
       }
     });
   }

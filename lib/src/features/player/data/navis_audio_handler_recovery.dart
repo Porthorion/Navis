@@ -199,7 +199,9 @@ extension _NavisRecovery on NavisAudioHandler {
         index != discontinuity.previousEvent.currentIndex ||
         index < 0 ||
         index >= sequence.length ||
-        _isLoading ||
+        _disposeHandlerStarted ||
+        // seek() serialises behind the background queue fill that still holds
+        // _isLoading after an offset reload, so a loop then is not dropped.
         _pendingSeek != null) {
       return;
     }

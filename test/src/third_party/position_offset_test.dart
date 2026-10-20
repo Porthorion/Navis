@@ -204,6 +204,57 @@ void main() {
     },
   );
 
+  test(
+    'an event with the old index during a queue edit keeps its own offset',
+    () async {
+      final player = newPlayer();
+      await player.setAudioSource(offsetSource());
+      native.player.emit(position: const Duration(seconds: 2));
+      await pumpEventQueue();
+      final gate = native.player.insertGate = Completer<void>();
+
+      // The fill inserts songs before the current one at index 0: the Dart
+      // sequence changes now, the platform's indices only once it applies it.
+      final insert = player.insertAudioSource(0, plainSource());
+      await pumpEventQueue();
+      expect(
+        (player.sequence.first as UriAudioSource).positionOffset,
+        Duration.zero,
+      );
+      native.player.emit(
+        position: const Duration(seconds: 3),
+        buffered: const Duration(seconds: 6),
+        duration: const Duration(seconds: 60),
+        index: 0,
+      );
+      await pumpEventQueue();
+
+      expect(
+        player.playbackEvent.updatePosition,
+        _offset + const Duration(seconds: 3),
+      );
+      expect(player.bufferedPosition, _offset + const Duration(seconds: 6));
+      expect(player.duration, _offset + const Duration(seconds: 60));
+      // The duration lands on the offset item, not the inserted one.
+      expect(player.sequence[0].duration, isNull);
+      expect(
+        player.sequence[1].duration,
+        _offset + const Duration(seconds: 60),
+      );
+
+      gate.complete();
+      await insert;
+      // After the edit the platform reports the shifted index.
+      native.player.emit(position: const Duration(seconds: 4), index: 1);
+      await pumpEventQueue();
+      expect(
+        player.playbackEvent.updatePosition,
+        _offset + const Duration(seconds: 4),
+      );
+      expect(player.currentIndex, 1);
+    },
+  );
+
   test('a zero offset leaves positions and seeks untouched', () async {
     final player = newPlayer();
     await player.setAudioSources([
@@ -249,6 +300,9 @@ class _OffsetPlatform extends platform.JustAudioPlatform {
 class _OffsetPlayer extends platform.AudioPlayerPlatform {
   new(super.id);
 
+  /// While set, `concatenatingInsertAll` waits for it: the window in which
+  /// the platform has not applied a playlist edit yet.
+  Completer<void>? insertGate;
   final loads = <platform.LoadRequest>[];
   final seeks = <platform.SeekRequest>[];
   final _events = StreamController<platform.PlaybackEventMessage>.broadcast();
@@ -288,6 +342,14 @@ class _OffsetPlayer extends platform.AudioPlayerPlatform {
     _index = request.initialIndex ?? 0;
     emit(position: request.initialPosition ?? Duration.zero);
     return platform.LoadResponse(duration: null);
+  }
+
+  @override
+  Future<platform.ConcatenatingInsertAllResponse> concatenatingInsertAll(
+    platform.ConcatenatingInsertAllRequest request,
+  ) async {
+    await insertGate?.future;
+    return platform.ConcatenatingInsertAllResponse();
   }
 
   @override
