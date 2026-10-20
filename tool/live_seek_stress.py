@@ -321,7 +321,7 @@ class ThrottledProxy:
                     self._abort(handler, self.cut_mode)
                     return
                 self.take(len(chunk))
-                if self.pace and entry['id'] == self.pace[0] and not entry.get('timeOffset'):
+                if self.pace and entry['id'] == self.pace[0]:
                     time.sleep(len(chunk) / self.pace[1])
                 if fault and entry['bytes'] + len(chunk) >= fault['after']:
                     keep = max(0, fault['after'] - entry['bytes'])
@@ -2584,7 +2584,8 @@ def cut_at_case(fraction: float, cuts: int, gap_s=10.0, pace_kbps=176):
         device_ms = int(run.app.shell('date', '+%s%3N').strip() or 0) if isinstance(run.app, AndroidApp) else None
         events = []
         for n in range(cuts):
-            if n:
+            if n:  # the first cut only surfaces when the buffer runs out: cut again gap_s after the recovery resumed
+                run.until(lambda s: s['off'] and s['proc'] == 'ready' and s['playing'] and s['songId'] == ids[0], 90)
                 time.sleep(gap_s)
             cur = run.last()
             env.proxy.cut_active('fin', window=3.0)
