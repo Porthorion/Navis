@@ -2236,8 +2236,9 @@ def case_offset_repeat_one(run: Run, env):
         landed(run, seek)
         finish_futures(run)
     t_seek = seek['t']
+    fade_ms = CROSSFADE_S * 1000  # a cross-faded loop hands over when the new copy is already fade_ms in
     wrapped = run.until(lambda s: s['t'] > t_seek and s['songId'] == song['id'] and s['pos'] is not None
-                        and s['pos'] < 4000 and s['proc'] == 'ready', duration_ms * 0.2 / 1000 + 60 + run.deadlines['advance'])
+                        and s['pos'] < 4000 + fade_ms and s['proc'] == 'ready', duration_ms * 0.2 / 1000 + 60 + run.deadlines['advance'])
     run.metrics['loopWrappedAt'] = wrapped and wrapped['t']
     if wrapped is None:
         run.violations.append(violation('repeatOneNoLoop', run.now(), 'position never wrapped to the start', run))
