@@ -431,7 +431,6 @@ class NavisAudioHandler extends BaseAudioHandler
   final Map<String, RollingCacheActivity> _rollingCacheActivities =
       <String, RollingCacheActivity>{};
   // When each song's cache download last received bytes.
-  final Map<String, DateTime> _cacheProgressAt = <String, DateTime>{};
   // Observed lock-cache sources by cache path, so a download the player has
   // moved on from can be stopped.
   // ignore: experimental_member_use, reason: LockCachingAudioSource is the intended just_audio cache primitive for rolling cache playback.

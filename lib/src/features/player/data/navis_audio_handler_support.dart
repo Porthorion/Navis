@@ -93,14 +93,15 @@ class NavisPlaybackTimeouts {
     this.reset = const Duration(seconds: 4),
     this.control = const Duration(seconds: 4),
     this.seekProgress = const Duration(seconds: 45),
+    this.progressIdle = const Duration(seconds: 8),
     this.remoteLoad = const Duration(seconds: 45),
     this.focusRetry = const Duration(minutes: 2),
     this.radioRecovery = const Duration(minutes: 10),
     this.radioHealthyPlay = const Duration(minutes: 1),
   });
 
-  /// A native load or queue mutation that takes longer is abandoned and the
-  /// players are rebuilt.
+  /// Initial deadline for a native load, or fixed deadline for queue edits.
+  /// A song load may extend while bytes or its native buffer advance.
   final Duration load;
 
   /// A remote stream that stops making progress for this long is recovered.
@@ -113,10 +114,12 @@ class NavisPlaybackTimeouts {
   /// A single transport control call.
   final Duration control;
 
-  /// How long a seek may keep waiting past [load] while the song's cache
-  /// download is still receiving bytes: on a slow link a far seek in a large
-  /// file legitimately takes longer, and reloading would start it over.
+  /// Hard cap for a seek or native song load that keeps receiving data.
   final Duration seekProgress;
+
+  // Eight seconds tolerates slow range/index probes; the 45 s seekProgress
+  // cap prevents a trickling download from holding a load or seek forever.
+  final Duration progressIdle;
 
   /// Loading a remote (external) song that is not cached. The server fetches
   /// the whole file before it answers, which routinely takes longer than
@@ -173,4 +176,34 @@ class _PendingSeek {
   /// Why each settlement probe that did not confirm the seek gave up, for
   /// diagnostics: the rule that ended it and the state it saw.
   final List<Map<String, Object?>> unsettled = <Map<String, Object?>>[];
+}
+
+/// Shares the bounded extension policy between native loads and seek probes.
+class _PlaybackProgressDeadline {
+  new({
+    required this.initial,
+    required this.idle,
+    required this.hardCap,
+    required int? bytes,
+    required this._buffer,
+  }) : _bytes = bytes ?? 0;
+
+  final Duration initial;
+  final Duration idle;
+  final Duration hardCap;
+  int _bytes;
+  Duration _buffer;
+  Duration? _progressAt;
+
+  void observe(Duration now, {required int? bytes, required Duration buffer}) {
+    if ((bytes ?? 0) > _bytes || buffer > _buffer) _progressAt = now;
+    _bytes = bytes ?? 0;
+    _buffer = buffer;
+  }
+
+  bool progressing(Duration now) =>
+      _progressAt != null && now - _progressAt! < idle;
+
+  bool expired(Duration now) =>
+      now >= hardCap || (now >= initial && !progressing(now));
 }

@@ -308,6 +308,7 @@ extension _NavisQueueLoading on NavisAudioHandler {
     // For edits of a loaded queue: the player rebuilt after a timeout starts
     // empty, so the materialised queue is loaded into it again.
     bool reloadQueueOnTimeout = false,
+    bool extendWhileDownloading = false,
   }) async {
     timeout ??= _playerLoadTimeout;
     _lastFailedSongId = null;
@@ -317,6 +318,18 @@ extension _NavisQueueLoading on NavisAudioHandler {
     var timedOut = false;
     final operationPlayer = _player;
     try {
+      final progress =
+          extendWhileDownloading && _radioStation == null && songId != null
+          ? _PlaybackProgressDeadline(
+              initial: timeout,
+              idle: _timeouts.progressIdle,
+              hardCap: timeout > _timeouts.seekProgress
+                  ? timeout
+                  : _timeouts.seekProgress,
+              bytes: _partialCacheBytesForSong(songId),
+              buffer: operationPlayer.bufferedPosition,
+            )
+          : null;
       final operationFuture = action();
       unawaited(
         operationFuture.then<void>(
@@ -336,7 +349,15 @@ extension _NavisQueueLoading on NavisAudioHandler {
           },
         ),
       );
-      final result = await operationFuture.timeout(timeout);
+      final result = progress == null
+          ? await operationFuture.timeout(timeout)
+          : await _waitForProgressingLoad(
+              operationFuture,
+              progress,
+              player: operationPlayer,
+              songId: songId!,
+              generation: generation,
+            );
       startupTrace?.mark('player:$operation:complete');
       if (cancelAfterSuccess && !_isActiveLoadGeneration(generation)) {
         throw OperationCancelledException();
@@ -394,6 +415,40 @@ extension _NavisQueueLoading on NavisAudioHandler {
         timeoutDuration: timeout,
       );
     }
+  }
+
+  Future<T> _waitForProgressingLoad<T>(
+    Future<T> operation,
+    _PlaybackProgressDeadline progress, {
+    required AudioPlayer player,
+    required String songId,
+    required int generation,
+  }) async {
+    final elapsed = Stopwatch()..start();
+    var done = false;
+    final completed = operation.whenComplete(() => done = true);
+    final completion = completed.then<void>((_) {});
+    while (!done) {
+      // Keep observing bytes even before a load exposes a duration/buffer.
+      // A superseded load keeps its original deadline so it releases the lane.
+      final now = elapsed.elapsed;
+      final current = _isActiveLoadGeneration(generation);
+      if (current) {
+        progress.observe(
+          now,
+          bytes: _partialCacheBytesForSong(songId),
+          buffer: player.bufferedPosition,
+        );
+      }
+      if (progress.expired(now) || (!current && now >= progress.initial)) {
+        throw TimeoutException('Native load stalled');
+      }
+      await Future.any<void>([
+        completion,
+        Future<void>.delayed(const Duration(milliseconds: 25)),
+      ]);
+    }
+    return await completed;
   }
 
   /// Loads the materialised queue into a player rebuilt after a queue edit
@@ -1195,6 +1250,7 @@ extension _NavisQueueLoading on NavisAudioHandler {
             timeout: timeout,
             action: apply,
             songId: songId,
+            extendWhileDownloading: preload,
           );
         } else {
           await apply();

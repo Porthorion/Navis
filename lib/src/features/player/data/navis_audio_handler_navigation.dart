@@ -370,6 +370,7 @@ extension _NavisNavigation on NavisAudioHandler {
             await _runTimedPlayerOperation(
               generation: generation,
               operation: 'manual navigation reload',
+              extendWhileDownloading: true,
               timeout: coldRemote ? _timeouts.remoteLoad : _playerLoadTimeout,
               action: () => _player.setAudioSources(
                 sources,

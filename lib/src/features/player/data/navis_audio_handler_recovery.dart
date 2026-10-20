@@ -325,10 +325,15 @@ extension _NavisRecovery on NavisAudioHandler {
     request.stage = 'confirming';
     final elapsed = Stopwatch()..start();
     var lastActivity = Duration.zero;
-    var bufferGrewAt = Duration.zero;
     var lastPosition = _seekSettlementPosition;
     var lastBuffer = _player.bufferedPosition;
-    var deadline = _playerLoadTimeout;
+    final progress = _PlaybackProgressDeadline(
+      initial: _playerLoadTimeout,
+      idle: _timeouts.progressIdle,
+      hardCap: _timeouts.seekProgress,
+      bytes: _partialCacheBytesForSong(request.songId),
+      buffer: lastBuffer,
+    );
     Duration? nearSince;
     Duration? nearPosition;
     Duration? farSince;
@@ -372,7 +377,11 @@ extension _NavisRecovery on NavisAudioHandler {
       // A decoder may probe several HTTP ranges before producing a packet, so
       // native buffering counts as activity: only a player that is not
       // buffering and neither moves nor fills is stalled.
-      if (buffer > lastBuffer) bufferGrewAt = now;
+      progress.observe(
+        now,
+        bytes: _partialCacheBytesForSong(request.songId),
+        buffer: buffer,
+      );
       if (buffer != lastBuffer ||
           position != lastPosition ||
           processing == ProcessingState.buffering) {
@@ -386,9 +395,12 @@ extension _NavisRecovery on NavisAudioHandler {
               processing != ProcessingState.loading
           ? farSince ?? now
           : null;
-      if (farSince != null && now - farSince >= _seekBufferingRecoveryTimeout) {
+      if (!progress.progressing(now) &&
+          farSince != null &&
+          now - farSince >= _seekBufferingRecoveryTimeout) {
         unsettled = 'missed target';
-      } else if (!(near && !_requestedPlaying) &&
+      } else if (!progress.progressing(now) &&
+          !(near && !_requestedPlaying) &&
           now - lastActivity >= _seekBufferingRecoveryTimeout) {
         // A paused player holding the target is expected to stand still.
         unsettled = 'no progress';
@@ -396,18 +408,8 @@ extension _NavisRecovery on NavisAudioHandler {
         // The local copy seeks without the network: reload from it rather
         // than wait for the remote range.
         unsettled = 'cache complete';
-      } else if (now >= deadline) {
-        // A slow link legitimately takes longer for a far seek in a large
-        // file; reloading would start the same transfer over. Keep waiting
-        // while the player itself is still receiving data, or while a cache
-        // download that will soon replace the stream is nearly done.
-        if (now < _timeouts.seekProgress &&
-            (now - bufferGrewAt < _seekBufferingRecoveryTimeout ||
-                _cacheDownloadNearlyDone(request.songId))) {
-          deadline = now + _seekBufferingRecoveryTimeout;
-        } else {
-          unsettled = 'deadline';
-        }
+      } else if (progress.expired(now)) {
+        unsettled = 'deadline';
       }
       if (unsettled != null) {
         request.unsettled.add(
