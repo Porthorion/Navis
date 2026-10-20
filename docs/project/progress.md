@@ -2,7 +2,7 @@
 
 Tracks completion of all phases and sub-tasks defined in [docs/project/development-plan.md](development-plan.md). Checkboxes are updated as work is completed.
 
-Last updated: 2026-10-19
+Last updated: 2026-10-20
 
 ---
 
@@ -14,6 +14,66 @@ Last updated: 2026-10-19
 - ACP status values: `backlog`, `ready`, `in_progress`, `blocked`, `done`.
 
 ## Current Focus
+- [ ] Issue #86, Android progressive HTTP repeat-one rewind — partial: 2026-10-20
+  (`fix/repeat-one-rewind`, based on `3c1d8c54`, remaining: coordinator Android
+  runtime probes, independent review and `./tool/check.sh`): native repeat-one
+  is replaced by repeat-off plus pause-at-end only for progressive HTTP VOD;
+  the same item restarts at native zero with command-revision cancellation and
+  no terminal completion. Radio's default-retry opt-out, local/asset sources,
+  HLS/DASH and repeat-all remain native. The existing Dart offset-loop handler
+  clears an offset source with one reload; no parallel Dart repeat mechanism
+  was introduced. The JVM regression first failed with `AssertionError:
+  progressive repeat one must disable native preloading of itself`; all
+  equalizer fixtures, 12 retry fixtures and 21 repeat fixtures now pass via
+  `./tool/equalizer_native_test.sh`. Two plain-stream unknown-duration Dart
+  cases first failed (`00:00 +19 -2`); fixing the pairwise detector's reversed
+  subtraction makes all 21 `position_offset_test.dart` cases pass. The
+  handler regression covers middle/last offset items and exactly one reload.
+  The combined `flutter test --concurrency=4 --timeout 60s` run of
+  `position_offset_test.dart` and `navis_audio_handler_navigation_test.dart`
+  passed `05:22 +580: All tests passed!`, including repeat-one crossfade and
+  timeline cases. Bootstrap ran once; edited non-vendored Dart files pass
+  formatting and the complete diff passes `git diff --check`. No app, emulator
+  or VM was launched; Android
+  compilation/runtime, analyzer and the full gate remain with the coordinator.
+  Review round 1 fixes: boundary ownership now uses the timeline window UID,
+  so appends/inserts/moves retain a pending restart or paused boundary while
+  the same occurrence stays current; removal/replacement cancels it, and the
+  runnable seeks its current index. Removed redundant loop-policy updates from
+  Play/Pause. The insert-before fixture first failed with `AssertionError:
+  inserting before the boundary item restarts at its shifted index`; the JVM
+  harness now passes all equalizer fixtures, 12 retry fixtures and 26 repeat
+  fixtures. The same two-file targeted Dart command above passed
+  `05:19 +580: All tests passed!`. Architecture, vendored change notes and the
+  existing release-note entry were updated. The complete diff passes
+  `git diff --check`. No app, emulator, VM, Android build, analyzer or
+  `./tool/check.sh` was run for this round, per the assigned validation scope.
+- [ ] Issue #86, unknown-length Android stall replay — partial: 2026-10-20
+  (`fix/stall-replay`): Media3 progressive load errors with unknown HTTP length
+  become fatal instead of restarting at byte zero; sized/ranged sources and
+  radio retain native retries. Handler recovery prefers the completed cache,
+  then reuses transcode-offset seeking at the current song time, with the seek
+  lane, cancellation, Play/Pause intent and existing one-retry budget. An error
+  at the known end advances without a reload. The initial handler run failed
+  four new regressions (`05:14 +550 -4`); the pure JVM framing fixture first
+  failed on chunked playback and then passed all 11 cases. The end-of-song
+  regression also failed before its advance guard. Broader validation exposed
+  two existing Play/rearm regressions; distinguishing automatic recovery from
+  a user seek fixed both. The focused rerun passed `00:03 +15`; the final
+  `flutter test --concurrency=4 --timeout 60s` run of
+  `navis_audio_handler_navigation_test.dart`, `position_offset_test.dart` and
+  `lock_caching_audio_source_test.dart` passed `05:14 +583: All tests passed!`.
+  All nine edited Dart files pass the formatter check; the complete diff passes
+  `git diff --check`. Coordinator retains the emulator stall probe,
+  runtime loop, independent review and `./tool/check.sh`; no app, emulator or
+  VM was launched for this implementation task.
+- [ ] Issue #86, transcode offset seek — partial: 2026-10-20
+  (`fix/transcode-offset-seek`, remaining: orchestrator runtime pass with
+  `tool/live_seek_stress.py` on Linux and the Android emulator): `streamUrl`
+  `timeOffset`, the `transcodeOffset` capability, a vendored just_audio
+  `positionOffset` translation layer, an offset resolver source with a
+  full-URI sidecar, and the handler seek branch with its edge-case tests
+  (`docs/plans/Transcode_Offset_Seek_Plan.md`).
 - [x] Issue #86, frame unknown-length lock-cache proxy responses — 2026-10-19
   (`fix/proxy-response-framing`): restore chunked transfer encoding after the
   proxy clears response headers, and explicitly size empty HTTP 500 bodies at

@@ -143,15 +143,22 @@ class _PendingSeek {
     required this.songId,
     required this.queueIndex,
     required this.position,
+    this.isRemoteRecovery = false,
   });
 
   final int generation;
   final String songId;
   int? queueIndex;
   final Duration position;
+
+  /// Automatic recovery permits Play to rearm a failed source while it waits.
+  final bool isRemoteRecovery;
   String stage = 'waiting for source';
   String? outcome;
   int recoveryAttempts = 0;
+
+  /// Set when the seek was served by reopening the transcode at an offset.
+  String? path;
 
   /// Why each settlement probe that did not confirm the seek gave up, for
   /// diagnostics: the rule that ended it and the state it saw.

@@ -4435,12 +4435,69 @@ publish a late title. Observers are removed before native player disposal.
 Android/iOS keep the native just_audio ICY path.
 
 Remote stream recovery is generation- and song-scoped. A failed remote source
-receives one retry at its current (or user-requested seek) position: a
-lock-cached source rebuilds as a direct stream, while a direct stream reloads
-at that position. A second failure marks the song failed and advances to the
-next playable queue item when available, retaining the latest Play/Pause
+receives one retry at its current (or user-requested seek) song-time position.
+Recovery uses the seek lane and its cancellation token, distinguishes its
+automatic request from a user seek so Play can rearm a failed source while
+queue edits hold the reload, and prefers a completed
+local cache file, then reuses `_shouldSeekViaTranscodeOffset` and
+`_seekViaTranscodeOffset` for a linear transcode on a capable server. This also
+reopens an offset stream at the current song time, rather than its previous
+`timeOffset`. Otherwise a lock-cached source rebuilds as a direct stream and a
+direct stream reloads at that position. Recovery retains Play/Pause intent and
+runs silently. An error at the known song end advances without reloading.
+A second failure marks the song failed and advances to the next playable
+queue item when available, retaining the latest Play/Pause
 intent. A failed retry yields to a newer transport command or selection before
-advancing. Seek recovery also detects a remote
+advancing.
+
+On Android, the vendored progressive source uses a
+`DefaultLoadErrorHandlingPolicy` override: an HTTP response with no sized
+request, valid `Content-Length`, or sized `Content-Range` returns
+`C.TIME_UNSET` from `getRetryDelayMsFor`. Media3 1.4.1 otherwise treats a
+progressive stream with unknown length and duration as live, retries from byte
+zero and replays the song (or the previous `timeOffset`). A fatal error reaches
+the existing handler recovery instead. Response headers come from
+`LoadErrorInfo.loadEventInfo.responseHeaders`; empty headers (connection
+failures), sized/ranged loads, and non-HTTP sources keep the default policy.
+Radio initial loads and reconnects explicitly set
+`ProgressiveAudioSourceOptions.androidUseDefaultLoadErrorHandling`, preserving
+Media3's live-stream retry behavior.
+
+Android repeat-one on a progressive HTTP item (including the mobile loopback
+cache proxy and direct `timeOffset` streams) keeps the requested Dart
+`LoopMode.one`, but uses native `REPEAT_MODE_OFF` and
+`setPauseAtEndOfMediaItems(true)`. Media3 must not prepare a repetition of that
+same source while its first unknown-length period is playing: a later sized
+source-info refresh can otherwise silently clamp the current position to zero.
+The end-of-item PlayWhenReady reason schedules a same-item seek to native zero;
+`STATE_ENDED` is an idempotent fallback and does not publish `completed` during
+an owned repeat. A command revision consumes each boundary once and invalidates
+pending work on Pause (even if native playback already paused at the boundary),
+Stop/disposal, seek/selection, playlist replacement, item transition or loop
+mode change. The boundary tracks the timeline window UID of the queue occurrence:
+appends, inserts and moves preserve it while that occurrence remains current,
+and the restart uses its current index. Removing or replacing that occurrence
+cancels both the pending restart and the paused boundary retained for explicit
+Play. Playback resumes only while Play is still requested. The native policy is
+re-evaluated on item/timeline changes and source replacement.
+
+The native tail event followed by zero preserves just_audio's existing
+same-index `autoAdvance` event. Its pairwise detector checks a backwards jump
+for both plain and offset unknown-duration items. The existing handler then
+reloads an offset source from song zero exactly once; no second Dart repeat
+controller is added. Local/asset items, radio's default-retry opt-out, HLS/DASH,
+repeat-off and repeat-all retain native behavior. Single-song repeat-all is
+also unchanged: the reported reproduction establishes repeat-one and
+multi-song repeat-all behavior, not the single-song repeat-all case; that needs
+a device probe before expanding the workaround. Progressive HTTP repeat-one
+therefore loses gapless restart. Normal repeat-one crossfade continues to
+prepare and promote the same queue occurrence on its second deck using
+`_desiredLoopMode`; each deck retains Dart `LoopMode.one`. A successful handoff
+pauses the outgoing deck, cancelling its pending native restart. If native EOF
+wins before the fade starts, the existing position-wrap checks retry the fade
+on the next cycle. Smart repeat-one continues to skip crossfading.
+
+Seek recovery also detects a remote
 seek that landed correctly but remains buffering. Background phase-2 queue
 fill failures never reload or clear the active start item. Loading an uncached
 remote (external) song has `NavisPlaybackTimeouts.remoteLoad` (45 s) rather
@@ -4916,22 +4973,49 @@ grows (it runs faster than playback; up to `seekProgress`, three seconds without
 growth ends it) and then reloads the song from the completed file at the target;
 if the file is not complete the seek fails and playback continues where it was.
 
-**Deferred: transcode-offset seeking.** On a slow link that wait can take
-10–25 s or more. The established fix is the OpenSubsonic `transcodeOffset`
-extension: reopen `stream.view` with `timeOffset=<seconds>` so the server starts
-transcoding at the target. Symfonium appears to seek this way, and Navidrome
-advertises the extension and has made offset seeks fast with ffmpeg input
-seeking. Navis does not use it yet. The offset stream reports time from zero,
-so it needs one position-translation layer that every position consumer goes
-through: the handler's `_player.position` reads, position and buffered streams,
-duration, persistence, scrobbling, lyrics, media sessions, crossfade, end
-detection and recovery reloads. The full-file cache download must also keep
-running beside it. It was deferred on 2026-10-04 so that the 1.5.0 seek fixes
-shipped on their own. If seeking issues come back for transcoded or uncached
-songs, heavily consider implementing it next, used only for linear transcodes
-whose download will not finish soon and only when the server advertises
-`transcodeOffset`, with resume, scrobble and lyrics timing tests and throttled
-`tool/live_seek_stress.py` runs.
+**Transcode-offset seeking (1.5.1).** On a slow link that wait took 10-25 s or
+more, and desktop seeked a transcode linearly. When the server advertises the
+OpenSubsonic `transcodeOffset` extension (`ServerCapabilities.supportsTranscodeOffset`,
+read from the capabilities stored at login and exposed as
+`PlaybackSourceResolver.supportsTranscodeOffset`), a seek reopens `stream.view`
+with `timeOffset=<whole seconds>` so the server starts transcoding at the target
+(`SubsonicApiClient.streamUrl(timeOffsetSeconds:)`; never sent with
+`estimateContentLength`). `_shouldSeekViaTranscodeOffset` selects it for a
+remote transcode (`transcodingApplied`, never original quality) when no
+completed cache file exists and the stream cannot seek natively: an Android
+lock-cache origin without ranges, a desktop direct stream, or a stream already
+opened at an offset (it is linear too, so every seek on it reopens it). Seeks
+under a second on a stream without an offset stay native. `_seekViaTranscodeOffset`
+floors the target to whole seconds (clamped to the last second of the song, so
+the audio can start up to a second early), then reuses the seek-recovery reload
+(`_rebuildQueueForSeekRecovery` -> `_replaceQueuePhase1`, with `transcodeOffset`
+for the start song only). A target under a second reloads the normal stream from
+zero. A newer seek that arrives before the reload stops the playing song drops
+that reload, so there is one reload at the latest target. If the offset reload
+fails, the cache-wait and completed-file path above applies as before. The seek
+trace records `path: transcodeOffset` and diagnostics expose `positionOffsetMs`.
+
+The offset stream reports time from zero. There is one translation layer, in
+the vendored just_audio `AudioPlayer`: `UriAudioSource.positionOffset` (also
+`AudioSource.uri(positionOffset:)`, carried by `ResolvedPlaybackSource.positionOffset`
+and both `asAudioSource` variants) is added to `updatePosition`,
+`bufferedPosition` and a non-null `duration` where a platform event becomes a
+`PlaybackEvent`, and subtracted from `seek` positions and the load's initial
+position. Every position consumer (position streams, persistence, scrobbling,
+lyrics, media sessions, crossfade, the desktop seek settlement) therefore sees
+song time unchanged, and an auto-advance to an item without an offset reads
+from its own zero. The offset source is a `directStream` that is never lock-cached
+and never feeds rolling-cache bytes. On desktop `ResolvedPlaybackSource.sidecarStreamUri`
+keeps the sidecar on the full non-offset URI (a file starting at the offset must
+never be stored as the whole song) and the provisional item of a reload no longer
+cancels the download of the same song. On Android the original lock-cache
+download keeps filling its file (carried as the offset source's `cachedFilePath`);
+once it completes, the next seek reloads from the file instead of an offset.
+Landing on an offset song from the start (Previous, a queue tap, replaying a
+finished single-song queue) and a native loop (repeat one, or repeat all over one
+song) that restarts the stream at its offset reload the song from zero without one.
+A seek lands up to one second before the target because `timeOffset` is whole
+seconds and the stream is linear.
 
 Lock-cache seek recovery otherwise uses the same two-phase
 queue model: load the active song as a direct stream at

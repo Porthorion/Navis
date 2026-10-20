@@ -11,6 +11,7 @@ import android.os.Looper;
 import androidx.media3.common.C;
 import androidx.media3.exoplayer.DefaultLivePlaybackSpeedControl;
 import androidx.media3.exoplayer.DefaultLoadControl;
+import androidx.media3.exoplayer.upstream.DefaultLoadErrorHandlingPolicy;
 import androidx.media3.exoplayer.DefaultRenderersFactory;
 import androidx.media3.exoplayer.audio.AudioSink;
 import androidx.media3.exoplayer.audio.ForwardingAudioSink;
@@ -71,10 +72,12 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Random;
+import java.util.Set;
 
 public class AudioPlayer implements MethodCallHandler, Player.Listener, MetadataOutput {
     private final NavisEqualizerProcessor navisEqualizer;
@@ -111,6 +114,14 @@ public class AudioPlayer implements MethodCallHandler, Player.Listener, Metadata
     private Map<String, AudioEffect> audioEffectsMap = new HashMap<String, AudioEffect>();
     private int lastPlaylistLength = 0;
     private Map<String, Object> pendingPlaybackEvent;
+
+    // Keep the requested mode in Dart; native ONE can preload and rewind a linear stream.
+    private int requestedLoopMode = Player.REPEAT_MODE_OFF;
+    private boolean playRequested;
+    private long repeatRevision;
+    private boolean repeatPending;
+    private Object repeatAtEndUid;
+    private final Set<String> progressiveHttpSources = new HashSet<>();
 
     private ExoPlayer player;
     private Integer audioSessionId;
@@ -304,8 +315,85 @@ public class AudioPlayer implements MethodCallHandler, Player.Listener, Metadata
         updateTime = System.currentTimeMillis();
     }
 
+    private boolean ownsProgressiveRepeat() {
+        MediaItem item = player.getCurrentMediaItem();
+        boolean eligible = item != null && item.localConfiguration != null
+                && progressiveHttpSources.contains(item.localConfiguration.tag);
+        return requestedLoopMode == Player.REPEAT_MODE_ONE
+                && ProgressiveRepeat.nativeMode(requestedLoopMode, eligible) == Player.REPEAT_MODE_OFF;
+    }
+
+    private void updateLoopPolicy() {
+        boolean owned = ownsProgressiveRepeat();
+        player.setRepeatMode(owned ? Player.REPEAT_MODE_OFF : requestedLoopMode);
+        player.setPauseAtEndOfMediaItems(owned);
+    }
+
+    private void cancelPendingRepeat() {
+        repeatRevision++;
+        repeatPending = false;
+    }
+
+    // Window UIDs distinguish queue occurrences even when they share a source.
+    private Object currentItemUid() {
+        Timeline timeline = player.getCurrentTimeline();
+        return timeline.isEmpty() ? null
+                : timeline.getWindow(player.getCurrentMediaItemIndex(), new Timeline.Window()).uid;
+    }
+
+    private void cancelRepeatIfItemChanged() {
+        if (repeatAtEndUid != null && !repeatAtEndUid.equals(currentItemUid())) {
+            repeatAtEndUid = null;
+            cancelPendingRepeat();
+        }
+    }
+
+    private boolean scheduleProgressiveRepeat() {
+        if (!ownsProgressiveRepeat()) return false;
+        repeatAtEndUid = currentItemUid();
+        if (!playRequested) return false;
+        if (repeatPending) return true;
+        final long revision = repeatRevision;
+        final Object boundaryUid = repeatAtEndUid;
+        repeatPending = true;
+        // Give Dart's pairwise loop detector a tail event before the native zero.
+        updatePosition();
+        broadcastImmediatePlaybackEvent();
+        handler.post(() -> {
+            if (player == null) return;
+            int restartIndex = ProgressiveRepeat.restartIndex(ownsProgressiveRepeat(),
+                    playRequested, boundaryUid, currentItemUid(), player.getCurrentMediaItemIndex(),
+                    revision, repeatRevision);
+            if (restartIndex < 0) return;
+            cancelPendingRepeat(); // Consume before seek callbacks or the ENDED fallback can re-enter.
+            repeatAtEndUid = null;
+            player.seekTo(restartIndex, 0L);
+            player.setPlayWhenReady(true);
+            updatePosition();
+            broadcastImmediatePlaybackEvent();
+        });
+        return true;
+    }
+
+    @Override
+    public void onPlayWhenReadyChanged(boolean playWhenReady, int reason) {
+        if (reason == Player.PLAY_WHEN_READY_CHANGE_REASON_END_OF_MEDIA_ITEM) {
+            scheduleProgressiveRepeat();
+        } else {
+            playRequested = playWhenReady;
+            if (!playWhenReady) cancelPendingRepeat();
+        }
+    }
+
+    @Override
+    public void onMediaItemTransition(MediaItem mediaItem, int reason) {
+        cancelRepeatIfItemChanged();
+        updateLoopPolicy();
+    }
+
     @Override
     public void onPositionDiscontinuity(PositionInfo oldPosition, PositionInfo newPosition, int reason) {
+        cancelRepeatIfItemChanged();
         updatePosition();
         switch (reason) {
         case Player.DISCONTINUITY_REASON_AUTO_TRANSITION:
@@ -318,10 +406,12 @@ public class AudioPlayer implements MethodCallHandler, Player.Listener, Metadata
 
     @Override
     public void onTimelineChanged(Timeline timeline, int reason) {
+        cancelRepeatIfItemChanged();
+        updateLoopPolicy();
         if (updateCurrentIndex()) {
             broadcastImmediatePlaybackEvent();
         }
-        if (player.getPlaybackState() == Player.STATE_ENDED) {
+        if (!ownsProgressiveRepeat() && player.getPlaybackState() == Player.STATE_ENDED) {
             try {
                 if (player.getPlayWhenReady()) {
                     if (lastPlaylistLength == 0 && player.getMediaItemCount() > 0) {
@@ -387,6 +477,9 @@ public class AudioPlayer implements MethodCallHandler, Player.Listener, Metadata
             startWatchingBuffer();
             break;
         case Player.STATE_ENDED:
+            // A seek from the end callback may already have changed native state.
+            if (ownsProgressiveRepeat() && playRequested
+                    && (player.getPlaybackState() != Player.STATE_ENDED || scheduleProgressiveRepeat())) break;
             if (processingState != ProcessingState.completed) {
                 updatePosition();
                 processingState = ProcessingState.completed;
@@ -414,6 +507,8 @@ public class AudioPlayer implements MethodCallHandler, Player.Listener, Metadata
 
     @Override
     public void onPlayerError(PlaybackException error) {
+        repeatAtEndUid = null;
+        cancelPendingRepeat();
         if (error instanceof ExoPlaybackException) {
             final ExoPlaybackException exoError = (ExoPlaybackException)error;
             switch (exoError.type) {
@@ -677,7 +772,26 @@ public class AudioPlayer implements MethodCallHandler, Player.Listener, Metadata
         String id = (String)map.get("id");
         switch ((String)map.get("type")) {
         case "progressive":
+            Map<?, ?> options = mapGet(map, "options");
+            boolean useDefaultRetry = options != null
+                    && Boolean.TRUE.equals(options.get("androidUseDefaultLoadErrorHandling"));
+            if (ProgressiveRepeat.isEligible(Uri.parse((String)map.get("uri")).getScheme(), useDefaultRetry)) {
+                progressiveHttpSources.add(id);
+            }
             return new ProgressiveMediaSource.Factory(buildDataSourceFactory(mapGet(map, "headers")), buildExtractorsFactory(mapGet(map, "options")))
+                    .setLoadErrorHandlingPolicy(new DefaultLoadErrorHandlingPolicy() {
+                        @Override
+                        public long getRetryDelayMsFor(LoadErrorInfo info) {
+                            // Unknown-length VOD is mistaken for live media and restarts at byte 0.
+                            if (!useDefaultRetry && ProgressiveLoadRetry.isUnknownLengthHttp(
+                                    info.loadEventInfo.uri.getScheme(),
+                                    info.loadEventInfo.dataSpec.length,
+                                    info.loadEventInfo.responseHeaders)) {
+                                return C.TIME_UNSET;
+                            }
+                            return super.getRetryDelayMsFor(info);
+                        }
+                    })
                     .createMediaSource(new MediaItem.Builder()
                             .setUri(Uri.parse((String)map.get("uri")))
                             .setTag(id)
@@ -792,6 +906,8 @@ public class AudioPlayer implements MethodCallHandler, Player.Listener, Metadata
     }
 
     private void load(final List<MediaSource> mediaSources, ShuffleOrder shuffleOrder, final long initialPosition, final Integer initialIndex, final Result result) {
+        repeatAtEndUid = null;
+        cancelPendingRepeat();
         currentIndex = initialIndex != null ? initialIndex : 0;
         switch (processingState) {
         case idle:
@@ -812,6 +928,7 @@ public class AudioPlayer implements MethodCallHandler, Player.Listener, Metadata
         enqueuePlaybackEvent();
         int windowIndex = initialIndex != null ? initialIndex : 0;
         player.setMediaSources(mediaSources, windowIndex, initialPosition);
+        updateLoopPolicy();
         player.setShuffleOrder(shuffleOrder);
         player.prepare();
     }
@@ -1037,6 +1154,7 @@ public class AudioPlayer implements MethodCallHandler, Player.Listener, Metadata
     }
 
     public void play(Result result) {
+        playRequested = true;
         if (player.getPlayWhenReady()) {
             result.success(new HashMap<String, Object>());
             return;
@@ -1045,6 +1163,8 @@ public class AudioPlayer implements MethodCallHandler, Player.Listener, Metadata
             playResult.success(new HashMap<String, Object>());
         }
         playResult = result;
+        // Play after a boundary Pause must still restart this item, never advance.
+        if (repeatAtEndUid != null && scheduleProgressiveRepeat()) return;
         player.setPlayWhenReady(true);
         updatePosition();
         if (processingState == ProcessingState.completed && playResult != null) {
@@ -1054,7 +1174,8 @@ public class AudioPlayer implements MethodCallHandler, Player.Listener, Metadata
     }
 
     public void pause() {
-        if (!player.getPlayWhenReady()) return;
+        playRequested = false;
+        cancelPendingRepeat();
         player.setPlayWhenReady(false);
         updatePosition();
         enqueuePlaybackEvent();
@@ -1089,7 +1210,12 @@ public class AudioPlayer implements MethodCallHandler, Player.Listener, Metadata
     }
 
     public void setLoopMode(final int mode) {
-        player.setRepeatMode(mode);
+        if (requestedLoopMode != mode) {
+            repeatAtEndUid = null;
+            cancelPendingRepeat();
+            requestedLoopMode = mode;
+        }
+        updateLoopPolicy();
     }
 
     public void setShuffleModeEnabled(final boolean enabled) {
@@ -1097,6 +1223,8 @@ public class AudioPlayer implements MethodCallHandler, Player.Listener, Metadata
     }
 
     public void seek(final long position, final Integer index, final Result result) {
+        repeatAtEndUid = null;
+        cancelPendingRepeat();
         if (processingState == ProcessingState.idle || processingState == ProcessingState.loading) {
             result.success(new HashMap<String, Object>());
             return;
@@ -1115,6 +1243,10 @@ public class AudioPlayer implements MethodCallHandler, Player.Listener, Metadata
     }
 
     public void dispose() {
+        repeatAtEndUid = null;
+        playRequested = false;
+        cancelPendingRepeat();
+        progressiveHttpSources.clear();
         if (processingState == ProcessingState.loading) {
             abortExistingConnection(true);
         }

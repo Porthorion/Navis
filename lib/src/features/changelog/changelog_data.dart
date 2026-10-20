@@ -130,6 +130,16 @@ const List<ChangelogVersion> changelogs = [
     version: '1.5.1',
     entries: [
       ChangelogEntry(
+        'Fix Repeat One silently rewinding streamed songs before the end '
+        'on Android and stalling when the queue fills in the background',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
+        'Resume transcoded songs at the current position after a network stall '
+        'instead of replaying them from the start',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
         'Fix in-app Linux updates for Debian and Fedora packages with a system '
         'authentication prompt; AUR and other package-managed installs show '
         'package-manager instructions. Automatic installation works from the '
@@ -139,6 +149,11 @@ const List<ChangelogVersion> changelogs = [
       ),
       ChangelogEntry(
         'Fix transcoded songs replaying after the stream finishes on Android',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
+        'Seeking in a transcoded song now jumps straight to the new position '
+        'on servers that support it, instead of waiting for the download',
         type: ChangelogEntryType.fix,
       ),
     ],

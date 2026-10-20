@@ -503,6 +503,28 @@ void main() {
       expect(saved.extensions.single.name, 'transcodeOffset');
     });
 
+    test('reports transcodeOffset support from stored capability JSON', () {
+      const json =
+          '{"extensions":[{"name":"transcodeOffset","versions":["1"]}],'
+          '"navis":{"libraryFreshness":"fresh"}}';
+      expect(ServerCapabilities.supportsTranscodeOffsetIn(json), isTrue);
+      expect(
+        ServerCapabilities.fromJson(jsonDecode(json) as Map<String, dynamic>)
+            .supportsTranscodeOffset,
+        isTrue,
+      );
+      expect(const ServerCapabilities().supportsTranscodeOffset, isFalse);
+      for (final other in [
+        null,
+        '',
+        'not json',
+        '[]',
+        '{"extensions":[{"name":"sonicSimilarity"}]}',
+      ]) {
+        expect(ServerCapabilities.supportsTranscodeOffsetIn(other), isFalse);
+      }
+    });
+
     test('parses original standard similarSongs response', () async {
       final dio = Dio(BaseOptions(baseUrl: 'https://example.com'));
       final client = createClient(dio: dio);
@@ -1050,6 +1072,29 @@ void main() {
       expect(cover.path, '/rest/getCoverArt.view');
       expect(cover.queryParameters['id'], 'cover-1');
       expect(cover.queryParameters['size'], '500');
+    });
+
+    test('streamUrl adds timeOffset only for a positive offset', () {
+      final client = createClient(
+        dio: Dio(BaseOptions(baseUrl: 'https://example.com')),
+      );
+
+      final offset = client.streamUrl(
+        id: 'song-1',
+        format: 'opus',
+        maxBitRate: 128,
+        timeOffsetSeconds: 95,
+      );
+      expect(offset.queryParameters['timeOffset'], '95');
+      expect(offset.queryParameters, isNot(contains('estimateContentLength')));
+      for (final seconds in [null, 0, -3]) {
+        expect(
+          client
+              .streamUrl(id: 'song-1', timeOffsetSeconds: seconds)
+              .queryParameters,
+          isNot(contains('timeOffset')),
+        );
+      }
     });
 
     test('rejects responses that exceed the byte budget', () async {

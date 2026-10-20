@@ -554,11 +554,15 @@ class SubsonicApiClient {
 
   /// [estimateContentLength] asks the server to send a Content-Length for a
   /// transcoded stream, so a download can report progress.
+  /// [timeOffsetSeconds] starts a transcode at that second (Navidrome
+  /// `timeOffset`); the stream then reports time from 0 and has no length, so
+  /// it is never combined with [estimateContentLength].
   Uri streamUrl({
     required String id,
     int? maxBitRate,
     String? format,
     bool estimateContentLength = false,
+    int? timeOffsetSeconds,
   }) {
     final query = buildSubsonicAuthQuery(authConfig, _uuid)
       ..['id'] = id
@@ -566,6 +570,8 @@ class SubsonicApiClient {
         if (maxBitRate != null) 'maxBitRate': '$maxBitRate',
         'format': ?format,
         if (estimateContentLength) 'estimateContentLength': 'true',
+        if (timeOffsetSeconds != null && timeOffsetSeconds > 0)
+          'timeOffset': '$timeOffsetSeconds',
       });
     return _buildMediaUri('/rest/stream.view', query);
   }

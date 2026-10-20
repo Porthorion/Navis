@@ -67,6 +67,28 @@ extension _NavisRecovery on NavisAudioHandler {
     required _PendingSeek seekRequest,
   }) async {
     _checkSeekCurrent(seekRequest, token);
+    if (await _shouldSeekViaTranscodeOffset(position, seekRequest, token)) {
+      try {
+        if (await _seekViaTranscodeOffset(
+          position,
+          token: token,
+          transportGeneration: transportGeneration,
+          seekRequest: seekRequest,
+        )) {
+          return;
+        }
+      } on OperationCancelledException {
+        rethrow;
+      } on Object catch (error) {
+        _checkSeekCurrent(seekRequest, token);
+        AppLogger.debug(
+          'Transcode offset seek failed: ${error.runtimeType}; '
+          'using the cache path.',
+        );
+      }
+      _checkSeekCurrent(seekRequest, token);
+      seekRequest.path = null;
+    }
     if (_currentSourceKind == PlaybackSourceKind.lockCachedStream.name &&
         position >= const Duration(seconds: 1) &&
         !await _lockCacheServesRanges(seekRequest, token)) {
@@ -92,9 +114,13 @@ extension _NavisRecovery on NavisAudioHandler {
       throw StateError('The requested position has not been downloaded yet.');
     }
     try {
-      await _runNativeSeek(seekRequest, token, operation: 'seek');
-      _checkSeekCurrent(seekRequest, token);
-      if (await _waitForSeekSettlement(seekRequest, token)) return;
+      // An offset stream is linear, like any server transcode: it cannot
+      // seek natively, so go straight to the completed file or a reload.
+      if (_positionOffsetOf(_currentMediaItem) == Duration.zero) {
+        await _runNativeSeek(seekRequest, token, operation: 'seek');
+        _checkSeekCurrent(seekRequest, token);
+        if (await _waitForSeekSettlement(seekRequest, token)) return;
+      }
     } on PlaybackLoadTimeoutException {
       // The timed operation retired the hung player and restored the queue.
       // A newer request can now use that player without the old call racing it.
@@ -153,6 +179,105 @@ extension _NavisRecovery on NavisAudioHandler {
       return;
     }
     throw StateError('Seek failed after source recovery.');
+  }
+
+  /// How far into the song the media item's stream starts (a `timeOffset`
+  /// transcode); zero for every stream that starts at the beginning.
+  Duration _positionOffsetOf(MediaItem? item) =>
+      Duration(milliseconds: (item?.extras?['positionOffsetMs'] as int?) ?? 0);
+
+  /// A native loop (repeat one, or repeat all over one song) restarts an
+  /// offset stream at its own start, which is the offset into the song. just_audio
+  /// reports that loop as an autoAdvance discontinuity within one index; reload
+  /// the song from the start without an offset. A real advance to another index
+  /// never matches.
+  void _onPositionDiscontinuity(PositionDiscontinuity discontinuity) {
+    final index = discontinuity.event.currentIndex;
+    final sequence = _player.sequence;
+    if (discontinuity.reason != PositionDiscontinuityReason.autoAdvance ||
+        index == null ||
+        index != discontinuity.previousEvent.currentIndex ||
+        index < 0 ||
+        index >= sequence.length ||
+        _disposeHandlerStarted ||
+        // seek() serialises behind the background queue fill that still holds
+        // _isLoading after an offset reload, so a loop then is not dropped.
+        _pendingSeek != null) {
+      return;
+    }
+    final source = sequence[index];
+    if (source is UriAudioSource && source.positionOffset > Duration.zero) {
+      unawaited(seek(Duration.zero));
+    }
+  }
+
+  /// Whether a seek to [target] reopens the server transcode at that offset
+  /// instead of seeking the stream: the song is a remote transcode that
+  /// cannot seek natively (Android lock-cache origin without ranges, desktop
+  /// direct stream, or a stream already opened at an offset) and no completed
+  /// local copy exists.
+  Future<bool> _shouldSeekViaTranscodeOffset(
+    Duration target,
+    _PendingSeek request,
+    OperationToken token,
+  ) async {
+    final item = _currentMediaItem;
+    if (item == null ||
+        item.id != request.songId ||
+        _radioStation != null ||
+        isExternalCatalogSource(id: item.id)) {
+      return false;
+    }
+    final extras = item.extras ?? const <String, Object?>{};
+    final kind = extras['sourceKind'];
+    if ((kind != PlaybackSourceKind.lockCachedStream.name &&
+            kind != PlaybackSourceKind.directStream.name) ||
+        extras['transcodingApplied'] != true ||
+        !_sourceResolver.supportsTranscodeOffset ||
+        _completedCacheFileFor(item) != null) {
+      return false;
+    }
+    // Every seek on an offset stream reopens it: it is linear too.
+    if (_positionOffsetOf(item) > Duration.zero) return true;
+    if (target < const Duration(seconds: 1)) return false;
+    return kind == PlaybackSourceKind.lockCachedStream.name
+        ? !await _lockCacheServesRanges(request, token)
+        : _isDesktopRuntime;
+  }
+
+  /// Reloads the current song with its transcode opened at [position]
+  /// (whole seconds, so the audio can start up to a second early), keeping
+  /// the queue and the play state. A position under a second reloads the
+  /// normal stream from the start. The download of the full song carries on.
+  /// Returns whether the seek landed.
+  Future<bool> _seekViaTranscodeOffset(
+    Duration position, {
+    required OperationToken token,
+    required int transportGeneration,
+    required _PendingSeek seekRequest,
+  }) async {
+    final duration = _effectivePlaybackDuration(_currentMediaItem);
+    var seconds = position.inSeconds;
+    if (duration > const Duration(seconds: 1)) {
+      seconds = math.min(
+        seconds,
+        (duration - const Duration(seconds: 1)).inSeconds,
+      );
+    }
+    final offset = seconds < 1 ? null : Duration(seconds: seconds);
+    seekRequest
+      ..path = 'transcodeOffset'
+      ..stage = 'recovering';
+    final rebuilt = await _rebuildQueueForSeekRecovery(
+      offset ?? Duration.zero,
+      autoPlay: _requestedPlaying,
+      token: token,
+      transportGeneration: transportGeneration,
+      seekRequest: seekRequest,
+      transcodeOffset: offset,
+    );
+    _checkSeekCurrent(seekRequest, token);
+    return rebuilt && await _waitForSeekSettlement(seekRequest, token);
   }
 
   Future<void> _runNativeSeek(
@@ -379,7 +504,10 @@ extension _NavisRecovery on NavisAudioHandler {
     final extras = item.extras ?? const <String, Object?>{};
     final sidecar = extras['sidecarCacheFilePath'] as String?;
     if (sidecar != null && sidecar.isNotEmpty) return sidecar;
-    if (extras['sourceKind'] != PlaybackSourceKind.lockCachedStream.name) {
+    // An Android offset stream is a direct stream; its lock-cache download
+    // keeps filling the same file.
+    if (extras['sourceKind'] != PlaybackSourceKind.lockCachedStream.name &&
+        _positionOffsetOf(item) == Duration.zero) {
       return null;
     }
     final lockCache = extras['cachedFilePath'] as String?;
@@ -463,6 +591,7 @@ extension _NavisRecovery on NavisAudioHandler {
         'sourceKind': PlaybackSourceKind.file.name,
         'localSource': true,
         'cachedFilePath': cacheFile.path,
+        'positionOffsetMs': 0,
       },
     );
     try {
@@ -508,6 +637,7 @@ extension _NavisRecovery on NavisAudioHandler {
     required int transportGeneration,
     _PendingSeek? seekRequest,
     _PreparedQueueItem? preparedStart,
+    Duration? transcodeOffset,
   }) async {
     final metadata = _resolveCurrentQueueMetadata();
     // While a queue replacement is still filling, the player and the queue
@@ -673,6 +803,11 @@ extension _NavisRecovery on NavisAudioHandler {
             token: queueToken,
             initialPosition: position,
             preferLockCaching: false,
+            transcodeOffset: transcodeOffset,
+            // A newer seek reloads at its own offset: one reload, not two.
+            isStillWanted: transcodeOffset == null || seekRequest == null
+                ? null
+                : () => _isCurrentSeek(seekRequest),
             preparedStart: preparedStart,
             holdPlayback: true,
           );
@@ -965,7 +1100,7 @@ extension _NavisRecovery on NavisAudioHandler {
 
   /// Replaces the current remote song's recovery request for this transport
   /// intent and starts recovery. False when the current song is not a remote
-  /// stream that recovery can reload, or when a load or seek owns it.
+  /// stream that recovery can reload, or when a load or user seek owns it.
   bool _rearmRemoteRecovery({
     required Duration? position,
     required bool autoPlay,
@@ -975,7 +1110,7 @@ extension _NavisRecovery on NavisAudioHandler {
     if (songId == null ||
         _isLoading ||
         _pendingLogicalQueueSongIds != null ||
-        _pendingSeek != null ||
+        _pendingSeek?.isRemoteRecovery == false ||
         (sourceKind != PlaybackSourceKind.lockCachedStream.name &&
             sourceKind != PlaybackSourceKind.directStream.name)) {
       return false;
@@ -1215,9 +1350,13 @@ extension _NavisRecovery on NavisAudioHandler {
     final autoPlay = pending.autoPlay;
     _remotePlaybackRecoveryInProgress = true;
     final attemptKey = '$transportGeneration:$songId';
-    final isRetry = navisShouldRetryRemotePlayback(
-      alreadyRetried: _remotePlaybackRecoveryAttempts.contains(attemptKey),
-    );
+    final duration = _effectivePlaybackDuration(_currentMediaItem);
+    final atEnd = duration > Duration.zero && position >= duration;
+    final isRetry =
+        !atEnd &&
+        navisShouldRetryRemotePlayback(
+          alreadyRetried: _remotePlaybackRecoveryAttempts.contains(attemptKey),
+        );
     if (isRetry) {
       _remotePlaybackRecoveryAttempts.add(attemptKey);
     }
@@ -1230,13 +1369,55 @@ extension _NavisRecovery on NavisAudioHandler {
     try {
       if (isRetry) {
         try {
-          final recoveryToken = OperationToken();
-          final rebuilt = await _rebuildQueueForSeekRecovery(
-            position,
-            autoPlay: autoPlay,
-            token: recoveryToken,
-            transportGeneration: transportGeneration,
-          );
+          var rebuilt = false;
+          await _seekLane.run((recoveryToken) async {
+            if (!_isCurrentTransportIntent(transportGeneration)) return;
+            final request = _PendingSeek(
+              generation: ++_seekRevision,
+              songId: songId,
+              queueIndex: _logicalCurrentIndex,
+              position: position,
+              isRemoteRecovery: true,
+            );
+            _pendingSeek = request;
+            try {
+              rebuilt =
+                  _completedCacheFileFor(_currentMediaItem) != null &&
+                  await _trySeekViaCompletedCacheFile(
+                    position,
+                    autoPlay: autoPlay,
+                    token: recoveryToken,
+                    transportGeneration: transportGeneration,
+                    seekRequest: request,
+                  );
+              _checkSeekCurrent(request, recoveryToken);
+              if (rebuilt) return;
+              if (await _shouldSeekViaTranscodeOffset(
+                position,
+                request,
+                recoveryToken,
+              )) {
+                rebuilt = await _seekViaTranscodeOffset(
+                  position,
+                  token: recoveryToken,
+                  transportGeneration: transportGeneration,
+                  seekRequest: request,
+                );
+                if (!rebuilt) {
+                  throw StateError('Remote recovery did not settle.');
+                }
+              } else {
+                rebuilt = await _rebuildQueueForSeekRecovery(
+                  position,
+                  autoPlay: autoPlay,
+                  token: recoveryToken,
+                  transportGeneration: transportGeneration,
+                );
+              }
+            } finally {
+              if (identical(_pendingSeek, request)) _pendingSeek = null;
+            }
+          });
           AppLogger.startup(
             StartupEvent.streamRecovery,
             outcome: rebuilt
@@ -1251,6 +1432,8 @@ extension _NavisRecovery on NavisAudioHandler {
             'reason': reason,
             'outcome': rebuilt ? 'reloaded' : 'notRebuilt',
           });
+          return;
+        } on OperationCancelledException {
           return;
         } on Object {
           AppLogger.startup(

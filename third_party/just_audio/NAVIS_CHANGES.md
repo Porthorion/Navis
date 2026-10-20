@@ -50,3 +50,60 @@ granted. A
 load that runs while focus is pending therefore cannot start native playback
 through the implicit play path, and a denied request never publishes a
 transient playing state.
+
+`UriAudioSource.positionOffset` (also `AudioSource.uri(positionOffset:)`) marks a
+stream that starts that far into the song, as a server transcode opened with
+`timeOffset`. The platform reports time from zero. `AudioPlayer` adds the offset
+of the item at the event's `currentIndex` to `updatePosition`, `bufferedPosition`
+and a non-null `duration` where a platform event becomes a `PlaybackEvent`, and
+subtracts it from `seek` positions, the `load` initial position and the idle
+platform's reported duration (clamped at zero). Every position the app reads is
+therefore song time, and an auto-advance to an item without an offset reads
+from its own zero. Platform adapters see platform time only.
+
+The loop detector behind `positionDiscontinuityStream` judges an offset item in
+platform time: `positionOffset` is subtracted from the interpolated previous
+position, the current position and the duration before the heuristics, so a
+native loop that restarts the stream at its own start is reported as an
+`autoAdvance` discontinuity even when the platform emits only sparse events
+(ExoPlayer). For an unknown duration an offset item needs the position to drop
+by a second; an item without an offset behaves as before.
+
+While a playlist edit (insert, add, remove, move, clear) is in flight, a
+platform event that carries the previous event's index is translated with the
+previous event's item, not the item the Dart sequence now holds at that index:
+the platform only reports the shifted index once it has applied the edit. Its
+duration is stored on that item too. Without offsets the only change is that
+the stored duration lands on the right item during such a window.
+
+Android progressive loads use a `DefaultLoadErrorHandlingPolicy` override to
+make unknown-length HTTP response errors fatal (`C.TIME_UNSET`), handing them
+to Navis's existing position-preserving recovery. Media3 1.4.1's live-stream
+retry would otherwise reset a chunked VOD stream to byte zero. The decision
+uses `LoadErrorInfo.loadEventInfo.responseHeaders` and `dataSpec.length`;
+valid `Content-Length` or sized `Content-Range`, bounded requests, non-HTTP
+sources, and connection failures without response headers retain the default
+policy. `ProgressiveAudioSourceOptions.androidUseDefaultLoadErrorHandling`
+opts radio initial loads and reconnects into the unchanged native policy.
+`AudioSource.uri(options:)` forwards the option only for progressive sources.
+The matching platform interface serializes this source option. No HTTP timeout
+or HLS/DASH policy changes are made. `ProgressiveLoadRetryTest` supplies pure
+JVM framing fixtures using the existing `EqualizerDspTest` executable pattern.
+
+Android progressive HTTP repeat-one keeps the requested Dart loop mode but
+uses native repeat-off plus pause-at-end. The end-of-item PlayWhenReady reason
+(and an idempotent ENDED fallback) restarts the same queue occurrence at zero,
+preserving Play/Pause intent without publishing terminal completion. Its timeline
+window UID survives appends, inserts and moves while it remains current; restart
+uses its current index. Removal/replacement clears the paused boundary as well.
+A revision cancels pending restarts on transport, selection/source replacement
+or loop-mode changes.
+This prevents Media3 1.4.1 from preloading the same linear stream and silently
+rewinding the current period when the repeated request becomes seekable (#86).
+Local files/assets, HLS/DASH, radio's existing default-retry opt-out and all
+repeat-all behavior remain native; HTTP repeat-one loses gapless restart.
+`ProgressiveRepeatTest` covers policy and restart decisions in the existing JVM
+harness. The pairwise Dart loop detector now also recognizes unknown-duration
+plain-stream backwards jumps; tail/zero/buffering/ready fixtures cover middle
+and last items with and without offsets. Navis's existing offset handler and
+crossfade controller remain the sole Dart owners of offset reloads and fades.
