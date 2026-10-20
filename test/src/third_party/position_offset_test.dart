@@ -34,6 +34,27 @@ void main() {
   UriAudioSource plainSource() =>
       AudioSource.uri(Uri.parse('https://music.example.invalid/rest/b.view'));
 
+  test('live radio can retain the default Android retry policy', () async {
+    final player = newPlayer();
+    await player.setAudioSource(
+      AudioSource.uri(
+        Uri.parse('https://radio.example.invalid/live'),
+        options: const ProgressiveAudioSourceOptions(
+          androidUseDefaultLoadErrorHandling: true,
+        ),
+      ),
+    );
+    final playlist =
+        native.player.loads.last.audioSourceMessage
+            as platform.ConcatenatingAudioSourceMessage;
+    final source = playlist.children.single.toMap();
+    expect(
+      (source['options']
+          as Map<Object?, Object?>)['androidUseDefaultLoadErrorHandling'],
+      isTrue,
+    );
+  });
+
   test('inbound position, buffered and duration gain the offset', () async {
     final player = newPlayer();
     await player.setAudioSource(offsetSource());

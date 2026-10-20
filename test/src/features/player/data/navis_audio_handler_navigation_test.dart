@@ -1431,6 +1431,14 @@ void main() {
           expect(player.sourceLoads, greaterThan(loads));
           if (!radio) await settleQueue(handler);
           expect(handler.snapshot.currentIndex, radio ? null : 0);
+          if (radio) {
+            expect(
+              (player.sequence.single as ProgressiveAudioSource)
+                  .options!
+                  .androidUseDefaultLoadErrorHandling,
+              isTrue,
+            );
+          }
           expect(player.playing, isTrue);
           if (!radio) expect(player.position, const Duration(seconds: 42));
         },
@@ -7133,6 +7141,223 @@ void main() {
         (handler.collectPlaybackDiagnostics()['seekEvents']! as List).last
             as Map<String, Object?>;
 
+    Future<void> failAt(
+      NavisAudioHandler handler,
+      _ControllableAudioPlayer player,
+      Duration position,
+    ) async {
+      final events =
+          (handler.collectPlaybackDiagnostics()['seekEvents']! as List).length;
+      player
+        ..simulatedPosition = position
+        ..state = ProcessingState.idle;
+      // Duplicate native failures must not start two reloads.
+      player._events.addError(PlayerException(2002, 'Read timed out', 1));
+      player._events.addError(PlayerException(2002, 'Read timed out', 1));
+      await until(
+        () =>
+            (handler.collectPlaybackDiagnostics()['seekEvents']! as List)
+                .length >
+            events,
+      );
+      await until(() => !handler.snapshot.isLoading);
+    }
+
+    for (final playing in [true, false]) {
+      test('stall recovery resumes a transcode at song time 70 (playing: '
+          '$playing)', () async {
+        final (handler, player, _) = await offsetHandler();
+        await start(handler);
+        if (!playing) await handler.pause();
+        final loads = player.sourceLoads;
+        final failures = <PlaybackLoadFailure>[];
+        final notices = handler.loadFailureStream.listen(failures.add);
+        addTearDown(notices.cancel);
+
+        await failAt(handler, player, const Duration(seconds: 70));
+
+        expect(current(player).uri.queryParameters['timeOffset'], '70');
+        expect(current(player).positionOffset, const Duration(seconds: 70));
+        expect(player.position.inSeconds, 70);
+        expect(player.sourceLoads, loads + 1);
+        expect(player.sourceIds, ['song-0', 'song-1', 'song-2']);
+        expect(player.playing, playing);
+        expect(lastSeekEvent(handler)['path'], 'remote_retry');
+        expect(failures, isEmpty);
+      });
+    }
+
+    test('stall recovery on an offset stream uses song time 130', () async {
+      final (handler, player, _) = await offsetHandler();
+      await start(handler);
+      await seekAndSettle(handler, const Duration(seconds: 110));
+      final loads = player.sourceLoads;
+
+      await failAt(handler, player, const Duration(seconds: 130));
+
+      expect(current(player).uri.queryParameters['timeOffset'], '130');
+      expect(player.position.inSeconds, 130);
+      expect(player.sourceLoads, loads + 1);
+      expect(player.playing, isTrue);
+    });
+
+    test('stall recovery prefers a completed file at song time 70', () async {
+      final (handler, player, _) = await offsetHandler();
+      await start(handler);
+      final sidecar =
+          handler.queue.value[1].extras!['sidecarCacheFilePath'] as String;
+      await File(sidecar).writeAsBytes(List<int>.filled(64, 1));
+      final loads = player.sourceLoads;
+
+      await failAt(handler, player, const Duration(seconds: 70));
+
+      expect(current(player).uri, Uri.file(sidecar));
+      expect(current(player).positionOffset, Duration.zero);
+      expect(player.position.inSeconds, 70);
+      expect(player.sourceLoads, loads + 1);
+      expect(player.playing, isTrue);
+    });
+
+    test(
+      'stall recovery without the capability keeps the original path',
+      () async {
+        final (handler, player, _) = await offsetHandler(capable: false);
+        await start(handler);
+        final loads = player.sourceLoads;
+
+        await failAt(handler, player, const Duration(seconds: 70));
+
+        expect(
+          current(player).uri.queryParameters,
+          isNot(contains('timeOffset')),
+        );
+        expect(current(player).positionOffset, Duration.zero);
+        expect(player.position.inSeconds, 70);
+        expect(player.sourceLoads, loads + 1);
+        expect(player.playing, isTrue);
+      },
+    );
+
+    test(
+      'stall recovery in the first second keeps the original path',
+      () async {
+        final (handler, player, _) = await offsetHandler();
+        await start(handler);
+        final loads = player.sourceLoads;
+
+        await failAt(handler, player, const Duration(milliseconds: 400));
+
+        expect(
+          current(player).uri.queryParameters,
+          isNot(contains('timeOffset')),
+        );
+        expect(current(player).positionOffset, Duration.zero);
+        expect(player.position.inMilliseconds, greaterThanOrEqualTo(400));
+        expect(player.sourceLoads, loads + 1);
+        expect(player.playing, isTrue);
+      },
+    );
+
+    test(
+      'stall recovery keeps Play while a queue edit holds the reload',
+      () async {
+        final (handler, player, _) = await offsetHandler(count: 4);
+        await start(handler);
+        await handler.pause();
+        final loads = player.sourceLoads;
+        final gate = Completer<void>();
+        final entered = Completer<void>();
+        player
+          ..appendGate = gate
+          ..appendEntered = entered;
+        final adding = handler.addToQueue(['song-3'], expandMatchFlows: false);
+        await entered.future;
+        player
+          ..simulatedPosition = const Duration(seconds: 70)
+          ..state = ProcessingState.idle;
+        player._events.addError(PlayerException(2002, 'Read timed out', 1));
+        await pumpEventQueue(times: 20);
+
+        await handler.play();
+        gate.complete();
+        await adding;
+        await until(
+          () => !handler.snapshot.isLoading && player.sourceIds.length == 4,
+        );
+        await until(() => player.playing);
+
+        expect(current(player).positionOffset, const Duration(seconds: 70));
+        expect(player.position.inSeconds, 70);
+        expect(player.sourceLoads, loads + 1);
+        expect(player.sourceIds, ['song-0', 'song-1', 'song-2', 'song-3']);
+      },
+    );
+
+    test('stall recovery at the song end advances without replaying', () async {
+      final (handler, player, _) = await offsetHandler();
+      await start(handler);
+
+      await failAt(handler, player, const Duration(minutes: 3));
+
+      expect(handler.snapshot.currentSongId, 'song-2');
+      expect(player.playing, isTrue);
+      expect(lastSeekEvent(handler)['outcome'], 'skipped');
+    });
+
+    for (final command in ['pause', 'seek']) {
+      test(
+        'stall recovery yields to a newer $command during resolution',
+        () async {
+          late _GatedSourceResolver resolver;
+          final (handler, player, _) = await offsetHandler(
+            wrapResolver: (base) => resolver = _GatedSourceResolver(base),
+          );
+          await start(handler);
+          final loads = player.sourceLoads;
+          resolver
+            ..blockedSongId = 'song-1'
+            ..entered = Completer<void>()
+            ..release = Completer<void>();
+          player
+            ..simulatedPosition = const Duration(seconds: 70)
+            ..state = ProcessingState.buffering;
+          final recovery = handler.debugRecoverCurrentSong();
+          await resolver.entered!.future;
+          final newer = command == 'pause'
+              ? handler.pause()
+              : handler.seek(const Duration(seconds: 130));
+          if (command == 'pause') await newer;
+          resolver
+            ..blockedSongId = null
+            ..release!.complete();
+          await Future.wait([recovery, newer]);
+          await until(() => !handler.snapshot.isLoading);
+
+          final expected = command == 'pause' ? 70 : 130;
+          expect(current(player).positionOffset, Duration(seconds: expected));
+          expect(player.position.inSeconds, expected);
+          expect(player.sourceLoads, loads + 1);
+          expect(player.sourceIds, ['song-0', 'song-1', 'song-2']);
+          expect(player.playing, command != 'pause');
+        },
+      );
+    }
+
+    test(
+      'stall recovery retries once then advances after another failure',
+      () async {
+        final (handler, player, _) = await offsetHandler();
+        await start(handler);
+        await failAt(handler, player, const Duration(seconds: 70));
+
+        await failAt(handler, player, const Duration(seconds: 80));
+
+        expect(handler.snapshot.currentSongId, 'song-2');
+        expect(player.playing, isTrue);
+        expect(lastSeekEvent(handler)['outcome'], 'skipped');
+      },
+    );
+
     test(
       'a far seek reopens the transcode at the whole-second offset',
       () async {
@@ -7566,6 +7791,11 @@ void main() {
       final lockCached = handler.queue.value[1].extras!;
       expect(lockCached['sourceKind'], 'lockCachedStream');
       final cachePath = lockCached['cachedFilePath']! as String;
+
+      await failAt(handler, player, const Duration(seconds: 70));
+      expect(current(player).positionOffset, const Duration(seconds: 70));
+      expect(current(player).uri.queryParameters['timeOffset'], '70');
+      expect(player.position.inSeconds, 70);
 
       await seekAndSettle(handler, const Duration(seconds: 100));
 

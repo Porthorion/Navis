@@ -75,3 +75,17 @@ previous event's item, not the item the Dart sequence now holds at that index:
 the platform only reports the shifted index once it has applied the edit. Its
 duration is stored on that item too. Without offsets the only change is that
 the stored duration lands on the right item during such a window.
+
+Android progressive loads use a `DefaultLoadErrorHandlingPolicy` override to
+make unknown-length HTTP response errors fatal (`C.TIME_UNSET`), handing them
+to Navis's existing position-preserving recovery. Media3 1.4.1's live-stream
+retry would otherwise reset a chunked VOD stream to byte zero. The decision
+uses `LoadErrorInfo.loadEventInfo.responseHeaders` and `dataSpec.length`;
+valid `Content-Length` or sized `Content-Range`, bounded requests, non-HTTP
+sources, and connection failures without response headers retain the default
+policy. `ProgressiveAudioSourceOptions.androidUseDefaultLoadErrorHandling`
+opts radio initial loads and reconnects into the unchanged native policy.
+`AudioSource.uri(options:)` forwards the option only for progressive sources.
+The matching platform interface serializes this source option. No HTTP timeout
+or HLS/DASH policy changes are made. `ProgressiveLoadRetryTest` supplies pure
+JVM framing fixtures using the existing `EqualizerDspTest` executable pattern.

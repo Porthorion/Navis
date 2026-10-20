@@ -1100,7 +1100,7 @@ extension _NavisRecovery on NavisAudioHandler {
 
   /// Replaces the current remote song's recovery request for this transport
   /// intent and starts recovery. False when the current song is not a remote
-  /// stream that recovery can reload, or when a load or seek owns it.
+  /// stream that recovery can reload, or when a load or user seek owns it.
   bool _rearmRemoteRecovery({
     required Duration? position,
     required bool autoPlay,
@@ -1110,7 +1110,7 @@ extension _NavisRecovery on NavisAudioHandler {
     if (songId == null ||
         _isLoading ||
         _pendingLogicalQueueSongIds != null ||
-        _pendingSeek != null ||
+        _pendingSeek?.isRemoteRecovery == false ||
         (sourceKind != PlaybackSourceKind.lockCachedStream.name &&
             sourceKind != PlaybackSourceKind.directStream.name)) {
       return false;
@@ -1350,9 +1350,13 @@ extension _NavisRecovery on NavisAudioHandler {
     final autoPlay = pending.autoPlay;
     _remotePlaybackRecoveryInProgress = true;
     final attemptKey = '$transportGeneration:$songId';
-    final isRetry = navisShouldRetryRemotePlayback(
-      alreadyRetried: _remotePlaybackRecoveryAttempts.contains(attemptKey),
-    );
+    final duration = _effectivePlaybackDuration(_currentMediaItem);
+    final atEnd = duration > Duration.zero && position >= duration;
+    final isRetry =
+        !atEnd &&
+        navisShouldRetryRemotePlayback(
+          alreadyRetried: _remotePlaybackRecoveryAttempts.contains(attemptKey),
+        );
     if (isRetry) {
       _remotePlaybackRecoveryAttempts.add(attemptKey);
     }
@@ -1365,13 +1369,55 @@ extension _NavisRecovery on NavisAudioHandler {
     try {
       if (isRetry) {
         try {
-          final recoveryToken = OperationToken();
-          final rebuilt = await _rebuildQueueForSeekRecovery(
-            position,
-            autoPlay: autoPlay,
-            token: recoveryToken,
-            transportGeneration: transportGeneration,
-          );
+          var rebuilt = false;
+          await _seekLane.run((recoveryToken) async {
+            if (!_isCurrentTransportIntent(transportGeneration)) return;
+            final request = _PendingSeek(
+              generation: ++_seekRevision,
+              songId: songId,
+              queueIndex: _logicalCurrentIndex,
+              position: position,
+              isRemoteRecovery: true,
+            );
+            _pendingSeek = request;
+            try {
+              rebuilt =
+                  _completedCacheFileFor(_currentMediaItem) != null &&
+                  await _trySeekViaCompletedCacheFile(
+                    position,
+                    autoPlay: autoPlay,
+                    token: recoveryToken,
+                    transportGeneration: transportGeneration,
+                    seekRequest: request,
+                  );
+              _checkSeekCurrent(request, recoveryToken);
+              if (rebuilt) return;
+              if (await _shouldSeekViaTranscodeOffset(
+                position,
+                request,
+                recoveryToken,
+              )) {
+                rebuilt = await _seekViaTranscodeOffset(
+                  position,
+                  token: recoveryToken,
+                  transportGeneration: transportGeneration,
+                  seekRequest: request,
+                );
+                if (!rebuilt) {
+                  throw StateError('Remote recovery did not settle.');
+                }
+              } else {
+                rebuilt = await _rebuildQueueForSeekRecovery(
+                  position,
+                  autoPlay: autoPlay,
+                  token: recoveryToken,
+                  transportGeneration: transportGeneration,
+                );
+              }
+            } finally {
+              if (identical(_pendingSeek, request)) _pendingSeek = null;
+            }
+          });
           AppLogger.startup(
             StartupEvent.streamRecovery,
             outcome: rebuilt
@@ -1386,6 +1432,8 @@ extension _NavisRecovery on NavisAudioHandler {
             'reason': reason,
             'outcome': rebuilt ? 'reloaded' : 'notRebuilt',
           });
+          return;
+        } on OperationCancelledException {
           return;
         } on Object {
           AppLogger.startup(
