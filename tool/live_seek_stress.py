@@ -2210,10 +2210,15 @@ def case_offset_repeat_one(run: Run, env):
         out = [v for v in oracle_seek(run, seek) if not (v['oracle'] == 'seekRegressed' and v['t'] >= wrapped['t'] - 1)]
         out += oracle_offset(run, [seek], run.quality != 'original')
         repeats = [r for r in run.env.proxy.log[run.proxy_mark:] if r['id'] == song['id'] and r.get('timeOffset')]
+        # Requests while the offset stream plays (before the first loop) are ExoPlayer's own re-opens,
+        # counted as a metric; a request that starts after the loop is the loop re-requesting T.
+        loop_w = run.w0 + wrapped['t']
+        after_loop = [r for r in repeats if r['w'] >= loop_w - 1]
         run.metrics['timeOffsetRequestCount'] = len(repeats)
-        if len(repeats) > 1:
-            out.append(violation('repeatedTimeOffsetRequest', wrapped['t'], f"{len(repeats)} timeOffset requests: "
-                                 f"{[r['timeOffset'] for r in repeats]}", run))
+        run.metrics['timeOffsetRequestsAfterLoop'] = len(after_loop)
+        if after_loop:
+            out.append(violation('timeOffsetRequestAfterLoop', wrapped['t'], f"{len(after_loop)} timeOffset requests after "
+                                 f"the loop: {[r['timeOffset'] for r in after_loop]}", run))
         jumped = next((s for s in after if s['pos'] > 12000 + (s['t'] - wrapped['t']) * 1000
                        and not (wrapped2 and s['t'] >= wrapped2['t'] - 1)), None)
         if jumped:
