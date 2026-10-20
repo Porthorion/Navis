@@ -34,6 +34,14 @@ still provide sized ranges.
 
 The stream proxy restores chunked framing for unknown-length bodies and explicitly sends `Content-Length: 0` for empty HTTP 500 responses after clearing headers (#86).
 
+Lock-cache origin disconnects and the existing 30-second body-progress timeout
+discard the partial file and close in-progress response streams after emitting
+the error. The proxy currently sends a clean EOF for these interrupted chunked
+responses; a later request downloads the source again. Regression fixtures
+exercise both cases through the real proxy with the fake native player (#86).
+Neither case reproduced a proxy hang, so this investigation changes tests and
+documentation only; the proxy error listener and deadlines remain unchanged.
+
 Keep upgrades narrow and re-run the native response/lifecycle fixtures and
 Navis playback tests when updating either vendored package.
 

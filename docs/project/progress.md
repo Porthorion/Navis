@@ -74,6 +74,25 @@ Last updated: 2026-10-20
   `positionOffset` translation layer, an offset resolver source with a
   full-URI sidecar, and the handler seek branch with its edge-case tests
   (`docs/plans/Transcode_Offset_Seek_Plan.md`).
+- [x] Issue #86, investigate swallowed lock-cache proxy errors — 2026-10-20
+  (`fix/proxy-download-error`): added
+  `proxy ends a chunked origin disconnect and retries` and
+  `proxy ends a chunked origin stall and retries` to the existing lock-cache
+  fixtures. Both pass on the unchanged implementation: after receiving partial
+  unknown-length audio, the client gets clean EOF within two seconds, no
+  completed cache or 100% progress is published, the partial file is removed,
+  and a second proxy request fetches and publishes the full body. The disconnect
+  test uses a ten-second body deadline to distinguish socket failure from idle
+  expiry; the stall test shortens the existing 30-second deadline to 300 ms.
+  The source error handler closes its response streams, so the proxy's
+  `onDone` completes despite its empty `onError`. No production fix or new
+  timeout was justified; no failing hang assertion was observed. All 14
+  lock-cache tests and all 51 tests under `test/src/third_party/` pass with
+  `flutter test --concurrency=4 --timeout 60s` and the relevant files.
+  Full-gate and Android runtime validation are assigned to the coordinator;
+  no app, emulator or VM was launched in this task. Android should check whether
+  truncated clean EOF causes completion or retry, and whether Media3's read
+  deadline fires before the existing 30-second body-progress timeout.
 - [x] Issue #86, frame unknown-length lock-cache proxy responses — 2026-10-19
   (`fix/proxy-response-framing`): restore chunked transfer encoding after the
   proxy clears response headers, and explicitly size empty HTTP 500 bodies at

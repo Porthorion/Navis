@@ -3954,7 +3954,10 @@ still permits a later explicit Play.
 
 Lock-cache origin and range fetches have cancellable 15-second connection and
 header deadlines and a 30-second body-progress deadline. Failed partial files
-are discarded and requests may restart. `networkReconciliationProvider` shares
+are discarded and requests may restart. An origin disconnect or body-progress
+timeout closes in-progress lock-cache streams after emitting the error; the
+local proxy sends clean EOF for a chunked response and the next request
+refetches the source. `networkReconciliationProvider` shares
 the existing bounded connectivity, metering and server-reachability check
 between resume and playback, and reports device connectivity separately from
 server reachability. Scoped container subscriptions keep these bounded
