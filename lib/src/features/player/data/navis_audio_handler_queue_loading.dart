@@ -452,6 +452,7 @@ extension _NavisQueueLoading on NavisAudioHandler {
           now,
           bytes: _playerCacheBytesForSong(songId),
           buffer: _isDesktopRuntime ? Duration.zero : player.bufferedPosition,
+          processing: player.processingState,
         );
       }
       if (progress.expired(now) || (!canExtend && now >= progress.initial)) {

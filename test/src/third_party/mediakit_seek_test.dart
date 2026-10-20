@@ -124,10 +124,30 @@ void main() {
       }
       properties.inputRate = '187500';
       expect(await adapter.networkInputActive, isTrue);
+      properties.inputRate = '190000';
+      expect(await adapter.networkInputActive, isTrue);
       properties.inputRate = '0';
       expect(await adapter.networkInputActive, isFalse);
     },
   );
+
+  test('an unchanged mpv input rate is not fresh input', () async {
+    properties.inputRate = '187500';
+    expect(await adapter.networkInputActive, isTrue);
+    expect(await adapter.networkInputActive, isFalse);
+    expect(await adapter.networkInputActive, isFalse);
+  });
+
+  test('a decaying positive mpv input rate is not fresh input', () async {
+    properties.inputRate = '187500';
+    expect(await adapter.networkInputActive, isTrue);
+    for (final rate in ['93750', '46875', '23437', '11718', '5859', '2929']) {
+      properties.inputRate = rate;
+      expect(await adapter.networkInputActive, isFalse, reason: rate);
+    }
+    properties.inputRate = '25000';
+    expect(await adapter.networkInputActive, isTrue);
+  });
 
   test(
     'jump with zero position issues no native seek, even after ready',

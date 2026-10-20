@@ -4717,8 +4717,12 @@ song loads share a progress deadline. Android/iOS use native
 `bufferedPosition` growth and received lock-cache bytes. Desktop uses the
 vendored `AudioPlayer.networkInputActive` getter: mpv's `cache-speed` (the same
 network-layer bytes/second estimate as `demuxer-cache-state/raw-input-rate`)
-read through media_kit's existing native property bridge. Positive input
-activity extends the wait even while decoded buffer and position are frozen;
+read through media_kit's existing native property bridge. A positive rate
+that rises between samples counts as input activity; falling estimates after
+input stops and unchanged estimates during blocked reads do not. A steady real
+rate cannot be distinguished from a blocked read and conservatively does not
+renew activity. Input activity extends the wait only while processing is loading
+or buffering, even while decoded buffer and position are frozen;
 the independent sidecar and desktop buffered position cannot extend it.
 The property is sampled at most every 250 ms, without file I/O. mpv derives
 this rate from unbuffered stream reads before decoding, rather than packet
@@ -4727,7 +4731,13 @@ return, can lag during a blocking read and is unavailable before mpv publishes
 the demuxer; it does not prove every cold-open/probe is progressing. See the
 [mpv property contract](https://mpv.io/manual/stable/#cache-speed) and
 [demux input accounting](https://github.com/mpv-player/mpv/blob/v0.41.0/demux/demux.c).
-Recent player-side activity defers premature seek stall/missed-target checks.
+Recent player-side activity defers premature seek stall/missed-target checks
+only while loading or buffering. Ready disables the input extension and uses the
+existing short missed-target/no-progress timers, including after an extended
+buffering wait; recent input remains available if the backend briefly flaps
+back to buffering, and the 45-second overall cap still applies. A playing seek
+that has landed but has not advanced 250 ms remains pending and a newer seek
+correctly supersedes it; reaching the target alone does not certify playback.
 An eight-second idle window (`NavisPlaybackTimeouts.progressIdle`) bounds the
 extension, with a 45-second `seekProgress` cap. With no input activity, native
 loads retain their 12-second deadline and seek probes retain their short

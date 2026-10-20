@@ -256,12 +256,17 @@ class MediaKitPlayer extends AudioPlayerPlatform {
   late final List<StreamSubscription> _streamSubscriptions;
 
   late final IcyPropertySource _properties;
+  int _lastInputRate = 0;
 
   @override
   Future<bool> get networkInputActive async {
     if (_released || !_readyCompleter.isCompleted) return false;
-    // cache-speed is mpv's raw network input rate, before packet decoding.
-    return (int.tryParse(await _properties.read('cache-speed')) ?? 0) > 0;
+    // mpv's estimate decays after input stops and stays stale in blocked reads;
+    // only rises count as fresh input, unlike a positive or merely changed rate.
+    final rate = int.tryParse(await _properties.read('cache-speed')) ?? 0;
+    final active = rate > 0 && rate > _lastInputRate;
+    _lastInputRate = rate;
+    return active;
   }
 
   final _readyCompleter = Completer<void>();

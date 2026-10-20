@@ -192,6 +192,7 @@ class _PlaybackProgressDeadline {
   final Future<bool> Function()? readInputActive;
   Duration _nextInputCheck = Duration.zero;
   bool _inputActive = false;
+  bool _waitingForInput = false;
 
   final Duration initial;
   final Duration idle;
@@ -204,7 +205,18 @@ class _PlaybackProgressDeadline {
     Duration now, {
     required int? bytes,
     required Duration buffer,
+    required ProcessingState processing,
   }) async {
+    _waitingForInput =
+        processing == ProcessingState.loading ||
+        processing == ProcessingState.buffering;
+    if (!_waitingForInput) {
+      // Ready playback must advance; input cannot hide a frozen decoder.
+      _inputActive = false;
+      _bytes = bytes ?? 0;
+      _buffer = buffer;
+      return;
+    }
     if (readInputActive != null && now >= _nextInputCheck) {
       _inputActive = await readInputActive!();
       _nextInputCheck = now + const Duration(milliseconds: 250);
@@ -217,7 +229,7 @@ class _PlaybackProgressDeadline {
   }
 
   bool progressing(Duration now) =>
-      _progressAt != null && now - _progressAt! < idle;
+      _waitingForInput && _progressAt != null && now - _progressAt! < idle;
 
   bool expired(Duration now) =>
       now >= hardCap || (now >= initial && !progressing(now));
