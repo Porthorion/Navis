@@ -252,6 +252,8 @@ D-Bus and XDG environment. The session must already be active and its environmen
 imported into the user manager; the remote systemd must support `ExitType=cgroup`
 (Ubuntu 24.04 does). No real library/account is required for the update API.
 
+The temporary R2 polkit rule (test hosts only) must allow `org.freedesktop.policykit.exec` for the test user with the program `/bin/sh`. On Fedora pkexec resolves `/bin/sh` to `/usr/bin/bash`, so match `/bin/sh`, `/usr/bin/sh` and `/usr/bin/bash`. Remove the rule afterwards.
+
 R1 needs the owner at the real polkit prompt. R2 repeats the successful
 check/download/apply flow three times with an owner-managed temporary rule.
 Automated success requires the expected package version, a new live pid from
