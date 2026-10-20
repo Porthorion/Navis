@@ -1835,7 +1835,7 @@ def slow_next_song(run: Run, env, first):
     """--slow-next-s: shortly before song 1 ends, every proxied request waits this long
     before it is forwarded (the next song's first byte arrives late), then the proxy is
     restored. Diagnostics for the stall watchdog and recovery at a song change."""
-    proxy, delay = env.proxy, SLOW_NEXT_S, VERIFY_OFFSET
+    proxy, delay = env.proxy, SLOW_NEXT_S
     restore = THROTTLES[run.throttle]
     start_after = max(0.0, first['dur'] / 1000 - 6.0 - (time.monotonic() - run.t0 - first['t']))
     run.metrics['slowNext'] = {'delayS': delay, 'armedAfterS': round(start_after, 1)}
@@ -1996,32 +1996,48 @@ def seek_events_since(run: Run, baseline: int) -> list[dict]:
 
 
 def oracle_offset(run: Run, recs: list[dict], expect_offset: bool, strict_land=3.0) -> list[dict]:
-    """Seeks on a transcode take the transcodeOffset path and send timeOffset, land
-    quickly within 1.5 s of the target; on original they never do."""
+    """Per seek: on a transcode with an incomplete local cache it takes the transcodeOffset
+    path, sends timeOffset=<floor seconds> and lands within 3 s / 1.5 s of the target. When
+    the whole file was already downloaded before the seek, the completed file wins by design
+    (noted, not a failure). On original it never uses either."""
     out = []
     events = seek_events_since(run, run.metrics.get('seekGenerationBaseline', 0))
-    paths = [e.get('path') for e in events]
     run.metrics['seekPaths'] = [{k: e.get(k) for k in ('generation', 'path', 'requestedPositionMs', 'afterPositionMs',
                                                        'elapsedMs', 'outcome', 'afterSourceKind')} for e in events]
-    stream_requests = [r for r in run.env.proxy.log[run.proxy_mark:] if r['endpoint'] == 'stream']
-    offsets = [r for r in stream_requests if r.get('timeOffset')]
+    media = [r for r in run.env.proxy.log[run.proxy_mark:] if r['endpoint'] in ('stream', 'download')]
+    offsets = [r for r in media if r.get('timeOffset')]
     run.metrics['timeOffsetRequests'] = [{'id': r['id'], 'timeOffset': r['timeOffset'], 'status': r.get('status'),
                                           'bytes': r.get('bytes'), 'end': r.get('end')} for r in offsets]
-    if expect_offset:
-        taken = [p for p in paths if p == 'transcodeOffset']
-        if len(taken) < len(recs):
-            out.append(violation('offsetPathNotTaken', recs[0]['t'], f"{len(recs)} seeks, transcodeOffset path "
-                                 f"{len(taken)}x; paths={paths} timeOffset requests={len(offsets)}", run))
-        if len(offsets) < min(len(recs), len(taken)) or not offsets:
-            out.append(violation('offsetNoRequest', recs[0]['t'], f"no timeOffset stream request in the proxy log "
-                                 f"({len(stream_requests)} stream requests)", run))
-        for rec in recs:
+    for rec in recs:
+        event = next((e for e in reversed(events) if abs((e.get('requestedPositionMs') or -10**9) - rec['target']) <= 1), None)
+        path = event.get('path') if event else None
+        rec['path'] = path
+        want_s = rec['target'] // 1000
+        sent = [r for r in offsets if r['id'] == rec['song'] and abs(int(r['timeOffset']) - want_s) <= 1]
+        rec['timeOffsetSent'] = [r['timeOffset'] for r in sent]
+        full_before = [r for r in media if r['id'] == rec['song'] and not r.get('timeOffset') and r.get('end') == 'complete'
+                       and (r.get('endW') or 1e12) <= rec['w']]
+        if not expect_offset:
+            if path == 'transcodeOffset' or any(r['id'] == rec['song'] for r in offsets):
+                out.append(violation('offsetOnOriginal', rec['t'], f"path={path} timeOffset requests={rec['timeOffsetSent']}", run))
+            continue
+        if path == 'transcodeOffset':
+            if not sent:
+                out.append(violation('offsetNoRequest', rec['t'], f"path transcodeOffset for target {rec['target']} but no "
+                                     f"timeOffset~{want_s} stream request (offset requests: {[r['timeOffset'] for r in offsets]})", run))
             if rec.get('latency') is not None and rec['latency'] > strict_land:
-                out.append(violation('offsetLate', rec['t'], f"landed {rec['latency']:.1f}s after the seek "
-                                     f"(limit {strict_land}s for an offset seek)", run))
-    else:
-        if offsets or 'transcodeOffset' in paths:
-            out.append(violation('offsetOnOriginal', recs[0]['t'], f"paths={paths} timeOffset requests={len(offsets)}", run))
+                out.append(violation('offsetLate', rec['t'], f"landed {rec['latency']:.1f}s after the seek (limit {strict_land}s)", run))
+        elif full_before:
+            rec['note'] = 'cacheCompleteBeforeSeek'
+        elif sent and any(r['id'] == rec['song'] and not r.get('timeOffset') and r.get('end') == 'complete'
+                          and rec['w'] <= (r.get('endW') or 0) <= rec['w'] + 8 for r in media):
+            # The offset reload started, then the full download finished while it settled: the
+            # handler reloads from the completed file by design (recovery path).
+            rec['note'] = 'offsetThenCacheComplete'
+        else:
+            out.append(violation('offsetPathNotTaken', rec['t'], f"path={path} for target {rec['target']} while the full "
+                                 f"download was not complete (events {[e.get('path') for e in events]}, "
+                                 f"offset requests {len(offsets)})", run))
     for rec in recs:  # landing error, signed (negative = early)
         after = [s for s in run.samples if s['t'] >= rec['t'] and s['songId'] == rec['song'] and s['proc'] == 'ready'
                  and s['pos'] is not None]
@@ -2030,9 +2046,10 @@ def oracle_offset(run: Run, recs: list[dict], expect_offset: bool, strict_land=3
             rec['err'] = landed_sample['pos'] - rec['target']
             rec['landedOff'] = landed_sample['off']
             rec['durAfter'] = landed_sample['dur']
-        run.metrics.setdefault('landings', []).append({k: rec.get(k) for k in ('target', 'latency', 'err', 'landedOff', 'durAfter')})
+        run.metrics.setdefault('landings', []).append({k: rec.get(k) for k in (
+            'target', 'path', 'note', 'latency', 'err', 'landedOff', 'durAfter', 'timeOffsetSent')})
         # The player's own song-time position must agree with the transport + offset.
-        if landed_sample is not None and landed_sample['pp'] is not None and landed_sample['t'] + 1 < run.now():
+        if landed_sample is not None and landed_sample['pp'] is not None:
             later = next((s for s in run.samples if s['t'] >= landed_sample['t'] + 1 and s['pos'] is not None
                           and s['pp'] is not None and s['proc'] == 'ready'), None)
             if later and abs(later['pos'] - later['pp']) > 2500:
@@ -2238,6 +2255,8 @@ CASE_FUNCS = {
     'seek_burst': seek_case([0.3, 0.7, 0.45]),
     'seek_paused': seek_case([0.65], play_s=3.0, paused=True),
     'offset_quick': seek_case([0.4, 0.2, 0.6]),
+    'offset_far': seek_case([0.75], play_s=0.3),  # seeks before an unthrottled download can finish
+    'offset_back': seek_case([0.6, 0.15], play_s=0.3, sequential=True),
     'offset_natural': case_offset_natural,
     'offset_repeat_one': case_offset_repeat_one,
     'offset_prev': case_offset_prev,
@@ -2332,7 +2351,7 @@ def run_one(app, backend, proxy, env, case: str, quality: str, throttle: str, re
     try:
         offset_case_prologue(run)
         CASE_FUNCS[case](run, env)
-        if VERIFY_OFFSET and case in ('seek_far', 'seek_back', 'seek_mid', 'seek_early', 'offset_quick'):
+        if VERIFY_OFFSET and case in ('seek_far', 'seek_back', 'seek_mid', 'seek_early', 'offset_quick', 'offset_far', 'offset_back'):
             seeks = [a for a in run.actions if a['kind'] == 'seek']
             judged = seeks[-1:] if case == 'offset_quick' else seeks
             run.checks.append(lambda: oracle_offset(run, judged, quality != 'original'))
@@ -2607,7 +2626,7 @@ def main() -> int:
     parser.add_argument('--no-transcode-offset', action='store_true',
                         help='fixture does not advertise/honour transcodeOffset')
     args = parser.parse_args()
-    global CROSSFADE_S, NATURAL_SONGS, NATURAL_FULL, LIVE_MAX_SONG_S, REPEAT_MODE, LIVE_REUSE_GROUPS, PRIME_SERVER_CACHE, SLOW_NEXT_S
+    global CROSSFADE_S, NATURAL_SONGS, NATURAL_FULL, LIVE_MAX_SONG_S, REPEAT_MODE, LIVE_REUSE_GROUPS, PRIME_SERVER_CACHE, SLOW_NEXT_S, VERIFY_OFFSET
     CROSSFADE_S = args.crossfade_s
     LIVE_REUSE_GROUPS, PRIME_SERVER_CACHE, SLOW_NEXT_S = args.live_reuse_groups, args.prime_server_cache, args.slow_next_s
     VERIFY_OFFSET = args.verify_offset
