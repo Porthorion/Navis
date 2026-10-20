@@ -52,6 +52,11 @@ class MediaKitPlayer extends AudioPlayerPlatform {
     // deadlines decide when to give up instead.
     unawaited(setProperty(_player, 'network-timeout', '60'));
 
+    final msgLevel = JustAudioMediaKit.diagnosticsMpvMsgLevel;
+    if (msgLevel != null && msgLevel.isNotEmpty) {
+      unawaited(setProperty(_player, 'msg-level', msgLevel));
+    }
+
     // Navis: media_kit enables an on-disk demuxer cache that libmpv cannot
     // create without a cache directory ("Failed to create file cache" for
     // every file), so the memory cache was the only one in use. The sidecar
@@ -233,7 +238,10 @@ class MediaKitPlayer extends AudioPlayerPlatform {
         _dataController.add(PlayerDataMessage(speed: rate));
       }),
       _player.stream.log.listen((event) {
-        print('MPV: [${event.level}] ${event.prefix}: ${event.text}');
+        // Stream URLs carry the account's Subsonic token and salt.
+        final text = event.text.replaceAllMapped(
+            RegExp(r'([?&](?:t|s|p|u)=)[^&\s\x27"]+'), (m) => '${m[1]}***');
+        print('MPV: [${event.level}] ${event.prefix}: $text');
       }),
     ];
   }

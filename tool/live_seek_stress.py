@@ -107,6 +107,24 @@ class Server:
         return body
 
 
+    def prime_stream(self, song_id: str, fmt: str | None, kbps: int | None) -> tuple:
+        """Diagnostics: downloads a song's stream once, as the app asks for it, so
+        Navidrome's transcode cache holds it and the next request is answered as a
+        cached file (206, Content-Length) instead of a live chunked transcode.
+        Returns (status, transfer-encoding, bytes)."""
+        salt = secrets.token_hex(6)
+        token = hashlib.md5((self.password + salt).encode()).hexdigest()
+        params = {'u': self.username, 't': token, 's': salt, 'v': '1.16.1', 'c': 'Navis [Linux]',
+                  'f': 'json', 'id': song_id}
+        if fmt:
+            params.update({'maxBitRate': kbps, 'format': fmt})
+        request = Request(self.base + 'stream.view?' + urlencode(params),
+                          headers={'User-Agent': 'Navis Desktop', 'Range': 'bytes=0-'})
+        with urlopen(request, timeout=120) as r:
+            size = len(r.read())
+            return r.status, r.headers.get('Transfer-Encoding'), size
+
+
 class ThrottledProxy:
     """A loopback reverse proxy to the server with a shared bandwidth limit
     and added first-byte latency, approximating a phone's connection.
@@ -117,7 +135,16 @@ class ThrottledProxy:
 
     PORT = 47391
 
-    def __init__(self, upstream: str, kbps: int, latency_ms: int):
+    def __init__(self, upstream: str, kbps: int, latency_ms: int, chunked=False, jsonl: Path | None = None):
+        # chunked: answer a body of unknown length with real chunked framing
+        # (as Navidrome does) instead of an HTTP/1.0 close-delimited body, so a
+        # premature cut is an error for the client, not a clean EOF.
+        # jsonl: every proxied request is also appended there as it ends.
+        self.chunked = chunked
+        self.jsonl = jsonl
+        # Fault injection: the next `count` stream/download requests that
+        # match `only` are cut after `after_bytes` of body (diagnostics).
+        self.fault = None
         target = urlsplit(upstream)
         self.secure = target.scheme == 'https'
         self.host = target.hostname
@@ -130,9 +157,12 @@ class ThrottledProxy:
         self.log: list[dict] = []
         self.stamp = time.monotonic()
         self.lock = threading.Lock()
+        self.lock_log = threading.Lock()
         proxy = self
 
         class Handler(BaseHTTPRequestHandler):
+            protocol_version = 'HTTP/1.1' if chunked else 'HTTP/1.0'
+
             def log_message(self, *_):
                 pass
 
@@ -177,6 +207,43 @@ class ThrottledProxy:
                 missing = size - self.tokens
             time.sleep(missing / self.rate)
 
+    def arm_fault(self, after_bytes: int, count=1, only='any', mode='fin'):
+        """Cuts the next [count] stream/download request(s) after [after_bytes]
+        of body. [only]: 'any', 'transcode' (has a format) or 'download'."""
+        self.fault = {'after': after_bytes, 'left': count, 'only': only, 'mode': mode}
+
+    def _take_fault(self, entry):
+        fault = self.fault
+        if not fault or fault['left'] <= 0 or entry['endpoint'] not in ('stream', 'download'):
+            return None
+        if fault['only'] == 'transcode' and not entry.get('format'):
+            return None
+        if fault['only'] == 'download' and entry['endpoint'] != 'download':
+            return None
+        # The player's request is libmpv's ('Navis Desktop', with a Range); the sidecar download is Dart's.
+        if fault['only'] == 'player' and not entry['ua'].startswith('Navis'):
+            return None
+        if fault['only'] == 'sidecar' and not entry['ua'].startswith('Dart'):
+            return None
+        fault['left'] -= 1
+        return fault
+
+    def _abort(self, handler, mode):
+        import socket
+        import struct
+        handler.close_connection = True
+        try:
+            if mode == 'rst':
+                handler.connection.setsockopt(socket.SOL_SOCKET, socket.SO_LINGER, struct.pack('ii', 1, 0))
+            else:
+                handler.connection.shutdown(socket.SHUT_RDWR)
+        except OSError:
+            pass
+        try:
+            handler.connection.close()
+        except OSError:
+            pass
+
     def forward(self, handler, body: bool):
         self.requests += 1
         connection_type = (http.client.HTTPSConnection if self.secure
@@ -190,47 +257,89 @@ class ThrottledProxy:
         parts = urlsplit(handler.path)
         params = dict(pair.split('=', 1) for pair in parts.query.split('&') if '=' in pair)
         entry = {'w': round(time.time(), 3),
+                 'method': handler.command,
                  'endpoint': parts.path.rsplit('/', 1)[-1].removesuffix('.view'),
                  'id': params.get('id'), 'format': params.get('format'),
                  'maxBitRate': params.get('maxBitRate'),
                  'timeOffset': params.get('timeOffset'),
-                 'range': handler.headers.get('Range'), 'bytes': 0}
-        if entry['endpoint'] in ('stream', 'download'):
+                 'range': handler.headers.get('Range'),
+                 'ua': (handler.headers.get('User-Agent') or '')[:40], 'bytes': 0}
+        is_media = entry['endpoint'] in ('stream', 'download')
+        if is_media:
             self.log.append(entry)
+        fault = self._take_fault(entry) if body else None
+        sent_headers = False
+        started = time.monotonic()
         try:
             time.sleep(self.latency)
             upstream.request(handler.command, handler.path, body=payload,
                              headers=headers)
             response = upstream.getresponse()
+            entry['ttfbS'] = round(time.monotonic() - started, 2)
             entry['status'] = response.status
             entry['contentLength'] = response.getheader('Content-Length')
+            entry['upstreamEncoding'] = response.getheader('Transfer-Encoding')
+            entry['acceptRanges'] = response.getheader('Accept-Ranges')
+            entry['contentRange'] = response.getheader('Content-Range')
+            frame = self.chunked and body and entry['contentLength'] is None
             handler.send_response(response.status)
             for key in ('Content-Type', 'Content-Length', 'Content-Range',
                         'Accept-Ranges', 'Content-Disposition'):
                 value = response.getheader(key)
                 if value:
                     handler.send_header(key, value)
+            if frame:
+                handler.send_header('Transfer-Encoding', 'chunked')
             handler.send_header('Connection', 'close')
             handler.end_headers()
+            sent_headers = True
             if not body:
+                entry['end'] = 'head'
                 return
             while True:
                 chunk = response.read(16384)
                 if not chunk:
                     break
                 self.take(len(chunk))
-                handler.wfile.write(chunk)
+                if fault and entry['bytes'] + len(chunk) >= fault['after']:
+                    keep = max(0, fault['after'] - entry['bytes'])
+                    if frame and keep:
+                        handler.wfile.write(b'%x\r\n%s\r\n' % (keep, chunk[:keep]))
+                    elif keep:
+                        handler.wfile.write(chunk[:keep])
+                    entry['bytes'] += keep
+                    entry['end'] = f"injectedCut-{fault['mode']}"
+                    self._abort(handler, fault['mode'])
+                    return
+                if frame:
+                    handler.wfile.write(b'%x\r\n%s\r\n' % (len(chunk), chunk))
+                else:
+                    handler.wfile.write(chunk)
                 entry['bytes'] += len(chunk)
+            if frame:
+                handler.wfile.write(b'0\r\n\r\n')
+            entry['end'] = 'complete'
         except (BrokenPipeError, ConnectionResetError):
             entry['aborted'] = True
-        except Exception:
-            try:
-                handler.send_error(502)
-            except Exception:
-                pass
+            entry['end'] = 'clientAborted'
+        except Exception as error:
+            entry['end'] = f'upstreamError:{type(error).__name__}'
+            if sent_headers:
+                # No terminal chunk and no error page in the body: the client
+                # sees a premature end, as with a dropped upstream.
+                self._abort(handler, 'fin')
+            else:
+                try:
+                    handler.send_error(502)
+                except Exception:
+                    pass
         finally:
             entry['endW'] = round(time.time(), 3)
             upstream.close()
+            if is_media and self.jsonl:
+                with self.lock_log:
+                    with self.jsonl.open('a') as out:
+                        out.write(json.dumps(entry) + '\n')
 
     def close(self):
         self.server.shutdown()
@@ -1377,7 +1486,7 @@ class LiveBackend:
                 f'SELECT {column} FROM songs s JOIN albums a ON a.id = s.album_id '
                 f'WHERE s.server_deleted_at IS NULL AND {column} IS NOT NULL '
                 f'GROUP BY {column} HAVING COUNT(*) BETWEEN ? AND ? AND MIN(COALESCE(s.bit_rate, 0)) >= 700 '
-                f'{extra} ORDER BY RANDOM() LIMIT 40', (low, high)).fetchall()
+                f'{extra} {f"AND MAX(s.duration) <= {int(LIVE_MAX_SONG_S)}" if LIVE_MAX_SONG_S else ""} ORDER BY RANDOM() LIMIT 40', (low, high)).fetchall()
             for (group,) in groups:
                 rows = db.execute(
                     f'SELECT s.id FROM songs s JOIN albums a ON a.id = s.album_id WHERE {column} = ? '
@@ -1393,10 +1502,29 @@ class LiveBackend:
             mark_used(i)
         return ids
 
+    def _reused(self, kind, pick):
+        # diagnostics (--live-reuse-groups): the same album/artist again, so its
+        # songs now play from the rolling cache the first pass filled.
+        saved = BASE / 'reuse-groups.json'
+        groups = json.loads(saved.read_text()) if saved.exists() else {}
+        if kind not in groups:
+            groups[kind] = pick()
+            saved.write_text(json.dumps(groups))
+        return groups[kind]
+
     def fresh_album(self, short=False):
+        if LIVE_REUSE_GROUPS:
+            return self._reused('album', lambda: self._take_ids(self._groups('album_id', 6, 14)[1]))
         return self._take_ids(self._groups('album_id', 6, 14)[1])
 
     def fresh_artist(self, short=False):
+        if LIVE_REUSE_GROUPS:
+            artist, ids = self._reused('artist', lambda: list(self.fresh_artist_raw()))
+            return artist, ids
+        artist, ids = self._groups('artist_id', 15, 45, 'AND COUNT(DISTINCT s.album_id) BETWEEN 2 AND 4')
+        return artist, self._take_ids(ids)
+
+    def fresh_artist_raw(self):
         artist, ids = self._groups('artist_id', 15, 45, 'AND COUNT(DISTINCT s.album_id) BETWEEN 2 AND 4')
         return artist, self._take_ids(ids)
 
@@ -1679,7 +1807,43 @@ def case_shuffle_artist(run: Run, env):
     run.checks.append(lambda: oracle_sequence(run, ids))
 
 
+SLOW_NEXT_S = 0  # --slow-next-s
+PRIME_SERVER_CACHE = False  # --prime-server-cache
+LIVE_REUSE_GROUPS = False  # --live-reuse-groups
+REPEAT_MODE = 'none'  # --repeat-mode: set after every case's mode reset
+LIVE_MAX_SONG_S = 0  # --live-max-song-s: live groups whose songs are all at most this long (0 = any)
+NATURAL_FULL = False  # --natural-full: later songs play to their real end instead of being seeked near it
 NATURAL_SONGS = 1  # --natural-songs: songs that end by themselves (a long one after the first is seeked to its end)
+
+
+def slow_next_song(run: Run, env, first):
+    """--slow-next-s: shortly before song 1 ends, every proxied request waits this long
+    before it is forwarded (the next song's first byte arrives late), then the proxy is
+    restored. Diagnostics for the stall watchdog and recovery at a song change."""
+    proxy, delay = env.proxy, SLOW_NEXT_S
+    restore = THROTTLES[run.throttle]
+    start_after = max(0.0, first['dur'] / 1000 - 6.0 - (time.monotonic() - run.t0 - first['t']))
+    run.metrics['slowNext'] = {'delayS': delay, 'armedAfterS': round(start_after, 1)}
+
+    def worker():
+        time.sleep(start_after)
+        proxy.set_profile(restore[0], delay * 1000)
+        run.metrics['slowNextArmedAt'] = round(run.now(), 1)
+        time.sleep(6.0 + delay + 15.0)
+        proxy.set_profile(*restore)
+        run.metrics['slowNextEndedAt'] = round(run.now(), 1)
+
+    threading.Thread(target=worker, daemon=True).start()
+
+
+def prime_server_cache(run: Run, ids):
+    """--prime-server-cache: fetch every song of the selection once straight from the
+    live server, so the app's own requests are answered from Navidrome's transcode cache."""
+    if not PRIME_SERVER_CACHE or run.backend.name != 'live':
+        return
+    fmt, kbps = QUALITIES[run.quality]
+    primed = [run.backend.server.prime_stream(i, fmt, kbps) for i in ids]
+    run.metrics['primed'] = [list(p) for p in primed]
 
 
 def natural_shuffle(kind: str):
@@ -1693,15 +1857,19 @@ def natural_shuffle(kind: str):
         if kind == 'album':
             ids = backend.fresh_album(short=True)
             run.songs = [{'id': i} for i in ids]
+            prime_server_cache(run, ids)
             rec = start_queue(run, ids, shuffle=True)
         else:
             artist, ids = backend.fresh_artist(short=True)
             run.songs = [{'id': i} for i in ids]
+            prime_server_cache(run, ids)
             run.shuffled = True
             rec = run.act('start', artist=artist, shuffle=True)
             run.app.api('/v1/artists/playback', {'command': 'prepare', 'artistId': artist, 'action': 'shuffle'}, timeout=60)
         first = await_audio(run, rec)
         run.metrics.update(firstSong=first['songId'], firstDurMs=first['dur'], shortGroups=backend.short_groups)
+        if SLOW_NEXT_S and first['dur']:
+            slow_next_song(run, env, first)
         wait_s = 2 * (first['dur'] or 400000) / 1000 + run.deadlines['advance']  # room for one replay
         moved = run.until(lambda s: s['idx'] != first['idx'] or s['songId'] != first['songId'], wait_s)
         run.metrics['firstEndedNaturally'] = moved is not None
@@ -1719,12 +1887,14 @@ def natural_shuffle(kind: str):
         skew = (starts[0] - rec['t']) if starts else 0
         run.metrics['appendMarginS'] = round(moved['t'] - (appends[0] - skew), 2) if appends else None
         run.metrics['firstTransitionSample'] = {k: moved[k] for k in ('idx', 'songId', 'pos', 'proc', 'qlen', 'mat', 'deferred')}
-        run.observe(3.0)
-        run.metrics['firstTransition'] = excerpt(run, moved['t'], 4.0, 3.0, limit=60)
+        run.observe(3.0 + (SLOW_NEXT_S + 14 if SLOW_NEXT_S else 0))  # a slow next song gets time to stall and recover on its own
+        run.metrics['firstTransition'] = excerpt(run, moved['t'], 4.0, 3.0 + (SLOW_NEXT_S + 14 if SLOW_NEXT_S else 0), limit=80)
         with concurrent.futures.ThreadPoolExecutor(max_workers=4) as pool:
             for n in range(min(4, len(ids) - 2)):
                 cur = run.last()
                 if cur['dur'] and cur['dur'] <= 12000:
+                    run.until(lambda s, c=cur: s['idx'] != c['idx'], 2 * cur['dur'] / 1000 + run.deadlines['advance'])
+                elif cur['dur'] and n + 1 < NATURAL_SONGS and NATURAL_FULL:
                     run.until(lambda s, c=cur: s['idx'] != c['idx'], 2 * cur['dur'] / 1000 + run.deadlines['advance'])
                 elif cur['dur'] and n + 1 < NATURAL_SONGS:
                     # A long song: seek to its last seconds (the download has long finished)
@@ -1884,8 +2054,14 @@ def run_one(app, backend, proxy, env, case: str, quality: str, throttle: str, re
     run.checks, run.latency_from = [], []
     run.env = env
     proxy_mark = len(proxy.log)
+    if getattr(proxy, 'fault_template', None):
+        proxy.arm_fault(**proxy.fault_template)  # diagnostics: re-armed for every case
+        run.metrics['faultInjected'] = proxy.fault_template
     sampler = Sampler(run)
     reset_modes(app)
+    if REPEAT_MODE != 'none':
+        app.api('/v1/playback/repeat', {'mode': REPEAT_MODE})  # diagnostics: the owner's profile may keep Repeat on
+        run.metrics['repeatMode'] = REPEAT_MODE
     # Baseline the trace so earlier runs' events are not re-read.
     baseline = app.api('/v1/playback/status')
     run._trace_seq = max([e['seq'] for e in baseline.get('transportTrace') or []] or [0])
@@ -1997,13 +2173,16 @@ def run_matrix(args, credentials, app, run_dir: Path) -> int:
         backend = FixtureBackend(f'http://127.0.0.1:{fixture_server.server_port}', library, handler)
     else:
         backend = LiveBackend(credentials, Server(credentials))
-    proxy = ThrottledProxy(backend.upstream, 0, 0)
+    proxy = ThrottledProxy(backend.upstream, 0, 0, chunked=args.proxy_chunked, jsonl=run_dir / 'proxy.jsonl')
+    if args.cut_after_kb:
+        proxy.fault_template = {'after_bytes': args.cut_after_kb * 1000, 'count': args.cut_count,
+                                'only': args.cut_only, 'mode': args.cut_mode}
     try:
         (ROOT / 'password').write_text(backend.credentials['password'] + '\n')
         os.chmod(ROOT / 'password', 0o600)
         marker = ROOT / 'profile-server'
         android = isinstance(app, AndroidApp)
-        app_url = proxy.url
+        app_url = backend.upstream if args.direct else proxy.url  # --direct: the app talks to the live server itself (no proxy log, no throttle)
         if android:
             # The emulator is seeded with the Linux profile's synced catalog,
             # so that profile must come from this server (run Linux first).
@@ -2025,14 +2204,14 @@ def run_matrix(args, credentials, app, run_dir: Path) -> int:
                     or not marker.exists() or marker.read_text() != args.server):
                 reset_profile()
             marker.write_text(args.server)
-            point_profile_at(proxy.url)
+            point_profile_at(app_url)
         app.launch()
         sign_in(app, backend.credentials, 'wifi', app_url)
-        env = type('Env', (), {'backend': backend, 'profile': args.profile})()
+        env = type('Env', (), {'backend': backend, 'profile': args.profile, 'proxy': proxy})()
         # Fail fast if the app is not using the proxy.
         before = proxy.requests
         app.api('/v1/presentation/search', {'query': 'a', 'filter': 'songs'}, timeout=40)
-        if proxy.requests == before:
+        if proxy.requests == before and not args.direct:
             raise Failure('the app is not using the throttling proxy')
         info = {'server': args.server, 'profile': args.profile, 'cases': profile['cases'],
                 'qualities': profile['qualities'], 'throttles': profile['throttles'], 'reps': reps}
@@ -2127,6 +2306,27 @@ def main() -> int:
                         help='of those, artists whose songs are all 1-8 s (natural-end shuffle cases)')
     parser.add_argument('--transcode-speed', type=float, default=30.0,
                         help='fixture transcode speed in multiples of the bitrate')
+    parser.add_argument('--direct', action='store_true',
+                        help='diagnostics: the app talks to the live server directly over HTTPS (no proxy, no throttle); use with NAVIS_MPV_LOG_LEVEL')
+    parser.add_argument('--proxy-chunked', action='store_true',
+                        help='diagnostics: the proxy frames unknown-length bodies as chunked (like Navidrome)')
+    parser.add_argument('--cut-after-kb', type=int, default=0,
+                        help='diagnostics: cut the next stream/download request(s) of every case after this many KB')
+    parser.add_argument('--cut-count', type=int, default=1)
+    parser.add_argument('--cut-only', choices=['any', 'transcode', 'download', 'player', 'sidecar'], default='any')
+    parser.add_argument('--cut-mode', choices=['fin', 'rst'], default='fin')
+    parser.add_argument('--live-max-song-s', type=int, default=0,
+                        help='live natural-end cases: only albums/artists whose songs are all at most this long')
+    parser.add_argument('--slow-next-s', type=int, default=0,
+                        help="diagnostics: delay every request by this many seconds from 6 s before song 1 ends (natural-end cases)")
+    parser.add_argument('--prime-server-cache', action='store_true',
+                        help="diagnostics: download the selected songs once first so Navidrome answers the app from its transcode cache")
+    parser.add_argument('--live-reuse-groups', action='store_true',
+                        help='diagnostics: every natural-end case shuffles the same live album/artist (its songs play from the rolling cache after the first pass)')
+    parser.add_argument('--repeat-mode', choices=['none', 'all', 'one'], default='none',
+                        help='diagnostics: repeat mode set at the start of every case')
+    parser.add_argument('--natural-full', action='store_true',
+                        help='natural-end cases: later songs (up to --natural-songs) play to their real end')
     parser.add_argument('--natural-songs', type=int, default=1,
                         help='natural-end shuffle cases: songs let play to their end (default 1)')
     parser.add_argument('--fixture-static-transcode', action='store_true',
@@ -2135,8 +2335,9 @@ def main() -> int:
     parser.add_argument('--no-transcode-offset', action='store_true',
                         help='fixture does not advertise/honour transcodeOffset')
     args = parser.parse_args()
-    global NATURAL_SONGS
-    NATURAL_SONGS = args.natural_songs
+    global NATURAL_SONGS, NATURAL_FULL, LIVE_MAX_SONG_S, REPEAT_MODE, LIVE_REUSE_GROUPS, PRIME_SERVER_CACHE, SLOW_NEXT_S
+    LIVE_REUSE_GROUPS, PRIME_SERVER_CACHE, SLOW_NEXT_S = args.live_reuse_groups, args.prime_server_cache, args.slow_next_s
+    NATURAL_SONGS, NATURAL_FULL, LIVE_MAX_SONG_S, REPEAT_MODE = args.natural_songs, args.natural_full, args.live_max_song_s, args.repeat_mode
     if args.profile and args.server == 'fixture':
         credentials = {'url': 'http://127.0.0.1', 'username': 'diagnostics',
                        'password': 'synthetic-seek-fixture'}
