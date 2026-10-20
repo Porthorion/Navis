@@ -60,3 +60,11 @@ subtracts it from `seek` positions, the `load` initial position and the idle
 platform's reported duration (clamped at zero). Every position the app reads is
 therefore song time, and an auto-advance to an item without an offset reads
 from its own zero. Platform adapters see platform time only.
+
+The loop detector behind `positionDiscontinuityStream` judges an offset item in
+platform time: `positionOffset` is subtracted from the interpolated previous
+position, the current position and the duration before the heuristics, so a
+native loop that restarts the stream at its own start is reported as an
+`autoAdvance` discontinuity even when the platform emits only sparse events
+(ExoPlayer). For an unknown duration an offset item needs the position to drop
+by a second; an item without an offset behaves as before.

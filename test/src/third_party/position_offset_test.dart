@@ -140,6 +140,70 @@ void main() {
     expect(native.player.loads.last.initialPosition, Duration.zero);
   });
 
+  for (final knownDuration in [true, false]) {
+    test(
+      'a loop of an offset stream is an autoAdvance discontinuity from sparse '
+      'events (duration known: $knownDuration)',
+      () async {
+        final player = newPlayer();
+        await player.setAudioSource(offsetSource());
+        await player.setLoopMode(LoopMode.one);
+        unawaited(player.play());
+        await pumpEventQueue();
+        final discontinuities = <PositionDiscontinuity>[];
+        final subscription = player.positionDiscontinuityStream.listen(
+          discontinuities.add,
+        );
+        addTearDown(subscription.cancel);
+        final duration = knownDuration ? const Duration(seconds: 60) : null;
+
+        // ExoPlayer reports almost nothing during steady playback: one event
+        // after the load, then one after the native loop.
+        native.player.emit(
+          duration: duration,
+          at: DateTime.now().subtract(const Duration(seconds: 60)),
+        );
+        await pumpEventQueue();
+        native.player.emit(
+          position: const Duration(milliseconds: 50),
+          duration: duration,
+        );
+        await pumpEventQueue();
+
+        expect(discontinuities.map((d) => d.reason), [
+          PositionDiscontinuityReason.autoAdvance,
+        ]);
+      },
+    );
+  }
+
+  test(
+    'a position jump back on an offset stream mid-song is no loop',
+    () async {
+      final player = newPlayer();
+      await player.setAudioSource(offsetSource());
+      await player.setLoopMode(LoopMode.one);
+      unawaited(player.play());
+      await pumpEventQueue();
+      final discontinuities = <PositionDiscontinuity>[];
+      final subscription = player.positionDiscontinuityStream.listen(
+        discontinuities.add,
+      );
+      addTearDown(subscription.cancel);
+      native.player.emit(
+        position: const Duration(seconds: 10),
+        duration: const Duration(seconds: 60),
+      );
+      await pumpEventQueue();
+      native.player.emit(
+        position: const Duration(milliseconds: 50),
+        duration: const Duration(seconds: 60),
+      );
+      await pumpEventQueue();
+      expect(discontinuities, isEmpty);
+    },
+  );
+
   test('a zero offset leaves positions and seeks untouched', () async {
     final player = newPlayer();
     await player.setAudioSources([
@@ -199,6 +263,7 @@ class _OffsetPlayer extends platform.AudioPlayerPlatform {
     Duration buffered = Duration.zero,
     Duration? duration,
     int? index,
+    DateTime? at,
     platform.ProcessingStateMessage state =
         platform.ProcessingStateMessage.ready,
   }) {
@@ -206,7 +271,7 @@ class _OffsetPlayer extends platform.AudioPlayerPlatform {
     _events.add(
       platform.PlaybackEventMessage(
         processingState: state,
-        updateTime: DateTime.now(),
+        updateTime: at ?? DateTime.now(),
         updatePosition: position,
         bufferedPosition: buffered,
         duration: duration,

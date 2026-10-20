@@ -258,7 +258,6 @@ extension _NavisMediaSession on NavisAudioHandler {
           !_sequenceMatchesQueue(_player)) {
         return;
       }
-      _watchOffsetStreamLoop(event);
       final processing = _player.processingState;
       final index = _player.currentIndex;
       if (processing == ProcessingState.completed) {
@@ -299,6 +298,12 @@ extension _NavisMediaSession on NavisAudioHandler {
       _emitSnapshot();
       _syncRemotePlaybackStallWatchdog();
     }, onError: fail);
+
+    _positionDiscontinuitySubscription = _player.positionDiscontinuityStream
+        .listen((discontinuity) {
+          if (!identical(_player, wiredPlayer)) return;
+          _onPositionDiscontinuity(discontinuity);
+        });
 
     _currentIndexSubscription = _player.currentIndexStream.listen((index) {
       if (!identical(_player, wiredPlayer) ||
