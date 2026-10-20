@@ -776,6 +776,9 @@ extension _NavisQueueLoading on NavisAudioHandler {
     bool preferLockCaching = true,
     // Open the start song's transcode this far into the song.
     Duration? transcodeOffset,
+    // False once the request that asked for this reload is superseded: its
+    // source is then dropped before it stops the playing song.
+    bool Function()? isStillWanted,
     // A start source the caller already has (a completed sidecar file).
     _PreparedQueueItem? preparedStart,
     // Leave the song paused; the caller resumes it once it has landed.
@@ -831,6 +834,9 @@ extension _NavisQueueLoading on NavisAudioHandler {
 
     // Pause independently of stop so a hung native stop cannot stay audible.
     _checkQueueWorkCurrent(token, generation);
+    if (isStillWanted != null && !isStillWanted()) {
+      throw OperationCancelledException();
+    }
     _cancelCrossfade();
     try {
       await _runTimedPlayerOperation(
