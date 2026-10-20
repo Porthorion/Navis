@@ -246,6 +246,10 @@ class UpdateService {
       case UpdateInstallMode.linuxDeb:
         await _applyLinuxDeb(downloadedPath);
 
+      case UpdateInstallMode.linuxRpm:
+      case UpdateInstallMode.linuxPackageManaged:
+        throw UnsupportedError('Use the system package manager');
+
       case UpdateInstallMode.linuxPortable:
         await _applyLinuxPortable(downloadedPath);
 
@@ -456,6 +460,8 @@ class UpdateService {
         ); // e.g. /Applications, not /Applications/Navis.app
 
       case UpdateInstallMode.linuxDeb:
+      case UpdateInstallMode.linuxRpm:
+      case UpdateInstallMode.linuxPackageManaged:
         return p.dirname(Platform.resolvedExecutable);
 
       case UpdateInstallMode.androidApk:
