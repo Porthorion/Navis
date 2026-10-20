@@ -165,7 +165,6 @@ class _PendingSeek {
   /// Automatic recovery permits Play to rearm a failed source while it waits.
   final bool isRemoteRecovery;
   String? outcome;
-  String? outcome;
   int recoveryAttempts = 0;
 
   /// Set when the seek was served by reopening the transcode at an offset.
