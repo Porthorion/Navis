@@ -1233,6 +1233,25 @@ def _requested_at(run: Run, t: float, kinds=('seek', 'prev', 'jump', 'start', 'n
     return False
 
 
+def oracle_progress_loss(run: Run, drop_ms=2000) -> list[dict]:
+    """A drop of more than [drop_ms] in the position of the same song that nobody asked for (no
+    seek/navigation in flight, within 1 s before it, or at the song's own end): lost progress,
+    for example a stream that is reopened and restarts at its own start (T on an offset stream)."""
+    out = []
+    samples = run.samples
+    for i in range(1, len(samples)):
+        a, b = samples[i - 1], samples[i]
+        if a['pos'] is None or b['pos'] is None or a['songId'] != b['songId'] or a['idx'] != b['idx']:
+            continue
+        if a['pos'] - b['pos'] <= drop_ms:
+            continue
+        if _requested_at(run, b['t']) or _requested_at(run, b['t'] - 1.0) or song_end_near(samples, i):
+            continue
+        out.append(violation('progressLoss', b['t'], f"{b['songId']} position {a['pos']}->{b['pos']} (offset {a.get('off')}->"
+                             f"{b.get('off')}, proc {a['proc']}->{b['proc']}) with no seek or navigation in flight", run))
+    return out
+
+
 def oracle_unexpected_change(run: Run) -> list[dict]:
     """Song or index changes nobody asked for (and that are not a song ending)."""
     out, licenses = [], license_pool(run)
@@ -2513,6 +2532,8 @@ def run_one(app, backend, proxy, env, case: str, quality: str, throttle: str, re
         except Exception as exc:
             run.violations.append(violation('oracleError', run.now(), f'{type(exc).__name__}: {exc}', run))
     run.violations += oracle_unexpected_change(run) + oracle_stall(run) + oracle_replay(run)
+    if VERIFY_OFFSET:
+        run.violations += oracle_progress_loss(run)
     song = run.songs[0] if run.songs else None
     if song and song.get('duration'):
         # Bytes per second of audio: what the server actually sent for a
@@ -2539,7 +2560,7 @@ def run_one(app, backend, proxy, env, case: str, quality: str, throttle: str, re
         'actions': [{k: v for k, v in a.items() if k != 'future'} for a in run.actions],
         'proxyRequests': proxy.log[proxy_mark:], 'sampleErrors': run.errors[:5],
     }
-    if hard or unique:
+    if hard or unique or VERIFY_OFFSET:
         (out_dir / 'traces').mkdir(exist_ok=True)
         (out_dir / 'traces' / f'{serial:04d}-{case}-{quality}-{throttle}.json').write_text(json.dumps(
             {'row': row, 'samples': run.samples, 'trace': run.trace}, indent=1))
