@@ -1082,11 +1082,18 @@ class ProgressiveAudioSourceOptionsMessage {
   const ProgressiveAudioSourceOptionsMessage({
     this.androidExtractorOptions,
     this.darwinAssetOptions,
+    this.androidUseDefaultLoadErrorHandling = false,
   });
+
+  /// Keeps Media3's native load retries, including live-stream restarts.
+  final bool androidUseDefaultLoadErrorHandling;
+
   final AndroidExtractorOptionsMessage? androidExtractorOptions;
   final DarwinAssetOptionsMessage? darwinAssetOptions;
 
   Map<dynamic, dynamic> toMap() => <dynamic, dynamic>{
+        'androidUseDefaultLoadErrorHandling':
+            androidUseDefaultLoadErrorHandling,
         'androidExtractorOptions': androidExtractorOptions?.toMap(),
         'darwinAssetOptions': darwinAssetOptions?.toMap(),
       };

@@ -143,12 +143,16 @@ class _PendingSeek {
     required this.songId,
     required this.queueIndex,
     required this.position,
+    this.isRemoteRecovery = false,
   });
 
   final int generation;
   final String songId;
   int? queueIndex;
   final Duration position;
+
+  /// Automatic recovery permits Play to rearm a failed source while it waits.
+  final bool isRemoteRecovery;
   String stage = 'waiting for source';
   String? outcome;
   int recoveryAttempts = 0;
