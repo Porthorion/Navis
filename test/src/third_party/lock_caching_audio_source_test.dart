@@ -621,6 +621,10 @@ void main() {
           6,
         ]);
         expect(attempts, 2);
+        // The stream closes before the cache rename; finish it before teardown.
+        await source.downloadProgressStream
+            .firstWhere((progress) => progress == 1)
+            .timeout(const Duration(seconds: 2));
       },
     );
   }
