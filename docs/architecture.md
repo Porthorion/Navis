@@ -4715,16 +4715,15 @@ buffering may probe several byte ranges before producing a packet, so it counts
 as activity during the initial load budget. Both seek settlement and native
 song loads share a progress deadline. Android/iOS use native
 `bufferedPosition` growth and received lock-cache bytes. Desktop uses the
-vendored `AudioPlayer.networkInputActive` getter: mpv's `cache-speed` (the same
-network-layer bytes/second estimate as `demuxer-cache-state/raw-input-rate`)
-read through media_kit's existing native property bridge. A rate of at least
-8 KiB/s (~64 kbps) counts as input activity if its sampled value changed in
-either direction within the last two seconds. Unchanged samples between mpv's
-roughly once-per-second recomputes remain active during that window. Halving
-decay falls below the floor after input stops; a blocked read's stale value
-expires after two seconds. Input activity extends the wait only while processing
-is loading or buffering, even while decoded buffer and position are frozen;
-the independent sidecar and desktop buffered position cannot extend it.
+vendored `AudioPlayer.networkInputBytesPerSecond` getter: mpv's `cache-speed`
+(the same network-layer bytes/second estimate as
+`demuxer-cache-state/raw-input-rate`)
+read through media_kit's existing native property bridge. Any sampled rate
+greater than zero counts as input activity, including constant or falling
+estimates during range probes; unavailable samples are null. Input activity
+extends the wait only while processing is loading or buffering, even while
+decoded buffer and position are frozen; the independent sidecar and desktop
+buffered position cannot extend it.
 The property is sampled at most every 250 ms, without file I/O. mpv derives
 this rate from unbuffered stream reads before decoding, rather than packet
 queue size (`fw-bytes`/`total-bytes`). It is an estimate updated when demux reads
@@ -4754,7 +4753,11 @@ timeouts. Timeout failures report the actual elapsed time. When the desktop
 sidecar file completes first the seek probe stops and
 the song is reloaded from it. Each probe that gives up records
 why (`missed target`, `no progress`, `cache complete`, `deadline`) with the
-state it saw in the seek's `unsettled` diagnostics. Each current
+state it saw in the seek's `unsettled` diagnostics, including the latest sampled
+`inputBytesPerSecond` (null when unavailable) and `inputExtensionActive`
+(whether the loading/buffering progress extension was active). A stale positive
+rate while buffering can defer a truly stuck load or seek until the 45-second
+cap; the recorded rate supports tuning this accepted bound. Each current
 request permits one recovery attempt, plus a reload from a sidecar file that
 completes during it. An exhausted request reports failure and
 suppresses automatic stream retries until another explicit transport/selection

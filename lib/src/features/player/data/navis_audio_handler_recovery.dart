@@ -333,8 +333,8 @@ extension _NavisRecovery on NavisAudioHandler {
       hardCap: _timeouts.seekProgress,
       bytes: _playerCacheBytesForSong(request.songId),
       buffer: _isDesktopRuntime ? Duration.zero : lastBuffer,
-      readInputActive: _isDesktopRuntime
-          ? () => _player.networkInputActive
+      readInputBytesPerSecond: _isDesktopRuntime
+          ? () => _player.networkInputBytesPerSecond
           : null,
     );
     Duration? nearSince;
@@ -424,7 +424,7 @@ extension _NavisRecovery on NavisAudioHandler {
       }
       if (unsettled != null) {
         request.unsettled.add(
-          _unsettledProbe(unsettled, request, now, position, processing),
+          _unsettledProbe(unsettled, now, position, processing, progress),
         );
         return false;
       }
@@ -434,10 +434,10 @@ extension _NavisRecovery on NavisAudioHandler {
 
   Map<String, Object?> _unsettledProbe(
     String reason,
-    _PendingSeek request,
     Duration elapsed,
     Duration position,
     ProcessingState processing,
+    _PlaybackProgressDeadline progress,
   ) => <String, Object?>{
     'reason': reason,
     'elapsedMs': elapsed.inMilliseconds,
@@ -445,6 +445,8 @@ extension _NavisRecovery on NavisAudioHandler {
     'bufferedMs': _player.bufferedPosition.inMilliseconds,
     'processingState': processing.name,
     'playing': _player.playing,
+    'inputBytesPerSecond': progress.inputBytesPerSecond,
+    'inputExtensionActive': progress.progressing(elapsed),
   };
 
   /// Whether the current lock-cached source can serve a range beyond its

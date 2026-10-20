@@ -11,11 +11,11 @@ duration; the previous entry's cached duration cannot authorize a seek.
 Seeks without an indexed jump retain their existing behavior. Upstream
 media_kit's seek-on-completed behavior in `play()` is unchanged.
 
-`networkInputActive` exposes whether mpv's `cache-speed` is at least 8 KiB/s
-(~64 kbps) and its sampled value changed in either direction within the last
-two seconds, through the existing `IcyPropertySource.read` → media_kit 1.2.6
-`NativePlayer.getProperty(waitForInitialization: false)` bridge. Unsupported,
-unavailable, below-floor, stale and released-player reads report false.
+`networkInputBytesPerSecond` exposes mpv's sampled `cache-speed` in bytes/s
+(or null when unsupported, unavailable or released), through the existing
+`IcyPropertySource.read` → media_kit 1.2.6
+`NativePlayer.getProperty(waitForInitialization: false)` bridge.
+`networkInputActive` is true iff that sample is greater than zero.
 Navis samples it no more often than every 250 ms for loading/buffering
 progress deadlines; no sidecar or file metadata participates.
 
@@ -32,12 +32,9 @@ lag in a blocking probe/read, and is unavailable before mpv publishes a demuxer.
 Runtime validation must establish coverage of the slow FLAC probe/cold-start
 cases; the existing hard cap remains necessary. No media_kit fork, native
 polling timer or new dependency was added.
-mpv recomputes its smoothed rate about once a second. Unchanged samples between
-recomputes remain active for two seconds; falling and rising recomputes both
-renew freshness. After input stops, halving decay from 190 KB/s falls below
-the floor in about five seconds; a blocked read's stale value expires after
-two seconds. The floor stays below real audio rates so steady slow input can
-extend loading/buffering without keeping dead input active indefinitely.
+While buffering, a stale non-zero rate can extend a truly stuck load or seek
+up to the 45-second cap; this is accepted because the cap bounds it, and seek
+diagnostics now record the rate for tuning.
 
 Keep upgrades narrow and re-run the vendored adapter fixtures and Navis
 playback tests when updating this package.

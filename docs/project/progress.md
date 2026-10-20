@@ -141,6 +141,29 @@ Last updated: 2026-10-20
   The complete diff passes `git diff --check`. Native acceptance, independent
   review and the full gate remain with the coordinator; no app, emulator, VM
   or `./tool/check.sh` was run, per the assigned scope.
+  Round 6: coordinator Linux/live-server FLAC evidence rejected the floor and
+  sampled-change heuristic (5/15 direct, 10 recoveries, eight failed outcomes).
+  Restores input activity for any sampled mpv `cache-speed` > 0, including low,
+  constant or falling estimates during range probes. The loading/buffering
+  gate, ready/frozen timers, idle window and 45-second cap remain. A stale
+  positive estimate while buffering may extend a truly stuck load or seek to
+  that cap; the accepted ceiling is documented with a `ponytail:` comment.
+  Existing seek `unsettled` maps now include the latest `inputBytesPerSecond`
+  (null when unavailable) and `inputExtensionActive`; sampling also observes
+  ready states without extending them. Tests cover a constant 1 byte/s rate
+  through the real 12-second buffering deadline, decaying input while ready,
+  zero/unavailable input diagnostics, the active hard cap, the superseded
+  regression, and the retained cold-start seek/Next/Stop cases. Floor and
+  sampled-change expectations were removed. The focused deadline run passed
+  `00:29 +20: All tests passed!`. The requested three-file command plus the
+  touched `mediakit_seek_test.dart` passed
+  `05:42 +632: All tests passed!` with `flutter test --concurrency=4`.
+  All ten edited Dart files pass `dart format --set-exit-if-changed` unchanged;
+  scoped `flutter analyze --no-fatal-infos` exits 0 with no errors or warnings
+  and 25 existing informational findings mapped to unchanged HEAD lines.
+  The complete diff passes `git diff --check`. Native acceptance, independent
+  review and the full gate remain with the coordinator; no app, emulator, VM
+  or `./tool/check.sh` was run, per the assigned scope.
 - [ ] Issue #86, Android progressive HTTP repeat-one rewind — partial: 2026-10-20
   (`fix/repeat-one-rewind`, based on `3c1d8c54`, remaining: coordinator Android
   runtime probes, independent review and `./tool/check.sh`): native repeat-one

@@ -186,12 +186,12 @@ class _PlaybackProgressDeadline {
     required this.hardCap,
     required int? bytes,
     required this._buffer,
-    this.readInputActive,
+    this.readInputBytesPerSecond,
   }) : _bytes = bytes ?? 0;
 
-  final Future<bool> Function()? readInputActive;
+  final Future<int?> Function()? readInputBytesPerSecond;
   Duration _nextInputCheck = Duration.zero;
-  bool _inputActive = false;
+  int? inputBytesPerSecond;
   bool _waitingForInput = false;
 
   final Duration initial;
@@ -210,18 +210,20 @@ class _PlaybackProgressDeadline {
     _waitingForInput =
         processing == ProcessingState.loading ||
         processing == ProcessingState.buffering;
+    if (readInputBytesPerSecond != null && now >= _nextInputCheck) {
+      inputBytesPerSecond = await readInputBytesPerSecond!();
+      _nextInputCheck = now + const Duration(milliseconds: 250);
+    }
     if (!_waitingForInput) {
       // Ready playback must advance; input cannot hide a frozen decoder.
-      _inputActive = false;
       _bytes = bytes ?? 0;
       _buffer = buffer;
       return;
     }
-    if (readInputActive != null && now >= _nextInputCheck) {
-      _inputActive = await readInputActive!();
-      _nextInputCheck = now + const Duration(milliseconds: 250);
-    }
-    if (_inputActive || (bytes ?? 0) > _bytes || buffer > _buffer) {
+    // ponytail: stale positive input can wait 45 s; tune from rate diagnostics.
+    if ((inputBytesPerSecond ?? 0) > 0 ||
+        (bytes ?? 0) > _bytes ||
+        buffer > _buffer) {
       _progressAt = now;
     }
     _bytes = bytes ?? 0;

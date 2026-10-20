@@ -331,8 +331,8 @@ extension _NavisQueueLoading on NavisAudioHandler {
               buffer: _isDesktopRuntime
                   ? Duration.zero
                   : operationPlayer.bufferedPosition,
-              readInputActive: _isDesktopRuntime
-                  ? () => operationPlayer.networkInputActive
+              readInputBytesPerSecond: _isDesktopRuntime
+                  ? () => operationPlayer.networkInputBytesPerSecond
                   : null,
             )
           : null;

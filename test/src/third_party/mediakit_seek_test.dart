@@ -131,46 +131,29 @@ void main() {
     },
   );
 
-  test(
-    'steady mpv input stays active between once-per-second recomputes',
-    () async {
-      for (final rate in ['190000', '187500', '189000', '186000']) {
-        properties.inputRate = rate;
-        for (var sample = 0; sample < 4; sample++) {
-          expect(await adapter.networkInputActive, isTrue, reason: rate);
-          await Future<void>.delayed(const Duration(milliseconds: 250));
-        }
-      }
-    },
-  );
-
-  test('a stale constant mpv input rate expires after two seconds', () async {
-    properties.inputRate = '187500';
+  test('positive mpv input stays active while constant or falling', () async {
+    properties.inputRate = '1';
     expect(await adapter.networkInputActive, isTrue);
-    await Future<void>.delayed(const Duration(milliseconds: 1250));
+    await Future<void>.delayed(const Duration(milliseconds: 2100));
     expect(await adapter.networkInputActive, isTrue);
-    await Future<void>.delayed(const Duration(milliseconds: 850));
-    expect(await adapter.networkInputActive, isFalse);
-    properties.inputRate = '187499';
-    expect(await adapter.networkInputActive, isTrue);
+    for (final rate in ['190000', '95000', '8191', '1']) {
+      properties.inputRate = rate;
+      expect(await adapter.networkInputActive, isTrue, reason: rate);
+      expect(await adapter.networkInputBytesPerSecond, int.parse(rate));
+    }
   });
 
-  test(
-    'halving mpv input becomes inactive below the audio rate floor',
-    () async {
-      var rate = 190000;
-      for (var second = 0; second <= 5; second++) {
-        properties.inputRate = '$rate';
-        expect(await adapter.networkInputActive, second < 5, reason: '$rate');
-        rate ~/= 2;
-        await Future<void>.delayed(const Duration(seconds: 1));
-      }
-      properties.inputRate = '8191';
-      expect(await adapter.networkInputActive, isFalse);
-      properties.inputRate = '8192';
-      expect(await adapter.networkInputActive, isTrue);
-    },
-  );
+  test('mpv input diagnostics preserve unavailable and zero samples', () async {
+    for (final rate in ['', 'unavailable']) {
+      properties.inputRate = rate;
+      expect(await adapter.networkInputBytesPerSecond, isNull);
+    }
+    properties.inputRate = '0';
+    expect(await adapter.networkInputBytesPerSecond, 0);
+    await adapter.release();
+    expect(await adapter.networkInputBytesPerSecond, isNull);
+    expect(await adapter.networkInputActive, isFalse);
+  });
 
   test(
     'jump with zero position issues no native seek, even after ready',
