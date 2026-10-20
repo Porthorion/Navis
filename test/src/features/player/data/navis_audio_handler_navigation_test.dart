@@ -127,10 +127,14 @@ class _GatedSourceResolver extends Fake implements PlaybackSourceResolver {
   Uri? resolveArtUri(SongsTableData song) => delegate.resolveArtUri(song);
 
   @override
+  bool get supportsTranscodeOffset => delegate.supportsTranscodeOffset;
+
+  @override
   Future<ResolvedPlaybackSource> resolveForSong(
     SongsTableData song, {
     bool preferLockCaching = true,
     bool allowStreaming = true,
+    Duration? transcodeOffset,
   }) async {
     if (song.id == blockedSongId) {
       if (entered case final signal? when !signal.isCompleted) {
@@ -143,6 +147,7 @@ class _GatedSourceResolver extends Fake implements PlaybackSourceResolver {
       song,
       preferLockCaching: preferLockCaching,
       allowStreaming: allowStreaming,
+      transcodeOffset: transcodeOffset,
     );
   }
 }

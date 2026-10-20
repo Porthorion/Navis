@@ -569,6 +569,140 @@ void main() {
       skip: !sqliteAvailable,
     );
 
+    group('transcode offset', () {
+      const opus128 = StreamingQuality(
+        label: 'opus',
+        maxBitRate: 128,
+        format: 'opus',
+      );
+      const offset = Duration(seconds: 95, milliseconds: 700);
+
+      Future<SongsTableData> flacSong(String id) => _insertSong(
+        database,
+        id: id,
+        title: 'Flac',
+        suffix: 'flac',
+        contentType: 'audio/flac',
+        bitRate: 900,
+      );
+
+      test('desktop opens a direct stream at the offset but keeps the full '
+          'non-offset uri for the sidecar', () async {
+        final song = await flacSong('song-offset-desktop');
+        final resolver = resolverFor(
+          quality: () => opus128,
+          usesSidecar: () => true,
+          supportsTranscodeOffset: () => true,
+        );
+
+        final normal = await resolver.resolveForSong(song);
+        final resolved = await resolver.resolveForSong(
+          song,
+          transcodeOffset: offset,
+        );
+
+        expect(resolved.kind, PlaybackSourceKind.directStream);
+        expect(resolved.uri!.queryParameters['timeOffset'], '95');
+        expect(resolved.positionOffset, const Duration(seconds: 95));
+        expect(resolved.sidecarCacheFilePath, normal.sidecarCacheFilePath);
+        expect(
+          resolved.sidecarStreamUri!.queryParameters,
+          isNot(contains('timeOffset')),
+        );
+        expect(
+          resolved.sidecarStreamUri!.queryParameters['id'],
+          'song-offset-desktop',
+        );
+        expect(normal.positionOffset, Duration.zero);
+        expect(normal.sidecarStreamUri, isNull);
+        expect(normal.uri!.queryParameters, isNot(contains('timeOffset')));
+      }, skip: !sqliteAvailable);
+
+      test('Android never lock-caches an offset stream', () async {
+        final song = await flacSong('song-offset-android');
+        final resolver = resolverFor(
+          quality: () => opus128,
+          supportsTranscodeOffset: () => true,
+        );
+
+        final lockCached = await resolver.resolveForSong(song);
+        final resolved = await resolver.resolveForSong(
+          song,
+          transcodeOffset: offset,
+        );
+
+        expect(lockCached.kind, PlaybackSourceKind.lockCachedStream);
+        expect(resolved.kind, PlaybackSourceKind.directStream);
+        expect(resolved.sidecarCacheFilePath, isNull);
+        expect(resolved.lockCachingAudioSource, isNull);
+        // The original download keeps filling the same file beside it.
+        expect(resolved.cachedFilePath, lockCached.cachedFilePath);
+        expect(resolved.uri!.queryParameters['timeOffset'], '95');
+        expect(resolved.positionOffset, const Duration(seconds: 95));
+        final audioSource = resolved.asAudioSource() as UriAudioSource;
+        expect(audioSource.positionOffset, const Duration(seconds: 95));
+        final cloned = resolved.asClonedAudioSource() as UriAudioSource;
+        expect(cloned.positionOffset, const Duration(seconds: 95));
+      }, skip: !sqliteAvailable);
+
+      test('no timeOffset without the capability, a transcode or a positive '
+          'offset', () async {
+        final song = await flacSong('song-offset-none');
+        final original = await _insertSong(
+          database,
+          id: 'song-offset-original',
+          title: 'Original',
+          suffix: 'mp3',
+          contentType: 'audio/mpeg',
+          bitRate: 128,
+        );
+        final noCapability = resolverFor(quality: () => opus128);
+        final capable = resolverFor(
+          quality: () => opus128,
+          supportsTranscodeOffset: () => true,
+        );
+        final originalQuality = resolverFor(
+          supportsTranscodeOffset: () => true,
+        );
+
+        for (final resolved in [
+          await noCapability.resolveForSong(song, transcodeOffset: offset),
+          await capable.resolveForSong(song, transcodeOffset: Duration.zero),
+          await capable.resolveForSong(
+            song,
+            transcodeOffset: const Duration(milliseconds: 900),
+          ),
+          await originalQuality.resolveForSong(
+            original,
+            transcodeOffset: offset,
+          ),
+        ]) {
+          expect(
+            (resolved.uri ?? resolved.lockCachingStreamUri)!.queryParameters,
+            isNot(contains('timeOffset')),
+          );
+          expect(resolved.positionOffset, Duration.zero);
+        }
+      }, skip: !sqliteAvailable);
+
+      test('a completed cache file still wins over an offset', () async {
+        final song = await flacSong('song-offset-cached');
+        await seedCached(song, 'cached.opus', format: 'opus', bitRate: 128);
+        final resolver = resolverFor(
+          quality: () => opus128,
+          supportsTranscodeOffset: () => true,
+        );
+
+        final resolved = await resolver.resolveForSong(
+          song,
+          transcodeOffset: offset,
+        );
+
+        expect(resolved.kind, PlaybackSourceKind.file);
+        expect(resolved.positionOffset, Duration.zero);
+      }, skip: !sqliteAvailable);
+    });
+
     test(
       'builds deterministic cache path per song and quality profile',
       () async {

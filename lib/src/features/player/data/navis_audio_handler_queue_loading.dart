@@ -659,9 +659,13 @@ extension _NavisQueueLoading on NavisAudioHandler {
   }
 
   /// Resolves a song with the standard lock-caching → direct stream fallback.
+  ///
+  /// [transcodeOffset] opens a server transcode that far into the song (the
+  /// resolver never lock-caches such a stream).
   Future<_PreparedQueueItem> _prepareSingleItem(
     SongsTableData song, {
     required bool preferLockCaching,
+    Duration? transcodeOffset,
   }) async {
     await (_cacheMaintenance ??= _maintainCacheBeforePlayback());
     final startupTrace = _activeStartupTrace;
@@ -677,6 +681,7 @@ extension _NavisQueueLoading on NavisAudioHandler {
       source = await _sourceResolver.resolveForSong(
         song,
         preferLockCaching: effectivePreferLockCaching,
+        transcodeOffset: transcodeOffset,
       );
     } on PlaybackSourceUnavailableException {
       rethrow;
@@ -691,6 +696,7 @@ extension _NavisQueueLoading on NavisAudioHandler {
       source = await _sourceResolver.resolveForSong(
         song,
         preferLockCaching: false,
+        transcodeOffset: transcodeOffset,
       );
     }
     final item = _mediaItemForSong(song, source: source);
@@ -699,7 +705,11 @@ extension _NavisQueueLoading on NavisAudioHandler {
       startupTrace?.markOnce('sourceResolutionComplete');
     }
     if (source.sidecarCacheFilePath != null) {
-      _rememberSidecarSong(song, source.uri ?? source.lockCachingStreamUri);
+      // An offset source downloads the full, non-offset stream.
+      _rememberSidecarSong(
+        song,
+        source.sidecarStreamUri ?? source.uri ?? source.lockCachingStreamUri,
+      );
     }
     _rememberRemoteRow(song);
     return _PreparedQueueItem(
@@ -764,6 +774,8 @@ extension _NavisQueueLoading on NavisAudioHandler {
     required OperationToken token,
     Duration initialPosition = Duration.zero,
     bool preferLockCaching = true,
+    // Open the start song's transcode this far into the song.
+    Duration? transcodeOffset,
     // A start source the caller already has (a completed sidecar file).
     _PreparedQueueItem? preparedStart,
     // Leave the song paused; the caller resumes it once it has landed.
@@ -797,6 +809,7 @@ extension _NavisQueueLoading on NavisAudioHandler {
         startItem = await _prepareSingleItem(
           startSong,
           preferLockCaching: preferLockCaching,
+          transcodeOffset: transcodeOffset,
         );
       } on PlaybackSourceUnavailableException {
         rethrow;
@@ -811,6 +824,7 @@ extension _NavisQueueLoading on NavisAudioHandler {
         startItem = await _prepareSingleItem(
           startSong,
           preferLockCaching: false,
+          transcodeOffset: transcodeOffset,
         );
       }
     }
