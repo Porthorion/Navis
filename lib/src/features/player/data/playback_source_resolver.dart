@@ -44,7 +44,9 @@ class ResolvedPlaybackSource {
   }) : kind = PlaybackSourceKind.file,
        lockCachingStreamUri = null,
        lockCachingAudioSource = null,
-       sidecarCacheFilePath = null;
+       sidecarCacheFilePath = null,
+       sidecarStreamUri = null,
+       positionOffset = Duration.zero;
 
   const new lockCachedStream({
     required this.songId,
@@ -54,16 +56,20 @@ class ResolvedPlaybackSource {
     required this.metadata,
   }) : kind = PlaybackSourceKind.lockCachedStream,
        uri = null,
-       sidecarCacheFilePath = null;
+       sidecarCacheFilePath = null,
+       sidecarStreamUri = null,
+       positionOffset = Duration.zero;
 
   const new directStream({
     required this.songId,
     required this.uri,
     required this.metadata,
     this.sidecarCacheFilePath,
+    this.sidecarStreamUri,
+    this.positionOffset = Duration.zero,
+    this.cachedFilePath,
   }) : kind = PlaybackSourceKind.directStream,
        lockCachingStreamUri = null,
-       cachedFilePath = null,
        lockCachingAudioSource = null;
 
   final PlaybackSourceKind kind;
@@ -71,12 +77,24 @@ class ResolvedPlaybackSource {
   final Uri? uri;
   final Uri? lockCachingStreamUri;
   final ResolvedPlaybackMetadata metadata;
+
+  /// The local file of a [file] source, or of the lock-cache download that
+  /// keeps filling beside an Android offset [directStream].
   final String? cachedFilePath;
 
   /// Desktop rolling-cache target filled by [RollingCacheSidecarDownloader]
   /// while playback uses [uri] directly (media_kit cannot seek lock-cache
   /// proxies reliably).
   final String? sidecarCacheFilePath;
+
+  /// The full, non-offset stream the sidecar downloads when [uri] opens a
+  /// transcode at [positionOffset]; null when [uri] already is that stream.
+  /// A file that starts at the offset must never be stored as the full song.
+  final Uri? sidecarStreamUri;
+
+  /// How far into the song [uri] starts (a `timeOffset` transcode); zero for
+  /// every stream that starts at the beginning.
+  final Duration positionOffset;
   // ignore: experimental_member_use, reason: LockCachingAudioSource is intentionally surfaced so the audio handler can subscribe to cache completion.
   final LockCachingAudioSource? lockCachingAudioSource;
 
@@ -85,7 +103,11 @@ class ResolvedPlaybackSource {
   IndexedAudioSource asAudioSource({dynamic tag}) {
     return switch (kind) {
       PlaybackSourceKind.file => AudioSource.uri(uri!, tag: tag),
-      PlaybackSourceKind.directStream => AudioSource.uri(uri!, tag: tag),
+      PlaybackSourceKind.directStream => AudioSource.uri(
+        uri!,
+        tag: tag,
+        positionOffset: positionOffset,
+      ),
       PlaybackSourceKind.lockCachedStream => lockCachingAudioSource!,
     };
   }
@@ -93,7 +115,11 @@ class ResolvedPlaybackSource {
   IndexedAudioSource asClonedAudioSource({dynamic tag}) {
     return switch (kind) {
       PlaybackSourceKind.file => AudioSource.uri(uri!, tag: tag),
-      PlaybackSourceKind.directStream => AudioSource.uri(uri!, tag: tag),
+      PlaybackSourceKind.directStream => AudioSource.uri(
+        uri!,
+        tag: tag,
+        positionOffset: positionOffset,
+      ),
       // A second LockCachingAudioSource cannot share the active deck's cache
       // path: both instances would race to rename the same `.part` file.
       PlaybackSourceKind.lockCachedStream => AudioSource.uri(
@@ -135,12 +161,14 @@ class PlaybackSourceResolver {
     bool Function()? readCanStream,
     bool Function()? readSupportsLockCaching,
     bool Function()? readUsesSidecarRollingCache,
+    bool Function()? readSupportsTranscodeOffset,
   }) : _readCachedPlaybackFirst = readCachedPlaybackFirst ?? _readFalse,
        _readPreferAnyCache = readPreferAnyCache ?? _readFalse,
        _readCanStream = readCanStream ?? _readTrue,
        _readSupportsLockCaching =
            readSupportsLockCaching ?? _defaultSupportsLockCaching,
-       _readUsesSidecarRollingCache = readUsesSidecarRollingCache ?? _readFalse;
+       _readUsesSidecarRollingCache = readUsesSidecarRollingCache ?? _readFalse,
+       _readSupportsTranscodeOffset = readSupportsTranscodeOffset ?? _readFalse;
 
   final CacheDao _cacheDao;
   final LibraryDao? _libraryDao;
@@ -153,12 +181,19 @@ class PlaybackSourceResolver {
   final bool Function() _readCanStream;
   final bool Function() _readSupportsLockCaching;
   final bool Function() _readUsesSidecarRollingCache;
+  final bool Function() _readSupportsTranscodeOffset;
   static const AndroidSafStorage _safStorage = AndroidSafStorage();
+
+  /// Whether the active server accepts `timeOffset` on `stream.view`.
+  bool get supportsTranscodeOffset => _readSupportsTranscodeOffset();
 
   Future<ResolvedPlaybackSource> resolveForSong(
     SongsTableData song, {
     bool preferLockCaching = true,
     bool allowStreaming = true,
+    // Start a server transcode this far into the song (whole seconds). Only
+    // used when the server supports it and the stream is a transcode.
+    Duration? transcodeOffset,
   }) async {
     final quality = _readStreamingQuality();
     final streamingMetadata = _resolveStreamingMetadata(
@@ -270,6 +305,21 @@ class PlaybackSourceResolver {
       );
     }
     final streamUri = _buildStreamUri(api: api, song: song, quality: quality);
+    final offsetSeconds = transcodeOffset?.inSeconds ?? 0;
+    final offsetUri =
+        offsetSeconds > 0 &&
+            streamingMetadata.isTranscoded &&
+            _readSupportsTranscodeOffset()
+        ? _buildStreamUri(
+            api: api,
+            song: song,
+            quality: quality,
+            timeOffsetSeconds: offsetSeconds,
+          )
+        : null;
+    final positionOffset = offsetUri == null
+        ? Duration.zero
+        : Duration(seconds: offsetSeconds);
     // Desktop/media_kit cannot seek LockCachingAudioSource's local proxy.
     // Play via direct HTTPS (Range-seekable) and fill the rolling cache with a
     // sidecar download so seeks stay responsive while caching continues.
@@ -291,9 +341,33 @@ class PlaybackSourceResolver {
       );
       return ResolvedPlaybackSource.directStream(
         songId: song.id,
-        uri: streamUri,
+        uri: offsetUri ?? streamUri,
         metadata: streamingMetadata,
         sidecarCacheFilePath: cacheFile.path,
+        sidecarStreamUri: offsetUri == null ? null : streamUri,
+        positionOffset: positionOffset,
+      );
+    }
+
+    // The offset stream is linear and partial: it never feeds the rolling
+    // cache (the original lock-cache download keeps running beside it, into
+    // the same file, which a later seek reloads from once it is complete).
+    if (offsetUri != null) {
+      final cacheFile = _readSupportsLockCaching()
+          ? await _resolveRollingCacheFile(song: song, quality: quality)
+          : null;
+      AppLogger.debug(
+        'Playback source resolved: song=${song.id} '
+        'kind=${PlaybackSourceKind.directStream.name} '
+        'transcodeOffsetSeconds=$offsetSeconds '
+        'qualityLabel=${quality.label}',
+      );
+      return ResolvedPlaybackSource.directStream(
+        songId: song.id,
+        uri: offsetUri,
+        metadata: streamingMetadata,
+        positionOffset: positionOffset,
+        cachedFilePath: cacheFile?.path,
       );
     }
 
@@ -429,10 +503,12 @@ class PlaybackSourceResolver {
     required SubsonicApiClient api,
     required SongsTableData song,
     required StreamingQuality quality,
+    int? timeOffsetSeconds,
   }) {
     final metadata = _resolveStreamingMetadata(song: song, quality: quality);
 
     return api.streamUrl(
+      timeOffsetSeconds: timeOffsetSeconds,
       id: song.id,
       maxBitRate: metadata.isTranscoded && metadata.bitRate != song.bitRate
           ? metadata.bitRate

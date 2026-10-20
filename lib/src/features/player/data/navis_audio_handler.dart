@@ -414,6 +414,7 @@ class NavisAudioHandler extends BaseAudioHandler
   StreamSubscription<void>? _becomingNoisySubscription;
   StreamSubscription<PlaybackEvent>? _playbackEventSubscription;
   StreamSubscription<int?>? _currentIndexSubscription;
+  StreamSubscription<PositionDiscontinuity>? _positionDiscontinuitySubscription;
   StreamSubscription<bool>? _shuffleModeSubscription;
   StreamSubscription<LoopMode>? _loopModeSubscription;
   StreamSubscription<Duration>? _activePositionSubscription;
@@ -960,6 +961,7 @@ class NavisAudioHandler extends BaseAudioHandler
   Future<void> _disposePlayerListeners() async {
     await _playbackEventSubscription?.cancel();
     await _currentIndexSubscription?.cancel();
+    await _positionDiscontinuitySubscription?.cancel();
     await _shuffleModeSubscription?.cancel();
     await _loopModeSubscription?.cancel();
     await _activePositionSubscription?.cancel();
@@ -967,6 +969,7 @@ class NavisAudioHandler extends BaseAudioHandler
     await _crossfadePositionSub?.cancel();
     _playbackEventSubscription = null;
     _currentIndexSubscription = null;
+    _positionDiscontinuitySubscription = null;
     _shuffleModeSubscription = null;
     _loopModeSubscription = null;
     _activePositionSubscription = null;
@@ -2126,6 +2129,12 @@ class NavisAudioHandler extends BaseAudioHandler
           await playFromIndex(0);
           return;
         }
+        if (current == 0 &&
+            _positionOffsetOf(_currentMediaItem) > Duration.zero) {
+          // The only song plays as an offset stream: restart it from zero.
+          await seek(Duration.zero);
+          return;
+        }
         await _player.seek(Duration.zero, index: 0);
         if (!_isCurrentTransportIntent(transportGeneration)) return;
         final inactiveDeck = _crossfadePlayer;
@@ -2314,7 +2323,9 @@ class NavisAudioHandler extends BaseAudioHandler
         _recordSeekDiagnosticsEvent(<String, Object?>{
           'at': DateTime.now().toUtc().toIso8601String(),
           'generation': request.generation,
-          'path': request.recoveryAttempts == 0 ? 'direct' : 'recovery',
+          'path':
+              request.path ??
+              (request.recoveryAttempts == 0 ? 'direct' : 'recovery'),
           'requestedPositionMs': request.position.inMilliseconds,
           'beforePositionMs': beforePosition.inMilliseconds,
           'beforeBufferedMs': beforeBuffered.inMilliseconds,
@@ -2469,6 +2480,7 @@ class NavisAudioHandler extends BaseAudioHandler
       'shuffleMode': snapshot.shuffleMode.name,
       'repeatMode': snapshot.repeatMode.name,
       'sourceKind': _currentSourceKind,
+      'positionOffsetMs': _positionOffsetOf(_currentMediaItem).inMilliseconds,
       'lockCachingBypassed':
           songId != null && _lockCachingBypassedSongIds.contains(songId),
       'lockCachingBypassedSongIds': _lockCachingBypassedSongIds.toList(
