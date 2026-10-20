@@ -2200,7 +2200,9 @@ def case_offset_repeat_one(run: Run, env):
     after = [s for s in run.samples if s['t'] >= wrapped['t'] and s['pos'] is not None and s['songId'] == song['id']]
 
     def check():
-        out = oracle_seek(run, seek) + oracle_offset(run, [seek], run.quality != 'original')
+        # The loop is expected to return the position below the target: only count regressions before it.
+        out = [v for v in oracle_seek(run, seek) if not (v['oracle'] == 'seekRegressed' and v['t'] >= wrapped['t'] - 1)]
+        out += oracle_offset(run, [seek], run.quality != 'original')
         jumped = next((s for s in after if s['pos'] > 12000 + (s['t'] - wrapped['t']) * 1000), None)
         if jumped:
             out.append(violation('repeatOneJumpedToSeek', jumped['t'], f"after the loop pos={jumped['pos']} (offset "
