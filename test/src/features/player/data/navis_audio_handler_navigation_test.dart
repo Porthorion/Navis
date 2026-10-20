@@ -25,6 +25,9 @@ import 'package:path/path.dart' as p;
 import 'package:navis/src/common_widgets/cover_art_cache_manager.dart';
 import 'package:navis/src/features/player/data/radio_metadata_service.dart';
 import 'package:just_audio/just_audio.dart';
+import 'package:just_audio_media_kit/mediakit_player.dart';
+import 'package:just_audio_media_kit/src/icy_metadata.dart';
+import 'package:media_kit/media_kit.dart' as media_kit;
 import 'package:navis/src/api/subsonic_api_client.dart';
 import 'package:navis/src/api/models/models.dart' as models;
 import 'package:navis/src/api/subsonic_auth_interceptor.dart';
@@ -53,6 +56,27 @@ import 'package:navis/src/features/player/domain/streaming_quality.dart';
 import '../../../../helpers/test_database.dart';
 import '../../../../helpers/library_sync_fakes.dart';
 import '../../../../helpers/library_sync_plan.dart';
+
+class _NativeInputPlayer extends Mock implements media_kit.Player;
+
+class _NativeInputStreams extends Mock implements media_kit.PlayerStream;
+
+class _NativeInputProperties implements IcyPropertySource {
+  String rate = '190000';
+
+  @override
+  Future<String> read(String property) async =>
+      property == 'cache-speed' ? rate : '';
+
+  @override
+  Future<void> observe(
+    String property,
+    Future<void> Function(String) listener,
+  ) async {}
+
+  @override
+  Future<void> unobserve(String property) async {}
+}
 
 class _MockRecommendationService extends Mock implements RecommendationService;
 
@@ -449,9 +473,11 @@ class _ControllableAudioPlayer extends Fake implements AudioPlayer {
           : Duration.zero);
 
   int simulatedInputBytesPerSecond = 0;
+  Future<bool> Function()? readNetworkInputActive;
 
   @override
-  Future<bool> get networkInputActive async => simulatedInputBytesPerSecond > 0;
+  Future<bool> get networkInputActive async =>
+      await readNetworkInputActive?.call() ?? simulatedInputBytesPerSecond > 0;
 
   Duration simulatedBuffered = Duration.zero;
 
@@ -10033,7 +10059,7 @@ void main() {
         }),
       )
     >
-    fixture() async {
+    fixture({NavisPlaybackTimeouts timeouts = deadlines}) async {
       final previousHttp = HttpOverrides.current;
       HttpOverrides.global = null;
       final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
@@ -10077,7 +10103,7 @@ void main() {
         sidecarStreams: true,
         readApiClient: () => api,
         rebuiltPlayers: <_ControllableAudioPlayer>[],
-        timeouts: deadlines,
+        timeouts: timeouts,
       );
       addTearDown(() async {
         release.complete();
@@ -10112,6 +10138,78 @@ void main() {
         },
       );
     }
+
+    test(
+      'steady once-per-second mpv input prevents a buffering reload at 12 s',
+      () async {
+        final (handler, player, _) = await fixture(
+          timeouts: const NavisPlaybackTimeouts(),
+        );
+        await handler.replaceQueue([
+          'song-0',
+          'song-1',
+        ], expandMatchFlows: false);
+        final native = _NativeInputPlayer();
+        final streams = _NativeInputStreams();
+        final properties = _NativeInputProperties();
+        when(() => native.stream).thenReturn(streams);
+        when(() => native.state).thenReturn(media_kit.PlayerState());
+        when(native.dispose).thenAnswer((_) async {});
+        when(() => streams.audioParams).thenAnswer((_) => const Stream.empty());
+        when(() => streams.duration).thenAnswer((_) => const Stream.empty());
+        when(() => streams.position).thenAnswer((_) => const Stream.empty());
+        when(() => streams.buffering).thenAnswer((_) => const Stream.empty());
+        when(() => streams.buffer).thenAnswer((_) => const Stream.empty());
+        when(() => streams.volume).thenAnswer((_) => const Stream.empty());
+        when(() => streams.completed).thenAnswer((_) => const Stream.empty());
+        when(() => streams.error).thenAnswer((_) => const Stream.empty());
+        when(() => streams.playlist).thenAnswer((_) => const Stream.empty());
+        when(() => streams.playlistMode)
+            .thenAnswer((_) => const Stream.empty());
+        when(() => streams.pitch).thenAnswer((_) => const Stream.empty());
+        when(() => streams.rate).thenAnswer((_) => const Stream.empty());
+        when(() => streams.log).thenAnswer((_) => const Stream.empty());
+        final adapter = MediaKitPlayer(
+          'steady-input',
+          player: native,
+          icyPropertySource: properties,
+        );
+        addTearDown(adapter.release);
+        player
+          ..readNetworkInputActive = (() => adapter.networkInputActive)
+          ..state = ProcessingState.buffering
+          ..ignoreSeeks = true
+          ..nativePositionFrozen = true;
+        // A steady link can have many slightly falling EMA recomputes in a row.
+        // The decoder stays buffering past the real 12-second load budget.
+        final recompute = Timer.periodic(const Duration(seconds: 1), (timer) {
+          properties.rate = '${190000 - timer.tick * 100}';
+        });
+        addTearDown(recompute.cancel);
+        final loads = player.sourceLoads;
+        final seeking = handler.seek(const Duration(seconds: 90));
+        try {
+          await Future<void>.delayed(const Duration(milliseconds: 13100));
+          expect(player.sourceLoads, loads);
+          expect(
+            (handler.collectPlaybackDiagnostics()['seek']!
+                as Map)['recoveryAttempts'],
+            0,
+          );
+        } finally {
+          recompute.cancel();
+          player
+            ..simulatedPosition = const Duration(seconds: 90)
+            ..nativePositionFrozen = false
+            ..state = ProcessingState.ready;
+          await seeking;
+        }
+        final seek = handler.collectPlaybackDiagnostics()['seek']! as Map;
+        expect(seek['outcome'], 'completed');
+        expect(seek['recoveryAttempts'], 0);
+        expect(player.sourceLoads, loads);
+      },
+    );
 
     for (final flapping in [false, true]) {
       test('buffering seek with frozen decoded buffer '

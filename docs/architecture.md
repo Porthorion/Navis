@@ -4717,12 +4717,13 @@ song loads share a progress deadline. Android/iOS use native
 `bufferedPosition` growth and received lock-cache bytes. Desktop uses the
 vendored `AudioPlayer.networkInputActive` getter: mpv's `cache-speed` (the same
 network-layer bytes/second estimate as `demuxer-cache-state/raw-input-rate`)
-read through media_kit's existing native property bridge. A positive rate
-that rises between samples counts as input activity; falling estimates after
-input stops and unchanged estimates during blocked reads do not. A steady real
-rate cannot be distinguished from a blocked read and conservatively does not
-renew activity. Input activity extends the wait only while processing is loading
-or buffering, even while decoded buffer and position are frozen;
+read through media_kit's existing native property bridge. A rate of at least
+8 KiB/s (~64 kbps) counts as input activity if its sampled value changed in
+either direction within the last two seconds. Unchanged samples between mpv's
+roughly once-per-second recomputes remain active during that window. Halving
+decay falls below the floor after input stops; a blocked read's stale value
+expires after two seconds. Input activity extends the wait only while processing
+is loading or buffering, even while decoded buffer and position are frozen;
 the independent sidecar and desktop buffered position cannot extend it.
 The property is sampled at most every 250 ms, without file I/O. mpv derives
 this rate from unbuffered stream reads before decoding, rather than packet

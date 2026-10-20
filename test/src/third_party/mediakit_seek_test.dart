@@ -131,23 +131,46 @@ void main() {
     },
   );
 
-  test('an unchanged mpv input rate is not fresh input', () async {
+  test(
+    'steady mpv input stays active between once-per-second recomputes',
+    () async {
+      for (final rate in ['190000', '187500', '189000', '186000']) {
+        properties.inputRate = rate;
+        for (var sample = 0; sample < 4; sample++) {
+          expect(await adapter.networkInputActive, isTrue, reason: rate);
+          await Future<void>.delayed(const Duration(milliseconds: 250));
+        }
+      }
+    },
+  );
+
+  test('a stale constant mpv input rate expires after two seconds', () async {
     properties.inputRate = '187500';
     expect(await adapter.networkInputActive, isTrue);
+    await Future<void>.delayed(const Duration(milliseconds: 1250));
+    expect(await adapter.networkInputActive, isTrue);
+    await Future<void>.delayed(const Duration(milliseconds: 850));
     expect(await adapter.networkInputActive, isFalse);
-    expect(await adapter.networkInputActive, isFalse);
+    properties.inputRate = '187499';
+    expect(await adapter.networkInputActive, isTrue);
   });
 
-  test('a decaying positive mpv input rate is not fresh input', () async {
-    properties.inputRate = '187500';
-    expect(await adapter.networkInputActive, isTrue);
-    for (final rate in ['93750', '46875', '23437', '11718', '5859', '2929']) {
-      properties.inputRate = rate;
-      expect(await adapter.networkInputActive, isFalse, reason: rate);
-    }
-    properties.inputRate = '25000';
-    expect(await adapter.networkInputActive, isTrue);
-  });
+  test(
+    'halving mpv input becomes inactive below the audio rate floor',
+    () async {
+      var rate = 190000;
+      for (var second = 0; second <= 5; second++) {
+        properties.inputRate = '$rate';
+        expect(await adapter.networkInputActive, second < 5, reason: '$rate');
+        rate ~/= 2;
+        await Future<void>.delayed(const Duration(seconds: 1));
+      }
+      properties.inputRate = '8191';
+      expect(await adapter.networkInputActive, isFalse);
+      properties.inputRate = '8192';
+      expect(await adapter.networkInputActive, isTrue);
+    },
+  );
 
   test(
     'jump with zero position issues no native seek, even after ready',
