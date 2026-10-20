@@ -347,6 +347,9 @@ extension _NavisRecovery on NavisAudioHandler {
       final position = _seekSettlementPosition;
       final buffer = _player.bufferedPosition;
       final processing = _player.processingState;
+      final waitingForInput =
+          processing == ProcessingState.loading ||
+          processing == ProcessingState.buffering;
       final near =
           (position - request.position).abs() < const Duration(seconds: 2);
       final atEnd =
@@ -384,6 +387,7 @@ extension _NavisRecovery on NavisAudioHandler {
         now,
         bytes: _playerCacheBytesForSong(request.songId),
         buffer: _isDesktopRuntime ? Duration.zero : buffer,
+        processing: processing,
       );
       if (buffer != lastBuffer ||
           position != lastPosition ||
@@ -411,7 +415,11 @@ extension _NavisRecovery on NavisAudioHandler {
         // The local copy seeks without the network: reload from it rather
         // than wait for the remote range.
         unsettled = 'cache complete';
-      } else if (progress.expired(now)) {
+      } else if (waitingForInput
+          ? progress.expired(now)
+          : now >= _timeouts.seekProgress) {
+        // After extended buffering, ready gets the short stall window above
+        // to prove motion instead of immediately failing the old load budget.
         unsettled = 'deadline';
       }
       if (unsettled != null) {

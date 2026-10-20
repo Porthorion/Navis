@@ -89,6 +89,41 @@ Last updated: 2026-10-20
   or warnings and 27 existing informational findings on unchanged HEAD lines.
   The complete diff passes `git diff --check`. No app, emulator, VM or full
   gate was run, per the assigned scope; native acceptance remains open.
+  Round 4: coordinator Linux evidence reported a ready/playing seek frozen at
+  its target waiting 45 seconds twice because a positive mpv rate kept extending it.
+  The shared deadline now permits input extensions only while loading/buffering;
+  ready uses the existing three-second no-progress/missed-target handling.
+  A late landing gets that short motion-confirmation window rather than failing
+  the already expired load budget; recent input survives brief state flapping
+  but cannot extend the ready state's wait. The adapter accepts only positive
+  rate rises, rejecting mpv's decaying estimate and unchanged blocked-read
+  values without a bitrate floor. Perfectly steady real rates are
+  conservatively indistinguishable from blocked reads and need native acceptance.
+  Seek-lane inspection found no independent cancellation defect in same-song
+  load preservation: a playing seek needs 250 ms of native advancement after
+  landing, and a newer seek marks an unconfirmed request `superseded`. Stale
+  input could keep that earlier request pending until the next seek; the
+  regression requires a frozen ready request to finish recovery first.
+  The exact 26-second coordinator trace is unavailable in this worktree, so
+  attributing that individual event remains conditional on its native motion.
+  Tests were written first on `c585bf12`: `00:06 +0 -5: Some tests failed.`;
+  ready-at-target reported `Expected: 'no progress'` / `Actual: 'deadline'`,
+  and both unchanged/decaying-rate cases reported `Expected: false` /
+  `Actual: <true>`. Re-running the final five regressions against that commit's
+  implementation again failed all five, including `Expected: 'failed'` /
+  `Actual: 'superseded'` for the landed-frozen request followed by a later seek.
+  After the fix the focused run passed
+  `00:16 +21: All tests passed!`; an additional late state-flapping case
+  retains the round-3 buffering contract. The former ready/frozen extension
+  expectation is replaced with prompt recovery as required by this round.
+  The final requested three-file run plus `mediakit_seek_test.dart` passed
+  `05:30 +630: All tests passed!` with `flutter test --concurrency=4`.
+  All seven edited Dart files pass `dart format --set-exit-if-changed` unchanged;
+  scoped `flutter analyze --no-fatal-infos` exits successfully with no errors
+  or warnings and 13 informational findings mapped to unchanged HEAD lines.
+  The complete diff passes `git diff --check`. No app, emulator, VM or
+  `./tool/check.sh` was run, per the assigned scope; coordinator native
+  revalidation and independent review remain open.
 - [ ] Issue #86, Android progressive HTTP repeat-one rewind — partial: 2026-10-20
   (`fix/repeat-one-rewind`, based on `3c1d8c54`, remaining: coordinator Android
   runtime probes, independent review and `./tool/check.sh`): native repeat-one
