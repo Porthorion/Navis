@@ -845,6 +845,35 @@ void main() {
       ),
     ),
     _Control(
+      // Random Albums is hidden by default and was never in a saved list, so
+      // showing it must also save the order or it resolves hidden again.
+      'Home: show a never-seen hidden section',
+      writers: {'updateHomeSectionsHidden', 'updateHomeSectionOrder'},
+      columns: {'homeSectionsHidden', 'homeSectionOrder'},
+      act: (t) async {
+        await expandGroup(t, l10n.appearanceHomeSectionsLabel);
+        await tap(
+          t,
+          find
+              .descendant(
+                of: find.widgetWithText(
+                  ListTile,
+                  l10n.homeSectionRandomAlbumList,
+                ),
+                matching: find.byType(Switch),
+              )
+              .first,
+        );
+      },
+      effect: (c) => expect(
+        HomeSectionIds.resolveHidden(
+          c.read(homeSectionsHiddenProvider),
+          persistedOrder: c.read(homeSectionOrderProvider),
+        ),
+        isNot(contains(HomeSectionIds.randomAlbumList)),
+      ),
+    ),
+    _Control(
       'Home: reorder sections',
       writers: {'updateHomeSectionOrder'},
       columns: {'homeSectionOrder'},

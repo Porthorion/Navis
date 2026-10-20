@@ -14,6 +14,13 @@ Last updated: 2026-10-19
 - ACP status values: `backlog`, `ready`, `in_progress`, `blocked`, `done`.
 
 ## Current Focus
+- [x] Issue #92, optional Home Random Albums section — 2026-10-20
+  (`feat/home-random-albums`): `random_album_list` after Recently Added,
+  hidden by default. Its own server `getAlbumList2(random, 20)` draw; the
+  downloaded-only list is now a one-shot snapshot. Both re-pick after every
+  finished library sync. Showing a never-seen hidden-by-default section now
+  also saves the order, or `resolveHidden` hid it again (GLM review P1).
+  Runtime check in the app still to do.
 - [x] Issue #86, frame unknown-length lock-cache proxy responses — 2026-10-19
   (`fix/proxy-response-framing`): restore chunked transfer encoding after the
   proxy clears response headers, and explicitly size empty HTTP 500 bodies at

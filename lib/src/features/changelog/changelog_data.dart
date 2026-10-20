@@ -133,6 +133,10 @@ const List<ChangelogVersion> changelogs = [
         'Fix transcoded songs replaying after the stream finishes on Android',
         type: ChangelogEntryType.fix,
       ),
+      ChangelogEntry(
+        'Add an optional Random Albums section to Home (Settings › Appearance)',
+        type: ChangelogEntryType.newFeature,
+      ),
     ],
   ),
   ChangelogVersion(
