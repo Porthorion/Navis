@@ -98,6 +98,7 @@ void main() {
       AppSettingsModel? storedSettings,
       PlaybackRecoveryService? recovery,
       AppNoticeController? notices,
+      bool updateFails = false,
     }) async {
       await tester.binding.setSurfaceSize(
         desktopMode ? const Size(1280, 800) : const Size(900, 1200),
@@ -121,7 +122,10 @@ void main() {
                 buildNumber: '1',
               ),
             ),
-            updateProvider.overrideWith((ref) async => updateInfo),
+            updateProvider.overrideWith((ref) async {
+              if (updateFails) throw Exception('offline');
+              return updateInfo;
+            }),
             networkUsageTotalProvider(1).overrideWith(
               (ref) => Stream.value(
                 const NetworkUsageTotal(bytes: 0, requestCount: 0),
@@ -190,6 +194,35 @@ void main() {
         notices.dismiss();
       },
     );
+
+    testWidgets('a failed Check now shows an error notice and subtitle', (
+      tester,
+    ) async {
+      debugDefaultTargetPlatformOverride = TargetPlatform.android;
+      final notices = AppNoticeController();
+      addTearDown(notices.dispose);
+      try {
+        await pumpAbout(
+          tester,
+          updateInfo: null,
+          notices: notices,
+          updateFails: true,
+        );
+        final l10n = lookupAppLocalizations(const Locale('en'));
+        expect(find.text(l10n.updateCheckFailedSub), findsOneWidget);
+        expect(notices.notice, isNull);
+
+        await tester.tap(find.widgetWithText(ListTile, l10n.updateCheckTitle));
+        await tester.pumpAndSettle();
+
+        expect(notices.notice?.message, l10n.updateCheckFailed);
+        expect(notices.notice?.level, AppNoticeLevel.error);
+        expect(find.text(l10n.updateCheckFailedSub), findsOneWidget);
+        notices.dismiss();
+      } finally {
+        debugDefaultTargetPlatformOverride = null;
+      }
+    });
 
     testWidgets('licence page receives the Porthorion copyright', (
       tester,

@@ -2760,6 +2760,7 @@ and Subsonic delivery continues independently.
   `updates.automatic` blocks only the automatic one. The request is a plain
   field on `UpdateForceCheckNotifier`, not provider state, because the provider
   consumes it while building.
+  A failed manual check shows an error notice and a "check failed" tile subtitle in About.
 - **Weekly playlists.** `listenBrainzDiscoverStreamProvider` watches
   `isEnabled(listenbrainz.weeklyPlaylists)`. When the gate closes it clears the
   session cache and last-visible list, so the Home hero and Library › Playlists

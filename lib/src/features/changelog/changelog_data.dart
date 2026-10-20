@@ -148,6 +148,10 @@ const List<ChangelogVersion> changelogs = [
         'on servers that support it, instead of waiting for the download',
         type: ChangelogEntryType.fix,
       ),
+      ChangelogEntry(
+        'Report a failed "Check now" in About instead of staying silent',
+        type: ChangelogEntryType.fix,
+      ),
     ],
   ),
   ChangelogVersion(

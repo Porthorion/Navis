@@ -2041,6 +2041,8 @@
       "version": { "type": "String" }
     }
   },
+  "updateCheckFailed": "Couldn't check for updates. Check your connection and try again.",
+  "updateCheckFailedSub": "Update check failed. Tap to try again.",
   "updateAvailableTitle": "Update Available",
   "updateAvailableBody": "{version} is ready to download.",
   "@updateAvailableBody": {
