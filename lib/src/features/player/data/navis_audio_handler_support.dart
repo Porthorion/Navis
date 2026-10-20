@@ -153,6 +153,9 @@ class _PendingSeek {
   String? outcome;
   int recoveryAttempts = 0;
 
+  /// Set when the seek was served by reopening the transcode at an offset.
+  String? path;
+
   /// Why each settlement probe that did not confirm the seek gave up, for
   /// diagnostics: the rule that ended it and the state it saw.
   final List<Map<String, Object?>> unsettled = <Map<String, Object?>>[];

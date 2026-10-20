@@ -241,10 +241,11 @@ Use this quick matrix to classify failures:
     the seek waited for a linear transcode's download.
   - reproduce with `tool/live_seek_stress.py --throttle-kbps 6000` (see the
     development workflow).
-- If transcoded first-play seeks are the cause, heavily consider implementing
-  transcode-offset seeking (OpenSubsonic `transcodeOffset`); the deferred design
-  and its scope are under "Deferred: transcode-offset seeking" in
-  `docs/architecture.md`.
+- Transcoded seeks reopen the stream with `timeOffset` when the server
+  advertises OpenSubsonic `transcodeOffset`: a seek event with
+  `path: transcodeOffset` and a non-zero `positionOffsetMs` in the playback
+  status. Without the capability, or at original quality, the cache-wait path
+  applies. See "Transcode-offset seeking" in `docs/architecture.md`.
 
 ## Android `VRI` / `SurfaceView` logs while backgrounding
 

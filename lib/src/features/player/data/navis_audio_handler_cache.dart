@@ -46,6 +46,14 @@ extension _NavisCache on NavisAudioHandler {
       return;
     }
     final sidecarPath = item.extras?['sidecarCacheFilePath'] as String?;
+    // The provisional item of a reload (no source resolved yet) must not
+    // cancel the download of the very song being reloaded: restarting it
+    // wastes the bytes already fetched.
+    if ((sidecarPath == null || sidecarPath.isEmpty) &&
+        item.extras?['sourceKind'] == null &&
+        _sidecarDownloader.activeSongId == item.id) {
+      return;
+    }
     final song = _sidecarSongsById[item.id];
     final streamUri = _sidecarStreamUris[item.id];
     if (sidecarPath == null ||
