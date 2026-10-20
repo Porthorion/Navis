@@ -148,6 +148,11 @@ const List<ChangelogVersion> changelogs = [
         'on servers that support it, instead of waiting for the download',
         type: ChangelogEntryType.fix,
       ),
+      ChangelogEntry(
+        'Show a clear message when relinking an unavailable song fails, '
+        'instead of saying the selection is out of date',
+        type: ChangelogEntryType.fix,
+      ),
     ],
   ),
   ChangelogVersion(

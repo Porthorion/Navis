@@ -7883,6 +7883,12 @@ abstract class AppLocalizations {
   /// **'This selection is no longer current. Nothing was changed; the list was refreshed.'**
   String get unavailableReviewStaleSelection;
 
+  /// No description provided for @unavailableReviewRelinkFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Couldn’t relink this item. Try again.'**
+  String get unavailableReviewRelinkFailed;
+
   /// No description provided for @unavailableReviewAlreadyResolved.
   ///
   /// In en, this message translates to:

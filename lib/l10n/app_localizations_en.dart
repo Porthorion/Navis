@@ -4925,6 +4925,10 @@ class AppLocalizationsEn extends AppLocalizations {
       'This selection is no longer current. Nothing was changed; the list was refreshed.';
 
   @override
+  String get unavailableReviewRelinkFailed =>
+      'Couldn’t relink this item. Try again.';
+
+  @override
   String get unavailableReviewAlreadyResolved =>
       'This entry was already resolved.';
 

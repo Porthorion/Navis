@@ -2287,6 +2287,7 @@
   "unavailableReviewRelinkDismiss": "Cancel",
   "unavailableReviewPossibleReplacements": "Possible Replacements",
   "unavailableReviewStaleSelection": "This selection is no longer current. Nothing was changed; the list was refreshed.",
+  "unavailableReviewRelinkFailed": "Couldn’t relink this item. Try again.",
   "unavailableReviewAlreadyResolved": "This entry was already resolved.",
   "unavailableReviewRefCopies": "Downloads and cached copies: {count}",
   "@unavailableReviewRefCopies": { "placeholders": { "count": { "type": "int" } } },
