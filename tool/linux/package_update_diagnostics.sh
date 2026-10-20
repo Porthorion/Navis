@@ -158,9 +158,19 @@ run_remote() {
   else
     remote "$family" > "$run_dir/original-package" <<'REMOTE'
 set -euo pipefail
+# Record "present <status> <version>" for ANY dpkg status except not-installed
+# (config-files, unpacked, half-* too); fail closed on any other query error.
 if [[ "$1" == deb ]]; then
-  dpkg-query -W -f='${db:Status-Status} ${Version}\n' navis 2>/dev/null || true
-else rpm -q --qf 'installed %{VERSION}\n' navis 2>/dev/null || true; fi
+  rc=0; out="$(dpkg-query -W -f='${db:Status-Status} ${Version}\n' navis 2>/dev/null)" || rc=$?
+  if (( rc == 0 )) && [[ -n "$out" && "$out" != not-installed* ]]; then echo "present $out"
+  elif (( rc == 0 || rc == 1 )); then echo absent
+  else echo 'dpkg-query failed' >&2; exit 70; fi
+else
+  rc=0; out="$(rpm -q --qf '%{VERSION}\n' navis 2>&1)" || rc=$?
+  if (( rc == 0 )); then echo "present installed $out"
+  elif [[ "$out" == *'is not installed'* ]]; then echo absent
+  else echo 'rpm query failed' >&2; exit 70; fi
+fi
 REMOTE
     printf '%s\n' "$family" > "$run_dir/family"
     printf '%s\n' "$host" > "$run_dir/host"
@@ -192,7 +202,11 @@ while IFS= read -r entry; do
   esac
 done < <(systemctl --user show-environment)
 [[ "$graphical" == true ]] || { echo 'No graphical session environment in user manager' >&2; exit 70; }
-systemd-run --user --unit="$2" --collect --property=ExitType=cgroup \
+# ExitType=cgroup needs systemd 250 (Ubuntu 22.04 has 249): older systemd keeps
+# the unit alive after the main pid exits and leaves the relaunched child alone.
+if (( $(systemctl --version | awk 'NR==1{print $2}') >= 250 )); then exit_props=(--property=ExitType=cgroup)
+else exit_props=(--property=RemainAfterExit=yes --property=KillMode=process); fi
+systemd-run --user --unit="$2" --collect "${exit_props[@]}" \
   --setenv="XDG_RUNTIME_DIR=$XDG_RUNTIME_DIR" --setenv="DBUS_SESSION_BUS_ADDRESS=$DBUS_SESSION_BUS_ADDRESS" \
   "${environment[@]}" /opt/navis/navis
 REMOTE
@@ -329,7 +343,8 @@ export XDG_RUNTIME_DIR="/run/user/$(id -u)" DBUS_SESSION_BUS_ADDRESS="unix:path=
 systemctl --user stop "$1" 2>/dev/null || true
 rm -rf -- "$2" "$2.pkg.deb" "$2.pkg.rpm"
 REMOTE
-      if ! grep -q '^installed ' "$run_dir/original-package"; then
+      grep -qE '^(present|absent)' "$run_dir/original-package" || { echo 'Original package state unknown; not removing' >&2; exit 70; }
+      if grep -q '^absent' "$run_dir/original-package"; then
         version="$(package_version 2>/dev/null || true)"
         if [[ "$version" == "1.4.$N" || "$version" == "1.4.$((N+1))" || "$version" == "1.4.$((N+2))" ]]; then
           if [[ "$family" == deb ]]; then ssh -t "$host" 'sudo apt-get remove -y navis'
