@@ -2621,6 +2621,42 @@ def cut_at_case(fraction: float, cuts: int, gap_s=10.0, pace_kbps=176):
     return case
 
 
+def cold_command_case(kind: str, kbps=300):
+    """Item 3 round 2: while a slow cold start is still loading, a user command (next or seek) issued ~5 s in
+    must be acted on within a few seconds, not after the extended load finishes."""
+    def case(run: Run, env):
+        ids = env.backend.fresh_album()
+        run.songs = [{'id': i} for i in ids]
+        restore = THROTTLES[run.throttle]
+        env.proxy.set_profile(kbps, 300)
+        try:
+            rec = start_queue(run, ids)
+            time.sleep(5.0)
+            before = run.last()
+            run.metrics['stateAt5s'] = {k: before[k] for k in ('songId', 'proc', 'playing', 'pos', 'loading', 'buf')} if before else None
+            t_cmd = run.now()
+            with concurrent.futures.ThreadPoolExecutor(max_workers=2) as pool:
+                if kind == 'next':
+                    cmd = run.act('next', idx0=0, pos0=before and before['pos'], song0=ids[0], expect=1)
+                    pool.submit(lambda: run.app.api('/v1/playback/next', {}, timeout=120))
+                    hit = run.until(lambda s: s['songId'] == ids[1], 60)
+                else:
+                    target = 60000
+                    seek = issue_seek(run, pool, target)
+                    seek['song'] = ids[0]
+                    hit = run.until(lambda s: s['songId'] == ids[0] and abs((s['pos'] or 0) - target) <= 1500 and s['proc'] == 'ready', 60)
+                run.metrics['commandActedAfterS'] = None if hit is None else round(hit['t'] - t_cmd, 1)
+                run.metrics['commandKind'] = kind
+                finish_futures(run, 30)
+        finally:
+            env.proxy.set_profile(*restore)
+        if run.metrics['commandActedAfterS'] is None or run.metrics['commandActedAfterS'] > 10:
+            run.violations.append(violation('commandNotPrompt', t_cmd, f"{kind} acted on after {run.metrics['commandActedAfterS']} s "
+                                            f"(state at 5 s: {run.metrics['stateAt5s']})", run))
+        run.observe(4.0)
+    return case
+
+
 def case_offset_prev(run: Run, env):
     """Previous after an offset seek restarts the song at 0."""
     offset_case_prologue(run)
@@ -2667,6 +2703,8 @@ CASE_FUNCS = {
     'offset_natural': case_offset_natural,
     'offset_repeat_one': case_offset_repeat_one,
     'offset_prev': case_offset_prev,
+    'cold_next': cold_command_case('next'),
+    'cold_seek': cold_command_case('seek'),
     'cut40': cut_at_case(0.40, 1),
     'cut40x2': cut_at_case(0.40, 2),
     'repeat_one_fill': case_repeat_one_fill,
