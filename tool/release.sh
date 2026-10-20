@@ -47,6 +47,21 @@
 
 set -euo pipefail
 
+# Never ship the test-only updater elevator, including inherited Flutter defines.
+if [[ "${NAVIS_TEST_UPDATE_ELEVATOR+x}" == x ]]; then
+  echo 'Error: NAVIS_TEST_UPDATE_ELEVATOR is test-only and cannot be set for releases.' >&2
+  exit 1
+fi
+IFS=',' read -r -a inherited_dart_defines <<< "${DART_DEFINES:-}"
+for define in "${inherited_dart_defines[@]}"; do
+  [[ -n "${define}" ]] || continue
+  decoded_define="$(printf '%s' "${define}" | openssl base64 -d -A)"
+  if [[ "${decoded_define}" == NAVIS_TEST_UPDATE_ELEVATOR=* ]]; then
+    echo 'Error: NAVIS_TEST_UPDATE_ELEVATOR is test-only and cannot be set for releases.' >&2
+    exit 1
+  fi
+done
+
 # ─── Args ───────────────────────────────────────────────────────────────────
 VERSION=""
 SKIP_CHECKS=false

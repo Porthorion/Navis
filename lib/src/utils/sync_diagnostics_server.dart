@@ -3502,7 +3502,11 @@ class SyncDiagnosticsServer {
         if (apply && artifactPath != null) {
           await _container
               .read(updateServiceProvider)
-              .applyDesktopUpdate(artifactPath, detectInstallMode());
+              .applyDesktopUpdate(
+                artifactPath,
+                detectInstallMode(),
+                expectedSha256: info!.sha256,
+              );
         }
         return;
       }

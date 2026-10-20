@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:crypto/crypto.dart' as crypto;
@@ -7,6 +8,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:navis/src/features/integrations/data/integration_guard_interceptor.dart';
 import 'package:navis/src/features/settings/data/update_install_mode.dart';
 import 'package:navis/src/features/settings/data/update_service.dart';
+import 'package:navis/src/features/settings/data/update_scripts.dart';
 import 'package:navis/src/features/settings/domain/update_delivery.dart';
 import 'package:navis/src/features/settings/domain/update_info.dart';
 import 'package:navis/src/utils/constants.dart';
@@ -278,4 +280,199 @@ void main() {
     );
     expect(adapter.requests, isEmpty);
   });
+
+  group('Linux package apply', () {
+    const hash =
+        'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa';
+    const artifact = r'/tmp/package $(literal) name.deb';
+
+    for (final mode in [
+      UpdateInstallMode.linuxDeb,
+      UpdateInstallMode.linuxRpm,
+    ]) {
+      test(
+        '$mode checks elevator availability instead of directory writes',
+        () async {
+          final bin = await Directory(p.join(temp.path, 'bin')).create();
+          final elevator = File(p.join(bin.path, 'pkexec'));
+          final updater = UpdateService(executableSearchPath: bin.path);
+          expect(updater.canApplyUpdate(mode), isFalse);
+          await elevator.writeAsString('#!/bin/sh\nexit 0\n');
+          expect(
+            (await Process.run('chmod', ['700', elevator.path])).exitCode,
+            0,
+          );
+          expect(updater.canApplyUpdate(mode), isTrue);
+          expect(
+            updater.canApplyUpdate(UpdateInstallMode.linuxPackageManaged),
+            isFalse,
+          );
+        },
+        skip: !Platform.isLinux,
+      );
+
+      test(
+        '$mode invokes one positional-argument root script and relaunches',
+        () async {
+          var relaunched = false;
+          var calls = 0;
+          final updater = UpdateService(
+            processRunner: (exe, args) async {
+              calls++;
+              expect(exe, 'pkexec');
+              expect(args, [
+                '/bin/sh',
+                '-c',
+                linuxPackageInstallScript,
+                'navis-update',
+                artifact,
+                hash,
+                if (mode == UpdateInstallMode.linuxDeb) 'deb' else 'rpm',
+              ]);
+              return ProcessResult(1, 0, '', '');
+            },
+            relaunchAndExit: () => relaunched = true,
+          );
+          await updater.applyDesktopUpdate(
+            artifact,
+            mode,
+            expectedSha256: hash,
+          );
+          expect(calls, 1);
+          expect(relaunched, isTrue);
+        },
+      );
+    }
+
+    for (final code in [126, 127, 10, 11, 23]) {
+      test(
+        'exit $code maps to the expected failure without relaunch',
+        () async {
+          var relaunched = false;
+          final updater = UpdateService(
+            processRunner: (_, _) async =>
+                ProcessResult(1, code, '', 'failure'),
+            relaunchAndExit: () => relaunched = true,
+          );
+          final matcher = switch (code) {
+            126 => isA<UpdateCancelledException>(),
+            127 => isA<UpdateElevationUnavailableException>(),
+            10 => isA<UpdateIntegrityException>(),
+            _ => isA<ProcessException>().having(
+              (e) => e.errorCode,
+              'code',
+              code,
+            ),
+          };
+          await expectLater(
+            updater.applyDesktopUpdate(
+              artifact,
+              UpdateInstallMode.linuxDeb,
+              expectedSha256: hash,
+            ),
+            throwsA(matcher),
+          );
+          expect(relaunched, isFalse);
+        },
+      );
+    }
+
+    test(
+      'normalizes the signed digest to lowercase for the root script',
+      () async {
+        final updater = UpdateService(
+          processRunner: (_, args) async {
+            expect(args[5], hash);
+            return ProcessResult(1, 0, '', '');
+          },
+          relaunchAndExit: () {},
+        );
+        await updater.applyDesktopUpdate(
+          artifact,
+          UpdateInstallMode.linuxDeb,
+          expectedSha256: hash.toUpperCase(),
+        );
+      },
+    );
+
+    test('missing elevator is unavailable', () async {
+      final updater = UpdateService(
+        processRunner: (exe, args) async {
+          throw ProcessException(exe, args);
+        },
+      );
+      await expectLater(
+        updater.applyDesktopUpdate(
+          artifact,
+          UpdateInstallMode.linuxDeb,
+          expectedSha256: hash,
+        ),
+        throwsA(isA<UpdateElevationUnavailableException>()),
+      );
+    });
+
+    for (final mode in UpdateInstallMode.values.where(
+      isLinuxSystemPackageMode,
+    )) {
+      for (final missingHash in <String?>[null, '']) {
+        test('$mode refuses hash=$missingHash before elevation', () async {
+          final updater = UpdateService(
+            processRunner: (_, _) async => fail('Elevated without hash'),
+          );
+          await expectLater(
+            updater.applyDesktopUpdate(
+              artifact,
+              mode,
+              expectedSha256: missingHash,
+            ),
+            throwsA(isA<UpdateIntegrityException>()),
+          );
+        });
+      }
+    }
+
+    test('unknown package owner never invokes elevation', () async {
+      final updater = UpdateService(
+        processRunner: (_, _) async => fail('Unknown owner elevated'),
+      );
+      expect(
+        updater.canApplyUpdate(UpdateInstallMode.linuxPackageManaged),
+        isFalse,
+      );
+      await expectLater(
+        updater.applyDesktopUpdate(
+          artifact,
+          UpdateInstallMode.linuxPackageManaged,
+          expectedSha256: hash,
+        ),
+        throwsUnsupportedError,
+      );
+    });
+  });
+
+  for (final encoded in [false, true]) {
+    test(
+      'release refuses test elevator with encoded define=$encoded',
+      () async {
+        final result = await Process.run(
+          'bash',
+          ['tool/release.sh'],
+          environment: {
+            if (encoded)
+              'DART_DEFINES': base64Encode(
+                utf8.encode('NAVIS_TEST_UPDATE_ELEVATOR=/test/elevator'),
+              )
+            else
+              'NAVIS_TEST_UPDATE_ELEVATOR': '/test/elevator',
+          },
+        );
+        expect(result.exitCode, 1);
+        expect(
+          '${result.stdout}${result.stderr}',
+          contains('NAVIS_TEST_UPDATE_ELEVATOR is test-only'),
+        );
+      },
+      skip: Platform.isWindows,
+    );
+  }
 }
