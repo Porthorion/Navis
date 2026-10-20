@@ -3954,8 +3954,16 @@ still permits a later explicit Play.
 
 Lock-cache origin and range fetches have cancellable 15-second connection and
 header deadlines and a 30-second body-progress deadline. Failed partial files
-are discarded and requests may restart. `networkReconciliationProvider` shares
-the existing bounded connectivity, metering and server-reachability check
+are discarded and requests may restart. An origin disconnect or body-progress
+timeout fails in-progress lock-cache streams; the local proxy aborts the
+client connection without a terminating chunk so Media3 reports a load error
+and position-preserving recovery runs instead of advancing early. The URI/header
+proxy also aborts origin body errors rather than entering its HTTP/0.9 fallback.
+Short sized bodies fail too; complete bodies close cleanly. Radio keeps native
+retries and the URI proxy has no added body deadline. A later lock-cache request
+refetches the source using the existing cleanup path.
+`networkReconciliationProvider` shares the existing bounded connectivity,
+metering and server-reachability check
 between resume and playback, and reports device connectivity separately from
 server reachability. Scoped container subscriptions keep these bounded
 checks active even when UI provider listeners are paused, and metering is read

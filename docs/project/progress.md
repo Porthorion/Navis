@@ -74,6 +74,25 @@ Last updated: 2026-10-20
   `positionOffset` translation layer, an offset resolver source with a
   full-URI sidecar, and the handler seek branch with its edge-case tests
   (`docs/plans/Transcode_Offset_Seek_Plan.md`).
+- [x] Issue #86, abort interrupted audio proxy responses — 2026-10-20
+  (`fix/proxy-download-error`): stream and header-forwarding proxies abort
+  origin body errors instead of sending clean EOF or entering HTTP/0.9 fallback
+  after headers arrive. Both reuse `HttpResponse.addStream`; zero response
+  deadline destroys the socket after headers, when detachment is unavailable.
+  Existing body-progress deadlines, range-fetch error propagation, partial-file
+  cleanup and radio retry policy remain unchanged. The six interruption cases
+  first failed (`00:04 +0 -6: Some tests failed.`); the chunked lock-cache
+  assertions at test line 272 reported `Expected: <Instance of 'HttpException'>`
+  and `Actual: <null>`. The corrected lock-cache file passes
+  `00:06 +19: All tests passed!`, including sized failures, cache publication,
+  retry and live chunked completion. The requested three-file run with
+  `--concurrency=4` passes `05:19 +590: All tests passed!`. Edited Dart files pass
+  `dart format --set-exit-if-changed`; the full diff passes `git diff --check`.
+  `tool/equalizer_native_test.sh` passes, including
+  `ProgressiveLoadRetryTest: 13 fixtures passed`: a real incomplete chunked read
+  throws `IOException` and selects the existing fatal policy. Full-gate,
+  independent review and device/runtime validation remain with the coordinator;
+  no app, emulator or VM was launched for this implementation task.
 - [x] Issue #86, frame unknown-length lock-cache proxy responses — 2026-10-19
   (`fix/proxy-response-framing`): restore chunked transfer encoding after the
   proxy clears response headers, and explicitly size empty HTTP 500 bodies at
