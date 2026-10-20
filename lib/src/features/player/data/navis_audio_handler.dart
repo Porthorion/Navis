@@ -2761,6 +2761,7 @@ class NavisAudioHandler extends BaseAudioHandler
   Future<void> stop() async {
     _invalidatePendingStartupSelection();
     final transportGeneration = _supersedeTransportIntent(shouldPlay: false);
+    if (_isLoading) _supersedeQueueWork();
     await _ready;
     if (!_isCurrentTransportIntent(transportGeneration)) return;
     _cancelCrossfade();

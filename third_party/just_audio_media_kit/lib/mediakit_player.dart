@@ -95,8 +95,9 @@ class MediaKitPlayer extends AudioPlayerPlatform {
       _updatePlaybackEvent();
     });
 
+    _properties = icyPropertySource ?? createIcyPropertySource(_player);
     _icyMetadata = IcyMetadataObserver(
-      source: icyPropertySource ?? createIcyPropertySource(_player),
+      source: _properties,
       onChanged: (_) {
         if (!_released) _updatePlaybackEvent();
       },
@@ -245,6 +246,15 @@ class MediaKitPlayer extends AudioPlayerPlatform {
 
   /// The subscriptions that have to be disposed
   late final List<StreamSubscription> _streamSubscriptions;
+
+  late final IcyPropertySource _properties;
+
+  @override
+  Future<bool> get networkInputActive async {
+    if (_released || !_readyCompleter.isCompleted) return false;
+    // cache-speed is mpv's raw network input rate, before packet decoding.
+    return (int.tryParse(await _properties.read('cache-speed')) ?? 0) > 0;
+  }
 
   final _readyCompleter = Completer<void>();
 
