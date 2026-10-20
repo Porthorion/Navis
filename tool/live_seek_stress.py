@@ -2708,10 +2708,78 @@ def case_cold_seek_stall(run: Run, env, kbps=1000, stall_s=60.0, at_start=False)
                 timeline.append((round(s['t'] - t_cmd, 1), s['songId'], s['proc'], bool(s['playing']), s['pos']))
                 last = cur
     run.metrics['timeline'] = timeline[:60]
+    near = next((x for x in run.samples if x['t'] >= t_cmd and x['playing'] and x['proc'] in ('ready', 'buffering')
+                 and x['songId'] == ids[0] and (x['pos'] or 0) >= 55000), None)
+    run.metrics['playingNearTargetAtS'] = None if near is None else round(near['t'] - t_cmd, 1)  # since the seek command
+    run.metrics['holdEndsAtS'] = round(t_start + stall_s - t_cmd, 1) if at_start else None
     if final is None or final['proc'] in ('idle', None) or final['songId'] is None:
         run.violations.append(violation('leftIdle', run.now(), f'final state {pick(final)}', run))
     elif not final['playing']:
         run.violations.append(violation('notPlayingAtEnd', run.now(), f'final state {pick(final)}', run))
+
+
+def case_dead_source_hold(run: Run, env, kbps=1000, window_s=90.0):
+    """Round 9 (E): a one-song queue whose media is held for the whole observation window. The seek cannot ever load;
+    expected: a quiet stop (no notice, no load-failure event). Then the hold is lifted and Play must restart it."""
+    ids = env.backend.fresh_album()[:1]
+    run.songs = [{'id': i} for i in ids]
+    run.queue_ids = list(ids)
+    restore = THROTTLES[run.throttle]
+    env.proxy.set_profile(kbps, 300)
+    keys = ('songId', 'proc', 'playing', 'pos', 'loading', 'buf', 'idx')
+    pick = lambda s: {k: s[k] for k in keys} if s else None
+
+    def failures():
+        try:
+            return run.app.api('/v1/diagnostics/report', None, timeout=40).get('playback', {}).get('loadFailures')
+        except Exception as error:
+            return f'{type(error).__name__}'
+
+    def shot(label):
+        try:
+            return run.app.api('/v1/presentation/screenshot', {'label': label}, timeout=30).get('artifact')
+        except Exception as error:
+            return f'{type(error).__name__}: {error}'
+    try:
+        try:
+            run.app.api('/v1/diagnostics/metrics/reset', {})
+        except Exception:
+            pass
+        env.proxy.stall(window_s + 600)  # held until the case lifts it
+        run.act('stall', seconds=window_s + 600, atStart=True)
+        starter = concurrent.futures.ThreadPoolExecutor(max_workers=1)
+        run.act('start', songIds=len(ids), first=ids[0], shuffle=False)
+        run.futures.append(starter.submit(lambda: run.app.api('/v1/playback/queue', {'songIds': ids}, timeout=180)))
+        time.sleep(5.0)
+        t_cmd = run.now()
+        with concurrent.futures.ThreadPoolExecutor(max_workers=2) as pool:
+            seek = issue_seek(run, pool, 60000)
+            seek['song'] = ids[0]
+            shots = {}
+            for at in (15, 40):
+                time.sleep(max(0.0, t_cmd + at - run.now()))
+                shots[f'+{at}s'] = {'state': pick(run.last()), 'artifact': shot(f'dead-{at}')}
+            time.sleep(max(0.0, t_cmd + window_s - run.now()))
+            run.metrics['heldWindow'] = {'state': pick(run.last()), 'loadFailures': failures(), 'seekOutcome': seek.get('outcome'),
+                                         'artifact': shot('dead-end'), 'earlier': shots}
+            env.proxy.stall_until = 0.0
+            t_play = run.now()
+            run.act('play')
+            run.app.api('/v1/playback/play', {}, timeout=60)
+            hit = run.until(lambda s: s['songId'] == ids[0] and s['playing'] and s['proc'] == 'ready', 60)
+            run.metrics['playAfterHoldS'] = None if hit is None else round(hit['t'] - t_play, 1)
+            run.metrics['playAfterHoldPos'] = None if hit is None else hit['pos']
+            time.sleep(max(0.0, t_play + 30 - run.now()))
+            finish_futures(run, 20)
+    finally:
+        env.proxy.stall_until = 0.0
+        env.proxy.set_profile(*restore)
+    run.metrics['finalState'] = pick(run.last())
+    run.metrics['loadFailuresEnd'] = failures()
+    if run.metrics.get('playAfterHoldS') is None:
+        run.violations.append(violation('playDidNotRestart', run.now(), f"final state {run.metrics['finalState']}", run))
+    if run.metrics['heldWindow']['loadFailures'] not in (0, None):
+        run.violations.append(violation('loadFailureEvent', run.now(), f"loadFailures={run.metrics['heldWindow']['loadFailures']} while held", run))
 
 
 def case_dead_start(run: Run, env):
@@ -2797,6 +2865,7 @@ CASE_FUNCS = {
     'cold_seek': cold_command_case('seek'),
     'dead_start': case_dead_start,
     'cold_seek_stall': case_cold_seek_stall,
+    'dead_source_hold': case_dead_source_hold,
     'cold_seek_hold20': lambda run, env: case_cold_seek_stall(run, env, stall_s=20.0, at_start=True),
     'cold_seek_hold40': lambda run, env: case_cold_seek_stall(run, env, stall_s=40.0, at_start=True),
     'cut40': cut_at_case(0.40, 1),
