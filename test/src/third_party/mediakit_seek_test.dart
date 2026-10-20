@@ -13,10 +13,12 @@ class _Streams extends Mock implements PlayerStream;
 
 class _Properties implements IcyPropertySource {
   String inputRate = '';
+  int inputReads = 0;
 
   @override
   Future<String> read(String property) async {
     if (property != 'cache-speed') return '';
+    inputReads++;
     return inputRate;
   }
 
@@ -114,46 +116,18 @@ void main() {
   });
 
   test(
-    'mpv input activity is independent of decoded buffer and position',
+    'buffering current-track seek uses native position with no input polling',
     () async {
+      state = state.copyWith(buffering: true);
+      properties.inputRate = '187496';
+      const target = Duration(seconds: 30);
+      await adapter.seek(SeekRequest(index: null, position: target));
+      verify(() => player.seek(target)).called(1);
       expect(state.position, Duration.zero);
       expect(state.buffer, Duration.zero);
-      for (final rate in ['', '0', '-1', 'unavailable']) {
-        properties.inputRate = rate;
-        expect(await adapter.networkInputActive, isFalse, reason: rate);
-      }
-      properties.inputRate = '187500';
-      expect(await adapter.networkInputActive, isTrue);
-      properties.inputRate = '190000';
-      expect(await adapter.networkInputActive, isTrue);
-      properties.inputRate = '0';
-      expect(await adapter.networkInputActive, isFalse);
+      expect(properties.inputReads, 0);
     },
   );
-
-  test('positive mpv input stays active while constant or falling', () async {
-    properties.inputRate = '1';
-    expect(await adapter.networkInputActive, isTrue);
-    await Future<void>.delayed(const Duration(milliseconds: 2100));
-    expect(await adapter.networkInputActive, isTrue);
-    for (final rate in ['190000', '95000', '8191', '1']) {
-      properties.inputRate = rate;
-      expect(await adapter.networkInputActive, isTrue, reason: rate);
-      expect(await adapter.networkInputBytesPerSecond, int.parse(rate));
-    }
-  });
-
-  test('mpv input diagnostics preserve unavailable and zero samples', () async {
-    for (final rate in ['', 'unavailable']) {
-      properties.inputRate = rate;
-      expect(await adapter.networkInputBytesPerSecond, isNull);
-    }
-    properties.inputRate = '0';
-    expect(await adapter.networkInputBytesPerSecond, 0);
-    await adapter.release();
-    expect(await adapter.networkInputBytesPerSecond, isNull);
-    expect(await adapter.networkInputActive, isFalse);
-  });
 
   test(
     'jump with zero position issues no native seek, even after ready',

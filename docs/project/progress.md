@@ -2,7 +2,7 @@
 
 Tracks completion of all phases and sub-tasks defined in [docs/project/development-plan.md](development-plan.md). Checkboxes are updated as work is completed.
 
-Last updated: 2026-10-20
+Last updated: 2026-10-21
 
 ---
 
@@ -15,18 +15,16 @@ Last updated: 2026-10-20
 
 ## Current Focus
 - [ ] Issue #86, slow-stream seek settlement and song start — partial: 2026-10-20
-  (`fix/seek-settlement`, remaining: coordinator runtime revalidation after
-  review fixes, independent review and `./tool/check.sh`): native seeks and
-  song loads use mpv input activity on desktop and native buffer growth/mobile
-  lock-cache byte events to extend the 12-second deadline while player-side
-  data advances, with an eight-second idle window and the existing 45-second
-  hard cap. Recent growth
-  also defers the seek probe's premature missed-target/stall decision,
-  including downloads below half complete. Desktop sidecar growth is excluded
-  because that transfer runs independently of mpv. Cache-complete reloads,
-  transcode-offset selection,
-  seek cancellation, Play/Pause intent, radio and recovery budgets retain
-  their existing paths. The tests use shortened injectable production budgets
+  (`fix/seek-settlement`, remaining: coordinator native FLAC/Android
+  revalidation and independent review): desktop seek probes use a fixed
+  25-second settlement deadline, including recovery. Desktop zero-position
+  loads use sidecar received bytes for the existing 12-second/idle/45-second
+  progress deadline; mobile buffer and lock-cache byte events remain intact.
+  Same-song cold seeks keep the active load's ownership. The sampled mpv
+  input APIs and their diagnostics were removed. Cache-complete reloads,
+  transcode-offset selection, cancellation, Play/Pause intent and radio keep
+  their existing paths. Earlier rounds and their superseded policies follow.
+  The tests use shortened injectable production budgets
   and a real loopback sidecar transfer. Before the fix, the six-case regression
   run ended `00:02 +1 -5: Some tests failed.`; both seek states, idle/cap
   preconditions and the growing start failed. Seek assertions reported
@@ -164,6 +162,46 @@ Last updated: 2026-10-20
   The complete diff passes `git diff --check`. Native acceptance, independent
   review and the full gate remain with the coordinator; no app, emulator, VM
   or `./tool/check.sh` was run, per the assigned scope.
+  Round 7 (2026-10-21): coordinator slow FLAC evidence showed mpv's input rate
+  measures linear download activity even when seeking is stuck. Both desktop
+  settlement probes now use `desktopSeekSettle` (25 seconds) through the existing
+  deadline helper. Source control/reload timeouts remain additional bounded work.
+  Desktop zero-position loads use sidecar counters without file polling; loads
+  at a seek position cannot extend from those independent bytes. The mobile
+  byte-event extension, 12-second dead start and next-check Next/Stop cancellation
+  remain. No queue token/generation change was needed: read-only r5/r6 cold
+  traces show `active queue apply` timing out at 12 seconds, then next-song
+  failover superseding the waiting seek. A cold mpv load has no useful progress
+  sample while sidecar bytes are arriving. The test-first regression reproduced
+  this with no mpv input signal: `00:04 +1 -3: Some tests failed.`; the fixed
+  deadline expected 600–1000 ms but observed 1200 ms, and both cold starts
+  expected `disposed == false` but observed `true`. The third-party native
+  buffering seek test already passed. Single and rapid same-song seeks now
+  verify no failure notice, no retirement and completion at the latest target.
+  Final review found that bypassing the progress loop for nonzero recovery loads
+  also bypassed generation cancellation. Next/Stop regressions first failed
+  `00:01 +0 -2: Some tests failed.` (`Expected: true` / `Actual: <false>` for
+  retirement within one check). Those loads now keep the same polling helper,
+  with its hard cap set to the existing load deadline; arriving sidecar bytes
+  cannot extend them. A third regression checks that fixed cap.
+  The four-file serial run before the added cancellation cases (navigation,
+  media-kit seek, position-offset and lock-cache tests) passed
+  `05:39 +625: All tests passed!`. The final focused deadline/native-seek run
+  passed `00:17 +22: All tests passed!`. An isolated muted
+  Linux profile used the authenticated diagnostics API against a synthetic WAV
+  fixture: the native read waited 14 seconds while sidecar bytes arrived; a
+  same-song cold seek completed in 14.57 seconds with zero recovery attempts,
+  surviving the 12-second load threshold without a skip. A paused backward seek
+  reached 29,901 ms for a 30,000 ms target; clean restart restored both queue
+  occurrences. Evidence: `build/round7-runtime/report.json` and app logs. The
+  native FLAC stuck-probe/Android harness and independent review remain external
+  acceptance work. `./tool/check.sh` passed with two test workers: migration
+  `00:03 +103`, critical reliability `00:10 +283`, and full suite
+  `10:55 +8933 ~1: All tests passed!`, followed by `[check] All checks passed.`
+  The temporary concurrency config was removed. Final formatting passes all
+  eleven edited Dart files unchanged; final scoped analysis exits 0 with no
+  errors or warnings and 25 informational findings mapped to unchanged HEAD
+  lines. The complete diff passes `git diff --check`.
 - [ ] Issue #86, Android progressive HTTP repeat-one rewind — partial: 2026-10-20
   (`fix/repeat-one-rewind`, based on `3c1d8c54`, remaining: coordinator Android
   runtime probes, independent review and `./tool/check.sh`): native repeat-one
