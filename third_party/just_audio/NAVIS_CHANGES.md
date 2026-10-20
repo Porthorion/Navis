@@ -92,9 +92,12 @@ JVM framing fixtures using the existing `EqualizerDspTest` executable pattern.
 
 Android progressive HTTP repeat-one keeps the requested Dart loop mode but
 uses native repeat-off plus pause-at-end. The end-of-item PlayWhenReady reason
-(and an idempotent ENDED fallback) restarts the same index at zero, preserving
-Play/Pause intent without publishing terminal completion. A revision cancels
-pending restarts on transport, selection/source/playlist or loop-mode changes.
+(and an idempotent ENDED fallback) restarts the same queue occurrence at zero,
+preserving Play/Pause intent without publishing terminal completion. Its timeline
+window UID survives appends, inserts and moves while it remains current; restart
+uses its current index. Removal/replacement clears the paused boundary as well.
+A revision cancels pending restarts on transport, selection/source replacement
+or loop-mode changes.
 This prevents Media3 1.4.1 from preloading the same linear stream and silently
 rewinding the current period when the repeated request becomes seekable (#86).
 Local files/assets, HLS/DASH, radio's existing default-retry opt-out and all

@@ -36,6 +36,18 @@ Last updated: 2026-10-20
   formatting and the complete diff passes `git diff --check`. No app, emulator
   or VM was launched; Android
   compilation/runtime, analyzer and the full gate remain with the coordinator.
+  Review round 1 fixes: boundary ownership now uses the timeline window UID,
+  so appends/inserts/moves retain a pending restart or paused boundary while
+  the same occurrence stays current; removal/replacement cancels it, and the
+  runnable seeks its current index. Removed redundant loop-policy updates from
+  Play/Pause. The insert-before fixture first failed with `AssertionError:
+  inserting before the boundary item restarts at its shifted index`; the JVM
+  harness now passes all equalizer fixtures, 12 retry fixtures and 26 repeat
+  fixtures. The same two-file targeted Dart command above passed
+  `05:19 +580: All tests passed!`. Architecture, vendored change notes and the
+  existing release-note entry were updated. The complete diff passes
+  `git diff --check`. No app, emulator, VM, Android build, analyzer or
+  `./tool/check.sh` was run for this round, per the assigned validation scope.
 - [ ] Issue #86, unknown-length Android stall replay — partial: 2026-10-20
   (`fix/stall-replay`): Media3 progressive load errors with unknown HTTP length
   become fatal instead of restarting at byte zero; sized/ranged sources and

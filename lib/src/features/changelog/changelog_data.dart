@@ -131,7 +131,7 @@ const List<ChangelogVersion> changelogs = [
     entries: [
       ChangelogEntry(
         'Fix Repeat One silently rewinding streamed songs before the end '
-        'on Android',
+        'on Android and stalling when the queue fills in the background',
         type: ChangelogEntryType.fix,
       ),
       ChangelogEntry(

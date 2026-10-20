@@ -4450,13 +4450,17 @@ cache proxy and direct `timeOffset` streams) keeps the requested Dart
 `setPauseAtEndOfMediaItems(true)`. Media3 must not prepare a repetition of that
 same source while its first unknown-length period is playing: a later sized
 source-info refresh can otherwise silently clamp the current position to zero.
-The end-of-item PlayWhenReady reason schedules a same-index seek to native zero;
+The end-of-item PlayWhenReady reason schedules a same-item seek to native zero;
 `STATE_ENDED` is an idempotent fallback and does not publish `completed` during
 an owned repeat. A command revision consumes each boundary once and invalidates
 pending work on Pause (even if native playback already paused at the boundary),
-Stop/disposal, seek/selection, playlist replacement/edit, item transition or loop
-mode change. Playback resumes only while Play is still requested. The native
-policy is re-evaluated on item/timeline changes and source replacement.
+Stop/disposal, seek/selection, playlist replacement, item transition or loop
+mode change. The boundary tracks the timeline window UID of the queue occurrence:
+appends, inserts and moves preserve it while that occurrence remains current,
+and the restart uses its current index. Removing or replacing that occurrence
+cancels both the pending restart and the paused boundary retained for explicit
+Play. Playback resumes only while Play is still requested. The native policy is
+re-evaluated on item/timeline changes and source replacement.
 
 The native tail event followed by zero preserves just_audio's existing
 same-index `autoAdvance` event. Its pairwise detector checks a backwards jump
