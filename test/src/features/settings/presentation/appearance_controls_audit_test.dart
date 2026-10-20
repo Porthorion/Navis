@@ -837,10 +837,11 @@ void main() {
               .first,
         );
       },
-      // Nothing hidden is a saved choice, not the built-in default.
+      // Nothing hidden is a saved choice, not the built-in default. Only the
+      // never-seen Random Albums section stays hidden.
       effect: (c) => expect(
         HomeSectionIds.resolveHidden(c.read(homeSectionsHiddenProvider)),
-        isEmpty,
+        ['random_album_list'],
       ),
     ),
     _Control(
