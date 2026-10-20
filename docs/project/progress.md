@@ -14,6 +14,25 @@ Last updated: 2026-10-20
 - ACP status values: `backlog`, `ready`, `in_progress`, `blocked`, `done`.
 
 ## Current Focus
+- [ ] Issue #86, unknown-length Android stall replay — partial: 2026-10-20
+  (`fix/stall-replay`): Media3 progressive load errors with unknown HTTP length
+  become fatal instead of restarting at byte zero; sized/ranged sources and
+  radio retain native retries. Handler recovery prefers the completed cache,
+  then reuses transcode-offset seeking at the current song time, with the seek
+  lane, cancellation, Play/Pause intent and existing one-retry budget. An error
+  at the known end advances without a reload. The initial handler run failed
+  four new regressions (`05:14 +550 -4`); the pure JVM framing fixture first
+  failed on chunked playback and then passed all 11 cases. The end-of-song
+  regression also failed before its advance guard. Broader validation exposed
+  two existing Play/rearm regressions; distinguishing automatic recovery from
+  a user seek fixed both. The focused rerun passed `00:03 +15`; the final
+  `flutter test --concurrency=4 --timeout 60s` run of
+  `navis_audio_handler_navigation_test.dart`, `position_offset_test.dart` and
+  `lock_caching_audio_source_test.dart` passed `05:14 +583: All tests passed!`.
+  All nine edited Dart files pass the formatter check; the complete diff passes
+  `git diff --check`. Coordinator retains the emulator stall probe,
+  runtime loop, independent review and `./tool/check.sh`; no app, emulator or
+  VM was launched for this implementation task.
 - [ ] Issue #86, transcode offset seek — partial: 2026-10-20
   (`fix/transcode-offset-seek`, remaining: orchestrator runtime pass with
   `tool/live_seek_stress.py` on Linux and the Android emulator): `streamUrl`

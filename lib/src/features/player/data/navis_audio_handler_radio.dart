@@ -118,7 +118,13 @@ extension _NavisRadio on NavisAudioHandler {
           generation: generation,
           operation: 'radio recovery source',
           action: () => _player.setAudioSource(
-            AudioSource.uri(Uri.parse(station.streamUrl), tag: item),
+            AudioSource.uri(
+              Uri.parse(station.streamUrl),
+              tag: item,
+              options: const ProgressiveAudioSourceOptions(
+                androidUseDefaultLoadErrorHandling: true,
+              ),
+            ),
           ),
           timeout: _playerLoadTimeout,
         );

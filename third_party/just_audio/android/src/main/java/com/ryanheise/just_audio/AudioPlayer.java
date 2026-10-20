@@ -11,6 +11,7 @@ import android.os.Looper;
 import androidx.media3.common.C;
 import androidx.media3.exoplayer.DefaultLivePlaybackSpeedControl;
 import androidx.media3.exoplayer.DefaultLoadControl;
+import androidx.media3.exoplayer.upstream.DefaultLoadErrorHandlingPolicy;
 import androidx.media3.exoplayer.DefaultRenderersFactory;
 import androidx.media3.exoplayer.audio.AudioSink;
 import androidx.media3.exoplayer.audio.ForwardingAudioSink;
@@ -677,7 +678,23 @@ public class AudioPlayer implements MethodCallHandler, Player.Listener, Metadata
         String id = (String)map.get("id");
         switch ((String)map.get("type")) {
         case "progressive":
+            Map<?, ?> options = mapGet(map, "options");
+            boolean useDefaultRetry = options != null
+                    && Boolean.TRUE.equals(options.get("androidUseDefaultLoadErrorHandling"));
             return new ProgressiveMediaSource.Factory(buildDataSourceFactory(mapGet(map, "headers")), buildExtractorsFactory(mapGet(map, "options")))
+                    .setLoadErrorHandlingPolicy(new DefaultLoadErrorHandlingPolicy() {
+                        @Override
+                        public long getRetryDelayMsFor(LoadErrorInfo info) {
+                            // Unknown-length VOD is mistaken for live media and restarts at byte 0.
+                            if (!useDefaultRetry && ProgressiveLoadRetry.isUnknownLengthHttp(
+                                    info.loadEventInfo.uri.getScheme(),
+                                    info.loadEventInfo.dataSpec.length,
+                                    info.loadEventInfo.responseHeaders)) {
+                                return C.TIME_UNSET;
+                            }
+                            return super.getRetryDelayMsFor(info);
+                        }
+                    })
                     .createMediaSource(new MediaItem.Builder()
                             .setUri(Uri.parse((String)map.get("uri")))
                             .setTag(id)

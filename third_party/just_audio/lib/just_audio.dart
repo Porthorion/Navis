@@ -2524,12 +2524,18 @@ class ProgressiveAudioSourceOptions {
   const ProgressiveAudioSourceOptions({
     this.androidExtractorOptions,
     this.darwinAssetOptions,
+    this.androidUseDefaultLoadErrorHandling = false,
   });
+
+  /// Keeps Media3's native load retries, including live-stream restarts.
+  final bool androidUseDefaultLoadErrorHandling;
+
   final AndroidExtractorOptions? androidExtractorOptions;
   final DarwinAssetOptions? darwinAssetOptions;
 
   ProgressiveAudioSourceOptionsMessage _toMessage() =>
       ProgressiveAudioSourceOptionsMessage(
+        androidUseDefaultLoadErrorHandling: androidUseDefaultLoadErrorHandling,
         androidExtractorOptions: androidExtractorOptions?._toMessage(),
         darwinAssetOptions: darwinAssetOptions?._toMessage(),
       );
@@ -2733,11 +2739,13 @@ abstract class AudioSource {
   /// the song (a server transcode opened with `timeOffset`). The platform
   /// reports time from zero; [AudioPlayer] adds the offset to everything it
   /// reads from the platform and subtracts it from everything it sends, so
-  /// callers only ever see song time.
+  /// callers only ever see song time. [options] applies to progressive sources;
+  /// DASH and HLS keep their own loading policies.
   static UriAudioSource uri(Uri uri,
       {Map<String, String>? headers,
       dynamic tag,
-      Duration positionOffset = Duration.zero}) {
+      Duration positionOffset = Duration.zero,
+      ProgressiveAudioSourceOptions? options}) {
     bool hasExtension(Uri uri, String extension) =>
         uri.path.toLowerCase().endsWith('.$extension') ||
         uri.fragment.toLowerCase().endsWith('.$extension');
@@ -2747,7 +2755,10 @@ abstract class AudioSource {
       return HlsAudioSource(uri, headers: headers, tag: tag);
     } else {
       return ProgressiveAudioSource(uri,
-          headers: headers, tag: tag, positionOffset: positionOffset);
+          headers: headers,
+          tag: tag,
+          positionOffset: positionOffset,
+          options: options);
     }
   }
 

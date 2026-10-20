@@ -2313,6 +2313,7 @@ class NavisAudioHandler extends BaseAudioHandler
     // A failed stream cannot seek; recovery reloads it at the new target.
     if (pending != null &&
         pending.songId == songId &&
+        _pendingSeek == null &&
         !_isLoading &&
         _rearmRemoteRecovery(
           position: navisSanitizeSeekPosition(position),
@@ -3158,7 +3159,13 @@ class NavisAudioHandler extends BaseAudioHandler
             generation: generation,
             operation: 'radio source apply',
             action: () => _player.setAudioSource(
-              AudioSource.uri(streamUri, tag: radioMediaItem),
+              AudioSource.uri(
+                streamUri,
+                tag: radioMediaItem,
+                options: const ProgressiveAudioSourceOptions(
+                  androidUseDefaultLoadErrorHandling: true,
+                ),
+              ),
             ),
             timeout: _playerLoadTimeout,
           );
