@@ -4712,54 +4712,44 @@ between ready and buffering several times a second, so settlement rests on the
 native position: a playing request is settled once the position advances from
 the target, a paused one once it has held the target for 300 ms. Native
 buffering may probe several byte ranges before producing a packet, so it counts
-as activity during the initial load budget. Both seek settlement and native
-song loads share a progress deadline. Android/iOS use native
-`bufferedPosition` growth and received lock-cache bytes. Desktop uses the
-vendored `AudioPlayer.networkInputBytesPerSecond` getter: mpv's `cache-speed`
-(the same network-layer bytes/second estimate as
-`demuxer-cache-state/raw-input-rate`)
-read through media_kit's existing native property bridge. Any sampled rate
-greater than zero counts as input activity, including constant or falling
-estimates during range probes; unavailable samples are null. Input activity
-extends the wait only while processing is loading or buffering, even while
-decoded buffer and position are frozen; the independent sidecar and desktop
-buffered position cannot extend it.
-The property is sampled at most every 250 ms, without file I/O. mpv derives
-this rate from unbuffered stream reads before decoding, rather than packet
-queue size (`fw-bytes`/`total-bytes`). It is an estimate updated when demux reads
-return, can lag during a blocking read and is unavailable before mpv publishes
-the demuxer; it does not prove every cold-open/probe is progressing. See the
-[mpv property contract](https://mpv.io/manual/stable/#cache-speed) and
-[demux input accounting](https://github.com/mpv-player/mpv/blob/v0.41.0/demux/demux.c).
-Recent player-side activity defers premature seek stall/missed-target checks
-only while loading or buffering. Ready disables the input extension and uses the
-existing short missed-target/no-progress timers, including after an extended
-buffering wait; recent input remains available if the backend briefly flaps
-back to buffering, and the 45-second overall cap still applies. A playing seek
-that has landed but has not advanced 250 ms remains pending and a newer seek
-correctly supersedes it; reaching the target alone does not certify playback.
-An eight-second idle window (`NavisPlaybackTimeouts.progressIdle`) bounds the
-extension, with a 45-second `seekProgress` cap. With no input activity, native
-loads retain their 12-second deadline and seek probes retain their short
-stall checks. Lock-cache progress events update in-memory byte counters on
-every body chunk, including sub-percent and unknown-length transfers.
+as activity until the settlement deadline. Desktop seek settlement uses a fixed
+25-second deadline
+(`NavisPlaybackTimeouts.desktopSeekSettle`) for every probe, including the
+probe after recovery. Neither mpv download activity, independent sidecar bytes
+nor decoded buffer growth extends that deadline. Linear downloads can continue
+while a seek is stuck, so they cannot establish seek progress. The existing
+near-target, advancing/paused settlement, missed-target, no-progress and
+cache-complete rules can still end a probe earlier. Two stuck buffering probes
+therefore consume about 50 seconds of settlement time, plus the existing bounded
+native control/source reload work, instead of 45 + 45 seconds.
+
+Native song loads and mobile seek probes reuse `_PlaybackProgressDeadline`.
+Android/iOS retain native `bufferedPosition` growth and received lock-cache
+byte events, including sub-percent and unknown-length transfers. Desktop loads
+starting at position zero may extend using the sidecar's in-memory received byte
+counter: downloading linearly is useful progress there. Desktop loads at a seek
+offset retain their fixed native load deadline while the same 250 ms loop
+continues checking cancellation. mpv input-rate APIs and sampling
+are absent. Progress only extends loading/buffering, with an eight-second idle
+window (`progressIdle`) and 45-second cap (`seekProgress`). No received bytes
+still means a 12-second native load deadline.
+
 Native queue loads check progress every 250 ms while awaiting the existing
-operation future. A pending seek for the loading song keeps the extension:
-it waits for the load to finish, then seeks. Other lane backlog retains the
-original load deadline. A superseded load generation (new selection/queue or
-Stop during loading) retires the old player on the next check, including
-before the initial deadline. Controls, queue edits and radio keep fixed
-timeouts. Timeout failures report the actual elapsed time. When the desktop
-sidecar file completes first the seek probe stops and
-the song is reloaded from it. Each probe that gives up records
-why (`missed target`, `no progress`, `cache complete`, `deadline`) with the
-state it saw in the seek's `unsettled` diagnostics, including the latest sampled
-`inputBytesPerSecond` (null when unavailable) and `inputExtensionActive`
-(whether the loading/buffering progress extension was active). A stale positive
-rate while buffering can defer a truly stuck load or seek until the 45-second
-cap; the recorded rate supports tuning this accepted bound. Each current
-request permits one recovery attempt, plus a reload from a sidecar file that
-completes during it. An exhausted request reports failure and
+operation future. A pending seek for the loading song preserves this extension:
+it waits behind the active queue apply without changing its load generation or
+operation token, then seeks once loading/filling finishes. Even rapid same-song
+seeks retain the selected song; older seek requests are superseded. A cold
+native load may publish no buffer or mpv input estimate, so excluding the
+sidecar previously caused a 12-second queue-apply timeout, next-song failover,
+and cancellation of the waiting seek. Other lane backlog retains the original
+load deadline. A new selection/queue or Stop retires a superseded load on the
+next check. Controls, queue edits and radio keep fixed timeouts; failures report
+actual elapsed time. When the desktop sidecar completes first, settlement stops
+and existing recovery reloads from it. Each unsuccessful probe records
+`reason`, `elapsedMs`, `positionMs`, `bufferedMs`, `processingState` and `playing`
+in the seek's `unsettled` diagnostics. Each current request permits one recovery
+attempt, plus a reload from a sidecar file that completes during it. An
+exhausted request reports failure and
 suppresses automatic stream retries until another explicit transport/selection
 request, or until the song has played on normally for five seconds past where
 the seek failed, preventing a failed seek from later restarting or skipping the

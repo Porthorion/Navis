@@ -25,9 +25,6 @@ import 'package:path/path.dart' as p;
 import 'package:navis/src/common_widgets/cover_art_cache_manager.dart';
 import 'package:navis/src/features/player/data/radio_metadata_service.dart';
 import 'package:just_audio/just_audio.dart';
-import 'package:just_audio_media_kit/mediakit_player.dart';
-import 'package:just_audio_media_kit/src/icy_metadata.dart';
-import 'package:media_kit/media_kit.dart' as media_kit;
 import 'package:navis/src/api/subsonic_api_client.dart';
 import 'package:navis/src/api/models/models.dart' as models;
 import 'package:navis/src/api/subsonic_auth_interceptor.dart';
@@ -56,27 +53,6 @@ import 'package:navis/src/features/player/domain/streaming_quality.dart';
 import '../../../../helpers/test_database.dart';
 import '../../../../helpers/library_sync_fakes.dart';
 import '../../../../helpers/library_sync_plan.dart';
-
-class _NativeInputPlayer extends Mock implements media_kit.Player;
-
-class _NativeInputStreams extends Mock implements media_kit.PlayerStream;
-
-class _NativeInputProperties implements IcyPropertySource {
-  String rate = '190000';
-
-  @override
-  Future<String> read(String property) async =>
-      property == 'cache-speed' ? rate : '';
-
-  @override
-  Future<void> observe(
-    String property,
-    Future<void> Function(String) listener,
-  ) async {}
-
-  @override
-  Future<void> unobserve(String property) async {}
-}
 
 class _MockRecommendationService extends Mock implements RecommendationService;
 
@@ -372,6 +348,7 @@ class _ControllableAudioPlayer extends Fake implements AudioPlayer {
   Completer<void>? seekGate;
   Completer<void>? seekEntered;
   bool gateNonEmptyLoadsOnly = false;
+  bool bufferAfterLoad = false;
   Completer<void>? loadGate;
   Completer<void>? loadEntered;
   StateError? blockedLoadError;
@@ -471,15 +448,6 @@ class _ControllableAudioPlayer extends Fake implements AudioPlayer {
       (simulateProgress && isPlaying
           ? DateTime.now().difference(_positionUpdated)
           : Duration.zero);
-
-  int simulatedInputBytesPerSecond = 0;
-  Future<int?> Function()? readNetworkInputBytesPerSecond;
-
-  @override
-  Future<int?> get networkInputBytesPerSecond async =>
-      readNetworkInputBytesPerSecond != null
-      ? await readNetworkInputBytesPerSecond!()
-      : simulatedInputBytesPerSecond;
 
   Duration simulatedBuffered = Duration.zero;
 
@@ -750,6 +718,8 @@ class _ControllableAudioPlayer extends Fake implements AudioPlayer {
     index = sources.isEmpty ? null : initialIndex ?? 0;
     state = sources.isEmpty || !preload
         ? ProcessingState.idle
+        : bufferAfterLoad
+        ? ProcessingState.buffering
         : ProcessingState.ready;
     if (failAfterLoad) {
       // Like a native load: a loading event, then the error.
@@ -10041,12 +10011,13 @@ void main() {
   });
 
   group('progress-aware playback deadlines', () {
-    // Scaled equivalents of the 12 s load and 45 s progress budgets.
+    // Scaled load, fixed desktop settlement and mobile/load progress budgets.
     const deadlines = NavisPlaybackTimeouts(
       load: Duration(milliseconds: 300),
       seekBufferingRecovery: Duration(milliseconds: 150),
       seekProgress: Duration(milliseconds: 1200),
-      // Keep the scaled idle window above the 250 ms native sample cadence.
+      desktopSeekSettle: Duration(milliseconds: 600),
+      // Keep the scaled idle window above the 250 ms load-check cadence.
       progressIdle: Duration(milliseconds: 300),
     );
 
@@ -10054,11 +10025,7 @@ void main() {
       (
         NavisAudioHandler,
         _ControllableAudioPlayer,
-        void Function({
-          required bool growing,
-          bool playerProgress,
-          bool bufferProgress,
-        }),
+        void Function({required bool growing, bool bufferProgress}),
       )
     >
     fixture({NavisPlaybackTimeouts timeouts = deadlines}) async {
@@ -10127,91 +10094,61 @@ void main() {
       return (
         handler,
         player,
-        ({
-          required bool growing,
-          bool playerProgress = true,
-          bool bufferProgress = false,
-        }) {
+        ({required bool growing, bool bufferProgress = false}) {
           receiving = growing;
-          player.simulatedInputBytesPerSecond = growing && playerProgress
-              ? 25000
-              : 0;
           bufferGrowing = growing && bufferProgress;
         },
       );
     }
 
     test(
-      'constant low mpv input prevents a buffering reload at 12 s',
+      'desktop buffering probes both obey the fixed settlement deadline',
       () async {
-        final (handler, player, _) = await fixture(
-          timeouts: const NavisPlaybackTimeouts(),
-        );
+        final (handler, player, grow) = await fixture();
         await handler.replaceQueue([
           'song-0',
           'song-1',
         ], expandMatchFlows: false);
-        final native = _NativeInputPlayer();
-        final streams = _NativeInputStreams();
-        final properties = _NativeInputProperties();
-        when(() => native.stream).thenReturn(streams);
-        when(() => native.state).thenReturn(media_kit.PlayerState());
-        when(native.dispose).thenAnswer((_) async {});
-        when(() => streams.audioParams).thenAnswer((_) => const Stream.empty());
-        when(() => streams.duration).thenAnswer((_) => const Stream.empty());
-        when(() => streams.position).thenAnswer((_) => const Stream.empty());
-        when(() => streams.buffering).thenAnswer((_) => const Stream.empty());
-        when(() => streams.buffer).thenAnswer((_) => const Stream.empty());
-        when(() => streams.volume).thenAnswer((_) => const Stream.empty());
-        when(() => streams.completed).thenAnswer((_) => const Stream.empty());
-        when(() => streams.error).thenAnswer((_) => const Stream.empty());
-        when(() => streams.playlist).thenAnswer((_) => const Stream.empty());
-        when(() => streams.playlistMode)
-            .thenAnswer((_) => const Stream.empty());
-        when(() => streams.pitch).thenAnswer((_) => const Stream.empty());
-        when(() => streams.rate).thenAnswer((_) => const Stream.empty());
-        when(() => streams.log).thenAnswer((_) => const Stream.empty());
-        final adapter = MediaKitPlayer(
-          'steady-input',
-          player: native,
-          icyPropertySource: properties,
-        );
-        addTearDown(adapter.release);
+        grow(growing: true);
         player
-          ..readNetworkInputBytesPerSecond = (() =>
-              adapter.networkInputBytesPerSecond)
           ..state = ProcessingState.buffering
           ..ignoreSeeks = true
+          ..ignoreInitialPosition = true
+          ..bufferAfterLoad = true
           ..nativePositionFrozen = true;
-        // Range probes can leave a small positive estimate unchanged.
-        properties.rate = '1';
-        final loads = player.sourceLoads;
         final seeking = handler.seek(const Duration(seconds: 90));
-        try {
-          await Future<void>.delayed(const Duration(milliseconds: 13100));
-          expect(player.sourceLoads, loads);
-          expect(
-            (handler.collectPlaybackDiagnostics()['seek']!
-                as Map)['recoveryAttempts'],
-            0,
-          );
-        } finally {
-          player
-            ..simulatedPosition = const Duration(seconds: 90)
-            ..nativePositionFrozen = false
-            ..state = ProcessingState.ready;
-          await seeking;
-        }
+        await Future<void>.delayed(const Duration(milliseconds: 400));
+        expect(
+          (handler.collectPlaybackDiagnostics()['seek']!
+              as Map)['recoveryAttempts'],
+          0,
+        );
+        await seeking;
         final seek = handler.collectPlaybackDiagnostics()['seek']! as Map;
-        expect(seek['outcome'], 'completed');
-        expect(seek['recoveryAttempts'], 0);
-        expect(player.sourceLoads, loads);
+        expect(seek['recoveryAttempts'], 1);
+        expect(seek['outcome'], 'failed');
+        final event =
+            (handler.collectPlaybackDiagnostics()['seekEvents']! as List).last
+                as Map;
+        final probes = event['unsettled']! as List;
+        expect(probes, hasLength(2));
+        for (final entry in probes) {
+          final probe = entry as Map;
+          expect(probe['reason'], 'deadline');
+          expect(probe['elapsedMs'], inInclusiveRange(600, 1000));
+          expect(probe['processingState'], 'buffering');
+          expect(probe['positionMs'], isA<int>());
+          expect(probe['bufferedMs'], isA<int>());
+          expect(probe['playing'], isTrue);
+          expect(probe.containsKey('inputBytesPerSecond'), isFalse);
+          expect(probe.containsKey('inputExtensionActive'), isFalse);
+        }
       },
     );
 
     for (final flapping in [false, true]) {
       test('buffering seek with frozen decoded buffer '
-          'keeps reading past load deadline (flapping $flapping)', () async {
+          'can settle after the load deadline (flapping $flapping)', () async {
         final (handler, player, grow) = await fixture();
         await handler.replaceQueue([
           'song-0',
@@ -10224,14 +10161,14 @@ void main() {
           ..nativePositionFrozen = true;
         final elapsed = Stopwatch()..start();
         final flap = Timer.periodic(const Duration(milliseconds: 40), (_) {
-          if (flapping && elapsed.elapsedMilliseconds >= 400) {
+          if (flapping && elapsed.elapsedMilliseconds >= 200) {
             player.state = player.state == ProcessingState.ready
                 ? ProcessingState.buffering
                 : ProcessingState.ready;
           }
         });
         addTearDown(flap.cancel);
-        final landed = Timer(const Duration(milliseconds: 700), () {
+        final landed = Timer(const Duration(milliseconds: 325), () {
           flap.cancel();
           player
             ..simulatedPosition = const Duration(seconds: 90)
@@ -10241,7 +10178,7 @@ void main() {
         addTearDown(landed.cancel);
         final loads = player.sourceLoads;
         final seeking = handler.seek(const Duration(seconds: 90));
-        await Future<void>.delayed(const Duration(milliseconds: 400));
+        await Future<void>.delayed(const Duration(milliseconds: 300));
         expect(player.sourceLoads, loads);
         expect(player.bufferedPosition, Duration.zero);
         expect(player.playbackEvent.updatePosition, Duration.zero);
@@ -10258,7 +10195,7 @@ void main() {
     }
 
     for (final near in [true, false]) {
-      test('ready frozen seek ignores decaying input after buffering '
+      test('ready frozen seek retains short stall checks after buffering '
           '(near target $near)', () async {
         final (handler, player, grow) = await fixture();
         await handler.replaceQueue([
@@ -10270,24 +10207,14 @@ void main() {
           ..state = ProcessingState.buffering
           ..ignoreSeeks = true
           ..nativePositionFrozen = true;
-        final ready = Timer(Duration(milliseconds: near ? 700 : 100), () {
+        final ready = Timer(Duration(milliseconds: near ? 350 : 100), () {
           player
             ..state = ProcessingState.ready
             ..simulatedPosition = near
                 ? const Duration(seconds: 90)
                 : Duration.zero;
         });
-        final decay = Timer.periodic(const Duration(milliseconds: 100), (_) {
-          // Even before the rate decays to zero, ready must use the old timer.
-          player.simulatedInputBytesPerSecond = max(
-            1,
-            player.simulatedInputBytesPerSecond ~/ 2,
-          );
-        });
-        addTearDown(() {
-          ready.cancel();
-          decay.cancel();
-        });
+        addTearDown(ready.cancel);
         await handler.seek(const Duration(seconds: 90));
         final events =
             handler.collectPlaybackDiagnostics()['seekEvents']! as List;
@@ -10299,8 +10226,6 @@ void main() {
         expect(probe['elapsedMs'], lessThan(near ? 1100 : 600));
         expect(probe['processingState'], 'ready');
         expect(probe['playing'], isTrue);
-        expect(probe['inputBytesPerSecond'], greaterThan(0));
-        expect(probe['inputExtensionActive'], isFalse);
       });
     }
 
@@ -10327,126 +10252,155 @@ void main() {
       },
     );
 
-    test('seek still recovers after mpv input becomes idle', () async {
+    test('desktop sidecar growth does not hide a ready frozen seek', () async {
       final (handler, player, grow) = await fixture();
       await handler.replaceQueue(['song-0', 'song-1'], expandMatchFlows: false);
       grow(growing: true);
       player
-        ..state = ProcessingState.buffering
+        ..state = ProcessingState.ready
         ..ignoreSeeks = true
         ..nativePositionFrozen = true;
-      final seek = handler.seek(const Duration(seconds: 90));
-      await Future<void>.delayed(const Duration(milliseconds: 400));
-      expect(
-        (handler.collectPlaybackDiagnostics()['seek']!
-            as Map)['recoveryAttempts'],
-        0,
-      );
-      grow(growing: false);
-      player.nativePositionFrozen = false;
-      await seek;
-      expect(
-        (handler.collectPlaybackDiagnostics()['seek']!
-            as Map)['recoveryAttempts'],
-        1,
-      );
-    });
-
-    test('seek gives up at hard cap despite active mpv input', () async {
-      final (handler, player, grow) = await fixture();
-      await handler.replaceQueue(['song-0', 'song-1'], expandMatchFlows: false);
-      grow(growing: true);
-      player
-        ..state = ProcessingState.buffering
-        ..ignoreSeeks = true
-        ..nativePositionFrozen = true;
-      final seeking = handler.seek(const Duration(seconds: 90));
-      await Future<void>.delayed(const Duration(milliseconds: 400));
-      expect(
-        (handler.collectPlaybackDiagnostics()['seek']!
-            as Map)['recoveryAttempts'],
-        0,
-      );
-      await seeking;
-      final seek = handler.collectPlaybackDiagnostics()['seek']! as Map;
-      expect(seek['recoveryAttempts'], 1);
+      await handler.seek(const Duration(seconds: 90));
       final event =
           (handler.collectPlaybackDiagnostics()['seekEvents']! as List).last
               as Map;
       final probe = (event['unsettled']! as List).first as Map;
-      expect(probe['reason'], 'deadline');
-      expect(probe['elapsedMs'], inInclusiveRange(1200, 2500));
-      expect(probe['inputBytesPerSecond'], 25000);
-      expect(probe['inputExtensionActive'], isTrue);
+      expect(probe['reason'], 'missed target');
+      expect(probe['elapsedMs'], lessThan(600));
+      expect(
+        handler.collectPlaybackDiagnostics()['partialCacheBytes'],
+        greaterThan(0),
+      );
     });
 
-    for (final rate in <int?>[0, null]) {
-      test('desktop sidecar growth does not hide a frozen native seek '
-          '(input rate $rate)', () async {
-        final (handler, player, grow) = await fixture();
-        await handler.replaceQueue([
-          'song-0',
-          'song-1',
-        ], expandMatchFlows: false);
-        grow(growing: true, playerProgress: false);
-        player
-          ..readNetworkInputBytesPerSecond = (() async => rate)
-          ..state = ProcessingState.ready
-          ..ignoreSeeks = true
-          ..nativePositionFrozen = true;
-        await handler.seek(const Duration(seconds: 90));
-        final events =
-            handler.collectPlaybackDiagnostics()['seekEvents']! as List;
-        final probe = ((events.last as Map)['unsettled']! as List).first as Map;
-        expect(probe['reason'], 'missed target');
-        expect(probe['elapsedMs'], lessThan(600));
-        expect(probe['inputBytesPerSecond'], rate);
-        expect(probe['inputExtensionActive'], isFalse);
-        expect(
-          handler.collectPlaybackDiagnostics()['partialCacheBytes'],
-          greaterThan(0),
-        );
-      });
+    for (final rapid in [false, true]) {
+      test(
+        '${rapid ? 'rapid' : 'single'} same-song seek preserves a progressing cold start',
+        () async {
+          final (handler, player, grow) = await fixture();
+          final gate = Completer<void>();
+          final entered = Completer<void>();
+          player
+            ..loadGate = gate
+            ..loadEntered = entered
+            ..gateNonEmptyLoadsOnly = true;
+          addTearDown(() {
+            if (!gate.isCompleted) gate.complete();
+          });
+          final failures = <PlaybackLoadFailure>[];
+          final subscription = handler.loadFailureStream.listen(failures.add);
+          addTearDown(subscription.cancel);
+          grow(growing: true);
+          final loading = handler.replaceQueue([
+            'song-0',
+            'song-1',
+          ], expandMatchFlows: false);
+          await entered.future;
+          await Future<void>.delayed(const Duration(milliseconds: 400));
+          final olderSeek = rapid
+              ? handler.seek(const Duration(seconds: 30))
+              : Future<void>.value();
+          await Future<void>.delayed(const Duration(milliseconds: 30));
+          final seeking = handler.seek(const Duration(seconds: 90));
+          await Future<void>.delayed(const Duration(milliseconds: 350));
+          final wasDisposed = player.disposed;
+          gate.complete();
+          await Future.wait([loading, olderSeek, seeking]);
+          expect(wasDisposed, isFalse);
+          expect(failures, isEmpty);
+          final seek = handler.collectPlaybackDiagnostics()['seek']! as Map;
+          expect(seek['outcome'], 'completed');
+          expect(seek['recoveryAttempts'], 0);
+          expect(handler.snapshot.currentSongId, 'song-0');
+          expect(
+            (player.position - const Duration(seconds: 90)).abs(),
+            lessThan(const Duration(seconds: 1)),
+          );
+        },
+      );
     }
 
-    for (final bufferProgress in [false, true]) {
-      test('same-song seek waits for a progressing cold start '
-          '(buffer progress $bufferProgress)', () async {
-        final (handler, player, grow) = await fixture();
-        final gate = Completer<void>();
-        final entered = Completer<void>();
-        player
-          ..loadGate = gate
-          ..loadEntered = entered
-          ..gateNonEmptyLoadsOnly = true;
-        addTearDown(() {
-          if (!gate.isCompleted) gate.complete();
-        });
-        final failures = <PlaybackLoadFailure>[];
-        final subscription = handler.loadFailureStream.listen(failures.add);
-        addTearDown(subscription.cancel);
-        grow(growing: true, bufferProgress: bufferProgress);
-        final loading = handler.replaceQueue([
-          'song-0',
-          'song-1',
-        ], expandMatchFlows: false);
-        await entered.future;
-        await Future<void>.delayed(const Duration(milliseconds: 400));
-        final seeking = handler.seek(const Duration(seconds: 90));
-        await Future<void>.delayed(const Duration(milliseconds: 350));
-        expect(player.disposed, isFalse);
-        gate.complete();
-        await Future.wait([loading, seeking]);
-        expect(failures, isEmpty);
-        final seek = handler.collectPlaybackDiagnostics()['seek']! as Map;
-        expect(seek['outcome'], 'completed');
-        expect(seek['recoveryAttempts'], 0);
-        expect(handler.snapshot.currentSongId, 'song-0');
-        expect(
-          (player.position - const Duration(seconds: 90)).abs(),
-          lessThan(const Duration(seconds: 1)),
-        );
+    test('sidecar bytes cannot extend a seek recovery load deadline', () async {
+      final (handler, player, grow) = await fixture(
+        timeouts: const NavisPlaybackTimeouts(
+          load: Duration(milliseconds: 600),
+          seekBufferingRecovery: Duration(milliseconds: 150),
+          seekProgress: Duration(seconds: 3),
+        ),
+      );
+      await handler.replaceQueue(['song-0', 'song-1'], expandMatchFlows: false);
+      final gate = Completer<void>();
+      final entered = Completer<void>();
+      player
+        ..ignoreSeeks = true
+        ..loadGate = gate
+        ..loadEntered = entered
+        ..gateNonEmptyLoadsOnly = true;
+      addTearDown(() {
+        if (!gate.isCompleted) gate.complete();
       });
+      grow(growing: true);
+      final seeking = handler.seek(const Duration(seconds: 90));
+      await entered.future;
+      await Future<void>.delayed(const Duration(milliseconds: 1000));
+      final retiredAtDeadline = player.disposed;
+      gate.complete();
+      await seeking;
+      expect(retiredAtDeadline, isTrue);
+      expect(
+        (handler.collectPlaybackDiagnostics()['seek']! as Map)['outcome'],
+        'failed',
+      );
+    });
+
+    for (final command in ['next', 'stop']) {
+      test(
+        '$command aborts a seek recovery load within one check interval',
+        () async {
+          final (handler, player, grow) = await fixture(
+            timeouts: const NavisPlaybackTimeouts(
+              load: Duration(seconds: 2),
+              seekBufferingRecovery: Duration(milliseconds: 150),
+              desktopSeekSettle: Duration(milliseconds: 600),
+            ),
+          );
+          await handler.replaceQueue([
+            'song-0',
+            'song-1',
+          ], expandMatchFlows: false);
+          final gate = Completer<void>();
+          final entered = Completer<void>();
+          player
+            ..ignoreSeeks = true
+            ..loadGate = gate
+            ..loadEntered = entered
+            ..gateNonEmptyLoadsOnly = true;
+          addTearDown(() {
+            if (!gate.isCompleted) gate.complete();
+          });
+          grow(growing: true);
+          final seeking = handler.seek(const Duration(seconds: 90));
+          await entered.future;
+          final control = command == 'next'
+              ? handler.skipToNext()
+              : handler.stop();
+          await Future<void>.delayed(const Duration(milliseconds: 350));
+          final retiredAtCheck = player.disposed;
+          gate.complete();
+          await Future.wait([seeking, control]);
+          expect(retiredAtCheck, isTrue);
+          expect(
+            (handler.collectPlaybackDiagnostics()['seek']! as Map)['outcome'],
+            'superseded',
+          );
+          if (command == 'next') {
+            expect(handler.snapshot.currentSongId, 'song-1');
+          }
+          if (command == 'stop') {
+            expect(handler.snapshot.playing, isFalse);
+          }
+        },
+      );
     }
 
     for (final command in ['next', 'stop']) {
@@ -10524,7 +10478,15 @@ void main() {
       test(
         'start remains bounded by ${idle ? 'download idle' : 'hard cap'}',
         () async {
-          final (handler, player, grow) = await fixture();
+          final (handler, player, grow) = await fixture(
+            timeouts: idle
+                ? const NavisPlaybackTimeouts(
+                    load: Duration(milliseconds: 300),
+                    seekProgress: Duration(milliseconds: 2400),
+                    progressIdle: Duration(milliseconds: 300),
+                  )
+                : deadlines,
+          );
           final gate = Completer<void>();
           final entered = Completer<void>();
           player
@@ -10546,13 +10508,23 @@ void main() {
           await Future<void>.delayed(const Duration(milliseconds: 400));
           expect(player.disposed, isFalse);
           if (idle) grow(growing: false);
-          await Future<void>.delayed(Duration(milliseconds: idle ? 500 : 1000));
-          expect(player.disposed, isTrue);
           await loading;
+          expect(player.disposed, isTrue);
+          if (handler.snapshot.currentSongId != 'song-1' ||
+              handler.snapshot.isLoading) {
+            await handler.snapshotStream
+                .firstWhere(
+                  (snapshot) =>
+                      snapshot.currentSongId == 'song-1' && !snapshot.isLoading,
+                )
+                .timeout(const Duration(seconds: 2));
+          }
           expect(handler.snapshot.currentSongId, 'song-1');
           final seconds = RegExp('after ([0-9.]+)s')
               .firstMatch(failures.first.message)!;
-          expect(double.parse(seconds[1]!), greaterThan(idle ? 0.5 : 1.1));
+          final elapsed = double.parse(seconds[1]!);
+          expect(elapsed, greaterThan(idle ? 0.5 : 1.1));
+          if (idle) expect(elapsed, lessThan(2.0));
         },
       );
     }
@@ -10779,54 +10751,42 @@ void main() {
       );
     });
 
-    for (final growing in [true, false]) {
-      test(
-        'a seek still buffering at the load deadline '
-        '${growing ? 'waits while mpv input is active' : 'recovers when stuck'}',
-        () async {
-          final directory = await Directory.systemTemp.createTemp(
-            'navis-seek-',
-          );
-          final (handler, player, database) = await createHandler(
-            directory,
-            2,
-            rebuiltPlayers: <_ControllableAudioPlayer>[],
-            timeouts: const NavisPlaybackTimeouts(
-              load: Duration(milliseconds: 300),
-              control: Duration(milliseconds: 100),
-              reset: Duration(milliseconds: 150),
-              seekBufferingRecovery: Duration(milliseconds: 150),
-              seekProgress: Duration(seconds: 5),
-            ),
-          );
-          addTearDown(() async {
-            await handler.disposeHandler();
-            await database.close();
-            await directory.delete(recursive: true);
-          });
-          player.simulateProgress = true;
-          await handler.replaceQueue([
-            'song-0',
-            'song-1',
-          ], expandMatchFlows: false);
-          player
-            ..state = ProcessingState.buffering
-            ..nativePositionFrozen = true;
-          player.simulatedInputBytesPerSecond = growing ? 25000 : 0;
-          final landed = Timer(const Duration(milliseconds: 900), () {
-            player
-              ..state = ProcessingState.ready
-              ..simulatedPosition = player.simulatedPosition
-              ..nativePositionFrozen = false;
-          });
-          addTearDown(landed.cancel);
-          await handler.seek(const Duration(seconds: 90));
-          final outcome = handler.collectPlaybackDiagnostics()['seek']! as Map;
-          expect(outcome['recoveryAttempts'], growing ? 0 : 1);
-          if (growing) expect(outcome['outcome'], 'completed');
-        },
+    test('desktop buffering seek outlasts the load deadline without a download signal', () async {
+      final directory = await Directory.systemTemp.createTemp('navis-seek-');
+      final (handler, player, database) = await createHandler(
+        directory,
+        2,
+        rebuiltPlayers: <_ControllableAudioPlayer>[],
+        timeouts: const NavisPlaybackTimeouts(
+          load: Duration(milliseconds: 300),
+          control: Duration(milliseconds: 100),
+          reset: Duration(milliseconds: 150),
+          seekBufferingRecovery: Duration(milliseconds: 150),
+          seekProgress: Duration(seconds: 5),
+        ),
       );
-    }
+      addTearDown(() async {
+        await handler.disposeHandler();
+        await database.close();
+        await directory.delete(recursive: true);
+      });
+      player.simulateProgress = true;
+      await handler.replaceQueue(['song-0', 'song-1'], expandMatchFlows: false);
+      player
+        ..state = ProcessingState.buffering
+        ..nativePositionFrozen = true;
+      final landed = Timer(const Duration(milliseconds: 900), () {
+        player
+          ..state = ProcessingState.ready
+          ..simulatedPosition = player.simulatedPosition
+          ..nativePositionFrozen = false;
+      });
+      addTearDown(landed.cancel);
+      await handler.seek(const Duration(seconds: 90));
+      final outcome = handler.collectPlaybackDiagnostics()['seek']! as Map;
+      expect(outcome['recoveryAttempts'], 0);
+      expect(outcome['outcome'], 'completed');
+    });
 
     test(
       'buffering range probes can outlast the short stall interval',

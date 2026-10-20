@@ -93,6 +93,7 @@ class NavisPlaybackTimeouts {
     this.reset = const Duration(seconds: 4),
     this.control = const Duration(seconds: 4),
     this.seekProgress = const Duration(seconds: 45),
+    this.desktopSeekSettle = const Duration(seconds: 25),
     this.progressIdle = const Duration(seconds: 8),
     this.remoteLoad = const Duration(seconds: 45),
     this.focusRetry = const Duration(minutes: 2),
@@ -114,8 +115,11 @@ class NavisPlaybackTimeouts {
   /// A single transport control call.
   final Duration control;
 
-  /// Hard cap for a seek or native song load that keeps receiving data.
+  /// Hard cap for a mobile seek or native song load receiving data.
   final Duration seekProgress;
+
+  /// Fixed settlement budget for each desktop seek probe, including recovery.
+  final Duration desktopSeekSettle;
 
   // Eight seconds tolerates slow range/index probes; the 45 s seekProgress
   // cap prevents a trickling download from holding a load or seek forever.
@@ -186,12 +190,8 @@ class _PlaybackProgressDeadline {
     required this.hardCap,
     required int? bytes,
     required this._buffer,
-    this.readInputBytesPerSecond,
   }) : _bytes = bytes ?? 0;
 
-  final Future<int?> Function()? readInputBytesPerSecond;
-  Duration _nextInputCheck = Duration.zero;
-  int? inputBytesPerSecond;
   bool _waitingForInput = false;
 
   final Duration initial;
@@ -201,29 +201,22 @@ class _PlaybackProgressDeadline {
   Duration _buffer;
   Duration? _progressAt;
 
-  Future<void> observe(
+  void observe(
     Duration now, {
     required int? bytes,
     required Duration buffer,
     required ProcessingState processing,
-  }) async {
+  }) {
     _waitingForInput =
         processing == ProcessingState.loading ||
         processing == ProcessingState.buffering;
-    if (readInputBytesPerSecond != null && now >= _nextInputCheck) {
-      inputBytesPerSecond = await readInputBytesPerSecond!();
-      _nextInputCheck = now + const Duration(milliseconds: 250);
-    }
     if (!_waitingForInput) {
       // Ready playback must advance; input cannot hide a frozen decoder.
       _bytes = bytes ?? 0;
       _buffer = buffer;
       return;
     }
-    // ponytail: stale positive input can wait 45 s; tune from rate diagnostics.
-    if ((inputBytesPerSecond ?? 0) > 0 ||
-        (bytes ?? 0) > _bytes ||
-        buffer > _buffer) {
+    if ((bytes ?? 0) > _bytes || buffer > _buffer) {
       _progressAt = now;
     }
     _bytes = bytes ?? 0;

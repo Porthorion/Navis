@@ -168,9 +168,13 @@ extension _NavisCache on NavisAudioHandler {
     _reportRollingCacheActivity?.call(activity);
   }
 
-  // Desktop sidecars download independently of the native player's reads.
-  int? _playerCacheBytesForSong(String songId) {
-    if (_isDesktopRuntime) return null;
+  // Sidecar bytes prove linear load progress, never desktop seek progress.
+  int? _receivedCacheBytesForSong(String songId) {
+    if (_isDesktopRuntime) {
+      return _sidecarDownloader.activeSongId == songId
+          ? _sidecarDownloader.activeReceivedBytes
+          : null;
+    }
     for (final entry in _rollingCacheActivities.entries) {
       if (entry.value.songId == songId) return _cacheReceivedBytes[entry.key];
     }

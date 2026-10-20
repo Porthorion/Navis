@@ -323,19 +323,21 @@ extension _NavisRecovery on NavisAudioHandler {
     OperationToken token,
   ) async {
     request.stage = 'confirming';
+    final deadline = _isDesktopRuntime
+        ? _timeouts.desktopSeekSettle
+        : _timeouts.seekProgress;
     final elapsed = Stopwatch()..start();
     var lastActivity = Duration.zero;
     var lastPosition = _seekSettlementPosition;
     var lastBuffer = _player.bufferedPosition;
     final progress = _PlaybackProgressDeadline(
-      initial: _playerLoadTimeout,
+      initial: _isDesktopRuntime ? deadline : _playerLoadTimeout,
       idle: _timeouts.progressIdle,
-      hardCap: _timeouts.seekProgress,
-      bytes: _playerCacheBytesForSong(request.songId),
+      hardCap: deadline,
+      bytes: _isDesktopRuntime
+          ? null
+          : _receivedCacheBytesForSong(request.songId),
       buffer: _isDesktopRuntime ? Duration.zero : lastBuffer,
-      readInputBytesPerSecond: _isDesktopRuntime
-          ? () => _player.networkInputBytesPerSecond
-          : null,
     );
     Duration? nearSince;
     Duration? nearPosition;
@@ -383,9 +385,11 @@ extension _NavisRecovery on NavisAudioHandler {
       // A decoder may probe several HTTP ranges before producing a packet, so
       // native buffering counts as activity: only a player that is not
       // buffering and neither moves nor fills is stalled.
-      await progress.observe(
+      progress.observe(
         now,
-        bytes: _playerCacheBytesForSong(request.songId),
+        bytes: _isDesktopRuntime
+            ? null
+            : _receivedCacheBytesForSong(request.songId),
         buffer: _isDesktopRuntime ? Duration.zero : buffer,
         processing: processing,
       );
@@ -415,16 +419,14 @@ extension _NavisRecovery on NavisAudioHandler {
         // The local copy seeks without the network: reload from it rather
         // than wait for the remote range.
         unsettled = 'cache complete';
-      } else if (waitingForInput
-          ? progress.expired(now)
-          : now >= _timeouts.seekProgress) {
+      } else if (waitingForInput ? progress.expired(now) : now >= deadline) {
         // After extended buffering, ready gets the short stall window above
         // to prove motion instead of immediately failing the old load budget.
         unsettled = 'deadline';
       }
       if (unsettled != null) {
         request.unsettled.add(
-          _unsettledProbe(unsettled, now, position, processing, progress),
+          _unsettledProbe(unsettled, now, position, processing),
         );
         return false;
       }
@@ -437,7 +439,6 @@ extension _NavisRecovery on NavisAudioHandler {
     Duration elapsed,
     Duration position,
     ProcessingState processing,
-    _PlaybackProgressDeadline progress,
   ) => <String, Object?>{
     'reason': reason,
     'elapsedMs': elapsed.inMilliseconds,
@@ -445,8 +446,6 @@ extension _NavisRecovery on NavisAudioHandler {
     'bufferedMs': _player.bufferedPosition.inMilliseconds,
     'processingState': processing.name,
     'playing': _player.playing,
-    'inputBytesPerSecond': progress.inputBytesPerSecond,
-    'inputExtensionActive': progress.progressing(elapsed),
   };
 
   /// Whether the current lock-cached source can serve a range beyond its

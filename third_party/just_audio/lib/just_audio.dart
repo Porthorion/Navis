@@ -1299,17 +1299,6 @@ class AudioPlayer {
     return result;
   }
 
-  /// The sampled backend input rate in bytes/second, without starting playback.
-  ///
-  /// Returns `null` when unavailable or disposed.
-  Future<int?> get networkInputBytesPerSecond async =>
-      _disposed ? null : await _platformValue?.networkInputBytesPerSecond;
-
-  /// Whether the current backend reports input activity without starting it.
-  Future<bool> get networkInputActive async =>
-      !_disposed &&
-      await (_platformValue?.networkInputActive ?? Future.value(false));
-
   /// Reads actual processing state without creating or starting playback.
   Future<EqualizerStateMessage> getEqualizerState() async {
     if (_disposed) throw StateError('Audio player has been disposed.');

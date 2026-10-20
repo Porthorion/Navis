@@ -130,9 +130,9 @@ const List<ChangelogVersion> changelogs = [
     version: '1.5.1',
     entries: [
       ChangelogEntry(
-        'Keep slow streams loading and seeking while data is arriving, '
-        'including slow range probes, without delaying new playback commands, '
-        'and recover promptly when playback freezes after landing at a seek target',
+        'Bound desktop seek waits and recover stuck positions automatically; '
+        'keep slow song starts loading while data arrives, including when '
+        'seeking before the first load finishes',
         type: ChangelogEntryType.fix,
       ),
       ChangelogEntry(

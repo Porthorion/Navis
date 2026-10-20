@@ -309,6 +309,7 @@ extension _NavisQueueLoading on NavisAudioHandler {
     // empty, so the materialised queue is loaded into it again.
     bool reloadQueueOnTimeout = false,
     bool extendWhileDownloading = false,
+    bool fixedLoadDeadline = false,
   }) async {
     timeout ??= _playerLoadTimeout;
     _lastFailedSongId = null;
@@ -324,16 +325,13 @@ extension _NavisQueueLoading on NavisAudioHandler {
           ? _PlaybackProgressDeadline(
               initial: timeout,
               idle: _timeouts.progressIdle,
-              hardCap: timeout > _timeouts.seekProgress
+              hardCap: fixedLoadDeadline || timeout > _timeouts.seekProgress
                   ? timeout
                   : _timeouts.seekProgress,
-              bytes: _playerCacheBytesForSong(songId),
+              bytes: _receivedCacheBytesForSong(songId),
               buffer: _isDesktopRuntime
                   ? Duration.zero
                   : operationPlayer.bufferedPosition,
-              readInputBytesPerSecond: _isDesktopRuntime
-                  ? () => operationPlayer.networkInputBytesPerSecond
-                  : null,
             )
           : null;
       final operationFuture = action();
@@ -436,7 +434,7 @@ extension _NavisQueueLoading on NavisAudioHandler {
     final elapsed = Stopwatch()..start();
     var done = false;
     final completed = operation.whenComplete(() => done = true);
-    // Observe failures before awaiting the input sample; completed rethrows below.
+    // Observe failures while polling; completed rethrows below.
     final completion = completed.then<void>((_) {}, onError: (Object _) {});
     while (!done) {
       final now = elapsed.elapsed;
@@ -448,9 +446,9 @@ extension _NavisQueueLoading on NavisAudioHandler {
           _queueLane.pendingCount == 0 ||
           (_queueLane.pendingCount == 1 && _pendingSeek?.songId == songId);
       if (canExtend) {
-        await progress.observe(
+        progress.observe(
           now,
-          bytes: _playerCacheBytesForSong(songId),
+          bytes: _receivedCacheBytesForSong(songId),
           buffer: _isDesktopRuntime ? Duration.zero : player.bufferedPosition,
           processing: player.processingState,
         );
@@ -1266,6 +1264,9 @@ extension _NavisQueueLoading on NavisAudioHandler {
             action: apply,
             songId: songId,
             extendWhileDownloading: preload,
+            // Poll cancellation even when sidecar bytes cannot extend the load.
+            fixedLoadDeadline:
+                _isDesktopRuntime && initialPosition != Duration.zero,
           );
         } else {
           await apply();

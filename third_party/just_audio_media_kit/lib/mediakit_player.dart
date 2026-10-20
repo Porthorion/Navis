@@ -100,9 +100,9 @@ class MediaKitPlayer extends AudioPlayerPlatform {
       _updatePlaybackEvent();
     });
 
-    _properties = icyPropertySource ?? createIcyPropertySource(_player);
+    final properties = icyPropertySource ?? createIcyPropertySource(_player);
     _icyMetadata = IcyMetadataObserver(
-      source: _properties,
+      source: properties,
       onChanged: (_) {
         if (!_released) _updatePlaybackEvent();
       },
@@ -254,18 +254,6 @@ class MediaKitPlayer extends AudioPlayerPlatform {
 
   /// The subscriptions that have to be disposed
   late final List<StreamSubscription> _streamSubscriptions;
-
-  late final IcyPropertySource _properties;
-
-  @override
-  Future<int?> get networkInputBytesPerSecond async {
-    if (_released || !_readyCompleter.isCompleted) return null;
-    return int.tryParse(await _properties.read('cache-speed'));
-  }
-
-  @override
-  Future<bool> get networkInputActive async =>
-      (await networkInputBytesPerSecond ?? 0) > 0;
 
   final _readyCompleter = Completer<void>();
 
