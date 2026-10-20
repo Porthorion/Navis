@@ -50,3 +50,13 @@ granted. A
 load that runs while focus is pending therefore cannot start native playback
 through the implicit play path, and a denied request never publishes a
 transient playing state.
+
+`UriAudioSource.positionOffset` (also `AudioSource.uri(positionOffset:)`) marks a
+stream that starts that far into the song, as a server transcode opened with
+`timeOffset`. The platform reports time from zero. `AudioPlayer` adds the offset
+of the item at the event's `currentIndex` to `updatePosition`, `bufferedPosition`
+and a non-null `duration` where a platform event becomes a `PlaybackEvent`, and
+subtracts it from `seek` positions, the `load` initial position and the idle
+platform's reported duration (clamped at zero). Every position the app reads is
+therefore song time, and an auto-advance to an item without an offset reads
+from its own zero. Platform adapters see platform time only.
