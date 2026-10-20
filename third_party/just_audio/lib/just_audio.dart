@@ -197,8 +197,7 @@ class AudioPlayer {
         if (duration != null && offset > Duration.zero) duration -= offset;
         if (duration != null && prevPos < duration * 0.6) return;
         if (duration == null &&
-            (offset > Duration.zero ? prevPos - currPos : currPos - prevPos) <
-                const Duration(seconds: 1)) {
+            prevPos - currPos < const Duration(seconds: 1)) {
           return;
         }
         _positionDiscontinuitySubject.add(PositionDiscontinuity(

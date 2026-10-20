@@ -7466,31 +7466,46 @@ void main() {
       },
     );
 
-    test('edge 3: repeat one reloads an offset song from its start', () async {
-      final (handler, player, _) = await offsetHandler();
-      await start(handler);
-      await handler.setRepeatMode(AudioServiceRepeatMode.one);
-      await seekAndSettle(handler, const Duration(seconds: 170));
-      expect(player.loopMode, LoopMode.one);
-      final loadsBefore = player.sourceLoads;
+    for (final index in [1, 2]) {
+      test('edge 3: repeat one reloads offset item $index exactly once', () async {
+        final (handler, player, _) = await offsetHandler();
+        await handler.replaceQueue(
+          ['song-0', 'song-1', 'song-2'],
+          startIndex: index,
+          expandMatchFlows: false,
+        );
+        await settleQueue(handler);
+        await handler.play();
+        await handler.setRepeatMode(AudioServiceRepeatMode.one);
+        await seekAndSettle(handler, const Duration(seconds: 170));
+        expect(player.loopMode, LoopMode.one);
+        final loadsBefore = player.sourceLoads;
 
-      // The native loop restarts the offset stream at its own start.
-      player.finishCurrentTrack();
-      await until(
-        () =>
-            player.sourceLoads == loadsBefore + 1 &&
-            !handler.snapshot.isLoading,
-      );
+        // The owned native seek reports the same tail-to-start event as a loop.
+        player.finishCurrentTrack();
+        // Further playback events following that seek are not more loops.
+        player._events.add(player.playbackEvent);
+        player._events.add(player.playbackEvent);
+        await until(
+          () =>
+              player.sourceLoads == loadsBefore + 1 &&
+              !handler.snapshot.isLoading,
+        );
+        await settleQueue(handler);
 
-      expect(current(player).positionOffset, Duration.zero);
-      expect(
-        current(player).uri.queryParameters,
-        isNot(contains('timeOffset')),
-      );
-      expect(player.position, lessThan(const Duration(seconds: 2)));
-      expect(player.sourceIds, ['song-0', 'song-1', 'song-2']);
-      expect(player.index, 1);
-    });
+        expect(player.sourceLoads, loadsBefore + 1);
+        expect(current(player).positionOffset, Duration.zero);
+        expect(
+          current(player).uri.queryParameters,
+          isNot(contains('timeOffset')),
+        );
+        expect(player.position, lessThan(const Duration(seconds: 2)));
+        expect(player.sourceIds, ['song-0', 'song-1', 'song-2']);
+        expect(player.index, index);
+        expect(player.playing, isTrue);
+        expect(player.loopMode, LoopMode.one);
+      });
+    }
 
     test(
       'edge 3: repeat all auto-advance never restarts the next song while the '
