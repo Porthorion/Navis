@@ -14,6 +14,14 @@ Last updated: 2026-10-20
 - ACP status values: `backlog`, `ready`, `in_progress`, `blocked`, `done`.
 
 ## Current Focus
+- [x] Issue #110, About "Check now" failure feedback — 2026-10-20
+  (`fix/about-check-now-error`): a user-triggered failed check shows an error
+  notice; automatic failures deliberately only show the failed subtitle. Review
+  round added a widget test pinning that no notice is raised for an automatic
+  failure. Evidence: `flutter test
+  test/src/features/settings/presentation/about_screen_test.dart` passed
+  `+14: All tests passed!`; `flutter analyze` on the file clean;
+  `./tool/check.sh`: all checks passed on the pre-fix commit (will be rerun).
 - [ ] Issue #86, Android progressive HTTP repeat-one rewind — partial: 2026-10-20
   (`fix/repeat-one-rewind`, based on `3c1d8c54`, remaining: coordinator Android
   runtime probes, independent review and `./tool/check.sh`): native repeat-one

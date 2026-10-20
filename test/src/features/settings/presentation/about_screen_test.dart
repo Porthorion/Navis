@@ -224,6 +224,27 @@ void main() {
       }
     });
 
+    testWidgets('an automatic update check failure shows no notice', (
+      tester,
+    ) async {
+      debugDefaultTargetPlatformOverride = TargetPlatform.android;
+      final notices = AppNoticeController();
+      addTearDown(notices.dispose);
+      try {
+        await pumpAbout(
+          tester,
+          updateInfo: null,
+          notices: notices,
+          updateFails: true,
+        );
+        final l10n = lookupAppLocalizations(const Locale('en'));
+        expect(find.text(l10n.updateCheckFailedSub), findsOneWidget);
+        expect(notices.notice, isNull);
+      } finally {
+        debugDefaultTargetPlatformOverride = null;
+      }
+    });
+
     testWidgets('licence page receives the Porthorion copyright', (
       tester,
     ) async {
