@@ -39,6 +39,13 @@ Last updated: 2026-10-20
   with its edge-case tests (`docs/plans/Transcode_Offset_Seek_Plan.md`).
   `./tool/check.sh` passed; runtime pass with `tool/live_seek_stress.py` on
   Linux and the Android emulator against the live server.
+- [x] Issue #86, Android progressive HTTP repeat-one rewind — 2026-10-20 (PR #100,
+  `fix/repeat-one-rewind`): progressive HTTP VOD repeat-one runs native
+  repeat-off plus pause-at-end and restarts the same item (window-UID owned) at
+  the boundary; radio, local, HLS/DASH and repeat-all stay native. JVM
+  `ProgressiveRepeatTest` fixtures run in `./tool/equalizer_native_test.sh`.
+  `./tool/check.sh` passed (`+8903`); Android emulator and Linux runtime pass
+  with `tool/live_seek_stress.py`. Trade-off: the loop point is not gapless.
 - [x] Issue #86, unknown-length Android stall replay — 2026-10-20 (PR #98,
   `fix/stall-replay`): Media3 progressive load errors with unknown HTTP length
   become fatal instead of restarting at byte zero; sized/ranged sources and
