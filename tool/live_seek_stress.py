@@ -2055,7 +2055,7 @@ def oracle_offset(run: Run, recs: list[dict], expect_offset: bool, strict_land=3
     out = []
     events = seek_events_since(run, run.metrics.get('seekGenerationBaseline', 0))
     run.metrics['seekPaths'] = [{k: e.get(k) for k in ('generation', 'path', 'requestedPositionMs', 'afterPositionMs',
-                                                       'elapsedMs', 'outcome', 'afterSourceKind')} for e in events]
+                                                       'elapsedMs', 'outcome', 'afterSourceKind', 'recoveryAttempts', 'unsettled')} for e in events]
     media = [r for r in run.env.proxy.log[run.proxy_mark:] if r['endpoint'] in ('stream', 'download')]
     offsets = [r for r in media if r.get('timeOffset')]
     run.metrics['timeOffsetRequests'] = [{'id': r['id'], 'timeOffset': r['timeOffset'], 'status': r.get('status'),
@@ -2621,7 +2621,7 @@ def cut_at_case(fraction: float, cuts: int, gap_s=10.0, pace_kbps=176):
     return case
 
 
-def cold_command_case(kind: str, kbps=300):
+def cold_command_case(kind: str, kbps=1000):
     """Item 3 round 2: while a slow cold start is still loading, a user command (next or seek) issued ~5 s in
     must be acted on within a few seconds, not after the extended load finishes."""
     def case(run: Run, env):
@@ -2655,6 +2655,37 @@ def cold_command_case(kind: str, kbps=300):
                                             f"(state at 5 s: {run.metrics['stateAt5s']})", run))
         run.observe(4.0)
     return case
+def case_dead_start(run: Run, env):
+    """Item 3: the origin sends headers but no body bytes from the start; the load must still fail over at about
+    the old 12 s deadline (not the 45 s progress cap). Records when the first recovery/navigation/failure shows."""
+    ids = env.backend.fresh_album()
+    run.songs = [{'id': i} for i in ids]
+    env.proxy.stall(55.0)
+    t0 = run.now()
+    rec = start_queue(run, ids)
+    first_event = None
+    deadline = time.monotonic() + 50
+    while time.monotonic() < deadline and first_event is None:
+        for e in run.trace:
+            if e['kind'] in ('recovery', 'navigate', 'loadFailure', 'loadError') or (e['kind'] == 'playerState' and e.get('errorCode')) \
+                    or (e['kind'] == 'songCurrent' and e.get('songId') != ids[0]):
+                first_event = e
+                break
+        s = run.last()
+        if first_event is None and s and s['songId'] not in (None, ids[0]) and s['t'] > t0:
+            first_event = {'kind': 'songChange', 'rel': s['t'] + run.w0 - run.w0, 'songId': s['songId']}
+        time.sleep(0.2)
+    env.proxy.stall_until = 0.0
+    t_ev = None
+    if first_event is not None:
+        t_ev = first_event['rel'] if 'rel' in first_event else None
+    # trace 'rel' is host-wall relative to run start; harness t0 is when the case began
+    run.metrics['deadStart'] = {'startAtS': t0, 'firstEventKind': first_event and first_event['kind'],
+                                'firstEventAtS': t_ev, 'afterS': None if t_ev is None else round(t_ev - t0, 1),
+                                'decision': first_event and first_event.get('decision'), 'reason': first_event and first_event.get('reason')}
+    run.metrics['deadStartTrace'] = [f"{e['rel']:+.1f}s {e['kind']} " + ' '.join(f'{k}={e[k]}' for k in ('decision', 'reason', 'processingState', 'stage', 'phase', 'songId', 'errorCode', 'operation') if e.get(k) is not None)
+                                     for e in run.trace if e['kind'] != 'bufferState'][:30]
+    run.observe(3.0)
 
 
 def case_offset_prev(run: Run, env):
@@ -2705,6 +2736,7 @@ CASE_FUNCS = {
     'offset_prev': case_offset_prev,
     'cold_next': cold_command_case('next'),
     'cold_seek': cold_command_case('seek'),
+    'dead_start': case_dead_start,
     'cut40': cut_at_case(0.40, 1),
     'cut40x2': cut_at_case(0.40, 2),
     'repeat_one_fill': case_repeat_one_fill,
