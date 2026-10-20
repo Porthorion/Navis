@@ -190,7 +190,20 @@ extension _NavisRecovery on NavisAudioHandler {
   /// offset stream at its own start, which is the offset into the song. Seeing
   /// that, reload the song from the start without an offset.
   void _watchOffsetStreamLoop(PlaybackEvent event) {
-    final offset = _positionOffsetOf(_currentMediaItem);
+    // The event's own item sets its offset (just_audio translated the
+    // position with it): the current media item can lag an auto-advance.
+    final index = event.currentIndex;
+    final sequence = _player.sequence;
+    final source = index == null || index < 0 || index >= sequence.length
+        ? null
+        : sequence[index];
+    final offset = source is UriAudioSource
+        ? source.positionOffset
+        : Duration.zero;
+    if (index != _offsetLoopIndex) {
+      _offsetLoopIndex = index;
+      _offsetLoopNativePosition = null;
+    }
     if (offset == Duration.zero ||
         _isLoading ||
         _pendingSeek != null ||

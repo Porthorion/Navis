@@ -400,6 +400,7 @@ class NavisAudioHandler extends BaseAudioHandler
   /// The last native position (time into the offset stream) of the playing
   /// offset source, to notice the native loop restarting it.
   Duration? _offsetLoopNativePosition;
+  int? _offsetLoopIndex;
   DateTime? _lastPositionEmitAt;
   _PendingSeek? _lastSeek;
   int _seekRevision = 0;

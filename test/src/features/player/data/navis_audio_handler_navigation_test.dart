@@ -7250,6 +7250,77 @@ void main() {
       expect(player.index, 1);
     });
 
+    test(
+      'edge 3: repeat all auto-advance never restarts the next song while the '
+      'current item lags',
+      () async {
+        final (handler, player, _) = await offsetHandler();
+        await start(handler);
+        await handler.setRepeatMode(AudioServiceRepeatMode.all);
+        await seekAndSettle(handler, const Duration(seconds: 100));
+        expect(player.loopMode, LoopMode.all);
+        await settleQueue(handler);
+        final loadsBefore = player.sourceLoads;
+        final seeksBefore = player.seekCalls;
+        player.simulatedPosition = const Duration(seconds: 179);
+        player._events.add(player.playbackEvent);
+        await pumpEventQueue();
+
+        // The native advance event reaches the handler before the index
+        // chain moves its current item off the offset song.
+        player
+          ..index = 2
+          ..simulatedPosition = Duration.zero;
+        player._events.add(player.playbackEvent);
+        await Future<void>.delayed(const Duration(milliseconds: 100));
+        player._indices.add(2);
+        await Future<void>.delayed(const Duration(milliseconds: 300));
+
+        expect(player.sourceLoads, loadsBefore);
+        expect(player.seekCalls, seeksBefore);
+        expect(handler.snapshot.currentSongId, 'song-2');
+        expect(lastSeekEvent(handler)['requestedPositionMs'], 100000);
+      },
+    );
+
+    test(
+      'edge 3: repeat all over a single offset song reloads it from zero',
+      () async {
+        final directory = await Directory.systemTemp.createTemp('navis-loop1-');
+        final (handler, player, database) = await createHandler(
+          directory,
+          1,
+          sidecarStreams: true,
+          streamingQuality: opus128,
+          supportsTranscodeOffset: true,
+        );
+        addTearDown(() async {
+          await handler.disposeHandler();
+          await database.close();
+          await directory.delete(recursive: true);
+        });
+        player.simulateProgress = true;
+        await handler.replaceQueue(['song-0'], expandMatchFlows: false);
+        await settleQueue(handler);
+        await handler.play();
+        await handler.setRepeatMode(AudioServiceRepeatMode.all);
+        await seekAndSettle(handler, const Duration(seconds: 170));
+        final loadsBefore = player.sourceLoads;
+        player.simulatedPosition = const Duration(seconds: 179);
+        player._events.add(player.playbackEvent);
+
+        player.finishCurrentTrack();
+        await until(
+          () =>
+              player.sourceLoads == loadsBefore + 1 &&
+              !handler.snapshot.isLoading,
+        );
+
+        expect(current(player).positionOffset, Duration.zero);
+        expect(player.position, lessThan(const Duration(seconds: 2)));
+      },
+    );
+
     test('edge 4: Previous reloads an offset song from zero', () async {
       final (handler, player, _) = await offsetHandler();
       await start(handler);

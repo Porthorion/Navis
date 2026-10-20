@@ -922,7 +922,11 @@ extension _NavisQueueLoading on NavisAudioHandler {
         'Phase 1 lock-cached queue apply failed for song=${startSong.id}. '
         'Retrying with direct stream. $error\n$stackTrace',
       );
-      startItem = await _prepareSingleItem(startSong, preferLockCaching: false);
+      startItem = await _prepareSingleItem(
+        startSong,
+        preferLockCaching: false,
+        transcodeOffset: transcodeOffset,
+      );
       _checkQueueWorkCurrent(token, generation);
       _queueItems
         ..clear()
