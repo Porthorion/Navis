@@ -331,7 +331,7 @@ extension _NavisRecovery on NavisAudioHandler {
       initial: _playerLoadTimeout,
       idle: _timeouts.progressIdle,
       hardCap: _timeouts.seekProgress,
-      bytes: _partialCacheBytesForSong(request.songId),
+      bytes: _playerCacheBytesForSong(request.songId),
       buffer: lastBuffer,
     );
     Duration? nearSince;
@@ -379,7 +379,7 @@ extension _NavisRecovery on NavisAudioHandler {
       // buffering and neither moves nor fills is stalled.
       progress.observe(
         now,
-        bytes: _partialCacheBytesForSong(request.songId),
+        bytes: _playerCacheBytesForSong(request.songId),
         buffer: buffer,
       );
       if (buffer != lastBuffer ||

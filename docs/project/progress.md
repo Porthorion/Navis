@@ -15,13 +15,15 @@ Last updated: 2026-10-20
 
 ## Current Focus
 - [ ] Issue #86, slow-stream seek settlement and song start — partial: 2026-10-20
-  (`fix/seek-settlement`, remaining: coordinator Linux/Android runtime probes,
-  independent review and `./tool/check.sh`): native seeks and song loads reuse
-  the existing sidecar/lock-cache byte reader and native buffer position to
-  extend the 12-second deadline while data advances, with an eight-second idle
-  window and the existing 45-second hard cap. Recent growth also defers the
-  seek probe's premature missed-target/stall decision, including downloads
-  below half complete. Cache-complete reloads, transcode-offset selection,
+  (`fix/seek-settlement`, remaining: coordinator runtime revalidation after
+  review fixes, independent review and `./tool/check.sh`): native seeks and
+  song loads use native buffer growth and mobile lock-cache byte events to
+  extend the 12-second deadline while player-side data advances, with an
+  eight-second idle window and the existing 45-second hard cap. Recent growth
+  also defers the seek probe's premature missed-target/stall decision,
+  including downloads below half complete. Desktop sidecar growth is excluded
+  because that transfer runs independently of mpv. Cache-complete reloads,
+  transcode-offset selection,
   seek cancellation, Play/Pause intent, radio and recovery budgets retain
   their existing paths. The tests use shortened injectable production budgets
   and a real loopback sidecar transfer. Before the fix, the six-case regression
@@ -40,6 +42,32 @@ Last updated: 2026-10-20
   `HEAD` line. The complete diff passes `git diff --check`. No app, emulator
   or VM was launched; runtime validation and the full gate remain with the
   coordinator per this task's scope.
+  Round 2: rebased onto `github/release/1.5` including PR #106, without
+  conflicts. The coordinator reported round-1 Linux native-direct FLAC seeks
+  (6/6, 6–18 seconds), FLAC cold starts (3–11 seconds), dead-stream failover at
+  12 seconds and Android offset-seek/stall-recovery checks passing. Review
+  finding 2 was confirmed: `_partialCacheBytesForSong` returned independent
+  desktop sidecar bytes. Both deadline consumers now use player-side signals.
+  Waiting queue commands and superseded load generations remove extended
+  waits using the existing lane backlog and generation; native-load checks
+  run every 250 ms without file I/O. The lock-cache source emits progress on
+  each received chunk and exposes its in-memory byte count, preserving
+  sub-percent and unknown-length progress. Timeout messages and exceptions
+  report elapsed time, and the cap assertion allows scheduling slack.
+  Before the fixes, the ten deadline cases ended
+  `00:12 +8 -2: Some tests failed.`: the frozen desktop seek reported
+  `Expected: 'missed target'` / `Actual: 'deadline'`, and the waiting-seek
+  case reported `Expected: true` / `Actual: <false>`. The first fixed run
+  passed `00:10 +10: All tests passed!`. The requested three-file
+  `flutter test --concurrency=4` command (navigation, position-offset and
+  lock-cache source) passed `05:23 +611: All tests passed!`. After final style
+  cleanup, the ten deadline cases and two new sub-percent/unknown-length
+  lock-cache event cases passed `00:10 +12: All tests passed!`. All eight
+  edited Dart files pass `dart format --set-exit-if-changed` unchanged.
+  Scoped `flutter analyze --no-fatal-infos` exits successfully with no errors
+  or warnings; its 29 informational findings map to unchanged `HEAD` lines.
+  The complete diff passes `git diff --check`. No app, emulator, VM or
+  `./tool/check.sh` was run for this round, per the assigned scope.
 - [ ] Issue #86, Android progressive HTTP repeat-one rewind — partial: 2026-10-20
   (`fix/repeat-one-rewind`, based on `3c1d8c54`, remaining: coordinator Android
   runtime probes, independent review and `./tool/check.sh`): native repeat-one

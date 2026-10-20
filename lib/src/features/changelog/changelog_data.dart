@@ -130,7 +130,8 @@ const List<ChangelogVersion> changelogs = [
     version: '1.5.1',
     entries: [
       ChangelogEntry(
-        'Keep slow streams loading and seeking while data is arriving',
+        'Keep slow streams loading and seeking while data is arriving, '
+        'without delaying new playback commands',
         type: ChangelogEntryType.fix,
       ),
       ChangelogEntry(

@@ -3603,7 +3603,14 @@ class LockCachingAudioSource extends StreamAudioSource {
 
   /// Emits the current download progress as a double value from 0.0 (nothing
   /// downloaded) to 1.0 (download complete).
+  ///
+  /// Navis: values may repeat when bytes arrive without a whole-percent change.
   Stream<double> get downloadProgressStream => _downloadProgressSubject.stream;
+
+  /// Navis: the bytes received by the current lock-cache download.
+  ///
+  /// Includes unknown-length bodies. Read on [downloadProgressStream] events.
+  int get downloadedBytes => _progress;
 
   /// Navis: whether the origin answered the download with byte-range support,
   /// or null before its response arrives. Without it, this source serves every
@@ -3730,12 +3737,10 @@ class LockCachingAudioSource extends StreamAudioSource {
     await mimeFile.writeAsString(mimeType);
     final inProgressResponses = <_InProgressCacheResponse>[];
     late StreamSubscription<List<int>> subscription;
-    var percentProgress = 0;
-    void updateProgress(int newPercentProgress) {
-      if (newPercentProgress != percentProgress) {
-        percentProgress = newPercentProgress;
-        _downloadProgressSubject.add(percentProgress / 100);
-      }
+    void updateProgress(int percentProgress) {
+      // Navis: emit on every body chunk, including sub-percent growth and
+      // unknown-length downloads, so playback deadlines need no file polling.
+      _downloadProgressSubject.add(percentProgress / 100);
     }
 
     _progress = 0;

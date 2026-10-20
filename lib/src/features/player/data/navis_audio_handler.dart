@@ -426,6 +426,7 @@ class NavisAudioHandler extends BaseAudioHandler
   StreamSubscription<LoopMode>? _loopModeSubscription;
   StreamSubscription<Duration>? _activePositionSubscription;
   StreamSubscription<Duration>? _bufferedPositionSubscription;
+  final Map<String, int> _cacheReceivedBytes = <String, int>{};
   final Map<String, StreamSubscription<double>> _cacheProgressSubscriptions =
       <String, StreamSubscription<double>>{};
   final Map<String, RollingCacheActivity> _rollingCacheActivities =
@@ -2015,6 +2016,7 @@ class NavisAudioHandler extends BaseAudioHandler
       _sidecarSongsById.clear();
       _sidecarStreamUris.clear();
       _rollingCacheActivities.clear();
+      _cacheReceivedBytes.clear();
       _reportRollingCacheActivity?.call(const RollingCacheActivity.idle());
       await _clearQueueInternal(persist: true, generation: generation);
       _completeQueueLoad(generation);
@@ -3071,6 +3073,7 @@ class NavisAudioHandler extends BaseAudioHandler
     }
     _cacheProgressSubscriptions.clear();
     _rollingCacheActivities.clear();
+    _cacheReceivedBytes.clear();
     _reportRollingCacheActivity?.call(const RollingCacheActivity.idle());
     if (_playerDisposalFuture == null) {
       await _persistSafely(_persistPosition, context: 'dispose handler');
