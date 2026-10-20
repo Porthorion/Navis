@@ -2630,7 +2630,10 @@ def cold_command_case(kind: str, kbps=1000):
         restore = THROTTLES[run.throttle]
         env.proxy.set_profile(kbps, 300)
         try:
-            rec = start_queue(run, ids)
+            starter = concurrent.futures.ThreadPoolExecutor(max_workers=1)  # the start call blocks while the load runs
+            run.queue_ids = list(ids)
+            rec = run.act('start', songIds=len(ids), first=ids[0], shuffle=False)
+            run.futures.append(starter.submit(lambda: run.app.api('/v1/playback/queue', {'songIds': ids}, timeout=180)))
             time.sleep(5.0)
             before = run.last()
             run.metrics['stateAt5s'] = {k: before[k] for k in ('songId', 'proc', 'playing', 'pos', 'loading', 'buf')} if before else None
