@@ -35,12 +35,17 @@ still provide sized ranges.
 The stream proxy restores chunked framing for unknown-length bodies and explicitly sends `Content-Length: 0` for empty HTTP 500 responses after clearing headers (#86).
 
 Lock-cache origin disconnects and the existing 30-second body-progress timeout
-discard the partial file and close in-progress response streams after emitting
-the error. The proxy currently sends a clean EOF for these interrupted chunked
-responses; a later request downloads the source again. Regression fixtures
-exercise both cases through the real proxy with the fake native player (#86).
-Neither case reproduced a proxy hang, so this investigation changes tests and
-documentation only; the proxy error listener and deadlines remain unchanged.
+discard partial files and fail in-progress response streams. The stream proxy
+uses `HttpResponse.addStream` to propagate errors, then aborts the connection
+with `HttpResponse.deadline = Duration.zero` instead of sending clean EOF (#86).
+Detaching is unavailable after headers have been sent. The URI/header proxy
+also aborts body errors, including short sized responses, without retrying them
+as HTTP/0.9. Its raw HTTP/0.9 fallback destroys both sockets on read errors;
+normal EOF remains valid for that unframed protocol. Complete bodies still
+close cleanly, and radio retains native retries and no added body timeout.
+Fixtures verify partial delivery, client errors, cache cleanup, fresh fetches,
+and clean live-stream completion. A JVM fixture reads an incomplete chunked
+body and verifies its `IOException` selects the existing fatal load policy.
 
 Keep upgrades narrow and re-run the native response/lifecycle fixtures and
 Navis playback tests when updating either vendored package.

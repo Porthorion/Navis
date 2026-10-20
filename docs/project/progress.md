@@ -74,25 +74,25 @@ Last updated: 2026-10-20
   `positionOffset` translation layer, an offset resolver source with a
   full-URI sidecar, and the handler seek branch with its edge-case tests
   (`docs/plans/Transcode_Offset_Seek_Plan.md`).
-- [x] Issue #86, investigate swallowed lock-cache proxy errors — 2026-10-20
-  (`fix/proxy-download-error`): added
-  `proxy ends a chunked origin disconnect and retries` and
-  `proxy ends a chunked origin stall and retries` to the existing lock-cache
-  fixtures. Both pass on the unchanged implementation: after receiving partial
-  unknown-length audio, the client gets clean EOF within two seconds, no
-  completed cache or 100% progress is published, the partial file is removed,
-  and a second proxy request fetches and publishes the full body. The disconnect
-  test uses a ten-second body deadline to distinguish socket failure from idle
-  expiry; the stall test shortens the existing 30-second deadline to 300 ms.
-  The source error handler closes its response streams, so the proxy's
-  `onDone` completes despite its empty `onError`. No production fix or new
-  timeout was justified; no failing hang assertion was observed. All 14
-  lock-cache tests and all 51 tests under `test/src/third_party/` pass with
-  `flutter test --concurrency=4 --timeout 60s` and the relevant files.
-  Full-gate and Android runtime validation are assigned to the coordinator;
-  no app, emulator or VM was launched in this task. Android should check whether
-  truncated clean EOF causes completion or retry, and whether Media3's read
-  deadline fires before the existing 30-second body-progress timeout.
+- [x] Issue #86, abort interrupted audio proxy responses — 2026-10-20
+  (`fix/proxy-download-error`): stream and header-forwarding proxies abort
+  origin body errors instead of sending clean EOF or entering HTTP/0.9 fallback
+  after headers arrive. Both reuse `HttpResponse.addStream`; zero response
+  deadline destroys the socket after headers, when detachment is unavailable.
+  Existing body-progress deadlines, range-fetch error propagation, partial-file
+  cleanup and radio retry policy remain unchanged. The six interruption cases
+  first failed (`00:04 +0 -6: Some tests failed.`); the chunked lock-cache
+  assertions at test line 272 reported `Expected: <Instance of 'HttpException'>`
+  and `Actual: <null>`. The corrected lock-cache file passes
+  `00:06 +19: All tests passed!`, including sized failures, cache publication,
+  retry and live chunked completion. The requested three-file run with
+  `--concurrency=4` passes `05:19 +590: All tests passed!`. Edited Dart files pass
+  `dart format --set-exit-if-changed`; the full diff passes `git diff --check`.
+  `tool/equalizer_native_test.sh` passes, including
+  `ProgressiveLoadRetryTest: 13 fixtures passed`: a real incomplete chunked read
+  throws `IOException` and selects the existing fatal policy. Full-gate,
+  independent review and device/runtime validation remain with the coordinator;
+  no app, emulator or VM was launched for this implementation task.
 - [x] Issue #86, frame unknown-length lock-cache proxy responses — 2026-10-19
   (`fix/proxy-response-framing`): restore chunked transfer encoding after the
   proxy clears response headers, and explicitly size empty HTTP 500 bodies at
