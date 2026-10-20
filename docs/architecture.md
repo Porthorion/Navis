@@ -3755,6 +3755,7 @@ the production download and integrity check without installing anything; it adds
 `downloaded`, `artifactPath` and `downloadError` (`integrity_mismatch` for a size or
 SHA-256 mismatch). With the body `{"apply": true}` on desktop it then runs the production
 apply (`applyDesktopUpdate`) after responding, which replaces the running build and exits;
+if that apply fails, the GET route reports the error type in `lastApplyError` (cleared at the next apply);
 this is how a clone proves the whole R2-to-installed path. The GET route is available in every diagnostics mode; the POST
 routes are clone-only. See [release-r2.md](release/release-r2.md) for publishing and key handling.
 
