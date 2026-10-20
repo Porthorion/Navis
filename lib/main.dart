@@ -6,6 +6,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:just_audio_media_kit/just_audio_media_kit.dart';
+import 'package:media_kit/media_kit.dart' show MPVLogLevel;
 import 'package:navis/src/app.dart';
 import 'package:navis/src/app_licenses.dart';
 import 'package:navis/src/common_widgets/cover_art_cache_manager.dart';
@@ -283,6 +284,21 @@ void _initializeDesktopAudioBackend() {
         _syncDiagnosticsMode == SyncDiagnosticsMode.clone &&
         diagnosticsAudioDevice.isNotEmpty) {
       JustAudioMediaKit.audioDevice = diagnosticsAudioDevice;
+    }
+    // diagnostics: an isolated diagnostics build can turn on libmpv's log
+    // (NAVIS_MPV_LOG_LEVEL=v|debug|trace) and per-module levels
+    // (NAVIS_MPV_MSG_LEVEL=ffmpeg=debug,stream=debug); the player prints
+    // them to stdout with credentials redacted.
+    if (_syncDiagnosticsRuntimeEnabled) {
+      final logLevel = Platform.environment['NAVIS_MPV_LOG_LEVEL'];
+      if (logLevel != null && logLevel.isNotEmpty) {
+        JustAudioMediaKit.mpvLogLevel = MPVLogLevel.values.firstWhere(
+          (level) => level.name == logLevel,
+          orElse: () => MPVLogLevel.v,
+        );
+      }
+      JustAudioMediaKit.diagnosticsMpvMsgLevel =
+          Platform.environment['NAVIS_MPV_MSG_LEVEL'];
     }
     JustAudioMediaKit.ensureInitialized(
       linux: true,
