@@ -180,7 +180,7 @@ Use version `1.4.<N>` (a per-run patch number, following the edge-cache rule in 
 | R8 | container `archlinux` or a hand-copied `/opt/navis` | Mode detection. | `linuxPackageManaged`, package-manager screen, no download. |
 | R9 | `verify_packages.sh` images (ubuntu:22.04, debian:12, fedora:latest) | Run `dpkg-query -S` / `rpm -qf` detection and the root script with the real installer as root (no polkit). | Detection is right in every image. Script installs `N+1` over `N`. |
 
-**Fedora.** No Fedora machine is available. The preferred option is R9 in containers plus R7 in a short-lived Fedora Workstation VM under libvirt on this host. The VM runs alone (heavy job), with 4 GB RAM. The alternative is R7 in a Fedora container with Xvfb and `NAVIS_TEST_UPDATE_ELEVATOR=sudo -n`. That proves dnf and relaunch but not polkit.
+**Fedora.** No Fedora machine is available. The preferred option is R9 in containers plus R7 in a short-lived Fedora Workstation VM under libvirt on this host. The VM runs alone (heavy job), with 4 GB RAM. The alternative is R7 in a Fedora container with Xvfb and `NAVIS_TEST_UPDATE_ELEVATOR` set to a single executable wrapper script on PATH containing `exec sudo -n "$@"`. That proves dnf and relaunch but not polkit.
 
 **Host notes (192.168.1.156).** The host is Ubuntu 24.04.5 x86_64, has an active graphical session for `khalifa`, and has pkexec, apt, docker and podman. `sudo` needs a password. The disk is 95 % full (24 GB free), so keep builds on this machine and copy only the packages. Afterwards, uninstall the test `navis` package if the host did not have one before. Record the pre-existing state first.
 

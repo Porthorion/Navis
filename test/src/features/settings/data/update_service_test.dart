@@ -5,6 +5,7 @@ import 'package:crypto/crypto.dart' as crypto;
 import 'package:dio/dio.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:logger/logger.dart';
 import 'package:navis/src/features/integrations/data/integration_guard_interceptor.dart';
 import 'package:navis/src/features/settings/data/update_install_mode.dart';
 import 'package:navis/src/features/settings/data/update_service.dart';
@@ -349,9 +350,13 @@ void main() {
         'exit $code maps to the expected failure without relaunch',
         () async {
           var relaunched = false;
+          final logs = <LogEvent>[];
+          void recordLog(LogEvent event) => logs.add(event);
+          Logger.addLogListener(recordLog);
+          addTearDown(() => Logger.removeLogListener(recordLog));
           final updater = UpdateService(
             processRunner: (_, _) async =>
-                ProcessResult(1, code, '', 'failure'),
+                ProcessResult(1, code, '', 'installer stderr $code'),
             relaunchAndExit: () => relaunched = true,
           );
           final matcher = switch (code) {
@@ -373,6 +378,15 @@ void main() {
             throwsA(matcher),
           );
           expect(relaunched, isFalse);
+          if (code == 126 || code == 127) {
+            expect(
+              logs.any(
+                (event) =>
+                    event.message.toString().contains('installer stderr $code'),
+              ),
+              isTrue,
+            );
+          }
         },
       );
     }
@@ -449,6 +463,24 @@ void main() {
       );
     });
   });
+
+  for (final defines in <String?>[null, '']) {
+    test('release accepts empty/unset inherited defines: $defines', () async {
+      final environment = Map<String, String>.of(Platform.environment)
+        ..remove('NAVIS_TEST_UPDATE_ELEVATOR')
+        ..remove('DART_DEFINES');
+      if (defines != null) environment['DART_DEFINES'] = defines;
+      final result = await Process.run(
+        'bash',
+        ['tool/release.sh'],
+        environment: environment,
+        includeParentEnvironment: false,
+      );
+      expect(result.exitCode, 1);
+      expect(result.stdout, contains('Usage: ./tool/release.sh'));
+      expect(result.stderr, isNot(contains('unbound variable')));
+    }, skip: Platform.isWindows);
+  }
 
   for (final encoded in [false, true]) {
     test(

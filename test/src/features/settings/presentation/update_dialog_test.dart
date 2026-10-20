@@ -61,7 +61,8 @@ class _PackageUpdateService extends UpdateService {
   int applies = 0;
 
   @override
-  bool canApplyUpdate(UpdateInstallMode mode) => canApply;
+  bool canApplyUpdate(UpdateInstallMode mode) =>
+      mode != UpdateInstallMode.linuxPackageManaged && canApply;
 
   @override
   Future<String> downloadArtifact(
@@ -263,24 +264,30 @@ void main() {
     );
   });
 
-  testWidgets('root-side integrity failure shows the integrity message', (
-    tester,
-  ) async {
-    final service = _PackageUpdateService(
-      applyError: const UpdateIntegrityException(),
-    );
-    await _openPackageDialog(tester, service, UpdateInstallMode.linuxDeb);
-    await tester.tap(find.text('Restart & Update'));
-    await tester.pumpAndSettle();
-    expect(
-      find.text('The update download was damaged. Try again.'),
-      findsOneWidget,
-    );
-    expect(
-      find.text('Could not apply the update automatically.'),
-      findsNothing,
-    );
-  });
+  testWidgets(
+    'root-side integrity failure offers a fresh download and verification',
+    (tester) async {
+      final service = _PackageUpdateService(
+        applyError: const UpdateIntegrityException(),
+      );
+      await _openPackageDialog(tester, service, UpdateInstallMode.linuxDeb);
+      await tester.tap(find.text('Restart & Update'));
+      await tester.pumpAndSettle();
+      expect(
+        find.text('The update download was damaged. Try again.'),
+        findsOneWidget,
+      );
+      expect(
+        find.text('Could not apply the update automatically.'),
+        findsNothing,
+      );
+      expect(find.text('Retry'), findsOneWidget);
+      await tester.tap(find.text('Retry'));
+      await tester.pumpAndSettle();
+      expect(service.downloads, 2);
+      expect(find.text('Restart & Update'), findsOneWidget);
+    },
+  );
 
   testWidgets('installer failure keeps the apply-error path', (tester) async {
     final service = _PackageUpdateService(

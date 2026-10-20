@@ -115,9 +115,8 @@ class _UpdateDownloadDialogState extends State<_UpdateDownloadDialog> {
     }
 
     // Package installs need a supported owner and elevation before downloading.
-    if (_installMode == UpdateInstallMode.linuxPackageManaged ||
-        (isDesktopInstallMode(_installMode) &&
-            !_service.canApplyUpdate(_installMode))) {
+    if (isDesktopInstallMode(_installMode) &&
+        !_service.canApplyUpdate(_installMode)) {
       setState(
         () => _phase = isLinuxSystemPackageMode(_installMode)
             ? _DownloadPhase.packageManager
@@ -400,7 +399,6 @@ class _UpdateDownloadDialogState extends State<_UpdateDownloadDialog> {
                   if (mounted) {
                     setState(() {
                       _isIntegrityError = true;
-                      _isApplyError = true;
                       _phase = _DownloadPhase.error;
                     });
                   }

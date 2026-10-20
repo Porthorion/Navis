@@ -53,7 +53,7 @@ if [[ "${NAVIS_TEST_UPDATE_ELEVATOR+x}" == x ]]; then
   exit 1
 fi
 IFS=',' read -r -a inherited_dart_defines <<< "${DART_DEFINES:-}"
-for define in "${inherited_dart_defines[@]}"; do
+for define in ${inherited_dart_defines[@]+"${inherited_dart_defines[@]}"}; do
   [[ -n "${define}" ]] || continue
   decoded_define="$(printf '%s' "${define}" | openssl base64 -d -A)"
   if [[ "${decoded_define}" == NAVIS_TEST_UPDATE_ELEVATOR=* ]]; then

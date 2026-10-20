@@ -398,6 +398,12 @@ class UpdateService {
     } on ProcessException catch (_) {
       throw const UpdateElevationUnavailableException();
     }
+    if (result.exitCode != 0) {
+      AppLogger.warning(
+        'Linux package installer exited with code ${result.exitCode}: '
+        '${result.stderr}',
+      );
+    }
     switch (result.exitCode) {
       case 0:
         break;
