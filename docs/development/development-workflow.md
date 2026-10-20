@@ -729,6 +729,18 @@ its compatible helpers. The library documents caller-owned globals and arguments
 keep scenario-specific traps, messages and dart-define arrays in the script,
 and retain local helpers when their behavior differs from the shared version.
 
+For Debian/RPM updater runtime checks R1–R9, use
+`tool/linux/package_update_diagnostics.sh` and the
+[Linux package updater recipe](../release/release-linux.md#package-updater-runtime-diagnostics-r1r9).
+Its separate build/publish/run/cleanup commands reuse the R2 publisher, transport
+and source-safe handshake/API helpers. Package diagnostics must use profile mode
+and matching embedded/package versions (`--build-mode=profile`, `--build-name`,
+`--build-number` through `build_in_container.sh`). Remote launches use the user's
+existing graphical session through `systemd-run --user`, never a root GUI.
+Retain package version, old/new pid, root-temp cleanup, screenshots and installer
+stderr evidence. Cancellation, no-agent, swap and lock-error UI checks still
+require the owner; static/script checks are not runtime acceptance.
+
 Linux and Windows profile diagnostics share the authenticated control-plane
 contract. Android production builds remain observation-only. The planned SAF
 download-folder diagnostics must be sidecar-only, restricted to an emulator

@@ -151,10 +151,15 @@ Behaviour, in order:
 
 **Files:**
 - Modify: `docs/architecture.md:3674-3680, 3736, 3760`, `docs/release/release-linux.md:105-117`, `docs/release/release-r2.md:59-62` (`linuxRpm-x86_64` is now an app key), `CHANGELOG`/1.5.1 notes (the "takes effect from the next update after 1.5.1" sentence).
-- Create: `tool/linux/package_update_diagnostics.sh`. This is the runtime harness for R1–R7 below, built on `r2_update_diagnostics.sh` (copy its handshake and publish helpers by sourcing, not duplicating, where they are functions).
-- Modify: `tool/linux/verify_packages.sh`: replace the "manual update fallback" assertion with a check that `pkexec` and `apt-get`/`dnf` exist in each image's dependency set, or remove it. The script must no longer assert the old behaviour.
+- Create: `tool/linux/package_update_diagnostics.sh`. This is the runtime harness for R1–R9 below, built on `r2_update_diagnostics.sh` (copy its handshake and publish helpers by sourcing, not duplicating, where they are functions).
+- Modify: `tool/linux/verify_packages.sh`: replace the "manual update fallback" assertion with root-run ownership checks (`dpkg-query -S /opt/navis/navis` on Debian-family images, `rpm -qf /opt/navis/navis` on Fedora).
 
-- [ ] Commit `docs(update): Linux package updates`.
+- [x] Task 5 implementation: docs/changelog, ownership verification and the
+  source-sharing package diagnostics harness. Profile-mode/version forwarding
+  is included because release-mode builds reject the diagnostics API.
+- Static/focused validation only in this handoff; R1–R9 remain required before
+  PR acceptance. No builds, publishes, SSH, containers or app launches were run.
+- Commit subject: `docs: document and prepare Linux package update checks`.
 
 ---
 

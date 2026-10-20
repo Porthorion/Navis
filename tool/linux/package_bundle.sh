@@ -68,8 +68,6 @@ CONTROL
   rm -rf "${root}/DEBIAN"
 fi
 if [[ "${mode}" == rpm || "${mode}" == all ]]; then
-  # RPM/AUR are package-manager maintained; the app's existing write-access
-  # check directs these root-owned /opt installs to Download Manually.
   mkdir -p "${stage}/rpmbuild"
   cat > "${stage}/navis.spec" <<SPEC
 Name: ${prefix}

@@ -3672,12 +3672,15 @@ unsigned derived fields.
   - **Google Play installs** (detected via install-source metadata, or Play AAB builds
     with `NAVIS_SELF_UPDATE=false`) open the Play Store listing instead of sideloading.
   - **Desktop** runs a platform-appropriate apply strategy:
-  - **Linux deb:** `pkexec dpkg -i` + relaunch.
-  - **Linux RPM/AUR:** package-manager updates. These use root-owned `/opt/navis`
-    and the existing write-access check shows Download Manually for normal users.
-    The detector still selects Debian mode, so an offer requires `linuxDeb-amd64`;
-    the published `linuxRpm-x86_64` key is for download consumers only. See
-    [release-linux.md](release/release-linux.md) for the Ubuntu 22.04 build and package flow.
+  - **Linux Debian/RPM:** package ownership of `/opt/navis/navis` selects
+    `linuxDeb` (`dpkg-query -S`) or `linuxRpm` (`rpm -qf`). One `pkexec /bin/sh`
+    invocation copies the signed artifact into a root-owned `/var/tmp/navis-update.*`
+    directory, rechecks SHA-256, and installs with `apt-get` (120-second lock wait)
+    or `dnf`, then relaunches. An EXIT trap removes the root copy. Artifact paths,
+    hashes and package kind are positional arguments, never script interpolation.
+  - **Linux AUR/unknown package owner:** `linuxPackageManaged` shows the system
+    package-manager instructions without downloading. Its offer uses `linuxPortable`
+    for version/notes. See [release-linux.md](release/release-linux.md).
   - **Linux portable / Windows portable / macOS:** extracts the archive to a staging
     subdirectory of the downloaded artifact's private work directory, writes a
     self-deleting shell/batch script inside that same work directory, launches it
@@ -3687,7 +3690,9 @@ unsigned derived fields.
     Its silent relaunch uses `runasoriginaluser` so Navis resumes without installer elevation.
 - `data/update_install_mode.dart` — `UpdateInstallMode` enum and `detectInstallMode()`
   function. Detects the current install type from filesystem heuristics (e.g. presence of
-  `unins000.exe` for Windows installer mode; executable under `/opt/navis` for Linux deb).
+  `unins000.exe` for Windows installer mode). Linux executables under `/opt/navis`
+  query Debian then RPM ownership; missing commands or unrecognized ownership use
+  `linuxPackageManaged`. The detected mode is cached for the process.
 - `data/archive_utils.dart` — cross-platform archive extraction (`tar`, `ditto`, PowerShell
   `Expand-Archive`).
 - `data/update_scripts.dart` — generates the platform-specific updater scripts (`.sh` for
@@ -3720,8 +3725,9 @@ these hold; each failure is recorded as a reject reason and nothing is offered:
   `PackageInfo.buildNumber` (`version_not_newer`). Stable and manifests without
   `build` use semver alone; malformed build values reject as `malformed_payload`;
 - the platform's asset key exists (`missing_asset`). Keys are the `UpdateInstallMode`
-  names, with `linuxDeb-<arch>` (`amd64` or `arm64`) for Debian packages; Debian never
-  falls back across architectures. Android's existing `com.navis.app/distribution`
+  names, with `linuxDeb-<arch>` (`amd64` or `arm64`) for Debian and
+  `linuxRpm-<arch>` (`x86_64` or `aarch64`) for RPM. Packages never fall back
+  across architectures or package families. Android's existing `com.navis.app/distribution`
   `getInstallSource` response includes `primaryAbi` from `Build.SUPPORTED_ABIS[0]`.
   For `arm64-v8a`, `armeabi-v7a` and `x86_64`, the updater prefers
   `androidApk-<abi>` when present, otherwise `androidApk` (universal). Unknown or
@@ -3754,8 +3760,20 @@ routes are clone-only. See [release-r2.md](release/release-r2.md) for publishing
 
 ### Write-access guard
 
-Before starting any download, `UpdateService.canApplyUpdate(mode)` probes the target
-directory for write access. If the directory is not writable (e.g. app installed to
+Before starting any download, `UpdateService.canApplyUpdate(mode)` checks for
+`pkexec` on PATH for Debian/RPM packages, without requiring `/opt/navis` to be
+user-writable. Unknown package owners always return false. Missing elevation
+shows the package-manager instructions. Exit 126 returns the dialog to confirm
+silently; exit 127 shows the package-manager instructions. Installer stderr is
+logged before mapping these codes, since commands inside the root script can
+also return 126/127. A root-side integrity mismatch keeps Retry visible so the
+artifact can be downloaded and verified again; other installer failures show
+an apply error with Download Manually. Shipped builds fix the elevator to
+`pkexec`; `NAVIS_TEST_UPDATE_ELEVATOR` accepts one executable path for diagnostics
+and is rejected by the release script.
+
+For other desktop modes, the service probes the target directory for write
+access. If the directory is not writable (e.g. app installed to
 `/Applications` by an admin user, or a read-only portable location), the update dialog
 shows a "Download Manually" prompt linking to the release notes page (or the website
 download page) instead of attempting

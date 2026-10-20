@@ -2996,3 +2996,27 @@ Latest activity (2026-03-07): published `v0.8.0` APK via `tool/release.sh` and s
   `00:02 +49: All tests passed!`. Empty/unset define cases pass on the available
   Bash; Bash 3.2 itself was not available. Full gate, builds and runtime evidence
   are explicitly deferred by this task's validation restrictions.
+
+- 2026-10-20 — Linux package updater Task 5: architecture/release guides now
+  describe package ownership, privileged verify/install, cancellation, Retry
+  and the 1.5.1 rollout boundary. Added the user-facing 1.5.1 entry to
+  `changelog_data.dart`; the release-notes CLI generates from this source, and
+  there is no separate tracked 1.5.1 notes/CHANGELOG file to synchronize.
+  Replaced package verification's manual-update assertion with root ownership
+  queries. Added `package_update_diagnostics.sh` for build/publish/remote run/
+  cleanup, repeated cycles, corrupt downloads and real root-script container
+  upgrades; owner-driven UI scenarios and R8 remain explicit acceptance steps.
+  Shared existing handshake/API and R2 transport functions instead of copying
+  their implementation. The builder now accepts profile mode and embedded
+  version flags because diagnostics rejects release mode and package-only
+  version overrides do not change the running app version. A test-first mocked
+  builder case failed on the unsupported profile flag before implementation;
+  default release behavior and source-only handshake reuse also have coverage.
+  Nine focused test files passed: `00:16 +259: All tests passed!`. After the final
+  formatting adjustment, builder/helper and release-notes tests passed again:
+  `00:00 +7: All tests passed!`. Changed-file `dart analyze` reports
+  `No issues found!`; all nine touched shell scripts pass `bash -n` and
+  `git diff --check` passes. ShellCheck is not installed. Per explicit task
+  limits, the new harness was not run: no builds, publication, SSH, containers,
+  app launches, emulators or full gate. R1–R9 runtime acceptance remains open;
+  the active plan stays under `docs/plans/` until that evidence exists.
