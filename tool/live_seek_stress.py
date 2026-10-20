@@ -2504,6 +2504,41 @@ def case_repeat_switch_off(run: Run, env):
     run.checks.append(lambda: oracle_sequence(run, ids, minimum=2))
 
 
+def case_repeat_one_fill(run: Run, env):
+    """Repeat-one with the background queue fill still running at the song end: an artist shuffle
+    (a large queue), song 1 seeked to its last 8 s straight away; it must restart exactly once, on the
+    same index, and never advance."""
+    run.metrics['repeatOne'] = True
+    artist, ids = env.backend.fresh_artist()
+    run.songs = [{'id': i} for i in ids]
+    run.shuffled = True
+    run.app.api('/v1/playback/repeat', {'mode': 'one'})
+    rec = run.act('start', artist=artist, shuffle=True)
+    run.app.api('/v1/artists/playback', {'command': 'prepare', 'artistId': artist, 'action': 'shuffle'}, timeout=60)
+    first = await_audio(run, rec)
+    dur = first['dur'] or run.last()['dur'] or 0
+    with concurrent.futures.ThreadPoolExecutor(max_workers=2) as pool:
+        seek = issue_seek(run, pool, max(0, dur - 8000))
+        landed(run, seek)
+        finish_futures(run)
+    run.observe(25.0)
+
+    def check():
+        out = []
+        same = [x for x in run.samples if x['t'] >= seek['t'] and x['pos'] is not None]
+        wraps = [(a, b) for a, b in zip(same, same[1:]) if a['songId'] == b['songId'] == first['songId'] and a['idx'] == b['idx']
+                 and a['pos'] > dur - 4000 and b['pos'] < 3000]
+        run.metrics['wraps'] = [{'t': round(b['t'], 1), 'from': a['pos'], 'to': b['pos'], 'mat': b['mat'], 'deferred': b['deferred'],
+                                 'qlen': b['qlen']} for a, b in wraps]
+        if len(wraps) != 1:
+            out.append(violation('repeatOneRestartCount', seek['t'], f"{len(wraps)} restarts of song 1 in 25 s (expected 1)", run))
+        moved = next((x for x in same if x['songId'] != first['songId']), None)
+        if moved:
+            out.append(violation('repeatOneAdvanced', moved['t'], f"advanced to {moved['songId']} under repeat-one", run))
+        return out
+    run.checks.append(check)
+
+
 def case_offset_prev(run: Run, env):
     """Previous after an offset seek restarts the song at 0."""
     offset_case_prologue(run)
@@ -2550,6 +2585,7 @@ CASE_FUNCS = {
     'offset_natural': case_offset_natural,
     'offset_repeat_one': case_offset_repeat_one,
     'offset_prev': case_offset_prev,
+    'repeat_one_fill': case_repeat_one_fill,
     'chain_end': case_chain_end,
     'repeat_switch_off': case_repeat_switch_off,
     'base_repeat_one': case_base_repeat_one,
