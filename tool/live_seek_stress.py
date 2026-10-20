@@ -2351,7 +2351,7 @@ def origin_event_probe(mode: str):
                            eventPos=at['pos'], eventBufMs=at['buf'], eventSong=first['songId'])
         run.act('originEvent', mode=mode)
         env.proxy.stall(12.0) if mode == 'stall' else env.proxy.cut_active('fin')
-        run.observe(60.0)
+        run.observe(85.0)  # the fatal error only surfaces when playback reaches the end of what was buffered
         t_event = run.metrics['eventAt']
         after = [s for s in run.samples if s['t'] >= t_event and s['pos'] is not None]
         restarted = next((s for s in after if s['songId'] == first['songId'] and s['idx'] == first['idx'] and s['pos'] < 5000
@@ -2367,7 +2367,7 @@ def origin_event_probe(mode: str):
             keys = ('processingState', 'playing', 'positionMs', 'bufferedMs', 'stage', 'reason', 'phase', 'errorCode', 'index', 'songId', 'operation')
             run.metrics['traceAround'] = [
                 f"{(e['atMs'] - device_ms) / 1000:+.1f}s {e['kind']} " + ' '.join(f'{k}={e[k]}' for k in keys if e.get(k) is not None)
-                for e in run.trace if e['kind'] != 'bufferState' and device_ms - 8000 <= e['atMs'] <= device_ms + 61000][:80]
+                for e in run.trace if e['kind'] != 'bufferState' and device_ms - 8000 <= e['atMs'] <= device_ms + 86000][:80]
     return case
 
 
