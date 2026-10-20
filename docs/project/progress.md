@@ -95,10 +95,10 @@ Last updated: 2026-10-20
   ready uses the existing three-second no-progress/missed-target handling.
   A late landing gets that short motion-confirmation window rather than failing
   the already expired load budget; recent input survives brief state flapping
-  but cannot extend the ready state's wait. The adapter accepts only positive
-  rate rises, rejecting mpv's decaying estimate and unchanged blocked-read
-  values without a bitrate floor. Perfectly steady real rates are
-  conservatively indistinguishable from blocked reads and need native acceptance.
+  but cannot extend the ready state's wait. Round 5 corrects the adapter rule:
+  input qualifies at >=8 KiB/s with a sampled change in either direction in
+  the last two seconds; unchanged samples between mpv recomputes remain active.
+  Decay below the floor and blocked-read values stale for two seconds expire.
   Seek-lane inspection found no independent cancellation defect in same-song
   load preservation: a playing seek needs 250 ms of native advancement after
   landing, and a newer seek marks an unconfirmed request `superseded`. Stale
@@ -124,6 +124,23 @@ Last updated: 2026-10-20
   The complete diff passes `git diff --check`. No app, emulator, VM or
   `./tool/check.sh` was run, per the assigned scope; coordinator native
   revalidation and independent review remain open.
+  Round 5: replaces rising-only mpv activity with the >=8 KiB/s floor and
+  two-second age of the last sampled change in either direction. The shared
+  loading/buffering gate and ready/frozen recovery timers remain unchanged.
+  Tests were written first on `5e5c32c8`: `00:24 +4 -4: Some tests failed.`;
+  the real 12-second buffering regression reloaded despite steady input
+  (`Expected: <1>` / `Actual: <2>` source loads). Unchanged samples, downward
+  recomputes and halving decay also failed (`Expected: true` or
+  `Expected: <true>` / `Actual: <false>`). The focused adapter/deadline run
+  passed `00:31 +24: All tests passed!`, including the ready/frozen and
+  superseded-seek regressions. The requested three-file run plus the edited
+  `mediakit_seek_test.dart` passed `05:43 +632: All tests passed!` with
+  `flutter test --concurrency=4`. All three edited Dart files pass formatting;
+  scoped `flutter analyze --no-fatal-infos` exits successfully with no errors
+  or warnings and seven informational findings mapped to unchanged HEAD lines.
+  The complete diff passes `git diff --check`. Native acceptance, independent
+  review and the full gate remain with the coordinator; no app, emulator, VM
+  or `./tool/check.sh` was run, per the assigned scope.
 - [ ] Issue #86, Android progressive HTTP repeat-one rewind — partial: 2026-10-20
   (`fix/repeat-one-rewind`, based on `3c1d8c54`, remaining: coordinator Android
   runtime probes, independent review and `./tool/check.sh`): native repeat-one
