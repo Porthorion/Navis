@@ -451,7 +451,7 @@ void main() {
           );
           final matcher = switch (code) {
             126 => isA<UpdateCancelledException>(),
-            127 => isA<UpdateElevationUnavailableException>(),
+            127 || 11 => isA<UpdateElevationUnavailableException>(),
             10 => isA<UpdateIntegrityException>(),
             _ => isA<ProcessException>().having(
               (e) => e.errorCode,

@@ -441,7 +441,8 @@ class UpdateService {
         break;
       case 126:
         throw const UpdateCancelledException();
-      case 127:
+      // 11: the owning package manager's installer (apt-get/dnf) is missing.
+      case 127 || 11:
         throw const UpdateElevationUnavailableException();
       case 10:
         throw const UpdateIntegrityException();

@@ -115,7 +115,7 @@ Behaviour, in order:
 - [ ] **Step 1: Write failing tests.**
   - `canApplyUpdate(linuxDeb)` and `canApplyUpdate(linuxRpm)` are true when `pkexec` resolves on `PATH`, and false when it does not. `canApplyUpdate(linuxPackageManaged)` is always false.
   - Apply for `linuxDeb` calls the runner with `('pkexec', ['/bin/sh', '-c', linuxPackageInstallScript, 'navis-update', path, sha, 'deb'])`. For `linuxRpm`, the last argument is `rpm`.
-  - Runner exit 126 → `UpdateCancelledException`. Exit 127 → `UpdateElevationUnavailableException`. Exit 10 → `UpdateIntegrityException`. Any other non-zero code → `ProcessException` (the existing apply-error path).
+  - Runner exit 126 → `UpdateCancelledException`. Exit 127 or 11 (no `apt-get`/`dnf`) → `UpdateElevationUnavailableException`. Exit 10 → `UpdateIntegrityException`. Any other non-zero code → `ProcessException` (the existing apply-error path).
   - Exit 0 → the relaunch hook is called. Make relaunch-and-exit injectable (`void Function()? relaunchAndExit`) so the test does not call `exit(0)`.
   - Repository: manifest with `linuxRpm-x86_64` + mode `linuxRpm` + arch `x86_64` → that asset. Arch `aarch64` with no such key → `missing_asset`, with no fallback to the deb.
   - Repository: `linuxPackageManaged` still produces an offer, using the `linuxPortable` key so the notes and version show. Download is never attempted for it (Task 4).

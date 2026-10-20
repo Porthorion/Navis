@@ -3771,7 +3771,8 @@ Before starting any download, `UpdateService.canApplyUpdate(mode)` checks for
 `pkexec` on PATH for Debian/RPM packages, without requiring `/opt/navis` to be
 user-writable. Unknown package owners always return false. Missing elevation
 shows the package-manager instructions. Exit 126 returns the dialog to confirm
-silently; exit 127 shows the package-manager instructions. Installer stderr is
+silently; exit 127, or 11 (the root script found no `apt-get`/`dnf`), shows the
+package-manager instructions. Installer stderr is
 logged before mapping these codes, since commands inside the root script can
 also return 126/127. A root-side integrity mismatch keeps Retry visible so the
 artifact can be downloaded and verified again; other installer failures show
