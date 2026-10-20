@@ -166,7 +166,8 @@ Run before each commit/PR:
 
 Checks performed:
 - Linux desktop-entry installer (`tool/linux_desktop_entry_test.sh`)
-- Native EQ response/PCM fixtures (`tool/equalizer_native_test.sh`), using an
+- Native EQ response/PCM and progressive HTTP retry/repeat fixtures
+  (`tool/equalizer_native_test.sh`), using an
   available JDK or the Android Studio JDK selected by `ANDROID_STUDIO_JDK`
 - Last.fm key masking (`tool/lastfm_key_defines_test.sh`) and the release
   artifact secret scan (`tool/scan_artifact_secret_test.sh`), with a fake key

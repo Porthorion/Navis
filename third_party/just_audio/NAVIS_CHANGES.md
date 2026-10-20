@@ -89,3 +89,18 @@ opts radio initial loads and reconnects into the unchanged native policy.
 The matching platform interface serializes this source option. No HTTP timeout
 or HLS/DASH policy changes are made. `ProgressiveLoadRetryTest` supplies pure
 JVM framing fixtures using the existing `EqualizerDspTest` executable pattern.
+
+Android progressive HTTP repeat-one keeps the requested Dart loop mode but
+uses native repeat-off plus pause-at-end. The end-of-item PlayWhenReady reason
+(and an idempotent ENDED fallback) restarts the same index at zero, preserving
+Play/Pause intent without publishing terminal completion. A revision cancels
+pending restarts on transport, selection/source/playlist or loop-mode changes.
+This prevents Media3 1.4.1 from preloading the same linear stream and silently
+rewinding the current period when the repeated request becomes seekable (#86).
+Local files/assets, HLS/DASH, radio's existing default-retry opt-out and all
+repeat-all behavior remain native; HTTP repeat-one loses gapless restart.
+`ProgressiveRepeatTest` covers policy and restart decisions in the existing JVM
+harness. The pairwise Dart loop detector now also recognizes unknown-duration
+plain-stream backwards jumps; tail/zero/buffering/ready fixtures cover middle
+and last items with and without offsets. Navis's existing offset handler and
+crossfade controller remain the sole Dart owners of offset reloads and fades.
