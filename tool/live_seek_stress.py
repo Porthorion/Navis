@@ -150,6 +150,7 @@ class ThrottledProxy:
         self.host = target.hostname
         self.upstream_port = target.port or (443 if self.secure else 80)
         self.set_profile(kbps, latency_ms)
+        self.pace = None  # diagnostics: (song id, bytes/s): that song's un-offset bodies are paced to real time
         self.stall_until = 0.0  # diagnostics: media bodies pause (connection kept open) until this monotonic time
         self.cut_until, self.cut_mode = 0.0, 'fin'  # diagnostics: in-flight media bodies are cut until this time
         self.tokens = 0.0
@@ -208,6 +209,9 @@ class ThrottledProxy:
                     return
                 missing = size - self.tokens
             time.sleep(missing / self.rate)
+
+    def pace_song(self, song_id, kbps):
+        self.pace = (song_id, kbps * 1000 / 8) if song_id else None
 
     def stall(self, seconds: float):
         """Pauses every in-flight media body for [seconds] without closing the connection."""
@@ -317,6 +321,8 @@ class ThrottledProxy:
                     self._abort(handler, self.cut_mode)
                     return
                 self.take(len(chunk))
+                if self.pace and entry['id'] == self.pace[0] and not entry.get('timeOffset'):
+                    time.sleep(len(chunk) / self.pace[1])
                 if fault and entry['bytes'] + len(chunk) >= fault['after']:
                     keep = max(0, fault['after'] - entry['bytes'])
                     if frame and keep:
@@ -2557,7 +2563,7 @@ def case_repeat_one_fill(run: Run, env):
     run.checks.append(check)
 
 
-def cut_at_case(fraction: float, cuts: int, gap_s=10.0, pace_kbps=220):
+def cut_at_case(fraction: float, cuts: int, gap_s=10.0, pace_kbps=176):
     """#86 item 2 (proxy abort on origin cut): album, repeat off; after song 1 starts the origin is paced
     near real time, and when song 1 reaches [fraction] of its length the in-flight origin body is cut
     ([cuts] times, [gap_s] apart). Records whether it resumes in place, restarts, or ends early, then
@@ -2565,15 +2571,15 @@ def cut_at_case(fraction: float, cuts: int, gap_s=10.0, pace_kbps=220):
     def case(run: Run, env):
         ids = env.backend.fresh_album()
         run.songs = [{'id': i} for i in ids]
+        env.proxy.pace_song(ids[0], pace_kbps)  # song 1's body arrives at ~1.4x real time, so it is in flight at the cut
         rec = start_queue(run, ids)
         first = await_audio(run, rec, ids[0])
         dur = first['dur'] or run.last()['dur'] or 0
         restore = THROTTLES[run.throttle]
-        env.proxy.set_profile(pace_kbps, 300)
         run.metrics['cutPlan'] = {'fraction': fraction, 'cuts': cuts, 'durMs': dur, 'paceKbps': pace_kbps}
         at = run.until(lambda s: s['songId'] == ids[0] and (s['pos'] or 0) >= dur * fraction, dur / 1000 + 90)
         if at is None:
-            env.proxy.set_profile(*restore)
+            env.proxy.pace_song(None, 0)
             raise CaseAbort('song 1 never reached the cut point')
         device_ms = int(run.app.shell('date', '+%s%3N').strip() or 0) if isinstance(run.app, AndroidApp) else None
         events = []
@@ -2589,7 +2595,7 @@ def cut_at_case(fraction: float, cuts: int, gap_s=10.0, pace_kbps=220):
         t_first = events[0]['t']
         # recovery window: let it settle, then restore the link and play the song out
         run.observe(25.0)
-        env.proxy.set_profile(*restore)
+        env.proxy.pace_song(None, 0)
         end_wait = max(30.0, (dur - (run.last()['pos'] or 0)) / 1000 + 60)
         moved = run.until(lambda s: s['songId'] != ids[0], end_wait)
         after = [s for s in run.samples if s['t'] >= t_first and s['songId'] == ids[0] and s['pos'] is not None]
