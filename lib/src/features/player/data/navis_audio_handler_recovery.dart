@@ -53,7 +53,10 @@ extension _NavisRecovery on NavisAudioHandler {
       final deadline = isExternalCatalogSource(id: request.songId)
           ? _timeouts.remoteLoad
           : _playerLoadTimeout;
-      if (wait.elapsed >= deadline) {
+      if (_isLoading && _loadingSongId == request.songId) {
+        // Its native operation owns the bounded deadline, including retries.
+        wait.reset();
+      } else if (wait.elapsed >= deadline) {
         throw PlaybackLoadTimeoutException(operation: 'seek source readiness');
       }
       await Future<void>.delayed(const Duration(milliseconds: 25));
@@ -67,6 +70,21 @@ extension _NavisRecovery on NavisAudioHandler {
     required _PendingSeek seekRequest,
   }) async {
     _checkSeekCurrent(seekRequest, token);
+    if (_isDesktopRuntime && seekRequest.recoveryAttempts > 0) {
+      // A cold-source retry already opened the target, including transcodes.
+      if (await _waitForSeekSettlement(seekRequest, token)) return;
+      if (await _trySeekViaCompletedCacheFile(
+            position,
+            autoPlay: _requestedPlaying,
+            token: token,
+            transportGeneration: transportGeneration,
+            seekRequest: seekRequest,
+          ) &&
+          await _waitForSeekSettlement(seekRequest, token)) {
+        return;
+      }
+      throw StateError('Seek failed after source recovery.');
+    }
     if (await _shouldSeekViaTranscodeOffset(position, seekRequest, token)) {
       try {
         if (await _seekViaTranscodeOffset(
@@ -1539,13 +1557,10 @@ extension _NavisRecovery on NavisAudioHandler {
     }
 
     await _player.pause();
-    if (_player.processingState == ProcessingState.loading ||
-        _player.processingState == ProcessingState.buffering) {
-      await _player.stop();
-    }
-    if (autoPlay) {
-      _broadcastPlaybackState();
-    }
+    await _player.stop();
+    _loadedSourceFailed = true;
+    _broadcastPlaybackState();
+    _emitSnapshot();
   }
 
   String? get _currentSourceKind {

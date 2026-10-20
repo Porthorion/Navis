@@ -14,6 +14,56 @@ Last updated: 2026-10-21
 - ACP status values: `backlog`, `ready`, `in_progress`, `blocked`, `done`.
 
 ## Current Focus
+- [ ] Issue #86, round 9 cold seek recovery — partial: 2026-10-21
+  (`fix/seek-settlement`, remaining: coordinator live large-FLAC/Android
+  revalidation and independent review). Focused seek, transcode and deadline runs
+  pass 74 tests, including both held-body durations for original/transcoded
+  sources, single-song cold retry exhaustion, silent failover, and Play restart.
+  Round-8 hold traces show `active queue apply` timing out at +12.158 s,
+  `seekStage: recovering` immediately afterward, then `seekEvent: failed` at
+  +24.198 s (`elapsedMs: 19142`) with no second timeout or media request.
+  At +13 s the logical queue had shrunk to its one materialized source;
+  +25 s and +50 s stayed loading at position zero despite sidecar bytes.
+  The round-8 retry reused AudioSource objects while retiring their owner;
+  just_audio disposal clears those objects' attachments. The new regression
+  models that lifecycle and reproduced the early failed seek; both held-body
+  cases failed before the repair. The existing phase-one fallback now prepares
+  a fresh source and uses one bounded 45-second cold retry, opening transcodes
+  directly at the server offset. Seek source readiness follows its active load;
+  settlement retains the completed-file fallback. Internal timeouts and seek
+  failures stay quiet. Exhausted desktop recovery fails over or
+  stops the final song, retaining a failed source that Play can reload.
+  The native failing-Range fixture also exposed a frozen `ready` source
+  (`reason: no progress`, `positionMs: 90000`) after recovery, so desktop
+  exhaustion now uses failover in every processing state. Its regression
+  first failed with `Expected: false / Actual: true` for Playing.
+  The final-song timeout regression also failed before the retention repair
+  (`Expected: song-0 / Actual: null`). Natural cold-seek traces differ: they
+  issue the seek at +5.056 s, then exhaust two 25-second buffering probes at
+  60,000 ms. Their proxy records repeated FLAC byte-range searches; an app-side
+  source-wait expiry does not explain those cases. Native revalidation must
+  distinguish those decoder waits from the repaired cold-source ownership bug.
+  Isolated Linux evidence: `.dart_tool/round9_seek_runtime.py` extends the
+  existing synthetic seek runner only in ignored local evidence, holding every
+  media body for 20/40 s and issuing the seek at +5 s. The FLAC run passed all
+  22 required scenarios across two clean starts (`build/seek-reliability/r9-flac-holds/report.json`),
+  including all four held-body cases. Initial hold20/hold40 seeks completed
+  in 16,106/36,085 ms at positions 60,332/60,343 ms, using one recovery each.
+  After removing the frozen-ready exception, `.dart_tool/round9_terminal_runtime.py`
+  rebuilt the final implementation and verified two clean starts with failing
+  Range responses: both reported `quietStop: true`, `playRestarted: true` after
+  Range support returned (`build/seek-reliability/r9-terminal/report.json`).
+  App-owned lyrics/player screenshots were inspected; the Mini Player capture
+  was obscured by the existing Return to Desktop View prompt. Both runtime
+  runners exited successfully and shut down their isolated processes.
+  Android retains its load/seek retry timing and source selection. Shared
+  changes make internal timeout/seek failures quiet, follow an active source
+  load's deadline, and stop/mark the final failed source reloadable by Play.
+  Final `./tool/check.sh` passed: formatting, generation, analyzer, dead-code
+  baseline, 103 migration tests, 283 critical reliability tests and the full
+  suite (8,943 passed, one skipped; 426 s). The complete diff was reviewed;
+  generated files stayed unchanged. Evidence: `.dart_tool/round9-check.log`.
+
 - [ ] Issue #86, slow-stream seek settlement and song start — partial: 2026-10-20
   (`fix/seek-settlement`, remaining: coordinator native FLAC/Android
   revalidation and independent review): round 8 repairs exhausted source-load

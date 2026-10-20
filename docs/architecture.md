@@ -4745,8 +4745,17 @@ native load may publish no buffer or mpv input estimate, so excluding the
 sidecar previously caused a 12-second queue-apply timeout, next-song failover,
 and cancellation of the waiting seek. Other lane backlog retains the original
 load deadline. If a desktop cold load times out with a same-song seek pending,
-the existing source-apply retry reloads once at that target on the rebuilt player;
-a failed retry uses the ordinary queue-load failover. A new selection/queue or
+the existing phase-one source fallback prepares a fresh source and reloads once
+at that target on the rebuilt player. AudioSource objects cannot be transferred
+from the retired player: its asynchronous disposal clears their attachments.
+This cold retry has the existing 45-second `seekProgress` budget, including
+silent-body waits, with no second extension; ordinary seek recovery loads keep
+the 12-second deadline. Source readiness follows the active same-song load's
+bounded lifetime rather than expiring during it. A transcode retry opens the
+server offset directly, and settlement verifies that load without reopening it.
+A completed-cache fallback remains available if that retry does not settle.
+A failed retry uses the ordinary queue-load failover; the final failed occurrence
+remains queued and reloadable by Play. A new selection/queue or
 Stop retires a superseded load on the next check. Controls, queue edits and radio
 keep fixed timeouts; failures report actual elapsed time. When the desktop
 sidecar completes first, settlement stops and existing recovery reloads from it.
@@ -4754,9 +4763,11 @@ Each unsuccessful probe records
 `reason`, `elapsedMs`, `positionMs`, `bufferedMs`, `processingState` and `playing`
 in the seek's `unsettled` diagnostics. Each current request permits one recovery
 attempt, plus a reload from a sidecar file that completes during it. An
-exhausted desktop request whose recovery load left the player idle uses the
-existing failed-song failover, preserving the latest Play/Pause intent and queue.
-Other exhausted requests report failure and suppress automatic stream retries until
+exhausted desktop request uses the existing failed-song failover, preserving
+latest Play/Pause intent and queue. With no successor, it stops quietly and marks the
+source failed so Play reloads it. Native timeout recovery and failed seeks log
+diagnostics without emitting user notices; automatic recovery needs no user
+action. Mobile exhausted requests suppress automatic stream retries until
 another explicit transport/selection request, or until the song has played on
 normally for five seconds past where the seek failed, preventing a failed seek
 from later restarting or skipping the song without leaving a later, unrelated

@@ -133,7 +133,9 @@ const List<ChangelogVersion> changelogs = [
         'Bound desktop seek waits and recover stuck positions automatically; '
         'keep slow song starts loading while data arrives, including when '
         'seeking before the first load finishes, and continue to the next song '
-        'if a seek recovery cannot reload the stream',
+        'if a seek recovery cannot reload the stream. Retry slow cold seeks '
+        'with a fresh source, recover silently, and keep the final stopped '
+        'song available to Play again',
         type: ChangelogEntryType.fix,
       ),
       ChangelogEntry(
