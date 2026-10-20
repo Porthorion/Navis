@@ -66,6 +66,7 @@ class UpdateService {
   final Dio _dio;
   final UpdateSource source;
   final NetworkUsageReporter? _networkUsageReporter;
+  ({String sha256, String path})? _verifiedDownload;
 
   static const _channel = MethodChannel('com.navis.app/updater');
 
@@ -95,6 +96,36 @@ class UpdateService {
     }
     if (info.sha256 == null || info.size == null) {
       throw StateError('Update download has no manifest integrity metadata');
+    }
+
+    final sha256 = info.sha256!.toLowerCase();
+    final previous = _verifiedDownload;
+    if (previous != null) {
+      final file = File(previous.path);
+      if (previous.sha256 == sha256) {
+        if (file.existsSync()) {
+          try {
+            await verifyArtifact(previous.path, info);
+            onProgress?.call(1);
+            return previous.path;
+          } on UpdateIntegrityException catch (_) {
+            // Verification deletes damaged files; retry with a fresh download.
+          } on FileSystemException catch (_) {
+            // The file may disappear or become unreadable during verification.
+          }
+        }
+      } else {
+        try {
+          if (Platform.isAndroid) {
+            await file.delete();
+          } else {
+            await file.parent.delete(recursive: true);
+          }
+        } on FileSystemException catch (_) {
+          // Superseded artifacts must not prevent downloading a newer update.
+        }
+      }
+      _verifiedDownload = null;
     }
 
     final cacheDir = await getTemporaryDirectory();
@@ -161,6 +192,7 @@ class UpdateService {
     );
 
     await verifyArtifact(filePath, info);
+    _verifiedDownload = (sha256: sha256, path: filePath);
     AppLogger.info('Verified artifact downloaded to $filePath');
     return filePath;
   }

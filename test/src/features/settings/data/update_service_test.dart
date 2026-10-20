@@ -18,7 +18,7 @@ import 'package:path/path.dart' as p;
 
 class _ArtifactAdapter implements HttpClientAdapter {
   new(this.bytes);
-  final List<int> bytes;
+  List<int> bytes;
   final List<RequestOptions> requests = [];
   String? redirect;
 
@@ -130,26 +130,116 @@ void main() {
     expect(adapter.requests, isEmpty);
   });
 
-  test('desktop downloads use distinct private dirs instead of shared navis_updates', () async {
+  test('desktop downloads reuse a verified private dir instead of shared navis_updates', () async {
     final shared = await Directory(p.join(temp.path, 'navis_updates')).create();
     final chmod = await Process.run('chmod', ['777', shared.path]);
     expect(chmod.exitCode, 0);
     expect(shared.statSync().mode & 0x1ff, 0x1ff);
 
     final first = await service.downloadArtifact(info());
+    expect(adapter.requests, hasLength(1));
     final second = await service.downloadArtifact(info());
     final firstDir = Directory(p.dirname(first));
-    final secondDir = Directory(p.dirname(second));
-    expect(firstDir.path, isNot(secondDir.path));
-    for (final dir in [firstDir, secondDir]) {
-      expect(p.dirname(dir.path), temp.path);
-      expect(p.basename(dir.path), startsWith('navis_update_'));
-      expect(dir.statSync().mode & 0x1ff, 0x1c0);
-    }
+    expect(second, first);
+    expect(adapter.requests, hasLength(1));
+    expect(p.dirname(firstDir.path), temp.path);
+    expect(p.basename(firstDir.path), startsWith('navis_update_'));
+    expect(firstDir.statSync().mode & 0x1ff, 0x1c0);
     expect(shared.listSync(), isEmpty);
     expect(await File(first).readAsBytes(), bytes);
     expect(await File(second).readAsBytes(), bytes);
   }, skip: Platform.isWindows);
+
+  test(
+    'reuses a case-insensitive digest with completion and no network usage',
+    () async {
+      final reportedBytes = <int>[];
+      service = UpdateService(
+        dio: dio,
+        networkUsageReporter: ({required category, required bytes, operation}) {
+          reportedBytes.add(bytes);
+        },
+      );
+      final first = await service.downloadArtifact(
+        info(hash: crypto.sha256.convert(bytes).toString().toUpperCase()),
+      );
+      expect(adapter.requests, hasLength(1));
+      expect(reportedBytes, [bytes.length]);
+
+      final progress = <double>[];
+      final second = await service.downloadArtifact(
+        info(),
+        onProgress: progress.add,
+      );
+
+      expect(second, first);
+      expect(adapter.requests, hasLength(1));
+      expect(reportedBytes, [bytes.length]);
+      expect(progress, [1.0]);
+      expect(await File(second).readAsBytes(), bytes);
+    },
+  );
+
+  test(
+    're-downloads when the remembered file has been tampered with',
+    () async {
+      final first = await service.downloadArtifact(info());
+      expect(adapter.requests, hasLength(1));
+      await File(first).writeAsBytes(List<int>.filled(bytes.length, 0));
+
+      final second = await service.downloadArtifact(info());
+
+      expect(adapter.requests, hasLength(2));
+      expect(File(first).existsSync(), isFalse);
+      expect(await File(second).readAsBytes(), bytes);
+      await service.verifyArtifact(second, info());
+    },
+  );
+
+  test('re-downloads when the remembered file has been deleted', () async {
+    final first = await service.downloadArtifact(info());
+    expect(adapter.requests, hasLength(1));
+    await File(first).delete();
+
+    final second = await service.downloadArtifact(info());
+
+    expect(adapter.requests, hasLength(2));
+    expect(await File(second).readAsBytes(), bytes);
+    await service.verifyArtifact(second, info());
+  });
+
+  test(
+    'a different digest deletes the old private work dir before downloading',
+    () async {
+      final first = await service.downloadArtifact(info());
+      expect(adapter.requests, hasLength(1));
+      final oldDir = File(first).parent;
+      await File(p.join(oldDir.path, 'leftover-script.sh'))
+          .writeAsString('stale');
+      final newerBytes = bytes.reversed.toList();
+      final newerInfo = info(
+        hash: crypto.sha256.convert(newerBytes).toString(),
+      );
+      adapter.bytes = newerBytes;
+      dio.interceptors.add(
+        InterceptorsWrapper(
+          onRequest: (options, handler) {
+            expect(oldDir.existsSync(), isFalse);
+            handler.next(options);
+          },
+        ),
+      );
+
+      final second = await service.downloadArtifact(newerInfo);
+
+      expect(adapter.requests, hasLength(2));
+      expect(File(second).parent.path, isNot(oldDir.path));
+      expect(oldDir.existsSync(), isFalse);
+      expect(await File(second).readAsBytes(), newerBytes);
+      await service.verifyArtifact(second, newerInfo);
+    },
+    skip: Platform.isAndroid,
+  );
 
   test(
     'Linux extraction stages inside the downloaded artifact private dir',

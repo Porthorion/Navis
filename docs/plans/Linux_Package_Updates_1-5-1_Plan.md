@@ -161,6 +161,12 @@ Behaviour, in order:
   PR acceptance. No builds, publishes, SSH, containers or app launches were run.
 - Commit subject: `docs: document and prepare Linux package update checks`.
 
+### Task 6: Reuse the verified download after Cancel
+
+- Remember the last verified digest/path for this app session; re-check size and SHA-256 before reuse after Cancel or reopening the dialog, with completed progress and no network usage.
+- Re-download missing or tampered files; remove a superseded desktop work directory (only the file on Android). Keep the existing startup cleanup and root-side hash check.
+- Cover reuse/request counts, case-insensitive digests, progress/network accounting, tampering, deletion and a changed digest in `update_service_test.dart`; retain private-directory checks.
+
 ---
 
 ## Runtime test plan (must pass before the PR is ready)

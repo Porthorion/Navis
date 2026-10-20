@@ -3661,11 +3661,17 @@ unsigned derived fields.
   `UpdateInfo` (with `downloadUrl`, `assetFileName`, `sha256` and `size`) when a newer
   version is available. A manifest that fails any check is dropped (the reason is kept
   for diagnostics) and reads as "no update".
-- `data/update_service.dart` — downloads each desktop artifact into a fresh private
+- `data/update_service.dart` — downloads each new desktop artifact into a fresh private
   `navis_update_*` work directory under `getTemporaryDirectory()`. POSIX downloads
   require `chmod 700` on that directory before writing any contents. Navis then
   verifies the artifact and applies the update. Diagnostics overrides of the temp base are
   preserved. Android retains `<cache>/navis_updates/` for its FileProvider.
+  The service remembers the last verified digest/path in memory for the app session.
+  A matching digest reuses the file only after checking its size and SHA-256 again,
+  reporting completed progress without network usage. Missing or damaged files
+  download again. A different digest removes the old desktop work directory
+  (only the artifact on Android); deletion errors do not block the new download.
+  Startup cleanup still removes leftover desktop work directories after relaunch.
   Distribution is resolved at runtime:
   - **Sideload Android APK builds** (`NAVIS_SELF_UPDATE=true`) download the
     APK and invoke the system installer via a gated `MethodChannel`.

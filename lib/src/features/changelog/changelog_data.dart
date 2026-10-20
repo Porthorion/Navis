@@ -148,6 +148,11 @@ const List<ChangelogVersion> changelogs = [
         type: ChangelogEntryType.fix,
       ),
       ChangelogEntry(
+        'Reuse the verified update download after cancelling installation or '
+        'reopening the update dialog, checking the file again before retrying',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
         'Fix transcoded songs replaying after the stream finishes on Android',
         type: ChangelogEntryType.fix,
       ),

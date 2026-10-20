@@ -14,6 +14,21 @@ Last updated: 2026-10-20
 - ACP status values: `backlog`, `ready`, `in_progress`, `blocked`, `done`.
 
 ## Current Focus
+- [x] Verified update download reuse after cancelled installation — 2026-10-20:
+  `UpdateService` retains one digest/path per session, re-verifies before reuse,
+  re-downloads missing/tampered files and removes superseded artifacts. The
+  existing private-directory test now asserts reuse and one HTTP request;
+  additional cases cover case-insensitive hashes, progress/network accounting,
+  tampering, deletion and changed-digest directory removal before downloading.
+  Test-first service run failed four cases (`00:00 +38 -4: Some tests failed.`).
+  `flutter test test/src/features/settings/data/update_service_test.dart
+  test/src/features/settings/presentation/update_dialog_test.dart` passed
+  (`00:02 +53: All tests passed!`); changed Dart files pass formatting.
+  `flutter analyze lib/src/features/settings test/src/features/settings`
+  reports four existing infos in untouched appearance tests (escaping quotes,
+  setter style, constructor type and braces); no findings in the changed code.
+  Runtime/polkit validation remains with the coordinator; `./tool/check.sh`
+  was explicitly reserved for the orchestrator.
 - [ ] Issue #86, Android progressive HTTP repeat-one rewind — partial: 2026-10-20
   (`fix/repeat-one-rewind`, based on `3c1d8c54`, remaining: coordinator Android
   runtime probes, independent review and `./tool/check.sh`): native repeat-one
