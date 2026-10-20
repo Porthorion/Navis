@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
@@ -138,6 +139,67 @@ void main() {
   });
   tearDown(() => directory.delete(recursive: true));
 
+  test('proxy frames an unknown-length keep-alive response', () async {
+    final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
+    addTearDown(() => server.close(force: true));
+    final body = List<int>.filled(1024, 7);
+    server.listen((request) async {
+      request.response.headers.contentType = ContentType('audio', 'ogg');
+      request.response.add(body.sublist(0, 512));
+      await request.response.flush();
+      await Future<void>.delayed(const Duration(milliseconds: 20));
+      request.response.add(body.sublist(512));
+      await request.response.close();
+    });
+    // ignore: experimental_member_use, reason: exercises the real lock-cache proxy response.
+    final source = LockCachingAudioSource(
+      Uri.parse('http://127.0.0.1:${server.port}/song'),
+      cacheFile: File(p.join(directory.path, 'framing.ogg')),
+    );
+    final player = AudioPlayer(
+      handleInterruptions: false,
+      androidApplyAudioAttributes: false,
+    );
+    addTearDown(player.dispose);
+    addTearDown(source.cancelDownload);
+    await player.setAudioSource(source);
+    final uri = native.player.proxyUri;
+    final socket = await Socket.connect(uri.host, uri.port);
+    addTearDown(socket.destroy);
+    socket.write(
+      'GET ${uri.path} HTTP/1.1\r\n'
+      'Host: ${uri.host}:${uri.port}\r\n'
+      'Connection: keep-alive\r\n\r\n',
+    );
+    await socket.flush();
+
+    final received = StringBuffer();
+    final response = await socket
+        .cast<List<int>>()
+        .transform(latin1.decoder)
+        .map((chunk) {
+          received.write(chunk);
+          return received.toString();
+        })
+        .firstWhere((wire) {
+          final headerEnd = wire.indexOf('\r\n\r\n');
+          if (headerEnd < 0) return false;
+          final headers = wire.substring(0, headerEnd).toLowerCase();
+          if (headers.contains('\r\ntransfer-encoding: chunked')) {
+            return wire.endsWith('\r\n0\r\n\r\n');
+          }
+          final length = RegExp(r'\r\ncontent-length: (\d+)')
+              .firstMatch(headers);
+          return length != null &&
+              int.parse(length[1]!) == body.length &&
+              wire.length - headerEnd - 4 == body.length;
+        })
+        .timeout(const Duration(seconds: 2));
+
+    expect(response, startsWith('HTTP/1.1 200 OK\r\n'));
+    expect(response, contains('\r\ncontent-type: audio/ogg\r\n'));
+  });
+
   for (final knownLength in [false, true]) {
     test('proxy closes an open-ended range (known length: $knownLength)', () async {
       final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
@@ -182,6 +244,7 @@ void main() {
             ? HttpStatus.partialContent
             : HttpStatus.internalServerError,
       );
+      expect(response.contentLength, knownLength ? body.length : 0);
       final received = await response.fold<List<int>>(
         [],
         (bytes, chunk) => bytes..addAll(chunk),

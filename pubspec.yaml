@@ -2,7 +2,7 @@ name: navis
 description: "Navis — a Subsonic/OpenSubsonic music player for Android, iOS, macOS, Linux, and Windows."
 publish_to: 'none'
 
-version: 1.5.0+10500
+version: 1.5.1+10501
 
 environment:
   sdk: ^3.13.0

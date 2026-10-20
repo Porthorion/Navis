@@ -127,6 +127,20 @@ enum ChangelogHighlightIcon {
 /// All changelogs, newest first.
 const List<ChangelogVersion> changelogs = [
   ChangelogVersion(
+    version: '1.5.1',
+    entries: [
+      ChangelogEntry(
+        'Fix transcoded songs replaying after the stream finishes on Android',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
+        'Seeking in a transcoded song now jumps straight to the new position '
+        'on servers that support it, instead of waiting for the download',
+        type: ChangelogEntryType.fix,
+      ),
+    ],
+  ),
+  ChangelogVersion(
     version: '1.5.0',
     codename: 'Chromatic',
     iconAsset: 'assets/changelog/chromatic.svg',

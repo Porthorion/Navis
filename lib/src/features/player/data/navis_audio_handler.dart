@@ -405,6 +405,10 @@ class NavisAudioHandler extends BaseAudioHandler
   int _transportGeneration = 0;
   bool? _latestExplicitTransportPlaying;
   _PendingSeek? _pendingSeek;
+
+  /// The last native position (time into the offset stream) of the playing
+  /// offset source, to notice the native loop restarting it.
+  Duration? _offsetLoopNativePosition;
   DateTime? _lastPositionEmitAt;
   _PendingSeek? _lastSeek;
   int _seekRevision = 0;
@@ -2175,6 +2179,12 @@ class NavisAudioHandler extends BaseAudioHandler
           await playFromIndex(0);
           return;
         }
+        if (current == 0 &&
+            _positionOffsetOf(_currentMediaItem) > Duration.zero) {
+          // The only song plays as an offset stream: restart it from zero.
+          await seek(Duration.zero);
+          return;
+        }
         await _player.seek(Duration.zero, index: 0);
         if (!_isCurrentTransportIntent(transportGeneration)) return;
         final inactiveDeck = _crossfadePlayer;
@@ -2385,7 +2395,9 @@ class NavisAudioHandler extends BaseAudioHandler
         _recordSeekDiagnosticsEvent(<String, Object?>{
           'at': DateTime.now().toUtc().toIso8601String(),
           'generation': request.generation,
-          'path': request.recoveryAttempts == 0 ? 'direct' : 'recovery',
+          'path':
+              request.path ??
+              (request.recoveryAttempts == 0 ? 'direct' : 'recovery'),
           'requestedPositionMs': request.position.inMilliseconds,
           'beforePositionMs': beforePosition.inMilliseconds,
           'beforeBufferedMs': beforeBuffered.inMilliseconds,
@@ -2540,6 +2552,7 @@ class NavisAudioHandler extends BaseAudioHandler
       'shuffleMode': snapshot.shuffleMode.name,
       'repeatMode': snapshot.repeatMode.name,
       'sourceKind': _currentSourceKind,
+      'positionOffsetMs': _positionOffsetOf(_currentMediaItem).inMilliseconds,
       'lockCachingBypassed':
           songId != null && _lockCachingBypassedSongIds.contains(songId),
       'lockCachingBypassedSongIds': _lockCachingBypassedSongIds.toList(

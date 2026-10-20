@@ -32,6 +32,8 @@ length with HTTP 500 instead of dereferencing null while constructing
 `Content-Range`. Navis can then recover the remote source; completed cache reads
 still provide sized ranges.
 
+The stream proxy restores chunked framing for unknown-length bodies and explicitly sends `Content-Length: 0` for empty HTTP 500 responses after clearing headers (#86).
+
 Keep upgrades narrow and re-run the native response/lifecycle fixtures and
 Navis playback tests when updating either vendored package.
 
@@ -48,3 +50,13 @@ granted. A
 load that runs while focus is pending therefore cannot start native playback
 through the implicit play path, and a denied request never publishes a
 transient playing state.
+
+`UriAudioSource.positionOffset` (also `AudioSource.uri(positionOffset:)`) marks a
+stream that starts that far into the song, as a server transcode opened with
+`timeOffset`. The platform reports time from zero. `AudioPlayer` adds the offset
+of the item at the event's `currentIndex` to `updatePosition`, `bufferedPosition`
+and a non-null `duration` where a platform event becomes a `PlaybackEvent`, and
+subtracts it from `seek` positions, the `load` initial position and the idle
+platform's reported duration (clamped at zero). Every position the app reads is
+therefore song time, and an auto-advance to an item without an offset reads
+from its own zero. Platform adapters see platform time only.

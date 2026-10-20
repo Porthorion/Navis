@@ -258,6 +258,7 @@ extension _NavisMediaSession on NavisAudioHandler {
           !_sequenceMatchesQueue(_player)) {
         return;
       }
+      _watchOffsetStreamLoop(event);
       final processing = _player.processingState;
       final index = _player.currentIndex;
       if (processing == ProcessingState.completed) {

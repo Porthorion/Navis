@@ -4454,6 +4454,9 @@ length with HTTP 500 and closes it. It cannot construct a valid `Content-Range`
 without the end byte; returning an error lets ordinary remote-source recovery
 retry with direct streaming instead of leaving the native request unanswered.
 Sized ranges and reads from the completed cache file keep their normal responses.
+Unknown-length non-range responses use HTTP chunked framing, including the
+terminal zero-length chunk, so a keep-alive connection cannot hide end-of-stream.
+Empty HTTP 500 responses explicitly send `Content-Length: 0`.
 
 Album-style queue replacement is lazy: the active transport queue prepares the
 tapped song first, then fills the remaining sources in phase 2. Phase 1 pauses
@@ -4894,22 +4897,49 @@ grows (it runs faster than playback; up to `seekProgress`, three seconds without
 growth ends it) and then reloads the song from the completed file at the target;
 if the file is not complete the seek fails and playback continues where it was.
 
-**Deferred: transcode-offset seeking.** On a slow link that wait can take
-10–25 s or more. The established fix is the OpenSubsonic `transcodeOffset`
-extension: reopen `stream.view` with `timeOffset=<seconds>` so the server starts
-transcoding at the target. Symfonium appears to seek this way, and Navidrome
-advertises the extension and has made offset seeks fast with ffmpeg input
-seeking. Navis does not use it yet. The offset stream reports time from zero,
-so it needs one position-translation layer that every position consumer goes
-through: the handler's `_player.position` reads, position and buffered streams,
-duration, persistence, scrobbling, lyrics, media sessions, crossfade, end
-detection and recovery reloads. The full-file cache download must also keep
-running beside it. It was deferred on 2026-10-04 so that the 1.5.0 seek fixes
-shipped on their own. If seeking issues come back for transcoded or uncached
-songs, heavily consider implementing it next, used only for linear transcodes
-whose download will not finish soon and only when the server advertises
-`transcodeOffset`, with resume, scrobble and lyrics timing tests and throttled
-`tool/live_seek_stress.py` runs.
+**Transcode-offset seeking (1.5.1).** On a slow link that wait took 10-25 s or
+more, and desktop seeked a transcode linearly. When the server advertises the
+OpenSubsonic `transcodeOffset` extension (`ServerCapabilities.supportsTranscodeOffset`,
+read from the capabilities stored at login and exposed as
+`PlaybackSourceResolver.supportsTranscodeOffset`), a seek reopens `stream.view`
+with `timeOffset=<whole seconds>` so the server starts transcoding at the target
+(`SubsonicApiClient.streamUrl(timeOffsetSeconds:)`; never sent with
+`estimateContentLength`). `_shouldSeekViaTranscodeOffset` selects it for a
+remote transcode (`transcodingApplied`, never original quality) when no
+completed cache file exists and the stream cannot seek natively: an Android
+lock-cache origin without ranges, a desktop direct stream, or a stream already
+opened at an offset (it is linear too, so every seek on it reopens it). Seeks
+under a second on a stream without an offset stay native. `_seekViaTranscodeOffset`
+floors the target to whole seconds (clamped to the last second of the song, so
+the audio can start up to a second early), then reuses the seek-recovery reload
+(`_rebuildQueueForSeekRecovery` -> `_replaceQueuePhase1`, with `transcodeOffset`
+for the start song only). A target under a second reloads the normal stream from
+zero. A newer seek that arrives before the reload stops the playing song drops
+that reload, so there is one reload at the latest target. If the offset reload
+fails, the cache-wait and completed-file path above applies as before. The seek
+trace records `path: transcodeOffset` and diagnostics expose `positionOffsetMs`.
+
+The offset stream reports time from zero. There is one translation layer, in
+the vendored just_audio `AudioPlayer`: `UriAudioSource.positionOffset` (also
+`AudioSource.uri(positionOffset:)`, carried by `ResolvedPlaybackSource.positionOffset`
+and both `asAudioSource` variants) is added to `updatePosition`,
+`bufferedPosition` and a non-null `duration` where a platform event becomes a
+`PlaybackEvent`, and subtracted from `seek` positions and the load's initial
+position. Every position consumer (position streams, persistence, scrobbling,
+lyrics, media sessions, crossfade, the desktop seek settlement) therefore sees
+song time unchanged, and an auto-advance to an item without an offset reads
+from its own zero. The offset source is a `directStream` that is never lock-cached
+and never feeds rolling-cache bytes. On desktop `ResolvedPlaybackSource.sidecarStreamUri`
+keeps the sidecar on the full non-offset URI (a file starting at the offset must
+never be stored as the whole song) and the provisional item of a reload no longer
+cancels the download of the same song. On Android the original lock-cache
+download keeps filling its file (carried as the offset source's `cachedFilePath`);
+once it completes, the next seek reloads from the file instead of an offset.
+Landing on an offset song from the start (Previous, a queue tap, replaying a
+finished single-song queue) and a native loop (repeat one, or repeat all over one
+song) that restarts the stream at its offset reload the song from zero without one.
+A seek lands up to one second before the target because `timeOffset` is whole
+seconds and the stream is linear.
 
 Lock-cache seek recovery otherwise uses the same two-phase
 queue model: load the active song as a direct stream at

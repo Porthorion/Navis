@@ -673,6 +673,16 @@ class AudioPlayer {
   /// The current position of the player.
   Duration get position => _getPositionFor(playbackEvent);
 
+  /// The [UriAudioSource.positionOffset] of the item at [index], or zero.
+  Duration _positionOffsetAt(int? index) {
+    final sequence = this.sequence;
+    if (index == null || index < 0 || index >= sequence.length) {
+      return Duration.zero;
+    }
+    final source = sequence[index];
+    return source is UriAudioSource ? source.positionOffset : Duration.zero;
+  }
+
   Duration _getPositionFor(PlaybackEvent playbackEvent) {
     if (playing && processingState == ProcessingState.ready) {
       final result = playbackEvent.updatePosition +
@@ -1011,13 +1021,17 @@ class AudioPlayer {
       source._shuffle(initialIndex: initialSeekValues?.index ?? 0);
       await _broadcastSequence();
       checkInterruption();
+      final loadOffset = _positionOffsetAt(initialSeekValues?.index ?? 0);
       _loadFuture = platform
           .load(LoadRequest(
             audioSourceMessage: source._toMessage(),
-            initialPosition: initialSeekValues?.position,
+            initialPosition:
+                _toPlatformPosition(initialSeekValues?.position, loadOffset),
             initialIndex: initialSeekValues?.index,
           ))
-          .then((response) => response.duration);
+          .then((response) => response.duration == null
+              ? null
+              : response.duration! + loadOffset);
       final duration = await _loadFuture;
       checkInterruption();
       if (platform != _platformValue) {
@@ -1376,8 +1390,10 @@ class AudioPlayer {
               PositionDiscontinuityReason.seek,
               prevPlaybackEvent,
               playbackEvent));
-          await (await _platform)
-              .seek(SeekRequest(position: position, index: index));
+          await (await _platform).seek(SeekRequest(
+              position: _toPlatformPosition(
+                  position, _positionOffsetAt(index ?? currentIndex)),
+              index: index));
           if (playing && !_active) {
             _setPlatformActive(true)?.catchError((dynamic e) async => null);
           }
@@ -1385,6 +1401,13 @@ class AudioPlayer {
           _seeking = false;
         }
     }
+  }
+
+  /// Song time to the time of an offset stream; never before its own start.
+  static Duration? _toPlatformPosition(Duration? position, Duration offset) {
+    if (position == null || offset == Duration.zero) return position;
+    final result = position - offset;
+    return result.isNegative ? Duration.zero : result;
   }
 
   /// Seeks to the next item, or does nothing if there is no next item.
@@ -1605,10 +1628,13 @@ class AudioPlayer {
           platform.playbackEventMessageStream.listen((message) {
         var duration = message.duration;
         final index = message.currentIndex ?? currentIndex;
+        final positionOffset = _positionOffsetAt(index);
         if (index != null && index < sequence.length) {
           if (duration == null) {
             duration = sequence[index].duration;
           } else {
+            // Stored in song time, like every position the app sees.
+            duration += positionOffset;
             sequence[index].duration = duration;
           }
         }
@@ -1623,8 +1649,8 @@ class AudioPlayer {
               ? ProcessingState.loading
               : ProcessingState.values[message.processingState.index],
           updateTime: message.updateTime,
-          updatePosition: message.updatePosition,
-          bufferedPosition: message.bufferedPosition,
+          updatePosition: message.updatePosition + positionOffset,
+          bufferedPosition: message.bufferedPosition + positionOffset,
           duration: duration,
           icyMetadata: message.icyMetadata == null
               ? null
@@ -2672,8 +2698,16 @@ abstract class AudioSource {
   /// provided by that package. If you wish to have more control over the tag
   /// for background audio purposes, consider using the plugin audio_service
   /// instead of just_audio_background.
+  ///
+  /// Navis: [positionOffset] marks a stream that starts [positionOffset] into
+  /// the song (a server transcode opened with `timeOffset`). The platform
+  /// reports time from zero; [AudioPlayer] adds the offset to everything it
+  /// reads from the platform and subtracts it from everything it sends, so
+  /// callers only ever see song time.
   static UriAudioSource uri(Uri uri,
-      {Map<String, String>? headers, dynamic tag}) {
+      {Map<String, String>? headers,
+      dynamic tag,
+      Duration positionOffset = Duration.zero}) {
     bool hasExtension(Uri uri, String extension) =>
         uri.path.toLowerCase().endsWith('.$extension') ||
         uri.fragment.toLowerCase().endsWith('.$extension');
@@ -2682,7 +2716,8 @@ abstract class AudioSource {
     } else if (hasExtension(uri, 'm3u8')) {
       return HlsAudioSource(uri, headers: headers, tag: tag);
     } else {
-      return ProgressiveAudioSource(uri, headers: headers, tag: tag);
+      return ProgressiveAudioSource(uri,
+          headers: headers, tag: tag, positionOffset: positionOffset);
     }
   }
 
@@ -2767,10 +2802,17 @@ abstract class IndexedAudioSource extends AudioSource {
 
 /// An abstract class representing audio sources that are loaded from a URI.
 abstract class UriAudioSource extends IndexedAudioSource {
-  UriAudioSource(this.uri, {this.headers, dynamic tag, Duration? duration})
+  UriAudioSource(this.uri,
+      {this.headers,
+      dynamic tag,
+      Duration? duration,
+      this.positionOffset = Duration.zero})
       : super(tag: tag, duration: duration);
   final Uri uri;
   final Map<String, String>? headers;
+
+  /// How far into the song this stream starts; see [AudioSource.uri].
+  final Duration positionOffset;
   Uri? _overrideUri;
 
   /// If [uri] points to an asset, this gives us [_overrideUri] which is the URI
@@ -2868,6 +2910,7 @@ class ProgressiveAudioSource extends UriAudioSource {
     super.headers,
     super.tag,
     super.duration,
+    super.positionOffset,
     this.options,
   });
   final ProgressiveAudioSourceOptions? options;
@@ -3929,6 +3972,8 @@ _ProxyHandler _proxyHandlerForSource(StreamAudioSource source) {
 
       request.response.headers.clear();
       request.response.statusCode = HttpStatus.internalServerError;
+      // Navis: frame the empty error body after clearing the default headers.
+      request.response.contentLength = 0;
       await request.response.close();
       return;
     }
@@ -3951,6 +3996,10 @@ _ProxyHandler _proxyHandlerForSource(StreamAudioSource source) {
       request.response.statusCode = 206;
     } else {
       request.response.contentLength = sourceResponse.contentLength ?? -1;
+      // Navis: clearing headers removes chunking for unknown-length streams.
+      if (sourceResponse.contentLength == null) {
+        request.response.headers.chunkedTransferEncoding = true;
+      }
       request.response.statusCode = 200;
     }
 
@@ -4249,10 +4298,16 @@ class _IdleAudioPlayer extends AudioPlayerPlatform {
     ));
   }
 
-  Duration? _getDurationAtIndex(int? index) =>
-      index != null && index < _sequence.length
-          ? _sequence[index].duration
-          : null;
+  /// The idle platform speaks platform time like any other, so an offset
+  /// stream's song-time duration is shifted back for [AudioPlayer] to re-add.
+  Duration? _getDurationAtIndex(int? index) {
+    if (index == null || index >= _sequence.length) return null;
+    final source = _sequence[index];
+    final duration = source.duration;
+    if (duration == null || source is! UriAudioSource) return duration;
+    final platformDuration = duration - source.positionOffset;
+    return platformDuration.isNegative ? Duration.zero : platformDuration;
+  }
 
   @override
   Stream<PlaybackEventMessage> get playbackEventMessageStream =>
