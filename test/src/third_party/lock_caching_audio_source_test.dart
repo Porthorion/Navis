@@ -97,11 +97,15 @@ class _ProxyPlayer extends platform.AudioPlayerPlatform {
   ) async => platform.SetShuffleModeResponse();
 }
 
-/// Serves [body] slowly so a download stays in progress, with or without
-/// byte-range support, and counts the downloads it starts.
+enum _OriginFailure { disconnect, stall }
+
+/// Serves [body] slowly, optionally interrupting its first response,
+/// and counts the downloads it starts.
 Future<(HttpServer, List<int>)> _serve(
   List<int> body, {
   required bool ranges,
+  _OriginFailure? firstFailure,
+  bool knownLength = false,
 }) async {
   final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
   final downloads = <int>[];
@@ -109,8 +113,10 @@ Future<(HttpServer, List<int>)> _serve(
     downloads.add(downloads.length);
     final response = request.response
       ..statusCode = HttpStatus.ok
-      ..headers.contentType = ContentType('audio', 'mpeg')
-      ..contentLength = body.length;
+      ..headers.contentType = ContentType('audio', 'mpeg');
+    final failure = downloads.length == 1 ? firstFailure : null;
+    if (failure == null || knownLength) response.contentLength = body.length;
+    response.bufferOutput = false;
     if (ranges) response.headers.set(HttpHeaders.acceptRangesHeader, 'bytes');
     try {
       for (var offset = 0; offset < body.length; offset += 1024) {
@@ -119,6 +125,13 @@ Future<(HttpServer, List<int>)> _serve(
         );
         await response.flush();
         await Future<void>.delayed(const Duration(milliseconds: 20));
+        if (failure != null) {
+          if (failure == _OriginFailure.disconnect) {
+            // Expiry destroys the socket without a terminating chunk.
+            response.deadline = Duration.zero;
+          }
+          return;
+        }
       }
       await response.close();
     } on Object {
@@ -198,6 +211,190 @@ void main() {
 
     expect(response, startsWith('HTTP/1.1 200 OK\r\n'));
     expect(response, contains('\r\ncontent-type: audio/ogg\r\n'));
+  });
+
+  for (final knownLength in [false, true]) {
+    for (final failure in _OriginFailure.values) {
+      test(
+        'proxy aborts an origin ${failure.name} and retries (known length: $knownLength)',
+        () async {
+          final prefix = List<int>.filled(1024, 7);
+          final body = [...prefix, 8, 9, 10];
+          final (server, downloads) = await _serve(
+            body,
+            ranges: false,
+            firstFailure: failure,
+            knownLength: knownLength,
+          );
+          addTearDown(() => server.close(force: true));
+          final cacheFile = File(p.join(directory.path, 'interrupted.mp3'));
+          // ignore: experimental_member_use, reason: exercises origin failures through the real proxy.
+          final source = LockCachingAudioSource(
+            Uri.parse('http://127.0.0.1:${server.port}/song'),
+            cacheFile: cacheFile,
+            bodyProgressTimeout: failure == _OriginFailure.stall
+                ? const Duration(milliseconds: 300)
+                : const Duration(seconds: 10),
+          );
+          final progress = <double>[];
+          final progressSubscription = source.downloadProgressStream.listen(
+            progress.add,
+          );
+          addTearDown(progressSubscription.cancel);
+          final player = AudioPlayer(
+            handleInterruptions: false,
+            androidApplyAudioAttributes: false,
+          );
+          addTearDown(player.dispose);
+          addTearDown(source.cancelDownload);
+          await player.setAudioSource(source);
+          final client = HttpClient();
+          addTearDown(() => client.close(force: true));
+          final request = await client.getUrl(native.player.proxyUri);
+          final response = await request.close().timeout(
+            const Duration(seconds: 2),
+          );
+          expect(response.statusCode, HttpStatus.ok);
+          expect(response.contentLength, knownLength ? body.length : -1);
+          final received = <int>[];
+          final ended = Completer<void>();
+          Object? responseError;
+          final subscription = response.listen(
+            received.addAll,
+            onError: (Object error) => responseError = error,
+            onDone: ended.complete,
+          );
+          addTearDown(subscription.cancel);
+
+          await ended.future.timeout(const Duration(seconds: 2));
+
+          expect(received, prefix);
+          expect(responseError, isA<HttpException>());
+          expect(cacheFile.existsSync(), isFalse);
+          expect(File('${cacheFile.path}.part').existsSync(), isFalse);
+          expect(progress, isNot(contains(1.0)));
+          final retry = await client.getUrl(native.player.proxyUri);
+          final retried = await retry.close();
+          expect(
+            await retried
+                .expand((bytes) => bytes)
+                .toList()
+                .timeout(const Duration(seconds: 2)),
+            body,
+          );
+          await source.downloadProgressStream
+              .firstWhere((value) => value == 1)
+              .timeout(const Duration(seconds: 2));
+          expect(downloads, hasLength(2));
+          expect(await cacheFile.readAsBytes(), body);
+        },
+      );
+    }
+  }
+
+  for (final knownLength in [false, true]) {
+    test(
+      'header proxy aborts an origin disconnect (known length: $knownLength)',
+      () async {
+        final prefix = List<int>.filled(1024, 7);
+        final body = [...prefix, 8, 9, 10];
+        final (server, downloads) = await _serve(
+          body,
+          ranges: false,
+          firstFailure: _OriginFailure.disconnect,
+          knownLength: knownLength,
+        );
+        addTearDown(() => server.close(force: true));
+        final player = AudioPlayer(
+          handleInterruptions: false,
+          androidApplyAudioAttributes: false,
+        );
+        addTearDown(player.dispose);
+        await player.setAudioSource(
+          AudioSource.uri(
+            Uri.parse('http://127.0.0.1:${server.port}/song'),
+            headers: const {'X-Fixture': 'proxy'},
+          ),
+        );
+        final client = HttpClient();
+        addTearDown(() => client.close(force: true));
+        final request = await client.getUrl(native.player.proxyUri);
+        final response = await request.close().timeout(
+          const Duration(seconds: 2),
+        );
+        expect(response.contentLength, knownLength ? body.length : -1);
+        final received = <int>[];
+        final ended = Completer<void>();
+        Object? responseError;
+        final subscription = response.listen(
+          received.addAll,
+          onError: (Object error) => responseError = error,
+          onDone: ended.complete,
+        );
+        addTearDown(subscription.cancel);
+
+        await ended.future.timeout(const Duration(seconds: 2));
+
+        expect(received, prefix);
+        expect(responseError, isA<HttpException>());
+        expect(downloads, hasLength(1));
+        final retry = await client.getUrl(native.player.proxyUri);
+        final retried = await retry.close();
+        expect(await retried.expand((bytes) => bytes).toList(), body);
+        expect(downloads, hasLength(2));
+      },
+    );
+  }
+
+  test('header proxy keeps a live chunked body open until clean EOF', () async {
+    final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
+    addTearDown(() => server.close(force: true));
+    final finish = Completer<void>();
+    addTearDown(() {
+      if (!finish.isCompleted) finish.complete();
+    });
+    server.listen((request) async {
+      request.response.bufferOutput = false;
+      request.response.add([1, 2, 3]);
+      await request.response.flush();
+      await finish.future;
+      request.response.add([4, 5, 6]);
+      await request.response.close();
+    });
+    final player = AudioPlayer(
+      handleInterruptions: false,
+      androidApplyAudioAttributes: false,
+      userAgent: 'Navis fixture',
+    );
+    addTearDown(player.dispose);
+    await player.setAudioSource(
+      AudioSource.uri(
+        Uri.parse('http://127.0.0.1:${server.port}/live'),
+        options: const ProgressiveAudioSourceOptions(
+          androidUseDefaultLoadErrorHandling: true,
+        ),
+      ),
+    );
+    final client = HttpClient();
+    addTearDown(() => client.close(force: true));
+    final request = await client.getUrl(native.player.proxyUri);
+    final response = await request.close().timeout(const Duration(seconds: 2));
+    expect(response.contentLength, -1);
+    final firstBytes = Completer<void>();
+    final received = <int>[];
+    final ended = Completer<void>();
+    final subscription = response.listen((bytes) {
+      received.addAll(bytes);
+      if (!firstBytes.isCompleted) firstBytes.complete();
+    }, onDone: ended.complete);
+    addTearDown(subscription.cancel);
+
+    await firstBytes.future.timeout(const Duration(seconds: 2));
+    expect(received, [1, 2, 3]);
+    expect(ended.isCompleted, isFalse);
+    finish.complete();
+    await ended.future.timeout(const Duration(seconds: 2));
+    expect(received, [1, 2, 3, 4, 5, 6]);
   });
 
   for (final knownLength in [false, true]) {
@@ -424,6 +621,10 @@ void main() {
           6,
         ]);
         expect(attempts, 2);
+        // The stream closes before the cache rename; finish it before teardown.
+        await source.downloadProgressStream
+            .firstWhere((progress) => progress == 1)
+            .timeout(const Duration(seconds: 2));
       },
     );
   }
