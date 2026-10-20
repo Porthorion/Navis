@@ -148,7 +148,9 @@ extension _NavisQueueLoading on NavisAudioHandler {
     _pendingLogicalQueueSongs = null;
     if (_radioStation == null) {
       _setCurrentMediaItem(
-        _player.audioSources.isEmpty
+        _isDesktopRuntime && failed && _player.audioSources.isEmpty
+            ? _queueItems.where((item) => item.id == loadingSongId).firstOrNull
+            : _player.audioSources.isEmpty
             ? null
             : _queueItems.elementAtOrNull(
                 _player.currentIndex ?? _queueItems.length,
@@ -379,16 +381,11 @@ extension _NavisQueueLoading on NavisAudioHandler {
           reason: 'player operation "$operation" timed out',
         );
       }
-      if (isCurrent) {
-        _emitLoadFailure(
-          operation: operation,
-          message:
-              'Playback operation timed out after '
-              '${(timeoutDuration.inMilliseconds / 1000).toStringAsFixed(1)}s.',
-          songId: songId,
-          isTimeout: true,
-        );
-      }
+      AppLogger.warning(
+        'Playback operation "$operation" timed out after '
+        '${(timeoutDuration.inMilliseconds / 1000).toStringAsFixed(1)}s; '
+        'recovering the player.',
+      );
       final capture = (
         index: _player.currentIndex,
         position: _player.position,
@@ -979,17 +976,40 @@ extension _NavisQueueLoading on NavisAudioHandler {
     } on OperationCancelledException {
       rethrow;
     } on Object catch (error, stackTrace) {
-      if (startItem.source.kind != PlaybackSourceKind.lockCachedStream) {
+      _checkQueueWorkCurrent(token, generation);
+      final seek = _pendingSeek;
+      final retryColdSeek =
+          error is PlaybackLoadTimeoutException &&
+          _isDesktopRuntime &&
+          initialPosition == Duration.zero &&
+          seek != null &&
+          !seek.isRemoteRecovery &&
+          seek.songId == startSong.id &&
+          seek.recoveryAttempts == 0;
+      if (!retryColdSeek &&
+          startItem.source.kind != PlaybackSourceKind.lockCachedStream) {
         rethrow;
       }
       _markSongLockCachingBypassed(
         startSong.id,
         reason: 'phase 1 queue apply failed',
       );
+      if (retryColdSeek) {
+        seek
+          ..recoveryAttempts = 1
+          ..stage = 'recovering';
+        initialPosition = seek.position;
+        _setCurrentMediaItem(startItem.mediaItem);
+        if (await _shouldSeekViaTranscodeOffset(seek.position, seek, token)) {
+          transcodeOffset = Duration(seconds: seek.position.inSeconds);
+          seek.path = 'transcodeOffset';
+        }
+      }
       AppLogger.warning(
-        'Phase 1 lock-cached queue apply failed for song=${startSong.id}. '
-        'Retrying with direct stream. $error\n$stackTrace',
+        'Phase 1 queue apply failed; preparing a fresh source. '
+        '$error\n$stackTrace',
       );
+      // The retired player disposes its attached AudioSources asynchronously.
       startItem = await _prepareSingleItem(
         startSong,
         preferLockCaching: false,
@@ -999,12 +1019,13 @@ extension _NavisQueueLoading on NavisAudioHandler {
       _queueItems
         ..clear()
         ..add(startItem.mediaItem);
-      if (songs.length > 1) {
+      if (songs.length > 1 || retryColdSeek) {
         _setQueueReplacementMetadataAnchor(
           expectedIndex: clampedIndex,
           mediaItem: startItem.mediaItem,
         );
       }
+      if (retryColdSeek) _setCurrentMediaItem(startItem.mediaItem);
       await _setAudioSourcesWithFallback(
         audioSources: <AudioSource>[startItem.audioSource],
         preload: true,
@@ -1012,7 +1033,11 @@ extension _NavisQueueLoading on NavisAudioHandler {
         initialPosition: initialPosition,
         generation: generation,
         songId: startSong.id,
-        timeout: _loadTimeoutFor(startItem),
+        // A cold retry must outlive the first load's silent-body deadline.
+        // This is still one bounded source retry, including offset startup.
+        timeout: retryColdSeek
+            ? _timeouts.seekProgress
+            : _loadTimeoutFor(startItem),
       );
     }
     _checkQueueWorkCurrent(token, generation);
@@ -1206,12 +1231,11 @@ extension _NavisQueueLoading on NavisAudioHandler {
       'active queue apply retry',
       'active queue apply final retry',
     ];
-    var applyPosition = initialPosition;
     Future<Duration?> apply() => _player.setAudioSources(
       audioSources,
       preload: preload,
       initialIndex: initialIndex,
-      initialPosition: applyPosition,
+      initialPosition: initialPosition,
     );
     token?.checkCancelled();
     for (var attempt = 0; attempt < operations.length; attempt++) {
@@ -1226,7 +1250,7 @@ extension _NavisQueueLoading on NavisAudioHandler {
             extendWhileDownloading: preload,
             // Poll cancellation with hardCap == initial for offset loads.
             fixedLoadDeadline:
-                _isDesktopRuntime && applyPosition != Duration.zero,
+                _isDesktopRuntime && initialPosition != Duration.zero,
           );
         } else {
           await apply();
@@ -1235,22 +1259,6 @@ extension _NavisQueueLoading on NavisAudioHandler {
       } on Object catch (error, stackTrace) {
         if (attempt == operations.length - 1) rethrow;
         token?.checkCancelled();
-        final seek = _pendingSeek;
-        if (error is PlaybackLoadTimeoutException &&
-            _isDesktopRuntime &&
-            _isActiveLoadGeneration(generation) &&
-            seek != null &&
-            !seek.isRemoteRecovery &&
-            seek.songId == songId &&
-            seek.recoveryAttempts == 0 &&
-            applyPosition == Duration.zero) {
-          // The cold load failed before the seek could run. Reuse its one
-          // source retry on the rebuilt player at the pending target.
-          seek.recoveryAttempts = 1;
-          seek.stage = 'recovering';
-          applyPosition = seek.position;
-          continue;
-        }
         if (!_isAndroidDspInitializationFailure(error)) rethrow;
         AppLogger.warning(
           attempt == 0
@@ -1674,13 +1682,32 @@ extension _NavisQueueLoading on NavisAudioHandler {
         AppLogger.debug('$context cancelled — superseded by newer command.');
       } on PlaybackLoadTimeoutException catch (error) {
         if (!_isActiveLoadGeneration(generation)) return;
-        if (_player.audioSources.isEmpty) {
+        final nextIndex = nextRecoveryIndex;
+        if (_player.audioSources.isEmpty &&
+            (nextIndex != null || !_isDesktopRuntime)) {
           _queueItems.clear();
           _clearQueueReplacementMetadataAnchor();
           _setCurrentMediaItem(null);
           queue.add(const <MediaItem>[]);
+        } else if (_player.audioSources.isEmpty && _queueItems.isNotEmpty) {
+          // Keep the failed final occurrence reloadable by an explicit Play.
+          final ids = _logicalQueueIds;
+          final seek = _pendingSeek;
+          _restoreQueueLists(
+            _pendingQueueRestorePoint(
+              ids,
+              _pendingLogicalQueueSongs ?? const <SongsTableData>[],
+              _queueItems.first,
+              seek?.queueIndex ?? ids.length - 1,
+              (
+                index: 0,
+                position: seek?.position ?? Duration.zero,
+                playing: false,
+              ),
+            ),
+          );
+          _loadedSourceFailed = true;
         }
-        final nextIndex = nextRecoveryIndex;
         if (nextIndex != null) {
           // Admission of the recovery owns the next loading target; do not
           // publish a settled song backed by the empty retired player first.
