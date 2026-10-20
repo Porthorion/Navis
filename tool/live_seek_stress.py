@@ -2369,6 +2369,52 @@ def origin_event_probe(mode: str):
     return case
 
 
+def case_base_repeat_one(run: Run, env):
+    """Baseline A: repeat-one on a plain transcode, no seek at all; two loops. progressLoss must stay quiet."""
+    run.metrics['repeatOne'] = True
+    song = min(env.backend.fresh_songs(6), key=lambda x: x['duration'])
+    duration_ms = int(song['duration']) * 1000
+    run.app.api('/v1/playback/repeat', {'mode': 'one'})
+    start_single(run, song)
+    first = run.until(lambda s: s['songId'] == song['id'] and (s['pos'] or 0) > duration_ms - 6000, duration_ms / 1000 + 60)
+    for n in (1, 2):
+        wrapped = run.until(lambda s: s['t'] > (run.metrics.get(f'wrap{n - 1}') or 0) + 20 and s['songId'] == song['id']
+                            and s['pos'] is not None and s['pos'] < 4000 and s['proc'] == 'ready', duration_ms / 1000 + 60)
+        run.metrics[f'wrap{n}'] = wrapped and wrapped['t']
+        if wrapped is None:
+            run.violations.append(violation('baselineNoLoop', run.now(), f'loop {n} never happened', run))
+            break
+    run.observe(6.0)
+
+
+def hold_case(fraction: float, repeat: str, album: bool, hold_s=35.0):
+    """Baselines B and C: an offset seek, then play on for [hold_s] with repeat off/all; progressLoss judges it."""
+    def case(run: Run, env):
+        offset_case_prologue(run)
+        if album:
+            ids = env.backend.fresh_album()
+            run.songs = [{'id': i} for i in ids]
+            duration_s, _ = song_info(run, ids[0])
+            run.app.api('/v1/playback/repeat', {'mode': repeat})
+            rec = start_queue(run, ids)
+            await_audio(run, rec, ids[0])
+        else:
+            song = env.backend.fresh_songs(1)[0]
+            duration_s = float(song['duration'])
+            if repeat != 'none':
+                run.app.api('/v1/playback/repeat', {'mode': repeat})
+            start_single(run, song)
+        run.observe(5.0)
+        with concurrent.futures.ThreadPoolExecutor(max_workers=4) as pool:
+            seek = issue_seek(run, pool, int(duration_s * 1000 * fraction))
+            landed(run, seek)
+            finish_futures(run)
+        run.observe(hold_s)
+        run.checks.append(lambda: oracle_seek(run, seek) + oracle_offset(run, [seek], run.quality != 'original'))
+        run.latency_from = [seek]
+    return case
+
+
 def case_offset_prev(run: Run, env):
     """Previous after an offset seek restarts the song at 0."""
     offset_case_prologue(run)
@@ -2415,6 +2461,9 @@ CASE_FUNCS = {
     'offset_natural': case_offset_natural,
     'offset_repeat_one': case_offset_repeat_one,
     'offset_prev': case_offset_prev,
+    'base_repeat_one': case_base_repeat_one,
+    'hold_off': hold_case(0.5, 'none', False),
+    'hold_all': hold_case(0.5, 'all', True),
     'probe_stall': origin_event_probe('stall'),
     'probe_cut': origin_event_probe('cut'),
     'offset_repeat_all': case_offset_repeat_all,
