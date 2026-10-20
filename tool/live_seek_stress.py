@@ -2658,7 +2658,7 @@ def cold_command_case(kind: str, kbps=1000):
                                             f"(state at 5 s: {run.metrics['stateAt5s']})", run))
         run.observe(4.0)
     return case
-def case_cold_seek_stall(run: Run, env, kbps=1000, stall_s=60.0):
+def case_cold_seek_stall(run: Run, env, kbps=1000, stall_s=60.0, at_start=False):
     """Round 8 injection: a same-song seek 5 s into a slow cold start; once the cold load is up, every media body is held
     (connection kept open, ProxyServer.stall) for [stall_s], so the seek cannot settle (~25 s deadline) and the reload
     (and its retry) times out at 12 s. Records the state 20 s after the seek and the final state, and flags an idle player."""
@@ -2671,6 +2671,10 @@ def case_cold_seek_stall(run: Run, env, kbps=1000, stall_s=60.0):
     pick = lambda s: {k: s[k] for k in keys} if s else None
     try:
         starter = concurrent.futures.ThreadPoolExecutor(max_workers=1)
+        if at_start:  # hold the cold load itself: the media bodies of the first load stall for stall_s
+            env.proxy.stall(stall_s)
+            run.act('stall', seconds=stall_s, atStart=True)
+        t_start = run.now()
         rec = run.act('start', songIds=len(ids), first=ids[0], shuffle=False)
         run.futures.append(starter.submit(lambda: run.app.api('/v1/playback/queue', {'songIds': ids}, timeout=180)))
         time.sleep(5.0)
@@ -2681,12 +2685,13 @@ def case_cold_seek_stall(run: Run, env, kbps=1000, stall_s=60.0):
             seek['song'] = ids[0]
             loaded = run.until(lambda s: s['songId'] == ids[0] and s['proc'] in ('ready', 'buffering') and not s['loading'], 90)
             run.metrics['coldLoadedAfterS'] = None if loaded is None else round(loaded['t'] - t_cmd, 1)
-            env.proxy.stall(stall_s)
-            t_stall = run.now()
-            run.act('stall', seconds=stall_s)
+            if not at_start:
+                env.proxy.stall(stall_s)
+                run.act('stall', seconds=stall_s)
+            t_stall = t_start if at_start else run.now()
             time.sleep(max(0.0, t_cmd + 20 - run.now()))
             run.metrics['stateAt20sAfterSeek'] = pick(run.last())
-            time.sleep(max(0.0, t_stall + stall_s + 40 - run.now()))
+            time.sleep(max(0.0, t_stall + stall_s + 40 - run.now(), t_cmd + 80 - run.now()))
             finish_futures(run, 30)
     finally:
         env.proxy.stall_until = 0.0
@@ -2792,6 +2797,8 @@ CASE_FUNCS = {
     'cold_seek': cold_command_case('seek'),
     'dead_start': case_dead_start,
     'cold_seek_stall': case_cold_seek_stall,
+    'cold_seek_hold20': lambda run, env: case_cold_seek_stall(run, env, stall_s=20.0, at_start=True),
+    'cold_seek_hold40': lambda run, env: case_cold_seek_stall(run, env, stall_s=40.0, at_start=True),
     'cut40': cut_at_case(0.40, 1),
     'cut40x2': cut_at_case(0.40, 2),
     'repeat_one_fill': case_repeat_one_fill,
