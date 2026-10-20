@@ -19,12 +19,16 @@ Future<void> showUpdateDialog(
   BuildContext context,
   UpdateInfo info, {
   required UpdateService updateService,
+  UpdateInstallMode Function() installModeDetector = detectInstallMode,
 }) {
   return showDialog<void>(
     context: context,
     barrierDismissible: false,
-    builder: (_) =>
-        _UpdateDownloadDialog(info: info, updateService: updateService),
+    builder: (_) => _UpdateDownloadDialog(
+      info: info,
+      updateService: updateService,
+      installModeDetector: installModeDetector,
+    ),
   );
 }
 
@@ -36,14 +40,20 @@ enum _DownloadPhase {
   done,
   applying,
   noWriteAccess,
+  packageManager,
   signatureMismatch,
   error,
 }
 
 class _UpdateDownloadDialog extends StatefulWidget {
-  const new({required this.info, required this.updateService});
+  const new({
+    required this.info,
+    required this.updateService,
+    required this.installModeDetector,
+  });
   final UpdateInfo info;
   final UpdateService updateService;
+  final UpdateInstallMode Function() installModeDetector;
 
   @override
   State<_UpdateDownloadDialog> createState() => _UpdateDownloadDialogState();
@@ -65,7 +75,7 @@ class _UpdateDownloadDialogState extends State<_UpdateDownloadDialog> {
   void initState() {
     super.initState();
     _service = widget.updateService;
-    _installMode = detectInstallMode();
+    _installMode = widget.installModeDetector();
   }
 
   @override
@@ -104,10 +114,15 @@ class _UpdateDownloadDialogState extends State<_UpdateDownloadDialog> {
       return;
     }
 
-    // On desktop, check write access before downloading.
-    if (isDesktopInstallMode(_installMode) &&
-        !_service.canApplyUpdate(_installMode)) {
-      setState(() => _phase = _DownloadPhase.noWriteAccess);
+    // Package installs need a supported owner and elevation before downloading.
+    if (_installMode == UpdateInstallMode.linuxPackageManaged ||
+        (isDesktopInstallMode(_installMode) &&
+            !_service.canApplyUpdate(_installMode))) {
+      setState(
+        () => _phase = isLinuxSystemPackageMode(_installMode)
+            ? _DownloadPhase.packageManager
+            : _DownloadPhase.noWriteAccess,
+      );
       return;
     }
 
@@ -279,6 +294,9 @@ class _UpdateDownloadDialogState extends State<_UpdateDownloadDialog> {
           ],
         );
 
+      case _DownloadPhase.packageManager:
+        return Text(l10n.updateUsePackageManager);
+
       case _DownloadPhase.noWriteAccess:
         return Row(
           children: [
@@ -364,7 +382,28 @@ class _UpdateDownloadDialogState extends State<_UpdateDownloadDialog> {
                 if (_apkPath == null) return;
                 setState(() => _phase = _DownloadPhase.applying);
                 try {
-                  await _service.applyDesktopUpdate(_apkPath!, _installMode);
+                  await _service.applyDesktopUpdate(
+                    _apkPath!,
+                    _installMode,
+                    expectedSha256: widget.info.sha256,
+                  );
+                } on UpdateCancelledException {
+                  if (mounted) {
+                    setState(() => _phase = _DownloadPhase.confirm);
+                  }
+                } on UpdateElevationUnavailableException {
+                  if (mounted) {
+                    setState(() => _phase = _DownloadPhase.packageManager);
+                  }
+                } on UpdateIntegrityException catch (e) {
+                  AppLogger.error('Update integrity verification failed', e);
+                  if (mounted) {
+                    setState(() {
+                      _isIntegrityError = true;
+                      _isApplyError = true;
+                      _phase = _DownloadPhase.error;
+                    });
+                  }
                 } on Object catch (e) {
                   AppLogger.error('Failed to apply desktop update', e);
                   if (mounted) {
@@ -416,6 +455,7 @@ class _UpdateDownloadDialogState extends State<_UpdateDownloadDialog> {
       case _DownloadPhase.applying:
         return const [];
 
+      case _DownloadPhase.packageManager:
       case _DownloadPhase.noWriteAccess:
         return [
           TextButton(
