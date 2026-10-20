@@ -18,6 +18,8 @@ public final class ProgressiveLoadRetryTest {
         check(true, "http", -1, chunked, "chunked proxy must reach Dart recovery");
         check(true, "https", -1, Map.of("Content-Type", List.of("audio/ogg")),
                 "unknown-length direct offset must reach Dart recovery");
+        check(false, "http", -1, Map.of("content-range", List.of("Bytes 0-1/500")),
+                "Content-Range units are case-insensitive");
         check(false, "https", -1, Map.of("cOnTeNt-LeNgTh", List.of("1122746")),
                 "sized response retains native retry");
         check(false, "https", -1, Map.of("Content-Length", List.of("0")),
@@ -33,6 +35,6 @@ public final class ProgressiveLoadRetryTest {
                 "negative length is unknown");
         check(true, "https", -1, Map.of("Content-Length", List.of("invalid")),
                 "invalid length is unknown");
-        System.out.println("ProgressiveLoadRetryTest: 11 fixtures passed");
+        System.out.println("ProgressiveLoadRetryTest: 12 fixtures passed");
     }
 }

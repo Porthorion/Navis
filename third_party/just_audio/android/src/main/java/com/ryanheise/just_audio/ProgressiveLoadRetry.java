@@ -22,7 +22,7 @@ final class ProgressiveLoadRetry {
             }
             if ("Content-Range".equalsIgnoreCase(header.getKey())) {
                 for (String value : header.getValue()) {
-                    if (value.matches("bytes [0-9]+-[0-9]+/([0-9]+|\\*)")) return false;
+                    if (value.trim().matches("(?i)bytes [0-9]+-[0-9]+/([0-9]+|\\*)")) return false;
                 }
             }
         }
