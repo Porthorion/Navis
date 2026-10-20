@@ -135,12 +135,14 @@ class PlaybackSourceResolver {
     bool Function()? readCanStream,
     bool Function()? readSupportsLockCaching,
     bool Function()? readUsesSidecarRollingCache,
+    bool Function()? readSupportsTranscodeOffset,
   }) : _readCachedPlaybackFirst = readCachedPlaybackFirst ?? _readFalse,
        _readPreferAnyCache = readPreferAnyCache ?? _readFalse,
        _readCanStream = readCanStream ?? _readTrue,
        _readSupportsLockCaching =
            readSupportsLockCaching ?? _defaultSupportsLockCaching,
-       _readUsesSidecarRollingCache = readUsesSidecarRollingCache ?? _readFalse;
+       _readUsesSidecarRollingCache = readUsesSidecarRollingCache ?? _readFalse,
+       _readSupportsTranscodeOffset = readSupportsTranscodeOffset ?? _readFalse;
 
   final CacheDao _cacheDao;
   final LibraryDao? _libraryDao;
@@ -153,7 +155,11 @@ class PlaybackSourceResolver {
   final bool Function() _readCanStream;
   final bool Function() _readSupportsLockCaching;
   final bool Function() _readUsesSidecarRollingCache;
+  final bool Function() _readSupportsTranscodeOffset;
   static const AndroidSafStorage _safStorage = AndroidSafStorage();
+
+  /// Whether the active server accepts `timeOffset` on `stream.view`.
+  bool get supportsTranscodeOffset => _readSupportsTranscodeOffset();
 
   Future<ResolvedPlaybackSource> resolveForSong(
     SongsTableData song, {

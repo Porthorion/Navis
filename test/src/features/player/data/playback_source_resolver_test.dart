@@ -54,6 +54,7 @@ void main() {
       bool Function()? cachedFirst,
       bool Function()? supportsLockCaching,
       bool Function()? usesSidecar,
+      bool Function()? supportsTranscodeOffset,
     }) => PlaybackSourceResolver(
       cacheDao: database.cacheDao,
       libraryDao: withLibrary ? database.libraryDao : null,
@@ -66,6 +67,7 @@ void main() {
       readCachedPlaybackFirst: cachedFirst,
       readSupportsLockCaching: supportsLockCaching,
       readUsesSidecarRollingCache: usesSidecar,
+      readSupportsTranscodeOffset: supportsTranscodeOffset,
     );
 
     /// Writes a [size]-byte file under [rollingDir] and registers it as the
@@ -95,6 +97,15 @@ void main() {
       );
       return file;
     }
+
+    test('transcode offset support is off unless the reader says so', () {
+      expect(resolverFor().supportsTranscodeOffset, isFalse);
+      expect(
+        resolverFor(supportsTranscodeOffset: () => true)
+            .supportsTranscodeOffset,
+        isTrue,
+      );
+    }, skip: !sqliteAvailable);
 
     for (final suffix in ['x/../../evil', '../a', 'mp3\u0000', r'a\..\b']) {
       test('rolling cache contains hostile id and suffix $suffix', () async {

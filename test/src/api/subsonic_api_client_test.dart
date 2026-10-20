@@ -503,6 +503,28 @@ void main() {
       expect(saved.extensions.single.name, 'transcodeOffset');
     });
 
+    test('reports transcodeOffset support from stored capability JSON', () {
+      const json =
+          '{"extensions":[{"name":"transcodeOffset","versions":["1"]}],'
+          '"navis":{"libraryFreshness":"fresh"}}';
+      expect(ServerCapabilities.supportsTranscodeOffsetIn(json), isTrue);
+      expect(
+        ServerCapabilities.fromJson(jsonDecode(json) as Map<String, dynamic>)
+            .supportsTranscodeOffset,
+        isTrue,
+      );
+      expect(const ServerCapabilities().supportsTranscodeOffset, isFalse);
+      for (final other in [
+        null,
+        '',
+        'not json',
+        '[]',
+        '{"extensions":[{"name":"sonicSimilarity"}]}',
+      ]) {
+        expect(ServerCapabilities.supportsTranscodeOffsetIn(other), isFalse);
+      }
+    });
+
     test('parses original standard similarSongs response', () async {
       final dio = Dio(BaseOptions(baseUrl: 'https://example.com'));
       final client = createClient(dio: dio);
