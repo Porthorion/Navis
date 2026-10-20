@@ -353,6 +353,10 @@ def point_profile_at(url: str):
         return
     with sqlite3.connect(database) as connection:
         connection.execute('UPDATE server_config SET url = ?', (url,))
+        # The profile is sticky: every run states its cross-fade explicitly.
+        connection.execute(
+            'UPDATE app_settings SET crossfade_enabled = ?, crossfade_duration_seconds = ?, gapless_enabled = 1',
+            (1 if CROSSFADE_S else 0, CROSSFADE_S or 5))
 
 
 class App:
@@ -1002,6 +1006,7 @@ class Run:
             'src': state.get('sourceKind'), 'mat': state.get('materializedLength'),
             'deferred': state.get('deferredLength'), 'shuffle': state.get('shuffleEnabled'),
             'nseq': sequence[:3],
+            'cf': {k: (state.get('crossfade') or {}).get(k) for k in ('enabled', 'active', 'disabledReason', 'lastFailure', 'phases')},
         }
         self.samples.append(sample)
         for entry in state.get('transportTrace') or []:
@@ -1810,6 +1815,7 @@ def case_shuffle_artist(run: Run, env):
 SLOW_NEXT_S = 0  # --slow-next-s
 PRIME_SERVER_CACHE = False  # --prime-server-cache
 LIVE_REUSE_GROUPS = False  # --live-reuse-groups
+CROSSFADE_S = 0  # --crossfade-s: cross-fade seconds written into the profile (0 = off)
 REPEAT_MODE = 'none'  # --repeat-mode: set after every case's mode reset
 LIVE_MAX_SONG_S = 0  # --live-max-song-s: live groups whose songs are all at most this long (0 = any)
 NATURAL_FULL = False  # --natural-full: later songs play to their real end instead of being seeked near it
@@ -2323,6 +2329,8 @@ def main() -> int:
                         help="diagnostics: download the selected songs once first so Navidrome answers the app from its transcode cache")
     parser.add_argument('--live-reuse-groups', action='store_true',
                         help='diagnostics: every natural-end case shuffles the same live album/artist (its songs play from the rolling cache after the first pass)')
+    parser.add_argument('--crossfade-s', type=int, default=0,
+                        help='enable cross-fade (and gapless) with this many seconds in the profile; 0 = off')
     parser.add_argument('--repeat-mode', choices=['none', 'all', 'one'], default='none',
                         help='diagnostics: repeat mode set at the start of every case')
     parser.add_argument('--natural-full', action='store_true',
@@ -2335,7 +2343,8 @@ def main() -> int:
     parser.add_argument('--no-transcode-offset', action='store_true',
                         help='fixture does not advertise/honour transcodeOffset')
     args = parser.parse_args()
-    global NATURAL_SONGS, NATURAL_FULL, LIVE_MAX_SONG_S, REPEAT_MODE, LIVE_REUSE_GROUPS, PRIME_SERVER_CACHE, SLOW_NEXT_S
+    global CROSSFADE_S, NATURAL_SONGS, NATURAL_FULL, LIVE_MAX_SONG_S, REPEAT_MODE, LIVE_REUSE_GROUPS, PRIME_SERVER_CACHE, SLOW_NEXT_S
+    CROSSFADE_S = args.crossfade_s
     LIVE_REUSE_GROUPS, PRIME_SERVER_CACHE, SLOW_NEXT_S = args.live_reuse_groups, args.prime_server_cache, args.slow_next_s
     NATURAL_SONGS, NATURAL_FULL, LIVE_MAX_SONG_S, REPEAT_MODE = args.natural_songs, args.natural_full, args.live_max_song_s, args.repeat_mode
     if args.profile and args.server == 'fixture':
