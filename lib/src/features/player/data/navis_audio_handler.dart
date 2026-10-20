@@ -2309,7 +2309,11 @@ class NavisAudioHandler extends BaseAudioHandler
         request.outcome = 'failed';
         request.stage = 'done';
         if (identical(_pendingSeek, request)) {
-          _seekFailureBlocksRecovery = true;
+          final failedLoad =
+              _isDesktopRuntime &&
+              request.recoveryAttempts > 0 &&
+              _player.processingState == ProcessingState.idle;
+          _seekFailureBlocksRecovery = !failedLoad;
           _seekFailurePosition = _player.position;
           _emitLoadFailure(
             operation: 'seek',
@@ -2318,6 +2322,19 @@ class NavisAudioHandler extends BaseAudioHandler
             isTimeout: error is TimeoutException,
           );
           AppLogger.warning('Seek failed: ${error.runtimeType}\n$stackTrace');
+          if (failedLoad) {
+            // Recovery already retried this source. An empty retired player
+            // cannot resume: use the ordinary failed-load failover.
+            final failedIndex = _locateQueueTarget(
+              request.songId,
+              request.queueIndex ?? 0,
+            );
+            _pendingSeek = null;
+            await _skipPastFailedRemoteSong(
+              failedIndex,
+              autoPlay: _requestedPlaying,
+            );
+          }
         }
       } finally {
         _recordSeekDiagnosticsEvent(<String, Object?>{

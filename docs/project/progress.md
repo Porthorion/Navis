@@ -16,7 +16,62 @@ Last updated: 2026-10-21
 ## Current Focus
 - [ ] Issue #86, slow-stream seek settlement and song start — partial: 2026-10-20
   (`fix/seek-settlement`, remaining: coordinator native FLAC/Android
-  revalidation and independent review): desktop seek probes use a fixed
+  revalidation and independent review): round 8 repairs exhausted source-load
+  recovery while preserving the existing deadlines. The round-7 cold-b traces
+  show successful initial loads at +13.994 s / +18.717 s, then seeks, a 25-second
+  settlement deadline, and recovery reloads at 60,000 ms. Both reloads end with
+  `decision: playerOperationTimedOut`, `operation: active queue apply`,
+  `timeoutMs: 12000`, followed by idle and a failed seek. Offset loads deliberately
+  have `hardCap == initial`; sidecar bytes cannot extend them (received bytes
+  still grew 1,589,248 → 2,211,840 and 2,424,832 → 3,506,176 during those reloads).
+  The seek error handler then blocked stream recovery even though its retired
+  player was empty.
+  An exhausted desktop recovery load now uses the existing failed-song failover.
+  A desktop cold initial apply that times out with a same-song seek pending uses the existing
+  source-apply retry once at that target, then ordinary load failover if it fails.
+  Both paths preserve the queue and latest Play/Pause intent. The repair is
+  desktop-only; Android's existing source retry and offset paths are unchanged.
+  Regressions first failed with `Expected: song-0 / Actual: song-1` (missing same-song retry),
+  `Expected: an object with length of <2>` (no attempted retry before failover),
+  and `Expected: <2> / Actual: <0>` (empty native queue after seek recovery).
+  All three passed after the repair (`00:03 +3`); the focused progress-aware
+  deadline suite passed `00:17 +22`.
+  The healthy h4 snap-back is a harness false positive: its first seek completed
+  at 140,747 ms; a second request explicitly targeted 35,100 ms at +36.854 s.
+  The first request's snap-back oracle kept comparing samples to its old moving
+  position after that new command. The recovery `initialPositionMs` is 35,100,
+  its deadline position is 35,100, and it completes at 35,435 ms in 56.682 s
+  (the accepted 25 s + reload + 25 s bound). No application snap-back repair
+  is justified: the raw position stream temporarily reports zero while the
+  native deck is paused/loading, but `pendingSeekMs` remains 35,100 throughout;
+  `watchDisplayedPlaybackPosition` gives that pending target priority. Across ten
+  cold traces the first seek runs 0–158 ms after both request and source readiness;
+  FLAC range requests and degraded-server waits, rather than a fixed app delay, explain the remaining latency. The fixed-cap
+  comment, server-versus-player-progress architecture note and neutral ICY test
+  property were also corrected. The isolated Linux FLAC runtime command
+  `WAYLAND_DISPLAY=wayland-1 GDK_BACKEND=wayland CMAKE_BUILD_PARALLEL_LEVEL=2
+  python3 tool/seek_reliability_diagnostics.py --platform linux --codecs flac
+  --restarts 2 --output build/seek-reliability/r8-flac-wayland` completed with
+  18/18 required scenarios across two clean starts; the two failing-Range
+  negative cases remained failures. The native run preceded only a lint-only
+  local-variable rename and explicit desktop guards; Linux behavior is unchanged. Evidence is in that directory's
+  `report.json`, `app.log` and app-owned screenshots. The first attempt built
+  successfully but exited before startup with `Gtk-WARNING: cannot open display`;
+  using the available Wayland display resolved it. Inspected lyrics screenshots
+  show the paused target and intact controls; the compact capture has a
+  desktop-return dialog, so compact visual acceptance is limited. The live
+  degraded-server cold-seek rerun and independent review remain with the
+  coordinator; Android, #87 and crossfade offsets were not revalidated here.
+  Final validation: the desktop-scoped deadline suite passed again (`00:17 +22`),
+  and the neutral ICY property suite passed `00:00 +3`. `./tool/check.sh` completed
+  successfully (`build/r8-check-complete.log`): formatting, generation, analysis,
+  dead code, 103 migration tests, 283 critical reliability tests, and
+  `06:41 +8935 ~1: All tests passed!` for the full suite. Its 201 informational
+  analyzer findings include none on added/changed lines; all 16 findings in edited
+  Dart files map to unchanged lines. The complete diff passes `git diff --check`.
+  No generated source changed and no runtime/test jobs remain. Earlier round
+  details follow.
+  Desktop seek probes use a fixed
   25-second settlement deadline, including recovery. Desktop zero-position
   loads use sidecar received bytes for the existing 12-second/idle/45-second
   progress deadline; mobile buffer and lock-cache byte events remain intact.
