@@ -1553,6 +1553,7 @@
   "downloadsCustomFolderDisableConfirm": "Files in this folder stay where they are, and Navis stops listing them as downloads. Turn the folder back on to pick them up again. New downloads are stored by Navis.",
   "downloadsCustomFolderDisableAction": "Turn Off",
   "downloadsCustomFolderUpdating": "Moving downloaded tracks...",
+  "downloadsImporting": "Importing downloads…",
   "downloadsScanError": "Could not scan the downloads folder.",
   "downloadsRescanTitle": "Rescan Existing Downloads",
   "downloadsRescanSubtitle": "Import tracks already in this folder",

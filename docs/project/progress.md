@@ -14,6 +14,19 @@ Last updated: 2026-10-20
 - ACP status values: `backlog`, `ready`, `in_progress`, `blocked`, `done`.
 
 ## Current Focus
+- [x] Issue #112, explain long waits — review round — 2026-10-21
+  (`fix/explain-long-waits`): manual import now says "Importing downloads…"
+  (`downloadsImporting`) instead of "Moving downloaded tracks..." via a
+  screen-local flag; folder choose and rescan keep their text. Fixed a
+  pre-existing bug: `markImported` used `ref.read` after the awaited import, so
+  leaving the tab mid-import skipped it and committed files reappeared as
+  pending; both notifiers are now read before the await. Evidence: new widget
+  tests in `downloads_screen_test.dart` (busy text while a gated import runs,
+  and pending cleared after the tab is left mid-import); the text test fails
+  without the flag. `flutter gen-l10n` run; `flutter test` on
+  `downloads_screen_test.dart` and `custom_download_folder_controller_test.dart`
+  passed `+39: All tests passed!`; `./tool/check.sh`: all checks passed on the
+  pre-fix commit (will be rerun).
 - [ ] Issue #86, Android progressive HTTP repeat-one rewind — partial: 2026-10-20
   (`fix/repeat-one-rewind`, based on `3c1d8c54`, remaining: coordinator Android
   runtime probes, independent review and `./tool/check.sh`): native repeat-one

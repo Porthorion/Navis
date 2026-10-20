@@ -5363,6 +5363,12 @@ abstract class AppLocalizations {
   /// **'Moving downloaded tracks...'**
   String get downloadsCustomFolderUpdating;
 
+  /// No description provided for @downloadsImporting.
+  ///
+  /// In en, this message translates to:
+  /// **'Importing downloads…'**
+  String get downloadsImporting;
+
   /// No description provided for @downloadsScanError.
   ///
   /// In en, this message translates to:
