@@ -1052,6 +1052,29 @@ void main() {
       expect(cover.queryParameters['size'], '500');
     });
 
+    test('streamUrl adds timeOffset only for a positive offset', () {
+      final client = createClient(
+        dio: Dio(BaseOptions(baseUrl: 'https://example.com')),
+      );
+
+      final offset = client.streamUrl(
+        id: 'song-1',
+        format: 'opus',
+        maxBitRate: 128,
+        timeOffsetSeconds: 95,
+      );
+      expect(offset.queryParameters['timeOffset'], '95');
+      expect(offset.queryParameters, isNot(contains('estimateContentLength')));
+      for (final seconds in [null, 0, -3]) {
+        expect(
+          client
+              .streamUrl(id: 'song-1', timeOffsetSeconds: seconds)
+              .queryParameters,
+          isNot(contains('timeOffset')),
+        );
+      }
+    });
+
     test('rejects responses that exceed the byte budget', () async {
       final dio = Dio(BaseOptions(baseUrl: 'https://example.com'));
       final client = createClient(dio: dio);
