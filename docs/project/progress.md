@@ -14,6 +14,32 @@ Last updated: 2026-10-20
 - ACP status values: `backlog`, `ready`, `in_progress`, `blocked`, `done`.
 
 ## Current Focus
+- [ ] Issue #86, slow-stream seek settlement and song start — partial: 2026-10-20
+  (`fix/seek-settlement`, remaining: coordinator Linux/Android runtime probes,
+  independent review and `./tool/check.sh`): native seeks and song loads reuse
+  the existing sidecar/lock-cache byte reader and native buffer position to
+  extend the 12-second deadline while data advances, with an eight-second idle
+  window and the existing 45-second hard cap. Recent growth also defers the
+  seek probe's premature missed-target/stall decision, including downloads
+  below half complete. Cache-complete reloads, transcode-offset selection,
+  seek cancellation, Play/Pause intent, radio and recovery budgets retain
+  their existing paths. The tests use shortened injectable production budgets
+  and a real loopback sidecar transfer. Before the fix, the six-case regression
+  run ended `00:02 +1 -5: Some tests failed.`; both seek states, idle/cap
+  preconditions and the growing start failed. Seek assertions reported
+  `Expected: <0>` / `Actual: <1>`; the start reported `Expected: <false>` /
+  `Actual: <true>`. The no-byte start already passed. The first fixed rerun
+  passed `00:06 +6: All tests passed!`; additional start idle/cap cases cover
+  the shared bound. The requested `flutter test --concurrency=4` run of
+  `navis_audio_handler_navigation_test.dart` and `position_offset_test.dart`
+  passed `05:21 +588: All tests passed!`. After lint corrections, the eight
+  deadline regressions passed again: `00:08 +8: All tests passed!`. All eight
+  edited Dart files pass `dart format --set-exit-if-changed`; scoped
+  `flutter analyze --no-fatal-infos` exits successfully with no errors or
+  warnings and 16 existing informational findings, each mapped to an unchanged
+  `HEAD` line. The complete diff passes `git diff --check`. No app, emulator
+  or VM was launched; runtime validation and the full gate remain with the
+  coordinator per this task's scope.
 - [ ] Issue #86, Android progressive HTTP repeat-one rewind — partial: 2026-10-20
   (`fix/repeat-one-rewind`, based on `3c1d8c54`, remaining: coordinator Android
   runtime probes, independent review and `./tool/check.sh`): native repeat-one

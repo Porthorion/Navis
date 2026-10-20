@@ -10007,6 +10007,237 @@ void main() {
     }
   });
 
+  group('progress-aware playback deadlines', () {
+    // Scaled equivalents of the 12 s load and 45 s progress budgets.
+    const deadlines = NavisPlaybackTimeouts(
+      load: Duration(milliseconds: 300),
+      seekBufferingRecovery: Duration(milliseconds: 150),
+      seekProgress: Duration(milliseconds: 1200),
+      progressIdle: Duration(milliseconds: 200),
+    );
+
+    Future<
+      (
+        NavisAudioHandler,
+        _ControllableAudioPlayer,
+        void Function({required bool growing}),
+      )
+    >
+    fixture() async {
+      final previousHttp = HttpOverrides.current;
+      HttpOverrides.global = null;
+      final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
+      final release = Completer<void>();
+      var receiving = false;
+      final transfers = <Future<void>>[];
+      server.listen((request) {
+        transfers.add(() async {
+          Timer? fill;
+          try {
+            request.response
+              ..bufferOutput = false
+              ..headers.contentType = ContentType('audio', 'flac')
+              ..contentLength = 1000000;
+            fill = Timer.periodic(const Duration(milliseconds: 40), (_) {
+              if (receiving) request.response.add(List<int>.filled(100, 1));
+            });
+            await release.future;
+          } on HttpException {
+            // Teardown cancels the incomplete sidecar.
+          } finally {
+            fill?.cancel();
+          }
+        }());
+      });
+      final api = SubsonicApiClient(
+        baseUrl: 'http://127.0.0.1:${server.port}',
+        authConfig: const SubsonicAuthConfig(
+          username: 'fixture',
+          password: 'synthetic',
+          apiVersion: '1.16.1',
+        ),
+        enableLogging: false,
+      );
+      final directory = await Directory.systemTemp.createTemp(
+        'navis-progress-',
+      );
+      final (handler, player, database) = await createHandler(
+        directory,
+        2,
+        sidecarStreams: true,
+        readApiClient: () => api,
+        rebuiltPlayers: <_ControllableAudioPlayer>[],
+        timeouts: deadlines,
+      );
+      addTearDown(() async {
+        release.complete();
+        await handler.disposeHandler();
+        await server.close(force: true);
+        await Future.wait(transfers);
+        await database.close();
+        await directory.delete(recursive: true);
+        HttpOverrides.global = previousHttp;
+      });
+      player.simulateProgress = true;
+      return (
+        handler,
+        player,
+        ({required bool growing}) => receiving = growing,
+      );
+    }
+
+    for (final state in [ProcessingState.buffering, ProcessingState.ready]) {
+      test(
+        'seek keeps advancing download beyond load deadline in ${state.name}',
+        () async {
+          final (handler, player, grow) = await fixture();
+          await handler.replaceQueue([
+            'song-0',
+            'song-1',
+          ], expandMatchFlows: false);
+          grow(growing: true);
+          player
+            ..state = state
+            ..ignoreSeeks = true
+            ..nativePositionFrozen = true;
+          final landed = Timer(const Duration(milliseconds: 700), () {
+            player
+              ..simulatedPosition = const Duration(seconds: 90)
+              ..nativePositionFrozen = false
+              ..state = ProcessingState.ready;
+          });
+          addTearDown(landed.cancel);
+          final loads = player.sourceLoads;
+          await handler.seek(const Duration(seconds: 90));
+          final seek = handler.collectPlaybackDiagnostics()['seek']! as Map;
+          expect(seek['recoveryAttempts'], 0);
+          expect(seek['outcome'], 'completed');
+          expect(player.sourceLoads, loads);
+          expect(
+            handler.collectPlaybackDiagnostics()['partialCacheBytes'],
+            greaterThan(0),
+          );
+        },
+      );
+    }
+
+    test('seek still recovers after download progress becomes idle', () async {
+      final (handler, player, grow) = await fixture();
+      await handler.replaceQueue(['song-0', 'song-1'], expandMatchFlows: false);
+      grow(growing: true);
+      player
+        ..state = ProcessingState.buffering
+        ..ignoreSeeks = true
+        ..nativePositionFrozen = true;
+      final seek = handler.seek(const Duration(seconds: 90));
+      await Future<void>.delayed(const Duration(milliseconds: 400));
+      expect(
+        (handler.collectPlaybackDiagnostics()['seek']!
+            as Map)['recoveryAttempts'],
+        0,
+      );
+      grow(growing: false);
+      player.nativePositionFrozen = false;
+      await seek;
+      expect(
+        (handler.collectPlaybackDiagnostics()['seek']!
+            as Map)['recoveryAttempts'],
+        1,
+      );
+    });
+
+    test('seek gives up at hard cap despite advancing download', () async {
+      final (handler, player, grow) = await fixture();
+      await handler.replaceQueue(['song-0', 'song-1'], expandMatchFlows: false);
+      grow(growing: true);
+      player
+        ..state = ProcessingState.buffering
+        ..ignoreSeeks = true
+        ..nativePositionFrozen = true;
+      final seeking = handler.seek(const Duration(seconds: 90));
+      await Future<void>.delayed(const Duration(milliseconds: 400));
+      expect(
+        (handler.collectPlaybackDiagnostics()['seek']!
+            as Map)['recoveryAttempts'],
+        0,
+      );
+      await seeking;
+      final seek = handler.collectPlaybackDiagnostics()['seek']! as Map;
+      expect(seek['recoveryAttempts'], 1);
+      final event =
+          (handler.collectPlaybackDiagnostics()['seekEvents']! as List).last
+              as Map;
+      final probe = (event['unsettled']! as List).first as Map;
+      expect(probe['reason'], 'deadline');
+      expect(probe['elapsedMs'], inInclusiveRange(1200, 1400));
+    });
+
+    for (final growing in [true, false]) {
+      test('start ${growing ? 'keeps downloading past' : 'still fails at'} '
+          'the old load deadline', () async {
+        final (handler, player, grow) = await fixture();
+        final gate = Completer<void>();
+        final entered = Completer<void>();
+        player
+          ..loadGate = gate
+          ..loadEntered = entered
+          ..gateNonEmptyLoadsOnly = true;
+        grow(growing: growing);
+        final failures = <Object>[];
+        final loading = handler
+            .replaceQueue(['song-0', 'song-1'], expandMatchFlows: false)
+            .catchError(failures.add);
+        await entered.future;
+        final finish = Timer(const Duration(milliseconds: 700), gate.complete);
+        addTearDown(() {
+          finish.cancel();
+          if (!gate.isCompleted) gate.complete();
+        });
+        await Future<void>.delayed(const Duration(milliseconds: 450));
+        expect(player.disposed, !growing);
+        if (growing) expect(handler.snapshot.loadingSongId, 'song-0');
+        await loading;
+        if (growing) {
+          expect(failures, isEmpty);
+          expect(handler.snapshot.currentSongId, 'song-0');
+          expect(handler.snapshot.playing, isTrue);
+        } else {
+          expect(handler.snapshot.currentSongId, 'song-1');
+        }
+      });
+    }
+    for (final idle in [true, false]) {
+      test(
+        'start remains bounded by ${idle ? 'download idle' : 'hard cap'}',
+        () async {
+          final (handler, player, grow) = await fixture();
+          final gate = Completer<void>();
+          final entered = Completer<void>();
+          player
+            ..loadGate = gate
+            ..loadEntered = entered
+            ..gateNonEmptyLoadsOnly = true;
+          addTearDown(() {
+            if (!gate.isCompleted) gate.complete();
+          });
+          grow(growing: true);
+          final loading = handler.replaceQueue([
+            'song-0',
+            'song-1',
+          ], expandMatchFlows: false);
+          await entered.future;
+          await Future<void>.delayed(const Duration(milliseconds: 400));
+          expect(player.disposed, isFalse);
+          if (idle) grow(growing: false);
+          await Future<void>.delayed(Duration(milliseconds: idle ? 350 : 1000));
+          expect(player.disposed, isTrue);
+          await loading;
+          expect(handler.snapshot.currentSongId, 'song-1');
+        },
+      );
+    }
+  });
+
   group('seek requests', () {
     const fastTimeouts = NavisPlaybackTimeouts(
       load: Duration(seconds: 2),

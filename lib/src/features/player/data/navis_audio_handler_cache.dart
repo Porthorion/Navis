@@ -164,20 +164,7 @@ extension _NavisCache on NavisAudioHandler {
     RollingCacheActivity activity,
   ) {
     _rollingCacheActivities[cacheFilePath] = activity;
-    final songId = activity.songId;
-    if (songId != null) _cacheProgressAt[songId] = DateTime.now();
     _reportRollingCacheActivity?.call(activity);
-  }
-
-  /// Whether [songId]'s cache download is at least half done and received
-  /// bytes within the last [_seekBufferingRecoveryTimeout].
-  bool _cacheDownloadNearlyDone(String songId) {
-    final at = _cacheProgressAt[songId];
-    return at != null &&
-        _rollingCacheActivities.values.any(
-          (a) => a.songId == songId && (a.progress ?? 0) >= 0.5,
-        ) &&
-        DateTime.now().difference(at) < _seekBufferingRecoveryTimeout;
   }
 
   /// Whether the current song plays from the network while its completed
@@ -195,8 +182,7 @@ extension _NavisCache on NavisAudioHandler {
   }
 
   void _completeRollingCacheActivity(String cacheFilePath) {
-    final songId = _rollingCacheActivities.remove(cacheFilePath)?.songId;
-    if (songId != null) _cacheProgressAt.remove(songId);
+    _rollingCacheActivities.remove(cacheFilePath);
     _reportRollingCacheActivity?.call(
       _rollingCacheActivities.values.lastOrNull ??
           const RollingCacheActivity.idle(),

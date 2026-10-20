@@ -4712,16 +4712,22 @@ between ready and buffering several times a second, so settlement rests on the
 native position: a playing request is settled once the position advances from
 the target, a paused one once it has held the target for 300 ms. Native
 buffering may probe several byte ranges before producing a packet, so it counts
-as activity: only a player that is not buffering and neither moves nor fills for
-three seconds, or that stays away from the target for three seconds, has
-stalled. A probe that is still buffering at the load deadline keeps waiting, up
-to `NavisPlaybackTimeouts.seekProgress` (45 s), while the player's own buffer
-grew within the last three seconds or the song's cache download (desktop
-sidecar or Android lock cache) is at least half done and still receiving
-bytes: on a slow link
-a far seek in a large file legitimately takes that long, and a reload would
-start the same transfer over. When the desktop sidecar file completes first the
-probe stops and the song is reloaded from it. Each probe that gives up records
+as activity during the initial load budget. Both seek settlement and native
+song loads share a progress deadline: actual received bytes (the desktop
+sidecar's active byte counter or the Android lock-cache partial file) and
+`bufferedPosition` growth keep them waiting past the normal 12-second load
+deadline, even when the cache is less than half done. Recent growth also
+suppresses premature `missed target` and `no progress` seek decisions while
+mpv probes ranges without producing packets. Once progress stops, an
+eight-second idle window (`NavisPlaybackTimeouts.progressIdle`) bounds the
+extension; the existing `seekProgress` budget caps each load or settlement
+probe at 45 seconds. With no growth, native loads retain their original
+deadline and seek probes retain their short stall checks. Native queue loads
+sample the same byte/buffer signals while awaiting the existing operation
+future; controls, queue edits and radio retain their fixed timeouts. A
+superseded load loses its extension so a newer selection can take the queue
+lane. When the desktop sidecar file completes first the seek probe stops and
+the song is reloaded from it. Each probe that gives up records
 why (`missed target`, `no progress`, `cache complete`, `deadline`) with the
 state it saw in the seek's `unsettled` diagnostics. Each current
 request permits one recovery attempt, plus a reload from a sidecar file that
