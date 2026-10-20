@@ -2216,6 +2216,58 @@ def case_offset_repeat_one(run: Run, env):
     run.latency_from = [seek]
 
 
+def case_offset_repeat_all(run: Run, env):
+    """Repeat-all with an album: offset-seek song 1 to 65%, let it end; song 2 must start at 0
+    and play untouched (no seek, offset, reload or position jump back), and song 1 must not replay."""
+    offset_case_prologue(run)
+    run.metrics['repeatAll'] = True
+    ids = env.backend.fresh_album()
+    run.songs = [{'id': i} for i in ids]
+    duration_s, _ = song_info(run, ids[0])
+    run.app.api('/v1/playback/repeat', {'mode': 'all'})
+    rec = start_queue(run, ids)
+    first = await_audio(run, rec, ids[0])
+    run.observe(5.0)
+    with concurrent.futures.ThreadPoolExecutor(max_workers=4) as pool:
+        seek = issue_seek(run, pool, int(duration_s * 1000 * 0.65))
+        landed(run, seek)
+        finish_futures(run)
+    moved = run.until(lambda s: s['songId'] != first['songId'] and s['proc'] == 'ready' and s['playing'],
+                      duration_s * 0.35 + 2 * run.deadlines['advance'] + 30)
+    if moved is None:
+        run.violations.append(violation('naturalEndNoContinuation', run.now(), 'song 2 never started', run))
+        raise CaseAbort('no natural end')
+    run.metrics['song2StartedAt'] = moved['t']
+    run.observe(24.0)
+
+    def check():
+        out = oracle_seek(run, seek) + oracle_offset(run, [seek], run.quality != 'original')
+        s2 = [x for x in run.samples if x['t'] >= moved['t'] and x['songId'] == moved['songId'] and x['pos'] is not None]
+        run.metrics['song2'] = {'id': moved['songId'], 'firstPos': s2[0]['pos'] if s2 else None,
+                                'lastPos': s2[-1]['pos'] if s2 else None, 'spanS': round(s2[-1]['t'] - s2[0]['t'], 1) if s2 else 0,
+                                'offsets': sorted({x['off'] for x in s2})}
+        if not s2 or s2[-1]['t'] - s2[0]['t'] < 20:
+            out.append(violation('song2TooShort', moved['t'], f"song 2 observed {run.metrics['song2']['spanS']} s", run))
+        if s2 and s2[0]['pos'] > 3000:
+            out.append(violation('song2NotAtZero', s2[0]['t'], f"first position {s2[0]['pos']} (offset {s2[0]['off']})", run))
+        back = next((b for a, b in zip(s2, s2[1:]) if b['pos'] < a['pos'] - 1000), None)
+        if back:
+            out.append(violation('song2PositionJumpedBack', back['t'], f"pos fell to {back['pos']}", run))
+        if any(x['off'] for x in s2):
+            out.append(violation('song2HasOffset', moved['t'], f"offsets {run.metrics['song2']['offsets']}", run))
+        touched = [e for e in run.trace if e['rel'] >= moved['t'] + 0.5
+                   and (e['kind'] in ('seekRequest', 'seekStage', 'setAudioSources')
+                        or (e['kind'] == 'sourceResolved' and e.get('timeOffset'))
+                        or e.get('path') == 'transcodeOffset' or e.get('stage') == 'recovering')]
+        run.metrics['song2TraceTouches'] = [{k: e.get(k) for k in ('rel', 'kind', 'stage', 'songId', 'timeOffset', 'initialPositionMs')} for e in touched][:10]
+        if touched:
+            out.append(violation('song2Reloaded', touched[0]['rel'], f"{len(touched)} seek/reload trace entries on song 2", run))
+        out += oracle_sequence(run, ids, minimum=2)
+        return out
+    run.checks.append(check)
+    run.latency_from = [seek]
+
+
 def case_offset_prev(run: Run, env):
     """Previous after an offset seek restarts the song at 0."""
     offset_case_prologue(run)
@@ -2262,6 +2314,7 @@ CASE_FUNCS = {
     'offset_natural': case_offset_natural,
     'offset_repeat_one': case_offset_repeat_one,
     'offset_prev': case_offset_prev,
+    'offset_repeat_all': case_offset_repeat_all,
     'skip_next': case_skip_next,
     'skip_prev': case_skip_prev,
     'skip_rapid10': case_skip_rapid,
