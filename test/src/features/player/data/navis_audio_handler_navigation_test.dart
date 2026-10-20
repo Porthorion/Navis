@@ -7347,6 +7347,65 @@ void main() {
       },
     );
 
+    test(
+      'edge 3: a loop during the background queue fill still reloads from zero',
+      () async {
+        final (handler, player, _) = await offsetHandler();
+        await start(handler);
+        await handler.setRepeatMode(AudioServiceRepeatMode.one);
+        final gate = Completer<void>();
+        final entered = Completer<void>();
+        player
+          ..appendGate = gate
+          ..appendEntered = entered;
+        await handler.seek(const Duration(seconds: 100));
+        await entered.future;
+        // The fill that restores the rest of the queue is still running.
+        expect(handler.snapshot.isLoading, isTrue);
+        expect(current(player).positionOffset, const Duration(seconds: 100));
+        final loadsBefore = player.sourceLoads;
+
+        player.finishCurrentTrack();
+        await pumpEventQueue();
+        gate.complete();
+        await until(
+          () =>
+              player.sourceLoads == loadsBefore + 1 &&
+              !handler.snapshot.isLoading,
+        );
+
+        expect(current(player).positionOffset, Duration.zero);
+        expect(player.position, lessThan(const Duration(seconds: 2)));
+        expect(player.sourceIds, ['song-0', 'song-1', 'song-2']);
+      },
+    );
+
+    test('edge 3: a loop during teardown starts no seek', () async {
+      final (handler, player, _) = await offsetHandler();
+      await start(handler);
+      await handler.setRepeatMode(AudioServiceRepeatMode.one);
+      await seekAndSettle(handler, const Duration(seconds: 100));
+      await settleQueue(handler);
+      final gate = Completer<void>();
+      final entered = Completer<void>();
+      player
+        ..listenerCancelGate = gate
+        ..listenerCancelEntered = entered;
+
+      final disposal = handler.disposeHandler();
+      await entered.future;
+      // Disposal has started but the discontinuity listener is still wired.
+      player.finishCurrentTrack();
+      await pumpEventQueue();
+      gate.complete();
+      await disposal;
+
+      expect(
+        handler.collectPlaybackDiagnostics()['seek'],
+        containsPair('requestedPositionMs', 100000),
+      );
+    });
+
     test('edge 4: Previous reloads an offset song from zero', () async {
       final (handler, player, _) = await offsetHandler();
       await start(handler);
