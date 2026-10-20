@@ -248,20 +248,16 @@ class MediaKitPlayer extends AudioPlayerPlatform {
   late final List<StreamSubscription> _streamSubscriptions;
 
   late final IcyPropertySource _properties;
-  int _lastInputRate = 0;
-  final _inputRateAge = Stopwatch()..start();
 
   @override
-  Future<bool> get networkInputActive async {
-    if (_released || !_readyCompleter.isCompleted) return false;
-    final rate = int.tryParse(await _properties.read('cache-speed')) ?? 0;
-    if (rate != _lastInputRate) _inputRateAge.reset();
-    _lastInputRate = rate;
-    // 8 KiB/s (~64 kbps) is below real audio rates but bounds mpv's EMA decay.
-    // Allow unchanged samples between its roughly once-per-second recomputes.
-    return rate >= 8 * 1024 &&
-        _inputRateAge.elapsed < const Duration(seconds: 2);
+  Future<int?> get networkInputBytesPerSecond async {
+    if (_released || !_readyCompleter.isCompleted) return null;
+    return int.tryParse(await _properties.read('cache-speed'));
   }
+
+  @override
+  Future<bool> get networkInputActive async =>
+      (await networkInputBytesPerSecond ?? 0) > 0;
 
   final _readyCompleter = Completer<void>();
 

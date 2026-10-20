@@ -473,11 +473,13 @@ class _ControllableAudioPlayer extends Fake implements AudioPlayer {
           : Duration.zero);
 
   int simulatedInputBytesPerSecond = 0;
-  Future<bool> Function()? readNetworkInputActive;
+  Future<int?> Function()? readNetworkInputBytesPerSecond;
 
   @override
-  Future<bool> get networkInputActive async =>
-      await readNetworkInputActive?.call() ?? simulatedInputBytesPerSecond > 0;
+  Future<int?> get networkInputBytesPerSecond async =>
+      readNetworkInputBytesPerSecond != null
+      ? await readNetworkInputBytesPerSecond!()
+      : simulatedInputBytesPerSecond;
 
   Duration simulatedBuffered = Duration.zero;
 
@@ -10140,7 +10142,7 @@ void main() {
     }
 
     test(
-      'steady once-per-second mpv input prevents a buffering reload at 12 s',
+      'constant low mpv input prevents a buffering reload at 12 s',
       () async {
         final (handler, player, _) = await fixture(
           timeouts: const NavisPlaybackTimeouts(),
@@ -10176,16 +10178,13 @@ void main() {
         );
         addTearDown(adapter.release);
         player
-          ..readNetworkInputActive = (() => adapter.networkInputActive)
+          ..readNetworkInputBytesPerSecond = (() =>
+              adapter.networkInputBytesPerSecond)
           ..state = ProcessingState.buffering
           ..ignoreSeeks = true
           ..nativePositionFrozen = true;
-        // A steady link can have many slightly falling EMA recomputes in a row.
-        // The decoder stays buffering past the real 12-second load budget.
-        final recompute = Timer.periodic(const Duration(seconds: 1), (timer) {
-          properties.rate = '${190000 - timer.tick * 100}';
-        });
-        addTearDown(recompute.cancel);
+        // Range probes can leave a small positive estimate unchanged.
+        properties.rate = '1';
         final loads = player.sourceLoads;
         final seeking = handler.seek(const Duration(seconds: 90));
         try {
@@ -10197,7 +10196,6 @@ void main() {
             0,
           );
         } finally {
-          recompute.cancel();
           player
             ..simulatedPosition = const Duration(seconds: 90)
             ..nativePositionFrozen = false
@@ -10301,6 +10299,8 @@ void main() {
         expect(probe['elapsedMs'], lessThan(near ? 1100 : 600));
         expect(probe['processingState'], 'ready');
         expect(probe['playing'], isTrue);
+        expect(probe['inputBytesPerSecond'], greaterThan(0));
+        expect(probe['inputExtensionActive'], isFalse);
       });
     }
 
@@ -10376,27 +10376,38 @@ void main() {
       final probe = (event['unsettled']! as List).first as Map;
       expect(probe['reason'], 'deadline');
       expect(probe['elapsedMs'], inInclusiveRange(1200, 2500));
+      expect(probe['inputBytesPerSecond'], 25000);
+      expect(probe['inputExtensionActive'], isTrue);
     });
 
-    test('desktop sidecar growth does not hide a frozen native seek', () async {
-      final (handler, player, grow) = await fixture();
-      await handler.replaceQueue(['song-0', 'song-1'], expandMatchFlows: false);
-      grow(growing: true, playerProgress: false);
-      player
-        ..state = ProcessingState.ready
-        ..ignoreSeeks = true
-        ..nativePositionFrozen = true;
-      await handler.seek(const Duration(seconds: 90));
-      final events =
-          handler.collectPlaybackDiagnostics()['seekEvents']! as List;
-      final probe = ((events.last as Map)['unsettled']! as List).first as Map;
-      expect(probe['reason'], 'missed target');
-      expect(probe['elapsedMs'], lessThan(600));
-      expect(
-        handler.collectPlaybackDiagnostics()['partialCacheBytes'],
-        greaterThan(0),
-      );
-    });
+    for (final rate in <int?>[0, null]) {
+      test('desktop sidecar growth does not hide a frozen native seek '
+          '(input rate $rate)', () async {
+        final (handler, player, grow) = await fixture();
+        await handler.replaceQueue([
+          'song-0',
+          'song-1',
+        ], expandMatchFlows: false);
+        grow(growing: true, playerProgress: false);
+        player
+          ..readNetworkInputBytesPerSecond = (() async => rate)
+          ..state = ProcessingState.ready
+          ..ignoreSeeks = true
+          ..nativePositionFrozen = true;
+        await handler.seek(const Duration(seconds: 90));
+        final events =
+            handler.collectPlaybackDiagnostics()['seekEvents']! as List;
+        final probe = ((events.last as Map)['unsettled']! as List).first as Map;
+        expect(probe['reason'], 'missed target');
+        expect(probe['elapsedMs'], lessThan(600));
+        expect(probe['inputBytesPerSecond'], rate);
+        expect(probe['inputExtensionActive'], isFalse);
+        expect(
+          handler.collectPlaybackDiagnostics()['partialCacheBytes'],
+          greaterThan(0),
+        );
+      });
+    }
 
     for (final bufferProgress in [false, true]) {
       test('same-song seek waits for a progressing cold start '

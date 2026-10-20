@@ -16,3 +16,6 @@ policy. It defaults to false; other platform adapters ignore the option.
 `AudioPlayerPlatform.networkInputActive` is an optional async getter for recent
 backend input activity before decoding. Its default false result leaves
 existing platform implementations unchanged; media_kit implements it with mpv.
+
+`AudioPlayerPlatform.networkInputBytesPerSecond` exposes the sampled backend
+input rate in bytes/s, defaulting to null when unavailable or unsupported.

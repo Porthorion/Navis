@@ -131,8 +131,8 @@ const List<ChangelogVersion> changelogs = [
     entries: [
       ChangelogEntry(
         'Keep slow streams loading and seeking while data is arriving, '
-        'without delaying new playback commands, and recover promptly '
-        'when playback freezes after landing at a seek target',
+        'including slow range probes, without delaying new playback commands, '
+        'and recover promptly when playback freezes after landing at a seek target',
         type: ChangelogEntryType.fix,
       ),
       ChangelogEntry(
