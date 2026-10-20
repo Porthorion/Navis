@@ -493,8 +493,8 @@ return $default(_that.extensions);case _:
 /// @nodoc
 @JsonSerializable()
 
-class _ServerCapabilities implements ServerCapabilities {
-  const _ServerCapabilities({ List<OpenSubsonicExtension> extensions = const <OpenSubsonicExtension>[]}): _extensions = extensions;
+class _ServerCapabilities extends ServerCapabilities {
+  const _ServerCapabilities({ List<OpenSubsonicExtension> extensions = const <OpenSubsonicExtension>[]}): _extensions = extensions,super._();
   factory _ServerCapabilities.fromJson(Map<String, dynamic> json) => _$ServerCapabilitiesFromJson(json);
 
  final  List<OpenSubsonicExtension> _extensions;

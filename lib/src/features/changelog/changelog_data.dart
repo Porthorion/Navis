@@ -133,6 +133,11 @@ const List<ChangelogVersion> changelogs = [
         'Fix transcoded songs replaying after the stream finishes on Android',
         type: ChangelogEntryType.fix,
       ),
+      ChangelogEntry(
+        'Seeking in a transcoded song now jumps straight to the new position '
+        'on servers that support it, instead of waiting for the download',
+        type: ChangelogEntryType.fix,
+      ),
     ],
   ),
   ChangelogVersion(

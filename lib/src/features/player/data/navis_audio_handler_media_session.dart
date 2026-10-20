@@ -278,6 +278,12 @@ extension _NavisMediaSession on NavisAudioHandler {
       _syncRemotePlaybackStallWatchdog();
     }, onError: fail);
 
+    _positionDiscontinuitySubscription = _player.positionDiscontinuityStream
+        .listen((discontinuity) {
+          if (!identical(_player, wiredPlayer)) return;
+          _onPositionDiscontinuity(discontinuity);
+        });
+
     _currentIndexSubscription = _player.currentIndexStream.listen((index) {
       if (!identical(_player, wiredPlayer) ||
           index != wiredPlayer.currentIndex) {

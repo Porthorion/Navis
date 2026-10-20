@@ -1374,6 +1374,10 @@ final audioHandlerInitializerProvider = Provider<AudioHandlerInitializer>((
         // media_kit cannot seek LockCachingAudioSource's local proxy; desktop
         // plays via direct HTTPS and fills the rolling cache with a sidecar.
         readUsesSidecarRollingCache: () => isDesktopRuntime,
+        readSupportsTranscodeOffset: () =>
+            ServerCapabilities.supportsTranscodeOffsetIn(
+              ref.read(serverConfigProvider).asData?.value?.capabilitiesJson,
+            ),
       ),
       readApiClient: () => ref.read(subsonicApiProvider),
       readSystemArtworkCacheManager: () =>

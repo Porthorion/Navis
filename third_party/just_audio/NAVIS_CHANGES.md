@@ -50,3 +50,28 @@ granted. A
 load that runs while focus is pending therefore cannot start native playback
 through the implicit play path, and a denied request never publishes a
 transient playing state.
+
+`UriAudioSource.positionOffset` (also `AudioSource.uri(positionOffset:)`) marks a
+stream that starts that far into the song, as a server transcode opened with
+`timeOffset`. The platform reports time from zero. `AudioPlayer` adds the offset
+of the item at the event's `currentIndex` to `updatePosition`, `bufferedPosition`
+and a non-null `duration` where a platform event becomes a `PlaybackEvent`, and
+subtracts it from `seek` positions, the `load` initial position and the idle
+platform's reported duration (clamped at zero). Every position the app reads is
+therefore song time, and an auto-advance to an item without an offset reads
+from its own zero. Platform adapters see platform time only.
+
+The loop detector behind `positionDiscontinuityStream` judges an offset item in
+platform time: `positionOffset` is subtracted from the interpolated previous
+position, the current position and the duration before the heuristics, so a
+native loop that restarts the stream at its own start is reported as an
+`autoAdvance` discontinuity even when the platform emits only sparse events
+(ExoPlayer). For an unknown duration an offset item needs the position to drop
+by a second; an item without an offset behaves as before.
+
+While a playlist edit (insert, add, remove, move, clear) is in flight, a
+platform event that carries the previous event's index is translated with the
+previous event's item, not the item the Dart sequence now holds at that index:
+the platform only reports the shifted index once it has applied the edit. Its
+duration is stored on that item too. Without offsets the only change is that
+the stored duration lands on the right item during such a window.
