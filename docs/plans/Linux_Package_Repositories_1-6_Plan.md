@@ -2,7 +2,7 @@
 
 **Goal:** Debian/Ubuntu and Fedora users add a Navis apt or dnf repository once. After that, the normal system updater (`apt upgrade`, `dnf upgrade`, GNOME Software, Discover) delivers new versions. The app stops offering its own install for repo-managed systems.
 
-**Status:** design plan. It turns into a task-level TDD plan (writing-plans format) once the owner answers the open questions below. Builds on the 1.5.1 pkexec updater in `Linux_Package_Updates_1-5-1_Plan.md`.
+**Status:** design plan with owner decisions recorded. It becomes a task-level TDD plan (writing-plans format) when 1.6 work starts. Builds on the 1.5.1 pkexec updater in `Linux_Package_Updates_1-5-1_Plan.md`.
 
 ## Find and reuse first
 
@@ -58,8 +58,8 @@ Metadata is generated in the build container: `apt-ftparchive` (no reprepro stat
 4. Upgrade from a 1.5.1 pkexec-managed install: after the repo is added, the app switches to the repo message, and no duplicate package or ownership conflict appears.
 5. Dev channel suite: a dev build follows `dev` only.
 
-## Open questions for the owner
+## Owner decisions (2026-10-20)
 
-1. Should the `.deb`/`.rpm` add the repository automatically on install, the way Chrome and VS Code do? The alternative is that users add it by hand from the website. Auto-add is the common pattern and makes updates zero-effort, but it writes into `/etc` from a postinst.
-2. Should the repo serve arm64 (the `.deb` arm64 asset key exists) and a dev suite from day one?
-3. Do you want a `navis-archive-keyring` package for key rotation, or just the key file?
+1. **Auto-add on install.** The `.deb` postinst writes `/etc/apt/sources.list.d/navis.sources`, and the `.rpm` ships `/etc/yum.repos.d/navis.repo`. Each package carries the repo public key (`/usr/share/keyrings/navis-archive-keyring.gpg` and `/etc/pki/rpm-gpg/RPM-GPG-KEY-navis`). Key rotation therefore rides on normal package updates, so no separate keyring package is needed. The postinst must not overwrite a repo file the user edited or disabled.
+2. **Stable suite only**, holding the release builds. Dev builds keep the R2 dev channel and the in-app updater.
+3. **arm64: include it if cheap.** Today the build container produces amd64 only (`package_bundle.sh` has `Architecture: amd64`), and Flutter cannot cross-compile Linux desktop. First task of 1.6: check whether the mirrored libmpv binaries on R2 have arm64, and whether an arm64 build (QEMU container or an arm64 host) is practical. If both are true, add `binary-arm64` and an `aarch64` rpm; otherwise record why and leave arm64 out.
