@@ -2445,6 +2445,8 @@ def case_chain_end(run: Run, env):
     to the next song without a pause (setPauseAtEndOfMediaItems must not leak into normal playback)."""
     ids = env.backend.fresh_album()
     run.songs = [{'id': i} for i in ids]
+    if getattr(run, 'chain_repeat', 'none') != 'none':
+        run.app.api('/v1/playback/repeat', {'mode': run.chain_repeat})
     rec = start_queue(run, ids)
     await_audio(run, rec, ids[0])
     gaps = []
@@ -2473,6 +2475,17 @@ def case_chain_end(run: Run, env):
             run.violations.append(violation('pausedAtSongEnd', spans[0][0], f'ready but not playing {spans}', run))
     run.metrics['handoverGapsS'] = gaps
     run.checks.append(lambda: oracle_sequence(run, ids, minimum=4))
+
+    def no_false_recovery():
+        hits = [e for e in run.trace if e['kind'] == 'recovery' or (e['kind'] == 'playerState' and e.get('errorCode'))]
+        run.metrics['recoveryEntries'] = [{k: e.get(k) for k in ('kind', 'decision', 'reason', 'errorCode')} for e in hits][:6]
+        return [violation('falseRecovery', hits[0]['rel'], f"{len(hits)} recovery/error entries on a fault-free run", run)] if hits else []
+    run.checks.append(no_false_recovery)
+
+
+def case_chain_end_all(run: Run, env):
+    run.chain_repeat = 'all'
+    case_chain_end(run, env)
 
 
 def case_repeat_switch_off(run: Run, env):
@@ -2544,6 +2557,63 @@ def case_repeat_one_fill(run: Run, env):
     run.checks.append(check)
 
 
+def cut_at_case(fraction: float, cuts: int, gap_s=10.0, pace_kbps=220):
+    """#86 item 2 (proxy abort on origin cut): album, repeat off; after song 1 starts the origin is paced
+    near real time, and when song 1 reaches [fraction] of its length the in-flight origin body is cut
+    ([cuts] times, [gap_s] apart). Records whether it resumes in place, restarts, or ends early, then
+    lets the song play to its natural end. The progress-loss oracle judges the rest."""
+    def case(run: Run, env):
+        ids = env.backend.fresh_album()
+        run.songs = [{'id': i} for i in ids]
+        rec = start_queue(run, ids)
+        first = await_audio(run, rec, ids[0])
+        dur = first['dur'] or run.last()['dur'] or 0
+        restore = THROTTLES[run.throttle]
+        env.proxy.set_profile(pace_kbps, 300)
+        run.metrics['cutPlan'] = {'fraction': fraction, 'cuts': cuts, 'durMs': dur, 'paceKbps': pace_kbps}
+        at = run.until(lambda s: s['songId'] == ids[0] and (s['pos'] or 0) >= dur * fraction, dur / 1000 + 90)
+        if at is None:
+            env.proxy.set_profile(*restore)
+            raise CaseAbort('song 1 never reached the cut point')
+        device_ms = int(run.app.shell('date', '+%s%3N').strip() or 0) if isinstance(run.app, AndroidApp) else None
+        events = []
+        for n in range(cuts):
+            if n:
+                time.sleep(gap_s)
+            cur = run.last()
+            env.proxy.cut_active('fin', window=3.0)
+            run.act('originCut', n=n + 1)
+            events.append({'n': n + 1, 't': run.now(), 'pos': cur['pos'], 'buf': cur['buf']})
+            time.sleep(3.2)
+        run.metrics.update(cutEvents=events, cutDeviceMs=device_ms)
+        t_first = events[0]['t']
+        # recovery window: let it settle, then restore the link and play the song out
+        run.observe(25.0)
+        env.proxy.set_profile(*restore)
+        end_wait = max(30.0, (dur - (run.last()['pos'] or 0)) / 1000 + 60)
+        moved = run.until(lambda s: s['songId'] != ids[0], end_wait)
+        after = [s for s in run.samples if s['t'] >= t_first and s['songId'] == ids[0] and s['pos'] is not None]
+        resumed = next((s for s in after if s['t'] > events[0]['t'] + 0.5 and s['proc'] == 'ready' and s['playing']
+                        and s['pos'] >= events[0]['pos'] + 1500), None)
+        top = max((s['pos'] for s in after), default=0)
+        early = moved is not None and top < dur - 6000
+        restarted = any(b['pos'] < a['pos'] - 5000 and b['pos'] < 6000 for a, b in zip(after, after[1:]))
+        run.metrics['cutVerdict'] = {'resumedAfterS': resumed and round(resumed['t'] - t_first, 1), 'topPosMs': top, 'durMs': dur,
+                                     'endedEarlyAndAdvanced': early, 'restartedNear0': restarted, 'advancedNaturally': moved is not None and not early}
+        if device_ms:
+            keys = ('processingState', 'playing', 'positionMs', 'stage', 'reason', 'decision', 'errorCode', 'index', 'timeOffset', 'initialPositionMs', 'outcome', 'path')
+            run.metrics['cutTrace'] = [f"{(e['atMs'] - device_ms) / 1000:+.1f}s {e['kind']} " + ' '.join(f'{k}={e[k]}' for k in keys if e.get(k) is not None)
+                                       for e in run.trace if e['kind'] in ('recovery', 'seekEvent', 'navigate', 'setAudioSources', 'sourceResolved', 'playerState')
+                                       and (e['kind'] != 'playerState' or e.get('errorCode')) and device_ms - 2000 <= e['atMs'] <= device_ms + 60000
+                                       and (e['kind'] != 'sourceResolved' or e.get('timeOffset'))][:40]
+        if early:
+            run.violations.append(violation('cutEndedEarly', t_first, f"song 1 advanced at pos {top}/{dur}", run))
+        if resumed is None:
+            run.violations.append(violation('cutNoResume', t_first, f"no playback past {events[0]['pos']}+1.5 s afterwards", run))
+        run.checks.append(lambda: oracle_sequence(run, ids, minimum=2) if moved is not None else [])
+    return case
+
+
 def case_offset_prev(run: Run, env):
     """Previous after an offset seek restarts the song at 0."""
     offset_case_prologue(run)
@@ -2590,8 +2660,11 @@ CASE_FUNCS = {
     'offset_natural': case_offset_natural,
     'offset_repeat_one': case_offset_repeat_one,
     'offset_prev': case_offset_prev,
+    'cut40': cut_at_case(0.40, 1),
+    'cut40x2': cut_at_case(0.40, 2),
     'repeat_one_fill': case_repeat_one_fill,
     'chain_end': case_chain_end,
+    'chain_end_all': case_chain_end_all,
     'repeat_switch_off': case_repeat_switch_off,
     'base_repeat_one': case_base_repeat_one,
     'hold_off': hold_case(0.5, 'none', False),
