@@ -130,6 +130,11 @@ const List<ChangelogVersion> changelogs = [
     version: '1.5.1',
     entries: [
       ChangelogEntry(
+        'Fix Repeat One silently rewinding streamed songs before the end '
+        'on Android',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
         'Resume transcoded songs at the current position after a network stall '
         'instead of replaying them from the start',
         type: ChangelogEntryType.fix,

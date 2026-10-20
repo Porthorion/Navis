@@ -4444,6 +4444,36 @@ Radio initial loads and reconnects explicitly set
 `ProgressiveAudioSourceOptions.androidUseDefaultLoadErrorHandling`, preserving
 Media3's live-stream retry behavior.
 
+Android repeat-one on a progressive HTTP item (including the mobile loopback
+cache proxy and direct `timeOffset` streams) keeps the requested Dart
+`LoopMode.one`, but uses native `REPEAT_MODE_OFF` and
+`setPauseAtEndOfMediaItems(true)`. Media3 must not prepare a repetition of that
+same source while its first unknown-length period is playing: a later sized
+source-info refresh can otherwise silently clamp the current position to zero.
+The end-of-item PlayWhenReady reason schedules a same-index seek to native zero;
+`STATE_ENDED` is an idempotent fallback and does not publish `completed` during
+an owned repeat. A command revision consumes each boundary once and invalidates
+pending work on Pause (even if native playback already paused at the boundary),
+Stop/disposal, seek/selection, playlist replacement/edit, item transition or loop
+mode change. Playback resumes only while Play is still requested. The native
+policy is re-evaluated on item/timeline changes and source replacement.
+
+The native tail event followed by zero preserves just_audio's existing
+same-index `autoAdvance` event. Its pairwise detector checks a backwards jump
+for both plain and offset unknown-duration items. The existing handler then
+reloads an offset source from song zero exactly once; no second Dart repeat
+controller is added. Local/asset items, radio's default-retry opt-out, HLS/DASH,
+repeat-off and repeat-all retain native behavior. Single-song repeat-all is
+also unchanged: the reported reproduction establishes repeat-one and
+multi-song repeat-all behavior, not the single-song repeat-all case; that needs
+a device probe before expanding the workaround. Progressive HTTP repeat-one
+therefore loses gapless restart. Normal repeat-one crossfade continues to
+prepare and promote the same queue occurrence on its second deck using
+`_desiredLoopMode`; each deck retains Dart `LoopMode.one`. A successful handoff
+pauses the outgoing deck, cancelling its pending native restart. If native EOF
+wins before the fade starts, the existing position-wrap checks retry the fade
+on the next cycle. Smart repeat-one continues to skip crossfading.
+
 Seek recovery also detects a remote
 seek that landed correctly but remains buffering. Background phase-2 queue
 fill failures never reload or clear the active start item. Loading an uncached
