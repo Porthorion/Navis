@@ -979,7 +979,12 @@ class Run:
         native = state.get('native') or {}
         transport = native.get('mediaKitTransport') or []
         position = (transport[0].get('positionMs') if transport else None)
-        if position is None:
+        # An offset transcode (1.5.1) plays from native 0: the transport reports
+        # time inside the stream, so add the source's positionOffset to get song time.
+        offset = state.get('positionOffsetMs') or 0
+        if position is not None:
+            position += offset
+        else:
             position = state.get('playerPositionMs')
         sequence = native.get('sequenceIds') or []
         native_index = native.get('index')
@@ -1006,6 +1011,7 @@ class Run:
             'src': state.get('sourceKind'), 'mat': state.get('materializedLength'),
             'deferred': state.get('deferredLength'), 'shuffle': state.get('shuffleEnabled'),
             'nseq': sequence[:3],
+            'off': offset, 'pp': state.get('playerPositionMs'),
             'cf': {k: (state.get('crossfade') or {}).get(k) for k in ('enabled', 'active', 'disabledReason', 'lastFailure', 'phases')},
         }
         self.samples.append(sample)
@@ -1244,6 +1250,8 @@ def oracle_replay(run: Run) -> list[dict]:
     """A song that reaches its end and starts over on the same queue index,
     with no seek, navigation or repeat mode: the same song heard twice."""
     out = []
+    if run.metrics.get('repeatOne'):
+        return out  # repeat-one loops the song by design
     samples = run.samples
     began = 0  # first sample of the current (index, song) run
     for i in range(1, len(samples)):
@@ -1816,6 +1824,7 @@ SLOW_NEXT_S = 0  # --slow-next-s
 PRIME_SERVER_CACHE = False  # --prime-server-cache
 LIVE_REUSE_GROUPS = False  # --live-reuse-groups
 CROSSFADE_S = 0  # --crossfade-s: cross-fade seconds written into the profile (0 = off)
+VERIFY_OFFSET = False  # --verify-offset: judge seeks by the transcodeOffset oracle
 REPEAT_MODE = 'none'  # --repeat-mode: set after every case's mode reset
 LIVE_MAX_SONG_S = 0  # --live-max-song-s: live groups whose songs are all at most this long (0 = any)
 NATURAL_FULL = False  # --natural-full: later songs play to their real end instead of being seeked near it
@@ -1826,7 +1835,7 @@ def slow_next_song(run: Run, env, first):
     """--slow-next-s: shortly before song 1 ends, every proxied request waits this long
     before it is forwarded (the next song's first byte arrives late), then the proxy is
     restored. Diagnostics for the stall watchdog and recovery at a song change."""
-    proxy, delay = env.proxy, SLOW_NEXT_S
+    proxy, delay = env.proxy, SLOW_NEXT_S, VERIFY_OFFSET
     restore = THROTTLES[run.throttle]
     start_after = max(0.0, first['dur'] / 1000 - 6.0 - (time.monotonic() - run.t0 - first['t']))
     run.metrics['slowNext'] = {'delayS': delay, 'armedAfterS': round(start_after, 1)}
@@ -1978,6 +1987,248 @@ def edit_reorder(run, ids, extra):
     return {'qlen': len(ids), 'neighbours': [ids[0], ids[3], ids[1]]}
 
 
+# ---------------------------------------------------------------------------
+# 1.5.1 transcode offset seek verification (--verify-offset, cases offset_*).
+
+def seek_events_since(run: Run, baseline: int) -> list[dict]:
+    status = run.app.api('/v1/playback/status', timeout=30)
+    return [e for e in status.get('seekEvents') or [] if (e.get('generation') or 0) > baseline]
+
+
+def oracle_offset(run: Run, recs: list[dict], expect_offset: bool, strict_land=3.0) -> list[dict]:
+    """Seeks on a transcode take the transcodeOffset path and send timeOffset, land
+    quickly within 1.5 s of the target; on original they never do."""
+    out = []
+    events = seek_events_since(run, run.metrics.get('seekGenerationBaseline', 0))
+    paths = [e.get('path') for e in events]
+    run.metrics['seekPaths'] = [{k: e.get(k) for k in ('generation', 'path', 'requestedPositionMs', 'afterPositionMs',
+                                                       'elapsedMs', 'outcome', 'afterSourceKind')} for e in events]
+    stream_requests = [r for r in run.env.proxy.log[run.proxy_mark:] if r['endpoint'] == 'stream']
+    offsets = [r for r in stream_requests if r.get('timeOffset')]
+    run.metrics['timeOffsetRequests'] = [{'id': r['id'], 'timeOffset': r['timeOffset'], 'status': r.get('status'),
+                                          'bytes': r.get('bytes'), 'end': r.get('end')} for r in offsets]
+    if expect_offset:
+        taken = [p for p in paths if p == 'transcodeOffset']
+        if len(taken) < len(recs):
+            out.append(violation('offsetPathNotTaken', recs[0]['t'], f"{len(recs)} seeks, transcodeOffset path "
+                                 f"{len(taken)}x; paths={paths} timeOffset requests={len(offsets)}", run))
+        if len(offsets) < min(len(recs), len(taken)) or not offsets:
+            out.append(violation('offsetNoRequest', recs[0]['t'], f"no timeOffset stream request in the proxy log "
+                                 f"({len(stream_requests)} stream requests)", run))
+        for rec in recs:
+            if rec.get('latency') is not None and rec['latency'] > strict_land:
+                out.append(violation('offsetLate', rec['t'], f"landed {rec['latency']:.1f}s after the seek "
+                                     f"(limit {strict_land}s for an offset seek)", run))
+    else:
+        if offsets or 'transcodeOffset' in paths:
+            out.append(violation('offsetOnOriginal', recs[0]['t'], f"paths={paths} timeOffset requests={len(offsets)}", run))
+    for rec in recs:  # landing error, signed (negative = early)
+        after = [s for s in run.samples if s['t'] >= rec['t'] and s['songId'] == rec['song'] and s['proc'] == 'ready'
+                 and s['pos'] is not None]
+        landed_sample = next((s for s in after if abs(s['pos'] - rec['target']) <= LAND_TOLERANCE_MS), None)
+        if landed_sample is not None:
+            rec['err'] = landed_sample['pos'] - rec['target']
+            rec['landedOff'] = landed_sample['off']
+            rec['durAfter'] = landed_sample['dur']
+        run.metrics.setdefault('landings', []).append({k: rec.get(k) for k in ('target', 'latency', 'err', 'landedOff', 'durAfter')})
+        # The player's own song-time position must agree with the transport + offset.
+        if landed_sample is not None and landed_sample['pp'] is not None and landed_sample['t'] + 1 < run.now():
+            later = next((s for s in run.samples if s['t'] >= landed_sample['t'] + 1 and s['pos'] is not None
+                          and s['pp'] is not None and s['proc'] == 'ready'), None)
+            if later and abs(later['pos'] - later['pp']) > 2500:
+                out.append(violation('offsetPositionDisagree', later['t'], f"transport+offset={later['pos']} but "
+                                     f"player.position={later['pp']} (offset {later['off']})", run))
+    return out
+
+
+def rolling_names(run: Run) -> set:
+    if isinstance(run.app, AndroidApp):
+        out = run.app.shell('run-as', ANDROID_PACKAGE, 'sh', '-c',
+                            f"'ls {ANDROID_ROOT}/cache/audio/rolling 2>/dev/null'", check=False)
+        return set(out.split())
+    folder = ROOT / 'cache' / 'audio' / 'rolling'
+    return {f.name for f in folder.iterdir()} if folder.exists() else set()
+
+
+def rolling_fetch(run: Run, name: str, dest: Path) -> int | None:
+    """Copy one rolling-cache file out of the profile; returns its size or None."""
+    if isinstance(run.app, AndroidApp):
+        with dest.open('wb') as out:
+            result = subprocess.run(run.app.adb + ['exec-out', 'run-as', ANDROID_PACKAGE, 'cat',
+                                                   f'{ANDROID_ROOT}/cache/audio/rolling/{name}'], stdout=out)
+        return dest.stat().st_size if result.returncode == 0 else None
+    source = ROOT / 'cache' / 'audio' / 'rolling' / name
+    if not source.exists():
+        return None
+    shutil.copyfile(source, dest)
+    return dest.stat().st_size
+
+
+def probe_seconds(path: Path) -> float | None:
+    result = subprocess.run(['ffprobe', '-v', 'error', '-show_entries', 'format=duration', '-of', 'csv=p=0', str(path)],
+                            capture_output=True, text=True)
+    try:
+        return float(result.stdout.strip())
+    except ValueError:
+        return None
+
+
+def oracle_cache_integrity(run: Run, song_id: str, duration_s: float, before: set, quality: str) -> list[dict]:
+    """The rolling-cache file of a song that was offset-sought must be the whole
+    song (ffprobe duration within 1 s of the metadata duration), never one that starts at T."""
+    fmt, kbps = QUALITIES[quality]
+    suffix = run.metrics.get('songSuffix') or 'flac'
+    digest = hashlib.sha1(f'{song_id}::{kbps}::{fmt}::{suffix}'.encode()).hexdigest()
+    name = f'{digest}.{fmt}' if fmt else None
+    deadline = time.monotonic() + 150
+    sizes, size = [], None
+    while time.monotonic() < deadline:  # wait for the full download: file present and its size stable for 4 s
+        names = rolling_names(run)
+        if name in names:
+            size = rolling_fetch(run, name, run.app.run / 'cache-probe.bin')
+            sizes.append(size)
+            if len(sizes) >= 4 and len(set(sizes[-4:])) == 1:
+                break
+        time.sleep(1.0)
+    new = sorted(rolling_names(run) - before)
+    info = {'songId': song_id, 'file': name, 'newFiles': new, 'metadataDurationS': duration_s, 'sizeBytes': size,
+            'sizeHistory': sizes[-6:]}
+    out = []
+    if name not in rolling_names(run):
+        info['verdict'] = 'file missing'
+        out.append(violation('cacheMissing', run.now(), f"rolling file {name} never appeared; new files {new}", run))
+    else:
+        kept = run.app.run / f'cache-{song_id}.{fmt}'
+        rolling_fetch(run, name, kept)
+        seconds = probe_seconds(kept)
+        info['ffprobeDurationS'] = seconds
+        info['copy'] = str(kept)
+        if seconds is None or abs(seconds - duration_s) > 1.5:
+            out.append(violation('cacheCorrupt', run.now(), f"rolling file {name}: ffprobe duration {seconds} s vs "
+                                 f"metadata {duration_s} s ({size} bytes)", run))
+            info['verdict'] = 'FAIL'
+        else:
+            info['verdict'] = 'ok'
+    for r in run.env.proxy.log[run.proxy_mark:]:
+        if r['id'] == song_id and r['endpoint'] in ('stream', 'download'):
+            info.setdefault('requests', []).append({k: r.get(k) for k in ('endpoint', 'timeOffset', 'status', 'bytes', 'end', 'range')})
+    run.metrics['cacheIntegrity'] = info
+    return out
+
+
+def song_info(run: Run, song_id: str) -> tuple[float, str]:
+    song = run.backend.server.call('getSong', id=song_id)['song']
+    run.metrics['songSuffix'] = song.get('suffix')
+    return float(song['duration']), song.get('suffix') or 'flac'
+
+
+def offset_case_prologue(run: Run):
+    run.metrics['seekGenerationBaseline'] = max([e.get('generation') or 0 for e in
+                                                run.app.api('/v1/playback/status', timeout=30).get('seekEvents') or []] or [0])
+
+
+def case_offset_natural(run: Run, env):
+    """Seek to 65%, play to the natural end: the next song follows, no replay; then the
+    sought song's rolling-cache file is whole."""
+    offset_case_prologue(run)
+    before = rolling_names(run)
+    ids = env.backend.fresh_album()
+    run.songs = [{'id': i} for i in ids]
+    duration_s, _ = song_info(run, ids[0])
+    rec = start_queue(run, ids)
+    first = await_audio(run, rec, ids[0])
+    run.observe(5.0)
+    with concurrent.futures.ThreadPoolExecutor(max_workers=4) as pool:
+        seek = issue_seek(run, pool, int(duration_s * 1000 * 0.65))
+        landed(run, seek)
+        finish_futures(run)
+    run.observe(2.0)
+    remaining = duration_s * 0.35
+    moved = run.until(lambda s: s['idx'] != first['idx'] or s['songId'] != first['songId'],
+                      remaining + 2 * run.deadlines['advance'] + 30)
+    run.metrics['naturalHandoverAt'] = moved and moved['t']
+    if moved is None:
+        run.violations.append(violation('naturalEndNoContinuation', run.now(), f"no next song after the sought song; "
+                                        f"last={ {k: run.last()[k] for k in ('idx', 'songId', 'pos', 'proc', 'playing')} }", run))
+        raise CaseAbort('no natural end')
+    run.observe(8.0)
+    run.checks.append(lambda: oracle_seek(run, seek))
+    run.checks.append(lambda: oracle_sequence(run, ids, minimum=2))
+    run.checks.append(lambda: oracle_offset(run, [seek], run.quality != 'original'))
+    run.checks.append(lambda: oracle_cache_integrity(run, ids[0], duration_s, before, run.quality))
+    run.latency_from = [seek]
+
+
+def case_offset_repeat_one(run: Run, env):
+    """Repeat-one with an offset seek: the loop restarts at 0:00, never at the sought position."""
+    offset_case_prologue(run)
+    run.metrics['repeatOne'] = True
+    song = env.backend.fresh_songs(1)[0]
+    duration_ms = int(song['duration']) * 1000
+    run.app.api('/v1/playback/repeat', {'mode': 'one'})
+    start_single(run, song)
+    run.observe(5.0)
+    with concurrent.futures.ThreadPoolExecutor(max_workers=4) as pool:
+        seek = issue_seek(run, pool, int(duration_ms * 0.8))
+        landed(run, seek)
+        finish_futures(run)
+    t_seek = seek['t']
+    wrapped = run.until(lambda s: s['t'] > t_seek and s['songId'] == song['id'] and s['pos'] is not None
+                        and s['pos'] < 4000 and s['proc'] == 'ready', duration_ms * 0.2 / 1000 + 60 + run.deadlines['advance'])
+    run.metrics['loopWrappedAt'] = wrapped and wrapped['t']
+    if wrapped is None:
+        run.violations.append(violation('repeatOneNoLoop', run.now(), 'position never wrapped to the start', run))
+        raise CaseAbort('no loop')
+    run.observe(8.0)
+    after = [s for s in run.samples if s['t'] >= wrapped['t'] and s['pos'] is not None and s['songId'] == song['id']]
+
+    def check():
+        out = oracle_seek(run, seek) + oracle_offset(run, [seek], run.quality != 'original')
+        jumped = next((s for s in after if s['pos'] > 12000 + (s['t'] - wrapped['t']) * 1000), None)
+        if jumped:
+            out.append(violation('repeatOneJumpedToSeek', jumped['t'], f"after the loop pos={jumped['pos']} (offset "
+                                 f"{jumped['off']}), wrap sample pos={wrapped['pos']}", run))
+        late = [s for s in after if s['t'] >= wrapped['t'] + 4 and s['t'] <= wrapped['t'] + 8]
+        if late and late[-1]['pos'] - late[0]['pos'] < 1500:
+            out.append(violation('repeatOneNotAdvancing', wrapped['t'], f"{late[0]['pos']}->{late[-1]['pos']}", run))
+        run.metrics['loopSamples'] = [(round(s['t'], 1), s['pos'], s['off'], s['proc']) for s in after[::10][:12]]
+        return out
+    run.checks.append(check)
+    run.latency_from = [seek]
+
+
+def case_offset_prev(run: Run, env):
+    """Previous after an offset seek restarts the song at 0."""
+    offset_case_prologue(run)
+    song = env.backend.fresh_songs(1)[0]
+    duration_ms = int(song['duration']) * 1000
+    start_single(run, song)
+    run.observe(5.0)
+    with concurrent.futures.ThreadPoolExecutor(max_workers=4) as pool:
+        seek = issue_seek(run, pool, int(duration_ms * 0.5))
+        landed(run, seek)
+        finish_futures(run)
+        run.observe(5.0)
+        prev = nav(run, pool, 'prev')
+        wait_advanced(run, prev)
+        run.observe(8.0)
+    after = [s for s in run.samples if s['t'] >= prev['t'] and s['pos'] is not None]
+
+    def check():
+        out = oracle_seek(run, seek) + oracle_offset(run, [seek], run.quality != 'original')
+        restarted = next((s for s in after if s['pos'] < 2500 and s['proc'] == 'ready' and s['songId'] == song['id']), None)
+        if restarted is None:
+            out.append(violation('prevNoRestart', prev['t'], f"never back near 0; last pos={after[-1]['pos'] if after else None}", run))
+        else:
+            wrong = next((s for s in after if s['t'] >= restarted['t'] + 0.5 and s['t'] <= restarted['t'] + 7
+                          and s['pos'] > 2500 + (s['t'] - restarted['t']) * 1000 + 3000), None)
+            if wrong:
+                out.append(violation('prevJumpedBack', wrong['t'], f"pos={wrong['pos']} after the restart at {restarted['pos']}", run))
+            run.metrics['prevRestartedAfterS'] = round(restarted['t'] - prev['t'], 2)
+        return out
+    run.checks.append(check)
+
+
 CASE_FUNCS = {
     'seek_early': seek_case([0.3], play_s=0),
     'seek_pastdl': seek_case([0.92], play_s=0),
@@ -1986,6 +2237,10 @@ CASE_FUNCS = {
     'seek_back': seek_case([0.6, 0.15], sequential=True),
     'seek_burst': seek_case([0.3, 0.7, 0.45]),
     'seek_paused': seek_case([0.65], play_s=3.0, paused=True),
+    'offset_quick': seek_case([0.4, 0.2, 0.6]),
+    'offset_natural': case_offset_natural,
+    'offset_repeat_one': case_offset_repeat_one,
+    'offset_prev': case_offset_prev,
     'skip_next': case_skip_next,
     'skip_prev': case_skip_prev,
     'skip_rapid10': case_skip_rapid,
@@ -2073,8 +2328,14 @@ def run_one(app, backend, proxy, env, case: str, quality: str, throttle: str, re
     run._trace_seq = max([e['seq'] for e in baseline.get('transportTrace') or []] or [0])
     sampler.start()
     error = None
+    run.proxy_mark = proxy_mark
     try:
+        offset_case_prologue(run)
         CASE_FUNCS[case](run, env)
+        if VERIFY_OFFSET and case in ('seek_far', 'seek_back', 'seek_mid', 'seek_early', 'offset_quick'):
+            seeks = [a for a in run.actions if a['kind'] == 'seek']
+            judged = seeks[-1:] if case == 'offset_quick' else seeks
+            run.checks.append(lambda: oracle_offset(run, judged, quality != 'original'))
     except CaseAbort:
         pass
     except Exception as exc:  # harness or app failure: a failed case, kept visible
@@ -2340,12 +2601,16 @@ def main() -> int:
     parser.add_argument('--fixture-static-transcode', action='store_true',
                         help='fixture answers transcodes like a cached Navidrome: whole body, '
                              'Content-Length and byte ranges')
+    parser.add_argument('--verify-offset', action='store_true',
+                        help='1.5.1 offset-seek verification: seeks must take the transcodeOffset path on a '
+                             'transcode (and never on original), land within 3 s, and send timeOffset')
     parser.add_argument('--no-transcode-offset', action='store_true',
                         help='fixture does not advertise/honour transcodeOffset')
     args = parser.parse_args()
     global CROSSFADE_S, NATURAL_SONGS, NATURAL_FULL, LIVE_MAX_SONG_S, REPEAT_MODE, LIVE_REUSE_GROUPS, PRIME_SERVER_CACHE, SLOW_NEXT_S
     CROSSFADE_S = args.crossfade_s
     LIVE_REUSE_GROUPS, PRIME_SERVER_CACHE, SLOW_NEXT_S = args.live_reuse_groups, args.prime_server_cache, args.slow_next_s
+    VERIFY_OFFSET = args.verify_offset
     NATURAL_SONGS, NATURAL_FULL, LIVE_MAX_SONG_S, REPEAT_MODE = args.natural_songs, args.natural_full, args.live_max_song_s, args.repeat_mode
     if args.profile and args.server == 'fixture':
         credentials = {'url': 'http://127.0.0.1', 'username': 'diagnostics',
