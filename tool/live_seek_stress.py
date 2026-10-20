@@ -1245,7 +1245,8 @@ def oracle_progress_loss(run: Run, drop_ms=2000) -> list[dict]:
             continue
         if a['pos'] - b['pos'] <= drop_ms:
             continue
-        if _requested_at(run, b['t']) or _requested_at(run, b['t'] - 1.0) or song_end_near(samples, i):
+        asked = ('seek', 'prev', 'jump', 'next')  # a 'start' has no end time: its window would hide a rewind seconds in
+        if _requested_at(run, b['t'], asked) or _requested_at(run, b['t'] - 1.0, asked) or song_end_near(samples, i):
             continue
         out.append(violation('progressLoss', b['t'], f"{b['songId']} position {a['pos']}->{b['pos']} (offset {a.get('off')}->"
                              f"{b.get('off')}, proc {a['proc']}->{b['proc']}) with no seek or navigation in flight", run))
